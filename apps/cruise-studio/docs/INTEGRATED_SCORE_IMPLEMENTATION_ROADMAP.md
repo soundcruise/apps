@@ -1,3 +1,24 @@
+## Studio 0.38.1 — Melody Staff UX Polish Finalization
+
+既存topic上のpatch。Astra/OpusのP1を、共通tick/実測文字幅、1/2小節system、
+共通五線高さ、記号配置、入力中の明示pending、診断と曲/カポ表示で解消。
+不正stepはSessionで拒否し、公開ドレミ入力で受理されたMIDI範囲外データは変換段階で診断する。
+Node945 / 正式Browser442 PASS、FAIL/skip0（2026-10-15の新規実測）。
+8/32/64小節13.2/44.8/113.8ms、最大frame7.9ms、合成input同期処理0.9ms。
+schema1・shared write OFF・五線は画面previewのみ。実OS IMEと常設ルーペ/狭幅刷新は未完。
+[正式契約・P1/P2判断・試験詳細](MELODY_STAFF_PREVIEW.md)。次は実機確認と音価編集の正式契約。
+main統合・Pages公開は別工程。以下の0.38.0の数値は過去の記録。
+
+## 0.38.0 implementation status
+
+工程2のmelody staff previewをmemory-onlyで追加。4/4限定、既存Coreのfatal全体拒否を維持。
+ルーペ全体刷新・schema2・共通pagination・音価確認保存・Chord/Rhythm/TABは未実装。
+最新の限定範囲は[MELODY_STAFF_PREVIEW](MELODY_STAFF_PREVIEW.md)。
+正式Node942 / Browser437 PASS（2026-10-15、FAIL/skip0）。実SVG12ケースと欠落paint反例を追加。
+前回のselector不整合は試験側で解消し、再開時の製品コード変更なし。
+今後は実機IME/読みやすさ確認と共通配置・常設ルーペを進める。任意の跨拍連桁/跨小節tieは未対応。
+以下のレビュー由来ロードマップは将来契約として保持する。
+
 # Integrated Score — 実装ロードマップと受入境界
 
 Studio0.37.1 / 実装済みschema1。metadata保守commit `02a21d74a35e93d94a06b5827e1713fe5ae3efe0`。

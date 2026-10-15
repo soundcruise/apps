@@ -1,3 +1,33 @@
+## Studio 0.38.1 — Melody Staff UX Polish Finalization
+
+既存topic上のpatch。Astra/OpusのP1を、共通tick/実測文字幅、1/2小節system、
+共通五線高さ、記号配置、入力中の明示pending、診断と曲/カポ表示で解消。
+不正stepはSessionで拒否し、公開ドレミ入力で受理されたMIDI範囲外データは変換段階で診断する。
+Node945 / 正式Browser442 PASS、FAIL/skip0（2026-10-15の新規実測）。
+8/32/64小節13.2/44.8/113.8ms、最大frame7.9ms、合成input同期処理0.9ms。
+schema1・shared write OFF・五線は画面previewのみ。実OS IMEと常設ルーペ/狭幅刷新は未完。
+[正式契約・P1/P2判断・試験詳細](../docs/MELODY_STAFF_PREVIEW.md)。次は実機確認と音価編集の正式契約。
+main統合・Pages公開は別工程。以下の0.38.0の数値は過去の記録。
+
+## Studio 0.38.0 — Melody Staff Preview v1
+
+専用topicで実装。schema1維持・main公開なし。
+コード譜/メロディ譜の一時切替、4/4・480 PPQ・実音五線、調号/臨時記号/音価/休符/付点/タイ。
+小節単位の「音の長さ：自動を含む（由来未確認）」を保持。確認済み保存なし。
+Core成功＋正式source/isCurrentだけを採用。fatalを無視した部分描画なし。
+歌詞は元tickのまま、Chord/Rhythm/TABは未接続。入力DOMと描画境界を分離。
+既存印刷はコード譜を維持。五線は画面previewだけ。
+[実装契約](../docs/MELODY_STAFF_PREVIEW.md)。
+2026-10-15再開時の実測: Node **942 PASS**、正規Browser15＋conversion＋melody staff **437 PASS**。
+FAIL/skip 0、Console/404/禁止通信 0、No-write維持。保存schema1、他アプリversion不変更。
+8/32/64小節: 18.3/131.2/260.4ms、最大frame1.6ms。単一変更小節だけ再描画。
+257小節は14msでpreview-budget、2049文字は13msでpreview-text-budget。focusを保持し、保存0。
+前回FAILはVexFlow 4.2.3に存在しない.vf-accidental classへの依存。実glyph欠落ではなかった。
+今回の再開では製品コードを変更せず、test専用SVG観測と12ケース・実paint削除反例を追加。
+sharp/flat/natural/調号/同小節継続/小節リセット/octave/連桁/タイ/付点/休符を実Browser・画像で確認。
+未対応: 任意の跨拍連桁指定、跨小節tie、3連等30tick未満/非整合音価、五線の正式印刷、TAB/schema2。
+次工程: 実機IME/Safariと読みやすさの確認、常設ルーペ/共通layout/音価編集の契約。main反映は別承認。
+
 # Cruise Studio Project State
 
 ## Integrated Score正式設計文書化（2026-10-15）

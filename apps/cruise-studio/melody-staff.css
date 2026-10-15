@@ -1,0 +1,23 @@
+/* Screen projection only; engraving uses these same measured fonts in every theme. */
+.melody-page .melody-title { margin:0 0 4px; color:#29251f; }
+.melody-caption,.melody-status { color:#494238; font-size:13px; line-height:1.6; margin:4px 0 8px; }
+.melody-grid { display:block; }
+.melody-system { display:grid; width:100%; margin:0 0 16px; border-top:1px solid #8c7853; }
+.melody-page .melody-measure { min-width:0; min-height:0; padding:4px 0 6px; border:0; display:block; overflow:hidden; }
+.melody-bar-heading { color:#665d50; font-size:11px; padding:0 8px; height:20px; }
+.melody-scroll { overflow-x:auto; max-width:100%; scrollbar-color:#8c7853 #eee6d7; }
+.melody-bar-paper { position:relative; color:#29251f; }
+.melody-chords,.melody-lyrics { position:relative; height:22px; color:#29251f; }
+.melody-chords { font:600 16px Arial,sans-serif; }
+.melody-lyrics { font:14px Arial,sans-serif; }
+.melody-time-text { position:absolute; white-space:pre; }
+.melody-svg svg { display:block; overflow:visible; }
+.melody-unready .melody-bar-content { visibility:hidden; }
+.melody-pending .melody-status { font-weight:600; }
+.melody-details { font-size:12px; color:#665d50; margin-bottom:10px; }
+.melody-details pre { white-space:pre-wrap; }
+.melody-overflow-hint { font-size:11px; color:#665d50; padding:2px 8px; }
+.melody-print-fallback { display:none; }
+.staff-style-label { white-space:nowrap; font-size:13px; display:inline-flex; align-items:center; gap:6px; }
+#sc-score-style { color:var(--text-color); background:var(--panel-bg, var(--bg-color)); border:1px solid var(--line-color, #8c7853); border-radius:6px; padding:5px 8px; font:inherit; }
+@media print { .melody-page { display:none !important; } .melody-print-fallback { display:block !important; } }
