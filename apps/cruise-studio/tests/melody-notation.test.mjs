@@ -34,3 +34,25 @@ test('issued result stale after edit, Undo, A/B/A; projection never touches save
  session.runOperation('pitch',d=>d.bars[0].melody[0].step=2);assert(!service.isCurrent(old));const fresh=service.convert();session.undo();assert(!service.isCurrent(old));assert(!service.isCurrent(fresh));assert.equal(N.project(service.convert()).measures[0].tokens[0].pitch.midi,60);
  owner.select('B');const b=service.convert();owner.select('A');assert(!service.isCurrent(b));assert(!service.isCurrent(old));assert.equal(writes,0);
 });
+test('shared anchors satisfy musical and adjacent text constraints without moving time',()=>{
+ const notes=[{tick:0,left:18,right:24},{tick:240,left:0,right:24},{tick:480,left:12,right:24}];
+ const rows=[[{tick:0,width:180},{tick:480,width:170}],[{tick:120,width:220},{tick:240,width:190}]];
+ const before=JSON.stringify([notes,rows]),l=N.layout(notes,rows,90),x=t=>l.anchors.find(a=>a.tick===t).x;
+ assert(x(480)-x(0)>=192);assert(x(240)-x(120)>=232);assert(x(1920)-x(240)>=202);
+ assert(x(240)-x(0)>=36);assert.equal(JSON.stringify([notes,rows]),before);assert(Object.isFrozen(l.anchors));
+ const wide=N.layout(notes,rows,90,l.width+200);assert.equal(wide.width,l.width+200);assert(wide.anchors.every((a,i)=>i===0||a.x>wide.anchors[i-1].x));
+});
+test('unsupported tuplet keeps source bar for an actionable diagnostic',()=>{const p=project();p.bars[0].melody[0].durationTicks=160;const r=N.project(convert(p));assert.equal(r.code,'unsupported-duration-grid');assert.equal(r.barNumber,1);});
+test('session rejection and valid schema1 conversion diagnostics use separate public input paths',()=>{
+ const p=project(),revision=JSON.stringify(p);let writes=0;
+ const repository={read(){return {ok:true,exists:true,snapshot:E.snapshot(p),revision};},readRevision(){return {ok:true,exists:true,revision};},subscribe(){return()=>{};},canWrite(){return true;},save(){writes++;throw Error('unexpected write');}};
+ const registry=E.createRegistry({repository,validate:C.model.validateProject}),session=registry.getOrCreateSession('structure',{type:'project',projectId:p.projectId});registry.activateSession(session);
+ const state=()=>JSON.stringify({draft:session.workingSnapshot(),base:session.baseSnapshot,baseRevision:session.baseRevision,history:session.getHistory(),dirty:session.dirty,version:session.snapshotVersion});
+ const before=state(),rejected=session.runOperation('bad step',d=>d.bars[0].melody[0].step=7);
+ assert.equal(rejected.ok,false);assert.equal(rejected.code,'validation');assert.equal(state(),before);
+ const accepted=session.runOperation('public text entry',d=>C.model.setBarDoremiText(d,1,'ド↑↑↑↑↑↑ レ↑↑↑↑↑↑'));
+ assert(accepted.ok);assert(C.model.validateProject(session.workingSnapshot()).ok);
+ const converted=convert(session.workingSnapshot());assert.equal(converted.ok,false);
+ const duplicate=converted.diagnostics.filter(d=>d.code==='invalid-melody-pitch');assert.equal(duplicate.length,2);assert(duplicate.every(d=>d.severity==='fatal'&&d.sourceLocation.barIndex===0));
+ assert.equal(N.project(converted).ok,false);assert.equal(writes,0);assert.equal(session.baseRevision,revision);assert.deepEqual(session.baseSnapshot,E.snapshot(p));
+});

@@ -2793,6 +2793,19 @@
             els.slotOverlay.classList.add('hidden');
             els.slotOverlay.setAttribute('aria-hidden', 'true');
             document.body.classList.remove('dock-open');
+        } else if (staffStyle === 'melody') {
+            // Move only the existing Loupe surface; never replace its focused input DOM.
+            var staff = cell.querySelector('.melody-svg'), area = getLoupeSafeArea();
+            if (!staff) return;
+            var scoreRect = staff.getBoundingClientRect(), loupeRect = els.slotOverlay.getBoundingClientRect();
+            if (loupeRect.left < scoreRect.right && loupeRect.right > scoreRect.left &&
+                loupeRect.top < scoreRect.bottom && loupeRect.bottom > scoreRect.top) {
+                var below = scoreRect.bottom + 8, above = scoreRect.top - loupeRect.height - 8;
+                if (below + loupeRect.height <= area.bottom - area.bottomMargin) state.loupe.y = below;
+                else if (above >= area.top) state.loupe.y = above;
+                else return; // Low-height layout retains the existing movable editor.
+                applyLoupeGeometry();
+            }
         }
     }
 

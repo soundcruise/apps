@@ -9,7 +9,7 @@
         [360,'8',1],[240,'8',0],[180,'16',1],[120,'16',0],[90,'32',1],[60,'32',0],[30,'64',0]];
     var KEYS=['Cb','Gb','Db','Ab','Eb','Bb','F','C','G','D','A','E','B','F#','C#'];
     function freeze(x){if(x&&typeof x==='object'){Object.values(x).forEach(freeze);Object.freeze(x);}return x;}
-    function failure(code){return freeze({ok:false,code:code});}
+    function failure(code,barNumber){return freeze({ok:false,code:code,barNumber:barNumber});}
     function segment(onset,duration){
         if(!Number.isSafeInteger(onset)||!Number.isSafeInteger(duration)||onset<0||duration<=0||
             onset+duration>1920||onset%30||duration%30)return failure('unsupported-duration-grid');
@@ -38,7 +38,7 @@
             var cursor=0;
             for(var ev of sourceEvents){
                 if(ev.onsetTick!==cursor)return failure('invalid-voice-coverage');
-                var parts=segment(ev.onsetTick,ev.durationTicks);if(!parts.ok)return parts;
+                var parts=segment(ev.onsetTick,ev.durationTicks);if(!parts.ok)return failure(parts.code,bar.barNumber);
                 var isRest=ev.kind==='silence',pitch=ev.pitch;
                 if(!isRest&&(!pitch||!['C','D','E','F','G','A','B'].includes(pitch.step)||
                     !Number.isSafeInteger(pitch.octave)||!Number.isSafeInteger(pitch.alter)||Math.abs(pitch.alter)>2||
@@ -62,5 +62,22 @@
         return freeze({ok:true,source:JSON.parse(JSON.stringify(m.source)),key:m.keyContext.originalKey,
             capo:m.keyContext.capo,chordBasis:'Playキー（フォーム）',pitchBasis:'実音・移調なし',measures:measures});
     }
-    return Object.freeze({project:project,segment:segment,limits:LIMITS});
+    // Longest-path spacing constraints. Text and engraved notes share every time anchor.
+    // Metrics come from real VexFlow preformat + Canvas.measureText, never saved data.
+    function layout(notes, rows, leading, available) {
+        var ticks=Array.from(new Set([0,1920].concat(notes.map(function(n){return n.tick;}),
+            ...rows.map(function(row){return row.map(function(t){return t.tick;});})))).sort(function(a,b){return a-b;});
+        var edges=ticks.map(function(){return [];});
+        function edge(a,b,gap){edges[ticks.indexOf(b)].push({from:ticks.indexOf(a),gap:gap});}
+        for(var i=1;i<ticks.length;i++)edge(ticks[i-1],ticks[i],12);
+        notes.forEach(function(n,i){var next=notes[i+1];if(next)edge(n.tick,next.tick,n.right+next.left+12);
+            else edge(n.tick,1920,n.right+18);});
+        rows.forEach(function(row){row.forEach(function(t,i){var next=row[i+1];edge(t.tick,next?next.tick:1920,t.width+12);});});
+        var firstLeft=notes[0]?notes[0].left:0,x=[leading+firstLeft+8];
+        for(var j=1;j<ticks.length;j++)x[j]=Math.max.apply(null,edges[j].map(function(e){return x[e.from]+e.gap;}));
+        var minWidth=Math.ceil(x[x.length-1]+4),width=Math.max(minWidth,available||0),extra=width-minWidth;
+        var anchors=ticks.map(function(t,i){return {tick:t,x:x[i]+extra*t/1920};});
+        return freeze({width:width,minWidth:minWidth,anchors:anchors});
+    }
+    return Object.freeze({project:project,segment:segment,layout:layout,limits:LIMITS});
 });

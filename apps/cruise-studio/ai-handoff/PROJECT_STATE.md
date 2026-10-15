@@ -1,3 +1,14 @@
+## Studio 0.38.1 — Melody Staff UX Polish Finalization
+
+既存topic上のpatch。Astra/OpusのP1を、共通tick/実測文字幅、1/2小節system、
+共通五線高さ、記号配置、入力中の明示pending、診断と曲/カポ表示で解消。
+不正stepはSessionで拒否し、公開ドレミ入力で受理されたMIDI範囲外データは変換段階で診断する。
+Node945 / 正式Browser442 PASS、FAIL/skip0（2026-10-15の新規実測）。
+8/32/64小節13.2/44.8/113.8ms、最大frame7.9ms、合成input同期処理0.9ms。
+schema1・shared write OFF・五線は画面previewのみ。実OS IMEと常設ルーペ/狭幅刷新は未完。
+[正式契約・P1/P2判断・試験詳細](../docs/MELODY_STAFF_PREVIEW.md)。次は実機確認と音価編集の正式契約。
+main統合・Pages公開は別工程。以下の0.38.0の数値は過去の記録。
+
 ## Studio 0.38.0 — Melody Staff Preview v1
 
 専用topicで実装。schema1維持・main公開なし。

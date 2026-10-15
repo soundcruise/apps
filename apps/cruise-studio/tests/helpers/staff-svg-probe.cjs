@@ -75,6 +75,7 @@ function assertMeasure(actual,expected){
  for(const [kind,indices] of [['dots',expected.dots||[]],['flags',expected.flags||[]]]){
   const drawn=actual[kind].filter(painted);assert.deepEqual(drawn.map(g=>g.info.note),indices.map(i=>ids[i]),'exact painted '+kind+' owners');
  }
+ if(expected.signature===null){assert.equal(actual.signatures.length,0,'continuation bar has no repeated key signature');return;}
  assert.equal(actual.signatures.length,1);assert.equal(actual.signatures[0].info.key,expected.signature.key);
  assert.deepEqual(actual.signatures[0].glyphs,expected.signature.codes);
  if(expected.signature.codes.length)assert(painted(actual.signatures[0]),'painted key signature');
@@ -89,7 +90,7 @@ const cases=[
  {id:'G-F-natural-and-restore',key:'G',bars:[[note(0,960,6,-1,-1),note(960,960,6,0,-1)]],expected:[bar([written('f/4',960,0),written('f#/4',960,960)],[{note:0,type:'n'},{note:1,type:'#'}],{signature:{key:'G',codes:['accidentalSharp']}})]},
  {id:'F-B-natural-and-restore',key:'F',bars:[[note(0,960,3,1),note(960,960,3)]],expected:[bar([written('b/4',960,0),written('bb/4',960,960)],[{note:0,type:'n'},{note:1,type:'b'}],{signature:{key:'F',codes:['accidentalFlat']}})]},
  {id:'accidental-continuation',key:'C',bars:[[note(0,480,3,1),note(480,480,3,1),note(960,480,3),note(1440,480,3)]],expected:[bar([written('f#/4',480,0),written('f#/4',480,480),written('f/4',480,960),written('f/4',480,1440)],[{note:0,type:'#'},{note:2,type:'n'}])]},
- {id:'barline-resets-accidentals',key:'C',bars:[[note(0,1920,3,1)],[note(0,1920,3)],[note(0,1920,3,1)]],expected:[bar([written('f#/4',1920,0)],[{note:0,type:'#'}]),bar([written('f/4',1920,0)]),bar([written('f#/4',1920,0)],[{note:0,type:'#'}])]},
+ {id:'barline-resets-accidentals',key:'C',bars:[[note(0,1920,3,1)],[note(0,1920,3)],[note(0,1920,3,1)]],expected:[bar([written('f#/4',1920,0)],[{note:0,type:'#'}]),bar([written('f/4',1920,0)],[],{signature:null}),bar([written('f#/4',1920,0)],[{note:0,type:'#'}])]},
  {id:'octave-local-accidentals',key:'C',bars:[[note(0,480,3,1),note(480,480,3,0,1),note(960,960,3)]],expected:[bar([written('f#/4',480,0),written('f/5',480,480),written('f/4',960,960)],[{note:0,type:'#'},{note:2,type:'n'}])]},
  {id:'eighth-note-beams',key:'C',bars:[[note(0,240),note(240,240,1),note(480,240,2),note(720,240,3)]],expected:[bar([written('c/4',240,0),written('d/4',240,240),written('e/4',240,480),written('f/4',240,720),rest(960,960)],[],{beams:[[0,1],[2,3]]})]},
  {id:'beam-beat-boundary',key:'C',bars:[[note(240,240),note(480,240,1)]],expected:[bar([rest(240,0),written('c/4',240,240),written('d/4',240,480),rest(240,720),rest(960,960)],[],{flags:[1,2]})]},
