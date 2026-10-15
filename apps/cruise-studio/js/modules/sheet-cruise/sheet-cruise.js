@@ -87,6 +87,22 @@
         project: { get: function () { return state.session ? state.session.draft : null; } },
         dirty: { get: function () { return !!(state.session && state.session.dirty); } }
     });
+    var staffStyle = 'code', staffView = null;
+    function staffRequest() {
+        if (staffStyle !== 'melody' || !state.active || !state.project) return;
+        if (!staffView) staffView = CS().melodyStaff.create({ host: els.scaleBox,
+            active: function () { return staffStyle === 'melody' && state.active; },
+            onLayout: function () { updateSheetScale(); syncSheetSelection(true); }
+        });
+        staffView.render(state.project);
+    }
+    function prepareCodePrint() {
+        if (staffStyle !== 'melody' || !state.project) return;
+        var previous = els.scaleBox.querySelector('.melody-print-fallback');
+        if (previous) previous.remove();
+        var fallback = document.createElement('div'); fallback.className = 'melody-print-fallback';
+        CS().sheetRenderer.render(state.project, fallback); els.scaleBox.appendChild(fallback);
+    }
     var projectViews = new Map();
     var operationAdapter = null, structureIdentity = null, publishedBars = null, focusEpoch = 0;
     function contentFrame() {
@@ -701,7 +717,8 @@
 
     function renderPreview(preserveInputs) {
         if (preserveInputs) state.overlayRefreshRequested = false;
-        CS().sheetRenderer.render(state.project, els.scaleBox);
+        if (staffStyle === 'melody') staffRequest();
+        else CS().sheetRenderer.render(state.project, els.scaleBox);
         updateSheetScale();
         syncSheetSelection(preserveInputs);
         // 画面切替直後は clientWidth が 0 のことがあるため、表示後にもう一度合わせる
@@ -2889,6 +2906,7 @@
     function printSheet() {
         readFormIntoProject();
         renderPreview();
+        prepareCodePrint();
         window.print();
     }
 
@@ -2984,6 +3002,7 @@
         state.active = true;
         refreshHistoryControls();
         publishSelection();
+        staffRequest();
         if (state.workspaceScroll && CS().scroll) {
             CS().scroll.restorePosition('sheetCruise', state.workspaceScroll);
         }
@@ -3000,6 +3019,7 @@
         var focused = document.activeElement;
         state.workspaceFocus = els.root && els.root.contains(focused) ? focused : null;
         state.active = false;
+        if (staffView) staffView.invalidate('五線プレビューは再表示待ちです');
         refreshHistoryControls();
         publishSelection();
         if (state.overlayFrame) window.cancelAnimationFrame(state.overlayFrame);
@@ -3097,12 +3117,24 @@
             if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)) redrawSession(structureChanged);
             refreshSessionStatus();
             publishSelection();
+            staffRequest();
         });
         q('sc-adopt-external').addEventListener('click', function () {
             var session = state.session;
             if (!window.confirm('編集中の変更を破棄して、最新の保存済みprojectを採用しますか？')) return;
             session.adoptExternal().then(function (result) { if (!result.ok && state.session === session) setSaveStatus(result.error, true); });
         });
+        q('sc-score-style').addEventListener('change', function (event) {
+            if (!operationEligible()) { event.target.value = staffStyle; return; }
+            staffStyle = event.target.value === 'melody' ? 'melody' : 'code';
+            if (staffView) staffView.invalidate();
+            renderPreview(true);
+        });
+        q('sc-staff-refresh').addEventListener('click', staffRequest);
+        els.root.addEventListener('compositionend', function () { window.setTimeout(staffRequest, 0); });
+        els.root.addEventListener('focusin', function () { if (staffStyle === 'melody') staffRequest(); });
+        window.addEventListener('beforeprint', prepareCodePrint);
+        window.addEventListener('afterprint', function () { var f = els.scaleBox.querySelector('.melody-print-fallback'); if (f) f.remove(); });
         els.printBtn.addEventListener('click', printSheet);
         els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
         els.importInput.addEventListener('change', onImportJsonFile);
@@ -3154,6 +3186,7 @@
         openProject: openProject,
         getSelectionSnapshot: getSelectionSnapshot,
         subscribeSelection: function (fn) { selectionListeners.add(fn); return function () { selectionListeners.delete(fn); }; },
+        getStaffMetrics: function () { return staffView ? staffView.metrics() : null; },
         commitSession: commitSession,
         canLeave: canLeave
     };

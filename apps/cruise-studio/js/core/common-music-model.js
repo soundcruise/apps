@@ -92,10 +92,17 @@
             p.bars.forEach(function (bar, bi) {
                 var melody = [], harmony = [], strokes = [], silence = [], start = bi * 1920;
                 var measure = { index: bi, barNumber: bar.barNumber, sectionId: bar.sectionId, startTick: start, lengthTicks: 1920,
-                    meter: { beats: 4, beatUnit: 4 }, harmony: harmony,
+                    meter: { beats: 4, beatUnit: 4 }, harmony: harmony, lyrics: [],
                     voices: { melody: { events: melody, silentIntervals: silence }, guitar: { events: strokes,
                         form: null, stringFret: null, struckStrings: null, fingering: null, voicing: null } } };
                 measures.push(measure);
+                (Array.isArray(bar.lyrics) ? bar.lyrics : []).forEach(function (ev, ei) {
+                    var loc = location(bi, 'lyrics', ei);
+                    if (!Number.isSafeInteger(ev?.tick) || ev.tick < 0 || ev.tick >= 1920 || typeof ev.text !== 'string') {
+                        issue('invalid-lyrics', 'fatal', loc); return;
+                    }
+                    measure.lyrics.push({ onsetTick: ev.tick, text: ev.text, sourceLocation: loc, provenance: provenance(loc) });
+                });
                 bar.melody.forEach(function (ev, ei) {
                     var loc = location(bi, 'melody', ei); if (!timing(ev, loc, false)) return;
                     if (!Number.isSafeInteger(ev.step) || ev.step < 0 || ev.step > 6 || !Number.isSafeInteger(ev.alter)) { issue('invalid-melody-pitch', 'fatal', loc); return; }

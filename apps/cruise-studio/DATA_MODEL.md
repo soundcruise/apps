@@ -211,7 +211,7 @@ JSONファイル書き出しは StudioProject をそのまま整形出力する�
 - 変換ロジックは削除しない（過去のどの保存データも開けることを保証する）
 
 
-## 派生Common Music Model v1（Studio 0.37.1）
+## 派生Common Music Model v1（Studio 0.38.0）
 
 [正式契約](docs/COMMON_MUSIC_MODEL.md)。StudioProject schema1は不変更。
 modelVersion1はmemory-only派生モデルの版であり、projectへ新fieldを保存しない。
@@ -220,6 +220,6 @@ Structure sessionのworking snapshotからmelody/harmony/guitar strokeを生成�
 音高は既存式、綴りはChord pure owner。formPitchとcapo後実音pitchを分離、scaleはlegacy-major-solfegeでminor chordから変更しない。
 source identity/generation＋barIndex/eventType/eventIndexを保持し、indexをsnapshot越しのstable IDとしない。
 legacy由来の保存値やUI自動割当をユーザー確認済みと扱わずprovenanceに明示。fatal/warning/unresolvedを分離する。
-未確定voicing/string-fret/使用弦/運指はnull、Rhythm/Chord実接続と五線譜/TAB描画は後続。
+未確定voicing/string-fret/使用弦/運指はnull、Rhythm/Chord実接続とTAB描画は後続。五線は[Melody Staff Preview](docs/MELODY_STAFF_PREVIEW.md)としてmemory-only表示する。
 変換予算・immutable output・readonly readiness・古いresult拒否は正式契約参照。
 将来の演奏snapshot永続化は別schema/migration契約で行い、表示専用fieldの例外を流用しない。

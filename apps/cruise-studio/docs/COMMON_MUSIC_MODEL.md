@@ -1,5 +1,6 @@
 # Common Music Model + Structure Read-only Conversion Core v1
 
+現行0.38.0では[Melody Staff Preview](MELODY_STAFF_PREVIEW.md)が成功結果だけを読む。以下の0.37.0時点の未接続記述はCore導入時の履歴で、歌詞の加算契約は末尾参照。
 Studio 0.37.0。memory-onlyの新しい変換APIとしてminor更新。StudioProject schema1・Port1.22.18・Chord1.20.1・Rhythm1.19.1不変。
 Structure Editing Sessionが編集の正本。共通modelVersion1は保存schemaVersionとは別の派生モデルであり、第二draft/dataset/historyを持たない。
 五線譜/TAB描画、フォーム選択、Rhythm公式preset接続、永続保存、Pro/Account/Sync/Authority/Transportは未接続。
@@ -84,3 +85,11 @@ converter/serviceはDOM描画、repository save、Port/Chord/Rhythm storage、Au
 Nodeでは音高/綴り、timing、source、budget、readonly lifecycle、実MIDI bytes不変を検証する。
 Browserでは現在draft/Undo/Redo/A-B/workspace/IME/Modal/focus/print/Themes/no-write/console/404と正規15 suiteを検証する。
 旧Host単独補助試験のhidden Start既知FAILは別記録のまま。実OS IME/Safari/プリンター/DAWはこのCore工程の実測対象外。
+
+## Melody Staff Preview v1 additive reader contract (0.38.0)
+
+modelVersion1/schema1不変。各measureにliteral `lyrics`配列を追加する。
+onsetTick/text/sourceLocation/provenanceだけを複製し、音符への割当は作らない。
+小数・範囲外tick／非文字列はfatal。従来のok:false全体拒否契約を維持する。
+[五線preview](MELODY_STAFF_PREVIEW.md)は成功resultとisCurrentを必要とし、
+30tickで表現できない音価等は自身のunsupportedとして表示し、Coreの成功を完成譜と呼ばない。

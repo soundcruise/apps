@@ -1,3 +1,13 @@
+## 0.38.0 implementation status
+
+工程2のmelody staff previewをmemory-onlyで追加。4/4限定、既存Coreのfatal全体拒否を維持。
+ルーペ全体刷新・schema2・共通pagination・音価確認保存・Chord/Rhythm/TABは未実装。
+最新の限定範囲は[MELODY_STAFF_PREVIEW](MELODY_STAFF_PREVIEW.md)。
+正式Node942 / Browser437 PASS（2026-10-15、FAIL/skip0）。実SVG12ケースと欠落paint反例を追加。
+前回のselector不整合は試験側で解消し、再開時の製品コード変更なし。
+今後は実機IME/読みやすさ確認と共通配置・常設ルーペを進める。任意の跨拍連桁/跨小節tieは未対応。
+以下のレビュー由来ロードマップは将来契約として保持する。
+
 # Integrated Score — 実装ロードマップと受入境界
 
 Studio0.37.1 / 実装済みschema1。metadata保守commit `02a21d74a35e93d94a06b5827e1713fe5ae3efe0`。
