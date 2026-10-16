@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { webcrypto } from 'node:crypto';
-import { createChordFormAdapter } from '../js/modules/chord/form-adapter.mjs';
+import { createChordFormAdapter, CHORD_FORM_ADAPTER_VERSION } from '../js/modules/chord/form-adapter.mjs';
 const read = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const clone = x => JSON.parse(JSON.stringify(x));
 const tuningMidi = [64, 59, 55, 50, 45, 40];
@@ -159,13 +159,16 @@ test('raw project, real Editing Session history/base/draft/undo/redo and schema 
     assert.equal(CS.model.validateProject(s.workingSnapshot()).ok, true);
     const state = () => JSON.stringify({ draft: s.draft, working: s.workingSnapshot(), base: s.baseSnapshot, revision: s.baseRevision,
         dirty: s.dirty, history: s.getHistory(), canUndo: s.canUndo(), canRedo: s.canRedo(), sessionId: s.sessionId });
-    const inputs = ['C', 'C6', 'C/E', 'Cadd9'].map(symbol => query(symbol)), inputBefore = JSON.stringify(inputs);
+    const inputs = [query('C'), query('C6'), query('C/E', { playedStrings: [1, 2, 3, 4] }), query('Cadd9'),
+        query('C/G', { playedStrings: [1, 2, 3] }), query('D/F#', { capo: 2, playedStrings: [1, 2, 3, 4] })];
+    const inputBefore = JSON.stringify(inputs);
     const ownerBefore = JSON.stringify(f.options.caged.FORMS), before = state();
     const results = inputs.map(input => f.adapter.resolve(input));
     // These assertions prove that the real adapter/owner path ran, including unresolved cases.
     assert(results[0].display.possible && results[0].completeness.complete);
     assert(results[1].completeness.reasons.includes('sixth-overlay-unresolved'));
     assert(results[2].completeness.reasons.includes('slash-bass-unresolved'));
+    assert(results[2].performance.voicingUsable && results[4].performance.voicingUsable && results[5].performance.voicingUsable);
     assert.deepEqual(results[3].display.reasons, ['unsupported-quality']);
     assert.equal(state(), before); assert.equal(JSON.stringify(project), raw); assert.equal(saves, 0);
     assert.equal(JSON.stringify(inputs), inputBefore); assert.equal(JSON.stringify(f.options.caged.FORMS), ownerBefore);
@@ -245,4 +248,108 @@ test('P2-2 released owner catalogue retains every available full-range diagram',
         }
     }
     assert.equal(checked, 480); assert.equal(barreCount, 259);
+});
+
+// Independent concert-pitch expectations, not computed from adapter output.
+const slashCases = [
+    { symbol: 'C/E', capo: 0, playedStrings: [1, 2, 3, 4], midi: [52, 55, 60, 64], pcs: [0, 4, 7], bass: 52 },
+    { symbol: 'C/G', capo: 0, playedStrings: [1, 2, 3], midi: [55, 60, 64], pcs: [0, 4, 7], bass: 55 },
+    { symbol: 'D/F#', capo: 2, playedStrings: [1, 2, 3, 4], midi: [54, 57, 62, 66], pcs: [2, 6, 9], bass: 54 }
+];
+for (const c of slashCases) test('P2-1 explicit voicing resolves ' + c.symbol + ' capo ' + c.capo, () => {
+    const r = fixture().adapter.resolve(query(c.symbol, c));
+    assert(r.display.possible); assert.equal(r.completeness.complete, false);
+    assert.deepEqual(r.completeness.reasons, ['slash-bass-unresolved']);
+    const played = r.form.notes.filter(n => c.playedStrings.includes(n.string));
+    assert.deepEqual(played.map(n => n.soundingMidi).sort((a, b) => a - b), c.midi);
+    assert.deepEqual([...new Set(played.map(n => n.pitchClass))].sort((a, b) => a - b), c.pcs);
+    assert.equal(Math.min(...played.map(n => n.soundingMidi)), c.bass);
+    assert(r.performance.voicingUsable); assert.deepEqual(r.performance.reasons, []);
+    assert.equal(r.performance.scope, 'voicing-only'); assert.equal(r.provenance.adoption, 'unconfirmed');
+    assert.equal(CHORD_FORM_ADAPTER_VERSION, '2'); assert.equal(r.provenance.adapterVersion, '2');
+});
+for (const [symbol, playedStrings, reason] of [
+    ['C/E', null, 'played-strings-unconfirmed'], ['C/E', [1, 2, 3, 4, 6], 'played-string-not-in-form'],
+    ['C/E', [1, 2, 3, 4, 5], 'played-bass-mismatch'], ['C/G', [1, 2], 'played-tones-incomplete'],
+    ['Am7/G', [1, 2, 3], 'played-tones-incomplete']
+]) test('P2-1 explicit voicing rejects ' + symbol + ' ' + JSON.stringify(playedStrings), () => {
+    const r = fixture().adapter.resolve(query(symbol, { playedStrings }));
+    assert(r.display.possible); assert(!r.performance.voicingUsable); assert(r.performance.reasons.includes(reason));
+});
+test('P2-1 root bass is also rechecked from explicit strings, never changes full-form completeness', () => {
+    // A structurally valid owner C form with an additional low open E: the explicit
+    // 1–5 string voicing is C/E/G, with low C48. No recommendation is generated here.
+    const a = altered(r => { r.notes.push({ string: 6, fret: 0, interval: 4, finger: null, fingeringWarning: false }); r.mutedStrings = []; });
+    const r = a.resolve(query('C', { playedStrings: [1, 2, 3, 4, 5] }));
+    assert(r.display.possible); assert.deepEqual(r.completeness.reasons, ['root-bass-unresolved']);
+    assert.equal(r.completeness.complete, false); assert(r.performance.voicingUsable);
+    assert.deepEqual(r.form.notes.filter(n => r.request.playedStrings.includes(n.string)).map(n => n.soundingMidi).sort((a, b) => a - b), [48, 52, 55, 60, 64]);
+});
+test('P2-1 a valid played subset cannot rescue an owner partial form', () => {
+    const r = fixture().adapter.resolve(query('C/E', { playedStrings: [1, 2, 3, 4], generation: { minRelativeFret: 0, maxRelativeFret: 2 } }));
+    assert(r.display.possible); assert.deepEqual(r.form.notes.map(n => n.soundingMidi).sort((a, b) => a - b), [52, 55, 60, 64]);
+    assert(!r.performance.voicingUsable); assert(r.performance.reasons.includes('owner-partial-form'));
+});
+for (const [name, mutate, reason] of [
+    ['unconfirmed omission', r => { delete r.hasOutOfRangeNotes; delete r.omittedNoteCount; delete r.outOfRangeNotes; }, 'owner-completeness-unconfirmed'],
+    ['unknown unused string', r => { r.notes = r.notes.filter(n => n.string !== 5); }, 'string-states-unconfirmed'],
+    ['required tone missing', r => { r.notes = r.notes.filter(n => n.string !== 3); r.mutedStrings.push(3); }, 'missing-required-tones'],
+    ['unintended unused tone', r => { const n = r.notes.find(n => n.string === 5); n.fret = 4; n.interval = 1; }, 'unintended-tones']
+]) test('P2-1 shared rejection remains: ' + name, () => {
+    const r = altered(mutate).resolve(query('C/E', { playedStrings: [1, 2, 3, 4] }));
+    assert(r.display.possible); assert(r.completeness.reasons.includes(reason)); assert(!r.performance.voicingUsable); assert(r.performance.reasons.includes(reason));
+});
+for (const symbol of ['C6', 'Am6']) test('P2-1 sixth overlay absence is still a shared rejection: ' + symbol, () => {
+    const r = fixture().adapter.resolve(query(symbol, { playedStrings: [1, 2, 3, 4] }));
+    assert(r.display.possible); assert(!r.performance.voicingUsable); assert(r.performance.reasons.includes('sixth-overlay-unresolved'));
+});
+for (const used of [true, false]) test('P2-1 fingering warning applies only to played notes: ' + used, () => {
+    const r = altered(r => r.notes.find(n => n.string === (used ? 4 : 5)).fingeringWarning = true)
+        .resolve(query('C/E', { playedStrings: [1, 2, 3, 4] }));
+    assert(r.display.possible); assert.equal(r.performance.voicingUsable, !used);
+    assert.equal(r.form.notes.find(n => n.string === (used ? 4 : 5)).fingeringWarning, true);
+    assert.equal(r.performance.reasons.includes('playability-unconfirmed'), used);
+});
+for (const [name, mutate] of [
+    ['global warning', r => { r.warning = 'Unused string warning: applicability is not inferred'; }],
+    ['limited', r => { r.playability = 'limited'; }], ['unknown', r => { delete r.playability; }]
+]) test('P2-1 global warning/playability cannot be waived: ' + name, () => {
+    const r = altered(r => { r.notes.find(n => n.string === 5).fingeringWarning = true; mutate(r); })
+        .resolve(query('C/E', { playedStrings: [1, 2, 3, 4] }));
+    assert(r.display.possible); assert(!r.performance.voicingUsable); assert(r.performance.reasons.includes('playability-unconfirmed'));
+});
+test('P2-1 unknown finger alone retains usable voicing and unconfirmed fingering information', () => {
+    const r = altered(r => { r.notes.forEach(n => n.finger = null); r.fingeringStatus = 'undefined'; })
+        .resolve(query('C/E', { playedStrings: [1, 2, 3, 4] }));
+    assert(r.performance.voicingUsable); assert.equal(r.form.fingeringStatus, 'undefined'); assert(r.form.notes.every(n => n.finger === null));
+});
+test('P2-1 valid result cannot leak into the next invalid request or mutate prior frozen data', () => {
+    const a = fixture().adapter, good = a.resolve(query('C/E', { playedStrings: [1, 2, 3, 4] })), before = JSON.stringify(good);
+    assert(good.performance.voicingUsable);
+    for (const [extra, display] of [[{ capo: -1 }, false], [{ generation: { minRelativeFret: 0, maxRelativeFret: 25 } }, false], [{ playedStrings: [6] }, true]]) {
+        const bad = a.resolve(query('C/E', extra)); assert(!bad.performance.voicingUsable); assert.equal(bad.display.possible, display); assert.notEqual(bad, good);
+    }
+    assert.equal(JSON.stringify(good), before); assert(Object.isFrozen(good.form.notes[0]));
+});
+test('P2-1 new voicing path still rejects pitch contradiction and invalid owner barre', () => {
+    const mismatch = altered(r => r.notes.find(n => n.string === 5).interval = 1)
+        .resolve(query('C/E', { playedStrings: [1, 2, 3, 4] }));
+    assert(!mismatch.display.possible); assert.deepEqual(mismatch.display.reasons, ['owner-pitch-mismatch']);
+    const bad = altered(() => {}, { detectBarres: () => [{ finger: 1, fret: 1, fromString: 6, toString: 1 }] })
+        .resolve(query('C/E', { playedStrings: [1, 2, 3, 4] }));
+    assert(!bad.display.possible); assert.deepEqual(bad.display.reasons, ['invalid-owner-barres']);
+});
+test('P2-1 data guards reject getters/toJSON/invalid numbers without invoking ordinary data hooks', () => {
+    let invoked = 0;
+    const a = fixture().adapter;
+    const getter = query('C/E', { playedStrings: [1, 2, 3, 4] });
+    Object.defineProperty(getter, 'capo', { enumerable: true, get() { invoked++; return 0; } });
+    const json = query('C/E', { playedStrings: [1, 2, 3, 4], toJSON() { invoked++; return {}; } });
+    for (const input of [getter, json, query('C/E', { capo: NaN }), query('C/E', { maxAbsoluteFret: Infinity })]) {
+        const r = a.resolve(input); assert(!r.display.possible && !r.performance.voicingUsable);
+    }
+    const ownerGetter = altered(r => Object.defineProperty(r, 'notes', { enumerable: true, get() { invoked++; return []; } }));
+    const ownerJson = altered(r => r.toJSON = () => { invoked++; return {}; });
+    for (const adapter of [ownerGetter, ownerJson]) assert(!adapter.resolve(query('C/E', { playedStrings: [1, 2, 3, 4] })).display.possible);
+    assert.equal(invoked, 0);
 });
