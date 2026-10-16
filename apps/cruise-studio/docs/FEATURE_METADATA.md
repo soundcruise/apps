@@ -24,9 +24,9 @@
 | pitch-cruise | 2.30.0 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.25.0 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.20.0 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.40.0 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.40.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
-Studio 0.40.0候補のversion/cacheを整合。Project schemaVersion=2。M2/M3は既存topic内で検証し、Port 1.23.1とのF3整合は最新main統合前の別工程とする。
+Studio 0.40.1候補のversion/cacheを整合。Project schemaVersion=2。M2/M3は既存topic内で検証し、Port 1.23.1とのF3整合は最新main統合前の別工程とする。
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -36,7 +36,7 @@ classic scriptの実行、eval、filesystem、network、DOM、storageには接�
 対応する宣言は同一行の単純なVersion文字列literalと終端`;`に限定し、継続式・式initializer・`;`省略・未対応の字句形式は検証失敗として扱う。
 
 appVersionとstorage schema、Sync schema、API version、asset/module cache key、release commit/buildは別物。
-schemaRefは種類・source・symbolだけを指す。Studio schemaは1、Metronome保存schemaは3で、appVersionではない。
+schemaRefは種類・source・symbolだけを指す。Studio schemaは2、Metronome保存schemaは3で、appVersionではない。
 API / backend versionやbuildの推測値は登録しない。独立componentは必要な工程で追加できる。
 
 ### Importとcache

@@ -1,6 +1,39 @@
-# Melody Duration & Rest Editing M2/M3 — Studio 0.40.0候補
+# Melody Duration & Rest Editing M2/M3 — Studio 0.40.1候補
 
 実装基準は M1 `62c7e5f789ff175bd70724c93f9ecb8aa739cccc`、Project schemaVersion=2。正式設計は [Astra契約](MELODY_DURATION_REST_CONTRACT.md)、M1の保存・serialization・受入は [Schema 2](SCHEMA2_FOUNDATION.md)。本工程は既存topic内の機能追加であり、main統合・本番公開は別工程。
+
+## Studio 0.40.1 — Render Readiness Recovery & Final Acceptance（2026-10-16）
+
+開始HEAD/remote topicは1382f684818d6dd7f89886274ef76062c7ec1ec4、remote mainは7cf2f02a65e05198cceead49d0d31df14ccfd8ae。前回停止時の31 tracked＋新規試験3ファイルは全hash一致で保護し、既存worktree/topicを継続した。Project schemaVersion=2。
+
+保存容量P1は、元入力のdescriptor/validator検査→clone→updatedAt/appVersion適用→正式validatorによる最終candidate検証→exact raw revision再確認→書込み、の順に修正。上限8MiBはJSON文字数×2で測る。metadataの増加で超過する場合はProject/indexへのwrite0、draft/base/revision/dirty/履歴不変。上限直前/ちょうど、timestamp/appVersion増加、migration後保存、Session、実Saveボタンと再読込をNode17件＋Browser7条件で確認した。F1/F2・quota/result-unknown・Undo容量を緩めない。
+
+768px timeoutは製品rendererの未復帰ではなく、試験が幅を変えて同じproject IDへ新rawを再投入したことによるexternal-revision拒否だった。独立contextの768px×4テーマ、390/769/1024/1279/1280/1440は正常。診断ではfixture/Session/source/project/document・workspace世代/epoch/RAF/resize/theme/focus/CMM/isCurrent/projection/SVG/readyを時系列記録し、再利用反例では古い描画を採用しないことを確認。製品ready条件や30秒timeoutは緩めず、QAを条件別context・固有IDにし、project/session/snapshot/document/workspace identityをreadyで完全照合する。renderer製品コードは変更していない。
+
+狭幅Inspectorはmainの下端へ高さ最大360px/表示領域40%で固定し、scroll余白を予約する。選択音符をtoolbarとInspectorの間へ移動し、Loupeのsafe areaからInspectorを除く。1440/1920は既存側面配置。同一対象のinput DOMを保持し、閉鎖/resize/disposeのgeometry処理も音楽データを変更しない。
+
+今回のNode全suite 1156 PASS、正式15＋Structure conversion/staff/schema2/M2-M3＋追加2のBrowser21ファイル 548 PASS。FAIL/skip/cancelled0。390/768/1440/1920×8/64/128×4テーマの48条件で通常click、note/rest/gap、音価/onset、部分/小節確認、Undo/Redo、toolbar回避、focus、CDP composition/caret、scroll、PNG/geometryを確認。force clickなし。保存拒否・編集はNo-write、明示SaveはProject/index各1件。既存M2/Schema2のreloadを越えるledgerを維持し、新規QAもledgerをresetせずfixture境界以降を検査する。Console/404/禁止通信0。正式443Hz WAV、独立loopbackと使い捨てChromeだけを使用。
+
+### 今回の性能
+
+Chrome 155.0.8059.82 / Node v24.14.0 / darwin arm64、1440×1000、warmup3＋各20sample、同じfixtureの0.38.1 baseline。回帰と測定は同時実行しない。64小節16ms/500ms gate PASS、128は追加耐久。同期編集はcommand処理時間であり操作全体の時間ではない。
+
+| 小節 | 同期編集 p95 保存前/後 ms | 五線 p95 保存前/後 ms |
+|---:|---:|---:|
+| 8 | 1.9/2.0 | 16.2/15.6 |
+| 32 | 6.4/5.9 | 45.3/45.3 |
+| 64 | 12.8/12.8 | 105.1/104.6 |
+| 128 | 23.6/24.0 | 270.8/275.1 |
+
+上限付近のSession保存はwarmup3＋20sampleで成功 p95 61.8ms、超過拒否 p95 15.3ms。成功後はreader一致、拒否時はdirty/base維持。補助計測の初回は、元の曲名に戻して既にdirty=falseのケースへdirty=trueを要求して失敗した。初回記録をcapacity-first-*に保全し、直前/直後のdraft/base/revision/dirty/history/raw/index全体の一致へ訂正して再測定した。拒否前のdirty=true/falseの双方がそのまま維持される。通常64小節の同期編集16msを8MiB保存へ転用しない。CMMのbaseline概ね1.5倍という比較目安は別評価であり、絶対時間gate PASSだけで全面達成とはしない。原文のDTO/履歴混入・RangeError・異常増幅の既存反例も再実行した。
+
+### 受入範囲と残件
+
+正式35項目は既存の対応表を継続し、11/21/31へ最終candidate容量反例、1–10/19/25/27/28/33/34へ新狭幅QAを追加。16はmetadata/移行の実音保持までの部分対応であり、明示key/capo移調UIは未実装。19の実OS日本語IME/Safari、23の実プリンター、29の実容量超過UI案内、32の専用原文復元UIは未検証/後続として区別する。35項目全体を製品完成PASSとは呼ばない。
+
+F3はmainのPort1.23.1に対する別統合工程。topicのPort正式source/import cache1.23.0を維持し、他ownerへ変更を広げない。main統合/Pages本番公開なし。Git safetyの元clean baseline/baseと個別manifestを維持する。development/commit/postcommit、commit後Node、fresh topic push gateの実結果・commit SHA・通常push結果はrepo外final-receipt.jsonを正とし、実行前の成功を記載しない。
+
+証拠: `/Users/murakamimasakuni/.codex/visualizations/2026/10/14/01a13a33-b638-7f83-93d9-945d43b59e03/studio-0401-render-readiness-20261016`（resume-start/start-files/start.patch、ready-diagnosis、Node/Browser logs、narrow-geometry/PNG、budget-ui、ledger、performance全sample/gate、capacity-performance、Git gates/final receipt）。以下に現行仕様・35項目対応表と、旧版の計測記録を分けて示す。
 
 ## 所有と選択
 
@@ -12,7 +45,7 @@ rendererは公開を許可されたconversion結果のsource stampと元eventを
 
 ## Inspectorと非リップル編集
 
-広幅では紙面の隣、狭幅では紙面の下へ配置し、五線を覆わない。選択小節・拍位置・実音/休符・開始tick・音価・属性別確認を表示する。同じ対象の操作中はInspector入力DOMを保持する。note/rest種別の変更時だけ当該Inspectorを再構築し、既存ルーペDOMを触らない。
+広幅では紙面の隣、狭幅ではmain下端に高さ制限したパネルを配置する。scroll余白を予約し、選択音符をtoolbarとパネルの間に保つ。選択小節・拍位置・実音/休符・開始tick・音価・属性別確認を表示する。同じ対象の操作中はInspector入力DOMを保持する。note/rest種別の変更時だけ当該Inspectorを再構築し、既存ルーペDOMを触らない。
 
 | UI | M1正式command |
 |---|---|
@@ -71,11 +104,11 @@ Storage/IDBの全履歴をrunner側ledgerへ追記し、reloadでもclear/reset�
 
 前回のappSettings 1件はtheme apply自体ではなく、最初の390pxへのviewport縮小が既存ルーペ幅を再clampした結果。storage.setAppSetting→saveLoupeSettings→reclampLoupeOnResizeを実測した。Project/index/IDBのwriteと混同せず、監査対象から除外しない。今回fixture後9件はA/B2、Loupe1、明示theme4、明示Save2。その他の全フェーズはwrite0。
 
-## 今回の自動受入（2026-10-16）
+## 0.40.0時点の自動受入件数（履歴）
 
 Node全suite **1139 PASS**。影響Browser3ファイル **75 PASS**。正規15＋Structure conversion＋staff＋schema2＋M2の19ファイル **491 PASS**。すべてFAIL/skip/cancelled0。Console/404/禁止通信0。正式443Hz WAV（44100Hz mono PCM16、8秒）・独立loopback・使い捨てChrome。既存8765/8766は不触。
 
-### 35項目と検証の対応
+### 35項目と現行0.40.1の検証対応
 
 このPASSは表に明記した自動受入範囲に限る。OS日本語IME・Safari・実プリンター・実曲での耐久/可読性等は未検証であり、同じPASSへ含めない。
 
@@ -91,17 +124,17 @@ Node全suite **1139 PASS**。影響Browser3ファイル **75 PASS**。正規15�
 | 8 | 延長 | PASS（自動受入範囲）: 接触成功・重複拒否・bar-end一致 | M2 Browser / Node |
 | 9 | gap保持 | PASS（自動受入範囲）: 選択/描画でrest保存なし、明示確定だけが挿入 | M2 Browser / Node |
 | 10 | Undo/Redo | PASS（自動受入範囲）: 同Session履歴、1操作1Undo、拒否時不変 | M2 Browser / controller Node |
-| 11 | Save/Load | PASS（自動受入範囲）: 明示Saveの2write、再読込で正確なID/時刻/種類保持 | M2 Browser / schema2 Browser |
+| 11 | Save/Load | PASS（自動受入範囲）: 明示Saveの2write、再読込で正確なID/時刻/種類保持。最終metadata容量境界も検証 | M2 Browser / schema2 Browser / project-save-budget Node/Browser |
 | 12 | schema1 migration | PASS（自動受入範囲）: memory-only移行、MIDI/onset/duration保持 | schema2 Browser / Node |
 | 13 | idempotency | PASS（自動受入範囲）: 同raw同ID・v2再読込で再移行なし | schema2 Node |
 | 14 | stable ID | PASS（自動受入範囲）: 編集・fragment・Undo/Redo・Save/Load | M2 Browser / schema2 Node |
 | 15 | pitch保持 | PASS（自動受入範囲）: 音価編集で音高不変、異名同音/上下octave | M2 Browser / schema2 Node |
-| 16 | key/capo | PASS（自動受入範囲）: 移行/時間編集で実音保持。新しい移調UIは対象外 | schema2 Node / staff Browser |
+| 16 | key/capo | 部分対応: 移行/時間編集で実音保持。契約例の実音保持/明示移調UIは未実装 | schema2 Node / staff Browser |
 | 17 | A/B分離 | PASS（自動受入範囲）: 履歴/draft/選択、旧handle拒否 | M2 Browser / controller Node |
 | 18 | stale | PASS（自動受入範囲）: 旧callback、workspace、reentrant描画、最新sourceのみ採用 | M2 Browser / Node |
 | 19 | IME | PASS（自動受入範囲）: CDP/合成composition、focus/caret・native/domain Undo | M2/staff/schema2 Browser。実OS IMEは未検証 |
 | 20 | No-write | PASS（自動受入範囲）: 全ledger保持、各フェーズのキー/値/件数/stack検証 | M2 Browser / schema2 Browser |
-| 21 | invalid input | PASS（自動受入範囲）: 481tick拒否、getter/toJSON等は呼出/write0 | M2 Browser / schema2-review Node |
+| 21 | invalid input | PASS（自動受入範囲）: 481tick拒否、getter/toJSON等は呼出/write0。最終candidate容量超過もwrite0 | M2 Browser / schema2-review Node |
 | 22 | unsupported | PASS（自動受入範囲）: 160tick等を近似せず診断・保存値保持、future拒否 | staff/schema2 Browser / Node |
 | 23 | print fallback | PASS（自動受入範囲）: 五線/Inspector非印刷、従来コード譜、明示案内 | M2/staff Browser。実プリンター未検証 |
 | 24 | 他consumer | PASS（自動受入範囲）: 固定時計のPre-DTM JSON/MIDI等の出力一致 | schema2 Node / 正規Browser |
@@ -111,13 +144,13 @@ Node全suite **1139 PASS**。影響Browser3ファイル **75 PASS**。正規15�
 | 28 | 小節一括確認 | PASS（自動受入範囲）: gap→rest含め1Undo、全属性確認時だけ小節確認済み | M2 Browser / Node |
 | 29 | Undo容量 | PASS（自動受入範囲）: 公開前拒否、draft/dirty/history/raw不変 | controller/schema2 Node。UI文言の実容量試験は未実施 |
 | 30 | 保存競合 | PASS（自動受入範囲）: exact raw変更を上書きせずdraft保持 | schema2 Node / 正規Browser |
-| 31 | 保存失敗 | PASS（自動受入範囲）: quota/index復旧失敗/result-unknownを保持 | schema2-review Node / 正規Browser |
+| 31 | 保存失敗 | PASS（自動受入範囲）: quota/index復旧失敗/result-unknownを保持。metadata増加で容量拒否時もdraft/base/dirty/history/raw不変 | project-save-budget Node/Browser、schema2-review Node / 正規Browser |
 | 32 | 原文保持 | PASS（自動受入範囲）: 空白込みraw/hash不変、保存・再読込後も保持 | schema2 Browser / Node |
 | 33 | notation fragment | PASS（自動受入範囲）: 複数fragmentが同じbar/eventへ、gapとrestは区別 | M2/staff Browser / Node |
 | 34 | 無変更操作 | PASS（自動受入範囲）: 確認同値の履歴追加なし、開閉/選択writeなし | controller Node / M2 Browser |
 | 35 | 旧consumer拒否 | PASS（自動受入範囲）: canonical直接読取/公開projection保存拒否、明示adapter | schema2-compat/review Node |
 
-### 性能
+### 0.40.0時点の性能（履歴）
 
 単位ms、warmup3後に20回、nearest-rank p95。同じrawを0.38.1 archiveと0.40.0で比較。8/32/64/128小節、明示Save/再読込の前後、migration/command/CMM/staff/save/loadの全sampleを保持する。Node/Browser回帰と並行実行しない。同期編集はM1共通commandの同期処理時間であり、Inspectorを開いた全UI操作のE2E時間ではない。
 

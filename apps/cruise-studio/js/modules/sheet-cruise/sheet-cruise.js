@@ -2183,7 +2183,13 @@
     // viewport座標のまま、将来Header / Dockの境界だけを注入する。
     // providerはwidth / height / top / bottom / bottomMarginを返す。
     function getLoupeSafeArea() {
-        return loupeSafeAreaProvider ? loupeSafeAreaProvider() : readDefaultLoupeSafeArea();
+        var area = loupeSafeAreaProvider ? loupeSafeAreaProvider() : readDefaultLoupeSafeArea();
+        var inspector = document.getElementById('sc-melody-inspector');
+        if (window.innerWidth < 1280 && inspector && !inspector.hidden) {
+            var bottom = Math.min(area.bottom, inspector.getBoundingClientRect().top - 8);
+            return Object.assign({}, area, { bottom: bottom, height: Math.max(1, bottom - area.top) });
+        }
+        return area;
     }
 
     function setLoupeSafeAreaProvider(provider) {
@@ -3253,6 +3259,7 @@
         activate: activate,
         deactivate: deactivate,
         setLoupeSafeAreaProvider: setLoupeSafeAreaProvider,
+        refreshEditorGeometry: function () { scheduleOverlayPosition(false); },
         closeTransient: closeTransient,
         handleEscape: handleEscape,
         setEscapeRouter: function (router) { escapeRouter = router; },

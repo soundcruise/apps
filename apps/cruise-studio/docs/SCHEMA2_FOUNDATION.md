@@ -12,8 +12,12 @@ Migrationは同じrawから同じID・内容。日時・乱数を使わない。
 
 既存Sessionの単一Undoへ統合。command envelopeはproject/session/document/workspace generation/snapshot/base/bar/eventを照合。input/conflict/save/staleは変更前に拒否。requireUndoで容量超過も公開前拒否。legacySourceは履歴から除外するがProject全体予算から除外しない。
 
-最新のM2/M3自動受入は [音価・休符編集](MELODY_DURATION_REST_EDITING.md) の35項目表。Studio0.40.0候補/schema2、M1のF1/F2/serialization安全性を維持して今回全回帰を実行。以下はM1時点の記録であり、当時の「M2/M3未実装」は履歴として保持する。
+最新のM2/M3自動受入は [音価・休符編集](MELODY_DURATION_REST_EDITING.md) の35項目表。Studio0.40.1候補/schema2、M1のF1/F2/serialization安全性を維持して今回全回帰を実行。以下はM1時点の記録であり、当時の「M2/M3未実装」は履歴として保持する。
 
+
+## Studio 0.40.1 保存容量境界
+
+元入力のF2 descriptor/validatorを維持し、cloneへupdatedAt/appVersionを適用した最終candidateを正式validatorで検証してから永続化する。最後にexact raw revisionを再確認する。8MiB（JSON文字数×2）超過は書込み・通知ゼロで拒否し、Sessionのdraft/base/revision/dirty/Undoを保つ。timestamp/appVersion増加、上限前/一致/超過、migration・import・Session・実Saveの反例を追加。詳細と今回の結果は[0.40.1受入](MELODY_DURATION_REST_EDITING.md)を参照。
 
 ## 2026-10-16 Studio 0.39.1 — M1 Safety / Git Safety & Browser Final Recovery
 

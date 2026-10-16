@@ -1,3 +1,10 @@
+## Studio 0.40.1 — Render Readiness Recovery & Final Acceptance（2026-10-16）
+
+保存metadata適用後の最終validationと、狭幅Inspector/選択音符の可視性を修正。768px timeoutはfixtureの同一ID/raw再投入に対するexternal-revision保護であり、条件別contextと完全identity ready照合で解消。製品rendererの保護は変更しない。
+今回Node 1156／Browser21ファイル 548 PASS、FAIL/skip/cancelled0。48画面条件、CDP IME/focus/caret、保存容量の実Save/再読込、8/32/64/128性能を再確認。0.40.1/schema2、F1/F2/単一Undo/no-write維持。
+実OS IME/Safari/実プリンターと後続機能は未完。F3 Port1.23.1は別の最新main統合候補で対応。限定commit/topic pushの実結果はrepo外final-receipt、main/Pages公開なし。
+[正式受入・35項目・性能・証拠](MELODY_DURATION_REST_EDITING.md)。以下は履歴。
+
 ## Studio 0.40.0 — Melody Duration & Rest Editing M2/M3 自動受入（2026-10-16）
 
 Structure内で音符・rest・gapを選び、InspectorからM1の8正式commandを実行する。正本StudioProject/schema2、既存Editing Session/単一Undo、明示Saveを維持する。非リップル音価/開始位置、明示pitch変換、部分/小節確認、gap確認、stale/A-B/IME保護を追加。

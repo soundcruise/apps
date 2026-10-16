@@ -63,9 +63,6 @@
         function save(request) {
             var token = request.token || {};
             return underLock(function () {
-                var current = read(request.target);
-                if (!current.ok) return current;
-                if (current.revision !== request.baseRevision) return { ok: false, code: current.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: current };
                 var marker=Object.getOwnPropertyDescriptor(request.snapshot,'sourceSchemaVersion');
                 if(marker && marker.value===2) return {ok:false,code:'projection-not-persistable',error:'派生表示を保存できません'};
                 if(options.model.schema2){try{options.model.schema2.assertJson(request.snapshot);}catch(e){return {ok:false,code:'validation',error:e.message};}}
@@ -75,16 +72,25 @@
                     if(!originalCheck.ok)return {ok:false,code:'validation',error:originalCheck.errors.join(' / ')};
                 }
                 var project = JSON.parse(JSON.stringify(request.snapshot));
+                // Apply every persisted field before the same validator used by read().
+                project.updatedAt = options.now(); project.appVersion = options.model.APP_VERSION;
+                var check = options.model.validateProject(project);
+                if (!check.ok) return { ok: false, code: 'validation', error: check.errors.join(' / ') };
+                var current = read(request.target);
+                if (!current.ok) return current;
+                if (current.revision !== request.baseRevision) return { ok: false, code: current.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: current };
                 if(current.snapshot && current.snapshot.schemaVersion===2 && project.schemaVersion!==2) return {ok:false,code:'schema-downgrade',error:'schema 2を旧形式で上書きできません'};
                 if(current.snapshot && current.snapshot.schemaVersion===2 && JSON.stringify(current.snapshot.provenance.legacySource)!==JSON.stringify(project.provenance && project.provenance.legacySource)) return {ok:false,code:'protected-legacy-source',error:'復元用原文を変更できません'};
                 if (project.projectId !== request.target.projectId) return { ok: false, error: '保存対象のprojectIdが一致しません' };
-                var check = options.model.validateProject(project);
-                if (!check.ok) return { ok: false, code: 'validation', error: check.errors.join(' / ') };
-                project.updatedAt = options.now(); project.appVersion = options.model.APP_VERSION;
                 try {
                     var list = index().filter(function (entry) { return entry && entry.projectId !== project.projectId; });
                     list.unshift({ projectId: project.projectId, title: project.songInfo.title || '無題', artist: project.songInfo.artist || '', updatedAt: project.updatedAt });
-                    var raw = JSON.stringify(project), result = writeTransaction([[PROJECT + project.projectId, raw], [INDEX, JSON.stringify(list)]]);
+                    var raw = JSON.stringify(project), indexRaw = JSON.stringify(list);
+                    // Recheck exact raw after preparing both payloads, immediately before any write.
+                    var latest = readRevision(request.target);
+                    if (!latest.ok) return latest;
+                    if (latest.revision !== request.baseRevision) return { ok: false, code: latest.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: read(request.target) };
+                    var result = writeTransaction([[PROJECT + project.projectId, raw], [INDEX, indexRaw]]);
                     if (!result.ok) { result.current = read(request.target); return result; }
                     notify(request.target, 'same-studio', token);
                     return Object.assign({ ok: true, snapshot: options.snapshot(project), revision: raw }, token);

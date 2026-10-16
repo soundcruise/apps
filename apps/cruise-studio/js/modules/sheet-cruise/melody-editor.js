@@ -68,7 +68,27 @@
         function field(label,input){var l=node('label',label);l.appendChild(input);slot.appendChild(l);return input;}
         function button(text,fn){var b=node('button',text);b.type='button';b.className='btn-ghost';b.addEventListener('click',fn);slot.appendChild(b);return b;}
         function focusSelection(){var selected=preview.querySelector('[data-melody-target][aria-pressed="true"]');if(selected)selected.focus({preventScroll:true});else if(lastNode&&lastNode.isConnected)lastNode.focus({preventScroll:true});}
-        function close(){controller.clear();uiHandle=null;slot.hidden=true;pane.removeAttribute('data-melody-editor-open');decorate();focusSelection();return true;}
+        // Geometry is UI-only; it never changes a music position or rebuilds an input.
+        var main=doc.getElementById('studio-main'),layoutKey='',layoutFrame=0;
+        function layout(){
+            var r=main.getBoundingClientRect(),narrow=window.innerWidth<1280;
+            var height=Math.min(360,Math.floor(r.height*0.4)),key=[slot.hidden,narrow,r.left,r.width,r.bottom,height].join(':');
+            if(key===layoutKey)return;layoutKey=key;
+            slot.style.setProperty('--melody-panel-left',r.left+'px');slot.style.setProperty('--melody-panel-width',r.width+'px');
+            slot.style.setProperty('--melody-panel-bottom',Math.max(0,window.innerHeight-r.bottom)+'px');slot.style.setProperty('--melody-panel-height',height+'px');
+            pane.style.setProperty('--melody-panel-reserve',!slot.hidden&&narrow?(height+16)+'px':'0px');
+            if(C.sheetCruise.refreshEditorGeometry)C.sheetCruise.refreshEditorGeometry();
+        }
+        function selectedVisible(){
+            if(slot.hidden||window.innerWidth>=1280)return;
+            var selected=preview.querySelector('[data-melody-target][aria-pressed="true"]');if(!selected)return;
+            var r=selected.getBoundingClientRect(),panel=slot.getBoundingClientRect(),area=main.getBoundingClientRect(),toolbar=doc.querySelector('#screen-sheet-cruise .sheet-toolbar');
+            var top=Math.max(area.top,toolbar?toolbar.getBoundingClientRect().bottom:area.top)+8,bottom=panel.top-8;
+            if(r.bottom>bottom)main.scrollTop+=r.bottom-bottom;else if(r.top<top)main.scrollTop-=top-r.top;
+        }
+        function resized(){cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(function(){layout();});}
+        var observer=new ResizeObserver(resized);observer.observe(main);window.addEventListener('resize',resized);
+        function close(){controller.clear();uiHandle=null;slot.hidden=true;pane.removeAttribute('data-melody-editor-open');decorate();layout();focusSelection();return true;}
         function apply(handle,type,payload){
             var result=controller.execute(handle,type,payload);refresh();
             if(!result.ok&&uiHandle===handle)nodes.error.textContent=message(result);
@@ -110,7 +130,7 @@
         }
         function decorate(){var v=controller.view();preview.querySelectorAll('[data-melody-target]').forEach(function(e){var chosen=!!v&&e.dataset.barId===v.barId&&(v.eventId?e.dataset.eventId===v.eventId:e.dataset.gap===v.gap.onsetTick+':'+v.gap.durationTicks);e.setAttribute('aria-pressed',String(chosen));});}
         function refresh(){
-            var v=controller.view();if(!v){var hadSelection=uiHandle!==null;slot.hidden=true;pane.removeAttribute('data-melody-editor-open');uiHandle=null;if(hadSelection)decorate();return;}
+            var v=controller.view();if(!v){var hadSelection=uiHandle!==null;slot.hidden=true;pane.removeAttribute('data-melody-editor-open');uiHandle=null;if(hadSelection)decorate();layout();return;}
             // A note/rest conversion rebuilds only this Inspector; Loupe DOM is outside it.
             var kind=v.event?v.event.kind:'gap';if(uiHandle!==v.handle||slot.dataset.kind!==kind){build(v);slot.dataset.kind=kind;}
             slot.hidden=false;pane.dataset.melodyEditorOpen='true';var event=v.event||v.gap,t=event.onsetTick;
@@ -120,9 +140,9 @@
             nodes.status.textContent+=' · 小節の時間：'+(v.confirmed?'確認済み':'未確認を含む');
             if(v.event){var current=String(v.event.durationTicks);if(!Array.from(nodes.duration.options).some(function(x){return x.value===current;})){var x=node('option','未対応の音価：'+current+' tick');x.value=current;x.disabled=true;nodes.duration.appendChild(x);}nodes.duration.value=current;if(doc.activeElement!==nodes.onset)nodes.onset.value=v.event.onsetTick;}
             else if(!nodes.duration.value||Number(nodes.duration.value)>v.gap.durationTicks)nodes.duration.value=String((DURATIONS.find(function(x){return x[0]<=v.gap.durationTicks;})||DURATIONS[DURATIONS.length-1])[0]);
-            slot.querySelectorAll('button,select,input').forEach(function(e){if(e===nodes.close||e===doc.activeElement&&C.documents.getSession().inputPending)return;e.disabled=v.blocked;});decorate();
+            slot.querySelectorAll('button,select,input').forEach(function(e){if(e===nodes.close||e===doc.activeElement&&C.documents.getSession().inputPending)return;e.disabled=v.blocked;});decorate();layout();
         }
-        function select(t,n,enter){var result=controller.select(t);if(!result.ok)return false;lastNode=n;refresh();if(enter){nodes.heading.focus();slot.scrollIntoView({block:'nearest'});}return true;}
+        function select(t,n,enter){var result=controller.select(t);if(!result.ok)return false;lastNode=n;refresh();selectedVisible();if(enter){nodes.heading.focus({preventScroll:true});slot.scrollTop=0;if(window.innerWidth>=1280)slot.scrollIntoView({block:'nearest'});}return true;}
         function key(t,n,event){
             if(event.isComposing||event.keyCode===229||context().blocked)return;
             if(['ArrowLeft','ArrowRight','Enter',' '].includes(event.key)){
@@ -137,7 +157,7 @@
         slot.addEventListener('keydown',function(e){if(e.key==='Escape'&&!e.isComposing&&e.keyCode!==229&&!context().blocked){e.preventDefault();e.stopPropagation();close();}});
         function deactivate(){controller.clear();refresh();}
         return Object.freeze({select:select,key:key,refresh:refresh,close:close,isOpen:function(){return !slot.hidden;},deactivate:deactivate,controller:controller,
-            dispose:function(){off();docOff();slot.removeEventListener('compositionend',composed);deactivate();}});
+            dispose:function(){off();docOff();observer.disconnect();cancelAnimationFrame(layoutFrame);window.removeEventListener('resize',resized);slot.removeEventListener('compositionend',composed);deactivate();}});
     }
     return Object.freeze({createController:createController,mount:mount,durations:DURATIONS});
 });
