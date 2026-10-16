@@ -12,7 +12,7 @@ const url='https://www.morris-guitar.com/information/2026/1001_01.html';
 const card=(title,lead,extra='',u=url,date='2026.10.01')=>`<div class="col-9"><h3 class="h5 serif"><a href="${u}">${title}</a></h3><time>${date}</time><p>${lead}</p>${extra}</div>`;
 const listing=body=>`<html><head><link rel="canonical" href="${MORRIS_LISTING}"></head><main>${body}</main></html>`;
 const cases=[
- ['product','「QA-10」シグネチャーモデルの発売決定','Morris Guitarsのアコースティックギター「QA-10」の発売が決定しました。','', 'new_product'],
+ ['product','「QA-10」シグネチャーモデルの発売決定','Morris Guitarsのアコースティックギター「QA-10」のシグネチャーモデルの発売が決定しました。','', 'new_product'],
  ['event','「試験ギター展」出展情報','Morris Guitarsは「試験ギター展」に出展します。アコースティックギターを展示します。','<ul><li>開催日：2026年11月1日</li><li>会場：試験ホール</li></ul>','guitar_event'],
  ['report','「試験ギター祭」開催レポート','Morris Guitarsが「試験ギター祭」の開催レポートを公開。アコースティックギターの演奏を紹介します。','','morris_editorial'],
  ['craft','ギター製作工程の紹介','Morris Guitarsがアコースティックギターの製作工程を紹介します。','','morris_editorial'],

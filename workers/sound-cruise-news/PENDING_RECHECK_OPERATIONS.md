@@ -136,3 +136,14 @@ this is a bounded acquisition trade-off, not evidence of low publication value.
 The separately authorized five-candidate maintenance catch-up calls the same facts
 recheck/provenance/CAS path as ordinary scheduled recovery. READY remains pending
 until the owner decides. No evidence-shortage deletion rule was added.
+
+
+## Morris independent classification (NEWS 0.30.2 / Operator 0.29.2)
+
+- Listing/article parser version 3 replaces legacy-first extraction with one independent candidate evaluation. Versions 1 and 2 remain accepted for existing immutable evidence.
+- Product announcement/release/signature, recruitment, exhibition/hosting/performance, service notice, report, craft/feature/support, catalog and artist activity are evaluated without an event-keyword early exit. Exactly one complete interpretation is required; conflicting complete interpretations remain unresolved.
+- Recruitment remains a `guitar_event` competition with explicit event name, action, full calendar date and venue. Workshop hosting additionally requires explicit Morris organizer and acoustic context. Neither receives a guessed date or a reduced event validation gate.
+- A `morris_editorial` / `support_notice` requires explicit acoustic repair scope and intake-stop action. Full repair and paint-related repair have separate closed topics and labels, avoiding an overbroad service-stop headline.
+- Each verified listing entry stores `recoveryAnalysis` version `morris-recovery-2`: evaluated type codes, triggered candidates, boolean checks, missing-field codes and result/reason. Existing per-entry proof retains source/article URL, original response hash, parser version, permission reference and verification time. No raw heading, full description, HTML or images are stored.
+- After the next regular 06:00 JST collection, inspect the saved listing receipt, candidate-level classifications and authoritative `publicationValidation` / Operator reviewability. Count all baseline receipts separately from pending candidates. Do not equate transport success, synthetic test success or an empty pending queue with real article recovery.
+- Existing daily listing / once-only new-detail budgets, no historical-detail fetching, no RSS, 90-day article retention, ended-event protection and immutable published/human evidence are unchanged. Same-day replay cannot reconstruct yesterday's null facts and must never initiate a new fetch.

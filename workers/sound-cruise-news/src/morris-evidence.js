@@ -2,7 +2,7 @@ import {parseDocument,DomUtils} from 'htmlparser2';
 import {analyzeMorrisFacts} from './morris-recovery.js';
 import {hash,optOut} from './policy.js';
 import {fingerprint} from './fingerprint.js';
-import {extractMorrisEditorial,morrisEditorialLabel} from './morris-editorial.js';
+import {morrisEditorialLabel} from './morris-editorial.js';
 import {morrisCardDiagnostics} from './morris-diagnostics.js';
 import {MORRIS_LISTING,MORRIS_PARSER,MORRIS_LISTING_PARSER,MORRIS_PERMISSION,morrisArticleUrl,morrisDate,morrisUrlDate} from './morris-policy.js';
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','footer','aside','template','noscript','iframe'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/(?:^|\s)(?:related|related-posts|recommend|sidebar)(?:\s|$)/i.test(p.attribs?.class||'')||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
@@ -12,7 +12,6 @@ const find=(n,p)=>DomUtils.findAll(x=>!!x.name&&!hidden(x)&&p(x),n.children||[])
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const field=v=>typeof v==='string'&&v.length>=2&&v.length<=100&&!/[<>\x00-\x1f]/.test(v);
 const day=v=>!!morrisDate(v);
-const normal=v=>v.normalize('NFKC').replace(/\s/g,'');
 function document(html){if(typeof html!=='string'||new TextEncoder().encode(html).length>128000)throw Error('listing_too_large');const doc=parseDocument(html);
  if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))throw Error('header_optout');
  const mains=find(doc,n=>n.name==='main');if(mains.length!==1)throw Error('listing_structure_changed');return {doc,root:mains[0]};}
@@ -57,7 +56,7 @@ export async function parseMorrisListing(html,pepper,evidence=null){
   if(!publishedAt||morrisUrlDate(url)!==publishedAt||seen.has(url))throw Error('listing_structure_changed');seen.add(url);
   const entry={url,publishedAt,fingerprint:await fingerprint(plain(title),pepper)};
   if(evidence){
-   const paragraphs=find(card,n=>n.name==='p'),selected=paragraphs.slice(0,3),fieldNodes=find(card,n=>['li','dt','dd'].includes(n.name)),paras=selected.map(plain),fields=fieldNodes.map(plain),trace={};
+   const paragraphs=find(card,n=>n.name==='p'),selected=paragraphs.filter(n=>!find(n,x=>/^h[1-6]$/.test(x.name)||x.name==='time').length&&plain(n)!==plain(title)&&!/^(?:20\d{2}[.\/-]\d{2}[.\/-]\d{2}|more|詳しくはこちら|詳細はこちら)$/i.test(plain(n))).slice(0,3),fieldNodes=find(card,n=>['li','dt','dd'].includes(n.name)),paras=selected.map(plain),fields=fieldNodes.map(plain),trace={};
    const recovered=extractFacts(plain(title),paras,fields,url,trace);
    // Persist only extracted facts; discard the original heading/description.
    entry.facts=recovered.facts;entry.eventType=recovered.eventType;
@@ -70,13 +69,12 @@ export async function parseMorrisListing(html,pepper,evidence=null){
   entries.push(entry);
  }return entries;
 }
-function eventDates(value){const m=/(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日(?:[（(][^）)]{0,5}[）)])?\s*(?:[〜～－-]\s*(?:(20\d{2})年)?\s*(?:(\d{1,2})月)?\s*(\d{1,2})日)?/.exec(value||'');
- if(!m)return null;const build=(y,mo,d)=>`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`,start=build(m[1],m[2],m[3]),end=build(m[4]||m[1],m[5]||m[2],m[6]||m[3]);return day(start)&&day(end)&&end>=start?{eventDate:start,endDate:end}:null;}
 export function morrisLabel(f,eventType){
  if(f?.evidence!=='morris_explicit_article_v1'||f.listingSource!=='morris'||!morrisArticleUrl(f.articleUrl))return null;
  if(f.kind==='morris_editorial')return morrisEditorialLabel(f,eventType);
  if(f.kind==='guitar_event'&&eventType==='guitar_event'&&f.category==='live_guitar'&&[f.eventName,f.venue].every(field)&&day(f.eventDate)&&day(f.endDate)&&f.endDate>=f.eventDate){
   if(f.eventType==='exhibition'&&f.exhibitor==='Morris Guitars'&&f.action==='exhibiting')return `Morris Guitars、「${f.eventName}」への出展を告知`;
+  if(f.eventType==='workshop'&&f.organizer==='Morris Guitars'&&f.action==='scheduled')return `Morris Guitars、「${f.eventName}」の開催を告知`;
   if(f.eventType==='competition'&&f.action==='entry_open')return `Morris Guitars、「${f.eventName}」の参加募集を開始`;
   if(f.eventType==='performance'&&field(f.performer)&&f.action==='scheduled')return `${f.performer}、「${f.eventName}」への出演を告知`;
  }
@@ -100,42 +98,14 @@ export async function parseMorrisArticle(html,entry,verifiedAt,pepper){
 }
 
 function extractFacts(title,paras,fields,url,trace=null){
- // Both deterministic analyzers consume the same already-bounded input.
- const secondary=analyzeMorrisFacts(title,paras,fields,url);
- let facts=null,eventType='other';const lead=paras.join(' ');
- const excluded=/中止|延期|昨年|過去|開催しました|開催いたしました|レビュー|比較|再入荷|セール/.test(title+' '+lead);
- if(trace){trace.excludedWording=excluded;trace.branch='event';}
- if(!excluded){
-  const named=[...lead.matchAll(/「([^」]{2,90})」/g)].map(m=>m[1]).find(n=>normal(title).includes(normal(n))),venueFields=fields.filter(v=>/^会場[:：]/.test(v)),dateFields=fields.filter(v=>/^開催(?:日|日時|日程)[:：]/.test(v));
-  if(trace){trace.eventCandidate=!!named&&(/出展|コンテスト|コンペティション/.test(title)||venueFields.length>0||dateFields.length>0);trace.eventName=!!named;trace.venue=venueFields.length===1;trace.eventDate=dateFields.length===1&&!!eventDates(dateFields[0]);trace.eventContext=/ギター|Morris|モーリス/i.test(lead);trace.relevance=/アコースティックギター|アコギ|フィンガーピッキング/.test(title+' '+lead);}
-  if(named&&venueFields.length===1&&dateFields.length===1&&/ギター|Morris|モーリス/i.test(lead)){
-   const date=eventDates(dateFields[0]),venue=venueFields[0].replace(/^会場[:：]\s*/,'').split(/[〒（(]/)[0].trim();
-   const exhibition=/出展(?:いたします|します|予定)/.test(lead)&&/出展/.test(title)&&/Morris|モーリス/i.test(lead);
-   const contest=/コンテスト|コンペティション/.test(title)&&/参加(?:者)?募集|エントリー受付/.test(lead);
-   const performerField=fields.filter(v=>/^出演[:：]/.test(v)),performance=/出演(?:します|予定)|開催(?:します|予定)/.test(lead)&&/フィンガーピッキング|アコースティック|弾き語り/.test(lead)&&performerField.length===1;
-   if(trace){trace.eventAction=exhibition||contest||performance;trace.performerRequired=!exhibition&&!contest;trace.performer=performerField.length===1;trace.articleType=exhibition||contest||performance;}
-   if(date&&(exhibition||contest||performance)){
-    eventType='guitar_event';facts={kind:'guitar_event',category:'live_guitar',evidence:'morris_explicit_article_v1',listingSource:'morris',articleUrl:url,eventName:named,event:named,venue,...date,eventType:exhibition?'exhibition':contest?'competition':'performance',action:exhibition?'exhibiting':contest?'entry_open':'scheduled',...(exhibition?{exhibitor:'Morris Guitars'}:performance?{performer:performerField[0].replace(/^出演[:：]\s*/,'')}:{})};
-   }
-  }
-  // Require a primary, explicitly typed model in heading + opening paragraph.
-  // Related catalogues, supported equipment and incidental model lists cannot supply identity.
-  const models=[...title.matchAll(/「([A-Za-z0-9][A-Za-z0-9 .+/_-]{1,60})」/g)].map(m=>m[1]);
-  const model=models.length===1?models[0]:null,primary=paras.find(p=>model&&(p.includes('ギター「'+model+'」')||p.includes('ギター 「'+model+'」')||p.includes('「'+model+'」はアコースティックギター')))||'';
-  if(trace){trace.productAttempted=true;trace.modelCandidate=!!model;trace.typedModelBinding=!!primary&&/アコースティックギター|エレクトリックアコースティックギター|エレアコ/.test(primary);trace.manufacturer=/Morris|モーリス/i.test(lead);if(model)trace.branch='product';}
-  if(!facts&&model&&primary&&/アコースティックギター|エレクトリックアコースティックギター|エレアコ/.test(primary)&&/Morris|モーリス/i.test(lead)&&!/(?:対応|接続|保護|比較)(?:機器|対象|製品)?|アクセサリー|カタログ/.test(title)){
-   // A future launch is never described as already released. Explicit announcement remains valid.
-   const future=/発売予定|発売いたします|発売します|近日発売/.test(title+' '+primary),released=!future&&/発売(?:しました|いたしました|開始)|販売を開始/.test(primary),announced=/発表(?:しました|いたしました)|新(?:製品|モデル).{0,20}登場/.test(primary);
-   const releaseDecided=/発売(?:が)?決定/.test(title)&&/発売(?:が)?決定/.test(primary);
-   if(trace)trace.articleType=released||announced||releaseDecided||trace.articleType;
-   if(released||announced||releaseDecided){eventType=released?'release':'new_product';facts={kind:'product',category:'acoustic_guitar',brand:'Morris Guitars',product:model,models:[model],productType:'acoustic_guitar',action:eventType,...(releaseDecided?{announcement:'release_decided'}:{}),evidence:'morris_explicit_article_v1',listingSource:'morris',articleUrl:url,...(/限定モデル/.test(title)?{productEvent:{action:'limited_edition'}}:/シグネチャー/.test(title)?{productEvent:{action:'signature'}}:/新色/.test(title)?{productEvent:{action:'new_color'}}:{})};}
-  }
+ const result=analyzeMorrisFacts(title,paras,fields,url);
+ const label=result.facts?morrisLabel(result.facts,result.eventType):null;
+ if(result.facts&&(!label||label===title)){
+  result.facts=null;result.eventType='other';result.analysis={...result.analysis,selected:'none',result:'hold',reason:label?'LABEL_NOT_INDEPENDENT':'LABEL_NOT_SUPPORTED'};
  }
- if(!facts){const editorial=extractMorrisEditorial(title,paras,trace);if(editorial){eventType='morris_editorial';facts={...editorial,evidence:'morris_explicit_article_v1',listingSource:'morris',articleUrl:url};}}
- const legacy=!!facts;
- if(!facts&&secondary.facts){facts=secondary.facts;eventType=secondary.eventType;}
- if(trace&&facts){trace.branch=facts.kind==='product'?'product':facts.kind==='guitar_event'?'event':facts.articleType;trace.articleType=true;trace.labelUnsupported=!morrisLabel(facts,eventType);trace.originalHeadlineCollision=morrisLabel(facts,eventType)===title;}
- if(facts&&(!morrisLabel(facts,eventType)||morrisLabel(facts,eventType)===title))facts=null;
- return {facts,eventType:facts?eventType:'other',analysis:{...secondary.analysis,selected:legacy?'legacy':facts?'generic':'none',result:facts?'recovered':'hold',...(facts?{}:{reason:secondary.facts?'LABEL_NOT_INDEPENDENT':secondary.analysis.reason})}};
-
+ if(trace){const a=result.analysis;Object.assign(trace,{modelCandidate:a.modelCount>0,typedModelBinding:a.typedIdentity,manufacturer:a.manufacturerExplicit,
+  eventCandidate:a.eventSignal,eventName:a.eventNameExplicit,eventDate:a.eventDateExplicit,venue:a.venueExplicit,eventContext:a.acousticExplicit||a.manufacturerExplicit,
+  excludedWording:a.excluded,eventAction:a.actionExplicit,relevance:a.acousticExplicit,articleType:!!result.facts,branch:result.facts?.kind==='product'?'product':result.facts?.kind==='guitar_event'?'event':result.facts?.articleType||'unclassified',
+  originalHeadlineCollision:a.reason==='LABEL_NOT_INDEPENDENT',labelUnsupported:a.reason==='LABEL_NOT_SUPPORTED'});}
+ return result;
 }

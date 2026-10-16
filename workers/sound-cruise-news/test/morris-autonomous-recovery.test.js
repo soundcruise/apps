@@ -73,7 +73,7 @@ test('generic prose, diagnosis, recruitment and unknown product do not become ca
 });
 test('secondary analysis persists only closed facts/flags, never arbitrary prose',async()=>{
  const marker='DO_NOT_PERSIST_ARBITRARY_SOURCE_COPY';const e=await parse('一般案内',['Morris Guitarsのアコースティックギターの案内。'+marker]);assert.ok(!JSON.stringify(e).includes(marker));assert.equal(e.recoveryAnalysis.result,'hold');
- assert.ok(Object.values(e.recoveryAnalysis).every(v=>['boolean','number','string'].includes(typeof v)));
+ assert.equal(e.recoveryAnalysis.version,'morris-recovery-2');assert.equal(e.recoveryAnalysis.evaluatedTypes.length,13);assert.ok(e.recoveryAnalysis.candidates.every(c=>Object.values(c.checks).every(v=>typeof v==='boolean')));
 });
 test('hidden/related content and content after the bounded window do not supply missing evidence',async()=>{
  const e=await parse(productTitle,['一般の案内。'],`<aside>${productLead}</aside><div class="related"><p>${productLead}</p></div>`);assert.equal(e.facts,null);
