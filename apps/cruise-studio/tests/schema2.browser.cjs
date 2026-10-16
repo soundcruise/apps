@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),test=require('node:test'),
 const url=process.env.STUDIO_URL,origin=new URL(url).origin;
 test('Schema 2 M1 real Studio integration',async t=>{
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),ctx=await browser.newContext({viewport:{width:1440,height:1000}}),p=await ctx.newPage();
- const ledger=[];
+ const ledger=[],phases=[];
  async function installAudit(context,scope){
   await context.exposeBinding('__recordSchema2Write',(_source,entry)=>{if(entry.kind==='barrier')return ledger.length;ledger.push({scope,...entry,sequence:ledger.length});return ledger.length;});
   await context.addInitScript(()=>{
@@ -12,7 +12,7 @@ test('Schema 2 M1 real Studio integration',async t=>{
    window.__recordSchema2Write({kind:'document',documentId}).catch(()=>{});
    for(const method of ['setItem','removeItem','clear']){const original=Storage.prototype[method];Storage.prototype[method]=function(key,...args){
     window.__schema2Writes.push(method==='clear'?'*':String(key));
-    window.__recordSchema2Write({kind:'storage',method,key:method==='clear'?'*':String(key),documentId}).catch(()=>{});
+    window.__recordSchema2Write({kind:'storage',method,key:method==='clear'?'*':String(key),...(key==='cruiseStudio.currentProjectId'?{value:String(args[0])}:{}),documentId}).catch(()=>{});
     return original.call(this,key,...args);
    };}
   });
@@ -40,8 +40,38 @@ test('Schema 2 M1 real Studio integration',async t=>{
    const recorded=writes('counterexample',first).filter(e=>e.key==='schema2.audit.counterexample');assert.equal(recorded.length,2);assert.equal(new Set(recorded.map(e=>e.documentId)).size,2);assert(recorded[0].sequence<firstEnd);assert(recorded[1].sequence>=second);
   }finally{await probe.close();}
  });
- await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.39.0');});
- await t.test('pure command preserves raw, pitch, onset and uses one domain Undo',async()=>{let before=await check();assert((await command('melody.setDuration',{durationTicks:240})).ok);let after=await check();assert.equal(after.draft.bars[0].melody[0].onsetTick,240);assert.deepEqual(after.draft.bars[0].melody[0].pitch,before.draft.bars[0].melody[0].pitch);assert.equal(after.history.cursor,1);assert.equal(after.raw,before.raw);assert.deepEqual(after.writes,[]);});
+ await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.39.1');});
+ await t.test('F1 unconfirmed legacy pitch edit retains 240/180, ID/provenance, Undo and A/B',async()=>{
+  const before=await check();await p.locator('.sheet-bar').first().click();await p.locator('[data-overlay-field=doremi]').fill('レ');await p.locator('[data-overlay-field=doremi]').press('Tab');
+  const after=await check(),old=before.draft.bars[0].melody[0],note=after.draft.bars[0].melody[0];
+  assert.equal(note.pitch.step,'D');assert.deepEqual({...note,pitch:old.pitch},old);assert.equal(note.onsetTick,240);assert.equal(note.durationTicks,180);assert.deepEqual(after.writes,[]);
+  const input=p.locator('[data-overlay-field=doremi]');await input.fill('ドレ');await input.press('Tab');
+  assert.deepEqual((await check()).draft,after.draft);assert.equal(await input.getAttribute('aria-invalid'),'true');
+  await input.fill('レ');await input.press('Tab');assert.equal(await input.getAttribute('aria-invalid'),null);
+  assert(await p.evaluate(()=>CruiseStudio.documents.getSession().undo().ok));assert.deepEqual((await check()).draft,before.draft);
+  assert(await p.evaluate(()=>CruiseStudio.documents.getSession().redo().ok));assert.deepEqual((await check()).draft,after.draft);
+  await flush(p);const selectionStart=ledger.length;
+  await p.evaluate(()=>{CruiseStudio.documents.select('B');CruiseStudio.documents.select('A');});assert.deepEqual((await check()).draft,after.draft);
+  const selectionEnd=ledger.length;
+  assert.deepEqual(writes('primary',selectionStart).map(({method,key,value})=>({method,key,value})),[
+   {method:'setItem',key:'cruiseStudio.currentProjectId',value:'B'},
+   {method:'setItem',key:'cruiseStudio.currentProjectId',value:'A'}]);
+  phases.push({name:'F1 explicit B/A selection',scope:'primary',start:selectionStart,end:selectionEnd,expectedWrites:2});
+  await p.evaluate(()=>CruiseStudio.documents.getSession().cancel());assert.deepEqual((await check()).draft,before.draft);
+  assertNoWrites('primary',selectionEnd);
+ });
+ await t.test('F2 inherited array toJSON and schema getter refuse without hook/write/state changes',async()=>{
+  const before=await check();const result=await p.evaluate(async()=>{
+   const C=CruiseStudio,s=C.documents.getSession();let calls=0;const bad=JSON.parse(JSON.stringify(s.workingSnapshot()));
+   Object.setPrototypeOf(bad.bars[0].melody,Object.assign(Object.create(Array.prototype),{toJSON(){calls++;return [];}}));
+   const saved=await C.repository.save({target:s.target,baseRevision:s.baseRevision,snapshot:bad});let exported=false;try{C.storage.exportProjectJson(bad);}catch(_){exported=true;}
+   const edit=s.runOperation('unsafe array',d=>Object.setPrototypeOf(d.bars[0].melody,Object.getPrototypeOf(bad.bars[0].melody)));
+   const accessor=JSON.parse(JSON.stringify(s.workingSnapshot()));Object.defineProperty(accessor,'schemaVersion',{enumerable:true,get(){calls++;return 2;}});
+   let replaced=false;try{s.replaceDraft(accessor);}catch(_){replaced=true;}
+   return {calls,saved:saved.ok,edited:edit.ok,exported,replaced};
+  });assert.deepEqual(result,{calls:0,saved:false,edited:false,exported:true,replaced:true});assert.deepEqual(await check(),before);
+ });
+ await t.test('pure command preserves raw, pitch, onset and uses one domain Undo',async()=>{let before=await check();const start=ledger.length;assert((await command('melody.setDuration',{durationTicks:240})).ok);let after=await check();assert.equal(after.draft.bars[0].melody[0].onsetTick,240);assert.deepEqual(after.draft.bars[0].melody[0].pitch,before.draft.bars[0].melody[0].pitch);assert.equal(after.history.cursor,1);assert.equal(after.raw,before.raw);assert.deepEqual(after.writes,before.writes);assertNoWrites('primary',start);phases.push({name:'pure command no-write',scope:'primary',start,end:ledger.length,expectedWrites:0});});
  await t.test('rejection leaves all draft/history/base/raw intact',async()=>{let before=await check();assert(!(await command('melody.setDuration',{durationTicks:1920})).ok);assert.deepEqual(await check(),before);});
  await t.test('IME-pending and stale generation reject without writes',async()=>{await p.evaluate(()=>{const C=CruiseStudio,s=C.documents.getSession(),b=s.draft.bars[0];window.__oldM1=C.melodyEditing.capture(b.id,b.melody[0].id);s.setInputPending(true);});const before=await check();assert(!(await command('melody.delete')).ok);assert.deepEqual(await check(),before);await p.evaluate(()=>CruiseStudio.documents.getSession().setInputPending(false));});
  await t.test('A/B/A preserves independent domain histories and rejects old callback',async()=>{const a=await check();await p.evaluate(()=>CruiseStudio.documents.select('B'));assert((await command('melody.setDuration',{durationTicks:120})).ok);await p.evaluate(()=>CruiseStudio.documents.select('A'));let r=await p.evaluate(()=>CruiseStudio.melodyEditing.execute('melody.delete',__oldM1));assert(!r.ok);assert.deepEqual((await check()).draft,a.draft);assert.equal((await check()).history.cursor,a.history.cursor);});
@@ -112,5 +142,5 @@ test('Schema 2 M1 real Studio integration',async t=>{
   const after=await p.evaluate(()=>{const C=CruiseStudio,s=C.documents.getSession(),r=C.musicConversion.convert();return {id:s.target.projectId,backup:s.workingSnapshot().provenance.legacySource.raw,ids:s.draft.bars.map(b=>b.id),notes:s.workingSnapshot().bars.map(b=>b.melody.map(e=>[e.pitch,e.onsetTick])),current:C.musicConversion.isCurrent(r),size:JSON.stringify(r).length};});assert.equal(after.id,id);assert.equal(after.backup,before.backup);assert.deepEqual(after.ids,before.ids);assert.deepEqual(after.notes,before.notes);assert(after.current);assert(after.size<count*24000);assert.equal(await p.locator('.melody-measure').count(),count);
  });
  await t.test('Console/404/forbidden zero and shared write remains OFF',async()=>{assert.deepEqual(errors,[]);assert.deepEqual(http,[]);assert.deepEqual(network,[]);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);});
- }finally{try{if(!p.isClosed())await flush(p);}finally{try{await ctx.close();}finally{await browser.close();if(process.env.STAFF_QA_DIR)fs.writeFileSync(path.join(process.env.STAFF_QA_DIR,'schema2-storage-audit.json'),JSON.stringify({primaryFixtureEnd:primaryStart,records:ledger},null,2));}}}
+ }finally{try{if(!p.isClosed())await flush(p);}finally{try{await ctx.close();}finally{await browser.close();if(process.env.STAFF_QA_DIR)fs.writeFileSync(path.join(process.env.STAFF_QA_DIR,'schema2-storage-audit.json'),JSON.stringify({primaryFixtureEnd:primaryStart,phases,records:ledger},null,2));}}}
 });

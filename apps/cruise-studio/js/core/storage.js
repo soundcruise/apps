@@ -40,6 +40,8 @@
      * @returns {{ok: boolean, error: string|null}}
      */
     function saveProject(project) {
+        var guardModel=model();
+        if(guardModel && guardModel.schema2){var guard=guardModel.validateProject(project);if(!guard.ok)return {ok:false,error:'検証エラー: '+guard.errors.join(' / ')};}
         if (!project || typeof project.projectId !== 'string' || !project.projectId) {
             return { ok: false, error: 'projectId がないため保存できません' };
         }
@@ -187,7 +189,8 @@
      * プロジェクトをJSONテキストへ書き出す（ファイル保存用・整形あり）。
      */
     function exportProjectJson(project) {
-        if(project.sourceSchemaVersion===2)throw Error('Derived projections cannot be exported as projects');
+        var marker=Object.getOwnPropertyDescriptor(project,'sourceSchemaVersion');
+        if(marker && marker.value===2)throw Error('Derived projections cannot be exported as projects');
         var check=model().validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
         return JSON.stringify(project, null, 2);
     }

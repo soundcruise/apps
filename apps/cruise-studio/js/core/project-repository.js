@@ -66,7 +66,9 @@
                 var current = read(request.target);
                 if (!current.ok) return current;
                 if (current.revision !== request.baseRevision) return { ok: false, code: current.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: current };
-                if(request.snapshot.sourceSchemaVersion===2) return {ok:false,code:'projection-not-persistable',error:'派生表示を保存できません'};
+                var marker=Object.getOwnPropertyDescriptor(request.snapshot,'sourceSchemaVersion');
+                if(marker && marker.value===2) return {ok:false,code:'projection-not-persistable',error:'派生表示を保存できません'};
+                if(options.model.schema2){try{options.model.schema2.assertJson(request.snapshot);}catch(e){return {ok:false,code:'validation',error:e.message};}}
                 // Validate the original memory value before any lossy JSON clone (schema 1 keeps its legacy path).
                 if(request.snapshot.schemaVersion!==1){
                     var originalCheck=options.model.validateProject(request.snapshot);

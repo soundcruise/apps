@@ -1,6 +1,6 @@
-import { createPortDataHost } from './host.mjs?v=0.39.0';
-import { connectPortReadOnly } from './connection.mjs?v=0.39.0';
-import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.39.0';
+import { createPortDataHost } from './host.mjs?v=0.39.1';
+import { connectPortReadOnly } from './connection.mjs?v=0.39.1';
+import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.39.1';
 const CS = globalThis.CruiseStudio;
 let host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema });
 CS.portDataHost = host;

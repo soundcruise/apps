@@ -19,8 +19,23 @@
         ['onset','duration'].forEach(function(k){var a=p.timing[k];keys(a,['origin','confirmed']);insist(ORIGINS.includes(a.origin)&&typeof a.confirmed==='boolean','invalid-timing-provenance');});
     }
     // Inspect original data descriptors: never let JSON erase values or invoke user hooks.
-    function assertJson(value) { jsonValue(value,0,new Set()); }
-    function jsonValue(value,depth,seen) {
+    function assertJson(value) { jsonValue(value,0,new Set(),new Set()); }
+    function jsonValue(value,depth,seen,prototypes) {
+        prototypes = prototypes || new Set();
+        if (value && typeof value === 'object') {
+            // JSON reads toJSON through the complete prototype chain. Never read that property.
+            for (var proto = value; proto && !prototypes.has(proto); proto = Object.getPrototypeOf(proto)) {
+                insist(!Object.getOwnPropertyDescriptor(proto,'toJSON'), 'json-serialization-hook');
+                insist(!Object.getOwnPropertyDescriptor(proto,Symbol.toStringTag), 'non-json-symbol');
+                if (proto !== value) Reflect.ownKeys(proto).forEach(function(key){
+                    var descriptor=Object.getOwnPropertyDescriptor(proto,key);
+                    // Object.prototype's historical __proto__ accessor is never read here.
+                    insist(Object.hasOwn(descriptor,'value') || (key==='__proto__' && Object.getPrototypeOf(proto)===null),'non-json-descriptor');
+                });
+                // Only prototypes can be reused; each value still receives its full own-data check.
+                if (proto !== value) prototypes.add(proto);
+            }
+        }
         insist(depth<40,'json-depth');
         if(value===null||typeof value==='string'||typeof value==='boolean')return;
         if(typeof value==='number'){insist(Number.isFinite(value),'non-json-number');return;}
@@ -33,7 +48,7 @@
             var d = Object.getOwnPropertyDescriptor(value, key);
             insist(Object.hasOwn(d, 'value') && d.enumerable, 'non-json-descriptor');
             if (array) insist(/^(0|[1-9][0-9]*)$/.test(key) && Number(key) < value.length, 'non-json-array-property');
-            jsonValue(d.value, depth + 1, seen); count++;
+            jsonValue(d.value, depth + 1, seen, prototypes); count++;
         }
         // Unique, in-range own array indices cover the array iff their count equals length.
         if (array) insist(count === value.length, 'sparse-json-array');
@@ -53,7 +68,7 @@
         keys(value.midiExport,['format','includeClick']);insist([0,1].includes(value.midiExport.format)&&typeof value.midiExport.includeClick==='boolean','invalid-midi-setting');
     }
     function create(options){
-        var theory=options.theory, spelling=options.spelling, legacy=options.legacy, scales=new Map();
+        var theory=options.theory, spelling=options.spelling, legacy=options.legacy, scales=new Map(), legacyNotes=new WeakMap(), legacyBars=new WeakSet();
         function scaleNotes(key){if(!scales.has(key)){if(scales.size>=32)scales.delete(scales.keys().next().value);scales.set(key,spelling.spellScaleNotes({tonicPc:theory.keyToSemitone(key),tonicName:key,scaleId:'major'}));}return scales.get(key);}
         function id(){var value=options.idFactory&&options.idFactory();insist(typeof value==='string'&&value.length>0,'secure-id-unavailable');return value;}
         function mid(ev,key,capo){
@@ -133,6 +148,7 @@
         }
         function migration(p,raw,newProject){
             try{
+                assertJson(p);
                 if(p.schemaVersion===2){var c=validate(p);insist(c.ok,c.errors.join('/'));return {ok:true,project:copy(p),migrated:false};}
                 insist(p && p.schemaVersion===1,'unsupported-schema');jsonValue(p,0,new Set());
                 keys(p,['schemaVersion','appVersion','projectId','createdAt','updatedAt','songInfo','sections','bars','strumPatterns','basicStrumPatternId','sheetSettings','arrangement']);
@@ -194,10 +210,32 @@
             projection.bars.forEach(function(bar,i){Object.defineProperty(bar,'sourceId',{value:p.bars[i].id});});
             Object.defineProperty(projection,'sourceSchemaVersion',{value:2});return projection;
         }
+        function reconcileDoremi(bar, events, parsed) {
+            insist(legacyBars.has(bar),'ambiguous-melody-mapping');
+            // Syntax errors precede count/extension intent, including the first empty-voice entry.
+            insist(!parsed.warnings.length,parsed.warnings.join(' / '));
+            if (!bar.melody.length) return; // First entry into an empty voice remains an explicit creation.
+            insist(events.length===bar.melody.length && parsed.notes.length===events.length,'音数変更には明示操作が必要です');
+            var ids=new Set(), end=-1;
+            bar.melody.forEach(function(previous,index){
+                var eventId=legacyNotes.get(previous);
+                insist(eventId && !ids.has(eventId) && previous.tick>=end,'ambiguous-melody-mapping');
+                // Bare solfege is pitch-only in an existing v2 voice. Explicit extensions
+                // are safe only when the parser's exact duration already matches the note.
+                // Display rounding (e.g. 180 ticks -> ド〜) is never a timing authority.
+                insist(parsed.notes[index].extensions===0 || events[index].durationTicks===previous.durationTicks,'伸ばし記号の再配置には明示操作が必要です');
+                ids.add(eventId);end=previous.tick+previous.durationTicks;
+                legacyNotes.set(events[index],eventId);
+            });
+        }
         function editLegacy(project, edit) {
             if(project.schemaVersion===1)return edit(project);
             var before=readProjection(project), view=copy(before);
-            view.bars.forEach(function(b,i){Object.defineProperty(b,'sourceId',{value:project.bars[i].id});});
+            view.bars.forEach(function(b,i){
+                var canonical=project.bars[i],notes=canonical.melody.filter(function(e){return e.kind==='note';});
+                Object.defineProperty(b,'sourceId',{value:canonical.id});legacyBars.add(b);
+                b.melody.forEach(function(e,j){legacyNotes.set(e,notes[j].id);});
+            });
             var outcome=edit(view);
             // sourceId is an internal non-enumerable bar mapping, never serialized.
             Object.keys(view).forEach(function(k){
@@ -222,10 +260,27 @@
                 if(!prior||!same(prior.chords,b.chords))out.chords=b.chords.map(function(e,i){var oldEvent=old&&old.chords[i], symbol=chord(e.symbol,si.capo), a={id:oldEvent?oldEvent.id:id(),onsetTick:e.tick,symbol:symbol===null?e.symbol:symbol,unresolved:symbol===null,provenance:{origin:'user-set',sourceBasis:{playKey:si.playKey,capo:si.capo}}};if(e.durationTicks!==undefined)a.durationTicks=e.durationTicks;return a;});
                 if(!prior||!same(prior.lyrics,b.lyrics))out.lyrics=b.lyrics.map(function(e){var prev=old&&old.lyrics.find(function(x){return x.onsetTick===e.tick;});return {id:prev?prev.id:id(),onsetTick:e.tick,text:e.text,provenance:{origin:'user-set'}};});
                 if(!prior||!same(prior.melody,b.melody)){
-                    var notes=old?old.melody.filter(function(e){return e.kind==='note';}):[], manual=old&&old.melody.some(function(e){return e.kind==='rest'||['onset','duration'].some(function(k){return e.provenance.timing[k].origin==='user-set'||e.provenance.timing[k].confirmed;});});
-                    if(manual&&notes.length!==b.melody.length)throw Error('手動編集済みの小節は音数を自動変更できません。変更は適用していません');
-                    var changed=b.melody.map(function(e,i){var prev=notes[i], inputKey=project.solfege.tonic.step+spelling.formatAccidental(project.solfege.tonic.alter), n=pitchMidi(project.solfege.tonic)+SCALE[e.step]+e.alter+12*e.octave;insist(integer(e.step)&&e.step>=0&&e.step<7&&integer(e.alter)&&integer(e.octave),'invalid-solfege');var result={id:prev?prev.id:id(),kind:'note',onsetTick:manual?prev.onsetTick:e.tick,durationTicks:manual?prev.durationTicks:e.durationTicks,pitch:spelled(n,e.step,inputKey,e.alter),provenance:manual?copy(prev.provenance):timing('auto-assigned',false)};return result;});
-                    out.melody=manual?changed.concat(old.melody.filter(function(e){return e.kind==='rest';}).map(copy)):changed;
+                    if (old && old.melody.length) {
+                        var notes=old.melody.filter(function(e){return e.kind==='note';}), byId=new Map(notes.map(function(e){return [e.id,e];})), used=new Set(), last=-1;
+                        insist(notes.length===b.melody.length,'音数変更には明示操作が必要です');
+                        var pitches=new Map();
+                        b.melody.forEach(function(e){
+                            var sourceId=legacyNotes.get(e), prev=byId.get(sourceId);
+                            insist(prev && !used.has(sourceId) && prev.onsetTick>=last,'ambiguous-melody-mapping');
+                            used.add(sourceId);last=prev.onsetTick+prev.durationTicks;
+                            var inputKey=project.solfege.tonic.step+spelling.formatAccidental(project.solfege.tonic.alter);
+                            insist(integer(e.step)&&e.step>=0&&e.step<7&&integer(e.alter)&&integer(e.octave),'invalid-solfege');
+                            pitches.set(sourceId,spelled(pitchMidi(project.solfege.tonic)+SCALE[e.step]+e.alter+12*e.octave,e.step,inputKey,e.alter));
+                        });
+                        // Preserve the exact original event order, rests, gaps, time and provenance.
+                        out.melody=old.melody.map(function(e){var result=copy(e);if(pitches.has(e.id))result.pitch=pitches.get(e.id);return result;});
+                    } else {
+                        out.melody=b.melody.map(function(e){
+                            var inputKey=project.solfege.tonic.step+spelling.formatAccidental(project.solfege.tonic.alter);
+                            insist(integer(e.step)&&e.step>=0&&e.step<7&&integer(e.alter)&&integer(e.octave),'invalid-solfege');
+                            return {id:id(),kind:'note',onsetTick:e.tick,durationTicks:e.durationTicks,pitch:spelled(pitchMidi(project.solfege.tonic)+SCALE[e.step]+e.alter+12*e.octave,e.step,inputKey,e.alter),provenance:timing('auto-assigned',false)};
+                        });
+                    }
                 }
                 if(b.strumOverride){var prevBinding=old&&project.performance.barRhythms.find(function(x){return x.barId===old.id;});bindings.push({id:prevBinding?prevBinding.id:id(),barId:out.id,materialId:patterns.get(b.strumOverride)});}
                 if(b.lineBreakAfter)breaks.push(out.id);return out;
@@ -238,7 +293,7 @@
             Object.keys(project).forEach(function(k){if(!Object.hasOwn(next,k))delete project[k];});Object.keys(next).forEach(function(k){project[k]=next[k];});
             return outcome;
         }
-        return Object.freeze({validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
+        return Object.freeze({validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
     }
     return Object.freeze({create:create,pitchMidi:pitchMidi,maxBytes:MAX_BYTES,timing:timing});
 });

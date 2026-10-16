@@ -1,3 +1,11 @@
+## Studio 0.39.1 — M1 Safety Recovery 自動受入（2026-10-16）
+
+F1の未確認legacy timing/ID/provenance/rest/gap保持、F2のprototype/getter/toJSON検証、CMM private DTO境界を修正。Git登録の欠落baseを同一HEADの実測で補完し、checkerは変更しない。Browser ledgerは明示選択2writeと後続no-writeを区間化して全履歴保持。構文不正を音数判定より先に診断し、IME文字/focus/caretを保持する。
+Node1108／正式Browser18ファイル466 PASS、FAIL/skip0。F1/F2の51件と構文追加6件を再検証。64小節command p95 12.7/13.1ms、Staff103.9/100.8ms（保存前/後）で正式目標PASS。128小節command25.4/25.2msは追加耐久。CMM比較目安の超過は継続改善であり全件達成としない。
+schema2維持、M1自動受入のみ。M2/M3のUI・実OS IME/Safari/実印刷は未完。Port1.23.1 F3は最新main統合の別工程。main統合/本番公開なし。限定commit/topic pushの実結果は証拠final-receipt.jsonを参照。以下は過去の記録。
+
+[正式35項目・試験・性能・証拠](SCHEMA2_FOUNDATION.md)。
+
 ## Studio 0.38.1 — Melody Staff UX Polish Finalization
 
 既存topic上のpatch。Astra/OpusのP1を、共通tick/実測文字幅、1/2小節system、

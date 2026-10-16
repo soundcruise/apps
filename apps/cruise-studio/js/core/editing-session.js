@@ -7,8 +7,23 @@
     'use strict';
     function jsonInsist(ok,code) { if(!ok) throw new TypeError(code); }
     // Schema 2 drafts must not be normalized by JSON before domain validation.
-    function assertJson(value) { jsonValue(value,0,new Set()); }
-    function jsonValue(value,depth,seen) {
+    function assertJson(value) { jsonValue(value,0,new Set(),new Set()); }
+    function jsonValue(value,depth,seen,prototypes) {
+        prototypes = prototypes || new Set();
+        if (value && typeof value === 'object') {
+            // JSON reads toJSON through the complete prototype chain. Never read that property.
+            for (var proto = value; proto && !prototypes.has(proto); proto = Object.getPrototypeOf(proto)) {
+                jsonInsist(!Object.getOwnPropertyDescriptor(proto,'toJSON'), 'json-serialization-hook');
+                jsonInsist(!Object.getOwnPropertyDescriptor(proto,Symbol.toStringTag), 'non-json-symbol');
+                if (proto !== value) Reflect.ownKeys(proto).forEach(function(key){
+                    var descriptor=Object.getOwnPropertyDescriptor(proto,key);
+                    // Object.prototype's historical __proto__ accessor is never read here.
+                    jsonInsist(Object.hasOwn(descriptor,'value') || (key==='__proto__' && Object.getPrototypeOf(proto)===null),'non-json-descriptor');
+                });
+                // Only prototypes can be reused; each value still receives its full own-data check.
+                if (proto !== value) prototypes.add(proto);
+            }
+        }
         jsonInsist(depth<40,'json-depth');
         if(value===null||typeof value==='string'||typeof value==='boolean')return;
         if(typeof value==='number'){jsonInsist(Number.isFinite(value),'non-json-number');return;}
@@ -21,7 +36,7 @@
             var d = Object.getOwnPropertyDescriptor(value, key);
             jsonInsist(Object.hasOwn(d, 'value') && d.enumerable, 'non-json-descriptor');
             if (array) jsonInsist(/^(0|[1-9][0-9]*)$/.test(key) && Number(key) < value.length, 'non-json-array-property');
-            jsonValue(d.value, depth + 1, seen); count++;
+            jsonValue(d.value, depth + 1, seen, prototypes); count++;
         }
         // Unique, in-range own array indices cover the array iff their count equals length.
         if (array) jsonInsist(count === value.length, 'sparse-json-array');
@@ -29,8 +44,12 @@
     }
     var legacySources = new WeakSet();
     function clone(value, validated) {
-        if (value && value.schemaVersion === 2) {
-            if (!validated) assertJson(value);
+        var descriptor = value && typeof value === 'object' && Object.getOwnPropertyDescriptor(value,'schemaVersion');
+        if (descriptor && !Object.hasOwn(descriptor,'value')) throw new TypeError('non-json-descriptor');
+        var checked=!validated && value && typeof value==='object' && Object.hasOwn(value,'projectId');
+        if(checked)assertJson(value);
+        if (descriptor && descriptor.value === 2) {
+            if (!validated && !checked) assertJson(value);
             var provenance = { ...value.provenance }, source = provenance.legacySource;
             delete provenance.legacySource;
             var copy = JSON.parse(JSON.stringify({ ...value, provenance: provenance }));
@@ -137,7 +156,10 @@
         function emit(session, kind) { listeners.forEach(function (fn) { try { fn(session, kind); } catch (_) { /* subscribers cannot corrupt ownership */ } }); }
         function make(domain, target, record, initial) {
             function validCanonical(value) {
-                if(value && value.schemaVersion!==1){var check=options.validate(value);if(!check.ok)throw Error(check.errors.join(' / '));}
+                if(!value)return;
+                // Do not dispatch on a caller-controlled property until descriptors are safe.
+                assertJson(value);
+                if(value.schemaVersion!==1){var check=options.validate(value);if(!check.ok)throw Error(check.errors.join(' / '));}
             }
             validCanonical(record.snapshot);validCanonical(initial);
             target = snapshot(target);
@@ -264,9 +286,9 @@
                     var blocked = historyBlocked();
                     if (compositionText && blocked === 'input-pending') blocked = deleted ? 'deleted' : null;
                     if (blocked || openGroup) return reject(blocked || 'busy');
-                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion) return reject('invalid-target');
                     try {
                         var check = options.validate(tracker.raw); if (!check.ok) return {ok:false,code:'validation',error:check.errors.join(' / ')};
+                        if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion) return reject('invalid-target');
                         var staged = createDraft(tracker.raw, function () { return base; }, function () {}, true);
                         var fixed = {}; HISTORY_FIXED.forEach(function(key){ fixed[key] = tracker.raw[key]; });
                         if (tracker.raw.schemaVersion === 2) fixed.provenance = {legacySource:tracker.raw.provenance.legacySource};
@@ -287,11 +309,16 @@
                         tracker.rebase(); changeSerial++;
                         resetHistory('stale-operation', 'invalidated'); emit(session, 'history-invalidated'); return reject('stale-operation');
                     }
+                    // Safety first; then protected identity/source; domain validation last.
+                    // Descriptor-only JSON preflight never reads getters or calls toJSON.
+                    try { assertJson(group.tracker.raw); }
+                    catch(error){return {ok:false,code:'validation',error:error.message};}
+                    var originalCheck;
                     if (Array.from(HISTORY_FIXED).some(function (key) { return !equal(group.tracker.raw[key], group.fixed[key]); })) return reject('protected-field');
                     if(tracker.raw.schemaVersion === 2 && !equal(group.tracker.raw.provenance && group.tracker.raw.provenance.legacySource, group.fixed.provenance && group.fixed.provenance.legacySource)) return reject('protected-legacy-source');
                     var after;
                     try {
-                        var originalCheck=options.validate(group.tracker.raw);
+                        originalCheck=options.validate(group.tracker.raw);
                         if(!originalCheck.ok)return {ok:false,code:'validation',error:originalCheck.errors.join(' / ')};
                         after=contentSnapshot(group.tracker.raw, true);
                     } catch(error){return {ok:false,code:'validation',error:error.message};}
@@ -381,16 +408,20 @@
                 keepDraft: function () { return conflict; }, // no base advancement or stale overwrite permission
                 adoptExternal: function () { return flight ? Promise.resolve({ ok: false, code: 'busy' }) : Promise.resolve(cancelNow()); },
                 replaceDraft: function (value) {
-                    if (destroyed || flight || inputPending || value.projectId !== target.projectId) throw new Error('Cannot replace this draft');
+                    if (destroyed || flight || inputPending) throw new Error('Cannot replace this draft');
                     validCanonical(value);
+                    if (!value || value.projectId !== target.projectId) throw new Error('Cannot replace this draft');
                     resetHistory('replace'); generation++; changeSerial++; resetDraft(value); tracker.rebase(); emit(session, 'replace');
                 },
                 commit: function () {
                     if (!inputPending) finishTextGroup();
                     if (!session.canCommit()) return Promise.resolve({ ok: false, code: deleted ? 'deleted' : pending ? 'conflict' : 'unavailable', error: '現在は保存できません' });
-                    if(tracker.raw.schemaVersion===2 && !equal(tracker.raw.provenance && tracker.raw.provenance.legacySource,base.provenance && base.provenance.legacySource)) return Promise.resolve({ok:false,code:'protected-legacy-source'});
                     var fixed;
-                    try { validation = snapshot(options.validate(tracker.raw));if(validation.ok)fixed=snapshot(tracker.raw); }
+                    try {
+                        assertJson(tracker.raw);
+                        if(tracker.raw.schemaVersion===2 && !equal(tracker.raw.provenance && tracker.raw.provenance.legacySource,base.provenance && base.provenance.legacySource)) return Promise.resolve({ok:false,code:'protected-legacy-source'});
+                        validation = snapshot(options.validate(tracker.raw));if(validation.ok)fixed=snapshot(tracker.raw);
+                    }
                     catch (error) { validation = freeze({ ok: false, errors: [error.message || String(error)], warnings: [] }); }
                     if (!validation.ok) { commitError = '検証エラー: ' + validation.errors.join(' / '); emit(session, 'validation'); return Promise.resolve({ ok: false, code: 'validation', error: commitError }); }
                     var token = freeze({ sessionId: sessionId, commitId: sessionId + ':commit-' + (++commitSequence), generation: generation });

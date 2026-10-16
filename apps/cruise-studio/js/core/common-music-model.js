@@ -56,7 +56,11 @@
             var api=options.schema2,p=frame.project;
             if(!api)return failure('unsupported-schema');
             try { p=prepare(p); } catch(e) { return failure('invalid-project',e.message); }
-            var projection={...p.legacy,songInfo:{...p.legacy.songInfo,
+            // prepare() validates canonical input and owns/freezes this read projection.
+            // The v1 converter accepts JSON data, not editor-only non-enumerable IDs.
+            // Strip those metadata descriptors only in this private DTO; convert() still
+            // applies the strict v1 validator. The public non-persistable projection stays intact.
+            var projection={...p.legacy,bars:p.legacy.bars.map(function(bar){return {...bar};}),songInfo:{...p.legacy.songInfo,
                 originalKey:p.tonic.step+spelling.formatAccidental(p.tonic.alter)}};
             var r=convert(Object.assign({},frame,{project:projection}));if(!r.ok)return r;
             // Copy only modified branches. Never JSON-expand the shared source graph.

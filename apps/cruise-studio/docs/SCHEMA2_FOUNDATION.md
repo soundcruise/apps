@@ -12,8 +12,124 @@ Migrationは同じrawから同じID・内容。日時・乱数を使わない。
 
 既存Sessionの単一Undoへ統合。command envelopeはproject/session/document/workspace generation/snapshot/base/bar/eventを照合。input/conflict/save/staleは変更前に拒否。requireUndoで容量超過も公開前拒否。legacySourceは履歴から除外するがProject全体予算から除外しない。
 
-最新判定は次節のM1自動受入。過去の停止履歴は下部に保持する。
+最新判定は次節の0.39.1 M1自動受入。過去の停止履歴は下部に保持する。
 
+
+## 2026-10-16 Studio 0.39.1 — M1 Safety / Git Safety & Browser Final Recovery
+
+**M1基盤の自動受入はPASS。Studio 0.39.1 / schema 2。M2/M3は未着手で、製品完成・main統合・本番公開を意味しない。** 以下の0.39.0受入・停止記録は履歴として残す。今回の結果はこの節を正本とする。
+
+### F1/F2と診断の修正
+
+- F1: 同音数のドレミ音高変更は既存event IDで対応を確認し、onset/duration/provenance・rest順序・gapを完全保持する。未確認legacy-unknownも対象。曖昧な音数/伸ばし変更、対応不明/並替は拒否する。空voiceへの初回入力とschema 1の従来入力は維持する。
+- F2: JSON正規化前のdescriptor検査をprototype chainへ広げ、own/inherited toJSON、getter、Symbol.toStringTag、nested不正値を副作用なしで拒否。schemaVersion等のdispatchより先に検査する。別realm/null prototypeの純粋JSONは許容。Repository、Session、export、migration、履歴容量経路の保護を揃える。
+- 任意Proxyの内部trap実行までゼロとする契約ではない。descriptor API自体のtrapは隔離された反例で限界を確認し、通常のgetter/toJSONを呼ばないことと区別する。
+- CMMのprivate v1 DTOだけからeditor用非列挙mappingを除く。canonical正式validation、v1正式validation、公開projection/DTOの保存拒否を維持し、validatorを緩めない。
+- 構文warningを音数/伸ばしintent判定より先に返す。日本語等の不正文字列をProjectへ採用しない。composition中の未確定文字、確定後の不正文字、focus/caret、Undo履歴保持をBrowserで確認。音数変更の明示操作要求は維持。
+
+### Git登録・前回差分の保全
+
+開始HEAD/remote topicは`0f636765644dfaf367a1a24bf675141247febed4`。branchは`codex/studio-schema2-foundation-v1`。開始34ファイルの内容hashは前回stop-manifestと全件一致、staged空。開始patchと全34ファイルのコピーをrepo外の証拠へ保持した。
+reflogの作成元、HEADの単一親、merge-baseはすべて`dbd9a46fe61ebf9583c289ff38a15e81c3abeaef`。remote mainは`7cf2f02a65e05198cceead49d0d31df14ccfd8ae`、topic ahead1/behind2。
+前回planはcontractなしcapture由来で`baseline.base`が欠落していた。元planをそのまま保存し、同一HEADで正式readGit(contract)が取得したbase.exists/historyを新planのbaseline.baseへ補完。元baselineのchangesや既存項目は書き換えず、今回dirty captureも別保存する。全topic履歴の60pathが個別intent内であることを検査しdevelopment PASS。Git safety実装・テストは変更しない。main進展はnoticeであり自動merge/rebaseしない。
+
+### Browser ledgerと新規回帰
+
+runnerの追記ledgerをclear/resetしない。開始fixture境界と各検査区間を保存する。F1の明示B→A切替はcurrentProjectIdへのsetItemを順にB/Aの2件と検証し、その後のcancelとpure commandは新規write 0。単なるkey除外で意図しない書込みを許容しない。
+ledgerは44records。primary document6、counterexample document2、diagnostic document1。primaryの33writeはfixture6、明示SaveのProject5＋index5、明示対象選択17。別contextの意図的write2件はreload前後のNo-write反例が検出。診断contextはwrite 0。全記録のsequence/documentIdを保持する。
+
+- F1/F2追加51件＋今回の構文優先6件を再実行。関連Node163 PASS、全Node **1108 PASS / FAIL 0 / skip 0**。
+- 影響Browser2ファイル **61 PASS**。正式15 suite＋Structure conversion＋Melody Staff＋Schema 2の18ファイル **466 PASS / FAIL 0 / skip 0**。
+- Console/404/unhandled/禁止通信0、shared write OFF。使い捨てChromeと空きloopbackのみ。正式443Hz WAV: 44100Hz mono PCM16bit、8秒、SHA-256 `dd3779511af40b95ed8aa4836e2d755b0b919a388033321b4643554956bf7bbf`。
+- 実OS日本語IME/Safari/実プリンターは未検証。合成compositionやprint media試験を代用完了にしない。
+
+### 性能（今回の新規測定）
+
+Chrome 155.0.8059.82 / Node v24.14.0 / darwin arm64、1440×1000。0.38.1/dbd9a46 archiveと同じraw fixture、4/4・480 PPQ、各小節4音/4歌詞/C/strum。warmup3を除いて全metric20sample、nearest-rank。Browser/Node回帰と同時実行しない。単位ms、各セルp50/p95/max。
+
+| 版 | 小節 | 状態 | 同期編集 | CMM変換 | 五線更新 |
+|---|---:|---|---:|---:|---:|
+| 0.38.1 | 8 | 保存前 | 0.6/0.6/0.7 | 0.4/0.5/0.5 | 15.5/16.7/16.8 |
+| 0.38.1 | 8 | 保存・再読込後 | 0.6/0.7/0.7 | 0.4/0.5/0.5 | 16.2/17.8/18.0 |
+| 0.38.1 | 32 | 保存前 | 1.5/1.8/1.9 | 1.5/1.6/1.6 | 48.1/49.6/50.4 |
+| 0.38.1 | 32 | 保存・再読込後 | 1.5/1.7/1.9 | 1.6/1.7/1.7 | 49.2/51.1/51.2 |
+| 0.38.1 | 64 | 保存前 | 2.7/3.2/3.4 | 3.2/3.6/3.9 | 113.0/127.1/128.0 |
+| 0.38.1 | 64 | 保存・再読込後 | 2.8/3.3/4.1 | 3.3/3.6/3.7 | 124.8/126.7/127.1 |
+| 0.38.1 | 128 | 保存前 | 4.9/5.5/5.5 | 6.7/7.5/7.6 | 270.6/273.1/273.1 |
+| 0.38.1 | 128 | 保存・再読込後 | 4.8/5.6/5.7 | 6.7/7.2/7.3 | 270.8/274.7/274.9 |
+| 0.39.1 | 8 | 保存前 | 1.8/2.2/2.4 | 0.8/1.1/1.2 | 15.2/15.8/16.2 |
+| 0.39.1 | 8 | 保存・再読込後 | 1.9/2.1/2.3 | 0.8/0.9/0.9 | 14.7/15.3/15.6 |
+| 0.39.1 | 32 | 保存前 | 5.7/6.2/6.6 | 2.6/2.8/2.9 | 43.6/44.7/45.1 |
+| 0.39.1 | 32 | 保存・再読込後 | 5.7/5.9/6.2 | 2.6/2.8/2.9 | 43.6/44.8/45.1 |
+| 0.39.1 | 64 | 保存前 | 11.5/12.7/12.9 | 5.3/6.1/6.3 | 101.0/103.9/106.0 |
+| 0.39.1 | 64 | 保存・再読込後 | 11.6/13.1/13.3 | 5.5/6.1/6.2 | 98.6/100.8/101.8 |
+| 0.39.1 | 128 | 保存前 | 24.2/25.4/26.0 | 11.6/13.9/14.5 | 263.0/274.6/278.9 |
+| 0.39.1 | 128 | 保存・再読込後 | 23.5/25.2/25.4 | 11.8/14.9/15.2 | 260.4/275.2/278.0 |
+
+| 版 | 小節 | Migration | Save | Load |
+|---|---:|---:|---:|---:|
+| 0.38.1 | 8 | 0.0/0.1/0.4 | 0.7/0.8/0.9 | 0.1/0.1/0.1 |
+| 0.38.1 | 32 | 0.1/0.2/0.5 | 1.3/1.9/2.0 | 0.2/0.3/0.3 |
+| 0.38.1 | 64 | 0.1/0.2/0.3 | 2.4/3.1/3.2 | 0.3/0.4/0.5 |
+| 0.38.1 | 128 | 0.2/0.3/0.4 | 4.2/12.3/12.7 | 0.7/0.8/0.9 |
+| 0.39.1 | 8 | 0.3/0.6/0.6 | 3.4/3.9/4.2 | 0.7/1.0/1.1 |
+| 0.39.1 | 32 | 0.9/1.1/1.2 | 10.6/10.8/10.9 | 2.1/2.1/2.2 |
+| 0.39.1 | 64 | 1.7/2.0/2.1 | 24.5/25.0/25.6 | 4.1/4.6/4.6 |
+| 0.39.1 | 128 | 3.4/3.6/3.8 | 42.6/49.0/50.7 | 7.7/8.0/8.1 |
+
+64小節の同期編集p95 12.7/13.1ms（保存前/後）、五線103.9/100.8msで16ms/500ms正式目標PASS。128小節は追加耐久: 同期編集25.4/25.2ms、五線274.6/275.2msで完了。RangeError・異常増幅・入力喪失なし。8/32/64/128の容量、保存後変換、raw/ID/pitch/tick、Undo/Redo、A/B、stale拒否もNode/Browserで再検証。
+CMM p95は64小節でbaseline比約1.69倍、128保存後で約2.07倍。「概ね1.5倍」の比較目安は達成としない。prototype検証等を維持した今回の絶対時間は64で6.1ms、128で14.9ms。後続でimmutable DTO/検証回数の短縮を検討するが、安全validation/Undoやraw照合を省略しない。128へ16ms必須閾値を追加しない。
+
+### 35項目のM1受入とM2/M3境界
+
+各PASSはM1 core/既存consumer/自動回帰の範囲に限定する。key/capo明示編集、Inspector、fragmentクリック、gap/未確認表示、原文取出しUI等を実装済みとしない。
+
+| # | 項目 | M1自動検証 | M2/M3または後続（未実装/未検証） |
+|---|---|---|---|
+| 1 | 音価変更 | PASS：pitch/ID/onset不変、duration変更 | Inspector UI |
+| 2 | 休符挿入 | PASS：gap内の新rest、周囲不変 | gap選択UI |
+| 3 | 休符変更 | PASS：非ripple延長・Undo | 休符UI |
+| 4 | note/rest | PASS：ID/時刻保持、明示pitchで復帰 | 編集UI |
+| 5 | overlap | PASS：全拒否、draft/history/raw不変 | UI拒否案内 |
+| 6 | 小節越境 | PASS：切り詰めず拒否 | 編集UI |
+| 7 | 短縮 | PASS：gap導出・次音不動 | gap表示UI |
+| 8 | 延長 | PASS：接触成功・重複拒否 | 編集UI |
+| 9 | gap保持 | PASS：240/180例のblur/JSON/Save/Load保持 | 実機確認 |
+| 10 | Undo/Redo | PASS：8commandの原子的復元・単一履歴 | 新UI統合 |
+| 11 | Save/Load | PASS：8/32/64/128保存後と再読込後の五線/CMM | 実環境耐久 |
+| 12 | v1 migration | PASS：exact MIDI/onset/duration保持 | 実曲追加確認 |
+| 13 | idempotency | PASS：同raw同ID・原文重複なし | なし |
+| 14 | stable ID | PASS：削除/並替/Undo/再読込 | 複製/移動UI |
+| 15 | 音高保持 | PASS：B/Capo2/Cb/B#/上下octave | 実機譜読 |
+| 16 | key/capo | PASS（M1）：独立metadata・移行の実音保持。key/capo編集を明示拒否 | 明示移調/実音保持の意図選択UI |
+| 17 | A/B分離 | PASS：draft/履歴/歌詞一時状態を分離 | 新パネル統合 |
+| 18 | stale | PASS：旧世代/forged/Save前結果を拒否 | 新パネルcallback |
+| 19 | IME | PASS：未確定/不正compositionのdraft非採用、文字/focus/caret保持、native/domain Undo | 実OS日本語IME/Safari・新UI |
+| 20 | no-write | PASS：Project/index非保存。選択writeの値/順序/2件と後続no-write区間を分離、全ledger保持 | 新UI確認操作 |
+| 21 | invalid | PASS：own/inherited toJSON・getter・nested不正値を副作用/write 0で拒否。別realm JSON許容 | 新UI拒否案内 |
+| 22 | unsupported | PASS：160tick保持、非4/4のv1互換、future拒否 | 対応拡張なし |
+| 23 | print | PASS：メロディ→従来コード譜fallback・非保存 | 五線印刷/実プリンター |
+| 24 | 他機能非干渉 | PASS：Pre-DTM全出力の固定時計下厳密一致 | main統合回帰 |
+| 25 | 性能 | PASS：64小節16ms/500ms目標PASS、128追加耐久完了 | 128の同期編集短縮・比較目安の継続改善 |
+| 26 | ドレミ往復 | PASS：未確認legacy/auto/user timing・180tick・rest/gap・ID/provenance保持。構文不正を音数判定より先に拒否 | 明示再配置UI |
+| 27 | 部分確認 | PASS：durationのみ確認・他属性未確認 | 未確認警告UI |
+| 28 | 小節確認 | PASS：gap→rest含め1Undo | 確認UI |
+| 29 | 履歴容量 | PASS：公開前拒否・Redo/text group不変 | 容量案内UI |
+| 30 | 保存競合 | PASS：exact raw更新/削除を混合せず拒否 | 実タブ/実機組合せ |
+| 31 | 保存失敗 | PASS：quota/index復旧失敗/result-unknown保持 | 実環境耐久 |
+| 32 | 原文復元 | PASS：空白含むrawとhash保持・不変、未知構造は拒否 | 原文取出しUI |
+| 33 | fragment | PASS：source event/barへの対応・gap/rest分離 | fragmentクリック編集 |
+| 34 | 無変更 | PASS：既確認の同値は履歴なし | 新パネル開閉 |
+| 35 | 旧consumer | PASS：canonical直接読み拒否・明示adapter・v1互換 | 新consumer追加時も継続 |
+
+
+### Version、F3、次工程
+
+0.39.1は安全性bugfixのpatch。Project schemaVersion=2、validatorの保存構造を変更しない。Studio内のversion/cache/試験期待値を整合。topicのPort sourceは1.23.0で、そのimport queryも維持する。mainのPort1.23.1とのF3は、別承認の最新main統合候補でStudio所有metadata/cache/試験を整合させる残件。Port/Shared等のownerファイルを今回変更しない。
+次は受入済み修正tipを起点にM2+M3。main統合は最新main第1親/承認済みtopic第2親の2-parent契約、個別manifest、integration/release gateと公開承認が別途必要。M1単独本番公開は行わない。今回許可は限定commitと既存topicへの通常pushまで。
+Gitの最終SHA・postcommit回帰・push結果はrepo外final-receipt.jsonで確定する。実行前に成功と記載しない。
+
+証拠: `/Users/murakamimasakuni/.codex/visualizations/2026/10/14/01a13a33-b638-7f83-93d9-945d43b59e03/schema2-final-recovery-20261016`。start.json/start-files/initial.patch、previous-plan/registration-audit/current-capture、Node/Browser logs、schema2-storage-audit、performance.json（全sample）、performance-gate、Git gates/final receiptを参照。
 
 ## 2026-10-16 M1 Final Acceptance — topic候補
 

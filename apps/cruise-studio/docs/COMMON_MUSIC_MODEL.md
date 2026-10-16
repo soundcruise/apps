@@ -1,3 +1,9 @@
+## Studio 0.39.1 / schema 2 M1安全性修正（2026-10-16）
+
+canonicalの元JSON検証を強化し、own/inherited toJSON/getterをJSON cloneより前に拒否する。privateなv1 DTOのbarsだけをown enumerable dataへ投影し、editor専用sourceIdを除く。v1正式validatorは省略しない。公開read projection/prepared DTOは保存不可。保存raw/private exact revisionをCMMイベントへ増幅しない。
+Node1108/Browser466 PASS、8/32/64/128保存前後の変換・raw/ID/tick保持・旧結果拒否を再確認。64小節CMM p95は6.1ms、128保存後14.9ms。baseline比1.69/2.07倍の比較目安超過を残件として保持。正式64小節command16ms/Staff500ms目標はPASS。M2/M3未着手。
+[今回の受入・全sample・境界](SCHEMA2_FOUNDATION.md)。以下の数値は過去記録。
+
 # Common Music Model + Structure Read-only Conversion Core v1
 
 現行0.38.0では[Melody Staff Preview](MELODY_STAFF_PREVIEW.md)が成功結果だけを読む。以下の0.37.0時点の未接続記述はCore導入時の履歴で、歌詞の加算契約は末尾参照。

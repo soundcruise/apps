@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.39.0';
+    var APP_VERSION = '0.39.1';
     var SCHEMA_VERSION = 2;
     var LEGACY_SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
@@ -442,6 +442,9 @@
         });
         if (overflow) warnings.push('小節に収まらない分は詰めるか省略しました');
 
+        if (bar.sourceId && window.CruiseStudio.model.schema2) {
+            window.CruiseStudio.model.schema2.reconcileDoremi(bar, events, parsed);
+        }
         bar.melody = events;
         return { warnings: warnings };
     }
@@ -1072,7 +1075,14 @@
             idFactory:function(){if(!window.crypto || typeof window.crypto.randomUUID !== 'function') throw Error('secure-id-unavailable');return window.crypto.randomUUID();}});
         m.schema2 = api;
         m.editLegacy = function(p,edit){if(p && p.schemaVersion===1)return edit(p);if(p && p.schemaVersion===2)return api.editLegacy(p,edit);throw Error('unsupported-schema');};
-        m.validateProject = function(p){return p && p.schemaVersion===2?api.validate(p):old.validateProject(p);};
+        m.validateProject = function(p){
+            try {
+                var version=p && typeof p==='object' && Object.getOwnPropertyDescriptor(p,'schemaVersion');
+                if(version && Object.hasOwn(version,'value') && version.value===2)return api.validate(p);
+                api.assertJson(p);
+                return old.validateProject(p);
+            } catch(e){return {ok:false,errors:[e.message],warnings:[]};}
+        };
         m.migrateProject = function(p,raw){return api.migrate(p,raw,false);};
         ['createEmptyProject','createSampleProject'].forEach(function(name){m[name]=function(){var v1=old[name]();v1.projectId=api.newId();var result=api.migrate(v1,JSON.stringify(v1),true);if(!result.ok)throw Error(result.error);return result.project;};});
         // Bar-only legacy readers lack project pitch context. Require an explicit read projection.
