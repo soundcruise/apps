@@ -288,6 +288,8 @@
      * @returns {HTMLElement} 生成した .sheet-page（複数ページ化する将来は配列先頭）
      */
     function render(project, container) {
+        if(project.schemaVersion===2) project=CS().model.toLegacyView(project);
+        else if(project.schemaVersion!==1) throw Error('unsupported-schema');
         var model = CS().model;
         var show = resolveShowSettings(project);
         var ts = project.songInfo && project.songInfo.timeSignature;

@@ -1,3 +1,9 @@
+> 現行正本はschema 2。正式契約は[SCHEMA2_FOUNDATION](docs/SCHEMA2_FOUNDATION.md)。以下のschema 1定義はlegacy互換資料として保持する。Studio 0.40.2では旧storage.saveProjectのschema 2保存を拒否し、Repository/Editing Sessionを正式保存経路とする。保存schemaは2から変更しない。
+
+# Schema 2 Foundation M1
+
+正式schema 2は[SCHEMA2_FOUNDATION.md](docs/SCHEMA2_FOUNDATION.md)および[音価・休符契約](docs/MELODY_DURATION_REST_CONTRACT.md)を参照。以下は移行元schema 1の保存仕様記録。
+
 # クルーズスタジオ — データモデル定義
 
 対象スキーマ: **schemaVersion 1**（実装: `js/core/song-model.js`）

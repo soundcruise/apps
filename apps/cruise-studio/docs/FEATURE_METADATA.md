@@ -6,7 +6,7 @@
 
 ## 読み取りAPI
 
-`js/core/feature-registry.mjs?v=0.38.1`から次をimportできる。
+`js/core/feature-registry.mjs?v=0.40.3`から次をimportできる。
 
 - `getComponentMetadata(componentId)` / `getAppVersion(componentId)`
 - `getFeatureMetadata(featureId)` / `listFeatures()`
@@ -19,14 +19,14 @@
 
 | componentId | 現行appVersion | repository-relative source / symbol | 読み方 |
 |---|---|---|---|
-| cruise-port | 1.23.0 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
+| cruise-port | 1.23.1 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
 | chord-cruise | 1.21.0 | apps/chord-cruise/js/app.js / CHORD_CRUISE_APP_VERSION | source-mirror |
 | pitch-cruise | 2.30.0 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.25.0 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.20.0 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.38.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.40.3 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
-Studio 0.38.1のmetadata保守で現行sourceに追従。製品機能・Project schema1は変更しない。
+Studio 0.40.3候補のversion/cacheを正式sourceに整合。Project schemaVersion=2を維持。F3の対象・統合方式・検証境界は[F3_METADATA_ALIGNMENT](F3_METADATA_ALIGNMENT.md)を参照。
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -36,13 +36,13 @@ classic scriptの実行、eval、filesystem、network、DOM、storageには接�
 対応する宣言は同一行の単純なVersion文字列literalと終端`;`に限定し、継続式・式initializer・`;`省略・未対応の字句形式は検証失敗として扱う。
 
 appVersionとstorage schema、Sync schema、API version、asset/module cache key、release commit/buildは別物。
-schemaRefは種類・source・symbolだけを指す。Studio schemaは1、Metronome保存schemaは3で、appVersionではない。
+schemaRefは種類・source・symbolだけを指す。Studio schemaは2、Metronome保存schemaは3で、appVersionではない。
 API / backend versionやbuildの推測値は登録しない。独立componentは必要な工程で追加できる。
 
 ### Importとcache
 
-Studio内部importは現在のmodule cache運用に合わせ`?v=0.38.1`。
-Port元ESMへのStudio側importは現行sourceのcache key `?v=1.23.0`を使う。
+Studio内部importは現在のmodule cache運用に合わせ`?v=0.40.3`。
+Port元ESMへのStudio側importは現行sourceのcache key `?v=1.23.1`を使う。
 商品versionをcache keyから抽出することはない。他ownerのHTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
 classic ownerの正式version更新後は、Studio所有のmirrorだけを追従更新し、全6componentを個別に照合する。
@@ -128,3 +128,8 @@ M2 schema / store / controllerはregistryへ入れない。静的owner / schemaR
 注入access stateはeffective設定fixtureだけで、認証・認可ではない。保存契約は[Metronome統合](METRONOME_INTEGRATION.md)を参照。
 Session、lease、context、running、permission・Pro実資格はruntimeへ置く。万能registryへ拡張しない。
 詳細は[AUDIO_COORDINATOR](AUDIO_COORDINATOR.md)を参照。
+
+
+## Schema 2 Foundation M1 candidate
+
+Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（schema番号とは独立）。実装・検証中。M1完了・commit・push・main統合・公開は未実施。[正式契約]( SCHEMA2_FOUNDATION.md )。

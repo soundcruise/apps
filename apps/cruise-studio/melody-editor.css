@@ -1,0 +1,30 @@
+/* Structure-only Inspector. Narrow panel reserves scroll room and keeps the selected glyph above its edge. */
+.melody-editor[hidden] { display:none!important; }
+.melody-editor { box-sizing:border-box; min-width:0; padding:16px; margin:12px 0; border:1px solid var(--border-color,#8c7853); border-radius:10px; background:var(--surface-color); color:var(--text-color); font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+.melody-editor h3 { margin:0 0 8px; font-size:17px; }
+.melody-editor label { display:flex; flex-direction:column; gap:4px; margin:10px 0; }
+.melody-editor select,.melody-editor input { max-width:100%; box-sizing:border-box; padding:8px; color:var(--text-color); background:var(--surface-raised); border:1px solid var(--border-color,#8c7853); border-radius:6px; font:inherit; }
+.melody-editor button { display:block; width:100%; margin:6px 0; min-height:36px; white-space:normal; }
+.melody-editor fieldset { min-width:0; margin:12px 0; }
+.melody-editor fieldset input,.melody-editor fieldset select { width:100%; margin:3px 0; }
+.melody-editor-status { font-size:12px; }
+#sc-melody-error { font-weight:600; color:var(--text-color); border-left:3px solid currentColor; padding-left:8px; }
+#sc-melody-error:empty { display:none; }
+.melody-page [data-melody-target] { cursor:pointer; scroll-margin-block:180px 80px; }
+.melody-page .vf-stave,.melody-page .vf-beam,.melody-page .vf-stavetie { pointer-events:none; }
+.melody-page .melody-hit { pointer-events:all; }
+.melody-page [data-melody-target]:focus-visible { outline:2px solid #805511; outline-offset:4px; }
+.melody-page [data-melody-target][aria-pressed="true"] { filter:drop-shadow(0 0 3px #b07718); }
+.melody-page [data-melody-target][aria-pressed="true"] .vf-notehead path { fill:#805511; stroke:#805511; }
+@media(min-width:1280px){
+ .sheet-preview[data-melody-editor-open="true"] { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:16px; align-items:start; }
+ .sheet-preview[data-melody-editor-open="true"] .sheet-preview-viewport { grid-column:1; min-width:0; }
+ .sheet-preview[data-melody-editor-open="true"] .melody-editor { grid-column:2; grid-row:1 / span 2; position:sticky; top:var(--melody-sticky-top); max-height:var(--melody-sticky-height); overflow:auto; margin-top:0; }
+ .sheet-preview[data-melody-editor-open="true"] .preview-note { grid-column:1; }
+}
+@media(max-width:1279px){
+ .sheet-preview[data-melody-editor-open="true"] { padding-bottom:var(--melody-panel-reserve,0px); }
+ .sheet-preview[data-melody-editor-open="true"] .melody-editor { position:fixed; z-index:45; left:var(--melody-panel-left); bottom:var(--melody-panel-bottom); width:var(--melody-panel-width); max-height:var(--melody-panel-height); overflow:auto; overscroll-behavior:contain; margin:0; box-shadow:0 -3px 12px #0003; }
+ .melody-editor #sc-melody-error:not(:empty) { position:sticky; top:0; z-index:1; background:var(--surface-color); }
+}
+@media print { .melody-editor { display:none!important; }.sheet-preview[data-melody-editor-open="true"] { display:block; } }

@@ -7,6 +7,7 @@
     function mount(options) {
         var panel = options.document.getElementById('studio-chord-inspector'), off = null, disposed = false;
         var messages = { inactive: 'Structureでコードのある小節を選択してください。', unselected: '小節を選択するとコード情報を表示します。',
+            invalid: '曲の入力値を確認してください。譜面に詳細診断を表示しています。',
             deleted: '選択した対象は削除されました。', multiple: '複数のコードがあります。単一コードの小節を選択してください。',
             editing: '入力中のdraftです。確定後にコード情報を表示します。',
             empty: 'この小節にはコードがありません。', unsupported: 'このコード表記はv1では未対応です。元の入力を保持しています。' };

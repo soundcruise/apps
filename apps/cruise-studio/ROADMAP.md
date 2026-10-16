@@ -1,3 +1,47 @@
+## Studio 0.40.3 — F3 metadata / cache整合候補（2026-10-16）
+
+- Port正式source 1.23.1へのStudio import query追従。Chordのpure module 2件はowner HTMLと同じ1.21.0へ追従。
+- Studio自身のversion・現行cache query・厳密試験を0.40.3へ更新。schema 2と保存・演奏・認可のロジックは維持。
+- 固定main/topicを親順序通り保持する隔離2-parent候補。既存topic、旧候補、main root、未追跡原本は変更しない。
+- [F3正式記録](docs/F3_METADATA_ALIGNMENT.md)（PROJECT_STATEからは `../docs/F3_METADATA_ALIGNMENT.md`）。required試験の結果は候補SHAに紐づくrepo外の検証receiptで確定する。main反映・Pages公開は別承認。
+
+## Studio 0.40.2 — 旧保存API・広幅UI安全修正（2026-10-16）
+
+旧saveProjectはschema 1専用、schema 2はRepository/Editing Session専用にした。拒否時write0・入力/raw/index不変。広幅LoupeはInspector実測領域を避け、Inspectorのsticky位置はtoolbar実寸へ追従する。schema2、既存F1/F2・保存容量・Undo/IME境界を維持。
+Node1176／正式Browser23ファイル558 PASS、FAIL/skip/cancelled0。48条件の同時表示・hit testと性能gateを再実測。実OS IME/Safari/実印刷は未検証、F3 Port1.23.1は別統合工程。main統合/Pages公開なし。commit/push実結果はrepo外final receipt参照。
+
+[正式仕様・試験・性能](docs/MELODY_DURATION_REST_EDITING.md)。以下は過去の記録。
+
+## Studio 0.40.1 — Render Readiness Recovery & Final Acceptance（2026-10-16）
+
+保存metadata適用後の最終validationと、狭幅Inspector/選択音符の可視性を修正。768px timeoutはfixtureの同一ID/raw再投入に対するexternal-revision保護であり、条件別contextと完全identity ready照合で解消。製品rendererの保護は変更しない。
+今回Node 1156／Browser21ファイル 548 PASS、FAIL/skip/cancelled0。48画面条件、CDP IME/focus/caret、保存容量の実Save/再読込、8/32/64/128性能を再確認。0.40.1/schema2、F1/F2/単一Undo/no-write維持。
+実OS IME/Safari/実プリンターと後続機能は未完。F3 Port1.23.1は別の最新main統合候補で対応。限定commit/topic pushの実結果はrepo外final-receipt、main/Pages公開なし。
+[正式受入・35項目・性能・証拠](docs/MELODY_DURATION_REST_EDITING.md)。以下は履歴。
+
+## Studio 0.40.0 — Melody Duration & Rest Editing M2/M3 自動受入（2026-10-16）
+
+Structure内で音符・rest・gapを選び、InspectorからM1の8正式commandを実行する。正本StudioProject/schema2、既存Editing Session/単一Undo、明示Saveを維持する。非リップル音価/開始位置、明示pitch変換、部分/小節確認、gap確認、stale/A-B/IME保護を追加。
+透明hit矩形・private source stampと退役描画jobのRAF所有を分離。矢印はgapも含む記譜順で移動し、gapに音符専用欄を要求しない。No-writeはreloadを越える全ledgerと操作区間で検証し、A/B・Loupe幅補正・明示theme・明示Saveの9writeだけを値/件数照合する。
+Node1139／正規Browser19ファイル491 PASS、FAIL/skip/cancelled0。8/32/64/128性能と35項目を今回再測定。実OS IME/Safari/実印刷、高度時間表現・五線印刷・TABは未完。F3 Port1.23.1は最新main統合前に別対応。限定topic commit/pushの実結果はfinal-receipt参照、main統合/Pages公開なし。以下は過去の記録。
+
+[正式M2/M3契約・35項目・性能](docs/MELODY_DURATION_REST_EDITING.md)。
+
+## Studio 0.39.1 — M1 Safety Recovery 自動受入（2026-10-16）
+
+F1の未確認legacy timing/ID/provenance/rest/gap保持、F2のprototype/getter/toJSON検証、CMM private DTO境界を修正。Git登録の欠落baseを同一HEADの実測で補完し、checkerは変更しない。Browser ledgerは明示選択2writeと後続no-writeを区間化して全履歴保持。構文不正を音数判定より先に診断し、IME文字/focus/caretを保持する。
+Node1108／正式Browser18ファイル466 PASS、FAIL/skip0。F1/F2の51件と構文追加6件を再検証。64小節command p95 12.7/13.1ms、Staff103.9/100.8ms（保存前/後）で正式目標PASS。128小節command25.4/25.2msは追加耐久。CMM比較目安の超過は継続改善であり全件達成としない。
+schema2維持、M1自動受入のみ。M2/M3のUI・実OS IME/Safari/実印刷は未完。Port1.23.1 F3は最新main統合の別工程。main統合/本番公開なし。限定commit/topic pushの実結果は証拠final-receipt.jsonを参照。以下は過去の記録。
+
+[正式35項目・試験・性能・証拠](docs/SCHEMA2_FOUNDATION.md)。
+
+## Studio 0.39.0 — Schema 2 M1自動受入（topic候補、2026-10-16）
+
+schema 2正本、決定的migration、stable ID、原文保持、serialization前validation、Undo容量保護、明示consumer adapterを実装。Node1051／Browser18ファイル464 PASS、FAIL/skip0。診断の展開/集約とreload前後のrunner書込み監査、大規模8/32/64/128 Save/Load・五線・A/B・staleを検証。
+64小節の同期編集p95は保存前10.4/保存後10.3ms、五線更新105.2/105.5msで正式目標PASS。128小節は追加耐久として完了。小規模CMMの約1.6倍/128の約1.9倍は比較目安上の改善残件として明記。M2/M3のInspector・実OS IME・Safari・実印刷等を完成扱いにしない。
+mainはNEWS/Port更新の10296dbb、続くNEWS Workerのみ9pathの7cf2f02aへ独立進展。現topicを無断取り込みせず、次のmain統合時にPort1.23.1 mirror/cache整合と新規回帰が必要。今回main公開・Pro/Account/Authority/Sync操作なし、shared write OFF。
+[正式受入35項目・試験・性能](docs/SCHEMA2_FOUNDATION.md)。以下は過去の記録。
+
 ## Studio 0.38.1 — Melody Staff UX Polish Finalization
 
 既存topic上のpatch。Astra/OpusのP1を、共通tick/実測文字幅、1/2小節system、
@@ -1356,3 +1400,13 @@ Node218 + Chrome70独立ケース = 288検証。50実Start/Stop、4テーマ / 4
 working source回帰、JSON appVersion差のみ、MIDI / audio稼働中A4ラスタ一致。
 詳細とpendingは[AUDIO_COORDINATOR](docs/AUDIO_COORDINATOR.md)。次の正式工程は隔離Metronome M2。
 M1は保存・Pro・Account・Sync・presets・Transportの製品統合完了ではない。
+
+
+## Schema 2 Foundation M1 candidate
+
+Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（schema番号とは独立）。実装・検証中。M1完了・commit・push・main統合・公開は未実施。[正式契約]( docs/SCHEMA2_FOUNDATION.md )。
+
+
+## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
+
+0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](docs/SCHEMA2_FOUNDATION.md)を参照。

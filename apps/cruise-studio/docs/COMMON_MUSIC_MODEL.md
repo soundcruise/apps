@@ -1,3 +1,9 @@
+## Studio 0.39.1 / schema 2 M1安全性修正（2026-10-16）
+
+canonicalの元JSON検証を強化し、own/inherited toJSON/getterをJSON cloneより前に拒否する。privateなv1 DTOのbarsだけをown enumerable dataへ投影し、editor専用sourceIdを除く。v1正式validatorは省略しない。公開read projection/prepared DTOは保存不可。保存raw/private exact revisionをCMMイベントへ増幅しない。
+Node1108/Browser466 PASS、8/32/64/128保存前後の変換・raw/ID/tick保持・旧結果拒否を再確認。64小節CMM p95は6.1ms、128保存後14.9ms。baseline比1.69/2.07倍の比較目安超過を残件として保持。正式64小節command16ms/Staff500ms目標はPASS。M2/M3未着手。
+[今回の受入・全sample・境界](SCHEMA2_FOUNDATION.md)。以下の数値は過去記録。
+
 # Common Music Model + Structure Read-only Conversion Core v1
 
 現行0.38.0では[Melody Staff Preview](MELODY_STAFF_PREVIEW.md)が成功結果だけを読む。以下の0.37.0時点の未接続記述はCore導入時の履歴で、歌詞の加算契約は末尾参照。
@@ -12,7 +18,7 @@ Structure Editing Sessionが編集の正本。共通modelVersion1は保存schema
 fatal時はok=false。一部情報をmodelに残せる場合も、それを現行譜面として採用してはいけない。
 ok=trueは対応範囲のprojection成功だけを表し、完全な演奏譜の完成ではない。`completePerformance=false`を常に明示する。
 
-sourceはprojectId/sessionId/snapshotVersion/baseRevision、Active Document selection generation、workspaceId/workspaceGenerationを保持。
+sourceはprojectId/sessionId/snapshotVersion、Active Document selection generation、workspaceId/workspaceGenerationを保持。0.39.0候補では巨大rawの反復展開を防ぐため、baseRevisionは公開sourceから除き、serviceのprivate WeakMapで発行resultとexact rawを対応付ける。
 小節に永続stable IDがないため、sourceLocationはこのsnapshot identity＋barIndex/eventType/eventIndex（strokeはpatternIndexも）で参照する。
 異なるsnapshot間のindexを同一eventと扱わない。タイムスタンプ/randomを採番・変換へ使わない。
 
@@ -23,7 +29,7 @@ IME/just-composed/Modal、commit中、external pending/conflict、削除、futur
 
 Shell既存workspace hostの成功activateだけが単調generationを進める。新しいworkspace ownerは作らない。
 A→B→A、Undo/Redo、workspace往復、外部更新後に旧resultを採用しない。同じ内容へ戻っても旧tokenは復活しない。
-serviceが実際に発行した成功resultだけをWeakSetで認識し、複製/別service resultはisCurrent=false。
+serviceが実際に発行した成功resultだけをprivate WeakMapで認識し、複製/別service resultはisCurrent=false。
 sessionId等はruntime内のidentityでありreloadを越える永続IDではない。reloadで新serviceになれば旧memory resultは発行記録を持たず拒否される。
 
 ## Model / music
@@ -93,3 +99,15 @@ onsetTick/text/sourceLocation/provenanceだけを複製し、音符への割当�
 小数・範囲外tick／非文字列はfatal。従来のok:false全体拒否契約を維持する。
 [五線preview](MELODY_STAFF_PREVIEW.md)は成功resultとisCurrentを必要とし、
 30tickで表現できない音価等は自身のunsupportedとして表示し、Coreの成功を完成譜と呼ばない。
+
+## Schema 2 M1 candidate：変換・復元境界（0.39.0）
+
+schema 2のmodelVersionは2。stable bar/event ID、canonical実音pitch、rest、timing provenanceを保持する。v1は既存index契約を維持。
+`createConverter({schema2,...}).prepare(project)`は完全な元Projectを正式validateした後にdeep frozenな音楽DTOを作る。復元用legacySourceや保存rawをDTOへ含めず、DTOは保存用Project validatorを通らない。deep frozen subtreeのみ共有しmutable入力はコピーする。元Project全体8MiB予算と音楽projectionの従来変換予算の両方を守る。結果全体のJSON複製はしない。
+`canRetain(result)`はIME中の直前確定表示の保持専用。pending入力と旧snapshotVersionを許すが、発行元・project/session/document/workspace世代とexact raw照合は必須。`isCurrent`による最新採用条件を代替しない。SaveやA→B→A後の旧結果はどちらも拒否。
+原文backupは保存Projectだけに残し、Undoでは自前deep frozen metadataを共有する。詳細・サイズ・性能未達は[Schema 2 Foundation](SCHEMA2_FOUNDATION.md)参照。M1未受入、M2/M3未着手。
+
+
+## 2026-10-16 M1受入更新
+
+上の停止判定は過去の記録。最新Node1051/Browser464と8/32/64/128の保存後変換を新規検証し、M1 foundationの自動受入を確認。rawを結果へ埋め込まないprivate revision契約、DTO/Project境界、isCurrent/canRetainの区別を維持。詳細と未実装UI・性能比較残件は[最新受入](SCHEMA2_FOUNDATION.md)を参照。main統合・製品公開は未実施。

@@ -5,7 +5,7 @@
 })(globalThis, function () {
     'use strict';
     var LIMITS = Object.freeze({ bars: 2048, events: 32768, nodes: 100000, chars: 2 * 1024 * 1024, depth: 32 });
-    function freeze(x) { if (x && typeof x === 'object') { Object.values(x).forEach(freeze); Object.freeze(x); } return x; }
+    function freeze(x) { if (x && typeof x === 'object' && !Object.isFrozen(x)) { Object.values(x).forEach(freeze); Object.freeze(x); } return x; }
     function diagnostic(code, severity, location, detail) { return { code: code, severity: severity, sourceLocation: location || null, detail: detail || null }; }
     function failure(code, detail) { return freeze({ ok: false, model: null, diagnostics: [diagnostic(code, 'fatal', null, detail)] }); }
     function budget(project) {
@@ -26,6 +26,7 @@
             }
         }
         project.bars.forEach(function (b) { if (b) ['melody', 'chords'].forEach(function (k) { events += Array.isArray(b[k]) ? b[k].length : 0; }); });
+        if(project.schemaVersion===2) { if(!project.materials || !Array.isArray(project.materials.rhythms))return false; return events<=LIMITS.events; }
         if (!Array.isArray(project.strumPatterns)) return false;
         var sizes = new Map();
         project.strumPatterns.forEach(function (p) { if (p) sizes.set(p.id, Array.isArray(p.slots) ? p.slots.length : 0); });
@@ -33,13 +34,59 @@
         return events <= LIMITS.events;
     }
     function createConverter(options) {
-        var theory = options.studioTheory, spelling = options.chordTheory;
+        var theory = options.studioTheory, spelling = options.chordTheory, prepared = new WeakSet(), frozenTrees = new WeakSet();
+        function frozenTree(value) {
+            if (!value || typeof value !== 'object') return true;
+            if (frozenTrees.has(value)) return true;
+            if (!Object.isFrozen(value) || !Object.values(value).every(frozenTree)) return false;
+            frozenTrees.add(value); return true;
+        }
+        // A conversion DTO is not a persistable Project. Validate the original before selecting data.
+        function prepare(project) {
+            if (project.schemaVersion !== 2) return project;
+            if (prepared.has(project)) return project;
+            if (!options.schema2) throw Error('unsupported-schema');
+            var legacy = options.schema2.readProjection(project, true);
+            var value = freeze({ schemaVersion: 2, projectId: project.projectId,
+                originalKey: project.songInfo.originalKey, tonic: { ...project.solfege.tonic },
+                bars: frozenTree(project.bars) ? project.bars : JSON.parse(JSON.stringify(project.bars)), legacy: legacy });
+            prepared.add(value); return value;
+        }
+        function convertV2(frame) {
+            var api=options.schema2,p=frame.project;
+            if(!api)return failure('unsupported-schema');
+            try { p=prepare(p); } catch(e) { return failure('invalid-project',e.message); }
+            // prepare() validates canonical input and owns/freezes this read projection.
+            // The v1 converter accepts JSON data, not editor-only non-enumerable IDs.
+            // Strip those metadata descriptors only in this private DTO; convert() still
+            // applies the strict v1 validator. The public non-persistable projection stays intact.
+            var projection={...p.legacy,bars:p.legacy.bars.map(function(bar){return {...bar};}),songInfo:{...p.legacy.songInfo,
+                originalKey:p.tonic.step+spelling.formatAccidental(p.tonic.alter)}};
+            var r=convert(Object.assign({},frame,{project:projection}));if(!r.ok)return r;
+            // Copy only modified branches. Never JSON-expand the shared source graph.
+            var out={...r,model:{...r.model,modelVersion:2,keyContext:{...r.model.keyContext,originalKey:p.originalKey},
+                measures:r.model.measures.map(function(m){return {...m,voices:{...m.voices,melody:{...m.voices.melody,
+                    events:m.voices.melody.events.map(function(e){return {...e,sourceLocation:{...e.sourceLocation},provenance:{...e.provenance}};})}},
+                    harmony:m.harmony.map(function(e){return {...e};}),lyrics:m.lyrics.map(function(e){return {...e};})};})}};
+            out.model.measures.forEach(function(m,bi){
+                var b=p.bars[bi],notes=b.melody.filter(function(e){return e.kind==='note';});m.id=b.id;m.sourceBarId=b.id;
+                m.voices.melody.events.forEach(function(e,i){var src=notes[i];e.sourceEventId=src.id;e.sourceLocation.barId=b.id;e.sourceLocation.eventId=src.id;
+                    e.pitch=Object.assign({},src.pitch,{midi:api.pitchMidi(src.pitch),semitoneNumber:api.pitchMidi(src.pitch),name:src.pitch.step+spelling.formatAccidental(src.pitch.alter)});e.provenance.timing=src.provenance.timing;});
+                b.melody.filter(function(e){return e.kind==='rest';}).forEach(function(e){m.voices.melody.events.push({kind:'rest',onsetTick:e.onsetTick,durationTicks:e.durationTicks,sourceEventId:e.id,sourceLocation:{barIndex:bi,eventType:'rest',eventIndex:null,barId:b.id,eventId:e.id},provenance:e.provenance});});
+                var cursor=0,empty=[];m.voices.melody.events.slice().sort(function(a,b){return a.onsetTick-b.onsetTick;}).forEach(function(e){if(e.onsetTick>cursor)empty.push({kind:'silence',onsetTick:cursor,durationTicks:e.onsetTick-cursor,sourceBarId:b.id});cursor=e.onsetTick+e.durationTicks;});
+                if(cursor<1920)empty.push({kind:'silence',onsetTick:cursor,durationTicks:1920-cursor,sourceBarId:b.id});m.voices.melody.silentIntervals=empty;
+                m.harmony.forEach(function(e,i){e.sourceEventId=b.chords[i].id;e.actualSymbol=b.chords[i].symbol;});
+                m.lyrics.forEach(function(e,i){e.sourceEventId=b.lyrics[i].id;});
+            });
+            return freeze(out);
+        }
         function convert(frame) {
             if (!frame || frame.source !== 'working' || !frame.project || typeof frame.sessionId !== 'string' || !frame.sessionId || typeof frame.version !== 'string' || !frame.version ||
                 typeof frame.project.projectId !== 'string' || !frame.token || frame.token.sessionId !== frame.sessionId || frame.token.projectId !== frame.project.projectId ||
                 !Number.isSafeInteger(frame.token.generation) || frame.token.generation < 0 || !(frame.baseRevision === null || typeof frame.baseRevision === 'string')) return failure('invalid-source');
             if (!(frame.workspaceId == null || typeof frame.workspaceId === 'string') || !(frame.workspaceGeneration == null || Number.isSafeInteger(frame.workspaceGeneration))) return failure('invalid-source');
             var p = frame.project;
+            if(p.schemaVersion===2)return convertV2(frame);
             if (!budget(p) || (frame.baseRevision && frame.baseRevision.length > LIMITS.chars * 2)) return failure('memory-budget');
             if (p.schemaVersion !== 1) return failure('unsupported-schema');
             var info = p.songInfo;
@@ -50,7 +97,7 @@
             if (!validation || typeof validation.ok !== 'boolean') return failure('invalid-project');
             if (!p.bars.every(function (b) { return b && typeof b.sectionId === 'string' && Number.isSafeInteger(b.barNumber) && Array.isArray(b.melody) && Array.isArray(b.chords); })) return failure('invalid-project');
             if (!Number.isSafeInteger(info.capo) || !theory.isKeyRelationConsistent(info.playKey, info.capo, info.originalKey)) return failure('inconsistent-key');
-            var source = { projectId: p.projectId, sessionId: frame.sessionId, snapshotVersion: frame.version, baseRevision: frame.baseRevision,
+            var source = { projectId: p.projectId, sessionId: frame.sessionId, snapshotVersion: frame.version,
                 generation: frame.token.generation, workspaceId: frame.workspaceId ?? null, workspaceGeneration: frame.workspaceGeneration ?? null };
             var ds = [], measures = [], patternMap = new Map(), hasFatal = false;
             function issue(code, severity, loc, detail) {
@@ -170,7 +217,7 @@
                     provenance: provenance(location(null, 'songInfo', null), 'existing-convention') }, measures: measures,
                 completePerformance: false, diagnostics: ds }, diagnostics: ds });
         }
-        return Object.freeze({ convert: convert });
+        return Object.freeze({ convert: convert, prepare: prepare, supportedSchemas: Object.freeze(options.schema2?[1,2]:[1]) });
     }
     return Object.freeze({ createConverter: createConverter, budget: budget, limits: LIMITS, failure: failure });
 });

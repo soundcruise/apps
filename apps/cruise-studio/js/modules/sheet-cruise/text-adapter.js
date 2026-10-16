@@ -16,7 +16,8 @@
                 if (mode === 'native') s.finishTextGroup();
                 var key = JSON.stringify([target.kind, target.field, target.sectionId, target.barNumber, target.tick, target.ticks]);
                 var run = mode === 'composition' ? s.runCompositionTextOperation : s.runTextOperation;
-                var result = run(key, '文字入力: ' + (target.field || target.kind), function (draft) {
+                var result = run(key, '文字入力: ' + (target.field || target.kind), function (canonical) {
+                return (model.editLegacy || function(p,fn){return fn(p);})(canonical,function(draft){
                     if (target.kind === 'song') {
                         var si = draft.songInfo, field = target.field;
                         if (field === 'title') si.title = String(value).trim() || '無題のプロジェクト';
@@ -32,13 +33,14 @@
                     else {
                         if (!draft.bars.some(function (b) { return b.barNumber === target.barNumber; })) throw Error('小節が見つかりません');
                         if (target.kind === 'chord') model.setBarChord(draft, target.barNumber, value);
-                        else if (target.kind === 'doremi') warnings = model.setBarDoremiText(draft, target.barNumber, value).warnings;
+                        else if (target.kind === 'doremi') { var bar=draft.bars.find(function(b){return b.barNumber===target.barNumber;}); if(value!==model.getBarDoremiText(bar)) { warnings=model.setBarDoremiText(draft,target.barNumber,value).warnings; if(canonical.schemaVersion===2 && warnings.length) throw Error(warnings.join(' / ')); } }
                         else if (target.kind === 'lyrics') {
                             var applied = model.setBarLyricSlot(draft, target.barNumber, target.tick, target.ticks, value);
                             if (!applied.ok) throw Error(applied.warnings.join(' / '));
                             warnings = applied.warnings;
                         } else throw Error('Unknown text field');
                     }
+                    });
                 });
                 if (mode === 'native' || mode === 'composition' || mode === 'discrete') s.finishTextGroup();
                 return Object.assign({}, result, { warnings: warnings });

@@ -5,7 +5,66 @@
     else root.CruiseStudio.editing = factory();
 })(typeof globalThis === 'object' ? globalThis : this, function () {
     'use strict';
-    function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
+    function jsonInsist(ok,code) { if(!ok) throw new TypeError(code); }
+    // Schema 2 drafts must not be normalized by JSON before domain validation.
+    function assertJson(value) { jsonValue(value,0,new Set(),new Set()); }
+    function jsonValue(value,depth,seen,prototypes) {
+        prototypes = prototypes || new Set();
+        if (value && typeof value === 'object') {
+            // JSON reads toJSON through the complete prototype chain. Never read that property.
+            for (var proto = value; proto && !prototypes.has(proto); proto = Object.getPrototypeOf(proto)) {
+                jsonInsist(!Object.getOwnPropertyDescriptor(proto,'toJSON'), 'json-serialization-hook');
+                jsonInsist(!Object.getOwnPropertyDescriptor(proto,Symbol.toStringTag), 'non-json-symbol');
+                if (proto !== value) Reflect.ownKeys(proto).forEach(function(key){
+                    var descriptor=Object.getOwnPropertyDescriptor(proto,key);
+                    // Object.prototype's historical __proto__ accessor is never read here.
+                    jsonInsist(Object.hasOwn(descriptor,'value') || (key==='__proto__' && Object.getPrototypeOf(proto)===null),'non-json-descriptor');
+                });
+                // Only prototypes can be reused; each value still receives its full own-data check.
+                if (proto !== value) prototypes.add(proto);
+            }
+        }
+        jsonInsist(depth<40,'json-depth');
+        if(value===null||typeof value==='string'||typeof value==='boolean')return;
+        if(typeof value==='number'){jsonInsist(Number.isFinite(value),'non-json-number');return;}
+        jsonInsist(typeof value==='object'&&!seen.has(value),'non-json-value');seen.add(value);
+        jsonInsist(Array.isArray(value)||Object.prototype.toString.call(value)==='[object Object]','non-json-object');
+        var array = Array.isArray(value), count = 0, own = Reflect.ownKeys(value);
+        for (var key of own) {
+            jsonInsist(typeof key === 'string', 'non-json-symbol');
+            if (array && key === 'length') continue;
+            var d = Object.getOwnPropertyDescriptor(value, key);
+            jsonInsist(Object.hasOwn(d, 'value') && d.enumerable, 'non-json-descriptor');
+            if (array) jsonInsist(/^(0|[1-9][0-9]*)$/.test(key) && Number(key) < value.length, 'non-json-array-property');
+            jsonValue(d.value, depth + 1, seen, prototypes); count++;
+        }
+        // Unique, in-range own array indices cover the array iff their count equals length.
+        if (array) jsonInsist(count === value.length, 'sparse-json-array');
+        seen.delete(value);
+    }
+    var legacySources = new WeakSet();
+    function clone(value, validated) {
+        var descriptor = value && typeof value === 'object' && Object.getOwnPropertyDescriptor(value,'schemaVersion');
+        if (descriptor && !Object.hasOwn(descriptor,'value')) throw new TypeError('non-json-descriptor');
+        var checked=!validated && value && typeof value==='object' && Object.hasOwn(value,'projectId');
+        if(checked)assertJson(value);
+        if (descriptor && descriptor.value === 2) {
+            if (!validated && !checked) assertJson(value);
+            var provenance = { ...value.provenance }, source = provenance.legacySource;
+            delete provenance.legacySource;
+            var copy = JSON.parse(JSON.stringify({ ...value, provenance: provenance }));
+            if (source !== undefined) {
+                // Only our own deeply frozen restoration objects may be shared.
+                if (!source || typeof source !== 'object' || !legacySources.has(source)) {
+                    source = freeze(JSON.parse(JSON.stringify(source)));
+                    if (source && typeof source === 'object') legacySources.add(source);
+                }
+                copy.provenance.legacySource = source;
+            }
+            return copy;
+        }
+        return value == null ? value : JSON.parse(JSON.stringify(value));
+    }
     function freeze(value) {
         if (value && typeof value === 'object' && !Object.isFrozen(value)) {
             Object.keys(value).forEach(function (key) { freeze(value[key]); }); Object.freeze(value);
@@ -23,13 +82,15 @@
     var METADATA = new Set(['appVersion', 'updatedAt']);
     var HISTORY_FIXED = new Set(['projectId', 'schemaVersion', 'createdAt', 'appVersion', 'updatedAt']);
     var HISTORY_LIMITS = Object.freeze({ maxEntries: 100, maxBytes: 8 * 1024 * 1024 });
-    function contentSnapshot(value) {
-        var copy = clone(value);
+    function contentSnapshot(value, validated) {
+        var copy = clone(value, validated);
         HISTORY_FIXED.forEach(function (key) { delete copy[key]; });
+        if(value.schemaVersion === 2 && copy.provenance) delete copy.provenance.legacySource;
         return freeze(copy);
     }
     function restoreContent(content, current) {
         var copy = clone(content);
+        if(current.schemaVersion === 2 && current.provenance && current.provenance.legacySource) { copy.provenance = copy.provenance || {}; copy.provenance.legacySource = current.provenance.legacySource; }
         HISTORY_FIXED.forEach(function (key) { if (Object.hasOwn(current, key)) copy[key] = clone(current[key]); });
         return copy;
     }
@@ -42,8 +103,8 @@
         }
         return bytes;
     }
-    function createDraft(value, getBase, changed) {
-        var raw = clone(value), touched = new Map(), proxies = new WeakMap(), originals = new WeakMap(), version = 0;
+    function createDraft(value, getBase, changed, validated) {
+        var raw = clone(value, validated), touched = new Map(), proxies = new WeakMap(), originals = new WeakMap(), version = 0;
         function note(path, semantic) {
             if (!METADATA.has(path[0])) touched.set(JSON.stringify(path), path);
             version++; changed(path, semantic);
@@ -56,13 +117,16 @@
                 get: function (o, property) { return typeof property === 'symbol' ? o[property] : wrap(o[property], path.concat(property)); },
                 set: function (o, property, incoming) {
                     var unwrapped = originals.get(incoming) || incoming;
+                    if(raw.schemaVersion===2)assertJson(unwrapped);
+                    var full=path.concat(String(property));
+                    if(raw.schemaVersion===2 && full[0]==='provenance' && (full.length===1 ? !equal(unwrapped && unwrapped.legacySource, raw.provenance && raw.provenance.legacySource) : full[1]==='legacySource' && !equal(o[property],unwrapped))) throw Error('Immutable legacy source');
                     if (o[property] === unwrapped) return true;
                     // Own assigned values: callers cannot mutate an untracked external alias later.
                     var semantic = !equal(o[property], unwrapped);
                     o[property] = unwrapped && typeof unwrapped === 'object' ? clone(unwrapped) : unwrapped;
                     note(path.concat(String(property)), semantic); return true;
                 },
-                deleteProperty: function (o, property) { if (Object.hasOwn(o, property)) { delete o[property]; note(path.concat(String(property)), true); } return true; }
+                deleteProperty: function (o, property) { var full=path.concat(String(property));if(raw.schemaVersion===2 && full[0]==='provenance' && (full.length===1 || full[1]==='legacySource') && Object.hasOwn(o,property))throw Error('Immutable legacy source');if (Object.hasOwn(o, property)) { delete o[property]; note(path.concat(String(property)), true); } return true; }
             });
             byPath.set(key, proxy); originals.set(proxy, object); return proxy;
         }
@@ -91,6 +155,13 @@
         function key(domain, target) { return JSON.stringify([domain, target.type, target.projectId]); }
         function emit(session, kind) { listeners.forEach(function (fn) { try { fn(session, kind); } catch (_) { /* subscribers cannot corrupt ownership */ } }); }
         function make(domain, target, record, initial) {
+            function validCanonical(value) {
+                if(!value)return;
+                // Do not dispatch on a caller-controlled property until descriptors are safe.
+                assertJson(value);
+                if(value.schemaVersion!==1){var check=options.validate(value);if(!check.ok)throw Error(check.errors.join(' / '));}
+            }
+            validCanonical(record.snapshot);validCanonical(initial);
             target = snapshot(target);
             var sessionId = id(), generation = 0, base = snapshot(record.snapshot || initial), revision = record.revision;
             var exists = record.exists, deleted = false, destroyed = false, closing = false, pending = null, conflict = null, inputPending = false;
@@ -118,11 +189,11 @@
             function dirty() { return !exists || tracker.dirty(); }
             function historyBlocked() { return destroyed ? 'destroyed' : closing ? 'closing' : inputPending ? 'input-pending' : deleted ? 'deleted' : null; }
             function reject(code) { return { ok: false, code: code }; }
-            function prepareContent(content) {
+            function prepareContent(content, validatedValue, validatedCheck) {
                 try {
-                    var value = restoreContent(content, tracker.raw), check = snapshot(options.validate(snapshot(value)));
+                    var value = validatedValue || restoreContent(content, tracker.raw), check = snapshot(validatedCheck || options.validate(value));
                     if (!check.ok) return { ok: false, code: 'validation', error: (check.errors || []).join(' / ') };
-                    var next = createDraft(value, function () { return base; }, changed); next.rebase();
+                    var next = createDraft(value, function () { return base; }, changed, true); next.rebase();
                     return { ok: true, tracker: next, validation: check };
                 } catch (error) { return { ok: false, code: 'validation', error: error.message || String(error) }; }
             }
@@ -156,6 +227,7 @@
                     (update.deleted || (update.snapshot && update.snapshot.projectId === target.projectId && typeof update.revision === 'string'));
             }
             function adopt(update, kind) {
+                validCanonical(update.snapshot);
                 resetHistory(kind || 'adopt');
                 generation++; changeSerial++; base = snapshot(update.snapshot); revision = update.revision; exists = true; deleted = false;
                 resetDraft(base); pending = conflict = commitError = null;
@@ -165,6 +237,7 @@
                 if (destroyed || !validIncoming(update)) return false;
                 if (flight && update.sessionId === sessionId && update.commitId === flight.token.commitId) return true;
                 if (!update.deleted && update.revision === revision) return true;
+                try { validCanonical(update.snapshot); } catch (_) { return false; }
                 var incoming = snapshot(update);
                 if (holdBase || update.deleted || dirty() || flight || inputPending || openGroup) {
                     pending = incoming; deleted = !!update.deleted;
@@ -207,18 +280,21 @@
                         textGroup: textGroup ? Object.freeze({ key: textGroup.key, entryId: textGroup.entryId }) : null, bytes: history.bytes, limits: limits,
                         status: history.status, reason: history.reason, evictedCount: history.evicted });
                 },
-                beginOperation: function (label) {
+                beginOperation: function (label, policy) {
+                    var previousTextGroup=textGroup;
                     if (!textInvocation) finishTextGroup();
                     var blocked = historyBlocked();
                     if (compositionText && blocked === 'input-pending') blocked = deleted ? 'deleted' : null;
                     if (blocked || openGroup) return reject(blocked || 'busy');
-                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion) return reject('invalid-target');
                     try {
-                        var check = prepareContent(contentSnapshot(tracker.raw)); if (!check.ok) return check;
-                        var staged = createDraft(tracker.raw, function () { return base; }, function () {});
+                        var check = options.validate(tracker.raw); if (!check.ok) return {ok:false,code:'validation',error:check.errors.join(' / ')};
+                        if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion) return reject('invalid-target');
+                        var staged = createDraft(tracker.raw, function () { return base; }, function () {}, true);
+                        var fixed = {}; HISTORY_FIXED.forEach(function(key){ fixed[key] = tracker.raw[key]; });
+                        if (tracker.raw.schemaVersion === 2) fixed.provenance = {legacySource:tracker.raw.provenance.legacySource};
                         var handle = Object.freeze({ operationId: sessionId + ':operation-' + (++operationSequence), sessionId: sessionId,
                             historyEpoch: history.epoch, contentVersion: session.snapshotVersion, draft: staged.draft });
-                        openGroup = { handle: handle, tracker: staged, before: contentSnapshot(tracker.raw), fixed: snapshot(tracker.raw), label: String(label || '編集').slice(0, 120) };
+                        openGroup = { handle: handle, tracker: staged, before: contentSnapshot(tracker.raw, true), fixed: fixed, label: String(label || '編集').slice(0, 120), requireUndo: !!(policy && policy.requireUndo) || tracker.raw.schemaVersion === 2, previousTextGroup:previousTextGroup };
                         return { ok: true, operation: handle };
                     } catch (error) { return { ok: false, code: 'operation-failed', error: error.message || String(error) }; }
                 },
@@ -233,14 +309,26 @@
                         tracker.rebase(); changeSerial++;
                         resetHistory('stale-operation', 'invalidated'); emit(session, 'history-invalidated'); return reject('stale-operation');
                     }
+                    // Safety first; then protected identity/source; domain validation last.
+                    // Descriptor-only JSON preflight never reads getters or calls toJSON.
+                    try { assertJson(group.tracker.raw); }
+                    catch(error){return {ok:false,code:'validation',error:error.message};}
+                    var originalCheck;
                     if (Array.from(HISTORY_FIXED).some(function (key) { return !equal(group.tracker.raw[key], group.fixed[key]); })) return reject('protected-field');
-                    var after = contentSnapshot(group.tracker.raw);
+                    if(tracker.raw.schemaVersion === 2 && !equal(group.tracker.raw.provenance && group.tracker.raw.provenance.legacySource, group.fixed.provenance && group.fixed.provenance.legacySource)) return reject('protected-legacy-source');
+                    var after;
+                    try {
+                        originalCheck=options.validate(group.tracker.raw);
+                        if(!originalCheck.ok)return {ok:false,code:'validation',error:originalCheck.errors.join(' / ')};
+                        after=contentSnapshot(group.tracker.raw, true);
+                    } catch(error){return {ok:false,code:'validation',error:error.message};}
                     if (equal(group.before, after)) { abandonGroup(); return { ok: true, recorded: false }; }
-                    var prepared = prepareContent(after); if (!prepared.ok) return prepared;
+                    var prepared = prepareContent(after, group.tracker.raw, originalCheck); if (!prepared.ok) return prepared;
                     var merging = textInvocation && textGroup && textGroup.entryId && history.cursor === history.entries.length &&
                         history.entries.length && history.entries[history.cursor - 1].entryId === textGroup.entryId;
                     var before = merging ? history.entries[history.cursor - 1].before : group.before;
                     var bytes = byteSize(before) + byteSize(after);
+                    if(group.requireUndo && bytes > limits.maxBytes) return reject('undo-budget');
                     abandonGroup();
                     if (bytes > limits.maxBytes) {
                         resetHistory('operation-too-large', 'overflow');
@@ -262,10 +350,10 @@
                 },
                 cancelOperation: function (handle) {
                     if (!openGroup || openGroup.handle !== handle) return reject('invalid-operation');
-                    abandonGroup(); return { ok: true };
+                    var group=openGroup;abandonGroup();if(group.requireUndo)textGroup=group.previousTextGroup;return { ok: true };
                 },
-                runOperation: function (label, edit) {
-                    var begun = session.beginOperation(label); if (!begun.ok) return begun;
+                runOperation: function (label, edit, policy) {
+                    var begun = session.beginOperation(label, policy); if (!begun.ok) return begun;
                     try {
                         var result = edit(begun.operation.draft);
                         if (result && typeof result.then === 'function') {
@@ -320,14 +408,20 @@
                 keepDraft: function () { return conflict; }, // no base advancement or stale overwrite permission
                 adoptExternal: function () { return flight ? Promise.resolve({ ok: false, code: 'busy' }) : Promise.resolve(cancelNow()); },
                 replaceDraft: function (value) {
-                    if (destroyed || flight || inputPending || value.projectId !== target.projectId) throw new Error('Cannot replace this draft');
+                    if (destroyed || flight || inputPending) throw new Error('Cannot replace this draft');
+                    validCanonical(value);
+                    if (!value || value.projectId !== target.projectId) throw new Error('Cannot replace this draft');
                     resetHistory('replace'); generation++; changeSerial++; resetDraft(value); tracker.rebase(); emit(session, 'replace');
                 },
                 commit: function () {
                     if (!inputPending) finishTextGroup();
                     if (!session.canCommit()) return Promise.resolve({ ok: false, code: deleted ? 'deleted' : pending ? 'conflict' : 'unavailable', error: '現在は保存できません' });
-                    var fixed = snapshot(tracker.raw);
-                    try { validation = snapshot(options.validate(fixed)); }
+                    var fixed;
+                    try {
+                        assertJson(tracker.raw);
+                        if(tracker.raw.schemaVersion===2 && !equal(tracker.raw.provenance && tracker.raw.provenance.legacySource,base.provenance && base.provenance.legacySource)) return Promise.resolve({ok:false,code:'protected-legacy-source'});
+                        validation = snapshot(options.validate(tracker.raw));if(validation.ok)fixed=snapshot(tracker.raw);
+                    }
                     catch (error) { validation = freeze({ ok: false, errors: [error.message || String(error)], warnings: [] }); }
                     if (!validation.ok) { commitError = '検証エラー: ' + validation.errors.join(' / '); emit(session, 'validation'); return Promise.resolve({ ok: false, code: 'validation', error: commitError }); }
                     var token = freeze({ sessionId: sessionId, commitId: sessionId + ':commit-' + (++commitSequence), generation: generation });

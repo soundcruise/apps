@@ -296,6 +296,8 @@
      * @param {object} [settings] 伴奏設定（省略時はデフォルト。normalizeSettingsで補完）
      */
     function generateArrangement(project, settings) {
+        if(project && project.schemaVersion===2) project=CS().model.toLegacyView(project);
+        else if(project && project.schemaVersion!==1) throw Error('unsupported-schema');
         var theory = CS().theory;
         var warnings = [];
         if (!project || !project.songInfo || !Array.isArray(project.bars)) {
