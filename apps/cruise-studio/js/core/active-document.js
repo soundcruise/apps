@@ -38,8 +38,8 @@
             }));
             if (s.externalUpdatePending || s.conflict) return { ok: false, code: 'conflict', error: '保存済みの曲が更新または削除されています。Structureで確認してください。' };
             if (!current.exists && s.baseRevision !== null) return { ok: false, code: 'deleted', error: '対象の曲が削除されています。' };
-            var project = s.workingSnapshot(), check;
-            try { check = options.validate(project); } catch (_) { check = { ok: false }; }
+            var project, check;
+            try { project = s.workingSnapshot();check = options.validate(project); } catch (_) { check = { ok: false }; }
             if (!check.ok || project.projectId !== token.projectId) return { ok: false, code: 'invalid', error: '対象の曲の形式を確認できません。' };
             return Object.freeze({ ok: true, project: project, source: 'working', dirty: s.dirty,
                 isNew: s.baseRevision === null, version: s.snapshotVersion, baseRevision: s.baseRevision,

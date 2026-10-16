@@ -78,3 +78,21 @@ Studio0.37.1 / 実装済みschema1。metadata保守commit `02a21d74a35e93d94a06b
 各工程は新規のNode/正式Browser回帰、変換identity/Undo/外部更新、音高・時間、出力別readiness、No-write、Console/404/通信、scopeと原本hashを検証する。
 過去の試験件数やモック承認を製品実装のPASSへ流用しない。Git safety・別owner境界・Daybreak待機を維持し、owner API整備をStudio製品変更に紛れ込ませない。
 今回のmainへのpush・PR merge・auto-merge・Pages公開は承認外。候補の親/履歴/scopeが現行integration gateへ適合しなければ、方式を変更せず停止する。
+
+
+## Schema 2 Foundation M1 candidate
+
+Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（schema番号とは独立）。実装・検証中。M1完了・commit・push・main統合・公開は未実施。[正式契約]( SCHEMA2_FOUNDATION.md )。
+
+
+## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
+
+0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](SCHEMA2_FOUNDATION.md)を参照。
+
+
+## Studio 0.39.0 — Schema 2 M1自動受入（topic候補、2026-10-16）
+
+schema 2正本、決定的migration、stable ID、原文保持、serialization前validation、Undo容量保護、明示consumer adapterを実装。Node1051／Browser18ファイル464 PASS、FAIL/skip0。診断の展開/集約とreload前後のrunner書込み監査、大規模8/32/64/128 Save/Load・五線・A/B・staleを検証。
+64小節の同期編集p95は保存前10.4/保存後10.3ms、五線更新105.2/105.5msで正式目標PASS。128小節は追加耐久として完了。小規模CMMの約1.6倍/128の約1.9倍は比較目安上の改善残件として明記。M2/M3のInspector・実OS IME・Safari・実印刷等を完成扱いにしない。
+mainはNEWS/Port更新で10296dbbへ進展。現topicを無断取り込みせず、次のmain統合時にPort1.23.1 mirror/cache整合と新規回帰が必要。今回main公開・Pro/Account/Authority/Sync操作なし、shared write OFF。
+[M1受入と後続境界](SCHEMA2_FOUNDATION.md)。次はM2/M3の設計済み編集UI、または別承認による最新main統合準備。

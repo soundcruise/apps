@@ -80,14 +80,40 @@
         // 小節削除等でbarオブジェクトが参照されなくなればGC対象にもなる。
         // 値: WeakMap<bar, Map<beatIndex, 8|16>>（ローカル指定が無いbeatIndexはMapに存在しない＝自動）
         lyricBeatRes: new WeakMap(),
+        // Session -> stable bar ID -> beat map. Derived views never own this UI state.
+        lyricBeatResV2: new WeakMap(),
         loupe: { x: 0, y: 0, width: LOUPE_DEFAULT_WIDTH } // F1: ルーペの位置/幅。UI状態のみ（projectに保存しない）
     };
 
+    var schemaViewVersion=null,schemaView=null,schemaViewError=null;
     Object.defineProperties(state, {
-        project: { get: function () { return state.session ? state.session.draft : null; } },
+        project: { get: function () {
+            if(!state.session)return null;
+            var v=state.session.snapshotVersion;
+            if(v!==schemaViewVersion){
+                schemaView=null;schemaViewError=null;
+                try { schemaView=CS().model.toLegacyView(state.session.draft.schemaVersion === 2 ? state.session.workingSnapshot() : state.session.draft); }
+                catch(error){
+                    if(error.code==='invalid-project')schemaViewError=error.diagnostics.slice();
+                    else if(error instanceof TypeError && /^(non-json-|json-depth$|sparse-json-array$)/.test(error.message))schemaViewError=[error.message];
+                    else throw error;
+                }
+                schemaViewVersion=v;
+            }
+            return schemaView;
+        } },
         dirty: { get: function () { return !!(state.session && state.session.dirty); } }
     });
     var staffStyle = 'code', staffView = null;
+    function renderInvalidProject() {
+        if(staffView){staffView.invalidate();staffView=null;}
+        var box=document.createElement('div');box.className='schema-invalid-project';box.setAttribute('role','alert');
+        var message=document.createElement('p');message.textContent='譜面を表示できません。曲の入力値を確認してください。';box.appendChild(message);
+        var details=document.createElement('details'),summary=document.createElement('summary'),diagnostic=document.createElement('pre');
+        summary.textContent='詳細診断';diagnostic.textContent=(schemaViewError||[]).join(' / ');
+        details.append(summary,diagnostic);box.appendChild(details);els.scaleBox.replaceChildren(box);
+        if(els.slotOverlay)els.slotOverlay.classList.add('hidden');
+    }
     function staffRequest() {
         if (staffStyle !== 'melody' || !state.active || !state.project) return;
         if (!staffView) staffView = CS().melodyStaff.create({ host: els.scaleBox,
@@ -184,7 +210,14 @@
         return !!(els.root.contains(event.target) && CS().shellHost &&
             CS().shellHost.keyboard.localCommand(event, event.shiftKey ? 'studio.redo' : 'studio.undo', 'sheetCruise'));
     }
-    var textAdapter = null, textControls = new WeakMap();
+    var textAdapter = null, textControls = new WeakMap(), textDiagnostics = new WeakMap();
+    function textDiagnostic(session) {
+        var entries = textDiagnostics.get(session), message = null;
+        if (entries) entries.forEach(function (value, input) {
+            if (!input.isConnected) entries.delete(input); else message = value;
+        });
+        return message;
+    }
     function finishTextInputs() { if (state.session) state.session.finishTextGroup(); refreshHistoryControls(); }
     function wireTextControl(input, target, update, reusable) {
         var info = { session: reusable ? null : state.session, target: target, composing: false,
@@ -221,19 +254,26 @@
             getSession: function () { return state.session; },
             isEligible: function () { return state.active && !(CS().shellHost && CS().shellHost.getCommandContext().activeModal); } });
         var mode = event && event.composition ? 'composition' : info.native ? 'native' : input.tagName === 'SELECT' ? 'discrete' : null;
+        var entries = textDiagnostics.get(state.session);
+        if (!entries) { entries = new Map(); textDiagnostics.set(state.session, entries); }
+        entries.delete(input); input.removeAttribute('aria-invalid'); input.removeAttribute('aria-description');
         var result = textAdapter.apply(info.target, input.value, mode);
-        if (!result.ok) setSaveStatus(result.error || '入力を適用できませんでした。入力内容を保持しています', true);
+        if (!result.ok) {
+            var message = result.error || '入力を適用できませんでした。入力内容を保持しています';
+            entries.set(input, message); input.setAttribute('aria-invalid', 'true'); input.setAttribute('aria-description', message);
+        }
+        refreshSessionStatus();
         return result;
     }
     var selectionListeners = new Set(), selectionDeleted = false, selectionSignature = null;
     // Read projection of Structure's existing single-bar selection and session draft.
     function getSelectionSnapshot() {
-        var session = state.session, validSelection = session && structureIdentity === CS().structureOperations.structureKey(session.draft);
+        var session = state.session, readable=!!state.project, validSelection = readable && session && structureIdentity === CS().structureOperations.structureKey(session.draft);
         var selected = validSelection ? state.selectedBarNumber : null, bar = selected ? getSelectedBar() : null;
         return Object.freeze({ active: state.active, sessionId: session ? session.sessionId : null,
             barNumbers: Object.freeze(selected ? [selected] : []),
             chords: Object.freeze((bar ? bar.chords : []).map(function (chord) { return Object.freeze({ tick: chord.tick, symbol: chord.symbol }); })),
-            editing: !!(session && session.inputPending), dirty: !!(session && session.dirty),
+            invalid: !!(session && !readable), editing: !!(session && session.inputPending), dirty: !!(session && session.dirty),
             externalUpdatePending: !!(session && session.externalUpdatePending),
             deleted: selectionDeleted || !!(state.selectedBarNumber && !getSelectedBar()) || !!(session && session.conflict && session.conflict.deleted) });
     }
@@ -349,6 +389,7 @@
     }
 
     function renderAll() {
+        if(!state.project){renderInvalidProject();return;}
         renderForm();
         renderDisplayToggles();
         renderSections();
@@ -401,10 +442,12 @@
         if (session.conflict && session.conflict.deleted) setSaveStatus('保存対象が削除されました。未保存内容は保持しています。JSONへ書き出せます。', true);
         else if (session.externalUpdatePending) setSaveStatus('保存済みprojectが外部で更新されています。編集中の内容を保持しています。', true);
         else if (session.commitError) setSaveStatus(session.commitError, true);
+        else if (textDiagnostic(session)) setSaveStatus(textDiagnostic(session), true);
+        else if (schemaViewError) setSaveStatus('入力値に問題があります。譜面の詳細診断を確認してください。', true);
         else if (session.commitInFlight) setSaveStatus('保存中です。追加編集は保持されます');
         else if (!CS().repository.canWrite()) setSaveStatus('この環境では安全な保存を利用できません。JSONへ書き出せます。', true);
         else if (session.getHistory().status === 'overflow') setSaveStatus('編集は反映されましたが、履歴容量を超えたため記録できませんでした', true);
-        else setSaveStatus(session.dirty ? '未保存の変更があります' : '保存済み');
+        else setSaveStatus(session.dirty ? '未保存の変更があります' : session.draft.schemaVersion===2 && session.baseRevision && JSON.parse(session.baseRevision).schemaVersion===1 ? '旧形式から変換済み・未保存（明示保存でschema 2へ更新）' : '保存済み');
     }
 
     function showSession(session, message) {
@@ -472,6 +515,7 @@
         els.capo.value = si.capo;
         els.bpm.value = si.bpm;
         els.timeSig.value = si.timeSignature.beats + '/' + si.timeSignature.beatUnit;
+        [els.playKey,els.capo,els.timeSig].forEach(function(e){e.disabled=state.session.draft.schemaVersion===2;e.title=e.disabled?'schema 2 M1では表示専用です。実音保持・移調の編集導線は次工程です':'';});
         // 基本ストローク: slotsから記号列を再生成して表示（slotsが正。ADR-018）
         els.basicStrum.value = CS().model.getBasicStrumText(state.project);
         els.basicStrum.classList.remove('is-invalid');
@@ -716,6 +760,7 @@
     /* ══════════ A4紙面プレビュー（sheet-renderer.js が紙面DOMを構築。ADR-016） ══════════ */
 
     function renderPreview(preserveInputs) {
+        if(!state.project){renderInvalidProject();return;}
         if (preserveInputs) state.overlayRefreshRequested = false;
         if (staffStyle === 'melody') staffRequest();
         else CS().sheetRenderer.render(state.project, els.scaleBox);
@@ -1129,8 +1174,14 @@
        2) ヘッダーの全体8分/16分設定（getStrumGridResolution）。歌詞データのtickを
        理由に自動的に16分へ昇格する処理は行わない（「自動」は必ず全体設定に追従する）。 */
 
+    function lyricBeatStore(bar) {
+        if(!bar.sourceId)return {store:state.lyricBeatRes,key:bar};
+        var store=state.lyricBeatResV2.get(state.session);
+        if(!store){store=new Map();state.lyricBeatResV2.set(state.session,store);}
+        return {store:store,key:bar.sourceId};
+    }
     function getLyricBeatLocalRes(bar, beatIndex) {
-        var map = state.lyricBeatRes.get(bar);
+        var owner=lyricBeatStore(bar),map=owner.store.get(owner.key);
         if (!map) return null;
         var v = map.get(beatIndex);
         return (v === 8 || v === 16) ? v : null;
@@ -1140,14 +1191,14 @@
      * res が null なら自動へ戻す（Mapからローカル指定を削除する）。
      */
     function setLyricBeatLocalRes(bar, beatIndex, res) {
-        var map = state.lyricBeatRes.get(bar);
+        var owner=lyricBeatStore(bar),map=owner.store.get(owner.key);
         if (res !== 8 && res !== 16) {
             if (map) map.delete(beatIndex);
             return;
         }
         if (!map) {
             map = new Map();
-            state.lyricBeatRes.set(bar, map);
+            owner.store.set(owner.key, map);
         }
         map.set(beatIndex, res);
     }
@@ -2925,7 +2976,7 @@
 
     function downloadCurrentProjectJson() {
         readFormIntoProject();
-        var json = CS().storage.exportProjectJson(state.project);
+        var json = CS().storage.exportProjectJson(state.session.workingSnapshot());
         var blob = new Blob([json], { type: 'application/json' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
@@ -3110,10 +3161,15 @@
         });
         CS().sessions.subscribe(function (session, kind) {
             if (state.session !== session) return;
+            if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)) textDiagnostics.delete(session);
+            if(!state.project){renderInvalidProject();refreshSessionStatus();publishSelection();return;}
+            if(els.scaleBox.querySelector('.schema-invalid-project'))renderAll();
+            if(['external-adopt','cancel','replace'].includes(kind))state.lyricBeatResV2.delete(session);
             var nextStructure = CS().structureOperations.structureKey(session.draft), structureChanged = structureIdentity !== nextStructure;
             if (structureChanged) {
                 // barNumber is not stable: never carry a Loupe into a different bar after renumbering.
-                selectionDeleted = !!(state.selectedBarNumber && !getSelectedBar());
+                var selectedId=session.draft.schemaVersion===2 && publishedBars && publishedBars[state.selectedBarNumber-1]?.id;
+                selectionDeleted = !!(state.selectedBarNumber && (selectedId ? !session.draft.bars.some(function(b){return b.id===selectedId;}) : !getSelectedBar()));
                 state.selectedBarNumber = null; state.dockManualRes = {}; state.overlayWarnings = {};
                 state.lastAutoScrollBar = null; state.dockBulkOpen = false;
                 syncSheetSelection();

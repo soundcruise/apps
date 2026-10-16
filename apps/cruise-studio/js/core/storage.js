@@ -43,7 +43,9 @@
         if (!project || typeof project.projectId !== 'string' || !project.projectId) {
             return { ok: false, error: 'projectId がないため保存できません' };
         }
+        if(project.sourceSchemaVersion===2)return {ok:false,error:'派生表示を保存できません'};
         var m = model();
+        if(!m && project.schemaVersion===2)return {ok:false,error:'song-model が読み込まれていません'};
         if (m) {
             var result = m.validateProject(project);
             if (!result.ok) {
@@ -87,7 +89,7 @@
             var data = JSON.parse(raw);
             var m = model();
             if (m) {
-                var mig = m.migrateProject(data);
+                var mig = m.migrateProject(data, raw);
                 if (!mig.ok) return { ok: false, project: null, error: mig.error };
                 return { ok: true, project: mig.project, error: null };
             }
@@ -185,6 +187,8 @@
      * プロジェクトをJSONテキストへ書き出す（ファイル保存用・整形あり）。
      */
     function exportProjectJson(project) {
+        if(project.sourceSchemaVersion===2)throw Error('Derived projections cannot be exported as projects');
+        var check=model().validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
         return JSON.stringify(project, null, 2);
     }
 
@@ -204,7 +208,7 @@
         if (!m) {
             return { ok: false, project: null, error: 'song-model が読み込まれていません', warnings: [] };
         }
-        var mig = m.migrateProject(data);
+        var mig = m.migrateProject(data, jsonText);
         if (!mig.ok) {
             return { ok: false, project: null, error: mig.error, warnings: [] };
         }

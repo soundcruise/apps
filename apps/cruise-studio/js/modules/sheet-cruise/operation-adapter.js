@@ -11,7 +11,7 @@
         bulkChord: 'コードをまとめて適用', bulkDoremi: 'ドレミをまとめて適用', display: '譜面表示設定を変更' });
     function structureKey(project) {
         return JSON.stringify([project.sections.map(function (s) { return s.id; }),
-            project.bars.map(function (b) { return [b.sectionId, b.barNumber]; })]);
+            project.bars.map(function (b) { return [b.sectionId, project.schemaVersion===2?b.id:b.barNumber]; })]);
     }
     function capture(session) {
         return session ? Object.freeze({ session: session, sessionId: session.sessionId,
@@ -33,7 +33,8 @@
             if (!Object.hasOwn(labels, kind)) return { ok: false, code: 'unsupported-operation' };
             args = args || {};
             var before = structureKey(session.draft), warnings = [];
-            var result = session.runOperation(labels[kind], function (draft) {
+            var result = session.runOperation(labels[kind], function (canonical) {
+                return (model.editLegacy || function(p,fn){return fn(p);})(canonical,function(draft){
                 if (['removeSection', 'renameSection', 'barCount'].includes(kind) &&
                     !draft.sections.some(function (s) { return s.id === args.sectionId; })) throw Error('セクションが見つかりません');
                 switch (kind) {
@@ -65,7 +66,8 @@
                     draft.sheetSettings.timingGridResolution = args.settings.timingGridResolution === 16 ? 16 : 8;
                     break;
                 }
-            });
+                });
+            },{requireUndo: session.draft.schemaVersion===2});
             return Object.assign({}, result, { warnings: warnings,
                 structureChanged: result.ok && before !== structureKey(session.draft) });
         } });

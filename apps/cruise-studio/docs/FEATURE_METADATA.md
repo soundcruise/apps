@@ -128,3 +128,8 @@ M2 schema / store / controllerはregistryへ入れない。静的owner / schemaR
 注入access stateはeffective設定fixtureだけで、認証・認可ではない。保存契約は[Metronome統合](METRONOME_INTEGRATION.md)を参照。
 Session、lease、context、running、permission・Pro実資格はruntimeへ置く。万能registryへ拡張しない。
 詳細は[AUDIO_COORDINATOR](AUDIO_COORDINATOR.md)を参照。
+
+
+## Schema 2 Foundation M1 candidate
+
+Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（schema番号とは独立）。実装・検証中。M1完了・commit・push・main統合・公開は未実施。[正式契約]( SCHEMA2_FOUNDATION.md )。

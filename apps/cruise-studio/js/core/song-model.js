@@ -8,8 +8,9 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.38.1';
-    var SCHEMA_VERSION = 1;
+    var APP_VERSION = '0.39.0';
+    var SCHEMA_VERSION = 2;
+    var LEGACY_SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
     function nowIso() {
@@ -735,7 +736,7 @@
             }
         });
         return {
-            schemaVersion: SCHEMA_VERSION,
+            schemaVersion: LEGACY_SCHEMA_VERSION,
             appVersion: APP_VERSION,
             projectId: generateProjectId(),
             createdAt: nowIso(),
@@ -834,8 +835,8 @@
         if (!project || typeof project !== 'object') {
             return { ok: false, errors: ['プロジェクトがオブジェクトではありません'], warnings: [] };
         }
-        if (project.schemaVersion !== SCHEMA_VERSION) {
-            err('schemaVersion が ' + SCHEMA_VERSION + ' ではありません: ' + project.schemaVersion);
+        if (project.schemaVersion !== LEGACY_SCHEMA_VERSION) {
+            err('schemaVersion が ' + LEGACY_SCHEMA_VERSION + ' ではありません: ' + project.schemaVersion);
         }
         if (typeof project.projectId !== 'string' || !project.projectId) {
             err('projectId がありません');
@@ -994,7 +995,7 @@
         if (typeof v !== 'number') {
             return { ok: false, project: null, error: 'schemaVersion がありません' };
         }
-        if (v > SCHEMA_VERSION) {
+        if (v > LEGACY_SCHEMA_VERSION) {
             return {
                 ok: false, project: null,
                 error: 'このデータは新しいスキーマ（v' + v + '）です。最新のクルーズスタジオで開いてください'
@@ -1013,7 +1014,7 @@
 
         // TODO(将来): if (migrated.schemaVersion === 1) { ...v2への変換... ; migrated.schemaVersion = 2; }
 
-        migrated.schemaVersion = SCHEMA_VERSION;
+        migrated.schemaVersion = LEGACY_SCHEMA_VERSION;
         migrated.appVersion = APP_VERSION;
         return { ok: true, project: migrated, error: null };
     }
@@ -1056,4 +1057,39 @@
         getDefaultSheetSettings: getDefaultSheetSettings,
         getDefaultArrangementSettings: getDefaultArrangementSettings
     };
+    // Available before optional schema-2 initialization. Never interpret a v2 record as v1.
+    window.CruiseStudio.model.toLegacyView = function (project) {
+        if(project && project.schemaVersion === 1) return project;
+        if(project && project.schemaVersion === 2 && window.CruiseStudio.model.schema2)
+            return window.CruiseStudio.model.schema2.readProjection(project);
+        throw Error('Unsupported or uninitialized project schema');
+    };
+    window.CruiseStudio.model.configureSchema2 = function () {
+        var C = window.CruiseStudio, m = C.model;
+        if(m.schema2) return m.schema2;
+        if(!C.schema2 || !window.ChordCruise || !window.ChordCruise.theory) throw Error('schema 2 dependencies are unavailable');
+        var old = Object.assign({}, m), api = C.schema2.create({theory:theory,spelling:window.ChordCruise.theory,legacy:old,
+            idFactory:function(){if(!window.crypto || typeof window.crypto.randomUUID !== 'function') throw Error('secure-id-unavailable');return window.crypto.randomUUID();}});
+        m.schema2 = api;
+        m.editLegacy = function(p,edit){if(p && p.schemaVersion===1)return edit(p);if(p && p.schemaVersion===2)return api.editLegacy(p,edit);throw Error('unsupported-schema');};
+        m.validateProject = function(p){return p && p.schemaVersion===2?api.validate(p):old.validateProject(p);};
+        m.migrateProject = function(p,raw){return api.migrate(p,raw,false);};
+        ['createEmptyProject','createSampleProject'].forEach(function(name){m[name]=function(){var v1=old[name]();v1.projectId=api.newId();var result=api.migrate(v1,JSON.stringify(v1),true);if(!result.ok)throw Error(result.error);return result.project;};});
+        // Bar-only legacy readers lack project pitch context. Require an explicit read projection.
+        ['getBarDoremiText','getBarLyricsText','barNeedsSixteenthResolution'].forEach(function(name){
+            m[name]=function(bar){
+                if(bar && Object.hasOwn(bar,'id') && !Object.hasOwn(bar,'barNumber'))throw Error('canonical-bar-requires-read-projection');
+                return old[name].apply(null,arguments);
+            };
+        });
+        m.createLegacyProject = old.createEmptyProject;
+        m.createLegacySampleProject = old.createSampleProject;
+        m.toLegacyView = function(p){if(p.schemaVersion===1)return p;if(p.schemaVersion!==2)throw Error('unsupported-schema');return api.readProjection(p);};
+        ['getBarLengthTicks','getSectionBars','getSectionBarCount','getBasicStrumText','getBasicStrumSlots','getBarStrumOverrideText','getBarEffectiveStrumSlots','getBarLyricSlots','getBarLyricSlotRanges'].forEach(function(name){m[name]=function(p){var args=Array.prototype.slice.call(arguments);args[0]=m.toLegacyView(p);return old[name].apply(null,args);};});
+        ['normalizeBarOrder','setSectionBarCount','addSection','removeSection','renameSection','setBarChord','setBarLyricsText','setBarLyricSlot','setBarDoremiText','setBasicStrumText','setBarStrumSlots','setBarStrumText'].forEach(function(name){
+            m[name]=function(project){var args=Array.prototype.slice.call(arguments);return m.editLegacy(project,function(view){args[0]=view;return old[name].apply(null,args);});};
+        });
+        return api;
+    };
+
 })();

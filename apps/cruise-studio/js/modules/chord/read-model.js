@@ -32,6 +32,7 @@
         }
         function read(selection) {
             if (!selection || !selection.active) return freeze({ status: 'inactive' });
+            if (selection.invalid) return freeze({ status: 'invalid' });
             if (selection.deleted) return freeze({ status: 'deleted' });
             if (!selection.barNumbers?.length) return freeze({ status: 'unselected' });
             if (selection.barNumbers.length !== 1 || selection.chords.length > 1) return freeze({ status: 'multiple' });

@@ -1,3 +1,10 @@
+## Studio 0.39.0 — Schema 2 M1自動受入（topic候補、2026-10-16）
+
+schema 2正本、決定的migration、stable ID、原文保持、serialization前validation、Undo容量保護、明示consumer adapterを実装。Node1051／Browser18ファイル464 PASS、FAIL/skip0。診断の展開/集約とreload前後のrunner書込み監査、大規模8/32/64/128 Save/Load・五線・A/B・staleを検証。
+64小節の同期編集p95は保存前10.4/保存後10.3ms、五線更新105.2/105.5msで正式目標PASS。128小節は追加耐久として完了。小規模CMMの約1.6倍/128の約1.9倍は比較目安上の改善残件として明記。M2/M3のInspector・実OS IME・Safari・実印刷等を完成扱いにしない。
+mainはNEWS/Port更新の10296dbb、続くNEWS Workerのみ9pathの7cf2f02aへ独立進展。現topicを無断取り込みせず、次のmain統合時にPort1.23.1 mirror/cache整合と新規回帰が必要。今回main公開・Pro/Account/Authority/Sync操作なし、shared write OFF。
+[正式受入35項目・試験・性能](../docs/SCHEMA2_FOUNDATION.md)。以下は過去の記録。
+
 ## Studio 0.38.1 — Melody Staff UX Polish Finalization
 
 既存topic上のpatch。Astra/OpusのP1を、共通tick/実測文字幅、1/2小節system、
@@ -1911,3 +1918,20 @@ v0.22.4の旧実機確認記録に未確認項目が残っている場合はbase
 - 触ってよい範囲を明示してから作業する。
 - 現在地はFocus / Keyboard / Modal v1（0.23.1）の実装・回帰完了。次はStructure Editing Session。
   Shell Contract §31とTheme契約を読み、F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。
+
+
+## Schema 2 Foundation M1 candidate
+
+Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（schema番号とは独立）。実装・検証中。M1完了・commit・push・main統合・公開は未実施。[正式契約]( SCHEMA2_FOUNDATION.md )。
+
+
+## Schema 2 M1 recovery 停止（2026-10-15）
+
+0.39.0候補の元Browser 19 FAILは解消。今回Node 1044／Browser 457 PASS（FAIL/skip 0）。ただし性能試験で64小節の明示Save後にcommon-music-model convertV2のJSON複製が `RangeError: Invalid string length`、同期command p95 30.3ms／全小節staff更新507.9msを確認したためM1未受入。既存差分を保持し、stage/commit/pushなし。HEADはdbd9a46、専用topicはremote未作成。
+
+再開前に [SCHEMA2_FOUNDATION停止記録](../docs/SCHEMA2_FOUNDATION.md) のP1、14 FAIL分類、性能値、正式35項目分類を読む。正式Browser PASSと性能ケースの例外を混同しない。保存後64小節の再描画と変換の参照共有を修復するまでM2＋M3へ進めない。
+
+
+## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
+
+0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](../docs/SCHEMA2_FOUNDATION.md)を参照。

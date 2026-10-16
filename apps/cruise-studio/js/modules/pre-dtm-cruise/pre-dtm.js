@@ -35,7 +35,7 @@
     function readProjectSource() {
         var res = projectSourceProvider ? projectSourceProvider() : { ok: false, error: '対象の曲を確認できません。' };
         if (!res.ok) return res;
-        return Object.assign({}, res, { ok: true, project: freezeSnapshot(JSON.parse(JSON.stringify(res.project))) });
+        return Object.assign({}, res, { ok: true, project: freezeSnapshot(JSON.parse(JSON.stringify(CS().model.toLegacyView(res.project)))) });
     }
 
     function setProjectSourceProvider(provider) {

@@ -14,6 +14,7 @@
     var shellHost;
     var projectStorage = null;
     try { projectStorage = window.localStorage; } catch (_) { /* repository reports unavailable storage */ }
+        CS.model.configureSchema2();
     CS.repository = CS.projectRepository.createRepository({ storage: projectStorage, model: model,
         snapshot: CS.editing.snapshot, locks: navigator.locks, events: window,
         now: function () { return new Date().toISOString(); },
@@ -260,8 +261,10 @@
         preDtm.init();
         shellHost = CS.shell.init(CS);
         CS.shellHost = shellHost;
+        CS.melodyEditing = CS.melodyCommands.create({owner:CS.documents,schema:CS.model.schema2,repository:CS.repository,
+            getContext:function(){return {workspaceId:CS.shellHost.getActiveWorkspace(),generation:CS.shellHost.getWorkspaceGeneration(),blocked:!!CS.shellHost.modal.getActive()||CS.shellHost.keyboard.isIMEBlocked({})};}});
         CS.musicConversion = CS.structureConversion.createService({ owner: CS.documents, repository: CS.repository,
-            model: CS.commonMusic, converter: CS.commonMusic.createConverter({ studioTheory: CS.theory,
+            model: CS.commonMusic, converter: CS.commonMusic.createConverter({ schema2: CS.model.schema2, studioTheory: CS.theory,
                 chordTheory: window.ChordCruise.theory, validate: model.validateProject }),
             getContext: function () { return { workspaceId: shellHost.getActiveWorkspace(), generation: shellHost.getWorkspaceGeneration(),
                 blocked: !!shellHost.modal.getActive() || shellHost.keyboard.isIMEBlocked({}) }; }

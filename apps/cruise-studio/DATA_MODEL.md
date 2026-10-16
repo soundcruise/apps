@@ -1,3 +1,7 @@
+# Schema 2 Foundation M1
+
+正式schema 2は[SCHEMA2_FOUNDATION.md](docs/SCHEMA2_FOUNDATION.md)および[音価・休符契約](docs/MELODY_DURATION_REST_CONTRACT.md)を参照。以下は移行元schema 1の保存仕様記録。
+
 # クルーズスタジオ — データモデル定義
 
 対象スキーマ: **schemaVersion 1**（実装: `js/core/song-model.js`）

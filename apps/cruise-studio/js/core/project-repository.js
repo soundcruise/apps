@@ -23,7 +23,7 @@
             try {
                 var raw = options.storage.getItem(PROJECT + target.projectId);
                 if (raw === null) return { ok: true, exists: false, revision: null, snapshot: null };
-                var result = options.model.migrateProject(JSON.parse(raw));
+                var result = options.model.migrateProject(JSON.parse(raw), raw);
                 if (!result.ok || result.project.projectId !== target.projectId) return { ok: false, error: result.error || 'projectIdが一致しません' };
                 var check = options.model.validateProject(result.project);
                 if (!check.ok) return { ok: false, error: check.errors.join(' / ') };
@@ -66,7 +66,15 @@
                 var current = read(request.target);
                 if (!current.ok) return current;
                 if (current.revision !== request.baseRevision) return { ok: false, code: current.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: current };
+                if(request.snapshot.sourceSchemaVersion===2) return {ok:false,code:'projection-not-persistable',error:'派生表示を保存できません'};
+                // Validate the original memory value before any lossy JSON clone (schema 1 keeps its legacy path).
+                if(request.snapshot.schemaVersion!==1){
+                    var originalCheck=options.model.validateProject(request.snapshot);
+                    if(!originalCheck.ok)return {ok:false,code:'validation',error:originalCheck.errors.join(' / ')};
+                }
                 var project = JSON.parse(JSON.stringify(request.snapshot));
+                if(current.snapshot && current.snapshot.schemaVersion===2 && project.schemaVersion!==2) return {ok:false,code:'schema-downgrade',error:'schema 2を旧形式で上書きできません'};
+                if(current.snapshot && current.snapshot.schemaVersion===2 && JSON.stringify(current.snapshot.provenance.legacySource)!==JSON.stringify(project.provenance && project.provenance.legacySource)) return {ok:false,code:'protected-legacy-source',error:'復元用原文を変更できません'};
                 if (project.projectId !== request.target.projectId) return { ok: false, error: '保存対象のprojectIdが一致しません' };
                 var check = options.model.validateProject(project);
                 if (!check.ok) return { ok: false, code: 'validation', error: check.errors.join(' / ') };

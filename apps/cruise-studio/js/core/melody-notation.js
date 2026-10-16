@@ -26,7 +26,7 @@
     function project(result){
         if(!result||result.ok!==true||!result.model)return failure('conversion-not-ready');
         var m=result.model;
-        if(m.modelVersion!==1||m.ppq!==480||m.meter?.beats!==4||m.meter?.beatUnit!==4)return failure('unsupported-meter-or-model');
+        if(![1,2].includes(m.modelVersion)||m.ppq!==480||m.meter?.beats!==4||m.meter?.beatUnit!==4)return failure('unsupported-meter-or-model');
         if(!Array.isArray(m.measures)||m.measures.length>LIMITS.bars)return failure('preview-budget');
         if(!KEYS.includes(m.keyContext?.originalKey))return failure('unsupported-key-signature');
         if(!m.source||typeof m.source.projectId!=='string'||typeof m.source.sessionId!=='string'||typeof m.source.snapshotVersion!=='string')return failure('invalid-source');
@@ -39,7 +39,7 @@
             for(var ev of sourceEvents){
                 if(ev.onsetTick!==cursor)return failure('invalid-voice-coverage');
                 var parts=segment(ev.onsetTick,ev.durationTicks);if(!parts.ok)return failure(parts.code,bar.barNumber);
-                var isRest=ev.kind==='silence',pitch=ev.pitch;
+                var isRest=ev.kind==='silence'||ev.kind==='rest',pitch=ev.pitch;
                 if(!isRest&&(!pitch||!['C','D','E','F','G','A','B'].includes(pitch.step)||
                     !Number.isSafeInteger(pitch.octave)||!Number.isSafeInteger(pitch.alter)||Math.abs(pitch.alter)>2||
                     !Number.isSafeInteger(pitch.midi)||pitch.midi<0||pitch.midi>127))return failure('unsupported-pitch');
@@ -47,7 +47,7 @@
                 parts.segments.forEach(function(part,i){tokens.push({...part,kind:isRest?'rest':'note',
                     key:isRest?'b/4':pitch.step.toLowerCase()+'/'+pitch.octave,
                     pitch:isRest?null:{step:pitch.step,alter:pitch.alter,octave:pitch.octave,midi:pitch.midi},
-                    eventIndex:isRest?null:ev.sourceLocation.eventIndex,tieFrom:!isRest&&i>0?group+i-1:null,
+                    sourceEventId:ev.sourceEventId||null,sourceBarId:bar.sourceBarId||null,gap:isRest&&!ev.sourceEventId,eventIndex:isRest?null:ev.sourceLocation.eventIndex,tieFrom:!isRest&&i>0?group+i-1:null,
                     tieTo:!isRest&&i<parts.segments.length-1?group+i+1:null});});
                 cursor=ev.onsetTick+ev.durationTicks;
             }

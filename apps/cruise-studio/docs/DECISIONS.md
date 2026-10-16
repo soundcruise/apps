@@ -961,3 +961,8 @@ window resizeはgeometry-onlyで入力DOM/focus/IMEを維持。紙面色、編�
   slots配列で管理されており（`bar.strumOverride` / `project.strumPatterns`）、
   歌詞のように拍ごとに独立した分解ができる構造をまだ持っていないため。ストロークの
   拍別解像度化はG3で扱う
+
+
+## Schema 2 Foundation M1（2026-10-15）
+
+StudioProjectを単一正本とし、実音pitch・stable ID・明示rest・時間provenanceを導入する。元JSONは同一Project内の復元専用immutable provenanceとして保持。移行は読込時memory-only、保存は既存Session commitのみ。旧consumerは明示adapterを通す。履歴なしの新command確定は禁止。Inspector UIはM2。

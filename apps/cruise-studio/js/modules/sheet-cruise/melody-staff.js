@@ -33,22 +33,22 @@
         return '五線を生成できません'+at+'。コード譜で入力内容を確認してください。';
     }
     function create(options){
-        var host=options.host,root=null,status=null,detail=null,grid=null,projectId=null,cells=[],cache=new Map(),engraving=new Map(),epoch=0,frame=null,lastSource=null;
+        var host=options.host,root=null,status=null,detail=null,grid=null,projectId=null,cells=[],cache=new Map(),engraving=new Map(),epoch=0,frame=null,lastSource=null,lastResult=null;
         var metrics={bars:0,drawn:0,maxFrameMs:0,totalMs:0,source:null};
         var canvas=document.createElement('canvas'),measure=canvas.getContext('2d');
         function cancel(){epoch++;if(frame!==null)cancelAnimationFrame(frame);frame=null;}
-        function invalidate(message){cancel();lastSource=null;if(root){root.classList.add('melody-unready');root.classList.remove('melody-pending');root.dataset.ready='false';status.textContent=message||'五線プレビューは更新待ちです';}}
+        function invalidate(message){cancel();lastSource=null;lastResult=null;if(root){root.classList.add('melody-unready');root.classList.remove('melody-pending');root.dataset.ready='false';status.textContent=message||'五線プレビューは更新待ちです';}}
         function retain(project){
             var C=CruiseStudio,s=C.documents.getSession(),t=C.documents.ticket(),a=lastSource;
-            if(!a||!s||s.destroyed||s.conflict||s.externalUpdatePending||s.commitInFlight||s.draft.schemaVersion!==1)return false;
+            if(!a||!s||s.destroyed||s.conflict||s.externalUpdatePending||s.commitInFlight||![1,2].includes(s.draft.schemaVersion))return false;
             var revision=C.repository.readRevision(s.target);
-            return revision.ok&&revision.revision===s.baseRevision&&a.baseRevision===s.baseRevision&&a.sessionId===s.sessionId&&a.projectId===project.projectId&&
+            return revision.ok&&revision.revision===s.baseRevision&&C.musicConversion.canRetain(lastResult)&&a.sessionId===s.sessionId&&a.projectId===project.projectId&&
                 a.generation===t.generation&&a.workspaceId===C.shellHost.getActiveWorkspace()&&a.workspaceGeneration===C.shellHost.getWorkspaceGeneration();
         }
         function prepare(project){
             var numbers=project.bars.map(function(b){return b.barNumber;}).join(',');
             if(root&&root.isConnected&&projectId===project.projectId&&root.dataset.bars===numbers)return;
-            cache.clear();engraving.clear();lastSource=null;projectId=project.projectId;root=el('div','sheet-page melody-page');root.dataset.bars=numbers;
+            cache.clear();engraving.clear();lastSource=null;lastResult=null;projectId=project.projectId;root=el('div','sheet-page melody-page');root.dataset.bars=numbers;
             root.appendChild(el('h2','melody-title'));root.appendChild(el('p','melody-caption'));
             status=el('p','melody-status');status.setAttribute('role','status');root.appendChild(status);
             var details=el('details','melody-details');details.appendChild(el('summary',null,'表示の詳細'));detail=el('pre');details.appendChild(detail);root.appendChild(details);
@@ -131,7 +131,7 @@
                         if(cache.get(i)!==signature){var drawnTiming=draw(cells[i],x,score.key);timing.renderMs+=drawnTiming.renderMs;timing.domMs+=drawnTiming.domMs;cache.set(i,signature);drawn++;}i++;count++;
                     }}catch(e){root.dataset.renderError=e.message;failure(['engraving-failure']);return;}
                     maxFrame=Math.max(maxFrame,performance.now()-sliceStart);if(i<bars.length){schedule(paint);return;}if(!current()){invalidate();return;}
-                    lastSource=score.source;root.classList.remove('melody-unready','melody-pending');root.dataset.ready='true';root.dataset.projectId=score.source.projectId;
+                    lastSource=score.source;lastResult=result;root.classList.remove('melody-unready','melody-pending');root.dataset.ready='true';root.dataset.projectId=score.source.projectId;
                     root.querySelector('.melody-title').textContent=project.songInfo.title||'無題';
                     root.querySelector('.melody-caption').textContent='Key '+score.key+' / Capo '+score.capo+' / BPM '+project.songInfo.bpm+' / 4/4　コード名：押さえ方（Playキー）・五線：実音';
                     status.textContent='音の長さ：自動を含む（由来未確認） · 画面用プレビュー。印刷はコード譜です。';
