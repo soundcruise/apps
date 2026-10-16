@@ -1,7 +1,7 @@
 import {legalGate} from './registry.js';
 import {boundedFetch,hash,DAY,optOut,BOT,robotsPolicy} from './policy.js';
 import {requirePepper,validatedFingerprint} from './fingerprint.js';
-import {MORRIS_PERMISSION,MORRIS_LISTING,MORRIS_PARSER,MORRIS_FRESH_MS,morrisDay,morrisArticleUrl,morrisUrlDate,morrisPermissionValid} from './morris-policy.js';
+import {MORRIS_PERMISSION,MORRIS_LISTING,morrisParserSupported,MORRIS_FRESH_MS,morrisDay,morrisArticleUrl,morrisUrlDate,morrisPermissionValid} from './morris-policy.js';
 import {parseMorrisListing,parseMorrisArticle,morrisLabel,MORRIS_LISTING_PARSER} from './morris-evidence.js';
 import {eventEndsAt} from './event.js';
 import {healthForOutcome} from './source-health.js';
@@ -18,11 +18,11 @@ export async function morrisEvidenceReceipt(store,url,now,expected=null){
  for(const r of listings){
   if(r.request_key!=='listing:'+r.jst_day||r.source_url!==MORRIS_LISTING||r.permission_ref!==MORRIS_PERMISSION||r.actual_requests!==2||!Number.isSafeInteger(r.attempted_at)||r.attempted_at>now||!Number.isSafeInteger(r.discovered_at)||r.discovered_at>r.attempted_at||!/^[a-f0-9]{64}$/.test(r.response_hash||''))continue;
   let entries,listingProof;try{entries=JSON.parse(r.entries_json);listingProof=JSON.parse(r.proof_json);}catch{continue;}
-  if(!listingProof||listingProof.sourceId!=='morris'||listingProof.sourceUrl!==MORRIS_LISTING||listingProof.responseHash!==r.response_hash||listingProof.verifiedAt!==r.attempted_at||listingProof.parserVersion!==MORRIS_LISTING_PARSER||listingProof.permissionRef!==MORRIS_PERMISSION||listingProof.canonicalBasis!=='canonical'||listingProof.entryCount!==entries?.length)continue;
+  if(!listingProof||listingProof.sourceId!=='morris'||listingProof.sourceUrl!==MORRIS_LISTING||listingProof.responseHash!==r.response_hash||listingProof.verifiedAt!==r.attempted_at||!morrisParserSupported(listingProof.parserVersion,true)||listingProof.permissionRef!==MORRIS_PERMISSION||listingProof.canonicalBasis!=='canonical'||listingProof.entryCount!==entries?.length)continue;
   if(!Array.isArray(entries)||entries.length>100)continue;
   const matches=entries.filter(e=>e.url===url);if(matches.length!==1)continue;
   const e=matches[0],p=e.proof;
-  if(!e.facts||!morrisLabel(e.facts,e.eventType)||e.facts.articleUrl!==url||morrisUrlDate(url)!==e.publishedAt||!p||p.sourceId!=='morris'||p.sourceUrl!==MORRIS_LISTING||p.articleUrl!==url||p.publishedAt!==e.publishedAt||p.permissionRef!==MORRIS_PERMISSION||p.parserVersion!==MORRIS_LISTING_PARSER||p.extractionMethod!=='morris_explicit_listing_fields'||p.canonicalBasis!=='canonical'||p.responseHash!==r.response_hash||p.verifiedAt!==r.attempted_at||morrisDay(p.verifiedAt)!==r.jst_day)continue;
+  if(!e.facts||!morrisLabel(e.facts,e.eventType)||e.facts.articleUrl!==url||morrisUrlDate(url)!==e.publishedAt||!p||p.sourceId!=='morris'||p.sourceUrl!==MORRIS_LISTING||p.articleUrl!==url||p.publishedAt!==e.publishedAt||p.permissionRef!==MORRIS_PERMISSION||p.parserVersion!==listingProof.parserVersion||p.extractionMethod!=='morris_explicit_listing_fields'||p.canonicalBasis!=='canonical'||p.responseHash!==r.response_hash||p.verifiedAt!==r.attempted_at||morrisDay(p.verifiedAt)!==r.jst_day)continue;
   if(expected){let fields;try{fields=JSON.parse(expected.facts_provenance);}catch{continue;}if(expected.product_facts!==JSON.stringify(e.facts)||expected.title_fingerprint!==JSON.stringify(e.fingerprint)||expected.published_at!==e.publishedAt||!Array.isArray(fields)||!fields.some(f=>f.responseHash===p.responseHash&&f.verifiedAt===p.verifiedAt))continue;}
   return {outcome:'verified_listing',published_at:e.publishedAt,facts_json:JSON.stringify(e.facts),proof_json:JSON.stringify(p),fingerprint_json:JSON.stringify(e.fingerprint),response_hash:r.response_hash,attempted_at:r.attempted_at,actual_requests:0,permission_ref:r.permission_ref};
  }
@@ -31,7 +31,8 @@ export async function morrisEvidenceReceipt(store,url,now,expected=null){
 export async function morrisProofValid(store,row,now){
  const r=await morrisEvidenceReceipt(store,row.source_url,now,row);if(!r||!['verified','verified_listing'].includes(r.outcome)||r.permission_ref!==MORRIS_PERMISSION||r.published_at!==row.published_at||!Number.isSafeInteger(r.attempted_at)||r.attempted_at>now||r.actual_requests!==(r.outcome==='verified_listing'?0:1)||r.fingerprint_json!==row.title_fingerprint||r.facts_json!==row.product_facts)return false;
  let proof,fields,facts;try{proof=JSON.parse(r.proof_json);fields=JSON.parse(row.facts_provenance);facts=JSON.parse(row.product_facts);}catch{return false;}
- const listing=r.outcome==='verified_listing',proofUrl=listing?MORRIS_LISTING:row.source_url,parser=listing?MORRIS_LISTING_PARSER:MORRIS_PARSER;
+ const listing=r.outcome==='verified_listing',proofUrl=listing?MORRIS_LISTING:row.source_url,parser=proof?.parserVersion;
+ if(!morrisParserSupported(parser,listing))return false;
  if(!facts||!Array.isArray(fields)||!Object.keys(facts).every(factField=>fields.some(f=>f.factField===factField&&f.sourceUrl===proofUrl&&f.sourceId==='morris'&&f.responseHash===r.response_hash&&f.parserVersion===parser&&f.verifiedAt===proof.verifiedAt&&f.extractionMethod===proof.extractionMethod&&f.permissionRef===MORRIS_PERMISSION&&f.publishedAt===row.published_at&&(!listing||f.articleUrl===row.source_url))))return false;
  return proof?.sourceId==='morris'&&proof.sourceUrl===proofUrl&&(!listing||proof.articleUrl===row.source_url)&&proof.publishedAt===row.published_at&&proof.permissionRef===MORRIS_PERMISSION&&proof.parserVersion===parser&&proof.responseHash===r.response_hash&&/^[a-f0-9]{64}$/.test(proof.responseHash)&&Number.isSafeInteger(proof.verifiedAt)&&proof.verifiedAt<=now&&proof.verifiedAt>=r.attempted_at&&['canonical','og:url'].includes(proof.canonicalBasis);
 }

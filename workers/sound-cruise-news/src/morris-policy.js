@@ -1,7 +1,9 @@
 // Publisher-assented scope, not a site-wide crawling permission.
 export const MORRIS_PERMISSION='morris-permission-2026-10-14';
 export const MORRIS_LISTING='https://www.morris-guitar.com/information/';
-export const MORRIS_PARSER='morris-explicit-fields-1';
+export const MORRIS_PARSER='morris-explicit-fields-2';
+export const MORRIS_LISTING_PARSER='morris-listing-facts-2';
+export const morrisParserSupported=(version,listing=false)=>[listing?MORRIS_LISTING_PARSER:MORRIS_PARSER,listing?'morris-listing-facts-1':'morris-explicit-fields-1'].includes(version);
 export const MORRIS_FRESH_MS=48*3600000;
 export const morrisDay=at=>new Date(at+9*3600000).toISOString().slice(0,10);
 export function morrisArticleUrl(url){return typeof url==='string'&&/^https:\/\/www\.morris-guitar\.com\/information\/20\d{2}\/\d{4}_\d{2}\.html$/.test(url)?url:null;}

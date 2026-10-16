@@ -1,9 +1,10 @@
 import {parseDocument,DomUtils} from 'htmlparser2';
+import {analyzeMorrisFacts} from './morris-recovery.js';
 import {hash,optOut} from './policy.js';
 import {fingerprint} from './fingerprint.js';
 import {extractMorrisEditorial,morrisEditorialLabel} from './morris-editorial.js';
 import {morrisCardDiagnostics} from './morris-diagnostics.js';
-import {MORRIS_LISTING,MORRIS_PARSER,MORRIS_PERMISSION,morrisArticleUrl,morrisDate,morrisUrlDate} from './morris-policy.js';
+import {MORRIS_LISTING,MORRIS_PARSER,MORRIS_LISTING_PARSER,MORRIS_PERMISSION,morrisArticleUrl,morrisDate,morrisUrlDate} from './morris-policy.js';
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','footer','aside','template','noscript','iframe'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/(?:^|\s)(?:related|related-posts|recommend|sidebar)(?:\s|$)/i.test(p.attribs?.class||'')||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>!n||hidden(n)?'':n.type==='text'?n.data:(n.children||[]).map(text).join(' ');
 const plain=n=>text(n).replace(/\s+/g,' ').trim();
@@ -18,7 +19,7 @@ function document(html){if(typeof html!=='string'||new TextEncoder().encode(html
 function identity(doc,url){const canonical=find(doc,n=>n.name==='link'&&n.attribs.rel==='canonical'),og=find(doc,n=>n.name==='meta'&&n.attribs.property==='og:url');
  if(canonical.length>1||og.length>1||canonical.some(n=>new URL(n.attribs.href,url).href!==url)||og.some(n=>n.attribs.content!==url))throw Error('facts_source_invalid');
  if(!canonical.length&&!og.length)throw Error('facts_source_invalid');return canonical.length?'canonical':'og:url';}
-export const MORRIS_LISTING_PARSER='morris-listing-facts-1';
+export {MORRIS_LISTING_PARSER} from './morris-policy.js';
 function descriptionStructure(card,title,paragraphs,selected,fieldNodes,root){
  let scope=card,scopeAmbiguous=false;
  // Diagnostic observation may inspect a parent with exactly one bound article.
@@ -60,6 +61,7 @@ export async function parseMorrisListing(html,pepper,evidence=null){
    const recovered=extractFacts(plain(title),paras,fields,url,trace);
    // Persist only extracted facts; discard the original heading/description.
    entry.facts=recovered.facts;entry.eventType=recovered.eventType;
+   entry.recoveryAnalysis=recovered.analysis;
    entry.articleType=recovered.facts?.articleType||(recovered.facts?.kind==='product'?'product_announcement':recovered.facts?.kind==='guitar_event'?'event_announcement':'unresolved');
    entry.assessment={outcome:recovered.facts?'facts_recovered':'facts_not_recovered',reason:recovered.facts?'explicit_listing_fields':'explicit_identity_or_article_type_not_recovered'};
    entry.proof={sourceId:'morris',sourceUrl:MORRIS_LISTING,articleUrl:url,publishedAt,verifiedAt:evidence.verifiedAt,extractionMethod:'morris_explicit_listing_fields',parserVersion:MORRIS_LISTING_PARSER,responseHash,canonicalBasis:'canonical',permissionRef:MORRIS_PERMISSION};
@@ -98,6 +100,8 @@ export async function parseMorrisArticle(html,entry,verifiedAt,pepper){
 }
 
 function extractFacts(title,paras,fields,url,trace=null){
+ // Both deterministic analyzers consume the same already-bounded input.
+ const secondary=analyzeMorrisFacts(title,paras,fields,url);
  let facts=null,eventType='other';const lead=paras.join(' ');
  const excluded=/中止|延期|昨年|過去|開催しました|開催いたしました|レビュー|比較|再入荷|セール/.test(title+' '+lead);
  if(trace){trace.excludedWording=excluded;trace.branch='event';}
@@ -128,8 +132,10 @@ function extractFacts(title,paras,fields,url,trace=null){
   }
  }
  if(!facts){const editorial=extractMorrisEditorial(title,paras,trace);if(editorial){eventType='morris_editorial';facts={...editorial,evidence:'morris_explicit_article_v1',listingSource:'morris',articleUrl:url};}}
+ const legacy=!!facts;
+ if(!facts&&secondary.facts){facts=secondary.facts;eventType=secondary.eventType;}
  if(trace&&facts){trace.branch=facts.kind==='product'?'product':facts.kind==='guitar_event'?'event':facts.articleType;trace.articleType=true;trace.labelUnsupported=!morrisLabel(facts,eventType);trace.originalHeadlineCollision=morrisLabel(facts,eventType)===title;}
  if(facts&&(!morrisLabel(facts,eventType)||morrisLabel(facts,eventType)===title))facts=null;
- return {facts,eventType:facts?eventType:'other'};
+ return {facts,eventType:facts?eventType:'other',analysis:{...secondary.analysis,selected:legacy?'legacy':facts?'generic':'none',result:facts?'recovered':'hold',...(facts?{}:{reason:secondary.facts?'LABEL_NOT_INDEPENDENT':secondary.analysis.reason})}};
 
 }
