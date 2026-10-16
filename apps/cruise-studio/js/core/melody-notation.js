@@ -47,6 +47,7 @@
                 parts.segments.forEach(function(part,i){tokens.push({...part,kind:isRest?'rest':'note',
                     key:isRest?'b/4':pitch.step.toLowerCase()+'/'+pitch.octave,
                     pitch:isRest?null:{step:pitch.step,alter:pitch.alter,octave:pitch.octave,midi:pitch.midi},
+                    sourceOnsetTick:ev.onsetTick,sourceDurationTicks:ev.durationTicks,
                     sourceEventId:ev.sourceEventId||null,sourceBarId:bar.sourceBarId||null,gap:isRest&&!ev.sourceEventId,eventIndex:isRest?null:ev.sourceLocation.eventIndex,tieFrom:!isRest&&i>0?group+i-1:null,
                     tieTo:!isRest&&i<parts.segments.length-1?group+i+1:null});});
                 cursor=ev.onsetTick+ev.durationTicks;
@@ -54,8 +55,9 @@
             if(cursor!==1920||tokens.length>LIMITS.segmentsPerBar)return failure('invalid-voice-coverage');
             if(bar.harmony.length+(bar.lyrics||[]).length>128)return failure('preview-text-budget');
             if(bar.harmony.reduce(function(n,h){return n+h.symbol.length;},0)+(bar.lyrics||[]).reduce(function(n,l){return n+l.text.length;},0)>2048)return failure('preview-text-budget');
+            var confirmed=sourceEvents.every(function(e){return e.kind!=='silence'&&e.provenance?.timing?.onset?.confirmed&&e.provenance?.timing?.duration?.confirmed;});
             measures.push({index:bar.index,barNumber:bar.barNumber,sectionId:bar.sectionId,tokens:tokens,
-                autoTiming:true,timingLabel:'音の長さ：自動を含む（由来未確認）',
+                autoTiming:!confirmed,timingLabel:confirmed?'音の長さ：確認済み':'音の長さ：自動を含む（由来未確認）',
                 chords:bar.harmony.map(function(h){return {tick:h.onsetTick,symbol:h.symbol};}),
                 lyrics:(bar.lyrics||[]).map(function(l){return {tick:l.onsetTick,text:l.text};})});
         }

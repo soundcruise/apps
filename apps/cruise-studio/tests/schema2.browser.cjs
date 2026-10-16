@@ -40,7 +40,7 @@ test('Schema 2 M1 real Studio integration',async t=>{
    const recorded=writes('counterexample',first).filter(e=>e.key==='schema2.audit.counterexample');assert.equal(recorded.length,2);assert.equal(new Set(recorded.map(e=>e.documentId)).size,2);assert(recorded[0].sequence<firstEnd);assert(recorded[1].sequence>=second);
   }finally{await probe.close();}
  });
- await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.39.1');});
+ await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.40.0');});
  await t.test('F1 unconfirmed legacy pitch edit retains 240/180, ID/provenance, Undo and A/B',async()=>{
   const before=await check();await p.locator('.sheet-bar').first().click();await p.locator('[data-overlay-field=doremi]').fill('レ');await p.locator('[data-overlay-field=doremi]').press('Tab');
   const after=await check(),old=before.draft.bars[0].melody[0],note=after.draft.bars[0].melody[0];
@@ -131,7 +131,7 @@ test('Schema 2 M1 real Studio integration',async t=>{
   const before=await p.evaluate(()=>{const C=CruiseStudio,s=C.documents.getSession();window.__largeOld=C.musicConversion.convert();return {raw:s.baseRevision,backup:s.workingSnapshot().provenance.legacySource.raw,ids:s.draft.bars.map(b=>b.id),notes:s.workingSnapshot().bars.map(b=>b.melody.map(e=>[e.pitch,e.onsetTick]))};});
   assert.equal(await p.locator('.melody-measure').count(),count);
   const converted=await p.evaluate(()=>{const C=CruiseStudio,r=C.musicConversion.convert(),json=JSON.stringify(r);return {ok:r.ok,size:json.length,raw:json.includes('baseRevision')||json.includes('legacySource'),saved:C.documents.getSession().baseRevision};});assert(converted.ok);assert(!converted.raw);assert(converted.size<count*24000);assert.equal(converted.saved,before.raw);
-  await p.locator('.melody-measure').first().click();const input=p.locator('[data-overlay-field=doremi]');await input.focus();await input.evaluate(e=>e.setSelectionRange(1,1));
+  await p.locator('.melody-measure').first().locator('.melody-bar-heading').click();const input=p.locator('[data-overlay-field=doremi]');await input.focus();await input.evaluate(e=>e.setSelectionRange(1,1));
   assert(await p.evaluate(()=>{const C=CruiseStudio,s=C.documents.getSession(),b=s.draft.bars[0];return C.melodyEditing.execute('melody.setDuration',C.melodyEditing.capture(b.id,b.melody[0].id),{durationTicks:240}).ok;}));await ready();
   assert.equal(await input.evaluate(e=>document.activeElement===e&&e.selectionStart===1),true);assert.equal(await p.evaluate(()=>CruiseStudio.musicConversion.isCurrent(__largeOld)),false);
   const change=await p.evaluate(()=>JSON.stringify(CruiseStudio.documents.getSession().workingSnapshot().bars));

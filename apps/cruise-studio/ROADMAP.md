@@ -1,3 +1,11 @@
+## Studio 0.40.0 — Melody Duration & Rest Editing M2/M3 自動受入（2026-10-16）
+
+Structure内で音符・rest・gapを選び、InspectorからM1の8正式commandを実行する。正本StudioProject/schema2、既存Editing Session/単一Undo、明示Saveを維持する。非リップル音価/開始位置、明示pitch変換、部分/小節確認、gap確認、stale/A-B/IME保護を追加。
+透明hit矩形・private source stampと退役描画jobのRAF所有を分離。矢印はgapも含む記譜順で移動し、gapに音符専用欄を要求しない。No-writeはreloadを越える全ledgerと操作区間で検証し、A/B・Loupe幅補正・明示theme・明示Saveの9writeだけを値/件数照合する。
+Node1139／正規Browser19ファイル491 PASS、FAIL/skip/cancelled0。8/32/64/128性能と35項目を今回再測定。実OS IME/Safari/実印刷、高度時間表現・五線印刷・TABは未完。F3 Port1.23.1は最新main統合前に別対応。限定topic commit/pushの実結果はfinal-receipt参照、main統合/Pages公開なし。以下は過去の記録。
+
+[正式M2/M3契約・35項目・性能](docs/MELODY_DURATION_REST_EDITING.md)。
+
 ## Studio 0.39.1 — M1 Safety Recovery 自動受入（2026-10-16）
 
 F1の未確認legacy timing/ID/provenance/rest/gap保持、F2のprototype/getter/toJSON検証、CMM private DTO境界を修正。Git登録の欠落baseを同一HEADの実測で補完し、checkerは変更しない。Browser ledgerは明示選択2writeと後続no-writeを区間化して全履歴保持。構文不正を音数判定より先に診断し、IME文字/focus/caretを保持する。

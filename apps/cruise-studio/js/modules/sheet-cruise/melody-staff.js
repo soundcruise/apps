@@ -77,17 +77,23 @@
             status.textContent=keep?'入力中・確定後に更新（表示は直前の確定内容）':'五線を更新しています…';
             var token=epoch,queued=performance.now(),sliceStart=queued;
             frame=requestAnimationFrame(function(){
-                frame=null;timing.rafWaitMs+=performance.now()-queued;sliceStart=performance.now();if(token!==epoch||!options.active())return;
+                if(token!==epoch)return;frame=null;timing.rafWaitMs+=performance.now()-queued;sliceStart=performance.now();if(!options.active())return;
                 var conversionStart=performance.now(),service=CruiseStudio.musicConversion,result=service.convert();timing.conversionMs+=performance.now()-conversionStart;
                 if(!result.ok){var fatal=result.diagnostics.filter(function(d){return d.severity==='fatal';}),codes=(fatal.length?fatal:result.diagnostics).map(function(d){return d.code;});
                     if(codes.every(function(c){return c==='input-or-modal-pending';})&&retain(project)&&!CruiseStudio.shellHost.modal.getActive())return;
                     failure(codes,null,result.diagnostics,project);return;}
                 var projectionStart=performance.now(),score=CruiseStudio.melodyNotation.project(result);timing.projectionMs+=performance.now()-projectionStart;if(!score.ok){failure([score.code],score.barNumber);return;}
                 var show=CruiseStudio.sheetRenderer.resolveShowSettings(project),available=Math.max(280,grid.clientWidth),bars=[],i=0,drawn=0,maxFrame=0;
-                function current(){return token===epoch&&options.active()&&service.isCurrent(result);}
-                function schedule(fn){var queuedAt=performance.now();frame=requestAnimationFrame(function(){timing.rafWaitMs+=performance.now()-queuedAt;sliceStart=performance.now();fn();});}
+                // Focus restoration may synchronously request a newer render. A retired
+                // job must never invalidate or overwrite the new job's RAF ownership.
+                function current(){
+                    if(token!==epoch)return false;
+                    if(!options.active()||!service.isCurrent(result)){invalidate();return false;}
+                    return true;
+                }
+                function schedule(fn){if(token!==epoch)return;var queuedAt=performance.now();frame=requestAnimationFrame(function(){if(token!==epoch)return;timing.rafWaitMs+=performance.now()-queuedAt;sliceStart=performance.now();fn();});}
                 function compute(){
-                    frame=null;if(!current()){invalidate();return;}var begin=performance.now(),count=0;
+                    if(!current())return;frame=null;var begin=performance.now(),count=0;
                     try{while(i<score.measures.length&&count<16&&(performance.now()-sliceStart<8||!count)){
                         var original=score.measures[i],sec=project.sections.find(function(s){return s.id===original.sectionId;}),bar=Object.assign({},original,{
                             chords:show.chords?combine(original.chords,'symbol'):[],lyrics:show.lyrics&&!(sec&&sec.lyricsHidden)?combine(original.lyrics,'text'):[]});
@@ -95,7 +101,7 @@
                         if(!stored||stored.signature!==sig){var voiceStart=performance.now();stored={signature:sig,bundle:prepareVoice(bar,score.key),vertical:vertical(bar),rows:[]};timing.voicePreparationMs+=performance.now()-voiceStart;var widthStart=performance.now();
                             [[bar.chords,'symbol','600 16px Arial'],[bar.lyrics,'text','14px Arial']].forEach(function(row){measure.font=row[2];stored.rows.push(row[0].map(function(t){return {tick:t.tick,width:measure.measureText(t[row[1]]).width};}));});timing.widthMs+=performance.now()-widthStart;engraving.set(i,stored);}
                         bars.push({bar:bar,stored:stored,section:sec?sec.name:'',start:false,first:i===0});i++;count++;
-                    }}catch(e){root.dataset.renderError=e.message;failure(['engraving-failure']);return;}
+                    }}catch(e){if(token===epoch){root.dataset.renderError=e.message;failure(['engraving-failure']);}return;}
                     maxFrame=Math.max(maxFrame,performance.now()-sliceStart);if(i<score.measures.length){schedule(compute);return;}
                     arrange();
                 }
@@ -120,22 +126,22 @@
                     var oldRows=Array.from(grid.querySelectorAll(':scope > .melody-system')),used=[];
                     systems.forEach(function(row,n){var r=oldRows[n];if(!r||!r.classList.contains('melody-system'))r=el('div','melody-system');
                         r.style.gridTemplateColumns=row.map(function(x){return (Math.min(x.plan.width,available))+'px';}).join(' ');
-                        row.forEach(function(x){var cell=cells[x.bar.index];var slot=row.indexOf(x);if(r.children[slot]!==cell)r.insertBefore(cell,r.children[slot]||null);cell.querySelector('.melody-bar-heading').textContent=x.bar.barNumber+' · '+x.section;});
+                        row.forEach(function(x){var cell=cells[x.bar.index];var slot=row.indexOf(x);if(r.children[slot]!==cell)r.insertBefore(cell,r.children[slot]||null);cell.querySelector('.melody-bar-heading').textContent=x.bar.barNumber+' · '+x.section+' · 時間'+(x.bar.autoTiming?'未確認':'確認済み');cell.dataset.timingConfirmed=String(!x.bar.autoTiming);});
                         Array.from(r.children).forEach(function(c){if(!row.some(function(x){return cells[x.bar.index]===c;}))c.remove();});if(grid.children[n]!==r)grid.insertBefore(r,grid.children[n]||null);used.push(r);
                     });Array.from(grid.children).forEach(function(r){if(!used.includes(r))r.remove();});timing.domMs+=performance.now()-domStart;i=0;if(performance.now()-sliceStart<4)paint();else schedule(paint);
                 }
                 function paint(){
-                    frame=null;if(!current()){invalidate();return;}var begin=performance.now(),count=0;
+                    if(!current())return;frame=null;var begin=performance.now(),count=0;
                     try{while(i<bars.length&&count<16&&(performance.now()-sliceStart<8||!count)){
                         var x=bars[i],signature=JSON.stringify([x.stored.signature,x.plan,x.start,x.first,x.top,x.bottom,x.chordRow,x.lyricRow]);
-                        if(cache.get(i)!==signature){var drawnTiming=draw(cells[i],x,score.key);timing.renderMs+=drawnTiming.renderMs;timing.domMs+=drawnTiming.domMs;cache.set(i,signature);drawn++;}i++;count++;
-                    }}catch(e){root.dataset.renderError=e.message;failure(['engraving-failure']);return;}
-                    maxFrame=Math.max(maxFrame,performance.now()-sliceStart);if(i<bars.length){schedule(paint);return;}if(!current()){invalidate();return;}
+                        if(cache.get(i)!==signature){var drawnTiming=draw(cells[i],x,score.key,score.source,options);timing.renderMs+=drawnTiming.renderMs;timing.domMs+=drawnTiming.domMs;cache.set(i,signature);drawn++;if(!current())return;}bindTargets(cells[i],x.bar,score.source,options);i++;count++;
+                    }}catch(e){if(token===epoch){root.dataset.renderError=e.message;failure(['engraving-failure']);}return;}
+                    maxFrame=Math.max(maxFrame,performance.now()-sliceStart);if(i<bars.length){schedule(paint);return;}if(!current())return;
                     lastSource=score.source;lastResult=result;root.classList.remove('melody-unready','melody-pending');root.dataset.ready='true';root.dataset.projectId=score.source.projectId;
                     root.querySelector('.melody-title').textContent=project.songInfo.title||'無題';
                     root.querySelector('.melody-caption').textContent='Key '+score.key+' / Capo '+score.capo+' / BPM '+project.songInfo.bpm+' / 4/4　コード名：押さえ方（Playキー）・五線：実音';
-                    status.textContent='音の長さ：自動を含む（由来未確認） · 画面用プレビュー。印刷はコード譜です。';
-                    detail.textContent='音価・休符は既存データからの表示です。原曲どおりかは未確認です。';
+                    status.textContent=(score.measures.every(function(b){return !b.autoTiming;})?'音の長さ：確認済み':'音の長さ：自動を含む（由来未確認）')+' · 画面用プレビュー。五線は印刷されません。コード譜を印刷します。';
+                    detail.textContent=score.measures.every(function(b){return !b.autoTiming;})?'すべての音・休符の開始位置と音価が確認されています。':'音・休符または空き時間に未確認が残っています。原曲どおりか確認してください。';
                     metrics={bars:i,drawn:drawn,maxFrameMs:maxFrame,totalMs:performance.now()-started,source:score.source,timing:timing};options.onLayout();
                 }
                 compute();
@@ -143,9 +149,38 @@
         }
         return Object.freeze({render:render,invalidate:invalidate,metrics:function(){return JSON.parse(JSON.stringify(metrics));}});
     }
-    function draw(cell,x,key){
+    // Cache reuse retains SVG and focus, but adoption refreshes the issued source stamp.
+    // DOM attributes are presentation only; callbacks read this private identity record.
+    var targetRecords=new WeakMap(),boundTargets=new WeakSet();
+    function bindTargets(cell,bar,source,options){
+        if(!source||!options.onTarget)return;
+        var groups=cell.querySelectorAll('.vf-stavenote');
+        // Painted SVG glyphs have holes. Give each fragment a real, transparent hit
+        // rectangle, clipped at neighbouring glyph centres so targets never overlap.
+        var bounds=Array.from(groups,function(g){return boundTargets.has(g)?null:g.getBBox();});
+        bar.tokens.forEach(function(t,i){var group=groups[i];if(!group||!t.sourceBarId)return;
+            targetRecords.set(group,Object.freeze({barId:t.sourceBarId,eventId:t.sourceEventId,gap:t.gap?Object.freeze({onsetTick:t.sourceOnsetTick,durationTicks:t.sourceDurationTicks}):null,source:source}));
+            group.dataset.melodyTarget='true';group.dataset.barId=t.sourceBarId;group.dataset.eventId=t.sourceEventId||'';
+            if(t.gap)group.dataset.gap=t.sourceOnsetTick+':'+t.sourceDurationTicks;else delete group.dataset.gap;
+            group.setAttribute('role','button');group.setAttribute('tabindex','0');
+            if(!group.hasAttribute('aria-pressed'))group.setAttribute('aria-pressed','false');
+            group.setAttribute('aria-label',bar.barNumber+'小節目 '+(t.gap?'未確認の空き時間':t.kind==='rest'?'休符':t.pitch.step+t.pitch.octave+' 音符')+' '+(t.sourceOnsetTick||0)+' tick · EnterでInspector');
+            if(boundTargets.has(group))return;
+            var box=bounds[i],centre=box.x+box.width/2,previous=bounds[i-1],next=bounds[i+1];
+            var left=Math.max(box.x-2,previous?(previous.x+previous.width/2+centre)/2:-Infinity);
+            var right=Math.min(box.x+box.width+2,next?(next.x+next.width/2+centre)/2:Infinity);
+            var hit=document.createElementNS('http://www.w3.org/2000/svg','rect');hit.setAttribute('class','melody-hit');
+            hit.setAttribute('x',left);hit.setAttribute('y',box.y-2);hit.setAttribute('width',Math.max(1,right-left));hit.setAttribute('height',Math.max(8,box.height+4));
+            hit.setAttribute('fill','transparent');hit.setAttribute('stroke','none');hit.setAttribute('pointer-events','all');hit.setAttribute('aria-hidden','true');
+            group.insertBefore(hit,group.firstChild);boundTargets.add(group);
+            group.addEventListener('click',function(e){e.stopPropagation();options.onTarget(targetRecords.get(group),group,false);});
+            group.addEventListener('keydown',function(e){options.onTargetKey(targetRecords.get(group),group,e);});
+        });
+    }
+    function draw(cell,x,key,source,options){
         var renderStart=performance.now(),VF=window.Vex.Flow,bar=x.bar,bundle=x.stored.bundle,notes=bundle.notes,voice=bundle.voice,width=x.plan.width;
         var old=cell.querySelector('.melody-bar-content'),scrollLeft=old?old.querySelector('.melody-scroll').scrollLeft:0;
+        var focused=old&&old.contains(document.activeElement)?targetRecords.get(document.activeElement):null;
         var body=el('div','melody-bar-content'),scroll=el('div','melody-scroll'),paper=el('div','melody-bar-paper'),svgHost=el('div','melody-svg');
         paper.style.width=width+'px';var height=x.top+80+x.bottom,renderer=new VF.Renderer(svgHost,VF.Renderer.Backends.SVG);renderer.resize(width,height);
         var ctx=renderer.getContext(),stave=new VF.Stave(0,x.top,width);
@@ -155,6 +190,7 @@
         // A full-measure rest is conventionally centred; its temporal event remains tick 0.
         if(notes.length===1&&bar.tokens[0].kind==='rest'&&bar.tokens[0].durationTicks===1920){var tc=notes[0].getTickContext();tc.setX(tc.getX()+(stave.getNoteStartX()+width-12)/2-notes[0].getAbsoluteX()-notes[0].getGlyphWidth()/2);}
         voice.draw(ctx,stave);bundle.beams.forEach(function(b){b.setContext(ctx).draw();});
+
         bar.tokens.forEach(function(t,i){if(t.tieTo!==null)new VF.StaveTie({first_note:notes[i],last_note:notes[t.tieTo],first_indices:[0],last_indices:[0]}).setContext(ctx).draw();});
         [[bar.chords,'melody-chords','symbol',x.chordRow],[bar.lyrics,'melody-lyrics','text',x.lyricRow]].forEach(function(row){
             if(row[1]==='melody-lyrics')paper.appendChild(svgHost);if(!row[3])return;var lane=el('div',row[1]);row[0].forEach(function(item){var text=el('span','melody-time-text',item[row[2]]);text.style.left=anchor(item.tick)+'px';text.dataset.tick=item.tick;lane.appendChild(text);});paper.appendChild(lane);
@@ -165,6 +201,8 @@
         svgHost.dataset.notes=JSON.stringify(bar.tokens.filter(function(t){return t.kind==='note';}).map(function(t){return t.pitch.step+t.pitch.alter+'/'+t.pitch.octave+'@'+t.onsetTick+':'+t.durationTicks;}));
         var renderMs=performance.now()-renderStart,domStart=performance.now();
         if(old)old.replaceWith(body);else cell.appendChild(body);scroll.scrollLeft=scrollLeft;
+        if(focused){var index=bar.tokens.findIndex(function(t){return focused.eventId?t.sourceEventId===focused.eventId:t.gap&&t.sourceOnsetTick===focused.gap.onsetTick;});
+            var next=svgHost.querySelectorAll('.vf-stavenote')[index];if(next){next.setAttribute('tabindex','0');next.focus({preventScroll:true});}}
         return {renderMs:renderMs,domMs:performance.now()-domStart};
     }
     window.CruiseStudio.melodyStaff=Object.freeze({create:create});

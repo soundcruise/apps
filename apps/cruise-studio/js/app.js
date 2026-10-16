@@ -269,6 +269,7 @@
             getContext: function () { return { workspaceId: shellHost.getActiveWorkspace(), generation: shellHost.getWorkspaceGeneration(),
                 blocked: !!shellHost.modal.getActive() || shellHost.keyboard.isIMEBlocked({}) }; }
         });
+        CS.melodyInspector = CS.melodyEditor.mount({C:CS,document:document});
         CS.practiceView = CS.practice.init({ document: document, shell: shellHost });
         CS.practice.attachHost(CS.portDataHost || null);
         CS.audio = CS.audioCoordinator.createCoordinator();

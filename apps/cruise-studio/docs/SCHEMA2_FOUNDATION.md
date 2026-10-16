@@ -12,7 +12,7 @@ Migrationは同じrawから同じID・内容。日時・乱数を使わない。
 
 既存Sessionの単一Undoへ統合。command envelopeはproject/session/document/workspace generation/snapshot/base/bar/eventを照合。input/conflict/save/staleは変更前に拒否。requireUndoで容量超過も公開前拒否。legacySourceは履歴から除外するがProject全体予算から除外しない。
 
-最新判定は次節の0.39.1 M1自動受入。過去の停止履歴は下部に保持する。
+最新のM2/M3自動受入は [音価・休符編集](MELODY_DURATION_REST_EDITING.md) の35項目表。Studio0.40.0候補/schema2、M1のF1/F2/serialization安全性を維持して今回全回帰を実行。以下はM1時点の記録であり、当時の「M2/M3未実装」は履歴として保持する。
 
 
 ## 2026-10-16 Studio 0.39.1 — M1 Safety / Git Safety & Browser Final Recovery

@@ -27,7 +27,7 @@ test('Melody staff preview in real Structure',async t=>{
   assert(await p.locator('.melody-svg svg').first().locator('path').count()>0);
  });
  await t.test('Loupe input DOM, native Undo, cursor and scroll survive staff redraw',async()=>{
-  await p.locator('.melody-measure').first().click();const input=p.locator('#sc-slot-overlay [data-overlay-field="doremi"]');await input.focus();
+  await p.locator('.melody-measure').first().locator('.melody-bar-heading').click();const input=p.locator('#sc-slot-overlay [data-overlay-field="doremi"]');await input.focus();
   await p.evaluate(()=>{window.__heldStaffInput=document.querySelector('#sc-slot-overlay [data-overlay-field="doremi"]');window.__staffScroll=document.querySelector('#studio-main').scrollTop;});
   await input.fill('ドレミ');await ready();
   const inputMs=await input.evaluate(e=>{const start=performance.now();e.dispatchEvent(new InputEvent('input',{bubbles:true,data:'ミ'}));return performance.now()-start;});assert(inputMs<100,'input handler remains responsive');console.log('STAFF_INPUT_RESPONSE_MS',inputMs);await ready();assert(await p.evaluate(()=>document.activeElement===__heldStaffInput&&__heldStaffInput.isConnected));
@@ -165,7 +165,7 @@ test('Melody staff preview in real Structure',async t=>{
   await p.evaluate(()=>{CruiseStudio.documents.select('staff-A');});await ready();
  });
  await t.test('no project writes/IDB, schema1, shared write OFF, Console/404/network zero',async()=>{
-  assert.deepEqual(await p.evaluate(()=>__staffWrites),[]);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.39.1');assert.equal(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.schemaVersion),2);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.deepEqual(external,[]);
+  assert.deepEqual(await p.evaluate(()=>__staffWrites),[]);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.40.0');assert.equal(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.schemaVersion),2);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.deepEqual(external,[]);
  });
  }finally{await ctx.close();await browser.close();}
 });

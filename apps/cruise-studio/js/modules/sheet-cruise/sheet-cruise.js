@@ -118,7 +118,9 @@
         if (staffStyle !== 'melody' || !state.active || !state.project) return;
         if (!staffView) staffView = CS().melodyStaff.create({ host: els.scaleBox,
             active: function () { return staffStyle === 'melody' && state.active; },
-            onLayout: function () { updateSheetScale(); syncSheetSelection(true); }
+            onLayout: function () { updateSheetScale(); syncSheetSelection(true);if(CS().melodyInspector)CS().melodyInspector.refresh(); },
+            onTarget:function(t,n,open){return CS().melodyInspector&&CS().melodyInspector.select(t,n,open);},
+            onTargetKey:function(t,n,e){if(CS().melodyInspector)CS().melodyInspector.key(t,n,e);}
         });
         staffView.render(state.project);
     }
@@ -2645,6 +2647,7 @@
     }
     function handleEscape(event) {
         if (escapeBlocked(event)) return false;
+        if(CS().melodyInspector&&CS().melodyInspector.isOpen())return CS().melodyInspector.close();
         var active = document.activeElement;
         var isEditingInLoupe = active && els.slotOverlay && els.slotOverlay.contains(active) &&
             (active.tagName === 'INPUT' || (active.classList && active.classList.contains('dock-strum-cell')));
@@ -3083,6 +3086,7 @@
         var focused = document.activeElement;
         state.workspaceFocus = els.root && els.root.contains(focused) ? focused : null;
         state.active = false;
+        if(CS().melodyInspector)CS().melodyInspector.deactivate();
         if (staffView) staffView.invalidate('五線プレビューは再表示待ちです');
         refreshHistoryControls();
         publishSelection();
@@ -3196,6 +3200,7 @@
         q('sc-score-style').addEventListener('change', function (event) {
             if (!operationEligible()) { event.target.value = staffStyle; return; }
             staffStyle = event.target.value === 'melody' ? 'melody' : 'code';
+            if(staffStyle==='code'&&CS().melodyInspector)CS().melodyInspector.deactivate();
             if (staffView) staffView.invalidate();
             renderPreview(true);
         });
