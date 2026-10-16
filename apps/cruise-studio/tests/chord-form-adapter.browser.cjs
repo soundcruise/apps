@@ -53,12 +53,16 @@ test('Chord pure adapter in real Chrome: owner import and memory-only boundary',
             const a = createChordFormAdapter({ chordTheory: ChordCruise.theory, caged: ChordCruise.caged,
                 parseChordSymbol: CruiseStudio.theory.parseBasicChordSymbol, ownerVersion: '1.21.0' });
             const ownerBefore = JSON.stringify(ChordCruise.caged.FORMS), tuningMidi = [64, 59, 55, 50, 45, 40];
-            const results = ['C', 'C6', 'C/E', 'D', 'Cadd9'].map(symbol => a.resolve({ symbol, capo: symbol === 'D' ? 2 : 0,
-                tuningMidi, maxAbsoluteFret: 24, playedStrings: [1, 2, 3, 4, 5] }));
+            const results = ['C', 'C6', 'C/E', 'D', 'Cadd9', 'F', 'Dm7'].map(symbol => a.resolve({ symbol, capo: symbol === 'D' ? 2 : 0,
+                tuningMidi, maxAbsoluteFret: 24, playedStrings: symbol === 'F' ? [1, 2, 3, 4, 5, 6] : symbol === 'Dm7' ? [1, 2, 3, 4] : [1, 2, 3, 4, 5] }));
+            const invalid = createChordFormAdapter({ chordTheory: ChordCruise.theory, caged: { ...ChordCruise.caged,
+                detectBarres: () => [{ finger: 1, fret: 1, fromString: 6, toString: 1 }] },
+                parseChordSymbol: CruiseStudio.theory.parseBasicChordSymbol, ownerVersion: '1.21.0' });
+            const invalidBarre = invalid.resolve({ symbol: 'F', capo: 0, tuningMidi, maxAbsoluteFret: 24, playedStrings: [1, 2, 3, 4, 5, 6] });
             const after = JSON.stringify({ storage: { ...localStorage }, draft: CruiseStudio.sheetCruise.getSession().workingSnapshot(),
                 base: CruiseStudio.sheetCruise.getSession().baseSnapshot, revision: CruiseStudio.sheetCruise.getSession().baseRevision,
                 history: CruiseStudio.sheetCruise.getSession().getHistory(), dirty: CruiseStudio.sheetCruise.getSession().dirty });
-            return { results, unchanged: after === __adapterBefore, ownerUnchanged: ownerBefore === JSON.stringify(ChordCruise.caged.FORMS),
+            return { results, invalidBarre, unchanged: after === __adapterBefore, ownerUnchanged: ownerBefore === JSON.stringify(ChordCruise.caged.FORMS),
                 audit: __adapterAudit, databases: await indexedDB.databases(), schema: CruiseStudio.sheetCruise.getSession().draft.schemaVersion };
         });
         await t.test('display, complete voicing, sixth/slash unresolved and capo use owner result', () => {
@@ -66,6 +70,11 @@ test('Chord pure adapter in real Chrome: owner import and memory-only boundary',
             for (const i of [1, 2]) { assert(report.results[i].display.possible); assert(!report.results[i].performance.voicingUsable); }
             assert(report.results[3].performance.voicingUsable); assert.equal(report.results[3].request.formRootPc, 0);
             assert(!report.results[4].display.possible);
+        });
+        await t.test('P2-2 rejects invalid owner barre, keeps normal and open-string mini barre', () => {
+            for (const i of [5, 6]) { assert(report.results[i].performance.voicingUsable); assert(report.results[i].form.barres.length > 0); }
+            assert(!report.invalidBarre.display.possible); assert.equal(report.invalidBarre.form, null);
+            assert.deepEqual(report.invalidBarre.display.reasons, ['invalid-owner-barres']);
         });
         await t.test('dirty draft, base, revision, Undo/Redo, all raw storage and owner data unchanged', () => {
             assert(report.unchanged); assert(report.ownerUnchanged); assert.equal(report.schema, 2);

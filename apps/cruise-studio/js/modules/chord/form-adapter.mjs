@@ -136,8 +136,21 @@ export function createChordFormAdapter({ chordTheory, caged, parseChordSymbol, o
             let barres = null;
             if (typeof caged.detectBarres === 'function') {
                 const detected = copyData(caged.detectBarres(copyData(raw.notes)));
-                if (!Array.isArray(detected) || detected.some(b => !integer(b.fret, 1, maxAbsoluteFret - capo) ||
-                    !integer(b.fromString, 1, 6) || !integer(b.toString, 1, 6) || ![1, 2, 3, 4, 'T'].includes(b.finger))) return unresolved('invalid-owner-barres');
+                // Validate owner claims, never derive or recommend another barre. The owner
+                // retains finger representation; compare numeric fingers canonically.
+                const sameFinger = (a, b) => String(a) === String(b);
+                const validBarre = b => {
+                    if (!b || !integer(b.fret, 1, maxAbsoluteFret - capo) ||
+                        !integer(b.fromString, 1, 6) || !integer(b.toString, 1, 6) || b.fromString >= b.toString ||
+                        ![1, 2, 3, 4, '1', '2', '3', '4'].includes(b.finger)) return false;
+                    for (const string of [b.fromString, b.toString]) {
+                        const end = notes.find(n => n.string === string);
+                        if (!end || end.relativeFret !== b.fret || !sameFinger(end.finger, b.finger)) return false;
+                    }
+                    return !notes.some(n => n.string > b.fromString && n.string < b.toString &&
+                        (n.relativeFret < b.fret || sameFinger(n.finger, b.finger) && n.relativeFret !== b.fret));
+                };
+                if (!Array.isArray(detected) || detected.some(b => !validBarre(b))) return unresolved('invalid-owner-barres');
                 barres = detected.map(b => ({ ...b, relativeFret: b.fret, absoluteFret: capo + b.fret }));
             }
             return freeze({ request, provenance, display: { possible: true, reasons: [] },

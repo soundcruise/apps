@@ -51,6 +51,10 @@ slash指定がなければ最低音=rootを要求する。slashではbassを追�
 
 available:trueを信用してreadyにしない。弦重複/範囲外/矛盾pitch/誤quality等の不正responseはdisplay=false。valid座標の部分フォーム・省略情報未確定・6/m6不足・slash不成立はdisplay=trueのままcomplete/performance=falseで理由を返す。全弦がnotesまたはowner mutedに属さなければunknownを残す。
 
+P2-2: ownerのbarreを新規検出・推薦せず検証する。指はownerの数値1–4（同値の数値文字列も照合可、返却表現は保持）、thumbはbarreにしない。`fromString < toString`、両端の実note/fret/finger一致、途中の発音弦がbarreより低くないこと、同じ指が途中だけ別フレットを押さえないことを要求する。途中を**別指で高く**押さえる正常フォーム、ミニバレー、区間外の開放弦は維持。区間内のミュート・省略弦を新たな発音弦/ミュート弦に変換しない。不正claimは削除・修復せず`invalid-owner-barres`で未解決にする。
+
+P2-1（既知制限）: 明示playedStringsだけなら成立するC/E、C/G、D/F#等も、全ownerフォームの最低音不一致により未解決となり得る。本memory-only工程では仕様・既存試験を維持する。将来のフォーム採用・演奏連携・TAB実装前に明示的な解決契約を要する。
+
 主なreason: `owner-partial-form`, `owner-completeness-unconfirmed`, `string-states-unconfirmed`, `missing-required-tones`, `sixth-overlay-unresolved`, `unintended-tones`, `slash-bass-unresolved`, `root-bass-unresolved`, `played-strings-unconfirmed`, `played-string-not-in-form`, `played-tones-incomplete`, `played-bass-mismatch`, `playability-unconfirmed`。
 不正入力/owner例外は未解決結果を返し、旧結果や代替qualityで補完しない。依存API欠落はfactoryのTypeError。accessor/toJSON/class/cycle/non-finite/budget超過のdataは実行せず拒否する。
 

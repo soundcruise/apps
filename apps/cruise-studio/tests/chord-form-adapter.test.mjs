@@ -176,3 +176,73 @@ test('adapter is import-only and outside product module graph; no persistence or
     assert.doesNotMatch(source, /\b(?:localStorage|indexedDB|fetch|XMLHttpRequest|navigator|document|window)\b|^import /m);
     assert.doesNotMatch(read('../index.html'), /form-adapter|caged-forms/);
 });
+
+// P2-2: use released owner notes and recommendation shape in every fixture.
+// Only the response under test is replaced; no alternative detection algorithm.
+function barreFixture({ shape = 'C', barres, changeNotes } = {}) {
+    const f = fixture(), owner = f.options.caged;
+    const caged = { ...owner, getCommonForm: () => ({ shape, source: 'recommended' }),
+        getForm(...args) { const raw = clone(owner.getForm(...args)); if (changeNotes) changeNotes(raw); return raw; } };
+    if (barres !== undefined) caged.detectBarres = notes => typeof barres === 'function' ? barres(notes) : clone(barres);
+    return { ...f, adapter: createChordFormAdapter({ ...f.options, caged }) };
+}
+for (const [name, barres, changeNotes] of [
+    ['reverse range', [{ finger: 1, fret: 1, fromString: 6, toString: 1 }]],
+    ['unrelated position', [{ finger: 1, fret: 12, fromString: 1, toString: 6 }]],
+    ['endpoint finger mismatch', [{ finger: 2, fret: 1, fromString: 1, toString: 3 }]],
+    ['endpoint fret mismatch', [{ finger: 1, fret: 2, fromString: 1, toString: 3 }]],
+    ['lower intermediate sounding string', [{ finger: 1, fret: 1, fromString: 1, toString: 3 }], r => {
+        const n = r.notes.find(n => n.string === 2); n.fret = 0; n.interval = 10; n.finger = null;
+    }],
+    ['in-range claim inconsistent with notes', [{ finger: 2, fret: 3, fromString: 4, toString: 5 }]],
+    ['single-string claim', [{ finger: 1, fret: 1, fromString: 1, toString: 1 }]],
+    ['missing muted endpoint', [{ finger: 1, fret: 1, fromString: 1, toString: 6 }]],
+    ['same finger at higher intermediate fret', [{ finger: 1, fret: 1, fromString: 1, toString: 3 }], r => r.notes.find(n => n.string === 2).finger = 1],
+    ['thumb is not an owner barre', [{ finger: 'T', fret: 1, fromString: 1, toString: 3 }]],
+    ['null claim', [null]]
+]) test('P2-2 rejects ' + name, () => {
+    const r = barreFixture({ barres, changeNotes }).adapter.resolve(query('C#'));
+    assert.equal(r.display.possible, false); assert.equal(r.form, null);
+    assert.deepEqual(r.display.reasons, ['invalid-owner-barres']); assert(!r.performance.voicingUsable);
+});
+for (const [name, symbol, shape, extra] of [
+    ['normal barre with higher intermediate finger', 'C#', 'C', {}],
+    ['owner mini barre', 'CM7', 'E', {}],
+    ['capo relative barre', 'D#', 'C', { capo: 2 }],
+    ['open string outside mini barre', 'Dm7', 'D', {}],
+    ['no barre', 'C', 'C', {}]
+]) test('P2-2 preserves ' + name, () => {
+    const f = barreFixture({ shape }), r = complete(f, symbol, extra);
+    assert(r.display.possible && r.performance.voicingUsable, JSON.stringify(r));
+    const raw = f.options.caged.getForm(shape, r.request.quality, r.request.formRootPc, 13, 0);
+    const expected = clone(f.options.caged.detectBarres(raw.notes)).map(b => ({ ...b, relativeFret: b.fret, absoluteFret: (extra.capo || 0) + b.fret }));
+    assert.deepEqual(r.form.barres, expected);
+    if (name === 'no barre') assert.equal(r.form.barres.length, 0); else assert(r.form.barres.length > 0);
+    if (name.includes('higher intermediate')) assert(r.form.notes.some(n => n.string === 2 && n.relativeFret === 2 && n.finger === 2));
+    if (name.includes('open string')) assert(r.form.notes.some(n => n.string === 4 && n.relativeFret === 0));
+});
+test('P2-2 compares owner numeric finger representations without changing the response', () => {
+    const f = barreFixture({ barres: [{ finger: '1', fret: 1, fromString: 1, toString: 3 }] });
+    const r = complete(f, 'C#'); assert(r.performance.voicingUsable); assert.equal(r.form.barres[0].finger, '1');
+});
+test('P2-2 keeps muted and omitted intermediate strings distinct', () => {
+    const muted = barreFixture({ changeNotes(r) { r.notes = r.notes.filter(n => n.string !== 2); r.mutedStrings.push(2); } }).adapter.resolve(query('C#'));
+    assert(muted.display.possible); assert(muted.form.mutedStrings.includes(2)); assert(!muted.form.unknownStrings.includes(2));
+    const omitted = barreFixture({ changeNotes(r) { r.notes = r.notes.filter(n => n.string !== 2); r.hasOutOfRangeNotes = true; r.omittedNoteCount = 1; } }).adapter.resolve(query('C#'));
+    assert(omitted.display.possible); assert(omitted.form.unknownStrings.includes(2)); assert(!omitted.form.mutedStrings.includes(2));
+    assert(!omitted.completeness.complete && !omitted.performance.voicingUsable);
+});
+test('P2-2 released owner catalogue retains every available full-range diagram', () => {
+    const f = fixture(), names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    let checked = 0, barreCount = 0;
+    for (const quality of ['maj', 'm', '7', 'maj7', 'm7', '6', 'm6', 'sus4']) for (const shape of f.options.caged.SHAPE_ORDER) {
+        const a = createChordFormAdapter({ ...f.options, caged: { ...f.options.caged, getCommonForm: () => ({ shape, source: 'recommended' }) } });
+        for (const name of names) {
+            const symbol = name + f.options.chordTheory.QUALITIES[quality].symbolSuffix;
+            const r = a.resolve(query(symbol, { generation: { minRelativeFret: 0, maxRelativeFret: 24 } }));
+            assert(r.display.possible, symbol + '/' + shape + ': ' + JSON.stringify(r.display));
+            checked++; barreCount += r.form.barres.length;
+        }
+    }
+    assert.equal(checked, 480); assert.equal(barreCount, 259);
+});
