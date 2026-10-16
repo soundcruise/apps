@@ -1,3 +1,9 @@
+## Studio 0.41.0 — Chord Pure Adapter Foundation（topic候補、2026-10-16）
+
+Chord正式getCommonForm/getFormを注入するmemory-only adapterを追加。表示・構成音完全性・演奏voicingの使用可否を分離し、6/m6、slash bass、部分フォーム、未確定使用弦を理由付きで返す。UI/保存/Undo/Project schema2/owner推薦は変更しない。
+
+[入力・出力・owner監査・受入契約](docs/CHORD_FORM_ADAPTER.md)。required試験とcommit/topic pushの実測結果はrepo外の検証receiptに記録する。main統合・Pages公開・永続snapshot採用・TAB生成は別工程。以下は過去の記録。
+
 ## Studio 0.40.3 — F3 metadata / cache整合候補（2026-10-16）
 
 - Port正式source 1.23.1へのStudio import query追従。Chordのpure module 2件はowner HTMLと同じ1.21.0へ追従。
