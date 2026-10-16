@@ -12,7 +12,7 @@ Migrationは同じrawから同じID・内容。日時・乱数を使わない。
 
 既存Sessionの単一Undoへ統合。command envelopeはproject/session/document/workspace generation/snapshot/base/bar/eventを照合。input/conflict/save/staleは変更前に拒否。requireUndoで容量超過も公開前拒否。legacySourceは履歴から除外するがProject全体予算から除外しない。
 
-最新のM2/M3自動受入は [音価・休符編集](MELODY_DURATION_REST_EDITING.md) の35項目表。Studio0.40.1候補/schema2、M1のF1/F2/serialization安全性を維持して今回全回帰を実行。以下はM1時点の記録であり、当時の「M2/M3未実装」は履歴として保持する。
+最新のM2/M3自動受入は [音価・休符編集](MELODY_DURATION_REST_EDITING.md) の35項目表。Studio0.40.2候補/schema2、M1のF1/F2/serialization安全性を維持して今回全回帰を実行。以下はM1時点の記録であり、当時の「M2/M3未実装」は履歴として保持する。
 
 
 ## Studio 0.40.1 保存容量境界
@@ -704,3 +704,7 @@ macOS arm64、Node v24.14.0、Chrome 155.0.8059.40、viewport 1440×1000。basel
 - 次工程は**M1の変換コピー増幅・64小節保存後再描画・同期command性能の修復**。その後に同一fixture性能、Node全件、Browser全18ファイル、no-write/Console/404、Git gateを再実行する。
 - M1受入後にM2＋M3へ進む。音価/休符/確認の編集パネル、key/capoの意図選択、fragment選択、実OS IME、印刷と実機・保存統合は今回完成扱いにしない。
 - 次工程の推奨モデル：**Astra**。推論レベル：**高**。理由：保存raw、参照共有、immutable変換、stale保護、同期編集コストを同時に検証する必要があり、誤った最適化の手戻りを避けるため。プロンプト本文へモデル指定を埋め込むものではない。
+
+## Studio 0.40.2 保存経路境界
+
+旧storage.saveProjectはschema 1互換専用。canonical schema 2は元入力を変更せずwrite0で拒否し、Repository/Editing Sessionだけを正式保存経路とする。最終metadata後の容量検証・F1/F2・raw revision・原文保持は維持。[今回のR6/R7/R8受入](MELODY_DURATION_REST_EDITING.md)。

@@ -45,7 +45,14 @@ test('responsive Inspector acceptance: 4 widths x 3 lengths x 4 themes',async t=
   // Actual Chromium composition at every geometry; OS Japanese IME remains a separate gate.
   await p.locator('[data-event-id]:not([data-event-id=""])').first().click();
   await p.locator('.melody-measure').first().locator('.melody-bar-heading').click();
-  const input=p.locator('#sc-slot-overlay [data-overlay-field="doremi"]');await input.focus();
+  await p.waitForTimeout(80);
+  const sharedGeometry=await p.evaluate(()=>{const rect=e=>{const r=e.getBoundingClientRect();return{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};},panel=document.querySelector('#sc-melody-inspector'),loupe=document.querySelector('#sc-slot-overlay'),toolbar=document.querySelector('#screen-sheet-cruise .sheet-toolbar'),pr=rect(panel);const hits=Array.from(panel.querySelectorAll('button')).filter(e=>{const r=e.getBoundingClientRect();return r.top>=pr.top&&r.bottom<=pr.bottom;}).map(e=>{const r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {text:e.textContent,reachable:hit===e||e.contains(hit)};});return{panel:pr,loupe:rect(loupe),toolbar:rect(toolbar),hits};});
+  assert(sharedGeometry.hits.length>0);assert(sharedGeometry.hits.every(x=>x.reachable),'visible Inspector buttons must pass hit testing with Loupe open');
+  if(width>=1280){assert(sharedGeometry.loupe.right<=sharedGeometry.panel.left-6,'Loupe clears wide Inspector');assert(sharedGeometry.panel.top>=sharedGeometry.toolbar.bottom+6,'sticky Inspector clears measured toolbar');}
+  else assert(sharedGeometry.loupe.bottom<=sharedGeometry.panel.top-6,'Loupe clears bottom Inspector');
+  await panel.getByRole('button',{name:'開始位置だけ確認',exact:true}).click();await ready();
+  const input=p.locator('#sc-slot-overlay [data-overlay-field="doremi"]');await input.click();
+  if(process.env.STAFF_QA_DIR)await p.screenshot({path:process.env.STAFF_QA_DIR+`/shared-${width}-${bars}-${theme}.png`});
   await p.evaluate(()=>window.__narrowIME=document.activeElement);
   const beforeIME=await p.evaluate(()=>{const s=CruiseStudio.documents.getSession();return {draft:s.workingSnapshot(),history:s.getHistory()};}),cdp=await c.newCDPSession(p);
   await cdp.send('Input.imeSetComposition',{text:'れ',selectionStart:1,selectionEnd:1});
@@ -56,7 +63,7 @@ test('responsive Inspector acceptance: 4 widths x 3 lengths x 4 themes',async t=
   await cdp.send('Input.insertText',{text:'レミ'});await cdp.detach();await ready();
   assert(await p.evaluate(()=>__narrowIME.isConnected&&document.activeElement===__narrowIME&&__narrowIME.selectionStart===__narrowIME.selectionEnd&&__narrowIME.selectionStart>=2));
   assert.match(await input.inputValue(),/レミ/);await input.press('Escape');
-  assert.deepEqual(await p.evaluate(start=>__narrowWrites.slice(start),auditStart),[]);geometry.push({width,bars,theme,id,click:g,edited:after,error:{...errorBox},errors,http,foreign,auditStart,ledger:await p.evaluate(()=>__narrowWrites)});
+  assert.deepEqual(await p.evaluate(start=>__narrowWrites.slice(start),auditStart),[]);geometry.push({width,bars,theme,id,click:g,edited:after,sharedGeometry,error:{...errorBox},errors,http,foreign,auditStart,ledger:await p.evaluate(()=>__narrowWrites)});
   if(process.env.STAFF_QA_DIR)await p.screenshot({path:process.env.STAFF_QA_DIR+`/narrow-${width}-${bars}-${theme}.png`});
  assert.deepEqual(errors,[]);assert.deepEqual(http,[]);assert.deepEqual(foreign,[]);
  }finally{await c.close();}

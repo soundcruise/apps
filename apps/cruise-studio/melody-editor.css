@@ -19,7 +19,7 @@
 @media(min-width:1280px){
  .sheet-preview[data-melody-editor-open="true"] { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:16px; align-items:start; }
  .sheet-preview[data-melody-editor-open="true"] .sheet-preview-viewport { grid-column:1; min-width:0; }
- .sheet-preview[data-melody-editor-open="true"] .melody-editor { grid-column:2; grid-row:1 / span 2; position:sticky; top:56px; max-height:calc(100vh - 180px); overflow:auto; margin-top:0; }
+ .sheet-preview[data-melody-editor-open="true"] .melody-editor { grid-column:2; grid-row:1 / span 2; position:sticky; top:var(--melody-sticky-top); max-height:var(--melody-sticky-height); overflow:auto; margin-top:0; }
  .sheet-preview[data-melody-editor-open="true"] .preview-note { grid-column:1; }
 }
 @media(max-width:1279px){

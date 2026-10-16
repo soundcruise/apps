@@ -1,3 +1,10 @@
+## Studio 0.40.2 — 旧保存API・広幅UI安全修正（2026-10-16）
+
+旧saveProjectはschema 1専用、schema 2はRepository/Editing Session専用にした。拒否時write0・入力/raw/index不変。広幅LoupeはInspector実測領域を避け、Inspectorのsticky位置はtoolbar実寸へ追従する。schema2、既存F1/F2・保存容量・Undo/IME境界を維持。
+Node1176／正式Browser23ファイル558 PASS、FAIL/skip/cancelled0。48条件の同時表示・hit testと性能gateを再実測。実OS IME/Safari/実印刷は未検証、F3 Port1.23.1は別統合工程。main統合/Pages公開なし。commit/push実結果はrepo外final receipt参照。
+
+[正式仕様・試験・性能](docs/MELODY_DURATION_REST_EDITING.md)。以下は過去の記録。
+
 ## Studio 0.40.1 — Render Readiness Recovery & Final Acceptance（2026-10-16）
 
 保存metadata適用後の最終validationと、狭幅Inspector/選択音符の可視性を修正。768px timeoutはfixtureの同一ID/raw再投入に対するexternal-revision保護であり、条件別contextと完全identity ready照合で解消。製品rendererの保護は変更しない。

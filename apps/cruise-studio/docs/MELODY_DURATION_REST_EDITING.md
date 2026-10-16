@@ -1,6 +1,35 @@
-# Melody Duration & Rest Editing M2/M3 — Studio 0.40.1候補
+# Melody Duration & Rest Editing M2/M3 — Studio 0.40.2候補
 
 実装基準は M1 `62c7e5f789ff175bd70724c93f9ecb8aa739cccc`、Project schemaVersion=2。正式設計は [Astra契約](MELODY_DURATION_REST_CONTRACT.md)、M1の保存・serialization・受入は [Schema 2](SCHEMA2_FOUNDATION.md)。本工程は既存topic内の機能追加であり、main統合・本番公開は別工程。
+
+## Studio 0.40.2 — Legacy Save Boundary & Wide UI Remediation（2026-10-16）
+
+開始HEAD/remote topicは3344c2b75f35d16f7ff6b43d86f3845cafefc930、remote mainは7cf2f02a65e05198cceead49d0d31df14ccfd8ae。既存topicを継続し、schemaVersion=2を維持するpatch。main統合・本番公開は別工程。
+
+R6: 旧storage.saveProjectはschema 1互換専用とし、canonical schema 2はRepository／Editing Sessionへ案内して拒否する。JSON descriptor/prototype検査を先行し、getter/toJSONを実行せず、schema 2/future/unknownをschema 1へ変換しない。拒否時は入力/raw/index不変・write0・成功結果なし。製品consumerは既にRepository経由であり、残っていたkeyboard-modal/metronome Browser fixtureの2呼出しを正式Repositoryへ移した。上限前/一致/超過、timestamp/appVersion増加、schema 1互換、不正値・hook、Repository/Session roundtripを追加した。0.40.1の最終candidate容量検証・F1/F2・原文/MIDI/tick/ID・quota/result-unknown・Undo容量・stale拒否は継続する。
+
+R7: 広幅では実測Inspector左端から余白を引いた範囲をLoupe safe areaの右端とする。利用可能な紙面幅に応じて位置/幅をclampし、常に小さな固定幅にしない。一時幅補正は保存設定を書き換えず、Inspector閉鎖時に元の要求幅へ戻す。明示resizeは新しい要求幅とする。入力DOMを再生成しない。
+
+R8: 8条件の実測ではcomputed top約121pxにもかかわらず、親grid下端の制約で実top約56pxへ押し上げられ、toolbarと約57px重なった。測定対象の取り違えではない。toolbar実測height＋computed sticky top＋8pxを維持し、可用高さから最大Main scroll時の親末尾位置・margin-bottom・8pxを除く。親末尾位置はpane.bottomから残りscroll距離を引くことで求め、独自scroll listenerや入力DOM再生成を増やさない。main/toolbar ResizeObserverと既存layout通知へ接続する。6pxはUX文書の固定数値規定ではなく、safe-area回避契約に対する8px実装余白の受入下限として維持した。390/768は既存下部パネルを維持する。
+
+修正後の1440/1920px×4テーマは全8条件PASS。initial/edit/scroll/focus/theme/resize/restore各phaseで最小余白8px、見出しと可視ボタンのhit test、入力DOM保持、閉鎖時のLoupe幅復元を確認した。代表値はtoolbar下端112.80px、Inspector上端120.80px・高さ778px。幅変更後も下端146.80pxに対し上端154.80pxを保つ。既知失敗の再現診断をrequired回帰のPASS件数へ含めない。元のclean baseline/baseと停止時37ファイルのhash一致を確認して再開し、dirty状態を新baselineへ置換していない。
+
+Node全suite 1176 PASS、正式Browser23ファイル 558 PASS、FAIL/skip/cancelled0。旧APIのBrowser反例、390/768/1440/1920×8/64/128×4テーマの48条件を今回再実行。通常click、note/rest/gap、Loupe/Inspector同時表示geometry、実ボタンhit test、toolbar回避、音価/onset・Undo/Redo、focus/caret/CDP compositionを確認。A/B・workspace往復・保存/競合は正式既存suiteで継続。force clickなし。保存拒否と編集No-write、Console/404/禁止通信0。正式443Hz WAV・独立loopback・使い捨てChromeを使用し、既存8765/8766と利用者profileに触れない。
+
+### 性能（各20sample、warmup3）
+
+| 小節 | 同期編集p95 保存前/後 ms | 五線更新p95 保存前/後 ms |
+|---:|---:|---:|
+| 8 | 2.2/2.3 | 15.2/15.8 |
+| 32 | 7/6.2 | 45.6/46.4 |
+| 64 | 13.7/13.2 | 102.7/100.7 |
+| 128 | 25.9/24.1 | 275.4/275.2 |
+
+64小節の16ms/500ms gate PASS。128小節は追加耐久であり64と同じ同期時間目標を課さない。0.38.1との同一fixture比較を保持する。CMM相対性能の改善は今回の必須実装範囲外。全sampleと環境はperformance.json参照。
+
+実OS日本語IME/Safari/実プリンターは未検証。CDP compositionをOS実IME確認と呼ばない。Port1.23.1 metadata/cache F3は次の最新main統合工程で再測定し、今回はPort/Shared/認可/Syncへ変更を広げない。shared write OFF。commit/postcommit/topic pushの実SHAと成否はrepo外final-receipt.jsonを正とし、実施前の成功を記載しない。
+
+証拠: `/Users/murakamimasakuni/.codex/visualizations/2026/10/10/01a1244d-3cb2-7043-bd29-981e371b1ae2/studio-0402-r8-recovery-20261016`（start/plan/task-intent、Node/Browser logs、shared/narrow PNG・geometry/ledger、performance全sample/gate、Git gates、保全hash/final receipt）。以下の0.40.1以前は履歴として保持する。
 
 ## Studio 0.40.1 — Render Readiness Recovery & Final Acceptance（2026-10-16）
 

@@ -72,8 +72,19 @@
         var main=doc.getElementById('studio-main'),layoutKey='',layoutFrame=0;
         function layout(){
             var r=main.getBoundingClientRect(),narrow=window.innerWidth<1280;
-            var height=Math.min(360,Math.floor(r.height*0.4)),key=[slot.hidden,narrow,r.left,r.width,r.bottom,height].join(':');
+            var toolbar=doc.querySelector('#screen-sheet-cruise .sheet-toolbar'), toolbarHeight=toolbar.getBoundingClientRect().height;
+            var stickyTop=toolbarHeight+(parseFloat(getComputedStyle(toolbar).top)||0)+8;
+            // At maximum Main scroll, the containing block still ends above the footer.
+            // Account for that invariant end position: top alone cannot stop sticky end-clamping.
+            var remaining=Math.max(0,main.scrollHeight-main.clientHeight-main.scrollTop);
+            var parentEnd=pane.getBoundingClientRect().bottom-remaining;
+            var marginBottom=parseFloat(getComputedStyle(slot).marginBottom)||0;
+            var bottomReserve=Math.max(0,r.bottom-parentEnd)+marginBottom+8;
+            var wideHeight=Math.max(1,Math.floor(r.height-stickyTop-bottomReserve));
+            var height=Math.min(360,Math.floor(r.height*0.4)),key=[slot.hidden,narrow,r.left,r.width,r.bottom,height,stickyTop,wideHeight].join(':');
             if(key===layoutKey)return;layoutKey=key;
+            slot.style.setProperty('--melody-sticky-top',stickyTop+'px');
+            slot.style.setProperty('--melody-sticky-height',wideHeight+'px');
             slot.style.setProperty('--melody-panel-left',r.left+'px');slot.style.setProperty('--melody-panel-width',r.width+'px');
             slot.style.setProperty('--melody-panel-bottom',Math.max(0,window.innerHeight-r.bottom)+'px');slot.style.setProperty('--melody-panel-height',height+'px');
             pane.style.setProperty('--melody-panel-reserve',!slot.hidden&&narrow?(height+16)+'px':'0px');
@@ -87,7 +98,7 @@
             if(r.bottom>bottom)main.scrollTop+=r.bottom-bottom;else if(r.top<top)main.scrollTop-=top-r.top;
         }
         function resized(){cancelAnimationFrame(layoutFrame);layoutFrame=requestAnimationFrame(function(){layout();});}
-        var observer=new ResizeObserver(resized);observer.observe(main);window.addEventListener('resize',resized);
+        var observer=new ResizeObserver(resized);observer.observe(main);observer.observe(doc.querySelector('#screen-sheet-cruise .sheet-toolbar'));window.addEventListener('resize',resized);
         function close(){controller.clear();uiHandle=null;slot.hidden=true;pane.removeAttribute('data-melody-editor-open');decorate();layout();focusSelection();return true;}
         function apply(handle,type,payload){
             var result=controller.execute(handle,type,payload);refresh();

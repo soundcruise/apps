@@ -2182,12 +2182,21 @@
 
     // viewport座標のまま、将来Header / Dockの境界だけを注入する。
     // providerはwidth / height / top / bottom / bottomMarginを返す。
+    var loupeInspectorWidth = null;
+    function wideInspectorOpen() {
+        var inspector = document.getElementById('sc-melody-inspector');
+        return window.innerWidth >= 1280 && inspector && !inspector.hidden;
+    }
     function getLoupeSafeArea() {
         var area = loupeSafeAreaProvider ? loupeSafeAreaProvider() : readDefaultLoupeSafeArea();
         var inspector = document.getElementById('sc-melody-inspector');
         if (window.innerWidth < 1280 && inspector && !inspector.hidden) {
             var bottom = Math.min(area.bottom, inspector.getBoundingClientRect().top - 8);
             return Object.assign({}, area, { bottom: bottom, height: Math.max(1, bottom - area.top) });
+        }
+        if (wideInspectorOpen()) {
+            var right = Math.min(area.right, inspector.getBoundingClientRect().left - 8);
+            return Object.assign({}, area, { right: right, width: Math.max(1, right - area.left) });
         }
         return area;
     }
@@ -2273,6 +2282,12 @@
         // app-nav表示状態・viewportに合わせて必ず補正する。ドラッグ・リサイズの
         // 呼び出し元は既にclampLoupeY済みの値を渡すため、ここでの再クランプは
         // 冪等（値が変わらない）で、意図した位置を余分にリセットすることはない。
+        // Inspector occupancy is temporary UI geometry, not a saved width preference.
+        if (wideInspectorOpen()) {
+            if (loupeInspectorWidth === null) loupeInspectorWidth = state.loupe.width;
+        } else if (loupeInspectorWidth !== null) {
+            state.loupe.width = loupeInspectorWidth; loupeInspectorWidth = null;
+        }
         state.loupe.width = clampLoupeWidth(state.loupe.width);
         state.loupe.x = clampLoupeX(state.loupe.x, state.loupe.width);
         state.loupe.y = clampLoupeY(state.loupe.y);
@@ -2301,6 +2316,7 @@
      */
     function reclampLoupeOnResize() {
         if (!els.slotOverlay) return;
+        if (wideInspectorOpen() || loupeInspectorWidth !== null) { applyLoupeGeometry(); return; }
         var newWidth = clampLoupeWidth(state.loupe.width);
         var widthChanged = newWidth !== state.loupe.width;
         state.loupe.width = newWidth;
@@ -2385,6 +2401,7 @@
             if (e.pointerId !== pointerId) return;
             var newWidth = clampLoupeWidth(startWidth + (e.clientX - startX));
             state.loupe.width = newWidth;
+            if (loupeInspectorWidth !== null) loupeInspectorWidth = newWidth;
             state.loupe.x = clampLoupeX(state.loupe.x, newWidth);
             applyLoupeGeometry();
         }

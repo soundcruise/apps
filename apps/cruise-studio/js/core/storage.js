@@ -40,19 +40,19 @@
      * @returns {{ok: boolean, error: string|null}}
      */
     function saveProject(project) {
-        var guardModel=model();
-        if(guardModel && guardModel.schema2){var guard=guardModel.validateProject(project);if(!guard.ok)return {ok:false,error:'検証エラー: '+guard.errors.join(' / ')};}
-        if (!project || typeof project.projectId !== 'string' || !project.projectId) {
-            return { ok: false, error: 'projectId がないため保存できません' };
-        }
-        if(project.sourceSchemaVersion===2)return {ok:false,error:'派生表示を保存できません'};
-        var m = model();
-        if(!m && project.schemaVersion===2)return {ok:false,error:'song-model が読み込まれていません'};
+        var m = model(), json = m && m.schema2;
+        // This legacy API owns schema 1 only. Inspect memory before reading fields or JSON hooks.
+        if (json) { try { json.assertJson(project); } catch (error) { return { ok:false, code:'validation', error:error.message }; } }
+        var schema = project && typeof project === 'object' && Object.getOwnPropertyDescriptor(project, 'schemaVersion');
+        if (!schema || !Object.hasOwn(schema, 'value')) return { ok:false, code:'validation', error:'schemaVersionが不正です' };
+        if (schema.value === 2) return { ok:false, code:'repository-required', error:'schema 2はRepository／Editing Sessionから保存してください' };
+        if (schema.value !== 1) return { ok:false, code:'unsupported-schema', error:'旧保存APIはschema 1専用です' };
+        if (!project || typeof project.projectId !== 'string' || !project.projectId) return { ok:false, error:'projectId がないため保存できません' };
+        var marker = Object.getOwnPropertyDescriptor(project, 'sourceSchemaVersion');
+        if (marker && marker.value === 2) return { ok:false, error:'派生表示を保存できません' };
         if (m) {
             var result = m.validateProject(project);
-            if (!result.ok) {
-                return { ok: false, error: '検証エラー: ' + result.errors.join(' / ') };
-            }
+            if (!result.ok) return { ok:false, error:'検証エラー: ' + result.errors.join(' / ') };
         }
         try {
             project.updatedAt = new Date().toISOString();
