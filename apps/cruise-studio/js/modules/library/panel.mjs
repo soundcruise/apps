@@ -1,4 +1,4 @@
-import { filterLibraryItems } from '../../port-data/library-projection.mjs?v=0.40.3';
+import { filterLibraryItems } from '../../port-data/library-projection.mjs?v=0.41.0';
 const CS = globalThis.CruiseStudio;
 function initialize() {
     CS.libraryViews = CS.library.init({ document, shell: CS.shellHost, filterItems: filterLibraryItems });
