@@ -58,3 +58,26 @@ test('F3: versioned internal ESM dependencies use the same Studio cache identity
     }
     assert.ok(count >= 10);
 });
+
+// Fixed patch-release expectation plus traversal of the actual HTML module entries.
+// Owner versions are still checked against their independent source declarations above.
+test('0.43.1 release identity and recursively reachable Studio module cache paths', () => {
+    assert.equal(getAppVersion('cruise-studio'), '0.43.1');
+    assert.match(html, /id="studio-version">v0\.43\.1<\/span>/);
+    const visited = new Set();
+    function visit(url) {
+        if (!url.pathname.startsWith(studio.pathname) || !url.pathname.endsWith('.mjs')) return;
+        if (url.search) assert.equal(url.search, '?v=0.43.1', url.href);
+        if (visited.has(url.pathname)) return;
+        visited.add(url.pathname);
+        const content = read(new URL(url.pathname, 'file://'));
+        for (const match of content.matchAll(/(?:from\s*|import\s*\(\s*)['"]([.][^'"]+)['"]/g)) {
+            visit(new URL(match[1], url));
+        }
+    }
+    for (const ref of scriptRefs) visit(ref);
+    assert.ok(visited.size >= 10);
+    assert.ok([...visited].some(path => path.endsWith('/chord/form-panel.mjs')));
+    assert.ok([...visited].some(path => path.endsWith('/chord/form-adoption.mjs')));
+    assert.ok([...visited].some(path => path.endsWith('/core/component-metadata.mjs')));
+});
