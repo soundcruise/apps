@@ -1,3 +1,9 @@
+# Studio 0.42.0 candidate — Chord Form Snapshot & Persistent Adoption Foundation
+
+P2-1 adapter v2を祖先に、schema2のforms/formBindings、明示楽器確認、発行候補のstale保護、単一Session採用/解除、累積Undo予算、Repository/JSON往復、legacy event ID保持を追加する。製品UI・TAB・手動運指・Rhythm連携は未接続。main統合/公開は別承認。受入結果とSHAはrepo外の最終証跡で確定する。
+
+[保存・採用正式契約](docs/CHORD_FORM_SNAPSHOT.md)。以下は過去工程の記録。
+
 ## Studio 0.41.1 — Chord Form Adapter v2 / P2-1修正（topic候補、2026-10-17）
 
 全ownerフォームの完全性と、明示使用弦による演奏voicingを独立判定。全フォームの最低音診断を保持し、演奏側は使用弦の構成音・最低実音・適用警告を再検証する。P2-2バレー検証、memory-only、schema 2、単一Project/Session/Undoを維持。保存/UI/owner推薦は変更しない。

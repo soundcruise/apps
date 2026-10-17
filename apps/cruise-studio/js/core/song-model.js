@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.41.1';
+    var APP_VERSION = '0.42.0';
     var SCHEMA_VERSION = 2;
     var LEGACY_SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
@@ -211,7 +211,9 @@
         if (!s) {
             bar.chords = [];
         } else {
-            bar.chords = [{ tick: 0, durationTicks: getBarLengthTicks(project), symbol: s }];
+            var events = [{ tick: 0, durationTicks: getBarLengthTicks(project), symbol: s }];
+            if(window.CruiseStudio.model.schema2)window.CruiseStudio.model.schema2.reconcileChord(bar,events);
+            bar.chords = events;
         }
     }
 

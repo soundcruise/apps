@@ -81,6 +81,7 @@
                 if (current.revision !== request.baseRevision) return { ok: false, code: current.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: current };
                 if(current.snapshot && current.snapshot.schemaVersion===2 && project.schemaVersion!==2) return {ok:false,code:'schema-downgrade',error:'schema 2を旧形式で上書きできません'};
                 if(current.snapshot && current.snapshot.schemaVersion===2 && JSON.stringify(current.snapshot.provenance.legacySource)!==JSON.stringify(project.provenance && project.provenance.legacySource)) return {ok:false,code:'protected-legacy-source',error:'復元用原文を変更できません'};
+                if(current.snapshot && current.snapshot.schemaVersion===2 && current.snapshot.materials.forms.some(function(m){var next=project.materials.forms.find(function(n){return n.id===m.id;});return next&&JSON.stringify(next)!==JSON.stringify(m);})) return {ok:false,code:'protected-form-material',error:'採用素材は新しいIDで差し替えてください'};
                 if (project.projectId !== request.target.projectId) return { ok: false, error: '保存対象のprojectIdが一致しません' };
                 try {
                     var list = index().filter(function (entry) { return entry && entry.projectId !== project.projectId; });

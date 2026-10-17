@@ -21,7 +21,7 @@ test('Chord pure adapter in real Chrome: owner import and memory-only boundary',
         await p.goto(url, { waitUntil: 'networkidle' });
         await p.waitForFunction(() => !!CruiseStudio.sheetCruise && !!CruiseStudio.repository);
         await t.test('production boot has schema 2 and no form adapter / CAGED integration', async () => {
-            assert.equal(await p.locator('#studio-version').innerText(), 'v0.41.1');
+            assert.equal(await p.locator('#studio-version').innerText(), 'v0.42.0');
             assert.equal(await p.evaluate(() => !!ChordCruise.caged), false);
             assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false);
         });

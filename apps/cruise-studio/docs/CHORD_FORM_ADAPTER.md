@@ -1,3 +1,7 @@
+# Studio 0.42.0 candidate — Adapter v2 consumer
+
+adapterの責務・版・P2-1/P2-2判定は変更しない。今回、製品UIから独立した[採用Service/保存契約](CHORD_FORM_SNAPSHOT.md)を追加。下記「保存しない」はadapter単体の責務であり、上位Serviceの明示採用/Session/Repositoryによる保存と区別する。本番への統合は別工程。
+
 # Chord Form Adapter v2 / Voicing Completeness
 
 Studio patch candidate 0.41.1 / Project schemaVersion 2 / CHORD_FORM_ADAPTER_VERSION=2。production 0.41.0を基準とするP2-1修正。入力・返却構造を維持し、演奏voicingの意味を明確化したためadapter版だけ1→2。製品画面・保存形式・Editing Session・Undo・既存Inspectorには接続せず、main統合・本番公開は別工程。
