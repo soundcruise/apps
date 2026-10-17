@@ -18,7 +18,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.20.0';
+const RHYTHM_CRUISE_VERSION = '1.21.0';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -2056,53 +2056,20 @@ const RHYTHM_CREATE_STAGES = [
         ],
     },
     {
-        n: 2,
-        title: '8分音符で作る',
-        desc: '表拍と裏拍を使う',
-        ready: true,
-        grid: 'eighth',
-        noteDuration: '8',
-        cellCount: 8,
-        patternBars: 1,
-        states: ['hit', 'rest', 'tie'],
-        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
-        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
-        motion: 'alternate',
-        previewId: 'rhythm_create_stage2_preview',
-        howto: '8分音符では、1拍を2つに分けてリズムを作ります。<br>数字の位置が表拍、間の位置が裏拍です。<br>音を出す場所、休む場所、前の音を伸ばす場所を選ぶと、弾き語りらしいリズムになります。',
-        presets: [
-            { name: '基本の8ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            { name: '裏だけ', pattern: ['rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
-            { name: '1・3拍強調', pattern: ['hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit'] },
-            { name: '2・4拍強調', pattern: ['hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie'] },
-            { name: '王道の8分ストローク', pattern: ['hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit'] },
-        ],
+        "n": 2,
+        "title": "8分音符で作る",
+        "desc": "表拍と裏拍を使う",
+        "ready": true,
+        "previewId": "rhythm_create_stage2_preview",
+        "howto": "8分音符では、1拍を2つに分けてリズムを作ります。<br>数字の位置が表拍、間の位置が裏拍です。<br>音を出す場所、休む場所、前の音を伸ばす場所を選ぶと、弾き語りらしいリズムになります。"
     },
     {
-        n: 3,
-        title: '16分音符で作る',
-        desc: '細かいストロークを作る',
-        ready: true,
-        grid: 'sixteenth',
-        noteDuration: '16',
-        cellCount: 16,
-        patternBars: 1,
-        states: ['hit', 'rest', 'tie'],
-        beatLabels: ['1', 'e', '&', 'a', '2', 'e', '&', 'a', '3', 'e', '&', 'a', '4', 'e', '&', 'a'],
-        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
-        motion: 'alternate',
-        previewId: 'rhythm_create_stage3_preview',
-        howto: '16分音符では、1拍を4つに分けて細かいリズムを作ります。<br>細かくしすぎず、音を抜きながら作ると弾き語りらしいリズムになります。',
-        presets: [
-            { name: '16分の連続', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            {
-                name: '8・16・16の繰り返し',
-                pattern: ['hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit'],
-                dirs: ['down', null, 'up', 'down', 'down', null, 'up', 'down', 'down', null, 'up', 'down', 'down', null, 'up', 'down'],
-            },
-            { name: '16分のノリが入るストローク', pattern: ['hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit'] },
-            { name: '16分王道のストローク', pattern: ['hit', 'tie', 'tie', 'tie', 'hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit'] },
-        ],
+        "n": 3,
+        "title": "16分音符で作る",
+        "desc": "細かいストロークを作る",
+        "ready": true,
+        "previewId": "rhythm_create_stage3_preview",
+        "howto": "16分音符では、1拍を4つに分けて細かいリズムを作ります。<br>細かくしすぎず、音を抜きながら作ると弾き語りらしいリズムになります。"
     },
     {
         n: 4,
@@ -31650,7 +31617,7 @@ function applyProLockBadges() {
     appendProLockIcon(els.stageSaveCustomBtn);
 }
 
-function init() {
+function initializeRhythmUI() {
     applyAppVersionDisplay();    // バージョン表示（Ver X.Y.Z）
     if (els.devLogCopyRow) els.devLogCopyRow.classList.remove('hidden');
     updateDebugReviewVisualDelayUI();
@@ -31668,6 +31635,34 @@ function init() {
     setClickEnabled(true);
     show('home');
     resumeClickInputFromHelp();
+}
+
+// The catalog must precede loadSettings/seed/bind. Repeated init calls share one
+// promise; failure never substitutes a second pattern database or writes settings.
+let rhythmCatalogInitialization = null;
+function init() {
+    if (rhythmCatalogInitialization) return rhythmCatalogInitialization;
+    rhythmCatalogInitialization = import(RHYTHM_ASSET_BASE + 'js/official-patterns.mjs?v=' + RHYTHM_CRUISE_VERSION)
+        .then((owner) => {
+            for (const stageN of [2, 3]) {
+                const def = getRhythmCreatePresetDef(stageN);
+                Object.assign(def, owner.getCreateBasicStageDefinition(stageN));
+                def.baseShape = {};
+                RHYTHM_CREATE_PRESET_SHAPE_KEYS.forEach((key) => {
+                    def.baseShape[key] = Array.isArray(def[key]) ? def[key].slice() : def[key];
+                });
+            }
+            return true;
+        }).catch(() => {
+            const notice = document.createElement('p');
+            notice.setAttribute('role', 'alert');
+            notice.textContent = '公式リズムを読み込めませんでした。ページを再読み込みしてください。';
+            document.body.prepend(notice);
+            return false;
+        }).then((ready) => {
+            if (ready) initializeRhythmUI();
+        });
+    return rhythmCatalogInitialization;
 }
 
 document.addEventListener('DOMContentLoaded', init);
