@@ -97,7 +97,7 @@ export function formMessage(result) {
     const codes = [...new Set(raw.flatMap(x => typeof x === 'string' ? x.split('/') : ['']))];
     // Acquisition/whole-form failures precede fixable string-selection diagnostics.
     const order = code => code.startsWith('played-') ? 1 : 0;
-    return [...new Set(codes.sort((a,b)=>order(a)-order(b)).map(code => REASON_MESSAGES[code] || GENERAL_REASON))].join('\n') || GENERAL_REASON;
+    return [...new Set(codes.sort((a,b)=>order(a)-order(b)).map(code => Object.hasOwn(REASON_MESSAGES, code) ? REASON_MESSAGES[code] : GENERAL_REASON))].join('\n') || GENERAL_REASON;
 }
 export function mountFormPanel({C,document:doc,owner=globalThis.ChordCruise}) {
     const slot=doc.getElementById('studio-form-panel');
