@@ -1,3 +1,15 @@
+# Studio 0.42.0 candidate / Project schemaVersion 2
+
+Chord Form Snapshot採用基盤。adapter v2、owner Chord1.21.0維持。schema2の正式拡張として、既存空forms/tuning=null互換を維持し、新フォーム/Binding・楽器条件・単一Undo・明示Saveを扱う。保存/読取の正本はStudioProject。UI・TAB未実装、Shared write OFF、PortDataHost.canWrite=false。受入結果はtopicの最終外部receiptを参照し、未統合candidateを本番版と誤認しない。
+
+[正式保存契約](../docs/CHORD_FORM_SNAPSHOT.md)。以下は履歴。
+
+## Studio 0.41.1 — Chord Form Adapter v2 / P2-1修正（topic候補、2026-10-17）
+
+全ownerフォームの完全性と、明示使用弦による演奏voicingを独立判定。全フォームの最低音診断を保持し、演奏側は使用弦の構成音・最低実音・適用警告を再検証する。P2-2バレー検証、memory-only、schema 2、単一Project/Session/Undoを維持。保存/UI/owner推薦は変更しない。
+
+[正式契約・独立MIDI期待値・受入境界](../docs/CHORD_FORM_ADAPTER.md)。adapter versionは2、Studio patch候補は0.41.1。正式試験・限定commit・topic pushはrepo外receiptに実測記録し、main統合・本番公開は行わない。以下は履歴。
+
 ## Studio 0.41.0 — Chord Pure Adapter Foundation（topic候補、2026-10-16）
 
 Chord正式getCommonForm/getFormを注入するmemory-only adapterを追加。表示・構成音完全性・演奏voicingの使用可否を分離し、6/m6、slash bass、部分フォーム、未確定使用弦を理由付きで返す。UI/保存/Undo/Project schema2/owner推薦は変更しない。

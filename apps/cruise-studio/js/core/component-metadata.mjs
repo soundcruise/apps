@@ -29,7 +29,7 @@ const components = Object.freeze([
     mirror('rhythm-cruise', 'Rhythm Cruise', 'apps/rhythm-cruise/script.js',
         'RHYTHM_CRUISE_VERSION', '1.20.0'),
     mirror('cruise-studio', 'Cruise Studio', 'apps/cruise-studio/js/core/song-model.js',
-        'APP_VERSION', '0.41.0')
+        'APP_VERSION', '0.42.0')
 ]);
 
 // The index is private; callers only receive deeply frozen descriptors.

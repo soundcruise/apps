@@ -43,7 +43,11 @@
         seen.delete(value);
     }
     var legacySources = new WeakSet();
-    function clone(value, validated) {
+    // Exact UTF-8 sizes belong only to our independently cloned, deeply frozen history.
+    // No caller-owned/mutable Project is cached and no serialized content is retained.
+    var historyByteSizes = new WeakMap();
+    var historyEncoder = typeof TextEncoder === 'function' ? new TextEncoder() : null;
+    function clone(value, validated, contentOnly) {
         var descriptor = value && typeof value === 'object' && Object.getOwnPropertyDescriptor(value,'schemaVersion');
         if (descriptor && !Object.hasOwn(descriptor,'value')) throw new TypeError('non-json-descriptor');
         var checked=!validated && value && typeof value==='object' && Object.hasOwn(value,'projectId');
@@ -52,7 +56,13 @@
             if (!validated && !checked) assertJson(value);
             var provenance = { ...value.provenance }, source = provenance.legacySource;
             delete provenance.legacySource;
-            var copy = JSON.parse(JSON.stringify({ ...value, provenance: provenance }));
+            var payload = { ...value, provenance: provenance };
+            if (contentOnly) HISTORY_FIXED.forEach(function (key) { delete payload[key]; });
+            var text = JSON.stringify(payload), copy = JSON.parse(text);
+            if (contentOnly) {
+                // These are the exact bytes of the content we just copied, not a size estimate.
+                freeze(copy); historyByteSizes.set(copy, utf8ByteSize(text)); return copy;
+            }
             if (source !== undefined) {
                 // Only our own deeply frozen restoration objects may be shared.
                 if (!source || typeof source !== 'object' || !legacySources.has(source)) {
@@ -83,10 +93,24 @@
     var HISTORY_FIXED = new Set(['projectId', 'schemaVersion', 'createdAt', 'appVersion', 'updatedAt']);
     var HISTORY_LIMITS = Object.freeze({ maxEntries: 100, maxBytes: 8 * 1024 * 1024 });
     function contentSnapshot(value, validated) {
+        var descriptor = value && typeof value === 'object' && Object.getOwnPropertyDescriptor(value, 'schemaVersion');
+        if (descriptor && descriptor.value === 2) return clone(value, validated, true);
         var copy = clone(value, validated);
         HISTORY_FIXED.forEach(function (key) { delete copy[key]; });
         if(value.schemaVersion === 2 && copy.provenance) delete copy.provenance.legacySource;
         return freeze(copy);
+    }
+    function matchesContent(value, expectedContent) {
+        if (value.schemaVersion !== 2) return equal(contentSnapshot(value), expectedContent);
+        // Compare our live raw against owned history without allocating another deep snapshot.
+        // Inspect the original descriptors first, including fields excluded from history.
+        // This shallow view is synchronous/private: no mutable reference escapes or is cached.
+        assertJson(value);
+        var content = Object.assign({}, value);
+        HISTORY_FIXED.forEach(function (key) { delete content[key]; });
+        content.provenance = Object.assign({}, value.provenance);
+        delete content.provenance.legacySource;
+        return equal(content, expectedContent);
     }
     function restoreContent(content, current) {
         var copy = clone(content);
@@ -95,7 +119,12 @@
         return copy;
     }
     function byteSize(value) {
-        var text = JSON.stringify(value), bytes = 0;
+        var known = historyByteSizes.get(value);
+        return known === undefined ? utf8ByteSize(JSON.stringify(value)) : known;
+    }
+    function utf8ByteSize(text) {
+        if (historyEncoder) return historyEncoder.encode(text).length;
+        var bytes = 0;
         for (var i = 0; i < text.length; i++) {
             var code = text.codePointAt(i);
             bytes += code < 128 ? 1 : code < 2048 ? 2 : code < 65536 ? 3 : 4;
@@ -294,7 +323,7 @@
                         if (tracker.raw.schemaVersion === 2) fixed.provenance = {legacySource:tracker.raw.provenance.legacySource};
                         var handle = Object.freeze({ operationId: sessionId + ':operation-' + (++operationSequence), sessionId: sessionId,
                             historyEpoch: history.epoch, contentVersion: session.snapshotVersion, draft: staged.draft });
-                        openGroup = { handle: handle, tracker: staged, before: contentSnapshot(tracker.raw, true), fixed: fixed, label: String(label || '編集').slice(0, 120), requireUndo: !!(policy && policy.requireUndo) || tracker.raw.schemaVersion === 2, previousTextGroup:previousTextGroup };
+                        openGroup = { handle: handle, tracker: staged, before: contentSnapshot(tracker.raw, true), fixed: fixed, label: String(label || '編集').slice(0, 120), preserveAppliedUndo: !!(policy && policy.preserveAppliedUndo), requireUndo: !!(policy && policy.requireUndo) || tracker.raw.schemaVersion === 2, previousTextGroup:previousTextGroup };
                         return { ok: true, operation: handle };
                     } catch (error) { return { ok: false, code: 'operation-failed', error: error.message || String(error) }; }
                 },
@@ -305,7 +334,7 @@
                     if (blocked) return reject(blocked);
                     if (handle.contentVersion !== session.snapshotVersion || handle.historyEpoch !== history.epoch) return reject('stale-operation');
                     // Final content check also catches drift that bypassed a Proxy notification.
-                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion || !equal(contentSnapshot(tracker.raw), group.before)) {
+                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion || !matchesContent(tracker.raw, group.before)) {
                         tracker.rebase(); changeSerial++;
                         resetHistory('stale-operation', 'invalidated'); emit(session, 'history-invalidated'); return reject('stale-operation');
                     }
@@ -316,6 +345,7 @@
                     var originalCheck;
                     if (Array.from(HISTORY_FIXED).some(function (key) { return !equal(group.tracker.raw[key], group.fixed[key]); })) return reject('protected-field');
                     if(tracker.raw.schemaVersion === 2 && !equal(group.tracker.raw.provenance && group.tracker.raw.provenance.legacySource, group.fixed.provenance && group.fixed.provenance.legacySource)) return reject('protected-legacy-source');
+                    if(tracker.raw.schemaVersion===2 && tracker.raw.materials.forms.some(function(m){var next=group.tracker.raw.materials.forms.find(function(n){return n.id===m.id;});return next&&!equal(m,next);}))return reject('protected-form-material');
                     var after;
                     try {
                         originalCheck=options.validate(group.tracker.raw);
@@ -329,6 +359,10 @@
                     var before = merging ? history.entries[history.cursor - 1].before : group.before;
                     var bytes = byteSize(before) + byteSize(after);
                     if(group.requireUndo && bytes > limits.maxBytes) return reject('undo-budget');
+                    if(group.preserveAppliedUndo){
+                        var retained=history.entries.slice(0,history.cursor-(merging?1:0));
+                        if(retained.length+1>limits.maxEntries||retained.reduce(function(sum,e){return sum+e.bytes;},0)+bytes>limits.maxBytes)return reject('undo-budget');
+                    }
                     abandonGroup();
                     if (bytes > limits.maxBytes) {
                         resetHistory('operation-too-large', 'overflow');

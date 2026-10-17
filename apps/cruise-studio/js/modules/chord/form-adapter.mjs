@@ -1,5 +1,5 @@
 // Memory-only reader. Hosts inject the released Chord owner API; this module loads nothing.
-export const CHORD_FORM_ADAPTER_VERSION = '1';
+export const CHORD_FORM_ADAPTER_VERSION = '2';
 const STANDARD_TUNING = [64, 59, 55, 50, 45, 40]; // strings 1 → 6, sounding MIDI
 const QUALITIES = ['maj', 'm', '7', 'maj7', 'm7', '6', 'm6', 'sus4'];
 const pc = n => ((n % 12) + 12) % 12;
@@ -107,7 +107,10 @@ export function createChordFormAdapter({ chordTheory, caged, parseChordSymbol, o
                     pitchClass: pc(midi), interval: n.interval, finger: n.finger ?? null,
                     fingeringWarning: n.fingeringWarning === true });
             }
-            const reasons = [], add = r => { if (!reasons.includes(r)) reasons.push(r); };
+            // Acquisition/tone failures block both assessments. Bass is assessed separately
+            // for the entire owner form and the explicitly selected sounding strings.
+            const reasons = [], performanceReasons = [];
+            const add = r => { if (!reasons.includes(r)) reasons.push(r); if (!performanceReasons.includes(r)) performanceReasons.push(r); };
             const omissionConfirmed = raw.hasOutOfRangeNotes === false && raw.omittedNoteCount === 0 &&
                 Array.isArray(raw.outOfRangeNotes) && raw.outOfRangeNotes.length === 0;
             if (!omissionConfirmed) add(raw.hasOutOfRangeNotes === true || raw.omittedNoteCount > 0 ? 'owner-partial-form' : 'owner-completeness-unconfirmed');
@@ -119,20 +122,20 @@ export function createChordFormAdapter({ chordTheory, caged, parseChordSymbol, o
             if (required.some(p => !fullPcs.has(p))) add('missing-required-tones');
             if (['6', 'm6'].includes(quality) && !fullPcs.has(pc(soundingRoot + 9))) add('sixth-overlay-unresolved');
             if (notes.some(n => !permitted.has(n.pitchClass))) add('unintended-tones');
-            if (pc(Math.min(...notes.map(n => n.soundingMidi))) !== soundingBass) add(parsed.bass ? 'slash-bass-unresolved' : 'root-bass-unresolved');
+            if (pc(Math.min(...notes.map(n => n.soundingMidi))) !== soundingBass) reasons.push(parsed.bass ? 'slash-bass-unresolved' : 'root-bass-unresolved');
             const complete = reasons.length === 0;
-            const performanceReasons = reasons.slice();
+            const played = request.playedStrings ? notes.filter(n => request.playedStrings.includes(n.string)) : [];
             if (!request.playedStrings) performanceReasons.push('played-strings-unconfirmed');
             else {
-                const played = notes.filter(n => request.playedStrings.includes(n.string));
                 if (played.length !== request.playedStrings.length) performanceReasons.push('played-string-not-in-form');
                 const playedPcs = new Set(played.map(n => n.pitchClass));
                 if (required.some(p => !playedPcs.has(p))) performanceReasons.push('played-tones-incomplete');
+                if (played.some(n => !permitted.has(n.pitchClass))) performanceReasons.push('unintended-tones');
                 if (played.length && pc(Math.min(...played.map(n => n.soundingMidi))) !== soundingBass) performanceReasons.push('played-bass-mismatch');
             }
             // Missing fingering alone does not prevent a string/fret TAB. Explicit owner
             // warnings/limited playability do require a later player confirmation contract.
-            if (!['standard', 'advanced'].includes(raw.playability) || notes.some(n => n.fingeringWarning) || raw.warning) performanceReasons.push('playability-unconfirmed');
+            if (!['standard', 'advanced'].includes(raw.playability) || played.some(n => n.fingeringWarning) || raw.warning) performanceReasons.push('playability-unconfirmed');
             let barres = null;
             if (typeof caged.detectBarres === 'function') {
                 const detected = copyData(caged.detectBarres(copyData(raw.notes)));

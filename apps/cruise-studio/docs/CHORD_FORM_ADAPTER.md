@@ -1,6 +1,10 @@
-# Chord Pure Adapter Foundation v1
+# Studio 0.42.0 candidate — Adapter v2 consumer
 
-Studio topic candidate 0.41.0 / Project schemaVersion 2。memory-only reader APIの追加によるminor更新。製品画面・保存形式・Editing Session・Undo・既存Inspectorには接続しない。production 0.40.3の公開状態を変更しない。
+adapterの責務・版・P2-1/P2-2判定は変更しない。今回、製品UIから独立した[採用Service/保存契約](CHORD_FORM_SNAPSHOT.md)を追加。下記「保存しない」はadapter単体の責務であり、上位Serviceの明示採用/Session/Repositoryによる保存と区別する。本番への統合は別工程。
+
+# Chord Form Adapter v2 / Voicing Completeness
+
+Studio patch candidate 0.41.1 / Project schemaVersion 2 / CHORD_FORM_ADAPTER_VERSION=2。production 0.41.0を基準とするP2-1修正。入力・返却構造を維持し、演奏voicingの意味を明確化したためadapter版だけ1→2。製品画面・保存形式・Editing Session・Undo・既存Inspectorには接続せず、main統合・本番公開は別工程。
 
 ## Owner contract audit
 
@@ -25,7 +29,7 @@ Studio topic candidate 0.41.0 / Project schemaVersion 2。memory-only reader API
 
 `adapter.resolve({symbol,capo,tuningMidi,maxAbsoluteFret,generation?,playedStrings?})`
 
-- symbolは**実音コード記号**。v1 quality: maj / m / 7 / maj7（M7/maj7）/ m7 / 6 / m6 / sus4。root/bass spellingはowner parser、構成音はowner QUALITIESを使う。未知quality、曖昧文字列を推測しない。このsubsetは機能対応範囲であってStandard/Pro認可ではない。
+- symbolは**実音コード記号**。対応quality: maj / m / 7 / maj7（M7/maj7）/ m7 / 6 / m6 / sus4。root/bass spellingはowner parser、構成音はowner QUALITIESを使う。未知quality、曖昧文字列を推測しない。このsubsetは機能対応範囲であってStandard/Pro認可ではない。
 - capoは0–11整数、tuningMidiはstring1→6 `[64,59,55,50,45,40]` を明示する。別tuning/不明octaveは未対応。
 - maxAbsoluteFretは楽器の物理上限（capo–36整数）。generationは `{minRelativeFret,maxRelativeFret}`。省略時0–min(13,物理上限−capo)。capo+相対上限が物理上限を超える指定は拒否。
 - form root/bass pitch class = sounding root/bass − capo mod12。ownerへはform rootを渡す。
@@ -42,10 +46,10 @@ Studio topic candidate 0.41.0 / Project schemaVersion 2。memory-only reader API
 | display.possible | 検証済み座標のdiagram候補を表示できる。演奏確定ではない |
 | form | string/fret/実音、muted/unknown弦、運指/barre、owner警告、省略数 |
 | completeness.complete | 取得した**全ownerフォーム**に全構成音、許可音のみ、確定弦状態、省略なし、指定最低音が成立 |
-| performance.voicingUsable | completeに加え、明示playedStringsが有効、構成音/最低音を維持し、明示playability警告なし |
+| performance.voicingUsable | 共通の取得/音高/弦/バレー検証を満たし、明示playedStringsの構成音・最低実音・適用警告を独立評価。complete=trueは前提にしない |
 | performance.scope | voicing-only。リズム・発音位置・音価・stroke・tie等を確定せず、完成TAB生成可能という宣言ではない |
 
-slash指定がなければ最低音=rootを要求する。slashではbassを追加許可音とし、実際の最低MIDIを検証する。全ownerフォームがbass不一致のときは、使用弦subsetだけで別フォームへ作り変えてcompleteにしない。これは後続の手動フォーム/owner採用契約の対象。
+slash指定がなければ最低音=rootを要求する。slashではbassを追加許可音とし、実際の最低MIDIを検証する。全ownerフォームがbass不一致のときは、使用弦subsetだけで別フォームへ作り変えてcompleteにしない。演奏側は、同じownerフォームから明示playedStringsだけを評価し直す。使用弦を暗黙選択せず、owner推薦や取得したフォームを変更しない。
 
 ## Completeness and unresolved results
 
@@ -53,10 +57,30 @@ available:trueを信用してreadyにしない。弦重複/範囲外/矛盾pitch
 
 P2-2: ownerのbarreを新規検出・推薦せず検証する。指はownerの数値1–4（同値の数値文字列も照合可、返却表現は保持）、thumbはbarreにしない。`fromString < toString`、両端の実note/fret/finger一致、途中の発音弦がbarreより低くないこと、同じ指が途中だけ別フレットを押さえないことを要求する。途中を**別指で高く**押さえる正常フォーム、ミニバレー、区間外の開放弦は維持。区間内のミュート・省略弦を新たな発音弦/ミュート弦に変換しない。不正claimは削除・修復せず`invalid-owner-barres`で未解決にする。
 
-P2-1（既知制限）: 明示playedStringsだけなら成立するC/E、C/G、D/F#等も、全ownerフォームの最低音不一致により未解決となり得る。本memory-only工程では仕様・既存試験を維持する。将来のフォーム採用・演奏連携・TAB実装前に明示的な解決契約を要する。
+P2-1解決（adapter v2）: `display.possible`はdiagram候補の安全性、`completeness.complete`は全ownerフォームの音楽的完全性、`performance.voicingUsable`は明示使用弦の発音集合を表す。complete=falseかつvoicingUsable=trueを認めるが、フォーム自体を書き換えたり、不足音を補完したりしない。
+
+| 条件・診断 | 全フォーム | 明示使用弦の演奏voicing |
+|---|---|---|
+| 不正response/note座標/pitch/capo/fret/barre | display=false、未解決 | 拒否 |
+| partial/省略情報未確定/unknown string/missing-required-tones/sixth-overlay-unresolved/unintended-tones | 従来通り保持 | 必ず拒否。subsetで救済しない |
+| slash-bass-unresolved / root-bass-unresolved | 従来通り保持、complete=false | コピーせず、playedStringsの最低MIDIから再判定 |
+| 構成音・許可音 | 全notesで検証 | playedStringsでも独立検証。実在しない弦・構成音欠落は拒否 |
+| note.fingeringWarning | 元noteに保持 | 使用noteにあれば拒否、未使用noteだけならそれだけでは拒否しない |
+| raw.warning / limited・unknown playability | 元情報を保持 | global/適用範囲不明として拒否。文章の解釈で免除しない |
+| finger未指定のみ | 未確定情報を保持 | 弦/fret・他条件が成立すれば許可 |
+
+独立した実音期待値（string1=高音弦、MIDIは低音順）:
+
+| 実音コード | capo | playedStrings | sounding MIDI | 判定 display / complete / voicing |
+|---|---:|---|---|---|
+| C/E | 0 | 1,2,3,4 | 52,55,60,64 | true / false / true |
+| C/G | 0 | 1,2,3 | 55,60,64 | true / false / true |
+| D/F# | 2 | 1,2,3,4 | 54,57,62,66 | true / false / true |
+
+使用弦未指定、C/Eの5弦を含む発音、C/Gの1・2弦のみ、Am7/Gの構成音不足等は拒否する。成功後の不正入力でも旧結果を使い回さない。`scope=voicing-only`、`adoption=unconfirmed`は維持し、voicingUsableは完成TABや音価・stroke・発音位置の確定を意味しない。
 
 主なreason: `owner-partial-form`, `owner-completeness-unconfirmed`, `string-states-unconfirmed`, `missing-required-tones`, `sixth-overlay-unresolved`, `unintended-tones`, `slash-bass-unresolved`, `root-bass-unresolved`, `played-strings-unconfirmed`, `played-string-not-in-form`, `played-tones-incomplete`, `played-bass-mismatch`, `playability-unconfirmed`。
-不正入力/owner例外は未解決結果を返し、旧結果や代替qualityで補完しない。依存API欠落はfactoryのTypeError。accessor/toJSON/class/cycle/non-finite/budget超過のdataは実行せず拒否する。
+不正入力/owner例外は未解決結果を返し、旧結果や代替qualityで補完しない。依存API欠落はfactoryのTypeError。通常dataのaccessor/toJSON/class/cycle/non-finite/budget超過は拒否する。任意Proxyのtrapや注入関数自体の副作用まで完全保証する境界ではない。
 
 ## Ownership and future adoption
 
@@ -67,7 +91,7 @@ Standard/Proのowner product policy・runtime access・backend authorizationは�
 
 ## Acceptance
 
-- Node: 実released ownerを隔離VMへ登録してMajor/Minor/7th/6th/m6/slash/capo/境界/部分/異常response/例外/使用弦/来歴/不変性を検証する。Project schema2・実Editing Session/history/base/draft/rawが不変。owner初期化・呼出し中はDOM/storage/DB/networkを禁止。
+- Node: 実released ownerを隔離VMへ登録してMajor/Minor/7th/6th/m6/slash/capo/境界/部分/異常response/例外/使用弦/来歴/不変性を検証する。P2-1の独立MIDI/構成音/最低音期待値、P2-2の480フォーム/259バレーも検証する。Project schema2・実Editing Session/history/base/draft/rawが不変。owner初期化・呼出し中はDOM/storage/DB/networkを禁止。
 - Browser: 正式15 suiteと現行schema2/notation追加cohort全件、既存Structure conversion、version/cache、adapter専用実Chrome試験。使い捨てprofile・別loopback、443Hz正式mic。製品bootにはcaged未接続、test専用load後は全storage/IDB/network書込み、raw/draft/履歴/ownerデータが不変。Console/404/禁止通信0を要求。
 - Git: 正式topic-development scope/capture/commit/postcommit/push gate。Studio個別path限定。main/Pages非更新。原本9hash、旧main/worktreeと他ownerを保護。
 - 実OS日本語IME・Safari・実プリンターはこの工程で検証済みとしない。

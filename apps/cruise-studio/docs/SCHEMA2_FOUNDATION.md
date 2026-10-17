@@ -1,3 +1,7 @@
+# Studio 0.42.0 candidate — Form snapshot extension
+
+現行schemaVersion=2を維持し、従来予約されたmaterials.forms/performance.formBindingsと標準tuning/任意maxAbsoluteFretを正式に検証する。旧空forms/tuning=nullは読込だけでは変更しない。未知encoding/壊れた参照は拒否、音楽的不適合な固定指定は保存してreadinessだけを下げる。[詳細](CHORD_FORM_SNAPSHOT.md)。以下のM1記録は当時の受入履歴。
+
 # Schema 2 Foundation M1
 
 正式入力は [Astra契約全文](MELODY_DURATION_REST_CONTRACT.md)。StudioProject schema 2は単一正本。

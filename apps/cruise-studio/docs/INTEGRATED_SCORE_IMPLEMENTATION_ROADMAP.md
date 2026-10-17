@@ -1,3 +1,7 @@
+# Studio 0.42.0 candidate — Persistent form adoption foundation
+
+adapter v2の次工程として曲内snapshot/イベントBindingを正式化。既存Project互換、legacy ID、Undo累積予算、Service staleness、明示Saveを同じ受入単位とする。フォーム選択UI/手動フォーム/TAB/Rhythm/高度CAGED/本棚権限は次工程。今回の契約は[CHORD_FORM_SNAPSHOT](CHORD_FORM_SNAPSHOT.md)。main統合と本番公開は別承認。以下は過去の工程記録。
+
 ## Studio 0.40.1 — Render Readiness Recovery & Final Acceptance（2026-10-16）
 
 保存metadata適用後の最終validationと、狭幅Inspector/選択音符の可視性を修正。768px timeoutはfixtureの同一ID/raw再投入に対するexternal-revision保護であり、条件別contextと完全identity ready照合で解消。製品rendererの保護は変更しない。
