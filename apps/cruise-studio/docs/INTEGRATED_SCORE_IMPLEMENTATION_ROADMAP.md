@@ -1,3 +1,7 @@
+# Studio 0.43.0 candidate — Structureフォーム採用UI
+
+基本推奨フォームの確認・明示使用弦・楽器条件確認・イベント単位の採用/差替え/解除を既存Serviceへ接続。schema2/Adapter v2/単一Undo/明示Saveを維持。高度CAGED・本棚・手動運指・Rhythm・TABは対象外。受入結果は作業証拠で別途確定し、main統合/本番公開は別承認。正式仕様: [CHORD_FORM_SELECTION](CHORD_FORM_SELECTION.md)。以下は過去の工程記録。
+
 # Studio 0.42.0 candidate — Persistent form adoption foundation
 
 adapter v2の次工程として曲内snapshot/イベントBindingを正式化。既存Project互換、legacy ID、Undo累積予算、Service staleness、明示Saveを同じ受入単位とする。フォーム選択UI/手動フォーム/TAB/Rhythm/高度CAGED/本棚権限は次工程。今回の契約は[CHORD_FORM_SNAPSHOT](CHORD_FORM_SNAPSHOT.md)。main統合と本番公開は別承認。以下は過去の工程記録。

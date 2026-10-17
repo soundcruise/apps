@@ -272,9 +272,10 @@
     function getSelectionSnapshot() {
         var session = state.session, readable=!!state.project, validSelection = readable && session && structureIdentity === CS().structureOperations.structureKey(session.draft);
         var selected = validSelection ? state.selectedBarNumber : null, bar = selected ? getSelectedBar() : null;
+        var canonical = bar && session.draft.schemaVersion === 2 ? session.draft.bars[selected - 1] : null;
         return Object.freeze({ active: state.active, sessionId: session ? session.sessionId : null,
-            barNumbers: Object.freeze(selected ? [selected] : []),
-            chords: Object.freeze((bar ? bar.chords : []).map(function (chord) { return Object.freeze({ tick: chord.tick, symbol: chord.symbol }); })),
+            barNumbers: Object.freeze(selected ? [selected] : []), barId: canonical ? canonical.id : null,
+            chords: Object.freeze((canonical ? canonical.chords : bar ? bar.chords : []).map(function (chord) { return Object.freeze({ id: canonical ? chord.id : null, tick: canonical ? chord.onsetTick : chord.tick, symbol: chord.symbol }); })),
             invalid: !!(session && !readable), editing: !!(session && session.inputPending), dirty: !!(session && session.dirty),
             externalUpdatePending: !!(session && session.externalUpdatePending),
             deleted: selectionDeleted || !!(state.selectedBarNumber && !getSelectedBar()) || !!(session && session.conflict && session.conflict.deleted) });

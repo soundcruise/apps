@@ -20,9 +20,9 @@ test('Chord pure adapter in real Chrome: owner import and memory-only boundary',
         p.on('response', r => { if (r.status() >= 400) missing.push(r.url()); });
         await p.goto(url, { waitUntil: 'networkidle' });
         await p.waitForFunction(() => !!CruiseStudio.sheetCruise && !!CruiseStudio.repository);
-        await t.test('production boot has schema 2 and no form adapter / CAGED integration', async () => {
-            assert.equal(await p.locator('#studio-version').innerText(), 'v0.42.0');
-            assert.equal(await p.evaluate(() => !!ChordCruise.caged), false);
+        await t.test('production boot has schema 2 and pure CAGED dependency for explicit form UI', async () => {
+            assert.equal(await p.locator('#studio-version').innerText(), 'v0.43.0');
+            assert.equal(await p.evaluate(() => !!ChordCruise.caged), true);
             assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false);
         });
         // Disposable fixture setup precedes the measured no-write window.
