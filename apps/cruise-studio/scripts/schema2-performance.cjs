@@ -3,7 +3,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
 const runs=Number(process.env.PERF_RUNS||20),counts=(process.env.PERF_COUNTS||'8,32,64,128').split(',').map(Number),warmup=3;
 const stats=a=>{const s=[...a].sort((a,b)=>a-b);return{n:a.length,p50:s[Math.ceil(s.length*.5)-1],p95:s[Math.ceil(s.length*.95)-1],max:s.at(-1)};};
 (async()=>{
- const urls=[['0.38.1',process.env.BASELINE_URL],['0.43.0',process.env.STUDIO_URL]];for(const[,u]of urls)assert.equal(new URL(u).hostname,'127.0.0.1');
+ const urls=[['0.38.1',process.env.BASELINE_URL],['0.43.1',process.env.STUDIO_URL]];for(const[,u]of urls)assert.equal(new URL(u).hostname,'127.0.0.1');
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-background-networking','--disable-component-update','--disable-sync']}),result={environment:{browser:browser.version(),node:process.version,platform:process.platform,arch:process.arch,viewport:{width:1440,height:1000},runs,warmup},fixtures:{},rows:[],errors:[],http:[],network:[]},out=process.env.PERF_OUT;
  const persist=()=>fs.writeFileSync(out,JSON.stringify(result,null,2));
  try{for(const[version,url]of urls)for(const count of counts){

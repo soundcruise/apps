@@ -1,3 +1,9 @@
+# Studio 0.43.1 patch候補 — P3-01 reason lookup / version・cache整合
+
+Object.hasOwnによる未知reason防御と既存55 reason互換を保持。Studio自身のversion・mirror・現行HTML asset/internal ESM cache・厳密試験を0.43.1へ協調更新する。schema2、Adapter v2、Chord owner 1.21.0、単一Project/Session/Undo、明示Save、Shared write OFF、PortDataHost.canWrite=falseは維持。
+
+正式Node/Browser・同一条件3回の性能測定・No-write・Git gatesの結果はrepo外のSHA/tree付きreceiptで確定する。topic通常pushと隔離2-parent統合候補までを対象とし、main反映・Pages公開は別承認。実OS日本語IME・Safari・実プリンターは未検証のまま。既存仕様: [CHORD_FORM_SELECTION](docs/CHORD_FORM_SELECTION.md)。以下は過去の工程記録。
+
 # Studio 0.43.0 candidate — Structureフォーム採用UI
 
 基本推奨フォームの確認・明示使用弦・楽器条件確認・イベント単位の採用/差替え/解除を既存Serviceへ接続。schema2/Adapter v2/単一Undo/明示Saveを維持。高度CAGED・本棚・手動運指・Rhythm・TABは対象外。受入結果は作業証拠で別途確定し、main統合/本番公開は別承認。正式仕様: [CHORD_FORM_SELECTION](docs/CHORD_FORM_SELECTION.md)。以下は過去の工程記録。

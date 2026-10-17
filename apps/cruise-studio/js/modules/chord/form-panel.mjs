@@ -1,6 +1,6 @@
-import { createChordFormAdapter } from './form-adapter.mjs?v=0.43.0';
-import { createFormAdoptionService } from './form-adoption.mjs?v=0.43.0';
-import { getAppVersion } from '../../core/component-metadata.mjs?v=0.43.0';
+import { createChordFormAdapter } from './form-adapter.mjs?v=0.43.1';
+import { createFormAdoptionService } from './form-adoption.mjs?v=0.43.1';
+import { getAppVersion } from '../../core/component-metadata.mjs?v=0.43.1';
 
 const STANDARD = Object.freeze([64,59,55,50,45,40]);
 // Missing/destroyed documents and selections are normal lifecycle states, never booleans.
@@ -97,7 +97,7 @@ export function formMessage(result) {
     const codes = [...new Set(raw.flatMap(x => typeof x === 'string' ? x.split('/') : ['']))];
     // Acquisition/whole-form failures precede fixable string-selection diagnostics.
     const order = code => code.startsWith('played-') ? 1 : 0;
-    return [...new Set(codes.sort((a,b)=>order(a)-order(b)).map(code => REASON_MESSAGES[code] || GENERAL_REASON))].join('\n') || GENERAL_REASON;
+    return [...new Set(codes.sort((a,b)=>order(a)-order(b)).map(code => Object.hasOwn(REASON_MESSAGES, code) ? REASON_MESSAGES[code] : GENERAL_REASON))].join('\n') || GENERAL_REASON;
 }
 export function mountFormPanel({C,document:doc,owner=globalThis.ChordCruise}) {
     const slot=doc.getElementById('studio-form-panel');
