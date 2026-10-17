@@ -61,6 +61,29 @@ test('persistent form adoption through released Studio Session/Repository',async
     return {rejected:!stale.ok&&!pending.ok&&!invalid.ok,unchanged:before===JSON.stringify([s.workingSnapshot(),s.getHistory(),s.baseRevision]),rawSame:localStorage.getItem('cruiseStudio.project.form-browser-A')===s.baseRevision};
    });assert(reports.reject.rejected&&reports.reject.unchanged&&reports.reject.rawSame);await flush();assert.equal(ledger.filter(e=>e.phase==='reject').length,0);
   });
+  await t.test('P2 key-order JSON roundtrip permits explicit Save without changing material identity',async()=>{
+   reports.p2Order=await p.evaluate(async()=>{
+    __formPhase='p2-order-preview';const C=CruiseStudio,s=C.documents.getSession(),original=s.workingSnapshot();
+    const reorder=x=>Array.isArray(x)?x.map(reorder):x&&typeof x==='object'?Object.fromEntries(Object.entries(x).reverse().map(([k,v])=>[k,reorder(v)])):x;
+    const value=JSON.parse(C.storage.exportProjectJson(original));value.materials.forms=reorder(value.materials.forms);value.songInfo.title='P2 imported title';
+    const imported=C.storage.importProjectJson(JSON.stringify(value));if(!imported.ok)throw Error(imported.error);
+    const r=s.runOperation('import reordered material',d=>{d.materials.forms=imported.project.materials.forms;d.songInfo.title=imported.project.songInfo.title;});if(!r.ok)throw Error(JSON.stringify(r));
+    __formPhase='p2-order-save';const saved=await s.commit();if(!saved.ok)throw Error(JSON.stringify(saved));__formPhase='p2-order-read';
+    const loaded=C.repository.read(s.target);return {valid:C.model.validateProject(loaded.snapshot).ok,material:loaded.snapshot.materials.forms,binding:loaded.snapshot.performance.formBindings,originalMaterial:original.materials.forms,originalBinding:original.performance.formBindings};
+   });assert(reports.p2Order.valid);assert.deepEqual(reports.p2Order.material,reports.p2Order.originalMaterial);assert.deepEqual(reports.p2Order.binding,reports.p2Order.originalBinding);
+   await flush();assert.equal(ledger.filter(e=>['p2-order-preview','p2-order-read'].includes(e.phase)).length,0);assert.deepEqual(ledger.filter(e=>e.phase==='p2-order-save').map(e=>e.key),['cruiseStudio.project.form-browser-A','cruiseStudio.projects.index']);
+  });
+  await t.test('P2 inherited fields and changed same-ID material reject before any write',async()=>{
+   reports.p2Reject=await p.evaluate(async()=>{
+    __formPhase='p2-reject';const C=CruiseStudio,s=C.documents.getSession(),state=()=>JSON.stringify([s.workingSnapshot(),s.getHistory(),s.baseRevision,localStorage.getItem('cruiseStudio.projects.index'),localStorage.getItem('cruiseStudio.project.form-browser-A')]),before=state(),results=[];
+    const fields=[['snapshot','capo'],['snapshot','tuningMidi'],['snapshot','strings'],['material','encoding'],['provenance','ownerVersion'],['generation','maxRelativeFret'],['binding','chordEventId'],['binding','materialId'],['binding','playedStrings'],['confirmation','basisKey']];
+    for(const [record,key]of fields){const q=JSON.parse(JSON.stringify(s.workingSnapshot())),m=q.materials.forms[0],b=q.performance.formBindings[0],o={material:m,snapshot:m.snapshot,provenance:m.provenance,generation:m.provenance.generation,binding:b,confirmation:b.confirmation}[record],v=o[key];delete o[key];Object.setPrototypeOf(o,{[key]:v});
+     const valid=C.model.schema2.validate(q),migration=C.model.schema2.migrate(q),saved=await C.repository.save({target:s.target,snapshot:q,baseRevision:s.baseRevision});if(valid.ok||migration.ok||saved.ok||state()!==before)throw Error('P2 inherited accepted or state changed: '+record+'.'+key);results.push(record+'.'+key);
+    }
+    const changed=JSON.parse(JSON.stringify(s.workingSnapshot()));changed.materials.forms[0].snapshot.strings[0].relativeFret=1;
+    const saved=await C.repository.save({target:s.target,snapshot:changed,baseRevision:s.baseRevision});if(saved.code!=='protected-form-material'||state()!==before)throw Error('changed material protection');return {results,changed:saved.code,unchanged:state()===before};
+   });assert.equal(reports.p2Reject.results.length,10);assert(reports.p2Reject.unchanged);await flush();assert.equal(ledger.filter(e=>e.phase==='p2-reject').length,0);
+  });
   await t.test('no forbidden writes, owner mutation, Console errors, 404 or external requests',async()=>{
    await flush();assert.equal(ledger.filter(e=>e.kind==='indexedDB').length,0);assert.deepEqual(errors,[]);assert.deepEqual(http,[]);assert.deepEqual(network,[]);
   });

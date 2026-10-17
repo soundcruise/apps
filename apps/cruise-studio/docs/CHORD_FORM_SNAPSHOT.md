@@ -77,3 +77,11 @@ Nodeはsnapshot/Binding/ID/Undo100件・累積8MiB/Save/JSON/stale/descriptor/�
 8/32/64/128小節、共有1フォームと多数の異なるsnapshotを測定。正式の容量予算・既存性能目標を参照し、新しい任意閾値は作らない。各時点の測定値・全回帰・Git gatesはrepo外receiptで確定する。実OS日本語IME/Safari/実プリンターは未検証。
 
 Pro/Account/Authority/Sync/Port/Worker/Daybreakを変更しない。pure API成功は資格証明ではない。高度CAGED/本棚権限は未確定、保存済みsnapshotを資格失効だけで削除しない。Shared write OFF、PortDataHost.canWrite=false、既存8765/8766不触。
+
+## Snapshot P2 validation / material identity
+
+フォームmaterial、snapshot、note/muted、barre、provenance、generation、Binding、confirmationの全必須fieldはown enumerable data propertyを要求する。継承値・欠落・accessorで代用しない。フォームrecordはplain JSON object（cross-realmを含む）またはnull-prototype dataとし、class instanceを拒否する。元入力のdescriptor/toJSON検査をcopy前に維持する。generic keys()や他Project recordのoptional契約は変更しない。任意Proxy trapの無害化を保証するものではない。
+
+Repositoryは正式validation済みmaterialを再帰的に構造比較する。objectキーの挿入順は無視するが、array順・全own field・primitive・owner/version/生成条件・弦/fret/運指/barreは内容として比較する。同一IDの実質変更は拒否し、新IDによる差替えを要求する。raw revisionとlegacySource.rawは従来の正確な文字列照合のまま。比較目的のProject全体copyは追加しない。
+
+JSON export→objectキー順変更→タイトル編集→import→明示Save/Loadは許可する。拒否時のraw/index/draft/Undo/Redo保持・書込み0、validate/migrateの元入力拒否、通常JSON/cross-realm/null-prototype互換をNodeと実Chromeで検証する。version 0.42.0/schema2/adapter2を維持する。

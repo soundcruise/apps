@@ -196,3 +196,93 @@ test('history content sizing preserves complete independent content including ex
  const content=s.getHistory().entries.at(-1).after,bytes=Buffer.byteLength(JSON.stringify(content),'utf8');assert(bytes>0);assert.deepEqual(content.extensions,data);data.nested[1].text='caller mutation';assert.notEqual(content.extensions.nested[1].text,data.nested[1].text);
  assert.throws(()=>{content.extensions.nested[0]='history mutation';},TypeError);ok(s.undo());assert(!s.draft.extensions);ok(s.redo());assert.equal(s.draft.extensions.nested[0],'保存🙂');assert.equal(f.ledger.length,0);
 });
+
+// P2-01: material identity ignores object insertion order, never raw revisions.
+function reverseKeys(value){
+ if(Array.isArray(value))return value.map(reverseKeys);
+ if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).reverse().map(([k,v])=>[k,reverseKeys(v)]));
+ return value;
+}
+for(const part of ['snapshot','nested','provenance','export-import'])test('P2-01 legitimate Save after key reorder: '+part,async()=>{
+ const f=adopted();ok(await f.s().commit());const original=f.s().workingSnapshot(),p=clone(original),m=p.materials.forms[0];
+ if(part==='snapshot')m.snapshot=Object.fromEntries(Object.entries(m.snapshot).reverse());
+ if(part==='nested')m.snapshot.strings=m.snapshot.strings.map(reverseKeys);
+ if(part==='provenance')m.provenance=reverseKeys(m.provenance);
+ if(part==='export-import')p.materials.forms=reverseKeys(p.materials.forms);
+ p.songInfo.title='imported title';
+ vm.runInNewContext(readFileSync(new URL('../js/core/storage.js',import.meta.url),'utf8'),f.realm);
+ const imported=f.C.storage.importProjectJson(f.C.storage.exportProjectJson(p));ok(imported);
+ const writes=f.ledger.length,r=await f.repository.save({target:f.s().target,snapshot:imported.project,baseRevision:f.s().baseRevision});ok(r);
+ assert.deepEqual(f.ledger.slice(writes).map(x=>x.key),['cruiseStudio.project.A','cruiseStudio.projects.index']);
+ const loaded=f.repository.read(f.s().target);ok(loaded);assert.deepEqual(clone(loaded.snapshot.materials),original.materials);assert.deepEqual(clone(loaded.snapshot.performance.formBindings),original.performance.formBindings);assert.equal(loaded.snapshot.songInfo.title,'imported title');
+});
+const materialChanges=[
+ ['fret',m=>m.snapshot.strings[0].relativeFret=1],['finger',m=>m.snapshot.strings[0].finger=4],
+ ['capo',m=>m.snapshot.capo=1],['tuning',m=>m.snapshot.tuningMidi[0]=65],
+ ['ownerVersion',m=>m.provenance.ownerVersion='1.21.1'],['adapterVersion',m=>m.provenance.adapterVersion='3'],
+ ['provenance',m=>m.provenance.sourceSymbol='Dm'],['generation',m=>m.provenance.generation.maxRelativeFret=12],
+ ['array order',m=>m.snapshot.strings.reverse()],['missing field',m=>delete m.snapshot.ownerWarning],
+ ['additional field',m=>m.snapshot.extra=true],['nested field',m=>m.snapshot.strings[0].extra=true]
+];
+for(const [name,change]of materialChanges)test('P2-01 same-ID substantive change refused atomically: '+name,async()=>{
+ const f=adopted();ok(await f.s().commit());ok(f.s().runOperation('pending edit',p=>p.songInfo.title='keep draft'));ok(f.s().undo());
+ const p=clone(f.s().workingSnapshot());change(p.materials.forms[0]);const before=state(f),writes=f.ledger.length;
+ const r=await f.repository.save({target:f.s().target,snapshot:p,baseRevision:f.s().baseRevision});assert(!r.ok);assert(['validation','protected-form-material'].includes(r.code),JSON.stringify(r));assert.equal(state(f),before);assert.equal(f.ledger.length,writes);assert(f.s().canRedo());
+});
+test('P2-01 raw key reorder is still a conflict, legacy raw remains protected',async()=>{
+ const f=adopted();ok(await f.s().commit());const p=clone(f.s().workingSnapshot()),base=f.s().baseRevision;
+ const external=JSON.stringify(Object.fromEntries(Object.entries(JSON.parse(base)).reverse()));assert.notEqual(external,base);f.values.set('cruiseStudio.project.A',external);
+ let before=state(f),writes=f.ledger.length,r=await f.repository.save({target:f.s().target,snapshot:p,baseRevision:base});assert.equal(r.code,'conflict');assert.equal(state(f),before);assert.equal(f.ledger.length,writes);
+ p.provenance.legacySource.raw=JSON.stringify(Object.fromEntries(Object.entries(JSON.parse(p.provenance.legacySource.raw)).reverse()));
+ before=state(f);r=await f.repository.save({target:f.s().target,snapshot:p,baseRevision:external});assert.equal(r.code,'protected-legacy-source');assert.equal(state(f),before);assert.equal(f.ledger.length,writes);
+});
+
+// P2-02: exhaust every required form/binding record field, not just capo.
+function formRecords(p){const m=p.materials.forms[0],b=p.performance.formBindings[0];return [
+ ['material',m],['snapshot',m.snapshot],['provenance',m.provenance],['generation',m.provenance.generation],
+ ['binding',b],['confirmation',b.confirmation],...m.snapshot.strings.map((s,i)=>['string'+i,s])
+ ];}
+const requiredCases=formRecords(adopted().s().workingSnapshot()).flatMap(([record,value])=>Object.keys(value).map(key=>[record,key]));
+for(const [record,key]of requiredCases)test('P2-02 required own enumerable data: '+record+'.'+key,async()=>{
+ const f=adopted(),before=state(f);
+ for(const kind of ['inherited','missing','non-enumerable']){
+  const p=clone(f.s().workingSnapshot()),value=formRecords(p).find(([name])=>name===record)[1],old=value[key];delete value[key];
+  if(kind==='inherited')Object.setPrototypeOf(value,{[key]:old});
+  if(kind==='non-enumerable')Object.defineProperty(value,key,{value:old,enumerable:false});
+  assert(!f.api.validate(p).ok,kind);const migrated=f.api.migrate(p);assert(!migrated.ok,kind);assert.equal(migrated.project,null);
+  const r=await f.repository.save({target:f.s().target,snapshot:p,baseRevision:f.s().baseRevision});assert(!r.ok,kind);assert.equal(r.code,'validation');assert.equal(f.ledger.length,0);assert.equal(state(f),before);
+ }
+});
+for(const kind of ['getter','inherited getter','toJSON','inherited toJSON','NaN','Infinity','cycle','Date','class instance','null-root class instance'])test('P2-02 invalid original remains rejected with hooks zero: '+kind,async()=>{
+ const f=adopted(),p=clone(f.s().workingSnapshot()),m=p.materials.forms[0];let calls=0;
+ if(kind==='getter')Object.defineProperty(m.snapshot,'capo',{get(){calls++;return 0;},enumerable:true});
+ if(kind==='inherited getter'){delete m.snapshot.capo;Object.setPrototypeOf(m.snapshot,{get capo(){calls++;return 0;}});}
+ if(kind==='toJSON')m.snapshot.toJSON=()=>{calls++;return {};};
+ if(kind==='inherited toJSON')Object.setPrototypeOf(m.snapshot,{toJSON(){calls++;return {};}});
+ if(kind==='NaN'||kind==='Infinity')m.snapshot.capo=kind==='NaN'?NaN:Infinity;
+ if(kind==='cycle')m.snapshot.cycle=m.snapshot;
+ if(kind==='Date')m.snapshot=new Date();
+ if(kind==='class instance')m.snapshot=Object.assign(new(class Snapshot {})(),m.snapshot);
+ if(kind==='null-root class instance'){class Snapshot extends null {constructor(){return Object.create(new.target.prototype);}}m.snapshot=Object.assign(new Snapshot(),m.snapshot);}
+ const before=state(f);assert(!f.api.validate(p).ok);assert(!f.api.migrate(p).ok);assert(!(await f.repository.save({target:f.s().target,snapshot:p,baseRevision:f.s().baseRevision})).ok);assert.equal(calls,0);assert.equal(state(f),before);assert.equal(f.ledger.length,0);
+});
+for(const kind of ['JSON','cross-realm','null-prototype'])test('P2-02 valid data migration and Save/Load: '+kind,async()=>{
+ const f=adopted();let p=clone(f.s().workingSnapshot());
+ if(kind==='cross-realm')p=vm.runInNewContext('JSON.parse(raw)',{raw:JSON.stringify(p)});
+ if(kind==='null-prototype'){const nullData=x=>Array.isArray(x)?x.map(nullData):x&&typeof x==='object'?Object.assign(Object.create(null),Object.fromEntries(Object.entries(x).map(([k,v])=>[k,nullData(v)]))):x;p=nullData(p);}
+ ok(f.api.validate(p));const r=f.api.migrate(p);ok(r);ok(f.api.validate(r.project));assert.deepEqual(clone(r.project),clone(p));ok(await f.repository.save({target:f.s().target,snapshot:p,baseRevision:f.s().baseRevision}));ok(f.api.validate(f.repository.read(f.s().target).snapshot));
+ const legacy=f.api.migrate(f.legacy,JSON.stringify(f.legacy));ok(legacy);ok(f.api.validate(legacy.project));
+});
+
+test('P2-01 ordered barre arrays and substantive barre claims remain immutable',async()=>{
+ const f=fixture();ok(f.s().runOperation('F',p=>p.bars[0].chords[0].symbol='F'));ok(f.adopt({playedStrings:[1,2,3,4,5,6]}));
+ // Both claims satisfy schema; their sequence is still material content.
+ const seed=clone(f.s().workingSnapshot());seed.materials.forms[0].snapshot.barres.push({...seed.materials.forms[0].snapshot.barres[0],toString:2});
+ ok(f.api.validate(seed));ok(await f.repository.save({target:f.s().target,snapshot:seed,baseRevision:f.s().baseRevision}));const base=f.repository.read(f.s().target).revision;
+ for(const change of [m=>m.snapshot.barres.reverse(),m=>m.snapshot.barres[0].toString=2]){
+  const p=clone(seed);change(p.materials.forms[0]);const writes=f.ledger.length,before=state(f);assert(!(await f.repository.save({target:f.s().target,snapshot:p,baseRevision:base})).ok);assert.equal(state(f),before);assert.equal(f.ledger.length,writes);
+ }
+ for(const key of Object.keys(seed.materials.forms[0].snapshot.barres[0])){
+  const p=clone(seed),b=p.materials.forms[0].snapshot.barres[0],v=b[key];delete b[key];Object.setPrototypeOf(b,{[key]:v});assert(!f.api.validate(p).ok);assert(!f.api.migrate(p).ok);const writes=f.ledger.length;assert(!(await f.repository.save({target:f.s().target,snapshot:p,baseRevision:base})).ok);assert.equal(f.ledger.length,writes);
+ }
+});

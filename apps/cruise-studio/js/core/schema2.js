@@ -12,6 +12,21 @@
     function object(x){return x!==null&&typeof x==='object'&&!Array.isArray(x);}
     function insist(ok,code){if(!ok)throw Error(code);}
     function keys(x,allowed){insist(object(x),'invalid-object');Object.keys(x).forEach(function(k){insist(allowed.includes(k),'unknown-field:'+k);});}
+    // Form records serialize without losing required values. Keep generic keys()
+    // unchanged: older Project records have different optional-field contracts.
+    function formKeys(x, required){
+        // validate() already inspected every original own descriptor via jsonValue.
+        // Exact own-enumerable key coverage adds requiredness without repeating that scan.
+        insist(object(x),'invalid-object');
+        var own=Object.keys(x);
+        own.forEach(function(k){insist(required.includes(k),'unknown-field:'+k);});
+        insist(own.length===required.length,'missing-own-form-field');
+        var proto=Object.getPrototypeOf(x);
+        if(proto!==null && proto!==Object.prototype){
+            var ctor=Object.getOwnPropertyDescriptor(proto,'constructor');
+            insist(Object.getPrototypeOf(proto)===null && ctor && typeof ctor.value==='function' && Function.prototype.toString.call(ctor.value)===Function.prototype.toString.call(Object),'non-json-form-record');
+        }
+    }
     function pitchMidi(p){return object(p)&&Object.hasOwn(NAT,p.step)&&integer(p.alter)&&Math.abs(p.alter)<=2&&integer(p.octave)?12*(p.octave+1)+NAT[p.step]+p.alter:null;}
     function timing(origin,confirmed){return {timing:{onset:{origin:origin,confirmed:!!confirmed},duration:{origin:origin,confirmed:!!confirmed}}};}
     function checkTiming(p){
@@ -57,32 +72,32 @@
     var STANDARD_TUNING=[64,59,55,50,45,40];
     function standardTuning(t){return Array.isArray(t)&&same(t,STANDARD_TUNING);}
     function formMaterial(m){
-        keys(m,['id','encoding','snapshot','provenance']);
+        formKeys(m,['id','encoding','snapshot','provenance']);
         insist(m.encoding==='studio-chord-form-v1','unsupported-form-encoding');
-        var s=m.snapshot;keys(s,['capo','tuningMidi','maxAbsoluteFret','strings','barres','playability','ownerWarning']);
+        var s=m.snapshot;formKeys(s,['capo','tuningMidi','maxAbsoluteFret','strings','barres','playability','ownerWarning']);
         insist(integer(s.capo)&&s.capo>=0&&s.capo<=11&&standardTuning(s.tuningMidi),'invalid-form-instrument');
         insist(integer(s.maxAbsoluteFret)&&s.maxAbsoluteFret>=s.capo&&s.maxAbsoluteFret<=36,'invalid-form-fret-bound');
         insist(Array.isArray(s.strings)&&s.strings.length===6,'invalid-form-strings');
         s.strings.forEach(function(n,i){
+            formKeys(n,['string','kind'].concat(n.kind==='muted'?[]:['relativeFret','finger','fingeringWarning']));
             insist(n.string===i+1,'invalid-form-string-order');
-            if(n.kind==='muted'){keys(n,['string','kind']);return;}
-            keys(n,['string','kind','relativeFret','finger','fingeringWarning']);
+            if(n.kind==='muted')return;
             insist(n.kind==='note'&&integer(n.relativeFret)&&n.relativeFret>=0&&n.relativeFret+s.capo<=s.maxAbsoluteFret,'invalid-form-note');
             insist([null,1,2,3,4,'T'].includes(n.finger)&&typeof n.fingeringWarning==='boolean','invalid-form-finger');
         });
         insist(s.strings.some(function(n){return n.kind==='note';})&&Array.isArray(s.barres),'invalid-form-barres');
         var claims=new Set();s.barres.forEach(function(b){
-            keys(b,['finger','relativeFret','fromString','toString']);
+            formKeys(b,['finger','relativeFret','fromString','toString']);
             insist([1,2,3,4,'1','2','3','4'].includes(b.finger)&&integer(b.relativeFret)&&b.relativeFret>0&&b.relativeFret+s.capo<=s.maxAbsoluteFret&&integer(b.fromString)&&integer(b.toString)&&b.fromString>=1&&b.toString<=6&&b.fromString<b.toString,'invalid-form-barre');
             var key=JSON.stringify([String(b.finger),b.relativeFret,b.fromString,b.toString]);insist(!claims.has(key),'duplicate-form-barre');claims.add(key);
             [b.fromString,b.toString].forEach(function(i){var n=s.strings[i-1];insist(n.kind==='note'&&n.relativeFret===b.relativeFret&&String(n.finger)===String(b.finger),'invalid-form-barre-end');});
             insist(!s.strings.some(function(n){return n.kind==='note'&&n.string>b.fromString&&n.string<b.toString&&(n.relativeFret<b.relativeFret||String(n.finger)===String(b.finger)&&n.relativeFret!==b.relativeFret);}), 'invalid-form-barre-interior');
         });
         insist([null,'standard','advanced','limited','unknown'].includes(s.playability)&&(s.ownerWarning===null||typeof s.ownerWarning==='string'),'invalid-form-playability');
-        var v=m.provenance;keys(v,['origin','ownerApp','ownerVersion','adapterVersion','sourceSymbol','shape','recommendationSource','generation','externalMaterialId']);
+        var v=m.provenance;formKeys(v,['origin','ownerApp','ownerVersion','adapterVersion','sourceSymbol','shape','recommendationSource','generation','externalMaterialId']);
         insist(v.origin==='owner-recommendation'&&v.ownerApp==='chord-cruise'&&typeof v.ownerVersion==='string'&&/^\d+\.\d+\.\d+$/.test(v.ownerVersion)&&v.adapterVersion==='2','invalid-form-owner');
         insist(typeof v.sourceSymbol==='string'&&v.sourceSymbol.length>0&&v.sourceSymbol.length<=64&&['C','A','G','E','D'].includes(v.shape)&&['common','recommended'].includes(v.recommendationSource)&&v.externalMaterialId===null,'invalid-form-provenance');
-        keys(v.generation,['minRelativeFret','maxRelativeFret']);var g=v.generation;
+        formKeys(v.generation,['minRelativeFret','maxRelativeFret']);var g=v.generation;
         insist(integer(g.minRelativeFret)&&integer(g.maxRelativeFret)&&g.minRelativeFret>=0&&g.maxRelativeFret>=g.minRelativeFret&&g.maxRelativeFret+s.capo<=s.maxAbsoluteFret,'invalid-form-generation');
         insist(s.strings.every(function(n){return n.kind==='muted'||n.relativeFret>=g.minRelativeFret&&n.relativeFret<=g.maxRelativeFret;}),'form-outside-generation');
     }
@@ -170,11 +185,11 @@
                 insist(materials.has(p.performance.basicRhythmId)&&Array.isArray(p.performance.barRhythms),'missing-rhythm');
                 insist(Array.isArray(p.performance.formBindings)&&Array.isArray(p.performance.strokeOverrides)&&!p.performance.strokeOverrides.length,'unsupported-performance');
                 var formTargets=new Set();p.performance.formBindings.forEach(function(b){
-                    keys(b,['id','chordEventId','materialId','playedStrings','mode','confirmation']);unique(b.id);
+                    formKeys(b,['id','chordEventId','materialId','playedStrings','mode','confirmation']);unique(b.id);
                     insist(chordIds.has(b.chordEventId)&&forms.has(b.materialId)&&!formTargets.has(b.chordEventId),'invalid-form-binding-reference');formTargets.add(b.chordEventId);
                     insist(b.mode==='fixed','unsupported-form-mode');var m=p.materials.forms.find(function(m){return m.id===b.materialId;});
                     insist(Array.isArray(b.playedStrings)&&b.playedStrings.length>0&&new Set(b.playedStrings).size===b.playedStrings.length&&b.playedStrings.every(function(i){return integer(i)&&i>=1&&i<=6&&m.snapshot.strings[i-1].kind==='note';}),'invalid-form-played-strings');
-                    keys(b.confirmation,['status','basisKey']);insist(['confirmed','unconfirmed'].includes(b.confirmation.status)&&(b.confirmation.basisKey===null||typeof b.confirmation.basisKey==='string'&&b.confirmation.basisKey.length>0)&& (b.confirmation.status!=='confirmed'||typeof b.confirmation.basisKey==='string'),'invalid-form-confirmation');
+                    formKeys(b.confirmation,['status','basisKey']);insist(['confirmed','unconfirmed'].includes(b.confirmation.status)&&(b.confirmation.basisKey===null||typeof b.confirmation.basisKey==='string'&&b.confirmation.basisKey.length>0)&& (b.confirmation.status!=='confirmed'||typeof b.confirmation.basisKey==='string'),'invalid-form-confirmation');
                 });
                 var bindings=new Set();p.performance.barRhythms.forEach(function(b){keys(b,['id','barId','materialId']);unique(b.id);insist(bars.has(b.barId)&&materials.has(b.materialId)&&!bindings.has(b.barId),'invalid-rhythm-binding');bindings.add(b.barId);});
                 arrangement(p.performance.arrangement);
