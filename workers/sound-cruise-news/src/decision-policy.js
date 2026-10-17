@@ -49,6 +49,16 @@ export function duplicatePredicate(row,facts,alias='d'){
   args.push(row.category,...keys.map(k=>k==='models'?JSON.stringify(facts.models):facts[k]||''));
  }
  // A shared broad theme is not a duplicate identity for two independent essays.
+ if(facts?.kind==='morris_notice'&&facts.subject){
+  if(['new_product','product_release','signature_model','limited_model'].includes(facts.articleType)){
+   clauses.push(`(${j('brand')} IN ('Morris','MORRIS','Morris Guitars','モーリス') AND ${j('product')}=? AND ${alias}.event_type IN ('new_product','release') AND COALESCE(${j('productEvent.action')},'')=?)`);args.push(facts.subject,{signature_model:'signature',limited_model:'limited_edition'}[facts.articleType]||'');
+  }
+  if(['event_announcement','exhibition'].includes(facts.articleType)){
+   clauses.push(`(${j('kind')}='guitar_event' AND COALESCE(${j('eventName')},${j('event')})=? AND ${j('eventDate')}=? AND ${j('venue')}=? AND (?<>'exhibition' OR ${j('exhibitor')}='Morris Guitars'))`);args.push(facts.subject,facts.eventDate,facts.venue,facts.articleType);
+  }
+
+  const keys=['kind','articleType','subject','eventDate','endDate'];clauses.push(`(${keys.map(k=>`COALESCE(${j(k)},'')=?`).join(' AND ')})`);args.push(...keys.map(k=>facts[k]||''));
+ }
  if(facts?.kind==='morris_editorial'&&facts.subject&&['event_report','catalog'].includes(facts.articleType)){
   const keys=['kind','articleType','subject','topic'];
   clauses.push(`(${alias}.category=? AND ${alias}.event_type='morris_editorial' AND ${keys.map(k=>`COALESCE(${j(k)},'')=?`).join(' AND ')})`);
@@ -92,6 +102,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
   if(!validProductFamily(facts)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||row.event_type!=='new_product'||!Array.isArray(proof)||!['brand','family','models','familyEvidence','event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===PRODUCT_FAMILY_PARSER&&p.extractionMethod==='explicit_product_family_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(row.source_id==='morris'&&!await morrisProofValid(store,row,now)||facts?.evidence==='morris_explicit_article_v1'&&row.source_id!=='morris')errors.push('facts_provenance_invalid');
+ if(facts?.kind==='morris_notice'&&(row.source_id!=='morris'||row.event_type!=='morris_notice'))errors.push('facts_provenance_invalid');
  if(facts?.kind==='morris_editorial'&&(row.source_id!=='morris'||row.event_type!=='morris_editorial'))errors.push('facts_provenance_invalid');
  if(facts?.kind==='product_article'){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}

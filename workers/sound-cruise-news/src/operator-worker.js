@@ -1,3 +1,4 @@
+import {confirmMorrisFacts} from './morris-fact-confirmation.js';
 import {authenticationPage} from './operator-auth-page.js';
 import {setPublishInterest,runPendingRechecks} from './pending-lifecycle.js';
 import {saveShadowEvaluation,evaluatePending,shadowMetrics} from './operator-shadow.js';
@@ -22,7 +23,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.29.3'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.30.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -52,6 +53,9 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='POST'&&url.pathname==='/api/pending-recheck'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(input.scope!=='due'||Object.keys(input).length!==1)throw Error('operator_recheck_invalid');
    return json(await runPendingRechecks(store,now,registry,env.NEWS_HEADLINE_PEPPER,{...options,limit:20}));
+  }
+  if(request.method==='POST'&&url.pathname==='/api/morris-facts-confirm'){
+   await verifyCsrf(request,identity,env,now);return json(await confirmMorrisFacts(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));
   }
   if(request.method==='POST'&&url.pathname==='/api/facts-recheck'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);

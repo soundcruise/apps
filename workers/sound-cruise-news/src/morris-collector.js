@@ -1,3 +1,4 @@
+import {morrisNoticeLabel,MORRIS_FACT_CHECKS} from './morris-editorial-policy.js';
 import {legalGate} from './registry.js';
 import {boundedFetch,hash,DAY,optOut,BOT,robotsPolicy} from './policy.js';
 import {requirePepper,validatedFingerprint} from './fingerprint.js';
@@ -10,25 +11,53 @@ const activeSQL="EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_en
 export async function morrisReceipt(store,url){return await store.db.prepare("SELECT * FROM news_morris_acquisition WHERE scope='article' AND source_url=?").bind(url).first();}
 // A verified listing is a primary surface. Its stored URL/day/facts/proof must
 // match exactly; legacy/transcribed entries without a real receipt cannot qualify.
-export async function morrisEvidenceReceipt(store,url,now,expected=null){
- const article=await morrisReceipt(store,url);
- if(article?.outcome==='verified'&&article.facts_json)return article;
+export async function morrisListingEvidence(store,url,now,{expected=null,requireFacts=false,anchor=null}={}){
+ if(!morrisArticleUrl(url))return null;
  const listings=(await store.db.prepare(`SELECT DISTINCT r.* FROM news_morris_acquisition r JOIN json_each(CASE WHEN json_valid(r.entries_json) THEN r.entries_json ELSE '[]' END) entry
  WHERE r.scope='listing' AND r.outcome='verified' AND r.discovered_at>? AND json_array_length(r.entries_json)<=100 AND json_extract(CASE WHEN json_valid(entry.value) THEN entry.value ELSE '{}' END,'$.url')=? ORDER BY r.discovered_at DESC LIMIT 90`).bind(now-90*DAY,url).all()).results;
  for(const r of listings){
+  if(anchor&&(r.response_hash!==anchor.hash||r.attempted_at!==anchor.at))continue;
   if(r.request_key!=='listing:'+r.jst_day||r.source_url!==MORRIS_LISTING||r.permission_ref!==MORRIS_PERMISSION||r.actual_requests!==2||!Number.isSafeInteger(r.attempted_at)||r.attempted_at>now||!Number.isSafeInteger(r.discovered_at)||r.discovered_at>r.attempted_at||!/^[a-f0-9]{64}$/.test(r.response_hash||''))continue;
   let entries,listingProof;try{entries=JSON.parse(r.entries_json);listingProof=JSON.parse(r.proof_json);}catch{continue;}
   if(!listingProof||listingProof.sourceId!=='morris'||listingProof.sourceUrl!==MORRIS_LISTING||listingProof.responseHash!==r.response_hash||listingProof.verifiedAt!==r.attempted_at||!morrisParserSupported(listingProof.parserVersion,true)||listingProof.permissionRef!==MORRIS_PERMISSION||listingProof.canonicalBasis!=='canonical'||listingProof.entryCount!==entries?.length)continue;
   if(!Array.isArray(entries)||entries.length>100)continue;
   const matches=entries.filter(e=>e.url===url);if(matches.length!==1)continue;
   const e=matches[0],p=e.proof;
-  if(!e.facts||!morrisLabel(e.facts,e.eventType)||e.facts.articleUrl!==url||morrisUrlDate(url)!==e.publishedAt||!p||p.sourceId!=='morris'||p.sourceUrl!==MORRIS_LISTING||p.articleUrl!==url||p.publishedAt!==e.publishedAt||p.permissionRef!==MORRIS_PERMISSION||p.parserVersion!==listingProof.parserVersion||p.extractionMethod!=='morris_explicit_listing_fields'||p.canonicalBasis!=='canonical'||p.responseHash!==r.response_hash||p.verifiedAt!==r.attempted_at||morrisDay(p.verifiedAt)!==r.jst_day)continue;
-  if(expected){let fields;try{fields=JSON.parse(expected.facts_provenance);}catch{continue;}if(expected.product_facts!==JSON.stringify(e.facts)||expected.title_fingerprint!==JSON.stringify(e.fingerprint)||expected.published_at!==e.publishedAt||!Array.isArray(fields)||!fields.some(f=>f.responseHash===p.responseHash&&f.verifiedAt===p.verifiedAt))continue;}
+  if(requireFacts&&(!e.facts||!morrisLabel(e.facts,e.eventType)||e.facts.articleUrl!==url))continue;
+  if(morrisUrlDate(url)!==e.publishedAt||!p||p.sourceId!=='morris'||p.sourceUrl!==MORRIS_LISTING||p.articleUrl!==url||p.publishedAt!==e.publishedAt||p.permissionRef!==MORRIS_PERMISSION||p.parserVersion!==listingProof.parserVersion||p.extractionMethod!=='morris_explicit_listing_fields'||p.canonicalBasis!=='canonical'||p.responseHash!==r.response_hash||p.verifiedAt!==r.attempted_at||morrisDay(p.verifiedAt)!==r.jst_day)continue;
+  if(expected&&!requireFacts&&(expected.title_fingerprint!==JSON.stringify(e.fingerprint)||expected.published_at!==e.publishedAt))continue;
+  if(expected&&requireFacts){let fields;try{fields=JSON.parse(expected.facts_provenance);}catch{continue;}if(expected.product_facts!==JSON.stringify(e.facts)||expected.title_fingerprint!==JSON.stringify(e.fingerprint)||expected.published_at!==e.publishedAt||!Array.isArray(fields)||!fields.some(f=>f.responseHash===p.responseHash&&f.verifiedAt===p.verifiedAt))continue;}
+  return {entry:e,listing:r,proof:p};
+ }
+ return null;
+}
+export async function morrisEvidenceReceipt(store,url,now,expected=null){
+ const article=await morrisReceipt(store,url);
+ if(article?.outcome==='verified'&&article.facts_json)return article;
+ const found=await morrisListingEvidence(store,url,now,{expected,requireFacts:true});
+ if(found){const {entry:e,listing:r,proof:p}=found;
   return {outcome:'verified_listing',published_at:e.publishedAt,facts_json:JSON.stringify(e.facts),proof_json:JSON.stringify(p),fingerprint_json:JSON.stringify(e.fingerprint),response_hash:r.response_hash,attempted_at:r.attempted_at,actual_requests:0,permission_ref:r.permission_ref};
  }
  return article;
 }
+export async function morrisReviewEvidence(store,row,now,anchor=null){
+ const listing=await morrisListingEvidence(store,row.source_url,now,{anchor});
+ if(!listing||listing.entry.publishedAt!==row.published_at)return null;
+ if(JSON.stringify(listing.entry.fingerprint)===row.title_fingerprint)return listing;
+ const article=await morrisReceipt(store,row.source_url);let p;try{p=JSON.parse(article?.proof_json);}catch{return null;}
+ return article?.outcome==='verified'&&article.permission_ref===MORRIS_PERMISSION&&article.actual_requests===1&&article.published_at===row.published_at&&article.fingerprint_json===row.title_fingerprint&&p?.sourceId==='morris'&&p.sourceUrl===row.source_url&&p.responseHash===article.response_hash&&p.verifiedAt===article.attempted_at&&article.attempted_at<=now&&morrisParserSupported(p.parserVersion)?listing:null;
+}
 export async function morrisProofValid(store,row,now){
+ if(row.event_type==='morris_notice'){
+  let facts,fields;try{facts=JSON.parse(row.product_facts);fields=JSON.parse(row.facts_provenance);}catch{return false;}
+  if(!morrisNoticeLabel(facts,row.event_type)||facts.articleUrl!==row.source_url||!Array.isArray(fields))return false;
+  const p=fields[0],entry=await morrisReviewEvidence(store,row,now,{hash:p?.listingResponseHash,at:p?.listingVerifiedAt});
+  if(!entry||p?.verificationMethod!=='human_primary_confirmation'||p.sourceId!=='morris'||p.sourceUrl!==row.source_url||p.publishedAt!==row.published_at||p.permissionRef!==MORRIS_PERMISSION||p.listingResponseHash!==entry.listing.response_hash||p.listingVerifiedAt!==entry.listing.attempted_at||!Number.isSafeInteger(p.verifiedAt)||p.verifiedAt>now||!MORRIS_FACT_CHECKS.every(k=>p.checks?.[k]===true))return false;
+  const saved=await store.db.prepare("SELECT * FROM news_facts_rechecks WHERE request_id=? AND candidate_id=? AND outcome='morris_primary_facts_confirmed'").bind(p.confirmationId,row.id).first();
+  if(!saved||saved.checked_at!==p.verifiedAt||saved.request_payload_hash!==p.confirmationHash||saved.provenance_json!==row.facts_provenance)return false;
+  let patch;try{patch=JSON.parse(saved.patch_json);}catch{return false;}
+  return patch?.product_facts===row.product_facts&&patch.label===row.label&&patch.category===row.category&&patch.event_type===row.event_type&&patch.topic_key===row.topic_key&&patch.event_ends_at===row.event_ends_at&&Object.keys(facts).every(k=>fields.some(f=>f.factField===k&&JSON.stringify({...f,factField:''})===JSON.stringify({...p,factField:''})));
+ }
  const r=await morrisEvidenceReceipt(store,row.source_url,now,row);if(!r||!['verified','verified_listing'].includes(r.outcome)||r.permission_ref!==MORRIS_PERMISSION||r.published_at!==row.published_at||!Number.isSafeInteger(r.attempted_at)||r.attempted_at>now||r.actual_requests!==(r.outcome==='verified_listing'?0:1)||r.fingerprint_json!==row.title_fingerprint||r.facts_json!==row.product_facts)return false;
  let proof,fields,facts;try{proof=JSON.parse(r.proof_json);fields=JSON.parse(row.facts_provenance);facts=JSON.parse(row.product_facts);}catch{return false;}
  const listing=r.outcome==='verified_listing',proofUrl=listing?MORRIS_LISTING:row.source_url,parser=proof?.parserVersion;
@@ -119,6 +148,7 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    if(await store.put(item)){report.pending++;if(historical&&receipt.outcome==='verified_listing')report.historicalRecovered=(report.historicalRecovered||0)+1;}else report.duplicates++;
    if(failure)throw failure;
   }
+  const review=await materializeMorrisReviewCandidates(store,{source,now,pepper});report.reviewCandidatesAdded=review.added;report.pending+=review.added;report.reviewExcluded=review.excluded;
   report.outcome='collected';completed=true;
  }catch(error){
   report.outcome=['access_stopped','robots_changed_review','robots_disallow','rate_limited','http_401','http_403','http_451','redirect_blocked','header_optout','listing_structure_changed','listing_too_large','discovery_unavailable'].includes(error.message)?error.message:error.name==='AbortError'||error.name==='TimeoutError'?'request_timeout':'network_or_internal_error';
@@ -133,4 +163,27 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    await store.log(report);
   }
  }return report;
+}
+
+// Receipt-only repair, also used after scheduled collection. No fetcher exists in
+// this API. A facts-null historical listing entry is reviewable, never publishable.
+export async function materializeMorrisReviewCandidates(store,{source,now,pepper}){
+ const result={added:0,excluded:0,existing:0,ids:[]};requirePepper(pepper);
+ const state=await store.state('morris');if(!morrisPermissionValid(source)||state.disabled||state.takedown||state.publicationBlocked||!(await store.controls()).collection_enabled)throw Error('facts_source_gate');
+ const saved=await store.db.prepare("SELECT * FROM news_morris_acquisition WHERE scope='listing' AND outcome='verified' ORDER BY discovered_at DESC LIMIT 1").first();
+ if(!saved)return result;
+ let entries;try{entries=JSON.parse(saved.entries_json);}catch{throw Error('facts_listing_structure_changed');}
+ if(!Array.isArray(entries)||entries.length>100)throw Error('facts_listing_structure_changed');
+ for(const entry of entries){
+  const proof=await morrisListingEvidence(store,entry.url,now);if(!proof||proof.listing.request_key!==saved.request_key||!await validatedFingerprint(entry.fingerprint,pepper))throw Error('facts_provenance_invalid');
+  const stamp=Date.parse(entry.publishedAt),id=await hash(entry.url);
+  if(stamp>now||now-stamp>=90*DAY){result.excluded++;continue;}
+  if(await store.db.prepare('SELECT 1 FROM candidate_items WHERE id=? OR normalized_url=?').bind(id,entry.url).first()){result.existing++;continue;}
+  const receipt=await morrisEvidenceReceipt(store,entry.url,now),facts=receipt?.facts_json&&['verified','verified_listing'].includes(receipt.outcome)?JSON.parse(receipt.facts_json):null;
+  const end=eventEndsAt(facts);if(end!==null&&(!Number.isSafeInteger(end)||end<now)){result.excluded++;continue;}
+  const historical=now-stamp>MORRIS_FRESH_MS,eventType=facts?.kind==='guitar_event'?'guitar_event':facts?.kind==='morris_editorial'?'morris_editorial':facts?.action||'other',label=morrisLabel(facts,eventType);
+  const item={id,sourceId:'morris',sourceName:'Morris Guitars',sourceUrl:entry.url,normalizedUrl:entry.url,publishedAt:entry.publishedAt,feedPublishedAt:entry.publishedAt,collectedAt:new Date(Math.min(receipt?.discovered_at||saved.discovered_at,saved.discovered_at)).toISOString(),category:facts?.category||'media_other',label:label||'Morris Guitarsの公式お知らせ（要確認）',topicKey:id,eventType,productFacts:facts,titleFingerprint:receipt?.fingerprint_json||JSON.stringify(entry.fingerprint),factsProvenance:facts?JSON.stringify(Object.keys(facts).map(factField=>({...JSON.parse(receipt.proof_json),factField}))):null,publicationDecision:'PUBLISH_REVIEW',decisionReason:label?'factual_label_ready':'morris_primary_confirmation_required',reviewReason:historical?'morris_historical_confirmation_required':'morris_primary_confirmation_required'};
+  if(await store.put(item)){result.added++;result.ids.push(id);}else result.existing++;
+ }
+ return result;
 }

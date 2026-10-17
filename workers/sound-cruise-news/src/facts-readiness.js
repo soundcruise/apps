@@ -12,6 +12,7 @@ import {ikebeProductSurface} from './ikebe-product-evidence.js';
 // Diagnostics project the existing publication policy; they do not grant eligibility.
 export function missingFacts(row,facts,validation){
  const missing=[];
+ if(row.source_id==='morris'){if(!facts||!validation.publishableLabel)missing.push('原記事で確認した主体・対象・記事タイプ・行為（開催告知は開催日と会場も必要）');if(validation.errors.includes('facts_provenance_invalid'))missing.push('一次情報の事実確認と出典の記録');return missing;}
  if(facts?.kind==='product_article'){if(!validation.publishableLabel)missing.push('確認済みの記事対象・記事タイプ・用途と関連性');if(!row.published_at)missing.push('確認済みの公開日');return missing;}
  if(facts?.kind==='agm_editorial'){if(!validation.publishableLabel)missing.push('確認済みの記事対象・人物・テーマ');if(!row.published_at)missing.push('確認済みの公開日');return missing;}
  if(!facts)missing.push(row.event_type==='guitar_event'?'人物・イベント種別・開催日・会場・ギターとの関連':'確認済みの製品識別情報（メーカー／製品名・型番）');
