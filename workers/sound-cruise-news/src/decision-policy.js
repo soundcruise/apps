@@ -4,8 +4,8 @@ import {validAgmPerformance} from './agm-performance-evidence.js';
 import {morrisProofValid} from './morris-collector.js';
 import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {validOfficialIdentity} from './official-identity.js';
-import {SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
-import {SHIMAMURA_REVIEW_PARSER,validatedShimamuraReview} from './shimamura-review-evidence.js';
+import {SHIMAMURA_PRODUCT_PARSERS} from './shimamura-product-evidence.js';
+import {SHIMAMURA_REVIEW_PARSERS,validatedShimamuraReview} from './shimamura-review-evidence.js';
 import {PRODUCT_ARTICLE_PARSER} from './product-article-evidence.js';
 import {legalGate} from './registry.js';
 import {factualLabel,allowedArticlePath,CATEGORIES,validLabel} from './metadata.js';
@@ -95,7 +95,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(facts?.kind==='morris_editorial'&&(row.source_id!=='morris'||row.event_type!=='morris_editorial'))errors.push('facts_provenance_invalid');
  if(facts?.kind==='product_article'){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
-  if(!Array.isArray(proof)||!['kind','articleType','models','theme','relevance','event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===(validatedShimamuraReview(facts)?SHIMAMURA_REVIEW_PARSER:PRODUCT_ARTICLE_PARSER)&&p.extractionMethod==='explicit_product_article_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+  if(!Array.isArray(proof)||!['kind','articleType','models','theme','relevance','event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&(validatedShimamuraReview(facts)?SHIMAMURA_REVIEW_PARSERS:[PRODUCT_ARTICLE_PARSER]).includes(p.parserVersion)&&p.extractionMethod==='explicit_product_article_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(facts?.kind==='product_article'&&(row.event_type!=='product_article'||!['ikebe','shimamura'].includes(row.source_id)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.identifierBasis==='explicit_article_product_fields'&&(row.source_id!=='ikebe'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
@@ -105,7 +105,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(facts?.identifierBasis==='explicit_shimamura_product_fields'&&(row.source_id!=='shimamura'||facts.articleUrl!==row.source_url)||facts?.evidence==='explicit_named_workshop_v1'&&(row.source_id!=='ikebe-event'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.officialIdentity){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
-  if(!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)||facts.officialIdentity.verifiedAt>now||!Array.isArray(proof)||!proof.some(p=>p.factField==='officialIdentity'&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===SHIMAMURA_PRODUCT_PARSER&&p.extractionMethod==='explicit_shimamura_product_fields'&&p.verifiedAt>=facts.officialIdentity.verifiedAt&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||'')))errors.push('facts_provenance_invalid');
+  if(!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)||facts.officialIdentity.verifiedAt>now||!Array.isArray(proof)||!proof.some(p=>p.factField==='officialIdentity'&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'&&p.verifiedAt>=facts.officialIdentity.verifiedAt&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||'')))errors.push('facts_provenance_invalid');
  }
  if(!await validatedFingerprint(row.title_fingerprint,pepper))errors.push('label_provenance_invalid');
  const stamp=Date.parse(row.published_at);

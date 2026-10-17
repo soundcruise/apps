@@ -10,6 +10,8 @@ function targetMention(before,after){
  if(/^(?:など|等)?(?:を|に|へ|と)(?:[^。！？!?：:]{0,55}?)(?:保護|守る|守り|接続|つなぐ|繋ぐ|給電|対応|比較|比べ|異なり)/.test(suffix))return true;
  if(/^(?:など|等)?(?:用|向け|対応)(?:の)?(?:ケース|スタンド|アーム|ホルダー|ケーブル|カバー|アクセサリ|電源|パワーサプライ)/.test(suffix))return true;
  if(/^(?:ではない|ではなく|ではありません|との比較|と比較|と異な|以外)/.test(suffix))return true;
+ // A fitted component is not the complete product: "pickup-equipped guitar".
+ if(/^を[^。！？!?：:]{0,45}(?:搭載|採用|装備)(?:した|する|し)/.test(suffix))return true;
  if(/(?:関連(?:商品|製品)|参考製品|比較対象|旧製品|従来(?:品|モデル)|付属品|保護対象|接続先|対応機器|例えば|他社)[^。！？!?：:]{0,35}$/.test(prefix))return true;
  if(/(?:保護対象|接続対象|接続先|対応機器|関連製品|比較対象)\s*[:：]\s*[^。！？!?：:]{0,35}$/.test(prefix))return true;
  if(/(?:protects?|connect(?:ed)? to|compatible with|supports?|compared (?:to|with)|previous model|related product)\s*(?:the\s*)?[^.!?]{0,25}$/i.test(prefix))return true;

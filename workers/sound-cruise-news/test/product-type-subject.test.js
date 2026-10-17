@@ -32,7 +32,7 @@ test('MONSTER multi-model power equipment is recovered without category/target-d
  assert.deepEqual(result.productFacts.models,['MONSTER POWER 8000','MONSTER POWER 8001']);
  assert.equal(result.productFacts.category,'recording_audio');assert.equal(result.publishedAt,row.published_at);
  assert.match(factualLabel(result.productFacts,result.eventType),/電源タップ/);
- assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-5');
+ assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-6');
 });
 
 for(const phrase of ['オーディオインターフェースを保護する電源タップ',

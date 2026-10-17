@@ -2,6 +2,7 @@ import {morrisArticleUrl,morrisPermissionValid,MORRIS_PARSER} from './morris-pol
 import {sourcePolicySurface} from './source-policy-evidence.js';
 import {productArticleSurface} from './product-article-evidence.js';
 import {shimamuraProductSurface} from './shimamura-product-evidence.js';
+import {SHIMAMURA_REVIEW_PARSER} from './shimamura-review-evidence.js';
 import {namedWorkshopSurface} from './named-workshop-evidence.js';
 import {guitarExhibitionSurface} from './guitar-exhibition-evidence.js';
 import {agmRecoverySurface} from './agm-article-evidence.js';
@@ -30,7 +31,7 @@ export function recoverySurface(row,source,{primaryRecovery=false}={}){
  const agm=agmRecoverySurface(row,source);if(agm)return agm;
  const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;
- const review=productArticleSurface(row,source);if(review?.parser==='shimamura-review-fields-1')return review;
+ const review=productArticleSurface(row,source);if(review?.parser===SHIMAMURA_REVIEW_PARSER)return review;
  const shima=shimamuraProductSurface(row,source);if(primaryRecovery&&shima)return shima;
  const workshop=namedWorkshopSurface(row,source);if(primaryRecovery&&workshop)return workshop;
  const article=productArticleSurface(row,source);if(article)return article;

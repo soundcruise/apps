@@ -1,5 +1,26 @@
 # Pending lifecycle (C.6)
 
+## October 18 primary recovery verification
+
+NEWS 0.30.3 / Operator 0.29.3 update Shimamura's primary product and review
+parsers. Review identity accepts the grammatical Japanese subject delimiter,
+typographic multi-effect names and corroborated trial sections. Product evidence
+preserves colon-bearing models, recognises explicitly named Stratocaster guitars,
+and binds collaboration/limited-colour actions in the primary launch statement.
+Fitted components cannot supply the complete product's type. No brand/model list
+or category-based type inference is added. New parser cache keys are distinct;
+previously verified review-v1/product-v5 proofs remain valid under their existing
+source, field, method and timestamp checks.
+
+The owner explicitly authorised one additional primary GET each for four existing
+Shimamura candidates on October 18. This is a one-time maintenance exception, not
+a scheduler or publisher-budget policy change. Acquired HTML is replayed in memory
+and discarded; only bounded structured facts, response hashes and provenance are
+retained. Recovery remains pending for final human approval. Mixed signature and
+reissue series evidence is held when the current family parser cannot safely bind
+the individual qualifiers. Morris acquisition, parsing and permission rules are
+unchanged; its already-spent listing budget must not be replayed over HTTP.
+
 ## Existing and new lifecycle
 
 Collection -> candidate pending -> collection/manual facts recovery -> operator validation -> human decision or retention.
