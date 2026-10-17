@@ -14,5 +14,9 @@
 .form-diagram text { font-size:12px; fill:currentColor; }
 .form-diagram .form-finger { fill:var(--studio-panel-alt); font-size:10px; }
 .form-diagram ul { padding-left:16px; font-size:11px; line-height:1.8; }
-#form-warning { color:var(--studio-text-primary); }
+#form-warning { color:var(--studio-text-primary); background:var(--studio-panel-alt); border-left:3px solid var(--studio-border-strong); padding:8px; white-space:pre-line; position:sticky; top:0; z-index:1; max-height:30dvh; overflow:auto; }
+.form-diagram .form-note-unplayed circle { fill:var(--studio-panel-alt); stroke:currentColor; stroke-width:1.5; stroke-dasharray:2 2; }
+.form-diagram .form-note-unplayed .form-finger { fill:currentColor; }
+.form-diagram .form-play-marker { font-size:10px; }
+#studio-form-panel .form-play-legend { font-size:11px; line-height:1.6; }
 @media print { #studio-form-panel { display:none!important; } }

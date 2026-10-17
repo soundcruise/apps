@@ -37,3 +37,13 @@ Nodeは実owner純粋性・stable ID/UI leaseと既存Service全安全反例を�
 選択/候補はUIのみ。unknown弦は「未確定 / ?」で表示し、ownerが明示したmuted弦と区別する。音が存在する弦だけを発音指定できる。destroy/dispose後のcallbackを無効化する。パネル初期化失敗をcatchして握りつぶさず、cold bootを含む正式Browser回帰で検証する。
 
 pagehideではUI候補を失効させ、所有pagehide listener・購読・RAFを解除する。persisted pageshowで一度だけ再接続し、既存Inspectorと同じBFCache境界を使う。Metronomeの所有listener解放試験を変更せず、新UI側の解放を修正して検証する。
+
+## P2 display and feedback contract
+
+固定表示はsnapshotの座標・運指・バレーを保持したまま、Binding.playedStringsを表示専用に参照する。発音noteは「鳴らす」、未使用noteは「鳴らさない」（中抜き・破線の押弦と―印）、owner mutedは「ミュート / ×」、unknownは「未確定 / ?」。未使用noteを消音へ書換えたりsnapshotから削除しない。要確認でも保存済み使用弦を保持して表示する。候補の未確定使用弦は演奏確定と表示しない。
+
+結果通知はhidden/disabledになる楽器fieldsetの外に一か所だけ置く。role=status / aria-live=polite / aria-atomicで通知し、Inspector内のsticky領域で長文を折返す。通知は一時UI状態だけ。Session.dirtyに従って未保存を示し、Save成功、Undo/Redo、対象/Project/workspace変更時に旧通知を失効させる。Save失敗なら未保存・内容保持を明示し、独自保存フラグを作らない。
+
+Adapter/Service/binding評価のreasonは一つのUI formatterで日本語の原因・次の操作へ変換する。複数reasonを保持し、部分フォーム等の取得/全フォーム不成立を弦選択問題より先に示す。未知reasonは安全な一般案内に置換し、内部codeを生表示しない。フォーム判定・採用可能性には一切介入しない。
+
+C/E、C/G、D/F# capo2の独立MIDI期待値、採用→再表示→Undo/Redo→Save→reload→A/Bを検証する。100件Undo拒否とproject予算拒否の可視通知・全状態不変、明示Save失敗のraw/index復旧・dirty維持を実Chromeで検証し、試験ledgerを消去しない。正式基盤6ファイル、schema2/Adapter v2/0.43.0は不変更。main統合・公開は別承認。
