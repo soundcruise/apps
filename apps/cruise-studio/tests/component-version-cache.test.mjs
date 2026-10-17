@@ -29,8 +29,8 @@ test('F3: actual Port ESM import query follows its source, not a duplicated mirr
 test('F3: Chord pure module HTML paths and queries match owner release HTML', () => {
     const owner = read(new URL('apps/chord-cruise/standard/index.html', root));
     const refs = scriptRefs.filter(u => u.pathname.includes('/chord-cruise/'));
-    assert.equal(refs.length, 2);
-    for (const name of ['music-theory', 'chord-model']) {
+    assert.equal(refs.length, 3);
+    for (const name of ['music-theory', 'chord-model', 'caged-forms']) {
         const path = 'js/core/' + name + '.js?v=' + getAppVersion('chord-cruise');
         assert.ok(owner.includes(path), 'owner reference: ' + path);
         assert.ok(refs.some(u => u.href === new URL('apps/chord-cruise/' + path, root).href), 'Studio reference: ' + path);

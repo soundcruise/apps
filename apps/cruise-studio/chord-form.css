@@ -1,0 +1,18 @@
+/* Inspector owns scrolling and Escape/focus routing. No paper or print content. */
+#studio-form-panel { color:var(--studio-text-primary); margin-top:24px; padding-top:16px; border-top:1px solid var(--studio-border-default); min-width:0; }
+#studio-form-panel :is(button,input,select) { font:inherit; color:inherit; max-width:100%; }
+#studio-form-panel button,#studio-form-panel select,#studio-form-panel input[type=number] { background:var(--studio-panel-alt); border:1px solid var(--studio-border-strong); border-radius:5px; padding:8px; }
+#studio-form-panel label { display:block; font-size:12px; line-height:1.7; margin:8px 0; overflow-wrap:anywhere; }
+#studio-form-panel select { display:block; width:100%; }
+#studio-form-panel button { margin:6px 4px 6px 0; cursor:pointer; }
+#studio-form-panel button:disabled { opacity:.5; cursor:default; }
+#studio-form-panel :is(input,button,select):focus-visible { outline:2px solid var(--studio-text-primary); outline-offset:2px; }
+#studio-form-panel fieldset { margin:12px 0; padding:8px; min-width:0; border:1px solid var(--studio-border-default); }
+#studio-form-panel legend { font-size:12px; }
+#studio-form-panel p { overflow-wrap:anywhere; }
+.form-diagram svg { display:block; width:100%; max-height:220px; }
+.form-diagram text { font-size:12px; fill:currentColor; }
+.form-diagram .form-finger { fill:var(--studio-panel-alt); font-size:10px; }
+.form-diagram ul { padding-left:16px; font-size:11px; line-height:1.8; }
+#form-warning { color:var(--studio-text-primary); }
+@media print { #studio-form-panel { display:none!important; } }

@@ -1,3 +1,7 @@
+# Studio 0.43.0 candidate — Structureフォーム採用UI
+
+基本推奨フォームの確認・明示使用弦・楽器条件確認・イベント単位の採用/差替え/解除を既存Serviceへ接続。schema2/Adapter v2/単一Undo/明示Saveを維持。高度CAGED・本棚・手動運指・Rhythm・TABは対象外。受入結果は作業証拠で別途確定し、main統合/本番公開は別承認。正式仕様: [CHORD_FORM_SELECTION](CHORD_FORM_SELECTION.md)。以下は過去の工程記録。
+
 # Chord Form Snapshot & Persistent Adoption Foundation v1
 
 Studio 0.42.0 topic candidate / schemaVersion 2 / Chord Adapter v2 / Chord owner 1.21.0。製品画面へ未接続。UI・手動運指・TAB・Rhythm・高度CAGED/本棚資格を実装済みとしない。main統合/本番公開は別承認。

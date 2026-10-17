@@ -174,10 +174,12 @@ test('raw project, real Editing Session history/base/draft/undo/redo and schema 
     assert.equal(JSON.stringify(inputs), inputBefore); assert.equal(JSON.stringify(f.options.caged.FORMS), ownerBefore);
     assert.equal(s.draft.schemaVersion, 2); assert.equal(CS.model.validateProject(s.workingSnapshot()).ok, true);
 });
-test('adapter is import-only and outside product module graph; no persistence or capability API', () => {
+test('adapter stays pure and the product explicitly connects only owner CAGED plus form UI', () => {
     const source = read('../js/modules/chord/form-adapter.mjs');
     assert.doesNotMatch(source, /\b(?:localStorage|indexedDB|fetch|XMLHttpRequest|navigator|document|window)\b|^import /m);
-    assert.doesNotMatch(read('../index.html'), /form-adapter|caged-forms/);
+    assert.match(read('../index.html'), /caged-forms.js\?v=1.21.0/);
+    assert.match(read('../index.html'), /form-panel.mjs\?v=0.43.0/);
+    assert.doesNotMatch(read('../js/modules/chord/form-panel.mjs'), /\b(?:localStorage|indexedDB|fetch|saveChord|featureAccess)\b/);
 });
 
 // P2-2: use released owner notes and recommendation shape in every fixture.
