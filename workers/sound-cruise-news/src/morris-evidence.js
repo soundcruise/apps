@@ -16,10 +16,11 @@ const day=v=>!!morrisDate(v);
 function document(html){if(typeof html!=='string'||new TextEncoder().encode(html).length>128000)throw Error('listing_too_large');const doc=parseDocument(html);
  if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))throw Error('header_optout');
  const mains=find(doc,n=>n.name==='main');if(mains.length!==1)throw Error('listing_structure_changed');return {doc,root:mains[0]};}
-function fieldTexts(root){
- const values=find(root,n=>['li','p'].includes(n.name)).map(plain).filter(v=>/^[^:：]{2,20}[:：]/.test(v));
- for(const node of find(root,n=>n.name==='dt')){let next=node.next;while(next&&next.type==='text'&&!plain(next))next=next.next;if(next?.name==='dd'&&!hidden(next))values.push(plain(node)+'：'+plain(next));}
- for(const row of find(root,n=>n.name==='tr')){const cells=(row.children||[]).filter(n=>['th','td'].includes(n.name)&&!hidden(n));if(cells.length===2)values.push(plain(cells[0])+'：'+plain(cells[1]));}
+function fieldTexts(root,heading=null){
+ const order=heading?find(root,()=>true):null,position=heading?order.indexOf(heading):-1,inScope=n=>!heading||order.indexOf(n)>position;
+ const values=find(root,n=>['li','p'].includes(n.name)&&inScope(n)).map(plain).filter(v=>/^[^:：]{2,20}[:：]/.test(v));
+ for(const node of find(root,n=>n.name==='dt'&&inScope(n))){let next=node.next;while(next&&next.type==='text'&&!plain(next))next=next.next;if(next?.name==='dd'&&!hidden(next))values.push(plain(node)+'：'+plain(next));}
+ for(const row of find(root,n=>n.name==='tr'&&inScope(n))){const cells=(row.children||[]).filter(n=>['th','td'].includes(n.name)&&!hidden(n));if(cells.length===2)values.push(plain(cells[0])+'：'+plain(cells[1]));}
  return [...new Set(values)];
 }
 function primaryBlocks(root,heading){
@@ -110,7 +111,7 @@ export async function parseMorrisArticle(html,entry,verifiedAt,pepper){
  // Publication day is the explicitly dated listing; URL day agrees. Optional article date must agree too.
  const dates=find(root,n=>n.name==='time');if(dates.some(n=>morrisDate(plain(n))!==entry.publishedAt))throw Error('facts_date_changed');
  const titleFingerprint=await fingerprint(title,pepper),proof={sourceId:'morris',sourceUrl:entry.url,publishedAt:entry.publishedAt,verifiedAt,extractionMethod:'morris_once_only_article',parserVersion:MORRIS_PARSER,responseHash,canonicalBasis,permissionRef:MORRIS_PERMISSION};
- const fields=fieldTexts(root),{facts,eventType,analysis}=extractFacts(title,paras,fields,entry.url);
+ const fields=fieldTexts(root,titles[0]),{facts,eventType,analysis}=extractFacts(title,paras,fields,entry.url);
  proof.recoveryAnalysis=analysis;
  return {facts,eventType:facts?eventType:'other',proof,fingerprint:titleFingerprint,analysis};
 }
