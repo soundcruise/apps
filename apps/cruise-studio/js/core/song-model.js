@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.43.1';
+    var APP_VERSION = '0.44.0';
     var SCHEMA_VERSION = 2;
     var LEGACY_SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
@@ -498,6 +498,7 @@
 
     function isStrumPatternReferenced(project, id) {
         if (!id || !Array.isArray(project.bars)) return false;
+        if (project.basicStrumPatternId === id) return true;
         return project.bars.some(function (bar) {
             return bar && bar.strumOverride === id;
         });
@@ -633,7 +634,7 @@
      * それ以外は null（プリセットを勝手に紙面へ印字しない: ADR-018）。
      */
     function getBasicStrumSlots(project) {
-        if (!project || project.basicStrumPatternId !== CUSTOM_BASIC_STRUM_ID) return null;
+        if (!project || project.basicStrumPatternId !== CUSTOM_BASIC_STRUM_ID && !String(project.basicStrumPatternId).startsWith(CUSTOM_BASIC_STRUM_ID+':')) return null;
         var pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
         if (!pattern || !Array.isArray(pattern.slots) || pattern.slots.length === 0) return null;
         return pattern.slots;
@@ -1073,10 +1074,10 @@
         var C = window.CruiseStudio, m = C.model;
         if(m.schema2) return m.schema2;
         if(!C.schema2 || !window.ChordCruise || !window.ChordCruise.theory) throw Error('schema 2 dependencies are unavailable');
-        var old = Object.assign({}, m), api = C.schema2.create({theory:theory,spelling:window.ChordCruise.theory,legacy:old,
+        var old = Object.assign({}, m), api = C.schema2.create({theory:theory,spelling:window.ChordCruise.theory,legacy:old,rhythmSnapshots:C.rhythmSnapshots,
             idFactory:function(){if(!window.crypto || typeof window.crypto.randomUUID !== 'function') throw Error('secure-id-unavailable');return window.crypto.randomUUID();}});
         m.schema2 = api;
-        m.editLegacy = function(p,edit){if(p && p.schemaVersion===1)return edit(p);if(p && p.schemaVersion===2)return api.editLegacy(p,edit);throw Error('unsupported-schema');};
+        m.editLegacy = function(p,edit,intent){if(p && p.schemaVersion===1)return edit(p);if(p && p.schemaVersion===2)return api.editLegacy(p,edit,intent);throw Error('unsupported-schema');};
         m.validateProject = function(p){
             try {
                 var version=p && typeof p==='object' && Object.getOwnPropertyDescriptor(p,'schemaVersion');
@@ -1094,12 +1095,18 @@
                 return old[name].apply(null,arguments);
             };
         });
+        m.toStructureView=function(p){if(p.purpose==='structure-read'||p.schemaVersion===1)return p;return api.readStructureProjection(p);};
+        m.rhythmForBar=function(p,barNumber){var v=m.toStructureView(p);return v.rhythmByBar&&v.rhythmByBar[barNumber-1]?.rhythm;};
         m.createLegacyProject = old.createEmptyProject;
         m.createLegacySampleProject = old.createSampleProject;
         m.toLegacyView = function(p){if(p.schemaVersion===1)return p;if(p.schemaVersion!==2)throw Error('unsupported-schema');return api.readProjection(p);};
-        ['getBarLengthTicks','getSectionBars','getSectionBarCount','getBasicStrumText','getBasicStrumSlots','getBarStrumOverrideText','getBarEffectiveStrumSlots','getBarLyricSlots','getBarLyricSlotRanges'].forEach(function(name){m[name]=function(p){var args=Array.prototype.slice.call(arguments);args[0]=m.toLegacyView(p);return old[name].apply(null,args);};});
+        ['getBarLengthTicks','getSectionBars','getSectionBarCount','getBasicStrumText','getBasicStrumSlots','getBarStrumOverrideText','getBarEffectiveStrumSlots','getBarLyricSlots','getBarLyricSlotRanges'].forEach(function(name){m[name]=function(p){var args=Array.prototype.slice.call(arguments);args[0]=m.toStructureView(p);
+            var rhythm=args[0].purpose==='structure-read'?(name.startsWith('getBasicStrum')?args[0].basicRhythm:args[0].rhythmByBar&&args[0].rhythmByBar[args[1]-1]?.rhythm):null;
+            if(rhythm&&rhythm.encoding==='rhythm-owner-cells-v1'&&['getBasicStrumText','getBasicStrumSlots','getBarStrumOverrideText','getBarEffectiveStrumSlots'].includes(name))return Object.freeze({ok:false,code:'unsupported-legacy-rhythm',name:rhythm.name,materialId:rhythm.materialId});
+            return old[name].apply(null,args);};});
         ['normalizeBarOrder','setSectionBarCount','addSection','removeSection','renameSection','setBarChord','setBarLyricsText','setBarLyricSlot','setBarDoremiText','setBasicStrumText','setBarStrumSlots','setBarStrumText'].forEach(function(name){
-            m[name]=function(project){var args=Array.prototype.slice.call(arguments);return m.editLegacy(project,function(view){args[0]=view;return old[name].apply(null,args);});};
+            m[name]=function(project){var args=Array.prototype.slice.call(arguments);var bar=project.schemaVersion===2&&project.bars[args[1]-1];var intent={kind:name,barIds:bar?[bar.id]:[]};if(['renameSection','removeSection','setSectionBarCount'].includes(name))intent.sectionId=args[1];
+                return m.editLegacy(project,function(view){args[0]=view;return old[name].apply(null,args);},intent);};
         });
         return api;
     };

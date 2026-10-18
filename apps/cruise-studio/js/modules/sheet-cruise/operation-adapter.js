@@ -66,7 +66,7 @@
                     draft.sheetSettings.timingGridResolution = args.settings.timingGridResolution === 16 ? 16 : 8;
                     break;
                 }
-                });
+                },{kind:kind,...(args.sectionId?{sectionId:args.sectionId}:{}),barIds:canonical.schemaVersion===2?canonical.bars.slice(Math.max(0,args.barNumber-1),['bulkChord','bulkDoremi'].includes(kind)?args.barNumber-1+args.values.length:args.barNumber).map(function(b){return b.id;}):[]});
             },{requireUndo: session.draft.schemaVersion===2});
             return Object.assign({}, result, { warnings: warnings,
                 structureChanged: result.ok && before !== structureKey(session.draft) });

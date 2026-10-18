@@ -114,10 +114,10 @@ test('F1 multiple pitch/alter/octave edits keep exact IDs, rest order and gaps t
 });
 test('F2 raw Session schemaVersion getter rejects before commit and operation dispatch',async()=>{
  const f=fixture(),s=f.s(),before=state(f);let calls=0,success=0;f.registry.subscribe((_s,k)=>{if(k==='commit-success')success++;});
- Object.defineProperty(s.draft,'schemaVersion',{configurable:true,enumerable:true,get(){calls++;return 2;}});
- assert(!(await s.commit()).ok);assert(!s.runOperation('must not start',()=>{throw Error('must not run');}).ok);
- assert.equal(calls,0);assert.equal(f.writes(),0);assert.equal(success,0);
- Object.defineProperty(s.draft,'schemaVersion',{configurable:true,enumerable:true,writable:true,value:2});assert.equal(state(f),before);
+ assert.throws(()=>Object.defineProperty(s.draft,'schemaVersion',{configurable:true,enumerable:true,get(){calls++;return 2;}}),/draft-reflection-write/);
+ assert.equal(calls,0);assert.equal(f.writes(),0);assert.equal(success,0);assert.equal(state(f),before);
+ const bad=clone(s.workingSnapshot());Object.defineProperty(bad,'schemaVersion',{enumerable:true,get(){calls++;return 2;}});
+ assert.equal((await f.repo.save({target:s.target,baseRevision:s.baseRevision,snapshot:bad})).code,'validation');assert.equal(calls,0);assert.equal(state(f),before);
 });
 test('F2 descriptor API cannot promise zero traps for arbitrary Proxy: boundary is explicit',()=>{
  let traps=0;const f=fixture(),before=state(f),proxy=new Proxy(clone(f.s().workingSnapshot()),{getOwnPropertyDescriptor(){traps++;throw Error('untrusted proxy introspection');}});
@@ -131,15 +131,15 @@ test('error precedence: unsafe JSON before protected identity before domain vali
  for(const hook of ['getter','toJSON']){
   const f=fixture(),before=state(f);let calls=0;
   const r=f.s().runOperation('mixed violations',p=>{p.projectId='other';if(hook==='getter')Object.defineProperty(p.songInfo,'bpm',{enumerable:true,get(){calls++;return -1;}});else Object.setPrototypeOf(p.songInfo,{toJSON(){calls++;return {};}});});
-  assert.equal(r.code,'validation');assert.equal(calls,0);assert.equal(state(f),before);assert.equal(f.writes(),0);
+  assert.equal(r.code,'operation-failed');assert.match(r.error,/draft-(reflection|prototype)-write/);assert.equal(calls,0);assert.equal(state(f),before);assert.equal(f.writes(),0);
  }
 });
 test('protected legacy source precedes malformed source content without executing getters',async()=>{
  const f=fixture(),s=f.s(),before=state(f),raw=Object.getOwnPropertyDescriptor(s.draft,'provenance').value,original=raw.legacySource;
- raw.legacySource={...original,raw:'not JSON'};assert.equal((await s.commit()).code,'protected-legacy-source');assert.equal(f.writes(),0);
- let calls=0;raw.legacySource={...original};Object.defineProperty(raw.legacySource,'raw',{enumerable:true,get(){calls++;return 'not JSON';}});
- assert.equal((await s.commit()).code,'validation');assert.equal(calls,0);assert.equal(f.writes(),0);
- raw.legacySource=original;assert.equal(state(f),before);
+ assert.throws(()=>raw.legacySource={...original,raw:'not JSON'},/Immutable legacy source/);assert.equal(state(f),before);
+ let calls=0;assert.throws(()=>Object.defineProperty(raw,'legacySource',{enumerable:true,get(){calls++;return {};}}),/draft-reflection-write/);assert.equal(calls,0);assert.equal(state(f),before);
+ const bad=clone(s.workingSnapshot());Object.defineProperty(bad.provenance.legacySource,'raw',{enumerable:true,get(){calls++;return 'not JSON';}});
+ assert.equal((await f.repo.save({target:s.target,baseRevision:s.baseRevision,snapshot:bad})).code,'validation');assert.equal(calls,0);assert.equal(f.writes(),0);assert.equal(state(f),before);
 });
 test('CMM private JSON DTO is fully validated; public read projection and prepared DTO remain non-persistable',async()=>{
  const M=require('../js/core/common-music-model.js'),f=fixture(),s=f.s();let validated=0;

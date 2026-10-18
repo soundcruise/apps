@@ -42,11 +42,13 @@
             frozenTrees.add(value); return true;
         }
         // A conversion DTO is not a persistable Project. Validate the original before selecting data.
+        var privateProjections=new WeakSet();
         function prepare(project) {
             if (project.schemaVersion !== 2) return project;
             if (prepared.has(project)) return project;
             if (!options.schema2) throw Error('unsupported-schema');
-            var legacy = options.schema2.readProjection(project, true);
+            if(project.materials?.rhythms?.some(function(m){return m.encoding==='rhythm-owner-cells-v1';})){var originalCheck=options.validate(project);if(!originalCheck.ok)throw Error('invalid-project');}
+            var legacy = options.schema2.readStructureProjection(project, true);
             var value = freeze({ schemaVersion: 2, projectId: project.projectId,
                 originalKey: project.songInfo.originalKey, tonic: { ...project.solfege.tonic },
                 bars: frozenTree(project.bars) ? project.bars : JSON.parse(JSON.stringify(project.bars)), legacy: legacy });
@@ -62,7 +64,7 @@
             // applies the strict v1 validator. The public non-persistable projection stays intact.
             var projection={...p.legacy,bars:p.legacy.bars.map(function(bar){return {...bar};}),songInfo:{...p.legacy.songInfo,
                 originalKey:p.tonic.step+spelling.formatAccidental(p.tonic.alter)}};
-            var r=convert(Object.assign({},frame,{project:projection}));if(!r.ok)return r;
+            if(projection.purpose==='structure-read')privateProjections.add(projection);var r=convert(Object.assign({},frame,{project:projection}));if(!r.ok)return r;
             // Copy only modified branches. Never JSON-expand the shared source graph.
             var out={...r,model:{...r.model,modelVersion:2,keyContext:{...r.model.keyContext,originalKey:p.originalKey},
                 measures:r.model.measures.map(function(m){return {...m,voices:{...m.voices,melody:{...m.voices.melody,
@@ -88,12 +90,12 @@
             var p = frame.project;
             if(p.schemaVersion===2)return convertV2(frame);
             if (!budget(p) || (frame.baseRevision && frame.baseRevision.length > LIMITS.chars * 2)) return failure('memory-budget');
-            if (p.schemaVersion !== 1) return failure('unsupported-schema');
+            if (p.schemaVersion !== 1 && !privateProjections.has(p)) return failure('unsupported-schema');
             var info = p.songInfo;
             if (!info || info.timeSignature?.beats !== 4 || info.timeSignature?.beatUnit !== 4) return failure('unsupported-time-signature');
             if (info.ticksPerBeat !== 480) return failure('unsupported-ppq');
             var validation;
-            try { validation = options.validate(p); } catch (_) { return failure('invalid-project'); }
+            try { validation = privateProjections.has(p)?{ok:true}:options.validate(p); } catch (_) { return failure('invalid-project'); }
             if (!validation || typeof validation.ok !== 'boolean') return failure('invalid-project');
             if (!p.bars.every(function (b) { return b && typeof b.sectionId === 'string' && Number.isSafeInteger(b.barNumber) && Array.isArray(b.melody) && Array.isArray(b.chords); })) return failure('invalid-project');
             if (!Number.isSafeInteger(info.capo) || !theory.isKeyRelationConsistent(info.playKey, info.capo, info.originalKey)) return failure('inconsistent-key');
@@ -185,6 +187,9 @@
                     if (h.onsetTick < harmonyEnd) issue('overlap', 'fatal', h.sourceLocation, 'harmony');
                     harmonyEnd = Math.max(harmonyEnd, h.onsetTick + h.durationTicks);
                 });
+                if(privateProjections.has(p)&&p.rhythmByBar&&p.rhythmByBar[bi].rhythm.encoding==='rhythm-owner-cells-v1'){
+                    measure.voices.guitar.status='unsupported-legacy-rhythm';issue('unsupported-legacy-rhythm','unresolved',location(bi,'guitar',null),p.rhythmByBar[bi].rhythm.materialId);return;
+                }
                 var selected = patternMap.get(bar.strumOverride || p.basicStrumPatternId);
                 var pat = selected?.value;
                 if (!pat || pat.lengthTicks !== 1920 || !Array.isArray(pat.slots)) { issue('stroke-inconsistency', 'fatal', location(bi, 'stroke', null), 'pattern-length/reference'); return; }

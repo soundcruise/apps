@@ -9,45 +9,63 @@
     // Schema 2 drafts must not be normalized by JSON before domain validation.
     function assertJson(value) { jsonValue(value,0,new Set(),new Set()); }
     function jsonValue(value,depth,seen,prototypes) {
-        prototypes = prototypes || new Set();
-        if (value && typeof value === 'object') {
-            // JSON reads toJSON through the complete prototype chain. Never read that property.
-            for (var proto = value; proto && !prototypes.has(proto); proto = Object.getPrototypeOf(proto)) {
-                jsonInsist(!Object.getOwnPropertyDescriptor(proto,'toJSON'), 'json-serialization-hook');
-                jsonInsist(!Object.getOwnPropertyDescriptor(proto,Symbol.toStringTag), 'non-json-symbol');
-                if (proto !== value) Reflect.ownKeys(proto).forEach(function(key){
-                    var descriptor=Object.getOwnPropertyDescriptor(proto,key);
-                    // Object.prototype's historical __proto__ accessor is never read here.
-                    jsonInsist(Object.hasOwn(descriptor,'value') || (key==='__proto__' && Object.getPrototypeOf(proto)===null),'non-json-descriptor');
-                });
-                // Only prototypes can be reused; each value still receives its full own-data check.
-                if (proto !== value) prototypes.add(proto);
-            }
-        }
         jsonInsist(depth<40,'json-depth');
         if(value===null||typeof value==='string'||typeof value==='boolean')return;
         if(typeof value==='number'){jsonInsist(Number.isFinite(value),'non-json-number');return;}
         jsonInsist(typeof value==='object'&&!seen.has(value),'non-json-value');seen.add(value);
-        jsonInsist(Array.isArray(value)||Object.prototype.toString.call(value)==='[object Object]','non-json-object');
-        var array = Array.isArray(value), count = 0, own = Reflect.ownKeys(value);
-        for (var key of own) {
-            jsonInsist(typeof key === 'string', 'non-json-symbol');
-            if (array && key === 'length') continue;
-            var d = Object.getOwnPropertyDescriptor(value, key);
-            jsonInsist(Object.hasOwn(d, 'value') && d.enumerable, 'non-json-descriptor');
-            if (array) jsonInsist(/^(0|[1-9][0-9]*)$/.test(key) && Number(key) < value.length, 'non-json-array-property');
-            jsonValue(d.value, depth + 1, seen, prototypes); count++;
+        prototypes=prototypes||new Set();
+        // Own hooks are checked by the descriptor walk below. Inspect inherited
+        // hooks/accessors once per prototype in this single validation traversal.
+        for(var proto=Object.getPrototypeOf(value);proto&&!prototypes.has(proto);proto=Object.getPrototypeOf(proto)){
+            jsonInsist(!Object.getOwnPropertyDescriptor(proto,'toJSON'),'json-serialization-hook');
+            jsonInsist(!Object.getOwnPropertyDescriptor(proto,Symbol.toStringTag),'non-json-symbol');
+            Reflect.ownKeys(proto).forEach(function(key){var d=Object.getOwnPropertyDescriptor(proto,key);
+                jsonInsist(Object.hasOwn(d,'value')||(key==='__proto__'&&Object.getPrototypeOf(proto)===null),'non-json-descriptor');
+            });prototypes.add(proto);
         }
-        // Unique, in-range own array indices cover the array iff their count equals length.
-        if (array) jsonInsist(count === value.length, 'sparse-json-array');
+        var array=Array.isArray(value),count=0,own=Reflect.ownKeys(value);
+        for(var key of own){
+            jsonInsist(typeof key==='string','non-json-symbol');
+            jsonInsist(key!=='toJSON','json-serialization-hook');
+            if(array&&key==='length')continue;
+            var d=Object.getOwnPropertyDescriptor(value,key);
+            jsonInsist(Object.hasOwn(d,'value')&&d.enumerable,'non-json-descriptor');
+            if(array)jsonInsist(/^(0|[1-9][0-9]*)$/.test(key)&&Number(key)<value.length,'non-json-array-property');
+            jsonValue(d.value,depth+1,seen,prototypes);count++;
+        }
+        jsonInsist(array||Object.prototype.toString.call(value)==='[object Object]','non-json-object');
+        if(array)jsonInsist(count===value.length,'sparse-json-array');
         seen.delete(value);
     }
     var legacySources = new WeakSet();
+    // Read-only snapshots may share detached immutable material values. Mutable
+    // drafts always retain independent JSON copies and their original Proxy API.
+    // A WeakMap entry is only a candidate: exact content is checked on every use.
+    var materialSnapshots = new WeakMap();
+    function materialSnapshot(value) {
+        var known=materialSnapshots.get(value);
+        if(known && equal(value,known))return known;
+        var owned=freeze(JSON.parse(JSON.stringify(value)));
+        materialSnapshots.set(value,owned);materialSnapshots.set(owned,owned);
+        return owned;
+    }
     // Exact UTF-8 sizes belong only to our independently cloned, deeply frozen history.
     // No caller-owned/mutable Project is cached and no serialized content is retained.
     var historyByteSizes = new WeakMap();
     var historyEncoder = typeof TextEncoder === 'function' ? new TextEncoder() : null;
-    function clone(value, validated, contentOnly) {
+    // Only called for schema-2 data after original-descriptor preflight.
+    // Match JSON round-trip semantics (including -0 and own __proto__) without
+    // constructing a large temporary string. Every occurrence is a detached copy.
+    function copyJsonData(value) {
+        if(value===null||typeof value!=='object')return value===0?0:value;
+        if(Array.isArray(value)){var items=new Array(value.length);for(var i=0;i<value.length;i++)items[i]=copyJsonData(value[i]);return items;}
+        var out={};Object.keys(value).forEach(function(key){
+            var v=copyJsonData(value[key]);
+            if(key==='__proto__')Object.defineProperty(out,key,{value:v,enumerable:true,writable:true,configurable:true});
+            else out[key]=v;
+        });return out;
+    }
+    function clone(value, validated, contentOnly, immutableOutput) {
         var descriptor = value && typeof value === 'object' && Object.getOwnPropertyDescriptor(value,'schemaVersion');
         if (descriptor && !Object.hasOwn(descriptor,'value')) throw new TypeError('non-json-descriptor');
         var checked=!validated && value && typeof value==='object' && Object.hasOwn(value,'projectId');
@@ -56,12 +74,21 @@
             if (!validated && !checked) assertJson(value);
             var provenance = { ...value.provenance }, source = provenance.legacySource;
             delete provenance.legacySource;
+            var shareMaterials=contentOnly||immutableOutput,materials=value.materials;
             var payload = { ...value, provenance: provenance };
+            if(shareMaterials)payload.materials={...materials,forms:[],rhythms:[]};
             if (contentOnly) HISTORY_FIXED.forEach(function (key) { delete payload[key]; });
-            var text = JSON.stringify(payload), copy = JSON.parse(text);
+            var copy = copyJsonData(payload);
+            ['forms','rhythms'].forEach(function(kind){
+                if(shareMaterials)copy.materials[kind]=materials[kind].map(materialSnapshot);
+                else materials[kind].forEach(function(m,i){
+                    var known=materialSnapshots.get(m);
+                    if(known)materialSnapshots.set(copy.materials[kind][i],known);
+                });
+            });
             if (contentOnly) {
                 // These are the exact bytes of the content we just copied, not a size estimate.
-                freeze(copy); historyByteSizes.set(copy, utf8ByteSize(text)); return copy;
+                freeze(copy); historyByteSizes.set(copy, utf8ByteSize(JSON.stringify(copy))); return copy;
             }
             if (source !== undefined) {
                 // Only our own deeply frozen restoration objects may be shared.
@@ -81,10 +108,10 @@
         }
         return value;
     }
-    function snapshot(value) { return freeze(clone(value)); }
+    function snapshot(value) { return freeze(clone(value, false, false, true)); }
     function equal(a, b) {
         if (a === b) return true;
-        if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+        if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
         var ak = Object.keys(a), bk = Object.keys(b);
         return ak.length === bk.length && ak.every(function (key) { return Object.hasOwn(b, key) && equal(a[key], b[key]); });
     }
@@ -100,12 +127,12 @@
         if(value.schemaVersion === 2 && copy.provenance) delete copy.provenance.legacySource;
         return freeze(copy);
     }
-    function matchesContent(value, expectedContent) {
+    function matchesContent(value, expectedContent, validated) {
         if (value.schemaVersion !== 2) return equal(contentSnapshot(value), expectedContent);
         // Compare our live raw against owned history without allocating another deep snapshot.
         // Inspect the original descriptors first, including fields excluded from history.
         // This shallow view is synchronous/private: no mutable reference escapes or is cached.
-        assertJson(value);
+        if(!validated)assertJson(value);
         var content = Object.assign({}, value);
         HISTORY_FIXED.forEach(function (key) { delete content[key]; });
         content.provenance = Object.assign({}, value.provenance);
@@ -132,30 +159,76 @@
         }
         return bytes;
     }
-    function createDraft(value, getBase, changed, validated) {
-        var raw = clone(value, validated), touched = new Map(), proxies = new WeakMap(), originals = new WeakMap(), version = 0;
+    function createDraft(value, getBase, changed, validated, staged) {
+        var raw = clone(value, validated), touched = new Map(), proxies = new WeakMap(), originals = new WeakMap(), version = 0, attached = true, schema2Draft = raw.schemaVersion === 2, checkedJsonVersion = 0;
         function note(path, semantic) {
             if (!METADATA.has(path[0])) touched.set(JSON.stringify(path), path);
             version++; changed(path, semantic);
         }
+        // clone owns ordinary JSON data. All mutation paths below advance version
+        // or reject before writing. This private mark certifies JSON shape only,
+        // never domain validity, material identity, a revision, or a consumer ticket.
+        function checkJson() {
+            if(!schema2Draft || checkedJsonVersion!==version){assertJson(raw);checkedJsonVersion=version;}
+        }
+        function writable(object, path) {
+            var current=raw;for(var key of path){var d=current&&Object.getOwnPropertyDescriptor(current,key);current=d&&Object.hasOwn(d,'value')?d.value:undefined;}
+            if (!attached || current !== object) throw new TypeError('detached-draft-reference');
+        }
+        function protectedMaterial(path, incoming, removing) {
+            if(staged || !schema2Draft || path[0]!=='materials')return;
+            function unchanged(old,next,kind){
+                if(!Array.isArray(next))throw new TypeError('protected-material');
+                old.forEach(function(m){var n=next.find(function(x){return x&&x.id===m.id;});
+                    if(n&&(kind==='forms'||m.encoding==='rhythm-owner-cells-v1'||n.encoding==='rhythm-owner-cells-v1')&&!equal(m,n))throw new TypeError('protected-material');
+                });
+            }
+            if(path.length===1){if(!incoming)throw new TypeError('protected-material');['forms','rhythms'].forEach(function(k){unchanged(raw.materials[k],incoming[k],k);});return;}
+            var kind=path[1];if(kind!=='forms'&&kind!=='rhythms')return;
+            if(path.length===2){unchanged(raw.materials[kind],incoming,kind);return;}
+            var material=raw.materials[kind][path[2]];
+            if(!material||typeof material!=='object')return;
+            if(path.length===3){if(!removing)unchanged(raw.materials[kind],[incoming],kind);return;}
+            if(kind==='forms'||material.encoding==='rhythm-owner-cells-v1')throw new TypeError('protected-material');
+        }
         function wrap(object, path) {
-            if (!object || typeof object !== 'object') return object;
+            if (!object || typeof object !== 'object' || legacySources.has(object)) return object;
             var byPath = proxies.get(object); if (!byPath) { byPath = new Map(); proxies.set(object, byPath); }
             var key = JSON.stringify(path); if (byPath.has(key)) return byPath.get(key);
             var proxy = new Proxy(object, {
-                get: function (o, property) { return typeof property === 'symbol' ? o[property] : wrap(o[property], path.concat(property)); },
+                get: function (o, property) { return wrap(o[property], path.concat(property)); },
+                // Descriptor reads expose the same tracked values as normal reads.
+                // Owned targets stay extensible with configurable data fields;
+                // Array length is the sole non-configurable field, a primitive.
+                getOwnPropertyDescriptor: function(o,property) {
+                    var d=Object.getOwnPropertyDescriptor(o,property);if(!d)return d;
+                    return Object.assign({},d,{value:wrap(d.value,path.concat(property))});
+                },
+                defineProperty: function(){throw new TypeError('draft-reflection-write');},
+                setPrototypeOf: function(){throw new TypeError('draft-prototype-write');},
+                preventExtensions: function(){throw new TypeError('draft-prevent-extensions');},
                 set: function (o, property, incoming) {
+                    writable(o,path);
+                    if(typeof property==='symbol')throw new TypeError('non-json-symbol');
                     var unwrapped = originals.get(incoming) || incoming;
-                    if(raw.schemaVersion===2)assertJson(unwrapped);
+                    if(schema2Draft)assertJson(unwrapped);
                     var full=path.concat(String(property));
-                    if(raw.schemaVersion===2 && full[0]==='provenance' && (full.length===1 ? !equal(unwrapped && unwrapped.legacySource, raw.provenance && raw.provenance.legacySource) : full[1]==='legacySource' && !equal(o[property],unwrapped))) throw Error('Immutable legacy source');
+                    if(schema2Draft && full[0]==='provenance' && (full.length===1 ? !equal(unwrapped && unwrapped.legacySource, raw.provenance && raw.provenance.legacySource) : full[1]==='legacySource' && !equal(o[property],unwrapped))) throw Error('Immutable legacy source');
                     if (o[property] === unwrapped) return true;
                     // Own assigned values: callers cannot mutate an untracked external alias later.
                     var semantic = !equal(o[property], unwrapped);
-                    o[property] = unwrapped && typeof unwrapped === 'object' ? clone(unwrapped) : unwrapped;
+                    // Equality is complete JSON content equality, not an ID or
+                    // version shortcut. Equal replacement preserves immutable
+                    // material meaning while still owning the new value and
+                    // advancing tracking so retained aliases/handles go stale.
+                    if (semantic) protectedMaterial(full,unwrapped,false);
+                    var owned=unwrapped && typeof unwrapped === 'object' ? clone(unwrapped) : unwrapped;
+                    // Own __proto__ is JSON data, never the inherited prototype setter.
+                    if(property==='__proto__')Object.defineProperty(o,property,{value:owned,enumerable:true,writable:true,configurable:true});
+                    else if(!Reflect.set(o,property,owned))throw new TypeError('draft-write-rejected');
                     note(path.concat(String(property)), semantic); return true;
                 },
-                deleteProperty: function (o, property) { var full=path.concat(String(property));if(raw.schemaVersion===2 && full[0]==='provenance' && (full.length===1 || full[1]==='legacySource') && Object.hasOwn(o,property))throw Error('Immutable legacy source');if (Object.hasOwn(o, property)) { delete o[property]; note(path.concat(String(property)), true); } return true; }
+                deleteProperty: function (o, property) { writable(o,path);if(typeof property==='symbol')throw new TypeError('non-json-symbol');var full=path.concat(String(property));if(schema2Draft && full[0]==='provenance' && (full.length===1 || full[1]==='legacySource') && Object.hasOwn(o,property))throw Error('Immutable legacy source');if (Object.hasOwn(o, property)) { protectedMaterial(full,undefined,true);if(!Reflect.deleteProperty(o,property))throw new TypeError('draft-delete-rejected');note(full, true); } return true; }
             });
             byPath.set(key, proxy); originals.set(proxy, object); return proxy;
         }
@@ -166,14 +239,14 @@
             new Set(Object.keys(a).concat(Object.keys(b))).forEach(function (key) { diffPaths(a[key], b[key], path.concat(key)); });
         }
         return {
-            draft: wrap(raw, []), raw: raw,
+            draft: wrap(raw, []), raw: raw, checkJson: checkJson,
             version: function () { return version; },
             dirty: function () {
                 var base = getBase();
                 return Array.from(touched.values()).some(function (path) { return !equal(at(raw, path), at(base, path)); });
             },
             rebase: function () { touched.clear(); diffPaths(raw, getBase(), []); },
-            detach: function () { changed = function () {}; }
+            detach: function () { attached = false; changed = function () {}; }
         };
     }
     function createRegistry(options) {
@@ -216,6 +289,32 @@
                 if (tracker) tracker.detach(); tracker = next;
             }
             function dirty() { return !exists || tracker.dirty(); }
+            // Reuse the existing owned history, not a second cache. Cursor/epoch
+            // choose only a candidate; complete current content equality is required.
+            // Callers have already performed the original-descriptor preflight.
+            function matchingHistoryContent(value) {
+                if(value.schemaVersion!==2)return null;
+                var entry=history.cursor?history.entries[history.cursor-1]:history.entries[0];
+                if(!entry||entry.sessionId!==sessionId||entry.epoch!==history.epoch)return null;
+                var content=history.cursor?entry.after:entry.before;
+                return matchesContent(value,content,true)?content:null;
+            }
+            function workingSnapshot() {
+                tracker.checkJson();
+                var content=matchingHistoryContent(tracker.raw);
+                if(!content)return freeze(clone(tracker.raw,true,false,true));
+                var result={...content,provenance:{...content.provenance}};
+                HISTORY_FIXED.forEach(function(key){if(Object.hasOwn(tracker.raw,key))result[key]=copyJsonData(tracker.raw[key]);});
+                var source=Object.hasOwn(tracker.raw.provenance,'legacySource')?tracker.raw.provenance.legacySource:undefined;
+                if(source!==undefined){
+                    if(!source||typeof source!=='object'||!legacySources.has(source)){
+                        source=freeze(copyJsonData(source));
+                        if(source&&typeof source==='object')legacySources.add(source);
+                    }
+                    result.provenance.legacySource=source;
+                }
+                return freeze(result);
+            }
             function historyBlocked() { return destroyed ? 'destroyed' : closing ? 'closing' : inputPending ? 'input-pending' : deleted ? 'deleted' : null; }
             function reject(code) { return { ok: false, code: code }; }
             function prepareContent(content, validatedValue, validatedCheck) {
@@ -299,6 +398,7 @@
                 commitInFlight: { get: function () { return !!flight; }, enumerable: true }, commitError: { get: function () { return commitError; }, enumerable: true },
                 snapshotVersion: { get: function () { return sessionId + ':' + generation + ':' + changeSerial; }, enumerable: true },
                 destroyed: { get: function () { return destroyed; }, enumerable: true },
+                closing: { get: function () { return closing; }, enumerable: true },
                 inputPending: { get: function () { return inputPending; }, enumerable: true }
             });
             Object.assign(session, {
@@ -316,14 +416,15 @@
                     if (compositionText && blocked === 'input-pending') blocked = deleted ? 'deleted' : null;
                     if (blocked || openGroup) return reject(blocked || 'busy');
                     try {
+                        tracker.checkJson();
                         var check = options.validate(tracker.raw); if (!check.ok) return {ok:false,code:'validation',error:check.errors.join(' / ')};
                         if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion) return reject('invalid-target');
-                        var staged = createDraft(tracker.raw, function () { return base; }, function () {}, true);
+                        var staged = createDraft(tracker.raw, function () { return base; }, function () {}, true, true);
                         var fixed = {}; HISTORY_FIXED.forEach(function(key){ fixed[key] = tracker.raw[key]; });
                         if (tracker.raw.schemaVersion === 2) fixed.provenance = {legacySource:tracker.raw.provenance.legacySource};
                         var handle = Object.freeze({ operationId: sessionId + ':operation-' + (++operationSequence), sessionId: sessionId,
                             historyEpoch: history.epoch, contentVersion: session.snapshotVersion, draft: staged.draft });
-                        openGroup = { handle: handle, tracker: staged, before: contentSnapshot(tracker.raw, true), fixed: fixed, label: String(label || '編集').slice(0, 120), preserveAppliedUndo: !!(policy && policy.preserveAppliedUndo), requireUndo: !!(policy && policy.requireUndo) || tracker.raw.schemaVersion === 2, previousTextGroup:previousTextGroup };
+                        openGroup = { handle: handle, tracker: staged, before: matchingHistoryContent(tracker.raw) || contentSnapshot(tracker.raw, true), fixed: fixed, label: String(label || '編集').slice(0, 120), preserveAppliedUndo: !!(policy && policy.preserveAppliedUndo), requireUndo: !!(policy && policy.requireUndo) || tracker.raw.schemaVersion === 2, previousTextGroup:previousTextGroup };
                         return { ok: true, operation: handle };
                     } catch (error) { return { ok: false, code: 'operation-failed', error: error.message || String(error) }; }
                 },
@@ -334,17 +435,19 @@
                     if (blocked) return reject(blocked);
                     if (handle.contentVersion !== session.snapshotVersion || handle.historyEpoch !== history.epoch) return reject('stale-operation');
                     // Final content check also catches drift that bypassed a Proxy notification.
-                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion || !matchesContent(tracker.raw, group.before)) {
+                    tracker.checkJson();
+                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion || !matchesContent(tracker.raw, group.before, true)) {
                         tracker.rebase(); changeSerial++;
                         resetHistory('stale-operation', 'invalidated'); emit(session, 'history-invalidated'); return reject('stale-operation');
                     }
                     // Safety first; then protected identity/source; domain validation last.
                     // Descriptor-only JSON preflight never reads getters or calls toJSON.
-                    try { assertJson(group.tracker.raw); }
+                    try { group.tracker.checkJson(); }
                     catch(error){return {ok:false,code:'validation',error:error.message};}
                     var originalCheck;
                     if (Array.from(HISTORY_FIXED).some(function (key) { return !equal(group.tracker.raw[key], group.fixed[key]); })) return reject('protected-field');
                     if(tracker.raw.schemaVersion === 2 && !equal(group.tracker.raw.provenance && group.tracker.raw.provenance.legacySource, group.fixed.provenance && group.fixed.provenance.legacySource)) return reject('protected-legacy-source');
+                    if(tracker.raw.schemaVersion===2 && tracker.raw.materials.rhythms.some(function(m){var next=group.tracker.raw.materials.rhythms.find(function(n){return n.id===m.id;});return next&&(m.encoding==='rhythm-owner-cells-v1'||next.encoding==='rhythm-owner-cells-v1')&&!equal(m,next);}))return reject('protected-rhythm-material');
                     if(tracker.raw.schemaVersion===2 && tracker.raw.materials.forms.some(function(m){var next=group.tracker.raw.materials.forms.find(function(n){return n.id===m.id;});return next&&!equal(m,next);}))return reject('protected-form-material');
                     var after;
                     try {
@@ -436,7 +539,7 @@
                     resetHistory('explicit-clear'); emit(session, 'history-cleared'); return { ok: true };
                 },
                 setInputPending: function (value) { if (!destroyed && inputPending !== !!value) { if (value) finishTextGroup(); inputPending = !!value; emit(session, 'input'); } },
-                workingSnapshot: function () { return snapshot(tracker.raw); },
+                workingSnapshot: workingSnapshot,
                 playbackSnapshot: function () { return snapshot(tracker.raw); },
                 applyExternalSnapshot: applyExternal,
                 keepDraft: function () { return conflict; }, // no base advancement or stale overwrite permission

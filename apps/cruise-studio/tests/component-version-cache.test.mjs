@@ -61,13 +61,13 @@ test('F3: versioned internal ESM dependencies use the same Studio cache identity
 
 // Fixed patch-release expectation plus traversal of the actual HTML module entries.
 // Owner versions are still checked against their independent source declarations above.
-test('0.43.1 release identity and recursively reachable Studio module cache paths', () => {
-    assert.equal(getAppVersion('cruise-studio'), '0.43.1');
-    assert.match(html, /id="studio-version">v0\.43\.1<\/span>/);
+test('0.44.0 release identity and recursively reachable Studio module cache paths', () => {
+    assert.equal(getAppVersion('cruise-studio'), '0.44.0');
+    assert.match(html, /id="studio-version">v0\.44\.0<\/span>/);
     const visited = new Set();
     function visit(url) {
         if (!url.pathname.startsWith(studio.pathname) || !url.pathname.endsWith('.mjs')) return;
-        if (url.search) assert.equal(url.search, '?v=0.43.1', url.href);
+        if (url.search) assert.equal(url.search, '?v=0.44.0', url.href);
         if (visited.has(url.pathname)) return;
         visited.add(url.pathname);
         const content = read(new URL(url.pathname, 'file://'));

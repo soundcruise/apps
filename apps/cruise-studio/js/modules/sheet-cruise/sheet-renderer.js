@@ -55,6 +55,7 @@
     function resolveBarStrum(project, bar) {
         var model = CS().model;
         var slots = model.getBarEffectiveStrumSlots(project, bar.barNumber);
+        if(slots&&slots.ok===false)return {unsupported:true,name:slots.name};
         if (!Array.isArray(slots) || slots.length === 0) return null;
         return {
             slots: slots,
@@ -249,6 +250,7 @@
         }
 
         cell.appendChild(el('span', 'sheet-bar-num', String(bar.barNumber)));
+        if(strum&&strum.unsupported){cell.appendChild(el('div','sheet-bar-row',strum.name+'：採用リズムの印刷は未対応'));strum=null;}
 
         // 各段に共通クラス .sheet-bar-row を付ける。段と段の間の区切り横線は
         // CSS（.sheet-bar-row + .sheet-bar-row）が引く。将来ストローク段を
@@ -288,8 +290,8 @@
      * @returns {HTMLElement} 生成した .sheet-page（複数ページ化する将来は配列先頭）
      */
     function render(project, container) {
-        if(project.schemaVersion===2) project=CS().model.toLegacyView(project);
-        else if(project.schemaVersion!==1) throw Error('unsupported-schema');
+        if(project.schemaVersion===2) project=CS().model.toStructureView(project);
+        else if(project.schemaVersion!==1&&project.purpose!=='structure-read') throw Error('unsupported-schema');
         var model = CS().model;
         var show = resolveShowSettings(project);
         var ts = project.songInfo && project.songInfo.timeSignature;
