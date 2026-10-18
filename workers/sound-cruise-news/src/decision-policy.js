@@ -54,10 +54,11 @@ export function duplicatePredicate(row,facts,alias='d'){
    clauses.push(`(${j('brand')} IN ('Morris','MORRIS','Morris Guitars','モーリス') AND ${j('product')}=? AND ${alias}.event_type IN ('new_product','release') AND COALESCE(${j('productEvent.action')},'')=?)`);args.push(facts.subject,{signature_model:'signature',limited_model:'limited_edition'}[facts.articleType]||'');
   }
   if(['event_announcement','exhibition'].includes(facts.articleType)){
-   clauses.push(`(${j('kind')}='guitar_event' AND COALESCE(${j('eventName')},${j('event')})=? AND ${j('eventDate')}=? AND ${j('venue')}=? AND (?<>'exhibition' OR ${j('exhibitor')}='Morris Guitars'))`);args.push(facts.subject,facts.eventDate,facts.venue,facts.articleType);
+   clauses.push(`(${j('kind')}='guitar_event' AND COALESCE(${j('eventName')},${j('event')})=? AND (?='' OR ${j('eventDate')}=?) AND (?='' OR ${j('venue')}=?) AND (?<>'exhibition' OR ${j('exhibitor')}='Morris Guitars'))`);args.push(facts.subject,facts.eventDate||'',facts.eventDate||'',facts.venue||'',facts.venue||'',facts.articleType);
   }
-
-  const keys=['kind','articleType','subject','eventDate','endDate'];clauses.push(`(${keys.map(k=>`COALESCE(${j(k)},'')=?`).join(' AND ')})`);args.push(...keys.map(k=>facts[k]||''));
+  if(['report','catalog'].includes(facts.articleType)){clauses.push(`(${j('kind')}='morris_editorial' AND ${j('articleType')}=? AND ${j('subject')}=?)`);args.push(facts.articleType==='report'?'event_report':'catalog',facts.subject);}
+  if(facts.articleType==='recruitment'){clauses.push(`(${j('kind')}='guitar_event' AND ${j('eventType')}='competition' AND ${j('action')}='entry_open' AND COALESCE(${j('eventName')},${j('event')})=?)`);args.push(facts.subject);}
+  const keys=['kind','articleType','subject','eventDate','endDate','serviceAction'];clauses.push(`(${keys.map(k=>`COALESCE(${j(k)},'')=?`).join(' AND ')})`);args.push(...keys.map(k=>facts[k]||''));
  }
  if(facts?.kind==='morris_editorial'&&facts.subject&&['event_report','catalog'].includes(facts.articleType)){
   const keys=['kind','articleType','subject','topic'];

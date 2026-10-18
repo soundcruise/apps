@@ -1,5 +1,6 @@
+import {morrisNoticeLabel} from './morris-editorial-policy.js';
 import {parseDocument,DomUtils} from 'htmlparser2';
-import {analyzeMorrisFacts} from './morris-recovery.js';
+import {analyzeMorrisAutomaticFacts} from './morris-recovery.js';
 import {hash,optOut} from './policy.js';
 import {fingerprint} from './fingerprint.js';
 import {morrisEditorialLabel} from './morris-editorial.js';
@@ -15,6 +16,22 @@ const day=v=>!!morrisDate(v);
 function document(html){if(typeof html!=='string'||new TextEncoder().encode(html).length>128000)throw Error('listing_too_large');const doc=parseDocument(html);
  if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))throw Error('header_optout');
  const mains=find(doc,n=>n.name==='main');if(mains.length!==1)throw Error('listing_structure_changed');return {doc,root:mains[0]};}
+function fieldTexts(root){
+ const values=find(root,n=>['li','p'].includes(n.name)).map(plain).filter(v=>/^[^:：]{2,20}[:：]/.test(v));
+ for(const node of find(root,n=>n.name==='dt')){let next=node.next;while(next&&next.type==='text'&&!plain(next))next=next.next;if(next?.name==='dd'&&!hidden(next))values.push(plain(node)+'：'+plain(next));}
+ for(const row of find(root,n=>n.name==='tr')){const cells=(row.children||[]).filter(n=>['th','td'].includes(n.name)&&!hidden(n));if(cells.length===2)values.push(plain(cells[0])+'：'+plain(cells[1]));}
+ return [...new Set(values)];
+}
+function primaryBlocks(root,heading){
+ const nodes=find(root,n=>['h2','h3','h4','p','li','dt','dd','blockquote'].includes(n.name)),out=[];let started=false;
+ for(const n of nodes){if(n===heading){started=true;continue;}if(!started)continue;
+  // A different top-level article heading is not part of this article.
+  if(n.name==='h2'&&cls(n,'serif'))throw Error('listing_structure_changed');
+  let nested=false;for(let p=n.parent;p&&p!==root;p=p.parent)if(['p','li','blockquote'].includes(p.name))nested=true;
+  const v=plain(n);if(!nested&&v&&v!==plain(heading))out.push(v);
+ }
+ if(out.length>200||out.join(' ').length>24000)throw Error('facts_primary_scope_too_large');return out;
+}
 function identity(doc,url){const canonical=find(doc,n=>n.name==='link'&&n.attribs.rel==='canonical'),og=find(doc,n=>n.name==='meta'&&n.attribs.property==='og:url');
  if(canonical.length>1||og.length>1||canonical.some(n=>new URL(n.attribs.href,url).href!==url)||og.some(n=>n.attribs.content!==url))throw Error('facts_source_invalid');
  if(!canonical.length&&!og.length)throw Error('facts_source_invalid');return canonical.length?'canonical':'og:url';}
@@ -56,7 +73,7 @@ export async function parseMorrisListing(html,pepper,evidence=null){
   if(!publishedAt||morrisUrlDate(url)!==publishedAt||seen.has(url))throw Error('listing_structure_changed');seen.add(url);
   const entry={url,publishedAt,fingerprint:await fingerprint(plain(title),pepper)};
   if(evidence){
-   const paragraphs=find(card,n=>n.name==='p'),selected=paragraphs.filter(n=>!find(n,x=>/^h[1-6]$/.test(x.name)||x.name==='time').length&&plain(n)!==plain(title)&&!/^(?:20\d{2}[.\/-]\d{2}[.\/-]\d{2}|more|詳しくはこちら|詳細はこちら)$/i.test(plain(n))).slice(0,3),fieldNodes=find(card,n=>['li','dt','dd'].includes(n.name)),paras=selected.map(plain),fields=fieldNodes.map(plain),trace={};
+   const paragraphs=find(card,n=>n.name==='p'),selected=paragraphs.filter(n=>!find(n,x=>/^h[1-6]$/.test(x.name)||x.name==='time').length&&plain(n)!==plain(title)&&!/^(?:20\d{2}[.\/-]\d{2}[.\/-]\d{2}|more|詳しくはこちら|詳細はこちら)$/i.test(plain(n))).slice(0,3),fieldNodes=find(card,n=>['li','dt','dd'].includes(n.name)),paras=selected.map(plain),fields=fieldTexts(card),trace={};
    const recovered=extractFacts(plain(title),paras,fields,url,trace);
    // Persist only extracted facts; discard the original heading/description.
    entry.facts=recovered.facts;entry.eventType=recovered.eventType;
@@ -70,6 +87,7 @@ export async function parseMorrisListing(html,pepper,evidence=null){
  }return entries;
 }
 export function morrisLabel(f,eventType){
+ if(f?.kind==='morris_notice')return morrisNoticeLabel(f,eventType);
  if(f?.evidence!=='morris_explicit_article_v1'||f.listingSource!=='morris'||!morrisArticleUrl(f.articleUrl))return null;
  if(f.kind==='morris_editorial')return morrisEditorialLabel(f,eventType);
  if(f.kind==='guitar_event'&&eventType==='guitar_event'&&f.category==='live_guitar'&&[f.eventName,f.venue].every(field)&&day(f.eventDate)&&day(f.endDate)&&f.endDate>=f.eventDate){
@@ -88,24 +106,24 @@ export function morrisLabel(f,eventType){
 export async function parseMorrisArticle(html,entry,verifiedAt,pepper){
  if(!morrisArticleUrl(entry.url)||morrisUrlDate(entry.url)!==entry.publishedAt)throw Error('facts_date_changed');
  const responseHash=await hash(html),{doc,root}=document(html),canonicalBasis=identity(doc,entry.url),titles=find(root,n=>n.name==='h2'&&cls(n,'serif'));
- if(titles.length!==1)throw Error('listing_structure_changed');const title=plain(titles[0]),paras=find(root,n=>n.name==='p').slice(0,3).map(plain);
+ if(titles.length!==1)throw Error('listing_structure_changed');const title=plain(titles[0]),paras=primaryBlocks(root,titles[0]);
  // Publication day is the explicitly dated listing; URL day agrees. Optional article date must agree too.
  const dates=find(root,n=>n.name==='time');if(dates.some(n=>morrisDate(plain(n))!==entry.publishedAt))throw Error('facts_date_changed');
  const titleFingerprint=await fingerprint(title,pepper),proof={sourceId:'morris',sourceUrl:entry.url,publishedAt:entry.publishedAt,verifiedAt,extractionMethod:'morris_once_only_article',parserVersion:MORRIS_PARSER,responseHash,canonicalBasis,permissionRef:MORRIS_PERMISSION};
- const fields=find(root,n=>['li','dt','dd'].includes(n.name)).map(plain);
- const {facts,eventType}=extractFacts(title,paras,fields,entry.url);
- return {facts,eventType:facts?eventType:'other',proof,fingerprint:titleFingerprint};
+ const fields=fieldTexts(root),{facts,eventType,analysis}=extractFacts(title,paras,fields,entry.url);
+ proof.recoveryAnalysis=analysis;
+ return {facts,eventType:facts?eventType:'other',proof,fingerprint:titleFingerprint,analysis};
 }
 
 function extractFacts(title,paras,fields,url,trace=null){
- const result=analyzeMorrisFacts(title,paras,fields,url);
+ const result=analyzeMorrisAutomaticFacts(title,paras,fields,url);
  const label=result.facts?morrisLabel(result.facts,result.eventType):null;
  if(result.facts&&(!label||label===title)){
   result.facts=null;result.eventType='other';result.analysis={...result.analysis,selected:'none',result:'hold',reason:label?'LABEL_NOT_INDEPENDENT':'LABEL_NOT_SUPPORTED'};
  }
  if(trace){const a=result.analysis;Object.assign(trace,{modelCandidate:a.modelCount>0,typedModelBinding:a.typedIdentity,manufacturer:a.manufacturerExplicit,
   eventCandidate:a.eventSignal,eventName:a.eventNameExplicit,eventDate:a.eventDateExplicit,venue:a.venueExplicit,eventContext:a.acousticExplicit||a.manufacturerExplicit,
-  excludedWording:a.excluded,eventAction:a.actionExplicit,relevance:a.acousticExplicit,articleType:!!result.facts,branch:result.facts?.kind==='product'?'product':result.facts?.kind==='guitar_event'?'event':result.facts?.articleType||'unclassified',
+  excludedWording:a.excluded,eventAction:a.actionExplicit,relevance:a.acousticExplicit,articleType:!!result.facts,branch:result.facts?.kind==='morris_notice'?'notice':result.facts?.kind==='product'?'product':result.facts?.kind==='guitar_event'?'event':result.facts?.articleType||'unclassified',
   originalHeadlineCollision:a.reason==='LABEL_NOT_INDEPENDENT',labelUnsupported:a.reason==='LABEL_NOT_SUPPORTED'});}
  return result;
 }

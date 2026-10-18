@@ -47,8 +47,17 @@ export async function morrisReviewEvidence(store,row,now,anchor=null){
  const article=await morrisReceipt(store,row.source_url);let p;try{p=JSON.parse(article?.proof_json);}catch{return null;}
  return article?.outcome==='verified'&&article.permission_ref===MORRIS_PERMISSION&&article.actual_requests===1&&article.published_at===row.published_at&&article.fingerprint_json===row.title_fingerprint&&p?.sourceId==='morris'&&p.sourceUrl===row.source_url&&p.responseHash===article.response_hash&&p.verifiedAt===article.attempted_at&&article.attempted_at<=now&&morrisParserSupported(p.parserVersion)?listing:null;
 }
+export async function morrisRecoveryView(store,row,now){
+ const listing=await morrisListingEvidence(store,row.source_url,now),article=await morrisReceipt(store,row.source_url);let analysis=null;
+ try{const p=JSON.parse(article?.proof_json);if(article?.outcome==='verified'&&p?.sourceId==='morris'&&p.sourceUrl===row.source_url&&p.responseHash===article.response_hash&&morrisParserSupported(p.parserVersion))analysis=p.recoveryAnalysis;}catch{}
+ analysis=analysis||listing?.entry.recoveryAnalysis;
+ const code=v=>typeof v==='string'&&/^[A-Za-z_0-9]{1,90}$/.test(v)?v:null;
+ const candidates=Array.isArray(analysis?.candidates)?analysis.candidates.filter(c=>c?.triggered===true&&code(c.type)).slice(0,8).map(c=>({type:c.type,eligible:c.eligible===true,missingFields:Array.isArray(c.missingFields)?c.missingFields.map(code).filter(Boolean).slice(0,16):[],reason:code(c.reason)})):[];
+ return {state:row.product_facts?'FACTS_PRESENT':'NEEDS_CONFIRMATION',articleType:code(analysis?.articleType)||'unresolved',reason:code(analysis?.reason)||'SAVED_PRIMARY_FACTS_MISSING',candidates};
+}
 export async function morrisProofValid(store,row,now){
- if(row.event_type==='morris_notice'){
+ let rowFacts;try{rowFacts=JSON.parse(row.product_facts||'null');}catch{return false;}
+ if(row.event_type==='morris_notice'&&rowFacts?.evidence==='morris_human_primary_v1'){
   let facts,fields;try{facts=JSON.parse(row.product_facts);fields=JSON.parse(row.facts_provenance);}catch{return false;}
   if(!morrisNoticeLabel(facts,row.event_type)||facts.articleUrl!==row.source_url||!Array.isArray(fields))return false;
   const p=fields[0],entry=await morrisReviewEvidence(store,row,now,{hash:p?.listingResponseHash,at:p?.listingVerifiedAt});
@@ -139,9 +148,9 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    }
    if(receipt.outcome==='baseline_old'){report.baseline++;report.historicalFactsInsufficient=(report.historicalFactsInsufficient||0)+1;continue;}
    // Replaying failed evidence creates/retains a safe pending card, never another request.
-   const facts=['verified','verified_listing'].includes(receipt.outcome)&&receipt.facts_json?JSON.parse(receipt.facts_json):null,eventType=facts?.kind==='guitar_event'?'guitar_event':facts?.kind==='morris_editorial'?'morris_editorial':facts?.action||'other',label=morrisLabel(facts,eventType);
-   const factsProvenance=receipt.proof_json&&facts?JSON.stringify(Object.keys(facts).map(factField=>({...JSON.parse(receipt.proof_json),factField}))):null;
-   const item={factsProvenance,id:await hash(entry.url),sourceId:'morris',sourceName:'Morris Guitars',sourceUrl:entry.url,normalizedUrl:entry.url,publishedAt:entry.publishedAt,feedPublishedAt:entry.publishedAt,collectedAt:new Date(now).toISOString(),category:facts?.category||'media_other',label:label||'審査待ち（一次情報の事実確認が必要）',topicKey:facts?.kind==='morris_editorial'?`morris:editorial:${entry.url}`:facts?`morris:${JSON.stringify([facts.kind,facts.product||facts.eventName,facts.eventDate,facts.endDate,facts.exhibitor||facts.performer||'',facts.action,facts.productEvent?.action||''])}`:await hash(entry.url),eventType,productFacts:facts,titleFingerprint:receipt.fingerprint_json||JSON.stringify(entry.fingerprint),publicationDecision:'PUBLISH_REVIEW',decisionReason:label?'factual_label_ready':'label_required',reviewReason:'structured_review_required'};
+   const facts=['verified','verified_listing'].includes(receipt.outcome)&&receipt.facts_json?JSON.parse(receipt.facts_json):null,eventType=facts?.kind==='guitar_event'?'guitar_event':facts?.kind==='morris_notice'?'morris_notice':facts?.kind==='morris_editorial'?'morris_editorial':facts?.action||'other',label=morrisLabel(facts,eventType);
+   const factsProvenance=receipt.proof_json&&facts?JSON.stringify(Object.keys(facts).map(factField=>({...JSON.parse(receipt.proof_json),recoveryAnalysis:undefined,factField}))):null;
+   const item={factsProvenance,id:await hash(entry.url),sourceId:'morris',sourceName:'Morris Guitars',sourceUrl:entry.url,normalizedUrl:entry.url,publishedAt:entry.publishedAt,feedPublishedAt:entry.publishedAt,collectedAt:new Date(now).toISOString(),category:facts?.category||'media_other',label:label||'審査待ち（一次情報の事実確認が必要）',topicKey:facts?.kind==='morris_notice'?`morris:notice:${entry.url}`:facts?.kind==='morris_editorial'?`morris:editorial:${entry.url}`:facts?`morris:${JSON.stringify([facts.kind,facts.product||facts.eventName,facts.eventDate,facts.endDate,facts.exhibitor||facts.performer||'',facts.action,facts.productEvent?.action||''])}`:await hash(entry.url),eventType,productFacts:facts,titleFingerprint:receipt.fingerprint_json||JSON.stringify(entry.fingerprint),publicationDecision:'PUBLISH_REVIEW',decisionReason:label?'factual_label_ready':'label_required',reviewReason:'structured_review_required'};
    // The once-only evidence is immutable; never rewrite an already-created candidate on rediscovery.
    const exists=await store.db.prepare('SELECT 1 FROM candidate_items WHERE id=?').bind(item.id).first();
    if(exists){report.duplicates++;continue;}
@@ -162,7 +171,9 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    await store.recordHealth({sourceId:'morris',...healthForOutcome(report.outcome,state.failures||0),checkedAt:now,nextEligibleAt:Date.parse(day+'T00:00:00+09:00')+DAY,failureCount:state.failures||0,successfulAt:completed?now:null});
    await store.log(report);
   }
- }return report;
+ }
+ if(completed){const {reconcileMorrisReady}=await import('./facts-recheck.js');report.automaticReview=await reconcileMorrisReady(store,now,registry,pepper);}
+ return report;
 }
 
 // Receipt-only repair, also used after scheduled collection. No fetcher exists in
@@ -181,8 +192,8 @@ export async function materializeMorrisReviewCandidates(store,{source,now,pepper
   if(await store.db.prepare('SELECT 1 FROM candidate_items WHERE id=? OR normalized_url=?').bind(id,entry.url).first()){result.existing++;continue;}
   const receipt=await morrisEvidenceReceipt(store,entry.url,now),facts=receipt?.facts_json&&['verified','verified_listing'].includes(receipt.outcome)?JSON.parse(receipt.facts_json):null;
   const end=eventEndsAt(facts);if(end!==null&&(!Number.isSafeInteger(end)||end<now)){result.excluded++;continue;}
-  const historical=now-stamp>MORRIS_FRESH_MS,eventType=facts?.kind==='guitar_event'?'guitar_event':facts?.kind==='morris_editorial'?'morris_editorial':facts?.action||'other',label=morrisLabel(facts,eventType);
-  const item={id,sourceId:'morris',sourceName:'Morris Guitars',sourceUrl:entry.url,normalizedUrl:entry.url,publishedAt:entry.publishedAt,feedPublishedAt:entry.publishedAt,collectedAt:new Date(Math.min(receipt?.discovered_at||saved.discovered_at,saved.discovered_at)).toISOString(),category:facts?.category||'media_other',label:label||'Morris Guitarsの公式お知らせ（要確認）',topicKey:id,eventType,productFacts:facts,titleFingerprint:receipt?.fingerprint_json||JSON.stringify(entry.fingerprint),factsProvenance:facts?JSON.stringify(Object.keys(facts).map(factField=>({...JSON.parse(receipt.proof_json),factField}))):null,publicationDecision:'PUBLISH_REVIEW',decisionReason:label?'factual_label_ready':'morris_primary_confirmation_required',reviewReason:historical?'morris_historical_confirmation_required':'morris_primary_confirmation_required'};
+  const historical=now-stamp>MORRIS_FRESH_MS,eventType=facts?.kind==='guitar_event'?'guitar_event':facts?.kind==='morris_notice'?'morris_notice':facts?.kind==='morris_editorial'?'morris_editorial':facts?.action||'other',label=morrisLabel(facts,eventType);
+  const item={id,sourceId:'morris',sourceName:'Morris Guitars',sourceUrl:entry.url,normalizedUrl:entry.url,publishedAt:entry.publishedAt,feedPublishedAt:entry.publishedAt,collectedAt:new Date(Math.min(receipt?.discovered_at||saved.discovered_at,saved.discovered_at)).toISOString(),category:facts?.category||'media_other',label:label||'Morris Guitarsの公式お知らせ（要確認）',topicKey:id,eventType,productFacts:facts,titleFingerprint:receipt?.fingerprint_json||JSON.stringify(entry.fingerprint),factsProvenance:facts?JSON.stringify(Object.keys(facts).map(factField=>({...JSON.parse(receipt.proof_json),recoveryAnalysis:undefined,factField}))):null,publicationDecision:'PUBLISH_REVIEW',decisionReason:label?'factual_label_ready':'morris_primary_confirmation_required',reviewReason:historical?'morris_historical_confirmation_required':'morris_primary_confirmation_required'};
   if(await store.put(item)){result.added++;result.ids.push(id);}else result.existing++;
  }
  return result;

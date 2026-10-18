@@ -90,6 +90,15 @@ function refresh(){
 }
 function morrisConfirmation(row,panel){
  const review=row.morrisReview;if(!review)return;
+ const a=review.automation;
+ if(a&&review.state==='NEEDS_CONFIRMATION'){
+  const diagnostic=el('details');diagnostic.append(el('summary','自動解析の結果'));
+  const reasons={SAVED_PRIMARY_FACTS_MISSING:'保存済みの一次証拠に必要なfactsがありません',AMBIGUOUS_ARTICLE_TYPES:'複数の記事タイプが成立し、確定できません',CONTRADICTORY_PRODUCT_FIELDS:'製品の明示項目が矛盾しています'};
+  diagnostic.append(el('p','回復できなかった理由：'+(reasons[a.reason]||'必要な事実・対象と行為の結び付きを確認できません'),'meta'));
+  const names={subject:'対象名',subject_action_binding:'対象と行為の結び付き',event_name:'イベント名',event_date:'開催日',venue:'会場',event_action:'行為',subject_binding:'主体との結び付き',model:'製品名',typed_model_binding:'製品種別との結び付き',manufacturer:'メーカー',product_action:'発表・発売',explicit_fields:'明示項目の整合性',unambiguous_identity:'対象の特定',qualifier_binding:'限定・仕様の結び付き',context:'文脈の一致',competition:'募集対象',performer:'出演者',acoustic_context:'アコギ関連性',unambiguous_event:'イベントの特定',consistent_event_dates:'開催日の整合性',consistent_venue:'会場の整合性',primary_type:'記事タイプ',unambiguous_action:'行為の特定'};
+  for(const c of a.candidates||[]){const type=review.types[c.type]?.label||({product_announcement:'製品発表',recruitment_announcement:'参加者募集',event_exhibition:'イベント出展',support_notice:'修理案内',event_report:'イベントレポート',artist_activity:'アーティスト情報'}[c.type])||'記事タイプ候補';diagnostic.append(el('p','分類候補：'+type+' / 不足・未確認：'+(c.missingFields||[]).map(k=>names[k]||'必要な事実').join('、'),'meta'));}
+  panel.append(diagnostic);
+ }
  panel.append(el('p','Morris公式Informationは原則として掲載候補です。掲載価値と事実の充足度を分けて確認します。原記事の見出し・本文をコピーせず、対象と行為を確認してください。','meta'));
  if(review.historical)panel.append(el('p','保存済み一覧からの過去記事です。公開日と取得済み台帳を維持しています。自動の詳細再取得は行いません。','meta'));
  if(!review.confirmationAvailable)return;

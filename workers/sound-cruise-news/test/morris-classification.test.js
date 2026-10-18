@@ -94,7 +94,7 @@ test('another card cannot supply the missing product identity or event dates',as
 });
 test('persisted analysis contains bounded codes/booleans, never source sentences',async()=>{
  const marker='NOT_FOR_PERSISTENCE_123';const e=(await parseMorrisListing(listing(card('QA-88 新製品',[product,marker])),pepper,{verifiedAt:now}))[0];
- const stored=JSON.stringify(e);assert.equal(stored.includes(marker),false);assert.equal(stored.includes(product),false);assert.equal(e.proof.parserVersion,'morris-listing-facts-3');assert.match(e.proof.responseHash,/^[a-f0-9]{64}$/);
+ const stored=JSON.stringify(e);assert.equal(stored.includes(marker),false);assert.equal(stored.includes(product),false);assert.equal(e.proof.parserVersion,'morris-listing-facts-4');assert.match(e.proof.responseHash,/^[a-f0-9]{64}$/);
  assert.ok(e.recoveryAnalysis.candidates.every(c=>Object.values(c.checks).every(v=>typeof v==='boolean')));
 });
 async function setup(){const s=await store(),source={...getSource('morris'),enabled:true,productionEnabled:true},registry=[source];for(const action of ['collection-on','publish-on','source-enable'])await administer(s,{action,...(action==='source-enable'?{target:'morris'}:{}),reason:'review_complete'},now,registry);return {s,source,registry};}

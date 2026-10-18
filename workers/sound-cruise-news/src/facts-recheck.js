@@ -37,8 +37,8 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
  if(source.id==='morris'){
   await gate(store,source,registry,now,row);const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
   if(!['verified','verified_listing'].includes(receipt?.outcome)||!receipt.facts_json||!await validatedFingerprint(receipt.fingerprint_json,pepper))return {outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
-  const facts=JSON.parse(receipt.facts_json),eventType=facts.kind==='guitar_event'?'guitar_event':facts.kind==='morris_editorial'?'morris_editorial':facts.action||'other';
-  return {outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:receipt.published_at,eventType,productFacts:facts,titleFingerprint:receipt.fingerprint_json}]),proof_json:receipt.proof_json};
+  const facts=JSON.parse(receipt.facts_json),eventType=facts.kind==='guitar_event'?'guitar_event':facts.kind==='morris_notice'?'morris_notice':facts.kind==='morris_editorial'?'morris_editorial':facts.action||'other';
+  return {outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:receipt.published_at,eventType,productFacts:facts,titleFingerprint:receipt.fingerprint_json}]),proof_json:JSON.stringify({...JSON.parse(receipt.proof_json),recoveryAnalysis:undefined})};
  }
  const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair}),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
@@ -155,7 +155,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
     else{
      const category=facts.category,label=factualLabel(facts,item.eventType)||row.label;
      provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});
-     patch={...(source.id==='morris'?{title_fingerprint:item.titleFingerprint}:{}),product_facts:JSON.stringify(facts),category,event_type:item.eventType,label,topic_key:facts.product?factualTopicKey(facts,item.eventType):row.topic_key,event_ends_at:eventEndsAt(facts)};
+     patch={...(source.id==='morris'?{title_fingerprint:item.titleFingerprint}:{}),product_facts:JSON.stringify(facts),category,event_type:item.eventType,label,topic_key:source.id==='morris'?row.topic_key:facts.product?factualTopicKey(facts,item.eventType):row.topic_key,event_ends_at:eventEndsAt(facts)};
      outcome='facts_recovered';
     }
    }
@@ -176,4 +176,40 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  if(!await store.db.prepare('SELECT request_id FROM news_facts_rechecks WHERE request_id=? AND request_payload_hash=?').bind(input.requestId,payloadHash).first())throw Error('candidate_changed');
  const detail=await reviewDetail(store,row.id,now,registry,pepper);
  return {id:row.id,outcome,recovered:!!patch,validation:detail.validation};
+}
+
+// Reuse the receipt-only Morris branch and the normal publication validator.
+// This operational READY marker is neither a publication nor a human verdict.
+export async function reconcileMorrisReady(store,now,registry,pepper){
+ const report={ready:0,recovered:0,needsConfirmation:0,excluded:0,items:[]};
+ const rows=(await store.db.prepare("SELECT * FROM candidate_items WHERE source_id='morris' AND review_status IN ('pending','reopened')").all()).results;
+ for(const row of rows){
+  if(await store.db.prepare('SELECT 1 FROM news_decision_ledger WHERE candidate_id=?').bind(row.id).first()){report.excluded++;continue;}
+  const before=await publicationValidation(store,row,now,registry,pepper);
+  if(before.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e))){report.excluded++;continue;}
+  if(before.valid&&before.facts?.evidence==='morris_human_primary_v1'){report.ready++;continue;}
+  const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
+  if(!receipt?.facts_json||!['verified','verified_listing'].includes(receipt.outcome)){report.needsConfirmation++;report.items.push({id:row.id,state:'NEEDS_CONFIRMATION',reason:'SAVED_PRIMARY_FACTS_MISSING'});continue;}
+  const lifecycle=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
+  if(before.valid&&lifecycle?.recheck_status==='RECOVERED_READY'&&lifecycle.assessed_revision===row.review_revision){report.ready++;continue;}
+  const requestId='morris-auto-'+row.id+'-'+row.review_revision+'-'+(await hash(receipt.proof_json||'')).slice(0,8);
+  const result=await recheckFacts(store,{id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId},now,registry,pepper,{type:'system_recheck',id:'morris-auto-recovery'});
+  const current=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first(),v=await publicationValidation(store,current,now,registry,pepper);
+  if(!v.valid){if(v.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e)))report.excluded++;else report.needsConfirmation++;continue;}
+  const previous=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
+  const history=JSON.stringify([...JSON.parse(previous?.history_json||'[]'),{at:now,actor:'system_recovery',result:'RECOVERED_READY',revision:current.review_revision,requestId}].slice(-20)),columns=Object.keys(current);
+  const saved=await store.db.prepare(`INSERT INTO news_pending_lifecycle(candidate_id,last_rechecked_at,assessed_revision,next_recheck_at,recheck_status,last_recheck_result,recheck_policy_version,history_json)
+   SELECT ?,?,?,NULL,'RECOVERED_READY','morris_system_recovery','pending-recheck-1',? WHERE EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')} AND review_status IN ('pending','reopened'))
+   AND NOT EXISTS(SELECT 1 FROM news_decision_ledger WHERE candidate_id=?)
+   AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1 AND publication_enabled=1)
+   AND EXISTS(SELECT 1 FROM source_state WHERE source_id='morris' AND disabled=0 AND publication_blocked=0 AND takedown=0 AND backoff_until<=?)
+   AND EXISTS(SELECT 1 FROM source_health WHERE source_id='morris' AND status='healthy' AND last_successful_run_at=?)
+   AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)
+   ON CONFLICT(candidate_id) DO UPDATE SET last_rechecked_at=excluded.last_rechecked_at,assessed_revision=excluded.assessed_revision,next_recheck_at=NULL,recheck_status=excluded.recheck_status,last_recheck_result=excluded.last_recheck_result,unresolved_reason=NULL,history_json=excluded.history_json
+   WHERE news_pending_lifecycle.lease_until<=? AND news_pending_lifecycle.history_json=?`)
+  .bind(row.id,now,current.review_revision,history,...columns.map(k=>current[k]),row.id,now,v.healthSuccessfulAt,row.id,now,previous?.history_json||'[]').run();
+  if(saved.meta.changes!==1)continue;
+  report.ready++;report.recovered+=result.recovered?1:0;report.items.push({id:row.id,state:'READY_FOR_HUMAN_DECISION',actor:'system_recovery'});
+ }
+ return report;
 }

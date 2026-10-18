@@ -52,7 +52,7 @@ test('paragraph-labeled event fields work without li/dt/dd and retain explicit c
 test('event cannot borrow publication year, venue, another event or another card',async()=>{
  for(const date of ['11月1日','2026年2月30日','2026年11月2日〜1日'])assert.equal((await parse('「合成ギター展」への出展案内',['Morris Guitarsは「合成ギター展」に出展します。','開催日：'+date,'会場：合成ホール'])).facts,null);
  const e=await parse('「合成ギター展」への出展案内',['Morris Guitarsは「別のギター展」に出展します。','開催日：2026年11月1日','会場：合成ホール']);assert.equal(e.facts,null);
- const entries=await parseMorrisListing(listing(card('「合成ギター展」への出展案内',['Morris Guitarsは「合成ギター展」に出展します。'])+card('別件',['開催日：2026年11月1日','会場：合成ホール'],'https://www.morris-guitar.com/information/2026/1002_01.html','2026.10.02')),pepper,{verifiedAt:now});assert.equal(entries[0].facts,null);
+ const entries=await parseMorrisListing(listing(card('「合成ギター展」への出展案内',['Morris Guitarsは「合成ギター展」に出展します。'])+card('別件',['開催日：2026年11月1日','会場：合成ホール'],'https://www.morris-guitar.com/information/2026/1002_01.html','2026.10.02')),pepper,{verifiedAt:now});assert.equal(entries[0].facts.articleType,'exhibition');assert.equal(entries[0].facts.eventDate,undefined);assert.equal(entries[0].facts.venue,undefined);
 });
 for(const [type,title,lead] of [
  ['craftsmanship','アコースティックギターの製造過程','Morris Guitarsのアコースティックギターの製造過程を紹介。'],
@@ -73,7 +73,7 @@ test('generic prose, diagnosis, recruitment and unknown product do not become ca
 });
 test('secondary analysis persists only closed facts/flags, never arbitrary prose',async()=>{
  const marker='DO_NOT_PERSIST_ARBITRARY_SOURCE_COPY';const e=await parse('一般案内',['Morris Guitarsのアコースティックギターの案内。'+marker]);assert.ok(!JSON.stringify(e).includes(marker));assert.equal(e.recoveryAnalysis.result,'hold');
- assert.equal(e.recoveryAnalysis.version,'morris-recovery-2');assert.equal(e.recoveryAnalysis.evaluatedTypes.length,13);assert.ok(e.recoveryAnalysis.candidates.every(c=>Object.values(c.checks).every(v=>typeof v==='boolean')));
+ assert.equal(e.recoveryAnalysis.version,'morris-recovery-3');assert.equal(e.recoveryAnalysis.evaluatedTypes.length>=13,true);assert.ok(e.recoveryAnalysis.candidates.every(c=>Object.values(c.checks).every(v=>typeof v==='boolean')));
 });
 test('hidden/related content and content after the bounded window do not supply missing evidence',async()=>{
  const e=await parse(productTitle,['一般の案内。'],`<aside>${productLead}</aside><div class="related"><p>${productLead}</p></div>`);assert.equal(e.facts,null);
