@@ -3281,6 +3281,7 @@
         activate: activate,
         deactivate: deactivate,
         setLoupeSafeAreaProvider: setLoupeSafeAreaProvider,
+        refreshRhythmView: function () { if (state.active && state.session === CS().documents.getSession()) redrawSession(false); },
         refreshEditorGeometry: function () { scheduleOverlayPosition(false); },
         closeTransient: closeTransient,
         handleEscape: handleEscape,

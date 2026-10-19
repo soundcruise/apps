@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.44.0';
+    var APP_VERSION = '0.45.0';
     var SCHEMA_VERSION = 2;
     var LEGACY_SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
