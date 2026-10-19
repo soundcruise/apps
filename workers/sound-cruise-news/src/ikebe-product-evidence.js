@@ -4,7 +4,7 @@ import {optOut} from './policy.js';
 import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-8';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-9';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -72,6 +72,11 @@ export function parseIkebeProductEvidence(html,source,row){
   const brand=products[0][0],models=products.map(p=>p[1]);if(products.some(p=>p[0]!==brand)||new Set(models).size!==models.length)throw Error('facts_identity_changed');
   // Manufacturer tag corroborates every product heading, including incomplete component facts.
   if(!find(header,n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).some(n=>plain(n).toLowerCase()===brand.toLowerCase()))throw Error('facts_identity_changed');
+  // A drum pedal is not a guitar effect pedal. Require the article's own
+  // percussion category AND a role explicitly bound to every product heading.
+  // A related drum mention/category alone can never exclude a guitar product.
+  const percussion=heads.every((head,i)=>/\b(?:Chain (?:Single|Double) Pedal|Quad-beater|Drum Pedal|Bass Drum Beater)\b/i.test(plain(head))||blocks[i].split(/[。!?！？]/).some(s=>modelBound(s,models[i])&&/バスドラム用ペダル|ドラム用(?:ペダル|ビーター)|キックペダル/.test(s)&&!/関連|対応|接続|保護|例えば/.test(s)));
+  if(find(header,n=>n.name==='li'&&cls(n,'cate-drum')).length&&percussion&&!/ギター用|エフェクター|オーバードライブ|ディストーション/.test(title))return {productFacts:{kind:'source_policy_evidence',brand,models,category:row.category,subjectType:'percussion_equipment',usage:'drum_performance',identifierBasis:'verified_source_policy_article_fields',listingSource:source.id,articleUrl:row.source_url},eventType:row.event_type,publishedAt:row.published_at};
   if(models.some(m=>/\b(?:case|stand|cable|replacement|accessory)\b/i.test(m))){
    // Mixed main product/accessory article: retain explicit identity components, never assert a launch.
    if(/新登場|新発売|新製品|発売|登場|発表/.test(title))throw Error('facts_scope_uncertain');

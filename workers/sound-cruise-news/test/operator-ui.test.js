@@ -55,6 +55,13 @@ test('refresh loading and overlapping requests are bounded; partial Shadow/Histo
 });
 
 const walk=node=>[node,...node.children.flatMap(walk)];
+test('Morris audit identifier is explicitly private; evidence-wait cards do not ask for facts input or publication judgment',async()=>{
+ const candidate={...row('morris-wait',false,['facts_incomplete'],null),sourceId:'morris',label:'未検証の原見出しは公開に使わない',reviewReference:{identifier:'合成コンテスト2027',basis:'owner_audit_identifier',verifiedForPublication:false},morrisReview:{state:'NEEDS_CONFIRMATION',historical:true,confirmationAvailable:false},factsReview:{reviewability:'EVIDENCE_WAIT',missing:['主体と行為の結び付き'],available:false,nextAction:'システム側の証拠待ちです。'},lifecycle:{next_recheck_at:null}};
+ const u=ui([candidate]);await settle();const card=u.ids.list.children[0],texts=walk(card).map(n=>n.textContent);
+ assert.equal(card.children[0].textContent,'合成コンテスト2027');assert(texts.some(t=>t.includes('公開用の独自見出しではありません')));assert(texts.includes('正式な独自見出し：未確定'));assert(texts.includes('証拠待ち（取得制約）'));assert(!walk(card).some(n=>['掲載する','掲載しない','掲載したい'].includes(n.textContent)));
+ u.run('api=async()=>items[0]');await card.children.at(-2).events.click();await settle();assert(!walk(card).some(n=>n.textContent==='原記事で確認した事実を入力'));
+ const ready={...candidate,morrisReview:{state:'READY'},validation:{...candidate.validation,valid:true,publishableLabel:'Morris Guitars、合成コンテストの募集を案内'}};u.context.ready=ready;assert.equal(u.run('formalTitle(ready)'),ready.validation.publishableLabel);
+});
 test('formal server label wins; insufficient labels and unknown categories are safe human-facing fallbacks',async()=>{
  const u=ui([{...row('temp',true),label:'Gen2の製品情報（要確認）',category:'amps_effects',validation:{...row('temp',true).validation,publishableLabel:'SHURE MV6 Gen 2 発売'}},{...row('missing',false,['facts_incomplete'],null),label:'label_required',category:'unknown',validation:{...row('missing',false,['facts_incomplete']).validation,publishableLabel:null}}]);await settle();
  assert.equal(u.ids.list.children[0].children[0].textContent,'SHURE MV6 Gen 2 発売');assert.equal(u.ids.list.children[1].children[0].textContent,'正式表題を確定できません');assert(walk(u.ids.list.children[0]).some(n=>n.textContent==='アンプ・エフェクター'));assert(walk(u.ids.list.children[1]).some(n=>n.textContent==='カテゴリ未確定'));assert(walk(u.ids.list.children[1]).some(n=>n.textContent==='facts不足'));assert(!walk(u.ids.list.children[1]).some(n=>n.textContent.includes('label_required')));

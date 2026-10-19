@@ -53,7 +53,21 @@ export async function morrisRecoveryView(store,row,now){
  analysis=analysis||listing?.entry.recoveryAnalysis;
  const code=v=>typeof v==='string'&&/^[A-Za-z_0-9]{1,90}$/.test(v)?v:null;
  const candidates=Array.isArray(analysis?.candidates)?analysis.candidates.filter(c=>c?.triggered===true&&code(c.type)).slice(0,8).map(c=>({type:c.type,eligible:c.eligible===true,missingFields:Array.isArray(c.missingFields)?c.missingFields.map(code).filter(Boolean).slice(0,16):[],reason:code(c.reason)})):[];
- return {state:row.product_facts?'FACTS_PRESENT':'NEEDS_CONFIRMATION',articleType:code(analysis?.articleType)||'unresolved',reason:code(analysis?.reason)||'SAVED_PRIMARY_FACTS_MISSING',candidates};
+ const historicalBlocked=!row.product_facts&&article?.outcome==='baseline_old'&&!listing?.entry.facts;
+ return {state:row.product_facts?'FACTS_PRESENT':'NEEDS_CONFIRMATION',recoveryStatus:historicalBlocked?'PERMISSION_BLOCKED_HISTORICAL':'AWAITING_VERIFIED_FACTS',articleType:code(analysis?.articleType)||'unresolved',reason:code(analysis?.reason)||'SAVED_PRIMARY_FACTS_MISSING',candidates};
+}
+export async function markMorrisEvidenceWait(store,row,now){
+ if(row.source_id!=='morris'||!['pending','reopened'].includes(row.review_status)||(await morrisRecoveryView(store,row,now)).recoveryStatus!=='PERMISSION_BLOCKED_HISTORICAL')return false;
+ const old=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
+ if(old?.recheck_status==='AWAITING_PERMITTED_EVIDENCE'&&old.assessed_revision===row.review_revision&&old.next_recheck_at===null)return false;
+ const history=JSON.stringify([...JSON.parse(old?.history_json||'[]'),{at:now,actor:'system_recovery',result:'AWAITING_PERMITTED_EVIDENCE',reason:'historical_detail_outside_permission',revision:row.review_revision}].slice(-20)),keys=Object.keys(row);
+ const saved=await store.db.prepare(`INSERT INTO news_pending_lifecycle(candidate_id,assessed_revision,next_recheck_at,recheck_status,unresolved_reason,last_recheck_result,recheck_policy_version,history_json)
+ SELECT ?,?,NULL,'AWAITING_PERMITTED_EVIDENCE','historical_detail_outside_permission','saved_primary_facts_missing','pending-recheck-1',?
+ WHERE EXISTS(SELECT 1 FROM candidate_items WHERE ${keys.map(k=>k+' IS ?').join(' AND ')}) AND NOT EXISTS(SELECT 1 FROM news_decision_ledger WHERE candidate_id=?)
+ ON CONFLICT(candidate_id) DO UPDATE SET assessed_revision=excluded.assessed_revision,next_recheck_at=NULL,recheck_status=excluded.recheck_status,unresolved_reason=excluded.unresolved_reason,last_recheck_result=excluded.last_recheck_result,history_json=excluded.history_json,lease_token=NULL,lease_until=0
+ WHERE news_pending_lifecycle.history_json=? AND news_pending_lifecycle.lease_until<=?`)
+ .bind(row.id,row.review_revision,history,...keys.map(k=>row[k]),row.id,old?.history_json||'[]',now).run();
+ return saved.meta.changes===1;
 }
 export async function morrisProofValid(store,row,now){
  let rowFacts;try{rowFacts=JSON.parse(row.product_facts||'null');}catch{return false;}

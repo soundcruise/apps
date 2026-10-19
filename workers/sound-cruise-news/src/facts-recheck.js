@@ -1,6 +1,6 @@
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
-import {morrisEvidenceReceipt} from './morris-collector.js';
+import {morrisEvidenceReceipt,markMorrisEvidenceWait} from './morris-collector.js';
 import {structuredIkebeEvidence} from './ikebe-structured-recovery.js';
 import {recoverOfficialIdentity,validOfficialIdentity} from './official-identity.js';
 import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
@@ -189,7 +189,7 @@ export async function reconcileMorrisReady(store,now,registry,pepper){
   if(before.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e))){report.excluded++;continue;}
   if(before.valid&&before.facts?.evidence==='morris_human_primary_v1'){report.ready++;continue;}
   const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
-  if(!receipt?.facts_json||!['verified','verified_listing'].includes(receipt.outcome)){report.needsConfirmation++;report.items.push({id:row.id,state:'NEEDS_CONFIRMATION',reason:'SAVED_PRIMARY_FACTS_MISSING'});continue;}
+  if(!receipt?.facts_json||!['verified','verified_listing'].includes(receipt.outcome)){await markMorrisEvidenceWait(store,row,now);report.needsConfirmation++;report.items.push({id:row.id,state:'NEEDS_CONFIRMATION',reason:'SAVED_PRIMARY_FACTS_MISSING'});continue;}
   const lifecycle=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
   if(before.valid&&lifecycle?.recheck_status==='RECOVERED_READY'&&lifecycle.assessed_revision===row.review_revision){report.ready++;continue;}
   const requestId='morris-auto-'+row.id+'-'+row.review_revision+'-'+(await hash(receipt.proof_json||'')).slice(0,8);

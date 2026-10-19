@@ -5,6 +5,7 @@ import {recheckFacts} from './facts-recheck.js';
 import {recoverySurface,recoveryCacheKey,missingFacts,resolvedRecoverySurface} from './facts-readiness.js';
 import {candidateSnapshot} from './operator-review.js';
 import {saveShadowEvaluation} from './operator-shadow.js';
+import {preparePendingResolution,applyPendingResolution} from './pending-resolution.js';
 export const RECHECK_POLICY='pending-recheck-1';
 const pending=r=>r&&r.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(r.review_status);
 const history=(s,event)=>JSON.stringify([...JSON.parse(s.history_json),event].slice(-20));
@@ -53,7 +54,7 @@ export function recheckOutcome(result,validation){
  if(/http_|timeout|busy|unavailable|parser_failure|transaction_failed|candidate_changed/.test(result?.outcome||''))return 'TEMPORARY_FETCH_FAILURE';
  return 'NO_NEW_EVIDENCE';
 }
-export async function runPendingRechecks(store,now,registry,pepper,{limit=4,recover=recheckFacts,shadow=saveShadowEvaluation,...options}={}){
+export async function runPendingRechecks(store,now,registry,pepper,{limit=4,recover=recheckFacts,shadow=saveShadowEvaluation,resolveObjective=false,...options}={}){
  if(!Number.isSafeInteger(limit)||limit<1||limit>20)throw Error('operator_recheck_limit_invalid');
  const started=Date.now(),report={due:0,attempted:0,recovered:0,newlyReady:0,autoBlocked:0,noEvidence:0,failure:0,items:[]};
  if(!(await store.controls()).collection_enabled)return {...report,stopped:true,durationMs:0};
@@ -83,6 +84,13 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
    if(!pending(current))throw Error('candidate_changed');
    if((await store.state(current.source_id)).disabled){await store.db.prepare('UPDATE news_pending_lifecycle SET lease_until=0 WHERE candidate_id=? AND lease_token=?').bind(row.id,token).run();continue;}
    validation=await publicationValidation(store,current,now,registry,pepper);status=objectiveBlock(current,validation,now)||recheckOutcome(result,validation);
+   // Only independently provable duplicate/expiry/scope exclusions may finish
+   // automatically. The resolution service protects human decisions and uses a
+   // transactional full-row/lifecycle CAS. Facts shortage is never a rejection.
+   if(resolveObjective&&['DUPLICATE_CONFIRMED','EXPIRED_CONFIRMED','POLICY_BLOCK_CONFIRMED'].includes(status)){
+    try{const plan=await preparePendingResolution(store,{id:current.id,snapshot:await candidateSnapshot(current),requestId:'scheduled-resolution-'+token},now,registry,pepper);await applyPendingResolution(store,plan);report.autoBlocked++;report.items.push({id:current.id,result:status,systemResolved:true,nextRecheckAt:null});continue;}
+    catch(error){if(!['resolution_requires_objective_evidence','human_decision_protected','resolution_request_invalid'].includes(error.message))throw error;}
+   }
    // A failed recovery cannot silently use a pre-update Shadow. Save only the current snapshot.
    await shadow(store,{id:current.id,revision:current.review_revision,snapshot:await candidateSnapshot(current)},now,registry,pepper);
   }catch(error){status='TEMPORARY_FETCH_FAILURE';result={outcome:/^[a-z_0-9]+$/.test(error.message)?error.message:'facts_unavailable'};}

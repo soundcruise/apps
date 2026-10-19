@@ -13,7 +13,7 @@ export async function scheduledNews(event,env,ctx,now=Date.now(),{registry=SOURC
  // Physical retention runs even when collection is stopped, with its own failure signal.
  let recheck=null;
  if(event.cron===RETENTION_CRON&&env.NEWS_COLLECTION_MODE==='production'){
-  try{recheck=await runPendingRechecks(new NewsStore(env.NEWS_DB),now,runtimeSources(env,registry,now),env.NEWS_HEADLINE_PEPPER,{fetcher,sleep});}
+  try{recheck=await runPendingRechecks(new NewsStore(env.NEWS_DB),now,runtimeSources(env,registry,now),env.NEWS_HEADLINE_PEPPER,{fetcher,sleep,resolveObjective:true});}
   catch{console.error(JSON.stringify({event:'news_pending_recheck_failed'}));}
  }
  await scheduledPurge(event,env,ctx,now);
