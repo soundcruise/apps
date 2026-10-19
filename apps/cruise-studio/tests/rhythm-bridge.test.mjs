@@ -12,7 +12,7 @@ test('Session and Repository both reject same-ID native snapshot/provenance/enco
 });
 test('CMM keeps exact melody/rest/gap with local guitar unsupported; Pre-DTM rejects even disabled guitar; unused rich allows old output',()=>{const{p,m,a,C,realm}=setup();const before=JSON.stringify(p),converter=CMM.createConverter({schema2:a,studioTheory:C.theory,chordTheory:realm.window.ChordCruise.theory,validate:m.validateProject}),r=converter.convert({source:'working',project:p,sessionId:'s',version:'v',baseRevision:null,token:{projectId:p.projectId,sessionId:'s',generation:1}});assert(r.ok,JSON.stringify(r));assert.equal(r.model.measures[0].voices.guitar.status,'unsupported-legacy-rhythm');assert.equal(r.model.measures[0].voices.melody.events[0].sourceEventId,p.bars[0].melody[0].id);assert.equal(C.arrangement.generateArrangement(p,{parts:{guitar:false}}).ok,false);assert.equal(JSON.stringify(p),before);p.performance.basicRhythmId=p.materials.rhythms[0].id;assert(C.arrangement.generateArrangement(p).ok);assert.throws(()=>m.toLegacyView(p));});
 test('repeated legacy stroke copy-on-write retains an independently shared old material',()=>{const{p,m}=setup(),bar=p.bars[0];const legacy=p.materials.rhythms.find(m=>m.encoding==='studio-strum-v1');p.performance.barRhythms.push({id:'copy-binding-1',barId:bar.id,materialId:legacy.id});m.setBarStrumText(p,1,'↓↑');const current=p.performance.barRhythms.find(b=>b.barId===bar.id).materialId;const original=clone(p.materials.rhythms.find(m=>m.id===current));p.performance.barRhythms.push({id:'copy-binding-2',barId:p.bars[1].id,materialId:current});m.setBarStrumText(p,1,'↑↓');assert.equal(p.performance.barRhythms.find(b=>b.barId===p.bars[1].id).materialId,current);assert.deepEqual(p.materials.rhythms.find(m=>m.id===current),original);assert.notEqual(p.performance.barRhythms.find(b=>b.barId===bar.id).materialId,current);m.setBarStrumText(p,1,'↓↑↓');assert(m.validateProject(p).ok);});
-test('editing a legacy bar shared with basic changes only its binding; legacy basic still displays after repeated COW',()=>{const{p,m}=setup(),legacy=p.materials.rhythms.find(m=>m.encoding==='studio-strum-v1');p.performance.barRhythms.push({id:'basic-shared-binding',barId:p.bars[0].id,materialId:legacy.id});m.setBarStrumText(p,1,'↓↑');const id=p.performance.barRhythms[0].materialId;p.performance.basicRhythmId=id;const material=clone(p.materials.rhythms.find(m=>m.id===id));m.setBarStrumText(p,1,'↑↓');assert.equal(p.performance.basicRhythmId,id);assert.deepEqual(p.materials.rhythms.find(m=>m.id===id),material);m.setBasicStrumText(p,'↓↑↓');assert(m.getBasicStrumText(p).includes('↓'));m.setBasicStrumText(p,'↑↓↑');assert(m.getBasicStrumText(p).includes('↑'));assert(m.validateProject(p).ok);});
+test('editing a legacy bar shared with basic changes only its binding; legacy basic still displays after repeated COW',()=>{const{p,m}=setup(),legacy=p.materials.rhythms.find(m=>m.encoding==='studio-strum-v1');p.performance.barRhythms.push({id:'basic-shared-binding',barId:p.bars[0].id,materialId:legacy.id});m.setBarStrumText(p,1,'↓↑');const id=p.performance.barRhythms[0].materialId;p.performance.basicRhythmId=id;const material=clone(p.materials.rhythms.find(m=>m.id===id));m.setBarStrumText(p,1,'↑↓');assert.equal(p.performance.basicRhythmId,id);assert.deepEqual(p.materials.rhythms.find(m=>m.id===id),material);m.setBasicStrumText(p,'↓↑↓');assert.equal(m.getBasicStrumText(p),'↓↑ ↓・ ・・ ・・');m.setBasicStrumText(p,'↑↓↑');assert.equal(m.getBasicStrumText(p),'↑↓ ↑・ ・・ ・・');assert(m.validateProject(p).ok);});
 
 // R5 recovery: independent adversarial callbacks at the bridge, not UI-only guards.
 const Operations=require('../js/modules/sheet-cruise/operation-adapter.js');
@@ -504,4 +504,101 @@ for(const kind of ['forms','rhythms'])test('Phase5 material equality cannot disg
 test('Phase5 ordinary object/array changes remain semantic edits with independent Undo',()=>{
  const f=phase3Fixture(),s=f.s;assert(s.runOperation('setup types',p=>p.extensions={empty:{},nested:{list:[1,2]}}).ok);const before=s.workingSnapshot(),v=s.snapshotVersion;
  assert(s.runOperation('change JSON container types',p=>{p.extensions.empty=[];p.extensions.nested.list={'0':1,'1':2};}).ok);const after=s.workingSnapshot();assert.notEqual(s.snapshotVersion,v);assert.equal(Array.isArray(after.extensions.empty),true);assert.equal(Array.isArray(after.extensions.nested.list),false);assert(s.undo().ok);assert.deepEqual(clone(s.workingSnapshot()),clone(before));assert(s.redo().ok);assert.deepEqual(clone(s.workingSnapshot()),clone(after));assert.equal(f.writes(),0);
+});
+
+// Independent fixed musical oracles: never derive expected strokes from the reader under test.
+const TextAdapter=require('../js/modules/sheet-cruise/text-adapter.js');
+const basicSlots=action=>[0,240,480,720].map(tick=>({tick,durationTicks:240,action,accent:false}));
+function basicFixture(kind='schema2',mutate){
+ const {m,C,realm}=setup();let p=clone(kind==='schema1'?m.createLegacySampleProject():m.createSampleProject());
+ if(kind==='mixed'){p.materials.rhythms.push(...clone(materials));const f=chordFixture();assert(f.adopt().ok);p.materials.forms.push(clone(f.s().workingSnapshot().materials.forms[0]));}
+ if(mutate)mutate(p,m);assert(m.validateProject(p).ok);
+ vm.runInNewContext(readFileSync(new URL('../js/core/storage.js',import.meta.url),'utf8'),realm);
+ const values=new Map([['cruiseStudio.project.'+p.projectId,JSON.stringify(p)]]),writes=[];
+ const repository=R.createRepository({storage:{getItem:k=>values.get(k)??null,setItem:(k,v)=>{writes.push({key:k});values.set(k,v);},removeItem:k=>{writes.push({key:k,remove:true});values.delete(k);}},model:m,snapshot:E.snapshot,locks:{request:(_n,_o,f)=>f()},now:()=>p.updatedAt});
+ const registry=E.createRegistry({repository,validate:m.validateProject});const session=registry.getOrCreateSession('structure',{type:'project',projectId:p.projectId});registry.activateSession(session);
+ const adapter=TextAdapter.create({model:m,getSession:()=>session});
+ return {m,C,p,s:session,repository,registry,values,writes,apply:value=>adapter.apply({kind:'basicStrum'},value,'discrete')};
+}
+function assertBasic(f,action,project=f.s.workingSnapshot()){
+ const {m}=f,expected=action?basicSlots(action):null;
+ assert.equal(m.getBasicStrumText(project),action==='down'?'↓↓ ↓↓ ・・ ・・':action==='up'?'↑↑ ↑↑ ・・ ・・':'');
+ assert.deepEqual(clone(m.getBasicStrumSlots(project)),expected);
+ assert.deepEqual(clone(m.getBarEffectiveStrumSlots(project,1)),expected);
+ assert.deepEqual(clone(m.getBasicStrumSlots(m.toStructureView(project))),expected);
+ if(project.schemaVersion===2){
+  const current=project.materials.rhythms.find(x=>x.id===project.performance.basicRhythmId);assert(current,'non-dangling basicRhythmId');
+  if(action)assert.deepEqual(current.snapshot.slots.map(({id,...s})=>s),expected);
+  else assert.equal(current.provenance.legacyId,'strum_8beat_a');
+ }
+ assert(m.validateProject(project).ok);
+}
+for(const kind of ['schema2','mixed'])test('P2 exact current basic / clear / Undo / Save / export: '+kind,async()=>{
+ const f=basicFixture(kind),s=f.s,initial=clone(s.workingSnapshot());assertBasic(f,null);assert.equal(s.dirty,false);
+ for(const action of ['down','up']){
+  const before=s.getHistory().cursor,v=s.snapshotVersion,r=f.apply(action==='down'?'↓↓↓↓':'↑↑↑↑');assert(r.ok);assert.equal(r.recorded,true);assert.equal(s.getHistory().cursor,before+1);assert.notEqual(s.snapshotVersion,v);assert(s.dirty);assertBasic(f,action);assert.equal(f.writes.length,0);
+ }
+ const up=clone(s.workingSnapshot()),id=kind==='schema1'?up.basicStrumPatternId:up.performance.basicRhythmId;
+ if(kind!=='schema1'){const mat=up.materials.rhythms.find(x=>x.id===id);assert.match(mat.provenance.legacyId,/^strum_custom_basic:/);for(const prior of initial.materials.rhythms)assert.deepEqual(up.materials.rhythms.find(x=>x.id===prior.id),prior);}
+ // Same content is an exact no-op, not an extra COW material / Undo entry.
+ let state=JSON.stringify({p:s.workingSnapshot(),h:s.getHistory(),v:s.snapshotVersion,dirty:s.dirty});assert.equal(f.apply('↑↑↑↑').recorded,false);assert.equal(JSON.stringify({p:s.workingSnapshot(),h:s.getHistory(),v:s.snapshotVersion,dirty:s.dirty}),state);
+ for(const action of ['up',null]){
+  if(action===null){const n=s.getHistory().cursor;assert.equal(f.apply('').recorded,true);assert.equal(s.getHistory().cursor,n+1);assertBasic(f,null);assert.equal(f.writes.length,2);}
+  const json=f.C.storage.exportProjectJson(s.workingSnapshot()),imported=f.C.storage.importProjectJson(json);assert(imported.ok,imported.error);assertBasic(f,action,imported.project);
+  const writes=f.writes.length;assert((await s.commit()).ok);assert.equal(f.writes.length,writes+2,'only explicit project/index Save');assert.equal(s.dirty,false);assertBasic(f,action,f.repository.read(s.target).snapshot);
+  const reopened=E.createRegistry({repository:f.repository,validate:f.m.validateProject}).getOrCreateSession('structure',s.target);assertBasic(f,action,reopened.workingSnapshot());
+ }
+ state=JSON.stringify({p:s.workingSnapshot(),h:s.getHistory(),v:s.snapshotVersion,dirty:s.dirty});assert.equal(f.apply('').recorded,false);assert.equal(JSON.stringify({p:s.workingSnapshot(),h:s.getHistory(),v:s.snapshotVersion,dirty:s.dirty}),state);
+ assert(s.undo().ok);assertBasic(f,'up');assert(s.dirty);assertBasic(f,'up',f.C.storage.importProjectJson(f.C.storage.exportProjectJson(s.workingSnapshot())).project);assert((await s.commit()).ok);assertBasic(f,'up',f.repository.read(s.target).snapshot);
+ assert(s.redo().ok);assertBasic(f,null);assert(s.dirty);assert((await s.commit()).ok);assertBasic(f,null,f.repository.read(s.target).snapshot);
+ for(const action of ['down','up','down','up','down']){assert(f.apply(action==='down'?'↓↓↓↓':'↑↑↑↑').ok);assertBasic(f,action);}
+});
+test('P2 reference resolution follows arbitrary COW suffix and material ID, not array order/name',()=>{
+ const f=basicFixture('schema2');assert(f.apply('↓↓↓↓').ok);assert(f.apply('↑↑↑↑').ok);const p=clone(f.s.workingSnapshot()),old=p.materials.rhythms.find(x=>x.id===p.performance.basicRhythmId);
+ // A separate valid imported material can have a different ID and alias suffix, with identical music.
+ const copy=clone(old);copy.id='independent-material';copy.provenance.legacyId='strum_custom_basic:imported:separate-id';copy.snapshot.slots.forEach((x,i)=>x.id='independent-slot-'+i);p.materials.rhythms.unshift(copy);p.performance.basicRhythmId=copy.id;old.snapshot.name=copy.snapshot.name;assertBasic(f,'up',p);
+ f.m.setBasicStrumText(p,'');assertBasic(f,null,p);assert(p.materials.rhythms.some(x=>x.id===copy.id),'schema2 keeps historical materials');
+});
+for(const kind of ['schema1','schema2','mixed'])test('P2 basic replacement/clear retains two shared bar overrides: '+kind,()=>{
+ const f=basicFixture(kind);assert(f.apply('↓↓↓↓').ok);const p=clone(kind==='schema1'?f.p:f.s.workingSnapshot());if(kind==='schema1')f.m.setBasicStrumText(p,'↓↓↓↓');
+ if(kind==='schema1')p.bars.slice(0,2).forEach(b=>b.strumOverride=p.basicStrumPatternId);
+ else p.bars.slice(0,2).forEach((b,i)=>p.performance.barRhythms.push({id:'shared-basic-binding-'+i,barId:b.id,materialId:p.performance.basicRhythmId}));
+ const shared=kind==='schema1'?null:clone(p.materials.rhythms),forms=kind==='schema1'?null:clone(p.materials.forms);
+ f.m.setBasicStrumText(p,'↑↑↑↑');assert.equal(f.m.getBasicStrumText(p),'↑↑ ↑↑ ・・ ・・');assert.deepEqual(clone(f.m.getBasicStrumSlots(p)),basicSlots('up'));
+ for(const bar of [1,2])assert.deepEqual(clone(f.m.getBarEffectiveStrumSlots(p,bar)),basicSlots('down'),'overrides keep old down material');
+ f.m.setBasicStrumText(p,'');assert.equal(f.m.getBasicStrumText(p),'');for(const bar of [1,2])assert.deepEqual(clone(f.m.getBarEffectiveStrumSlots(p,bar)),basicSlots('down'));
+ if(shared){for(const m of shared)assert.deepEqual(p.materials.rhythms.find(x=>x.id===m.id),m);assert.deepEqual(p.materials.forms,forms);}assert(f.m.validateProject(p).ok);
+});
+test('P2 missing default is recreated by identity, unrelated first pattern never becomes basic',()=>{
+ const f=basicFixture('schema2');assert(f.apply('↓↓↓↓').ok);assert(f.apply('↑↑↑↑').ok);const p=clone(f.s.workingSnapshot());p.materials.rhythms=p.materials.rhythms.filter(m=>m.provenance.legacyId!=='strum_8beat_a');assert(f.m.validateProject(p).ok);const unrelated=clone(p.materials.rhythms[0]);
+ f.m.setBasicStrumText(p,'');assertBasic(f,null,p);assert.deepEqual(p.materials.rhythms.find(m=>m.id===unrelated.id),unrelated);
+});
+test('P2 native basic, duplicate material IDs and unknown encoding still reject atomically',()=>{
+ const f=basicFixture('mixed');assert(f.s.runOperation('native setup',p=>p.performance.basicRhythmId=materials[0].id).ok);
+ for(const value of ['↓↓↓↓','']){const before=JSON.stringify({p:f.s.workingSnapshot(),h:f.s.getHistory(),v:f.s.snapshotVersion,raw:[...f.values]});assert.equal(f.apply(value).ok,false);assert.equal(JSON.stringify({p:f.s.workingSnapshot(),h:f.s.getHistory(),v:f.s.snapshotVersion,raw:[...f.values]}),before);}
+ for(const patch of [p=>p.materials.rhythms.push(clone(p.materials.rhythms[0])),p=>p.materials.rhythms[0].encoding='unknown-rhythm']){const p=clone(f.s.workingSnapshot());patch(p);assert.equal(f.m.validateProject(p).ok,false);}assert.equal(f.writes.length,0);
+});
+
+test('P2 schema1 direct legacy editing and JSON migration retain the R4 musical oracle',()=>{
+ const f=basicFixture('schema1'),p=clone(f.p);assert.equal(p.schemaVersion,1);
+ for(const [text,action] of [['↓↓↓↓','down'],['↑↑↑↑','up'],['↓↓↓↓','down'],['↑↑↑↑','up'],['',null]]){
+  f.m.setBasicStrumText(p,text);assertBasic(f,action,p);const imported=f.C.storage.importProjectJson(f.C.storage.exportProjectJson(p));assert(imported.ok,imported.error);assert.equal(imported.project.schemaVersion,2);assertBasic(f,action,imported.project);
+ }
+ const before=JSON.stringify(p);f.m.setBasicStrumText(p,'');assert.equal(JSON.stringify(p),before);assert.equal(f.writes.length,0);
+});
+
+test('P2-02 independent clear oracle starts from an already-COW basic material',()=>{
+ const f=basicFixture('mixed',(p,m)=>{m.setBasicStrumText(p,'↓↓↓↓');m.setBasicStrumText(p,'↑↑↑↑');});
+ const before=f.s.workingSnapshot(),current=before.performance.basicRhythmId;
+ assert.match(before.materials.rhythms.find(x=>x.id===current).provenance.legacyId,/^strum_custom_basic:/);
+ const cursor=f.s.getHistory().cursor,r=f.apply('');assert.equal(r.ok,true);assert.equal(r.recorded,true,'clear must not be a successful no-op');assert.equal(f.s.getHistory().cursor,cursor+1);assert.notEqual(f.s.draft.performance.basicRhythmId,current);assertBasic(f,null);assert.equal(f.writes.length,0);
+ for(const material of before.materials.rhythms)assert.deepEqual(f.s.workingSnapshot().materials.rhythms.find(x=>x.id===material.id),material);
+ assert(f.s.undo().ok);assertBasic(f,'up');assert(f.s.redo().ok);assertBasic(f,null);
+});
+for(const value of ['↑↑↑↑',''])test('P2 basic change invalidates old Melody/consumer handles: '+JSON.stringify(value),()=>{
+ const f=phase3Fixture();assert(f.s.runOperation('legacy basic',p=>p.performance.basicRhythmId=p.materials.rhythms.find(m=>m.encoding==='studio-strum-v1').id).ok);
+ const adapter=TextAdapter.create({model:f.m,getSession:()=>f.s});assert(adapter.apply({kind:'basicStrum'},'↓↓↓↓','discrete').ok);
+ const ticket=f.capture(),rendered=f.service.convert();assert(rendered.ok);assert(f.service.isCurrent(rendered));
+ const result=adapter.apply({kind:'basicStrum'},value,'discrete');assert(result.ok&&result.recorded);assert.equal(f.service.isCurrent(rendered),false);
+ const before=f.state();assert.equal(f.command.execute('melody.setDuration',ticket,{durationTicks:120}).ok,false);assert.equal(f.state(),before);assert.equal(f.writes(),0);
 });

@@ -476,6 +476,14 @@
         return found;
     }
 
+    // A schema-2 projection uses the current material's COW alias, not the
+    // original creation ID. Presets remain hidden from the custom stroke row.
+    function currentBasicStrumPattern(project) {
+        var id = project && project.basicStrumPatternId;
+        if (id !== CUSTOM_BASIC_STRUM_ID && !(typeof id === 'string' && id.indexOf(CUSTOM_BASIC_STRUM_ID + ':') === 0)) return null;
+        return findStrumPattern(project, id);
+    }
+
     function getBeats(project) {
         var ts = project && project.songInfo && project.songInfo.timeSignature;
         return (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
@@ -591,30 +599,35 @@
 
         if (!Array.isArray(project.strumPatterns)) project.strumPatterns = [];
 
+        var current = currentBasicStrumPattern(project);
         if (built.tokens.length === 0) {
-            project.strumPatterns = project.strumPatterns.filter(function (pat) {
-                return pat && pat.id !== CUSTOM_BASIC_STRUM_ID;
-            });
-            if (project.strumPatterns.length === 0) {
-                project.strumPatterns.push(createDefaultStrumPattern());
-            }
-            if (project.basicStrumPatternId === CUSTOM_BASIC_STRUM_ID) {
-                project.basicStrumPatternId = project.strumPatterns[0].id;
+            if (current) {
+                var fallback = createDefaultStrumPattern();
+                if (!findStrumPattern(project, fallback.id)) project.strumPatterns.push(fallback);
+                project.basicStrumPatternId = fallback.id;
+                // A bar override can still use the old custom pattern.
+                if (!isStrumPatternReferenced(project, current.id)) removeStrumPatternById(project, current.id);
             }
             return { warnings: warnings };
         }
 
+        if (current && current.lengthTicks === barTicks && JSON.stringify(current.slots) === JSON.stringify(built.slots)) return { warnings: warnings };
         var pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
+        if (pattern && isStrumPatternReferencedByOtherBar(project, pattern.id, null)) {
+            pattern = current && !isStrumPatternReferencedByOtherBar(project, current.id, null) ? current : null;
+        }
         if (!pattern) {
-            pattern = { id: CUSTOM_BASIC_STRUM_ID, name: '', lengthTicks: barTicks, slots: [] };
+            var patternId = CUSTOM_BASIC_STRUM_ID, suffix = 2;
+            while (findStrumPattern(project, patternId)) patternId = CUSTOM_BASIC_STRUM_ID + ':' + suffix++;
+            pattern = { id: patternId, name: '', lengthTicks: barTicks, slots: [] };
             project.strumPatterns.push(pattern);
-            pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
+            pattern = findStrumPattern(project, patternId);
         }
         pattern.lengthTicks = barTicks;
         pattern.slots = built.slots;
         // パターン名 = 正規化した記号列（紙面ヘッダーの「基本ストローク:」表示に使われる）
         pattern.name = theory.strumSlotsToString(built.slots, barTicks, built.beats);
-        project.basicStrumPatternId = CUSTOM_BASIC_STRUM_ID;
+        project.basicStrumPatternId = pattern.id;
         return { warnings: warnings };
     }
 
@@ -634,8 +647,7 @@
      * それ以外は null（プリセットを勝手に紙面へ印字しない: ADR-018）。
      */
     function getBasicStrumSlots(project) {
-        if (!project || project.basicStrumPatternId !== CUSTOM_BASIC_STRUM_ID && !String(project.basicStrumPatternId).startsWith(CUSTOM_BASIC_STRUM_ID+':')) return null;
-        var pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
+        var pattern = currentBasicStrumPattern(project);
         if (!pattern || !Array.isArray(pattern.slots) || pattern.slots.length === 0) return null;
         return pattern.slots;
     }

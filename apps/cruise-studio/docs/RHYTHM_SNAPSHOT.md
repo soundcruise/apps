@@ -101,3 +101,11 @@ is allowed: the value is copied into Session ownership, tracking advances, old
 aliases detach, and old handles become stale. Equality does not grant permission
 for changed content, skip external input validation, or change a repository raw
 revision. Undo/Redo and explicit Save keep their existing owners and budgets.
+
+### R5 independent-review P2: current basic strum and clear
+
+The schema2 `performance.basicRhythmId` remains the saved reference authority. The legacy/Structure projection maps that exact material to its alias; the custom-basic reader resolves the selected alias, including arbitrary generated COW suffixes, rather than looking up the fixed creation ID. Preset basic strokes still have no custom text/printed stroke row (ADR-018). `legacyId` is compatibility information, not another selected material.
+
+Blank custom-basic input explicitly selects the existing `strum_8beat_a` default, creating that named default only if absent; it never chooses the first material or stores a null/dangling reference. It removes only the selected unreferenced custom pattern from the editable legacy view. Schema2's existing bridge retains historical materials and shared bar overrides; native Rhythm/Chord content is unchanged. Schema1 also retains a custom pattern still referenced by a bar and uses a separate custom ID when editing a shared pattern. Repeating the same custom stroke/blank default is a no-op; changing or clearing is one existing text operation, with ordinary Undo/Redo and explicit Save. Native effective basic still rejects old stroke editing. No schema, encoding, Session, Repository, owner API, adoption UI or save-policy extension.
+
+This is a compatibility fix within the unreleased R5 0.44.0 candidate/schema2, not a new production version. The fixed candidate must pass full Node, the regular29-file Browser cohort (including new exact down-only/up-only/clear UI checks), independent performance3 trials and Git gates before publication to its dedicated fix topic. Production/main/R3/R4/R5 refs stay separate.
