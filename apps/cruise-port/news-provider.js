@@ -1,6 +1,6 @@
 import { CRUISE_APPS_NEWS_ITEM } from './news-articles.js?v=1.16.1';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
-import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.17.0';
+import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.24.0';
 import { NEWS_PROVIDER, NEWS_API_BASE } from './news-config.js?v=1.11.1';
 export class NewsDisabledError extends Error { constructor(){super('news_disabled');this.name='NewsDisabledError';} }
 // Only the loopback preview server supplies this read-only proxy. Production
@@ -12,6 +12,7 @@ export function newsRequestUrl(query, locationObject = globalThis.location) {
 const safeText=(value,max)=>typeof value==='string'&&value.trim().length>0&&value.length<=max&&!/[<>\u0000-\u001f]/.test(value);
 function validItem(item) {
     if(!item||item.publishable!==true||!safeText(item.id,128)||!safeText(item.label,140)||!safeText(item.sourceName,100)||!Object.hasOwn(NEWS_CATEGORIES,item.category)||!Number.isFinite(Date.parse(item.publishedAt)))return false;
+    if(item.hot!==undefined&&typeof item.hot!=='boolean'||item.displayOrder!==undefined&&(!Number.isSafeInteger(item.displayOrder)||item.displayOrder<0||item.displayOrder>99))return false;
     if(item.eventEndsAt!=null&&(!Number.isSafeInteger(item.eventEndsAt)||item.eventEndsAt<0))return false;
     if(item.category==='sale'&&!validSaleDeadline(item.saleEndsAt))return false;
     try {const u=new URL(item.sourceUrl);return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&!['localhost','127.0.0.1','[::1]'].includes(u.hostname)&&/[a-z]/i.test(u.hostname)&&!u.hostname.endsWith('.local');}catch{return false;}
@@ -26,6 +27,7 @@ export async function loadNews({ provider = 'fixture', transport } = {}) {
     return payload.items.map(item => ({
         id: item.id, label: item.label, sourceName: item.sourceName, sourceUrl: item.sourceUrl,
         publishedAt: item.publishedAt, category: item.category,
+        ...(item.hot!==undefined?{hot:item.hot,displayOrder:item.displayOrder}:{}),
         ...(item.category === 'sale' ? { saleEndsAt: item.saleEndsAt ?? null } : {}),
         ...(item.eventEndsAt!=null?{eventEndsAt:item.eventEndsAt}:{}),
         topicKey: item.id, createdAt: item.publishedAt, updatedAt: item.publishedAt,

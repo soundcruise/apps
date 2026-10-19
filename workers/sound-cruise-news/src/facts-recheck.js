@@ -139,7 +139,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  const before=await publicationValidation(store,row,now,registry,pepper);
  // Already valid and duplicate candidates need no publisher traffic or rewrite.
  let outcome=before.errors.includes('duplicate')?'facts_duplicate_preserved':before.valid?'facts_already_complete':'facts_not_recovered',patch=null,provenance=[];
- if(!before.valid&&!before.errors.includes('duplicate')){
+ if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
   const surface=await verifiedSurface(store,source,registry,row,now,pepper,options);
   outcome=surface.outcome;
   if(outcome==='verified_surface'){

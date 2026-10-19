@@ -439,3 +439,11 @@ The independent audit noted that Operator CSRF HMAC currently reuses
 security hardening. Plan secret provisioning, key separation, deployment order,
 and CSRF regression checks in a separate authorized task. This documentation
 cleanup does not rotate secrets or change authentication, CSRF, or runtime code.
+
+## 2026-10-20 — display management and concrete editorial subjects
+
+- NEWS 0.33.0 / Operator 0.32.0 / Port 1.24.0 add a separate 「公開中の表示管理」 workspace. Choose a JST publication day, move external articles with ↑/↓, toggle 🔥 and explicitly save that day. Unsaved changes are marked and can be discarded. Hot status does not move an article to a different day or override ticker ranking.
+- Migration 0017 adds presentation preferences and idempotent display-action receipts only. It does not alter articles, publication decisions, Ledger, feedback or Shadow. An atomic revision trigger invalidates the public cache; stale article/layout snapshots reject the save. Existing chronological public pagination is preserved and the complete Port list applies day-local display order.
+- AGM primary article recovery records a corroborated author and controlled, specific primary subject when available. Related cards and incidental mentions cannot select the subject. Historical article dates remain unchanged. New author/focus facts require matching article provenance; previous supported proofs remain accepted.
+- Ikebe recovery handles printed model suffixes, explicit limited multi-model announcements, hardware compressors and multi-effect bundles. Modeled amps and connected buffers are not the complete product. A parent manufacturer and alternate printed model definition can corroborate a duplicate; no names are inferred from URLs or removed by product-specific rules.
+- For this task only, the owner authorized one additional verification of the seven currently pending Ikebe pages and one AGM page. The same eight responses were reused in memory for analysis; no additional Morris requests, source expansion, daily scheduler change or general budget exception was introduced. Only structured facts, hashes and proof are retained. Publication remains a separate human decision.

@@ -12,7 +12,8 @@ const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
 // 1.23.1 adds publisher-required Ikebe link tracking and synchronizes the Port module cache graph.
-const RELEASE_MODULES = Object.freeze(["news-external-link.js", "pro-prompt.js", "pro-access-content.js", "ai-support-client.js", "ai-support-ui.js", "app-version.js", "cruise-port-capabilities.js", "gear-category-store.js", "gear-list-store.js", "gear-photo-store.js", "gear-photo-workflow.js", "home-display.js", "metronome-app.js", "metronome-presets-store.js", "metronome-store.js", "metronome-timing.js", "my-apps-capabilities.js", "my-apps-icon-store.js", "my-apps-icon-workflow.js", "my-apps-store.js", "port-account-join.js", "port-asset-sync.js", "port-sync-status.js", "sync-center-refresh.js", "sync-center-controller.js", "sync-center-navigation.js", "port-dataset-repository.js", "port-dataset-storage.js", "port-sync-local-validation.js", "practice-capabilities.js", "practice-dataset-writes.js", "practice-menu-app-resolver.js", "practice-menu-attachment-store.js", "practice-menu-calendar-store.js", "practice-menu-history-store.js", "practice-menu-pending-attachments.js", "practice-menu-progress-store.js", "practice-menu-sets-store.js", "practice-menu-store.js", "settings-store.js", "sync-center-orchestrator.js", "sync-center-ui.js", "sync-pro-lock.js", "tool-capabilities.js", "tuner-app.js", "tuner-store.js"]);
+const PREVIOUS_RELEASE_MODULES = Object.freeze(["news-external-link.js", "pro-prompt.js", "pro-access-content.js", "ai-support-client.js", "ai-support-ui.js", "app-version.js", "cruise-port-capabilities.js", "gear-category-store.js", "gear-list-store.js", "gear-photo-store.js", "gear-photo-workflow.js", "home-display.js", "metronome-app.js", "metronome-presets-store.js", "metronome-store.js", "metronome-timing.js", "my-apps-capabilities.js", "my-apps-icon-store.js", "my-apps-icon-workflow.js", "my-apps-store.js", "port-account-join.js", "port-asset-sync.js", "port-sync-status.js", "sync-center-refresh.js", "sync-center-controller.js", "sync-center-navigation.js", "port-dataset-repository.js", "port-dataset-storage.js", "port-sync-local-validation.js", "practice-capabilities.js", "practice-dataset-writes.js", "practice-menu-app-resolver.js", "practice-menu-attachment-store.js", "practice-menu-calendar-store.js", "practice-menu-history-store.js", "practice-menu-pending-attachments.js", "practice-menu-progress-store.js", "practice-menu-sets-store.js", "practice-menu-store.js", "settings-store.js", "sync-center-orchestrator.js", "sync-center-ui.js", "sync-pro-lock.js", "tool-capabilities.js", "tuner-app.js", "tuner-store.js"]);
+const RELEASE_MODULES = Object.freeze(['app-version.js','news-data.js']);
 // NEWS UI gets this release key for publisher tracking; its provider keeps its reviewed key.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
 // Other modules retain the cache key of their last real change.
@@ -40,17 +41,18 @@ const UNCHANGED_KEYS = Object.freeze(Object.fromEntries(Object.entries({
   'sync-target-rename.js': '0.66.0',
   'sync-center-device-detail.js': '0.66.0',
   'sync-center-refresh.js': '0.65.0'
+  ,...Object.fromEntries(PREVIOUS_RELEASE_MODULES.map(name=>[name,'1.23.1']))
 }).filter(([name]) => !RELEASE_MODULES.includes(name))));
 
-test('the release is 1.23.1', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.23.1');
+test('the release is 1.24.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.24.0');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
     assert.match(html, new RegExp(`(?:practice-menu-app|pro-app-boot)\\.js\\?v=${escaped}"`), 'the entry moves, so no user keeps the 0.70.1 app');
     assert.match(html, /news-article\.css\?v=1\.16\.0"/, 'article-only styles have their own key');
-    assert.match(html, /style\.css\?v=1\.19\.4"/, 'NEWS label styles get a new cache key');
+    assert.match(html, /style\.css\?v=1\.24\.0"/, 'NEWS label styles get a new cache key');
     assert.match(html, /sync-account-core\.js\?v=7"/, 'shared credential helper uses a new cache key');
   }
 });
@@ -73,7 +75,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.23.1');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.24.0');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.23.1');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
@@ -142,7 +144,7 @@ test('Sync Center and launch modules have exactly one public URL each', () => {
 test('NEWS dynamic modules use their reviewed revision keys', () => {
   const app = read('./practice-menu-app.js');
   for (const name of RELEASE_DYNAMIC_NEWS_MODULES) {
-    const expectedKey = name === 'news-ui.js' ? '1.23.1' : '1.19.2';
+    const expectedKey = CRUISE_PORT_APP_VERSION;
     assert.match(app, new RegExp(`import\\('\\./${name.replace('.', '\\.')}\\?v=${expectedKey.replaceAll('.', '\\.')}'\\)`), name);
   }
   for (const name of ['news-ui.js', 'news-provider.js']) {

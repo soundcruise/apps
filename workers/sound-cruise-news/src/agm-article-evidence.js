@@ -1,6 +1,6 @@
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {performanceFields} from './agm-performance-evidence.js';
-export const AGM_ARTICLE_PARSER='agm-article-4';
+export const AGM_ARTICLE_PARSER='agm-article-5';
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
 import {agmArticleLabel,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
@@ -56,6 +56,13 @@ export function parseAgmArticleEvidence(html,source,row){
  let person=nameFrom(title,intro,tags,old.person),type=old.articleType||({beginners:'beginner',lesson:'lesson',column:'column',interview:'interview'}[section]);
  const f={kind:'agm_editorial',section,articleType:type,category:['interview','equipment'].includes(type)?'artist_guitar':'media_other',articleUrl:row.source_url,evidence:'agm_explicit_article_v1'};
  if(person)f.person=person;
+ // Author credits and the principal section topic must be corroborated in the
+ // visible primary article. Related links and incidental body mentions cannot select a focus.
+ const credit=ps.slice(0,2).map(text).join(' ').match(/(?:文|執筆|著者)\s*[＝=:：]\s*([^\s、。]{2,35})/)?.[1];
+ if(factName(credit)&&title.includes(credit))f.author=credit;
+ const focuses=[['ai_music',/\bAI\b/,/音楽制作|DTM|宅録/,/AI(?:との|の).{0,12}(?:つき合|付き合|活用|使い方)/],['mic_placement',/マイク/,/録音/,/マイク.{0,10}(?:配置|位置|セッティング)/],['recording_latency',/レイテンシー|遅延/,/録音/,/レイテンシー|遅延/],['headphone_choice',/ヘッドホン|ヘッドフォン/,/音楽制作|録音|DTM/,/選び方|選ぶ|選択/],['chord_transposition',/コード|移調/,/移調|キー/,/移調/],['strumming',/ストローク/,/弾き語り/,/ストローク/],['fingerpicking_basics',/フィンガー/,/基礎|基本|入門/,/フィンガー/]];
+ const lead=title+' '+headings.slice(0,3).join(' ');
+ const focus=focuses.filter(([,a,b,c])=>a.test(lead)&&b.test(intro)&&c.test(headings.slice(0,3).join(' ')));if(focus.length===1)f.focus=focus[0][0];
  if(/【PR】|\bPR\b|タイアップ|広告企画/.test(intro))f.editorialNotice='advertorial';
  // Explicit model-bearing subsection headings, not related cards or price lists.
  const models=[...new Set(headings.filter(h=>/^[A-Za-z][A-Za-z .&-]{1,35}／[^／]{2,70}$/.test(h)&&/(?:[0-9]|[A-Z]+-[A-Z]+)/.test(h)).map(h=>h.replace('／',' ')))].slice(0,5);

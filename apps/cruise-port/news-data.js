@@ -47,6 +47,7 @@ export function normalizeNewsItem(input) {
     if (!['publishedAt', 'createdAt', 'updatedAt'].every(key => date(input[key]))) return null;
     if (input.category === 'sale' && !validSaleDeadline(input.saleEndsAt)) return null;
     if (!validEventDeadline(input.eventEndsAt)) return null;
+    if(input.hot!==undefined&&typeof input.hot!=='boolean'||input.displayOrder!==undefined&&(!Number.isSafeInteger(input.displayOrder)||input.displayOrder<0||input.displayOrder>99))return null;
     if (input.manualReviewStatus !== 'approved' || input.sourceSafety !== 'safe') return null;
     if (['artist_guitar', 'live_guitar'].includes(input.category) && !GUITAR_EVIDENCE.includes(input.guitarEvidence)) return null;
     if (input.linkType === 'internal') {
@@ -59,7 +60,7 @@ export function normalizeNewsItem(input) {
     if (url.protocol !== 'https:' || url.username || url.password) return null;
     // Allowlist projection prevents headline/body/image fields entering the UI model.
     return Object.fromEntries(['id', 'label', 'sourceName', 'publishedAt', 'category', 'topicKey',
-        'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'guitarEvidence', 'saleEndsAt', 'eventEndsAt']
+        'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'guitarEvidence', 'saleEndsAt', 'eventEndsAt', 'hot', 'displayOrder']
         .filter(key => input[key] !== undefined).map(key => [key, input[key]]).concat([['sourceUrl', url.href]]));
 }
 export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) {
@@ -76,7 +77,7 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
             (labelInformationScore(item.label) === labelInformationScore(previous.label) && (PRIORITY.indexOf(item.sourceKind) < PRIORITY.indexOf(previous.sourceKind) ||
             (item.sourceKind === previous.sourceKind && item.publishedAt > previous.publishedAt)))) topics.set(item.topicKey, item);
     }
-    return [...topics.values()].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id));
+    return [...topics.values()].sort((a,b)=>{const day=s=>new Date(Date.parse(s)+9*3600000).toISOString().slice(0,10);return day(b.publishedAt).localeCompare(day(a.publishedAt))||(a.displayOrder??100000)-(b.displayOrder??100000)||b.publishedAt.localeCompare(a.publishedAt)||a.id.localeCompare(b.id);});
 }
 export function tickerNews(items, now = Date.now()) {
     const recent = days => items.filter(item => saleVisible(item, now) && eventVisible(item, now) && now - Date.parse(item.publishedAt) >= 0 && now - Date.parse(item.publishedAt) <= days * DAY);
