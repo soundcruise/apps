@@ -11,6 +11,10 @@ export function canInteractWithRhythmPanel({panel,target=panel,opened,disposed,w
 // Element references are UI lifecycle state, never Project/Session authority.
 export function rhythmPanelAncestors(panel){const chain=[];for(let e=panel;e;e=e.parentElement)chain.push(e);return chain;}
 export function sameRhythmPanelAncestors(a,b){return a.length===b.length&&a.every((element,i)=>element===b[i]);}
+export function rhythmPanelObservation(targets,previous=[]){
+    const chains=targets.map(rhythmPanelAncestors);
+    return {chains,elements:[...new Set(chains.flat())],changed:chains.length!==previous.length||chains.some((chain,i)=>!sameRhythmPanelAncestors(chain,previous[i]))};
+}
 export function rhythmMessage(result){const messages={'owner-source-mismatch':'公式データを確認できません。新しい採用は行えません。','owner-unavailable':'公式リズムは現在取得できません。保存済み素材は利用できます。','stale-candidate':'編集状態や対象が変わりました。もう一度リズムを選んでください。','external-revision':'保存済みの曲が更新されています。編集中の内容は保持しています。','blocked-session':'入力・保存・競合の状態を確認してから選び直してください。','undo-budget':'Undoの容量が不足しています。内容と履歴は保持しました。','project-budget':'保存容量が不足しています。内容は保持しました。'};const code=[result?.error,result?.code].find(x=>typeof x==='string'&&Object.hasOwn(messages,x));return code?messages[code]:'リズムを設定できませんでした。内容は保持しています。もう一度確認してください。';}
 export function mountRhythmPanel({C,document:doc,loader}){
     const slot=doc.getElementById('studio-rhythm-panel');if(!slot)return null;
@@ -18,7 +22,7 @@ export function mountRhythmPanel({C,document:doc,loader}){
     const permitted=target=>canInteractWithRhythmPanel({panel:slot,target,opened,disposed,workspaceId:C.shellHost.getActiveWorkspace(),modalBlocked:!!C.shellHost.modal.getActive(),imeBlocked:C.shellHost.keyboard.isIMEBlocked({})});
     const context=()=>({workspaceId:C.shellHost.getActiveWorkspace(),generation:C.shellHost.getWorkspaceGeneration(),blocked:!permitted(interactionTarget||adopt)});
     function interacting(target,action){const previous=interactionTarget;interactionTarget=target;try{return action();}finally{interactionTarget=previous;}}
-    let control=null,selectionBarIds=null,initialization=null,offs=[],shownTarget=null;
+    let control=null,selectionBarIds=null,initialization=null,offs=[],shownTarget=null,officialButtons=[];
     function connect(){if(!offs.length){offs=[C.sessions.subscribe(changed),C.documents.subscribe(changed),C.sheetCruise.subscribeSelection(changed)];globalThis.addEventListener('pagehide',hide);watchInteraction();}}
     function disconnect(){offs.forEach(off=>off());offs=[];globalThis.removeEventListener('pagehide',hide);stopInteraction();}
     function initializeControl(){if(!initialization)initialization=Promise.all([import('./owner-loader.mjs?v=0.45.0'),import('./panel-controller.mjs?v=0.45.0')]).then(([l,c])=>{selectionBarIds=c.selectionBarIds;control=c.createRhythmPanelController({owner:C.documents,schema:C.model.schema2,rhythmSnapshots:C.rhythmSnapshots,repository:C.repository,getContext:context,getSelection:C.sheetCruise.getSelectionSnapshot,loader:loader||l.createOwnerLoader()});});return initialization;}
@@ -70,9 +74,9 @@ export function mountRhythmPanel({C,document:doc,loader}){
         status.textContent=notice;paint(preview||(material&&materialPreview(material)));
     }
     async function load(){const token=++request;retry.disabled=true;notice='公式リズムを確認しています…';render();const r=await control.load();if(disposed||!opened||token!==request)return;retry.disabled=false;
-        catalog.replaceChildren();if(!r.ok){notice=rhythmMessage(r);render();return;}
-        for(const [gridName,title]of [['eighth','8ビート'],['sixteenth','16ビート']]){const group=node('fieldset',undefined,catalog);node('legend',title,group);for(const pattern of r.patterns.filter(p=>p.grid===gridName)){const b=node('button',pattern.name,group);b.type='button';b.dataset.patternId=pattern.patternId;node('span','',b);b.addEventListener('click',()=>{flushInteraction();if(!permitted(b)){changed();return;}saved.value='';const h=interacting(b,()=>control.prepareOfficial(pattern.patternId,pattern.patternRevision));preview=h.ok?{name:pattern.name,projection:h.preview}:null;chosen=h.ok?pattern.patternId:null;notice=h.ok?'未採用の候補です。対象を確認して採用してください。':rhythmMessage(h);render();});}}
-        notice='公式リズムを選んで確認できます。';retry.hidden=true;render();
+        catalog.replaceChildren();officialButtons=[];if(!r.ok){flushInteraction();notice=rhythmMessage(r);render();return;}
+        for(const [gridName,title]of [['eighth','8ビート'],['sixteenth','16ビート']]){const group=node('fieldset',undefined,catalog);node('legend',title,group);for(const pattern of r.patterns.filter(p=>p.grid===gridName)){const b=node('button',pattern.name,group);officialButtons.push(b);b.type='button';b.dataset.patternId=pattern.patternId;node('span','',b);b.addEventListener('click',()=>{flushInteraction();if(!permitted(b)){changed();return;}saved.value='';const h=interacting(b,()=>control.prepareOfficial(pattern.patternId,pattern.patternRevision));preview=h.ok?{name:pattern.name,projection:h.preview}:null;chosen=h.ok?pattern.patternId:null;notice=h.ok?'未採用の候補です。対象を確認して採用してください。':rhythmMessage(h);render();});}}
+        flushInteraction();notice='公式リズムを選んで確認できます。';retry.hidden=true;render();
     }
     function close(){flushInteraction();opened=false;body.hidden=true;++request;control?.close();disconnect();forget();clearTimeout(compositionTimer);compositionTimer=null;cancelAnimationFrame(raf);raf=0;render();}
     toggle.addEventListener('click',async()=>{if(opened){close();return;}opened=true;body.hidden=false;retry.disabled=true;const token=++request;notice='';render();try{await initializeControl();if(disposed||!opened||token!==request)return;control.open();connect();control.setTarget(target.value);render();await load();}catch(_){notice='リズムを準備できませんでした。内容は保持しています。';status.textContent=notice;}});retry.addEventListener('click',()=>{if(permitted(retry))load();else changed();});
@@ -84,37 +88,42 @@ export function mountRhythmPanel({C,document:doc,loader}){
     const external=e=>{if(e.key?.startsWith('cruiseStudio.project'))changed();},focus=()=>{if(opened){changed();}},composition=event=>{if(!opened)return;changed();if(event.type==='compositionend'){clearTimeout(compositionTimer);compositionTimer=setTimeout(()=>{compositionTimer=null;schedule();},0);}};
     globalThis.addEventListener('storage',external);globalThis.addEventListener('focus',focus);doc.addEventListener('focusin',schedule);doc.addEventListener('compositionstart',composition,true);doc.addEventListener('compositionend',composition,true);
     const interactionChanges=records=>records.some(r=>r.type==='childList'||r.oldValue!==r.target.getAttribute(r.attributeName));
-    let interactionChain=[],connectedChain=[];
+    let interactionChains=[],connectedChains=new Map();
+    const interactionTargets=()=>[slot,body,adopt,clear,saved,...officialButtons];
     const interactionObserver=new MutationObserver(records=>flushInteraction(records));
+    // One shared childList-only observer avoids enabling attribute subtree observation
+    // when a reconnection anchor also belongs to an operable action's ancestor chain.
+    const reconnectionObserver=new MutationObserver(records=>flushInteraction(records));
+    const pendingInteraction=()=>[...interactionObserver.takeRecords(),...reconnectionObserver.takeRecords()];
     // Explicit operation boundaries and observer deliveries only; never Session/render polling.
     function flushInteraction(delivered=[]){
         if(!opened||disposed)return false;
-        const records=[...delivered,...interactionObserver.takeRecords()],chain=rhythmPanelAncestors(slot);
-        const moved=!sameRhythmPanelAncestors(interactionChain,chain),invalidated=moved||interactionChanges(records);
+        const records=[...delivered,...pendingInteraction()],observation=rhythmPanelObservation(interactionTargets(),interactionChains);
+        const invalidated=observation.changed||interactionChanges(records);
         if(invalidated)changed();
-        if(moved)watchInteraction(chain); // Establish the current chain BEFORE issuing a new handle.
+        if(observation.changed)watchInteraction(observation); // Current action chains BEFORE preparing a handle.
         return invalidated;
     }
     function stopInteraction(){
-        const pending=interactionObserver.takeRecords();
+        const pending=pendingInteraction();
         if(opened&&interactionChanges(pending))changed();
-        interactionObserver.disconnect();interactionChain=[];connectedChain=[];
+        interactionObserver.disconnect();reconnectionObserver.disconnect();interactionChains=[];connectedChains=new Map();
     }
-    function watchInteraction(chain=rhythmPanelAncestors(slot)){
-        // disconnect() discards records. Drain and invalidate first, including old-chain intervals.
-        const previousConnected=connectedChain;stopInteraction();interactionChain=chain;connectedChain=slot.isConnected?chain:previousConnected;
+    function watchInteraction(observation=rhythmPanelObservation(interactionTargets())){
+        // Both observers' pending records must be processed before disconnect.
+        const previous=connectedChains;stopInteraction();interactionChains=observation.chains;
         const attributes={attributes:true,attributeOldValue:true,attributeFilter:['inert','hidden','style','class','open']};
-        interactionObserver.observe(body,{...attributes,childList:true});
-        for(const element of [adopt,clear])interactionObserver.observe(element,attributes);
-        for(const element of interactionChain)interactionObserver.observe(element,{...attributes,childList:true});
-        if(!slot.isConnected){
-            // Keep bounded reconnection witnesses while detached, never an old adoption handle.
-            for(const element of connectedChain)if(!chain.includes(element))interactionObserver.observe(element,{childList:true});
-            // Only this still-connected local container gets descendant childList observation.
-            // No attribute subtree, document/body subtree or closed-panel observation.
-            const anchor=connectedChain.find(element=>element.isConnected&&element!==doc.body&&element!==doc.documentElement);
-            if(anchor)interactionObserver.observe(anchor,{childList:true,subtree:true});
+        const current=new Set(observation.elements),witnesses=new Set(),anchors=new Set();
+        for(const element of current)interactionObserver.observe(element,{...attributes,childList:true});
+        for(const chain of interactionChains){
+            const target=chain[0],connected=target.isConnected?chain:previous.get(target)||[];connectedChains.set(target,connected);
+            if(target.isConnected)continue;
+            for(const element of connected)if(!current.has(element))witnesses.add(element);
+            const anchor=connected.find(element=>element.isConnected&&element!==doc.body&&element!==doc.documentElement);
+            if(anchor)anchors.add(anchor);
         }
+        for(const element of witnesses)interactionObserver.observe(element,{childList:true});
+        for(const anchor of anchors)reconnectionObserver.observe(anchor,{childList:true,subtree:true});
     }
     const hide=()=>close();render();
     return Object.freeze({dispose(){if(disposed)return;close();disposed=true;disconnect();globalThis.removeEventListener('storage',external);globalThis.removeEventListener('focus',focus);globalThis.removeEventListener('pagehide',hide);doc.removeEventListener('focusin',schedule);doc.removeEventListener('compositionstart',composition,true);doc.removeEventListener('compositionend',composition,true);slot.removeEventListener('keydown',escape);slot.replaceChildren();}});
