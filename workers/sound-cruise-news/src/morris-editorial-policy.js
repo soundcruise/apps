@@ -20,7 +20,7 @@ export const MORRIS_REVIEW_TYPES=Object.freeze({
  catalog:{label:'カタログ・資料',category:'media_other',suffix:'の資料を公開'},
  official_notice:{label:'その他アコギ関連の公式お知らせ',category:'media_other',suffix:'に関する公式のお知らせを公開'}
 });
-export const MORRIS_PRODUCT_TYPES=Object.freeze({'アコースティックギター':'acoustic_guitar','エレアコ':'acoustic_guitar','アコギ用アクセサリー':'media_other'});
+export const MORRIS_PRODUCT_TYPES=Object.freeze({'アコースティックギター':'acoustic_guitar','エレアコ':'acoustic_guitar','ギター':'acoustic_guitar','アコギ用アクセサリー':'media_other'});
 export const MORRIS_FACT_CHECKS=Object.freeze(['primaryArticleChecked','subjectActionBound','acousticRelevanceChecked','noOriginalTextCopied']);
 const name=v=>typeof v==='string'&&v.trim()===v&&v.length>=2&&v.length<=60&&!/[<>\x00-\x1f]/.test(v);
 const day=v=>typeof v==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00+09:00'))&&new Date(Date.parse(v+'T00:00:00+09:00')+9*3600000).toISOString().slice(0,10)===v;

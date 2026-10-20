@@ -7,6 +7,7 @@ import {parseMorrisListing,parseMorrisArticle,morrisLabel,MORRIS_LISTING_PARSER}
 import {eventEndsAt} from './event.js';
 import {healthForOutcome} from './source-health.js';
 import {summarizeMorrisDiagnostics} from './morris-diagnostics.js';
+import {MORRIS_PRIMARY_REVIEW,MORRIS_PRIMARY_CHECKS} from './morris-primary-review.js';
 const activeSQL="EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1) AND EXISTS(SELECT 1 FROM source_state WHERE source_id='morris' AND disabled=0 AND takedown=0 AND publication_blocked=0)";
 export async function morrisReceipt(store,url){return await store.db.prepare("SELECT * FROM news_morris_acquisition WHERE scope='article' AND source_url=?").bind(url).first();}
 // A verified listing is a primary surface. Its stored URL/day/facts/proof must
@@ -84,6 +85,7 @@ export async function morrisProofValid(store,row,now){
  const r=await morrisEvidenceReceipt(store,row.source_url,now,row);if(!r||!['verified','verified_listing'].includes(r.outcome)||r.permission_ref!==MORRIS_PERMISSION||r.published_at!==row.published_at||!Number.isSafeInteger(r.attempted_at)||r.attempted_at>now||r.actual_requests!==(r.outcome==='verified_listing'?0:1)||r.fingerprint_json!==row.title_fingerprint||r.facts_json!==row.product_facts)return false;
  let proof,fields,facts;try{proof=JSON.parse(r.proof_json);fields=JSON.parse(row.facts_provenance);facts=JSON.parse(row.product_facts);}catch{return false;}
  const listing=r.outcome==='verified_listing',proofUrl=listing?MORRIS_LISTING:row.source_url,parser=proof?.parserVersion;
+ if(parser===MORRIS_PRIMARY_REVIEW&&(listing||proof.extractionMethod!=='morris_system_primary_review'||proof.reviewActor!=='system_primary_review'||!MORRIS_PRIMARY_CHECKS.every(k=>proof.primaryAuditChecks?.[k]===true)))return false;
  if(!morrisParserSupported(parser,listing))return false;
  if(!facts||!Array.isArray(fields)||!Object.keys(facts).every(factField=>fields.some(f=>f.factField===factField&&f.sourceUrl===proofUrl&&f.sourceId==='morris'&&f.responseHash===r.response_hash&&f.parserVersion===parser&&f.verifiedAt===proof.verifiedAt&&f.extractionMethod===proof.extractionMethod&&f.permissionRef===MORRIS_PERMISSION&&f.publishedAt===row.published_at&&(!listing||f.articleUrl===row.source_url))))return false;
  return proof?.sourceId==='morris'&&proof.sourceUrl===proofUrl&&(!listing||proof.articleUrl===row.source_url)&&proof.publishedAt===row.published_at&&proof.permissionRef===MORRIS_PERMISSION&&proof.parserVersion===parser&&proof.responseHash===r.response_hash&&/^[a-f0-9]{64}$/.test(proof.responseHash)&&Number.isSafeInteger(proof.verifiedAt)&&proof.verifiedAt<=now&&proof.verifiedAt>=r.attempted_at&&['canonical','og:url'].includes(proof.canonicalBasis);
