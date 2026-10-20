@@ -5,6 +5,8 @@ import {optOut} from './policy.js';
 import {subjectProductTypes,hasProductSubject,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
 export const HEADLINE_EVIDENCE_PARSER='headline-evidence-2';
 const types=[
+ ['synthesizer','シンセサイザー',/シンセサイザー|\bsynthesizer\b/i],
+ ['room_correction','ルーム補正システム',/ハードウェア型ルーム補正システム|\bhardware room correction system\b/i],
  ['multi_effect_processor','マルチエフェクター',/マルチ[・ ]?エフェクト[・ ]?(?:プラットフォーム|プロセッサー)|マルチエフェクター/],
  ['hardware_compressor','バスコンプレッサー',/バスコンプ(?:レッサー)?|ハードウェア[・ ]?コンプレッサー/],
  ['contact_cleaner','接点復活剤',/接点復活剤/],

@@ -45,3 +45,13 @@ test('topic/award/brand tags are never mistaken for named interviewees',async()=
 });
 
 test('expanded collection requires its exact publisher permission and daily limit',()=>{const s=getSource('agm');for(const change of [{permissionRef:null},{permissionRef:'other-grant'},{explicitAutomationPermission:false},{automationPolicy:'documented_silence'},{crawlIntervalHours:12}])assert.equal(evidenceGate({...s,...change},now),'permission_required');});
+
+test('initial News response supplies automatic facts and bound provenance without a second article fetch',async()=>{
+ const s=await store(),source=await active(),u=url('news',55),t='シンガー・ソングライターの合成奏者がEP『空の歌』をリリース',body='シンガー・ソングライターの合成奏者がEP『空の歌』をリリースする。',page=`<link rel="canonical" href="${u}"><script type="application/ld+json">${JSON.stringify({'@type':'Article','@id':u+'#article',headline:t,datePublished:'2026-10-01T10:00:00Z'})}</script><main class="post-item"><article><p>${body}</p></article></main>`,calls=[];
+ await administer(s,{action:'publish-on',reason:'review_complete'},now);
+ const fetcher=async address=>{calls.push(address);const surface=AGM_SURFACES.find(x=>x.url===address);return new Response(address===source.robotsUrl?robot:surface?.type==='rss'?feed(surface.section):surface?.type==='html'?`<div class="post-wrap"><a class="post-obj" href="${u}"><div class="post-obj-title">${t}</div></a></div>`:page,{headers:{'content-type':surface?.type==='rss'?'application/rss+xml':'text/html'}});};
+ const report=await collectSource('agm',s,{mode:'production',registry:[source],now,pepper,sleep:async()=>{},clock:()=>now,fetcher});assert.equal(report.outcome,'collected');
+ const row=await s.db.prepare('SELECT * FROM candidate_items WHERE source_url=?').bind(u).first();assert(row);assert.equal(row.review_status,'pending');assert.equal(row.published_at,'2026-10-01T10:00:00.000Z');
+ assert.match(row.label,/合成奏者、EP『空の歌』/);const proof=JSON.parse(row.facts_provenance);assert(proof.length>0);assert(proof.every(p=>p.sourceId==='agm'&&p.sourceUrl===u&&p.responseHash));assert(proof.some(p=>p.factField==='event_type'));assert.equal(calls.filter(x=>x===u).length,1);assert.equal((await publicationValidation(s,row,now,[source],pepper)).valid,true);
+ assert(!JSON.stringify(await s.candidates()).includes(body));for(const table of ['news_decision_ledger','news_operator_feedback','news_shadow_evaluations'])assert.equal((await s.db.prepare(`SELECT COUNT(*) n FROM ${table}`).first()).n,0);
+});

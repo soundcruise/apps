@@ -5,9 +5,11 @@ export const POWER_DISTRIBUTION_PATTERN=/電源タップ|電源プロテクタ�
 
 function targetMention(before,after){
  const prefix=before.slice(-90),suffix=after.slice(0,250).replace(/^\s*(?:「[^」]{1,110}」|"[^"]{1,110}")/,'').slice(0,130);
+ // A commemorated instrument is not the new model announced in its honour.
+ if(/^[」』”"]?\s*(?:の)?(?:誕生|発売)?\d{1,3}周年を記念/.test(suffix))return true;
  // Include coordinated target lists: "amps, mixers, audio interfaces ...".
  if(/^(?:[、,／/・]+\s*[^。！？!?：:]{1,35}){0,3}?(?:など|等)?(?:の)?(?:接続|保護|対応|比較)(?:対象|機器|製品)/.test(suffix))return true;
- if(/^(?:など|等)?(?:を|に|へ|と)(?:[^。！？!?：:]{0,55}?)(?:保護|守る|守り|接続|つなぐ|繋ぐ|給電|対応|比較|比べ|異なり)/.test(suffix))return true;
+ if(/^(?:など|等)?(?:を|に|へ|と)(?:[^。！？!?：:]{0,55}?)(?:保護|守る|守り|接続|つなぐ|繋ぐ|給電|対応|比較|比べ|異なり|補正|測定|調整)/.test(suffix))return true;
  if(/^(?:など|等)?(?:用|向け|対応)(?:の)?(?:ケース|スタンド|アーム|ホルダー|ケーブル|カバー|アクセサリ|電源|パワーサプライ)/.test(suffix))return true;
  if(/^(?:ではない|ではなく|ではありません|との比較|と比較|と異な|以外)/.test(suffix))return true;
  // A fitted component is not the complete product: "pickup-equipped guitar".

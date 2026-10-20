@@ -1,5 +1,6 @@
 // Labels contain bounded identifiers and controlled themes, never source sentences.
 import {agmPerformanceLabel} from './agm-performance-evidence.js';
+import {validEventDay} from './agm-performance-evidence.js';
 export const ARTICLE_TOPICS=Object.freeze({chord_progression:'コード進行',headphone:'ヘッドホン',acoustic:'アコースティック・ギター',singing:'ギター弾き語り',songwriting:'作曲とアコースティック・ギター',guitar_roots:'ギターを始めた経緯',solo:'ソロ・ギター',guitar_career:'ギタリストとしての歩み',fingerstyle:'フィンガーピッキング',rhythm:'リズム',home_recording:'自宅での音楽制作'});
 export const ARTICLE_FOCUS=Object.freeze({ai_music:'音楽制作でのAIとの付き合い方',mic_placement:'アコギ録音のマイク配置',recording_latency:'録音時のレイテンシー対策',headphone_choice:'音楽制作向けヘッドホンの選び方',chord_transposition:'コード進行の移調',strumming:'弾き語りのストローク',fingerpicking_basics:'フィンガーピッキングの基礎'});
 export const factName=v=>typeof v==='string'&&v.trim()===v&&v.length>=2&&v.length<=80&&!/[<>\x00-\x1f]/.test(v);
@@ -17,7 +18,12 @@ export function agmArticleLabel(f,event){
  if(type==='artist_news'&&f.section==='news'){
   if(f.action==='tour'&&factName(f.eventName))return `${person}、ツアー「${f.eventName}」の開催情報`;
   if(f.action==='award'&&factName(f.award)&&factName(f.work))return `${person}、${f.award}で受賞`;
-  if(f.action==='music_release'&&f.works?.length>=1&&f.works.length<=2&&f.works.every(factName)&&['EP','アルバム'].includes(f.releaseType))return `${person}、${f.releaseType}『${f.works.join('』『')}』のリリース情報`;
+  if(f.action==='music_release'&&f.works?.length>=1&&f.works.length<=2&&f.works.every(factName)&&['EP','アルバム'].includes(f.releaseType)){
+   if(f.releaseDate!==undefined&&(!validEventDay(f.releaseDate)||f.releaseEvidence?.basis!=='explicit_primary_music_release'||f.releaseEvidence.subject!=='named_artist_work'))return null;
+   if(f.performanceScope!==undefined&&f.performanceScope!=='all_instruments_except_drums')return null;
+   if(f.performanceScope==='all_instruments_except_drums'&&f.works.length===1)return `${person}、ドラム以外を自ら演奏した新作『${f.works[0]}』${f.releaseDate?'を'+Number(f.releaseDate.slice(5,7))+'月'+Number(f.releaseDate.slice(8,10))+'日にリリース':'のリリース情報'}`;
+   return `${person}、${f.releaseType}『${f.works.join('』『')}』${f.releaseDate?'を'+Number(f.releaseDate.slice(5,7))+'月'+Number(f.releaseDate.slice(8,10))+'日にリリース':'のリリース情報'}`;
+  }
   return null;
  }
  if(type==='publication'&&f.section==='news'&&f.topic==='parlor_guitar'&&/^Vol\.\d{1,3}$/.test(f.issue||''))return `アコースティック・ギター・マガジン${f.issue}、小型ギターの特集を掲載`;

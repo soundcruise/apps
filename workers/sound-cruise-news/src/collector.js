@@ -1,5 +1,5 @@
 import {collectMorris} from './morris-collector.js';
-import {parseAgmArticleEvidence} from './agm-article-evidence.js';
+import {parseAgmArticleEvidence,AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
 import {AGM_SURFACES,agmArticleUrl,discoverAgm} from './agm-sections.js';
 import {parseOfficialListing} from './official-listing.js';
 import {parseShimamuraListing,SHIMAMURA_LISTING_URL,LISTING_MAX_BYTES} from './shimamura-listing.js';
@@ -61,7 +61,10 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
    report.sections=[];
    await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,onArticle:async(entry,html)=>{
     const {item}=await candidateFrom(entry,source,robots,now,pepper);
-    if(item&&!factualLabel(item.productFacts,item.eventType)){try{entry.articleRecovery=parseAgmArticleEvidence(html,source,{source_url:entry.url,published_at:item.publishedAt,product_facts:JSON.stringify(item.productFacts)});}catch{/* Incomplete evidence stays eligible for bounded recovery; never guess. */}}
+    if(item&&!factualLabel(item.productFacts,item.eventType)){try{
+     entry.articleRecovery={...parseAgmArticleEvidence(html,source,{source_url:entry.url,published_at:item.publishedAt,product_facts:JSON.stringify(item.productFacts)}),
+      proof:{sourceId:source.id,sourceUrl:entry.url,verifiedAt:now,extractionMethod:'explicit_agm_article_fields',parserVersion:AGM_ARTICLE_PARSER,responseHash:await hash(html)}};
+    }catch{/* Incomplete evidence stays eligible for bounded recovery; never guess. */}}
    },onSection:async(section,entries)=>{
     const part={section,candidates:entries.length,pending:0,rejected:0,duplicates:0};
     await persistDiscoveredEntries(entries,source,store,robots,now,pepper,registry,part);

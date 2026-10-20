@@ -1,4 +1,5 @@
 import {morrisNoticeLabel} from './morris-editorial-policy.js';
+import {hasProductSubject} from './product-type-evidence.js';
 import {productFamilyLabel,productFamilyKey} from './product-family-evidence.js';
 import {morrisLabel} from './morris-evidence.js';
 import {productArticleLabel} from './product-article-evidence.js';
@@ -6,6 +7,7 @@ import {validatedShimamuraProductFacts,shimamuraProductLabel} from './shimamura-
 import {namedWorkshopLabel} from './named-workshop-evidence.js';
 import {guitarExhibitionLabel} from './guitar-exhibition-evidence.js';
 import {agmEditorialAssessment,agmEditorialLabel} from './agm-sections.js';
+import {AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
 import {highValueAssessment,highValueLabel,assessedRecordingFacts} from './high-value.js';
 import {productActionSuffix,productEventFrom,validatedProductEvent,uncertainProductAction} from './product-event.js';
 import {listingArticleUrl,listingExclusion} from './shimamura-listing.js';
@@ -100,7 +102,7 @@ function extendedProductFacts(title){
   // Model codes are bounded nouns. No adjectives, arbitrary quoted phrases or instructions.
   const at=aliases.map(a=>t.toLowerCase().indexOf(a.toLowerCase())).filter(n=>n>=0).sort((a,b)=>a-b)[0];
   const nearby=t.slice(at,at+100).match(/\b[A-Z][A-Za-z]{0,8}[-]?\d{1,4}[A-Za-z0-9-]{0,14}\b/g)||[];
-  const product=quotedGenerationProduct(t.slice(at,at+200))||nearby.find(x=>safeModel(x)&&!/^Gen[0-9]+$/i.test(x));if(product)return {brand,product,version:null,category,identifierBasis:'explicit_model_code'};
+  const product=quotedGenerationProduct(t.slice(at,at+200))||nearby.find(x=>safeModel(x)&&!/^Gen[0-9]+$/i.test(x)&&hasProductSubject(t,[x]));if(product)return {brand,product,version:null,category,identifierBasis:'explicit_model_code'};
  }
  return null;
 }
@@ -321,14 +323,16 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
     eventType=event;category=facts.category;
    }
   }
-  const recovered=entry.articleRecovery;
+  const recovered=entry.articleRecovery;let factsProvenance=null;
   if(!factualLabel(facts,eventType)&&recovered?.eventType==='agm_editorial'&&hasDate&&recovered.publishedAt===new Date(timestamp).toISOString()&&recovered.productFacts?.articleUrl===url&&recovered.productFacts.section===entry.agmSection&&agmEditorialLabel(recovered.productFacts,'agm_editorial')){
    facts=recovered.productFacts;category=facts.category;eventType='agm_editorial';
+   const p=recovered.proof;
+   if(p?.sourceId===source.id&&p.sourceUrl===url&&p.extractionMethod==='explicit_agm_article_fields'&&p.parserVersion===AGM_ARTICLE_PARSER&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))factsProvenance=JSON.stringify([...Object.keys(facts).map(factField=>({...p,factField})),{...p,factField:'event_type'}]);
   }
   const label=factualLabel(facts,eventType),id=await hash(url);
   return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,
    category,label:label&&validLabel(label,entry.title)?label:'審査待ち（記事の対象・テーマ・出来事の確認が必要）',topicKey:eventType==='agm_editorial'?id:facts?factualTopicKey(facts,eventType):id,
-   collectedAt:new Date(now).toISOString(),eventType,productFacts:facts,titleFingerprint:JSON.stringify(await fingerprint(entry.title,pepper)),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
+   collectedAt:new Date(now).toISOString(),eventType,productFacts:facts,...(factsProvenance?{factsProvenance}:{}),titleFingerprint:JSON.stringify(await fingerprint(entry.title,pepper)),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
    publicationDecision:'PUBLISH_REVIEW',decisionReason:!hasDate?'missing_date':label?'agm_editorial_review':'label_required',manualReviewStatus:'pending',reviewReason:'agm_editorial_review'}};
  }
  const assessed=highValueAssessment(entry,source,now);

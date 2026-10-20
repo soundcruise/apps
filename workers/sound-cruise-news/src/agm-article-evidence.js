@@ -1,6 +1,7 @@
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {performanceFields} from './agm-performance-evidence.js';
-export const AGM_ARTICLE_PARSER='agm-article-5';
+import {musicReleaseFields} from './agm-music-release.js';
+export const AGM_ARTICLE_PARSER='agm-article-6';
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
 import {agmArticleLabel,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
@@ -80,8 +81,7 @@ export function parseAgmArticleEvidence(html,source,row){
    const award=intro.match(/[“「]([^”」]{2,65}コンクール)[”」]/)?.[1],work=intro.match(/作曲した「([^」]{2,75})」/)?.[1];if(award&&work){f.action='award';f.award=award;f.work=work;}
   }else if(/リリース/.test(title)&&/リリースする/.test(intro)){
    f.person=intro.match(/シンガー[・]?ソングライターの([^が、。]{2,35})が/)?.[1]||f.person;
-   const first=ps.map(text).find(t=>/リリースする/.test(t));const works=first?[...first.matchAll(/『([^』]{2,60})』/g)].map(m=>m[1]):[];
-   if(works.length>=1&&works.length<=2&&/EP|アルバム/.test(first)){f.action='music_release';f.works=works;f.releaseType=/EP/.test(first)?'EP':'アルバム';}
+   const release=musicReleaseFields({title,paragraphs:ps.map(text),person:f.person,publishedAt:row.published_at});if(release)Object.assign(f,release);
   }else if(!/中止|延期|昨年|過去|開催済み/.test(title+' '+intro)&&/ツアー|コンサート/.test(title)&&/開催されることが決定|ツアー.{0,20}開催|ツアー[“「][^”」]{2,70}[”」]が[^。]{0,80}公演(?:行なわれる|行われる)/.test(intro)){
    const subject=title.match(/(?:シンガー[・]?ソングライター|アーティスト)[、の]([^、。の]{2,35})の/)?.[1]||person;
    const names=[...title.matchAll(/[“「]([^”」]{2,70})[”」]/g)].map(m=>m[1]);
