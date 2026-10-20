@@ -51,14 +51,14 @@ test('F3: released versions, real cache paths and readonly workspace boot', asyn
                 assert.ok(requests.includes('/apps/cruise-studio/' + file + '?v=0.45.0'), file);
             }
         });
-        await t.test('registry import obtains Port owner ESM via its actual 1.23.1 URL', async () => {
+        await t.test('registry import obtains Port owner ESM via its actual 1.24.0 URL', async () => {
             // Registry is a public reader API, not a claim that every Home feature activates it.
             report.versions = await p.evaluate(async () => {
                 const m = await import('/apps/cruise-studio/js/core/feature-registry.mjs?v=0.45.0');
                 return Object.fromEntries(m.listComponents().map(c => [c.componentId, c.appVersion]));
             });
-            assert.deepEqual(report.versions, { 'cruise-port': '1.23.1', 'chord-cruise': '1.21.0', 'pitch-cruise': '2.30.0', 'fretboard-cruise': '2.25.0', 'rhythm-cruise': '1.20.0', 'cruise-studio': '0.45.0' });
-            assert.ok(requests.includes('/apps/cruise-port/app-version.js?v=1.23.1'));
+            assert.deepEqual(report.versions, { 'cruise-port': '1.24.0', 'chord-cruise': '1.21.0', 'pitch-cruise': '2.30.0', 'fretboard-cruise': '2.25.0', 'rhythm-cruise': '1.21.0', 'cruise-studio': '0.45.0' });
+            assert.ok(requests.includes('/apps/cruise-port/app-version.js?v=1.24.0'));
             for (const name of ['music-theory', 'chord-model']) assert.ok(requests.includes('/apps/chord-cruise/js/core/' + name + '.js?v=1.21.0'));
             assert.equal(requests.some(r => /chord-cruise\/js\/app\.js|pitch-cruise\/script\.js|fretboard_cruise\/script\.js|rhythm-cruise\/script\.js/.test(r)), false);
         });
@@ -76,6 +76,7 @@ test('F3: released versions, real cache paths and readonly workspace boot', asyn
                 assert.equal(new URL(ref, origin).search, '?v=0.45.0', ref);
             }
             assert.equal(requests.includes('/apps/cruise-port/app-version.js?v=1.23.0'), false);
+            assert.equal(requests.includes('/apps/cruise-port/app-version.js?v=1.23.1'), false);
             assert.equal(requests.some(r => r.includes('/chord-cruise/js/core/') && r.endsWith('?v=1.20.1')), false);
         });
         await t.test('No-write, no cloud requests, console errors or missing assets', async () => {

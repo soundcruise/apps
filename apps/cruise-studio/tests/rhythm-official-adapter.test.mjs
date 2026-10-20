@@ -36,7 +36,7 @@ const decode=p=>decodeOfficialPattern(p,adapter.sourceContext);
 const checkFrozen=x=>{if(x&&typeof x==='object'){assert(Object.isFrozen(x));Object.values(x).forEach(checkFrozen);}};
 test('real pinned R3 API lists exactly 5 eighth and 4 sixteenth; version evidence is separate from production mirror',()=>{
  const r=adapter.listOfficialPatterns();assert(r.ok);assert.equal(r.patterns.length,9);assert.equal(r.patterns.filter(p=>p.grid==='eighth').length,5);assert.equal(r.patterns.filter(p=>p.grid==='sixteenth').length,4);assert.equal(adapter.sourceEvidence.ownerAppVersion,ownerVersion);assert.equal(adapter.sourceEvidence.commit,COMMIT);
- const metadata=readFileSync(new URL('../js/core/component-metadata.mjs',import.meta.url),'utf8');assert(metadata.includes("'RHYTHM_CRUISE_VERSION', '1.20.0'"));
+ const metadata=readFileSync(new URL('../js/core/component-metadata.mjs',import.meta.url),'utf8');assert(metadata.includes("'RHYTHM_CRUISE_VERSION', '1.21.0'"));
 });
 for(const p of golden.patterns)test('independent 104-cell oracle: '+p.name,()=>{
  const r=adapter.getOfficialPattern(p.proposedPublicId);assert(r.ok,JSON.stringify(r));assert.equal(r.nativeSnapshot.name,p.name);assert.equal(r.source.ownerAppVersion,ownerVersion);assert.equal(r.nativeSnapshot.tpq,24);assert.equal(r.nativeSnapshot.lengthTicks,96);assert.equal(r.projection.ppq,480);assert.equal(r.projection.lengthTicks,1920);
