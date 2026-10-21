@@ -317,3 +317,323 @@ test('W1 worktree contracts: real isolated main/topic checkout, policy counterex
         });
     } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
+
+// All Batch objects below are created in independent repositories. These approvals/logs are
+// deliberately synthetic test inputs, never production evidence or human release approval.
+import { readFileSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { evaluateBatchSafety, verifyToolingEvidence, BATCH_RELEASE_GATES } from '../scripts/git-safety.mjs';
+const h256 = b => createHash('sha256').update(b).digest('hex');
+const hjson = x => h256(JSON.stringify(x));
+const cloneBatch = x => JSON.parse(JSON.stringify(x));
+const batchScript = fileURLToPath(new URL('../scripts/git-safety.mjs', import.meta.url));
+const rp = 'apps/rhythm-cruise/js/official-patterns.mjs';
+const sp = 'apps/cruise-studio/js/component-metadata.mjs';
+const tp = 'apps/cruise-studio/scripts/git-safety.mjs';
+function batchFixture(t) {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'studio-batch-v2-'))), root = join(dir, 'repo'); mkdirSync(root);
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const env = { ...process.env, GIT_OPTIONAL_LOCKS: '0' };
+    for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE']) delete env[k];
+    const git = (...args) => execFileSync('git', ['-C', root, ...args], { env, encoding: 'utf8' }).trim();
+    git('init', '-q'); git('config', 'user.name', 'INDEPENDENT FIXTURE'); git('config', 'user.email', 'fixture@invalid.example');
+    git('config', 'core.autocrlf', 'false'); git('symbolic-ref', 'HEAD', 'refs/heads/codex/batch-fixture');
+    const url = 'https://fixture.invalid/apps.git'; git('remote', 'add', 'origin', url);
+    const tree = (base, changes) => {
+        const index = join(dir, 'temporary-index'); rmSync(index, { force: true });
+        const run = (...args) => execFileSync('git', ['-C', root, ...args], { env: { ...env, GIT_INDEX_FILE: index }, encoding: 'utf8' }).trim();
+        if (base) run('read-tree', base); else run('read-tree', '--empty');
+        for (const [path, value] of Object.entries(changes)) {
+            if (value === null) run('update-index', '--force-remove', '--', path);
+            else {
+                const blob = execFileSync('git', ['-C', root, 'hash-object', '-w', '--stdin'], { env, input: value, encoding: 'utf8' }).trim();
+                run('update-index', '--add', '--cacheinfo', '100644,' + blob + ',' + path);
+            }
+        }
+        return run('write-tree');
+    };
+    let serial = 0;
+    const commit = (tr, parents) => git('commit-tree', tr, ...parents.flatMap(p => ['-p', p]), '-m', 'FIXTURE ONLY ' + serial++);
+    const m0tree = tree(null, { [rp]: 'owner old\n', [sp]: 'Studio old\n', [tp]: 'tooling old\n',
+        'apps/cruise-port/app-version.js': '1.24.0\n', 'workers/sound-cruise-news/main.js': 'NEWS preserved\n' });
+    const m0 = commit(m0tree, []);
+    const activate = sha => {
+        const old = (() => { try { return git('rev-parse', '--verify', 'HEAD'); } catch { return null; } })();
+        if (old) git('read-tree', '-u', '-m', old, sha); else git('read-tree', '--reset', '-u', sha);
+        git('update-ref', 'refs/heads/codex/batch-fixture', sha);
+    };
+    activate(m0); git('update-ref', 'refs/remotes/origin/main', m0);
+    const baseline = readGit(root);
+    const rt = tree(m0, { [rp]: 'official nine patterns\n' }), r = commit(rt, [m0]);
+    const studioCommits = []; let last = m0;
+    for (let n = 1; n <= 9; n++) { last = commit(tree(last, { [sp]: `Studio compatibility ${n}\n` }), [last]); studioCommits.push(last); }
+    const s = last, st = git('rev-parse', s + '^{tree}');
+    const m1 = commit(rt, [m0, r]), ft = tree(rt, { [sp]: 'Studio compatibility 9\n' }), m2 = commit(ft, [m1, s]); activate(m2);
+    const c = { version: 2, mode: 'main-integration-batch', root, commonDir: realpathSync(join(root, '.git')), branch: 'codex/batch-fixture',
+        remoteFetchUrl: url, remotePushUrl: url, baseSha: m0, baseTree: m0tree,
+        rhythm: { sha: r, tree: rt, base: m0, ref: 'refs/heads/codex/rhythm', commits: [r], allowedFiles: [rp] },
+        studio: { sha: s, tree: st, base: m0, ref: 'refs/heads/codex/studio', commits: studioCommits, allowedFiles: [sp] },
+        m1: { sha: m1, tree: rt, parents: [m0, r] }, m2: { sha: m2, tree: ft, parents: [m1, s] }, finalSha: m2, finalTree: ft,
+        sourcePin: { commit: r, tree: rt, path: rp, sha256: h256('official nine patterns\n') } };
+    let recordIndex = 0;
+    const record = data => { const path = join(dir, `record-${recordIndex++}.json`); writeFileSync(path, JSON.stringify(data)); return { path, sha256: h256(readFileSync(path)) }; };
+    const logPath = join(dir, 'synthetic.log'); writeFileSync(logPath, 'SYNTHETIC FIXTURE LOG — not production acceptance\n');
+    const artifact = tr => record({ sourceTree: tr, files: [{ name: 'fixture.txt', path: logPath, sha256: h256(readFileSync(logPath)) }] });
+    const regression = (tr, purpose) => ({ version: 1, purpose, sourceTree: tr,
+        required: purpose === 'batch-release' ? [...BATCH_RELEASE_GATES] : ['studio-node', 'studio-browser'],
+        runs: (purpose === 'batch-release' ? [...BATCH_RELEASE_GATES] : ['studio-node', 'studio-browser']).map(id => ({ id, sourceTree: tr,
+            command: ['node', 'fixture-only'], environment: artifact(tr), source: artifact(tr), fixture: artifact(tr),
+            startedAt: '2026-01-01T00:00:00Z', endedAt: '2026-01-01T00:00:01Z', exit: 0,
+            counts: { pass: 1, fail: 0, skip: 0, cancelled: 0, todo: 0 }, log: { path: logPath, sha256: h256(readFileSync(logPath)) } })),
+        noWrite: purpose === 'batch-release' ? { read: 0, preview: 0, apply: 0, clear: 0, undo: 0, redo: 0, rejection: 0, sharedCanWrite: false } : null,
+        performance: purpose === 'batch-release' ? [1, 2, 3].map(process => ({ process: String(process), warmup: 3, measured: 20,
+            rows: [8, 32, 64, 128].flatMap(bars => ['legacy', 'shared', 'distinct', 'chord-distinct'].flatMap(scenario => [false, true].map(saved =>
+                ({ bars, scenario, saved, command: Array(20).fill(10), staff: Array(20).fill(100), completed: true })))) })) : null });
+    const o = { contract: c, baseline, phase: 'push', evidence: record(regression(ft, 'batch-release')),
+        observedRemote: { url, observedAt: new Date().toISOString(), exit: 0, command: ['git', 'ls-remote', 'origin', 'refs/heads/main', c.rhythm.ref, c.studio.ref],
+            raw: `${m0}\trefs/heads/main\n${r}\t${c.rhythm.ref}\n${s}\t${c.studio.ref}\n` },
+        pushRequest: { remote: 'origin', sourceRef: 'refs/heads/' + c.branch, sourceSha: m2, targetRef: 'refs/heads/main', force: false } };
+    const approve = (options = o, purpose = 'batch-release') => {
+        options.approval = record({ version: 1, purpose, reference: 'INDEPENDENT TEST ONLY', contractSha256: hjson(options.contract),
+            baselineSha256: hjson(options.baseline), evidenceSha256: options.evidence.sha256 });
+        options.trust = { approvalSha256: options.approval.sha256 };
+    };
+    approve();
+    const evidence = mutate => { const e = JSON.parse(readFileSync(o.evidence.path)); mutate(e); o.evidence = record(e); approve(); };
+    const rebuild = (m1Parents, m2Parents, changes = {}) => {
+        const one = commit(c.m1.tree, m1Parents || [c.baseSha, c.rhythm.sha]);
+        const twoTree = tree(c.m2.tree, changes), two = commit(twoTree, m2Parents || [one, c.studio.sha]);
+        activate(two); c.m1 = { sha: one, tree: c.m1.tree, parents: m1Parents || [c.baseSha, c.rhythm.sha] };
+        c.m2 = { sha: two, tree: twoTree, parents: m2Parents || [one, c.studio.sha] }; c.finalSha = two; c.finalTree = twoTree;
+        o.pushRequest.sourceSha = two; approve();
+    };
+    return { dir, root, git, tree, commit, activate, o, c, record, approve, evidence, rebuild, regression };
+}
+test('Batch v2 real graph control, CLI capture/check, index/refs/source read-only', t => {
+    const f = batchFixture(t), before = f.git('show-ref'), index = h256(readFileSync(join(f.root, '.git/index')));
+    assert.equal(evaluateSafety(f.o).ok, true, JSON.stringify(evaluateSafety(f.o)));
+    assert.equal(evaluateSafety({ ...f.o, phase: 'release' }).ok, true);
+    const plan = join(f.dir, 'plan.json'), obs = join(f.dir, 'observation.json');
+    writeFileSync(plan, JSON.stringify(f.o)); writeFileSync(obs, JSON.stringify(f.o.observedRemote));
+    const result = JSON.parse(execFileSync(process.execPath, [batchScript, 'check', plan, 'push', obs, f.o.trust.approvalSha256], { cwd: f.root, encoding: 'utf8' }));
+    assert(result.ok, JSON.stringify(result)); assert.equal(result.publicationExecuted, false);
+    const capture = JSON.parse(execFileSync(process.execPath, [batchScript, 'capture', plan], { cwd: f.root, encoding: 'utf8' })); assert.equal(capture.head, f.c.finalSha);
+    assert.equal(f.git('show-ref'), before); assert.equal(h256(readFileSync(join(f.root, '.git/index'))), index); assert.equal(f.git('status', '--porcelain'), '');
+});
+const batchNegatives = [
+    ['01 approval missing', 'trusted-approval-mismatch', f => delete f.o.approval],
+    ['02 ID only', 'trusted-approval-missing', f => { f.o.approval = { approvalId: 'yes' }; delete f.o.trust; }],
+    ['03 approved main SHA', 'base-mismatch', f => { f.c.baseSha = f.c.rhythm.sha; f.approve(); }],
+    ['04 R3 SHA', 'owner-contract-invalid', f => { f.c.rhythm.sha = f.c.studio.sha; f.approve(); }],
+    ['05 ST SHA', 'owner-contract-invalid', f => { f.c.studio.sha = f.c.rhythm.sha; f.approve(); }],
+    ['06 M1 first parent', 'batch-parent-mismatch', f => f.rebuild([f.c.rhythm.sha, f.c.baseSha])],
+    ['07 M1 second parent', 'batch-parent-mismatch', f => f.rebuild([f.c.baseSha, f.c.studio.sha])],
+    ['08 M2 first parent', 'batch-parent-mismatch', f => f.rebuild(null, [f.c.baseSha, f.c.studio.sha])],
+    ['09 M2 second parent', 'batch-parent-mismatch', f => f.rebuild(null, [f.c.m1.sha, f.c.rhythm.sha])],
+    ['10 reversed M2', 'batch-parent-mismatch', f => f.rebuild(null, [f.c.studio.sha, f.c.m1.sha])],
+    ['11 third parent', 'batch-parent-mismatch', f => f.rebuild([f.c.baseSha, f.c.rhythm.sha, f.c.studio.sha])],
+    ['12 extra intermediate', 'batch-parent-mismatch', f => { const extra = f.commit(f.c.m1.tree, [f.c.m1.sha]); f.rebuild(null, [extra, f.c.studio.sha]); }],
+    ['13 unapproved same-scope resolution', 'batch-tree-mismatch', f => f.rebuild(null, null, { [sp]: 'unapproved resolution' })],
+    ['14 Rhythm scope other owner', 'owner-contract-invalid', f => { f.c.rhythm.allowedFiles.push('apps/shared/x'); f.approve(); }],
+    ['15 Studio scope other owner', 'owner-contract-invalid', f => { f.c.studio.allowedFiles.push(rp); f.approve(); }],
+    ['16 Shared path content', 'batch-tree-mismatch', f => f.rebuild(null, null, { 'apps/shared/x': 'bad' })],
+    ['16b Port content', 'batch-tree-mismatch', f => f.rebuild(null, null, { 'apps/cruise-port/app-version.js': 'bad' })],
+    ['16c NEWS content', 'batch-tree-mismatch', f => f.rebuild(null, null, { 'workers/sound-cruise-news/main.js': 'bad' })],
+    ['17 rename/delete', 'batch-tree-mismatch', f => f.rebuild(null, null, { [sp]: null, 'apps/cruise-studio/renamed.js': 'renamed' })],
+    ['18 absent ancestor', 'owner-base-mismatch', f => { f.c.rhythm.base = f.c.rhythm.sha; f.approve(); }],
+    ['19 history merge', 'owner-history-mismatch', f => { const q = f.commit(f.c.rhythm.tree, [f.c.baseSha, f.c.studio.sha]); f.c.rhythm.sha = q; f.c.rhythm.commits = [q]; f.approve(); }],
+    ['20 Final SHA', 'final-mismatch', f => { f.c.finalSha = f.c.m1.sha; f.approve(); }],
+    ['21 Final tree', 'final-mismatch', f => { f.c.finalTree = f.c.baseTree; f.approve(); }],
+    ['22 source pin', 'source-pin-mismatch', f => { f.c.sourcePin.sha256 = '0'.repeat(64); f.approve(); }],
+    ['23 evidence missing', 'evidence-record-invalid', f => { f.o.evidence = { path: '', sha256: '0'.repeat(64) }; f.approve(); }],
+    ['24 evidence wrong tree', 'evidence-source-mismatch', f => f.evidence(e => e.sourceTree = f.c.baseTree)],
+    ['25 required FAIL', 'required-result-failed', f => f.evidence(e => e.runs[0].counts.fail = 1)],
+    ['26 skip', 'required-result-failed', f => f.evidence(e => e.runs[0].counts.skip = 1)],
+    ['26b cancelled', 'required-result-failed', f => f.evidence(e => e.runs[0].counts.cancelled = 1)],
+    ['26c todo', 'required-result-failed', f => f.evidence(e => e.runs[0].counts.todo = 1)],
+    ['27 performance raw p95', 'performance-failed', f => f.evidence(e => e.performance[0].rows.find(r => r.bars === 64).command.fill(16.1))],
+    ['28 no-write', 'no-write-failed', f => f.evidence(e => e.noWrite.preview = 1)],
+    ['29 dirty tracked', 'batch-not-clean', f => writeFileSync(join(f.root, sp), 'dirty')],
+    ['30 staged', 'batch-not-clean', f => { writeFileSync(join(f.root, sp), 'dirty'); f.git('add', '--', sp); }],
+    ['30b untracked', 'batch-not-clean', f => writeFileSync(join(f.root, 'unknown'), 'dirty')],
+    ['31 operation pending', 'git-operation-pending', f => writeFileSync(join(f.root, '.git/MERGE_HEAD'), f.c.rhythm.sha)],
+    ['32 remote main advanced', 'remote-refs-mismatch', f => f.o.observedRemote.raw = f.o.observedRemote.raw.replace(f.c.baseSha, f.c.finalSha)],
+    ['33 missing fresh observation', 'fresh-observation-missing', f => delete f.o.observedRemote],
+    ['34 remote URL', 'remote-identity-mismatch', f => f.git('remote', 'set-url', 'origin', 'https://changed.invalid/repo')],
+    ['35 target ref', 'push-destination-mismatch', f => f.o.pushRequest.targetRef = 'refs/heads/other'],
+    ['36 source SHA', 'push-destination-mismatch', f => f.o.pushRequest.sourceSha = f.c.baseSha],
+    ['37 force', 'push-destination-mismatch', f => f.o.pushRequest.force = true],
+    ['38 intermediate publication', 'push-destination-mismatch', f => f.o.pushRequest.sourceSha = f.c.m1.sha],
+    ['39 unknown mode', 'invalid-contract', f => f.c.mode = 'something'],
+    ['40 unknown version', 'invalid-contract', f => f.c.version = 99],
+    ['41 legacy fallback retains v1 rejection', 'invalid-contract', f => f.c.version = 1],
+    ['42 v1 single merge cannot accept batch', 'integration-not-approved', f => {
+        const c = { version: 1, mode: 'main-integration', ...Object.fromEntries(['root', 'commonDir', 'branch', 'baseSha', 'remoteFetchUrl', 'remotePushUrl'].map(k => [k, f.c[k]])),
+            remote: 'origin', targetRef: 'refs/heads/main', integrationApproval: { approvalId: 'fixture', baseSha: f.c.baseSha, topicSha: f.c.studio.sha, topicBaseSha: f.c.studio.base, headSha: f.c.finalSha } };
+        f.o.contract = c; f.o.allowedFiles = [sp]; f.o.current = readGit(f.root, c.baseSha, c); f.o.baseline = { ...f.o.baseline, base: { sha: c.baseSha, exists: true, history: { ancestor: true, commits: [] } } };
+    }],
+    ['path traversal', 'owner-contract-invalid', f => { f.c.rhythm.allowedFiles = ['apps/rhythm-cruise/../shared/x']; f.approve(); }],
+    ['wildcard', 'owner-contract-invalid', f => { f.c.rhythm.allowedFiles = ['apps/rhythm-cruise/*']; f.approve(); }],
+    ['duplicate path', 'owner-contract-invalid', f => { f.c.rhythm.allowedFiles.push(rp); f.approve(); }],
+    ['unknown field', 'invalid-contract', f => f.c.permit = true],
+    ['cohort missing', 'evidence-cohort-mismatch', f => f.evidence(e => e.runs.pop())],
+    ['raw log replaced', 'raw-log-invalid', f => { const e = JSON.parse(readFileSync(f.o.evidence.path)); e.runs[0].log.sha256 = '0'.repeat(64); f.o.evidence = f.record(e); f.approve(); }],
+    ['fixture missing', 'batch-read-failed', f => { const e = JSON.parse(readFileSync(f.o.evidence.path)); rmSync(e.runs[0].fixture.path); }],
+    ['fixture digest replaced', 'artifact-invalid', f => f.evidence(e => e.runs[0].fixture.sha256 = '0'.repeat(64))],
+    ['network failed cannot mean absent ref', 'fresh-observation-missing', f => f.o.observedRemote.exit = 1],
+    ['stale observation', 'fresh-observation-missing', f => f.o.observedRemote.observedAt = '2020-01-01T00:00:00Z'],
+    ['U topic Composite evidence is not Final release', 'evidence-source-mismatch', f => f.evidence(e => e.purpose = 'tooling-composite')],
+    ['T missing independent trust', 'trusted-approval-missing', f => delete f.o.trust],
+    ['T candidate rewrites expected digest but not trust', 'trusted-approval-mismatch', f => { f.o.approval = f.record({ approved: true }); }],
+    ['T wrong action', 'approval-scope-mismatch', f => f.approve(f.o, 'tooling-composite')]
+];
+for (const [name, code, mutate] of batchNegatives) test('Batch negative ' + name, t => {
+    const f = batchFixture(t); assert(evaluateSafety(f.o).ok, 'positive control'); mutate(f); rejects(evaluateSafety(f.o), code);
+});
+
+test('R/T/U/V tooling Evidence A+B uses real index, working bytes, committed tree and independent trust', async t => {
+    const f = batchFixture(t); f.activate(f.c.baseSha);
+    const c = { version: 1, mode: 'topic-development', root: f.root, commonDir: f.c.commonDir, branch: f.c.branch,
+        baseSha: f.c.baseSha, remote: 'origin', remoteFetchUrl: f.c.remoteFetchUrl, remotePushUrl: f.c.remotePushUrl,
+        targetRef: 'refs/heads/' + f.c.branch, expectedTopicSha: null };
+    const baseline = readGit(f.root, undefined, c); writeFileSync(join(f.root, tp), 'tooling reviewed\n'); f.git('add', '--', tp);
+    const tr = f.git('write-tree'), ct = f.tree(f.c.finalSha, { [tp]: 'tooling reviewed\n' });
+    const binding = { baseSha: c.baseSha, topicTree: tr, compositeTree: ct, files: { [tp]: { mode: '100644', blob: f.git('rev-parse', ':' + tp), sha256: h256('tooling reviewed\n') } },
+        diffSha256: h256(execFileSync('git', ['-C', f.root, 'diff', '--binary', '--full-index', '--no-renames', '--cached', c.baseSha, '--'])), commitSha: null };
+    const e = { binding, inputs: [f.c.rhythm, f.c.studio].map(x => ({ sha: x.sha, tree: x.tree, base: x.base, files: x.allowedFiles })), regression: f.regression(ct, 'tooling-composite') };
+    const opts = { contract: c, baseline, binding, allowedFiles: [tp], phase: 'commit', commitBase: c.baseSha,
+        evidence: f.record(e), observedRemote: { main: { remote: 'origin', ref: 'refs/heads/main', sha: c.baseSha }, topic: { remote: 'origin', ref: c.targetRef, sha: null } } };
+    f.approve(opts, 'tooling-composite');
+    assert(verifyToolingEvidence(opts).ok, JSON.stringify(verifyToolingEvidence(opts)));
+    await t.test('A/J/Q/S mutated base, diff, tree or remote cannot reuse evidence', () => {
+        for (const field of ['baseSha', 'topicTree', 'compositeTree', 'diffSha256']) {
+            const bad = cloneBatch(opts); bad.binding[field] = '0'.repeat(field === 'diffSha256' ? 64 : 40); assert(!verifyToolingEvidence(bad).ok, field);
+        }
+        const bad = cloneBatch(opts); bad.observedRemote.main.sha = f.c.rhythm.sha; rejects(verifyToolingEvidence(bad), 'tooling-main-mismatch');
+    });
+    const head = f.commit(tr, [c.baseSha]); f.activate(head); opts.phase = 'postcommit';
+    assert(verifyToolingEvidence(opts).ok, JSON.stringify(verifyToolingEvidence(opts)));
+    await t.test('R1 committed then unstaged edited', () => {
+        writeFileSync(join(f.root, tp), 'post test edit\n'); rejects(verifyToolingEvidence(opts), 'tooling-git-safety-failed'); writeFileSync(join(f.root, tp), 'tooling reviewed\n');
+    });
+    await t.test('R2 clean different commit with old evidence; R3 SHA-only rewrite', () => {
+        // R1 restored the exact bytes; refresh only their cached stat before switching trees.
+        // Prove semantic cleanliness first: never overwrite dirty content to prepare a refusal test.
+        const indexTree = f.git('write-tree');
+        assert.equal(readFileSync(join(f.root, tp), 'utf8'), f.git('show', ':' + tp) + '\n');
+        assert.equal(f.git('diff', '--name-only'), '');
+        assert.equal(f.git('diff', '--cached', '--name-only'), '');
+        f.git('update-index', '--refresh');
+        assert.equal(f.git('write-tree'), indexTree);
+        assert.equal(f.git('status', '--porcelain'), '');
+        const other = f.commit(f.tree(c.baseSha, { [tp]: 'different approved-scope bytes\n' }), [c.baseSha]); f.activate(other);
+        rejects(verifyToolingEvidence(opts), 'tooling-bytes-mismatch');
+        const bad = cloneBatch(opts); bad.binding.commitSha = other; rejects(verifyToolingEvidence(bad), 'tooling-bytes-mismatch'); f.activate(head);
+    });
+    await t.test('T absent/ID-only/wrong-scope/self-rehashed approval', () => {
+        const bad = cloneBatch(opts); delete bad.trust; rejects(verifyToolingEvidence(bad), 'trusted-approval-missing');
+        bad.trust = opts.trust; bad.approval = { approvalId: 'yes' }; rejects(verifyToolingEvidence(bad), 'trusted-approval-mismatch');
+        const wrong = cloneBatch(opts); f.approve(wrong, 'batch-release'); rejects(verifyToolingEvidence(wrong), 'approval-scope-mismatch');
+    });
+    await t.test('U Composite PASS never permits main target', () => {
+        const bad = cloneBatch(opts); bad.phase = 'push'; bad.pushRequest = { remote: 'origin', sourceRef: 'refs/heads/' + c.branch, sourceSha: head, targetRef: 'refs/heads/main', force: false };
+        rejects(verifyToolingEvidence(bad), 'tooling-git-safety-failed');
+    });
+    await t.test('V adding Composite cannot override failed v1; clean legacy release remains only clean', () => {
+        const current = readGit(f.root, c.baseSha, c), bad = { ...opts, current, allowedFiles: [sp], phase: 'development' };
+        rejects(evaluateSafety(bad), 'topic-history-scope');
+        assert(evaluateSafety({ current, phase: 'release', evidence: opts.evidence }).ok);
+        assert.equal(evaluateSafety({ current, phase: 'release', evidence: opts.evidence }).publicationExecuted, undefined);
+    });
+    await t.test('CLI evidence requires out-of-band digest, never trust inside plan', () => {
+        const plan = join(f.dir, 'tooling-plan.json'), obs = join(f.dir, 'tooling-observed.json');
+        writeFileSync(plan, JSON.stringify(opts)); writeFileSync(obs, JSON.stringify(opts.observedRemote));
+        const run = args => { try { return { exit: 0, result: JSON.parse(execFileSync(process.execPath, args, { cwd: f.root, encoding: 'utf8' })) }; }
+            catch (error) { return { exit: error.status, result: JSON.parse(error.stdout) }; } };
+        const args = [batchScript, 'evidence', plan, 'postcommit', obs];
+        rejects(run(args).result, 'trusted-approval-missing'); assert(run([...args, opts.trust.approvalSha256]).result.ok);
+    });
+});
+
+
+// P2-01: push member order is not policy; exact keys, values and types still are.
+const pushOrders = [
+    ['normal', ['remote', 'sourceRef', 'sourceSha', 'targetRef', 'force']],
+    ['reverse', ['force', 'targetRef', 'sourceSha', 'sourceRef', 'remote']],
+    ['alphabetical', ['force', 'remote', 'sourceRef', 'sourceSha', 'targetRef']]
+];
+function orderedPush(request, order) {
+    return Object.fromEntries([...order.filter(k => Object.hasOwn(request, k)),
+        ...Object.keys(request).filter(k => !order.includes(k))].map(k => [k, request[k]]));
+}
+function assertPushApiAndCli(f, options, expectedCode = null) {
+    const plan = join(f.dir, 'push-order-plan.json'), obs = join(f.dir, 'push-order-observation.json');
+    writeFileSync(plan, JSON.stringify(options)); writeFileSync(obs, JSON.stringify(options.observedRemote));
+    const api = evaluateSafety(options);
+    let cli, status = 0;
+    try {
+        cli = JSON.parse(execFileSync(process.execPath, [batchScript, 'check', plan, 'push', obs,
+            options.trust.approvalSha256], { cwd: f.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    } catch (error) { status = error.status; cli = JSON.parse(error.stdout); }
+    assert.deepEqual(cli, api);
+    assert.equal(status, expectedCode ? 1 : 0);
+    if (expectedCode) rejects(api, expectedCode); else assert.equal(api.ok, true);
+}
+test('P2 push key order preserves exact fields, approval and CLI contract', async t => {
+    const f = batchFixture(t), original = cloneBatch(f.o);
+    const approval = readFileSync(f.o.approval.path), evidence = readFileSync(f.o.evidence.path);
+    const refs = f.git('show-ref'), index = h256(readFileSync(join(f.root, '.git/index')));
+    for (const [name, order] of pushOrders) await t.test('valid ' + name, () => {
+        const o = cloneBatch(original); o.pushRequest = orderedPush(o.pushRequest, order);
+        assertPushApiAndCli(f, o);
+    });
+    const invalid = [
+        ['01 wrong remote', r => r.remote = 'other'],
+        ['02 wrong source ref', r => r.sourceRef = 'refs/heads/codex/other'],
+        ['03 wrong Final', r => r.sourceSha = f.c.baseSha],
+        ['04 wrong target', r => r.targetRef = 'refs/heads/codex/other'],
+        ['05 force true', r => r.force = true],
+        ['06 force string false', r => r.force = 'false'],
+        ['07 force zero', r => r.force = 0],
+        ['08 force null', r => r.force = null],
+        ...['remote', 'sourceRef', 'sourceSha', 'targetRef', 'force'].map((key, i) =>
+            [String(9 + i).padStart(2, '0') + ' missing ' + key, r => delete r[key]]),
+        ['14 extra field', r => r.extra = false],
+        ['15 unknown field', r => r.destination = 'main'],
+        ['16 case difference', r => r.remote = 'Origin'],
+        ['17 whitespace', r => r.targetRef = ' refs/heads/main '],
+        ['18 M1 source', r => r.sourceSha = f.c.m1.sha],
+        ['19 ST source', r => r.sourceSha = f.c.studio.sha],
+        ['20 source target swapped', r => { [r.sourceRef, r.targetRef] = [r.targetRef, r.sourceRef]; }]
+    ];
+    assert.equal(invalid.length, 20);
+    for (const [name, mutate] of invalid) await t.test(name, () => {
+        for (const [, order] of pushOrders) {
+            const o = cloneBatch(original); mutate(o.pushRequest); o.pushRequest = orderedPush(o.pushRequest, order);
+            assertPushApiAndCli(f, o, 'push-destination-mismatch');
+        }
+    });
+    assert.deepEqual(readFileSync(f.o.approval.path), approval);
+    assert.deepEqual(readFileSync(f.o.evidence.path), evidence);
+    assert.deepEqual(f.o, original); // No re-approval or changed candidate for member ordering.
+    assert.equal(f.git('show-ref'), refs); assert.equal(h256(readFileSync(join(f.root, '.git/index'))), index);
+});
+test('P2 reordered valid push cannot bypass graph approval evidence remote or clean gates', async t => {
+    const cases = [
+        ['approval missing', 'trusted-approval-mismatch', f => delete f.o.approval],
+        ['Final mismatch', 'final-mismatch', f => { f.c.finalSha = f.c.m1.sha; f.approve(); }],
+        ['other owner blob', 'batch-tree-mismatch', f => f.rebuild(null, null, { 'apps/shared/unapproved': 'other owner' })],
+        ['wrong Composite evidence', 'evidence-source-mismatch', f => f.evidence(e => e.sourceTree = f.c.baseTree)],
+        ['main advanced', 'remote-refs-mismatch', f => f.o.observedRemote.raw = f.o.observedRemote.raw.replace(f.c.baseSha, f.c.finalSha)],
+        ['dirty worktree', 'batch-not-clean', f => writeFileSync(join(f.root, sp), 'dirty')],
+        ['force push', 'push-destination-mismatch', f => f.o.pushRequest.force = true]
+    ];
+    for (const [name, code, mutate] of cases) await t.test(name, st => {
+        const f = batchFixture(st); assertPushApiAndCli(f, f.o);
+        mutate(f);
+        for (const [, order] of pushOrders) {
+            const o = cloneBatch(f.o); o.pushRequest = orderedPush(o.pushRequest, order);
+            assertPushApiAndCli(f, o, code);
+        }
+    });
+});

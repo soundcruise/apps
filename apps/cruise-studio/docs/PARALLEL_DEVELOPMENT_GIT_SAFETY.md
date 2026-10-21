@@ -223,3 +223,134 @@ metronome-settings、metronome、pc-shell-layout、practice-presentation、struc
 globで追加実行した際のFAILは隠さず別記録する。今回、折畳みDockのhidden Startをclickする旧fixtureがtimeoutした。
 製品/Host試験を変更せず、正規15 suiteを明示実行してrequired gateを判定する。旧Host試験の整合は別工程。
 失敗時は差分保持で停止。gate自体の修正は運用契約と反例の更新を伴う別工程で行い、単純skip/常時PASSへ変更しない。
+
+## Batch contract v2 — R3 then Studio integration (tooling only)
+
+This section defines a separate `version: 2, mode: "main-integration-batch"` gate.
+Legacy and contract v1 keep their existing predicates, CLI and meaning. They cannot approve
+this two-stage integration. Unknown modes/versions fail closed; no failed Batch fallback exists.
+The checker reads Git/files only and never fetches, writes an index/ref/object, commits or pushes.
+A successful result is a validation result, **not human publication authorization**.
+
+### Graph, source and ownership
+
+The approved graph is `M1.parents = [M0, R3]`, `M2.parents = [M1, ST]`, `Final = M2`.
+Both merges have exactly two parents in that order. There is no third integration for tooling.
+R3 has one linear owner commit; ST has nine linear commits (eight accepted Studio commits plus
+one compatibility child). Exact ordered commit IDs, base/tip/tree and individual changed paths
+are approved inputs. Every historical change must remain inside its owner list, including both
+sides of renames. The tip's complete delta must equal that list. No wildcard/directory intent.
+
+The reader verifies actual Git objects and the merge-base, and composes each owner's exact
+mode/blob delta over M0. Every path of M1/M2 is compared with that composition, including untouched
+Port/NEWS/Shared/root paths. Even an edit inside an approved path is rejected if its blob differs.
+Conflicting overlays stop. The pinned Rhythm module SHA256 is checked against actual Git bytes.
+M0, R3, ST and Final SHAs/trees are not inferred from branch names or current dates.
+
+The Batch contract has exactly these keys:
+`version, mode, root, commonDir, branch, remoteFetchUrl, remotePushUrl, baseSha, baseTree,
+rhythm, studio, m1, m2, finalSha, finalTree, sourcePin`.
+Each owner has `sha, tree, base, ref, commits, allowedFiles`; each merge has `sha, tree, parents`;
+sourcePin has `commit, tree, path, sha256`. Object IDs are 40-hex; SHA256 digests are 64-hex.
+Paths must be relative, traversal/wildcard free and unique. Release uses a dedicated registered
+`codex/` branch/worktree, one origin push URL, clean index/worktree/untracked and no pending operation.
+The complete clean baseline capture is bound to M0 and the approval record.
+
+### Approval and evidence boundaries
+
+`approval` and `evidence` are `{path, sha256}` references to external files. The trusted approval
+SHA256 is provided separately from the mutable plan. Approval records have exactly
+`version:1, purpose, reference, contractSha256, baselineSha256, evidenceSha256`.
+The two object digests use SHA256 of `JSON.stringify` of the captured objects; file references hash
+literal bytes. Purpose is `batch-release` or `tooling-composite`, never interchangeable.
+The caller/operator verifies the human record, exact operation, candidates and publication impact,
+then supplies its digest out of band. An arbitrary ID, `approved:true`, or a plan's own `trust`
+field is insufficient. Hashes neither authenticate a human nor prove that a logged test ran.
+A person remains responsible for the provenance of approval, observations and runner execution.
+
+Batch release evidence has `version, purpose, sourceTree, required, runs, performance, noWrite`.
+The exact required gate IDs are exported as `BATCH_RELEASE_GATES`: Rhythm Node/Browser, Studio
+Node/Browser, owner 9/104, real owner loader, versions/cache, asset pin, No-write, performance,
+Git safety and release clean. Each run binds the exact tree, command, environment/source/fixture
+artifact manifests, timestamps, exit/counts and raw log. All runs must have positive passes and
+zero fail/skip/cancelled/todo, and exit 0. Artifact manifests contain `sourceTree` and `files`,
+each with unique logical `name`, absolute `path` and literal byte `sha256`. Every referenced file
+and raw log is read and checked. Missing, substituted or malformed records reject.
+Actual source manifests must inventory the complete candidate and exact required cohort;
+fixture manifests include the four pinned owner files (module/script/oracle/receipt); environment
+manifests include binaries/dependencies and runner inputs. The operator reviews exact cohort and
+log semantics; a fixture's synthetic PASS records never constitute production execution evidence.
+
+No-write requires read/preview/apply/clear/undo/redo/rejection counts 0 and sharedCanWrite=false.
+Performance normalizes the raw runner's before/after-save samples into 32 rows per independent
+process (8/32/64/128 × legacy/shared/distinct/chord-distinct × before/after save). Three distinct
+processes are required, warmup 3, measured 20, completed=true. Samples are finite/nonnegative;
+64-bar command p95 (sorted index 18) <=16ms and Staff <=500ms. Raw artifacts must also be retained.
+Tooling-only Composite evidence does not claim this Final release performance gate has run.
+
+Fresh observations contain `url, observedAt, exit, command, raw`: the actual successful
+`git ls-remote origin refs/heads/main <R3-ref> <ST-ref>` output, measured within five minutes,
+with all three exact refs/SHAs. Failure is never interpreted as absence. The push request is
+exactly origin, the registered branch, Final SHA, refs/heads/main, force=false. Release/check
+still performs no push. Re-observe immediately before any separately authorized publication.
+Server non-fast-forward rejection and coordination with other publishers remain necessary;
+local checks cannot eliminate the observation-to-push race.
+
+```sh
+# Future release only, after separate construction/candidate/release approval:
+node /approved/external/git-safety.mjs capture /external/batch-plan.json
+node /approved/external/git-safety.mjs check /external/batch-plan.json release /external/fresh.json <trusted-approval-sha256>
+node /approved/external/git-safety.mjs check /external/batch-plan.json push /external/fresh.json <trusted-approval-sha256>
+```
+
+### Tooling Evidence A + Composite Evidence B
+
+The exceptional Composite development contract is limited to this tooling topic and three files:
+`apps/cruise-studio/scripts/git-safety.mjs`, `apps/cruise-studio/tests/git-safety.test.mjs`,
+`apps/cruise-studio/docs/PARALLEL_DEVELOPMENT_GIT_SAFETY.md`.
+No version/cache/product or other-owner changes. The old missing tooling registration/branch/index
+is preserved; a successor worktree starts from the explicitly approved M0. No pruning or repair.
+
+A is the actual tooling checkout's existing v1 topic-development gate. B is a separate independent
+Git repository containing exact M0 + R3 + ST + the same tooling bytes (TL). The Composite imports
+must resolve to real files inside that repository; GIT_WORK_TREE alone does not redirect Node imports.
+Neither A nor B alone permits commit. The prior main-only 64 PASS / 3 FAIL metadata mismatch remains
+historical failure evidence; never suppress, skip or rewrite its expectations. ST's already approved
+metadata test version update is used unchanged. The prior Composite 67/29 is comparison evidence,
+not the final result for a new M0 or TL.
+
+`evidence` CLI adds the conjunction and binding without changing v1:
+
+```sh
+node apps/cruise-studio/scripts/git-safety.mjs evidence /external/tooling-plan.json commit /external/fresh-topic.json <trusted-approval-sha256>
+node apps/cruise-studio/scripts/git-safety.mjs evidence /external/tooling-plan.json postcommit /external/fresh-topic.json <trusted-approval-sha256>
+node apps/cruise-studio/scripts/git-safety.mjs evidence /external/tooling-plan.json push /external/fresh-topic.json <trusted-approval-sha256>
+```
+
+The plan has the existing v1 fields plus `approval, evidence, binding`. Binding contains
+`baseSha, topicTree, compositeTree, files, diffSha256, commitSha`; files maps each allowed path to
+`mode, blob, sha256`. Before commit, commitSha is null (no invented commit). Evidence contains
+`binding` with null commitSha, exact `inputs` (R3 then ST: sha/tree/base/files), and `regression`.
+Regression uses purpose `tooling-composite`, the two required Studio Node/Browser run records,
+performance/noWrite=null. Complete 41 Node and 30 Browser cohorts remain required, including the
+unchanged original Git safety assertions, metadata and the new Batch/RTUV cases. Fixture/runner,
+full source inventories, raw logs and environment hashes accompany those records.
+
+The binding reader checks the actual index at commit, actual parent/tree at postcommit/push,
+working bytes, file modes/blobs, exact full-index diff and in-memory tree hashes. It reconstructs
+the Composite from fixed Git inputs plus TL and compares its tree. Postcommit may add actual
+commitSha without replacing the precommit evidence; bytes/parent/tree must still match. Changed
+source after testing invalidates B and requires the full required regression on the new candidate.
+A fresh main advance invalidates this specific Composite even though general v1 topic work permits it.
+
+R/T/U/V are required independent fixtures: commit-after-edit and clean different-commit reuse;
+missing/unbound/wrong-scope/self-rehashed approval; Composite-only main publication request;
+failed v1 plus Composite payload and unknown Batch fallback. Normal controls precede mutations.
+The original v1 tests remain intact. Other worktree NEWS contents and preserved original files must
+remain unchanged; inspect registration metadata, not another owner's working edits.
+
+This tooling step authorizes no production M1/M2, main push or Pages publication. Future Final
+requires separate construction approval, exact candidate review and release approval, all owner
+regressions, No-write, three performance trials, real asset/MIME/pin checks and main:/ Pages impact
+review. Tooling remains an approved external checker; including it in Final requires new graph/scope
+approval. Failures preserve the candidate/diff/logs and stop; no reset/restore/clean/stash/rebase/force.
