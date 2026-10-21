@@ -5,6 +5,8 @@ import {optOut} from './policy.js';
 import {subjectProductTypes,hasProductSubject,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
 export const HEADLINE_EVIDENCE_PARSER='headline-evidence-2';
 const types=[
+ ['stage_keyboard','ステージキーボード',/ステージキーボード|\bstage keyboard\b/i],
+ ['analog_drive','アナログドライブ',/(?:完全|フル)アナログのテープ[・ ]?(?:スタイル|サチュレーション)[・ ]?ドライブ|\banalog tape drive\b/i],
  ['synthesizer','シンセサイザー',/シンセサイザー|\bsynthesizer\b/i],
  ['room_correction','ルーム補正システム',/ハードウェア型ルーム補正システム|\bhardware room correction system\b/i],
  ['multi_effect_processor','マルチエフェクター',/マルチ[・ ]?エフェクト[・ ]?(?:プラットフォーム|プロセッサー)|マルチエフェクター/],

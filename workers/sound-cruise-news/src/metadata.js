@@ -363,6 +363,10 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
   if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  }
  if(titleFacts)facts=enrichHeadlineFacts(facts,{title:entry.eventTitle||entry.title,publishedAt:entry.date});
+ // A manufacturer-default category is not primary proof of the complete device.
+ // Keep these Ikebe model-code discoveries reviewable, but require the existing
+ // primary recovery path before formal READY. Reviewed aliases are unaffected.
+ if(source.id==='ikebe'&&facts?.identifierBasis==='explicit_model_code')facts={...facts,category:CATEGORIES.includes(entry.listingCategory)?entry.listingCategory:facts.category,scopeUncertain:true};
  let category=guitarEvent||exhibitionPending?'live_guitar':classify(entry.title);
  if(!category&&entry.listingSection==='product_news'&&source.discoveryType==='shimamura_listing'){
   if(entry.listingCategory==='amp-effector')category='amps_effects';
