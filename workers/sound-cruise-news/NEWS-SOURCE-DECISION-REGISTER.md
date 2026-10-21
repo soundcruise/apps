@@ -10,6 +10,8 @@
 
 ## Current-state precedence
 
+**最新の連絡方針・問い合わせ証拠区分： [2026-10-21 final contact policy](#contact-policy-20261021)。** 先行する全件監査HTMLのZOOM・キクタニ「未問い合わせ」判定は同追記で訂正。許諾記録・当時の判断は歴史として保持し、Gmail不在だけで未問い合わせと断定しない。
+
 1. 本番allowlist（[wrangler.production.jsonc](wrangler.production.jsonc)）＋D1 source_stateのread-only実測をcurrentとして扱う。registryのdefault enabled=falseだけでOFFと判定しない。
 2. [registry](src/registry.js)に合成される最新のsource-specific evidenceと、[manual scopes](src/manual-sources.js)を参照する。
 3. [Balanced Source Policy](BALANCED-SOURCE-POLICY.md)、[High-Value supplement](HIGH-VALUE-SOURCE-POLICY.md)と後続reportを優先。古いCONTACT／OFF一覧は当時の履歴。
@@ -1079,3 +1081,142 @@ This entry records operational verification, not an expanded publisher permissio
 - The source-specific `ギター` product description avoids inventing an unprinted acoustic/electro-acoustic subtype. M-AH is introduced as an announcement, not as already released on its article's August 3 publication date. Its primary detail states an August 5 release date; the original candidate date is retained.
 - Isolated assessment: four formal READY candidates (FPD 2027 recruitment, east preliminary, Japan Forest event, M-AH announcement); the August 29 diagnosis event is expired; the September 19 festival page has a conflicting og:url pointing to September 18 and cannot obtain formal publication provenance. The October 3–4 festival is also over. No event report is fabricated from an ended announcement.
 - Migration 0019 corrects future recovery commits to apply an explicitly supplied keyed title fingerprint atomically with facts. It does not backfill or rewrite existing articles/history. Scheduled listing/fresh-detail limits, RSS exclusion, final human publication decision, existing published rows and teacher data are unchanged.
+
+<a id="contact-policy-20261021"></a>
+
+## 2026-10-21 — Final contact policy / inquiry evidence correction
+
+**Latest contact-management addendum; local documentation only.** This entry supersedes the contact-status conclusions of the earlier October 21 audit, including its temporary HTML report. Earlier publisher replies, permission conditions and historical decisions remain intact. It does not authorize sending or change runtime policy.
+
+### Separate contact evidence, permission and operation
+
+| Contact evidence class | Required interpretation |
+|---|---|
+| 問い合わせ済み（Gmail記録あり） | Actual SENT correspondence or a publisher reply with its related correspondence. A draft is not sending evidence. |
+| 問い合わせ済み（フォーム利用・送信証跡あり） | Matching official form receipt/submission evidence. Receipt is not permission. |
+| 問い合わせ済みの可能性あり（フォーム利用の申告あり） | Respect the owner's report; delivery/date/receipt remain unverified unless separately evidenced. |
+| 未問い合わせ確認済み | Affirmative evidence of no inquiry for the stated scope/campaign; Gmail absence alone is insufficient. |
+| 不明 | Neither submission nor confirmed non-submission is established by available evidence. |
+
+- **ZOOM / Kikutani correction:** on 2026-10-21 the owner reported that earlier official dedicated-form inquiries are highly likely. Both are now **問い合わせ済みの可能性あり（フォーム利用の申告あり）**. Earlier “未問い合わせ / initial inquiry only” conclusions based on Gmail absence are withdrawn. No submission time, form path, receipt number, delivery or answer is invented. ZOOM's separate unsent Gmail draft does not disprove prior form use.
+- documented_silence, SAFE, policyDecision=approved, robots allow, form receipt and silence are not express publisher permission. Bounded internal operation remains separate from permission.
+- Expression-rights reservations, link conditions, robots/access denial and publisher refusals are different evidence types. Internal retirement / DO_NOT_USE is not a publisher refusal.
+- This work performs **no Gmail creation/edit/deletion/send, form submission, production write, source enable/disable or new publisher-content acquisition**.
+
+### Production snapshot and actual frequency
+
+- Latest dedicated NEWS worktree: HEAD 823ddffbac782b4ef94aa0ffd7ab76dc61233b86; NEWS **0.34.2**, Operator **0.33.2**, Port **1.24.0**. No version change.
+- Runtime allowlist plus read-only D1 source_state/source_health: **7 active healthy sources** — shimamura, zoom, kikutani, ikebe, ikebe-event, agm, morris.
+- D1 approved **153**, rejected **50**, pending **0** at this check. Approved is not the public API display count; date, event/sale expiry and takedown filters remain.
+- October 15–21 inclusive: each active source has **7 successful scheduled runs, one per JST day**. Each AGM run records **16 HTTP requests**; each other active source records **2**. These are scheduled-run totals, not all-path daily traffic.
+- Two requests mean **robots + one listing/feed**, not two listing visits. AGM's 16 are **robots + 5 section feeds + News listing + up to 9 News article pages**. Its current News loop checks the fixed latest article set, including already seen URLs; it is not a lifetime once-per-new-article implementation.
+- Separate bounded facts recheck and owner-authorized primary review must not be omitted from the frequency account. October 21 retained proof has four distinct response hashes/URLs (three Ikebe, one AGM), reused by two analysis records each. Eight analysis records are not evidence of eight article HTTP fetches. A complete historical per-URL HTTP ledger cannot be reconstructed from scheduled summaries alone.
+- Morris receipts show one daily listing reservation, two actual requests (robots + Information), on each day October 15–21. Permanent article receipts / fresh-article gates prevent routine repeated historical detail access. Previously documented historical primary-review exceptions do not create recurring permission.
+- D1 queries are SELECT-only, rows_written=0 and changed_db=false. No Morris listing/detail/RSS or Yamaha robots/Topics request was added in this work.
+
+### Final registry inventory — all 29 scopes
+
+Dates are JST in 2026. “不明” is the contact-evidence status, not a statement that no contact occurred.
+
+| Source ID / name | Operation / approved rows | Permission | Contact evidence | Last established event | Final contact policy |
+|---|---|---|---|---|---|
+| yamaha — ヤマハ日本製品Topics | OFF / 1 legacy | 利用了承済み、403技術回答待ち | 問い合わせ済み（Gmail記録あり） | Formal reply 10/16: 1a143ade3d41af2c; technical SENT 10/18: 1a14bf13cd93b30d | No reminder. Wait for technical answer; source OFF. |
+| shimamura — 島村楽器 | ON / 31 | 回答待ち・明示許諾未確認 | 問い合わせ済み（フォーム利用・送信証跡あり） | 10/9 14:57 receipt 1a11f3d0e7568f97 / v4jxneszfp; automatic only | Hold PR draft. Audit current scope/policy. Do not use unrelated historical contacts. |
+| natalie — 音楽ナタリー | OFF; publication blocked/takedown | 許諾未確認、品質・日付停止 | 不明 | No matching NEWS permission evidence; no confirmed non-submission | No current contact; scope/quality decision before future inquiry. |
+| skream — Skream! | OFF / 0 | 許諾未確認 | 不明 | Unsent draft; no matching actual NEWS sending/reply | Hold draft; do not contact an unadopted scope merely to fill a matrix. |
+| morris — Morris Guitars | ON / 5 | 条件付き許諾済み | 問い合わせ済み（Gmail記録あり）＋フォーム送信証跡 | 10/9 receipt; 10/14 15:01 clarification / 15:32 assent 1a1391d419b252c5 | Continue accepted operation; no further inquiry. Daily Information, fresh detail once, no RSS/historical bulk. |
+| deviser — Deviser | OFF / 0 | 許諾未確認 | 不明 | No matching NEWS evidence | Hold; scope/adoption decision before contact. |
+| roland — Roland / BOSS | OFF / 0 | 許諾未確認 | 不明 | No matching NEWS evidence; link policy is separate | Hold; no permission inferred from another publisher's Roland article. |
+| audio-technica — 日本公式 | OFF / 0 | 許諾未確認 | 不明 | No matching NEWS evidence; separate from AT Distribution | Hold; no cross-publisher permission inference. |
+| kanda — 神田商会 | OFF / 0 | 許諾未確認 | 不明 | No matching NEWS evidence | Hold; discovery/redirect/scope incomplete. |
+| zoom — ZOOM | ON / 1 | 明示許諾未確認、回答未確認 | 問い合わせ済みの可能性あり（フォーム利用の申告あり） | Owner report 10/21; submission date/receipt unknown; Gmail draft unsent | No reminder or duplicate initial inquiry. Draft unchanged/on hold; policy/robots/frequency audit. |
+| kikutani — キクタニ | ON / 5 approved, one expired | 明示許諾未確認、回答未確認 | 問い合わせ済みの可能性あり（フォーム利用の申告あり） | Owner report 10/21; submission date/receipt unknown | No new form or duplicate inquiry. Earlier form text held; policy/robots/frequency audit. |
+| ikebe-event — 池部Events | ON / 2 | 条件付き許諾済み | 問い合わせ済み（Gmail記録あり） | Assent 10/15: 1a13e3f7691fbf79; thanks SENT 10/16: 1a141d2230efe3f5 | Continue accepted Events scope, five conditions and UTM; no inquiry. |
+| at-distribution — AT Distribution | OFF / 1 retained | 現行scopeは意図的廃止、許諾主張なし | 不明 | Retirement before permission campaign recorded; no matching NEWS reply | Not a current target. Keep article; products are not globally excluded. |
+| ikebe — 池部PB | ON / 41 | 条件付き許諾済み | 問い合わせ済み（Gmail記録あり） | Same formal Ikebe thread; latest SENT 10/16 | Continue accepted scope/frequency and UTM; no inquiry. |
+| chuya — Discover chuya | OFF / 2 retained | 許諾未確認 | 不明 | No matching NEWS correspondence found | Retained-use gap remains. Confirm history/contact before any first verified approach; no restart now. |
+| hookup — Hookup | OFF / 1 retained | 許諾未確認 | 不明 | No matching NEWS correspondence found | Retained-use gap remains; possible future official general form, no submission now. |
+| sonicwire — SONICWIRE | OFF / 2 retained | 現行feed opt-out、例外許諾未確認 | 不明 | Existing opt-out evidence, not a publisher reply banning every factual link | Keep OFF. Clarify retained-use/permitted route if later needed; no bypass. |
+| sleepfreaks — Sleepfreaks | OFF / 5 retained | 明示許諾未確認、歴史的Worker403 | 不明 | No matching NEWS permission/technical reply | Keep OFF. Future corporate routing must distinguish permission and technical access from lesson support. |
+| ik — IK Multimedia | OFF / 3 retained | 現行scopeは意図的停止 | 不明 | Existing low-yield/technical retirement; no matching NEWS reply | Not a current target; preserve existing articles. |
+| ahs — AHS | OFF / 1 retained | 許諾未確認 | 不明 | No matching NEWS permission evidence | Retained-use gap remains; confirm Web-use contact/history first. |
+| agm — AGM WEB | ON / 46 plus manual below | 条件付き許諾済み | 問い合わせ済み（Gmail記録あり）＋フォーム送信証跡 | Receipt 10/7; assent 10/8: 1a11b3bf481d9fdb; AGM thanks SENT 10/9 | No inquiry. Exact WEB attribution; 10/11 Digimart consultation is a separate matter. |
+| korg — KORG / VOX | OFF / 0 | 許諾未確認 | 不明 | No matching NEWS evidence | Hold until definite acquisition scope/adoption. |
+| esp — ESP / BIGBOSS | OFF / 0 | Direct-link exception permission unconfirmed | 不明 | Existing official deep-link restriction; no exception reply | Keep OFF. Resolve restriction before any restart; products via other sources are distinct. |
+| yamaha-newsroom — 別host | OFF / 0 | 当該scopeの許諾未確認 | 不明 | Topics reply is not evidence for this separate host/scope | Hold; no new inquiry/access test. |
+| amass — Rick Nielsen tag | OFF / 1 retained | 現行scopeは意図的廃止 | 未問い合わせ確認済み（現行campaign） | Owner expressly chose no amass inquiry; 10/9 retirement | No email/form. Future acoustic-performance scope may be reevaluated. |
+| tft — THE FIRST TIMES | OFF / 0 | 許諾未確認 | 不明 | No matching NEWS evidence | Hold until relevant acoustic/SSW scope is defined. |
+| takamine — Takamine | OFF / 0 | 内部DO_NOT_USE、先方の拒否は未確認 | 不明 | Internal classification only | No current contact; do not invent publisher refusal. |
+| kurosawa — クロサワ楽器 | OFF / 0 | 内部DO_NOT_USE、先方の拒否は未確認 | 不明 | Internal classification only | No current contact; do not invent publisher refusal. |
+| soundhouse — サウンドハウス | OFF / 0 | 回答待ち | 問い合わせ済み（Gmail記録あり） | SENT 10/9: 1a11fa8668f94cd4; thread 1a11f88177c56a2a; no reply found | At most one follow-up candidate in original thread; ask general shop route to forward to Web/NEWS. No send now. |
+
+### Additional eight scopes / candidates
+
+| Scope | Operation / permission | Contact evidence | Final policy |
+|---|---|---|---|
+| manual-ikebe | Manual only / 1 approved; bounded existing use covered by Ikebe assent | 問い合わせ済み（Gmail記録あり） — same Ikebe correspondence | No separate inquiry or new automatic discovery. |
+| manual-agm-test | Four approved; 10/8 reply includes existing test display | 問い合わせ済み（Gmail記録あり）＋フォーム送信証跡 | No duplicate inquiry; old permission-pending wording is historical. |
+| manual-apu — APU Software | Automatic OFF; individual candidate rejected for insufficient facts; permission unconfirmed | 不明 | Hold; no resurrection, automation or inquiry now. |
+| jes — JES International | Unconfigured/not published; reply pending | 問い合わせ済み（Gmail記録あり） — SENT 10/9: 1a11f36952d612e7; thread 1a11f1f9a208e400 | At most one later authorized follow-up to official web@jes1988.com, same thread. |
+| digimart — デジマート・マガジン | Unconfigured/not published; actual permission authority unconfirmed | 問い合わせ済み（Gmail記録あり） — SENT 10/11: 1a1293dc6f5f8f45 to Hashimoto in AGM thread | Prefer official Digimart medium/operation route. Preserve previous consultation; do not assume Hashimoto's role or send parallel duplicate inquiries. |
+| tascam | Research candidate/OFF; permission unconfirmed | 不明 | No current contact; scope/adoption decision first. |
+| steinberg | OFF; old campaign expired, not a permanent publisher ban | 不明 | No current contact or revival of expired campaign. |
+| kvr-apu-support | OFF; supporting evidence withdrawn for incomplete identity | 不明 | No current contact; no permission/reliability inferred. |
+
+### Enabled-source policy and acquisition audit
+
+Bounded documentary/code/log review, not a legal opinion or comprehensive clearance of undiscovered clauses. The reviewed policy pages were reread. Publisher robots/listings were **not** fetched again: saved hashes, successful scheduled runs and fail-closed code are the access evidence.
+
+| Enabled source | Reviewed fixed surface and scheduled traffic | Official policy / findings |
+|---|---|---|
+| 島村 | /update/common/new-item/; daily, robots + listing | [Site usage](https://www.shimamura.co.jp/siteusage/) permits links subject to source identification, no frame, separate window. Current Port uses identified source/direct URL/target=_blank/no frame. Link permission is not automation permission. No new explicit prohibition of this bounded collection was identified in the reviewed page. Form answer remains pending. |
+| ZOOM | https://zoomcorp.com/ja/jp/news/; daily, robots + listing | [Privacy policy](https://zoomcorp.com/ja/jp/privacy-policy/) is not an automation grant. Current scheduled listing collector is bounded to recorder/product updates, not article crawling. Robots/opt-out gates remain. Prior form report and missing reply are not consent. Site-wide terms clearance is not claimed. |
+| キクタニ | https://www.kikutani.co.jp/news/; daily, robots + listing | [Privacy policy](https://www.kikutani.co.jp/privacy-policy/) does not establish an automated-news license. No new explicit prohibition of the narrow collection was identified on this page; robots/opt-out gates remain. Form use is reported, not confirmed never-contacted. |
+| 池部PB | https://www.ikebe-gakki-pb.com/new_product/; daily, robots + HTML listing; separate bounded recheck | [Store terms](https://www.ikebe-gakki.com/Page/agreement.aspx) retain expression rights. The 10/15 specific assent supplies permission for the presented use/frequency. Reviewed robots-absence/change rules and required UTM remain. |
+| 池部Events | https://www.ikebe-gakki.com/blog/category/event/; daily, robots + HTML listing | Same publisher assent covers originally presented Events scope, not a general main-host crawl. Five conditions, attribution/direct links/UTM retained. |
+| AGM WEB | Six fixed sections; daily, 16 requests including latest News metadata | [Rittor terms](https://www.rittor-music.co.jp/agreement/) restrict expression reuse; the 10/8 AGM-specific assent supplies the relevant permission. Low load, exact ACOUSTIC GUITAR MAGAZINE WEB attribution, no expression/images/logos. Current latest-News checks are not “new articles only, once ever.” |
+| Morris | Fixed Information listing daily; fresh eligible detail once per permanent receipt | Publisher's 10/14 actual assent to the clarification is the permission. Daily reviewed robots404 path stops on status change; article URL robots check required. No RSS/archive-wide/repeated-detail crawl. Historical exceptions do not grant future bulk access. |
+
+Common checks and limits:
+- src/policy.js uses the disclosed SoundCruiseNewsBot/0.1 (+mailto:soundcruise.inc@gmail.com), no credentials, rejected redirects, time/byte bounds and robots parsing. Robots is not a publisher grant.
+- src/collector.js and src/facts-recheck.js stop/disable on 401/403/451, robots disallow/change and opt-out; 429/5xx back off. Morris separately enforces daily/once-only receipts and fail-closed responses.
+- apps/cruise-port/news-ui.js shows independent headline/source/date, links directly in a new tab, and does not embed publisher pages/images. Ikebe tracking is handled by news-external-link.js.
+- Collector/parser/storage boundaries retain bounded facts, fingerprints, provenance and hashes, not original HTML/headlines/article prose/images. Transient source strings are cleared. This is a code/schema review, not a forensic claim about every historical database byte.
+- src/admin.js, news_takedowns, publication-block and source-state gates provide correction/removal/stop mechanisms; none was executed.
+- No newly confirmed explicit prohibition requiring an immediate enabled-source stop was found in the reviewed evidence. If an applicable explicit prohibition/stop request is found, record exact scope/clause, report it and request the owner's stop decision. Do not infer consent from silence or bypass access controls.
+- Scheduled summaries are not complete all-path HTTP totals. AGM's repeated latest-News metadata reads and separate recheck traffic remain explicit limitations, not silently described as once-per-new-article.
+
+### Official routing / follow-up policy
+
+- **Shimamura:** retain 10/9 official form receipt. The [current official PR listing](https://www.shimamura.co.jp/press/?p=9807) does list press@shimamura.co.jp, but its additional draft is **on hold**. No contact from an unrelated historical matter is used.
+- **ZOOM / Kikutani:** reported likely prior dedicated-form submissions; no reminder, duplicate initial inquiry or repeated form now. No dates/receipt IDs invented.
+- **Sound House:** [official general contact](https://www.soundhouse.co.jp/guidance/usage/detail/?no=G01863) confirms shop@soundhouse.co.jp, not a dedicated licensing department. A more appropriate dedicated Web/NEWS email remains unverified. Original thread/forwarding request; maximum **one** follow-up if later authorized. Preserve latest-News scope, including useful clearly conditioned sales/coupons/campaigns.
+- **JES:** [official CONTACT](https://jes1988.com/concept.html) confirms web@jes1988.com. Appropriate routing entry, not guaranteed permission authority. Maximum **one** later authorized follow-up in the existing thread.
+- **Digimart:** prefer [official medium support](https://www.digimart.net/help/support/), requesting editorial/permission routing. Earlier automatic read returned 412; no bypass. [Media guide](https://ad.rittor-music.co.jp/web/digimart.html) concerns advertising, not proof of rights authority. Preserve 10/11 Hashimoto consultation and avoid parallel duplicate contact. No new form/email now.
+- **Yamaha:** granted usage permission, technical reply pending; no additional reminder; keep draft held/source OFF. No new access test.
+- **Ikebe / Morris / AGM:** continue accepted scope, no further inquiry; material changes/stop requests follow existing conditions.
+- Retired/unadopted sources remain held. chuya/Hookup/SONICWIRE/Sleepfreaks/AHS retained-publication permission gaps stay unresolved, not silently converted to consent or never-contacted.
+
+### Gmail draft inventory — disposition only
+
+Seven relevant drafts reread as DRAFT, not SENT, no attachments. Three unrelated drafts remain untouched. **No creation, update, deletion or send this time.**
+
+| Recipient/purpose | Existing draft ID / thread | Final disposition |
+|---|---|---|
+| 島村 press@shimamura.co.jp | r-7408289216040500440 / 1a15bb36724a4930 | **保留** — existing form inquiry; no extra PR email now. |
+| ZOOM info@zoom.co.jp | r4431530083308285062 / 1a11e1d26303e060 | **保留** — initial-contact wording must not be sent unchanged as if no prior form inquiry existed. No edit/delete now. |
+| Sound House shop@soundhouse.co.jp | r2019933617244545387 / 1a11f88177c56a2a | **送信候補・未送信** — polite existing text prepared, maximum one follow-up after future send authorization. |
+| JES web@jes1988.com | r-8301585181873700075 / 1a11f1f9a208e400 | **送信候補・未送信** — same one-follow-up ceiling. |
+| Yamaha technical reminder | r2302582114671839155 / 1a143ade3d41af2c | **保留** — no additional reminder. |
+| Skream info@skream.jp | r784802891982399290 / 1a15bb6f27f959fb | **保留** — unadopted scope. |
+| Old AGM ad@rittor-music.co.jp | r-7641861625988268459 / 1a10b7c43b8d8cd3 | **送信不要・保管** — 10/8 permission already obtained. No duplicate send or unilateral deletion. |
+
+Kikutani has no separate Gmail draft in this inventory; earlier form text is held. Digimart's unsubmitted form-transfer text is an alternative route, not authority to send duplicate inquiries.
+
+### Remaining uncertainties / completion
+
+1. ZOOM/Kikutani prior submission date, exact form path, receipt, delivery and answer remain unverified; owner report preserved, no request to repeat the form.
+2. Sound House's specific Web/NEWS permission department and Digimart's editorial/rights authority remain unknown. Official routing is preferable to guessed addresses/roles.
+3. Replies from Shimamura/ZOOM/Kikutani/Sound House/JES and Yamaha's technical team remain unconfirmed in available evidence. Yamaha alone is a technical hold after affirmative usage permission.
+4. OFF-but-retained permission gaps and complete all-path historical HTTP counts remain unresolved. No production change is made to close them artificially.
+5. At completion of this audit, this addendum/pointer was the only repository change and remained local/uncommitted. The owner subsequently authorized publication of this register alone; that Git publication does not authorize any source/Worker/DB/article/Gmail change or email/form submission. No application version bump or Worker deployment is required for this documentation-only publication.
