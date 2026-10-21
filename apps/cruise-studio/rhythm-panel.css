@@ -1,0 +1,19 @@
+#studio-rhythm-panel { margin-block: 1rem; padding: .85rem; border: 1px solid var(--border-color, currentColor); border-radius: .6rem; min-width: 0; }
+#rhythm-body[hidden] { display: none; }
+#rhythm-body { display: grid; gap: .65rem; margin-top: .8rem; }
+#rhythm-body label { display: grid; gap: .35rem; }
+#rhythm-body button, #rhythm-body select, #rhythm-open { font: inherit; min-height: 2.75rem; max-width: 100%; color: inherit; background: var(--bg-card, transparent); border: 1px solid currentColor; border-radius: .35rem; padding: .4rem .65rem; }
+#rhythm-body button:disabled { opacity: .45; }
+#rhythm-body button:focus-visible, #rhythm-body select:focus-visible, #rhythm-open:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+#rhythm-official fieldset { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,11rem),1fr)); gap: .4rem; min-width: 0; margin: .4rem 0; padding: .65rem; border: 1px solid currentColor; }
+#rhythm-official button { text-align: left; overflow-wrap: anywhere; }
+#rhythm-official button[aria-pressed="true"] { outline: 2px solid currentColor; outline-offset: 1px; }
+#rhythm-official button[data-adopted="true"] { font-weight: 700; }
+.rhythm-cells { display: grid; grid-template-columns: repeat(var(--rhythm-cells),minmax(0,1fr)); border: 1px solid currentColor; }
+.rhythm-cells span { text-align: center; padding-block: .65rem; font-size: clamp(.9rem,2.5vw,1.25rem); }
+.rhythm-cells .rhythm-beat { border-left: 2px solid currentColor; }
+.rhythm-note { font-size: .85rem; line-height: 1.6; opacity: .85; }
+@media print { #studio-rhythm-panel { display: none !important; } }
+#rhythm-body > *, #rhythm-body label, #rhythm-preview { min-width: 0; overflow-wrap: anywhere; }
+#rhythm-body select { width: 100%; min-width: 0; }
+@media (max-width: 600px) { .rhythm-cells { grid-template-columns: repeat(8,minmax(0,1fr)); } }

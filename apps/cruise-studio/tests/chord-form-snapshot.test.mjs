@@ -154,28 +154,47 @@ test('content comparison preserves independent history and detached operation ow
  const begun=s.beginOperation('duration');ok(begun);const draft=begun.operation.draft;
  draft.bars[0].melody[0].durationTicks=240;ok(s.commitOperation(begun.operation));
  const after=s.workingSnapshot();assert.equal(s.getHistory().cursor,n+1);
- draft.songInfo.title='late detached edit';assert.deepEqual(s.workingSnapshot(),after);
+ const stable=state(f);assert.throws(()=>draft.songInfo.title='late detached edit',/detached-draft-reference/);assert.equal(state(f),stable);assert.deepEqual(s.workingSnapshot(),after);
  ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);ok(s.redo());assert.deepEqual(s.workingSnapshot(),after);assert.equal(f.ledger.length,0);
 });
-test('content comparison rejects unnotified live material drift before publishing staged edit',()=>{
- const f=adopted(),s=f.s(),begun=s.beginOperation('staged title');ok(begun);begun.operation.draft.songInfo.title='must not publish';
- const material=s.draft.materials.forms[0];Object.defineProperty(material.provenance,'ownerVersion',{value:'1.21.1',enumerable:true,writable:true,configurable:true});
- const result=s.commitOperation(begun.operation);assert.equal(result.code,'stale-operation');assert.notEqual(s.draft.songInfo.title,'must not publish');assert.equal(f.ledger.length,0);
+test('content comparison rejects reflective live material drift before mutation and preserves staged edit ownership',async()=>{
+ const f=adopted(),s=f.s(),original=s.workingSnapshot(),begun=s.beginOperation('staged title');ok(begun);begun.operation.draft.songInfo.title='must not publish';
+ const stable=state(f),material=s.draft.materials.forms[0];
+ assert.throws(()=>Object.defineProperty(material.provenance,'ownerVersion',{value:'1.21.1',enumerable:true,writable:true,configurable:true}),/draft-reflection-write/);
+ assert.equal(state(f),stable);assert.equal(s.getHistory().openGroup,begun.operation.operationId);assert.notEqual(s.draft.songInfo.title,'must not publish');assert.equal(f.ledger.length,0);
+ ok(s.cancelOperation(begun.operation));assert.equal(s.getHistory().openGroup,null);assert.throws(()=>begun.operation.draft.songInfo.title='late',/detached-draft/);
+ ok(s.runOperation('recovery',p=>p.songInfo.title='recovered'));const after=s.workingSnapshot();ok(s.undo());assert.deepEqual(s.workingSnapshot(),original);ok(s.redo());assert.deepEqual(s.workingSnapshot(),after);assert.equal(f.ledger.length,0);
+ ok(await s.commit());assert.equal(s.dirty,false);assert.equal(f.ledger.length,2);assert.deepEqual(f.repository.read(s.target).snapshot.materials,original.materials);
 });
 for(const hook of ['getter','inherited-toJSON','NaN'])test('content comparison retains original input defense: '+hook,()=>{
- const f=adopted(),s=f.s(),begun=s.beginOperation('staged title');ok(begun);begun.operation.draft.songInfo.title='must not publish';
- const target=s.draft.materials.forms[0].snapshot;let calls=0;
- if(hook==='getter')Object.defineProperty(target,'capo',{get(){calls++;return 0;},enumerable:true,configurable:true});
- else if(hook==='inherited-toJSON')Object.setPrototypeOf(target,{toJSON(){calls++;return {};}});
- else Object.defineProperty(target,'capo',{value:NaN,enumerable:true,configurable:true,writable:true});
- assert.throws(()=>s.commitOperation(begun.operation));assert.equal(calls,0);assert.notEqual(s.draft.songInfo.title,'must not publish');ok(s.cancelOperation(begun.operation));assert.equal(f.ledger.length,0);
+ const f=adopted(),s=f.s(),original=s.workingSnapshot(),begun=s.beginOperation('staged title');ok(begun);begun.operation.draft.songInfo.title='must not publish';
+ const target=s.draft.materials.forms[0].snapshot,stable=state(f);let calls=0;
+ const inject=o=>{
+  if(hook==='getter')Object.defineProperty(o,'capo',{get(){calls++;return 0;},enumerable:true,configurable:true});
+  else if(hook==='inherited-toJSON')Object.setPrototypeOf(o,{toJSON(){calls++;return {};}});
+  else Object.defineProperty(o,'capo',{value:NaN,enumerable:true,configurable:true,writable:true});
+ };
+ assert.throws(()=>inject(target),hook==='inherited-toJSON'?/draft-prototype-write/:/draft-reflection-write/);
+ assert.equal(calls,0);assert.equal(state(f),stable);assert.equal(s.getHistory().openGroup,begun.operation.operationId);
+ // External caller data remains untrusted: early Proxy refusal must not replace
+ // the independent descriptor/JSON validation of inputs entering the Session.
+ const invalid=clone(target);inject(invalid);assert.throws(()=>s.draft.extensions=invalid);assert.equal(calls,0);assert.equal(state(f),stable);
+ ok(s.cancelOperation(begun.operation));assert.equal(s.getHistory().openGroup,null);assert.deepEqual(s.workingSnapshot(),original);
+ ok(s.runOperation('valid after refusal',p=>p.songInfo.artist='Recovery'));const after=s.workingSnapshot();ok(s.undo());assert.deepEqual(s.workingSnapshot(),original);ok(s.redo());assert.deepEqual(s.workingSnapshot(),after);assert.equal(f.ledger.length,0);
 });
 test('content comparison ignores metadata and object key order without normalizing content',()=>{
  const f=adopted(),s=f.s(),begun=s.beginOperation('title');ok(begun);begun.operation.draft.songInfo.title='accepted';
- Object.defineProperty(s.draft,'updatedAt',{value:'2026-10-17T00:00:00.000Z',enumerable:true,writable:true,configurable:true});
- const ordered=clone(s.draft.materials.forms[0].provenance),reversed=Object.fromEntries(Object.entries(ordered).reverse());
- Object.defineProperty(s.draft.materials.forms[0],'provenance',{value:reversed,enumerable:true,writable:true,configurable:true});
- ok(s.commitOperation(begun.operation));assert.equal(s.draft.songInfo.title,'accepted');assert.equal(f.ledger.length,0);
+ const stable=state(f),material=s.draft.materials.forms[0],ordered=clone(material.provenance),reversed=Object.fromEntries(Object.entries(ordered).reverse()),key=contentKey(clone(material));
+ assert.throws(()=>Object.defineProperty(s.draft,'updatedAt',{value:'2026-10-17T00:00:00.000Z',enumerable:true,writable:true,configurable:true}),/draft-reflection-write/);
+ assert.throws(()=>Object.defineProperty(material,'provenance',{value:reversed,enumerable:true,writable:true,configurable:true}),/draft-reflection-write/);assert.equal(state(f),stable);
+ // Ordinary writes stay available and tracked, including semantically identical
+ // material replacement. The pending handle still becomes stale after a write.
+ const history=s.getHistory(),version=s.snapshotVersion,base=s.baseSnapshot,revision=s.baseRevision;
+ s.draft.updatedAt='2026-10-17T00:00:00.000Z';material.provenance=reversed;
+ assert.notEqual(s.snapshotVersion,version);assert.deepEqual(s.getHistory(),history);assert.equal(contentKey(clone(s.draft.materials.forms[0])),key);
+ assert.deepEqual(Object.keys(s.draft.materials.forms[0].provenance),Object.keys(reversed));assert.equal(s.baseSnapshot,base);assert.equal(s.baseRevision,revision);
+ assert.equal(s.commitOperation(begun.operation).code,'stale-operation');ok(s.cancelOperation(begun.operation));
+ const before=s.workingSnapshot();ok(s.runOperation('fresh title',p=>p.songInfo.title='accepted'));const after=s.workingSnapshot();assert.equal(s.draft.songInfo.title,'accepted');ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);ok(s.redo());assert.deepEqual(s.workingSnapshot(),after);assert.equal(f.ledger.length,0);
 });
 
 test('owned history exact UTF-8 sizes survive Unicode edits, text merging and Redo branching',()=>{

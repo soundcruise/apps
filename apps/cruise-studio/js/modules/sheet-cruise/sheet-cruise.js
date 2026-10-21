@@ -92,7 +92,7 @@
             var v=state.session.snapshotVersion;
             if(v!==schemaViewVersion){
                 schemaView=null;schemaViewError=null;
-                try { schemaView=CS().model.toLegacyView(state.session.draft.schemaVersion === 2 ? state.session.workingSnapshot() : state.session.draft); }
+                try { schemaView=(CS().model.toStructureView||CS().model.toLegacyView)(state.session.draft.schemaVersion === 2 ? state.session.workingSnapshot() : state.session.draft); }
                 catch(error){
                     if(error.code==='invalid-project')schemaViewError=error.diagnostics.slice();
                     else if(error instanceof TypeError && /^(non-json-|json-depth$|sparse-json-array$)/.test(error.message))schemaViewError=[error.message];
@@ -111,8 +111,12 @@
         var message=document.createElement('p');message.textContent='譜面を表示できません。曲の入力値を確認してください。';box.appendChild(message);
         var details=document.createElement('details'),summary=document.createElement('summary'),diagnostic=document.createElement('pre');
         summary.textContent='詳細診断';diagnostic.textContent=(schemaViewError||[]).join(' / ');
+        // The scaled viewport has an explicit height; details expansion must
+        // update it too, otherwise overflow:hidden clips the diagnostic text.
+        details.addEventListener('toggle',updateSheetScale);
         details.append(summary,diagnostic);box.appendChild(details);els.scaleBox.replaceChildren(box);
         if(els.slotOverlay)els.slotOverlay.classList.add('hidden');
+        updateSheetScale();
     }
     function staffRequest() {
         if (staffStyle !== 'melody' || !state.active || !state.project) return;
@@ -520,7 +524,7 @@
         els.timeSig.value = si.timeSignature.beats + '/' + si.timeSignature.beatUnit;
         [els.playKey,els.capo,els.timeSig].forEach(function(e){e.disabled=state.session.draft.schemaVersion===2;e.title=e.disabled?'schema 2 M1では表示専用です。実音保持・移調の編集導線は次工程です':'';});
         // 基本ストローク: slotsから記号列を再生成して表示（slotsが正。ADR-018）
-        els.basicStrum.value = CS().model.getBasicStrumText(state.project);
+        var basic=CS().model.getBasicStrumText(state.project);els.basicStrum.disabled=!!(basic&&basic.ok===false);els.basicStrum.value=basic&&basic.ok===false?basic.name+'（採用済み・旧編集非対応）':basic;
         els.basicStrum.classList.remove('is-invalid');
         els.basicStrum.title = '';
         updateKeyCheck();
@@ -1141,7 +1145,7 @@
      */
     function isStrumDataForcedSixteenth(bar) {
         var slots = CS().model.getBarEffectiveStrumSlots(state.project, bar.barNumber);
-        return CS().model.barNeedsSixteenthResolution({ strumSlots: slots });
+        return Array.isArray(slots)&&CS().model.barNeedsSixteenthResolution({ strumSlots: slots });
     }
 
     /**
@@ -1167,7 +1171,7 @@
      */
     function getForcedSixteenthReason(bar) {
         var slots = CS().model.getBarEffectiveStrumSlots(state.project, bar.barNumber);
-        var strumForced = !!(slots && CS().sheetRenderer.strumNeedsSixteenth(slots));
+        var strumForced = !!(Array.isArray(slots) && CS().sheetRenderer.strumNeedsSixteenth(slots));
         if (strumForced) return 'ストロークに16分位置があるため8分表示にはできません';
         return '';
     }
@@ -2801,7 +2805,7 @@
             if (rowId === 'strum') {
                 var strumWrap = document.createElement('div');
                 strumWrap.className = 'slot-overlay-row-body slot-overlay-row-body--strum';
-                strumWrap.appendChild(buildStrumGridRow(bar, res));
+                var rhythm=CS().model.rhythmForBar(state.project,bar.barNumber);if(rhythm&&rhythm.encoding==='rhythm-owner-cells-v1')strumWrap.textContent=rhythm.name+'（採用済み・旧編集非対応）';else strumWrap.appendChild(buildStrumGridRow(bar, res));
                 row.appendChild(strumWrap);
             } else if (rowId === 'lyrics') {
                 var lyricsWrap = document.createElement('div');
@@ -3277,6 +3281,7 @@
         activate: activate,
         deactivate: deactivate,
         setLoupeSafeAreaProvider: setLoupeSafeAreaProvider,
+        refreshRhythmView: function () { if (state.active && state.session === CS().documents.getSession()) redrawSession(false); },
         refreshEditorGeometry: function () { scheduleOverlayPosition(false); },
         closeTransient: closeTransient,
         handleEscape: handleEscape,

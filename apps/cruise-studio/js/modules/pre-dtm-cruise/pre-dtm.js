@@ -35,7 +35,8 @@
     function readProjectSource() {
         var res = projectSourceProvider ? projectSourceProvider() : { ok: false, error: '対象の曲を確認できません。' };
         if (!res.ok) return res;
-        return Object.assign({}, res, { ok: true, project: freezeSnapshot(JSON.parse(JSON.stringify(CS().model.toLegacyView(res.project)))) });
+        try {return Object.assign({},res,{ok:true,project:freezeSnapshot(JSON.parse(JSON.stringify(res.project.schemaVersion===2?CS().model.schema2.readArrangementProjection(res.project):res.project)))});}
+        catch(error){return {ok:false,code:'unsupported-legacy-rhythm',error:'採用リズムのPre-DTM出力は未対応です。Structureの内容は保持されています。'};}
     }
 
     function setProjectSourceProvider(provider) {
@@ -175,6 +176,7 @@
 
     function regenerate() {
         state.arrangement = CS().arrangement.generateArrangement(state.project, state.settings);
+        if(!state.arrangement.ok){showEmptyState(state.arrangement.warnings.join(' / '));return;}
         renderAll();
     }
 
@@ -418,7 +420,7 @@
         if (refreshSource() === false) return;
         if (!state.arrangement || !state.project) return;
         var output = documentHost.captureOutput(state.settings, CS().arrangement.generateArrangement);
-        if (!output.ok) { showEmptyState(output.error); return; }
+        if (!output.ok || !output.arrangement.ok) { showEmptyState(output.error || '採用リズムの出力は未対応です'); return; }
         var arr = output.arrangement;
         var flat = CS().arrangement.flattenEvents(arr);
         var payload = {
@@ -456,7 +458,7 @@
         if (refreshSource() === false) return;
         if (!state.arrangement || !state.project) return;
         var output = documentHost.captureOutput(state.settings, CS().arrangement.generateArrangement);
-        if (!output.ok) { showEmptyState(output.error); return; }
+        if (!output.ok || !output.arrangement.ok) { showEmptyState(output.error || '採用リズムの出力は未対応です'); return; }
         var midi = CS().midi;
         var result = midi.buildMidiFile(output.arrangement);
         if (!result.ok) {

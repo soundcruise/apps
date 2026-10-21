@@ -40,7 +40,7 @@
                             warnings = applied.warnings;
                         } else throw Error('Unknown text field');
                     }
-                    });
+                    },{kind:target.kind,...(target.field?{field:target.field}:{}),barIds:canonical.schemaVersion===2&&canonical.bars[target.barNumber-1]?[canonical.bars[target.barNumber-1].id]:[]});
                 });
                 if (mode === 'native' || mode === 'composition' || mode === 'discrete') s.finishTextGroup();
                 return Object.assign({}, result, { warnings: warnings });

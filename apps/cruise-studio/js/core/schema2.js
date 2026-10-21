@@ -36,37 +36,32 @@
     // Inspect original data descriptors: never let JSON erase values or invoke user hooks.
     function assertJson(value) { jsonValue(value,0,new Set(),new Set()); }
     function jsonValue(value,depth,seen,prototypes) {
-        prototypes = prototypes || new Set();
-        if (value && typeof value === 'object') {
-            // JSON reads toJSON through the complete prototype chain. Never read that property.
-            for (var proto = value; proto && !prototypes.has(proto); proto = Object.getPrototypeOf(proto)) {
-                insist(!Object.getOwnPropertyDescriptor(proto,'toJSON'), 'json-serialization-hook');
-                insist(!Object.getOwnPropertyDescriptor(proto,Symbol.toStringTag), 'non-json-symbol');
-                if (proto !== value) Reflect.ownKeys(proto).forEach(function(key){
-                    var descriptor=Object.getOwnPropertyDescriptor(proto,key);
-                    // Object.prototype's historical __proto__ accessor is never read here.
-                    insist(Object.hasOwn(descriptor,'value') || (key==='__proto__' && Object.getPrototypeOf(proto)===null),'non-json-descriptor');
-                });
-                // Only prototypes can be reused; each value still receives its full own-data check.
-                if (proto !== value) prototypes.add(proto);
-            }
-        }
         insist(depth<40,'json-depth');
         if(value===null||typeof value==='string'||typeof value==='boolean')return;
         if(typeof value==='number'){insist(Number.isFinite(value),'non-json-number');return;}
         insist(typeof value==='object'&&!seen.has(value),'non-json-value');seen.add(value);
-        insist(Array.isArray(value)||Object.prototype.toString.call(value)==='[object Object]','non-json-object');
-        var array = Array.isArray(value), count = 0, own = Reflect.ownKeys(value);
-        for (var key of own) {
-            insist(typeof key === 'string', 'non-json-symbol');
-            if (array && key === 'length') continue;
-            var d = Object.getOwnPropertyDescriptor(value, key);
-            insist(Object.hasOwn(d, 'value') && d.enumerable, 'non-json-descriptor');
-            if (array) insist(/^(0|[1-9][0-9]*)$/.test(key) && Number(key) < value.length, 'non-json-array-property');
-            jsonValue(d.value, depth + 1, seen, prototypes); count++;
+        prototypes=prototypes||new Set();
+        // Own hooks are checked by the descriptor walk below. Inspect inherited
+        // hooks/accessors once per prototype in this single validation traversal.
+        for(var proto=Object.getPrototypeOf(value);proto&&!prototypes.has(proto);proto=Object.getPrototypeOf(proto)){
+            insist(!Object.getOwnPropertyDescriptor(proto,'toJSON'),'json-serialization-hook');
+            insist(!Object.getOwnPropertyDescriptor(proto,Symbol.toStringTag),'non-json-symbol');
+            Reflect.ownKeys(proto).forEach(function(key){var d=Object.getOwnPropertyDescriptor(proto,key);
+                insist(Object.hasOwn(d,'value')||(key==='__proto__'&&Object.getPrototypeOf(proto)===null),'non-json-descriptor');
+            });prototypes.add(proto);
         }
-        // Unique, in-range own array indices cover the array iff their count equals length.
-        if (array) insist(count === value.length, 'sparse-json-array');
+        var array=Array.isArray(value),count=0,own=Reflect.ownKeys(value);
+        for(var key of own){
+            insist(typeof key==='string','non-json-symbol');
+            insist(key!=='toJSON','json-serialization-hook');
+            if(array&&key==='length')continue;
+            var d=Object.getOwnPropertyDescriptor(value,key);
+            insist(Object.hasOwn(d,'value')&&d.enumerable,'non-json-descriptor');
+            if(array)insist(/^(0|[1-9][0-9]*)$/.test(key)&&Number(key)<value.length,'non-json-array-property');
+            jsonValue(d.value,depth+1,seen,prototypes);count++;
+        }
+        insist(array||Object.prototype.toString.call(value)==='[object Object]','non-json-object');
+        if(array)insist(count===value.length,'sparse-json-array');
         seen.delete(value);
     }
     var STANDARD_TUNING=[64,59,55,50,45,40];
@@ -116,6 +111,36 @@
     }
     function create(options){
         var theory=options.theory, spelling=options.spelling, legacy=options.legacy, scales=new Map(), legacyNotes=new WeakMap(), legacyChords=new WeakMap(), legacyBarIds=new WeakMap(), replacementBars=new WeakSet(), boundLegacyBars=new WeakSet(), legacyBars=new WeakSet();
+        // Instance-local semantic reuse. validate() still scans every original descriptor,
+        // JSON byte budget, identity and reference on every call. No caller validated flag.
+        var rhythmCache=new Map(),rhythmCacheBytes=0;
+        function nativeKey(m){
+            formKeys(m,['id','encoding','snapshot','provenance']);
+            insist(m.id.length<=512,'rhythm-id-budget');
+            var nodes=0,chars=m.id.length;
+            function inspect(v,depth){
+                insist(++nodes<=2048&&depth<=10,'rhythm-data-budget');
+                if(typeof v==='string'){chars+=v.length;insist(v.length<=512&&chars<=32768,'rhythm-string-budget');return;}
+                if(v===null||typeof v!=='object')return;
+                if(Array.isArray(v)){insist(v.length<=64,'rhythm-array-budget');v.forEach(function(x){inspect(x,depth+1);});return;}
+                var names=Object.keys(v);formKeys(v,names);insist(names.length<=24,'rhythm-record-budget');
+                names.forEach(function(k){inspect(v[k],depth+1);});
+            }
+            var content={encoding:m.encoding,snapshot:m.snapshot,provenance:m.provenance};
+            inspect(content,0);
+            // Exact full content, not an ID or digest. Key order may cause a safe
+            // cache miss; semantic material equality remains order-independent.
+            return JSON.stringify(content);
+        }
+        function validateNative(m){
+            var key=nativeKey(m),known=rhythmCache.get(key);
+            if(known)return known;
+            var result=options.rhythmSnapshots.readRhythmMaterial(m);insist(result.ok,'invalid-native-rhythm');
+            var bytes=key.length*2;if(bytes>4*1024*1024)return result;
+            while(rhythmCache.size>=256||rhythmCacheBytes+bytes>4*1024*1024){var first=rhythmCache.keys().next().value;rhythmCacheBytes-=first.length*2;rhythmCache.delete(first);}
+            rhythmCache.set(key,result);rhythmCacheBytes+=bytes;return result;
+        }
+
         function scaleNotes(key){if(!scales.has(key)){if(scales.size>=32)scales.delete(scales.keys().next().value);scales.set(key,spelling.spellScaleNotes({tonicPc:theory.keyToSemitone(key),tonicName:key,scaleId:'major'}));}return scales.get(key);}
         function id(){var value=options.idFactory&&options.idFactory();insist(typeof value==='string'&&value.length>0,'secure-id-unavailable');return value;}
         function mid(ev,key,capo){
@@ -135,7 +160,8 @@
             if(delta===0)return symbol;
             return theory.transposeNote(match[1],delta)+match[2]+(match[3]?'/'+theory.transposeNote(match[3],delta):'');
         }
-        function validate(p){
+        function validate(p){return checkProject(p,null);}
+        function checkProject(p,nativeResults){
             try{
                 jsonValue(p,0,new Set());
                 keys(p,['schemaVersion','appVersion','projectId','createdAt','updatedAt','songInfo','sections','bars','instrument','solfege','materials','performance','notation','provenance','extensions']);
@@ -156,8 +182,14 @@
                 var sections=new Set();p.sections.forEach(function(s){keys(s,['id','name','lyricsHidden']);unique(s.id);sections.add(s.id);insist(typeof s.name==='string'&&typeof s.lyricsHidden==='boolean','invalid-section');});
                 keys(p.materials,['forms','rhythms']);insist(Array.isArray(p.materials.forms)&&Array.isArray(p.materials.rhythms),'unsupported-material');
                 var forms=new Set();p.materials.forms.forEach(function(m){formMaterial(m);unique(m.id);forms.add(m.id);});
-                var chordIds=new Set();var materials=new Set(),legacyAliases=new Set();p.materials.rhythms.forEach(function(m){
-                    keys(m,['id','encoding','snapshot','provenance']);unique(m.id);materials.add(m.id);insist(m.encoding==='studio-strum-v1','unsupported-rhythm-encoding');
+                var nativeCount=0,nativeCells=0;var chordIds=new Set();var materials=new Set(),legacyAliases=new Set();p.materials.rhythms.forEach(function(m){
+                    keys(m,['id','encoding','snapshot','provenance']);unique(m.id);materials.add(m.id);
+                    if(m.encoding==='rhythm-owner-cells-v1'){
+                        insist(options.rhythmSnapshots,'unsupported-rhythm-encoding');
+                        var nativeResult=validateNative(m);if(nativeResults)nativeResults.set(m.id,nativeResult.projection);
+                        nativeCount++;nativeCells+=m.snapshot.cells.length;insist(nativeCount<=256&&nativeCells<=4096,'rhythm-budget');return;
+                    }
+                    insist(m.encoding==='studio-strum-v1','unsupported-rhythm-encoding');
                     keys(m.snapshot,['name','lengthTicks','slots']);insist(typeof m.snapshot.name==='string'&&m.snapshot.lengthTicks===1920&&Array.isArray(m.snapshot.slots),'invalid-rhythm');
                     var last=-1;m.snapshot.slots.forEach(function(e){keys(e,['id','tick','action','accent','durationTicks','tieToNext']);unique(e.id);insist(integer(e.tick)&&e.tick>last&&e.tick<1920&&e.tick>=0,'invalid-stroke-onset');last=e.tick;
                         insist(['down','up','mute','rest'].includes(e.action),'invalid-stroke-kind');if(e.durationTicks!==undefined)insist(integer(e.durationTicks)&&e.durationTicks>0&&e.tick+e.durationTicks<=1920,'invalid-stroke-duration');
@@ -244,16 +276,18 @@
                 var v=validate(result);insist(v.ok,v.errors.join('/'));return {ok:true,project:result,migrated:!newProject};
             }catch(e){return {ok:false,project:null,error:e.message};}
         }
-        function readProjection(p, legacyPitch){
+        function readProjection(p, legacyPitch, purpose){
             if(p.schemaVersion===1)return p;
-            var check=validate(p);
+            var nativeResults=new Map(),check=checkProject(p,nativeResults);
             if(!check.ok)throw Object.assign(new Error(check.errors.join('/')), {code:'invalid-project', diagnostics:check.errors.slice()});
+            var rich=p.materials.rhythms.some(function(m){return m.encoding==='rhythm-owner-cells-v1';});
+            insist(!rich || purpose==='structure' || purpose==='edit','unsupported-legacy-rhythm');
             var si=copy(p.songInfo), capo=p.instrument.capo, tonic=pitchMidi(p.solfege.tonic), inputKey=p.solfege.tonic.step+spelling.formatAccidental(p.solfege.tonic.alter), playKey=theory.transposeNote(inputKey,-capo);
             insist(playKey!==null,'unsupported-input-tonic');
             var soundScale=scaleNotes(inputKey);
             si.playKey=playKey;si.capo=capo;
             var base=legacyPitch?60+theory.keyToSemitone(playKey)+capo:tonic;
-            var aliases=new Map(p.materials.rhythms.map(function(m){return [m.id,m.provenance.legacyId||m.id];})), materialMap=new Map(), strums=p.materials.rhythms.map(function(m){var a=copy(m.snapshot);a.id=aliases.get(m.id);a.slots.forEach(function(s){delete s.id;});materialMap.set(m.id,a);return a;});
+            var aliases=new Map(p.materials.rhythms.map(function(m){return [m.id,m.provenance.legacyId||m.id];})), materialMap=new Map(), strums=p.materials.rhythms.filter(function(m){return m.encoding==='studio-strum-v1';}).map(function(m){var a=copy(m.snapshot);a.id=aliases.get(m.id);a.slots.forEach(function(s){delete s.id;});materialMap.set(m.id,a);return a;});
             var projection={schemaVersion:1,appVersion:p.appVersion,projectId:p.projectId,createdAt:p.createdAt,updatedAt:p.updatedAt,songInfo:si,sections:copy(p.sections),
                 bars:p.bars.map(function(b,bi){return {barNumber:bi+1,sectionId:b.sectionId,chords:b.chords.map(function(e){var v={tick:e.onsetTick,symbol:e.unresolved?e.symbol:chord(e.symbol,-capo)};if(e.durationTicks!==undefined)v.durationTicks=e.durationTicks;return v;}),lyrics:b.lyrics.map(function(e){return {tick:e.onsetTick,text:e.text};}),
                     melody:b.melody.filter(function(e){return e.kind==='note';}).map(function(e){
@@ -264,7 +298,14 @@
                     }),strumOverride:p.performance.barRhythms.find(function(x){return x.barId===b.id;})? aliases.get(p.performance.barRhythms.find(function(x){return x.barId===b.id;}).materialId):null,lineBreakAfter:p.notation.lineBreakAfter.includes(b.id)};}),
                 strumPatterns:strums,basicStrumPatternId:aliases.get(p.performance.basicRhythmId),sheetSettings:copy(p.notation.settings),arrangement:copy(p.performance.arrangement)};
             projection.bars.forEach(function(bar,i){Object.defineProperty(bar,'sourceId',{value:p.bars[i].id});});
-            Object.defineProperty(projection,'sourceSchemaVersion',{value:2});return projection;
+            Object.defineProperty(projection,'sourceSchemaVersion',{value:2});
+            if(rich && purpose==='structure'){
+                projection.schemaVersion='structure-projection';projection.purpose='structure-read';
+                function typed(materialId){var m=p.materials.rhythms.find(function(x){return x.id===materialId;});return m.encoding==='rhythm-owner-cells-v1'?{encoding:m.encoding,materialId:m.id,name:m.snapshot.name,status:'unsupported-legacy-rhythm',projection:copy(nativeResults.get(m.id)),reason:'unsupported-legacy-rhythm'}:{encoding:m.encoding,materialId:m.id,name:m.snapshot.name,status:'supported',slots:copy(m.snapshot.slots)};}
+                projection.basicRhythm=typed(p.performance.basicRhythmId);
+                projection.rhythmByBar=p.bars.map(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return {barId:b.id,rhythm:typed(binding?binding.materialId:p.performance.basicRhythmId)};});
+            }
+            return projection;
         }
         function reconcileDoremi(bar, events, parsed) {
             insist(legacyBars.has(bar),'ambiguous-melody-mapping');
@@ -284,9 +325,34 @@
                 legacyNotes.set(events[index],eventId);
             });
         }
-        function editLegacy(project, edit) {
+        function editLegacy(project, edit, intent) {
             if(project.schemaVersion===1)return edit(project);
-            var before=readProjection(project), view=copy(before);
+            var rich=project.materials.rhythms.some(function(m){return m.encoding==='rhythm-owner-cells-v1';});
+            var kinds=['song','chord','doremi','lyrics','basicStrum','addSection','removeSection','renameSection','barCount','strum','resetStrum','bulkChord','bulkDoremi','display','normalizeBarOrder','setSectionBarCount','setBarChord','setBarLyricsText','setBarLyricSlot','setBarDoremiText','setBasicStrumText','setBarStrumSlots','setBarStrumText'];
+            if(rich){assertJson(intent);insist(intent&&kinds.includes(intent.kind),'unsupported-rhythm-edit');}
+            var targetIds=intent&&intent.barIds||[];
+            function richMaterial(id){return project.materials.rhythms.some(function(m){return m.id===id&&m.encoding==='rhythm-owner-cells-v1';});}
+            if(rich && ['basicStrum','setBasicStrumText'].includes(intent.kind))insist(!richMaterial(project.performance.basicRhythmId),'unsupported-rhythm-edit');
+            if(rich && ['strum','setBarStrumSlots','setBarStrumText'].includes(intent.kind))targetIds.forEach(function(barId){var bind=project.performance.barRhythms.find(function(b){return b.barId===barId;});insist(!richMaterial(bind?bind.materialId:project.performance.basicRhythmId),'unsupported-rhythm-edit');});
+            var before=readProjection(project,false,'edit'), view=copy(before);
+            // A section rename has exactly one writable field. Check the complete
+            // callback result before translating or publishing any canonical data.
+            // Temporal validity belongs to the operation adapter's Session frame.
+            if(intent && intent.kind==='renameSection'){
+                assertJson(intent);
+                var sectionIndex=project.sections.findIndex(function(s){return s.id===intent.sectionId;});
+                insist(sectionIndex>=0,'stale-section-target');
+                var renameOutcome=edit(view);
+                assertJson(view);
+                var expected=copy(before);
+                insist(Array.isArray(view.sections)&&view.sections[sectionIndex]&&view.sections[sectionIndex].id===intent.sectionId,'legacy-intent-mismatch');
+                expected.sections[sectionIndex].name=view.sections[sectionIndex].name;
+                insist(same(expected,view),'legacy-intent-mismatch');
+                var renamed=copy(project);renamed.sections=copy(view.sections);
+                var renameCheck=validate(renamed);insist(renameCheck.ok,renameCheck.errors.join('/'));
+                project.sections=renamed.sections;
+                return renameOutcome;
+            }
             view.bars.forEach(function(b,i){
                 var canonical=project.bars[i],notes=canonical.melody.filter(function(e){return e.kind==='note';});
                 Object.defineProperty(b,'sourceId',{value:canonical.id});legacyBars.add(b);legacyBarIds.set(b,canonical.id);if(project.performance.formBindings.some(function(x){return canonical.chords.some(function(e){return e.id===x.chordEventId;});}))boundLegacyBars.add(b);
@@ -294,6 +360,20 @@
                 b.melody.forEach(function(e,j){legacyNotes.set(e,notes[j].id);});
             });
             var outcome=edit(view);
+            if(rich){
+                var structural=['addSection','removeSection','barCount','normalizeBarOrder','setSectionBarCount'].includes(intent.kind);
+                var song=['song'].includes(intent.kind),basic=['basicStrum','setBasicStrumText'].includes(intent.kind),stroke=['strum','resetStrum','setBarStrumSlots','setBarStrumText'].includes(intent.kind),display=intent.kind==='display';
+                ['songInfo','strumPatterns','basicStrumPatternId','sheetSettings','arrangement','sections'].forEach(function(k){
+                    var allowed=k==='songInfo'?song:k==='strumPatterns'||k==='basicStrumPatternId'?basic||stroke:k==='sheetSettings'?display:k==='sections'?structural||intent.kind==='renameSection':false;
+                    insist(allowed||same(before[k],view[k]),'legacy-intent-mismatch');
+                });
+                if(song)Object.keys(view.songInfo).forEach(function(k){insist(k===intent.field||same(view.songInfo[k],before.songInfo[k]),'legacy-intent-mismatch');});
+                if(!structural)insist(view.bars.length===before.bars.length&&view.bars.every(function(b,i){return legacyBarIds.get(b)===project.bars[i].id;}),'legacy-intent-mismatch');
+                view.bars.forEach(function(b){var oldId=legacyBarIds.get(b),i=project.bars.findIndex(function(x){return x.id===oldId;}),prior=before.bars[i];if(!prior)return;Object.keys(b).forEach(function(k){
+                    var field=['chord','bulkChord','setBarChord'].includes(intent.kind)?'chords':['doremi','bulkDoremi','setBarDoremiText'].includes(intent.kind)?'melody':['lyrics','setBarLyricsText','setBarLyricSlot'].includes(intent.kind)?'lyrics':stroke?'strumOverride':null;
+                    insist((k===field&&targetIds.includes(oldId))||(structural&&['barNumber','sectionId'].includes(k))||(display&&k==='lineBreakAfter')||same(b[k],prior[k]),'legacy-intent-mismatch');
+                });});
+            }
             // sourceId is an internal non-enumerable bar mapping, never serialized.
             Object.keys(view).forEach(function(k){
                 if(k==='bars')view.bars.forEach(function(b){Object.keys(b).forEach(function(field){assertJson(b[field]);});});
@@ -307,10 +387,11 @@
             var canonicalInfo=copy(project.songInfo);canonicalInfo.title=si.title;canonicalInfo.artist=si.artist;canonicalInfo.bpm=si.bpm;canonicalInfo.originalKey=si.originalKey;
             // Translate only changed legacy collections. Unchanged pitch/timing is never re-parsed.
             var patterns=new Map(), oldMaterials=new Map(project.materials.rhythms.map(function(m){return [m.provenance.legacyId||m.id,m];}));
-            var materials=view.strumPatterns.map(function(p){var old=oldMaterials.get(p.id), snap=copy(p);delete snap.id;
+            var changedPatterns=new Set();var materials=view.strumPatterns.map(function(p){var old=oldMaterials.get(p.id), snap=copy(p);delete snap.id;
                 var existing=old?old.snapshot:null;
                 snap.slots.forEach(function(e,i){e.id=existing&&existing.slots[i]&&existing.slots[i].tick===e.tick?existing.slots[i].id:id();});
-                var unchanged=old&&same(existing,snap);var m={id:unchanged?old.id:id(),encoding:'studio-strum-v1',snapshot:snap,provenance:old?copy(old.provenance):{origin:'user-set',legacyId:p.id}};patterns.set(p.id,m.id);return m;});
+                var unchanged=old&&same(existing,snap);if(!unchanged)changedPatterns.add(p.id);var m={id:unchanged?old.id:id(),encoding:'studio-strum-v1',snapshot:snap,provenance:old?copy(old.provenance):{origin:'user-set',legacyId:p.id}};if(old&&!unchanged){m.provenance.legacyId=p.id+':'+m.id;m.snapshot.slots.forEach(function(e){e.id=id();});}patterns.set(p.id,m.id);return m;});
+            project.materials.rhythms.filter(function(m){return m.encoding==='rhythm-owner-cells-v1';}).forEach(function(m){patterns.set(m.id,m.id);});
             var oldChords=new Map(),usedChords=new Set();project.bars.forEach(function(b){b.chords.forEach(function(e){oldChords.set(e.id,e);});});
             var retainedChords=new Set();view.bars.forEach(function(b){b.chords.forEach(function(e){var source=legacyChords.get(e);if(source)retainedChords.add(source);});});
             var bindings=[],breaks=[],bars=view.bars.map(function(b,bi){
@@ -346,12 +427,32 @@
                         });
                     }
                 }
-                if(b.strumOverride){var prevBinding=old&&project.performance.barRhythms.find(function(x){return x.barId===old.id;});bindings.push({id:prevBinding?prevBinding.id:id(),barId:out.id,materialId:patterns.get(b.strumOverride)});}
+                if(b.strumOverride){var prevBinding=old&&project.performance.barRhythms.find(function(x){return x.barId===old.id;});bindings.push({id:prevBinding?prevBinding.id:id(),barId:out.id,materialId:old&&changedPatterns.has(b.strumOverride)&&intent&&!targetIds.includes(old.id)&&project.performance.barRhythms.some(function(x){return x.barId===old.id;})?project.performance.barRhythms.find(function(x){return x.barId===old.id;}).materialId:patterns.get(b.strumOverride)});}
                 if(b.lineBreakAfter)breaks.push(out.id);return out;
             });
             var next=copy(project);next.songInfo=canonicalInfo;var oldSections=new Set(project.sections.map(function(s){return s.id;})),newSectionIds=new Map();
             next.sections=view.sections.map(function(s){var mapped=oldSections.has(s.id)?s.id:id();newSectionIds.set(s.id,mapped);return Object.assign({},s,{id:mapped});});bars.forEach(function(b){b.sectionId=newSectionIds.get(b.sectionId);});next.bars=bars;next.instrument.capo=si.capo;
-            next.materials.rhythms=materials.filter(function(m){return !(m.provenance.legacyId||'').startsWith('strum_bar_') || m.id===patterns.get(view.basicStrumPatternId) || bindings.some(function(b){return b.materialId===m.id;});});next.performance.basicRhythmId=patterns.get(view.basicStrumPatternId);next.performance.barRhythms=bindings;
+            var materialIds=new Set(materials.map(function(m){return m.id;}));
+            next.materials.rhythms=project.materials.rhythms.map(function(m){return materials.find(function(n){return n.id===m.id;})||m;}).concat(materials.filter(function(m){return !project.materials.rhythms.some(function(n){return n.id===m.id;});}));
+            next.performance.basicRhythmId=intent&&!['basicStrum','setBasicStrumText'].includes(intent.kind)&&view.basicStrumPatternId===before.basicStrumPatternId&&changedPatterns.has(view.basicStrumPatternId)?project.performance.basicRhythmId:patterns.get(view.basicStrumPatternId);next.performance.barRhythms=bindings;
+            // Reflect only the targeted legacy clear, never the legacy editor's
+            // global sweep of unused patterns. Native snapshots are not legacy GC.
+            if(intent && ['resetStrum','strum','setBarStrumSlots','setBarStrumText'].includes(intent.kind)){
+                var cleared=new Set(),remainingAliases=new Set(view.strumPatterns.map(function(p){return p.id;}));
+                project.performance.barRhythms.forEach(function(binding){
+                    if(!targetIds.includes(binding.barId))return;
+                    var oldBar=project.bars.find(function(b){return b.id===binding.barId;});
+                    var editedBar=view.bars.find(function(b){return legacyBarIds.get(b)===binding.barId;});
+                    if(oldBar && editedBar && !editedBar.strumOverride)cleared.add(binding.materialId);
+                });
+                var referenced=new Set(bindings.map(function(b){return b.materialId;}));referenced.add(next.performance.basicRhythmId);
+                next.materials.rhythms=next.materials.rhythms.filter(function(m){
+                    var alias=m.provenance.legacyId;
+                    return !(m.encoding==='studio-strum-v1' && cleared.has(m.id) &&
+                        typeof alias==='string' && alias.startsWith('strum_bar_') &&
+                        !remainingAliases.has(alias) && !referenced.has(m.id));
+                });
+            }
             var liveChords=new Set();next.bars.forEach(function(b){b.chords.forEach(function(e){liveChords.add(e.id);});});next.performance.formBindings=next.performance.formBindings.filter(function(b){return liveChords.has(b.chordEventId);});
             next.performance.arrangement=copy(view.arrangement);next.notation={settings:copy(view.sheetSettings),lineBreakAfter:breaks};
             var check=validate(next);insist(check.ok,check.errors.join('/'));
@@ -370,7 +471,7 @@
             check=validate(next);insist(check.ok,check.errors.join('/'));Object.keys(next).forEach(function(k){project[k]=next[k];});return bar.id;
         }
         function reconcileChord(bar,events){if(!legacyBars.has(bar))return;if(bar.chords.length>1){insist(!boundLegacyBars.has(bar),'ambiguous-chord-mapping');replacementBars.add(bar);return;}if(bar.chords.length&&events.length){var source=legacyChords.get(bar.chords[0]);insist(source,'ambiguous-chord-mapping');legacyChords.set(events[0],source);}}
-        return Object.freeze({duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
+        return Object.freeze({readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
     }
     return Object.freeze({create:create,pitchMidi:pitchMidi,maxBytes:MAX_BYTES,timing:timing});
 });

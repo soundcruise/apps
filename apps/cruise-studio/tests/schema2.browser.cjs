@@ -40,7 +40,7 @@ test('Schema 2 M1 real Studio integration',async t=>{
    const recorded=writes('counterexample',first).filter(e=>e.key==='schema2.audit.counterexample');assert.equal(recorded.length,2);assert.equal(new Set(recorded.map(e=>e.documentId)).size,2);assert(recorded[0].sequence<firstEnd);assert(recorded[1].sequence>=second);
   }finally{await probe.close();}
  });
- await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.43.1');});
+ await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.45.0');});
  await t.test('F1 unconfirmed legacy pitch edit retains 240/180, ID/provenance, Undo and A/B',async()=>{
   const before=await check();await p.locator('.sheet-bar').first().click();await p.locator('[data-overlay-field=doremi]').fill('レ');await p.locator('[data-overlay-field=doremi]').press('Tab');
   const after=await check(),old=before.draft.bars[0].melody[0],note=after.draft.bars[0].melody[0];
@@ -81,21 +81,71 @@ test('Schema 2 M1 real Studio integration',async t=>{
  await t.test('180-tick manual duration survives blur, workspace return and JSON export',async()=>{assert((await command('melody.setDuration',{durationTicks:180})).ok);const before=(await check()).draft.bars[0].melody;await p.locator('.sheet-bar').first().click();const input=p.locator('[data-overlay-field=doremi]');await input.focus();await input.press('Tab');await p.evaluate(()=>{CruiseStudio.shellHost.navigate('preDtm');CruiseStudio.shellHost.navigate('sheetCruise');});const after=await check();assert.deepEqual(after.draft.bars[0].melody,before);assert.equal(await p.evaluate(()=>JSON.parse(CruiseStudio.storage.exportProjectJson(CruiseStudio.documents.getSession().workingSnapshot())).bars[0].melody[0].durationTicks),180);});
  await t.test('Save/Load uses same key and keeps stable IDs and original raw',async()=>{const before=await check();let r=await p.evaluate(()=>CruiseStudio.documents.getSession().commit());assert(r.ok,r.error);const after=await check();assert.equal(JSON.parse(after.raw).schemaVersion,2);assert.equal(after.draft.provenance.legacySource.raw,await p.evaluate(()=>__schema2Raw.A));assert.deepEqual(after.draft.bars.map(b=>b.id),before.draft.bars.map(b=>b.id));assert.equal(after.dirty,false);await p.reload();await p.evaluate(()=>CruiseStudio.shellHost.navigate('sheetCruise'));assert.deepEqual(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.bars.map(b=>b.id)),before.draft.bars.map(b=>b.id));});
 
- await t.test('non-JSON memory corruption is diagnosed before snapshot cloning without stale staff or writes',async()=>{
-  const raw=await p.evaluate(()=>CruiseStudio.documents.getSession().baseRevision);
-  await p.evaluate(()=>{const s=CruiseStudio.documents.getSession();Object.getOwnPropertyDescriptor(s.draft,'songInfo').value.bpm=Infinity;s.draft.songInfo.title='invalid memory';});
-  const box=p.locator('.schema-invalid-project'),details=box.locator('details'),body=details.locator('pre');
-  assert.equal(await box.count(),1);assert.equal(await p.locator('.melody-page').count(),0);
-  assert.match(await box.locator('p').innerText(),/譜面を表示できません.*入力値/);
-  assert.equal(await details.evaluate(e=>e.open),false);assert.equal(await body.innerText(),'');
-  assert.equal(await body.textContent(),'non-json-number');assert(!/non-json-number/.test(await box.innerText()));
-  await details.locator('summary').click();assert.equal(await details.evaluate(e=>e.open),true);assert.equal(await body.innerText(),'non-json-number');
-  assert(await body.evaluate(e=>{const b=e.getBoundingClientRect(),s=getComputedStyle(e);return b.width>0&&b.height>0&&s.visibility==='visible';}));
-  if(process.env.STAFF_QA_DIR)await box.screenshot({path:process.env.STAFF_QA_DIR+'/invalid-diagnostic-expanded.png'});
-  await details.locator('summary').click();assert.equal(await details.evaluate(e=>e.open),false);assert.equal(await body.innerText(),'');assert(!/non-json-number/.test(await box.innerText()));
-  assert.equal(await p.evaluate(()=>CruiseStudio.repository.readRevision(CruiseStudio.documents.getSession().target).revision),raw);assert(!(await p.evaluate(()=>CruiseStudio.documents.getSession().commit())).ok);
-  assert.equal(await p.evaluate(()=>CruiseStudio.repository.readRevision(CruiseStudio.documents.getSession().target).revision),raw);
-  await p.evaluate(()=>CruiseStudio.documents.getSession().cancel());assert.equal(await box.count(),0);
+ // The original raw-corruption test mixed two owners. Draft now refuses the
+ // mutation itself. Keep that contract separate from the renderer's diagnostics.
+ await t.test('descriptor Infinity assignment rejects before mutation and keeps Session usable without writes',async()=>{
+  await p.selectOption('#sc-score-style','melody');
+  const ready=()=>p.waitForFunction(()=>{const C=CruiseStudio;return document.querySelector('.melody-page')?.dataset.ready==='true'&&C.sheetCruise.getStaffMetrics().source?.snapshotVersion===C.documents.getSession().snapshotVersion;});await ready();await flush(p);const start=ledger.length;
+  const r=await p.evaluate(()=>{
+   const C=CruiseStudio,s=C.documents.getSession();
+   const state=()=>({draft:s.workingSnapshot(),base:s.baseSnapshot,revision:s.baseRevision,dirty:s.dirty,history:s.getHistory(),version:s.snapshotVersion,raw:C.repository.readRevision(s.target).revision});
+   const before=state(),rendered=C.musicConversion.convert();let error=null,continued=false;
+   try {Object.getOwnPropertyDescriptor(s.draft,'songInfo').value.bpm=Infinity;continued=true;}
+   catch(e){error={name:e.name,message:e.message};}
+   return {before,after:state(),error,continued,current:C.musicConversion.isCurrent(rendered)};
+  });
+  assert.equal(r.continued,false);assert.deepEqual(r.error,{name:'TypeError',message:'non-json-number'});assert.deepEqual(r.after,r.before);assert.equal(r.current,true);
+  assert.equal(await p.locator('.schema-invalid-project').count(),0);assert.equal(await p.locator('.melody-page[data-ready=true]').count(),1);assertNoWrites('primary',start);
+  const recovered=await p.evaluate(()=>{
+   const C=CruiseStudio,s=C.documents.getSession(),before=s.workingSnapshot(),base=s.baseRevision,raw=C.repository.readRevision(s.target).revision,history=s.getHistory(),version=s.snapshotVersion,old=C.musicConversion.convert(),b=s.draft.bars[0],handle=C.melodyEditing.capture(b.id,b.melody[0].id);
+   const edited=s.runOperation('valid edit after refused Infinity',d=>d.songInfo.title='Valid after refusal');const after=s.workingSnapshot(),newVersion=s.snapshotVersion,current=C.musicConversion.isCurrent(old);
+   const stale=C.melodyEditing.execute('melody.delete',handle),afterStale=s.workingSnapshot(),undo=s.undo(),undone=s.workingSnapshot(),redo=s.redo(),redone=s.workingSnapshot(),restore=s.undo();
+   return {before,after,afterStale,undone,redone,edited,undo,redo,restore,stale,current,version,newVersion,historyCount:s.getHistory().entries.length,previousHistoryCount:history.entries.length,baseUnchanged:s.baseRevision===base,rawUnchanged:C.repository.readRevision(s.target).revision===raw};
+  });
+  assert(recovered.edited.ok&&recovered.undo.ok&&recovered.redo.ok&&recovered.restore.ok);assert.equal(recovered.after.songInfo.title,'Valid after refusal');assert.notEqual(recovered.newVersion,recovered.version);assert.equal(recovered.current,false);assert.equal(recovered.stale.ok,false);assert.deepEqual(recovered.afterStale,recovered.after);assert.deepEqual(recovered.undone,recovered.before);assert.deepEqual(recovered.redone,recovered.after);assert.equal(recovered.historyCount,recovered.previousHistoryCount+1);assert(recovered.baseUnchanged&&recovered.rawUnchanged);await ready();await flush(p);assertNoWrites('primary',start);phases.push({name:'descriptor Infinity early refusal and normal Undo recovery',scope:'primary',start,end:ledger.length,expectedWrites:0});
+ });
+ // Both paths below exercise the real Structure invalid-Project alert, not a
+ // melody-conversion diagnostic. The external input is a separate object; the
+ // real Draft is never corrupted and its descriptor defenses remain installed.
+ for(const kind of ['external-project-validation','external-snapshot-validation'])await t.test(kind+' preserves invalid Project diagnostic UI and restores a normal score without writes',async()=>{
+  const primary=await check(),isolated=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'}),qa=await isolated.newPage();await installAudit(isolated,kind);let start=0;
+  qa.on('pageerror',e=>errors.push(e.message));qa.on('console',m=>{if(m.type()==='error')errors.push(m.text());});qa.on('response',r=>{if(r.status()>=400)http.push(r.url());});
+  await isolated.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin&&r.request().method()==='GET')return r.continue();if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});network.push(u.href);return r.abort();});
+  const ready=()=>qa.waitForFunction(()=>{const C=CruiseStudio;return document.querySelector('.melody-page')?.dataset.ready==='true'&&C.sheetCruise.getStaffMetrics().source?.snapshotVersion===C.documents.getSession().snapshotVersion;});
+  try {
+   await qa.goto(url);await qa.waitForFunction(()=>!!window.CruiseStudio?.melodyEditing);
+   await qa.evaluate(kind=>{const C=CruiseStudio,d=C.model.createSampleProject();d.projectId=kind;localStorage.setItem('cruiseStudio.project.'+kind,JSON.stringify(d));C.storage.setCurrentProjectId(kind);C.shellHost.navigate('sheetCruise');},kind);
+   await qa.selectOption('#sc-score-style','melody');await ready();assert(await qa.locator('.melody-svg svg').count());await flush(qa);start=ledger.length;
+   await qa.evaluate(kind=>{
+    const C=CruiseStudio,s=C.documents.getSession();
+    const capture=()=>({draft:s.workingSnapshot(),base:s.baseSnapshot,revision:s.baseRevision,history:s.getHistory(),dirty:s.dirty,raw:C.repository.readRevision(s.target).revision});
+    const f={original:C.model.toStructureView,capture,before:capture(),calls:0,successfulProjections:0,kind};window.__projectValidationFixture=f;
+    C.model.toStructureView=function(project){
+     f.calls++;const external=structuredClone(project);external.songInfo.bpm=Infinity;
+     // Do not JSON-normalize the bad input. These are the actual validators:
+     // one returns the typed invalid-project error; the other throws TypeError.
+     const result=kind==='external-project-validation'?f.original(external):C.editing.snapshot(external);
+     f.successfulProjections++;return result;
+    };
+    // A legal equal-content replacement only invalidates the derived view.
+    // No unsafe Draft mutation, second Project owner, or persistent write.
+    f.version=s.snapshotVersion;s.draft.songInfo={...s.draft.songInfo};
+   },kind);
+   const box=qa.locator('.schema-invalid-project'),details=box.locator('details'),body=details.locator('pre');await qa.waitForFunction(()=>!!document.querySelector('.schema-invalid-project'));
+   assert.equal(await box.count(),1);assert.equal(await box.getAttribute('role'),'alert');assert.equal(await qa.locator('.melody-page').count(),0);assert.equal(await qa.locator('.sheet-page').count(),0);assert.equal(await qa.locator('.melody-svg svg').count(),0);
+   assert.match(await box.locator('p').innerText(),/譜面を表示できません.*入力値/);assert.equal(await details.evaluate(e=>e.open),false);assert.equal(await body.innerText(),'');assert.equal(await body.textContent(),'non-json-number');assert(!/non-json-number/.test(await box.innerText()));
+   await details.locator('summary').click();assert.equal(await details.evaluate(e=>e.open),true);assert.equal(await body.innerText(),'non-json-number');assert(await body.evaluate(e=>{const b=e.getBoundingClientRect(),s=getComputedStyle(e);return b.width>0&&b.height>0&&s.visibility==='visible';}));
+   await qa.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   const painted=await body.evaluate(e=>{const range=document.createRange();range.selectNodeContents(e);const text=range.getBoundingClientRect(),clippedBy=[];for(let parent=e.parentElement;parent;parent=parent.parentElement){const r=parent.getBoundingClientRect(),s=getComputedStyle(parent),clips=v=>['hidden','clip','scroll','auto'].includes(v);if(clips(s.overflowY)&&(text.top<r.top-1||text.bottom>r.bottom+1)||clips(s.overflowX)&&(text.left<r.left-1||text.right>r.right+1))clippedBy.push({tag:parent.tagName,class:parent.className,height:r.height,overflow:s.overflow});}return {text:{top:text.top,bottom:text.bottom,height:text.height},clippedBy};});
+   assert(painted.text.height>0);assert.deepEqual(painted.clippedBy,[],'Expanded diagnostic text must actually paint inside every clipping ancestor: '+JSON.stringify(painted));
+   if(process.env.STAFF_QA_DIR)await box.screenshot({path:path.join(process.env.STAFF_QA_DIR,kind+'-expanded.png')});
+   await details.locator('summary').click();assert.equal(await details.evaluate(e=>e.open),false);assert.equal(await body.innerText(),'');assert(!/non-json-number/.test(await box.innerText()));
+   const state=await qa.evaluate(()=>{const C=CruiseStudio,f=__projectValidationFixture;return {before:f.before,after:f.capture(),calls:f.calls,successfulProjections:f.successfulProjections,trackedRefresh:C.documents.getSession().snapshotVersion!==f.version};});assert.deepEqual(state.after,state.before);assert(state.calls>0);assert.equal(state.successfulProjections,0);assert.equal(state.trackedRefresh,true);await flush(qa);assertNoWrites(kind,start);
+   assert(await qa.evaluate(()=>{const C=CruiseStudio,f=__projectValidationFixture;C.model.toStructureView=f.original;C.documents.getSession().draft.songInfo={...C.documents.getSession().draft.songInfo};return C.model.toStructureView===f.original;}));await ready();assert.equal(await box.count(),0);assert(await qa.locator('.melody-svg svg').count());assert.deepEqual(await qa.evaluate(()=>__projectValidationFixture.capture()),state.before);await flush(qa);assertNoWrites(kind,start);phases.push({name:kind+' Structure alert and recovery (external fixture, not live corruption)',scope:kind,start,end:ledger.length,expectedWrites:0});
+  } finally {
+   try {if(!qa.isClosed())assert(await qa.evaluate(()=>{const f=window.__projectValidationFixture;if(!f)return true;CruiseStudio.model.toStructureView=f.original;delete window.__projectValidationFixture;return CruiseStudio.model.toStructureView===f.original;}));}finally{await isolated.close();}
+  }
+  assert.deepEqual(await check(),primary,'diagnostic fixture cannot alter the primary Project, Session, history or repository');
  });
  await t.test('diagnostic grouping retains bar numbers and hides internal codes until expanded',async()=>{
   const before=await check(),isolated=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'}),qa=await isolated.newPage();

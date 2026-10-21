@@ -1,0 +1,1354 @@
+{
+  "fixtureSource": "Independent R2 fixed104cell oracle; no R5 writer/reader generation",
+  "materials": [
+    {
+      "id": "fixed-rhythm-0",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:basic-eighth",
+        "patternRevision": 1,
+        "name": "基本の8ビート",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 2,
+          "presetIndex": 0
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "eighth",
+        "cellTicks": 12,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 12,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c02",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c03",
+            "tick": 36,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c04",
+            "tick": 48,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c05",
+            "tick": 60,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c06",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 84,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:basic-eighth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-1",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:offbeat-eighth",
+        "patternRevision": 1,
+        "name": "裏だけ",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 2,
+          "presetIndex": 1
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "eighth",
+        "cellTicks": 12,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "rest",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c01",
+            "tick": 12,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c02",
+            "tick": 24,
+            "type": "rest",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c03",
+            "tick": 36,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c04",
+            "tick": 48,
+            "type": "rest",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c05",
+            "tick": 60,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c06",
+            "tick": 72,
+            "type": "rest",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c07",
+            "tick": 84,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:offbeat-eighth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-2",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:one-three-eighth",
+        "patternRevision": 1,
+        "name": "1・3拍強調",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 2,
+          "presetIndex": 2
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "eighth",
+        "cellTicks": 12,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 12,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c02",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c03",
+            "tick": 36,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c04",
+            "tick": 48,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c05",
+            "tick": 60,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c06",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 84,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:one-three-eighth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-3",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:two-four-eighth",
+        "patternRevision": 1,
+        "name": "2・4拍強調",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 2,
+          "presetIndex": 3
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "eighth",
+        "cellTicks": 12,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 12,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c02",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c03",
+            "tick": 36,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c04",
+            "tick": 48,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c05",
+            "tick": 60,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c06",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 84,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:two-four-eighth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-4",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:standard-eighth",
+        "patternRevision": 1,
+        "name": "王道の8分ストローク",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 2,
+          "presetIndex": 4
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "eighth",
+        "cellTicks": 12,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 12,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c02",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c03",
+            "tick": 36,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c04",
+            "tick": 48,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c05",
+            "tick": 60,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c06",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 84,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:standard-eighth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-5",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:continuous-sixteenth",
+        "patternRevision": 1,
+        "name": "16分の連続",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 3,
+          "presetIndex": 0
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "sixteenth",
+        "cellTicks": 6,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 6,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c02",
+            "tick": 12,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c03",
+            "tick": 18,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c04",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c05",
+            "tick": 30,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c06",
+            "tick": 36,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 42,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c08",
+            "tick": 48,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c09",
+            "tick": 54,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c10",
+            "tick": 60,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c11",
+            "tick": 66,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c12",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c13",
+            "tick": 78,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c14",
+            "tick": 84,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c15",
+            "tick": 90,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:continuous-sixteenth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-6",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:eighth-two-sixteenths",
+        "patternRevision": 1,
+        "name": "8・16・16の繰り返し",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 3,
+          "presetIndex": 1
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "sixteenth",
+        "cellTicks": 6,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": [
+            "down",
+            null,
+            "up",
+            "down",
+            "down",
+            null,
+            "up",
+            "down",
+            "down",
+            null,
+            "up",
+            "down",
+            "down",
+            null,
+            "up",
+            "down"
+          ]
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 6,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c02",
+            "tick": 12,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c03",
+            "tick": 18,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c04",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c05",
+            "tick": 30,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c06",
+            "tick": 36,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 42,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c08",
+            "tick": 48,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c09",
+            "tick": 54,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c10",
+            "tick": 60,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c11",
+            "tick": 66,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c12",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c13",
+            "tick": 78,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c14",
+            "tick": 84,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c15",
+            "tick": 90,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "preset-explicit",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:eighth-two-sixteenths",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-7",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:mixed-sixteenth",
+        "patternRevision": 1,
+        "name": "16分のノリが入るストローク",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 3,
+          "presetIndex": 2
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "sixteenth",
+        "cellTicks": 6,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 6,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c02",
+            "tick": 12,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c03",
+            "tick": 18,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c04",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c05",
+            "tick": 30,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c06",
+            "tick": 36,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 42,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c08",
+            "tick": 48,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c09",
+            "tick": 54,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c10",
+            "tick": 60,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c11",
+            "tick": 66,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c12",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c13",
+            "tick": 78,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c14",
+            "tick": 84,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c15",
+            "tick": 90,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:mixed-sixteenth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    },
+    {
+      "id": "fixed-rhythm-8",
+      "encoding": "rhythm-owner-cells-v1",
+      "snapshot": {
+        "patternId": "rhythm:create-basic:standard-sixteenth",
+        "patternRevision": 1,
+        "name": "16分王道のストローク",
+        "encoding": "rhythm-official-cells-v1",
+        "legacyRef": {
+          "stageN": 3,
+          "presetIndex": 3
+        },
+        "meter": {
+          "beats": 4,
+          "beatUnit": 4
+        },
+        "tpq": 24,
+        "patternBars": 1,
+        "lengthTicks": 96,
+        "grid": "sixteenth",
+        "cellTicks": 6,
+        "feel": "straight",
+        "sourceDirections": {
+          "stage": [
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up",
+            "down",
+            "up"
+          ],
+          "preset": null
+        },
+        "cells": [
+          {
+            "id": "c00",
+            "tick": 0,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c01",
+            "tick": 6,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c02",
+            "tick": 12,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c03",
+            "tick": 18,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c04",
+            "tick": 24,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c05",
+            "tick": 30,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c06",
+            "tick": 36,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c07",
+            "tick": 42,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c08",
+            "tick": 48,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c09",
+            "tick": 54,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c10",
+            "tick": 60,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c11",
+            "tick": 66,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c12",
+            "tick": 72,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c13",
+            "tick": 78,
+            "type": "tie",
+            "direction": null,
+            "directionBasis": "none",
+            "legacyDirManual": null
+          },
+          {
+            "id": "c14",
+            "tick": 84,
+            "type": "hit",
+            "direction": "down",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          },
+          {
+            "id": "c15",
+            "tick": 90,
+            "type": "hit",
+            "direction": "up",
+            "directionBasis": "stage-default",
+            "legacyDirManual": true
+          }
+        ],
+        "semanticProfile": "rhythm-create-basic-v1"
+      },
+      "provenance": {
+        "origin": "user-set",
+        "source": {
+          "ownerApp": "rhythm-cruise",
+          "ownerAppVersion": "1.21.0",
+          "ownerApiVersion": 1,
+          "patternId": "rhythm:create-basic:standard-sixteenth",
+          "patternRevision": 1,
+          "encoding": "rhythm-official-cells-v1"
+        },
+        "adapterVersion": 1
+      }
+    }
+  ]
+}

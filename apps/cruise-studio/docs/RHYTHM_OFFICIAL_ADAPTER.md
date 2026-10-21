@@ -1,0 +1,41 @@
+# Official Rhythm memory-only adapter — R4
+
+This is an unconnected Studio development module. Production stays Studio 0.43.1 / schema 2 / Rhythm mirror 1.20.0. No HTML, boot graph, project encoding, Editing Session, Undo, Repository or Structure editing path is changed. Rhythm owner candidate 1.21.0 is unpublished; it is not fetched from Production.
+
+## Ownership and source verification
+
+`js/modules/rhythm/official-pattern-adapter.mjs` imports nothing. The host explicitly injects the released owner interface (`listOfficialPatterns`, `getOfficialPattern`) and a separately verified app version. The fixed R3 consumer tests read commit `c1f99ff68e61da57f52a8dfe14ebcfa298659120`, tree `7d1bcf9bee610ba809c4808d7c48eb067dc6984d`, from local Git objects into an external dependency directory. They verify module SHA256 `e2f89b27261035b80d6eb4b50e810456b3446c714c5f32b62622418f354c97cd` and the version source bytes. No owner worktree or development absolute path is a product dependency.
+
+`createOfficialRhythmAdapter({listOfficialPatterns,getOfficialPattern,ownerVersion,sourceEvidence,expectedSource})` checks the injected observed version against the evidence, and evidence against the host's independently approved commit/module digest pin. `sourceEvidence` is `{ownerApp,ownerAppVersion,commit,tree,modulePath,moduleSha256,versionSource:{path,symbol,sha256},verification:'fixed-git-object'}`. Expected source is `{commit,moduleSha256}`. The host must actually verify the bytes/version before injection; matching receipt strings are provenance, not a cryptographic proof of callback identity, Pro authorization or backend permission. Arbitrary injected functions are trusted host dependencies and cannot be sandboxed by this pure consumer.
+
+Success is a frozen facade with `ok`, `sourceEvidence`, `sourceContext`, `listOfficialPatterns(query?)` and `getOfficialPattern(id,options?)`. Query fields follow the owner API. Unknown ID/revision/collection/API and owner exceptions reject; no successful past candidate is retained. Methods are synchronous and reject Promise-shaped replies as invalid data. Callbacks are captured once, evidence is cloned, and no cache/clock/network is used.
+
+The R2 low-level signature remains `decodeOfficialPattern(ownerResult,sourceContext)`. Context shape remains `{ownerApp:'rhythm-cruise',ownerAppVersion}`; to enforce the current R4 verification requirement, only the immutable context issued by the verified facade is accepted. A raw or JSON-cloned version context rejects as `unverified-owner-source`. This identity is verification plumbing, not a product entitlement. No second owner app-version constant is introduced into Studio.
+
+## Native validation and projection
+
+Only the nine R2 identity aliases are maintained as a compatibility table; there is no second event database, recommendation ranking or direction generator. API1, encoding `rhythm-official-cells-v1`, profile `rhythm-create-basic-v1`, revision1, 4/4, one bar, straight, 24TPQ and native length96 are required. Eighth means 8 cells of12; sixteenth means16 cells of6. Each cell must have its exact local `c00`.. identity and `tick=index*cellTicks`; source directions and effective directions must agree. Unknown fields, accessors/hooks/symbols/non-JSON objects, sparse/cyclic/oversized values and nonfinite numbers reject before cloning or JSON serialization. Proxy traps cannot be guaranteed harmless by JavaScript; exceptions are contained.
+
+All onsets/spans/endpoints use integer multiplication20, independently checked against480PPQ/1920ticks. No rounding, repeat, truncation or repair. Native `tick` remains in the frozen native snapshot; projected events additionally retain `sourceTick` and `sourceSpanTicks`.
+
+R2 success fields are retained: `source`, `nativeSnapshot`, `projection`. Projection has `adapterVersion:1,ppq:480,lengthTicks:1920,events,diagnostics,displayable,rhythmResolved,performanceReady,completeScore`. Each event contains `sourceCellId,sourceTick,sourceSpanTicks,onsetTick,spanTicks,sound,direction,directionBasis,legacyDirManual,motion,continuationOf,notationDurationTicks,accent,playedStrings,voicing`.
+
+Hit creates attack. Rest breaks continuation. Tie references the preceding uninterrupted attack in this bar, without a new attack; orphan and rest-after-tie reject as `unresolved-orphan-sustain`, with no partial projection. Attack notation duration includes following tie cells. Rest occupies its own span; sustain notation duration is null. Logical notation duration is not physical Audio sustain/release. No cyclic or cross-bar carry is assumed; multi-bar input is unsupported and out-of-bar timing is invalid.
+
+Direction is preserved, not used to invent sound. The current R4 instruction narrows R2's generic future air-motion mapping: the nine official patterns have no directional non-attack cells; a changed/manual profile with such data is rejected rather than asserted to be a formal air stroke. No air/dead/stop/mute/strum accent/pitch/strings are manufactured. `legacyDirManual` means owner compatibility/pinning, never human confirmation. `performanceReady` and `completeScore` are always false; this is not Chord `voicingUsable` or finished guitar staff/TAB.
+
+Failures are frozen `{ok:false,error:{code},diagnostics}` without snapshot/projection. Codes distinguish malformed owner data, unsupported API/encoding/profile/meter/grid/feel/pattern, orphan sustain, owner errors, invalid query, unverified source and version mismatch.
+
+## No-write and later persistence
+
+No Project/Session/document identity or Storage/Repository capability is accepted. No listener, timer, async completion, global registration or product subscriber is installed. Previewing never adopts or replaces current rhythms. Native and projected data are independent frozen memory copies. Future UI must perform request/document/session/workspace/snapshot generation checks; this synchronous unconnected core does not claim those UI lifetimes are implemented.
+
+R5 must retain pattern/revision/source/native cell identity and direction basis. Its offline snapshot reader is a separate data-validation entry point: it must not require this acquisition facade, an issued runtime context, owner callbacks, current owner installation or credentials. Saved provenance is data, not a runtime verification receipt. R4 does not implement that reader or enable its writer. Reader-first handling of the proposed `rhythm-owner-cells-v1`, immutable material snapshots, stable references, capacity protection and the legacy editing bridge remain separate work. Do not force this data through `studio-strum-v1` or persist both native and480 representations as separate musical authorities. Chord/voicing resolution belongs to later attack-time integration; a chord change during sustain must not reattack or replace its originating voicing.
+
+## Acceptance and performance
+
+The Node suite uses real fixed R3 ESM bytes and the independent R2 104-cell oracle. If `RHYTHM_OWNER_DIR` is absent, it reads the pinned local Git objects into a disposable external directory; no network/fetch is performed. Full Studio Node regression includes the new suite. Browser tests use `STUDIO_URL`, external `RHYTHM_OWNER_DIR` (including receipt), external `QA_DIR` and Playwright; only an isolated harness serves the fixed unpublished API. Product boot must request neither owner API nor this adapter. Ledgers keep fixture/setup writes distinct from zero adapter-phase writes without deleting records.
+
+Decoder work is O(n), n<=16; explicit list/get work is bounded. No Project-change subscriptions or melody input work are added. Measure core cost separately. Existing runtime/module graph is byte-identical to the approved baseline, so historical16ms command /500ms staff results must not be relabelled as fresh measurements on the R4 tree. Re-run required product performance gates when this module is connected or persistence changes; do not weaken thresholds, sampling or rounding.
+
+No Production publish, shared write or Pro/Account/Authority/Sync change is authorized by this document. Rhythm1.21.0 and Studio metadata/cache must be reconciled in the later owner-publication/product-connection integration, not by falsely advancing today's Production mirror.
