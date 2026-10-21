@@ -36,6 +36,6 @@ export async function scheduledNews(event,env,ctx,now=Date.now(),{registry=SOURC
   results.push(report);
  }
  await store.recordHealth({sourceId:'collection',...collectionHealth(results),checkedAt:now,successfulAt:now});
- console.log(JSON.stringify({event:'news_collection',results:results.map(({sourceId,outcome,pending,published})=>({sourceId,outcome,pending,published}))}));
+ console.log(JSON.stringify({event:'news_collection',results:results.map(({sourceId,outcome,pending,published,requests,requestCounts,articleCache})=>({sourceId,outcome,pending,published,...(sourceId==='agm'?{requests,requestCounts,articleCache}:{})}))}));
  return {purged:true,results};
 }

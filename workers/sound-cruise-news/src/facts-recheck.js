@@ -9,7 +9,10 @@ import {parseIkebeInformationalEvidence,productArticleIdentityRefinement} from '
 import {parseShimamuraProductEvidence} from './shimamura-product-evidence.js';
 import {parseNamedWorkshopEvidence} from './named-workshop-evidence.js';
 import {parseGuitarExhibition} from './guitar-exhibition-evidence.js';
-import {parseAgmArticleEvidence} from './agm-article-evidence.js';
+import {acquireAgmArticle,inspectAgmArticle,agmProof,agmProvenance} from './agm-acquisition.js';
+import {fingerprint} from './fingerprint.js';
+import {AGM_SECTIONS,agmArticleUrl} from './agm-sections.js';
+import {parseAgmArticleEvidence,agmEvidenceMetadata} from './agm-article-evidence.js';
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
 import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
 import {parseIkebeProductEvidence,ikebeIdentityRefinement,IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
@@ -33,12 +36,21 @@ async function gate(store,source,registry,now,row){
  return state;
 }
 
-async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false}={}){
+function agmSurface(cached,row){const i=cached.item;return i?{outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:i.sourceUrl,publishedAt:i.publishedAt,eventType:i.eventType,productFacts:i.productFacts}]),proof_json:JSON.stringify(cached.proof)}:{outcome:'facts_not_recovered',items_json:'[]',proof_json:null};}
+
+async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false}={}){
  if(source.id==='morris'){
   await gate(store,source,registry,now,row);const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
   if(!['verified','verified_listing'].includes(receipt?.outcome)||!receipt.facts_json||!await validatedFingerprint(receipt.fingerprint_json,pepper))return {outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
   const facts=JSON.parse(receipt.facts_json),eventType=facts.kind==='guitar_event'?'guitar_event':facts.kind==='morris_notice'?'morris_notice':facts.kind==='morris_editorial'?'morris_editorial':facts.action||'other';
   return {outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:receipt.published_at,eventType,productFacts:facts,titleFingerprint:receipt.fingerprint_json}]),proof_json:JSON.stringify({...JSON.parse(receipt.proof_json),recoveryAnalysis:undefined})};
+ }
+ if(source.id==='agm'){
+  await gate(store,source,registry,now,row);
+  const cached=await inspectAgmArticle(store,source,row.source_url,now,pepper,{expectedPublishedAt:row.published_at,forceRevalidate});
+  if(cached.busy)throw Error('facts_recheck_busy');
+  if(cached.hit)return agmSurface(cached.payload,row);
+  if(cached.attempted&&!forceRevalidate)return {outcome:'facts_not_recovered',items_json:'[]',proof_json:null};
  }
  const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair}),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
@@ -51,12 +63,12 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
  try{
   const state=await gate(store,source,registry,now,row);
   acquired=await store.lease(source.id,now,DAY,{requestMode:'operator_validation'});if(!acquired)throw Error('facts_recheck_busy');
-  const request=async(url,maxBytes)=>{
+  const request=async(url,maxBytes,headers={})=>{
    await gate(store,source,registry,now,row);
    // The server chooses exactly two URLs, never a caller-supplied URL or redirect.
    if(![source.robotsUrl,surface.url].includes(url)||!sourceUrl(url,source)||sourceUrl(url,source)!==url)throw Error('facts_source_invalid');
    await store.publisherAttempt(source.id,now,DAY);
-   let r;try{r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store'}});}catch(error){if(error.redirectEvidence)await store.recordRedirect(source.id,error.redirectEvidence);throw error;}
+   let r;try{r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store',...headers}});}catch(error){if(error.redirectEvidence)await store.recordRedirect(source.id,error.redirectEvidence);throw error;}
    if([401,403,451,429].includes(r.status)||r.status>=500)throw Error('facts_http_'+r.status);
    if(url!==source.robotsUrl&&optOut(r.headers.get('x-robots-tag')||''))throw Error('facts_optout');return r;
   };
@@ -64,6 +76,18 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   if(!evidence.matches(state.robotsHash)||!evidence.matches(source.robotsHash))throw Error('facts_robots_changed');
   if(robots.isAllowed(surface.url,BOT)!==true)throw Error('facts_robots_disallow');
   const delay=Math.max(1000,(robots.getCrawlDelay(BOT)||0)*1000);if(delay>10000)throw Error('facts_crawl_delay_review');await sleep(delay);
+  if(source.id==='agm'&&surface.method==='explicit_agm_article_fields'){
+   const acquired=await acquireAgmArticle({store,source,url:row.source_url,now,pepper,expectedPublishedAt:row.published_at,forceRevalidate,
+    request:(url,options)=>request(url,options.maxBytes,options.headers),
+    parse:async html=>{
+     const parsed=parseAgmArticleEvidence(html,source,row),proof=agmProof(row.source_url,now,await hash(html));
+     const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s)),meta=agmEvidenceMetadata(html,row.source_url,section),fp=await fingerprint(meta.title,pepper);
+     return {proof,listingFingerprint:fp,item:{id:row.id,sourceId:'agm',sourceName:source.name,sourceUrl:row.source_url,normalizedUrl:row.normalized_url,publishedAt:parsed.publishedAt,
+      category:parsed.category,label:factualLabel(parsed.productFacts,parsed.eventType),topicKey:row.topic_key,collectedAt:row.collected_at,eventType:parsed.eventType,productFacts:parsed.productFacts,
+      factsProvenance:agmProvenance(parsed.productFacts,proof),titleFingerprint:JSON.stringify(fp),feedPublishedAt:row.feed_published_at,publicationDecision:'PUBLISH_REVIEW',decisionReason:'agm_editorial_review',reviewReason:'agm_editorial_review'}};
+    }});
+   const result=agmSurface(acquired,row);outcome=result.outcome;items=JSON.parse(result.items_json);proof=JSON.parse(result.proof_json||'null');return result;
+  }
   let response=await request(surface.url,surface.method==='explicit_agm_article_fields'?1000000:512000);
   if([404,410].includes(response.status))throw Error('facts_http_'+response.status);
   if(response.status!==200||!/text\/html/i.test(response.headers.get('content-type')||''))throw Error('facts_source_unavailable');

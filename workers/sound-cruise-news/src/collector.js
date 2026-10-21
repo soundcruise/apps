@@ -1,5 +1,7 @@
+import {acquireAgmArticle,agmProof,agmProvenance} from './agm-acquisition.js';
+import {agmArticleMetadata} from './agm-sections.js';
 import {collectMorris} from './morris-collector.js';
-import {parseAgmArticleEvidence,AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
+import {parseAgmArticleEvidence} from './agm-article-evidence.js';
 import {AGM_SURFACES,agmArticleUrl,discoverAgm} from './agm-sections.js';
 import {parseOfficialListing} from './official-listing.js';
 import {parseShimamuraListing,SHIMAMURA_LISTING_URL,LISTING_MAX_BYTES} from './shimamura-listing.js';
@@ -59,12 +61,22 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
   if(delay>60000){next.nextAt=Math.max(next.nextAt,now+delay);throw new Error('crawl_delay_review');}
   if(agmExpanded){
    report.sections=[];
-   await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,onArticle:async(entry,html)=>{
-    const {item}=await candidateFrom(entry,source,robots,now,pepper);
-    if(item&&!factualLabel(item.productFacts,item.eventType)){try{
-     entry.articleRecovery={...parseAgmArticleEvidence(html,source,{source_url:entry.url,published_at:item.publishedAt,product_facts:JSON.stringify(item.productFacts)}),
-      proof:{sourceId:source.id,sourceUrl:entry.url,verifiedAt:now,extractionMethod:'explicit_agm_article_fields',parserVersion:AGM_ARTICLE_PARSER,responseHash:await hash(html)}};
-    }catch{/* Incomplete evidence stays eligible for bounded recovery; never guess. */}}
+   report.articleCache={hits:0,fetched:0,notModified:0,attempted:0};
+   await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,acquireArticle:async listingEntry=>{
+    const acquired=await acquireAgmArticle({store,source,url:listingEntry.url,listingTitle:listingEntry.title,now,pepper,
+     request:async(url,options)=>{await sleep(delay);return request(url,options);},
+     parse:async html=>{
+      const entry=agmArticleMetadata(html,listingEntry.url),proof=agmProof(entry.url,now,await hash(html));
+      let {item}=await candidateFrom(entry,source,robots,now,pepper);
+      if(item&&!factualLabel(item.productFacts,item.eventType)){try{
+       entry.articleRecovery={...parseAgmArticleEvidence(html,source,{source_url:entry.url,published_at:item.publishedAt,product_facts:JSON.stringify(item.productFacts)}),proof};
+       ({item}=await candidateFrom(entry,source,robots,now,pepper));
+      }catch{/* Missing primary evidence stays incomplete; never guess. */}}
+      if(item?.productFacts)item.factsProvenance=agmProvenance(item.productFacts,proof);
+      entry.title='';return {item:item||null,proof};
+     }});
+    report.articleCache[{hit:'hits',fetched:'fetched',not_modified:'notModified',attempted:'attempted'}[acquired.cache]]++;
+    return {url:listingEntry.url,agmCachedItem:acquired.item,agmAcquired:true,title:''};
    },onSection:async(section,entries)=>{
     const part={section,candidates:entries.length,pending:0,rejected:0,duplicates:0};
     await persistDiscoveredEntries(entries,source,store,robots,now,pepper,registry,part);
@@ -113,7 +125,8 @@ export async function persistDiscoveredEntries(entries,source,store,robots,now,p
   if(legalGate(source,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'local',registry))throw Error('access_stopped');
   requirePepper(pepper);
   for(const entry of entries){
-   const {item,reason}=await candidateFrom(entry,source,robots,now,pepper);
+   const {item,reason}=source.id==='agm'&&entry.agmAcquired?{item:entry.agmCachedItem,reason:'agm_evidence_unavailable'}:await candidateFrom(entry,source,robots,now,pepper);
+   if(item&&entry.agmAcquired&&item.publishedAt&&(Date.parse(item.publishedAt)>now||now-Date.parse(item.publishedAt)>=90*86400000)){report.rejected++;continue;}
    if(!item){report.rejected++;report.reasons??={};report.reasons[reason]=(report.reasons[reason]||0)+1;continue;}
    if(await store.put(item))report.pending++;else report.duplicates++;
   }

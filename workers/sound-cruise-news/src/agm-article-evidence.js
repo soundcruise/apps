@@ -15,7 +15,7 @@ export function agmRecoverySurface(row,source){
  if(source?.id!=='agm'||!source.agmSections||source.permissionRef!==AGM_PERMISSION_REF||!source.explicitAutomationPermission)return null;
  const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));return section?{url:row.source_url,method:'explicit_agm_article_fields',parser:AGM_ARTICLE_PARSER}:null;
 }
-function articleMetadata(html,url,section){
+export function agmEvidenceMetadata(html,url,section){
  if(section==='news')return agmArticleMetadata(html,url);
  const d=parseDocument(html),canon=find(d,n=>n.name==='link'&&n.attribs.rel==='canonical'),titles=find(d,n=>n.name==='h2'&&classes(n.parent).includes('post-title'));
  const og=find(d,n=>n.name==='meta'&&n.attribs.property==='og:title');
@@ -40,7 +40,7 @@ export function parseAgmArticleEvidence(html,source,row){
 
  const surface=agmRecoverySurface(row,source);if(!surface)throw Error('facts_source_invalid');
  const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));
- const meta=articleMetadata(html,row.source_url,section);
+ const meta=agmEvidenceMetadata(html,row.source_url,section);
  // RSS supplies the saved publication timestamp for non-News sections. An article
  // with no date cannot invent/replace it; any explicit contradictory date fails closed.
  if(!row.published_at||meta.date&&meta.date!==row.published_at)throw Error('facts_date_changed');
