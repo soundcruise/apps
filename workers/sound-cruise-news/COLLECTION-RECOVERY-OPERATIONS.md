@@ -45,3 +45,14 @@ references with an unsafe antecedent cannot corroborate a launch. Canonical URL,
 publication date, manufacturer tag, type and product headings remain required.
 A primary title's explicit release is classified as release. One retrieved
 response is reused for extraction and replay; no extra request is added.
+
+## Shimamura software identity
+
+Parser 7 can bind an explicit manufacturer launch sentence to a single named
+software instrument when the manufacturer is absent from the editorial title.
+The product must be present in the title and independently in the primary JAN
+product table. Related cards, connected equipment and ambiguous multi-product
+subjects cannot supply that binding. The software-instrument subtype requires
+current primary-field provenance. Explicit release facts and the printed release
+date remain separate from the article publication date; no new URL/model aliases
+or additional publisher requests are introduced.
