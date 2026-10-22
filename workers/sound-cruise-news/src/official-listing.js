@@ -24,7 +24,8 @@ export function parseOfficialListing(html,source){
    const title=text(heading[0]).replace(/\s+/g,' ').trim(),match=/(20\d{2})[/.](\d{2})[/.](\d{2})/.exec(text(times[0]));
    const date=match?`${match[1]}-${match[2]}-${match[3]}T00:00:00+09:00`:'';if(date&&Number.isFinite(Date.parse(date)))dates++;
    if(!title||title.length>512)continue;
-   entries.push({title,url:u.href,date,listingSection:'official_news',listingUncertainty:date?'':'missing_date'});
+   const listingTags=find(card,n=>n.name==='span'&&/\blink-card__tag\b/.test(n.attribs.class||'')).map(n=>text(n).trim()).filter(v=>['新製品情報','イベント','アーティスト','キャンペーン','お知らせ'].includes(v));
+   entries.push({title,url:u.href,date,listingTags,listingSection:'official_news',listingUncertainty:date?'':'missing_date'});
   }
   if(!entries.length||dates<Math.ceil(entries.length/2))throw Error('listing_structure_changed');
   return {entries,cards:cards.length,reasons:{}};
@@ -55,7 +56,8 @@ export function parseZoomListing(html,source){
    if(Number.isFinite(stamp)){const local=new Date(stamp+9*3600000);if(local.getUTCFullYear()!==Number(match[3])||local.getUTCMonth()!==months.indexOf(match[1])||local.getUTCDate()!==Number(match[2]))stamp=NaN;}
    if(!title||title.length>512)continue;
    const date=Number.isFinite(stamp)?new Date(stamp).toISOString():'';if(date)validDates++;
-   seen.add(u.href);entries.push({title,url:u.href,date,listingSection:'official_news',listingUncertainty:date?'':'missing_date'});
+   seen.add(u.href);const listingTags=find(card,n=>n.name==='span'&&/\blink-card__tag\b/.test(n.attribs.class||'')).map(n=>text(n).trim()).filter(v=>['新製品情報','イベント','アーティスト','キャンペーン','お知らせ'].includes(v));
+   entries.push({title,url:u.href,date,listingTags,listingSection:'official_news',listingUncertainty:date?'':'missing_date'});
   }
   if(!entries.length||validDates<Math.ceil(cards.length/2))throw Error('listing_structure_changed');
   return {entries,cards:cards.length,reasons:{}};

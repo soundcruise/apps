@@ -1,3 +1,4 @@
+import {validKikutaniListingFacts,kikutaniListingFacts,kikutaniListingLabel,kikutaniListingProvenance} from './kikutani-listing-evidence.js';
 import {morrisNoticeLabel} from './morris-editorial-policy.js';
 import {hasProductSubject} from './product-type-evidence.js';
 import {productFamilyLabel,productFamilyKey} from './product-family-evidence.js';
@@ -167,6 +168,7 @@ function manufacturerFacts(entry,source){
 }
 export function validatedProductFacts(facts){
  if(!facts||!validHeadlineEvidence(facts))return false;
+ if(facts.identifierBasis==='explicit_kikutani_listing_product')return validKikutaniListingFacts(facts);
  if(facts.identifierBasis==='explicit_shimamura_product_fields')return validatedShimamuraProductFacts(facts);
  if(facts.identifierBasis==='explicit_article_product_fields')return validatedIkebeProductFacts(facts);
  if(assessedRecordingFacts(facts))return true;
@@ -258,6 +260,7 @@ export function allowedArticlePath(url,source) {
 }
 const actions={other:'の製品情報',new_product:'を発表',release:'を発売',update:'を更新',firmware:'のファームウェア更新',price_change:'の価格改定',discontinued:'の販売終了',recall:'のリコール情報',review:'の製品レビュー'};
 export function factualLabel(facts,eventType){
+ if(facts?.identifierBasis==='explicit_kikutani_listing_product')return kikutaniListingLabel(facts,eventType);
  if(facts?.kind==='morris_notice')return morrisNoticeLabel(facts,eventType);
  if(facts?.kind==='product_family')return productFamilyLabel(facts,eventType);
  if(facts?.evidence==='morris_explicit_article_v1')return morrisLabel(facts,eventType);
@@ -311,6 +314,14 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(hasDate&&(timestamp>now||now-timestamp>90*DAY))return {decision:'REJECT',reason:'date_outside_window'};
  if(typeof entry.title!=='string'||!entry.title.trim()||entry.title.length>512)return {decision:'REJECT',reason:'title_invalid'};
  if(source.discoveryType==='shimamura_listing'){const reason=listingExclusion(entry.title);if(reason)return {decision:'REJECT',reason};}
+ const kikutaniFacts=kikutaniListingFacts(entry,source);
+ if(kikutaniFacts){
+  const label=kikutaniListingLabel(kikutaniFacts,'new_product'),id=await hash(url);
+  return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,
+   category:kikutaniFacts.category,label,topicKey:factualTopicKey(kikutaniFacts,'new_product'),collectedAt:new Date(now).toISOString(),eventType:'new_product',productFacts:kikutaniFacts,
+   factsProvenance:kikutaniListingProvenance(kikutaniFacts,entry.listingProof),titleFingerprint:JSON.stringify(await fingerprint(entry.title,pepper)),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
+   publicationDecision:'PUBLISH_REVIEW',decisionReason:'listing_product_review',manualReviewStatus:'pending',reviewReason:'listing_product_review'}};
+ }
  if(source.id==='agm'&&source.agmSections&&entry.agmSection){
   const assessed=agmEditorialAssessment(entry);if(assessed.reject)return {decision:'REJECT',reason:assessed.reject};
   // Existing product rules remain authoritative for launches; other editorial kinds
@@ -381,7 +392,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(facts)category=facts.category;
  if(source.gearOnly&&['artist_guitar','live_guitar','media_other'].includes(category))return {decision:'REJECT',reason:'source_scope'};
  if(source.artistOnly&&!['artist_guitar','live_guitar'].includes(category))return {decision:'REJECT',reason:'source_scope'};
- if(!category)return {decision:'REJECT',reason:'not_relevant'};
+ if(!category)return {decision:'REJECT',reason:source.id==='kikutani'&&entry.listingTags?.some(t=>['新製品情報','イベント','アーティスト'].includes(t))?'listing_evidence_insufficient':'not_relevant'};
  // Conservative deterministic template. No source phrase or instructions interpolated.
  // Detailed product labels require local human editing, never automatic publication.
  const informationalUncertain=!!facts?.releaseEvent||/機能一覧|仕様一覧|スペック一覧|発売予定|年内|発売(?:が)?決定/.test(entry.title)||(source.id==='ik'&&/パック|プリセット|トーンモデル|コレクション|追加(?:ボイス|音色)|拡張|\b(?:pack|collection|presets?|tone models?|for|vol(?:ume)?)\b/i.test(entry.title));

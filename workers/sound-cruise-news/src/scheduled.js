@@ -1,3 +1,4 @@
+import {probeMaintenanceRecovery} from './maintenance-recovery.js';
 import {runPendingRechecks} from './pending-lifecycle.js';
 import {SOURCES,evidenceGate} from './registry.js';
 import {NewsStore} from './store.js';
@@ -29,10 +30,16 @@ export async function scheduledNews(event,env,ctx,now=Date.now(),{registry=SOURC
  for(const id of ids){
   const source=active.find(s=>s.id===id),reason=evidenceGate(source,now)||(!source.productionEnabled?'source_disabled':null);
   if(reason){await store.recordHealth({sourceId:id,...healthForOutcome(reason),checkedAt:now});results.push({sourceId:id,outcome:reason,published:0,intentionalDisabled:reason==='source_disabled'&&await intentionalSourceStop(store,id)});continue;}
-  const report=await collectSource(id,store,{mode:'production',now,registry:active,fetcher,sleep,pepper:env.NEWS_HEADLINE_PEPPER,clock,requestMode:'scheduled',jstDay:jstCollectionDay(event.scheduledTime||now)});
+  const maintenance=await probeMaintenanceRecovery(store,source,now,{fetcher});
+  const report=maintenance&&!maintenance.cachedRobots?{sourceId:id,outcome:maintenance.outcome,requests:0,requestCounts:{robots:0},pending:0,published:0}:await collectSource(id,store,{mode:'production',now,registry:active,fetcher,sleep,pepper:env.NEWS_HEADLINE_PEPPER,clock,requestMode:'scheduled',jstDay:jstCollectionDay(event.scheduledTime||now),cachedRobots:maintenance?.cachedRobots,requireHumanReview:!!maintenance?.cachedRobots});
+  if(maintenance){report.requests+=maintenance.requests;report.requestCounts.robots+=maintenance.requests;if(!maintenance.cachedRobots)report.outcome=maintenance.outcome;}
+  if(maintenance?.cachedRobots&&!['collected','not_modified'].includes(report.outcome)){
+   await store.db.prepare('UPDATE source_state SET disabled=1 WHERE source_id=?').bind(id).run();
+   await store.db.prepare('INSERT INTO news_admin_audit VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),'maintenance-recovery-denied',id,now,report.outcome).run();
+  }
   report.published=0;
   if(report.outcome==='source_disabled')report.intentionalDisabled=await intentionalSourceStop(store,id);
-  if(['collected','not_modified'].includes(report.outcome))report.published=await publishAutomatic(store,source,active,now,env.NEWS_HEADLINE_PEPPER);
+  if(!maintenance&&['collected','not_modified'].includes(report.outcome))report.published=await publishAutomatic(store,source,active,now,env.NEWS_HEADLINE_PEPPER);
   results.push(report);
  }
  await store.recordHealth({sourceId:'collection',...collectionHealth(results),checkedAt:now,successfulAt:now});
