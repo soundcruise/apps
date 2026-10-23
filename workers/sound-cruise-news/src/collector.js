@@ -1,4 +1,5 @@
 import {KIKUTANI_LISTING_PARSER} from './kikutani-listing-evidence.js';
+import {observePreparation,recordPreparationMetrics} from './preparation-metrics.js';
 import {acquireAgmArticle,agmProof,agmProvenance} from './agm-acquisition.js';
 import {agmArticleMetadata} from './agm-sections.js';
 import {collectMorris} from './morris-collector.js';
@@ -12,7 +13,13 @@ import { boundedFetch, sourceUrl, robotsPolicy, retryAt, hash, optOut, BOT, robo
 import { parseMetadata, candidateFrom, factualLabel } from './metadata.js';
 import { healthForOutcome } from './source-health.js';
 export function nextDailyCollectionAt(now){const day=86400000,utcSixJst=Math.floor(now/day)*day+21*3600000;return utcSixJst>now?utcSixJst:utcSixJst+day;}
-export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),registry=SOURCES,pepper,clock,requestMode='normal',jstDay='',auditReason='',cachedRobots=null,requireHumanReview=false}={}) {
+export async function collectSource(id,store,options={}){
+ const report=await collectSourceInternal(id,store,options);
+ try{if(options.mode==='production'){const recovery=options.preparationMaintenance,measurement=recovery?{...report,requests:report.requests+recovery.requests,requestCounts:{...report.requestCounts,robots:(report.requestCounts?.robots||0)+recovery.requests},maintenanceOutcome:recovery.outcome}:report;await recordPreparationMetrics(store,measurement,options.now||Date.now(),options.registry||SOURCES,options.pepper);report.preparation=measurement.preparation;}}
+ catch{console.error(JSON.stringify({event:'news_preparation_metrics_failed',sourceId:id}));}
+ delete report.qualityObservations;return report;
+}
+async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),registry=SOURCES,pepper,clock,requestMode='normal',jstDay='',auditReason='',cachedRobots=null,requireHumanReview=false}={}) {
  const started=Date.now(),source=registry.find(s=>s.id===id),state=await store.state(id);
  const agmExpanded=source?.id==='agm'&&source.agmSections===true;
  const shimListing=source?.discoveryType==='shimamura_listing',listing=shimListing||source?.discoveryType==='official_listing';
@@ -79,8 +86,9 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
     report.articleCache[{hit:'hits',fetched:'fetched',not_modified:'notModified',attempted:'attempted'}[acquired.cache]]++;
     return {url:listingEntry.url,agmCachedItem:acquired.item,agmAcquired:true,title:''};
    },onSection:async(section,entries)=>{
-    const part={section,candidates:entries.length,pending:0,rejected:0,duplicates:0};
+    const part={section,requestMode:report.requestMode,requireHumanReview:report.requireHumanReview,candidates:entries.length,pending:0,rejected:0,duplicates:0};
     await persistDiscoveredEntries(entries,source,store,robots,now,pepper,registry,part);
+    report.qualityObservations??=[];report.qualityObservations.push(...(part.qualityObservations||[]));
     report.sections.push(part);for(const key of ['candidates','pending','rejected','duplicates'])report[key]+=part[key];
    }});
    next.failures=0;next.lastDiscoveryAt=now;next.etag=null;next.lastModified=null;report.outcome='collected';
@@ -98,7 +106,7 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
     if(!/text\/html/i.test(discovery.headers.get('content-type')||''))throw Error('listing_structure_changed');
     if(source.id==='kikutani')discovery.responseHash=await hash(discovery.text);
     let parsed;try{parsed=shimListing?parseShimamuraListing(discovery.text,source.discoveryUrl,{since:requestMode==='operator_validation'?0:state.lastDiscoveryAt||0}):parseOfficialListing(discovery.text,source);}finally{discovery.text='';}
-    entries=parsed.entries;if(source.id==='kikutani'){const proof={sourceId:source.id,sourceUrl:source.discoveryUrl,verifiedAt:now,extractionMethod:'explicit_kikutani_listing_card',parserVersion:KIKUTANI_LISTING_PARSER,responseHash:discovery.responseHash};for(const entry of entries)entry.listingProof=proof;}report.candidates=parsed.cards;report.reasons=parsed.reasons;report.rejected=Object.values(parsed.reasons).reduce((a,b)=>a+b,0);
+    entries=parsed.entries;for(const d of parsed.dispositions||[])observePreparation(report,d,{reason:d.reason});if(source.id==='kikutani'){const proof={sourceId:source.id,sourceUrl:source.discoveryUrl,verifiedAt:now,extractionMethod:'explicit_kikutani_listing_card',parserVersion:KIKUTANI_LISTING_PARSER,responseHash:discovery.responseHash};for(const entry of entries)entry.listingProof=proof;}report.candidates=parsed.cards;report.reasons=parsed.reasons;report.rejected=Object.values(parsed.reasons).reduce((a,b)=>a+b,0);
    }else{
     if(!/xml|rss|atom/i.test(discovery.headers.get('content-type')||''))throw new Error('non_metadata_response');
     entries=parseMetadata(discovery.text,source.discoveryType);report.candidates=entries.length;discovery.text='';
@@ -128,10 +136,12 @@ export async function persistDiscoveredEntries(entries,source,store,robots,now,p
   requirePepper(pepper);
   for(const entry of entries){
    const {item,reason}=source.id==='agm'&&entry.agmAcquired?{item:entry.agmCachedItem,reason:'agm_evidence_unavailable'}:await candidateFrom(entry,source,robots,now,pepper);
-   if(item&&entry.agmAcquired&&item.publishedAt&&(Date.parse(item.publishedAt)>now||now-Date.parse(item.publishedAt)>=90*86400000)){report.rejected++;continue;}
-   if(!item){report.rejected++;report.reasons??={};report.reasons[reason]=(report.reasons[reason]||0)+1;continue;}
+   if(item&&entry.agmAcquired&&item.publishedAt&&(Date.parse(item.publishedAt)>now||now-Date.parse(item.publishedAt)>=90*86400000)){report.rejected++;observePreparation(report,entry,{reason:'date_outside_window'});continue;}
+   if(!item){report.rejected++;report.reasons??={};report.reasons[reason]=(report.reasons[reason]||0)+1;observePreparation(report,entry,{reason});continue;}
    if(item&&report.requireHumanReview){item.publicationDecision='PUBLISH_REVIEW';item.decisionReason='maintenance_recovery_review';item.reviewReason='maintenance_recovery_review';}
-   if(await store.put(item))report.pending++;else report.duplicates++;
+   if(report.requestMode==='scheduled'){item.publicationDecision='PUBLISH_REVIEW';if(!report.requireHumanReview){item.decisionReason='collection_human_review';item.reviewReason='structured_review_required';}}
+   const created=await store.put(item);if(created)report.pending++;else report.duplicates++;
+   observePreparation(report,entry,{item,created});
   }
  }finally{for(const entry of entries){entry.title='';if('eventTitle' in entry)entry.eventTitle='';}entries.length=0;}
 }

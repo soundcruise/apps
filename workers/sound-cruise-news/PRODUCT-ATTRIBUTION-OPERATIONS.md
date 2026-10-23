@@ -11,11 +11,19 @@ brand's publication action. This renderer is shared by Kikutani's controlled new
 cards, common product-information rendering and published presentation facts.
 Other existing source-specific extraction and launch validations stay in place.
 
-The Kikutani extraction schema/parser version stays at `kikutani-listing-product-1`:
-only headline rendering changed. Existing brand/model/type/purpose/card-tag/hash
-proofs stay valid. A generic guitar cannot become an acoustic guitar from the
-brand name or category. New candidates still require formal validation and human
-publication review.
+Kikutani parser `kikutani-listing-product-2` adds optional, identity-bound listing
+action facts. Version 1 proofs remain valid for their existing identity/type facts;
+only version 2 can prove `listingNotice`. A tag alone is not a launch action.
+Without a verified action, the renderer uses `Brandの機材「Model」を紹介`, describing
+the introduction rather than asserting a manufacturer's launch. Unknown guitar
+product grammar is retained as facts-incomplete review, never invented READY.
+
+A generic guitar cannot become acoustic from its brand/category. For an explicit
+owner confirmation, `headlineQuality.evidence` separately records
+`owner_product_type_confirmation`, a bounded confirmation reference and only the
+`productType` field. It cannot prove publisher identity/action/date, cannot carry
+a publisher response hash, and never enters the human decision teacher. Original
+source facts and their proof are retained unchanged.
 
 For owner-authorized corrections to approved articles, use
 `publishedCorrectionStatements` with reviewed, article-bound `headlineQuality`
@@ -31,6 +39,7 @@ audit entry and public cache revision. Ledger, feedback, Shadow and presentation
 preferences (HOT and day-local order) are excluded from writes.
 
 2026-10-23: reviewed all 11 approved Kikutani articles. Six distributor product
-information labels need the brand-first nominal form; five existing own-brand,
-Godin and exhibitor labels remain unchanged. Saved official listing receipts
-suffice; no publisher request or source-policy change is required.
+information labels use verified identity/type/purpose and neutral introductions;
+the owner confirmed the acoustic type of BAN1V/BAN2V and BAR2R. Five existing
+own-brand, Godin and exhibitor labels remain unchanged. No publisher request or
+source-policy change is required.

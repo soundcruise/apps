@@ -55,7 +55,7 @@ export function parseShimamuraListing(html,url=SHIMAMURA_LISTING_URL,{since=0}={
   if(identity.length!==1)throw Error('listing_structure_changed');
   const cards=tags(doc,n=>n.name==='a'&&n.attribs?.href&&!hidden(n)&&!isNavigation(n)&&listingArticleUrl(n.attribs.href));
   if(cards.length<1||cards.length>100)throw Error('listing_structure_changed');
-  const entries=[],reasons={},seen=new Set();let validDates=0,usable=0;
+  const entries=[],reasons={},dispositions=[],seen=new Set();let validDates=0,usable=0;
   const reject=reason=>{reasons[reason]=(reasons[reason]||0)+1;};
   for(const card of cards){
    const titleNodes=tags(card,n=>/^h[2-4]$/.test(n.name)&&!hidden(n));
@@ -72,15 +72,15 @@ export function parseShimamuraListing(html,url=SHIMAMURA_LISTING_URL,{since=0}={
    if(seen.has(article)){reject('duplicate_url');continue;}seen.add(article);
    const path=new URL(article).pathname.split('/')[2];
    const mismatch=badges.length>1||(badges.length===1&&!categoryBadge[path].test(text(badges[0])));
-   const reason=listingExclusion(title);if(reason){reject(reason);continue;}
+   const reason=listingExclusion(title);if(reason){reject(reason);dispositions.push({url:article,date:date||'',reason});continue;}
    // A single malformed/missing date or conflicting badge needs review, not source shutdown.
    const uncertainty=!date?'missing_date':mismatch?'category_mismatch':'';
    const stamp=date?Date.parse(date):null;
    // Date-only metadata overlaps one JST day; undated records stay pending for review.
-   if(since&&stamp!==null&&stamp<Math.floor((since+9*3600000)/86400000)*86400000-9*3600000-86400000)continue;
+   if(since&&stamp!==null&&stamp<Math.floor((since+9*3600000)/86400000)*86400000-9*3600000-86400000){dispositions.push({url:article,date:date||'',reason:'before_watermark'});continue;}
    entries.push({url:article,date:date||'',title,listingSection:'product_news',listingCategory:path,listingUncertainty:uncertainty});
   }
   if(usable<1||validDates<Math.max(1,Math.ceil(cards.length/2)))throw Error('listing_structure_changed');
-  return {entries,reasons,cards:cards.length};
+  return {entries,reasons,cards:cards.length,dispositions};
  }finally{doc=null;}
 }

@@ -1,4 +1,4 @@
-import {validKikutaniListingFacts,KIKUTANI_LISTING_PARSER} from './kikutani-listing-evidence.js';
+import {validKikutaniListingFacts,KIKUTANI_LISTING_PARSER,KIKUTANI_LISTING_PARSERS} from './kikutani-listing-evidence.js';
 import {PRODUCT_FAMILY_PARSER,validProductFamily} from './product-family-evidence.js';
 import {AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
 import {validAgmPerformance} from './agm-performance-evidence.js';
@@ -116,7 +116,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(facts?.kind==='product_article'&&(row.event_type!=='product_article'||!['ikebe','shimamura'].includes(row.source_id)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.identifierBasis==='explicit_kikutani_listing_product'){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
-  if(row.source_id!=='kikutani'||facts.articleUrl!==row.source_url||row.event_type!=='new_product'||!validKikutaniListingFacts(facts)||!Array.isArray(proof)||![...Object.keys(facts),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId==='kikutani'&&p.sourceUrl==='https://www.kikutani.co.jp/news/'&&p.articleUrl===row.source_url&&p.parserVersion===KIKUTANI_LISTING_PARSER&&p.extractionMethod==='explicit_kikutani_listing_card'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+  if(row.source_id!=='kikutani'||facts.articleUrl!==row.source_url||row.event_type!=='new_product'||!validKikutaniListingFacts(facts)||!Array.isArray(proof)||![...Object.keys(facts).filter(k=>k!=='headlineQuality'),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId==='kikutani'&&p.sourceUrl==='https://www.kikutani.co.jp/news/'&&p.articleUrl===row.source_url&&(field==='listingNotice'?p.parserVersion===KIKUTANI_LISTING_PARSER:KIKUTANI_LISTING_PARSERS.includes(p.parserVersion))&&p.extractionMethod==='explicit_kikutani_listing_card'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(facts?.identifierBasis==='explicit_article_product_fields'&&(row.source_id!=='ikebe'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.editionEvidence||facts?.subjectEvidence||facts?.productType==='contact_cleaner'){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}

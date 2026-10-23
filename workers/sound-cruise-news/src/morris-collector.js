@@ -1,4 +1,5 @@
 import {morrisNoticeLabel,MORRIS_FACT_CHECKS} from './morris-editorial-policy.js';
+import {observePreparation} from './preparation-metrics.js';
 import {legalGate} from './registry.js';
 import {boundedFetch,hash,DAY,optOut,BOT,robotsPolicy} from './policy.js';
 import {requirePepper,validatedFingerprint} from './fingerprint.js';
@@ -138,6 +139,7 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    await currentGate(store,source,now,mode,registry);
    if(!morrisArticleUrl(entry.url)||morrisUrlDate(entry.url)!==entry.publishedAt||!await validatedFingerprint(entry.fingerprint,pepper))throw Error('listing_structure_changed');
    report.candidates++;
+   observePreparation(report,entry,{reason:'receipt_evaluation'});
    const articleKey='article:'+await hash(entry.url),stamp=Date.parse(entry.publishedAt),historical=stamp<=now&&now-stamp>MORRIS_FRESH_MS;
    let receipt=await morrisEvidenceReceipt(store,entry.url,now),failure=null;
    // Never revive old/ended articles, change their publication day, or fetch a
@@ -170,10 +172,11 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    // The once-only evidence is immutable; never rewrite an already-created candidate on rediscovery.
    const exists=await store.db.prepare('SELECT 1 FROM candidate_items WHERE id=?').bind(item.id).first();
    if(exists){report.duplicates++;continue;}
-   if(await store.put(item)){report.pending++;if(historical&&receipt.outcome==='verified_listing')report.historicalRecovered=(report.historicalRecovered||0)+1;}else report.duplicates++;
+   const created=await store.put(item);observePreparation(report,entry,{item,created});if(created){report.pending++;if(historical&&receipt.outcome==='verified_listing')report.historicalRecovered=(report.historicalRecovered||0)+1;}else report.duplicates++;
    if(failure)throw failure;
   }
   const review=await materializeMorrisReviewCandidates(store,{source,now,pepper});report.reviewCandidatesAdded=review.added;report.pending+=review.added;report.reviewExcluded=review.excluded;
+  for(const id of review.ids){const row=await store.db.prepare('SELECT source_url,published_at FROM candidate_items WHERE id=?').bind(id).first();if(row)observePreparation(report,{url:row.source_url,publishedAt:row.published_at},{created:true,reason:'historical_evidence_review'});}
   report.outcome='collected';completed=true;
  }catch(error){
   report.outcome=['access_stopped','robots_changed_review','robots_disallow','rate_limited','http_401','http_403','http_451','redirect_blocked','header_optout','listing_structure_changed','listing_too_large','discovery_unavailable'].includes(error.message)?error.message:error.name==='AbortError'||error.name==='TimeoutError'?'request_timeout':'network_or_internal_error';

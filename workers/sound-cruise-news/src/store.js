@@ -50,7 +50,7 @@ export class NewsStore {
    .bind(JSON.stringify(i.productFacts),i.label,i.category,i.eventType,i.titleFingerprint,i.publicationDecision,i.decisionReason,i.reviewReason,eventDeadline,i.id,i.sourceUrl,i.sourceId,i.id).run();}
   return false;
  }
- async log(r){await this.db.prepare('INSERT INTO collection_runs(id,source_id,collected_at,requests,candidates,pending,rejected,duplicates,outcome,duration_ms,request_mode) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),r.sourceId,r.startedAt,r.requests,r.candidates,r.pending,r.rejected,r.duplicates,r.outcome,r.durationMs,r.requestMode||'normal').run();}
+ async log(r){r.runId=crypto.randomUUID();await this.db.prepare('INSERT INTO collection_runs(id,source_id,collected_at,requests,candidates,pending,rejected,duplicates,outcome,duration_ms,request_mode) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(r.runId,r.sourceId,r.startedAt,r.requests,r.candidates,r.pending,r.rejected,r.duplicates,r.outcome,r.durationMs,r.requestMode||'normal').run();}
  async recordHealth({sourceId,status,reasonCode,checkedAt,nextEligibleAt=0,failureCount=0,successfulAt=null}){
   if(!/^[a-z0-9_-]{1,64}$/.test(sourceId)||!HEALTH_STATUSES.includes(status)||!HEALTH_REASONS.includes(reasonCode)||
    !Number.isSafeInteger(checkedAt)||!Number.isSafeInteger(nextEligibleAt)||!Number.isSafeInteger(failureCount)||failureCount<0)throw Error('invalid_health_state');
@@ -74,6 +74,7 @@ export class NewsStore {
   if(lost.n>=3){await this.db.prepare('INSERT INTO source_health_alerts VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),sourceId,'error','approved_mass_visibility_loss',checkedAt).run();console.warn(JSON.stringify({event:'news_product_regression',sourceId,reason:'approved_mass_visibility_loss',approvedCount:lost.n}));}
  }
  async purge(now,{leadMs=0}={}){
+  await this.db.batch([this.db.prepare('DELETE FROM news_preparation_runs WHERE observed_at<=?').bind(now-90*DAY),this.db.prepare('DELETE FROM news_discovery_receipts WHERE last_seen_at<=?').bind(now-90*DAY)]);
   await purgeDecisionLedger(this,now);
   await this.db.prepare('DELETE FROM news_agm_article_cache WHERE attempted_at<=? AND lease_until<=?').bind(now-90*DAY,now).run();
   await this.db.batch([this.db.prepare('DELETE FROM news_presentation_days WHERE day<?').bind(new Date(now-90*DAY).toISOString().slice(0,10)),this.db.prepare('DELETE FROM news_presentation_requests WHERE created_at<=?').bind(now-365*DAY)]);

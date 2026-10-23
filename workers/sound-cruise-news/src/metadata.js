@@ -324,6 +324,13 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
    factsProvenance:kikutaniListingProvenance(kikutaniFacts,entry.listingProof),titleFingerprint:JSON.stringify(await fingerprint(entry.title,pepper)),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
    publicationDecision:'PUBLISH_REVIEW',decisionReason:'listing_product_review',manualReviewStatus:'pending',reviewReason:'listing_product_review'}};
  }
+ // A controlled new-product card with explicit guitar relevance remains visible
+ // even when its brand/model grammar is new. It is never formal READY without facts.
+ if(source.id==='kikutani'&&entry.listingSection==='official_news'&&entry.listingTags?.includes('新製品情報')&&/ギター|アコギ|エレアコ|フレット|トラスロッド|\bguitars?\b/i.test(entry.title)&&! /旧製品|再入荷|中古|比較|ケース|スタンド|対応|互換|保護|関連|キャンペーン|クーポン|セール/.test(entry.title)){
+  const id=await hash(url);return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,
+   category:'media_other',label:'審査待ち（新製品のブランド・機材種別・出来事の確認が必要）',topicKey:id,collectedAt:new Date(now).toISOString(),eventType:'new_product',productFacts:null,titleFingerprint:JSON.stringify(await fingerprint(entry.title,pepper)),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
+   publicationDecision:'PUBLISH_REVIEW',decisionReason:'listing_product_evidence_missing',reviewReason:'listing_product_evidence_missing'}};
+ }
  if(source.id==='agm'&&source.agmSections&&entry.agmSection){
   const assessed=agmEditorialAssessment(entry);if(assessed.reject)return {decision:'REJECT',reason:assessed.reject};
   // Existing product rules remain authoritative for launches; other editorial kinds
@@ -365,7 +372,10 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  if(['tutorial','evergreen','event_or_shop'].includes(eventType))return {decision:'REJECT',reason:eventType};
  if(eventType==='sale')return saleCandidateFrom(entry,source,url,now,pepper,hasDate,timestamp);
- const titleFacts=manufacturerFacts(entry,source)||ikebeListingFacts(entry,source)||productFacts(entry.title);
+ // The primary card heading outranks supplementary prose and related brands.
+ const primaryEntry=source.id==='ikebe'&&entry.eventTitle?{...entry,title:entry.eventTitle}:entry;
+ const primaryFacts=manufacturerFacts(primaryEntry,source)||ikebeListingFacts(primaryEntry,source)||productFacts(primaryEntry.title);
+ const titleFacts=primaryFacts||manufacturerFacts(entry,source)||ikebeListingFacts(entry,source)||productFacts(entry.title);
  let facts=guitarEvent||guitarArtist||titleFacts;
  const productEvent=productEventFrom(entry.eventTitle||entry.title,titleFacts,eventType);
  const eventUncertain=!!titleFacts&&uncertainProductAction(entry.eventTitle||entry.title,eventType,productEvent);

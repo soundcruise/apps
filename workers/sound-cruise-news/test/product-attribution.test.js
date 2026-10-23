@@ -34,7 +34,7 @@ test('future distributor card keeps brand, type and conservative action; unknown
  const source={...getSource('kikutani'),enabled:true,productionEnabled:true};
  const entry={title:'カッタウェイ付きエレアコ「Future Guitars FG100 & FG200」',url:source.discoveryUrl+'future-guitar/',date:new Date(now-86400000).toISOString(),listingSection:'official_news',listingTags:['新製品情報']};
  const r=await candidateFrom(entry,source,{isAllowed:()=>true},now,pepper);
- assert.equal(r.item.label,'Future Guitars、エレアコ「FG100 / FG200」の新製品情報');
+ assert.equal(r.item.label,'Future Guitarsのエレアコ「FG100 / FG200」を紹介');
  assert.equal(r.item.sourceName,source.name);assert.equal(r.item.productFacts.brand,'Future Guitars');assert(!r.item.productFacts.releaseEvent);
  assert.equal(r.item.publicationDecision,'PUBLISH_REVIEW');
  const bad=await candidateFrom({...entry,title:'エレアコ「FG100」の新製品情報'},source,{isAllowed:()=>true},now,pepper);

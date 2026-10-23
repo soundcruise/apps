@@ -27,22 +27,23 @@ test('production: only live-validated unique allowlisted sources may be enabled'
  for(const ids of ['[]','["unknown"]','["shimamura","shimamura"]','bad'])assert.equal(runtimeSources({...config,NEWS_SOURCE_IDS:ids},[source],now)[0].enabled,false);
  assert.equal(runtimeSources(config,[source],now+91*DAY)[0].enabled,false);
 });
-test('production: scheduled collection auto-publishes facts; review retained; coupon rejected; no article requests',async()=>{
+test('production: scheduled collection prepares formal review without publishing or deciding; no article requests',async()=>{
  const {s,env}=await setup(),calls=[];
  const result=await run(env,now,{fetcher:async url=>{calls.push(url);return options.fetcher(url);}});
  assert.equal(calls.length,2);assert.ok(calls.every(url=>url.endsWith('robots.txt')||url===source.discoveryUrl));
- assert.equal(result.results[0].published,1);
- const rows=await s.candidates();assert.equal(rows.length,2);assert.equal(rows.filter(r=>r.review_status==='approved').length,1);assert.equal(rows.filter(r=>r.publication_decision==='PUBLISH_REVIEW').length,1);
+ assert.equal(result.results[0].published,0);
+ const rows=await s.candidates();assert.equal(rows.length,2);assert.equal(rows.filter(r=>r.review_status==='approved').length,0);assert.equal(rows.filter(r=>r.publication_decision==='PUBLISH_REVIEW').length,2);
+ assert.equal(result.results[0].preparation.readyNew,1);assert.equal((await s.db.prepare('SELECT count(*) n FROM news_decision_ledger').first()).n,0);
  assert.ok(!JSON.stringify(rows).includes('夢のような響き'));assert.ok(!JSON.stringify(rows).includes(pepper));
  const response=await handleNewsRequest(new Request('https://news.example/v1/news'),env,now,{registry:runtimeSources(env,[source],now)});
- const data=await response.json();assert.equal(data.items.length,1);assert.equal(data.items[0].label,'BOSS EX-4 Effects Expander、年内発売予定');assert.equal(data.items[0].reviewed_by,undefined);
+ const data=await response.json();assert.equal(data.items.length,0);
  assert.equal((await s.sourceHealth()).find(h=>h.source_id==='shimamura').status,'healthy');
 });
 test('production: backoff is not an abnormal transition; URL dedupe and takedown prevent resurrection',async()=>{
  const {s,env}=await setup();await run(env);
  await run(env,now+1000,{fetcher:async()=>{throw Error('must not fetch during backoff');}});
  assert.equal((await s.sourceHealth()).find(h=>h.source_id==='shimamura').status,'healthy');
- const item=(await s.candidates()).find(r=>r.review_status==='approved');
+ const item=(await s.candidates())[0];
  await administer(s,{action:'item-delete',target:item.id,reason:'owner_request'},now);
  const result=await run(env,now+DAY);assert.equal(result.results[0].published,0);assert.ok(!(await s.candidates()).some(r=>r.id===item.id));
 });
@@ -70,10 +71,10 @@ test('production: independent retention removes expired items while collection a
  await scheduledNews({cron:RETENTION_CRON},env,{},now+91*DAY,{...options,fetcher:async()=>{throw Error('purge must not fetch');}});
  assert.equal((await s.candidates()).length,0);assert.equal((await s.sourceHealth()).find(h=>h.source_id==='retention').status,'healthy');
 });
-test('production: cached automatic items honor global kill and public endpoints hide operator data',async()=>{
+test('production: human-only scheduled items stay private; cache kill and operator boundaries remain',async()=>{
  const {s,env}=await setup();await run(env);const map=new Map(),cache={match:async key=>map.get(key.url)?.clone(),put:async(key,value)=>map.set(key.url,value.clone())};
  const request=(path,origin='https://soundcruise.jp')=>handleNewsRequest(new Request('https://news.example'+path,{headers:{Origin:origin}}),env,now,{registry:runtimeSources(env,[source],now),cache});
- assert.equal((await (await request('/v1/news')).json()).items.length,1);
+ assert.equal((await (await request('/v1/news')).json()).items.length,0);
  assert.equal((await request('/admin/health')).status,404);assert.equal((await request('/v1/news','https://evil.example')).status,403);
  await administer(s,{action:'global-off',reason:'operator_stop'},now);
  assert.equal((await request('/v1/news')).status,503);assert.equal((await (await request('/health')).json()).api,false);

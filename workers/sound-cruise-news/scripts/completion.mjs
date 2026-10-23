@@ -2,22 +2,17 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {NewsStore} from '../src/store.js';
 import {runtimeSources} from '../src/runtime.js';
-import {publishAutomatic} from '../src/automatic.js';
 import {collectSource} from '../src/collector.js';
 import {scheduledNews,COLLECTION_CRON,RETENTION_CRON} from '../src/scheduled.js';
 import {administer} from '../src/admin.js';
 import {checkedConfig,wrangler} from './remote-db.mjs';
 import {remoteDatabase} from './remote-store.mjs';
 const [action]=process.argv.slice(2),config=await checkedConfig(),now=Date.now();
+if(action==='publish-stored')throw Error('human_publication_decision_required');
 const store=new NewsStore(remoteDatabase()),registry=runtimeSources(config.vars),source=registry.find(s=>s.id==='shimamura');
 const {NEWS_HEADLINE_PEPPER:pepper}=JSON.parse(await readFile('.local/production-secrets.json','utf8'));
 if(typeof pepper!=='string'||pepper.length<32)throw Error('private_secret_required');
-if(action==='publish-stored'){
- if((await store.controls()).collection_enabled!==0)throw Error('collection_must_remain_off');
- await administer(store,{action:'publish-on',reason:'review_complete'},now,registry);
- const published=await publishAutomatic(store,source,registry,now,pepper);
- console.log(JSON.stringify({published,publisherRequests:0,collection:(await store.controls()).collection_enabled}));
-}else if(action==='guard-check'){
+if(action==='guard-check'){
  const before=await store.controls(),state=await store.state('shimamura');
  if(!state.lastPublisherRequestAt||state.nextAt<state.lastPublisherRequestAt+86400000||now>=state.nextAt)throw Error('recent_actual_attempt_required');
  let calls=0;const fetcher=async()=>{calls++;throw Error('publisher_request_forbidden');};

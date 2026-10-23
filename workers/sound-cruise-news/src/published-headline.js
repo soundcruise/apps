@@ -2,7 +2,7 @@
 // Not consumed by extraction, publication validation, duplicates, or learning.
 import {attributedProductHeadline} from './product-attribution.js';
 export const PUBLISHED_PRODUCT_TYPES=Object.freeze({
- electric_acoustic_guitar:'エレアコ',truss_rod_tool:'トラスロッド調整工具',fret_sprout_tool:'フレットのバリ取り工具',fret_leveling_tool:'フレットすり合わせ工具',
+ electric_acoustic_guitar:'エレアコ',truss_rod_tool:'トラスロッド調整工具',fret_sprout_tool:'フレット用バリ取り工具',fret_leveling_tool:'フレットすり合わせ工具',
  acoustic_guitar:'アコースティックギター',electric_guitar:'エレキギター',guitar:'ギター',hybrid_guitar:'ハイブリッドギター',
  signature_pick:'シグネチャーピック',cleaning_cloth:'楽器用クロス',guitar_stand:'ギタースタンド',
  multi_effect_pedal:'マルチエフェクター',guitar_amp:'ギターアンプ',smart_amp:'スマートアンプ',
@@ -15,7 +15,7 @@ export const PUBLISHED_PRODUCT_TYPES=Object.freeze({
  amp_effect_modeler:'アンプ・エフェクトモデラー',usb_audio_interface:'USBオーディオインターフェース',audio_interface:'オーディオインターフェース',
  usb_microphone:'USBマイク',power_distribution:'電源タップ',pad_controller:'パッドコントローラー',digital_piano:'折りたたみ式電子ピアノ'
 });
-const actions=new Set(['announce','release','scheduled_release','release_delay','reservation_start','information','new_product_information','update','firmware','spec_change','arrival','early_sale','new_color','collaboration_color','price_change','discontinued','reissue','rerelease']);
+const actions=new Set(['announce','release','scheduled_release','release_delay','reservation_start','information','new_product_information','product_overview','update','firmware','spec_change','arrival','early_sale','new_color','collaboration_color','price_change','discontinued','reissue','rerelease']);
 const qualifiers=Object.freeze({limited:'限定',japan_limited:'日本限定の',special:'特別仕様の',signature:'シグネチャー・'});
 const subtypes=Object.freeze({granular:'グラニュラー',flanger:'フランジャー'});
 const themes=Object.freeze({composition_arrangement:'アコギでの作曲・アレンジ',composition_acoustic_arrangement:'作曲とアコギのアレンジ'});
@@ -27,10 +27,14 @@ export function validPublishedDate(s){
  if(s.length<10)return true;
  return new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s;
 }
+export function validPublishedEvidence(e){
+ if(e?.basis==='owner_product_type_confirmation')return keys(e,['basis','reference','verifiedAt','fields'])&&/^owner-confirmation:[a-z0-9:_-]{1,120}$/.test(e.reference||'')&&Number.isSafeInteger(e.verifiedAt)&&e.verifiedAt>0&&Array.isArray(e.fields)&&e.fields.length===1&&e.fields[0]==='productType';
+ return keys(e,['url','basis','verifiedAt','responseHash','fields'])&&url(e.url)&&['primary_article_review','official_product_review','trusted_structured_facts'].includes(e.basis)&&Number.isSafeInteger(e.verifiedAt)&&e.verifiedAt>0&&(!e.responseHash||/^[a-f0-9]{64}$/.test(e.responseHash))&&Array.isArray(e.fields)&&e.fields.length>0&&e.fields.every(f=>['identity','productType','subtypes','action','date','qualifier','version','feature','theme'].includes(f));
+}
 export function validPublishedHeadline(h,row){
  if(!keys(h,['schemaVersion','scope','candidateId','sourceUrl','kind','brand','product','productType','subtypes','action','date','qualifier','version','feature','person','theme','event','exhibit','evidence'])||
   h.schemaVersion!==1||h.scope!=='published_admin_quality'||h.candidateId!==row?.id||h.sourceUrl!==row?.source_url||row?.review_status!=='approved'||
-  !Array.isArray(h.evidence)||!h.evidence.length||h.evidence.length>4||!h.evidence.every(e=>keys(e,['url','basis','verifiedAt','responseHash','fields'])&&url(e.url)&&['primary_article_review','official_product_review','trusted_structured_facts'].includes(e.basis)&&Number.isSafeInteger(e.verifiedAt)&&e.verifiedAt>0&&(!e.responseHash||/^[a-f0-9]{64}$/.test(e.responseHash))&&Array.isArray(e.fields)&&e.fields.length>0&&e.fields.every(f=>['identity','productType','subtypes','action','date','qualifier','version','feature','theme'].includes(f))))return false;
+  !Array.isArray(h.evidence)||!h.evidence.length||h.evidence.length>4||!h.evidence.every(validPublishedEvidence))return false;
  const covered=field=>h.evidence.some(e=>e.fields.includes(field));
  if(!covered('identity')||!covered('action'))return false;
  if(h.kind==='product'){
@@ -57,7 +61,7 @@ export function publishedHeadline(h,row){
  if(h.kind==='auction')return `${h.person}、ギターなどの個人コレクションを競売へ`;
  if(h.kind==='exhibition')return `${h.brand}、${h.event}に${h.exhibit}を出展`;
  const subject=`${h.brand}、${qualifiers[h.qualifier]||''}${h.subtypes?.map(t=>subtypes[t]).join('／')||''}${PUBLISHED_PRODUCT_TYPES[h.productType]}「${h.product}」`,when=datePhrase(h.date);
- if(['information','new_product_information'].includes(h.action))return attributedProductHeadline({brand:h.brand,subject:subject.slice(h.brand.length+1),action:h.action});
+ if(['information','new_product_information','product_overview'].includes(h.action))return attributedProductHeadline({brand:h.brand,subject:subject.slice(h.brand.length+1),action:h.action});
  const suffix={announce:'を発表',release:'を発売',scheduled_release:`を${when}発売予定`,release_delay:`の発売を延期${h.date?'（'+when.replace(/に$/,'')+'予定）':''}`,
   reservation_start:`の予約受付を${when}開始`,information:'の製品情報',update:h.version?`の${h.version}更新版を公開`:'を更新',firmware:`のファームウェア${h.version?' '+h.version:''}を更新`,
   spec_change:h.feature?`に${h.feature}が登場`:'の仕様を変更',arrival:'の入荷情報',early_sale:'を国内先行販売',new_color:'に新色が登場',collaboration_color:'にコラボカラーが登場',
@@ -70,6 +74,7 @@ export function publishedHeadlineFromRow(row){
  }catch{return null;}
 }
 export function publishedCorrectionStatements(row,plan,q){
+ if(plan.correctionReason!==undefined&&!['headline_quality_improvement','brand_attribution_correction','incorrect_headline_correction','product_type_correction'].includes(plan.correctionReason))throw Error('published_correction_reason_invalid');
  const {headlineQuality,...identity}=plan.facts||{},old=JSON.parse(row.product_facts||'null');
  const {headlineQuality:previousQuality,...oldIdentity}=old||{};
  if(!validPublishedHeadline(headlineQuality,row)||publishedHeadline(headlineQuality,row)!==plan.label||
@@ -79,7 +84,7 @@ export function publishedCorrectionStatements(row,plan,q){
  const cas=Object.keys(row).map(k=>`"${k}" IS ${q(row[k])}`).join(' AND ');
  return [
   `UPDATE candidate_items SET label=${q(plan.label)},product_facts=${q(JSON.stringify(plan.facts))},facts_provenance=${q(JSON.stringify(plan.provenance))},review_revision=review_revision+1 WHERE ${cas} AND review_status='approved' AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=${q(row.id)}) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=${q(row.source_id)} AND (publication_blocked=1 OR takedown=1))`,
-  `INSERT INTO news_admin_audit(id,action,target,occurred_at,reason_code) SELECT ${q(plan.requestId)},'headline-quality-backfill',${q(row.id)},${plan.at},'verified_primary_presentation_only' WHERE changes()=1`,
+  `INSERT INTO news_admin_audit(id,action,target,occurred_at,reason_code) SELECT ${q(plan.requestId)},'headline-quality-backfill',${q(row.id)},${plan.at},${q(plan.correctionReason||(headlineQuality.evidence.some(e=>e.basis==='owner_product_type_confirmation')?'owner_confirmed_type_presentation_only':'verified_primary_presentation_only'))} WHERE changes()=1`,
   // Keep the existing exact legacy grant's display label aligned. Never create a
   // grant or change its identity, digest, source, category or publication date.
   `UPDATE legacy_news_grants SET label=${q(plan.label)} WHERE item_id=${q(row.id)} AND label=${q(row.label)} AND source_id=${q(row.source_id)} AND source_url=${q(row.source_url)} AND published_at=${q(row.published_at)} AND category=${q(row.category)} AND EXISTS(SELECT 1 FROM news_admin_audit WHERE id=${q(plan.requestId)} AND action='headline-quality-backfill' AND target=${q(row.id)}) AND EXISTS(SELECT 1 FROM candidate_items WHERE id=${q(row.id)} AND origin='legacy_fixture_backfill' AND review_status='approved' AND review_revision=${row.review_revision+1} AND label=${q(plan.label)})`

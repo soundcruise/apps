@@ -1,11 +1,12 @@
 // Facts from one public NEWS card. No article request, model catalogue or copied prose.
-import {attributedProductHeadline} from './product-attribution.js';
-export const KIKUTANI_LISTING_PARSER='kikutani-listing-product-1';
+import {attributedProductHeadline,listingProductNotice,validListingProductNotice} from './product-attribution.js';
+export const KIKUTANI_LISTING_PARSER='kikutani-listing-product-2';
+export const KIKUTANI_LISTING_PARSERS=[KIKUTANI_LISTING_PARSER,'kikutani-listing-product-1'];
 const brandOK=s=>typeof s==='string'&&/^[A-Za-z][A-Za-z0-9 &.-]{1,59}$/.test(s)&&!/\b(?:ignore|prompt|script|instruction)\b/i.test(s);
 const modelOK=s=>typeof s==='string'&&/^[A-Z][A-Z0-9]{0,9}-?\d{1,5}[A-Z0-9]{0,7}(?: [a-z]{1,5})?$/.test(s);
-const purposes={truss_rod:'トラスロッド調整工具',fret_sprout:'フレットのバリ取り工具',fret_leveling:'フレットすり合わせ工具'};
+const purposes={truss_rod:'トラスロッド調整工具',fret_sprout:'フレット用バリ取り工具',fret_leveling:'フレットすり合わせ工具'};
 export function validKikutaniListingFacts(f){
- return !!f&&f.identifierBasis==='explicit_kikutani_listing_product'&&f.listingSource==='kikutani'&&f.noticeType==='new_product_information'&&/^https:\/\/www\.kikutani\.co\.jp\/news\/[a-z0-9_%-]+\/$/i.test(f.articleUrl||'')&&brandOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(modelOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.version===null&&!f.productEvent&&!f.releaseEvent&&(
+ return !!f&&f.identifierBasis==='explicit_kikutani_listing_product'&&f.listingSource==='kikutani'&&f.noticeType==='new_product_information'&&(!f.listingNotice||validListingProductNotice(f.listingNotice,f))&&/^https:\/\/www\.kikutani\.co\.jp\/news\/[a-z0-9_%-]+\/$/i.test(f.articleUrl||'')&&brandOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(modelOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.version===null&&!f.productEvent&&!f.releaseEvent&&(
   f.productType==='guitar'&&/\bGuitars?$/i.test(f.brand)&&f.category==='media_other'||
   f.productType==='acoustic_guitar'&&/\bGuitars?$/i.test(f.brand)&&f.category==='acoustic_guitar'||
   f.productType==='guitar_maintenance_tool'&&Object.hasOwn(purposes,f.purpose)&&f.category==='electric_guitar_bass');
@@ -14,7 +15,8 @@ export function kikutaniListingLabel(f,event){
  if(event!=='new_product'||!validKikutaniListingFacts(f))return null;
  const type=f.productType==='guitar_maintenance_tool'?purposes[f.purpose]:f.productType==='acoustic_guitar'?'エレアコ':'ギター';
  // The card proves new-product information, not a launch by the brand itself.
- return attributedProductHeadline({brand:f.brand,source:f.listingSource,subject:`${type}「${f.product}」`,action:f.noticeType});
+ const n=f.listingNotice;
+ return attributedProductHeadline({brand:f.brand,source:f.listingSource,subject:`${type}「${f.product}」`,action:n?.action||'product_overview',actor:n?.actor||null,actorEvidence:n?.actor?{basis:'explicit_primary_subject',brand:f.brand,actor:n.actor,action:n.action}:null});
 }
 export function kikutaniListingFacts(entry,source){
  if(source.id!=='kikutani'||source.discoveryUrl!=='https://www.kikutani.co.jp/news/'||entry.listingSection!=='official_news'||!entry.listingTags?.includes('新製品情報'))return null;
@@ -32,6 +34,7 @@ export function kikutaniListingFacts(entry,source){
   brand=b[1];models=[m[1]];purpose=contexts[0][0];productType='guitar_maintenance_tool';category='electric_guitar_bass';
  }
  const facts={brand,models,product:models.join(' / '),version:null,category,productType,...(purpose?{purpose}:{}),identifierBasis:'explicit_kikutani_listing_product',listingSource:'kikutani',articleUrl:entry.url,noticeType:'new_product_information'};
+ const notice=listingProductNotice(title,facts,source.name);if(notice)facts.listingNotice=notice;
  return validKikutaniListingFacts(facts)?facts:null;
 }
 export function kikutaniListingProvenance(f,proof){
