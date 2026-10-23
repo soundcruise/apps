@@ -1,3 +1,4 @@
+import {categoryDetail,saveCategory} from './category-editor.js';
 import {publishedPresentation,savePresentation} from './news-presentation.js';
 import {confirmMorrisFacts} from './morris-fact-confirmation.js';
 import {authenticationPage} from './operator-auth-page.js';
@@ -24,7 +25,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.34.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.35.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -46,6 +47,8 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    console.info(JSON.stringify({event:'news_recommendation_observed',version:result.version,candidateId:id,candidateRevision:detail.revision,candidateSnapshot:detail.snapshot,generatedAt:now,recommendation:result.recommendation,evidenceCount:result.evidenceCount,similarityLevel:result.similarityLevel,policyVersion:result.policyVersion,decisionIds:result.matches.map(m=>m.decisionId)}));
    return json(result);
   }
+  if(request.method==='GET'&&/^\/api\/candidates\/[a-zA-Z0-9_-]{1,128}\/category$/.test(url.pathname))return json(await categoryDetail(store,url.pathname.split('/')[3],now));
+  if(request.method==='POST'&&url.pathname==='/api/category'){await verifyCsrf(request,identity,env,now);return json(await saveCategory(store,await inputJSON(request),now,identity.actor));}
   if(request.method==='GET'&&url.pathname==='/api/published')return json(await publishedPresentation(store,env,now,registry));
   if(request.method==='POST'&&url.pathname==='/api/presentation'){await verifyCsrf(request,identity,env,now);return json(await savePresentation(store,await inputJSON(request),env,now,registry,identity.actor));}
   if(request.method==='GET'&&url.pathname==='/api/pending')return json({items:await reviewQueue(store,{now,registry,pepper:env.NEWS_HEADLINE_PEPPER})});
@@ -74,8 +77,8 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   }
   return json({error:'not_found'},404);
  }catch(error){
-  const code=error.message,status=code==='operator_not_configured'?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate','facts_recheck_busy','presentation_changed'].includes(code)?409:['decision_transaction_failed','facts_transaction_failed'].includes(code)?503:422;
-  const known=/^(presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
+  const code=error.message,status=code==='operator_not_configured'?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate','facts_recheck_busy','presentation_changed','category_changed'].includes(code)?409:['decision_transaction_failed','facts_transaction_failed','category_transaction_failed'].includes(code)?503:422;
+  const known=/^(category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
   if(request.method==='GET'&&['/','/index.html'].includes(new URL(request.url).pathname)&&['authentication_required','authentication_invalid'].includes(code))return authenticationPage(security);
   return json({error:known?code:'operator_unavailable'},known?status:503);
  }

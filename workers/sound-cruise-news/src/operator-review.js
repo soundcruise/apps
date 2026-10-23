@@ -1,3 +1,4 @@
+import {effectiveCategory} from './category-editor.js';
 import {MORRIS_EDITORIAL_POLICY,MORRIS_REVIEW_TYPES,MORRIS_PRODUCT_TYPES} from './morris-editorial-policy.js';
 import {morrisRecoveryView} from './morris-collector.js';
 import {reviewReference} from './review-reference.js';
@@ -25,12 +26,12 @@ export async function reviewDetail(store,id,now,registry,pepper){
   factsReview.nextAction=morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'?'システム側の証拠待ちです。保存済み一次証拠が不足し、許諾範囲では過去詳細を再取得できません。新しい許可済み一覧に正式なfactsが得られた場合だけ再評価します。事実入力・掲載判断はまだ不要です。':'新着は許可済みの1回取得で自動解析します。不足が残る間は掲載判断を求めません。';
   if(morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'){factsReview.available=false;factsReview.reviewability='EVIDENCE_WAIT';morrisReview.confirmationAvailable=false;}
  }}
- return {systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle:await lifecycleView(store,row,now),factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:row.category,publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
+ return {systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle:await lifecycleView(store,row,now),factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
 }
 export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  const rows=(await store.candidates()).filter(i=>i.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(i.review_status));
  if(registry.length)return Promise.all(rows.map(row=>reviewDetail(store,row.id,now,registry,pepper)));
- return Promise.all(rows.map(async row=>({id:row.id,label:row.label,source:row.source_name,category:row.category,publishedAt:row.published_at,facts:visibleFacts(parseFacts(row)),reason:row.decision_reason,sourceUrl:row.source_url,decision:row.publication_decision,snapshot:await candidateSnapshot(row),revision:row.review_revision})));
+ return Promise.all(rows.map(async row=>({id:row.id,label:row.label,source:row.source_name,category:await effectiveCategory(store,row),publishedAt:row.published_at,facts:visibleFacts(parseFacts(row)),reason:row.decision_reason,sourceUrl:row.source_url,decision:row.publication_decision,snapshot:await candidateSnapshot(row),revision:row.review_revision})));
 }
 const savedResult=row=>({id:row.candidate_id,action:row.verdict,reason:row.reason,at:row.decided_at,decisionId:row.decision_id,publisherRequests:0});
 async function replay(store,requestId,payloadHash){const existing=await store.db.prepare('SELECT * FROM news_decision_ledger WHERE request_id=?').bind(requestId).first();if(!existing)return null;if(existing.request_payload_hash!==payloadHash)throw Error('idempotency_payload_changed');return savedResult(existing);}
@@ -49,7 +50,7 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
  if(approve){
   validation=await publicationValidation(store,row,now,registry,pepper);
   if(!validation.valid)throw Error(validation.errors[0]);
-  if(input.label!==validation.publishableLabel||input.category!==row.category||input.publishedAt!==row.published_at)throw Error('verified_factual_label_required');
+  if(input.label!==validation.publishableLabel||input.category!==await effectiveCategory(store,row)||input.publishedAt!==row.published_at)throw Error('verified_factual_label_required');
   if(!input.checks||Object.keys(input.checks).some(k=>!CHECKS.includes(k))||CHECKS.some(k=>input.checks[k]!==true))throw Error('operator_checks_required');
  }else if(input.checks&&Object.keys(input.checks).length)throw Error('operator_decision_invalid');
  const predicate=duplicatePredicate(row,parseFacts(row)),decisionId=crypto.randomUUID();

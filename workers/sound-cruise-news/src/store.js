@@ -74,6 +74,7 @@ export class NewsStore {
   if(lost.n>=3){await this.db.prepare('INSERT INTO source_health_alerts VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),sourceId,'error','approved_mass_visibility_loss',checkedAt).run();console.warn(JSON.stringify({event:'news_product_regression',sourceId,reason:'approved_mass_visibility_loss',approvedCount:lost.n}));}
  }
  async purge(now,{leadMs=0}={}){
+  await this.db.prepare('DELETE FROM news_category_edits WHERE created_at<=?').bind(now-365*DAY).run();
   await this.db.batch([this.db.prepare('DELETE FROM news_preparation_runs WHERE observed_at<=?').bind(now-90*DAY),this.db.prepare('DELETE FROM news_discovery_receipts WHERE last_seen_at<=?').bind(now-90*DAY)]);
   await purgeDecisionLedger(this,now);
   await this.db.prepare('DELETE FROM news_agm_article_cache WHERE attempted_at<=? AND lease_until<=?').bind(now-90*DAY,now).run();
@@ -89,6 +90,7 @@ export class NewsStore {
    this.db.prepare('DELETE FROM legacy_news_grants WHERE NOT EXISTS(SELECT 1 FROM candidate_items c WHERE c.id=legacy_news_grants.item_id)'),
    this.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1')
   ]);
+  await this.db.prepare('DELETE FROM news_category_overrides WHERE NOT EXISTS(SELECT 1 FROM candidate_items c WHERE c.id=news_category_overrides.candidate_id)').run();
   await this.db.prepare('DELETE FROM news_pending_lifecycle WHERE NOT EXISTS(SELECT 1 FROM candidate_items c WHERE c.id=news_pending_lifecycle.candidate_id)').run();
   return {news:result[0].meta.changes,runs:result[1].meta.changes,audit:result[2].meta.changes,takedowns:result[3].meta.changes,alerts:result[4].meta.changes};
  }

@@ -62,3 +62,14 @@ test('invalid authentication uses safe HTML for the entry page but preserves JSO
  assert.equal((await call(env,'/',await jwt({email:'wrong@fixture.test'}))).status,403);
 });
 test('published display controls require Access, allowed human identity and CSRF; no teacher writes on rejected mutations',async()=>{const {s,env}=await environment(),token=await jwt();assert.equal((await call(env,'/api/published',null)).status,401);assert.equal((await call(env,'/api/published',await jwt({email:'other@fixture.test'}))).status,403);assert.equal((await call(env,'/api/published',token)).status,200);const request={method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:'{}'};assert.equal((await call(env,'/api/presentation',null,request)).status,401);assert.equal((await call(env,'/api/presentation',token,request)).status,403);const session=await(await call(env,'/api/session',token)).json();request.headers['X-News-CSRF']=session.csrf;assert.equal((await call(env,'/api/presentation',token,request)).status,422);assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_presentation_days').first()).n,0);});
+test('category edit endpoint retains Access, origin, CSRF and bounded categories, separate from teacher data',async()=>{
+ const {s,env}=await environment(),i=await put(s),token=await jwt(),path='/api/candidates/'+i.id+'/category';
+ assert.equal((await call(env,path,null)).status,401);assert.equal((await call(env,path,await jwt({email:'outsider@fixture.test'}))).status,403);
+ const d=await(await call(env,path,token)).json(),session=await(await call(env,'/api/session',token)).json(),body=JSON.stringify({id:i.id,category:'acoustic_guitar',revision:d.revision,snapshot:d.snapshot,requestId:crypto.randomUUID()}),headers={Origin:origin,'Content-Type':'application/json','X-News-CSRF':session.csrf};
+ assert.equal((await call(env,'/api/category',null,{method:'POST',headers,body})).status,401);assert.equal((await call(env,'/api/category',await jwt({type:'service'}),{method:'POST',headers,body})).status,403);
+ assert.equal((await call(env,'/api/category',token,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body})).status,403);
+ assert.equal((await call(env,'/api/category',token,{method:'POST',headers:{...headers,Origin:'https://evil.fixture.test'},body})).status,403);
+ assert.equal((await call(env,'/api/category',token,{method:'POST',headers,body:JSON.stringify({...JSON.parse(body),category:'invalid'})})).status,422);
+ assert.equal((await call(env,'/api/category',token,{method:'POST',headers,body})).status,200);assert.equal((await(await call(env,path,token)).json()).category,'acoustic_guitar');
+ for(const table of['news_decision_ledger','news_operator_feedback','news_shadow_evaluations'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+table).first()).n,0);
+});
