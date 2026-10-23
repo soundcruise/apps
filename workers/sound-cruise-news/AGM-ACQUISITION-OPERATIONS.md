@@ -5,6 +5,13 @@ the News listing, plus the reviewed robots.txt. With nine reusable News articles
 a scheduled run makes **7 HTTP requests instead of 16**. Each necessary detail
 GET adds one request; a conditional GET returning 304 also counts as a request.
 
+NEWS 0.36.1 also evaluates the full already-fetched RSS window (common maximum
+100 entries/feed) and News listing (maximum 30 cards), without adding requests.
+At most nine details are acquired; deferred canonical URLs are durably queued
+and recovered in later ordinary daily runs under that same budget. Cache hits
+cost no HTTP; new/deferred evidence precedes routine revalidation. The seven-day
+validity period is unchanged. See [acoustic expansion operations](ACOUSTIC-EXPANSION-OPERATIONS.md).
+
 ## Reuse and revalidation
 
 - `NEWS_AGM_REVALIDATION_DAYS` is shared by NEWS and Operator. Default **7**;

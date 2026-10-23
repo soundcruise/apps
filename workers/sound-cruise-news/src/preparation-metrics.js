@@ -17,7 +17,9 @@ export async function recordPreparationMetrics(store,report,now,registry,pepper)
  const observations=new Map();
  for(const o of report.qualityObservations||[]){const url=sourceUrl(o.url,source);if(!url||!allowedArticlePath(url,source))continue;const old=observations.get(url);observations.set(url,{...o,url,created:!!o.created||!!old?.created,generated:!!o.generated||!!old?.generated});}
  const rows=(await store.db.prepare('SELECT * FROM candidate_items WHERE source_id=?').bind(source.id).all()).results,byUrl=new Map(rows.map(r=>[r.normalized_url||r.source_url,r]));
- const seen=(await store.db.prepare('SELECT normalized_url FROM news_discovery_receipts WHERE source_id=?').bind(source.id).all()).results;
+ // A required deferred-queue write may already have recorded this run's new URL.
+ // Its first observation at `now` must not become a historical known-URL count.
+ const seen=(await store.db.prepare('SELECT normalized_url FROM news_discovery_receipts WHERE source_id=? AND first_seen_at<?').bind(source.id,now).all()).results;
  const known=new Set(seen.map(r=>r.normalized_url));
  const m={schemaVersion:1,httpRequests:report.requests||0,requestCounts:report.requestCounts||{},cardsParsed:report.candidates||0,observedUrls:observations.size,newUrls:0,knownUrls:0,candidateGenerated:0,candidateCreated:0,factsComplete:0,validationEvaluated:0,validationPassed:0,validationNotMeasured:0,ready:0,readyNew:0,duplicateExcluded:0,outcomeCounts:{},exclusionReasons:{...report.reasons},validationFailures:{},maintenance:report.maintenanceOutcome||null,truncated:!!report.qualityTruncated};
  const receipts=[];
@@ -37,6 +39,7 @@ export async function recordPreparationMetrics(store,report,now,registry,pepper)
  }
  const ratio=(a,b)=>b?a/b:null;
  m.rates={candidateCreation:ratio(m.candidateCreated,m.newUrls),factsCompleteness:ratio(m.factsComplete,m.validationEvaluated),validationSuccess:ratio(m.validationPassed,m.validationEvaluated),readyForNewCandidate:ratio(m.readyNew,m.candidateCreated)};
+ if(report.backfill)m.backfill={...report.backfill};
  const runId=report.runId;
  const statements=[store.db.prepare(`INSERT INTO news_discovery_receipts(source_id,normalized_url,first_seen_at,last_seen_at,published_at,outcome,reason_code,candidate_id)
  SELECT ?,json_extract(j.value,'$.url'),?,?,json_extract(j.value,'$.published'),json_extract(j.value,'$.status'),json_extract(j.value,'$.reason'),json_extract(j.value,'$.candidateId') FROM json_each(?) j WHERE true

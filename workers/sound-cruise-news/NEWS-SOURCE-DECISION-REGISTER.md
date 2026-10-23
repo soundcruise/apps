@@ -1220,3 +1220,30 @@ Kikutani has no separate Gmail draft in this inventory; earlier form text is hel
 3. Replies from Shimamura/ZOOM/Kikutani/Sound House/JES and Yamaha's technical team remain unconfirmed in available evidence. Yamaha alone is a technical hold after affirmative usage permission.
 4. OFF-but-retained permission gaps and complete all-path historical HTTP counts remain unresolved. No production change is made to close them artificially.
 5. At completion of this audit, this addendum/pointer was the only repository change and remained local/uncommitted. The owner subsequently authorized publication of this register alone; that Git publication does not authorize any source/Worker/DB/article/Gmail change or email/form submission. No application version bump or Worker deployment is required for this documentation-only publication.
+
+## 2026-10-23 — Acoustic expansion implementation and source readiness
+
+- **AGM:** existing grant and six fixed surfaces retained. The last saved robots
+  probe (2026-10-23 08:11:50 JST) still returned the reviewed maintenance 302.
+  No additional request in this work; existing due time 2026-10-24 08:11:50 JST
+  and hourly recovery mechanism remain unchanged. NEWS 0.36.1 removes arbitrary
+  same-response RSS/News truncation and adds durable exact-URL overflow recovery
+  within the unchanged 7-base + at-most-9-detail daily budget. Cache validity stays
+  seven days. No archive/pagination permission is added. Actual stopped-period
+  recovery is not established by the isolated synthetic tests.
+- **Deviser / Headway:** keep the existing source OFF. The retained limited
+  documented-silence assessment is neither a publisher grant nor a refusal.
+  `discoveryValid=false / structured_facts_incomplete` and missing current primary
+  response/identity validation still block acceptance. No other source's grant is
+  reused. Product-only evidence does not approve event/artist scope. No matching
+  NEWS permission email was found; that does not disprove earlier form use.
+- **Martin Club Japan:** preparation only; no runtime source is added or enabled.
+  Official disclaimer items 1 and 7 require individual information-use and linking
+  approval. Known product/NEWS lists define the proposed scope. Current robots,
+  RSS URL, validators and DOM acceptance are unverified. The minimum unsent
+  question and bounded 3-base + necessary-detail design are recorded in
+  [ACOUSTIC-EXPANSION-OPERATIONS.md](ACOUSTIC-EXPANSION-OPERATIONS.md).
+- **Safety:** no Yamaha HTTP/test/enable/contact, no source enablement, no publisher
+  outreach, no automatic publication/rejection, no article/data/teacher edits.
+  Existing canonical URLs, publication dates, HOT/order and manual categories are
+  protected. All older permission records remain historical evidence unchanged.

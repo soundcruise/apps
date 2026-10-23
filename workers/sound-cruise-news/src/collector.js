@@ -1,4 +1,5 @@
 import {KIKUTANI_LISTING_PARSER} from './kikutani-listing-evidence.js';
+import {planAgmNews,recordAgmDeferred,AGM_DETAIL_BUDGET,AGM_DEFERRED} from './agm-backfill.js';
 import {observePreparation,recordPreparationMetrics} from './preparation-metrics.js';
 import {acquireAgmArticle,agmProof,agmProvenance} from './agm-acquisition.js';
 import {agmArticleMetadata} from './agm-sections.js';
@@ -41,6 +42,7 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
   if(!(await store.controls()).collection_enabled)throw new Error('global_collection_off');
   if((await store.state(id)).disabled)throw new Error('access_stopped');
   if(!sourceUrl(url,source))throw new Error('url_blocked');
+  if(agmExpanded&&agmArticleUrl(url,'news')&&(report.requestCounts.article||0)>=AGM_DETAIL_BUDGET)throw Error('listing_request_budget');
   if(agmExpanded&&(report.requests>=16||!(url===source.robotsUrl||AGM_SURFACES.some(s=>s.url===url)||agmArticleUrl(url,'news'))))throw Error('listing_request_budget');
   if(listing&&(report.requests>=2||![source.robotsUrl,source.discoveryUrl].includes(url)))throw Error('listing_request_budget');
   const attemptedAt=clock?clock():now+Date.now()-started;
@@ -69,8 +71,20 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
   if(delay>60000){next.nextAt=Math.max(next.nextAt,now+delay);throw new Error('crawl_delay_review');}
   if(agmExpanded){
    report.sections=[];
-   report.articleCache={hits:0,fetched:0,notModified:0,attempted:0};
-   await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,acquireArticle:async listingEntry=>{
+   report.articleCache={hits:0,fetched:0,notModified:0,attempted:0,deferred:0};
+   report.backfill={listingUrls:0,queuedUrls:0,replayedUrls:0,deferredUrls:0};
+   await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,prepareNewsEntries:async entries=>{
+    report.backfill.listingUrls=entries.length;
+    const planned=await planAgmNews(store,source,entries,now,pepper);
+    report.backfill.queuedUrls=planned.filter(e=>e.backlog).length;
+    return planned;
+   },acquireArticle:async listingEntry=>{
+    const inspected=listingEntry.agmCacheInspection;
+    if(!inspected.hit&&!inspected.attempted&&!inspected.busy&&(report.requestCounts.article||0)>=AGM_DETAIL_BUDGET){
+     report.articleCache.deferred++;report.backfill.deferredUrls++;
+     return {url:listingEntry.url,agmAcquired:true,agmDeferred:true,title:''};
+    }
+    if(listingEntry.backlog)report.backfill.replayedUrls++;
     const acquired=await acquireAgmArticle({store,source,url:listingEntry.url,listingTitle:listingEntry.title,now,pepper,
      request:async(url,options)=>{await sleep(delay);return request(url,options);},
      parse:async html=>{
@@ -134,7 +148,9 @@ export async function persistDiscoveredEntries(entries,source,store,robots,now,p
  try{
   if(legalGate(source,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'local',registry))throw Error('access_stopped');
   requirePepper(pepper);
+  if(source.id==='agm')await recordAgmDeferred(store,source,entries,now);
   for(const entry of entries){
+   if(source.id==='agm'&&entry.agmDeferred){observePreparation(report,entry,{reason:AGM_DEFERRED});continue;}
    const {item,reason}=source.id==='agm'&&entry.agmAcquired?{item:entry.agmCachedItem,reason:'agm_evidence_unavailable'}:await candidateFrom(entry,source,robots,now,pepper);
    if(item&&entry.agmAcquired&&item.publishedAt&&(Date.parse(item.publishedAt)>now||now-Date.parse(item.publishedAt)>=90*86400000)){report.rejected++;observePreparation(report,entry,{reason:'date_outside_window'});continue;}
    if(!item){report.rejected++;report.reasons??={};report.reasons[reason]=(report.reasons[reason]||0)+1;observePreparation(report,entry,{reason});continue;}
