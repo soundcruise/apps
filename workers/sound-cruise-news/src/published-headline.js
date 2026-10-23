@@ -1,6 +1,8 @@
 // Owner-authorized presentation facts for already published articles only.
 // Not consumed by extraction, publication validation, duplicates, or learning.
+import {attributedProductHeadline} from './product-attribution.js';
 export const PUBLISHED_PRODUCT_TYPES=Object.freeze({
+ electric_acoustic_guitar:'エレアコ',truss_rod_tool:'トラスロッド調整工具',fret_sprout_tool:'フレットのバリ取り工具',fret_leveling_tool:'フレットすり合わせ工具',
  acoustic_guitar:'アコースティックギター',electric_guitar:'エレキギター',guitar:'ギター',hybrid_guitar:'ハイブリッドギター',
  signature_pick:'シグネチャーピック',cleaning_cloth:'楽器用クロス',guitar_stand:'ギタースタンド',
  multi_effect_pedal:'マルチエフェクター',guitar_amp:'ギターアンプ',smart_amp:'スマートアンプ',
@@ -13,7 +15,7 @@ export const PUBLISHED_PRODUCT_TYPES=Object.freeze({
  amp_effect_modeler:'アンプ・エフェクトモデラー',usb_audio_interface:'USBオーディオインターフェース',audio_interface:'オーディオインターフェース',
  usb_microphone:'USBマイク',power_distribution:'電源タップ',pad_controller:'パッドコントローラー',digital_piano:'折りたたみ式電子ピアノ'
 });
-const actions=new Set(['announce','release','scheduled_release','release_delay','reservation_start','information','update','firmware','spec_change','arrival','early_sale','new_color','collaboration_color','price_change','discontinued','reissue','rerelease']);
+const actions=new Set(['announce','release','scheduled_release','release_delay','reservation_start','information','new_product_information','update','firmware','spec_change','arrival','early_sale','new_color','collaboration_color','price_change','discontinued','reissue','rerelease']);
 const qualifiers=Object.freeze({limited:'限定',japan_limited:'日本限定の',special:'特別仕様の',signature:'シグネチャー・'});
 const subtypes=Object.freeze({granular:'グラニュラー',flanger:'フランジャー'});
 const themes=Object.freeze({composition_arrangement:'アコギでの作曲・アレンジ',composition_acoustic_arrangement:'作曲とアコギのアレンジ'});
@@ -55,6 +57,7 @@ export function publishedHeadline(h,row){
  if(h.kind==='auction')return `${h.person}、ギターなどの個人コレクションを競売へ`;
  if(h.kind==='exhibition')return `${h.brand}、${h.event}に${h.exhibit}を出展`;
  const subject=`${h.brand}、${qualifiers[h.qualifier]||''}${h.subtypes?.map(t=>subtypes[t]).join('／')||''}${PUBLISHED_PRODUCT_TYPES[h.productType]}「${h.product}」`,when=datePhrase(h.date);
+ if(['information','new_product_information'].includes(h.action))return attributedProductHeadline({brand:h.brand,subject:subject.slice(h.brand.length+1),action:h.action});
  const suffix={announce:'を発表',release:'を発売',scheduled_release:`を${when}発売予定`,release_delay:`の発売を延期${h.date?'（'+when.replace(/に$/,'')+'予定）':''}`,
   reservation_start:`の予約受付を${when}開始`,information:'の製品情報',update:h.version?`の${h.version}更新版を公開`:'を更新',firmware:`のファームウェア${h.version?' '+h.version:''}を更新`,
   spec_change:h.feature?`に${h.feature}が登場`:'の仕様を変更',arrival:'の入荷情報',early_sale:'を国内先行販売',new_color:'に新色が登場',collaboration_color:'にコラボカラーが登場',

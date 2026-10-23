@@ -1,4 +1,5 @@
 // Facts from one public NEWS card. No article request, model catalogue or copied prose.
+import {attributedProductHeadline} from './product-attribution.js';
 export const KIKUTANI_LISTING_PARSER='kikutani-listing-product-1';
 const brandOK=s=>typeof s==='string'&&/^[A-Za-z][A-Za-z0-9 &.-]{1,59}$/.test(s)&&!/\b(?:ignore|prompt|script|instruction)\b/i.test(s);
 const modelOK=s=>typeof s==='string'&&/^[A-Z][A-Z0-9]{0,9}-?\d{1,5}[A-Z0-9]{0,7}(?: [a-z]{1,5})?$/.test(s);
@@ -12,8 +13,8 @@ export function validKikutaniListingFacts(f){
 export function kikutaniListingLabel(f,event){
  if(event!=='new_product'||!validKikutaniListingFacts(f))return null;
  const type=f.productType==='guitar_maintenance_tool'?purposes[f.purpose]:f.productType==='acoustic_guitar'?'エレアコ':'ギター';
- // The distributor published new-product information; do not assert a release date.
- return `キクタニ、${f.brand}の${type}「${f.product}」の新製品情報を公開`;
+ // The card proves new-product information, not a launch by the brand itself.
+ return attributedProductHeadline({brand:f.brand,source:f.listingSource,subject:`${type}「${f.product}」`,action:f.noticeType});
 }
 export function kikutaniListingFacts(entry,source){
  if(source.id!=='kikutani'||source.discoveryUrl!=='https://www.kikutani.co.jp/news/'||entry.listingSection!=='official_news'||!entry.listingTags?.includes('新製品情報'))return null;

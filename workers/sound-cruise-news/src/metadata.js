@@ -1,4 +1,5 @@
 import {validKikutaniListingFacts,kikutaniListingFacts,kikutaniListingLabel,kikutaniListingProvenance} from './kikutani-listing-evidence.js';
+import {attributedProductHeadline} from './product-attribution.js';
 import {morrisNoticeLabel} from './morris-editorial-policy.js';
 import {hasProductSubject} from './product-type-evidence.js';
 import {productFamilyLabel,productFamilyKey} from './product-family-evidence.js';
@@ -280,6 +281,7 @@ export function factualLabel(facts,eventType){
  }
  if(facts.identifierBasis==='explicit_shimamura_product_fields')return shimamuraProductLabel(facts,eventType);
  const primary=ikebeProductLabel(facts,eventType);if(primary)return primary;
+ if(eventType==='other'&&facts.brand&&!facts.productEvent)return attributedProductHeadline({brand:facts.brand,subject:productSubject(facts),action:'information'});
  return `${facts.brand?facts.brand+'、':''}${productSubject(facts)}${facts.productEvent?productActionSuffix(facts.productEvent):actions[eventType]}`;
 }
 export function validLabel(label,original='') {
