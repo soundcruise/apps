@@ -58,3 +58,10 @@ test('measurement retention is bounded and never produces a publication decision
  await s.db.prepare('INSERT INTO news_discovery_receipts VALUES(?,?,?,?,?,?,?,?)').bind(source.id,url,old,old,null,'not_candidate','unknown',null).run();
  await s.purge(now);assert.equal((await s.db.prepare('SELECT count(*) n FROM news_preparation_runs').first()).n,0);assert.equal((await s.db.prepare('SELECT count(*) n FROM news_discovery_receipts').first()).n,0);assert.equal((await s.db.prepare('SELECT count(*) n FROM news_decision_ledger').first()).n,0);
 });
+test('confirmed headline errors include explicit type corrections but not stylistic revisions or human decisions',()=>{
+ const reasons=['product_type_correction','brand_attribution_correction','incorrect_headline_correction','headline_quality_improvement','verified_primary_presentation_only'];
+ const data={candidate_items:[{id:'a',source_id:'kikutani'}],news_admin_audit:reasons.map(reason_code=>({target:'a',action:'headline-quality-backfill',reason_code,occurred_at:now}))};
+ const report=preparationAudit(data,{now,days:14,sourceIds:['kikutani']});
+ assert.equal(report.sources[0].administrativeHeadlineCorrections,5);assert.equal(report.sources[0].confirmedHeadlineErrors,3);assert.equal(report.sources[0].humanApprove,0);assert.equal(report.sources[0].humanReject,0);
+ assert.equal(report.daily.filter(d=>d.confirmedHeadlineErrors).length,1);assert.equal(report.daily.find(d=>d.confirmedHeadlineErrors).confirmedHeadlineErrors,3);
+});
