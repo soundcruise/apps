@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { webcrypto } from 'node:crypto';
+import { webcrypto, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const shared = readFileSync(new URL('../shared/pro-gate.js', import.meta.url), 'utf8');
@@ -9,6 +9,14 @@ const pitch = readFileSync(new URL('../pitch-cruise/pro_x9v7q2m8/pro-gate-hash.j
 const token = 'scp1.123e4567-e89b-42d3-a456-426614174000.' + 'A'.repeat(43);
 const v2 = { v: 2, credential: token, generation: 1, validatedAt: 100 };
 const flush = () => new Promise(resolve => setImmediate(resolve));
+// Formal metadata shape; UI tests stub transport/storage, never qualification crypto.
+const operationIdentity = a => {
+  const hash = createHash('sha256').update(a.credential);
+  return {credentialFingerprint: hash.copy().digest('hex'), receiptIdentity:'receipt:'+hash.digest('base64url'),
+    generation:a.generation,sessionVersion:a.sessionVersion??null,
+    operationRevisionFingerprint:typeof a.operationRevision==='string'?createHash('sha256').update(a.operationRevision).digest('hex'):null};
+};
+
 
 function fixture({ values = new Map(), policy = true, session = { status: 200, body: { ok: true, generation: 1,
   legacyCompatibilityEnabled: true } }, offline = false, source = shared, oldConfig = false,
@@ -67,16 +75,17 @@ function fixture({ values = new Map(), policy = true, session = { status: 200, b
   };
   // Gate state tests isolate the session service. Real cryptography, encrypted
   // persistence and real Worker protocol are covered by shared/pro-device-session.test.mjs.
-  window.SoundCruiseProDeviceSession = { createClient: ({ request }) => ({
-    publicKey: async () => ({ fixture: true }), accept: async () => true, forget: async () => {},
+  const revoked = new Set();
+  window.SoundCruiseProDeviceSession = { operationIdentity, createClient: ({ request }) => ({
+    publicKey: async () => ({ fixture: true }), accept: async () => true, forget: async a => { revoked.add(a.credential); }, isRevoked: async a => revoked.has(a.credential),
     allowance: async () => ({ ok: true, offlineRemainingMs: 60000 }),
     validate: async existing => {
       try {
         const result = await request('/session', { headers: { Authorization: 'Bearer '+existing.credential } });
         if (result.status === 200 && result.body?.ok && result.body.generation === existing.generation)
           return { ok: true, online: true, generation: existing.generation };
-        if (result.status === 401 || (result.status === 200 && result.body.generation !== existing.generation))
-          return { ok: false, terminal: true };
+        if (result.status === 401 && ['invalid_credential','reauth_required'].includes(result.body?.code))
+          return { ok: false, terminal: true, denial:{...operationIdentity(existing),endpoint:'session',validationId:webcrypto.randomUUID(),reason:result.body.code} };
       } catch (_) { /* use only the independently supplied sealed grant fixture */ }
       return offlineGrant ? { ok: true, offline: true, generation: existing.generation, offlineRemainingMs: 60000 } : { ok: false };
     }
@@ -147,7 +156,7 @@ test('revoked or old-generation credential never falls back to legacy', async ()
     assert.equal(values.get('soundCruiseProAuthMigrated'), '1');
   }
   const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
-  const mismatch = fixture({ values, session: { status: 200, body: { ok: true, generation: 2 } } });
+  const mismatch = fixture({ values, session: { status: 401, body: { ok: false, code: 'reauth_required' } } });
   await mismatch.settle();
   assert.equal(mismatch.body.locked, true);
   assert.equal(values.has('soundCruiseProAuth'), false);
@@ -189,9 +198,9 @@ test('old HTML with new JS ignores old hash and loads Turnstile; new HTML with c
         'fretboard_cruise': 'pro_a9f4k7q2m8z', 'rhythm-cruise': 'pro_r4m8k7n2q9x',
         'chord-cruise': 'pro_k7m4q9v2x8' })[name] + '/index.html', 'utf8');
     assert.doesNotMatch(html, /passwordHash/);
-    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=32/);
+    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=33/);
   }
   assert.doesNotMatch(pitch, /passwordHash|sha256|AUTH_TOKEN/);
-  assert.match(pitch, /shared\/pro-device-session\.js\?v=5/);
-  assert.match(pitch, /shared\/pro-gate\.js\?v=32/);
+  assert.match(pitch, /shared\/pro-device-session\.js\?v=7/);
+  assert.match(pitch, /shared\/pro-gate\.js\?v=33/);
 });

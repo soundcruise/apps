@@ -92,61 +92,81 @@
         try { body = await response.json(); } catch (_) { /* non-JSON upstream */ }
         return { status: response.status, body };
     }
+    function sameQualification(a, b) {
+        return !!a && !!b && a.credential === b.credential && a.generation === b.generation &&
+            (a.sessionVersion ?? null) === (b.sessionVersion ?? null);
+    }
+    function operationRevision() {
+        return JSON.stringify([localStorage.getItem(OPERATION_EPOCH_KEY), authEpoch, resetInFlight]);
+    }
+    function qualificationCurrent(existing) {
+        try {
+            const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+            return !resetInFlight && sameQualification(auth(), existing) && Array.isArray(pending) &&
+                !pending.includes(existing.credential) && !observedTerminalCredentials.has(existing.credential) &&
+                // Same-qualification UI notifications advance authEpoch locally;
+                // they must not cancel a legitimate renewal in another tab.
+                // The shared epoch still closes reset/replacement responses.
+                (existing.operationRevision === undefined ||
+                    JSON.parse(existing.operationRevision)[0] === localStorage.getItem(OPERATION_EPOCH_KEY));
+        } catch (_) { return false; }
+    }
     function deviceSession() {
         if (!sessionClient) sessionClient = window.SoundCruiseProDeviceSession?.createClient({
-            request, isCurrent: existing => auth()?.credential === existing.credential && !resetInFlight
+            request, isCurrent: qualificationCurrent
         });
         if (!sessionClient) throw Error('Pro session helper unavailable');
         return sessionClient;
     }
-    // Formal operation source, separate from accessGranted/DOM/cache badges.
-    // Reading creates no keys, receipt, client, request or renewal.
+    async function validateQualification(existing, { force = true } = {}) {
+        // Callers may carry an outer Adapter revision; pin the shared-source
+        // revision here, then compare that same domain at result adoption.
+        if (!qualificationCurrent({ ...existing, operationRevision: undefined })) return { ok: false, revoked: true };
+        const target = Object.freeze({ ...existing, operationRevision: operationRevision() });
+        const identity = await window.SoundCruiseProDeviceSession.operationIdentity(target);
+        const result = await deviceSession().validate(target, { force });
+        if (result.terminal !== true)
+            return result.ok && !qualificationCurrent(target) ? { ok: false, stale: true } : result;
+        const d = result.denial;
+        if (!d || d.generation !== target.generation || d.sessionVersion !== (target.sessionVersion ?? null) ||
+            d.credentialFingerprint !== identity.credentialFingerprint || d.operationRevisionFingerprint !== identity.operationRevisionFingerprint ||
+            d.receiptIdentity !== identity.receiptIdentity || typeof d.validationId !== 'string' || !d.validationId)
+            return { ok: false, ambiguous: true };
+        if (!terminalProcessing.has(d.validationId)) terminalProcessing.set(d.validationId, (async () => {
+            // Close old proofs synchronously, then persist the receipt-key fence.
+            observedTerminalCredentials.add(target.credential);
+            let marked = queuePending(target.credential);
+            if (sameQualification(auth(), target)) {
+                if (remove(AUTH_KEY)) { authEpoch++; if (!marked) marked = queuePending(target.credential); }
+                accessGranted = false; clearTimeout(expiryTimer);
+            }
+            const fenced = await forget(target, { advanceOperationRevision: false });
+            let recorded = false;
+            try { recorded = JSON.parse(get(PENDING_KEY) || '[]').includes(target.credential); } catch (_) { /* fail closed */ }
+            return marked && recorded && fenced;
+        })());
+        const propagated = await terminalProcessing.get(d.validationId);
+        return { ...result, propagated, propagationFailed: !propagated };
+    }
+    // Synchronous reads never open a DB. Async UI and operation validation share
+    // the same identity checks and terminal propagation; UI state grants no writes.
     window.SoundCruiseProOperationSource = Object.freeze({
         read() {
             try {
-                const current=auth(), pending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
-                if(!Array.isArray(pending))return {auth:null,revoked:true};
-                return {auth:current,revoked:resetInFlight||!current||pending.includes(current.credential)||observedTerminalCredentials.has(current.credential),
-                    revision:JSON.stringify([localStorage.getItem(OPERATION_EPOCH_KEY),authEpoch,resetInFlight])};
-            } catch (_) { return {auth:null,revoked:true}; }
+                const current = auth(), pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+                if (!Array.isArray(pending)) return { auth: null, revoked: true };
+                return { auth: current, revoked: resetInFlight || !current || pending.includes(current.credential) ||
+                    observedTerminalCredentials.has(current.credential), revision: operationRevision() };
+            } catch (_) { return { auth: null, revoked: true }; }
         },
-        async validate(existing) {
-            const current=auth();
-            const pending=window.SoundCruiseProOperationSource.read();
-            if(pending.revoked||!current||current.credential!==existing.credential||current.generation!==existing.generation||
-                (current.sessionVersion??null)!==(existing.sessionVersion??null))return {ok:false,stale:true};
-            const revision=pending.revision;
-            const target=Object.freeze({...current,operationRevision:revision});
-            const identity=await window.SoundCruiseProDeviceSession.operationIdentity(target);
-            const result=await deviceSession().validate(target,{force:false});
-            if(result.terminal!==true)return result;
-            const d=result.denial;
-            if(!d||d.generation!==target.generation||d.sessionVersion!==(target.sessionVersion??null)||
-                d.credentialFingerprint!==identity.credentialFingerprint||d.operationRevisionFingerprint!==identity.operationRevisionFingerprint||
-                d.receiptIdentity!==identity.receiptIdentity||
-                typeof d.validationId!=='string'||!d.validationId)return {ok:false,ambiguous:true};
-            if(!terminalProcessing.has(d.validationId))terminalProcessing.set(d.validationId,(async()=>{
-                // The synchronous latch closes existing operations before awaited receipt cleanup.
-                observedTerminalCredentials.add(target.credential);
-                let marked=queuePending(target.credential);
-                // A revision change cannot revive the same revoked qualification.
-                // A different qualification (B) remains untouched.
-                const live=auth();
-                if(live&&live.credential===target.credential&&live.generation===target.generation&&
-                    (live.sessionVersion??null)===(target.sessionVersion??null)){
-                    if(remove(AUTH_KEY)){authEpoch++;if(!marked)marked=queuePending(target.credential);}
-                    accessGranted=false;clearTimeout(expiryTimer);
-                }
-                const forgotten=await forget(target,{advanceOperationRevision:false});
-                let recorded=false;try{recorded=JSON.parse(get(PENDING_KEY)||'[]').includes(target.credential);}catch{ /* fail closed */ }
-                return marked&&recorded&&forgotten;
-            })());
-            const propagated=await terminalProcessing.get(d.validationId);
-            return {...result,propagated,propagationFailed:!propagated};
-        }
+        validate(existing) { return validateQualification(existing, { force: false }); }
     });
     async function forget(existing, options) {
-        try { if (existing) await deviceSession().forget(existing, options); return true; } catch (_) { return false; }
+        try {
+            if (!existing) return true;
+            await deviceSession().forget(existing, options);
+            return await deviceSession().isRevoked(existing);
+        } catch (_) { return false; }
     }
     function scheduleExpiry(result) {
         clearTimeout(expiryTimer);
@@ -185,16 +205,29 @@
         for (const token of pending) {
             if (typeof token !== 'string') continue;
             try {
+                observedTerminalCredentials.add(token);
+                const live = JSON.parse(get(AUTH_KEY) || 'null');
+                // A failed auth removal keeps the retry record, even if the
+                // durable fence could already protect a newly opened client.
+                if (live?.credential === token && !remove(AUTH_KEY)) continue;
+                if (!await forget(live?.credential === token ? live : { credential: token },
+                    { advanceOperationRevision: false })) continue;
                 const result = await request('/revoke', {
                     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: '{}'
                 });
-                if (result.status < 500 && result.status !== 429) completed.add(token);
-            } catch (_) { /* retry when online */ }
+                const acknowledged = result.status === 200 && result.body?.ok === true ||
+                    result.status === 401 && result.body?.ok === false &&
+                    ['invalid_credential', 'reauth_required'].includes(result.body.code);
+                if (!acknowledged) continue;
+                const after = JSON.parse(get(AUTH_KEY) || 'null');
+                if (after?.credential === token && !remove(AUTH_KEY)) continue;
+                completed.add(token);
+            } catch (_) { /* Retain the queue on storage, parsing or transport failure. */ }
         }
         let current;
         try { current = JSON.parse(get(PENDING_KEY) || '[]'); } catch (_) { return; }
         if (!Array.isArray(current)) return;
-        const remaining = current.filter((token) => !completed.has(token));
+        const remaining = current.filter(token => !completed.has(token));
         if (remaining.length) put(PENDING_KEY, JSON.stringify(remaining)); else remove(PENDING_KEY);
     }
     async function reset() {
@@ -218,7 +251,7 @@
     }
     window.__soundCruiseClearGate = reset;
     window.__soundCruiseRequireProBackendAuth = () => {
-        if (auth() && accessGranted) return Promise.resolve();
+        if (auth() && accessGranted && !window.SoundCruiseProOperationSource.read().revoked) return Promise.resolve();
         backendAuthRequired = true;
         lock('passcode');
         return new Promise((resolve) => { backendAuthWaiters.add(resolve); });
@@ -263,6 +296,9 @@
     renewalTimer?.unref?.();
     window.addEventListener('storage', (event) => {
         // A different Pro app/tab can complete the same shared authentication.
+        if (event.key === PENDING_KEY && window.SoundCruiseProOperationSource.read().revoked) {
+            accessGranted = false; clearTimeout(expiryTimer); lock('passcode'); return;
+        }
         if (event.key !== AUTH_KEY) return;
         const current = auth();
         if (current?.credential === lastHandledCredential && accessGranted && !backendAuthRequired) return;
@@ -408,7 +444,7 @@
                         const current = auth();
                         accepted = result.body.session ? await deviceSession().accept(current, result.body.session) : false;
                         if (!accepted) {
-                            const validation = await deviceSession().validate(current);
+                            const validation = await validateQualification(current);
                             accepted = validation.ok === true;
                             if (accepted) scheduleExpiry(validation);
                         } else {
@@ -479,7 +515,7 @@
         if (!existing) { accessGranted = false; retireLegacy(); return; }
         if (!migrated()) { accessGranted = false; return; }
         const result = bootValidation?.credential === existing.credential
-            ? await bootValidation.promise : await deviceSession().validate(existing, { force });
+            ? await bootValidation.promise : await validateQualification(existing, { force });
         bootValidation = null;
         // Reset, backend denial or a new login wins over every delayed result.
         if (auth()?.credential !== existing.credential || resetInFlight || result.stale) return;
@@ -515,7 +551,7 @@
     if (document.body) lock();
     const bootAuth = auth();
     if (bootAuth) {
-        try { bootValidation = { credential: bootAuth.credential, promise: deviceSession().validate(bootAuth) };
+        try { bootValidation = { credential: bootAuth.credential, promise: validateQualification(bootAuth) };
             bootValidation.promise.catch(() => {}); } catch (_) { /* missing storage/helper fails closed */ }
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });

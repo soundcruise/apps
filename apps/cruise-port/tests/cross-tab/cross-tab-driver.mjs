@@ -1,3 +1,4 @@
+import {runStaleRenewSuite} from './stale-renew-suite.mjs';
 import {writeJSONReport} from './report-output.mjs';
 import {runEvidenceReproduction,runEvidenceSuite} from './evidence-lifetime-suite.mjs';
 import {runEvidenceAdmissionSuite} from './evidence-admission-suite.mjs';
@@ -69,7 +70,9 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 
 const profile = mkdtempSync(join(tmpdir(), 'cruise-cross-tab-'));
 const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
-    '--no-first-run', '--no-default-browser-check', '--site-per-process', 'about:blank'], { stdio: 'ignore' });
+    '--no-first-run', '--no-default-browser-check', '--site-per-process',
+    '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-pings',
+    '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1', 'about:blank'], { stdio: 'ignore' });
 const cleanup = () => { try { chrome.kill(); } catch {} server.close(); try { rmSync(profile, { recursive: true, force: true }); } catch {} };
 process.on('exit', cleanup);
 
@@ -85,6 +88,11 @@ ws.addEventListener('message', e => { const m = JSON.parse(e.data); if (m.id && 
     if (m.method === 'Inspector.targetCrashed') crashed.add(m.sessionId);
     if (m.method === 'Tracing.dataCollected') traces.push(...m.params.value);
     if (m.method === 'Tracing.tracingComplete') traceComplete = true;
+    if (m.method === 'Fetch.requestPaused') {
+        const u=new URL(m.params.request.url),local=['127.0.0.1','localhost'].includes(u.hostname)&&['http:','https:'].includes(u.protocol);
+        if(!local)errors.push('non-loopback request blocked: '+u.origin);
+        void send(local?'Fetch.continueRequest':'Fetch.failRequest',local?{requestId:m.params.requestId}:{requestId:m.params.requestId,errorReason:'BlockedByClient'},m.sessionId);
+    }
     if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.text);
     if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') errors.push(m.params.entry.text);
     if (m.method === 'Network.responseReceived' && m.params.response.status === 404) missing.push(m.params.response.url);
@@ -102,6 +110,7 @@ async function openTab() {
     const target = await send('Target.createTarget', { url: 'about:blank', newWindow: true });
     const { result } = await send('Target.attachToTarget', { targetId: target.result.targetId, flatten: true });
     for (const method of ['Runtime.enable','Log.enable','Network.enable']) await send(method, {}, result.sessionId);
+    await send('Fetch.enable',{patterns:[{urlPattern:'*'}]},result.sessionId);
     await send('Page.navigate', { url: `${origin}/apps/cruise-port/tests/cross-tab/${page}` }, result.sessionId);
     for (let i = 0; i < 100; i++) {
         try { if (await evaluate(result.sessionId, 'typeof crossTab') === 'object') return { session: result.sessionId, target: target.result.targetId }; } catch {}
@@ -143,6 +152,15 @@ try {
     if(args.suite==='evidence-admission'){report.evidenceAdmissionCases=await runEvidenceAdmissionSuite({evaluate,primary,peer});report.results=[{scenario:'evidence-admission',rounds:report.evidenceAdmissionCases.length,violations:0,inconclusiveRounds:0}];}
     if(args.suite==='pro-device'){report.proDeviceCases=await runProDeviceSuite({evaluate,primary,peer});report.results=[{scenario:'pro-device',rounds:report.proDeviceCases.length,violations:0,inconclusiveRounds:0}];}
     if(args.suite==='revocation-reproduction'){report.revocationReproduction=await runRevocationReproduction({evaluate,primary});report.results=[{scenario:'known-revocation-counterexamples',rounds:3,violations:3,inconclusiveRounds:0}];}
+    if(args.suite==='stale-renew'){report.staleRenewCases=await runStaleRenewSuite({evaluate,primary,peer,reloadPeer:async()=>{
+        await evaluate(peer,'window.__l3cBeforeReload=true');await send('Page.reload',{},peer);
+        let ready=false;for(let n=0;n<100;n++){
+            try{if(await evaluate(peer,"typeof crossTab==='object'&&!window.__l3cBeforeReload")){ready=true;break;}}catch{}
+            await new Promise(r=>setTimeout(r,50));
+        }
+        if(!ready)throw Error('inconclusive: fresh peer document unavailable');
+        await evaluate(peer,`crossTab.claim(${JSON.stringify(token)})`);
+    }});report.results=[{scenario:'stale-renew',rounds:report.staleRenewCases.length,violations:0,inconclusiveRounds:0}];}
     if(args.suite==='observed-revocation'){report.observedRevocationCases=await runObservedRevocationSuite({evaluate,primary,peer});report.results=[{scenario:'observed-revocation',rounds:report.observedRevocationCases.length,violations:0,inconclusiveRounds:0}];}
     if(args.suite==='control'){report.controlCases=await runControlSuite({evaluate,primary,peer,rounds});report.results=[{scenario:'formal-control',rounds:rounds*16,violations:0,inconclusiveRounds:0}];}
     if (args.suite === 'policy') {
@@ -188,7 +206,7 @@ try {
             report.referenceFailures=[...failure.results,{name:'native Page.crash in attachment callback: exact committed/aborted snapshot and reopen',pass:true}];
         }
     }
-    for (const scenario of ['referential','policy','pointer','pointer-safety','control','evidence-reproduction','evidence','evidence-admission','pro-device','revocation-reproduction','observed-revocation'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
+    for (const scenario of ['referential','policy','pointer','pointer-safety','control','evidence-reproduction','evidence','evidence-admission','pro-device','revocation-reproduction','observed-revocation','stale-renew'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
             const generation = randomUUID();

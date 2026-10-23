@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { webcrypto } from 'node:crypto';
+import { webcrypto, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 // Boot sequence of the shared Pro gate: nothing protected and no passcode is shown until access is decided.
@@ -10,6 +10,14 @@ const help = readFileSync(new URL('../shared/pro-gate-help.js', import.meta.url)
 const token = 'scp1.123e4567-e89b-42d3-a456-426614174000.' + 'A'.repeat(43);
 const v2 = { v: 2, credential: token, generation: 1, validatedAt: 100 };
 const flush = () => new Promise(resolve => setImmediate(resolve));
+// Formal metadata shape; UI tests stub transport/storage, never qualification crypto.
+const operationIdentity = a => {
+  const hash = createHash('sha256').update(a.credential);
+  return {credentialFingerprint: hash.copy().digest('hex'), receiptIdentity:'receipt:'+hash.digest('base64url'),
+    generation:a.generation,sessionVersion:a.sessionVersion??null,
+    operationRevisionFingerprint:typeof a.operationRevision==='string'?createHash('sha256').update(a.operationRevision).digest('hex'):null};
+};
+
 
 function boot({ values = new Map(), readyState = 'loading', offlineGrant = false, sessionOverrides = {} } = {}) {
   const requests = [];
@@ -59,16 +67,17 @@ function boot({ values = new Map(), readyState = 'loading', offlineGrant = false
   });
   // Gate state tests isolate the session service. Real cryptography, encrypted
   // persistence and real Worker protocol are covered by shared/pro-device-session.test.mjs.
-  window.SoundCruiseProDeviceSession = { createClient: ({ request }) => ({
-    publicKey: async () => ({ fixture: true }), accept: async () => true, forget: async () => {},
+  const revoked = new Set();
+  window.SoundCruiseProDeviceSession = { operationIdentity, createClient: ({ request }) => ({
+    publicKey: async () => ({ fixture: true }), accept: async () => true, forget: async a => { revoked.add(a.credential); }, isRevoked: async a => revoked.has(a.credential),
     allowance: async () => ({ ok: true, offlineRemainingMs: 60000 }),
     validate: async existing => {
       try {
         const result = await request('/session', { headers: { Authorization: 'Bearer '+existing.credential } });
         if (result.status === 200 && result.body?.ok && result.body.generation === existing.generation)
           return { ok: true, online: true, generation: existing.generation };
-        if (result.status === 401 || (result.status === 200 && result.body.generation !== existing.generation))
-          return { ok: false, terminal: true };
+        if (result.status === 401 && ['invalid_credential','reauth_required'].includes(result.body?.code))
+          return { ok: false, terminal: true, denial:{...operationIdentity(existing),endpoint:'session',validationId:webcrypto.randomUUID(),reason:result.body.code} };
       } catch (_) { /* use only the independently supplied sealed grant fixture */ }
       return offlineGrant ? { ok: true, offline: true, generation: existing.generation, offlineRemainingMs: 60000 } : { ok: false };
     }, ...sessionOverrides
@@ -255,7 +264,8 @@ test('a late offline boot result cannot unlock after a backend denial', async ()
 
 test('B: valid Server credential is checked before DOMContentLoaded and unlocks without a passcode flash', async () => {
   const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)]]) });
-  assert.equal(g.request('session') !== undefined, true, 'session validation starts at script execution');
+  await g.settle(); // identity hashing completes before DOMContentLoaded
+  assert.equal(g.request('session') !== undefined, true, 'session validation starts before DOMContentLoaded');
   assert.equal(g.state(), 'checking');
   await g.domReady();
   assert.equal(g.state(), 'checking');
@@ -307,7 +317,7 @@ test('F: generation mismatch removes the credential and shows the passcode', asy
   const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
   const g = boot({ values });
   await g.domReady();
-  g.request('session').respond(200, { ok: true, generation: 2, legacyCompatibilityEnabled: true });
+  g.request('session').respond(401, { ok: false, code: 'reauth_required' });
   await g.settle();
   assert.equal(g.state(), 'passcode');
   assert.equal(values.has('soundCruiseProAuth'), false);
@@ -349,9 +359,46 @@ test('reset shows the passcode immediately, never the checking state', async () 
 
 test('script loaded after DOMContentLoaded (Port defer) decides the same way', async () => {
   const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)]]), readyState: 'complete' });
+  await g.settle();
   assert.equal(g.state(), 'checking');
   assert.equal(g.requests.filter(r => r.path === 'session').length, 1);
   g.request('session').respond(200, { ok: true, generation: 1, legacyCompatibilityEnabled: true });
   await g.settle();
   assert.equal(g.state(), 'unlocked');
+});
+
+test('UI and operation source both refuse a qualification already pending revoke', async () => {
+  const values=new Map([['soundCruiseProAuth',JSON.stringify(v2)],['soundCruiseProRevokePending',JSON.stringify([token])]]);
+  const g=boot({values});await g.domReady();await g.settle();
+  assert.equal(g.state(),'passcode');assert.equal(g.window.SoundCruiseProOperationSource.read().revoked,true);
+  assert.equal((await g.window.SoundCruiseProOperationSource.validate(v2)).ok,false);
+  assert.equal(g.requests.filter(r=>r.path==='session').length,0);
+  g.request('revoke')?.fail();await g.settle();
+});
+test('late A terminal validation through the UI preserves B and closes A through the shared source', async () => {
+  const g=boot({values:new Map([['soundCruiseProAuth',JSON.stringify(v2)]])});await g.domReady();
+  const old=g.request('session'),b={...v2,credential:token.replace(/A$/,'B')};
+  g.values.set('soundCruiseProAuth',JSON.stringify(b));g.values.set('soundCruiseProOperationEpoch','B-epoch');g.storageChanged();
+  old.respond(401,{ok:false,code:'invalid_credential'});await g.settle();
+  assert.equal(JSON.parse(g.values.get('soundCruiseProAuth')).credential,b.credential);
+  assert.equal(g.values.get('soundCruiseProOperationEpoch'),'B-epoch');
+  assert(JSON.parse(g.values.get('soundCruiseProRevokePending')).includes(token));
+  const next=g.requests.filter(r=>r.path==='session').at(-1);assert.notEqual(next,old);
+  next.respond(200,{ok:true,generation:b.generation});await g.settle();
+  assert.equal(g.state(),'unlocked');assert.equal(g.window.SoundCruiseProOperationSource.read().revoked,false);
+});
+
+test('same-qualification storage notification does not cancel a valid UI renewal', async () => {
+  const g=boot({values:new Map([['soundCruiseProAuth',JSON.stringify({...v2,sessionVersion:3})],['soundCruiseProOperationEpoch','stable']])});await g.domReady();
+  const first=g.request('session');g.storageChanged();
+  first.respond(200,{ok:true,generation:1});await g.settle();
+  assert.equal(g.state(),'unlocked');
+  const follow=g.requests.filter(r=>r.path==='session').at(-1);
+  if(follow!==first){follow.respond(200,{ok:true,generation:1});await g.settle();}
+  assert.equal(g.state(),'unlocked');assert.equal(g.values.get('soundCruiseProOperationEpoch'),'stable');
+});
+test('shared epoch change refuses adoption of an earlier UI success', async () => {
+  const g=boot({values:new Map([['soundCruiseProAuth',JSON.stringify(v2)],['soundCruiseProOperationEpoch','before']])});await g.domReady();
+  g.values.set('soundCruiseProOperationEpoch','after');g.request('session').respond(200,{ok:true,generation:1});await g.settle();
+  assert.equal(g.state(),'passcode');assert.equal(JSON.parse(g.values.get('soundCruiseProAuth')).credential,token);
 });

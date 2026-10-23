@@ -73,11 +73,11 @@ test('late A terminal denial preserves already-issued B epoch, receipt and prepa
 });
 for(const fault of ['pending-write','auth-delete','receipt-delete'])test('shared cleanup '+fault+' failure fails closed without reporting propagation complete',async t=>{
  const x=await proFixture(t),a=x.auth(),p=await x.prepare();advance(x);x.transport.setResponse({status:401,body:{ok:false,code:'invalid_credential'}});
- const set=x.storage.setItem,remove=x.storage.removeItem,del=IDBObjectStore.prototype.delete;
+ const set=x.storage.setItem,remove=x.storage.removeItem,put=IDBObjectStore.prototype.put;
  if(fault==='pending-write')x.storage.setItem=(k,v)=>{if(k===PENDING)throw Error('isolated storage failure');return set(k,v);};
  if(fault==='auth-delete')x.storage.removeItem=k=>{if(k===AUTH)throw Error('isolated storage failure');return remove(k);};
- if(fault==='receipt-delete')IDBObjectStore.prototype.delete=function(...args){if(this.name==='state')throw Error('isolated IDB failure');return del.apply(this,args);};
- let r;try{r=await SoundCruiseProOperationSource.validate(a);}finally{x.storage.setItem=set;x.storage.removeItem=remove;IDBObjectStore.prototype.delete=del;}
+ if(fault==='receipt-delete')IDBObjectStore.prototype.put=function(...args){if(this.name==='state'&&args[0]?.kind==='revoked-pro-receipt-v1')throw Error('isolated IDB failure');return put.apply(this,args);};
+ let r;try{r=await SoundCruiseProOperationSource.validate(a);}finally{x.storage.setItem=set;x.storage.removeItem=remove;IDBObjectStore.prototype.put=put;}
  if(fault==='auth-delete')assert(r.propagated);else assert(r.propagationFailed);
  assert.equal((await commit(x,p)).ok,false);x.offline=true;await assert.rejects(authorize(x,'cleanup-failure'),/pro-required/);
  x.reloadSource();const adapter=await createAuthorityProDeviceAdapter({scope:x.scope});t.after(()=>adapter.dispose());await assert.rejects(authorize(x,'after-crash',adapter),/pro-required/);

@@ -17,6 +17,95 @@ const entries = [['standard', read('./index.html')], ['pro', read('./pro_9a39431
 const app = read('./practice-menu-app.js');
 const css = readStyle();
 
+// Parse complete rules rather than treating everything after the theme marker
+// as themed. General NEWS rules can follow (or precede) a themed rule.
+function cssParts(source, delimiter) {
+    const parts = [];
+    let start = 0, depth = 0, quote = '', escaped = false;
+    for (let i = 0; i < source.length; i++) {
+        const c = source[i];
+        if (quote) {
+            if (escaped) escaped = false;
+            else if (c === '\\') escaped = true;
+            else if (c === quote) quote = '';
+        } else if (c === '"' || c === "'") quote = c;
+        else if (c === '(' || c === '[') depth++;
+        else if (c === ')' || c === ']') depth--;
+        else if (c === delimiter && depth === 0) { parts.push(source.slice(start, i).trim()); start = i + 1; }
+        assert.ok(depth >= 0, 'balanced CSS component');
+    }
+    assert.equal(depth, 0, 'complete CSS component');
+    assert.equal(quote, '', 'complete CSS string');
+    parts.push(source.slice(start).trim());
+    return parts.filter(Boolean);
+}
+
+function themeRegions(source) {
+    const marker = source.indexOf(THEME_SECTION_MARKER);
+    assert.ok(marker > 0, 'theme marker exists');
+    const section = source.slice(marker).replace(/\/\*[\s\S]*?\*\//g, '');
+    const rules = [];
+    let start = 0, bodyStart = 0, selector = '', depth = 0, quote = '', escaped = false;
+    for (let i = 0; i < section.length; i++) {
+        const c = section[i];
+        if (quote) {
+            if (escaped) escaped = false;
+            else if (c === '\\') escaped = true;
+            else if (c === quote) quote = '';
+        } else if (c === '"' || c === "'") quote = c;
+        else if (c === '{') {
+            if (depth === 0) { selector = section.slice(start, i).trim(); bodyStart = i + 1; }
+            depth++;
+        } else if (c === '}') {
+            assert.ok(depth > 0, 'balanced CSS rule');
+            if (--depth === 0) { rules.push({ selector, body: section.slice(bodyStart, i) }); start = i + 1; }
+        }
+    }
+    assert.equal(depth, 0, 'complete CSS rule');
+    assert.equal(quote, '', 'complete CSS rule string');
+    assert.equal(section.slice(start).trim(), '', 'no unparsed CSS');
+    const themed = [], general = [];
+    for (const rule of rules) {
+        const selectors = cssParts(rule.selector, ',');
+        assert.ok(selectors.length, 'nonempty CSS selector');
+        (selectors.some(s => s.includes('[data-theme')) ? themed : general).push({ ...rule, selectors });
+    }
+    assert.ok(themed.length, 'theme rules exist');
+    return { themed, general };
+}
+
+function themeDeclarations(body) {
+    return cssParts(body, ';').map(declaration => {
+        const colon = declaration.indexOf(':');
+        assert.ok(colon > 0, 'CSS declaration has property and value');
+        return [declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim()];
+    });
+}
+
+function assertThemeStructure(source) {
+    const regions = themeRegions(source), radii = [];
+    const scoped = /^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/;
+    const allowed = /^(?:--port-[a-z0-9-]+|color|color-scheme|background|background-color|border-color|outline-color|box-shadow|filter|accent-color|border-radius)$/;
+    for (const rule of regions.themed) {
+        for (const selector of rule.selectors) assert.match(selector, scoped, selector);
+        for (const [name, value] of themeDeclarations(rule.body)) {
+            assert.match(name, allowed, name);
+            if (name === 'border-radius') radii.push({ selector: rule.selector, value });
+        }
+    }
+    assert.deepEqual(radii, [{ selector: ':root:is([data-theme="gray"], [data-theme="light"]) #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon', value: '23%' }], 'only the themed tool icon tile may set border-radius');
+    // Every general rule in this section is accounted for; none is silently
+    // discarded to make the theme constraints pass.
+    assert.deepEqual(regions.general.map(rule => rule.selector), ['.news-hot'], 'general CSS after the theme marker is the NEWS badge');
+    assert.deepEqual(Object.fromEntries(themeDeclarations(regions.general[0].body)), {
+        display: 'inline-flex', 'align-items': 'center', 'justify-self': 'start', gap: '4px',
+        'font-size': '12px', 'font-weight': '500', color: 'var(--accent,#d8bc76)',
+        border: '1px solid color-mix(in srgb,var(--accent,#d8bc76) 45%,transparent)',
+        'border-radius': '5px', padding: '1px 6px', 'line-height': '1.5', 'grid-column': '1/-1'
+    }, 'NEWS remains a complete general badge rule, independently of theme overrides');
+    return regions;
+}
+
 function storage(values = {}) {
     const data = new Map(Object.entries(values));
     const writes = [];
@@ -208,11 +297,8 @@ test('CSS: Dark is the attribute-free default; Gray/Light only override tokens u
     const darkPart = css.slice(0, themeStart);
     assert.doesNotMatch(darkPart, /data-theme/, 'no Dark rule depends on the attribute');
     assert.match(css.slice(0, css.indexOf('}\n')), /^:root \{\n    color-scheme: dark;/);
-    const themePart = css.slice(themeStart);
-    for (const block of themePart.match(/^[^\n{]+\{/gm)) {
-        if (block.startsWith('/*') || block.startsWith('    ')) continue;
-        assert.match(block, /^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/, block);
-    }
+    const regions = assertThemeStructure(css);
+    const themePart = regions.themed.map(rule => `${rule.selector} {${rule.body}}`).join('\n');
     for (const theme of ['gray', 'light']) {
         const block = themePart.slice(themePart.indexOf(`:root[data-theme="${theme}"] {`));
         assert.match(block.slice(0, block.indexOf('}')), /color-scheme: light;/, theme);
@@ -245,11 +331,30 @@ test('Dark CSS is byte-identical to the 1.12.0 production Dark apart from explic
 });
 
 test('Gray/Light rules only change colors: no sizing, spacing or layout property is themed', () => {
+    const themed = assertThemeStructure(css).themed.map(rule => `${rule.selector} {${rule.body}}`).join('\n');
     const allowed = /^(?:--port-[a-z0-9-]+|color|color-scheme|background|background-color|border-color|outline-color|box-shadow|filter|accent-color|border-radius)$/;
-    for (const [, name] of themePart().matchAll(/^\s*([a-z-]+|--port-[a-z0-9-]+):/gm)) assert.match(name, allowed, name);
+    for (const [, name] of themed.matchAll(/^\s*([a-z-]+|--port-[a-z0-9-]+):/gm)) assert.match(name, allowed, name);
     // border-radius is used only to shape the tool icon tile like the Cruise app icons.
-    assert.equal([...themePart().matchAll(/border-radius:/g)].length, 1);
-    assert.match(themePart(), /#home-view \.tool-card:not\(\.my-app-launch-card\) \.skeleton-icon \{ border-radius: 23%; \}/);
+    assert.equal([...themed.matchAll(/border-radius:/g)].length, 1);
+    assert.match(themed, /#home-view \.tool-card:not\(\.my-app-launch-card\) \.skeleton-icon \{ border-radius: 23%; \}/);
+});
+
+test('NEWS is structurally a general rule and retains its complete badge style', () => {
+    const regions = assertThemeStructure(css);
+    assert.equal(regions.general[0].selector, '.news-hot');
+    assert.equal(regions.themed.some(rule => rule.selectors.includes('.news-hot')), false);
+});
+
+for (const [name, source, reason] of [
+    ['inline themed width after NEWS', css + '\n:root[data-theme="light"] .probe { width: 1px; }', /width/],
+    ['inline themed spacing', css + '\n:root[data-theme="gray"] .probe { color: red; padding: 1px; }', /padding/],
+    ['mixed scoped and unscoped selector', css + '\n:root[data-theme="light"] .probe, .probe { color: red; }', /\.probe/],
+    ['extra themed radius', css + '\n:root[data-theme="light"] .probe { border-radius: 5px; }', /themed tool icon/],
+    ['unaccounted general layout rule', css + '\n.probe { width: 1px; }', /general CSS/],
+    ['missing general NEWS rule', css.replace(/\.news-hot\{[^}]+\}/, ''), /general CSS/],
+    ['changed NEWS layout', css.replace('justify-self:start;gap:4px;', 'justify-self:start;gap:40px;'), /NEWS remains/]
+]) test(`theme structural guard rejects ${name}`, () => {
+    assert.throws(() => assertThemeStructure(source), reason);
 });
 
 test('Tool and My Apps icons sit on a Dark plate in Gray/Light with the exact production Dark tokens', () => {

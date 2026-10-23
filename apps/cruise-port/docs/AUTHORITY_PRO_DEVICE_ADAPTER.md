@@ -1,5 +1,18 @@
 # L3c Trusted Pro Device Session Adapter
 
+## L3c Security Recovery — 未コミット限定候補（2026-10-22）
+
+[現在の永続失効契約](PRO_TERMINAL_DENIAL_CONTRACT.md#l3c-security-recovery--限定候補2026-10-22)を参照。
+既存Pro DB version1/stateの同じreceipt keyへtombstoneを保持し、同一RW内でreceipt CASと直列化する。
+Adapter/Authority Store/Workerの製品実装は不変更。Sourceの同期readはDBを開かず、正式非同期認可では
+従来のreadonly receipt検査がtombstoneを拒否する。通常UIも同じterminal伝播へ接続する。
+pending ACKは永続fenceを解除せず、旧資格Aと新資格Bを分離する。
+Standard/Account独立、両30秒margin・時計補正・Pointer/Control/Evidence/履歴replayを維持する。
+固定baseは0335aa09。Studio schema2はbaseから継承し、今回Studio保存仕様を変更しない。
+Production legacy/ACCEPT_COMPAT/enforcement OFF/shared write OFF/canWrite=false、L3d未着手。
+commit/push/deployは実施しない。検証実測とbase既存FAIL・所有境界guardの扱いはrepo外証跡と完了報告で区別する。
+
+
 ## L3c Observed Revocation Safety Fix（2026-10-13・現行）
 
 開始HEAD/origin/main/remote main=`a6b5bcd988995585f2ed80e40175f3924e1b0d6f`、tracked/staged空、ahead/behind0/0。
