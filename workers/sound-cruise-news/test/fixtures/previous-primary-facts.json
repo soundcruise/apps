@@ -1,0 +1,74 @@
+{
+  "note": "Two previously rescued real candidates: saved structured primary facts/proofs only, not an original-HTML replay. Production human state/fingerprints excluded.",
+  "cases": [
+    {
+      "id": "68d009efa58cd42d127f0b547945087cf69f8eefb846fed0702cc45c90b0fd51",
+      "sourceId": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173688/",
+      "publishedAt": "2026-10-21T15:00:00.000Z",
+      "facts": {
+        "brand": "sE Electronics",
+        "models": [
+          "KLS 150"
+        ],
+        "product": "KLS 150",
+        "version": null,
+        "category": "recording_audio",
+        "productType": "headphone",
+        "identifierBasis": "explicit_article_product_fields",
+        "listingSource": "ikebe",
+        "articleUrl": "https://www.ikebe-gakki-pb.com/new_product/173688/",
+        "productTypeEvidence": {
+          "product": "KLS 150",
+          "basis": "verified_primary_article"
+        }
+      },
+      "eventType": "release",
+      "proof": {
+        "sourceId": "ikebe",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173688/",
+        "verifiedAt": 1792710745056,
+        "extractionMethod": "explicit_ikebe_product_fields",
+        "parserVersion": "ikebe-product-fields-12",
+        "responseHash": "beb0b0418ca15c0fb30be0a015b317bee48a686f7c2d088d93869a315c960d24"
+      }
+    },
+    {
+      "id": "6a7f58f4a59a9d80cc2951c6d49aba4ae090848f1abf358d21297e88915952c8",
+      "sourceId": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/99571/",
+      "publishedAt": "2026-10-20T15:00:00.000Z",
+      "facts": {
+        "brand": "Native Instruments",
+        "product": "Scene: Magnolia",
+        "models": [
+          "Scene: Magnolia"
+        ],
+        "version": null,
+        "category": "dtm_software",
+        "productType": "software_instrument",
+        "productTypeEvidence": {
+          "product": "Scene: Magnolia",
+          "basis": "verified_primary_article"
+        },
+        "identifierBasis": "explicit_shimamura_product_fields",
+        "listingSource": "shimamura",
+        "articleUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/99571/",
+        "releaseEvent": {
+          "action": "release",
+          "basis": "verified_primary_article",
+          "date": "2026-10-13"
+        }
+      },
+      "eventType": "release",
+      "proof": {
+        "sourceId": "shimamura",
+        "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/99571/",
+        "verifiedAt": 1792711819293,
+        "extractionMethod": "explicit_shimamura_product_fields",
+        "parserVersion": "shimamura-product-fields-7",
+        "responseHash": "aa264bdf18736de8149cb47633216dd2e26671bd2e88046f7d7477ed77f157b1"
+      }
+    }
+  ]
+}

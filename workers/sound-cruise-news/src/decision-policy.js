@@ -1,3 +1,4 @@
+import {validPrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER} from './primary-announcement.js';
 import {validKikutaniListingFacts,KIKUTANI_LISTING_PARSER,KIKUTANI_LISTING_PARSERS} from './kikutani-listing-evidence.js';
 import {PRODUCT_FAMILY_PARSER,validProductFamily} from './product-family-evidence.js';
 import {AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
@@ -11,7 +12,7 @@ import {PRODUCT_ARTICLE_PARSER} from './product-article-evidence.js';
 import {legalGate} from './registry.js';
 import {factualLabel,allowedArticlePath,CATEGORIES,validLabel} from './metadata.js';
 import {validatedFingerprint} from './fingerprint.js';
-import {DAY,sourceUrl} from './policy.js';
+import {DAY,sourceUrl,hash} from './policy.js';
 import {saleEndsAt,saleAuthorized,isSaleRecord} from './sale.js';
 import {eventEndsAt} from './event.js';
 import {independentTopicUrls,labelInformationScore} from './label-quality.js';
@@ -68,13 +69,13 @@ export function duplicatePredicate(row,facts,alias='d'){
   args.push(row.category,...keys.map(k=>facts[k]||''));
  }
  // Multi-model primary evidence must not evade the existing product duplicate boundary.
- if(['explicit_article_product_fields','explicit_shimamura_product_fields'].includes(facts?.identifierBasis)&&Array.isArray(facts.models)&&facts.models.length>0&&facts.models.length<=4&&facts.models.every(m=>typeof m==='string')){
+ if(['explicit_article_product_fields','explicit_shimamura_product_fields','verified_primary_announcement'].includes(facts?.identifierBasis)&&Array.isArray(facts.models)&&facts.models.length>0&&facts.models.length<=4&&facts.models.every(m=>typeof m==='string')){
   clauses.push(`(${j('brand')}=? AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('other','new_product','release') AND (${j('product')} IN (${facts.models.map(()=>'?').join(',')}) OR EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') member WHERE member.value IN (${facts.models.map(()=>'?').join(',')}))))`);
   args.push(facts.brand,row.category,facts.version||'',...facts.models,...facts.models);
  }
  // Exact multi-model signature launch identity, allowing only explicit color suffixes.
  // A series qualifier is not a different manufacturer; new color/edition events stay separate.
- if(['explicit_article_product_fields','explicit_shimamura_product_fields'].includes(facts?.identifierBasis)&&facts.signatureModel===true&&!facts.productEvent&&typeof facts.brand==='string'&&Array.isArray(facts.models)&&facts.models.length>=2&&facts.models.length<=4&&new Set(facts.models).size===facts.models.length&&facts.models.every(m=>typeof m==='string'&&/^[A-Za-z0-9][A-Za-z0-9 .&'/-]{1,99}$/.test(m))){
+ if(['explicit_article_product_fields','explicit_shimamura_product_fields','verified_primary_announcement'].includes(facts?.identifierBasis)&&facts.signatureModel===true&&!facts.productEvent&&typeof facts.brand==='string'&&Array.isArray(facts.models)&&facts.models.length>=2&&facts.models.length<=4&&new Set(facts.models).size===facts.models.length&&facts.models.every(m=>typeof m==='string'&&/^[A-Za-z0-9][A-Za-z0-9 .&'/-]{1,99}$/.test(m))){
   const colors=['Black','White','Arctic White','Red','Blue','Natural','Sunburst'],modelArgs=[];
   const comparisons=facts.models.map(m=>{const variants=[m,...colors.map(c=>`${m} (${c})`)];modelArgs.push(...variants);return `EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') signature_model WHERE signature_model.value IN (${variants.map(()=>'?').join(',')}))`;});
   clauses.push(`(${j('identifierBasis')} IN ('explicit_article_product_fields','explicit_shimamura_product_fields') AND ${j('signatureModel')}=1 AND ${j('productEvent')} IS NULL AND ${j('brand')} IN (?,?) AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('new_product','release') AND ? IN ('new_product','release') AND json_array_length(${j('models')})=? AND ${comparisons.join(' AND ')})`);
@@ -102,6 +103,10 @@ export async function publicationValidation(store,row,now,registry,pepper){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!validAgmPerformance(facts)||!Array.isArray(proof)||!['eventName','eventDate','performer','venues','performanceEvidence'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&[AGM_ARTICLE_PARSER,'agm-article-5','agm-article-4'].includes(p.parserVersion)&&p.extractionMethod==='explicit_agm_article_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
+ if(facts?.kind==='primary_product_notice'){
+  const evidenceKey=await hash(row.title_fingerprint||'');let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+  if(!validPrimaryAnnouncement(facts)||row.event_type!==(['release','scheduled_release'].includes(facts.announcement?.action)?'release':'new_product')||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||!Array.isArray(proof)||![...Object.keys(facts),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.evidenceKey===evidenceKey&&p.publishedAt===row.published_at&&p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.extractionMethod==='explicit_primary_announcement_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+ }
  if(facts?.kind==='product_family'){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!validProductFamily(facts)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||row.event_type!=='new_product'||!Array.isArray(proof)||!['brand','family','models','familyEvidence','event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===PRODUCT_FAMILY_PARSER&&p.extractionMethod==='explicit_product_family_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
@@ -119,7 +124,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
   if(row.source_id!=='kikutani'||facts.articleUrl!==row.source_url||row.event_type!=='new_product'||!validKikutaniListingFacts(facts)||!Array.isArray(proof)||![...Object.keys(facts).filter(k=>k!=='headlineQuality'),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId==='kikutani'&&p.sourceUrl==='https://www.kikutani.co.jp/news/'&&p.articleUrl===row.source_url&&(field==='guitarConstruction'?p.parserVersion===KIKUTANI_LISTING_PARSER:field==='listingNotice'?['kikutani-listing-product-2',KIKUTANI_LISTING_PARSER].includes(p.parserVersion):KIKUTANI_LISTING_PARSERS.includes(p.parserVersion))&&p.extractionMethod==='explicit_kikutani_listing_card'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(facts?.identifierBasis==='explicit_article_product_fields'&&(row.source_id!=='ikebe'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
- if(facts?.editionEvidence||facts?.subjectEvidence||facts?.productType==='contact_cleaner'){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+ if(facts?.kind!=='primary_product_notice'&&(facts?.editionEvidence||facts?.subjectEvidence||facts?.productType==='contact_cleaner')){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!Array.isArray(proof)||!['brand','models','productType','event_type',...(facts.editionEvidence?['editionEvidence','productEvent']:[]),...(facts.articleIdentity?['articleIdentity']:[]),...(facts.subjectEvidence?['subjectEvidence']:[]),...(facts.referencedModels?['referencedModels']:[])].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&(facts.subjectEvidence?[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-11',...(['synthesizer','room_correction'].includes(facts.productType)?['ikebe-product-fields-10']:[])]:[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-11','ikebe-product-fields-10','ikebe-product-fields-9','ikebe-product-fields-8','ikebe-product-fields-7']).includes(p.parserVersion)&&p.extractionMethod==='explicit_ikebe_product_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(facts?.productType==='software_instrument'&&facts.identifierBasis==='explicit_shimamura_product_fields'){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}

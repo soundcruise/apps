@@ -39,6 +39,7 @@ export async function recordPreparationMetrics(store,report,now,registry,pepper)
  }
  const ratio=(a,b)=>b?a/b:null;
  m.rates={candidateCreation:ratio(m.candidateCreated,m.newUrls),factsCompleteness:ratio(m.factsComplete,m.validationEvaluated),validationSuccess:ratio(m.validationPassed,m.validationEvaluated),readyForNewCandidate:ratio(m.readyNew,m.candidateCreated)};
+ if(report.initialRecovery)m.initialRecovery={...report.initialRecovery,detailHttp:report.primaryHttp||{success:0,failure:0}};
  if(report.backfill)m.backfill={...report.backfill};
  const runId=report.runId;
  const statements=[store.db.prepare(`INSERT INTO news_discovery_receipts(source_id,normalized_url,first_seen_at,last_seen_at,published_at,outcome,reason_code,candidate_id)

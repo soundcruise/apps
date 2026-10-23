@@ -168,3 +168,41 @@ until the owner decides. No evidence-shortage deletion rule was added.
 - Each verified listing entry stores `recoveryAnalysis` version `morris-recovery-2`: evaluated type codes, triggered candidates, boolean checks, missing-field codes and result/reason. Existing per-entry proof retains source/article URL, original response hash, parser version, permission reference and verification time. No raw heading, full description, HTML or images are stored.
 - After the next regular 06:00 JST collection, inspect the saved listing receipt, candidate-level classifications and authoritative `publicationValidation` / Operator reviewability. Count all baseline receipts separately from pending candidates. Do not equate transport success, synthetic test success or an empty pending queue with real article recovery.
 - Existing daily listing / once-only new-detail budgets, no historical-detail fetching, no RSS, 90-day article retention, ended-event protection and immutable published/human evidence are unchanged. Same-day replay cannot reconstruct yesterday's null facts and must never initiate a new fetch.
+
+## October 24 initial preparation / shared article budget (NEWS 0.37.0)
+
+This section supersedes the earlier one-new-surface rule **for Ikebe PB only**:
+the owner authorized at most six necessary new primary article checks per JST day,
+shared between 06:00 collection and hourly rechecks. Shimamura remains one. A fixed
+listing cache is separate from per-article claims. Atomic cache claims enforce the
+combined article limit; a repeated URL uses its existing transport/facts receipt.
+The JST calendar boundary removes yesterday's late rescue starving today's morning
+preparation. Publisher frequency/robots/Retry-After/access refusal always takes priority.
+Other sources keep their existing budgets, including Morris once-only new details,
+AGM discovery/detail limits, seven-day cache and daily maintenance recovery, and OFF
+Yamaha/Deviser. There is no forced collection or additional discovery scope.
+
+Scheduled Ikebe/Shimamura preparation uses the same recheck service, CAS trigger,
+provenance, duplicate and 90-day validator, never a parallel approval path. New
+candidates precede deferred pending work; examination is bounded to 30 candidates.
+Network/body absence is distinguished from unsupported primary definitions. HTTP
+refusal after successful listing is reflected in source health and the collection
+outcome, not reported as a successful full preparation. Parser failure leaves the
+source's transport success intact while recording failed preparation separately.
+
+A current-version, fingerprint-bound, hash-bearing verified primary facts projection
+may repair missing provenance without a new HTTP request even after its one-day
+transport cache expires. The existing 90-day facts-recheck receipts allow safe reuse
+even after that short cache is purged; failed-extraction receipts preserve only
+bounded failure codes and response hashes, never the original response. Every normal source/date/duplicate/publication gate still
+runs. No old HTML is reconstructed. Same-version unsuccessful primary evidence with
+the unchanged listing fingerprint stops automatic retries after a visible unchanged-
+evidence assessment; a changed candidate revision/fingerprint or new parser version
+can cause a new assessment under the shared budget. No evidence shortage is treated
+as a human reject.
+
+Preparation metrics record initial evaluation, facts recovery, READY, budget deferral,
+cache reuse, HTTP detail success/failure and validation/provenance failures. Existing
+facts rechecks/lifecycle/logs record hourly outcomes and bounded parser-attempt codes.
+Audit aggregation separates initial-/autonomous-/morris-auto- system corrections from
+assisted maintenance corrections. Historical missing measurements stay unknown.

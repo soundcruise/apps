@@ -1,7 +1,8 @@
+import {recoveryBudget} from './recovery-budget.js';
 import {sourcePolicyReason} from './source-policy-evidence.js';
 import {DAY} from './policy.js';
 import {DECISION_POLICY_VERSION,publicationValidation} from './decision-policy.js';
-import {recheckFacts} from './facts-recheck.js';
+import {recheckFacts,reusablePrimaryEvidence,retainedPrimaryEvidence} from './facts-recheck.js';
 import {recoverySurface,recoveryCacheKey,missingFacts,resolvedRecoverySurface} from './facts-readiness.js';
 import {candidateSnapshot} from './operator-review.js';
 import {saveShadowEvaluation} from './operator-shadow.js';
@@ -56,6 +57,7 @@ export function recheckOutcome(result,validation){
 }
 export async function runPendingRechecks(store,now,registry,pepper,{limit=4,recover=recheckFacts,shadow=saveShadowEvaluation,resolveObjective=false,...options}={}){
  if(!Number.isSafeInteger(limit)||limit<1||limit>20)throw Error('operator_recheck_limit_invalid');
+ const robotCache=new Map();
  const started=Date.now(),report={due:0,attempted:0,recovered:0,newlyReady:0,autoBlocked:0,noEvidence:0,failure:0,items:[]};
  if(!(await store.controls()).collection_enabled)return {...report,stopped:true,durationMs:0};
  await initializePending(store,now);
@@ -74,10 +76,10 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   try{
    if(!status&&!before.valid){
     const source=registry.find(s=>s.id===row.source_id),surface=await resolvedRecoverySurface(store,row,source);
-    const cached=surface&&await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(recoveryCacheKey(row,source,surface)).first();
-    const dailyRecovery=source&&await store.db.prepare('SELECT COUNT(*) AS n FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>?').bind(source.id,source.id+':',now-DAY).first();
-    if(surface&&!before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))&&(cached?.checked_at>now-DAY||dailyRecovery.n===0)){
-     report.attempted++;result=await recover(store,{id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId:'autonomous-'+token},now,registry,pepper,{type:'system_recheck',id:'pending-recheck'},options);
+    const cached=surface&&(await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(recoveryCacheKey(row,source,surface)).first()||await retainedPrimaryEvidence(store,row,source,now));
+    const budget=source&&await recoveryBudget(store,source,now);
+    if(surface&&!before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))&&(cached?.checked_at>now-DAY||await reusablePrimaryEvidence(cached,row,source,now)||cached?.outcome==='facts_primary_evidence_unchanged'||budget.used<budget.limit)){
+     report.attempted++;result=await recover(store,{id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId:'autonomous-'+token},now,registry,pepper,{type:'system_recheck',id:'pending-recheck'},{...options,robotCache});
     }else result={outcome:!surface?'facts_no_supported_surface':before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))?'facts_source_gate':'facts_daily_budget_deferred'};
    }
    current=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first();
@@ -99,9 +101,9 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   // PERMANENT_INVALID is diagnostic only: a single 404 does not prove permanent removal.
   const state=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
   const deferred=result?.outcome==='facts_daily_budget_deferred';
-  const budget=deferred?await store.db.prepare('SELECT MAX(checked_at) AS at FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>?').bind(current.source_id,current.source_id+':',now-DAY).first():null;
+  const budget=deferred?await recoveryBudget(store,registry.find(s=>s.id===current.source_id),now):null;
   const onceOnlyExhausted=current.source_id==='morris'&&result?.outcome==='facts_not_on_current_surface';
-  const next=onceOnlyExhausted?null:status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,(budget?.at||now)+DAY+1):nextRecheck(current,state.recheck_attempt_count+1,now);
+  const next=onceOnlyExhausted||result?.outcome==='facts_primary_evidence_unchanged'?null:status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,budget.nextAt):nextRecheck(current,state.recheck_attempt_count+1,now);
   const columns=Object.keys(current),saved=await store.db.prepare(`UPDATE news_pending_lifecycle SET last_rechecked_at=?,next_recheck_at=?,assessed_revision=?,recheck_attempt_count=recheck_attempt_count+?,recheck_status=?,unresolved_reason=?,last_recheck_result=?,recheck_policy_version=?,history_json=?,lease_until=0
  WHERE candidate_id=? AND lease_token=? AND history_json=? AND EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')})`)
  .bind(now,next,current.review_revision,deferred?0:1,status,validation.errors.join(','),result?.outcome||status,RECHECK_POLICY,history(state,{at:now,actor:'system_recheck',result:status,outcome:result?.outcome||status,revision:current.review_revision,publicationPolicy:DECISION_POLICY_VERSION}),row.id,token,state.history_json,...columns.map(k=>current[k])).run();

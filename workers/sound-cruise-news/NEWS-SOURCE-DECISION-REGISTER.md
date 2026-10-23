@@ -1266,3 +1266,46 @@ Kikutani has no separate Gmail draft in this inventory; earlier form text is hel
 - No permission expansion, Yamaha/Deviser/Martin enablement, article edits,
   automatic publication, human decision or teacher data change is authorized by
   this scheduling change. Prior permission/history records are retained.
+
+## 2026-10-24 — Initial primary facts preparation and owner-authorized Ikebe budget
+
+The owner explicitly authorized the five October 24 Ikebe pending articles, each
+with at most one additional article GET, and a continuing **maximum six necessary
+Ikebe PB article checks per JST calendar day**, shared by scheduled preparation and
+facts rechecks. This is the owner's NEWS operating budget, not a newly invented
+publisher condition. The existing October 15 assent, selected PB scope, low-frequency
+listing, brand/source separation, attribution/direct links and UTM remain authoritative.
+No Events, Yamaha, Morris or AGM acquisition scope is expanded by this decision.
+Shimamura's existing one-new-article daily budget remains one; its October 9 form
+receipt and documented-silence policy are not reclassified as explicit permission.
+
+NEWS 0.37.0 connects the established primary facts/CAS/validation service to the
+06:00 JST scheduled candidate path for Ikebe PB and Shimamura. Previous-day later
+rechecks no longer consume the following JST day's article allowance. Listing-only
+cache entries are not counted as article checks. Atomic per-article claims share the
+allowance across initial and hourly processing; HTTP refusal, robots, Retry-After,
+opt-out, source gates and response bounds still stop acquisition. The just-verified
+robots result is reused within the batch, including the reviewed empty 404 result.
+No rolling-24-hour bypass of an external restriction is introduced.
+
+A bounded parser fallback independently verifies canonical URL, the explicit public
+publication date (not update/release date), brand tag/grammatical subject, named product
+sections, product definitions and announcement action. Keyboard, headset/headphone,
+amp-plus-pedal bundle and construction-bound electric-guitar notices use a strict
+facts shape with field provenance. It is not a product/URL whitelist. A retailer's
+notice does not establish that the brand itself announced or shipped the product.
+Future release dates stay future; uncertain identities/types/actions remain held.
+
+The October 24 six primary responses were checked once under the authorized budgets.
+Only typed facts, hashes and provenance persist; original HTML/headlines/descriptions
+and images do not. Both real cron entrypoints were replayed offline with those full
+responses held in memory. Morning listing HTML had not been retained: listing inputs
+were explicitly reconstructed structural projections, not claimed original recordings.
+Two earlier rescued candidates were tested from retained structured facts/proofs,
+without claiming their discarded HTML could be replayed.
+
+Operator 0.35.1 recognizes the same facts/provenance rules. READY remains pending for
+human decision. No approval/rejection, published-news update, human Ledger/feedback
+rewrite, HOT/order/category override change, new source or migration is authorized
+by this preparation change. The next live scheduled run remains unverified until it
+actually occurs.

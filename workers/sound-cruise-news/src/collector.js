@@ -1,3 +1,4 @@
+import {prepareInitialFacts} from './initial-facts.js';
 import {KIKUTANI_LISTING_PARSER} from './kikutani-listing-evidence.js';
 import {planAgmNews,recordAgmDeferred,AGM_DETAIL_BUDGET,AGM_DEFERRED} from './agm-backfill.js';
 import {observePreparation,recordPreparationMetrics} from './preparation-metrics.js';
@@ -17,6 +18,15 @@ import {nextDailyCollectionAt} from './collection-clock.js';
 export {nextDailyCollectionAt} from './collection-clock.js';
 export async function collectSource(id,store,options={}){
  const report=await collectSourceInternal(id,store,options);
+ if(options.mode==='production'&&report._primaryRobots){
+  const fetcher=options.fetcher||fetch;
+  try{await prepareInitialFacts(store,report,options.now||Date.now(),options.registry||SOURCES,options.pepper,{...options,cachedRobots:report._primaryRobots,
+   fetcher:async(url,init)=>{report.requests++;const kind=url===report._primaryRobots.url?'robots':'article';report.requestCounts[kind]=(report.requestCounts[kind]||0)+1;try{const response=await fetcher(url,init);if(kind==='article'){report.primaryHttp??={success:0,failure:0};report.primaryHttp[response.status===200?'success':'failure']++;}return response;}catch(error){if(kind==='article'){report.primaryHttp??={success:0,failure:0};report.primaryHttp.failure++;}throw error;}}});}
+  catch(error){report.initialRecovery??={};report.initialRecovery.error=/^[a-z_0-9]+$/.test(error.message)?error.message:'initial_facts_failed';console.error(JSON.stringify({event:'news_initial_facts_failed',sourceId:id,reason:report.initialRecovery.error}));}
+  const state=await store.state(id),health=(await store.sourceHealth()).find(s=>s.source_id===id);if(report.initialRecovery?.evaluated&&report.outcome==='collected'&&(state.disabled||state.backoffUntil>(options.now||Date.now())||health?.status!=='healthy'))report.outcome=health?.reason_code||'source_disabled';
+  if(report.runId)await store.db.prepare('UPDATE collection_runs SET requests=?,outcome=? WHERE id=?').bind(report.requests,report.outcome,report.runId).run();
+ }
+ delete report._primaryRobots;
  try{if(options.mode==='production'){const recovery=options.preparationMaintenance,measurement=recovery?{...report,requests:report.requests+recovery.requests,requestCounts:{...report.requestCounts,robots:(report.requestCounts?.robots||0)+recovery.requests},maintenanceOutcome:recovery.outcome}:report;await recordPreparationMetrics(store,measurement,options.now||Date.now(),options.registry||SOURCES,options.pepper);report.preparation=measurement.preparation;}}
  catch{console.error(JSON.stringify({event:'news_preparation_metrics_failed',sourceId:id}));}
  delete report.qualityObservations;return report;
@@ -64,6 +74,7 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
   const robots=robotsPolicy(result.text,source,result.status);const evidence=await robotsEvidence(result.text);
   if(!evidence.matches(state.robotsHash)||((listing||agmExpanded)&&!evidence.matches(source.robotsHash))){next.disabled=true;throw new Error('robots_changed_review');}
   next.robotsHash=evidence.digest;
+  if(['ikebe','shimamura'].includes(id))report._primaryRobots={id,url:source.robotsUrl,text:result.text,status:result.status,checkedAt:now};
   report.robots=robots.isAllowed(source.discoveryUrl,BOT)===true?'allow':'disallow';
   if(report.robots==='disallow'){next.disabled=true;throw new Error('robots_disallow');}
   // Recognize sitemap declarations, but never follow an arbitrary listed endpoint automatically.

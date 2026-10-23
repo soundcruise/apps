@@ -1,3 +1,5 @@
+import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,validPrimaryAnnouncement} from './primary-announcement.js';
+import {initialPrimarySource,recoveryBudget} from './recovery-budget.js';
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
 import {morrisEvidenceReceipt,markMorrisEvidenceWait} from './morris-collector.js';
@@ -16,8 +18,9 @@ import {parseAgmArticleEvidence,agmEvidenceMetadata} from './agm-article-evidenc
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
 import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
 import {parseIkebeProductEvidence,ikebeIdentityRefinement,IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
+import {healthForOutcome} from './source-health.js';
 import {legalGate} from './registry.js';
-import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY,robotsEvidence} from './policy.js';
+import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY,robotsEvidence,retryAt} from './policy.js';
 import {parseShimamuraListing} from './shimamura-listing.js';
 import {parseOfficialListing} from './official-listing.js';
 import {parseEventArticle} from './high-value.js';
@@ -27,6 +30,26 @@ import {eventEndsAt} from './event.js';
 import {candidateSnapshot,reviewDetail} from './operator-review.js';
 import {publicationValidation} from './decision-policy.js';
 import {recoverySurface,recoveryCacheKey,resolvedRecoverySurface} from './facts-readiness.js';
+// A validated, versioned fact projection can outlive the one-day transport cache.
+// It never reconstructs discarded HTML or supplies missing facts.
+export async function reusablePrimaryEvidence(previous,row,source,now){
+ if(!initialPrimarySource(source)||previous?.outcome!=='verified_surface'||previous.lease_until>now)return false;
+ try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json);return p.sourceId===source.id&&p.sourceUrl===row.source_url&&p.publishedAt===row.published_at&&p.extractionMethod==='explicit_primary_announcement_fields'&&p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.evidenceKey===await hash(row.title_fingerprint||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at&&validPrimaryAnnouncement(items[0].productFacts);}catch{return false;}
+}
+// Recheck receipts retain facts/proofs for the existing 90-day lifetime even
+// after the short transport cache is purged. Never rebuild publisher text.
+export async function retainedPrimaryEvidence(store,row,source,now){
+ if(!initialPrimarySource(source))return null;
+ const receipt=await store.db.prepare("SELECT * FROM news_facts_rechecks WHERE candidate_id=? AND provenance_json<>'[]' ORDER BY checked_at DESC,rowid DESC LIMIT 1").bind(row.id).first();
+ try{const fields=JSON.parse(receipt?.provenance_json||'[]'),proof=fields[0],patch=JSON.parse(receipt?.patch_json||'null');
+  if(!proof||proof.sourceId!==source.id||proof.sourceUrl!==row.source_url||proof.publishedAt!==row.published_at||proof.pipelineVersion!==PRIMARY_ANNOUNCEMENT_PARSER||proof.evidenceKey!==await hash(row.title_fingerprint||'')||!/^[a-f0-9]{64}$/.test(proof.responseHash||'')||!Number.isSafeInteger(proof.verifiedAt)||proof.verifiedAt>now)return null;
+  const base={checked_at:receipt.checked_at,lease_until:0,proof_json:JSON.stringify(proof)};
+  if(proof.failureReason)return {...base,outcome:'facts_primary_evidence_unchanged',items_json:'[]'};
+  const facts=JSON.parse(patch?.product_facts||'null');if(!validPrimaryAnnouncement(facts)||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.extractionMethod==='explicit_primary_announcement_fields')))return null;
+  const candidate={...base,outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:patch.event_type,productFacts:facts}])};
+  return await reusablePrimaryEvidence(candidate,row,source,now)?candidate:null;
+ }catch{return null;}
+}
 const canonical=v=>JSON.stringify(v,(_,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.entries(x).sort(([a],[b])=>a.localeCompare(b))):x);
 
 async function gate(store,source,registry,now,row){
@@ -38,7 +61,7 @@ async function gate(store,source,registry,now,row){
 
 function agmSurface(cached,row){const i=cached.item;return i?{outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:i.sourceUrl,publishedAt:i.publishedAt,eventType:i.eventType,productFacts:i.productFacts}]),proof_json:JSON.stringify(cached.proof)}:{outcome:'facts_not_recovered',items_json:'[]',proof_json:null};}
 
-async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false}={}){
+export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null}={}){
  if(source.id==='morris'){
   await gate(store,source,registry,now,row);const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
   if(!['verified','verified_listing'].includes(receipt?.outcome)||!receipt.facts_json||!await validatedFingerprint(receipt.fingerprint_json,pepper))return {outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
@@ -52,14 +75,26 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   if(cached.hit)return agmSurface(cached.payload,row);
   if(cached.attempted&&!forceRevalidate)return {outcome:'facts_not_recovered',items_json:'[]',proof_json:null};
  }
- const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair}),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair});let previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ previous??=await retainedPrimaryEvidence(store,row,source,now);
+ const evidenceKey=await hash(row.title_fingerprint||'');
+ const previousProof=(()=>{try{return JSON.parse(previous?.proof_json||'null');}catch{return null;}})();
+ if(await reusablePrimaryEvidence(previous,row,source,now))return previous;
+ if(initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey)return {...previous,outcome:'facts_primary_evidence_unchanged'};
  if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
+ const budget=await recoveryBudget(store,source,now);
+ // Parser-version keys are not permission to fetch the same article twice today.
+ if(initialPrimarySource(source)){
+  const sameUrl=await store.db.prepare("SELECT * FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=? AND (substr(source_id,-?)=? OR json_extract(CASE WHEN json_valid(proof_json) THEN proof_json ELSE '{}' END,'$.sourceUrl')=?) ORDER BY checked_at DESC LIMIT 1").bind(source.id+':',budget.since,row.id.length+1,':'+row.id,row.source_url).first();
+  if(sameUrl){if(sameUrl.lease_until>now)throw Error('facts_recheck_busy');return sameUrl.outcome==='verified_surface'?sameUrl:{outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};}
+ }
+ if(initialPrimarySource(source)&&budget.used>=budget.limit)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
  const token=crypto.randomUUID();
- const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) VALUES(?,?,?,?,'in_progress')
+ const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) SELECT ?,?,?,?,'in_progress' WHERE NOT ? OR (SELECT COUNT(*) FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>=?)<?
  ON CONFLICT(source_id) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,checked_at=excluded.checked_at,outcome='in_progress',items_json=NULL,proof_json=NULL WHERE lease_until<=? AND checked_at<=?`)
- .bind(cacheKey,token,now+60000,now,now,now-DAY).run();
+ .bind(cacheKey,token,now+60000,now,+initialPrimarySource(source),initialPrimarySource(source)?'':source.id,source.id+':',budget.since,budget.limit,now,now-DAY).run();
  if(claimed.meta.changes!==1)throw Error('facts_recheck_busy');
- let acquired=false,items=[],proof=null,outcome='facts_unavailable';
+ let acquired=false,items=[],proof=null,outcome='facts_unavailable',publisherBackoff=0;
  try{
   const state=await gate(store,source,registry,now,row);
   acquired=await store.lease(source.id,now,DAY,{requestMode:'operator_validation'});if(!acquired)throw Error('facts_recheck_busy');
@@ -68,11 +103,14 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
    // The server chooses exactly two URLs, never a caller-supplied URL or redirect.
    if(![source.robotsUrl,surface.url].includes(url)||!sourceUrl(url,source)||sourceUrl(url,source)!==url)throw Error('facts_source_invalid');
    await store.publisherAttempt(source.id,now,DAY);
-   let r;try{r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store',...headers}});}catch(error){if(error.redirectEvidence)await store.recordRedirect(source.id,error.redirectEvidence);throw error;}
+   let r;try{r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store',...headers}});}catch(error){if(error.redirectEvidence){await store.recordRedirect(source.id,error.redirectEvidence);publisherBackoff=error.redirectEvidence.retryAfterAt||0;if(publisherBackoff>now)await store.db.prepare('UPDATE source_state SET backoff_until=MAX(backoff_until,?) WHERE source_id=?').bind(publisherBackoff,source.id).run();}throw error;}
+   if(r.status===429||r.status>=500)publisherBackoff=retryAt(r.status,r.headers.get('retry-after'),0,now);
    if([401,403,451,429].includes(r.status)||r.status>=500)throw Error('facts_http_'+r.status);
    if(url!==source.robotsUrl&&optOut(r.headers.get('x-robots-tag')||''))throw Error('facts_optout');return r;
   };
-  let robotResponse=await request(source.robotsUrl,512000),robots=robotsPolicy(robotResponse.text,source,robotResponse.status),evidence=await robotsEvidence(robotResponse.text);robotResponse=null;
+  cachedRobots??=initialPrimarySource(source)?robotCache?.get(source.id):null;
+  const useCached=cachedRobots?.id===source.id&&cachedRobots.checkedAt<=now&&now-cachedRobots.checkedAt<3600000;
+  let robotResponse=useCached?{text:cachedRobots.text,status:cachedRobots.status??200}:await request(source.robotsUrl,512000),robots=robotsPolicy(robotResponse.text,source,robotResponse.status),evidence=await robotsEvidence(robotResponse.text);robotCache?.set(source.id,{id:source.id,url:source.robotsUrl,text:robotResponse.text,status:robotResponse.status,checkedAt:now});robotResponse=null;
   if(!evidence.matches(state.robotsHash)||!evidence.matches(source.robotsHash))throw Error('facts_robots_changed');
   if(robots.isAllowed(surface.url,BOT)!==true)throw Error('facts_robots_disallow');
   const delay=Math.max(1000,(robots.getCrawlDelay(BOT)||0)*1000);if(delay>10000)throw Error('facts_crawl_delay_review');await sleep(delay);
@@ -91,7 +129,8 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   let response=await request(surface.url,surface.method==='explicit_agm_article_fields'?1000000:512000);
   if([404,410].includes(response.status))throw Error('facts_http_'+response.status);
   if(response.status!==200||!/text\/html/i.test(response.headers.get('content-type')||''))throw Error('facts_source_unavailable');
-  proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text)};
+  if(onPrimaryResponse)await onPrimaryResponse(response.text,row,source);
+  proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text),...(initialPrimarySource(source)?{pipelineVersion:PRIMARY_ANNOUNCEMENT_PARSER,evidenceKey,publishedAt:row.published_at}:{})};
   try{
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
    else if(surface.method==='explicit_shimamura_product_fields'){
@@ -127,22 +166,24 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
     finally{for(const e of entries){e.title='';e.eventTitle='';}entries.length=0;}
    }
   }catch(error){
-   if(!['facts_scope_uncertain','facts_identity_changed','facts_event_missing','facts_parser_failure'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
-   const parsed=parseProductFamilyEvidence(response.text,source,row);
+   if(!['facts_scope_uncertain','facts_identity_changed','facts_event_missing','facts_parser_failure','facts_date_changed'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
+   proof.parserFailures=[{parser:surface.parser,reason:error.message}];
+   let parsed;try{parsed=parseProductFamilyEvidence(response.text,source,row);proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;}catch(familyError){proof.parserFailures.push({parser:PRODUCT_FAMILY_PARSER,reason:/^facts_[a-z_]+$/.test(familyError.message)?familyError.message:'facts_parser_failure'});parsed=parsePrimaryAnnouncement(response.text,source,row);proof.extractionMethod='explicit_primary_announcement_fields';proof.parserVersion=PRIMARY_ANNOUNCEMENT_PARSER;}
    items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
-   proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;
   }finally{response.text='';response=null;}
   outcome='verified_surface';
  }catch(error){
   outcome=/^facts_/.test(error.message)?error.message:['redirect_blocked','response_too_large','listing_optout','listing_structure_changed','robots_unavailable','robots_unparseable'].includes(error.message)?'facts_'+error.message:error.name==='AbortError'||error.name==='TimeoutError'?'facts_timeout':'facts_parser_failure';
-  items=[];proof=null;
+  items=[];if(proof)proof={...proof,failureReason:outcome};
  }finally{
   if(acquired){
    // Match the collector's fail-closed stop/backoff boundary, without claiming a new
    // successful source-health run. Existing publication health is not fabricated.
    if(['facts_http_401','facts_http_403','facts_http_451','facts_optout','facts_listing_optout','facts_robots_changed','facts_robots_disallow'].includes(outcome))await store.db.prepare('UPDATE source_state SET disabled=1,lease_until=0 WHERE source_id=?').bind(source.id).run();
-   else if(outcome==='facts_http_429'||/^facts_http_5/.test(outcome))await store.db.prepare('UPDATE source_state SET backoff_until=MAX(backoff_until,?),lease_until=0 WHERE source_id=?').bind(now+(outcome==='facts_http_429'?DAY:6*3600000),source.id).run();
+   else if(outcome==='facts_http_429'||/^facts_http_5/.test(outcome))await store.db.prepare('UPDATE source_state SET backoff_until=MAX(backoff_until,?),lease_until=0 WHERE source_id=?').bind(Math.max(publisherBackoff,now+(outcome==='facts_http_429'?DAY:6*3600000)),source.id).run();
    else await store.db.prepare('UPDATE source_state SET lease_until=0 WHERE source_id=?').bind(source.id).run();
+   const healthCode=({'facts_http_401':'http_401','facts_http_403':'http_403','facts_http_451':'http_451','facts_http_429':'rate_limited','facts_robots_changed':'robots_changed_review','facts_robots_disallow':'robots_disallow','facts_optout':'header_optout','facts_redirect_blocked':'maintenance_redirect'})[outcome]||(/^facts_http_5/.test(outcome)?'upstream_error':null);
+   if(healthCode)await store.recordHealth({sourceId:source.id,...healthForOutcome(healthCode),checkedAt:now,nextEligibleAt:Math.max(publisherBackoff,now+DAY)});
   }
   await store.db.prepare('UPDATE news_facts_sources SET lease_until=0,outcome=?,items_json=?,proof_json=? WHERE source_id=? AND lease_token=?').bind(outcome,JSON.stringify(items),proof?JSON.stringify(proof):null,cacheKey,token).run();
  }
@@ -166,6 +207,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
   const surface=await verifiedSurface(store,source,registry,row,now,pepper,options);
   outcome=surface.outcome;
+  if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason)provenance=[{...failure,factField:'_extraction_failure'}];}catch{}}
   if(outcome==='verified_surface'){
    const item=JSON.parse(surface.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url),proof=JSON.parse(surface.proof_json||'null');
    if(!item)outcome='facts_not_on_current_surface';
@@ -175,7 +217,9 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
     const facts=item.productFacts,old=before.facts;
     const changedIdentity=old&&['brand','product','artist','performer','person'].some(k=>old[k]&&facts[k]!==old[k]);
     if(changedIdentity&&!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof)&&!productArticleIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
-    else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});}
+    else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});
+     if(before.errors.includes('facts_provenance_invalid')){patch={product_facts:JSON.stringify(facts),category:facts.category,event_type:item.eventType,label:factualLabel(facts,item.eventType)||row.label,topic_key:row.topic_key,event_ends_at:eventEndsAt(facts)};outcome='facts_provenance_recovered';}}
+
     else{
      const category=facts.category,label=factualLabel(facts,item.eventType)||row.label;
      provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});

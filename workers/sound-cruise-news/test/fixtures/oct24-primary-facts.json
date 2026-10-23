@@ -1,0 +1,209 @@
+{
+  "note": "Facts-only projections from six authorized 2026-10-24 primary responses. DOM tests reconstruct structural fixtures; full original responses were additionally replayed in memory through both cron entrypoints, never saved. No publisher headline or body retained.",
+  "cases": [
+    {
+      "id": "d285f08bbe7cfcc79899e66008e640c75f66c1fb2ade70063c9793ed16f8de77",
+      "sourceId": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/101424/",
+      "publishedAt": "2026-10-22T15:00:00.000Z",
+      "initialCategory": "recording_audio",
+      "facts": {
+        "keyboardKeys": 37,
+        "kind": "primary_product_notice",
+        "brand": "Akai Professional",
+        "product": "MPK Mini Plus II",
+        "models": [
+          "MPK Mini Plus II"
+        ],
+        "version": null,
+        "category": "dtm_software",
+        "productType": "mini_keyboard",
+        "identifierBasis": "verified_primary_announcement",
+        "listingSource": "shimamura",
+        "articleUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/101424/",
+        "subjectEvidence": {
+          "role": "primary_product_definition",
+          "boundModels": 1,
+          "typeBasis": "explicit_type"
+        },
+        "announcement": {
+          "actor": "shimamura",
+          "action": "release",
+          "signal": "explicit_release",
+          "date": "2026-10-23"
+        }
+      },
+      "responseHash": "ea778b3b84503b65d20ec4a589559e90c8de2d88c83c598141cf6db0ee1ccc69",
+      "capturedAt": 1792793888304
+    },
+    {
+      "id": "09c0dd2acb3c250385447e0053745e45edf316a5b11962ae0c37af9155bff7cd",
+      "sourceId": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173764/",
+      "publishedAt": "2026-10-22T15:00:00.000Z",
+      "initialCategory": "recording_audio",
+      "facts": {
+        "kind": "primary_product_notice",
+        "brand": "beyerdynamic",
+        "product": "MMX 100 wireless black / MMX 100 wireless arctic white",
+        "models": [
+          "MMX 100 wireless black",
+          "MMX 100 wireless arctic white"
+        ],
+        "version": null,
+        "category": "recording_audio",
+        "productType": "headset",
+        "identifierBasis": "verified_primary_announcement",
+        "listingSource": "ikebe",
+        "articleUrl": "https://www.ikebe-gakki-pb.com/new_product/173764/",
+        "subjectEvidence": {
+          "role": "primary_product_definition",
+          "boundModels": 2,
+          "typeBasis": "explicit_type"
+        },
+        "announcement": {
+          "actor": "ikebe",
+          "action": "appearance",
+          "signal": "explicit_new_appearance"
+        }
+      },
+      "responseHash": "a65c938eea899cde4bc347e9249f5ad046f1632182312028da701eb90400be9a",
+      "capturedAt": 1792793906779
+    },
+    {
+      "id": "14425d316fefd12afd89ec106fd35296759f581b75252052fb0fa017549691c6",
+      "sourceId": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173752/",
+      "publishedAt": "2026-10-22T15:00:00.000Z",
+      "initialCategory": "recording_audio",
+      "facts": {
+        "kind": "primary_product_notice",
+        "brand": "ADAM",
+        "product": "H715 Reference",
+        "models": [
+          "H715 Reference"
+        ],
+        "version": null,
+        "category": "recording_audio",
+        "productType": "headphone",
+        "identifierBasis": "verified_primary_announcement",
+        "listingSource": "ikebe",
+        "articleUrl": "https://www.ikebe-gakki-pb.com/new_product/173752/",
+        "subjectEvidence": {
+          "role": "primary_product_definition",
+          "boundModels": 1,
+          "typeBasis": "explicit_type"
+        },
+        "announcement": {
+          "actor": "ikebe",
+          "action": "appearance",
+          "signal": "explicit_new_appearance"
+        }
+      },
+      "responseHash": "347595a9e0cfd5d3d03792fa7affe7261b43fa5bd3a0187ec615c810cad16652",
+      "capturedAt": 1792793996697
+    },
+    {
+      "id": "70de1062eb1dd40d88c735337bcacb56fe72f1af71dc35c326a489bd93b7fd86",
+      "sourceId": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173741/",
+      "publishedAt": "2026-10-22T15:00:00.000Z",
+      "initialCategory": "amps_effects",
+      "facts": {
+        "kind": "primary_product_notice",
+        "brand": "Marshall",
+        "product": "Marshall x Hendrix 60th Anniversary 1959 bundle (1959WH halfstack /w FUZZ FACE)",
+        "models": [
+          "Marshall x Hendrix 60th Anniversary 1959 bundle (1959WH halfstack /w FUZZ FACE)"
+        ],
+        "version": null,
+        "category": "amps_effects",
+        "productType": "guitar_amp_bundle",
+        "identifierBasis": "verified_primary_announcement",
+        "listingSource": "ikebe",
+        "articleUrl": "https://www.ikebe-gakki-pb.com/new_product/173741/",
+        "subjectEvidence": {
+          "role": "primary_product_definition",
+          "boundModels": 1,
+          "typeBasis": "explicit_bundle"
+        },
+        "announcement": {
+          "actor": "ikebe",
+          "action": "scheduled_release",
+          "signal": "explicit_scheduled_release",
+          "date": "2026-10-25"
+        }
+      },
+      "responseHash": "06c0d4e4b7588360bd554040711ba68c67bdb593166e7299d72da019e9f635f7",
+      "capturedAt": 1792794007226
+    },
+    {
+      "id": "38f133ca678dfe8b846c6f8ab7ae5b367890895ef136ac454bb16e52357072e4",
+      "sourceId": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173724/",
+      "publishedAt": "2026-10-22T15:00:00.000Z",
+      "initialCategory": "electric_guitar_bass",
+      "facts": {
+        "kind": "primary_product_notice",
+        "brand": "Ibanez",
+        "product": "j.custom RGR8270-BD / j.custom RGR8270-WS",
+        "models": [
+          "j.custom RGR8270-BD",
+          "j.custom RGR8270-WS"
+        ],
+        "version": null,
+        "category": "electric_guitar_bass",
+        "productType": "electric_guitar",
+        "identifierBasis": "verified_primary_announcement",
+        "listingSource": "ikebe",
+        "articleUrl": "https://www.ikebe-gakki-pb.com/new_product/173724/",
+        "subjectEvidence": {
+          "role": "primary_product_definition",
+          "boundModels": 2,
+          "typeBasis": "bound_guitar_construction"
+        },
+        "announcement": {
+          "actor": "ikebe",
+          "action": "appearance",
+          "signal": "explicit_new_appearance"
+        }
+      },
+      "responseHash": "862659fd5ed4cb07b43e973ebe85f939919fed5c07c11ae81e7ccd7c6d8d29cb",
+      "capturedAt": 1792794017107
+    },
+    {
+      "id": "0c7bc55992c80688791dd67c1d610144a715d0d27318078184cd790220034543",
+      "sourceId": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173698/",
+      "publishedAt": "2026-10-22T15:00:00.000Z",
+      "initialCategory": "electric_guitar_bass",
+      "facts": {
+        "signatureModel": true,
+        "kind": "primary_product_notice",
+        "brand": "Gibson",
+        "product": "Tak Matsumoto DC Standard Flame Top/Translucent Pink",
+        "models": [
+          "Tak Matsumoto DC Standard Flame Top/Translucent Pink"
+        ],
+        "version": null,
+        "category": "electric_guitar_bass",
+        "productType": "electric_guitar",
+        "identifierBasis": "verified_primary_announcement",
+        "listingSource": "ikebe",
+        "articleUrl": "https://www.ikebe-gakki-pb.com/new_product/173698/",
+        "subjectEvidence": {
+          "role": "primary_product_definition",
+          "boundModels": 1,
+          "typeBasis": "bound_guitar_construction"
+        },
+        "announcement": {
+          "actor": "ikebe",
+          "action": "announcement",
+          "signal": "explicit_new_model"
+        }
+      },
+      "responseHash": "9972289f8bbbae45d8494e2249b045264cd4edcebce3297a23e15ec0034610b7",
+      "capturedAt": 1792794026593
+    }
+  ]
+}

@@ -27,10 +27,10 @@ test('production: only live-validated unique allowlisted sources may be enabled'
  for(const ids of ['[]','["unknown"]','["shimamura","shimamura"]','bad'])assert.equal(runtimeSources({...config,NEWS_SOURCE_IDS:ids},[source],now)[0].enabled,false);
  assert.equal(runtimeSources(config,[source],now+91*DAY)[0].enabled,false);
 });
-test('production: scheduled collection prepares formal review without publishing or deciding; no article requests',async()=>{
+test('production: scheduled collection prepares formal review without publishing or deciding; bounded initial detail preparation',async()=>{
  const {s,env}=await setup(),calls=[];
  const result=await run(env,now,{fetcher:async url=>{calls.push(url);return options.fetcher(url);}});
- assert.equal(calls.length,2);assert.ok(calls.every(url=>url.endsWith('robots.txt')||url===source.discoveryUrl));
+ assert.equal(calls.length,3);assert.equal(calls.filter(url=>url.endsWith('robots.txt')).length,1);assert.equal(result.results[0].initialRecovery.attempted,1);
  assert.equal(result.results[0].published,0);
  const rows=await s.candidates();assert.equal(rows.length,2);assert.equal(rows.filter(r=>r.review_status==='approved').length,0);assert.equal(rows.filter(r=>r.publication_decision==='PUBLISH_REVIEW').length,2);
  assert.equal(result.results[0].preparation.readyNew,1);assert.equal((await s.db.prepare('SELECT count(*) n FROM news_decision_ledger').first()).n,0);
