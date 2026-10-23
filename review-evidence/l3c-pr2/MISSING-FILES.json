@@ -1,0 +1,84 @@
+{
+  "missing_requested_directories": [],
+  "missing_checked_required_files": [],
+  "separate_native_stdout_captures_not_present": [
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/stale-renew",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/observed-revocation",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/pro-device",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/control",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/evidence",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/evidence-admission",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/pointer-safety",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/policy",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/pointer",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/referential",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    },
+    {
+      "directory": "cruise-l3c-security-3xq39h_6/native11/cas",
+      "capture": "separate stdout log",
+      "status": "not present",
+      "result_json_present": true,
+      "note": "result.json is included unchanged; no stdout file reconstructed"
+    }
+  ],
+  "unavailable_special_entries": []
+}
