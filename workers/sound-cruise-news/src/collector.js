@@ -13,7 +13,8 @@ import { SOURCES, legalGate } from './registry.js';
 import { boundedFetch, sourceUrl, robotsPolicy, retryAt, hash, optOut, BOT, robotsEvidence } from './policy.js';
 import { parseMetadata, candidateFrom, factualLabel } from './metadata.js';
 import { healthForOutcome } from './source-health.js';
-export function nextDailyCollectionAt(now){const day=86400000,utcSixJst=Math.floor(now/day)*day+21*3600000;return utcSixJst>now?utcSixJst:utcSixJst+day;}
+import {nextDailyCollectionAt} from './collection-clock.js';
+export {nextDailyCollectionAt} from './collection-clock.js';
 export async function collectSource(id,store,options={}){
  const report=await collectSourceInternal(id,store,options);
  try{if(options.mode==='production'){const recovery=options.preparationMaintenance,measurement=recovery?{...report,requests:report.requests+recovery.requests,requestCounts:{...report.requestCounts,robots:(report.requestCounts?.robots||0)+recovery.requests},maintenanceOutcome:recovery.outcome}:report;await recordPreparationMetrics(store,measurement,options.now||Date.now(),options.registry||SOURCES,options.pepper);report.preparation=measurement.preparation;}}
@@ -50,7 +51,7 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
   next.nextAt=Math.max(next.nextAt,attemptedAt+intervalMs);
   const requestKind=url===source.robotsUrl?'robots':agmExpanded&&agmArticleUrl(url,'news')?'article':listing||agmExpanded&&url.endsWith('/news/')?'listing':'feed';
   report.requests++;report.requestCounts[requestKind]=(report.requestCounts[requestKind]||0)+1;
-  let response;try{response=await boundedFetch(url,{fetcher,...options});}catch(error){if(error.redirectEvidence)await store.recordRedirect(id,error.redirectEvidence);if(listing&&url===SHIMAMURA_LISTING_URL&&error.message==='response_too_large')throw Error('listing_too_large');if(error.name==='TimeoutError'||error.name==='AbortError')throw Error('request_timeout');throw error;}
+  let response;try{response=await boundedFetch(url,{fetcher,evidenceAt:attemptedAt,...options});}catch(error){if(error.redirectEvidence)await store.recordRedirect(id,error.redirectEvidence);if(listing&&url===SHIMAMURA_LISTING_URL&&error.message==='response_too_large')throw Error('listing_too_large');if(error.name==='TimeoutError'||error.name==='AbortError')throw Error('request_timeout');throw error;}
   if([401,403,451].includes(response.status)){next.disabled=true;throw new Error('http_'+response.status);}
   if(response.status===429||response.status>=500){next.failures=(state.failures||0)+1;next.nextAt=Math.max(next.nextAt,retryAt(response.status,response.headers.get('retry-after'),next.failures,now));next.backoffUntil=next.nextAt;throw new Error(response.status===429?'rate_limited':'upstream_error');}
   if(url!==source.robotsUrl&&optOut(response.headers.get('x-robots-tag')||'')){next.disabled=true;throw new Error('header_optout');}

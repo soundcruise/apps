@@ -1247,3 +1247,22 @@ Kikutani has no separate Gmail draft in this inventory; earlier form text is hel
   outreach, no automatic publication/rejection, no article/data/teacher edits.
   Existing canonical URLs, publication dates, HOT/order and manual categories are
   protected. All older permission records remain historical evidence unchanged.
+
+
+## 2026-10-23 — Daily 06:00 JST maintenance recovery timing (NEWS 0.36.2)
+
+- Normal discovery and reviewed AGM/Shimamura robots-maintenance recovery share
+  `0 21 * * *` UTC (06:00 JST next calendar day). The hourly :17 timer keeps
+  retention/pending facts only; it performs no maintenance discovery/backfill.
+- The rolling 24-hour maintenance wait was NEWS policy, not a new publisher
+  condition. The identified legacy wait is aligned to the next daily slot.
+  Explicit Retry-After, unexplained longer holds, robots review, permissions,
+  takedown/opt-out and intentional OFF remain binding; no blanket source unlock.
+- AGM's saved 2026-10-23 08:11:50 JST reviewed 302 is eligible for the regular
+  2026-10-24 06:00 probe, if unchanged. No publisher HTTP is used to validate this
+  release. Real restoration and backfill remain unconfirmed until that run.
+- AGM RSS100/News30/detail9/HTTP16, 7-day evidence cache and deferred URL receipts
+  stay unchanged. Normal recovery reuses its robots response; no redirect follow.
+- No permission expansion, Yamaha/Deviser/Martin enablement, article edits,
+  automatic publication, human decision or teacher data change is authorized by
+  this scheduling change. Prior permission/history records are retained.

@@ -53,14 +53,19 @@ export async function robotsEvidence(text){
  const legacy=await Promise.all([...new Set([text,normalized,normalized+'\n',normalized.replaceAll('\n','\r\n'),normalized.replaceAll('\n','\r\n')+'\r\n'])].map(hash));
  return {digest,matches:expected=>!expected||expected===digest||legacy.includes(expected)};
 }
+export function publisherRetryAfterAt(response,now){
+ const header=response.headers.get('retry-after'),until=header&&/^\d+$/.test(header.trim())?now+Number(header)*1000:Date.parse(header);
+ return Number.isSafeInteger(until)&&until>now?until:0;
+}
 export function redirectEvidence(url,response,now=Date.now()){
  const safe=value=>{try{const u=new URL(value,url);if(!['http:','https:'].includes(u.protocol))return '[invalid URL]';u.username='';u.password='';u.search='';u.hash='';return u.href.slice(0,1000);}catch{return '[invalid URL]';}};
- return {status:response.status,location:response.headers.has('location')?safe(response.headers.get('location')):null,sourceUrl:safe(url),timestamp:new Date(now).toISOString()};
+ const until=publisherRetryAfterAt(response,now);
+ return {status:response.status,location:response.headers.has('location')?safe(response.headers.get('location')):null,sourceUrl:safe(url),timestamp:new Date(now).toISOString(),...(Number.isSafeInteger(until)&&until>now?{retryAfterAt:until}:{})};
 }
 // All redirects are rejected (limit zero): no discovery URL can escape the registry.
-export async function boundedFetch(url,{fetcher=fetch,headers={},maxBytes=1000000}={}) {
+export async function boundedFetch(url,{fetcher=fetch,headers={},maxBytes=1000000,evidenceAt=Date.now()}={}) {
  const response=await fetcher(url,{method:'GET',redirect:'manual',credentials:'omit',headers:{'User-Agent':UA,...headers},signal:AbortSignal.timeout(15000)});
- if(response.status>=300 && response.status<400 && response.status!==304){const error=new Error('redirect_blocked');error.redirectEvidence=redirectEvidence(url,response);await response.body?.cancel();throw error;}
+ if(response.status>=300 && response.status<400 && response.status!==304){const error=new Error('redirect_blocked');error.redirectEvidence=redirectEvidence(url,response,evidenceAt);await response.body?.cancel();throw error;}
  if(Number(response.headers.get('content-length'))>maxBytes){await response.body?.cancel();throw new Error('response_too_large');}
  if(response.status!==200){await response.body?.cancel();return {status:response.status,headers:response.headers,text:''};}
  const reader=response.body?.getReader();let total=0;const chunks=[];

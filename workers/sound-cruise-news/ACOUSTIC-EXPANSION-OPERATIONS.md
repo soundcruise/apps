@@ -38,12 +38,13 @@ gaps is unknown, not zero. No new archive requests are implicitly authorized.
 
 Read-only D1 snapshot: 214 candidates, 162 public articles. AGM's last successful
 collection was 2026-10-21 06:00:30 JST. The 2026-10-23 08:11:50 JST robots probe
-returned the reviewed 302 to the home page. Next eligible time is 2026-10-24
-08:11:50 JST; the existing hourly :17 timer may probe after that time. The next
-06:00 run must respect the backoff. No attempt is made today.
+returned the reviewed 302 to the home page. NEWS 0.36.1 recorded a rolling internal deadline of 2026-10-24
+08:11:50 JST. NEWS 0.36.2 supersedes only that maintenance timing: the next
+regular 2026-10-24 06:00 JST run can probe once, subject to external holds and
+the reviewed recovery gates. Hourly recovery is removed. No attempt is made today.
 
 Saved state/audit/run rows were replayed in an isolated database: eligibility is
-false now and true at the existing due time, without HTTP or production writes.
+false now and true at the next regular 06:00 slot, without HTTP or production writes.
 No stored AGM detail cache/discovery receipt exists in the current D1 snapshot;
 therefore no stopped-period article can be recovered from those receipts today.
 Original discovery responses are not retained, so the actual missing count cannot

@@ -35,12 +35,12 @@ Two batched SQL statements atomically save receipt JSON and the aggregate run.
 Repeated run IDs are idempotent. Measurement failures log a separate event and do
 not disable a publisher or change candidate validity. Retention is 90 days.
 
-The existing hourly cron may execute an already-reviewed maintenance recovery
-when its existing backoff expires after 06:00. Eligibility checks alone perform
-no HTTP. The same fixed robots probe, strict reviewed redirect/hash checks, daily
-lease and shared acquisition clock apply. A successful probe supplies cached
-robots to that day's one collection. No arbitrary stopped source is resumed,
-no backoff is shortened and no failed probe is retried via another surface.
+From NEWS 0.36.2, reviewed maintenance recovery belongs to the daily 06:00 JST
+collection, not the hourly timer. The identified internal rolling-day delay is
+aligned to that next slot; explicit publisher Retry-After and unexplained longer
+holds remain binding. The single robots probe is shared with the collector.
+See COLLECTION-RECOVERY-OPERATIONS.md for safety gates and schedule telemetry.
+Hourly pending-facts recovery and retention remain independent and unchanged.
 
 ## Read-only audit
 
