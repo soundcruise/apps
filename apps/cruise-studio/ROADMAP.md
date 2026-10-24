@@ -1,3 +1,29 @@
+# Studio 0.47.9 — Metronome BPM隔離縦断保存（未公開topic）
+
+Port1.24.12、Project schema2。PR #14固定headを親に、Port設定owner・saveBpm policy・Account source pin・Authority CAS/oplogとfixture最終認可を接続する。Studioは一時draftと明示save/reloadのみ。操作ID別immutable pending pinを保存前readbackし、crash/reopenはhistorical receipt照合だけで自動再実行しない。原本・正常B・旧writer gateを維持。通常boot未接続、Shared Write OFF / canWrite=false。本番backend再認可・資格expiry・consumer切替・migration/binary/Cloud・最終admissionは未完了。契約: [BPM隔離保存](../cruise-port/docs/METRONOME_BPM_ISOLATED_SAVE.md)。以下は履歴。
+
+# Studio 0.47.8 — Binary / Backup隔離復旧（未公開topic）
+
+Port1.24.11、Project schema2。PR #13固定headを親とし、既存Shared backup ownerの固定pinとPort binary ownerのimmutable追加・readbackを利用する。停止fact/Account sourceを照合し、部分保存・応答喪失・reopen・容量不足・破損をfail-closedで扱う。archiveVerifiedはhistorical検証のみ。通常writer、Cloud、認証切替、live restore、Shared Writeは未接続、canWrite=false。原本・未知/孤立データを保持する。同一origin raw writer完全拒否・物理電源断耐久性は未保証。契約: [Binary/Backup復旧](../cruise-port/docs/BINARY_BACKUP_RECOVERY.md)。以下は履歴。
+
+# Studio 0.47.7 — Account / Port隔離cutover・復旧 v1（未公開topic）
+
+PR #12固定head e35c965247f70430daa66dff60208a65b5299c7aを親とする内部保守候補。Port1.24.10、Project schema2、Shared Write OFF / canWrite=false。既存Accountのin-place物理1→2→3、Authority内のtyped migration intentとrecovery barrierの原子的確定、manifestによるPort原本保全、応答喪失/crash/reopenのhistorical照合を追加。完了はverified-inertであり、通常writer・Cloud・binary・Port pointer切替・認証切替は未接続。異なる正常B世代のreceipt/preparedを旧Aが変更しない。契約・未完了gate: [Account/Port cutover](../cruise-port/docs/ACCOUNT_PORT_CUTOVER.md)。以下は履歴。
+
+# Studio 0.47.6 — Account consumer隔離移行 v1（未公開topic）
+
+PR #11固定head 155438f56a3f7ed16aff3a7bcc4fb486923da27bを親とする内部保守候補。Port1.24.9、Project schema2、Shared Write OFF / canWrite=false。Sharedの最小権限観測readerをPort SyncCenter controllerとStudio Hostへ明示注入。通常起動は未接続で、writer/Cloud/認証の本番切替なし。ownerのas-of-readと資格expiry・最終admissionを区別し、非同期処理後のfull source/Authority照合・失効A/正常B・通知欠落/別タブ/reopenを検証。全consumer棚卸し・未移行writer・migration/binary/最終admission条件: [Consumer契約](../cruise-port/docs/ACCOUNT_CONSUMER_MIGRATION.md)。試験・独立レビュー・GitHub保全の実測証跡はrepo外で確定。以下は履歴。
+
+# Studio 0.47.5 — Account owner generation/freshness（隔離topic）
+
+PR #10固定headを親とする内部保守候補。Port1.24.8、Project schema2、Studio0.x.yを維持。Account ownerがprimaryの単一SELECTでAccount/device/Port membership世代とread gateを確認する未公開APIを追加。5秒の観測期限を資格そのものの期限と区別し、source/Authority pin・nonce・遅延renew・expiry/時計巻戻し・失効A/正常B保護を隔離試験する。通常consumer/production routerは未接続、Shared Write OFF / canWrite=false。契約: [Owner generation/freshness](../../workers/sound-cruise-sync/ACCOUNT_OWNER_CONTEXT_CONTRACT.md)。以下は履歴。
+
+# Studio 0.47.4 — Account provider / consumer接続契約（隔離topic）
+
+公開済みmain ce156230 / Studio0.47.3 / Port1.24.6を基準とする内部保守候補。正式AccountClientのsummary/devicesを注入transportで利用するPort owner観測providerと、Studioのpure readonly projectionを追加。永続source/revision・Authority Control/pointerを照合し、失効応答は既存transactionで停止intentを記録する。Port membership世代と資格freshness証明は現APIに存在せず未確認のまま。通常writer・Cloud・legacy consumerの本番移行は未接続、Shared Write OFF / canWrite=false / schema2を維持する。
+
+Studioは正式リリース承認まで0.x.y。Port保守候補1.24.7。契約・移行一覧・残る保存gateは [Account providerとconsumer](../cruise-port/docs/ACCOUNT_PROVIDER_CONSUMERS.md)。以下は過去の工程記録。
+
 # Studio 0.46.0 Account + PC UI 統合候補（未公開）
 
 A `475fbc97` とB `78e1e87f`を統合。Port保守候補1.24.2 / StudioProject schema2。Account coordinatorは隔離のみ、通常writer未接続、Shared Write OFF、PortDataHost.canWrite=false。Home/NEWS/My Appsはreadonly。次の保存基盤工程と受入条件は [統合と保存基盤準備](docs/ACCOUNT_PC_INTEGRATION_READINESS.md)。main統合・Production公開は別承認。以下のtopic記録・過去の工程を保持する。

@@ -1,10 +1,12 @@
 // Port owns the data. Only narrow frozen read models cross this boundary.
-import { projectPractice } from './practice-projection.mjs?v=0.47.3';
-import { projectLibrary } from './library-projection.mjs?v=0.47.3';
+import { projectPractice } from './practice-projection.mjs?v=0.47.9';
+import { projectLibrary } from './library-projection.mjs?v=0.47.9';
+import { isAccountObservationReader } from '../../../shared/sync-account/account-observation-consumer.mjs';
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 const closedCapabilities = freeze({ canSaveBpm: false, canSaveAdvanced: false, canListPresets: true, canApplyPreset: false, canCreatePreset: false, canDeletePreset: false, canQueueSync: false, canPushCloud: false });
 const unknown = generation => freeze({ generation, canRead: true, canWrite: false, account: 'unknown', accountId: null, sync: 'unknown', pro: 'unknown', dataset: null });
-export function createPortDataHost({ connect, schema }) {
+export function createPortDataHost({ connect, schema, isolatedAccountConsumer = null }) {
+    if(isolatedAccountConsumer!==null&&!isAccountObservationReader(isolatedAccountConsumer))throw Error('account-observation-reader-required');
     let state = unknown(0), generation = 0, disposed = false, connection = null, opening = null, requested = false, requestId = 0, expiryTimer = null;
     const listeners = new Set();
     let readiness = freeze({ state: 'read-only', allowed: false, reason: 'old-build-unknown' });
@@ -31,11 +33,13 @@ export function createPortDataHost({ connect, schema }) {
             if (!source || disposed || epoch !== generation || sequence !== requestId) return state;
             const accountEpoch = source.generation();
             const current = () => !disposed && epoch === generation && sequence === requestId && source.generation() === accountEpoch;
-            const account = await source.account();
+            const observation = isolatedAccountConsumer ? await isolatedAccountConsumer.read() : null;
+            const account = isolatedAccountConsumer ? null : await source.account();
             if (!current()) return state;
-            const [local, dataset, pro] = await Promise.all([source.localStatus(), source.dataset(), source.pro()]);
+            const [local, dataset, pro] = await Promise.all([isolatedAccountConsumer ? {known:false} : source.localStatus(), source.dataset(), source.pro()]);
             if (!current()) return state;
-            const currentAccount = await source.account();
+            const currentAccount = isolatedAccountConsumer ? null : await source.account();
+            const ownerCurrent = isolatedAccountConsumer ? await isolatedAccountConsumer.current(observation) : false;
             if (disposed || epoch !== generation || sequence !== requestId || source.generation() !== accountEpoch) return state;
             if (account?.accountId !== currentAccount?.accountId || account?.accountCredential !== currentAccount?.accountCredential) { invalidate(); return state; }
             const proState = typeof pro === 'string' ? pro : pro.state;
@@ -50,7 +54,10 @@ export function createPortDataHost({ connect, schema }) {
             const settings = dataset.metronome === null ? { schemaState: 'absent', savedBpm: null, effective: null } : decode(dataset.metronome);
             const presets = (dataset.presets || []).filter(item => typeof item?.id === 'string' && typeof item?.name === 'string').map((item, order) => ({ id: item.id, name: item.name, order, ...decode({ ...item, version: dataset.presetsSchema > 1 ? 999 : 3 }) }));
             const sync = local.conflictCount ? 'conflict' : local.pendingCount ? 'pending' : local.credentialState === 'usable' ? 'synced' : local.state === 'error' ? 'error' : 'unknown';
-            publish({ generation, canRead: true, canWrite: false, account: account?.accountId ? (local.membershipKnown ? 'membership-known' : 'account-known') : 'no-account-known', accountId: account?.accountId || null,
+            publish({ generation, canRead: true, canWrite: false,
+                account: isolatedAccountConsumer ? (ownerCurrent?'owner-observed-readonly':'unknown') : account?.accountId ? (local.membershipKnown ? 'membership-known' : 'account-known') : 'no-account-known',
+                accountId: isolatedAccountConsumer ? (ownerCurrent?observation.accountId:null) : account?.accountId || null,
+                ...(isolatedAccountConsumer ? {accountObservation:ownerCurrent?observation:null} : {}),
                 runtimeGeneration: source.identity()?.generation ?? null, sync, pro: proState,
                 dataset: { revision: dataset.revision, repositoryGeneration: dataset.generation, state: dataset.state, settings, presets, practice: projectPractice(dataset.practiceValues), library: projectLibrary(dataset.libraryValues) } });
         } catch (_) {
@@ -60,6 +67,7 @@ export function createPortDataHost({ connect, schema }) {
     }
     async function checkWriteReadiness({ action = 'saveBpm' } = {}) {
         if (disposed) return freeze({ state: 'blocked', allowed: false, reason: 'disposed' });
+        if (isolatedAccountConsumer) return freeze({state:'blocked',allowed:false,reason:'account-observation-readonly'});
         await readLocalStatus();
         const epoch = generation;
         const { evaluateWriteReadiness } = await import('../../../cruise-port/port-write-readiness.mjs');
@@ -83,7 +91,11 @@ export function createPortDataHost({ connect, schema }) {
             // No owner acquisition while production compatibility is unproven.
             return checkWriteReadiness({ action: 'pushCloud' });
         },
-        canRead: true, canWrite: false, getCachedStatus: () => state.sync === 'synced' && connection?.cachedStatus && connection.cachedStatus().credentialState !== 'usable' ? freeze({ ...state, sync: 'unknown' }) : state, readLocalStatus,
+        canRead: true, canWrite: false, getCachedStatus: () => {
+            if(isolatedAccountConsumer && state.accountObservation && isolatedAccountConsumer.peek()!==state.accountObservation)
+                return freeze({...state,account:'unknown',accountId:null,accountObservation:null,sync:'unknown'});
+            return state.sync === 'synced' && connection?.cachedStatus && connection.cachedStatus().credentialState !== 'usable' ? freeze({ ...state, sync: 'unknown' }) : state;
+        }, readLocalStatus,
         subscribe(fn) { if (disposed) return () => {}; listeners.add(fn); return () => listeners.delete(fn); },
         dispose() { if (disposed) return; disposed = true; generation++; requestId++; requested = false; clearTimeout(expiryTimer); expiryTimer = null; connection?.dispose(); listeners.clear(); state = unknown(generation); readiness = freeze({ state: 'blocked', allowed: false, reason: 'disposed' }); }
     });
