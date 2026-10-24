@@ -11,7 +11,7 @@ const account = id => ({ accountId: id, accountDeviceId: 'fixture-device-' + id,
 const summary = () => ({ account: { id: 'A', state: 'active', generation: 7 }, memberships: [{ appId: 'port', id: 'member-A', state: 'active', generation: 11 }] });
 const identity = { ...control().identity, ownership: 'bound-account', accountId: 'A', accountGeneration: 7, membershipId: 'member-A', membershipGeneration: 11 };
 const storage = globalThis.SoundCruiseSyncAccount.storage;
-let coordinator, store, token, handle, entered = false, release, gate = false, abortAccount = false;
+let coordinator, store, token, handle, entered = false, release, gate = false, afterCas = false, abortAccount = false, abortIntent = false;
 window.accountFixture = {
     async init({ name, seed = false }) {
         const scope = createTestAuthorityScope({ indexedDB, name, partitionId: 'fixture-partition' });
@@ -29,7 +29,11 @@ window.accountFixture = {
                     if (this.name === 'meta' && value?.accountId === 'B') { this.transaction.abort(); throw Error('fixture-abort'); }
                     return original.call(this, value, ...rest);
                 };
-                try { return await storage.changeAccountIfCurrent(...args); }
+                try {
+                    const result = await storage.changeAccountIfCurrent(...args);
+                    if (afterCas) { entered = true; await new Promise(resolve => { release = resolve; }); }
+                    return result;
+                }
                 finally { IDBObjectStore.prototype.put = original; }
             } } });
         token = await coordinator.observe({ generation: 'g1', summary: summary() });
@@ -41,11 +45,22 @@ window.accountFixture = {
             changes: { 'cruisePort.metronome': JSON.stringify({ ...JSON.parse(base.values['cruisePort.metronome']), bpm: 145 }) } });
     },
     commit: () => store.commit(handle),
-    transition: id => coordinator.transition({ context: token, operationId: crypto.randomUUID(), nextAccount: id === null ? null : account(id) }),
+    transition: async id => {
+        const original=IDBObjectStore.prototype.add;
+        if(abortIntent) IDBObjectStore.prototype.add=function(value,...args){
+            if(value?.kind==='account-transition'){this.transaction.abort();throw Error('fixture-intent-abort');}
+            return original.call(this,value,...args);
+        };
+        try {return await coordinator.transition({ context: token, operationId: crypto.randomUUID(), nextAccount: id === null ? null : account(id) });}
+        finally {IDBObjectStore.prototype.add=original;}
+    },
     setAccount: id => storage.setAccount(account(id), indexedDB),
     readAccount: async () => (await readExistingPortAccount(indexedDB))?.accountId ?? null,
     current: () => store.hydrate('g1'),
     status: () => coordinator.getCachedStatus(),
+    intents: () => store.accountTransitions('g1'),
+    afterCas: () => { afterCas = true; entered = false; },
+    abortIntent: () => { abortIntent = true; },
     gate: () => { gate = true; entered = false; },
     entered: () => entered,
     release: () => release(),

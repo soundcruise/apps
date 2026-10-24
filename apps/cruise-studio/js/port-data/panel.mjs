@@ -1,7 +1,7 @@
-import { createPortDataHost } from './host.mjs?v=0.46.0';
-import { connectPortReadOnly } from './connection.mjs?v=0.46.0';
-import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.46.0';
-import { describeAccountObservation } from './account-status-projection.mjs?v=0.46.0';
+import { createPortDataHost } from './host.mjs?v=0.47.0';
+import { connectPortReadOnly } from './connection.mjs?v=0.47.0';
+import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.47.0';
+import { describeAccountObservation } from './account-status-projection.mjs?v=0.47.0';
 const CS = globalThis.CruiseStudio;
 let host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema });
 CS.portDataHost = host;
@@ -54,6 +54,7 @@ function render(state) {
     detail.querySelector('[data-preset-name]').textContent = preset?.name || '';
     detail.querySelector('[data-preset-detail]').textContent = preset ? `BPM ${preset.savedBpm ?? '—'} · ${formats[preset.schemaState]} · Standard: BPMのみ` : '';
     detail.querySelector('button').disabled = loading || !preset || standardBpm(state, selectedId) === null;
+    panel.querySelector('#studio-port-preview-preset').disabled = loading || !preset || standardBpm(state, selectedId) === null;
     panel.querySelector('#studio-port-copy-status').textContent = '';
 }
 let off = host.subscribe(render); render(host.getCachedStatus());
@@ -76,6 +77,15 @@ function copy(presetId = null) {
 }
 panel.querySelector('#studio-port-copy-bpm').addEventListener('click', () => copy());
 panel.querySelector('#studio-port-copy-preset').addEventListener('click', () => { if (selectedId !== null) copy(selectedId); });
+panel.querySelector('#studio-port-preview-preset').addEventListener('click', async () => {
+    if (selectedId === null || loading || panel.closest('[hidden], [inert]') || CS.shellHost.getCommandContext().activeModal || CS.shellHost.keyboard.isIMEBlocked({})) return;
+    const state = host.getCachedStatus();
+    if (!copyStandardBpm(host, CS.metronomeM1, { revision: state.dataset?.revision, presetId: selectedId })) return;
+    const epoch = lifecycle;
+    const started = await CS.metronomeM1.start();
+    if (epoch !== lifecycle) return;
+    panel.querySelector('#studio-port-copy-status').textContent = started ? 'BPMだけを一時プレビュー中。詳細設定は適用せず、Port保存値も変更しません。' : 'プレビューを開始できません。他の音声を停止して再操作してください。';
+});
 const dispose = () => { lifecycle++; loading = false; requested = false; hadData = false; selectedId = null; button.disabled = false; window.removeEventListener('pagehide', dispose); CS.practice.attachHost(null); CS.library.attachHost(null); off(); host.dispose(); };
 window.addEventListener('pageshow', event => { if (event.persisted) { host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema }); CS.portDataHost = host; CS.practice.attachHost(host); CS.library.attachHost(host); off = host.subscribe(render); render(host.getCachedStatus()); window.addEventListener('pagehide', dispose, { once: true }); } });
 window.addEventListener('pagehide', dispose, { once: true });

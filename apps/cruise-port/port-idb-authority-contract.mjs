@@ -1,3 +1,4 @@
+import {validateAccountTransition} from './port-account-transition-intent.mjs';
 import {validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
 // L2a pure physical contract. No storage, network, Account or product activation.
 import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, PORT_DELETE_INTENTS,
@@ -140,6 +141,10 @@ export function validatePointer(p) {
 }
 export const reservationKey = (generation, operationId) => RESERVED_JOURNAL_PREFIX + digest([generation, operationId]);
 export function validateReservation(r, generation, operationId) {
+    if(r?.kind==='account-transition'){
+        if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');
+        validateAccountTransition(r);return;
+    }
     if(r?.kind==='evidence-lifetime'){validateEvidenceLifetimeRow(r);return;}
     assertJSONEvidence(r);
     const keys=['generation','operationId','schemaVersion','kind','fingerprint','action','policy','targetKeys','origin'];

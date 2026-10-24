@@ -11,6 +11,7 @@ import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapab
 import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
 import {evidenceLifetimeKey,evidenceLifetimeRow,validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
 import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard,invalidateTrustedProClock} from './port-authority-pro-device-adapter.mjs';
+import {captureAccountTransition,accountTransitionFingerprint,accountTransitionRow,validateAccountTransition,ACCOUNT_TRANSITION_INTENT_LIMIT} from './port-account-transition-intent.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
 // Explicit isolated adapter access; neither lease objects nor issuer authority escape.
@@ -36,7 +37,7 @@ export function installIsolatedAuthorityTestProvider(scope, provider) {
 }
 const corrupt = new Set(['recovery-required','head-invalid','control-invalid','control-identity-invalid','manifest-invalid',
     'manifest-digest-invalid','head-manifest-mismatch','manifest-intent-mismatch','record-invalid','oplog-invalid','journal-invalid','root-invalid','non-json-evidence',
-    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid','pointer-provenance-missing','pointer-provenance-mismatch','pointer-missing','namespace-invalid','namespace-provenance-missing','namespace-schema-unsupported','publication-fact-invalid','publication-identity-conflict','control-fact-invalid','evidence-lifetime-invalid']);
+    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid','pointer-provenance-missing','pointer-provenance-mismatch','pointer-missing','namespace-invalid','namespace-provenance-missing','namespace-schema-unsupported','publication-fact-invalid','publication-identity-conflict','control-fact-invalid','evidence-lifetime-invalid','account-intent-invalid','account-intent-barrier-missing']);
 const rejected = reason => ({ok:false,status:corrupt.has(reason)?'recovery-required':'rejected',reason});
 const positive = n => Number.isSafeInteger(n) && n > 0;
 const errorCode = error => typeof error?.code==='string' ? error.code : (error?.name === 'QuotaExceededError' ? 'quota-exceeded' : 'idb-error');
@@ -591,6 +592,115 @@ function makeStore(db,env,lifecycle,lease) {
             });
         });
     }
+    // Account intent is a typed fact in reservations, not a pending reservation.
+    // It commits alongside the restriction read by normal final admission.
+    const accountTransitionReceipts=new WeakMap();
+    async function beginAccountTransition(input={}) {
+        let q, capability;
+        try {
+            ({capability}=input);
+            const {capability: ignored,...request}=input;
+            q=captureAccountTransition(request);
+            verifyCapability(capability,{scope:env.scope,lease,purpose:'control:invalidate',generation:q.generation});
+        } catch(error) { return Promise.resolve(rejected(errorCode(error))); }
+        const accepted=await transact(COMMIT_STORES,'readwrite',ctx=>{
+            const verify=()=>verifyCapability(capability,{scope:env.scope,lease,purpose:'control:invalidate',generation:q.generation});
+            verify();
+            ctx.request(ctx.store('oplog').get([q.generation,q.operationId]),log=>{
+                if(log)throw fail('operation-id-payload-conflict');
+                ctx.request(ctx.store('reservations').get([q.generation,q.operationId]),existing=>{
+                    if(existing){
+                        validateReservation(existing,q.generation,q.operationId);
+                        if(existing.kind!=='account-transition'||existing.fingerprint!==accountTransitionFingerprint(q))throw fail('operation-id-payload-conflict');
+                        validateAccountTransition(existing);
+                        // Historical lookup never authorizes replaying the Account CAS.
+                        ctx.done({ok:true,status:'account-intent-historical',replayed:true,historical:true,operationAuthorized:false,canWrite:false});return;
+                    }
+                    readPointer(ctx,pointer=>{
+                        if(pointer?.activeGeneration!==q.generation)throw fail('generation-not-active');
+                        if(pointer.pointerEpoch!==q.expectedPointerEpoch)throw fail('pointer-stale');
+                        ctx.request(ctx.store('control').get(q.generation),old=>{
+                            validateControl(old);
+                            if(!equal(old.identity,q.identity)||old.identity.partitionId!==env.partitionId)throw fail('control-identity-mismatch');
+                            if(old.epoch!==q.expectedEpoch)throw fail('control-stale');
+                            if(old.identityInvalidated||old.recoveryRequired||old.state!=='active')throw fail('authority-invalidated');
+                            let count=0, scanned=0;
+                            ctx.request(ctx.store('reservations').openCursor(),cursor=>{
+                                if(cursor){
+                                    const order=env.indexedDB.cmp(cursor.key[0],q.generation);
+                                    if(order<0){cursor.continue([q.generation,'']);return;}
+                                    if(order>0){finish();return;}
+                                    if(++scanned>4096)throw fail('account-intent-scan-capacity');
+                                    if(cursor.value.generation===q.generation&&cursor.value.kind==='account-transition'){
+                                        validateAccountTransition(cursor.value);if(++count>=ACCOUNT_TRANSITION_INTENT_LIMIT)throw fail('account-intent-capacity');
+                                    }
+                                    cursor.continue();return;
+                                }
+                                finish();
+                            });
+                            function finish(){
+                                verify();const row=accountTransitionRow(q,old);
+                                ctx.request(ctx.store('control').put(row.accountTransition.after));
+                                ctx.request(ctx.store('reservations').add(row));
+                                ctx.done({ok:true,status:'account-intent-stopped',generation:q.generation,operationId:q.operationId,
+                                    controlEpoch:row.accountTransition.after.epoch,historical:true,operationAuthorized:false,canWrite:false});
+                            }
+                        });
+                    });
+                });
+            });
+        });
+        if(accepted.ok&&accepted.status==='account-intent-stopped')accountTransitionReceipts.set(accepted,q);
+        return accepted;
+    }
+    function accountTransitions(generation) {
+        try{identifier(generation);}catch(error){return Promise.resolve(rejected(errorCode(error)));}
+        return transact(COMMIT_STORES,'readonly',ctx=>{
+            const intents=[];let scanned=0;
+            ctx.request(ctx.store('control').get(generation),control=>{
+                if(control)validateControl(control);
+                ctx.request(ctx.store('reservations').openCursor(),cursor=>{
+                    if(cursor){
+                        const order=env.indexedDB.cmp(cursor.key[0],generation);
+                        if(order<0){cursor.continue([generation,'']);return;}
+                        if(order>0){finish();return;}
+                        if(++scanned>4096)throw fail('account-intent-scan-capacity');
+                        const row=cursor.value;
+                        if(row.generation===generation&&row.kind==='account-transition'){
+                            validateAccountTransition(row);
+                            if(!control||!control.identityInvalidated||!equal(control.identity,row.accountTransition.request.identity)||control.epoch<row.accountTransition.after.epoch)
+                                throw fail('account-intent-barrier-missing');
+                            intents.push(row);
+                            if(intents.length>ACCOUNT_TRANSITION_INTENT_LIMIT)throw fail('account-intent-capacity');
+                        }
+                        cursor.continue();
+                    }else finish();
+                    function finish(){ctx.done({ok:true,intents,controlEpoch:control?.epoch??null,
+                        recoveryRequired:intents.some(row=>row.accountTransition.phase!=='account-confirmed'),canWrite:false});}
+                });
+            });
+        });
+    }
+    function confirmAccountTransition({generation,operationId,capability,receipt}={}) {
+        try{identifier(generation);identifier(operationId);
+            const issued=accountTransitionReceipts.get(receipt);
+            if(!issued||issued.generation!==generation||issued.operationId!==operationId)throw fail('account-intent-receipt-invalid');
+            verifyCapability(capability,{scope:env.scope,lease,purpose:'control:invalidate',generation});}
+        catch(error){return Promise.resolve(rejected(errorCode(error)));}
+        return transact(COMMIT_STORES,'readwrite',ctx=>{
+            verifyCapability(capability,{scope:env.scope,lease,purpose:'control:invalidate',generation});
+            ctx.request(ctx.store('reservations').get([generation,operationId]),row=>{
+                if(!row)throw fail('account-intent-missing');validateAccountTransition(row);
+                ctx.request(ctx.store('control').get(generation),control=>{
+                    validateControl(control);
+                    if(!control.identityInvalidated||!equal(control.identity,row.accountTransition.request.identity)||control.epoch<row.accountTransition.after.epoch)throw fail('account-intent-barrier-missing');
+                    row.accountTransition.phase='account-confirmed';validateAccountTransition(row);
+                    ctx.request(ctx.store('reservations').put(row));
+                    ctx.done({ok:true,status:'account-transition-complete',historical:true,operationAuthorized:false,canWrite:false});
+                });
+            });
+        });
+    }
     return Object.freeze({
         get status(){return state==='open'&&!lease.active?'scope-runtime-inactive':state;},
         dispose(){if(state==='open'){state='disposed';lease.active=false;db.close();lifecycle('disposed');}},
@@ -741,6 +851,7 @@ function makeStore(db,env,lifecycle,lease) {
                 validateOplog(log,generation,operationId);checkCommittedFact(ctx,log,()=>ctx.done({ok:true,result:log.result}));
             }));
         },
+        beginAccountTransition, accountTransitions, confirmAccountTransition,
         prepareControlOperation,
         ...Object.fromEntries(Object.keys(CONTROL_OPERATIONS).map(action=>[action,input=>controlOperation(action,input)])),
         lookupControlOperation(generation,operationId){

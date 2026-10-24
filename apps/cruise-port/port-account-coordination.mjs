@@ -105,7 +105,18 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
             if (version !== revision || local !== localGeneration() || !equal(accountKey(account), accountKey(record))) {
                 publish({ state: 'stale' }); return null;
             }
+            const transitions = await store.accountTransitions(generation);
+            const finalRecord = await read(); live();
+            if (version !== revision || local !== localGeneration() || !equal(accountKey(record), accountKey(finalRecord))) {
+                publish({ state: 'stale' }); return null;
+            }
+            if (!transitions.ok || transitions.recoveryRequired) {
+                publish({ state: 'recovery-required', authorityGeneration: generation }); return null;
+            }
             const control = hydrated.snapshot?.control;
+            if (transitions.controlEpoch !== (control?.epoch ?? null)) {
+                publish({ state: 'stale' }); return null;
+            }
             const compatible = identity && control?.identity?.ownership === 'bound-account' &&
                 Object.keys(identity).every(key => control.identity[key] === identity[key]);
             const state = !accountKey(record) ? 'no-account' : !identity ? 'unknown' : !compatible ? 'identity-mismatch'
@@ -116,15 +127,17 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
             if (!compatible || state !== 'known') return null;
             const token = Object.freeze({});
             contexts.set(token, { revision, localGeneration: local, accountKey: accountKey(record),
-                generation, identity: frozen(structuredClone(control.identity)), blocked: false });
+                generation, controlEpoch: control.epoch, pointerEpoch: hydrated.snapshot.pointer.pointerEpoch,
+                identity: frozen(structuredClone(control.identity)), blocked: false });
             return token;
         },
         // Stop is durable BEFORE an Account publication is submitted. Notifications
         // can invalidate a local observation sooner but are not this barrier.
-        async transition({ context: token, operationId, nextAccount } = {}) {
+        async transition({ context: token, operationId, nextAccount, kind = nextAccount === null ? 'detach' : 'switch' } = {}) {
             identifier(operationId);
             const context = contexts.get(token);
-            if (!context || (nextAccount !== null && !accountKey(nextAccount))) throw fail('account-context-invalid');
+            if (!context || !['switch', 'detach', 'revoke'].includes(kind) ||
+                (kind === 'switch' ? !accountKey(nextAccount) : nextAccount !== null)) throw fail('account-context-invalid');
             // Copy before the first await; callers cannot retag the destination.
             const replacement = nextAccount === null ? null : structuredClone(nextAccount);
             return locks.request(lockName, { mode: 'exclusive' }, async () => {
@@ -134,10 +147,12 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
                 let stopped;
                 try {
                     const capability = issuer.issue('control:invalidate', { generation: context.generation });
-                    stopped = await store.invalidateIdentity({ generation: context.generation, operationId,
-                        identity: context.identity, capability });
+                    stopped = await store.beginAccountTransition({ generation: context.generation, operationId,
+                        identity: context.identity, expectedEpoch: context.controlEpoch, expectedPointerEpoch: context.pointerEpoch,
+                        kind, destination: replacement === null ? null :
+                            { accountId: replacement.accountId, accountDeviceId: replacement.accountDeviceId ?? null }, capability });
                     live();
-                    if (!stopped.ok) throw fail(stopped.reason);
+                    if (!stopped.ok || stopped.replayed) throw fail(stopped.reason || 'account-intent-historical-only');
                     // Re-read even if a cross-tab notification was lost. A delayed
                     // A response must never replace/clear a newly installed B.
                     const record = await read(); live();
@@ -148,6 +163,13 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
                     await accountStorage.changeAccountIfCurrent({ accountId: context.accountKey[0],
                         accountCredential: context.accountKey[1], accountDeviceId: context.accountKey[2] }, replacement, indexedDB);
                     live();
+                    // Without a durable Shared mutation receipt a same-Account
+                    // credential rotation cannot be attributed after an ABA/reopen.
+                    // Preserve the completed CAS, but do not certify the intent.
+                    if (replacement?.accountId === context.accountKey[0]) throw fail('account-transition-receipt-required');
+                    const confirmed = await store.confirmAccountTransition({ generation: context.generation, operationId, capability, receipt: stopped });
+                    live();
+                    if (!confirmed.ok) throw fail(confirmed.reason);
                     publish({ state: 'stopped', authorityGeneration: context.generation, controlEpoch: stopped.controlEpoch });
                     return frozen({ ok: true, status: 'account-transition-complete', stopped: true,
                         historical: true, operationAuthorized: false, canWrite: false });

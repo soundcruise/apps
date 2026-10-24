@@ -205,3 +205,13 @@ standard-readinessの意図した401とoffline abortのresource error各1は既�
 Port1.22.15 / Studio0.26.9はdormant内部API・reader version/cache整合のpatch。製品UI/保存先は不変更、DB schema2/Studio schema1維持。
 今回の必要fixture変更はcapability lifecycle（閉じたruntimeの公開tokenを拒否・新権限で元公開factをretry）と
 native queue/request gate・正式Control API接続。test.skip/only、assertion削除、timeout延長によるPASS化はない。
+
+## Account transition intent — isolated continuation
+
+A strict typed `account-transition` reservation may now atomically record its
+stopped intent with `identityInvalidated=true` in the actual eight-store commit
+transaction. It is not a pending Control reservation or new authorization. The
+six existing Control operations and final admission semantics remain unchanged.
+The logical record contract and irreversible recovery/confirmation boundary are
+specified in [PORT_ACCOUNT_TRANSITION_INTENT.md](PORT_ACCOUNT_TRANSITION_INTENT.md).
+Authority physical schema remains 2; normal writer activation is still closed.

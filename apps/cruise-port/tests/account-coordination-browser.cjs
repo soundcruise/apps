@@ -61,7 +61,7 @@ const results = [];
                 await first.evaluate(() => accountFixture.close());
                 await first.reload(); await first.waitForFunction(() => window.accountFixture);
                 const reopened = await first.evaluate(options => accountFixture.init(options), { name });
-                assert.equal(reopened.observed, false); assert.equal(reopened.status.state, 'identity-invalidated');
+                assert.equal(reopened.observed, false); assert.equal(reopened.status.state, 'recovery-required');
                 assert.equal((await second.evaluate(() => accountFixture.commit())).ok, false);
             } else {
                 const outcome = await Promise.all([

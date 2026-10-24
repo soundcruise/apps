@@ -31,6 +31,16 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .tuner-meter-labels { display: flex; justify-content: space-between; margin-top: 24px; color: var(--studio-text-muted); font-size: 12px; }
 .tuner-reading meter { width: 100%; height: 26px; }
 .tuner-workspace[data-status="failed"] [data-tuner-status] { color: var(--studio-warning); }
+.tuner-settings, .metronome-advanced { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border: 1px solid var(--studio-border-default); border-radius: 8px; padding: 12px; min-width: 0; }
+.tuner-settings :is(input, select), .metronome-advanced :is(input, select) { max-width: 100%; min-height: 36px; padding: 6px; color: var(--studio-text-primary); background: var(--studio-field); border: 1px solid var(--studio-field-border); }
+.tuner-settings input, .metronome-advanced input[type="number"] { width: 90px; }
+.tuner-settings p { flex-basis: 100%; margin: 2px; }
+.tuner-settings button, .tuner-reference button { min-height: 36px; padding: 8px; color: var(--studio-text-primary); background: var(--studio-control); border: 1px solid var(--studio-field-border); border-radius: 5px; }
+.tuner-settings :is(input,select,button):focus-visible, .tuner-reference button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+#tuner-targets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.metronome-advanced { font-size: 11px; gap: 6px; }
+.metronome-advanced label { display: flex; align-items: center; gap: 4px; }
+#studio-metronome-advanced-help { max-width: 60ch; }
 .practice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .practice-card { min-width: 0; padding: 18px; border: 1px solid var(--studio-border-default); border-radius: 8px; background: var(--studio-surface); }
 .practice-card h2 { font-size: 17px; margin-bottom: 12px; }
