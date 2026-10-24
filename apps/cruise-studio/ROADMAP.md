@@ -1,5 +1,9 @@
 # Studio 0.43.1 patch候補 — P3-01 reason lookup / version・cache整合
 
+## Account協調基盤 v1（隔離topic・未公開）
+
+Studio開発候補0.46.0 / Port保守候補1.24.2 / Project schemaVersion 2。Port所有のAccount context、Authority停止complete後のShared Account同一transaction CAS、Studio Toolsの端末内観測readonly表示を追加。通知を停止保証にしない。通常writer・Sync・Shared Write・認証切替は未接続。独立PC Home/NEWS/My Apps topicとは別commitで管理する。正式provider、durable retirement-intentの中断窓、非協調旧writer、移行/復旧/binary/最終admissionを解消してから製品保存を判定する。契約は `../cruise-port/docs/PORT_ACCOUNT_COORDINATION.md`。本番mainはこのtopicでは変更しない。
+
 Object.hasOwnによる未知reason防御と既存55 reason互換を保持。Studio自身のversion・mirror・現行HTML asset/internal ESM cache・厳密試験を0.43.1へ協調更新する。schema2、Adapter v2、Chord owner 1.21.0、単一Project/Session/Undo、明示Save、Shared write OFF、PortDataHost.canWrite=falseは維持。
 
 正式Node/Browser・同一条件3回の性能測定・No-write・Git gatesの結果はrepo外のSHA/tree付きreceiptで確定する。topic通常pushと隔離2-parent統合候補までを対象とし、main反映・Pages公開は別承認。実OS日本語IME・Safari・実プリンターは未検証のまま。既存仕様: [CHORD_FORM_SELECTION](docs/CHORD_FORM_SELECTION.md)。以下は過去の工程記録。

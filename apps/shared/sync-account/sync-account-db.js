@@ -263,6 +263,48 @@
     return Object.freeze({ generation: invalidate() });
   }
 
+  // Explicit coordinated callers only; existing Account flows are unchanged.
+  // The comparison and replacement share ONE Account DB transaction. A prior
+  // asynchronous read (or a BroadcastChannel hint) is not a compare-and-set.
+  async function changeAccountIfCurrent(expected, value, indexedDb) {
+    const identity = candidate => candidate && typeof candidate.accountId === 'string' && candidate.accountId &&
+      typeof candidate.accountCredential === 'string' && candidate.accountCredential
+      ? [candidate.accountId, candidate.accountCredential, candidate.accountDeviceId ?? null] : null;
+    const expectedIdentity = identity(expected);
+    if (!expectedIdentity || (value !== null && !identity(value))) throw new Error('account_identity_invalid');
+    if (value !== null) assertSafeValue('account', value);
+    const replacement = value === null ? null : structuredClone(value);
+    let current = generation;
+    const database = await open(indexedDb);
+    if (current !== generation) throw new Error('account_generation_changed');
+    const tx = transaction(database, 'readwrite'), done = transactionDone(tx);
+    let unwatch = () => {};
+    let mismatch = false;
+    try {
+      const store = tx.objectStore(STORE_NAME), read = store.get('account');
+      read.onsuccess = () => {
+        if (current !== generation || JSON.stringify(identity(read.result)) !== JSON.stringify(expectedIdentity)) {
+          mismatch = true;
+          try { tx.abort(); } catch (_) { /* already inactive */ }
+          return;
+        }
+        // An obsolete A must not even invalidate B's local observers. Once the
+        // transaction has confirmed A, invalidate synchronously BEFORE put and
+        // register this very transaction against the resulting generation.
+        current = invalidate();
+        unwatch = watchTransaction(tx, current);
+        try { replacement === null ? store.delete('account') : store.put(replacement, 'account'); }
+        catch (_) { try { tx.abort(); } catch (_) { /* already inactive */ } }
+      };
+      await done;
+      if (current !== generation) throw new Error('account_generation_changed');
+      return Object.freeze({ generation: invalidate() });
+    } catch (error) {
+      if (mismatch) throw new Error('account_identity_changed');
+      throw error;
+    } finally { unwatch(); }
+  }
+
   root.storage = Object.freeze({
     DATABASE_NAME,
     getGeneration: () => generation,
@@ -270,6 +312,7 @@
     getAccount: (indexedDb) => get('account', indexedDb),
     setAccount: (value, indexedDb) => changeAccount(value, indexedDb),
     clearAccount: (indexedDb) => changeAccount(null, indexedDb),
+    changeAccountIfCurrent,
     getQaAdmission,
     setQaAdmission,
     clearQaAdmission,
