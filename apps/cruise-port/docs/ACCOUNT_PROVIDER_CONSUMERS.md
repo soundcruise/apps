@@ -1,3 +1,5 @@
+後続の隔離consumer移行と現行0.47.6 / Port1.24.9候補は [ACCOUNT_CONSUMER_MIGRATION](ACCOUNT_CONSUMER_MIGRATION.md) を参照。以下はPR #10/#11時点の契約・履歴。通常起動・writerの本番移行は未実施。
+
 # Official Account observation provider and consumer boundary v1
 
 Additive follow-up: [Account owner generation/freshness](../../../workers/sound-cruise-sync/ACCOUNT_OWNER_CONTEXT_CONTRACT.md)

@@ -1,3 +1,7 @@
+# Studio 0.47.6 — Account consumer隔離移行 v1（未公開topic）
+
+PR #11固定head 155438f56a3f7ed16aff3a7bcc4fb486923da27bを親とする内部保守候補。Port1.24.9、Project schema2、Shared Write OFF / canWrite=false。Sharedの最小権限観測readerをPort SyncCenter controllerとStudio Hostへ明示注入。通常起動は未接続で、writer/Cloud/認証の本番切替なし。ownerのas-of-readと資格expiry・最終admissionを区別し、非同期処理後のfull source/Authority照合・失効A/正常B・通知欠落/別タブ/reopenを検証。全consumer棚卸し・未移行writer・migration/binary/最終admission条件: [Consumer契約](../../cruise-port/docs/ACCOUNT_CONSUMER_MIGRATION.md)。試験・独立レビュー・GitHub保全の実測証跡はrepo外で確定。以下は履歴。
+
 # Studio 0.47.5 — Account owner generation/freshness（未公開候補）
 
 PR #10 af37a01dを固定親とし、Port1.24.8 / Studio0.47.5 / schema2。owner primary単一SELECTのmembership世代・credential liveness観測契約、5秒観測期限、nonce/source/Authority照合を追加。通常認可provider・consumer移行・本番API route・credential leaseは未適用。既存Account API/CAS/stop intent/receipt/旧writer gateを維持し、Shared Write OFF / canWrite=false。正式リリース承認まで0.x.y。契約: [Account owner context](../../../workers/sound-cruise-sync/ACCOUNT_OWNER_CONTEXT_CONTRACT.md)。以下は履歴。
