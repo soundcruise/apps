@@ -1,3 +1,17 @@
+# Studio 0.47.6 — Account consumer隔離移行 v1（未公開topic）
+
+PR #11固定head 155438f56a3f7ed16aff3a7bcc4fb486923da27bを親とする内部保守候補。Port1.24.9、Project schema2、Shared Write OFF / canWrite=false。Sharedの最小権限観測readerをPort SyncCenter controllerとStudio Hostへ明示注入。通常起動は未接続で、writer/Cloud/認証の本番切替なし。ownerのas-of-readと資格expiry・最終admissionを区別し、非同期処理後のfull source/Authority照合・失効A/正常B・通知欠落/別タブ/reopenを検証。全consumer棚卸し・未移行writer・migration/binary/最終admission条件: [Consumer契約](../../cruise-port/docs/ACCOUNT_CONSUMER_MIGRATION.md)。試験・独立レビュー・GitHub保全の実測証跡はrepo外で確定。以下は履歴。
+
+# Studio 0.47.5 — Account owner generation/freshness（未公開候補）
+
+PR #10 af37a01dを固定親とし、Port1.24.8 / Studio0.47.5 / schema2。owner primary単一SELECTのmembership世代・credential liveness観測契約、5秒観測期限、nonce/source/Authority照合を追加。通常認可provider・consumer移行・本番API route・credential leaseは未適用。既存Account API/CAS/stop intent/receipt/旧writer gateを維持し、Shared Write OFF / canWrite=false。正式リリース承認まで0.x.y。契約: [Account owner context](../../../workers/sound-cruise-sync/ACCOUNT_OWNER_CONTEXT_CONTRACT.md)。以下は履歴。
+
+# Studio 0.47.4 — 正式Account API観測provider（隔離topic・未公開）
+
+基準main ce156230 / tree02e1361f、公開済みStudio0.47.3 / Port1.24.6。Port1.24.7 / Studio0.47.4は内部保守候補。正式AccountClientのsummary/devicesを使用し、full Account/revisionとAuthorityのpin、遅延応答拒否、失効時の永続stop-only intentを隔離検証する。通常Account/Sync/writer接続は変更しない。Port membership世代・credential freshnessは現APIから証明できず未確認。Shared Write OFF、canWrite=false、Project schema2、単一正本・Undoは維持。正式リリース承認までStudioは0.x.y。
+
+仕様・consumer移行範囲と未接続箇所: [Account provider契約](../../cruise-port/docs/ACCOUNT_PROVIDER_CONSUMERS.md)。試験/独立レビュー・commit・topic pushの実測はrepo外証跡に記録する。main反映・Production公開なし。以下は履歴。
+
 # Studio 0.43.1 patch候補 — P3-01 reason lookup / version・cache整合
 
 Object.hasOwnによる未知reason防御と既存55 reason互換を保持。Studio自身のversion・mirror・現行HTML asset/internal ESM cache・厳密試験を0.43.1へ協調更新する。schema2、Adapter v2、Chord owner 1.21.0、単一Project/Session/Undo、明示Save、Shared write OFF、PortDataHost.canWrite=falseは維持。

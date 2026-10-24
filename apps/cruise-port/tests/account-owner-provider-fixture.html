@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>Isolated owner context fixture</title>
+<script src="../../shared/sync-account/sync-account-db.js"></script>
+<script src="../../shared/sync-account/sync-account-client.js"></script>
+<script type="module">
+import {setupProvider} from './authority-store/account-provider-fixture.mjs';
+let x,clock={wall:1000,mono:0,origin:'fixture-renderer'},release;
+window.ownerFixture={
+ async init({scopeName,seed=true}){x?.dispose();const record=await(await fetch('/__fixture/record')).json();
+  x=await setupProvider({indexedDB,root:SoundCruiseSyncAccount,scopeName,seed,record,ownerContext:true,
+   clockOptions:{now:()=>clock.wall,monotonicNow:()=>clock.mono,clockIdentity:()=>clock.origin}});this.live();},
+ live(){x.respond((url,o)=>fetch('/__fixture/owner'+new URL(url).search,{headers:o.headers,cache:'no-store'}));},
+ hold(){x.respond(async(url,o)=>{const r=await fetch('/__fixture/owner'+new URL(url).search,{headers:o.headers,cache:'no-store'});await new Promise(r=>release=r);return r;});},
+ release(){release();},clock(v){Object.assign(clock,v);},refresh:()=>x.refresh(),status:()=>x.provider.getCachedStatus(),requests:()=>x.requests,
+ rows:()=>x.rows(),authority:()=>x.store.hydrate('g1'),
+ async rawB(){const a=await(await fetch('/__fixture/record')).json();await x.rows(s=>s.put({...a,accountCredential:a.accountCredential+'-old-raw'},'account'));}
+};
+</script>
