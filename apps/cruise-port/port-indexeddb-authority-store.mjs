@@ -345,7 +345,7 @@ function makeStore(db,env,lifecycle,lease) {
             initialControl:initialControl&&structuredClone(initialControl),fingerprint:digest(body)});
         captureTrustedProContext(env.scope,authorizationContext,value);
         const handle=Object.freeze({generation,operationId});prepared.set(handle,{...value,authorizationContext,
-            capability:env.testProvider?.capture(value,systemCapability,authorizationContext)});return handle;
+            recoveryBody:structuredClone(body),capability:env.testProvider?.capture(value,systemCapability,authorizationContext)});return handle;
     }
     async function reserveOperation(handle) {
         const p=prepared.get(handle);if(!p)return Promise.resolve(rejected('prepared-handle-invalid'));
@@ -835,6 +835,22 @@ function makeStore(db,env,lifecycle,lease) {
             if(state!=='open')throw fail(state);return capture({generation:base?.generation,base,operationId,action,changes,dependencyKeys,acknowledgements,authorizationContext,operationData,authorizationIdentity,authorizationPolicy,systemCapability});
         },
         preparedIdentity(handle){const p=prepared.get(handle);if(!p)throw fail('prepared-handle-invalid');return frozen({authorizationPolicy:p.authorizationPolicy,authorizationIdentity:p.authorizationIdentity});},
+        // Historical reconciliation only. This identity is not a replay request,
+        // writer capability, or proof of current Account/Pro authorization.
+        recoveryIdentity(handle){const p=prepared.get(handle);if(!p)throw fail('prepared-handle-invalid');return frozen({generation:p.generation,operationId:p.operationId,fingerprint:p.fingerprint,body:structuredClone(p.recoveryBody)});},
+        reconcileOperation({generation,operationId,fingerprint,body}={}){
+            try{identifier(generation);identifier(operationId);if(!/^[a-f0-9]{64}$/.test(fingerprint)||body?.generation!==generation||body.operationId!==operationId||digest(body)!==fingerprint)throw fail('operation-fingerprint-invalid');}
+            catch(e){return Promise.resolve(rejected(e.code));}
+            return transact(['oplog','manifests','records'],'readonly',ctx=>ctx.request(ctx.store('oplog').get([generation,operationId]),log=>{
+                if(!log){ctx.done({ok:false,reason:'operation-unproven'});return;}
+                validateOplog(log,generation,operationId);if(log.fingerprint!==fingerprint)throw fail('operation-id-payload-conflict');
+                ctx.request(ctx.store('manifests').get([generation,log.result.manifestId]),manifest=>{
+                    if(!manifest)throw fail('recovery-required');validateManifest(manifest);
+                    if(manifest.generation!==generation||manifest.seq!==log.result.seq||manifest.revision!==log.result.revision)throw fail('oplog-invalid');
+                    readManifestValues(ctx,generation,manifest,values=>ctx.done({ok:true,result:log.result,values,versions:manifest.versions,historical:true,canWrite:false,operationAuthorized:false}));
+                });
+            }));
+        },
         reserveOperation,
         initialize({generation,control,values,operationId}){
             try{validateControl(control);const handle=capture({generation,operationId,action:'fixture-initialize',changes:values,initialControl:control});return commit(handle);}

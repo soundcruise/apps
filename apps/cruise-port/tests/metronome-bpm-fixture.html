@@ -1,0 +1,26 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>Studio BPM isolated save fixture</title>
+<style>body{font:16px system-ui;max-width:48rem;margin:3rem auto;padding:1rem}button,input{font:inherit;padding:.5rem;margin:.3rem}output{display:block;white-space:pre-wrap}</style>
+<h1>Metronome BPM — 隔離fixture</h1><p>Shared Write OFF / canWrite=false。本番保存ではありません。</p>
+<button id="load">再読込み</button><label>BPM <input id="bpm" type="number" min="30" max="240" aria-label="BPM"></label><button id="save">明示保存</button><button id="recover">復旧照合</button><output id="status" role="status"></output>
+<script src="../../shared/sync-account/sync-account-db.js"></script><script src="../../shared/sync-account/sync-account-client.js"></script>
+<script type="module">
+import {setupBpm} from './authority-store/bpm-save-fixture.mjs';
+import {account,identity} from './authority-store/account-provider-fixture.mjs';
+import {control,values} from './authority-store/fixture.mjs';
+import {portAccountMutationBinding} from '../port-account-coordination.mjs';
+let x,scopeName,operationId,hold,release;
+const q=s=>document.querySelector(s),show=r=>{q('#status').textContent=JSON.stringify(r);const s=x.controller.snapshot();if(s.draft!==null)q('#bpm').value=s.draft;return r;};
+window.bpmFixture={
+ async init({name,seed=true,generation='g1',accountId='A'}){x?.dispose();scopeName=name;x=await setupBpm({indexedDB,root:SoundCruiseSyncAccount,scopeName:name,seed,generation,accountId,checkpoint:async n=>{if(n===hold){this.entered=n;await new Promise(r=>release=r);}}});this.entered=null;return this.load();},
+ load:async()=>show(await x.controller.reload()),edit(bpm){q('#bpm').value=bpm;return x.controller.edit(bpm);},
+ async save(id){operationId=id;return show(await x.controller.save({operationId:id}));},
+ async recover(id=operationId){operationId=id;return show(await x.controller.recover({operationId:id}));},
+ ticket:id=>x.pending.read(id),ack:id=>x.controller.acknowledgeRecovery({operationId:id}),state:()=>x.controller.snapshot(),rows:()=>x.rows(),authority:()=>x.store.hydrate('g1'),
+ hold(n){hold=n;this.entered=null;},release(){hold=null;release?.();},server(v){Object.assign(x.server,v);},clock(v){Object.assign(x.clock,v);},
+ quota(value){if(value){this.originalAdd=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(v,...args){if(this.name==='records')throw new DOMException('full','QuotaExceededError');return bpmFixture.originalAdd.call(this,v,...args);};}else{IDBObjectStore.prototype.add=this.originalAdd;}},
+ async installB(){const binding=portAccountMutationBinding({generation:'g1',operationId:'B-switch',identity:identity('A'),expectedEpoch:1,expectedPointerEpoch:1,kind:'switch',destination:{accountId:'B',accountDeviceId:'device-B'}},scopeName);
+  const r=await x.mutationStore.mutate({context:await x.mutationStore.capture(),binding,nextAccount:account('B')});if(!r.ok)throw Error(r.reason);
+  const b=await x.store.initialize({generation:'g2',control:{...control('g2'),identity:identity('B')},values:values(),operationId:'B-init'});if(!b.ok)throw Error(b.reason);return x.rows();}
+};
+q('#load').onclick=()=>bpmFixture.load();q('#bpm').oninput=e=>x.controller.edit(Number(e.target.value));q('#save').onclick=()=>bpmFixture.save('ui-'+crypto.randomUUID());q('#recover').onclick=()=>bpmFixture.recover();
+</script></html>
