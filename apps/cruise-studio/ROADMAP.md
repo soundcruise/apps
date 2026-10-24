@@ -1,3 +1,7 @@
+# Studio 0.47.7 — Account / Port隔離cutover・復旧 v1（未公開topic）
+
+PR #12固定head e35c965247f70430daa66dff60208a65b5299c7aを親とする内部保守候補。Port1.24.10、Project schema2、Shared Write OFF / canWrite=false。既存Accountのin-place物理1→2→3、Authority内のtyped migration intentとrecovery barrierの原子的確定、manifestによるPort原本保全、応答喪失/crash/reopenのhistorical照合を追加。完了はverified-inertであり、通常writer・Cloud・binary・Port pointer切替・認証切替は未接続。異なる正常B世代のreceipt/preparedを旧Aが変更しない。契約・未完了gate: [Account/Port cutover](../cruise-port/docs/ACCOUNT_PORT_CUTOVER.md)。以下は履歴。
+
 # Studio 0.47.6 — Account consumer隔離移行 v1（未公開topic）
 
 PR #11固定head 155438f56a3f7ed16aff3a7bcc4fb486923da27bを親とする内部保守候補。Port1.24.9、Project schema2、Shared Write OFF / canWrite=false。Sharedの最小権限観測readerをPort SyncCenter controllerとStudio Hostへ明示注入。通常起動は未接続で、writer/Cloud/認証の本番切替なし。ownerのas-of-readと資格expiry・最終admissionを区別し、非同期処理後のfull source/Authority照合・失効A/正常B・通知欠落/別タブ/reopenを検証。全consumer棚卸し・未移行writer・migration/binary/最終admission条件: [Consumer契約](../cruise-port/docs/ACCOUNT_CONSUMER_MIGRATION.md)。試験・独立レビュー・GitHub保全の実測証跡はrepo外で確定。以下は履歴。

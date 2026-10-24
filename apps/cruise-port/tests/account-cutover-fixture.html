@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>Account / Port inert cutover fixture</title>
+<script src="../../shared/sync-account/sync-account-db.js"></script>
+<output id="result">Isolated, canWrite=false</output>
+<script type="module">
+import {setupCutover} from './authority-store/account-cutover-fixture.mjs';
+import {control,values} from './authority-store/fixture.mjs';
+import {account,identity} from './authority-store/account-provider-fixture.mjs';
+import {createIsolatedAccountMutationStore} from '../../shared/sync-account/account-mutation-receipts.mjs';
+import {portAccountMutationBinding} from '../port-account-coordination.mjs';
+let x,pause=null,entered=false,release,prepared;
+window.cutoverFixture={
+ async init({scopeName,seed=true}){x?.dispose();if(seed)for(const [k,v] of Object.entries(values()))if(v!==null)localStorage.setItem(k,v);
+  x=await setupCutover({indexedDB,root:SoundCruiseSyncAccount,scopeName,seed,storage:localStorage,
+  checkpoint:async name=>{if(name===pause){entered=true;await new Promise(r=>release=r);}}});},
+ prepare:()=>x.engine.prepare({migrationId:'cutover1',generation:'g1'}),run:()=>x.engine.run({migrationId:'cutover1'}),recover:()=>x.engine.recover({migrationId:'cutover1'}),
+ rows:()=>x.rows(),authority:(generation='g1')=>x.store.hydrate(generation),journal:()=>x.store.readJournal('cutover1'),
+ hold(name){pause=name;entered=false;},entered:()=>entered,release(){pause=null;release();},
+ unknown:()=>x.rows(s=>s.put({unknown:'kept'},'future-key')),rawB:()=>x.rows(s=>s.put(account('B'),'account')),
+ portRaw:()=>Object.fromEntries(Array.from({length:x.storage.length},(_,n)=>{const k=x.storage.key(n);return [k,x.storage.getItem(k)];})),
+ async installB(){const m=createIsolatedAccountMutationStore({indexedDB,scopeName:x.scopeName,protocol:3});const binding=portAccountMutationBinding({generation:'g1',operationId:'normal-B',identity:identity('A'),expectedEpoch:2,expectedPointerEpoch:1,kind:'switch',destination:{accountId:'B',accountDeviceId:'device-B'}},x.scopeName);
+  if(!(await m.mutate({context:await m.capture(),binding,nextAccount:account('B')})).ok)throw Error('B-CAS-failed');
+  if(!(await x.store.initialize({generation:'g2',control:{...control('g2'),identity:identity('B')},values:values(),operationId:'B-init'})).ok)throw Error('B-init-failed');
+  const base=(await x.store.hydrate('g2')).snapshot;prepared=x.store.prepare({base,operationId:'B-prepared',action:'saveBpm',changes:{'cruisePort.metronome':JSON.stringify({...JSON.parse(base.values['cruisePort.metronome']),bpm:145})}});return m.reconcile(binding);},
+ commitB:()=>x.store.commit(prepared)
+};
+</script>

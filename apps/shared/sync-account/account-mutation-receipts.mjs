@@ -249,7 +249,7 @@ export function createIsolatedAccountMutationStore({ indexedDB, scopeName, proto
 
 // Explicit isolated enrollment only. This never runs from an import or normal
 // Account startup. Unknown/legacy rows are included in the exact upgrade CAS.
-export async function enrollIsolatedAccountWriters({indexedDB,scopeName}={}){
+export async function enrollIsolatedAccountWriters({indexedDB,scopeName,expectedSourceDigest=null}={}){
     if(!indexedDB?.open||!/^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(scopeName??''))throw reject('account-mutation-isolation-required');
     const validated=await readSnapshot(indexedDB); // validate physical1 + existing Account/receipt schema
     const old=await openExisting(indexedDB);
@@ -261,6 +261,7 @@ export async function enrollIsolatedAccountWriters({indexedDB,scopeName}={}){
         if(entries.some(([key])=>key===ACCOUNT_WRITER_FENCE_KEY)||canonical(entries).length>1048576)throw reject('account-writer-enrollment-unsupported');
     }finally{old.close();}
     const legacyDigest=await digest(entries),epoch=crypto.randomUUID();
+    if(expectedSourceDigest!==null&&(!hash(expectedSourceDigest)||expectedSourceDigest!==legacyDigest))throw reject('account-cutover-source-stale');
     return new Promise((resolve,fail)=>{
         let settled=false,reason,didUpgrade=false;
         const finish=(error,value)=>{if(settled)return;settled=true;error?fail(reject(error)):resolve(freeze(value));};
@@ -283,7 +284,7 @@ export async function enrollIsolatedAccountWriters({indexedDB,scopeName}={}){
 }
 
 // Atomic in-place cutover, not a second Account database or a copied正本.
-export async function cutoverIsolatedAccountStore({indexedDB,scopeName}={}){
+export async function cutoverIsolatedAccountStore({indexedDB,scopeName,expectedSourceDigest=null}={}){
     if(!indexedDB?.open||!/^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(scopeName??''))throw reject('account-mutation-isolation-required');
     const validated=await readSnapshot(indexedDB,2,scopeName),db=await openExisting(indexedDB,2);let entries;
     try{const tx=db.transaction('meta','readonly'),complete=done(tx),s=tx.objectStore('meta'),k=s.getAllKeys(),v=s.getAll();await complete;
@@ -294,6 +295,7 @@ export async function cutoverIsolatedAccountStore({indexedDB,scopeName}={}){
         if(canonical(entries).length>1048576)throw reject('account-cutover-capacity');
     }finally{db.close();}
     const legacyDigest=await digest(entries),epoch=crypto.randomUUID();
+    if(expectedSourceDigest!==null&&(!hash(expectedSourceDigest)||expectedSourceDigest!==legacyDigest))throw reject('account-cutover-source-stale');
     return new Promise((resolve,fail)=>{let settled=false,reason,didUpgrade=false;const finish=(code,value)=>{if(settled)return;settled=true;code?fail(reject(code)):resolve(freeze(value));};const q=indexedDB.open(DATABASE,3);
         q.onblocked=()=>finish('account-cutover-blocked');q.onerror=()=>finish(reason||'account-cutover-aborted');
         q.onupgradeneeded=e=>{const tx=q.transaction,db=q.result;if(settled||e.oldVersion!==2||db.objectStoreNames.length!==1||!db.objectStoreNames.contains('meta')){reason='account-cutover-unsupported';tx.abort();return;}didUpgrade=true;
@@ -301,6 +303,55 @@ export async function cutoverIsolatedAccountStore({indexedDB,scopeName}={}){
                 s.name=ACCOUNT_CANONICAL_STORE_V3;s.put({...validated.fence,writerProtocol:3,epoch,legacyDigest},ACCOUNT_WRITER_FENCE_KEY);
             }catch(e){reason=e.code||'account-cutover-aborted';try{tx.abort();}catch{};}};};
         q.onsuccess=()=>{q.result.close();if(!didUpgrade){finish('account-cutover-raced');return;}finish(null,{ok:true,writerProtocol:3,epoch,legacyDigest,canWrite:false,recoveryRequired:true});};
+    });
+}
+
+// Read-only inventory + explicit one-step in-place upgrade. No second Account
+// store, normal installation, automatic retry or Account content mutation.
+export function createIsolatedAccountCutoverSource({indexedDB,scopeName}={}) {
+    createIsolatedAccountMutationStore({indexedDB,scopeName});
+    const captures=new WeakMap();
+    async function inventory(){
+        const db=await new Promise((resolve,fail)=>{const q=indexedDB.open(DATABASE);let absent=false;
+            q.onupgradeneeded=()=>{absent=true;q.transaction.abort();};q.onblocked=()=>fail(reject('account-cutover-blocked'));
+            q.onerror=()=>fail(reject(absent?'account-cutover-absent':'account-cutover-read-failed'));q.onsuccess=()=>resolve(q.result);});
+        try {
+            const version=db.version,name=version===3?ACCOUNT_CANONICAL_STORE_V3:STORE;
+            if(![1,2,3].includes(version)||db.objectStoreNames.length!==1||!db.objectStoreNames.contains(name))throw reject('account-cutover-unsupported');
+            const tx=db.transaction(name,'readonly'),complete=done(tx),s=tx.objectStore(name),k=s.getAllKeys(),v=s.getAll();
+            if(s.keyPath!==null||s.autoIncrement||s.indexNames.length)throw reject('account-cutover-unsupported');
+            await complete;const rows=k.result.map((key,n)=>[key,v.result[n]]);
+            if(rows.some(([key])=>typeof key!=='string')||canonical(rows).length>1048576)throw reject('account-cutover-unsupported');
+            return {version,rows};
+        }finally{db.close();}
+    }
+    async function capture(){
+        const start=await inventory(),fields=new Map(start.rows);
+        // Validate existing journal/marker/bootstrap through the owner itself.
+        const validated=await readSnapshot(indexedDB,start.version,scopeName);
+        if((validated.journal.receipts.at(-1)?.afterDigest??validated.bootstrap?.afterDigest??validated.accountDigest)!==validated.accountDigest)throw reject('account-mutation-unattributed-state');
+        if(!same(start,await inventory())||!same(fields.get('account')??null,validated.account))throw reject('account-cutover-source-stale');
+        const keys=new Set(['account',ACCOUNT_MUTATION_JOURNAL_KEY,ACCOUNT_MUTATION_MARKER_KEY,ACCOUNT_BOOTSTRAP_RECEIPT_KEY,ACCOUNT_WRITER_FENCE_KEY,...AUX_KEYS]);
+        const unknownCount=start.rows.filter(([k])=>!keys.has(k)).length;
+        const pendingCount=start.rows.filter(([k,v])=>AUX_KEYS.has(k)&&v!==null).length;
+        account(validated.account); // null/unregistered bootstrap is a separate contract
+        const manifest=freeze({schemaVersion:1,physicalVersion:start.version,accountId:validated.account.accountId,
+            accountDeviceId:validated.account.accountDeviceId??null,inventoryDigest:await digest(start),
+            dataDigest:await digest(start.rows.filter(([k])=>k!==ACCOUNT_WRITER_FENCE_KEY)),
+            stepDigest:await digest(start.rows),fence:validated.fence?clone(validated.fence):null,
+            unknownCount,pendingCount,supported:unknownCount===0&&pendingCount===0,
+            retainedInPlace:true,atomicAccountUpgrade:true,rawWriterExcluded:false});
+        const context=Object.freeze({});captures.set(context,{start,manifest});return Object.freeze({context,manifest});
+    }
+    return Object.freeze({capture,
+        async current(context){const c=captures.get(context);return !!c&&same(c.start,await inventory());},
+        async advance(context){
+            const c=captures.get(context);if(!c||!c.manifest.supported)throw reject('account-cutover-review-required');
+            if(!same(c.start,await inventory()))throw reject('account-cutover-source-stale');
+            if(c.start.version===1)await enrollIsolatedAccountWriters({indexedDB,scopeName,expectedSourceDigest:c.manifest.stepDigest});
+            else if(c.start.version===2)await cutoverIsolatedAccountStore({indexedDB,scopeName,expectedSourceDigest:c.manifest.stepDigest});
+            return capture();
+        }
     });
 }
 
