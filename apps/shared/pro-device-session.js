@@ -4,6 +4,7 @@
     const DAY = 86400_000;
     const IDLE = 90 * DAY, GRACE = 7 * DAY, REVALIDATE = 12 * 3600_000;
     const CLOCK_TOLERANCE = 300_000;
+    const REVOKED_RECEIPT = 'revoked-pro-receipt-v1';
     const encoder = new TextEncoder(), decoder = new TextDecoder();
     const encode = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -32,10 +33,14 @@
                 read.onsuccess = () => {
                     result = read.result;
                     if (compare) {
+                        // A revocation occupies the same key as the receipt. The
+                        // check and CAS share this RW transaction, across clients.
+                        if (result?.kind === REVOKED_RECEIPT) { result = false; return; }
                         result = result === undefined ? expected === undefined : Boolean(expected &&
                             sameBytes(result.iv, expected.iv) && sameBytes(result.ciphertext, expected.ciphertext));
                         if (result) store.put(value, key);
                     } else if (value !== undefined && (!onlyIfAbsent || result === undefined)) {
+                        if (value?.kind === REVOKED_RECEIPT && result?.kind === REVOKED_RECEIPT) return;
                         if (value === null) store.delete(key); else store.put(value, key);
                         result = value;
                     }
@@ -66,6 +71,7 @@
         store ||= browserStore({ readOnly });
         let materialPromise;
         const inflight = new Map();
+        const revokedCredentials = new Set();
         // Only useful during this document's lifetime; not a trusted cross-restart clock.
         let clockAnchor = { local: now(), monotonic: monotonicNow() };
         let observedValidation, readOnlyObservation;
@@ -89,6 +95,14 @@
             const digest = await cryptoImpl.subtle.digest('SHA-256', encoder.encode(auth.credential));
             return 'receipt:' + encode(digest);
         }
+        async function isRevoked(auth) {
+            const key = await receiptKey(auth), value = await store.read(key);
+            if (value?.kind !== REVOKED_RECEIPT) return false;
+            const identity = await operationIdentity(auth, cryptoImpl);
+            if (value.receiptIdentity !== key || value.credentialFingerprint !== identity.credentialFingerprint)
+                throw Error('Invalid Pro revocation record');
+            return true;
+        }
         function validMetadata(session, keys) {
             return session?.version === 3 &&
                 ['serverTime', 'issuedAt', 'boundAt', 'lastValidatedAt', 'inactiveExpiresAt',
@@ -105,7 +119,7 @@
             const iv = cryptoImpl.getRandomValues(new Uint8Array(12));
             const ciphertext = await cryptoImpl.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(key) },
                 keys.sealKey, encoder.encode(JSON.stringify(record)));
-            if (!isCurrent(auth)) return false;
+            if (revokedCredentials.has(auth.credential) || !isCurrent(auth)) return false;
             // Encrypt outside the IDB transaction, then atomically compare/write.
             // A stale tab must not erase another tab's high-water mark or block.
             const saved = await store.compareAndSwap(key, expected, { iv, ciphertext });
@@ -114,7 +128,7 @@
         async function unseal(auth) {
             try {
                 const keys = await material(), key = await receiptKey(auth), value = await store.read(key);
-                if (!value) return null;
+                if (!value || value.kind === REVOKED_RECEIPT || revokedCredentials.has(auth.credential)) return null;
                 const plaintext = await cryptoImpl.subtle.decrypt({ name: 'AES-GCM', iv: value.iv,
                     additionalData: encoder.encode(key) }, keys.sealKey, value.ciphertext);
                 const record = JSON.parse(decoder.decode(plaintext));
@@ -136,6 +150,7 @@
             if (!Number.isSafeInteger(local) || local < 0 || !Number.isFinite(monotonic)) return false;
             for (let attempt = 0; attempt < 8 && isCurrent(auth); attempt++) {
                 const expected = await store.read(await receiptKey(auth));
+                if (expected?.kind === REVOKED_RECEIPT || revokedCredentials.has(auth.credential)) return false;
                 const previous = await unseal(auth);
                 if (previous && previous.record.serverValidatedAt > session.lastValidatedAt) return false;
                 if (await seal(auth, { timeStateVersion: 2, session, generation: auth.generation,
@@ -195,6 +210,11 @@
         }
         async function validateOnce(auth, force) {
             auth = Object.freeze({ ...auth });
+            // No successful network result, including old-Worker compatibility,
+            // can retire a locally observed revocation of this qualification.
+            try {
+                if (revokedCredentials.has(auth.credential) || await isRevoked(auth)) return { ok: false, revoked: true };
+            } catch (_) { return { ok: false, storageUnavailable: true }; }
             const validationId = cryptoImpl.randomUUID();
             let pinnedIdentity;
             async function denial(response, endpoint) {
@@ -220,7 +240,14 @@
                 // tokens online. It cannot issue an offline grant.
                 if (challenge.status === 404) {
                     const old = await request('/session', { headers: { Authorization: 'Bearer ' + auth.credential } });
+                    if (!isCurrent(auth)) return { ...await denial(old, 'session'), stale: true };
                     if (old.status === 200 && old.body?.ok && old.body.generation === auth.generation && !old.body.deviceSessionRequired) {
+                        // Compatibility is online-only, but its delayed success must
+                        // still respect revocation completed while /session waited.
+                        try {
+                            if (revokedCredentials.has(auth.credential) || await isRevoked(auth)) return { ok: false, revoked: true };
+                        } catch (_) { return { ok: false, storageUnavailable: true }; }
+                        if (revokedCredentials.has(auth.credential) || !isCurrent(auth)) return { ok: false, stale: true };
                         return { ok: true, online: true, compatibility: true, generation: auth.generation };
                     }
                     return denial(old, 'session');
@@ -246,7 +273,7 @@
         // Inspection has no key/session creation, high-water persistence or network
         // entry point. Its result is presentation evidence, never backend authority.
         if (readOnly) return Object.freeze({ allowance });
-        return Object.freeze({ publicKey: async () => (await material()).publicKey, accept, allowance,
+        return Object.freeze({ publicKey: async () => (await material()).publicKey, accept, allowance, isRevoked,
             validate(auth, { force = true } = {}) {
                 const identity = JSON.stringify([auth.credential, auth.generation, auth.sessionVersion ?? null, auth.operationRevision ?? null]);
                 if (!inflight.has(identity)) {
@@ -256,9 +283,16 @@
                 return inflight.get(identity);
             },
             async forget(auth, { advanceOperationRevision = true } = {}) {
-                // Invalidate outstanding operation proofs before async IDB deletion.
+                // Invalidate outstanding operation proofs before async receipt-key fencing.
                 if (advanceOperationRevision) try { global.localStorage?.setItem('soundCruiseProOperationEpoch', cryptoImpl.randomUUID()); } catch (_) { /* source reads/credential deletion remain fail-closed */ }
-                await store.write(await receiptKey(auth), null);
+                revokedCredentials.add(auth.credential);
+                const identity = await operationIdentity(auth, cryptoImpl);
+                // Non-secret tombstone; no key/DB schema change and no second ledger.
+                // This key must never become absent again for the retired credential.
+                await store.write(identity.receiptIdentity, { kind: REVOKED_RECEIPT,
+                    ...identity, generation: auth.generation ?? null });
+                if (!await isRevoked(auth)) throw Error('Pro revocation was not persisted');
+                return true;
             }
         });
     }

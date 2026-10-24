@@ -1,3 +1,4 @@
+import { CRUISE_PORT_APP_VERSION } from './app-version.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -33,5 +34,7 @@ test('recording and the other nine formal icons remain available', () => {
 });
 
 test('SP6.13 UI remains covered in Cruise Port 0.59.3', () => {
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '1\.23\.1'/);
+    assert.match(CRUISE_PORT_APP_VERSION, /^\d+\.\d+\.\d+$/);
+    assert.ok(read('index.html').includes(`src="./practice-menu-app.js?v=${CRUISE_PORT_APP_VERSION}"`), 'Standard entry uses the canonical Port version');
+    assert.ok(read('pro_9a3943176561/index.html').includes(`src="../pro-app-boot.js?v=${CRUISE_PORT_APP_VERSION}"`), 'Pro entry uses the canonical Port version');
 });

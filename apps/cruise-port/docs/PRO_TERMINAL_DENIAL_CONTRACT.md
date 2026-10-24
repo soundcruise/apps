@@ -1,5 +1,93 @@
 # L3c Observed Revocation Safety Fix
 
+## L3c Security Recovery — 限定候補（2026-10-22）
+
+固定base/remote main確認値は `0335aa09d5316d726f9cbe4851c612756b2af8b1`、treeは
+`e10a17c99676ddea7bd571d6a601f24758bf98a9`。専用worktreeの未コミット候補。
+root mainを更新せず、commit/push/deploy/D1/cutover/L3dは行わない。
+このbaseに既存のStudio schema2が含まれることと、L3cによるschema変更を区別する。
+L3cはStudio製品コード・Authority physical schema2・Pro DB version1/state storeを変更しない。
+Production legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=falseを維持する。
+本番DBやlive enforcement状態を照会済みとは主張しない。
+
+### P2 L3C IR 01 旧Worker互換応答の採用確認
+
+旧Workerのchallenge404後にawaitする/sessionも、成功採用時に現在の資格とclient失効latch、
+同じreceiptキーの永続失効を再確認する。永続失効確認が不能なら既存allowanceへfallbackせず拒否する。
+非同期fence確認後も現在性とclient latchを再確認する。旧資格のterminal応答metadataは保持し、
+正式Sourceの対象資格への伝播を変えない。正常な互換成功はonline-onlyでreceiptを作らず、
+別資格Bの有効receiptと認可、503/429/timeoutの既存bounded grantは維持する。
+新規回帰は合成request callbackとin-memory storeだけで応答保留・失効完了・解放を区別する。
+同client/別client、永続write失敗、読取り不能、資格置換、正常互換、正常B、terminal帰属を確認する。
+Source/Adapter/Authority Store/Worker/Studio/Native fixture/L2aの製品・試験設計は変更しない。
+別DB原子性や未観測server revokeの完全検知を追加保証しない。正式commit/push/deployは行わない。
+
+### Receipt-key revocation fence
+
+従来のdeleteを、同じcredential由来の `receipt:<SHA256 base64url>` キーに置く
+`kind=revoked-pro-receipt-v1` tombstoneへ置き換える。別Authority台帳・新storeは作らない。
+rowはcredentialFingerprint/receiptIdentity/generation/sessionVersion/operationRevisionFingerprintを保持し、
+raw資格・署名鍵・seal keyは保存しない。pendingの資格文字列は既存server再試行キューにだけ残る。
+同じcredentialのterminalはrevision更新で解除しない。再認証は別credential Bを正式発行する。
+
+browserStoreの同一state RW transaction内で現在値を読み、tombstoneならreceipt CASを拒否する。
+暗号化前後のisCurrent検査だけを原子性の根拠にしない。先行CASのexpectedが古いreceiptでも
+undefinedでもtombstoneを上書きできず、再度forgetしても元の失効identityを上書きしない。
+旧AES-GCM receiptは形式変更せず読める。accept/allowance/validate/readonly allowanceはtombstoneをgrantにしない。
+オンライン成功や旧Workerのcompatibility成功も、永続失効した同一資格を復活させない。
+forgetは同期client latch→永続write→読み戻し確認。失敗をdurable成功として返さない。
+失効rowを削除/GCする製品APIは追加しない。
+
+### Shared source / UI / pending
+
+通常UI・boot・Operation Sourceは同じvalidateQualificationを使い、request開始時の
+credential/generation/sessionVersion/shared epochと、denialのreceipt/operation revision指紋を固定する。
+結果採用時に現資格・pending・観測済みterminal・共有epochを確認する。
+他tabの同資格UI通知だけで進むrealm authEpochを、資格失効と混同しない。
+Authority proof自体は従来どおり完全なoperation revisionを最終guardで確認する。
+古いAのdenialはAだけをfenceし、Bのauth/epoch/receiptを変更しない。
+
+pendingはserver revoke再試行キューであり、永続失効の唯一の正本にはしない。
+flushPendingは対象auth除去成功（または別資格/不存在）、対象tombstoneの永続確認、
+正式ACK（200+ok=true、または既知terminalの401+ok=false）、ACK後の対象auth再確認を必要とする。
+503/429/network/timeout/未知401/403、不正queue、auth除去/IDBの失敗ではpendingを保持する。
+正常復旧後はpendingを消せるが、receipt-key fenceは残る。Bへの付替えやepoch更新は行わない。
+propagatedは同期latch＋pending＋永続fenceの成立であり、auth削除失敗まで消えたとの報告ではない。
+
+### 維持する境界と限界
+
+有効な資格のrenew/offline grant、5分補正、Standard保存、AccountとProの独立性、
+Control/Pointer/Evidence/確定fact replayの契約は維持する。UI unlockはAuthority認可ではない。
+Pro DBとlocalStorage/Authority DBは別transaction。同期sourceの読取り直後の他renderer変更や
+server未観測revokeの完全検知・localStorageの複数操作の原子性は主張しない。
+全永続入口の同時故障、OS電源断、任意storage改変・profile巻戻しは保証外。
+旧保存データ互換と、更新前helperで動き続ける非協調旧tabの排除は別問題。
+旧tabや任意scriptが失効rowを削除する場合の完全保証は追加せず、old-build-unknown/shared write OFFを維持する。
+
+### 検証証跡と受入条件
+
+未完了3ファイルの実bytes/SHA256/diff/commonDir/worktree登録をrepo外へ保全。
+初回の依存不足をREDとして扱わず、既存fake-indexeddbの読み取り参照で解決した後に
+保存済みNodeテストがreceipt再作成/newProof/newCommit=trueでFAILすることを確認した。
+製品修正後は同じ安全assertionを維持する。auth-delete故障は正常cleanup確認前に復旧し、
+故障継続時のpending保持も別ケースで追加する。
+UI mockは正式denial metadataを返し、generation退役は正式401 reauth_requiredで試験する。
+古い同期boot想定は、DOMContentLoaded前の非同期identity計算を待つ形にし、unlock条件は弱めない。
+
+Native suiteは正式helper/crypto/IndexedDB/Adapterと異なるrendererを使用し、
+renew成功応答の保持、terminal観測、pending、応答解放、非復活、正式online flush、
+fresh client/peer/reload、新B成功を各checkpointでassertする。認証transportだけは合成fixture。
+外向きrequestは遮断し、既存8765/8766・本番資格/Worker/D1は使わない。
+Nodeの実Worker結果とNativeの合成transportを混同しない。Native REDを今回測定したとは主張しない。
+
+共通asset cacheはhelper7/gate33へ更新。全Pro HTMLとPitch fallbackを整合する。
+アプリ本体版やStudio readerの製品コードは変更しない。旧readonly helperもtombstoneをgrantとして解釈しない。
+全requiredのFAIL/skip/cancelled/todoを報告し、既存baseの失敗・所有境界検査・未実施を除外して
+SECURITY FIX PASSと称さない。独立受入前は未コミットの限定候補として扱う。
+
+以下は2026-10-13時点の履歴。receipt削除に関する記述は本節のtombstone契約に置き換える。
+
+
 2026-10-13。開始HEAD `a6b5bcd988995585f2ed80e40175f3924e1b0d6f`。
 Production legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false。
 Studio schema1 / Authority physical schema2・9 stores。本番操作・L3d以降は対象外。

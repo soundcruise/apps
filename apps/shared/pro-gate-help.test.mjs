@@ -58,7 +58,7 @@ test('all five primary actions open shared guidance instead of navigating direct
     for (const entry of entries) {
         const html = read(entry);
         assert.ok(html.includes('pro-gate-help.js?v=4'), entry);
-        assert.ok(html.indexOf('pro-gate-help.js?v=4') < html.indexOf('pro-gate.js?v=32'), entry);
+        assert.ok(html.indexOf('pro-gate-help.js?v=4') < html.indexOf('pro-gate.js?v=33'), entry);
         assert.doesNotMatch(html, /youtube\.com\/post\//, 'gate entries delegate to the shared definition');
     }
     const gate = read('pro-gate.js');
@@ -217,8 +217,8 @@ test('Escape collapses only open help and returns focus to its summary', () => {
 
 test('the legacy Pitch loader also loads shared help without changing its session helper', () => {
     const legacy = read('../pitch-cruise/pro_x9v7q2m8/pro-gate-hash.js');
-    assert.match(legacy, /pro-device-session.js\?v=5/);
+    assert.match(legacy, /pro-device-session.js\?v=7/);
     assert.match(legacy, /pro-gate-help.js\?v=4/);
     assert.match(legacy, /help.onerror = startGate/);
-    assert.match(legacy, /pro-gate.js\?v=32/);
+    assert.match(legacy, /pro-gate.js\?v=33/);
 });

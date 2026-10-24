@@ -23,7 +23,7 @@ const chrome=spawn(process.env.CHROME_PATH||'/Applications/Google Chrome.app/Con
 const cleanup=()=>{try{chrome.kill();}catch{}server.close();try{rmSync(profile,{recursive:true,force:true});}catch{}};
 process.on('exit',cleanup);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms)),report={cases:[],errors:[],missing:[],externalWrites:[],contexts:[],mode:'L2a isolated store; not L2b acceptance'};
-let ws,nextId=0;const pending=new Map(),paused=new Set();
+let ws,nextId=0;const pending=new Map(),paused=new Set(),fetchHandlers=new Set(),fetchCompletions=[];
 async function poll(fn){for(let n=0;n<200;n++){if(await fn())return;await sleep(25);}throw Error('native checkpoint timeout');}
 try{
  const portFile=join(profile,'DevToolsActivePort');await poll(()=>existsSync(portFile));
@@ -43,7 +43,9 @@ try{
    else if(u.origin!==origin){body='';if(r.method!=='GET')report.externalWrites.push({url:u.href,method:r.method});}
    const promise=body===undefined?send('Fetch.continueRequest',{requestId:m.params.requestId},m.sessionId):send('Fetch.fulfillRequest',{
     requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:u.hostname==='fonts.googleapis.com'?'text/css':'application/json'}],body:Buffer.from(body).toString('base64')},m.sessionId);
-   promise.catch(e=>report.errors.push(e.message));
+   const handler={sessionId:m.sessionId,requestId:m.params.requestId};fetchHandlers.add(handler);
+   const completed=error=>{fetchHandlers.delete(handler);fetchCompletions.push({...handler,news:u.pathname==='/v1/news'||u.pathname==='/__cruise_preview/news',ok:!error});if(error)report.errors.push(error.message);};
+   promise.then(()=>completed(),completed);
   }
  });
  const evaluate=async(session,expression,awaitPromise=true)=>{
@@ -67,8 +69,13 @@ try{
  const normal=await tab();
  for(const url of ['/apps/cruise-port/index.html','/apps/cruise-studio/index.html']){
   await send('Page.navigate',{url:origin+url},normal.sessionId);
-  await poll(async()=>{try{return await evaluate(normal.sessionId,url.includes('studio')?'!!window.CruiseStudio?.portDataHost':'!!document.querySelector(".port-app-version-display")');}catch{return false;}});
+  await poll(async()=>{try{return await evaluate(normal.sessionId,url.includes('studio')?"document.readyState==='complete'&&!!window.CruiseStudio?.portDataHost":"document.readyState==='complete'&&!!document.querySelector('.port-app-version-display')?.textContent.trim()&&!!document.querySelector('#news-category')");}catch{return false;}});
+  // The static version element exists before bootstrap. Wait for NEWS presentation
+  // and its owned Fetch handler before replacing the document with Studio.
+  await poll(()=>![...fetchHandlers].some(h=>h.sessionId===normal.sessionId));
+  if(!url.includes('studio'))assert(fetchCompletions.some(h=>h.sessionId===normal.sessionId&&h.news&&h.ok));
   assert.equal((await evaluate(normal.sessionId,'indexedDB.databases()')).some(d=>d.name==='sound-cruise-port-authority-v1'),false);
+  (report.normalStartups??=[]).push({url,unfinishedHandlers:[...fetchHandlers].filter(h=>h.sessionId===normal.sessionId).length,news:fetchCompletions.filter(h=>h.sessionId===normal.sessionId&&h.news)});
  }
  await send('Target.closeTarget',{targetId:normal.targetId});record('normal Port / Studio read-only start creates no new Authority DB');
  await evaluate(a.sessionId,`IDBQA.setup(${JSON.stringify(partition)})`);await evaluate(b.sessionId,`IDBQA.setup(${JSON.stringify(partition)})`);
@@ -114,6 +121,7 @@ try{
  for(const id of contexts)await send('Target.disposeBrowserContext',{browserContextId:id});
  const upgrade=await evaluate(b.sessionId,'IDBQA.upgrade()');assert.equal(upgrade.status,'versionchange');assert.equal((await evaluate(a.sessionId,'IDBQA.status()')).status,'versionchange');
  assert.equal((await evaluate(a.sessionId,'IDBQA.futureOpen()')).reason,'future-schema');record('native versionchange closes both connections; future schema not overwritten');
+ await poll(()=>fetchHandlers.size===0);report.fetchCompletions=fetchCompletions;report.unfinishedFetchHandlers=fetchHandlers.size;
  assert.deepEqual(report.errors,[]);assert.deepEqual(report.missing,[]);assert.deepEqual(report.externalWrites,[]);report.result='PASS';
 }catch(error){report.result='FAIL';report.failure=String(error.stack||error);process.exitCode=1;}
 finally{writeFileSync('/private/tmp/l2a-native-browser.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));ws?.close();cleanup();}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import { webcrypto } from 'node:crypto';
+import { webcrypto, createHash } from 'node:crypto';
 import { handleRequest } from '../../workers/sound-cruise-sync/src/app.js';
 import { createSqliteD1 } from '../../workers/sound-cruise-sync/test/sqlite-d1.js';
 const source = readFileSync(new URL('./pro-device-session.js', import.meta.url), 'utf8');
@@ -10,12 +10,12 @@ const DAY = 86400_000, ORIGIN = 'https://soundcruise.jp';
 function memoryStore() {
     const values = new Map();
     return { values, read: async key => structuredClone(values.get(key)),
-        write: async (key, value) => { if (value === null) values.delete(key); else values.set(key, structuredClone(value)); },
+        write: async (key, value) => { if(value?.kind==='revoked-pro-receipt-v1'&&values.get(key)?.kind==='revoked-pro-receipt-v1')return; if (value === null) values.delete(key); else values.set(key, structuredClone(value)); },
         install: async (key, value) => {
             if (!values.has(key)) values.set(key, structuredClone(value)); return structuredClone(values.get(key));
         },
         compareAndSwap: async (key, expected, value) => {
-            if (!assertEnvelopeEqual(values.get(key), expected)) return false;
+            if (values.get(key)?.kind === 'revoked-pro-receipt-v1' || !assertEnvelopeEqual(values.get(key), expected)) return false;
             values.set(key, structuredClone(value)); return true;
         } };
 }
@@ -374,4 +374,192 @@ test('read-only session inspection has no key/session creation, mutation or requ
         f.current = null;
         assert.equal((await reader.allowance(auth)).ok, false);
     } finally { f.db.close(); }
+});
+
+async function savedSession(f, auth) {
+    const key = 'receipt:' + createHashForTest(auth.credential);
+    const envelope = await f.store.read(key), keys = await f.store.read('device-key');
+    const bytes = await webcrypto.subtle.decrypt({name:'AES-GCM',iv:envelope.iv,
+        additionalData:new TextEncoder().encode(key)},keys.sealKey,envelope.ciphertext);
+    return JSON.parse(new TextDecoder().decode(bytes)).session;
+}
+function createHashForTest(value) {
+    return createHash('sha256').update(value).digest('base64url');
+}
+test('durable receipt-key revocation survives fresh clients and cannot be cleared by a valid old session', async () => {
+    const f=await fixture();
+    try {
+        const a=await f.login(), session=await savedSession(f,a);
+        await f.session.forget(a,{advanceOperationRevision:false});
+        const fresh=f.client();
+        assert(await fresh.isRevoked(a));assert.equal(await fresh.accept(a,session),false);
+        assert.equal((await fresh.allowance(a)).ok,false);assert.equal((await fresh.validate(a)).ok,false);
+        assert.equal(f.requests.filter(p=>p==='/device-session/renew').length,0);
+    } finally {f.db.close();}
+});
+test('a receipt CAS queued before revocation cannot overwrite the tombstone', async () => {
+    const f=await fixture();let release;
+    try {
+        const a=await f.login();let entered;const begun=new Promise(r=>entered=r),held=new Promise(r=>release=r);
+        const slow=f.client({...f.store,compareAndSwap:async(...args)=>{entered();await held;return f.store.compareAndSwap(...args);}});
+        const write=slow.allowance(a);await begun;await f.session.forget(a,{advanceOperationRevision:false});release();
+        assert.equal((await write).ok,false);assert(await f.client().isRevoked(a));
+    } finally {release?.();f.db.close();}
+});
+test('retiring A preserves the separately issued B receipt and normal renewal', async () => {
+    const f=await fixture();
+    try {
+        const a=await f.login(),b=await f.login();
+        await f.session.forget(a,{advanceOperationRevision:false});
+        assert((await f.client().allowance(b)).ok);assert((await f.client().validate(b)).ok);
+        assert(await f.client().isRevoked(a));assert.equal(await f.client().isRevoked(b),false);
+    } finally {f.db.close();}
+});
+test('failed durable revocation reports failure and latches the observing client closed', async () => {
+    const f=await fixture();
+    try {
+        const a=await f.login(),session=await savedSession(f,a);
+        const client=f.client({...f.store,write:async()=>{throw Error('isolated persistence failure');}});
+        await assert.rejects(client.forget(a),/persistence failure/);
+        assert.equal((await client.allowance(a)).ok,false);assert.equal(await client.accept(a,session),false);
+        assert.equal((await client.validate(a)).ok,false);
+        assert.equal(await f.client().isRevoked(a),false,'failed persistence is never reported as durable');
+    } finally {f.db.close();}
+});
+test('same-credential revision changes cannot retire the revocation; old-Worker success cannot grant it', async () => {
+    const f=await fixture();
+    try {
+        const a=await f.login();await f.session.forget({...a,operationRevision:'before'});
+        let requests=0;const fresh=f.client(f.store,async()=>{requests++;return {status:200,body:{ok:true,generation:a.generation}};});
+        assert.equal((await fresh.validate({...a,operationRevision:'after'})).ok,false);assert.equal(requests,0);
+        await fresh.forget({...a,operationRevision:'after'});assert(await fresh.isRevoked(a));
+    } finally {f.db.close();}
+});
+test('malformed revocation identity fails closed without online compatibility fallback', async () => {
+    const f=await fixture();
+    try {
+        const a=await f.login();await f.session.forget(a);
+        const key='receipt:'+createHashForTest(a.credential),row=await f.store.read(key);row.receiptIdentity='wrong';f.store.values.set(key,row);
+        const fresh=f.client();assert.equal((await fresh.validate(a)).ok,false);assert.equal((await fresh.allowance(a)).ok,false);
+        await assert.rejects(fresh.isRevoked(a),/Invalid Pro revocation/);
+    } finally {f.db.close();}
+});
+
+// P2 regressions use generated qualifications and in-memory request callbacks only.
+// No Worker, HTTP request, Account, or production identity participates here.
+function compatibilityFixture() {
+    const store = memoryStore(), window = {}, now = 100000;
+    vm.runInNewContext(source, { window, TextEncoder, TextDecoder, btoa, crypto: webcrypto, Date, Uint8Array });
+    const qualification = () => ({ credential: 'isolated-compat-' + webcrypto.randomUUID(), generation: 1, sessionVersion: 3 });
+    let current = qualification();
+    const client = (options = {}) => window.SoundCruiseProDeviceSession.createClient({ store, cryptoImpl: webcrypto,
+        now: () => now, monotonicNow: () => 0, isCurrent: auth => current?.credential === auth.credential, ...options });
+    function hold(auth = current, options = {}, reply = { status: 200, body: { ok: true, generation: auth.generation } }) {
+        let begin, release, delivered = false;
+        const started = new Promise(resolve => { begin = resolve; }), held = new Promise(resolve => { release = resolve; });
+        const calls = [], response = structuredClone(reply);
+        const heldClient = client({ ...options, request: async path => {
+            calls.push(path);
+            if (path === '/device-session/challenge') return { status: 404 };
+            assert.equal(path, '/session'); begin(); await held; delivered = true; return response;
+        } });
+        const result = heldClient.validate(auth, { force: true });
+        return { client: heldClient, result, started, release, calls, get delivered() { return delivered; } };
+    }
+    async function seed(auth) {
+        const c = client(), publicKey = await c.publicKey();
+        assert.equal(await c.accept(auth, { version: 3, serverTime: now, issuedAt: now, boundAt: now, lastValidatedAt: now,
+            inactiveExpiresAt: now + 90 * DAY, accessExpiresAt: now + 60000, offlineUntil: now + 60000,
+            revalidateAfter: now + 1000, devicePublicKey: publicKey }), true);
+    }
+    return { store, client, hold, seed, qualification, get current() { return current; }, set current(auth) { current = auth; } };
+}
+
+for (const mode of ['same-client', 'same-client-write-failure', 'peer-client']) {
+    test('compatibility success held during revocation is rejected: ' + mode, async t => {
+        const f = compatibilityFixture(), a = f.current;
+        const otherStore = mode === 'same-client-write-failure' ? { ...f.store, write: async () => { throw Error('isolated fence write failure'); } } : f.store;
+        const h = f.hold(a, { store: otherStore, isCurrent: () => true }); t.after(h.release);
+        await h.started; assert.equal(h.delivered, false);
+        assert.deepEqual(h.calls, ['/device-session/challenge', '/session']);
+        if (mode === 'same-client-write-failure') {
+            await assert.rejects(h.client.forget(a), /isolated fence write failure/);
+            assert.equal(await f.client().isRevoked(a), false, 'failed persistence is not durable success');
+        } else {
+            await (mode === 'same-client' ? h.client : f.client()).forget(a, { advanceOperationRevision: false });
+            assert.equal(await f.client().isRevoked(a), true, 'fence is durable before response delivery');
+        }
+        assert.equal(h.delivered, false); h.release(); const result = await h.result;
+        assert.equal(h.delivered, true); assert.equal(result.ok, false); assert.equal(result.revoked, true);
+        assert.equal((await h.client.allowance(a)).ok, false);
+        t.diagnostic(JSON.stringify({ heldBeforeRevocation: true, durable: mode !== 'same-client-write-failure', released: true, rejected: true }));
+    });
+}
+
+test('compatibility success held during qualification replacement cannot be adopted', async t => {
+    const f = compatibilityFixture(), a = f.current, h = f.hold(a); t.after(h.release);
+    await h.started; assert.equal(h.delivered, false); f.current = f.qualification();
+    h.release(); const result = await h.result;
+    assert.equal(result.ok, false); assert.equal(result.stale, true);
+    assert.equal(await f.client().isRevoked(f.current), false, 'replacement is not retired');
+});
+
+test('compatibility fence read failure cannot fall back to an otherwise valid allowance', async t => {
+    const f = compatibilityFixture(), a = f.current; await f.seed(a);
+    let failNextRead = false;
+    const store = { ...f.store, read: async key => {
+        if (failNextRead && key.startsWith('receipt:')) { failNextRead = false; throw Error('isolated fence read failure'); }
+        return f.store.read(key);
+    } };
+    const h = f.hold(a, { store }); t.after(h.release); await h.started;
+    failNextRead = true; h.release(); const result = await h.result;
+    assert.equal(result.ok, false); assert.equal(result.storageUnavailable, true);
+    assert.equal((await f.client().allowance(a)).ok, true, 'a later independent healthy read still has its bounded grant');
+});
+
+test('healthy old-Worker compatibility remains online-only and creates no receipt', async t => {
+    const f = compatibilityFixture(), a = f.current, h = f.hold(a); t.after(h.release);
+    await h.started; assert.equal(h.delivered, false); h.release(); const result = await h.result;
+    assert.equal(result.ok, true); assert.equal(result.compatibility, true); assert.equal(result.online, true);
+    assert.equal(result.generation, a.generation); assert.equal((await f.client().allowance(a)).ok, false);
+    assert.equal([...f.store.values.keys()].some(key => key.startsWith('receipt:')), false);
+});
+
+test('retiring unrelated A while B compatibility waits preserves B receipt and success', async t => {
+    const f = compatibilityFixture(), a = f.current, b = f.qualification(); f.current = b; await f.seed(b);
+    const receiptKey = 'receipt:' + createHashForTest(b.credential), before = await f.store.read(receiptKey);
+    const h = f.hold(b); t.after(h.release); await h.started; assert.equal(h.delivered, false);
+    await f.client().forget(a, { advanceOperationRevision: false }); assert.equal(await f.client().isRevoked(a), true);
+    h.release(); const result = await h.result;
+    assert.equal(result.ok, true); assert.equal(result.compatibility, true); assert.equal(f.current, b);
+    assert.deepEqual(await f.store.read(receiptKey), before); assert.equal(await f.client().isRevoked(b), false);
+    assert.equal((await f.client().allowance(b)).ok, true);
+});
+
+test('stale old-Worker terminal response retains the original denial identity', async t => {
+    const f = compatibilityFixture(), a = { ...f.current, operationRevision: 'original-A' };
+    const h = f.hold(a, {}, { status: 401, body: { ok: false, code: 'invalid_credential' } }); t.after(h.release);
+    await h.started; f.current = f.qualification(); h.release(); const result = await h.result;
+    assert.equal(result.ok, false); assert.equal(result.terminal, true); assert.equal(result.stale, true);
+    assert.equal(result.denial.endpoint, 'session'); assert.equal(result.denial.reason, 'invalid_credential');
+    assert.equal(result.denial.credentialFingerprint, createHash('sha256').update(a.credential).digest('hex'));
+    assert.equal(result.denial.operationRevisionFingerprint, createHash('sha256').update(a.operationRevision).digest('hex'));
+    assert.equal(result.denial.receiptIdentity, 'receipt:' + createHashForTest(a.credential));
+    assert.equal(result.denial.generation, a.generation); assert.equal(result.denial.sessionVersion, a.sessionVersion);
+    assert.equal(typeof result.denial.validationId, 'string'); assert(result.denial.validationId);
+});
+
+test('compatibility adoption rechecks current qualification after the asynchronous fence read', async t => {
+    const f = compatibilityFixture(), a = f.current;
+    let intercept = false, begin, releaseRead;
+    const reading = new Promise(resolve => { begin = resolve; }), heldRead = new Promise(resolve => { releaseRead = resolve; });
+    const store = { ...f.store, read: async key => {
+        const value = await f.store.read(key);
+        if (intercept && key.startsWith('receipt:')) { intercept = false; begin(); await heldRead; }
+        return value;
+    } };
+    const h = f.hold(a, { store }); t.after(() => { h.release(); releaseRead(); }); await h.started;
+    intercept = true; h.release(); await reading; assert.equal(h.delivered, true);
+    f.current = f.qualification(); releaseRead(); const result = await h.result;
+    assert.equal(result.ok, false); assert.equal(result.stale, true);
 });
