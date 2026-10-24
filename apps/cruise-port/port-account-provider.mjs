@@ -44,8 +44,8 @@ export async function createIsolatedPortAccountProvider({ scope, mutationStore, 
     const state = (status, extra={}) => frozen({contractVersion:1,status,...extra,
         uiRevision:revision, authorizationConfirmed:false, operationAuthorized:false,
         continuityProven:false, recoveryRequired:true, canWrite:false});
-    let cached=state('unconfirmed'), freshness=null;
-    const publish=(status,extra) => { cached=state(status,extra); for(const fn of listeners) {try {fn(cached);} catch { /* display observer */ }} return cached; };
+    let cached=state('unconfirmed'), freshness=null, observationPin=null;
+    const publish=(status,extra) => { observationPin=null; cached=state(status,extra); for(const fn of listeners) {try {fn(cached);} catch { /* display observer */ }} return cached; };
     const live=()=>{env.assertLive();if(closed)throw Error('account-provider-disposed');};
     const off=accountStorage.subscribeAccount(()=>{revision++;request++;publish('stale');});
     const clock=()=>{const c={wall:env.now(),mono:env.monotonicNow(),origin:env.clockIdentity()};
@@ -80,6 +80,18 @@ export async function createIsolatedPortAccountProvider({ scope, mutationStore, 
     }
     return Object.freeze({
         getCachedStatus:cachedStatus,
+        // Read-result validation only, never a writer/admission capability. The
+        // opaque durable source remains inside the owner. Notifications alone
+        // cannot prove a result current after a consumer's asynchronous work.
+        async isCurrentObservation(value) {
+            live(); const pinned=observationPin;
+            if(!pinned || pinned.serial!==request || cachedStatus()!==value || pinned.value!==value)return false;
+            if(!await current(pinned.source)) {
+                if(observationPin===pinned)publish('stale');
+                return false;
+            }
+            return observationPin===pinned && pinned.serial===request && cachedStatus()===value;
+        },
         subscribe(fn){if(typeof fn!=='function')throw Error('account-provider-listener-invalid');live();listeners.add(fn);return()=>listeners.delete(fn);},
         async refresh({generation,operationId}={}) {
             identifier(operationId); live(); const serial=++request;
@@ -107,7 +119,9 @@ export async function createIsolatedPortAccountProvider({ scope, mutationStore, 
                 freshness=timing;
                 // Two authenticated reads are observations, not an atomic lease or
                 // a freshness proof. They never unlock coordinator/writer admission.
-                return publish('observed',{...projection,localNotificationGeneration:p.local});
+                const result=publish('observed',{...projection,localNotificationGeneration:p.local});
+                observationPin={source:p,serial,value:result};
+                return result;
             } catch(error) {
                 if(closed)return state('disposed');
                 if(p&&terminal.has(error.code)) {

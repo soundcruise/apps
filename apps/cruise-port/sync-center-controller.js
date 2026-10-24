@@ -1,4 +1,5 @@
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
+import { isAccountObservationReader } from '../shared/sync-account/account-observation-consumer.mjs';
 
 export const SYNC_CENTER_ROUTE = '#sync-center';
 
@@ -328,14 +329,36 @@ export function createUnavailablePresentation(kind = 'error', previous = null) {
     });
 }
 
+// Deliberately separate from summary's active/ready state: existing UI actions
+// key on those values. Observation never enables recovery/setup/delete/Sync.
+function isolatedController(reader, enabled) {
+    if(!isAccountObservationReader(reader))throw Error('account-observation-reader-required');
+    const presentation=()=>{
+        const observation=reader.peek(),observed=observation.status==='observed-readonly';
+        return Object.freeze({kind:observed?'observed-readonly':'unknown',accountState:'unknown',
+            accountLabel:observed?'Accountを観測済み（読み取り専用）':'Accountは未確認',
+            accountDisplayId:null,recoveryVersion:null,observation,
+            apps:Object.freeze([]),environments:Object.freeze([]),readyCount:0,totalCount:SYNC_CENTER_APPS.length,
+            canWrite:false,canSync:false});
+    };
+    return Object.freeze({enabled,
+        getCachedPresentation:presentation,
+        async loadLocal(){return enabled?presentation():Object.freeze({kind:'disabled'});},
+        async load(){if(!enabled)return Object.freeze({kind:'disabled'});await reader.read();return presentation();},
+        planFourAppSetup(){return Object.freeze({kind:'unavailable',appIds:Object.freeze([])});}
+    });
+}
+
 export function createSyncCenterController({
     config,
+    isolatedAccountConsumer = null,
     accountRoot = globalThis.SoundCruiseSyncAccount,
     readPortCredential = () => globalThis.SoundCruiseMultiAppSync?.runtimes?.port?.store?.readMeta('credential'),
     indexedDb = globalThis.indexedDB,
     online = () => globalThis.navigator?.onLine !== false,
     fetchImpl = globalThis.fetch?.bind(globalThis)
 } = {}) {
+    if(isolatedAccountConsumer!==null)return isolatedController(isolatedAccountConsumer,config?.enabled===true);
     let lastPresentation = null;
     let cachedGeneration = accountRoot?.storage?.getGeneration?.();
     const effectiveConfig = config || readSyncCenterConfig();

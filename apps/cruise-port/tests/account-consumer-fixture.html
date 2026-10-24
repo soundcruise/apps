@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8"><title>Isolated actual Account consumers</title>
+<script src="../../shared/sync-account/sync-account-db.js"></script>
+<script src="../../shared/sync-account/sync-account-client.js"></script>
+<script>window.CruiseStudio={};</script>
+<script src="../../cruise-studio/js/modules/metronome/settings-schema.js"></script>
+<div id="fixture-status" role="status"></div><div id="fixture-ui"></div>
+<script type="module">
+import {setupProvider} from './authority-store/account-provider-fixture.mjs';
+import {createIsolatedAccountObservationReader} from '../../shared/sync-account/account-observation-consumer.mjs';
+import {createSyncCenterController} from '../sync-center-controller.js?v=1.24.9';
+import {renderSyncCenter} from '../sync-center-ui.js?v=1.24.9';
+import {createPortDataHost} from '../../cruise-studio/js/port-data/host.mjs?v=0.47.6';
+import {connectPortReadOnly} from '../../cruise-studio/js/port-data/connection.mjs?v=0.47.6';
+import {describeAccountObservation} from '../../cruise-studio/js/port-data/account-status-projection.mjs?v=0.47.6';
+let x,reader,controller,host,clock,release,waiting=false,source,delayDataset;
+const forbidden=new Proxy({}, {get(){throw Error('legacy-consumer-called');}});
+window.consumerFixture={
+ async init({scopeName,seed=true}){
+  host?.dispose();reader?.dispose();x?.dispose();clock={wall:1000,mono:0,origin:'native-consumer'};
+  const record=await(await fetch('/__fixture/record')).json();
+  x=await setupProvider({indexedDB,root:SoundCruiseSyncAccount,scopeName,seed,record,ownerContext:true,
+   clockOptions:{now:()=>clock.wall,monotonicNow:()=>clock.mono,clockIdentity:()=>clock.origin}});
+  this.live();reader=createIsolatedAccountObservationReader({provider:x.provider,generation:()=> 'g1'});
+  controller=createSyncCenterController({config:{enabled:true},isolatedAccountConsumer:reader,accountRoot:forbidden});
+  // Use the real Port dataset/Pro readonly connection. Host's explicit Account
+  // branch must never call its legacy Account/meta or Sync membership reader.
+  host=createPortDataHost({schema:CruiseStudio.metronomeSchema,isolatedAccountConsumer:reader,
+   connect:async notify=>{source=await connectPortReadOnly(notify);const dataset=source.dataset;
+    return {...source,account(){throw Error('legacy-account');},localStatus(){throw Error('legacy-sync');},
+     async dataset(){const d=await dataset();if(delayDataset){waiting=true;await new Promise(r=>release=r);}return d;}};}});
+  if(!document.querySelector('#sync-center-view')){const html=await(await fetch('../index.html')).text(),doc=new DOMParser().parseFromString(html,'text/html'),ui=doc.querySelector('#sync-center-view');ui.hidden=false;document.querySelector('#fixture-ui').append(ui);}
+ },
+ live(){x.respond((u,o)=>fetch('/__fixture/owner'+new URL(u).search,{headers:o.headers,cache:'no-store'}));},
+ hold(){waiting=false;x.respond(async(u,o)=>{const r=await fetch('/__fixture/owner'+new URL(u).search,{headers:o.headers,cache:'no-store'});waiting=true;await new Promise(r=>release=r);return r;});},
+ holdDataset(){delayDataset=true;waiting=false;},waiting:()=>waiting,release(){delayDataset=false;release();},
+ async load(){const p=await controller.load();renderSyncCenter(document.querySelector('#sync-center-view'),p,{edition:'standard',orchestrationEnabled:false});document.querySelector('#fixture-status').textContent=p.accountLabel;return p;},
+ read:()=>host.readLocalStatus(),cached:()=>({port:controller.getCachedPresentation(),studio:host.getCachedStatus(),description:describeAccountObservation(host.getCachedStatus())}),
+ clock(v){Object.assign(clock,v);},rows:()=>x.rows(),authority:()=>x.store.hydrate('g1'),requests:()=>x.requests,
+ async raw(){const a=await(await fetch('/__fixture/record')).json();await x.rows(s=>s.put({...a,extra:{noNotification:true}},'account'));},
+ async blocked(){return {save:await host.enableLocalWrites({userIntent:true}),sync:await host.activateSync({userIntent:true}),plan:controller.planFourAppSetup()};}
+};
+</script>
