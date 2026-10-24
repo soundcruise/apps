@@ -1,5 +1,11 @@
 # Official Account observation provider and consumer boundary v1
 
+Additive follow-up: [Account owner generation/freshness](../../../workers/sound-cruise-sync/ACCOUNT_OWNER_CONTEXT_CONTRACT.md)
+defines an unrouted isolated primary-snapshot API and `ownerContext:true` opt-in.
+It obtains Port membership generations at-read and expires observations, never
+grants writer admission or a credential lease. Default summary/devices behavior
+below is retained; production route/normal consumer migration remains blocked.
+
 Port1.24.7 / Studio0.47.4, StudioProject schema2. This is an explicitly isolated,
 dormant extension. Shared Write OFF and Studio `canWrite=false` remain mandatory.
 Studio stays 0.x.y until the user approves its first formal release. No normal
