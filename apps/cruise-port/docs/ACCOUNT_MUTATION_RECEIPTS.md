@@ -4,7 +4,7 @@ This is a dormant, explicitly opted-in Shared owner extension plus Port fixture
 coordination. No normal boot, Account entry point, writer, Sync, authentication or
 Pro route activates it. Shared Write OFF, Studio `canWrite=false`, StudioProject
 schema2 and Authority physical schema2 remain unchanged. Product maintenance
-identities are Port1.24.5 / Studio0.47.2; neither is a production release here.
+identities are Port1.24.6 / Studio0.47.3; neither is a production release here.
 
 ## Canonical owner and compatibility
 
@@ -98,3 +98,9 @@ operations must remain valid, and old A must never retag/clear B.
 
 Tests use fake/native IndexedDB, disposable Chrome and loopback only; no real
 Account/Pro credential, Production endpoint, Shared Write or normal writer.
+
+## Isolated follow-up
+
+[ACCOUNT_CUTOVER_BOOTSTRAP](ACCOUNT_CUTOVER_BOOTSTRAP.md) defines explicit physical3
+canonical store rename and empty initial enrollment. The preceding protocol1/2
+contracts remain unchanged by default. No normal writer or qualification is enabled.

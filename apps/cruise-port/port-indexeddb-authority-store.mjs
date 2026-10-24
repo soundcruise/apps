@@ -1,3 +1,4 @@
+import {captureAccountBootstrap,accountBootstrapFingerprint,accountBootstrapRow,validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
 // L2a dormant Port-owned store. Only explicitly branded isolated scopes can open
 // a database. No Repository adapter, boot hook, migration, Sync or Pro runtime.
 import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COMMIT_STORES, AUTHORIZATION_MARGIN_MS,
@@ -17,7 +18,7 @@ const scopes = new WeakMap();
 // Explicit isolated adapter access; neither lease objects nor issuer authority escape.
 export function authorityProEnvironment(scope){
     const env=scopes.get(scope);if(!env)throw fail('isolated-scope-required');const lease=env.lease;
-    return Object.freeze({now:env.now,monotonicNow:env.monotonicNow,clockIdentity:env.clockIdentity,
+    return Object.freeze({fixtureOnly:!!env.testProvider,now:env.now,monotonicNow:env.monotonicNow,clockIdentity:env.clockIdentity,
         assertLive(){if(env.lease!==lease||!lease.active)throw fail('pro-operation-disposed');}});
 }
 // Port-owned capability issuer for a registered isolated scope (one claimant per
@@ -595,24 +596,28 @@ function makeStore(db,env,lifecycle,lease) {
     // Account intent is a typed fact in reservations, not a pending reservation.
     // It commits alongside the restriction read by normal final admission.
     const accountTransitionReceipts=new WeakMap();
-    async function beginAccountTransition(input={}) {
+    async function beginAccountTransition(input={},bootstrap=false) {
+        const capture=bootstrap?captureAccountBootstrap:captureAccountTransition, validate=bootstrap?validateAccountBootstrap:validateAccountTransition, fingerprint=bootstrap?accountBootstrapFingerprint:accountTransitionFingerprint, makeRow=bootstrap?accountBootstrapRow:accountTransitionRow;
+        const intentKind=bootstrap?'account-bootstrap':'account-transition';
+        const verifyGuard=()=>{if(bootstrap&&(!env.testProvider||typeof input.commitGuard!=='function'||input.commitGuard()!==true))throw fail('account-bootstrap-fixture-proof-required');};
         let q, capability;
         try {
             ({capability}=input);
-            const {capability: ignored,...request}=input;
-            q=captureAccountTransition(request);
+            const {capability: ignored,commitGuard: ignoredGuard,...request}=input;
+            if(!bootstrap&&ignoredGuard!==undefined)throw fail('account-intent-invalid');
+            q=capture(request);verifyGuard();
             verifyCapability(capability,{scope:env.scope,lease,purpose:'control:invalidate',generation:q.generation});
         } catch(error) { return Promise.resolve(rejected(errorCode(error))); }
         const accepted=await transact(COMMIT_STORES,'readwrite',ctx=>{
-            const verify=()=>verifyCapability(capability,{scope:env.scope,lease,purpose:'control:invalidate',generation:q.generation});
+            const verify=()=>{verifyCapability(capability,{scope:env.scope,lease,purpose:'control:invalidate',generation:q.generation});verifyGuard();};
             verify();
             ctx.request(ctx.store('oplog').get([q.generation,q.operationId]),log=>{
                 if(log)throw fail('operation-id-payload-conflict');
                 ctx.request(ctx.store('reservations').get([q.generation,q.operationId]),existing=>{
                     if(existing){
                         validateReservation(existing,q.generation,q.operationId);
-                        if(existing.kind!=='account-transition'||existing.fingerprint!==accountTransitionFingerprint(q))throw fail('operation-id-payload-conflict');
-                        validateAccountTransition(existing);
+                        if(existing.kind!==intentKind||existing.fingerprint!==fingerprint(q))throw fail('operation-id-payload-conflict');
+                        validate(existing);
                         // Historical lookup never authorizes replaying the Account CAS.
                         ctx.done({ok:true,status:'account-intent-historical',replayed:true,historical:true,operationAuthorized:false,canWrite:false});return;
                     }
@@ -631,15 +636,15 @@ function makeStore(db,env,lifecycle,lease) {
                                     if(order<0){cursor.continue([q.generation,'']);return;}
                                     if(order>0){finish();return;}
                                     if(++scanned>4096)throw fail('account-intent-scan-capacity');
-                                    if(cursor.value.generation===q.generation&&cursor.value.kind==='account-transition'){
-                                        validateAccountTransition(cursor.value);if(++count>=ACCOUNT_TRANSITION_INTENT_LIMIT)throw fail('account-intent-capacity');
+                                    if(cursor.value.generation===q.generation&&cursor.value.kind===intentKind){
+                                        validate(cursor.value);if(++count>=ACCOUNT_TRANSITION_INTENT_LIMIT)throw fail('account-intent-capacity');
                                     }
                                     cursor.continue();return;
                                 }
                                 finish();
                             });
                             function finish(){
-                                verify();const row=accountTransitionRow(q,old);
+                                verify();const row=makeRow(q,old);
                                 ctx.request(ctx.store('control').put(row.accountTransition.after));
                                 ctx.request(ctx.store('reservations').add(row));
                                 ctx.done({ok:true,status:'account-intent-stopped',generation:q.generation,operationId:q.operationId,
@@ -650,10 +655,11 @@ function makeStore(db,env,lifecycle,lease) {
                 });
             });
         });
-        if(accepted.ok&&accepted.status==='account-intent-stopped')accountTransitionReceipts.set(accepted,q);
+        if(!bootstrap&&accepted.ok&&accepted.status==='account-intent-stopped')accountTransitionReceipts.set(accepted,q);
         return accepted;
     }
-    function accountTransitions(generation) {
+    function accountTransitions(generation,bootstrap=false) {
+        const intentKind=bootstrap?'account-bootstrap':'account-transition',validate=bootstrap?validateAccountBootstrap:validateAccountTransition;
         try{identifier(generation);}catch(error){return Promise.resolve(rejected(errorCode(error)));}
         return transact(COMMIT_STORES,'readonly',ctx=>{
             const intents=[];let scanned=0;
@@ -666,8 +672,8 @@ function makeStore(db,env,lifecycle,lease) {
                         if(order>0){finish();return;}
                         if(++scanned>4096)throw fail('account-intent-scan-capacity');
                         const row=cursor.value;
-                        if(row.generation===generation&&row.kind==='account-transition'){
-                            validateAccountTransition(row);
+                        if(row.generation===generation&&row.kind===intentKind){
+                            validate(row);
                             if(!control||!control.identityInvalidated||!equal(control.identity,row.accountTransition.request.identity)||control.epoch<row.accountTransition.after.epoch)
                                 throw fail('account-intent-barrier-missing');
                             intents.push(row);
@@ -852,6 +858,7 @@ function makeStore(db,env,lifecycle,lease) {
             }));
         },
         beginAccountTransition, accountTransitions, confirmAccountTransition,
+        beginAccountBootstrap:input=>beginAccountTransition(input,true),accountBootstraps:generation=>accountTransitions(generation,true),
         prepareControlOperation,
         ...Object.fromEntries(Object.keys(CONTROL_OPERATIONS).map(action=>[action,input=>controlOperation(action,input)])),
         lookupControlOperation(generation,operationId){

@@ -1,5 +1,5 @@
-import { PRACTICE_KEYS } from './practice-projection.mjs?v=0.47.2';
-import { LIBRARY_KEYS } from './library-projection.mjs?v=0.47.2';
+import { PRACTICE_KEYS } from './practice-projection.mjs?v=0.47.3';
+import { LIBRARY_KEYS } from './library-projection.mjs?v=0.47.3';
 // All I/O is deferred until explicit local inspection. No writer is exported.
 const port = new URL('../../../cruise-port/', import.meta.url);
 const shared = new URL('../../../shared/', import.meta.url);
@@ -14,7 +14,12 @@ export async function readExisting(indexedDB, name, store, key) {
         request.onblocked = () => reject(Error('storage-unavailable'));
         request.onsuccess = () => {
             const db = request.result;
-            if (!db.objectStoreNames.contains(store)) { db.close(); resolve(null); return; }
+            if (!db.objectStoreNames.contains(store)) {
+                db.close();
+                if (name === 'sound-cruise-sync-account') reject(Error('account-schema-unsupported'));
+                else resolve(null);
+                return;
+            }
             const tx = db.transaction(store, 'readonly'), read = key === undefined ? tx.objectStore(store).getAll() : tx.objectStore(store).get(key);
             tx.oncomplete = () => { const value = read.result ?? null; db.close(); resolve(value); };
             tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };

@@ -1,6 +1,6 @@
 # Account writer participation v1 — isolated acceptance contract
 
-This extends PR7, dependent on PR5 → PR6 → PR7. Port1.24.5 / Studio0.47.2
+This extends PR7, dependent on PR5 → PR6 → PR7. Port1.24.6 / Studio0.47.3
 are maintenance candidate identities, not production publication. StudioProject
 schema2, Authority schema2, receipt logical schema1 remain unchanged. Shared Write
 OFF; Studio `canWrite=false`. No normal route imports these new modules. The
@@ -156,3 +156,9 @@ qualification; raw noncooperating continuity solution or owner-approved enforcem
 boundary; migration/cutover + binary durability; final admission in actual mutation
 transaction; connected crash/reopen acceptance. None may relax old writer, CAS,
 tombstone, Pro or final admission gates. Production remains separately authorized.
+
+## Isolated follow-up
+
+[ACCOUNT_CUTOVER_BOOTSTRAP](ACCOUNT_CUTOVER_BOOTSTRAP.md) defines explicit physical3
+canonical store rename and empty initial enrollment. The preceding protocol1/2
+contracts remain unchanged by default. No normal writer or qualification is enabled.

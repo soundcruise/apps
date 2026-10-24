@@ -18,11 +18,12 @@ export const ACCOUNT_WRITER_REGISTRY=Object.freeze({
     'bridge.createAccountAndPrepare':'blocked-create'
 });
 const pending=['Start','Consume','Bridge','Recovery','Delete','Detach','EnvironmentDetach'];
-export function createIsolatedAccountWriterAdapter({indexedDB,scopeName,scopeFactory,locks,summary}={}){
+export function createIsolatedAccountWriterAdapter({indexedDB,scopeName,scopeFactory,locks,summary,protocol=2}={}){
     if(!indexedDB?.open||typeof scopeFactory!=='function'||typeof summary!=='function'||!locks?.request||
         !/^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(scopeName??''))throw error('account-writer-isolation-required');
+    if(![2,3].includes(protocol))throw error('account-writer-protocol-invalid');
     let generation=0;const listeners=new Set();
-    const storage=createIsolatedAccountMutationStore({indexedDB,scopeName,protocol:2,beforeAccountCommit(){
+    const storage=createIsolatedAccountMutationStore({indexedDB,scopeName,protocol,beforeAccountCommit(){
         generation++;for(const listener of listeners){try{listener(generation);}catch{}}return generation;
     }});
     const operations=new WeakMap();
@@ -65,7 +66,7 @@ export function createIsolatedAccountWriterAdapter({indexedDB,scopeName,scopeFac
                 const scope=scopeFactory();if(scope?.name!==scopeName)throw error('account-writer-scope-mismatch');
                 let issued;
                 const mutationStore={...storage,capture:async()=>ticket,async mutate(q){const r=await storage.mutate({...q,context:ticket});issued=r;return r;}};
-                coordinator=await createIsolatedPortAccountCoordinator({scope,indexedDB,locks,accountStorage:local,mutationStore});
+                coordinator=await createIsolatedPortAccountCoordinator({scope,indexedDB,locks,accountStorage:local,mutationStore,accountProtocol:protocol===3?3:1});
                 const observation=await summary(old);
                 if(!await storage.current(ticket))throw error('account-mutation-cas-conflict');
                 const context=await coordinator.observe({generation:observation.authorityGeneration,summary:observation.summary});
