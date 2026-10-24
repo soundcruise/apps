@@ -1,6 +1,6 @@
 import { CRUISE_APPS_NEWS_ITEM } from './news-articles.js?v=1.16.1';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
-import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.24.9';
+import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.24.10';
 import { NEWS_PROVIDER, NEWS_API_BASE } from './news-config.js?v=1.11.1';
 export class NewsDisabledError extends Error { constructor(){super('news_disabled');this.name='NewsDisabledError';} }
 // Only the loopback preview server supplies this read-only proxy. Production

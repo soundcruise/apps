@@ -1,3 +1,5 @@
+後続の隔離Account物理移行・Port原本保全は [ACCOUNT_PORT_CUTOVER](ACCOUNT_PORT_CUTOVER.md) を参照。以下はPR #12時点のconsumer契約。通常writer/Cloud本番接続は未実施。
+
 # Isolated Account consumer migration v1
 
 Studio 0.47.6 / Port 1.24.9 candidate; StudioProject schema2 unchanged.
