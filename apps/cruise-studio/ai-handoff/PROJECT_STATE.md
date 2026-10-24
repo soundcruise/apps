@@ -1,3 +1,9 @@
+# Studio 0.47.4 — 正式Account API観測provider（隔離topic・未公開）
+
+基準main ce156230 / tree02e1361f、公開済みStudio0.47.3 / Port1.24.6。Port1.24.7 / Studio0.47.4は内部保守候補。正式AccountClientのsummary/devicesを使用し、full Account/revisionとAuthorityのpin、遅延応答拒否、失効時の永続stop-only intentを隔離検証する。通常Account/Sync/writer接続は変更しない。Port membership世代・credential freshnessは現APIから証明できず未確認。Shared Write OFF、canWrite=false、Project schema2、単一正本・Undoは維持。正式リリース承認までStudioは0.x.y。
+
+仕様・consumer移行範囲と未接続箇所: [Account provider契約](../../cruise-port/docs/ACCOUNT_PROVIDER_CONSUMERS.md)。試験/独立レビュー・commit・topic pushの実測はrepo外証跡に記録する。main反映・Production公開なし。以下は履歴。
+
 # Studio 0.43.1 patch候補 — P3-01 reason lookup / version・cache整合
 
 Object.hasOwnによる未知reason防御と既存55 reason互換を保持。Studio自身のversion・mirror・現行HTML asset/internal ESM cache・厳密試験を0.43.1へ協調更新する。schema2、Adapter v2、Chord owner 1.21.0、単一Project/Session/Undo、明示Save、Shared write OFF、PortDataHost.canWrite=falseは維持。

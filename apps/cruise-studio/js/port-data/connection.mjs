@@ -1,5 +1,5 @@
-import { PRACTICE_KEYS } from './practice-projection.mjs?v=0.47.3';
-import { LIBRARY_KEYS } from './library-projection.mjs?v=0.47.3';
+import { PRACTICE_KEYS } from './practice-projection.mjs?v=0.47.4';
+import { LIBRARY_KEYS } from './library-projection.mjs?v=0.47.4';
 // All I/O is deferred until explicit local inspection. No writer is exported.
 const port = new URL('../../../cruise-port/', import.meta.url);
 const shared = new URL('../../../shared/', import.meta.url);
