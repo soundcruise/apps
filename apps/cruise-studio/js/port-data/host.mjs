@@ -1,6 +1,6 @@
 // Port owns the data. Only narrow frozen read models cross this boundary.
-import { projectPractice } from './practice-projection.mjs?v=0.47.7';
-import { projectLibrary } from './library-projection.mjs?v=0.47.7';
+import { projectPractice } from './practice-projection.mjs?v=0.47.8';
+import { projectLibrary } from './library-projection.mjs?v=0.47.8';
 import { isAccountObservationReader } from '../../../shared/sync-account/account-observation-consumer.mjs';
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 const closedCapabilities = freeze({ canSaveBpm: false, canSaveAdvanced: false, canListPresets: true, canApplyPreset: false, canCreatePreset: false, canDeletePreset: false, canQueueSync: false, canPushCloud: false });

@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>Isolated binary / backup recovery</title>
+<script src="../../shared/sync-account/sync-account-db.js"></script>
+<script src="../../shared/sync-account/sync-account-client.js"></script>
+<script src="../../shared/sync-account/sync-app-backup.js"></script>
+<output>Inert archive only — canWrite=false</output>
+<script type="module">
+import {setupRecovery} from './authority-store/binary-recovery-fixture.mjs';
+import {cleanValues} from './migration-fixture.mjs';
+import {createIsolatedRecoveryBackupStore} from '../../shared/sync-account/app-backup-recovery.mjs';
+import {portAccountMutationBinding} from '../port-account-coordination.mjs';
+import {account,identity} from './authority-store/account-provider-fixture.mjs';
+import {control,values} from './authority-store/fixture.mjs';
+let x,point=null,entered=false,release,prepared;
+window.binaryFixture={
+ async init({scopeName,seed=true}){x?.dispose();if(seed)for(const [k,v] of Object.entries(cleanValues()))if(v!==null)localStorage.setItem(k,v);
+  x=await setupRecovery({indexedDB,root:SoundCruiseSyncAccount,scopeName,seed,storage:localStorage,checkpoint:async name=>{if(name===point){entered=true;await new Promise(r=>release=r);}}});},
+ prepare:()=>x.engine.prepare({archiveId:'archive1',generation:'g1'}),stage:()=>x.engine.stage({archiveId:'archive1'}),recover:()=>x.engine.recover({archiveId:'archive1'}),
+ rows:()=>x.rows(),authority:(g='g1')=>x.store.hydrate(g),hold(p){point=p;entered=false;},entered:()=>entered,release(){point=null;release();},
+ async corrupt(){const m=(await createIsolatedRecoveryBackupStore({indexedDB,scopeName:x.scopeName}).read('archive1')).packet.manifest;
+  const db=await new Promise(r=>{const q=indexedDB.open('sound-cruise-port-authority-binary-v1-'+m.binaryGeneration);q.onsuccess=()=>r(q.result);});
+  try{await new Promise((r,j)=>{const tx=db.transaction('binary','readwrite'),s=tx.objectStore('binary'),q=s.get('gear:photo');q.onsuccess=()=>s.put({...q.result,blob:new Blob(['corruption'],{type:'image/webp'})},'gear:photo');tx.oncomplete=r;tx.onabort=j;});}finally{db.close();}},
+ async quota(){const original=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(...args){if(this.name==='binary')throw new DOMException('isolated quota','QuotaExceededError');return original.apply(this,args);};try{return await x.engine.stage({archiveId:'archive1'});}finally{IDBObjectStore.prototype.add=original;}},
+ async prune(){for(let n=0;n<6;n++)await SoundCruiseSyncAccount.appBackupStorage.save({version:1,appId:'port',createdAt:n+1,values:{fixture:'ordinary'+n}},indexedDB);return SoundCruiseSyncAccount.appBackupStorage.latest('port',indexedDB);},
+ async installB(){const q=portAccountMutationBinding({generation:'g1',operationId:'normal-B',identity:identity('A'),expectedEpoch:2,expectedPointerEpoch:1,kind:'switch',destination:{accountId:'B',accountDeviceId:'device-B'}},x.scopeName);
+  if(!(await x.mutationStore.mutate({context:await x.mutationStore.capture(),binding:q,nextAccount:account('B')})).ok)throw Error('B-CAS-failed');
+  if(!(await x.store.initialize({generation:'g2',control:{...control('g2'),identity:identity('B')},values:values(),operationId:'B-init'})).ok)throw Error('B-init-failed');
+  const base=(await x.store.hydrate('g2')).snapshot;prepared=x.store.prepare({base,operationId:'B-prepared',action:'saveBpm',changes:{'cruisePort.metronome':JSON.stringify({...JSON.parse(base.values['cruisePort.metronome']),bpm:145})}});return x.mutationStore.reconcile(q);},
+ commitB:()=>x.store.commit(prepared)
+};
+</script>
