@@ -4,13 +4,15 @@ This is a dormant, explicitly opted-in Shared owner extension plus Port fixture
 coordination. No normal boot, Account entry point, writer, Sync, authentication or
 Pro route activates it. Shared Write OFF, Studio `canWrite=false`, StudioProject
 schema2 and Authority physical schema2 remain unchanged. Product maintenance
-identities are Port1.24.4 / Studio0.47.1; neither is a production release here.
+identities are Port1.24.5 / Studio0.47.2; neither is a production release here.
 
 ## Canonical owner and compatibility
 
 `apps/shared/sync-account/account-mutation-receipts.mjs` uses the existing Account
 owner database `sound-cruise-sync-account`, physical version1 / `meta` store. It
-never creates/upgrades a database, and rejects absent/blocked/future schemas. Its
+default protocol1 never creates/upgrades a database, and rejects absent/blocked/future schemas.
+Protocol2 and explicit fixture-only enrollment are defined in
+[ACCOUNT_WRITER_PARTICIPATION](ACCOUNT_WRITER_PARTICIPATION.md). Its
 only writers are the explicitly isolated factory's new CAS and its private keys:
 
 - `accountMutationJournal:v1`: strict logical schema1, monotonic local revision,
