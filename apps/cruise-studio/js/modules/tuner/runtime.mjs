@@ -7,9 +7,10 @@ const codes = { NotAllowedError: 'permission-denied', NotFoundError: 'no-device'
 export function createRuntime({ coordinator, environment = {}, sessionId = 'studio.tuner.standard' }) {
     const g = globalThis, env = { mediaDevices: g.navigator?.mediaDevices, windowTarget: g.window, documentTarget: g.document, secure: g.isSecureContext,
         createContext: () => new (g.AudioContext || g.webkitAudioContext)(), setTimer: g.setTimeout?.bind(g), clearTimer: g.clearTimeout?.bind(g), now: () => g.performance?.now?.() ?? Date.now(), ...environment };
+    let thresholdDb = STANDARD_THRESHOLD_DB;
     let run = null, generation = 0, disposed = false, destroyed = false, state = 'idle', reason = null, error = null, reading = null, diagnostics = null, requests = 0;
     const listeners = new Set(), failed = new Set(), closing = new Set(), bindings = [];
-    const snapshot = () => Object.freeze({ state, reason, error, reading, diagnostics, sessionId, pendingRequests: requests, pendingCleanup: closing.size + failed.size, canStart: !disposed && !run && !closing.size && !failed.size });
+    const snapshot = () => Object.freeze({ state, reason, error, reading, diagnostics, thresholdDb, sessionId, pendingRequests: requests, pendingCleanup: closing.size + failed.size, canStart: !disposed && !run && !closing.size && !failed.size });
     const publish = () => { for (const fn of listeners) { try { fn(snapshot()); } catch { /* isolate UI */ } } };
     const current = old => !disposed && run === old && generation === old.generation && coordinator.isLeaseCurrent(handle, old.lease);
     function unbind(old) { old.bindings.splice(0).forEach(off => off()); }
@@ -102,7 +103,7 @@ export function createRuntime({ coordinator, environment = {}, sessionId = 'stud
                 old.source = old.context.createMediaStreamSource(old.stream); old.analyser = old.context.createAnalyser();
                 let size = 4096; while (size < 32768 && size / old.context.sampleRate < 0.08) size *= 2;
                 old.analyser.fftSize = size; old.samples = new Float32Array(size);
-                old.detector = createDetailedPitchDetector({ rmsThreshold: 10 ** (STANDARD_THRESHOLD_DB / 20) });
+                old.detector = createDetailedPitchDetector({ rmsThreshold: 10 ** (thresholdDb / 20) });
                 old.source.connect(old.analyser); // No destination connection: never monitor microphone through speakers.
                 for (const track of old.stream.getTracks()) bind(track, 'ended', () => { if (current(old)) { error = 'device-disconnected'; void stop('device-disconnected'); } }, old.bindings);
                 bind(old.context, 'statechange', () => { if (current(old) && state === 'active' && old.context.state !== 'running') coordinator.notify(handle, 'interruption', { state: old.context.state }); }, old.bindings);
@@ -120,7 +121,12 @@ export function createRuntime({ coordinator, environment = {}, sessionId = 'stud
     bind(env.windowTarget, 'unload', () => { void stop('unload'); });
     bind(env.documentTarget, 'visibilitychange', () => coordinator.notify(handle, 'visibility', { hidden: env.documentTarget.hidden }));
     bind(env.mediaDevices, 'devicechange', () => coordinator.notify(handle, 'devicechange', {}));
-    return Object.freeze({ start, stop, snapshot, subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }, async dispose() {
+    return Object.freeze({ start, stop, snapshot, setThreshold(value) {
+        if (disposed || !Number.isInteger(value) || value < -100 || value > -40) return false;
+        thresholdDb = value;
+        if (run?.detector) run.detector = createDetailedPitchDetector({ rmsThreshold: 10 ** (thresholdDb / 20) });
+        reading = diagnostics = null; publish(); return true;
+    }, subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }, async dispose() {
         if (destroyed) return { ok: true }; disposed = true; bindings.splice(0).forEach(off => off());
         const result = await coordinator.disposeSession(handle); if (result.ok) { destroyed = true; listeners.clear(); } return result;
     } });

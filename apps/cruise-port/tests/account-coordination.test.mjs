@@ -132,7 +132,7 @@ test('Account write abort preserves durable stop; reopened renderer cannot recap
     const reopened = await createIsolatedPortAccountCoordinator({ scope, indexedDB: x.factory, accountStorage: shared(x.factory), locks: x.locks });
     t.after(() => reopened.dispose());
     assert.equal(await reopened.observe({ generation: 'g1', summary: summary() }), null);
-    assert.equal(reopened.getCachedStatus().state, 'identity-invalidated');
+    assert.equal(reopened.getCachedStatus().state, 'recovery-required');
     assert.equal(reopened.getCachedStatus().canWrite, false);
 });
 test('normal isolated scope cannot mint Control provider; forged context and cloned context reject', async t => {
@@ -200,4 +200,72 @@ test('missing fixture brand cannot adopt privileged fixture Pointer or publish A
     assert.equal(token, null);
     await assert.rejects(coordinator.transition({ context: token, operationId: 'no-provider', nextAccount: account('B') }), /account-context-invalid/);
     assert.deepEqual(await readExistingPortAccount(factory), account('A'));
+});
+test('same-Account credential rotation preserves new bytes but does not certify ambiguous durable receipt', async t => {
+    const x = await setup(t), token = await observe(x);
+    const rotated = { ...account('A'), accountCredential: 'isolated-new-credential-A' };
+    const result = await x.coordinator.transition({ context: token, operationId: 'same-account-rotation', nextAccount: rotated });
+    assert.equal(result.ok, false); assert.equal(result.reason, 'account-transition-receipt-required');
+    assert.equal(result.stopped, true); assert.equal(result.recoveryRequired, true);
+    assert.deepEqual(await readExistingPortAccount(x.factory), rotated);
+    const facts = await x.store.accountTransitions('g1');
+    assert.equal(facts.recoveryRequired, true); assert.equal(facts.intents[0].accountTransition.phase, 'stopped');
+    assert(!JSON.stringify(facts).includes('isolated-new-credential-A'));
+    assert.equal((await x.coordinator.transition({ context: token, operationId: 'never-restore-A', nextAccount: account('A') })).ok, false);
+});
+test('Account CAS committed but acknowledgment lost: reopen never replays destination or clears B', async t => {
+    const x = await setup(t), scope = createTestAuthorityScope({ indexedDB: x.factory, name: x.scope.name, partitionId: 'fixture-partition' });
+    const contender = await createIsolatedPortAccountCoordinator({ scope, indexedDB: x.factory, locks: x.locks,
+        accountStorage: { ...x.storage, async changeAccountIfCurrent(...args) { await x.storage.changeAccountIfCurrent(...args); throw Error('lost-CAS-receipt'); } } });
+    const token = await contender.observe({ generation: 'g1', summary: summary() });
+    assert.equal((await contender.transition({ context: token, operationId: 'lost-receipt', nextAccount: account('B') })).recoveryRequired, true);
+    contender.dispose();
+    assert.deepEqual(await readExistingPortAccount(x.factory), account('B'));
+    const reopened = await createIsolatedPortAccountCoordinator({ scope: createTestAuthorityScope({ indexedDB: x.factory, name: x.scope.name, partitionId: 'fixture-partition' }),
+        indexedDB: x.factory, accountStorage: shared(x.factory), locks: x.locks });
+    t.after(() => reopened.dispose());
+    assert.equal(await reopened.observe({ generation: 'g1', summary: summary('B') }), null);
+    assert.equal(reopened.getCachedStatus().state, 'recovery-required');
+    assert.deepEqual(await readExistingPortAccount(x.factory), account('B'));
+    assert.equal((await x.store.accountTransitions('g1')).intents[0].accountTransition.phase, 'stopped');
+});
+test('completion transaction abort preserves durable stopped intent and new B without retrying CAS', async t => {
+    const x = await setup(t), token = await observe(x), original = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value,...args) {
+        if (value?.accountTransition?.phase === 'account-confirmed') { this.transaction.abort(); throw Error('fixture-confirm-abort'); }
+        return original.call(this,value,...args);
+    };
+    try { const result = await x.coordinator.transition({ context: token, operationId: 'confirm-abort', nextAccount: account('B') });
+        assert.equal(result.recoveryRequired, true); assert.equal(result.stopped, true); }
+    finally { IDBObjectStore.prototype.put = original; }
+    assert.deepEqual(await readExistingPortAccount(x.factory), account('B'));
+    assert.equal((await x.store.accountTransitions('g1')).recoveryRequired, true);
+});
+test('B arriving after intent hydration but before observe publication cannot receive an old-A context', async t => {
+    const x = await setup(t), other = shared(x.factory), original = IDBObjectStore.prototype.openCursor;
+    let enter, release, armed=true;
+    const entered=new Promise(resolve=>{enter=resolve;}), gate=new Promise(resolve=>{release=resolve;});
+    IDBObjectStore.prototype.openCursor=function(...args){
+        if(this.name==='reservations'&&armed){
+            armed=false; const tx=this.transaction,complete=tx.oncomplete;
+            tx.oncomplete=async function(event){enter();await gate;complete.call(this,event);};
+        }
+        return original.apply(this,args);
+    };
+    try {
+        const pending=observe(x);await entered;
+        await other.setAccount(account('B'),x.factory); // notification intentionally unavailable
+        release();assert.equal(await pending,null);
+        assert.equal(x.coordinator.getCachedStatus().state,'stale');
+        assert.deepEqual(await readExistingPortAccount(x.factory),account('B'));
+    } finally {release();IDBObjectStore.prototype.openCursor=original;}
+});
+test('explicit Account revocation uses the same irreversible intent barrier without touching Pro source', async t => {
+    const x=await setup(t),token=await observe(x);
+    assert((await x.coordinator.transition({context:token,operationId:'revoke-A',nextAccount:null,kind:'revoke'})).ok);
+    assert.equal(await readExistingPortAccount(x.factory),null);
+    const fact=(await x.store.accountTransitions('g1')).intents[0];
+    assert.equal(fact.accountTransition.request.kind,'revoke');
+    assert.equal(fact.accountTransition.after.identityInvalidated,true);
+    assert.equal(fact.accountTransition.phase,'account-confirmed');
 });

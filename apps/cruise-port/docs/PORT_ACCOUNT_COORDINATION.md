@@ -137,3 +137,14 @@ legacy writer fencing, verify migration/recovery/binary/final admission, and kee
 old/new identity partitioning. A later explicit Standard Metronome BPM
 read → draft → save → reload slice is the smallest product-write integration.
 Production write enablement requires its own acceptance and approval.
+
+## Durable transition continuation — isolated v1
+
+The coordinator now uses a typed durable intent plus Control invalidation in one
+Authority transaction before the existing separate Account CAS. Reopen and lost
+CAS acknowledgment yield recovery-required; no destination replay or resume is
+allowed. Historical confirmation requires the same live begin receipt and never
+grants authorization. Same-Account credential rotation stays unresolved without a
+Shared mutation receipt. See [the exact intent contract](PORT_ACCOUNT_TRANSITION_INTENT.md).
+This remains dormant and does not enable a product writer or production Account
+change. The previous stop-only behavior is superseded for this isolated API.
