@@ -16,6 +16,9 @@ import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard
 import {captureAccountTransition,accountTransitionFingerprint,accountTransitionRow,validateAccountTransition,ACCOUNT_TRANSITION_INTENT_LIMIT} from './port-account-transition-intent.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
+// No storage object/capability escapes: new multi-DB recovery owners can reject
+// accidentally mixing an Authority scope with another IndexedDB factory.
+export function authorityUsesIndexedDB(scope,indexedDB){return scopes.get(scope)?.indexedDB===indexedDB&&!!indexedDB;}
 // Explicit isolated adapter access; neither lease objects nor issuer authority escape.
 export function authorityProEnvironment(scope){
     const env=scopes.get(scope);if(!env)throw fail('isolated-scope-required');const lease=env.lease;

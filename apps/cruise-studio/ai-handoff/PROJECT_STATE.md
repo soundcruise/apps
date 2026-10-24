@@ -1,3 +1,7 @@
+# Studio 0.47.8 — Binary / Backup隔離復旧（未公開topic）
+
+Port1.24.11、Project schema2。PR #13固定headを親とし、既存Shared backup ownerの固定pinとPort binary ownerのimmutable追加・readbackを利用する。停止fact/Account sourceを照合し、部分保存・応答喪失・reopen・容量不足・破損をfail-closedで扱う。archiveVerifiedはhistorical検証のみ。通常writer、Cloud、認証切替、live restore、Shared Writeは未接続、canWrite=false。原本・未知/孤立データを保持する。同一origin raw writer完全拒否・物理電源断耐久性は未保証。契約: [Binary/Backup復旧](../../cruise-port/docs/BINARY_BACKUP_RECOVERY.md)。以下は履歴。
+
 # Studio 0.47.7 — Account / Port隔離cutover・復旧 v1（未公開topic）
 
 PR #12固定head e35c965247f70430daa66dff60208a65b5299c7aを親とする内部保守候補。Port1.24.10、Project schema2、Shared Write OFF / canWrite=false。既存Accountのin-place物理1→2→3、Authority内のtyped migration intentとrecovery barrierの原子的確定、manifestによるPort原本保全、応答喪失/crash/reopenのhistorical照合を追加。完了はverified-inertであり、通常writer・Cloud・binary・Port pointer切替・認証切替は未接続。異なる正常B世代のreceipt/preparedを旧Aが変更しない。契約・未完了gate: [Account/Port cutover](../../cruise-port/docs/ACCOUNT_PORT_CUTOVER.md)。以下は履歴。
