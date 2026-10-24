@@ -22,3 +22,11 @@ test('all existing Host states and unknown inherited names stay explicit readonl
     for (const account of ['toString', '__proto__', 'constructor']) assert.equal(describeAccountObservation({ account }).label, '未確認');
     assert.equal(describeAccountObservation().localObservationRevision, null);
 });
+test('isolated owner-read generation is labelled historical, never a lease or UI generation',()=>{
+ const state={account:'owner-observed-readonly',generation:20,runtimeGeneration:73,
+  accountObservation:{status:'observed-readonly',asOfRead:true,serverAccountGeneration:7,membershipGeneration:11,
+   authorizationConfirmed:false,operationAuthorized:false,canWrite:false}};
+ const view=describeAccountObservation(state);assert.equal(view.serverAccountGeneration,7);assert.equal(view.serverMembershipGeneration,11);
+ assert.equal(view.localObservationRevision,20);assert.match(view.detail,/読取り時点/);assert.equal(view.canWrite,false);
+ state.accountObservation.authorizationConfirmed=true;assert.equal(describeAccountObservation(state).serverAccountGeneration,null);
+});

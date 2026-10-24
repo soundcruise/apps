@@ -1,0 +1,27 @@
+const assert=require('node:assert/strict'),{chromium}=require('playwright'),base=process.env.ACCOUNT_COORDINATION_BASE_URL;
+if(!/^http:\/\/127\.0\.0\.1:\d+\/$/.test(base||'')||/:(8765|8766)\/$/.test(base))throw Error('isolated-loopback-required');
+(async()=>{const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),results=[];
+try{for(const scenario of ['normal-no-write-ui','expiry-rollback','generation-change','lost-notice','reopen-terminal','late-owner','late-dataset','unknown-proof']){
+ const ctx=await browser.newContext({serviceWorkers:'block'}),errors=[],network=[],denials=[];
+ await ctx.addInitScript(()=>{window.BroadcastChannel=class{postMessage(){}close(){}};});
+ await ctx.route('**/*',r=>{const u=new URL(r.request().url());if(u.href===base+'favicon.ico')return r.fulfill({status:204,body:''});if(u.origin===new URL(base).origin&&(r.request().method()==='GET'||u.pathname==='/__fixture/control'))return r.continue();network.push(r.request().url());return r.abort();});
+ const pages=[await ctx.newPage(),await ctx.newPage()];for(const p of pages){p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!(scenario==='reopen-terminal'&&m.location().url.includes('/__fixture/owner')&&/status of 401/.test(m.text())))errors.push(m.text());});p.on('response',r=>{if(r.status()>=400){if(r.url().includes('/__fixture/owner'))denials.push(r.status());else errors.push(r.status()+' '+r.url());}});await p.goto(base+'apps/cruise-port/tests/account-consumer-fixture.html');await p.waitForFunction(()=>consumerFixture);}
+ const [a,b]=pages,command=op=>a.evaluate(async op=>{const r=await fetch('/__fixture/control',{method:'POST',body:JSON.stringify({op})});if(!r.ok)throw Error('control failed');},op);await command('reset');const scopeName='sound-cruise-port-authority-v1-fixture-consumer-'+scenario;
+ await a.evaluate(o=>consumerFixture.init(o),{scopeName,seed:true});await b.evaluate(o=>consumerFixture.init(o),{scopeName,seed:false});const before=await a.evaluate(()=>consumerFixture.rows()),authority=await a.evaluate(()=>consumerFixture.authority());
+ if(scenario==='normal-no-write-ui'){
+  assert.equal((await a.evaluate(()=>consumerFixture.load())).kind,'observed-readonly');const s=await a.evaluate(()=>consumerFixture.read());assert.equal(s.account,'owner-observed-readonly');assert.equal(s.sync,'unknown');assert.equal(s.canWrite,false);assert.equal(s.pro,'standard');assert.equal(s.accountObservation.membershipGeneration,11);
+  for(const id of ['setup-open','port-connect-open','account-recovery-open','recovery-open'])assert.equal(await a.locator('#sync-center-'+id).isVisible(),false);assert.equal(await a.locator('#sync-center-account-delete').isDisabled(),true);
+  const blocked=await a.evaluate(()=>consumerFixture.blocked());assert.equal(blocked.save.allowed,false);assert.equal(blocked.sync.allowed,false);assert.deepEqual(blocked.plan.appIds,[]);
+  assert.deepEqual(await a.evaluate(()=>consumerFixture.rows()),before);assert.deepEqual(await a.evaluate(()=>consumerFixture.authority()),authority);
+  await a.screenshot({path:process.env.CONSUMER_SCREENSHOT||'/private/tmp/account-consumer-isolated.png',fullPage:true});
+ }else if(scenario==='expiry-rollback'){
+  await a.evaluate(()=>consumerFixture.read());await a.evaluate(()=>consumerFixture.clock({mono:5000}));assert.equal((await a.evaluate(()=>consumerFixture.cached())).studio.account,'unknown');await a.evaluate(()=>consumerFixture.clock({wall:500,mono:0}));assert.equal((await a.evaluate(()=>consumerFixture.cached())).studio.accountId,null);
+ }else if(scenario==='generation-change'){await command('member-generation');assert.equal((await a.evaluate(()=>consumerFixture.load())).kind,'unknown');assert.deepEqual(await a.evaluate(()=>consumerFixture.authority()),authority);
+ }else if(scenario==='reopen-terminal'){
+  await command('revoke');assert.equal((await a.evaluate(()=>consumerFixture.load())).kind,'unknown');await a.close();await b.reload();await b.waitForFunction(()=>consumerFixture);await b.evaluate(o=>consumerFixture.init(o),{scopeName,seed:false});assert.equal((await b.evaluate(()=>consumerFixture.load())).kind,'unknown');assert.equal((await b.evaluate(()=>consumerFixture.requests())).length,0);assert.deepEqual(await b.evaluate(()=>consumerFixture.rows()),before);
+ }else if(scenario==='lost-notice'||scenario==='late-owner'||scenario==='late-dataset'){
+  await a.evaluate(mode=>{if(mode==='late-dataset')consumerFixture.holdDataset();else consumerFixture.hold();window.pending=consumerFixture.read();},scenario);await a.waitForFunction(()=>consumerFixture.waiting());
+  if(scenario==='lost-notice')await b.evaluate(()=>consumerFixture.raw());else await a.evaluate(()=>consumerFixture.clock({mono:6000}));await a.evaluate(()=>consumerFixture.release());assert.equal((await a.evaluate(()=>window.pending)).account,'unknown');
+ }else {await command('unknown');assert.equal((await a.evaluate(()=>consumerFixture.load())).kind,'unknown');}
+ assert.deepEqual(denials,scenario==='reopen-terminal'?[401]:[]);assert.deepEqual(errors,[]);assert.deepEqual(network,[]);results.push({scenario,pass:true,nativeIndexedDB:true,normalControllerAndHost:true,notifications:'dropped',console404:0,unexpectedNetwork:0,expectedOwnerDenials:denials});await ctx.close();
+}}finally{await browser.close();}console.log(JSON.stringify({pass:true,cases:results.length,results},null,2));})().catch(e=>{console.error(e);process.exitCode=1;});
