@@ -102,3 +102,9 @@ Printは既存A4譜面専用policyを維持し、Gear/My Appsを除外。
 Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**を維持。
 Daybreak待機/L3c未解決境界を維持し、認証/認可の動的security probe・本番deployは行わない。
 今回の通常PC閲覧gateをAuthority安全性承認やM3解禁と扱わない。
+
+## PC My Apps explicit launch v1
+
+既存の閲覧 projection を拡張し、Port `my-apps-launch.js` の `detectMyAppsPlatform` / `resolveMyAppHref` を再利用する。端末別URL → Web → 旧共通URLというownerの選択順を変更しない。旧launchMode/appKey/customLaunchから別の起動先を生成しない。選ばれたURLが安全なHTTPSでない場合は起動不可。保存値の補修・正規化・書戻しは行わない。
+
+一覧で選択後、明示した信頼済みclick / native keyboard clickからだけ起動する。直前にHostの同一projection・非stale状態、modal/IME gateを再確認し、`noopener,noreferrer`付きで別タブを要求する。noopenerでは戻り値nullが成功時にも起こるため、成功表示は「起動を要求」に限定する。自動起動・起動先の取得・icon取得・登録/編集/削除・Port保存は実装しない。

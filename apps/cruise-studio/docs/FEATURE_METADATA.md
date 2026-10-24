@@ -133,3 +133,7 @@ Session、lease、context、running、permission・Pro実資格はruntimeへ置�
 ## Schema 2 Foundation M1 candidate
 
 Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（schema番号とは独立）。実装・検証中。M1完了・commit・push・main統合・公開は未実施。[正式契約]( SCHEMA2_FOUNDATION.md )。
+
+## PC Home / NEWS presentation
+
+`port.home` と `port.news` の Studio `main` presentation を実装。Home は既存 Shell 導線・cached Port statusのみ。NEWS は Port owner provider/model から取得する閲覧画面。metadata は実行権限・認証成功・Port writer開通を意味しない。My Apps は既存 `separate-workspace` presentation の明示起動を追加し、CRUD・保存・画像取得・Syncは未接続。

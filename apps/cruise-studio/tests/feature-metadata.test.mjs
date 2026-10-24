@@ -76,7 +76,7 @@ test('known owners/version references and supported vs implemented presentations
         assert.equal(new Set(feature.supportedPresentations).size, feature.supportedPresentations.length);
         feature.supportedPresentations.forEach(value => assert.ok(allowed.has(value), value));
         feature.implementedPresentations.forEach(value => assert.ok(feature.supportedPresentations.includes(value)));
-        assert.deepEqual(feature.implementedPresentations, feature.featureId === 'port.metronome' ? ['dock'] : feature.featureId === 'chord.main' ? ['inspector'] : feature.featureId === 'port.practice' ? ['main'] : feature.featureId === 'port.tuner' || feature.featureId === 'port.myApps' ? ['separate-workspace'] : feature.featureId === 'port.gear' ? ['main'] : feature.ownerApp === 'cruise-studio' ? ['main'] : []);
+        assert.deepEqual(feature.implementedPresentations, feature.featureId === 'port.metronome' ? ['dock'] : feature.featureId === 'chord.main' ? ['inspector'] : feature.featureId === 'port.practice' ? ['main'] : feature.featureId === 'port.tuner' || feature.featureId === 'port.myApps' ? ['separate-workspace'] : ['port.gear', 'port.home', 'port.news'].includes(feature.featureId) ? ['main'] : feature.ownerApp === 'cruise-studio' ? ['main'] : []);
     }
 });
 
@@ -236,6 +236,8 @@ test('static data/Sync owners equal real adapter appIds; Studio is not a Sync pa
 
 test('critical presentation contracts include selected-bar Chord Inspector and existing Studio main', () => {
     const presentations = {
+        'port.home': [['main'], ['main']],
+        'port.news': [['main', 'separate-workspace'], ['main']],
         'port.metronome': [['dock', 'drawer'], ['dock']],
         'port.tuner': [['dock', 'drawer', 'separate-workspace'], ['separate-workspace']],
         'chord.main': [['inspector', 'tool-pane', 'separate-workspace'], ['inspector']],

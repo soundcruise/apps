@@ -76,7 +76,12 @@
                     line(detail, selected.memo || 'メモなし'); line(detail, '所有開始: ' + (selected.ownedAt || '未記録') + ' / 手放した日: ' + (selected.soldAt || '未記録'));
                 } else {
                     line(detail, selected.typeLabel + (selected.appLabel ? ' / ' + selected.appLabel : '') + (selected.appKey ? ' / appKey: ' + selected.appKey : ''));
-                    line(detail, '登録済みURL（表示のみ・起動しません）。端末別URLと以前の設定を分けて表示しています。');
+                    line(detail, '登録済みURL。端末に合うURLを、明示操作で別タブに開きます。登録・編集・保存は行いません。');
+                    var launch = el('button', 'アプリを開く'); launch.type = 'button'; launch.dataset.libraryLaunch = selected.id;
+                    var launchState = options.resolveLaunch ? options.resolveLaunch(selected) : { ok: false };
+                    launch.disabled = !launchState.ok || s.stale || !usable(s.state);
+                    focus.mark(launch, 'detail', selected.id, 'launch'); detail.append(launch);
+                    var launchNotice = el('p', launchState.ok ? '新しいタブで開きます。' : 'この端末で安全に開けるURLがありません。'); launchNotice.dataset.launchStatus = ''; launchNotice.setAttribute('role', 'status'); detail.append(launchNotice);
                     var platforms = { ios: 'iOS', android: 'Android', macos: 'macOS', windows: 'Windows', web: 'Web', 'legacy fallback': '以前の共通URL', '旧customLaunch ios': '以前のカスタムURL (iOS)', '旧customLaunch android': '以前のカスタムURL (Android)' };
                     selected.urls.forEach(function (u) { line(detail, (platforms[u.platform] || '未対応の端末') + ': ' + u.value + (u.state === 'unsupported' ? '（非対応・補正なし）' : '')); });
                     if (!selected.urls.length) line(detail, 'URL未確認');
@@ -97,7 +102,15 @@
             var currentHost = host, sequence = epoch; state.setLoading(true); render();
             try { await currentHost.readLocalStatus(); } finally { if (!disposed && host === currentHost && epoch === sequence) { state.setLoading(false); render(); } }
         }
-        function click(event) { if (!allowed()) return; var target = event.target.closest('button'); if (!target || !node.contains(target)) return; if (target === button) { void read(); return; } if (target.dataset.libraryId) state.select(target.dataset.libraryId); else if (target.hasAttribute('data-library-more')) limit += 50; render(); }
+        function click(event) { if (!allowed()) return; var target = event.target.closest('button'); if (!target || !node.contains(target)) return; if (target === button) { void read(); return; } if (target.dataset.libraryLaunch) {
+                var snapshot = state.snapshot(), current = host?.getCachedStatus();
+                var selected = snapshot.model?.myApps.items.find(function (x) { return x.id === target.dataset.libraryLaunch; });
+                var same = current?.dataset?.library === snapshot.model;
+                if (event.isTrusted && !shell.keyboard.isIMEBlocked({}) && !snapshot.stale && usable(snapshot.state) && same && selected && options.launchApp) {
+                    var result = options.launchApp(selected); var notice = q('[data-launch-status]');
+                    if (notice) notice.textContent = result.ok ? '新しいタブでの起動を要求しました。開かない場合はブラウザのポップアップ設定を確認してください。' : result.reason === 'blocked' ? 'ブラウザが新しいタブを開けませんでした。ポップアップ設定を確認してください。' : 'URLを確認できません。保存値を再確認してください。';
+                } return;
+            } if (target.dataset.libraryId) state.select(target.dataset.libraryId); else if (target.hasAttribute('data-library-more')) limit += 50; render(); }
         function filter(event) {
             if (!allowed()) return;
             var target = event.target, key, value;

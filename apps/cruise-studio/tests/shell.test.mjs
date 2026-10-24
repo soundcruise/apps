@@ -21,7 +21,7 @@ test('four Shell regions and two logical Dock slots exist once',()=>{
  assert.match(html,/<nav class="studio-nav"/);assert.match(html,/data-dock-slot="transport"/);assert.match(html,/data-dock-slot="auxiliary"/);
 });
 test('Navigation IDs resolve to real workspaces including retained Home/Apps',()=>{
- assert.deepEqual(Object.keys(WORKSPACES),['home','sheetCruise','preDtm','series','practice','tuner','gear','myApps']);
+ assert.deepEqual(Object.keys(WORKSPACES),['home','sheetCruise','preDtm','series','practice','tuner','gear','myApps','news']);
  for(const [id,node] of Object.entries(WORKSPACES)){assert.match(html,new RegExp('data-workspace="'+id+'"'));assert.match(html,new RegExp('id="'+node+'"'));}
 });
 test('active workspace remains unique and inactive views hidden/inert',()=>{

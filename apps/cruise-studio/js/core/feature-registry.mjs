@@ -26,7 +26,7 @@ function feature(featureId, ownerApp, supportedPresentations, extra = {}) {
 }
 
 const features = freeze([
-    feature('port.home', 'cruise-port', ['main']),
+    feature('port.home', 'cruise-port', ['main'], { implementedPresentations: ['main'] }),
     feature('port.myApps', 'cruise-port', ['main', 'separate-workspace'], {
         ...portData, implementedPresentations: ['separate-workspace'],
         actionCapabilityRequirements: {
@@ -57,7 +57,7 @@ const features = freeze([
     feature('port.gear', 'cruise-port', ['main', 'inspector'], {
         ...portData, implementedPresentations: ['main'], actionCapabilityRequirements: { writePhoto: [portPolicy('gearPhotoWrite')] }
     }),
-    feature('port.news', 'cruise-port', ['main', 'separate-workspace']),
+    feature('port.news', 'cruise-port', ['main', 'separate-workspace'], { implementedPresentations: ['main'] }),
     feature('port.settings', 'cruise-port', ['separate-workspace'], portData),
     feature('port.accountSync', 'cruise-port', ['separate-workspace'], {
         syncOwner: 'port', actionCapabilityRequirements: { syncOperations: [portPolicy('cloudSyncOperations')] }
