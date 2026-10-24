@@ -1,3 +1,7 @@
+# Studio 0.47.5 — Account owner generation/freshness（隔離topic）
+
+PR #10固定headを親とする内部保守候補。Port1.24.8、Project schema2、Studio0.x.yを維持。Account ownerがprimaryの単一SELECTでAccount/device/Port membership世代とread gateを確認する未公開APIを追加。5秒の観測期限を資格そのものの期限と区別し、source/Authority pin・nonce・遅延renew・expiry/時計巻戻し・失効A/正常B保護を隔離試験する。通常consumer/production routerは未接続、Shared Write OFF / canWrite=false。契約: [Owner generation/freshness](../../workers/sound-cruise-sync/ACCOUNT_OWNER_CONTEXT_CONTRACT.md)。以下は履歴。
+
 # Studio 0.47.4 — Account provider / consumer接続契約（隔離topic）
 
 公開済みmain ce156230 / Studio0.47.3 / Port1.24.6を基準とする内部保守候補。正式AccountClientのsummary/devicesを注入transportで利用するPort owner観測providerと、Studioのpure readonly projectionを追加。永続source/revision・Authority Control/pointerを照合し、失効応答は既存transactionで停止intentを記録する。Port membership世代と資格freshness証明は現APIに存在せず未確認のまま。通常writer・Cloud・legacy consumerの本番移行は未接続、Shared Write OFF / canWrite=false / schema2を維持する。

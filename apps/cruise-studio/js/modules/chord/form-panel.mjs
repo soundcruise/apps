@@ -1,6 +1,6 @@
-import { createChordFormAdapter } from './form-adapter.mjs?v=0.47.4';
-import { createFormAdoptionService } from './form-adoption.mjs?v=0.47.4';
-import { getAppVersion } from '../../core/component-metadata.mjs?v=0.47.4';
+import { createChordFormAdapter } from './form-adapter.mjs?v=0.47.5';
+import { createFormAdoptionService } from './form-adoption.mjs?v=0.47.5';
+import { getAppVersion } from '../../core/component-metadata.mjs?v=0.47.5';
 
 const STANDARD = Object.freeze([64,59,55,50,45,40]);
 // Missing/destroyed documents and selections are normal lifecycle states, never booleans.

@@ -2,6 +2,7 @@
 // mandatory and fixture-only: even an authenticated GET can touch server activity.
 import { authorityProEnvironment, openIDBAuthorityStore, claimPortAuthorityIssuer } from './port-indexeddb-authority-store.mjs';
 import { equal, frozen, identifier } from './port-idb-authority-contract.mjs';
+import { requestAccountOwnerContext, validateAccountOwnerContext } from '../shared/sync-account/account-owner-context.mjs';
 
 const terminal = new Set(['invalid_account_credential', 'account_device_revoked', 'account_deleting', 'account_deleted', 'account_not_found']);
 const positive = v => Number.isSafeInteger(v) && v > 0;
@@ -29,9 +30,9 @@ export function projectOfficialAccountObservation(account, summary, devices) {
         memberships, portMembership:null, credentialFreshness:'observed-only', expiresAt:null });
 }
 
-export async function createIsolatedPortAccountProvider({ scope, mutationStore, accountStorage, AccountClient, fetchImpl } = {}) {
+export async function createIsolatedPortAccountProvider({ scope, mutationStore, accountStorage, AccountClient, fetchImpl, ownerContext=false } = {}) {
     const env = authorityProEnvironment(scope); env.assertLive();
-    if (!env.fixtureOnly || !/^sound-cruise-port-authority-v1-fixture-/.test(scope.name) ||
+    if (![true,false].includes(ownerContext)||!env.fixtureOnly || !/^sound-cruise-port-authority-v1-fixture-/.test(scope.name) ||
         typeof fetchImpl !== 'function' || typeof AccountClient !== 'function' ||
         ['capture','inspect','current','reconcile'].some(k => typeof mutationStore?.[k] !== 'function') ||
         ['getGeneration','subscribeAccount'].some(k => typeof accountStorage?.[k] !== 'function')) throw Error('account-provider-isolation-required');
@@ -43,10 +44,16 @@ export async function createIsolatedPortAccountProvider({ scope, mutationStore, 
     const state = (status, extra={}) => frozen({contractVersion:1,status,...extra,
         uiRevision:revision, authorizationConfirmed:false, operationAuthorized:false,
         continuityProven:false, recoveryRequired:true, canWrite:false});
-    let cached=state('unconfirmed');
+    let cached=state('unconfirmed'), freshness=null;
     const publish=(status,extra) => { cached=state(status,extra); for(const fn of listeners) {try {fn(cached);} catch { /* display observer */ }} return cached; };
     const live=()=>{env.assertLive();if(closed)throw Error('account-provider-disposed');};
     const off=accountStorage.subscribeAccount(()=>{revision++;request++;publish('stale');});
+    const clock=()=>{const c={wall:env.now(),mono:env.monotonicNow(),origin:env.clockIdentity()};
+        if(!Number.isFinite(c.wall)||!Number.isFinite(c.mono)||c.wall<0||c.mono<0||
+            !(typeof c.origin==='string'&&c.origin.length>0||typeof c.origin==='number'&&Number.isFinite(c.origin)))throw Error('account-provider-clock-invalid');return c;};
+    const elapsed=f=>{try{const c=clock();if(c.origin!==f.start.origin||c.wall<f.previous.wall||c.mono<f.previous.mono)return Infinity;
+        f.previous=c;return Math.max(c.wall-f.start.wall,c.mono-f.start.mono);}catch{return Infinity;}};
+    const cachedStatus=()=>{if(freshness&&cached.status==='observed'&&elapsed(freshness)>=freshness.budget){freshness=null;return publish('expired');}return cached;};
     async function pin(generation) {
         identifier(generation); live();
         const local=accountStorage.getGeneration(), epoch=revision;
@@ -72,7 +79,7 @@ export async function createIsolatedPortAccountProvider({ scope, mutationStore, 
             await mutationStore.current(p.context);
     }
     return Object.freeze({
-        getCachedStatus:()=>cached,
+        getCachedStatus:cachedStatus,
         subscribe(fn){if(typeof fn!=='function')throw Error('account-provider-listener-invalid');live();listeners.add(fn);return()=>listeners.delete(fn);},
         async refresh({generation,operationId}={}) {
             identifier(operationId); live(); const serial=++request;
@@ -82,12 +89,22 @@ export async function createIsolatedPortAccountProvider({ scope, mutationStore, 
                 if(terminalSources.some(a=>equal(a,p.account)))return publish('recovery-required',{stopProven:false});
                 const client=new AccountClient({endpoint:'https://account-provider.invalid',admissionMode:'production',
                     storage:accountStorage, fetchImpl, requestTimeoutMs:1000});
-                const summary=await client.summary(p.account.accountCredential);
-                if(!await current(p))throw Error('account-provider-source-stale');
-                const devices=await client.devices(p.account.accountCredential);
-                const projection=projectOfficialAccountObservation(p.account,summary,devices);
+                let projection,timing=null;
+                if(ownerContext){const requestId=crypto.randomUUID(),challenge=crypto.randomUUID(),start=clock();
+                    timing={start,previous:start,budget:0};
+                    const result=await requestAccountOwnerContext(client,p.account.accountCredential,{requestId,challenge});
+                    projection=validateAccountOwnerContext(result,{requestId,challenge,account:p.account,identity:p.control.identity});
+                    if(projection){timing.budget=projection.remainingMs;if(elapsed(timing)>=timing.budget)projection=null;}
+                } else {
+                    const summary=await client.summary(p.account.accountCredential);
+                    if(!await current(p))throw Error('account-provider-source-stale');
+                    const devices=await client.devices(p.account.accountCredential);
+                    projection=projectOfficialAccountObservation(p.account,summary,devices);
+                }
                 if(!projection)throw Error('account-provider-response-unresolved');
                 if(!await current(p)||serial!==request) return serial===request?publish('stale'):state('stale');
+                if(timing&&elapsed(timing)>=timing.budget)throw Error('account-provider-observation-expired');
+                freshness=timing;
                 // Two authenticated reads are observations, not an atomic lease or
                 // a freshness proof. They never unlock coordinator/writer admission.
                 return publish('observed',{...projection,localNotificationGeneration:p.local});

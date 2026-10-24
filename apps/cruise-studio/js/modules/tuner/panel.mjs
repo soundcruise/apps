@@ -1,5 +1,5 @@
-import { createRuntime } from './runtime.mjs?v=0.47.4';
-import { createReference, TUNING_PRESET_LIST, getTuningTargets, midiToNoteInfo } from './reference.mjs?v=0.47.4';
+import { createRuntime } from './runtime.mjs?v=0.47.5';
+import { createReference, TUNING_PRESET_LIST, getTuningTargets, midiToNoteInfo } from './reference.mjs?v=0.47.5';
 const CS = globalThis.CruiseStudio;
 function initialize() {
     CS.tunerRuntime = createRuntime({ coordinator: CS.audio });
