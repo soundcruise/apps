@@ -21,7 +21,7 @@ const accountKey = account => account && typeof account.accountId === 'string' &
 
 // Explicit inspection only. In particular, an absent Account database is never
 // upgraded/created just to display a badge or to capture a context.
-export function readExistingPortAccount(indexedDB) {
+export function readExistingPortAccount(indexedDB,{protocol=1}={}) {
     return new Promise((resolve, reject) => {
         let absent = false, settled = false;
         const request = indexedDB.open('sound-cruise-sync-account');
@@ -38,8 +38,9 @@ export function readExistingPortAccount(indexedDB) {
             if (settled) { db.close(); return; }
             db.onversionchange = () => db.close();
             try {
-                if (!db.objectStoreNames.contains('meta')) { db.close(); finish(null, true); return; }
-                const tx = db.transaction('meta', 'readonly'), read = tx.objectStore('meta').get('account');
+                const storeName=protocol===3?'account-meta-v3':'meta';
+                if (![1,3].includes(protocol)||protocol===3&&db.version!==3||!db.objectStoreNames.contains(storeName)) { db.close(); finish(null, true); return; }
+                const tx = db.transaction(storeName, 'readonly'), read = tx.objectStore(storeName).get('account');
                 tx.oncomplete = () => { db.close(); finish(read.result ?? null); };
                 tx.onabort = tx.onerror = () => { db.close(); finish(null, true); };
             } catch { db.close(); finish(null, true); }
@@ -65,7 +66,7 @@ export function projectPortAccountIdentity(account, summary) {
  * No ordinary route imports/calls this factory. No arbitrary onStop callback is
  * accepted as durable evidence. No value returned here grants write access.
  */
-export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, accountStorage, locks, mutationStore = null } = {}) {
+export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, accountStorage, locks, mutationStore = null, accountProtocol=1 } = {}) {
     if (!/^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(scope?.name ?? '') ||
         !indexedDB?.open || !locks?.request ||
         ['getGeneration', 'subscribeAccount', 'changeAccountIfCurrent'].some(name => typeof accountStorage?.[name] !== 'function')) {
@@ -94,7 +95,7 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
         if (!Number.isSafeInteger(value) || value < 0) throw fail('account-context-generation-invalid');
         return value;
     };
-    const read = () => readExistingPortAccount(indexedDB);
+    const read = () => readExistingPortAccount(indexedDB,{protocol:accountProtocol});
     async function current(context) {
         live();
         if (context.blocked || context.revision !== revision || context.localGeneration !== localGeneration()) return false;

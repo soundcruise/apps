@@ -1,3 +1,4 @@
+import {validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
 import {validateAccountTransition} from './port-account-transition-intent.mjs';
 import {validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
 // L2a pure physical contract. No storage, network, Account or product activation.
@@ -141,6 +142,7 @@ export function validatePointer(p) {
 }
 export const reservationKey = (generation, operationId) => RESERVED_JOURNAL_PREFIX + digest([generation, operationId]);
 export function validateReservation(r, generation, operationId) {
+    if(r?.kind==='account-bootstrap'){if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');validateAccountBootstrap(r);return;}
     if(r?.kind==='account-transition'){
         if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');
         validateAccountTransition(r);return;
