@@ -37,6 +37,14 @@ async function verifyAccountCredential(db, authorization, pepper) {
     throw new Error('Account authentication database failure');
   }
 
+  return verifyAccountCredentialSnapshot(row, credential, pepper);
+}
+
+// Owner-only verifier for a single SQL snapshot (including optional joined
+// membership columns). No query, activity touch, token issuance or admission.
+// Existing authentication and the isolated owner-context reader share decisions.
+export async function verifyAccountCredentialSnapshot(row, credential, pepper) {
+  if (!parseAccountCredential(credential) || typeof pepper !== 'string') return null;
   const calculated = await accountCredentialVerifier(credential, pepper);
   const verifier = row?.credential_verifier || '0'.repeat(64);
   const matches = timingSafeHexEqual(calculated, verifier);
