@@ -1,5 +1,5 @@
 /* UI candidate lifetime only. The existing R5 service remains the sole adoption owner. */
-import {createRhythmAdoptionService} from './pattern-adoption.mjs?v=0.47.3';
+import {createRhythmAdoptionService} from './pattern-adoption.mjs?v=0.47.8';
 export function selectionBarIds(selection,project){
     if(!selection?.active||selection.invalid||selection.deleted||selection.editing||!selection.barId||selection.barNumbers?.length!==1)return [];
     return project.bars.some(b=>b.id===selection.barId)?[selection.barId]:[];

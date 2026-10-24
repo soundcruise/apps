@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>Isolated Account provider fixture</title>
+<script src="../../shared/sync-account/sync-account-db.js"></script>
+<script src="../../shared/sync-account/sync-account-client.js"></script>
+<script type="module">
+import {setupProvider,summary,devices} from './authority-store/account-provider-fixture.mjs';
+import {createAccountObservationConsumer} from '../port-account-provider.mjs';
+import {describeProviderObservation} from '../../cruise-studio/js/port-data/account-provider-projection.mjs';
+let x,resolve,gate,entered=false;
+window.providerFixture={
+ async init(options){x?.dispose();x=await setupProvider({indexedDB,root:SoundCruiseSyncAccount,...options});},
+ refresh:()=>x.refresh(), rows:()=>x.rows(), authority:()=>x.store.hydrate('g1'), status:()=>x.provider.getCachedStatus(), requests:()=>x.requests,
+ setMode(mode){x.respond(async url=>mode==='denied'?{ok:false,status:401,json:async()=>({ok:false,code:'account_device_revoked'})}:
+   mode==='hold'?gate:mode==='malformed'?{ok:true,status:200,json:async()=>({ok:true,devices:{filter:1}})}:
+   {ok:true,status:200,json:async()=>url.endsWith('/summary')?summary('A'):devices('A')});},
+ hold(){gate=new Promise(r=>resolve=r);this.setMode('hold');},release(mode='ok'){resolve(mode==='denied'?{ok:false,status:401,json:async()=>({ok:false,code:'account_device_revoked'})}:{ok:true,status:200,json:async()=>summary('A')});},
+ async raw(id){await x.rows(s=>s.put({accountId:id,accountDeviceId:'device-'+id,accountCredential:'synthetic-'+id,extra:{keep:true}},'account'));},
+ async corrupt(){await x.rows(s=>s.put({bad:true},'accountMutationMarker:v1'));},
+ projection:()=>describeProviderObservation(x.provider.getCachedStatus()), consumerKeys:()=>Object.keys(createAccountObservationConsumer(x.provider)),
+ pauseStopAck(){const old=IDBDatabase.prototype.transaction,descriptor=Object.getOwnPropertyDescriptor(IDBTransaction.prototype,'oncomplete');IDBDatabase.prototype.transaction=function(names,mode,...args){const tx=old.call(this,names,mode,...args);if(mode==='readwrite'&&Array.from(typeof names==='string'?[names]:names).includes('control'))Object.defineProperty(tx,'oncomplete',{set(fn){descriptor.set.call(tx,()=>{entered=true;});},configurable:true});return tx;};},entered:()=>entered,
+ dispose:()=>x.dispose()
+};
+</script>

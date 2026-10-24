@@ -1,4 +1,5 @@
 import {captureAccountBootstrap,accountBootstrapFingerprint,accountBootstrapRow,validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
+import {CUTOVER_KIND,validateCutoverJournal,nextCutoverJournal} from './port-account-cutover-contract.mjs';
 // L2a dormant Port-owned store. Only explicitly branded isolated scopes can open
 // a database. No Repository adapter, boot hook, migration, Sync or Pro runtime.
 import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COMMIT_STORES, AUTHORIZATION_MARGIN_MS,
@@ -15,6 +16,9 @@ import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard
 import {captureAccountTransition,accountTransitionFingerprint,accountTransitionRow,validateAccountTransition,ACCOUNT_TRANSITION_INTENT_LIMIT} from './port-account-transition-intent.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
+// No storage object/capability escapes: new multi-DB recovery owners can reject
+// accidentally mixing an Authority scope with another IndexedDB factory.
+export function authorityUsesIndexedDB(scope,indexedDB){return scopes.get(scope)?.indexedDB===indexedDB&&!!indexedDB;}
 // Explicit isolated adapter access; neither lease objects nor issuer authority escape.
 export function authorityProEnvironment(scope){
     const env=scopes.get(scope);if(!env)throw fail('isolated-scope-required');const lease=env.lease;
@@ -138,6 +142,7 @@ function validateJournal(journal) {
     identifier(journal.migrationId);identifier(journal.generation);assertJSONEvidence(journal);safeEvidence(journal);
     // Operation reservations live in their own store since schema v2.
     if (journal.migrationId.startsWith(RESERVED_JOURNAL_PREFIX)) throw fail('journal-invalid');
+    if(journal.kind===CUTOVER_KIND)validateCutoverJournal(journal);
 }
 function validateRoot(root) {
     if (!root || root.schemaVersion!==1 || !['sync-base','recovery','migration-evidence'].includes(root.kind) ||
@@ -858,6 +863,38 @@ function makeStore(db,env,lifecycle,lease) {
             }));
         },
         beginAccountTransition, accountTransitions, confirmAccountTransition,
+        // One Authority transaction establishes a durable recovery barrier and
+        // its typed cutover intent. Account DB upgrade happens separately.
+        beginDataCutover({journal,expectedControl,expectedPointer,capability}={}){
+            let j;try{j=structuredClone(journal);identifier(j.migrationId);identifier(j.generation);
+                if(!env.testProvider||j.kind!==CUTOVER_KIND||j.stage!=='stopped'||j.revision!==1)throw fail('cutover-isolation-required');
+                verifyCapability(capability,{scope:env.scope,lease,purpose:'control:recovery',generation:j.generation});
+            }catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(COMMIT_STORES,'readwrite',ctx=>readSnapshot(ctx,j.generation,s=>{
+                if(!s?.active||!equal(s.control,expectedControl)||!equal(s.pointer,expectedPointer))throw fail('cutover-source-stale');
+                assertWritableControl(s.control,expectedControl);
+                if(!equal(j.identity,s.control.identity))throw fail('cutover-source-stale');
+                ctx.request(ctx.store('journal').get(j.migrationId),old=>{
+                    if(old)throw fail('cutover-already-exists');
+                    const control={...s.control,epoch:s.control.epoch+1,state:'recovery-required',recoveryRequired:true};validateControl(control);
+                    j={...j,barrierDigest:digest(control),pointerDigest:digest(s.pointer)};validateCutoverJournal(j);safeEvidence(j);
+                    verifyCapability(capability,{scope:env.scope,lease,purpose:'control:recovery',generation:j.generation});
+                    ctx.request(ctx.store('control').put(control));ctx.request(ctx.store('journal').add(j));ctx.done({ok:true,journal:j,canWrite:false});
+                });
+            }));
+        },
+        advanceDataCutover({migrationId,expectedRevision,stage,accountSnapshot}={}){
+            if(!env.testProvider)return Promise.resolve(rejected('cutover-isolation-required'));
+            let next;try{identifier(migrationId);next=structuredClone(accountSnapshot);}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(COMMIT_STORES,'readwrite',ctx=>ctx.request(ctx.store('journal').get(migrationId),j=>{
+                if(!j)throw fail('cutover-missing');validateCutoverJournal(j);if(j.revision!==expectedRevision)throw fail('cutover-revision-stale');
+                readSnapshot(ctx,j.generation,s=>{
+                    if(!s?.active||digest(s.control)!==j.barrierDigest||digest(s.pointer)!==j.pointerDigest||!s.control.recoveryRequired)throw fail('cutover-barrier-stale');
+                    const updated=nextCutoverJournal(j,stage,next);safeEvidence(updated);
+                    ctx.request(ctx.store('journal').put(updated));ctx.done({ok:true,journal:updated,canWrite:false});
+                });
+            }));
+        },
         beginAccountBootstrap:input=>beginAccountTransition(input,true),accountBootstraps:generation=>accountTransitions(generation,true),
         prepareControlOperation,
         ...Object.fromEntries(Object.keys(CONTROL_OPERATIONS).map(action=>[action,input=>controlOperation(action,input)])),
@@ -886,10 +923,11 @@ function makeStore(db,env,lifecycle,lease) {
         },
         writeJournal(journal,{expectedRevision=null,roots=[]}={}){
             if(!env.testProvider)return Promise.resolve(rejected('fixture-journal-capability-required'));
+            if(journal?.kind===CUTOVER_KIND)return Promise.resolve(rejected('typed-cutover-required'));
             let j,r;try{j=structuredClone(journal);validateJournal(j);r=structuredClone(roots);r.forEach(validateRoot);if(j.revision!==(expectedRevision||0)+1)throw fail('journal-stale');}
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
             return transact(['journal','roots','manifests','records'],'readwrite',ctx=>ctx.request(ctx.store('journal').get(j.migrationId),old=>{
-                if(old){validateJournal(old);if(old.generation!==j.generation)throw fail('journal-identity-conflict');}
+                if(old){validateJournal(old);if(old.kind===CUTOVER_KIND)throw fail('typed-cutover-required');if(old.generation!==j.generation)throw fail('journal-identity-conflict');}
                 if((old?.revision??null)!==expectedRevision)throw fail('journal-stale');
                 ctx.request(ctx.store('journal').put(j));
                 let pending=r.length;const done=()=>{if(!--pending)ctx.done({ok:true,journal:j});};
