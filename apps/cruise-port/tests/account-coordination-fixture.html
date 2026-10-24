@@ -7,13 +7,14 @@ import { createTestAuthorityScope } from './authority-store/test-authority.mjs';
 import { control, values } from './authority-store/fixture.mjs';
 import { openIDBAuthorityStore } from '../port-indexeddb-authority-store.mjs';
 import { createIsolatedPortAccountCoordinator, readExistingPortAccount } from '../port-account-coordination.mjs';
+import {createIsolatedAccountMutationStore,ACCOUNT_MUTATION_JOURNAL_KEY} from '../../shared/sync-account/account-mutation-receipts.mjs';
 const account = id => ({ accountId: id, accountDeviceId: 'fixture-device-' + id, accountCredential: 'fixture-credential-' + id });
 const summary = () => ({ account: { id: 'A', state: 'active', generation: 7 }, memberships: [{ appId: 'port', id: 'member-A', state: 'active', generation: 11 }] });
 const identity = { ...control().identity, ownership: 'bound-account', accountId: 'A', accountGeneration: 7, membershipId: 'member-A', membershipGeneration: 11 };
 const storage = globalThis.SoundCruiseSyncAccount.storage;
-let coordinator, store, token, handle, entered = false, release, gate = false, afterCas = false, abortAccount = false, abortIntent = false;
+let coordinator, store, token, handle, entered = false, release, gate = false, afterCas = false, abortAccount = false, abortIntent = false, abortReceipt=false, lastOperationId=null;
 window.accountFixture = {
-    async init({ name, seed = false }) {
+    async init({ name, seed = false, receipts=false }) {
         const scope = createTestAuthorityScope({ indexedDB, name, partitionId: 'fixture-partition' });
         store = await openIDBAuthorityStore(scope);
         if (seed) {
@@ -21,7 +22,15 @@ window.accountFixture = {
             if (!seeded.ok) throw Error(seeded.reason);
             await storage.setAccount(account('A'), indexedDB);
         }
-        coordinator = await createIsolatedPortAccountCoordinator({ scope, indexedDB, locks: navigator.locks,
+        const owner=receipts?createIsolatedAccountMutationStore({indexedDB,scopeName:name}):null;
+        const mutationStore=owner?{...owner,async mutate(q){
+            if(gate){entered=true;await new Promise(resolve=>release=resolve);}
+            const put=IDBObjectStore.prototype.put;
+            if(abortReceipt)IDBObjectStore.prototype.put=function(value,key){if(key===ACCOUNT_MUTATION_JOURNAL_KEY){this.transaction.abort();throw Error('fixture-receipt-abort');}return put.call(this,value,key);};
+            try{const r=await owner.mutate(q);if(afterCas){entered=true;await new Promise(resolve=>release=resolve);}return r;}
+            finally{IDBObjectStore.prototype.put=put;}
+        }}:null;
+        coordinator = await createIsolatedPortAccountCoordinator({ scope, indexedDB, locks: navigator.locks, mutationStore,
             accountStorage: { ...storage, async changeAccountIfCurrent(...args) {
                 if (gate) { entered = true; await new Promise(resolve => { release = resolve; }); }
                 const original = IDBObjectStore.prototype.put;
@@ -45,15 +54,19 @@ window.accountFixture = {
             changes: { 'cruisePort.metronome': JSON.stringify({ ...JSON.parse(base.values['cruisePort.metronome']), bpm: 145 }) } });
     },
     commit: () => store.commit(handle),
-    transition: async id => {
+    transition: async (id,operationId=crypto.randomUUID()) => {
+        lastOperationId=operationId;
         const original=IDBObjectStore.prototype.add;
         if(abortIntent) IDBObjectStore.prototype.add=function(value,...args){
             if(value?.kind==='account-transition'){this.transaction.abort();throw Error('fixture-intent-abort');}
             return original.call(this,value,...args);
         };
-        try {return await coordinator.transition({ context: token, operationId: crypto.randomUUID(), nextAccount: id === null ? null : account(id) });}
+        try {return await coordinator.transition({ context: token, operationId, nextAccount: id === null ? null : account(id) });}
         finally {IDBObjectStore.prototype.add=original;}
     },
+    reconcile: (operationId=lastOperationId)=>coordinator.reconcileTransition({generation:'g1',operationId}),
+    abortReceipt: ()=>{abortReceipt=true;},
+    rotate: async (operationId='rotate')=>{lastOperationId=operationId;return coordinator.transition({context:token,operationId,nextAccount:{...account('A'),accountCredential:'fixture-rotated'}});},
     setAccount: id => storage.setAccount(account(id), indexedDB),
     readAccount: async () => (await readExistingPortAccount(indexedDB))?.accountId ?? null,
     current: () => store.hydrate('g1'),
