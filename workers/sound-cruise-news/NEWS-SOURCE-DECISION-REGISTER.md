@@ -1309,3 +1309,42 @@ human decision. No approval/rejection, published-news update, human Ledger/feedb
 rewrite, HOT/order/category override change, new source or migration is authorized
 by this preparation change. The next live scheduled run remains unverified until it
 actually occurs.
+
+## 2026-10-25 — Undated primary release notices and duplicate brand spelling
+
+The 06:00 JST production run created two candidates. The Ikebe SONIFIX pedal
+reached formal READY during initial preparation, before its later human approval.
+The Shimamura headphone detail returned HTTP 200 but primary-announcement-1
+classified the polite future release verb as a scheduled release and stopped for
+an absent explicit release date. Its original morning HTML was not retained.
+
+The owner authorized **only Shimamura article 101720, one additional article GET**
+for this investigation. One robots check and one article GET succeeded without
+redirects, retries or related-page requests. This does not change the normal
+Shimamura one-article daily budget or reclassify its permission evidence. The
+morning failure hash and the new response hash are different and remain separate.
+No original HTML, headline, description or image is persisted.
+
+NEWS 0.37.1 / Operator 0.35.2 recognize a narrowly bound, undated primary release
+notice: explicit brand grammatical subject, named primary product and product type,
+and direct intention to release. The independent notice action records no release
+date and cannot assert shipping or borrow the publication date. Unbound actions,
+ambiguous plans and insufficient facts still fail. New notice provenance requires
+primary-announcement-2; valid older primary facts/proofs remain usable. Closed
+missing-field codes persist in failure proofs and source/day preparation summaries.
+
+The new primary evidence names ADAM Audio / H715 Reference; retained approved Ikebe
+primary facts name ADAM / H715 Reference with the same headphone identity. A reviewed
+ADAM Audio/ADAM spelling equivalence is used only for duplicate comparison. It does
+not rewrite stored brands, serve as an extraction whitelist or generally strip
+"Audio"/"Guitars". Model, category, version and event compatibility still apply.
+The existing approved product must remain published; recovering the Shimamura facts
+must not create READY for a duplicate or automatically reject/approve either item.
+
+Both real cron entrypoints were replayed offline with the newly authorized primary
+response held in memory, with and without the already published peer. Facts recover
+in both; unique evidence reaches READY and the actual peer blocks publication as a
+duplicate. Listing inputs are explicit structural reconstructions, not saved morning
+HTML. These checks do not claim the next live run has already succeeded. Existing
+published articles, human Ledger/feedback/Shadow, HOT/order/category overrides,
+source policies, cron, cache and access budgets remain protected.

@@ -1,0 +1,65 @@
+{
+  "evidence": "Owner-authorized Oct 25 primary response; typed facts only. HTML not retained.",
+  "row": {
+    "id": "fd15c72223dc3c12c93e9c1c4e55027202a28c6abff43b7ea74f204c045f97a2",
+    "source_id": "shimamura",
+    "source_url": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/101720/",
+    "published_at": "2026-10-23T15:00:00.000Z",
+    "category": "recording_audio"
+  },
+  "parsed": {
+    "productFacts": {
+      "kind": "primary_product_notice",
+      "brand": "ADAM Audio",
+      "product": "H715 Reference",
+      "models": [
+        "H715 Reference"
+      ],
+      "version": null,
+      "category": "recording_audio",
+      "productType": "headphone",
+      "identifierBasis": "verified_primary_announcement",
+      "listingSource": "shimamura",
+      "articleUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/101720/",
+      "subjectEvidence": {
+        "role": "primary_product_definition",
+        "boundModels": 1,
+        "typeBasis": "explicit_type"
+      },
+      "announcement": {
+        "actor": "shimamura",
+        "action": "release_notice",
+        "signal": "explicit_undated_release_notice",
+        "dateStatus": "not_stated",
+        "actionBasis": "primary_subject_future_release"
+      }
+    },
+    "eventType": "release",
+    "publishedAt": "2026-10-23T15:00:00.000Z",
+    "label": "ADAM Audioのヘッドフォン「H715 Reference」の発売を案内"
+  },
+  "peerFacts": {
+    "kind": "primary_product_notice",
+    "brand": "ADAM",
+    "product": "H715 Reference",
+    "models": [
+      "H715 Reference"
+    ],
+    "version": null,
+    "category": "recording_audio",
+    "productType": "headphone",
+    "identifierBasis": "verified_primary_announcement",
+    "listingSource": "ikebe",
+    "articleUrl": "https://www.ikebe-gakki-pb.com/new_product/173752/",
+    "subjectEvidence": {
+      "role": "primary_product_definition",
+      "boundModels": 1,
+      "typeBasis": "explicit_type"
+    },
+    "announcement": {
+      "actor": "ikebe",
+      "action": "appearance",
+      "signal": "explicit_new_appearance"
+    }
+  }
+}

@@ -24,7 +24,8 @@ export async function prepareInitialFacts(store,report,now,registry,pepper,optio
   m.detailSuccess+=+(fetched&&!!result.recovered);m.detailFailure+=+(fetched&&!result.recovered);
   m.outcomes[result.outcome]=(m.outcomes[result.outcome]||0)+1;
   for(const e of result.validation?.errors||before.errors){if(['facts_incomplete','facts_provenance_invalid','label_provenance_invalid'].includes(e))m.missingFields[e]=(m.missingFields[e]||0)+1;}
-  m.items.push({id:row.id,outcome:result.outcome,ready:valid,newCandidate:urls.has(row.source_url),errors:result.validation?.errors||before.errors});
+  for(const field of result.diagnostics?.missingFields||[])m.missingFields[field]=(m.missingFields[field]||0)+1;
+  m.items.push({id:row.id,outcome:result.outcome,ready:valid,newCandidate:urls.has(row.source_url),errors:result.validation?.errors||before.errors,...(result.diagnostics?{diagnostics:result.diagnostics}:{})});
   if((await store.state(source.id)).disabled||(await store.state(source.id)).backoffUntil>now)break;
  }
 }

@@ -1,4 +1,4 @@
-import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,validPrimaryAnnouncement} from './primary-announcement.js';
+import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement} from './primary-announcement.js';
 import {initialPrimarySource,recoveryBudget} from './recovery-budget.js';
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
@@ -34,7 +34,7 @@ import {recoverySurface,recoveryCacheKey,resolvedRecoverySurface} from './facts-
 // It never reconstructs discarded HTML or supplies missing facts.
 export async function reusablePrimaryEvidence(previous,row,source,now){
  if(!initialPrimarySource(source)||previous?.outcome!=='verified_surface'||previous.lease_until>now)return false;
- try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json);return p.sourceId===source.id&&p.sourceUrl===row.source_url&&p.publishedAt===row.published_at&&p.extractionMethod==='explicit_primary_announcement_fields'&&p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.evidenceKey===await hash(row.title_fingerprint||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at&&validPrimaryAnnouncement(items[0].productFacts);}catch{return false;}
+ try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json);return p.sourceId===source.id&&p.sourceUrl===row.source_url&&p.publishedAt===row.published_at&&p.extractionMethod==='explicit_primary_announcement_fields'&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&p.pipelineVersion===p.parserVersion&&p.evidenceKey===await hash(row.title_fingerprint||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at&&validPrimaryAnnouncement(items[0].productFacts)&&(items[0].productFacts.announcement.action!=='release_notice'||p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER);}catch{return false;}
 }
 // Recheck receipts retain facts/proofs for the existing 90-day lifetime even
 // after the short transport cache is purged. Never rebuild publisher text.
@@ -42,10 +42,10 @@ export async function retainedPrimaryEvidence(store,row,source,now){
  if(!initialPrimarySource(source))return null;
  const receipt=await store.db.prepare("SELECT * FROM news_facts_rechecks WHERE candidate_id=? AND provenance_json<>'[]' ORDER BY checked_at DESC,rowid DESC LIMIT 1").bind(row.id).first();
  try{const fields=JSON.parse(receipt?.provenance_json||'[]'),proof=fields[0],patch=JSON.parse(receipt?.patch_json||'null');
-  if(!proof||proof.sourceId!==source.id||proof.sourceUrl!==row.source_url||proof.publishedAt!==row.published_at||proof.pipelineVersion!==PRIMARY_ANNOUNCEMENT_PARSER||proof.evidenceKey!==await hash(row.title_fingerprint||'')||!/^[a-f0-9]{64}$/.test(proof.responseHash||'')||!Number.isSafeInteger(proof.verifiedAt)||proof.verifiedAt>now)return null;
+  if(!proof||proof.sourceId!==source.id||proof.sourceUrl!==row.source_url||proof.publishedAt!==row.published_at||!PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)||proof.evidenceKey!==await hash(row.title_fingerprint||'')||!/^[a-f0-9]{64}$/.test(proof.responseHash||'')||!Number.isSafeInteger(proof.verifiedAt)||proof.verifiedAt>now)return null;
   const base={checked_at:receipt.checked_at,lease_until:0,proof_json:JSON.stringify(proof)};
   if(proof.failureReason)return {...base,outcome:'facts_primary_evidence_unchanged',items_json:'[]'};
-  const facts=JSON.parse(patch?.product_facts||'null');if(!validPrimaryAnnouncement(facts)||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.extractionMethod==='explicit_primary_announcement_fields')))return null;
+  const facts=JSON.parse(patch?.product_facts||'null');if(!validPrimaryAnnouncement(facts)||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&p.parserVersion===proof.pipelineVersion&&p.extractionMethod==='explicit_primary_announcement_fields')))return null;
   const candidate={...base,outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:patch.event_type,productFacts:facts}])};
   return await reusablePrimaryEvidence(candidate,row,source,now)?candidate:null;
  }catch{return null;}
@@ -174,7 +174,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
   outcome='verified_surface';
  }catch(error){
   outcome=/^facts_/.test(error.message)?error.message:['redirect_blocked','response_too_large','listing_optout','listing_structure_changed','robots_unavailable','robots_unparseable'].includes(error.message)?'facts_'+error.message:error.name==='AbortError'||error.name==='TimeoutError'?'facts_timeout':'facts_parser_failure';
-  items=[];if(proof)proof={...proof,failureReason:outcome};
+  items=[];if(proof){const d=error.primaryDiagnostics,fields=d?.stage==='facts_schema'&&Array.isArray(d.missingFields)?d.missingFields.filter(v=>typeof v==='string'&&/^[A-Za-z_]{1,60}$/.test(v)).slice(0,24):[];proof={...proof,failureReason:outcome,...(fields.length?{diagnostics:{stage:'facts_schema',missingFields:fields}}:{})};}
  }finally{
   if(acquired){
    // Match the collector's fail-closed stop/backoff boundary, without claiming a new
@@ -203,11 +203,11 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  const source=registry.find(s=>s.id===row.source_id);await gate(store,source,registry,now,row);
  const before=await publicationValidation(store,row,now,registry,pepper);
  // Already valid and duplicate candidates need no publisher traffic or rewrite.
- let outcome=before.errors.includes('duplicate')?'facts_duplicate_preserved':before.valid?'facts_already_complete':'facts_not_recovered',patch=null,provenance=[];
+ let outcome=before.errors.includes('duplicate')?'facts_duplicate_preserved':before.valid?'facts_already_complete':'facts_not_recovered',patch=null,provenance=[],diagnostics=null;
  if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
   const surface=await verifiedSurface(store,source,registry,row,now,pepper,options);
   outcome=surface.outcome;
-  if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason)provenance=[{...failure,factField:'_extraction_failure'}];}catch{}}
+  if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason){provenance=[{...failure,factField:'_extraction_failure'}];diagnostics=failure.diagnostics||null;}}catch{}}
   if(outcome==='verified_surface'){
    const item=JSON.parse(surface.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url),proof=JSON.parse(surface.proof_json||'null');
    if(!item)outcome='facts_not_on_current_surface';
@@ -243,7 +243,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  }
  if(!await store.db.prepare('SELECT request_id FROM news_facts_rechecks WHERE request_id=? AND request_payload_hash=?').bind(input.requestId,payloadHash).first())throw Error('candidate_changed');
  const detail=await reviewDetail(store,row.id,now,registry,pepper);
- return {id:row.id,outcome,recovered:!!patch,validation:detail.validation};
+ return {id:row.id,outcome,recovered:!!patch,validation:detail.validation,...(diagnostics?{diagnostics}:{})};
 }
 
 // Reuse the receipt-only Morris branch and the normal publication validator.

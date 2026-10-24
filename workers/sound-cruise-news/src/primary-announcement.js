@@ -4,7 +4,8 @@ import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {releaseDateFields} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-1';
+export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-2';
+export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1',PRIMARY_ANNOUNCEMENT_PARSER]);
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -15,14 +16,36 @@ const identity=s=>typeof s==='string'&&s.length>=2&&s.length<=110&&/^[A-Za-z0-9]
 const unsafe=/旧製品|関連商品|参考製品|他社|例えば|発売しない|登場しない|ではない|かもしれ|再入荷|中古|クーポン|レビュー|比較/;
 const purchase=/^(?:※|【ご注意】|[—–−-]+$)|^ご予約|^店舗での|^発売後の|^発売予定日以降|^入荷状況|^誠に申し訳|^お支払/;
 const types={mini_keyboard:['ミニキーボード','dtm_software'],midi_keyboard:['MIDIキーボード','dtm_software'],headset:['ヘッドセット','recording_audio'],headphone:['ヘッドフォン','recording_audio'],guitar_amp_bundle:['ギターアンプセット','amps_effects'],electric_guitar:['エレキギター','electric_guitar_bass'],guitar:['ギター','electric_guitar_bass']};
-const signal={appearance:'explicit_new_appearance',announcement:'explicit_new_model',scheduled_release:'explicit_scheduled_release',release:'explicit_release'};
-export function validPrimaryAnnouncement(f){
- return (!['scheduled_release'].includes(f?.announcement?.action)||!!f.announcement.date)&&(f?.keyboardKeys===undefined||Number.isInteger(f.keyboardKeys)&&f.keyboardKeys>=8&&f.keyboardKeys<=128&&f.productType==='mini_keyboard')&&(f?.signatureModel===undefined||f.signatureModel===true&&f.productType==='electric_guitar')&&f?.kind==='primary_product_notice'&&f.identifierBasis==='verified_primary_announcement'&&['ikebe','shimamura'].includes(f.listingSource)&&f.articleUrl&&identity(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(identity)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.product.length<=110&&f.version===null&&types[f.productType]?.[1]===f.category&&f.subjectEvidence?.role==='primary_product_definition'&&f.subjectEvidence.boundModels===f.models.length&&['explicit_type','bound_guitar_construction','explicit_bundle'].includes(f.subjectEvidence.typeBasis)&&f.announcement?.actor===f.listingSource&&signal[f.announcement.action]===f.announcement.signal&&(!f.announcement.date||/^20\d{2}-\d{2}-\d{2}$/.test(f.announcement.date)&&Number.isFinite(Date.parse(f.announcement.date))&&new Date(f.announcement.date).toISOString().slice(0,10)===f.announcement.date);
+const signal={appearance:'explicit_new_appearance',announcement:'explicit_new_model',scheduled_release:'explicit_scheduled_release',release:'explicit_release',release_notice:'explicit_undated_release_notice'};
+// Closed field codes, never publisher sentences or unvalidated headline text.
+export function primaryAnnouncementErrors(f){
+ const errors=[],check=(ok,field)=>{if(!ok)errors.push(field);};
+ check(f?.kind==='primary_product_notice','kind');
+ check(f?.identifierBasis==='verified_primary_announcement','identifierBasis');
+ check(['ikebe','shimamura'].includes(f?.listingSource),'listingSource');
+ check(!!f?.articleUrl,'articleUrl');check(identity(f?.brand),'brand');
+ const models=Array.isArray(f?.models)?f.models:[];
+ check(models.length>=1&&models.length<=4&&models.every(identity)&&new Set(models).size===models.length,'models');
+ check(typeof f?.product==='string'&&f.product===models.join(' / ')&&f.product.length<=110,'product');
+ check(f?.version===null,'version');check(Object.hasOwn(types,f?.productType||'')&&types[f.productType][1]===f.category,'productType_category');
+ check(f?.keyboardKeys===undefined||Number.isInteger(f.keyboardKeys)&&f.keyboardKeys>=8&&f.keyboardKeys<=128&&f.productType==='mini_keyboard','keyboardKeys');
+ check(f?.signatureModel===undefined||f.signatureModel===true&&f.productType==='electric_guitar','signatureModel');
+ check(f?.subjectEvidence?.role==='primary_product_definition','subjectEvidence_role');
+ check(f?.subjectEvidence?.boundModels===models.length,'subjectEvidence_boundModels');
+ check(['explicit_type','bound_guitar_construction','explicit_bundle'].includes(f?.subjectEvidence?.typeBasis),'subjectEvidence_typeBasis');
+ check(f?.announcement?.actor===f?.listingSource&&!!f?.listingSource,'announcement_actor');
+ check(Object.hasOwn(signal,f?.announcement?.action||'')&&signal[f.announcement.action]===f.announcement.signal,'announcement_action');
+ const date=f?.announcement?.date;
+ check(f?.announcement?.action!=='scheduled_release'||!!date,'announcement_date_required');
+ check(f?.announcement?.action!=='release_notice'||date===undefined&&f.announcement.dateStatus==='not_stated'&&f.announcement.actionBasis==='primary_subject_future_release','announcement_notice_evidence');
+ check(!date||typeof date==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(date)&&Number.isFinite(Date.parse(date))&&new Date(date).toISOString().slice(0,10)===date,'announcement_date_invalid');
+ return errors;
 }
+export const validPrimaryAnnouncement=f=>primaryAnnouncementErrors(f).length===0;
 export function primaryAnnouncementLabel(f){
  if(!validPrimaryAnnouncement(f))return null;const subject=`${f.brand}の${f.signatureModel?'シグネチャー':''}${f.keyboardKeys?f.keyboardKeys+'鍵':''}${types[f.productType][0]}「${f.product}」`,a=f.announcement;
  const date=a.date?`${Number(a.date.slice(5,7))}月${Number(a.date.slice(8,10))}日`:'';
- return subject+({appearance:'が登場',announcement:'を紹介',scheduled_release:`、${date}発売予定`,release:`、${date}発売と案内`})[a.action];
+ return subject+({appearance:'が登場',announcement:'を紹介',scheduled_release:`、${date}発売予定`,release:`、${date}発売と案内`,release_notice:'の発売を案内'})[a.action];
 }
 export function parsePrimaryAnnouncement(html,source,row){
  const url=new URL(row.source_url);if(!['ikebe','shimamura'].includes(source?.id)||row.source_id!==source.id||url.origin!==new URL(source.baseUrl).origin||!/^\/(?:new_product\/\d+|update\/(?:guitar-bass|amp-effector|dtm-recording)\/20\d{2}\/\d{2}\/\d+)\/$/.test(url.pathname))throw Error('facts_source_invalid');
@@ -70,8 +93,14 @@ export function parsePrimaryAnnouncement(html,source,row){
  const dates=[...new Set([...explicitDates,...(dateMatch?[dateMatch[1]+'-'+dateMatch[2].padStart(2,'0')+'-'+dateMatch[3].padStart(2,'0')]:[])])];
  if(dates.length>1)throw Error('facts_date_changed');const date=dates[0]||null;
  if(date&&date>day)action='scheduled_release';else if(date&&/発売/.test(title+' '+descriptor.join(' ')))action='release';if(!action)throw Error('facts_primary_action_unbound');
+ // An explicit intention to release is a reportable notice without a guessed
+ // shipping date. Bind the grammatical subject and every named product in the
+ // primary definition; a future verb about bundled/related software cannot qualify.
+ const futureNotice=source.id==='shimamura'&&!date&&sections.every(ps=>{const lead=ps[0]||'';return norm(lead).startsWith(norm(brand+'が'))&&models.every(m=>norm(lead).includes(norm('「'+m+'」')))&&/[」』]を発売します(?:[。！!]|$)/.test(lead)&&!unsafe.test(lead);});
+ if(action==='scheduled_release'&&futureNotice)action='release_notice';
  const keyMatch=productType==='mini_keyboard'?/(\d{1,3})鍵/.exec(descriptor[0]):null;
- const facts={...(keyMatch?{keyboardKeys:Number(keyMatch[1])}:{}),...(/シグネ(?:イ|ー)?チャ[ーア]?[^。]{0,5}モデル/.test(title)&&productType==='electric_guitar'?{signatureModel:true}:{}),kind:'primary_product_notice',brand,product:models.join(' / '),models,version:null,category:types[productType][1],productType,identifierBasis:'verified_primary_announcement',listingSource:source.id,articleUrl:row.source_url,subjectEvidence:{role:'primary_product_definition',boundModels:models.length,typeBasis},announcement:{actor:source.id,action,signal:signal[action],...(date?{date}:{})}};
- if(!validPrimaryAnnouncement(facts))throw Error('facts_primary_invalid');
- return {productFacts:facts,eventType:['release','scheduled_release'].includes(action)?'release':'new_product',publishedAt:row.published_at};
+ const facts={...(keyMatch?{keyboardKeys:Number(keyMatch[1])}:{}),...(/シグネ(?:イ|ー)?チャ[ーア]?[^。]{0,5}モデル/.test(title)&&productType==='electric_guitar'?{signatureModel:true}:{}),kind:'primary_product_notice',brand,product:models.join(' / '),models,version:null,category:types[productType][1],productType,identifierBasis:'verified_primary_announcement',listingSource:source.id,articleUrl:row.source_url,subjectEvidence:{role:'primary_product_definition',boundModels:models.length,typeBasis},announcement:{actor:source.id,action,signal:signal[action],...(date?{date}:{}),...(action==='release_notice'?{dateStatus:'not_stated',actionBasis:'primary_subject_future_release'}:{})}};
+ const missingFields=primaryAnnouncementErrors(facts);
+ if(missingFields.length){const error=Error('facts_primary_invalid');error.primaryDiagnostics={stage:'facts_schema',missingFields};throw error;}
+ return {productFacts:facts,eventType:['release','scheduled_release','release_notice'].includes(action)?'release':'new_product',publishedAt:row.published_at};
 }

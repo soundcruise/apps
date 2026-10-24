@@ -1,4 +1,5 @@
-import {validPrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER} from './primary-announcement.js';
+import {validPrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS} from './primary-announcement.js';
+import {productBrandVariants} from './product-brand-identity.js';
 import {validKikutaniListingFacts,KIKUTANI_LISTING_PARSER,KIKUTANI_LISTING_PARSERS} from './kikutani-listing-evidence.js';
 import {PRODUCT_FAMILY_PARSER,validProductFamily} from './product-family-evidence.js';
 import {AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
@@ -24,6 +25,7 @@ export const parseFacts=row=>{try{return JSON.parse(row.product_facts);}catch{re
 // Artist/event identities additionally retain performer, venue and actual event date, never just a scalar label.
 export function duplicatePredicate(row,facts,alias='d'){
  const paths=independentTopicUrls(row),j=key=>`json_extract(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.${key}')`;
+ const brands=productBrandVariants(facts?.brand),brandValues=brands.length?brands:['__no_verified_brand__'],brandMatch=`${j('brand')} IN (${brandValues.map(()=>'?').join(',')})`;
  const clauses=[`${alias}.topic_key=?`,`${alias}.normalized_url=?`,`${alias}.source_url=?`],args=[row.topic_key,row.normalized_url,row.source_url];
  if(facts?.kind==='product_family'){
   const familyClauses=[`${alias}.normalized_url=?`,`${alias}.source_url=?`];
@@ -39,7 +41,7 @@ export function duplicatePredicate(row,facts,alias='d'){
   args.push(facts.eventName,facts.eventDate,facts.performer,JSON.stringify(facts.venues));
  }
  if(paths.length){clauses.push(`${alias}.source_url IN (${paths.map(()=>'?').join(',')})`);args.push(...paths);}
- if(facts?.product&&facts.kind!=='product_article'&&facts.evidence!=='morris_explicit_article_v1'){clauses.push(`((? IS NULL OR ${j('brand')}=? OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,facts.brand||null,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
+ if(facts?.product&&facts.kind!=='product_article'&&facts.evidence!=='morris_explicit_article_v1'){clauses.push(`((? IS NULL OR ${brandMatch} OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,...brandValues,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
  if(facts?.articleIdentity?.basis==='explicit_primary_definition'&&facts.identifierBasis==='explicit_article_product_fields'){clauses.push(`(${j('brand')}=? AND ${j('product')} IN (${facts.articleIdentity.models.map(()=>'?').join(',')}) AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('new_product','release') AND ? IN ('new_product','release') AND COALESCE(${j('productEvent.action')},'')=?)`);args.push(facts.articleIdentity.brand,...facts.articleIdentity.models,row.category,facts.version||'',row.event_type,facts.productEvent?.action||'');}
  if(facts?.evidence==='morris_explicit_article_v1'&&facts.kind==='product'){
   clauses.push(`(${j('brand')} IN ('Morris','MORRIS','Morris Guitars','モーリス') AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(CASE WHEN json_type(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.productEvent')='object' THEN ${j('productEvent.action')} ELSE ${j('productEvent')} END,'')=? AND ${alias}.event_type IN ('new_product','release') AND ? IN ('new_product','release'))`);args.push(row.category,facts.product,facts.productEvent?.action||'',row.event_type);
@@ -70,8 +72,8 @@ export function duplicatePredicate(row,facts,alias='d'){
  }
  // Multi-model primary evidence must not evade the existing product duplicate boundary.
  if(['explicit_article_product_fields','explicit_shimamura_product_fields','verified_primary_announcement'].includes(facts?.identifierBasis)&&Array.isArray(facts.models)&&facts.models.length>0&&facts.models.length<=4&&facts.models.every(m=>typeof m==='string')){
-  clauses.push(`(${j('brand')}=? AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('other','new_product','release') AND (${j('product')} IN (${facts.models.map(()=>'?').join(',')}) OR EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') member WHERE member.value IN (${facts.models.map(()=>'?').join(',')}))))`);
-  args.push(facts.brand,row.category,facts.version||'',...facts.models,...facts.models);
+  clauses.push(`(${brandMatch} AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('other','new_product','release') AND (${j('product')} IN (${facts.models.map(()=>'?').join(',')}) OR EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') member WHERE member.value IN (${facts.models.map(()=>'?').join(',')}))))`);
+  args.push(...brandValues,row.category,facts.version||'',...facts.models,...facts.models);
  }
  // Exact multi-model signature launch identity, allowing only explicit color suffixes.
  // A series qualifier is not a different manufacturer; new color/edition events stay separate.
@@ -105,7 +107,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  }
  if(facts?.kind==='primary_product_notice'){
   const evidenceKey=await hash(row.title_fingerprint||'');let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
-  if(!validPrimaryAnnouncement(facts)||row.event_type!==(['release','scheduled_release'].includes(facts.announcement?.action)?'release':'new_product')||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||!Array.isArray(proof)||![...Object.keys(facts),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.evidenceKey===evidenceKey&&p.publishedAt===row.published_at&&p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.extractionMethod==='explicit_primary_announcement_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+  if(!validPrimaryAnnouncement(facts)||row.event_type!==(['release','scheduled_release','release_notice'].includes(facts.announcement?.action)?'release':'new_product')||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||!Array.isArray(proof)||![...Object.keys(facts),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.evidenceKey===evidenceKey&&p.publishedAt===row.published_at&&(facts.announcement.action==='release_notice'?[PRIMARY_ANNOUNCEMENT_PARSER]:PRIMARY_ANNOUNCEMENT_PARSERS).includes(p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(facts?.kind==='product_family'){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
