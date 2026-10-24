@@ -1,3 +1,9 @@
+# Studio 0.47.4 — Account provider / consumer接続契約（隔離topic）
+
+公開済みmain ce156230 / Studio0.47.3 / Port1.24.6を基準とする内部保守候補。正式AccountClientのsummary/devicesを注入transportで利用するPort owner観測providerと、Studioのpure readonly projectionを追加。永続source/revision・Authority Control/pointerを照合し、失効応答は既存transactionで停止intentを記録する。Port membership世代と資格freshness証明は現APIに存在せず未確認のまま。通常writer・Cloud・legacy consumerの本番移行は未接続、Shared Write OFF / canWrite=false / schema2を維持する。
+
+Studioは正式リリース承認まで0.x.y。Port保守候補1.24.7。契約・移行一覧・残る保存gateは [Account providerとconsumer](../cruise-port/docs/ACCOUNT_PROVIDER_CONSUMERS.md)。以下は過去の工程記録。
+
 # Studio 0.46.0 Account + PC UI 統合候補（未公開）
 
 A `475fbc97` とB `78e1e87f`を統合。Port保守候補1.24.2 / StudioProject schema2。Account coordinatorは隔離のみ、通常writer未接続、Shared Write OFF、PortDataHost.canWrite=false。Home/NEWS/My Appsはreadonly。次の保存基盤工程と受入条件は [統合と保存基盤準備](docs/ACCOUNT_PC_INTEGRATION_READINESS.md)。main統合・Production公開は別承認。以下のtopic記録・過去の工程を保持する。
