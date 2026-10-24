@@ -1,6 +1,7 @@
-import { createPortDataHost } from './host.mjs?v=0.45.1';
-import { connectPortReadOnly } from './connection.mjs?v=0.45.1';
-import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.45.1';
+import { createPortDataHost } from './host.mjs?v=0.46.0';
+import { connectPortReadOnly } from './connection.mjs?v=0.46.0';
+import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.46.0';
+import { describeAccountObservation } from './account-status-projection.mjs?v=0.46.0';
 const CS = globalThis.CruiseStudio;
 let host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema });
 CS.portDataHost = host;
@@ -18,7 +19,15 @@ function render(state) {
     if (state.dataset) hadData = true;
     panel.querySelector('[data-port-sync]').textContent = labels[state.sync];
     panel.querySelector('[data-port-pro]').textContent = labels[state.pro];
-    panel.querySelector('[data-port-account]').textContent = labels[state.account];
+    const account = describeAccountObservation(state);
+    const accountLabel = panel.querySelector('[data-port-account]');
+    accountLabel.textContent = account.label;
+    let accountDetail = panel.querySelector('[data-port-account-detail]');
+    if (!accountDetail) {
+        accountDetail = document.createElement('small'); accountDetail.dataset.portAccountDetail = '';
+        accountLabel.after(accountDetail);
+    }
+    accountDetail.textContent = account.detail;
     const settings = state.dataset?.settings;
     panel.querySelector('[data-port-bpm]').textContent = settings?.savedBpm == null ? '未取得 / 保存値なし' : String(settings.savedBpm);
     panel.querySelector('[data-port-schema]').textContent = state.dataset ? (state.dataset.state === 'forward-incompatible' && settings.schemaState !== 'forward-incompatible' ? '一部に新しい形式 / ' : '') + formats[settings.schemaState] : '未確認';

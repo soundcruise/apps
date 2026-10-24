@@ -6,7 +6,7 @@
 
 ## 読み取りAPI
 
-`js/core/feature-registry.mjs?v=0.45.1`から次をimportできる。
+`js/core/feature-registry.mjs?v=0.46.0`から次をimportできる。
 
 - `getComponentMetadata(componentId)` / `getAppVersion(componentId)`
 - `getFeatureMetadata(featureId)` / `listFeatures()`
@@ -19,14 +19,14 @@
 
 | componentId | 現行appVersion | repository-relative source / symbol | 読み方 |
 |---|---|---|---|
-| cruise-port | 1.24.1 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
+| cruise-port | 1.24.2 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
 | chord-cruise | 1.21.0 | apps/chord-cruise/js/app.js / CHORD_CRUISE_APP_VERSION | source-mirror |
 | pitch-cruise | 2.30.0 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.25.0 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.21.0 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.45.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.46.0 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
-Studio 0.45.1 patch候補ではPort 1.24.1の正式ESM参照とStudioのversion/cacheを整合。Project schemaVersion=2を維持。memory-only追加APIは[CHORD_FORM_ADAPTER](CHORD_FORM_ADAPTER.md)を参照。Port/Chord等の正式owner versionは維持。
+Studio 0.46.0 patch候補ではPort 1.24.2の正式ESM参照とStudioのversion/cacheを整合。Project schemaVersion=2を維持。memory-only追加APIは[CHORD_FORM_ADAPTER](CHORD_FORM_ADAPTER.md)を参照。Port/Chord等の正式owner versionは維持。
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -41,8 +41,8 @@ API / backend versionやbuildの推測値は登録しない。独立componentは
 
 ### Importとcache
 
-Studio内部importは現在のmodule cache運用に合わせ`?v=0.45.1`。
-Port元ESMへのStudio側importは現行sourceのcache key `?v=1.24.1`を使う。
+Studio内部importは現在のmodule cache運用に合わせ`?v=0.46.0`。
+Port元ESMへのStudio側importは現行sourceのcache key `?v=1.24.2`を使う。
 商品versionをcache keyから抽出することはない。他ownerのHTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
 classic ownerの正式version更新後は、Studio所有のmirrorだけを追従更新し、全6componentを個別に照合する。
@@ -133,3 +133,7 @@ Session、lease、context、running、permission・Pro実資格はruntimeへ置�
 ## Schema 2 Foundation M1 candidate
 
 Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（schema番号とは独立）。実装・検証中。M1完了・commit・push・main統合・公開は未実施。[正式契約]( SCHEMA2_FOUNDATION.md )。
+
+## PC Home / NEWS presentation
+
+`port.home` と `port.news` の Studio `main` presentation を実装。Home は既存 Shell 導線・cached Port statusのみ。NEWS は Port owner provider/model から取得する閲覧画面。metadata は実行権限・認証成功・Port writer開通を意味しない。My Apps は既存 `separate-workspace` presentation の明示起動を追加し、CRUD・保存・画像取得・Syncは未接続。

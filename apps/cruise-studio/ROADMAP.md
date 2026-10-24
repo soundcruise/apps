@@ -1,4 +1,16 @@
+# Studio 0.46.0 Account + PC UI 統合候補（未公開）
+
+A `475fbc97` とB `78e1e87f`を統合。Port保守候補1.24.2 / StudioProject schema2。Account coordinatorは隔離のみ、通常writer未接続、Shared Write OFF、PortDataHost.canWrite=false。Home/NEWS/My Appsはreadonly。次の保存基盤工程と受入条件は [統合と保存基盤準備](docs/ACCOUNT_PC_INTEGRATION_READINESS.md)。main統合・Production公開は別承認。以下のtopic記録・過去の工程を保持する。
+
 # Studio 0.43.1 patch候補 — P3-01 reason lookup / version・cache整合
+
+## Account協調基盤 v1（隔離topic・未公開）
+
+Studio開発候補0.46.0 / Port保守候補1.24.2 / Project schemaVersion 2。Port所有のAccount context、Authority停止complete後のShared Account同一transaction CAS、Studio Toolsの端末内観測readonly表示を追加。通知を停止保証にしない。通常writer・Sync・Shared Write・認証切替は未接続。独立PC Home/NEWS/My Apps topicとは別commitで管理する。正式provider、durable retirement-intentの中断窓、非協調旧writer、移行/復旧/binary/最終admissionを解消してから製品保存を判定する。契約は `../cruise-port/docs/PORT_ACCOUNT_COORDINATION.md`。本番mainはこのtopicでは変更しない。
+
+## PC Home / NEWS / My Apps 起動（独立topic・未公開）
+
+Studio開発候補0.46.0 / Project schemaVersion 2。Port owner NEWS providerとURL resolverを読み取り利用するPC UIを追加。Home主要導線、NEWS一覧・詳細・読込/停止/障害・世代取消、My Appsの明示起動を対象とする。Account協調基盤は別topicで並行し、正式writer・Account操作・Sync開始・CRUD・Shared Writeは接続しない。通常保存の解禁は別途Authority/移行/旧writer/最終admissionの受入後に判断する。実装契約と関連試験は `docs/PC_HOME_NEWS_LAUNCH.md`。本番mainはこのtopicでは変更しない。
 
 Object.hasOwnによる未知reason防御と既存55 reason互換を保持。Studio自身のversion・mirror・現行HTML asset/internal ESM cache・厳密試験を0.43.1へ協調更新する。schema2、Adapter v2、Chord owner 1.21.0、単一Project/Session/Undo、明示Save、Shared write OFF、PortDataHost.canWrite=falseは維持。
 

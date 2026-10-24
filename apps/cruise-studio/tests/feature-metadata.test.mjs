@@ -7,8 +7,8 @@ import { releasedBoundaryViolations } from '../scripts/git-safety.mjs';
 import {
     getComponentMetadata, getAppVersion, listComponents,
     getFeatureMetadata, listFeatures
-} from '../js/core/feature-registry.mjs?v=0.45.1';
-import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=0.45.1';
+} from '../js/core/feature-registry.mjs?v=0.46.0';
+import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=0.46.0';
 
 const root = new URL('../../../', import.meta.url);
 const readSource = path => readFileSync(new URL(path, root), 'utf8');
@@ -76,7 +76,7 @@ test('known owners/version references and supported vs implemented presentations
         assert.equal(new Set(feature.supportedPresentations).size, feature.supportedPresentations.length);
         feature.supportedPresentations.forEach(value => assert.ok(allowed.has(value), value));
         feature.implementedPresentations.forEach(value => assert.ok(feature.supportedPresentations.includes(value)));
-        assert.deepEqual(feature.implementedPresentations, feature.featureId === 'port.metronome' ? ['dock'] : feature.featureId === 'chord.main' ? ['inspector'] : feature.featureId === 'port.practice' ? ['main'] : feature.featureId === 'port.tuner' || feature.featureId === 'port.myApps' ? ['separate-workspace'] : feature.featureId === 'port.gear' ? ['main'] : feature.ownerApp === 'cruise-studio' ? ['main'] : []);
+        assert.deepEqual(feature.implementedPresentations, feature.featureId === 'port.metronome' ? ['dock'] : feature.featureId === 'chord.main' ? ['inspector'] : feature.featureId === 'port.practice' ? ['main'] : feature.featureId === 'port.tuner' || feature.featureId === 'port.myApps' ? ['separate-workspace'] : ['port.gear', 'port.home', 'port.news'].includes(feature.featureId) ? ['main'] : feature.ownerApp === 'cruise-studio' ? ['main'] : []);
     }
 });
 
@@ -92,7 +92,7 @@ test('all version projections and the imported Port value equal current source t
         });
     }
     assert.equal(getComponentMetadata('cruise-port').versionSource.type, 'esm-import');
-    assert.equal(getAppVersion('cruise-studio'), '0.45.1');
+    assert.equal(getAppVersion('cruise-studio'), '0.46.0');
 });
 
 test('Studio Port version import uses the current owner cache key without deriving appVersion from it', () => {
@@ -236,6 +236,8 @@ test('static data/Sync owners equal real adapter appIds; Studio is not a Sync pa
 
 test('critical presentation contracts include selected-bar Chord Inspector and existing Studio main', () => {
     const presentations = {
+        'port.home': [['main'], ['main']],
+        'port.news': [['main', 'separate-workspace'], ['main']],
         'port.metronome': [['dock', 'drawer'], ['dock']],
         'port.tuner': [['dock', 'drawer', 'separate-workspace'], ['separate-workspace']],
         'chord.main': [['inspector', 'tool-pane', 'separate-workspace'], ['inspector']],
@@ -254,7 +256,7 @@ test('critical presentation contracts include selected-bar Chord Inspector and e
 test('storage schema refs are distinct from app versions, cache keys, Sync/API/build versions', () => {
     const model = readSource('apps/cruise-studio/js/core/song-model.js');
     assert.match(model, /var SCHEMA_VERSION = 2;/);
-    assert.match(model, /var APP_VERSION = '0\.45\.1';/);
+    assert.match(model, /var APP_VERSION = '0\.46\.0';/);
     const schema = getFeatureMetadata('studio.structure').schemaRef;
     assert.equal(schema.kind, 'storage-schema');
     assert.equal(schema.symbol, 'SCHEMA_VERSION');
@@ -347,8 +349,8 @@ test('unknown and prototype-like IDs are safe and return null', () => {
 });
 
 test('fresh import uses no DOM, storage, permission, audio, network or timers; adds no globals', () => {
-    const url = new URL('../js/core/feature-registry.mjs?v=0.45.1', import.meta.url).href;
-    const reader = new URL('../js/core/version-reader.mjs?v=0.45.1', import.meta.url).href;
+    const url = new URL('../js/core/feature-registry.mjs?v=0.46.0', import.meta.url).href;
+    const reader = new URL('../js/core/version-reader.mjs?v=0.46.0', import.meta.url).href;
     execFileSync(process.execPath, ['--input-type=module', '-e', `
         import assert from 'node:assert/strict';
         for (const key of ['window', 'document', 'localStorage', 'sessionStorage', 'navigator',

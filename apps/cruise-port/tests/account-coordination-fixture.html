@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Isolated Port Account coordination fixture</title>
+<script src="../../shared/sync-account/sync-account-db.js"></script>
+<script type="module">
+import { createTestAuthorityScope } from './authority-store/test-authority.mjs';
+import { control, values } from './authority-store/fixture.mjs';
+import { openIDBAuthorityStore } from '../port-indexeddb-authority-store.mjs';
+import { createIsolatedPortAccountCoordinator, readExistingPortAccount } from '../port-account-coordination.mjs';
+const account = id => ({ accountId: id, accountDeviceId: 'fixture-device-' + id, accountCredential: 'fixture-credential-' + id });
+const summary = () => ({ account: { id: 'A', state: 'active', generation: 7 }, memberships: [{ appId: 'port', id: 'member-A', state: 'active', generation: 11 }] });
+const identity = { ...control().identity, ownership: 'bound-account', accountId: 'A', accountGeneration: 7, membershipId: 'member-A', membershipGeneration: 11 };
+const storage = globalThis.SoundCruiseSyncAccount.storage;
+let coordinator, store, token, handle, entered = false, release, gate = false, abortAccount = false;
+window.accountFixture = {
+    async init({ name, seed = false }) {
+        const scope = createTestAuthorityScope({ indexedDB, name, partitionId: 'fixture-partition' });
+        store = await openIDBAuthorityStore(scope);
+        if (seed) {
+            const seeded = await store.initialize({ generation: 'g1', control: { ...control(), identity }, values: values(), operationId: 'seed' });
+            if (!seeded.ok) throw Error(seeded.reason);
+            await storage.setAccount(account('A'), indexedDB);
+        }
+        coordinator = await createIsolatedPortAccountCoordinator({ scope, indexedDB, locks: navigator.locks,
+            accountStorage: { ...storage, async changeAccountIfCurrent(...args) {
+                if (gate) { entered = true; await new Promise(resolve => { release = resolve; }); }
+                const original = IDBObjectStore.prototype.put;
+                if (abortAccount) IDBObjectStore.prototype.put = function(value, ...rest) {
+                    if (this.name === 'meta' && value?.accountId === 'B') { this.transaction.abort(); throw Error('fixture-abort'); }
+                    return original.call(this, value, ...rest);
+                };
+                try { return await storage.changeAccountIfCurrent(...args); }
+                finally { IDBObjectStore.prototype.put = original; }
+            } } });
+        token = await coordinator.observe({ generation: 'g1', summary: summary() });
+        return { observed: !!token, status: coordinator.getCachedStatus() };
+    },
+    async prepare() {
+        const base = (await store.hydrate('g1')).snapshot;
+        handle = store.prepare({ base, operationId: crypto.randomUUID(), action: 'saveBpm',
+            changes: { 'cruisePort.metronome': JSON.stringify({ ...JSON.parse(base.values['cruisePort.metronome']), bpm: 145 }) } });
+    },
+    commit: () => store.commit(handle),
+    transition: id => coordinator.transition({ context: token, operationId: crypto.randomUUID(), nextAccount: id === null ? null : account(id) }),
+    setAccount: id => storage.setAccount(account(id), indexedDB),
+    readAccount: async () => (await readExistingPortAccount(indexedDB))?.accountId ?? null,
+    current: () => store.hydrate('g1'),
+    status: () => coordinator.getCachedStatus(),
+    gate: () => { gate = true; entered = false; },
+    entered: () => entered,
+    release: () => release(),
+    abortAccount: () => { abortAccount = true; },
+    close: () => { coordinator.dispose(); store.dispose(); }
+};
+</script>
