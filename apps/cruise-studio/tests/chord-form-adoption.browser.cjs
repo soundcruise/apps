@@ -35,7 +35,7 @@ test('persistent form adoption through released Studio Session/Repository',async
     const adopted=s.workingSnapshot(),binding=adopted.performance.formBindings[0],ready=__forms.evaluate(adopted,binding);if(!s.undo().ok||!s.redo().ok)throw Error('history failed');
     return {schema:adopted.schemaVersion,version:C.model.APP_VERSION,canWrite:C.portDataHost.canWrite,ready,forms:adopted.materials.forms.length,bindings:adopted.performance.formBindings.length,history:s.getHistory().cursor,baseUnchanged:s.baseRevision===raw,sourceUnchanged:JSON.stringify(ChordCruise.caged.FORMS)===__formOwnerData,beforeInstrument:before.instrument};
    });
-   assert.equal(reports.adoption.version,'0.45.1');assert.equal(reports.adoption.schema,2);assert.equal(reports.adoption.canWrite,false);assert(reports.adoption.ready.ready);assert.equal(reports.adoption.history,1);assert.equal(reports.adoption.forms,1);assert.equal(reports.adoption.bindings,1);assert(reports.adoption.baseUnchanged&&reports.adoption.sourceUnchanged);
+   assert.equal(reports.adoption.version,'0.46.0');assert.equal(reports.adoption.schema,2);assert.equal(reports.adoption.canWrite,false);assert(reports.adoption.ready.ready);assert.equal(reports.adoption.history,1);assert.equal(reports.adoption.forms,1);assert.equal(reports.adoption.bindings,1);assert(reports.adoption.baseUnchanged&&reports.adoption.sourceUnchanged);
    await flush();assert.equal(ledger.filter(e=>e.phase==='preview-adopt').length,0);
   });
   await t.test('legacy editors, JSON export/import and Pre-DTM retain snapshot and binding',async()=>{

@@ -1,5 +1,9 @@
 # Studio 0.43.1 patch候補 — P3-01 reason lookup / version・cache整合
 
+## PC Home / NEWS / My Apps 起動（独立topic・未公開）
+
+Studio開発候補0.46.0 / Project schemaVersion 2。Port owner NEWS providerとURL resolverを読み取り利用するPC UIを追加。Home主要導線、NEWS一覧・詳細・読込/停止/障害・世代取消、My Appsの明示起動を対象とする。Account協調基盤は別topicで並行し、正式writer・Account操作・Sync開始・CRUD・Shared Writeは接続しない。通常保存の解禁は別途Authority/移行/旧writer/最終admissionの受入後に判断する。実装契約と関連試験は `docs/PC_HOME_NEWS_LAUNCH.md`。本番mainはこのtopicでは変更しない。
+
 Object.hasOwnによる未知reason防御と既存55 reason互換を保持。Studio自身のversion・mirror・現行HTML asset/internal ESM cache・厳密試験を0.43.1へ協調更新する。schema2、Adapter v2、Chord owner 1.21.0、単一Project/Session/Undo、明示Save、Shared write OFF、PortDataHost.canWrite=falseは維持。
 
 正式Node/Browser・同一条件3回の性能測定・No-write・Git gatesの結果はrepo外のSHA/tree付きreceiptで確定する。topic通常pushと隔離2-parent統合候補までを対象とし、main反映・Pages公開は別承認。実OS日本語IME・Safari・実プリンターは未検証のまま。既存仕様: [CHORD_FORM_SELECTION](docs/CHORD_FORM_SELECTION.md)。以下は過去の工程記録。

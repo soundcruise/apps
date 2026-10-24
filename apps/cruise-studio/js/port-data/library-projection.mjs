@@ -1,7 +1,7 @@
 import { getKnownApp } from '../../../cruise-port/my-apps-known-apps.js?v=1.3.0';
 import { getMyAppsIconPreset } from '../../../cruise-port/my-apps-icon-presets.js?v=1.0.3';
-import { projectPractice, freezePractice } from './practice-projection.mjs?v=0.45.1';
-// Closed catalog slice; no binary stores, launchers, loaders, writers or credentials.
+import { projectPractice, freezePractice } from './practice-projection.mjs?v=0.46.0';
+// Closed catalog slice; no binary stores, loaders, writers or credentials. Launch data remains readonly.
 export const LIBRARY_KEYS = Object.freeze(['gearList', 'gearCategories', 'myApps', 'practiceMenus', 'practiceHistory', 'syncAssetMetadata', 'schemaVersion'].map(x => 'cruisePort.' + x));
 export const GEAR_STATUSES = Object.freeze([{ id: 'owned', name: '自分の機材' }, { id: 'sold', name: '手放した機材' }, { id: 'wishlist', name: 'ほしい機材' }].map(Object.freeze));
 // Port getGearCategoryName's legacy label fallback. This does not initialize definitions.
@@ -86,6 +86,7 @@ export function projectLibrary(raw = {}) {
         const refs = menuRaw.items.filter(m => validMenuIds.has(m.id) && m.appId === reference).map(m => ({ type: 'menu', id: m.id, name: m.name, hidden: Boolean(m.hidden) }))
             .concat(historyRaw.items.filter(h => validHistoryIds.has(h.id) && h.appId === reference).map(h => ({ type: 'history', id: h.id, name: h.practiceName, localDate: h.localDate })));
         return { id: x.id, name: x.name, sourceIndex: index, type: typeof kind === 'string' ? kind : 'unsupported', typeLabel, appKey: typeof x.appKey === 'string' ? x.appKey : null, appLabel: known?.name || null,
+            launch: { url: typeof x.url === 'string' ? x.url : '', urls: Object.fromEntries(['ios', 'android', 'macos', 'windows', 'web'].map(platform => [platform, object(x.urls) && typeof x.urls[platform] === 'string' ? x.urls[platform] : ''])) },
             urls, iconKind: x.iconPresetKey && x.iconId ? '併存参照' : x.iconId ? 'カスタム参照' : x.iconPresetKey ? 'プリセット参照' : '参照なし / 未確認', iconPresetKey: typeof x.iconPresetKey === 'string' ? x.iconPresetKey : null, iconPresetLabel: iconPreset?.label || null,
             image: imageMetadata(x, 'icon', assets?.myApps?.[x.id], meta.state), refs, menuRefsState: practice.menus.state, historyRefsState: practice.history.state,
             createdAt: typeof x.createdAt === 'string' ? x.createdAt : null, updatedAt: typeof x.updatedAt === 'string' ? x.updatedAt : null, warnings };
