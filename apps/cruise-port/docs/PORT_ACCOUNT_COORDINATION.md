@@ -148,3 +148,6 @@ grants authorization. Same-Account credential rotation stays unresolved without 
 Shared mutation receipt. See [the exact intent contract](PORT_ACCOUNT_TRANSITION_INTENT.md).
 This remains dormant and does not enable a product writer or production Account
 change. The previous stop-only behavior is superseded for this isolated API.
+
+The optional isolated receipt owner API and historical-only recovery contract are
+specified in [ACCOUNT_MUTATION_RECEIPTS.md](ACCOUNT_MUTATION_RECEIPTS.md).

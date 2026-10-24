@@ -89,3 +89,10 @@ legacy/offline writer detection/refusal, trusted server fence provider, migratio
 binary durability, recovery publication and final admission remain later gates.
 Existing Pro receipts/terminal denial, normal B, CAS/tombstones and final admission
 are not relaxed. Worker/D1/R2/Secrets/production Account operations are out of scope.
+
+## Optional receipt extension
+
+The isolated `mutationStore` path and read-only crash reconciliation are specified
+in [ACCOUNT_MUTATION_RECEIPTS.md](ACCOUNT_MUTATION_RECEIPTS.md). The earlier
+no-provider path remains compatible. Reopened recovery does not obtain the live
+confirmation receipt, alter intent phase or clear the irreversible barrier.

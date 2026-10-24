@@ -2,6 +2,16 @@
 // module performs no I/O and installs no writer, credential or Sync runtime.
 import { openIDBAuthorityStore, claimPortAuthorityIssuer, authorityProEnvironment } from './port-indexeddb-authority-store.mjs';
 import { equal, frozen, fail, identifier } from './port-idb-authority-contract.mjs';
+import { accountTransitionFingerprint } from './port-account-transition-intent.mjs';
+
+// Nonsecret receipt binding. The full exact intent remains in Authority.
+export function portAccountMutationBinding(request, authorityScope) {
+    const i=request.identity;
+    return frozen({schemaVersion:1,authorityScope,partitionId:i.partitionId,authorityGeneration:request.generation,
+        operationId:request.operationId,intentFingerprint:accountTransitionFingerprint(request),
+        account:{accountId:i.accountId,accountGeneration:i.accountGeneration,membershipId:i.membershipId,membershipGeneration:i.membershipGeneration},
+        kind:request.kind,destination:structuredClone(request.destination)});
+}
 
 export const PORT_ACCOUNT_CONTEXT_VERSION = 1;
 const positive = value => Number.isSafeInteger(value) && value > 0;
@@ -55,12 +65,14 @@ export function projectPortAccountIdentity(account, summary) {
  * No ordinary route imports/calls this factory. No arbitrary onStop callback is
  * accepted as durable evidence. No value returned here grants write access.
  */
-export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, accountStorage, locks } = {}) {
+export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, accountStorage, locks, mutationStore = null } = {}) {
     if (!/^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(scope?.name ?? '') ||
         !indexedDB?.open || !locks?.request ||
         ['getGeneration', 'subscribeAccount', 'changeAccountIfCurrent'].some(name => typeof accountStorage?.[name] !== 'function')) {
         throw fail('account-coordination-isolation-required');
     }
+    if (mutationStore && ['capture','matches','mutate','reconcile'].some(key=>typeof mutationStore[key] !== 'function'))
+        throw fail('account-mutation-provider-invalid');
     const environment = authorityProEnvironment(scope);
     environment.assertLive();
     const store = await openIDBAuthorityStore(scope);
@@ -125,10 +137,18 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
                 authorityGeneration: generation, controlEpoch: control?.epoch ?? null,
                 serverObservationOnly: true });
             if (!compatible || state !== 'known') return null;
+            let mutationContext=null;
+            if (mutationStore) {
+                try {mutationContext=await mutationStore.capture();}
+                catch {publish({state:'recovery-required'});return null;}
+                const capturedRecord=await read(); live();
+                if (version !== revision || local !== localGeneration() || !mutationStore.matches(mutationContext,capturedRecord) ||
+                    !equal(accountKey(capturedRecord),accountKey(record))) {publish({state:'stale'});return null;}
+            }
             const token = Object.freeze({});
             contexts.set(token, { revision, localGeneration: local, accountKey: accountKey(record),
                 generation, controlEpoch: control.epoch, pointerEpoch: hydrated.snapshot.pointer.pointerEpoch,
-                identity: frozen(structuredClone(control.identity)), blocked: false });
+                identity: frozen(structuredClone(control.identity)), mutationContext, blocked: false });
             return token;
         },
         // Stop is durable BEFORE an Account publication is submitted. Notifications
@@ -147,10 +167,10 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
                 let stopped;
                 try {
                     const capability = issuer.issue('control:invalidate', { generation: context.generation });
-                    stopped = await store.beginAccountTransition({ generation: context.generation, operationId,
-                        identity: context.identity, expectedEpoch: context.controlEpoch, expectedPointerEpoch: context.pointerEpoch,
-                        kind, destination: replacement === null ? null :
-                            { accountId: replacement.accountId, accountDeviceId: replacement.accountDeviceId ?? null }, capability });
+                    const request={generation:context.generation,operationId,identity:context.identity,expectedEpoch:context.controlEpoch,
+                        expectedPointerEpoch:context.pointerEpoch,kind,destination:replacement===null?null:
+                            {accountId:replacement.accountId,accountDeviceId:replacement.accountDeviceId??null}};
+                    stopped = await store.beginAccountTransition({...request,capability});
                     live();
                     if (!stopped.ok || stopped.replayed) throw fail(stopped.reason || 'account-intent-historical-only');
                     // Re-read even if a cross-tab notification was lost. A delayed
@@ -160,13 +180,25 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
                         publish({ state: 'stale' });
                         return frozen({ ok: false, reason: 'account-context-stale', stopped: true, canWrite: false });
                     }
-                    await accountStorage.changeAccountIfCurrent({ accountId: context.accountKey[0],
-                        accountCredential: context.accountKey[1], accountDeviceId: context.accountKey[2] }, replacement, indexedDB);
+                    if (mutationStore) {
+                        const binding=portAccountMutationBinding(request,scope.name);
+                        const mutation=await mutationStore.mutate({context:context.mutationContext,binding,nextAccount:replacement});
+                        live();
+                        if (!mutation.ok || mutation.replayed) throw fail('account-mutation-historical-only');
+                        const proof=await mutationStore.reconcile(binding); live();
+                        const installed=await read(); live();
+                        if (!proof.ok || !proof.mutationProven || !proof.currentObservation ||
+                            proof.receipt.checksum !== mutation.receipt.checksum || !equal(accountKey(installed),accountKey(replacement)))
+                            throw fail('account-mutation-proof-unresolved');
+                    } else {
+                        await accountStorage.changeAccountIfCurrent({ accountId: context.accountKey[0],
+                            accountCredential: context.accountKey[1], accountDeviceId: context.accountKey[2] }, replacement, indexedDB);
+                    }
                     live();
                     // Without a durable Shared mutation receipt a same-Account
                     // credential rotation cannot be attributed after an ABA/reopen.
                     // Preserve the completed CAS, but do not certify the intent.
-                    if (replacement?.accountId === context.accountKey[0]) throw fail('account-transition-receipt-required');
+                    if (!mutationStore && replacement?.accountId === context.accountKey[0]) throw fail('account-transition-receipt-required');
                     const confirmed = await store.confirmAccountTransition({ generation: context.generation, operationId, capability, receipt: stopped });
                     live();
                     if (!confirmed.ok) throw fail(confirmed.reason);
@@ -179,6 +211,27 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
                         stopped: !!stopped?.ok, recoveryRequired: true, canWrite: false });
                 }
             });
+        },
+        // Reopen recovery is read-only and historical. No Authority phase change,
+        // no automatic CAS retry, no resumption or qualification is possible.
+        async reconcileTransition({generation,operationId}={}) {
+            live();identifier(generation);identifier(operationId);
+            try {
+                if (!mutationStore) throw fail('account-mutation-provider-required');
+                const facts=await store.accountTransitions(generation);live();
+                if (!facts.ok) throw fail(facts.reason);
+                const row=facts.intents.find(x=>x.operationId===operationId);
+                if (!row) throw fail('account-intent-missing');
+                const proof=await mutationStore.reconcile(portAccountMutationBinding(row.accountTransition.request,scope.name));live();
+                const final=await store.accountTransitions(generation);live();
+                if (!final.ok || !equal(final.intents,facts.intents) || final.controlEpoch!==facts.controlEpoch)
+                    throw fail('account-mutation-observation-stale');
+                publish({state:'recovery-required',authorityGeneration:generation});
+                return frozen({...proof,accountIntentPhase:row.accountTransition.phase,recoveryRequired:true,canWrite:false});
+            } catch(error) {
+                publish({state:'recovery-required'});
+                return frozen({ok:false,reason:error.code||'account-mutation-recovery-failed',mutationProven:false,recoveryRequired:true,canWrite:false});
+            }
         },
         dispose() {
             if (disposed) return;
