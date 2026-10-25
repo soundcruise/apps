@@ -1,0 +1,21 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><link rel="icon" href="data:,"><title>Isolated clock and credential recovery</title><p>Persistent expiry / encrypted renewal recovery / Shared Write OFF</p>
+<script src="../../shared/sync-account/sync-account-db.js"></script><script src="../../shared/sync-account/sync-account-client.js"></script>
+<script type="module">
+import {setupBrowserSaveAdmission} from './authority-store/save-admission-browser-fixture.mjs';
+import {createIsolatedRenewalVault,createIsolatedRenewalRecoveryClient} from '../port-renewal-recovery-isolated.mjs';
+let x,vault,client,prepared,name,credentials,record,last,firstCredential,q;
+const api=(action,input={})=>fetch('/__clock_fixture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,action,...input})}).then(r=>r.json());
+const send=async(path,body)=>{const r=await fetch('/__isolated/account/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Isolated-Fixture':name,Authorization:credentials.accountAuthorization,'X-Sound-Cruise-App-Authorization':credentials.appAuthorization,'X-Sound-Cruise-Pro-Authorization':credentials.proAuthorization},body:JSON.stringify(body)});return {status:r.status,body:await r.json()};};
+const summary=r=>({ok:r.ok,reason:r.reason,operationId:r.operationId,credentialPresent:!!r.credential,receipt:r.receipt,canWrite:r.canWrite,adoptionRequired:r.adoptionRequired});
+window.clockFixture={async init(o){name=o.name;const d=await api('init');credentials=d.credentials;record=d.account;x=await setupBrowserSaveAdmission({indexedDB,root:SoundCruiseSyncAccount,name,seed:o.seed,record});vault=createIsolatedRenewalVault({indexedDB,scopeName:name});
+ client=createIsolatedRenewalRecoveryClient({scope:x.scope,indexedDB,source:x.mutationStore,vault,url:location.origin+'/__isolated/account/v1/',dispatch:req=>{const h=new Headers(req.headers);h.set('X-Isolated-Fixture',name);return fetch(new Request(req,{headers:h}));}});return {ok:true};},
+ async prepare(existing=false){if(!existing){const start=await send('credential/renew/begin',await api('beginRequest'));if(start.status!==200)return {ok:false};}const request=await api('lifecycle'),identity={accountId:'A',accountDeviceId:record.accountDeviceId,membershipId:'member-A'};prepared=await client.prepare({request,identity});return summary(prepared);},
+ async finish(){last=await client.finish(prepared);if(last.credential)firstCredential=last.credential;return summary(last);},
+ async recover(id){last=await client.recover({operationId:id});return {...summary(last),sameCredential:!firstCredential||last.credential===firstCredential};},
+ async useRecovered(){if(!last?.credential)return {status:0};credentials={...credentials,accountAuthorization:'Bearer '+last.credential};return this.save(1);},
+ async save(revision=0){q=await api('request',{revision});const r=await send('save',q);return {status:r.status};},
+ async history(){const r=await send('reconcile',{binding:{contractVersion:1,purpose:'backend-save-receipt-binding',request:q.request,requestDigest:q.requestDigest}});return {status:r.status};},
+ async keyInfo(id){const a=await vault.read(id);let exportDenied=false;try{await crypto.subtle.exportKey('raw',a.packet.key);}catch{exportDenied=true;}return {extractable:a.packet.key.extractable,exportDenied,plaintextStored:JSON.stringify(a.packet).includes(a.secret)};},
+ lose:()=>api('lose'),expireAtRead:()=>api('expireAtRead'),rollback:()=>api('rollback'),reopenOwner:()=>api('reopen'),state:()=>api('state'),rows:()=>x.rows()
+};
+</script></html>

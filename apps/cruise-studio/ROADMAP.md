@@ -1,3 +1,7 @@
+# Studio 0.47.13 — Owner clock / 永続expiry / renewal復旧（未公開隔離候補）
+
+Port1.24.16 / Project schema2。PR #18固定head cc84091bが直接親。信頼済みSQL観測時刻を永続floorへ結合し、historyは認可fact UPDATE RETURNINGでexpired確定とreceipt選択を同一stepへ統合。通常データreadonlyと認可fact更新を分離。ACK喪失復旧は既存renew CASへprivate暗号化結果を保存し、旧資格＋専用256bit proofで同じ既発行tokenだけ再配送。clientはShared immutable ownerへ非抽出Key/暗号文を事前保全、正式full-source manifest/revision一致を要求し、Account採用は行わない。SQL abort内だけの未記録expiryはunknownであり、物理時刻/電源断保証とは区別する。本番/通常writer/consumer/Cloud/L3d未接続、Shared Write OFF/canWrite=false。契約: [Owner Clock / Renewal Recovery](../cruise-port/docs/OWNER_CLOCK_RENEWAL_RECOVERY.md)。以下は履歴。
+
 # Studio 0.47.12 — Owner lifecycle / Save-Reconcile隔離候補（未公開）
 
 Port1.24.15 / Project schema2。PR #17固定head 9256c9feが直接親。既存sca1 ownerからの明示lease発行、永続renew停止・secret rotation・失効CAS、owner世代bind、認証済みSaveとreadonly Reconcileを隔離実装。現在の新資格で旧receiptを同Account/member/device内で照会し、history権限はsaveと分離。未知floor/leaseは補修せず拒否。backend SQL最終assertionと独立IDBの非原子性を維持。history-only期限観測後の未記録server時計巻戻しは未保証で、本番には単調owner時刻または永続expiry設計が必要。通常router/認証/consumer/Cloud/L3dは未接続、Shared Write OFF/canWrite=false。契約: [Owner Credential / Save-Reconcile](../cruise-port/docs/OWNER_CREDENTIAL_SAVE_ROUTES.md)。以下は履歴。
