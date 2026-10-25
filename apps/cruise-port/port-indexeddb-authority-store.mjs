@@ -427,7 +427,8 @@ function makeStore(db,env,lifecycle,lease) {
                 if(commitGuard!==undefined){
                     if(typeof commitGuard!=='function')throw fail('operation-commit-guard-invalid');
                     const verdict=commitGuard(p.authorizationContext,frozen({operationId:p.operationId,action:p.action,generation:p.generation,
-                        head:current?.head||null,control,authorizedAt,authorizationMarginMs:AUTHORIZATION_MARGIN_MS,targetKeys:Object.keys(p.changes),dependencyKeys:p.dependencyKeys}));
+                        head:current?.head||null,control,authorizedAt,authorizationMarginMs:AUTHORIZATION_MARGIN_MS,targetKeys:Object.keys(p.changes),dependencyKeys:p.dependencyKeys,
+                        changesDigest:digest(p.changes),authorizationIdentity:p.authorizationIdentity}));
                     if(verdict?.then){verdict.catch?.(()=>{});throw fail('operation-commit-guard-async');}
                     if(verdict===false||verdict?.ok===false||verdict?.allowed===false)throw fail('operation-authorization-rejected');
                     if(p.policy==='pro') {

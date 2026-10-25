@@ -1,0 +1,50 @@
+// Explicit isolated owner connection. No boot import, HTTP route, credentials
+// exposed to Studio, independent Account store or replacement Sync engine.
+import {authorityProEnvironment} from './port-indexeddb-authority-store.mjs';
+import {digest,frozen,fail} from './port-idb-authority-contract.mjs';
+
+export function createIsolatedPortSaveAdmission({scope,mutationStore,owner,timeoutMs=1000}={}) {
+ const env=authorityProEnvironment(scope);env.assertLive();
+ if(!env.fixtureOnly||owner?.fixtureOnly!==true||
+  ['prepare','assertCurrent','guard'].some(k=>typeof owner?.[k]!=='function')||
+  ['capture','inspect','current'].some(k=>typeof mutationStore?.[k]!=='function')||
+  !Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>10000)throw fail('save-admission-isolation-required');
+ let disposed=false;
+ const live=()=>{env.assertLive();if(disposed)throw fail('save-admission-disposed');};
+ async function bounded(fn) {
+  let timer;
+  try{return await Promise.race([Promise.resolve().then(fn),new Promise((_,reject)=>{timer=setTimeout(()=>reject(fail('save-admission-timeout')),timeoutMs);})]);}
+  finally{clearTimeout(timer);}
+ }
+ return Object.freeze({fixtureOnly:true,
+  async prepare(input) {
+   live();const context=await mutationStore.capture(),account=await mutationStore.inspect(context),i=input.identity;
+   if(account?.accountId!==i.accountId||account.accountDeviceId!==input.account.accountDeviceId||
+     typeof account.accountCredential!=='string'||!await mutationStore.current(context))throw fail('save-admission-source-stale');
+   const q=frozen({contractVersion:1,purpose:'port-dataset-save',operationId:input.operationId,action:input.action,
+    partitionId:i.partitionId,datasetGeneration:input.generation,targetKey:'cruisePort.metronome',
+    accountId:i.accountId,accountDeviceId:account.accountDeviceId,accountGeneration:i.accountGeneration,
+    membershipId:i.membershipId,membershipGeneration:i.membershipGeneration,credentialVersion:input.credentialVersion,
+    sourceDigest:digest(input.account),baseRevision:input.baseRevision,changesDigest:input.changesDigest});
+   const result=await bounded(()=>owner.prepare(q,{authorization:'Bearer '+account.accountCredential}));live();
+   if(!await mutationStore.current(context)||!result||!Object.isFrozen(result.context)||!Object.isFrozen(result.binding)||
+    result.binding?.owner!=='account'||result.binding.contractVersion!==1)throw fail('save-admission-result-invalid');
+   let invalid=false;
+   return Object.freeze({context:result.context,binding:result.binding,
+    async assertCurrent(){
+     if(invalid||disposed)return false;
+     try{live();if(!await mutationStore.current(context)||await bounded(()=>owner.assertCurrent(result.context))!==true||
+       !await mutationStore.current(context))throw fail('save-admission-source-stale');live();return true;}
+     catch{invalid=true;return false;}
+    },
+    guard(c,details){
+     if(invalid||disposed||c!==result.context)return false;
+     try{live();const verdict=owner.guard(c,details);if(verdict?.then){verdict.catch?.(()=>{});invalid=true;return false;}
+      if(verdict!==true)invalid=true;return verdict===true;}
+     catch{invalid=true;return false;}
+    }
+   });
+  },
+  dispose(){disposed=true;}
+ });
+}

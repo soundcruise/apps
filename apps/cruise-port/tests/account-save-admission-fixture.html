@@ -1,0 +1,19 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>Isolated final Account admission</title>
+<h1>隔離owner Admission / Shared Write OFF</h1><p>本番owner、資格、通常writerへ接続しません。</p>
+<button id="load">読取り</button><input id="bpm" aria-label="BPM" type="number" min="30" max="240"><button id="save">明示保存</button><output id="status"></output>
+<script src="../../shared/sync-account/sync-account-db.js"></script><script src="../../shared/sync-account/sync-account-client.js"></script>
+<script type="module">
+import {setupBrowserSaveAdmission} from './authority-store/save-admission-browser-fixture.mjs';
+let x,prepared,hold,release;
+const show=r=>{document.querySelector('#status').textContent=JSON.stringify(r);return r;};
+window.saveAdmissionFixture={
+ async init(o){x?.dispose();x=await setupBrowserSaveAdmission({indexedDB,root:SoundCruiseSyncAccount,...o,checkpoint:async phase=>{if(phase===hold){this.entered=phase;await new Promise(r=>release=r);}}});return {ok:true};},
+ async load(){const r=await x.controller.reload();if(r.ok)document.querySelector('#bpm').value=x.controller.snapshot().bpm;return show(r);},
+ edit:n=>x.controller.edit(n),save:id=>x.controller.save({operationId:id}),recover:id=>x.controller.recover({operationId:id}),
+ async prepare(n,id){const v=await x.owner.load();if(!v.ok)return v;prepared=await x.owner.prepare(v,n,{operationId:id});return {ok:prepared.ok,reason:prepared.reason};},
+ commit:()=>x.owner.commit(prepared),expire(){x.state.expireAtGuard=true;},asyncGuard(){x.state.asyncGuard=true;},
+ authority:()=>x.store.hydrate('g1'),rows:()=>x.rows(),state:()=>x.controller.snapshot(),
+ hold(phase){hold=phase;this.entered=null;},release(){release?.();release=null;hold=null;}
+};
+document.querySelector('#load').onclick=()=>saveAdmissionFixture.load();document.querySelector('#save').onclick=async()=>{saveAdmissionFixture.edit(Number(document.querySelector('#bpm').value));show(await saveAdmissionFixture.save('ui-save'));};
+</script></html>

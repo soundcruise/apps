@@ -1,3 +1,5 @@
+後続の隔離owner final admission・資格lifecycle・保存内容bindingは [ACCOUNT_SAVE_ADMISSION](ACCOUNT_SAVE_ADMISSION.md) を参照。以下はPR #15時点の履歴であり、本番認可完成を示さない。
+
 # Metronome BPM隔離縦断保存 v1
 
 Studio0.47.9 / Port1.24.12の未公開内部保守候補。Project schema2・既存Authority physical2・Account physical3を維持。通常ユーザー向けUI/bootへの接続はないため既存内部基盤候補と同じpatch運用とする。PR #10→#11→#12→#13→#14に依存。

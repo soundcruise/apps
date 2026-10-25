@@ -1,3 +1,7 @@
+# Studio 0.47.10 — Owner final admission隔離契約（未公開topic）
+
+Port 1.24.13内部保守候補、Project schema2維持。基準公開main d66107c5 / Studio0.47.9 / Port1.24.12。既存Account sca1 HMACとAuthority保存transactionを再利用し、owner資格lifecycle/expiry、exact request digest、operation ID/CAS/receiptを結合する。owner lease columns・同期commit probeは隔離fixture限定。本番owner router、遠隔ownerとIndexedDBの原子性、資格発行/更新routeは未完成。通常writer/Cloud/Shared Write未接続、canWrite=false。契約: [Account Save Admission](../../cruise-port/docs/ACCOUNT_SAVE_ADMISSION.md)。以下は履歴。
+
 # Studio 0.47.9 — Metronome BPM隔離縦断保存（未公開topic）
 
 Port1.24.12、Project schema2。PR #14固定headを親に、Port設定owner・saveBpm policy・Account source pin・Authority CAS/oplogとfixture最終認可を接続する。Studioは一時draftと明示save/reloadのみ。操作ID別immutable pending pinを保存前readbackし、crash/reopenはhistorical receipt照合だけで自動再実行しない。原本・正常B・旧writer gateを維持。通常boot未接続、Shared Write OFF / canWrite=false。本番backend再認可・資格expiry・consumer切替・migration/binary/Cloud・最終admissionは未完了。契約: [BPM隔離保存](../../cruise-port/docs/METRONOME_BPM_ISOLATED_SAVE.md)。以下は履歴。
