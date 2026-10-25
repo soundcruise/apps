@@ -18,13 +18,17 @@ export function createIsolatedAccountSaveRoutes(options={}){
  const lifecycle=createIsolatedCredentialLifecycle({...options,pepper:options.accountPepper}),transaction=createIsolatedAccountSaveTransaction({...options,requireLifecycleBinding:true});
  return Object.freeze({fixtureOnly:true,async handle(req){
   const url=new URL(req.url),path=url.pathname.slice(ROOT.length);
-  if(!url.pathname.startsWith(ROOT)||!Object.hasOwn(paths,path)&&!['save','reconcile','credential/renew/reconcile'].includes(path))return reply(404,{ok:false,code:'not-found'});
+  if(!url.pathname.startsWith(ROOT)||!Object.hasOwn(paths,path)&&!['save','reconcile','credential/renew/reconcile','authority/reauthorize'].includes(path))return reply(404,{ok:false,code:'not-found'});
   if(req.method!=='POST'||url.search||url.hash)return reply(405,{ok:false,code:'method-denied'});
   if(!req.headers.get('Authorization')?.startsWith('Bearer '))return reply(401,{ok:false,code:'authentication-required'});
   let input;try{input=await body(req);}catch{return reply(400,{ok:false,code:'request-invalid'});}
   const credentials={accountAuthorization:req.headers.get('Authorization'),appAuthorization:req.headers.get('X-Sound-Cruise-App-Authorization'),proAuthorization:req.headers.get('X-Sound-Cruise-Pro-Authorization')};
   try{let result;
-   if(path==='credential/renew/reconcile'){
+   if(path==='authority/reauthorize'){
+    if(options.enableAuthorityReauthorization!==true)return reply(404,{ok:false,code:'not-found'});
+    if(!shape(input,['request','requestDigest'])||await exactRequestDigest(input.request)!==input.requestDigest)return reply(400,{ok:false,code:'request-invalid'});
+    result=await transaction.reauthorize(input.request,credentials);
+   }else if(path==='credential/renew/reconcile'){
     if(options.enableRenewalRecovery!==true)return reply(404,{ok:false,code:'not-found'});
     result=await recoverRenewalCredential({db:options.db,pepper:options.accountPepper,policy:options.policy,request:input,authorization:credentials.accountAuthorization,secret:req.headers.get('X-Sound-Cruise-Renewal-Recovery'),checkpoint:options.checkpoint});
    }else if(Object.hasOwn(paths,path))result=await lifecycle.mutate(paths[path],input,{authorization:credentials.accountAuthorization,

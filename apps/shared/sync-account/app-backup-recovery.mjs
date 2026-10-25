@@ -23,6 +23,11 @@ export function createIsolatedRecoveryBackupStore({indexedDB,scopeName}={}){
     }
     function key(archiveId){if(typeof archiveId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(archiveId))throw fail('recovery-archive-id-invalid');return 'port-recovery-v1:'+scopeName+':'+archiveId;}
     return Object.freeze({
+        // Read-only inventory for explicit isolated recovery. Unknown pins are
+        // returned, never normalized, pruned or silently declared resolved.
+        async inventory(){const db=await open();if(!db)return [];try{validate(db);const tx=db.transaction(store,'readonly'),c=done(tx),q=tx.objectStore(store).getAll(undefined,513);await c;
+            if(q.result.length>512)throw fail('recovery-inventory-capacity');return q.result;
+        }finally{db.close();}},
         async read(archiveId){key(archiveId);const db=await open();if(!db)return null;try{validate(db);const tx=db.transaction(store,'readonly'),c=done(tx),q=tx.objectStore(store).get(key(archiveId));await c;return q.result??null;}finally{db.close();}},
         async add(archiveId,packet){
             // No appId/createdAt top-level: legacy latest/prune index cannot

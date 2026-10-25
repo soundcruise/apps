@@ -1,3 +1,7 @@
+# Studio 0.47.15 — 明示再認可 / readonly Authority世代復旧（未公開隔離候補）
+
+Port1.24.18 / Project schema2。PR #20固定head 79083244が直接親。現行Account資格のHMAC・expiry・世代・Pro/writerを隔離owner SQLで再確認し、専用purpose/receiptで新Authority世代へ移る。新世代は公開時からsuspended+fenceRevokedでreadonly、旧採用stopを保持。通常publishのinvalidated拒否は維持。Account/SQL/Authority/backup間は非原子的で、結果不明や未解決backupは停止・保持、historical照合のみ。Cloud fence/排他leaseは未提供。v1は既知empty binary/Sync fixture限定、データmigrationや通常writer再開ではない。Shared Write OFF/canWrite=false、本番/Cloud/consumer/L3d未接続。契約: [Authority Reauthorization Recovery](../cruise-port/docs/AUTHORITY_REAUTHORIZATION_RECOVERY.md)。以下は履歴。
+
 # Studio 0.47.14 — 復旧Credential明示採用（未公開隔離候補）
 
 Port1.24.17 / Project schema2。PR #19固定head a24244d3が直接親。既存Account coordinatorの同一Account/device switch、停止intent、Shared Account CAS/receipt、immutable backupを利用する。候補確認はAccountを変更せず、明示採用時だけ資格を差し替える。前後owner照合と独立DBの非原子性を区別し、部分成功は停止を維持。ACK喪失/reopenはhistorical照合のみ、自動再採用・再開・削除なし。通常writer/consumer/Cloud/L3d/本番未接続、Shared Write OFF / canWrite=false。契約: [Credential Adoption](../cruise-port/docs/CREDENTIAL_ADOPTION.md)。以下は履歴。
