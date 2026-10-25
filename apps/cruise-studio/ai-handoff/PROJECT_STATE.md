@@ -1,3 +1,7 @@
+# Studio 0.47.9 — Metronome BPM隔離縦断保存（未公開topic）
+
+Port1.24.12、Project schema2。PR #14固定headを親に、Port設定owner・saveBpm policy・Account source pin・Authority CAS/oplogとfixture最終認可を接続する。Studioは一時draftと明示save/reloadのみ。操作ID別immutable pending pinを保存前readbackし、crash/reopenはhistorical receipt照合だけで自動再実行しない。原本・正常B・旧writer gateを維持。通常boot未接続、Shared Write OFF / canWrite=false。本番backend再認可・資格expiry・consumer切替・migration/binary/Cloud・最終admissionは未完了。契約: [BPM隔離保存](../../cruise-port/docs/METRONOME_BPM_ISOLATED_SAVE.md)。以下は履歴。
+
 # Studio 0.47.8 — Binary / Backup隔離復旧（未公開topic）
 
 Port1.24.11、Project schema2。PR #13固定headを親とし、既存Shared backup ownerの固定pinとPort binary ownerのimmutable追加・readbackを利用する。停止fact/Account sourceを照合し、部分保存・応答喪失・reopen・容量不足・破損をfail-closedで扱う。archiveVerifiedはhistorical検証のみ。通常writer、Cloud、認証切替、live restore、Shared Writeは未接続、canWrite=false。原本・未知/孤立データを保持する。同一origin raw writer完全拒否・物理電源断耐久性は未保証。契約: [Binary/Backup復旧](../../cruise-port/docs/BINARY_BACKUP_RECOVERY.md)。以下は履歴。
