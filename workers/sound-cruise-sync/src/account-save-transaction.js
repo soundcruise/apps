@@ -1,3 +1,5 @@
+import {createOperationLeaseOwner} from './account-operation-lease.js';
+import {validateOperationEnvelope} from '../../../apps/shared/sync-account/owner-operation-lease-contract.mjs';
 // UNROUTED fixture capability. No app.js/account-app.js import or production
 // schema installation. The protected resource here is the EXISTING SQL record,
 // never a promise of atomic commit with a browser's IndexedDB.
@@ -46,10 +48,12 @@ const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.cr
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
 
-export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,checkpoint=async()=>{}}={}){
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
  if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
  const handles=new WeakMap();let disposed=false;
- const ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
+ let ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
+ if(enableOperationLease)ownerSql=ownerSql.replace('SELECT ','SELECT d.operation_fence_revision, ');
+ const leases=createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtlMs:operationLeaseTtlMs});
  const live=()=>{if(disposed)throw error('backend-disposed');};
  const attempt=fn=>async(...args)=>{try{live();return await fn(...args);}catch(e){return closed({ok:false,reason:e.code||e.message||'backend-unavailable',recoveryRequired:true});}};
  async function fixed(input){
@@ -128,10 +132,13 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
     AND l.operation_hash=? AND l.isolated_request_digest=? AND l.isolated_account_binding=? AND l.revision=?
     AND l.payload_hash=? AND l.payload_json=? AND l.deleted_at IS NULL AND l.schema_version=1
     AND r.revision=l.revision AND r.last_operation_id=l.operation_id AND r.payload_hash=l.payload_hash AND r.payload_json=l.payload_json)`;
-   const prefix=assertion(session,query.sql+' AND '+noReplay+' AND '+cas,[...query.values,q.datasetId,op.operationId,q.datasetId,op.baseRevision]);
+   const leasePrefix=p.lease?leases.condition(p):null;
+   const prefix=assertion(session,query.sql+' AND '+noReplay+' AND '+cas+(leasePrefix?' AND '+leasePrefix.sql:''),[...query.values,q.datasetId,op.operationId,q.datasetId,op.baseRevision,...(leasePrefix?.values||[])]);
    const final=assertion(session,query.sql+' AND '+exact,[...query.values,q.datasetId,op.operationId,op.operationHash,p.digest,canonicalJson(q),op.baseRevision+1,op.payloadHash,canonicalJson(op.payload)]);
    const w=fenceQuery(p.admission,{payload:op.payload}),finalWriter=session.prepare('INSERT INTO sync_writer_fence_assertion(code) '+w.sql).bind(...w.values);
-   const result=await session.batch([prefix,...statements,bind,finalWriter,final,clearAssertions(session)]);
+   const leaseFinal=p.lease?leases.condition(p,'committed'):null;
+   const jointFinal=p.lease?assertion(session,query.sql+' AND '+exact+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok') AND `+leaseFinal.sql,[...query.values,q.datasetId,op.operationId,op.operationHash,p.digest,canonicalJson(q),op.baseRevision+1,op.payloadHash,canonicalJson(op.payload),...w.values,...leaseFinal.values]):final;
+   const result=await session.batch([prefix,...statements,bind,...(p.lease?[leases.consume(session,p)]:[]),finalWriter,jointFinal,clearAssertions(session)]);
    if(!Array.isArray(result)||result.some(r=>r?.success===false))throw error('backend-transaction-unproven');
    return result.slice(1,1+statements.length);
   }};
@@ -163,8 +170,7 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
   return closed({ok:true,backendCommitted:true,historical:true,receipt:{operationId:op.operationId,requestDigest:p.digest,datasetId:q.datasetId,
    accountId:q.accountId,accountGeneration:q.accountGeneration,membershipGeneration:q.membershipGeneration,revision:row.revision,changeSeq:row.change_seq,payloadHash:row.payload_hash}});
  }
- return Object.freeze({fixtureOnly:true,
-  prepare:attempt(async(input,credentials)=>{
+ async function prepareSave(input,credentials){
    const p=await fixed(input);const auth=await authenticate(p.q,credentials);p.row=auth.row;
    const current=await auth.session.prepare("SELECT payload_json FROM sync_records WHERE user_id=? AND app_id='port' AND record_type='metronome_settings' AND record_id='default'").bind(p.q.datasetId).first();
    if(current){const previous=JSON.parse(current.payload_json),next=data(p.operation.payload);delete previous.value.bpm;delete next.value.bpm;
@@ -172,6 +178,22 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    const admission=await writerAuthorization(p.q,credentials,auth);
    const binding=frozen(JSON.parse(canonicalJson({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest})));
    const handle=closed({ok:true,binding});handles.set(handle,{...p,admission,credentials,attempted:false});await checkpoint('after-prepare');return handle;
+ }
+ return Object.freeze({fixtureOnly:true,
+  prepare:attempt(async(...args)=>{if(enableOperationLease)throw error('operation-lease-required');return prepareSave(...args);}),
+  issueOperationLease:attempt(async(envelope,credentials)=>{
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);
+   const h=await prepareSave(envelope.request,credentials),p=handles.get(h),lease=await leases.issue(envelope,p);return closed({ok:true,lease});
+  }),
+  prepareLeased:attempt(async(envelope,lease,credentials)=>{
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);lease=frozen(data(lease));const h=await prepareSave(envelope.request,credentials),p=handles.get(h);await leases.requireIssued(envelope,lease,p);return h;
+  }),
+  reconcileLeased:attempt(async(envelope,lease,credentials,{current=false}={})=>{
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);
+   lease=frozen(data(lease));let p;if(current){const h=await prepareSave(envelope.request,credentials);p=handles.get(h);}else{p=await fixed(envelope.request);const auth=await authenticate(p.q,credentials,{recordClock:true,history:true});p.row=auth.row;p.admission=await writerAuthorization(p.q,credentials,auth);}
+   const row=await leases.status(envelope,lease,p);if(row.state!=='committed')return closed({ok:true,state:row.state,backendCommitted:false,historical:true});
+   if(current){const c=leases.condition(p,'committed'),g=guard(db.withSession('first-primary'),p),w=fenceQuery(p.admission,{payload:p.operation.payload});const r=await db.withSession('first-primary').prepare('SELECT ('+c.sql+' AND '+g.sql+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok')) AS valid`).bind(...c.values,...g.values,...w.values).first();if(r?.valid!==1)throw error('operation-lease-current-unproven');}
+   const auth=await authenticate(p.q,credentials,{recordClock:true,history:true}),saved=await receipt({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest},{q:auth.q,row:auth.row,history:true});return closed({...saved,operationLeaseReceipt:await leases.commitReceipt(p,saved)});
   }),
   // A current owner qualification fact, NEVER a lease through local IDB
   // publication. Its purpose/ledger is separate from dataset/Account receipts.
@@ -208,7 +230,7 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
     const result=await createD1SyncRepository(wrapped).applyOperation({userId:p.q.datasetId,deviceId:p.q.appDeviceId,appId:'port'},p.operation);
     if(result.status!=='applied')throw error(result.status==='duplicate'?'backend-replay-requires-recovery':'backend-'+result.status);
    }catch(e){await clockFact(db.withSession('first-primary'),p.q,p.row.credential_verifier,p.row);throw e;}
-   await checkpoint('after-transaction');return receipt(handle.binding);
+   await checkpoint('after-transaction');const saved=await receipt(handle.binding);return p.lease?closed({...saved,operationLeaseReceipt:await leases.commitReceipt(p,saved)}):saved;
   }),
   reconcile:attempt(async(binding,credentials)=>{const p=await fixed(binding?.request);await authenticate(p.q,credentials,{recordClock:false});return receipt(binding);}),
   // Separate current history permission from the historical operation binding.

@@ -1,3 +1,4 @@
+import {OWNER_OPERATION_ROW,ownerOperationRow,assertOwnerOperationApplication,validateOwnerOperationProof} from './port-owner-operation-contract.mjs';
 import {REAUTHORIZATION_PUBLICATION} from './port-authority-reauthorization-contract.mjs';
 import {captureAccountBootstrap,accountBootstrapFingerprint,accountBootstrapRow,validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
 import {CUTOVER_KIND,validateCutoverJournal,nextCutoverJournal} from './port-account-cutover-contract.mjs';
@@ -10,7 +11,7 @@ import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COM
     inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
 import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } from './port-authority-action-policy.mjs';
-import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime, readReauthorizationAttestation } from './port-authority-capabilities.mjs';
+import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime, readReauthorizationAttestation, readOwnerOperationAttestation } from './port-authority-capabilities.mjs';
 import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
 import {evidenceLifetimeKey,evidenceLifetimeRow,validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
 import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard,invalidateTrustedProClock} from './port-authority-pro-device-adapter.mjs';
@@ -348,6 +349,7 @@ function makeStore(db,env,lifecycle,lease) {
         const handle=Object.freeze({generation,operationId});prepared.set(handle,{...value,authorizationContext,
             recoveryBody:structuredClone(body),capability:env.testProvider?.capture(value,systemCapability,authorizationContext)});return handle;
     }
+    const ownerApplications=new WeakMap(),ownerApplicationAttempts=new WeakSet();
     async function reserveOperation(handle) {
         const p=prepared.get(handle);if(!p)return Promise.resolve(rejected('prepared-handle-invalid'));
         // Reserve the immutable identity even when authorization later rejects.
@@ -358,12 +360,12 @@ function makeStore(db,env,lifecycle,lease) {
                 ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),log=>{
                     if(log){validateOplog(log,p.generation,p.operationId);if(log.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');ctx.done({ok:true});return;}
                     ctx.request(ctx.store('reservations').get([p.generation,p.operationId]),old=>{
-                        const row={generation:p.generation,operationId:p.operationId,schemaVersion:1,kind:'operation-identity',fingerprint:p.fingerprint,
+                        const row=ownerApplications.has(handle)?ownerOperationRow(ownerApplications.get(handle),p):{generation:p.generation,operationId:p.operationId,schemaVersion:1,kind:'operation-identity',fingerprint:p.fingerprint,
                             action:p.action,policy:p.policy,targetKeys:Object.keys(p.changes).sort(),origin:'v2'};
                         if(old){
                             validateReservation(old,p.generation,p.operationId);
                             // A migrated v1 row keeps only its identity fingerprint.
-                            if(old.kind!=='operation-identity'||old.fingerprint!==row.fingerprint||
+                            if(ownerApplications.has(handle)?!equal(old,row):old.kind!=='operation-identity'||old.fingerprint!==row.fingerprint||
                                 old.origin==='v2'&&!equal(old,row))throw fail('operation-id-payload-conflict');
                         }
                         else ctx.request(ctx.store('reservations').add(row));ctx.done({ok:true});
@@ -376,11 +378,13 @@ function makeStore(db,env,lifecycle,lease) {
     }
     async function commit(handle,{commitGuard}={}) {
         const p=prepared.get(handle);if(!p)return rejected('prepared-handle-invalid');
+        const ownerProof=ownerApplications.get(handle);
         const reservation=await reserveOperation(handle);if(!reservation.ok)return reservation;
         return transact(COMMIT_STORES,'readwrite',ctx=>ctx.request(ctx.store('reservations').get([p.generation,p.operationId]),reserved=>{
-            if(reserved){validateReservation(reserved,p.generation,p.operationId);if(reserved.kind!=='operation-identity'||reserved.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');}
+            if(reserved){validateReservation(reserved,p.generation,p.operationId);if(ownerProof?!equal(reserved,ownerOperationRow(ownerProof,p)):reserved.kind!=='operation-identity'||reserved.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');}
             ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),old=>{
             if(old){
+                if(ownerProof)throw fail('owner-operation-reconcile-required');
                 validateOplog(old,p.generation,p.operationId);
                 if(old.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');
                 checkCommittedFact(ctx,old,()=>ctx.done({...old.result,replayed:true}));return;
@@ -405,14 +409,27 @@ function makeStore(db,env,lifecycle,lease) {
                     if(!equal(baseManifest,p.base.manifest)||p.base.head.seq>current.head.seq)throw fail('base-invalid');
                     const keys=[...new Set([...Object.keys(p.changes).filter(k=>k!==PORT_DELETE_INTENTS),...p.dependencyKeys])];
                     for(const key of keys)if(current.versions[key]!==p.base.versions[key])throw fail('stale');
-                    assertWritableControl(current.control,p.base.control);write(current);
+                    if(ownerProof){assertOwnerOperationApplication(ownerProof,p,current);
+                        ctx.request(ctx.store('journal').getAll(undefined,4097),journals=>{
+                            if(journals.length>4096||journals.some(j=>j.generation===p.generation&&(j.state!=='active'||j.migrationId!==current.pointer.migrationId)))throw fail('owner-operation-unresolved-journal');
+                            ctx.request(ctx.store('reservations').getAll(undefined,4097),rows=>{
+                                if(rows.length>4096)throw fail('owner-operation-scan-capacity');let left=rows.length;const next=()=>{if(!--left)write(current);};if(!left){write(current);return;}
+                                for(const row of rows){validateReservation(row,row.generation,row.operationId);
+                                    if(row.generation!==p.generation||row.operationId===p.operationId){next();continue;}
+                                    if(row.kind===REAUTHORIZATION_PUBLICATION&&row.operationId===current.pointer.operationId&&equal(row.publication.pointer,current.pointer)){verifyPublicationFact(ctx,row,next);continue;}
+                                    ctx.request(ctx.store('oplog').get([row.generation,row.operationId]),log=>{if(!log)throw fail('owner-operation-unresolved-intent');validateOplog(log,row.generation,row.operationId);if(log.fingerprint!==row.fingerprint)throw fail('owner-operation-unresolved-intent');next();});
+                                }
+                            });
+                        });
+                    }else{assertWritableControl(current.control,p.base.control);write(current);}
                 });
             });
             function write(current,publication) {
                 const control=current?.control||p.initialControl;validateControl(control);
                 if(control.generation!==p.generation||control.identity.partitionId!==env.partitionId)throw fail('control-identity-invalid');
                 if(p.initialControl&&!['staging','prepared','active'].includes(control.state))throw fail('initial-state-invalid');
-                if(!p.initialControl||control.state==='active')assertWritableControl(control,p.base?.control||control);
+                if(ownerProof)assertOwnerOperationApplication(ownerProof,p,current);
+                else if(!p.initialControl||control.state==='active')assertWritableControl(control,p.base?.control||control);
                 const empty=Object.fromEntries(PORT_DATASET_KEYS.map(k=>[k,null])),before=current?.values||empty;
                 const values={...before,...p.changes};
                 if(p.initialControl) { if(!p.capability?.initialize)throw fail('initialize-capability-required'); }
@@ -890,6 +907,28 @@ function makeStore(db,env,lifecycle,lease) {
         // Historical reconciliation only. This identity is not a replay request,
         // writer capability, or proof of current Account/Pro authorization.
         recoveryIdentity(handle){const p=prepared.get(handle);if(!p)throw fail('prepared-handle-invalid');return frozen({generation:p.generation,operationId:p.operationId,fingerprint:p.fingerprint,body:structuredClone(p.recoveryBody)});},
+        reconcileOwnerOperation({identity,proof}={}){
+            try{if(!env.testProvider)throw fail('owner-operation-isolation-required');validateOwnerOperationProof(proof);
+                const {generation,operationId,fingerprint,body}=identity||{};identifier(generation);identifier(operationId);
+                if(body?.generation!==generation||body.operationId!==operationId||body.action!=='saveBpm'||digest(body)!==fingerprint||fingerprint!==proof.fingerprint||proof.envelope.authority.generation!==generation||proof.envelope.request.operation.operationId!==operationId)throw fail('owner-operation-proof-invalid');
+            }catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            const {generation,operationId,fingerprint,body}=identity;
+            return transact(COMMIT_STORES,'readonly',ctx=>ctx.request(ctx.store('reservations').get([generation,operationId]),row=>{
+                if(!row)throw fail('owner-operation-receipt-unproven');validateReservation(row,generation,operationId);
+                if(!equal(row,ownerOperationRow(proof,{generation,operationId,fingerprint})))throw fail('owner-operation-receipt-unproven');
+                ctx.request(ctx.store('oplog').get([generation,operationId]),log=>{
+                    validateOplog(log,generation,operationId);if(log.fingerprint!==fingerprint)throw fail('owner-operation-receipt-unproven');
+                    ctx.request(ctx.store('manifests').get([generation,log.result.manifestId]),manifest=>{
+                        if(!manifest)throw fail('recovery-required');validateManifest(manifest);
+                        if(manifest.generation!==generation||manifest.seq!==log.result.seq||manifest.revision!==log.result.revision)throw fail('oplog-invalid');
+                        readManifestValues(ctx,generation,manifest,values=>{
+                            if(values['cruisePort.metronome']!==body.changes['cruisePort.metronome']||!equal(JSON.parse(values['cruisePort.metronome']),proof.envelope.request.operation.payload.value))throw fail('owner-operation-receipt-unproven');
+                            ctx.done({ok:true,result:log.result,values,versions:manifest.versions,historical:true,canWrite:false,operationAuthorized:false});
+                        });
+                    });
+                });
+            }));
+        },
         reconcileOperation({generation,operationId,fingerprint,body}={}){
             try{identifier(generation);identifier(operationId);if(!/^[a-f0-9]{64}$/.test(fingerprint)||body?.generation!==generation||body.operationId!==operationId||digest(body)!==fingerprint)throw fail('operation-fingerprint-invalid');}
             catch(e){return Promise.resolve(rejected(e.code));}
@@ -907,6 +946,14 @@ function makeStore(db,env,lifecycle,lease) {
         initialize({generation,control,values,operationId}){
             try{validateControl(control);const handle=capture({generation,operationId,action:'fixture-initialize',changes:values,initialControl:control});return commit(handle);}
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
+        },
+        async applyCommittedOwnerOperation({handle,capability,attestation}={}){
+            const p=prepared.get(handle);try{if(!env.testProvider||!p||ownerApplicationAttempts.has(handle))throw fail('owner-operation-isolation-required');
+                verifyCapability(capability,{scope:env.scope,lease,purpose:'control:apply-owner-operation',generation:p.generation});
+                const proof=readOwnerOperationAttestation(attestation,{scope:env.scope,lease,generation:p.generation});
+                assertOwnerOperationApplication(proof,p,p.base);ownerApplicationAttempts.add(handle);ownerApplications.set(handle,proof);
+                try{const result=await commit(handle);return frozen({...result,historical:true,canWrite:false,operationAuthorized:false,productionReady:false});}finally{ownerApplications.delete(handle);}
+            }catch(e){return rejected(errorCode(e));}
         },
         commit,
         // Exact historical dataset for Repository Adapter read bases. A later

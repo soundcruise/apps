@@ -1,3 +1,4 @@
+import {validateOwnerOperationProof} from './port-owner-operation-contract.mjs';
 import {validateReauthorizationProof} from './port-authority-reauthorization-contract.mjs';
 // Port-owned Authority capabilities (L3b-1). Not a JavaScript sandbox: brands
 // reject data-shaped forgeries (plain objects, structuredClone/JSON copies),
@@ -6,7 +7,7 @@ import {validateReauthorizationProof} from './port-authority-reauthorization-con
 import {EVIDENCE_PROVIDER_ID} from './port-authority-evidence-lifetime.mjs';
 import {safeEvidence} from './port-migration-contract.mjs';
 import { fail, identifier, frozen, equal, validateControl, assertJSONEvidence } from './port-idb-authority-contract.mjs';
-export const CAPABILITY_PURPOSES = Object.freeze(['migration-publication', 'authority-control', 'system-ack', 'pro-provider', 'recovery', 'control:suspend', 'control:revoke', 'control:invalidate', 'control:recovery', 'control:resume', 'control:renew', 'control:reauthorize']);
+export const CAPABILITY_PURPOSES = Object.freeze(['migration-publication', 'authority-control', 'system-ack', 'pro-provider', 'recovery', 'control:suspend', 'control:revoke', 'control:invalidate', 'control:recovery', 'control:resume', 'control:renew', 'control:reauthorize', 'control:apply-owner-operation']);
 // Control purposes require isolated providers; generic ACK/Pro/recovery remain closed.
 const ISSUABLE = new Set(['migration-publication', ...CAPABILITY_PURPOSES.filter(p=>p.startsWith('control:'))]);
 const registered=new WeakMap(),fenceAttestations=new WeakMap();
@@ -16,7 +17,7 @@ export function registerCapabilityScope(scope,lifecycle,fixtureEnabled,clock){
 const live=scope=>{const r=registered.get(scope),lease=r?.lifecycle();if(!lease?.active)throw fail('capability-invalid');return lease;};
 const claimed = new WeakSet();
 const capabilities = new WeakMap();
-const attestations = new WeakMap(), reauthorizationAttestations=new WeakMap();
+const attestations = new WeakMap(), reauthorizationAttestations=new WeakMap(), ownerOperationAttestations=new WeakMap();
 const hex64 = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
 // Called only through the Store's scope check. One issuer per scope: a second
@@ -51,6 +52,11 @@ export function claimCapabilityIssuer(scope) {
             attestations.set(token, Object.freeze({ scope, lease, kind: 'isolated-fixture', generation, migrationId, sealHash,
                 binary: Object.freeze({ ...binary }), sync: Object.freeze({ ...sync }), fence: fence && Object.freeze({ ...fence }) }));
             return token;
+        },
+        attestFixtureOwnerOperation(evidence){
+            if(!registered.get(scope).fixtureEnabled())throw fail('owner-operation-isolation-required');
+            const lease=live(scope),proof=frozen(structuredClone(evidence));validateOwnerOperationProof(proof);safeEvidence(proof);
+            const token=Object.freeze({kind:'isolated-owner-operation'});ownerOperationAttestations.set(token,{scope,lease,proof});return token;
         },
         attestFixtureReauthorization(evidence){
             if(!registered.get(scope).fixtureEnabled())throw fail('reauthorization-isolation-required');
@@ -113,3 +119,5 @@ export function observeFenceLifetime(token,options){
 }
 
 export function readReauthorizationAttestation(token,{scope,lease,generation}){const r=reauthorizationAttestations.get(token);if(!r||r.scope!==scope||r.lease!==live(scope)||r.lease!==lease||r.proof.request.targetGeneration!==generation)throw fail('reauthorization-proof-invalid');return r.proof;}
+
+export function readOwnerOperationAttestation(token,{scope,lease,generation}){const r=ownerOperationAttestations.get(token);if(!r||r.scope!==scope||r.lease!==live(scope)||r.lease!==lease||r.proof.envelope.authority.generation!==generation)throw fail('owner-operation-proof-invalid');return r.proof;}
