@@ -36,18 +36,18 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.24.14';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.14';
+} from './sync-center-controller.js?v=1.24.15';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.15';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.23.1';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.23.1';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.23.1';
 import { createPortSyncStatus } from './port-sync-status.js?v=1.23.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.14';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.15';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=1.24.14';
+} from './sync-center-navigation.js?v=1.24.15';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.24.14';
+} from './app-version.js?v=1.24.15';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.23.1';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.23.1';
 import { initTuner } from './tuner-app.js?v=1.23.1';
@@ -2148,10 +2148,10 @@ async function renderNewsSafely() {
     document.getElementById('news-entry').hidden = false;
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.24.14');
+        const news = await import('./news-ui.js?v=1.24.15');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadNewsPresentation } = await import('./news-provider.js?v=1.24.14');
+        const { loadNewsPresentation } = await import('./news-provider.js?v=1.24.15');
         const result = await loadNewsPresentation();
         if (revision === newsLoadRevision) news.renderNews({ ...result, category: document.getElementById('news-category')?.value ?? '' });
     } catch (error) {

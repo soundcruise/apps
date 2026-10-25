@@ -1,3 +1,7 @@
+# Studio 0.47.12 — Owner lifecycle / Save-Reconcile隔離候補（未公開）
+
+Port1.24.15 / Project schema2。PR #17固定head 9256c9feが直接親。既存sca1 ownerからの明示lease発行、永続renew停止・secret rotation・失効CAS、owner世代bind、認証済みSaveとreadonly Reconcileを隔離実装。現在の新資格で旧receiptを同Account/member/device内で照会し、history権限はsaveと分離。未知floor/leaseは補修せず拒否。backend SQL最終assertionと独立IDBの非原子性を維持。history-only期限観測後の未記録server時計巻戻しは未保証で、本番には単調owner時刻または永続expiry設計が必要。通常router/認証/consumer/Cloud/L3dは未接続、Shared Write OFF/canWrite=false。契約: [Owner Credential / Save-Reconcile](../../cruise-port/docs/OWNER_CREDENTIAL_SAVE_ROUTES.md)。以下は履歴。
+
 # Studio 0.47.11 — Backend save transaction隔離候補（未公開）
 
 Port 1.24.14 / Project schema2。PR #16固定head c543724bを直接の親とする。既存backend SQLのAccount最終再認可・Pro/writer fence・Port record/CAS/oplogを同一batchで確定する未公開fixtureを追加。ローカルAuthority commitは別結果であり、SQL receiptを保存資格にしない。部分成功・ack喪失・reopenは既存Shared immutable pending pinと二種類のreceiptから照合し、自動再送・削除なし。通常router/production migration/consumerは未接続、Shared Write OFF / canWrite=false。資格発行/更新route、production owner時計・cutover・最終認可は未完成。契約: [Backend/local transaction](../../cruise-port/docs/BACKEND_SAVE_TRANSACTION.md)。以下は履歴。
