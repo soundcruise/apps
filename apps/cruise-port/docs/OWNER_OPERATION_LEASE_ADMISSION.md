@@ -1,3 +1,5 @@
+後続の隔離pointer/consumer停止協調・明示部分復旧は [OWNER_POINTER_CONSUMER_CUTOVER](OWNER_POINTER_CONSUMER_CUTOVER.md) を参照。以下はPR #22時点の履歴で、本番未接続の境界は維持します。
+
 # Owner operation lease / fenced Authority application v1 (isolated only)
 
 Direct parent PR #21 `43b4eb114a87baafa7d1a49634a823e804a95605`, tree `cf061bce0bed32ad555425e24e3e9631906c1c12`. Dependency: main → #16 → #17 → #18 → #19 → #20 → #21 → this topic. Maintenance candidates Studio **0.47.16** / Port **1.24.19**, Project schema **2** unchanged. Public main remains `d66107c5ef30ca1a0873f0943876c73e745c14b5` / Studio0.47.9 / Port1.24.12. This is an isolated technical candidate, never a production save/cutover approval.

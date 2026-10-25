@@ -1,3 +1,5 @@
+後続の [Pointer/Consumer Cutover fixture](OWNER_POINTER_CONSUMER_CUTOVER.md) はPort ownerのBPM専用fixture ID間だけをreadonly選択します。本書の通常Port/Shared/Studio consumer inventoryは未cutoverのまま維持し、通常writer/Cloud/本番認証を有効化しません。
+
 後続の隔離Account物理移行・Port原本保全は [ACCOUNT_PORT_CUTOVER](ACCOUNT_PORT_CUTOVER.md) を参照。以下はPR #12時点のconsumer契約。通常writer/Cloud本番接続は未実施。
 
 # Isolated Account consumer migration v1

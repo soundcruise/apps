@@ -18,13 +18,20 @@ export function createIsolatedAccountSaveRoutes(options={}){
  const lifecycle=createIsolatedCredentialLifecycle({...options,pepper:options.accountPepper}),transaction=createIsolatedAccountSaveTransaction({...options,requireLifecycleBinding:true});
  return Object.freeze({fixtureOnly:true,async handle(req){
   const url=new URL(req.url),path=url.pathname.slice(ROOT.length);
-  if(!url.pathname.startsWith(ROOT)||!Object.hasOwn(paths,path)&&!['save','reconcile','credential/renew/reconcile','authority/reauthorize','operation/lease','operation/save','operation/reconcile','operation/current'].includes(path))return reply(404,{ok:false,code:'not-found'});
+  if(!url.pathname.startsWith(ROOT)||!Object.hasOwn(paths,path)&&!['save','reconcile','credential/renew/reconcile','authority/reauthorize','operation/lease','operation/save','operation/reconcile','operation/current','cutover/stop','cutover/inspect','cutover/qualify','cutover/confirm','cutover/reconcile'].includes(path))return reply(404,{ok:false,code:'not-found'});
   if(req.method!=='POST'||url.search||url.hash)return reply(405,{ok:false,code:'method-denied'});
   if(!req.headers.get('Authorization')?.startsWith('Bearer '))return reply(401,{ok:false,code:'authentication-required'});
   let input;try{input=await body(req);}catch{return reply(400,{ok:false,code:'request-invalid'});}
   const credentials={accountAuthorization:req.headers.get('Authorization'),appAuthorization:req.headers.get('X-Sound-Cruise-App-Authorization'),proAuthorization:req.headers.get('X-Sound-Cruise-Pro-Authorization')};
   try{let result;
-   if(path.startsWith('operation/')){
+   if(path.startsWith('cutover/')){
+    if(options.enableOwnerCutover!==true||options.enableOperationLease!==true)return reply(404,{ok:false,code:'not-found'});
+    if(path==='cutover/stop')result=await transaction.cutoverStop(input,credentials);
+    else if(path==='cutover/inspect')result=await transaction.cutoverInspect(input,credentials);
+    else if(path==='cutover/qualify')result=await transaction.cutoverQualify(input,credentials);
+    else if(path==='cutover/confirm')result=await transaction.cutoverConfirm(input,credentials);
+    else result=await transaction.cutoverReconcile(input,credentials);
+   }else if(path.startsWith('operation/')){
     if(options.enableOperationLease!==true)return reply(404,{ok:false,code:'not-found'});
     if(!shape(input,path==='operation/lease'?['envelope','envelopeDigest']:['envelope','envelopeDigest','lease'])||await exactRequestDigest(input.envelope)!==input.envelopeDigest)return reply(400,{ok:false,code:'request-invalid'});
     if(path==='operation/lease')result=await transaction.issueOperationLease(input.envelope,credentials);

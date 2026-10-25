@@ -1,3 +1,4 @@
+import {CUTOVER_STOP,CUTOVER_PUBLICATION,CUTOVER_RECOVERY,validateCutoverStop,validateCutoverPublication,validateCutoverRecovery} from './port-owner-cutover-contract.mjs';
 import {OWNER_OPERATION_ROW,validateOwnerOperationRow} from './port-owner-operation-contract.mjs';
 import {REAUTHORIZATION_PUBLICATION,validateReauthorizationPublication} from './port-authority-reauthorization-contract.mjs';
 import {validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
@@ -135,7 +136,7 @@ export function validatePointer(p) {
         typeof p.partitionId !== 'string' || !p.partitionId || !positive(p.pointerEpoch) || p.namespaceVersion !== 1 ||
         p.repositoryProtocol !== PORT_DATASET_PROTOCOL || p.writerProtocol !== AUTHORITY_WRITER_PROTOCOL ||
         !exactKeys(p.publication,['kind','manifestId','headSeq','sealHash','controlEpoch']) ||
-        !['migration','isolated-fixture','isolated-reauthorization'].includes(p.publication.kind) || !positive(p.publication.headSeq) ||
+        !['migration','isolated-fixture','isolated-reauthorization','isolated-owner-cutover'].includes(p.publication.kind) || !positive(p.publication.headSeq) ||
         !positive(p.publication.controlEpoch) || !/^[a-f0-9]{64}$/.test(p.publication.sealHash)) throw fail('pointer-invalid');
     for (const field of ['activeGeneration','migrationId','operationId']) identifier(p[field]);
     identifier(p.publication.manifestId);
@@ -144,6 +145,7 @@ export function validatePointer(p) {
 }
 export const reservationKey = (generation, operationId) => RESERVED_JOURNAL_PREFIX + digest([generation, operationId]);
 export function validateReservation(r, generation, operationId) {
+    if([CUTOVER_STOP,CUTOVER_PUBLICATION,CUTOVER_RECOVERY].includes(r?.kind)){if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');(r.kind===CUTOVER_STOP?validateCutoverStop:r.kind===CUTOVER_PUBLICATION?validateCutoverPublication:validateCutoverRecovery)(r);return;}
     if(r?.kind===OWNER_OPERATION_ROW){if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');validateOwnerOperationRow(r);return;}
     if(r?.kind==='account-bootstrap'){if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');validateAccountBootstrap(r);return;}
     if(r?.kind==='account-transition'){
@@ -165,6 +167,7 @@ export function validateReservation(r, generation, operationId) {
     if((r.kind==='control')!==(r.control!==undefined)||r.kind==='control'&&(!object(r.control)||r.publication!==undefined))throw fail('reservation-invalid');
 }
 export function validatePublicationFact(r) {
+    if(r?.kind===CUTOVER_PUBLICATION){validateCutoverPublication(r);return;}
     if(r?.kind===REAUTHORIZATION_PUBLICATION){validateReauthorizationPublication(r);return;}
     const f=r.publication;
     if(!exactKeys(f,['schemaVersion','pointer','identity','request','evidence'])||f.schemaVersion!==1)throw fail('publication-fact-invalid');
