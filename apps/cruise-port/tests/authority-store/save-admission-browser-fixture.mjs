@@ -8,10 +8,10 @@ import {createIsolatedAccountSaveAdmissionOwner} from '../../../../workers/sound
 import {createIsolatedPortSaveAdmission} from '../../port-account-save-admission.mjs';
 import {createIsolatedMetronomeBpmOwner,createIsolatedBpmPendingStore} from '../../port-metronome-bpm-isolated.mjs';
 import {createIsolatedBpmController} from '../../../cruise-studio/js/modules/metronome/isolated-bpm-controller.mjs';
-export async function setupBrowserSaveAdmission({indexedDB,root,name,seed=true,checkpoint}={}){
+export async function setupBrowserSaveAdmission({indexedDB,root,name,seed=true,checkpoint,record}={}){
  const clock={server:100000,wall:1000,mono:0,origin:'browser-fixture'},pepper='isolated-browser-owner-admission-test-pepper';
  const a=createAccountCredential(),options={indexedDB,name,partitionId:'fixture-partition',now:()=>clock.wall,monotonicNow:()=>clock.mono,clockIdentity:()=>clock.origin};
- const x=await setupProvider({indexedDB,root,scopeName:name,seed,record:{accountId:'A',accountDeviceId:a.deviceId,accountCredential:a.credential},ownerContext:true,clockOptions:options});
+ const x=await setupProvider({indexedDB,root,scopeName:name,seed,record:record||{accountId:'A',accountDeviceId:a.deviceId,accountCredential:a.credential},ownerContext:true,clockOptions:options});
  const actual=await x.mutationStore.inspect(await x.mutationStore.capture());
  const row={device_id:actual.accountDeviceId,account_id:'A',credential_version:3,credential_verifier:await accountCredentialVerifier(actual.accountCredential,pepper),revoked_at:null,
   account_state:'active',generation:7,admission_provenance:'production',membership_id:'member-A',membership_state:'active',membership_generation:11,membership_deleted_at:null,
