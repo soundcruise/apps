@@ -1,5 +1,5 @@
 // Studio is a reader of released versions. Only this side owns the projections.
-import { CRUISE_PORT_APP_VERSION } from '../../../cruise-port/app-version.js?v=1.24.16';
+import { CRUISE_PORT_APP_VERSION } from '../../../cruise-port/app-version.js?v=1.24.17';
 
 function mirror(componentId, displayName, path, symbol, expectedValue) {
     return Object.freeze({
@@ -29,7 +29,7 @@ const components = Object.freeze([
     mirror('rhythm-cruise', 'Rhythm Cruise', 'apps/rhythm-cruise/script.js',
         'RHYTHM_CRUISE_VERSION', '1.21.0'),
     mirror('cruise-studio', 'Cruise Studio', 'apps/cruise-studio/js/core/song-model.js',
-        'APP_VERSION', '0.47.13')
+        'APP_VERSION', '0.47.14')
 ]);
 
 // The index is private; callers only receive deeply frozen descriptors.
