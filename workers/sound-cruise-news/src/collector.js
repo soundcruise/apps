@@ -1,3 +1,5 @@
+import {recordDiscovered,recordListingUrls,recordDiscoveryResult,discoveryState} from './discovery-work.js';
+import {duplicateOf} from './dedupe.js';
 import {prepareInitialFacts} from './initial-facts.js';
 import {KIKUTANI_LISTING_PARSER} from './kikutani-listing-evidence.js';
 import {planAgmNews,recordAgmDeferred,AGM_DETAIL_BUDGET,AGM_DEFERRED} from './agm-backfill.js';
@@ -22,13 +24,13 @@ export async function collectSource(id,store,options={}){
   const fetcher=options.fetcher||fetch;
   try{await prepareInitialFacts(store,report,options.now||Date.now(),options.registry||SOURCES,options.pepper,{...options,cachedRobots:report._primaryRobots,
    fetcher:async(url,init)=>{report.requests++;const kind=url===report._primaryRobots.url?'robots':'article';report.requestCounts[kind]=(report.requestCounts[kind]||0)+1;try{const response=await fetcher(url,init);if(kind==='article'){report.primaryHttp??={success:0,failure:0};report.primaryHttp[response.status===200?'success':'failure']++;}return response;}catch(error){if(kind==='article'){report.primaryHttp??={success:0,failure:0};report.primaryHttp.failure++;}throw error;}}});}
-  catch(error){report.initialRecovery??={};report.initialRecovery.error=/^[a-z_0-9]+$/.test(error.message)?error.message:'initial_facts_failed';console.error(JSON.stringify({event:'news_initial_facts_failed',sourceId:id,reason:report.initialRecovery.error}));}
+  catch(error){report.initialRecovery??={};report.initialRecovery.error=/^[a-z_0-9]+$/.test(error.message)?error.message:'initial_facts_failed';if(/^discovery_tracking_/.test(error.message))report.outcome=error.message;console.error(JSON.stringify({event:'news_initial_facts_failed',sourceId:id,reason:report.initialRecovery.error}));}
   const state=await store.state(id),health=(await store.sourceHealth()).find(s=>s.source_id===id);if(report.initialRecovery?.evaluated&&report.outcome==='collected'&&(state.disabled||state.backoffUntil>(options.now||Date.now())||health?.status!=='healthy'))report.outcome=health?.reason_code||'source_disabled';
   if(report.runId)await store.db.prepare('UPDATE collection_runs SET requests=?,outcome=? WHERE id=?').bind(report.requests,report.outcome,report.runId).run();
  }
  delete report._primaryRobots;
  try{if(options.mode==='production'){const recovery=options.preparationMaintenance,measurement=recovery?{...report,requests:report.requests+recovery.requests,requestCounts:{...report.requestCounts,robots:(report.requestCounts?.robots||0)+recovery.requests},maintenanceOutcome:recovery.outcome}:report;await recordPreparationMetrics(store,measurement,options.now||Date.now(),options.registry||SOURCES,options.pepper);report.preparation=measurement.preparation;}}
- catch{console.error(JSON.stringify({event:'news_preparation_metrics_failed',sourceId:id}));}
+ catch(error){report.outcome='discovery_tracking_failed';if(report.runId)await store.db.prepare('UPDATE collection_runs SET outcome=? WHERE id=?').bind(report.outcome,report.runId).run();await store.recordHealth({sourceId:id,status:'error',reasonCode:'network_or_internal_error',checkedAt:options.now||Date.now()});console.error(JSON.stringify({event:'news_preparation_metrics_failed',sourceId:id,reason:'discovery_tracking_failed'}));}
  delete report.qualityObservations;return report;
 }
 async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),registry=SOURCES,pepper,clock,requestMode='normal',jstDay='',auditReason='',cachedRobots=null,requireHumanReview=false}={}) {
@@ -87,6 +89,7 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
    report.backfill={listingUrls:0,queuedUrls:0,replayedUrls:0,deferredUrls:0};
    await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,prepareNewsEntries:async entries=>{
     report.backfill.listingUrls=entries.length;
+    await recordDiscovered(store,source,entries,now);
     const planned=await planAgmNews(store,source,entries,now,pepper);
     report.backfill.queuedUrls=planned.filter(e=>e.backlog).length;
     return planned;
@@ -131,9 +134,10 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
    if(listing){
     if(!/text\/html/i.test(discovery.headers.get('content-type')||''))throw Error('listing_structure_changed');
     if(source.id==='kikutani')discovery.responseHash=await hash(discovery.text);
+    const listingUrls=await recordListingUrls(store,source,discovery.text,now);
     const knownUrls=shimListing?new Set((await store.db.prepare('SELECT source_url,normalized_url FROM candidate_items WHERE source_id=?').bind(source.id).all()).results.flatMap(r=>[r.source_url,r.normalized_url].filter(Boolean))):null;
     let parsed;try{parsed=shimListing?parseShimamuraListing(discovery.text,source.discoveryUrl,{since:requestMode==='operator_validation'?0:state.lastDiscoveryAt||0,knownUrls}):parseOfficialListing(discovery.text,source);}finally{discovery.text='';}
-    entries=parsed.entries;for(const d of parsed.dispositions||[])observePreparation(report,d,{reason:d.reason});if(source.id==='kikutani'){const proof={sourceId:source.id,sourceUrl:source.discoveryUrl,verifiedAt:now,extractionMethod:'explicit_kikutani_listing_card',parserVersion:KIKUTANI_LISTING_PARSER,responseHash:discovery.responseHash};for(const entry of entries)entry.listingProof=proof;}report.candidates=parsed.cards;report.reasons=parsed.reasons;report.rejected=Object.values(parsed.reasons).reduce((a,b)=>a+b,0);
+    entries=parsed.entries;await recordDiscovered(store,source,[...entries,...(parsed.dispositions||[])],now);for(const d of parsed.dispositions||[]){observePreparation(report,d,{reason:d.reason});await recordDiscoveryResult(store,source,d,now,{reason:d.reason});}const recognized=new Set([...entries,...(parsed.dispositions||[])].map(e=>e.url));for(const url of listingUrls)if(!recognized.has(url)){await discoveryState(store,source.id,url,now,{state:'evidence_insufficient',reason:'listing_metadata_unparsed',nextAction:'new_parser_or_evidence',diagnostics:{stage:'listing',missingFields:['listing_metadata']}});observePreparation(report,{url},{reason:'listing_metadata_unparsed'});}if(source.id==='kikutani'){const proof={sourceId:source.id,sourceUrl:source.discoveryUrl,verifiedAt:now,extractionMethod:'explicit_kikutani_listing_card',parserVersion:KIKUTANI_LISTING_PARSER,responseHash:discovery.responseHash};for(const entry of entries)entry.listingProof=proof;}report.candidates=parsed.cards;report.reasons=parsed.reasons;report.rejected=Object.values(parsed.reasons).reduce((a,b)=>a+b,0);
    }else{
     if(!/xml|rss|atom/i.test(discovery.headers.get('content-type')||''))throw new Error('non_metadata_response');
     entries=parseMetadata(discovery.text,source.discoveryType);report.candidates=entries.length;discovery.text='';
@@ -143,7 +147,7 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
   }
   }
  }catch(error){
-  const codes=['listing_structure_changed','listing_optout','listing_too_large','listing_url_blocked','listing_request_budget','request_timeout','global_collection_off','robots_unparseable','robots_unavailable','robots_changed_review','robots_disallow','crawl_delay_review','rate_limited','upstream_error','http_401','http_403','http_451','access_stopped','header_optout','redirect_blocked','response_too_large','discovery_unavailable','non_metadata_response','xml_unsafe','xml_invalid','metadata_format','url_blocked'];
+  const codes=['listing_structure_changed','listing_optout','listing_too_large','listing_url_blocked','listing_request_budget','request_timeout','global_collection_off','robots_unparseable','robots_unavailable','robots_changed_review','robots_disallow','crawl_delay_review','rate_limited','upstream_error','http_401','http_403','http_451','access_stopped','header_optout','redirect_blocked','response_too_large','discovery_unavailable','discovery_tracking_failed','discovery_tracking_conflict','discovery_tracking_overflow','non_metadata_response','xml_unsafe','xml_invalid','metadata_format','url_blocked'];
   report.outcome=codes.includes(error.message)?error.message:'network_or_internal_error';
   if(['request_timeout','upstream_error','network_or_internal_error','non_metadata_response','metadata_format','xml_invalid','listing_structure_changed','listing_optout','listing_too_large','robots_unparseable','redirect_blocked','header_optout','robots_changed_review','robots_disallow','http_401','http_403','http_451','access_stopped'].includes(report.outcome))next.disabled=true;
   if(!['rate_limited','upstream_error'].includes(report.outcome)){next.failures=(state.failures||0)+1;next.nextAt=Math.max(next.nextAt,retryAt(500,null,next.failures,now));next.backoffUntil=next.nextAt;}
@@ -161,16 +165,20 @@ export async function persistDiscoveredEntries(entries,source,store,robots,now,p
  try{
   if(legalGate(source,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'local',registry))throw Error('access_stopped');
   requirePepper(pepper);
+  await recordDiscovered(store,source,entries,now);
   if(source.id==='agm')await recordAgmDeferred(store,source,entries,now);
   for(const entry of entries){
-   if(source.id==='agm'&&entry.agmDeferred){observePreparation(report,entry,{reason:AGM_DEFERRED});continue;}
+   if(source.id==='agm'&&entry.agmDeferred){observePreparation(report,entry,{reason:AGM_DEFERRED});await discoveryState(store,source.id,entry.url,now,{state:'awaiting_fetch_budget',reason:AGM_DEFERRED,nextAt:nextDailyCollectionAt(now),nextAction:'daily_recovery'});continue;}
    const {item,reason}=source.id==='agm'&&entry.agmAcquired?{item:entry.agmCachedItem,reason:'agm_evidence_unavailable'}:await candidateFrom(entry,source,robots,now,pepper);
    if(item&&entry.agmAcquired&&item.publishedAt&&(Date.parse(item.publishedAt)>now||now-Date.parse(item.publishedAt)>=90*86400000)){report.rejected++;observePreparation(report,entry,{reason:'date_outside_window'});continue;}
-   if(!item){report.rejected++;report.reasons??={};report.reasons[reason]=(report.reasons[reason]||0)+1;observePreparation(report,entry,{reason});continue;}
+   if(!item){await recordDiscoveryResult(store,source,entry,now,{reason});report.rejected++;report.reasons??={};report.reasons[reason]=(report.reasons[reason]||0)+1;observePreparation(report,entry,{reason});continue;}
    if(item&&report.requireHumanReview){item.publicationDecision='PUBLISH_REVIEW';item.decisionReason='maintenance_recovery_review';item.reviewReason='maintenance_recovery_review';}
    if(report.requestMode==='scheduled'){item.publicationDecision='PUBLISH_REVIEW';if(!report.requireHumanReview){item.decisionReason='collection_human_review';item.reviewReason='structured_review_required';}}
    const created=await store.put(item);if(created)report.pending++;else report.duplicates++;
-   observePreparation(report,entry,{item,created});
+   const saved=await store.db.prepare('SELECT * FROM candidate_items WHERE source_id=? AND normalized_url=?').bind(source.id,item.normalizedUrl).first();let storageDuplicate=false;
+   if(saved)await recordDiscoveryResult(store,source,entry,now,{row:saved,reason:'candidate_created'});
+   else{const peer=(await store.db.prepare('SELECT * FROM candidate_items WHERE source_id=?').bind(source.id).all()).results.find(row=>row.id!==item.id&&duplicateOf(item,row));storageDuplicate=!!peer;await discoveryState(store,source.id,entry.url,now,{state:peer?'duplicate':'discovered',reason:peer?'storage_duplicate':'candidate_storage_guard',candidateId:peer?.id,nextAction:peer?'none':'evaluate'});}
+   observePreparation(report,entry,{item,created,...(storageDuplicate?{reason:'storage_duplicate'}:{})});
   }
  }finally{for(const entry of entries){entry.title='';if('eventTitle' in entry)entry.eventTitle='';}entries.length=0;}
 }

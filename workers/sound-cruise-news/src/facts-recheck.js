@@ -1,3 +1,4 @@
+import {recordDiscoveryResult,discoveryState} from './discovery-work.js';
 import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement} from './primary-announcement.js';
 import {initialPrimarySource,recoveryBudget} from './recovery-budget.js';
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
@@ -8,7 +9,7 @@ import {recoverOfficialIdentity,validOfficialIdentity} from './official-identity
 import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
 import {parseSourcePolicyEvidence} from './source-policy-evidence.js';
 import {parseIkebeInformationalEvidence,productArticleIdentityRefinement} from './product-article-evidence.js';
-import {parseShimamuraProductEvidence} from './shimamura-product-evidence.js';
+import {parseShimamuraProductEvidence,validatedShimamuraProductFacts,SHIMAMURA_PRODUCT_PARSERS} from './shimamura-product-evidence.js';
 import {parseNamedWorkshopEvidence} from './named-workshop-evidence.js';
 import {parseGuitarExhibition} from './guitar-exhibition-evidence.js';
 import {acquireAgmArticle,inspectAgmArticle,agmProof,agmProvenance} from './agm-acquisition.js';
@@ -34,7 +35,10 @@ import {recoverySurface,recoveryCacheKey,resolvedRecoverySurface} from './facts-
 // It never reconstructs discarded HTML or supplies missing facts.
 export async function reusablePrimaryEvidence(previous,row,source,now){
  if(!initialPrimarySource(source)||previous?.outcome!=='verified_surface'||previous.lease_until>now)return false;
- try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json);return p.sourceId===source.id&&p.sourceUrl===row.source_url&&p.publishedAt===row.published_at&&p.extractionMethod==='explicit_primary_announcement_fields'&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&p.pipelineVersion===p.parserVersion&&p.evidenceKey===await hash(row.title_fingerprint||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at&&validPrimaryAnnouncement(items[0].productFacts)&&(items[0].productFacts.announcement.action!=='release_notice'||p.parserVersion===PRIMARY_ANNOUNCEMENT_PARSER);}catch{return false;}
+ try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json),f=items[0]?.productFacts;
+ const typed=p.extractionMethod==='explicit_primary_announcement_fields'&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&validPrimaryAnnouncement(f)&&(f.announcement.action!=='release_notice'||p.parserVersion!=='primary-announcement-1')||p.extractionMethod==='explicit_shimamura_product_fields'&&source.id==='shimamura'&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&validatedShimamuraProductFacts(f);
+ return !!typed&&p.sourceId===source.id&&p.sourceUrl===row.source_url&&p.publishedAt===row.published_at&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.pipelineVersion)&&p.evidenceKey===await hash(row.title_fingerprint||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at;
+ }catch{return false;}
 }
 // Recheck receipts retain facts/proofs for the existing 90-day lifetime even
 // after the short transport cache is purged. Never rebuild publisher text.
@@ -45,7 +49,7 @@ export async function retainedPrimaryEvidence(store,row,source,now){
   if(!proof||proof.sourceId!==source.id||proof.sourceUrl!==row.source_url||proof.publishedAt!==row.published_at||!PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)||proof.evidenceKey!==await hash(row.title_fingerprint||'')||!/^[a-f0-9]{64}$/.test(proof.responseHash||'')||!Number.isSafeInteger(proof.verifiedAt)||proof.verifiedAt>now)return null;
   const base={checked_at:receipt.checked_at,lease_until:0,proof_json:JSON.stringify(proof)};
   if(proof.failureReason)return {...base,outcome:'facts_primary_evidence_unchanged',items_json:'[]'};
-  const facts=JSON.parse(patch?.product_facts||'null');if(!validPrimaryAnnouncement(facts)||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&p.parserVersion===proof.pipelineVersion&&p.extractionMethod==='explicit_primary_announcement_fields')))return null;
+  const facts=JSON.parse(patch?.product_facts||'null');if(!(validPrimaryAnnouncement(facts)||validatedShimamuraProductFacts(facts))||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&(PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'||SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'))))return null;
   const candidate={...base,outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:patch.event_type,productFacts:facts}])};
   return await reusablePrimaryEvidence(candidate,row,source,now)?candidate:null;
  }catch{return null;}
@@ -61,7 +65,7 @@ async function gate(store,source,registry,now,row){
 
 function agmSurface(cached,row){const i=cached.item;return i?{outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:i.sourceUrl,publishedAt:i.publishedAt,eventType:i.eventType,productFacts:i.productFacts}]),proof_json:JSON.stringify(cached.proof)}:{outcome:'facts_not_recovered',items_json:'[]',proof_json:null};}
 
-export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null}={}){
+export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null,dailyOnly=false}={}){
  if(source.id==='morris'){
   await gate(store,source,registry,now,row);const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
   if(!['verified','verified_listing'].includes(receipt?.outcome)||!receipt.facts_json||!await validatedFingerprint(receipt.fingerprint_json,pepper))return {outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
@@ -77,12 +81,15 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
  }
  const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair});let previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  previous??=await retainedPrimaryEvidence(store,row,source,now);
+ const work=await store.db.prepare('SELECT * FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(source.id,row.source_url).first();
+ if(!previous&&work?.evidence_json){try{const e=JSON.parse(work.evidence_json);previous={checked_at:e.proof.verifiedAt,lease_until:0,outcome:e.outcome,items_json:JSON.stringify(e.items),proof_json:JSON.stringify(e.proof)};}catch{}}
  const evidenceKey=await hash(row.title_fingerprint||'');
  const previousProof=(()=>{try{return JSON.parse(previous?.proof_json||'null');}catch{return null;}})();
  if(await reusablePrimaryEvidence(previous,row,source,now))return previous;
  if(initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey)return {...previous,outcome:'facts_primary_evidence_unchanged'};
- if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
- const budget=await recoveryBudget(store,source,now);
+ const budget=await recoveryBudget(store,source,now),freshSince=initialPrimarySource(source)?budget.since-1:now-DAY;
+ if(previous?.checked_at>freshSince){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
+ if(dailyOnly&&initialPrimarySource(source)&&work)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
  // Parser-version keys are not permission to fetch the same article twice today.
  if(initialPrimarySource(source)){
   const sameUrl=await store.db.prepare("SELECT * FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=? AND (substr(source_id,-?)=? OR json_extract(CASE WHEN json_valid(proof_json) THEN proof_json ELSE '{}' END,'$.sourceUrl')=?) ORDER BY checked_at DESC LIMIT 1").bind(source.id+':',budget.since,row.id.length+1,':'+row.id,row.source_url).first();
@@ -92,7 +99,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
  const token=crypto.randomUUID();
  const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) SELECT ?,?,?,?,'in_progress' WHERE NOT ? OR (SELECT COUNT(*) FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>=?)<?
  ON CONFLICT(source_id) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,checked_at=excluded.checked_at,outcome='in_progress',items_json=NULL,proof_json=NULL WHERE lease_until<=? AND checked_at<=?`)
- .bind(cacheKey,token,now+60000,now,+initialPrimarySource(source),initialPrimarySource(source)?'':source.id,source.id+':',budget.since,budget.limit,now,now-DAY).run();
+ .bind(cacheKey,token,now+60000,now,+initialPrimarySource(source),initialPrimarySource(source)?'':source.id,source.id+':',budget.since,budget.limit,now,freshSince).run();
  if(claimed.meta.changes!==1)throw Error('facts_recheck_busy');
  let acquired=false,items=[],proof=null,outcome='facts_unavailable',publisherBackoff=0;
  try{
@@ -186,6 +193,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if(healthCode)await store.recordHealth({sourceId:source.id,...healthForOutcome(healthCode),checkedAt:now,nextEligibleAt:Math.max(publisherBackoff,now+DAY)});
   }
   await store.db.prepare('UPDATE news_facts_sources SET lease_until=0,outcome=?,items_json=?,proof_json=? WHERE source_id=? AND lease_token=?').bind(outcome,JSON.stringify(items),proof?JSON.stringify(proof):null,cacheKey,token).run();
+  if(initialPrimarySource(source)&&proof)await discoveryState(store,source.id,row.source_url,now,{state:outcome==='verified_surface'?'evidence_insufficient':'parser_failed',reason:outcome,nextAction:outcome==='verified_surface'?'evaluate':'new_parser_or_evidence',parserVersion:PRIMARY_ANNOUNCEMENT_PARSER,evidenceRef:proof.responseHash,diagnostics:{stage:'facts',missingFields:proof.diagnostics?.missingFields||[]},evidence:{outcome,items,proof}});
  }
  return await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
 }
@@ -243,6 +251,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  }
  if(!await store.db.prepare('SELECT request_id FROM news_facts_rechecks WHERE request_id=? AND request_payload_hash=?').bind(input.requestId,payloadHash).first())throw Error('candidate_changed');
  const detail=await reviewDetail(store,row.id,now,registry,pepper);
+ await recordDiscoveryResult(store,source,{url:row.source_url},now,{row:await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first(),validation:detail.validation,result:{outcome,diagnostics}});
  return {id:row.id,outcome,recovered:!!patch,validation:detail.validation,...(diagnostics?{diagnostics}:{})};
 }
 

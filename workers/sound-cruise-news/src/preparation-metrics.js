@@ -1,3 +1,4 @@
+import {recordDiscoveryResult,discoverySummary} from './discovery-work.js';
 // Bounded, facts-only observations. Never a publication/feedback write or HTTP call.
 import {publicationValidation} from './decision-policy.js';
 import {factualLabel,allowedArticlePath} from './metadata.js';
@@ -26,13 +27,15 @@ export async function recordPreparationMetrics(store,report,now,registry,pepper)
  for(const o of [...observations.values()].sort((a,b)=>+b.created-+a.created)){
   const row=byUrl.get(o.url),exists=!!row&&!o.created,isKnown=known.has(o.url)||exists;
   m[isKnown?'knownUrls':'newUrls']++;m.candidateGenerated+=+o.generated;m.candidateCreated+=+o.created;
-  let status=o.created?'candidate_created':exists?'known_candidate':o.generated?'duplicate_or_storage_guard':'not_candidate';
+  let validation=null,status=o.created?'candidate_created':exists?'known_candidate':o.reason==='storage_duplicate'?'duplicate_blocked':o.generated?'duplicate_or_storage_guard':'not_candidate';
+  if(!row&&o.reason==='storage_duplicate')m.duplicateExcluded++;
   if(row&&['pending','reopened'].includes(row.review_status)&&m.validationEvaluated<100){
    const f=parse(row.product_facts);if(f&&factualLabel(f,row.event_type)&&!f.scopeUncertain)m.factsComplete++;
-   const v=await publicationValidation(store,row,now,registry,pepper);m.validationEvaluated++;
+   const v=await publicationValidation(store,row,now,registry,pepper);validation=v;m.validationEvaluated++;
    if(v.valid){m.validationPassed++;m.ready++;m.readyNew+=+o.created;status='ready_for_human_decision';}
    else{for(const error of v.errors)add(m.validationFailures,code(error));if(v.errors.includes('duplicate')){m.duplicateExcluded++;status='duplicate_blocked';}else status='needs_evidence_or_policy';}
   }else if(row&&['pending','reopened'].includes(row.review_status)){m.validationNotMeasured++;status='validation_not_measured';}
+  await recordDiscoveryResult(store,source,{url:o.url,publishedAt:o.publishedAt},now,{row,reason:o.reason,validation,result:report.initialRecovery?.items?.find(i=>i.id===row?.id)});
   add(m.outcomeCounts,status);
   const stamp=Date.parse(o.publishedAt),published=Number.isFinite(stamp)?new Date(stamp).toISOString():null;
   receipts.push({url:o.url,published,status,reason:o.reason,candidateId:row?.id||null});
@@ -41,6 +44,7 @@ export async function recordPreparationMetrics(store,report,now,registry,pepper)
  m.rates={candidateCreation:ratio(m.candidateCreated,m.newUrls),factsCompleteness:ratio(m.factsComplete,m.validationEvaluated),validationSuccess:ratio(m.validationPassed,m.validationEvaluated),readyForNewCandidate:ratio(m.readyNew,m.candidateCreated)};
  if(report.initialRecovery)m.initialRecovery={...report.initialRecovery,detailHttp:report.primaryHttp||{success:0,failure:0}};
  if(report.backfill)m.backfill={...report.backfill};
+ m.discovery=await discoverySummary(store,now,source.id);
  const runId=report.runId;
  const statements=[store.db.prepare(`INSERT INTO news_discovery_receipts(source_id,normalized_url,first_seen_at,last_seen_at,published_at,outcome,reason_code,candidate_id)
  SELECT ?,json_extract(j.value,'$.url'),?,?,json_extract(j.value,'$.published'),json_extract(j.value,'$.status'),json_extract(j.value,'$.reason'),json_extract(j.value,'$.candidateId') FROM json_each(?) j WHERE true

@@ -1,0 +1,77 @@
+{
+  "note": "Validated facts from two owner-authorized GET responses on 2026-10-27. No original headline, prose or HTML. Rendering in regression tests is a structural projection, not the original response.",
+  "cases": [
+    {
+      "id": "eaf31f47c07edcf543d1da402b5797fa959a08efe23474f7c9fed1777cd369ae",
+      "sourceId": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/100600/",
+      "publishedAt": "2026-10-23T15:00:00.000Z",
+      "initialCategory": "electric_guitar_bass",
+      "facts": {
+        "kind": "primary_product_notice",
+        "brand": "Charvel",
+        "product": "American Neo-Classic San Dimas SD1 HH HT",
+        "models": [
+          "American Neo-Classic San Dimas SD1 HH HT"
+        ],
+        "version": null,
+        "category": "electric_guitar_bass",
+        "productType": "guitar",
+        "identifierBasis": "verified_primary_announcement",
+        "listingSource": "shimamura",
+        "articleUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/100600/",
+        "subjectEvidence": {
+          "role": "primary_product_definition",
+          "boundModels": 1,
+          "typeBasis": "bound_guitar_construction",
+          "titleAndTableBound": true,
+          "qualifiedBodyModel": true
+        },
+        "announcement": {
+          "actor": "shimamura",
+          "action": "appearance",
+          "signal": "explicit_new_appearance"
+        }
+      },
+      "eventType": "new_product",
+      "label": "Charvelのギター「American Neo-Classic San Dimas SD1 HH HT」が登場",
+      "responseHash": "84c676c6e7f1fa7376813e4affa30d1ff3cb2a2dc7709f11457d3ae8c522cc77",
+      "verifiedAt": 1793054779766,
+      "parser": "primary-announcement-3"
+    },
+    {
+      "id": "391f67a76fcb5e803c9a9dd119ff7cad7be046a36817dda57d445ad758024282",
+      "sourceId": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/10/101292/",
+      "publishedAt": "2026-10-20T15:00:00.000Z",
+      "initialCategory": "amps_effects",
+      "facts": {
+        "brand": "Mad Professor",
+        "product": "Milestone Germanium Fuzz",
+        "models": [
+          "Milestone Germanium Fuzz"
+        ],
+        "version": null,
+        "category": "amps_effects",
+        "productType": "effect_pedal",
+        "productTypeEvidence": {
+          "product": "Milestone Germanium Fuzz",
+          "basis": "verified_primary_article"
+        },
+        "identifierBasis": "explicit_shimamura_product_fields",
+        "listingSource": "shimamura",
+        "articleUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/10/101292/",
+        "releaseEvent": {
+          "action": "release",
+          "basis": "verified_primary_article",
+          "date": "2026-10-21"
+        }
+      },
+      "eventType": "release",
+      "label": "Mad Professor、エフェクター「Milestone Germanium Fuzz」を発売",
+      "responseHash": "9a25aa13fe805d37bf168991e0b81fcabf1ebb7badd8fcc3e4beaeb98dcfa0e2",
+      "verifiedAt": 1793054781396,
+      "parser": "shimamura-product-fields-8"
+    }
+  ]
+}

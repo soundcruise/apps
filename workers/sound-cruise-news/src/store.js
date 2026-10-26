@@ -75,7 +75,7 @@ export class NewsStore {
  }
  async purge(now,{leadMs=0}={}){
   await this.db.prepare('DELETE FROM news_category_edits WHERE created_at<=?').bind(now-365*DAY).run();
-  await this.db.batch([this.db.prepare('DELETE FROM news_preparation_runs WHERE observed_at<=?').bind(now-90*DAY),this.db.prepare('DELETE FROM news_discovery_receipts WHERE last_seen_at<=?').bind(now-90*DAY)]);
+  await this.db.batch([this.db.prepare('DELETE FROM news_discovery_work WHERE updated_at<=?').bind(now-90*DAY),this.db.prepare('DELETE FROM news_preparation_runs WHERE observed_at<=?').bind(now-90*DAY),this.db.prepare('DELETE FROM news_discovery_receipts WHERE last_seen_at<=?').bind(now-90*DAY)]);
   await purgeDecisionLedger(this,now);
   await this.db.prepare('DELETE FROM news_agm_article_cache WHERE attempted_at<=? AND lease_until<=?').bind(now-90*DAY,now).run();
   await this.db.batch([this.db.prepare('DELETE FROM news_presentation_days WHERE day<?').bind(new Date(now-90*DAY).toISOString().slice(0,10)),this.db.prepare('DELETE FROM news_presentation_requests WHERE created_at<=?').bind(now-365*DAY)]);

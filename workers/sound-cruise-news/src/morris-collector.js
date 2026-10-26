@@ -1,3 +1,4 @@
+import {recordListingUrls,recordDiscovered} from './discovery-work.js';
 import {morrisNoticeLabel,MORRIS_FACT_CHECKS} from './morris-editorial-policy.js';
 import {observePreparation} from './preparation-metrics.js';
 import {legalGate} from './registry.js';
@@ -129,13 +130,13 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    if(rr.status!==404)throw Error('robots_changed_review');robots=robotsPolicy('',source,404);rr=null;
    await sleep(1000);let listing=await request(MORRIS_LISTING,key,'listing');
    if(listing.status!==200||!/text\/html/i.test(listing.headers.get('content-type')||''))throw Error('discovery_unavailable');
-   const responseHash=await hash(listing.text);try{entries=await parseMorrisListing(listing.text,pepper,{verifiedAt:now});}finally{listing.text='';listing=null;}
+   await recordListingUrls(store,source,listing.text,now);const responseHash=await hash(listing.text);try{entries=await parseMorrisListing(listing.text,pepper,{verifiedAt:now});}finally{listing.text='';listing=null;}
    const listingProof={sourceId:'morris',sourceUrl:MORRIS_LISTING,verifiedAt:now,responseHash,parserVersion:MORRIS_LISTING_PARSER,permissionRef:MORRIS_PERMISSION,canonicalBasis:'canonical',entryCount:entries.length};
    listingProof.diagnostics=summarizeMorrisDiagnostics(entries,listingProof);report.parserDiagnostics=listingProof.diagnostics;
    await store.db.prepare("UPDATE news_morris_acquisition SET outcome='verified',response_hash=?,entries_json=?,proof_json=? WHERE request_key=? AND outcome='reserved' AND actual_requests=2 AND attempted_at=? AND permission_ref=?").bind(responseHash,JSON.stringify(entries),JSON.stringify(listingProof),key,now,MORRIS_PERMISSION).run();
   }else return report;
   if(!Array.isArray(entries)||entries.length>100)throw Error('listing_structure_changed');
-  for(const entry of entries){
+  await recordDiscovered(store,source,entries,now);for(const entry of entries){
    await currentGate(store,source,now,mode,registry);
    if(!morrisArticleUrl(entry.url)||morrisUrlDate(entry.url)!==entry.publishedAt||!await validatedFingerprint(entry.fingerprint,pepper))throw Error('listing_structure_changed');
    report.candidates++;
