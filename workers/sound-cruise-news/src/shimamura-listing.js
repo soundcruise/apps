@@ -44,7 +44,7 @@ const categoryBadge={
 };
 // Fixed official listing only. The page heading and article anchors need not share a section.
 // Titles remain transient and are cleared by the caller; no scripts/assets/links are loaded.
-export function parseShimamuraListing(html,url=SHIMAMURA_LISTING_URL,{since=0}={}){
+export function parseShimamuraListing(html,url=SHIMAMURA_LISTING_URL,{since=0,knownUrls=null}={}){
  if(url!==SHIMAMURA_LISTING_URL)throw Error('listing_url_blocked');
  if(typeof html!=='string'||new TextEncoder().encode(html).length>LISTING_MAX_BYTES)throw Error('listing_too_large');
  let doc=parseDocument(html);html='';
@@ -76,8 +76,9 @@ export function parseShimamuraListing(html,url=SHIMAMURA_LISTING_URL,{since=0}={
    // A single malformed/missing date or conflicting badge needs review, not source shutdown.
    const uncertainty=!date?'missing_date':mismatch?'category_mismatch':'';
    const stamp=date?Date.parse(date):null;
-   // Date-only metadata overlaps one JST day; undated records stay pending for review.
-   if(since&&stamp!==null&&stamp<Math.floor((since+9*3600000)/86400000)*86400000-9*3600000-86400000){dispositions.push({url:article,date:date||'',reason:'before_watermark'});continue;}
+   // A date watermark can suppress known URLs, never a previously unseen late-listed
+   // article. Publication dates are not discovery timestamps. Downstream keeps 90 days.
+   if(since&&(knownUrls===null||knownUrls.has(article))&&stamp!==null&&stamp<Math.floor((since+9*3600000)/86400000)*86400000-9*3600000-86400000){dispositions.push({url:article,date:date||'',reason:'before_watermark'});continue;}
    entries.push({url:article,date:date||'',title,listingSection:'product_news',listingCategory:path,listingUncertainty:uncertainty});
   }
   if(usable<1||validDates<Math.max(1,Math.ceil(cards.length/2)))throw Error('listing_structure_changed');

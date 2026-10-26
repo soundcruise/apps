@@ -1348,3 +1348,34 @@ duplicate. Listing inputs are explicit structural reconstructions, not saved mor
 HTML. These checks do not claim the next live run has already succeeded. Existing
 published articles, human Ledger/feedback/Shadow, HOT/order/category overrides,
 source policies, cron, cache and access budgets remain protected.
+
+## 2026-10-27 — Collection audit and late-listed Shimamura URL recovery
+
+The October 25–27 daily cron invocations completed with Cloudflare outcome `ok`.
+D1 preparation evidence records two new candidates/one initial READY on October 25,
+none on October 26, and three newly observed URLs/no new candidate on October 27.
+Public NEWS groups use the original publication date, not discovery or approval:
+the SONIFIX item discovered/approved October 25 belongs to October 24. No published
+candidate has an October 25/26 original date. This is distinct from a scheduler outage.
+
+AGM remains stopped: each daily robots recovery check returned the reviewed 302 to
+its homepage. No redirect is followed. Other six active sources completed discovery;
+Yamaha remains OFF without acquisition. No publisher traffic is added for a rerun.
+
+Two newly observed Shimamura URLs dated October 24/21 were dropped as
+`before_watermark` before relevance/facts evaluation. Publication chronology cannot
+prove a URL was already discovered. NEWS 0.37.2 supplies the retained source-specific
+candidate URL set: the one-day overlap watermark may skip known URLs, but unseen
+URLs in the fixed listing reach the existing normal candidate/90-day pipeline.
+A discovery receipt without a candidate does not make a URL known. Existing article
+identity, status, policy gates, editorial exclusions and detail budget remain intact.
+No pagination, listing retry, extra daily collection or acquisition scope is added.
+
+Within the unused normal Shimamura one-article/day budget, the October 27 audit made
+one robots check and one GET of newly discovered article 100600. Both returned 200.
+The current primary response confirms a Charvel product notice; the established
+parser cannot safely corroborate the title/body model spelling and product type.
+No invented facts or forced READY is permitted. The response is held only in memory
+for diagnosis/replay; only bounded facts metadata/hash/outcome persist. The second
+late URL is not fetched after this budget is spent. No approval/rejection or existing
+published article, human Ledger/feedback/Shadow, HOT/order/category edit is authorized.

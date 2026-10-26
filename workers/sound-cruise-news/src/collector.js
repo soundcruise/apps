@@ -131,7 +131,8 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
    if(listing){
     if(!/text\/html/i.test(discovery.headers.get('content-type')||''))throw Error('listing_structure_changed');
     if(source.id==='kikutani')discovery.responseHash=await hash(discovery.text);
-    let parsed;try{parsed=shimListing?parseShimamuraListing(discovery.text,source.discoveryUrl,{since:requestMode==='operator_validation'?0:state.lastDiscoveryAt||0}):parseOfficialListing(discovery.text,source);}finally{discovery.text='';}
+    const knownUrls=shimListing?new Set((await store.db.prepare('SELECT source_url,normalized_url FROM candidate_items WHERE source_id=?').bind(source.id).all()).results.flatMap(r=>[r.source_url,r.normalized_url].filter(Boolean))):null;
+    let parsed;try{parsed=shimListing?parseShimamuraListing(discovery.text,source.discoveryUrl,{since:requestMode==='operator_validation'?0:state.lastDiscoveryAt||0,knownUrls}):parseOfficialListing(discovery.text,source);}finally{discovery.text='';}
     entries=parsed.entries;for(const d of parsed.dispositions||[])observePreparation(report,d,{reason:d.reason});if(source.id==='kikutani'){const proof={sourceId:source.id,sourceUrl:source.discoveryUrl,verifiedAt:now,extractionMethod:'explicit_kikutani_listing_card',parserVersion:KIKUTANI_LISTING_PARSER,responseHash:discovery.responseHash};for(const entry of entries)entry.listingProof=proof;}report.candidates=parsed.cards;report.reasons=parsed.reasons;report.rejected=Object.values(parsed.reasons).reduce((a,b)=>a+b,0);
    }else{
     if(!/xml|rss|atom/i.test(discovery.headers.get('content-type')||''))throw new Error('non_metadata_response');
