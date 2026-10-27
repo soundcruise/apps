@@ -1508,3 +1508,11 @@ Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（sch
 ## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
 
 0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](docs/SCHEMA2_FOUNDATION.md)を参照。
+
+## New consumer Admission / BPM isolated vertical (0.47.18 candidate)
+
+Readonly cutover generations can request a new, exact operation lease through the
+existing owner SQL gate. Studio's injected draft controller exercises read/edit/
+explicit save/reload; normal boot and canWrite=false remain unchanged. See Port
+`docs/CONSUMER_READMISSION_BPM_ISOLATED.md`. Renewal adoption into another local
+Authority, normal consumer/provider cutover and production Cloud remain later gates.

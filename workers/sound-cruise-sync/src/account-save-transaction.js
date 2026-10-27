@@ -50,13 +50,14 @@ const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.cr
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
 
-export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,enableOwnerCutover=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,enableOwnerCutover=false,enableConsumerReadmission=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
  if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
  const handles=new WeakMap();let disposed=false;
  let ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
  if(enableOperationLease)ownerSql=ownerSql.replace('SELECT ','SELECT d.operation_fence_revision, ');
  if(enableOwnerCutover&&(!enableOperationLease||!requireLifecycleBinding))throw error('owner-cutover-mode-invalid');
- const cutovers=createOwnerCutoverOwner({db,checksum,guard,checkpoint});
+ if(enableConsumerReadmission&&!enableOwnerCutover)throw error('consumer-readmission-mode-invalid');
+ const cutovers=createOwnerCutoverOwner({db,checksum,guard,checkpoint,enableConsumerReadmission});
  const leases=createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtlMs:operationLeaseTtlMs,...(enableOwnerCutover?{operationGate:cutovers.operationGate}:{})});
  const live=()=>{if(disposed)throw error('backend-disposed');};
  const attempt=fn=>async(...args)=>{try{live();return await fn(...args);}catch(e){return closed({ok:false,reason:e.code||e.message||'backend-unavailable',recoveryRequired:true});}};
@@ -184,7 +185,7 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    const handle=closed({ok:true,binding});handles.set(handle,{...p,admission,credentials,attempted:false});await checkpoint('after-prepare');return handle;
  }
 async function reconcileLease(envelope,lease,credentials,{current=false}={}){
-   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);if(envelope.schemaVersion===3&&!enableConsumerReadmission)throw error('consumer-readmission-unavailable');
    lease=frozen(data(lease));let p;if(current){const h=await prepareSave(envelope.request,credentials);p=handles.get(h);}else{p=await fixed(envelope.request);const auth=await authenticate(p.q,credentials,{recordClock:true,history:true});p.row=auth.row;p.admission=await writerAuthorization(p.q,credentials,auth);}
    const row=await leases.status(envelope,lease,p);if(row.state!=='committed')return closed({ok:true,state:row.state,backendCommitted:false,historical:true});
    if(current){if(enableOwnerCutover)await cutovers.binding(envelope,p);const c=leases.condition(p,'committed'),g=guard(db.withSession('first-primary'),p),w=fenceQuery(p.admission,{payload:p.operation.payload});const r=await db.withSession('first-primary').prepare('SELECT ('+c.sql+' AND '+g.sql+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok')) AS valid`).bind(...c.values,...g.values,...w.values).first();if(r?.valid!==1)throw error('operation-lease-current-unproven');}
@@ -196,11 +197,11 @@ async function reconcileLease(envelope,lease,credentials,{current=false}={}){
  return Object.freeze({fixtureOnly:true,
   prepare:attempt(async(...args)=>{if(enableOperationLease)throw error('operation-lease-required');return prepareSave(...args);}),
   issueOperationLease:attempt(async(envelope,credentials)=>{
-   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);if(envelope.schemaVersion===3&&!enableConsumerReadmission)throw error('consumer-readmission-unavailable');
    const h=await prepareSave(envelope.request,credentials),p=handles.get(h);if(enableOwnerCutover)await cutovers.binding(envelope,p);const lease=await leases.issue(envelope,p);return closed({ok:true,lease});
   }),
   prepareLeased:attempt(async(envelope,lease,credentials)=>{
-   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);lease=frozen(data(lease));const h=await prepareSave(envelope.request,credentials),p=handles.get(h);if(enableOwnerCutover)await cutovers.binding(envelope,p);await leases.requireIssued(envelope,lease,p);return h;
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);if(envelope.schemaVersion===3&&!enableConsumerReadmission)throw error('consumer-readmission-unavailable');lease=frozen(data(lease));const h=await prepareSave(envelope.request,credentials),p=handles.get(h);if(enableOwnerCutover)await cutovers.binding(envelope,p);await leases.requireIssued(envelope,lease,p);return h;
   }),
   reconcileLeased:attempt(reconcileLease),
   cutoverStop:attempt(async(input,credentials)=>{const {q,p}=await cutoverContext(input,credentials);return closed({ok:true,stopReceipt:await cutovers.stop(q,p),phase:'stopped'});}),

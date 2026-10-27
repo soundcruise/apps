@@ -1,3 +1,4 @@
+import {readConsumerReadmissionBasis} from './port-consumer-readmission-contract.mjs';
 // Explicit fixture-only BPM path on a readonly/fenced reauthorized generation.
 // SQL success and local application are separate facts; never auto replay either.
 import {authorityProEnvironment,authorityUsesIndexedDB,openIDBAuthorityStore,claimPortAuthorityIssuer} from './port-indexeddb-authority-store.mjs';
@@ -16,9 +17,10 @@ const errorCategories=new Map(Object.entries({
 }));
 const classify=e=>errorCategories.get(e?.code)||(stopReasons.has(e?.code)?e.code:'operation-unproven');
 const closed=r=>frozen({canWrite:false,sharedWrite:false,normalWriterConnected:false,productionReady:false,operationAuthorized:false,currentAuthorityVerified:false,...r});
-export async function createIsolatedOwnerOperation({scope,indexedDB,source,locks,dispatch,url,getBackendCredentials,makeBackendRequest,consumerBinding=false,timeoutMs=1000,checkpoint=async()=>{}}={}){
+export async function createIsolatedOwnerOperation({scope,indexedDB,source,locks,dispatch,url,getBackendCredentials,makeBackendRequest,consumerBinding=false,consumerReadmission=null,timeoutMs=1000,checkpoint=async()=>{}}={}){
  const env=authorityProEnvironment(scope);env.assertLive();const target=new URL(url);
  if(!env.fixtureOnly||!authorityUsesIndexedDB(scope,indexedDB)||!locks?.request||!['127.0.0.1','localhost','owner-route.invalid'].includes(target.hostname)||['8765','8766'].includes(target.port)||typeof dispatch!=='function'||typeof getBackendCredentials!=='function'||typeof makeBackendRequest!=='function'||typeof checkpoint!=='function'||['capture','inspect','current'].some(k=>typeof source?.[k]!=='function')||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>10000)throw fail('owner-operation-isolation-required');
+ if(consumerReadmission!==null&&(!uuid(consumerReadmission)||!consumerBinding))throw fail('owner-operation-isolation-required');
  const store=await openIDBAuthorityStore(scope),cutover=createIsolatedAccountCutoverSource({indexedDB,scopeName:scope.name}),backup=createIsolatedRecoveryBackupStore({indexedDB,scopeName:scope.name});let issuer;
  try{issuer=claimPortAuthorityIssuer(scope);}catch(e){store.dispose();throw e;}
  const handles=new WeakMap();let disposed=false;const live=()=>{env.assertLive();if(disposed)throw fail('owner-operation-disposed');};
@@ -38,7 +40,7 @@ export async function createIsolatedOwnerOperation({scope,indexedDB,source,locks
  }
  async function current(p,{authority=true}={}){
   live();if(!await source.current(p.context)||!await cutover.current(p.account.context))throw fail('owner-operation-account-stale');if(digest(await inventory())!==p.inventoryDigest)throw fail('owner-operation-pending-unresolved');
-  if(p.envelope.schemaVersion===2){const c=await store.readConsumer();if(!c.ok||!equal(c.consumer,p.envelope.consumer))throw fail('owner-operation-authority-stale');}
+  if(p.envelope.schemaVersion>=2){const c=await store.readConsumer();if(!c.ok||!equal(c.consumer,p.envelope.consumer))throw fail('owner-operation-authority-stale');}
   if(authority){const h=await store.hydrate(p.envelope.authority.generation);if(!h.ok||digest(h.snapshot)!==p.envelope.authority.baseDigest)throw fail('owner-operation-authority-stale');}live();
  }
  function proof(p,r){const v={schemaVersion:1,purpose:'owner-committed-bpm-application-v1',envelope:p.envelope,lease:p.lease,backendReceipt:r.receipt,operationLeaseReceipt:r.operationLeaseReceipt,fingerprint:p.localIdentity.fingerprint};validateOwnerOperationProof(v);return v;}
@@ -59,21 +61,33 @@ export async function createIsolatedOwnerOperation({scope,indexedDB,source,locks
  // It cannot overwrite the pre-request pin or substitute a different envelope.
  async function leaseFor(operationId){const row=await backup.read('op-lease-'+operationId);if(row?.packet?.purpose!=='owner-operation-lease-pin-v1'||row.packet.schemaVersion!==1||!equal(Object.keys(row.packet).sort(),['schemaVersion','purpose','operationId','lease'].sort())||row.packet.operationId!==operationId)throw fail('owner-operation-lease-unknown');return row.packet.lease;}
  return Object.freeze({
+  load:attempt(async()=>{
+   if(!consumerReadmission)throw fail('owner-operation-source-unproven');
+   const pointer=await store.readPointer();if(!pointer.ok)throw fail('owner-operation-authority-stale');
+   const generation=pointer.pointer.activeGeneration,basis=await readConsumerReadmissionBasis({store,backup,generation,transitionId:consumerReadmission,scopeName:scope.name}),h=await store.hydrate(generation),context=await source.capture(),account=await cutover.capture();
+   if(!h.ok||!h.snapshot.active||!equal(h.snapshot.pointer,basis.pointer)||!h.snapshot.control.suspended||!h.snapshot.control.fenceRevoked||h.snapshot.control.recoveryRequired||h.snapshot.control.identityInvalidated||digest(await source.inspect(context))!==basis.q0.sourceAccountDigest||digest(account.manifest)!==basis.q0.sourceManifestDigest||!await source.current(context)||!await cutover.current(account.context))throw fail('owner-operation-source-stale');
+   const settings=JSON.parse(h.snapshot.values['cruisePort.metronome']);if(!Number.isInteger(settings.bpm)||settings.bpm<30||settings.bpm>240)throw fail('owner-operation-source-unproven');
+   return closed({ok:true,generation,bpm:settings.bpm,settings,snapshotDigest:digest(h.snapshot)});
+  }),
   prepare:attempt(async(input={})=>{
-   input=frozen(structuredClone(input));if(!equal(Object.keys(input).sort(),['generation','reauthorizationOperationId','operationId','bpm','expectedBackendRevision','explicit'].sort())||input.explicit!==true||!uuid(input.operationId)||!uuid(input.reauthorizationOperationId)||!Number.isInteger(input.bpm)||input.bpm<30||input.bpm>240||!Number.isSafeInteger(input.expectedBackendRevision)||input.expectedBackendRevision<0)throw fail('owner-operation-explicit-required');
+   input=frozen(structuredClone(input));if(!equal(Object.keys(input).sort(),['generation',...(!consumerReadmission?['reauthorizationOperationId']:[]),'operationId','bpm','expectedBackendRevision','explicit'].sort())||input.explicit!==true||!uuid(input.operationId)||!consumerReadmission&&!uuid(input.reauthorizationOperationId)||!Number.isInteger(input.bpm)||input.bpm<30||input.bpm>240||!Number.isSafeInteger(input.expectedBackendRevision)||input.expectedBackendRevision<0)throw fail('owner-operation-explicit-required');
    return locks.request('sound-cruise-port-account-coordination-v1:'+scope.partitionId,{mode:'exclusive'},async()=>{
-    const birth=await store.lookupReauthorization(input.generation,input.reauthorizationOperationId),h=await store.hydrate(input.generation);if(!birth.ok||!h.ok||!h.snapshot?.active||!equal(h.snapshot.pointer,birth.fact.pointer))throw fail('owner-operation-generation-unproven');
-    const recovery=birth.fact.evidence.reauthorization,q0=recovery.request,k=recovery.qualification,context=await source.capture(),record=await source.inspect(context),account=await cutover.capture(),c=h.snapshot.control;
+    const h=await store.hydrate(input.generation);let origin;
+    if(consumerReadmission)origin=await readConsumerReadmissionBasis({store,backup,generation:input.generation,transitionId:consumerReadmission,scopeName:scope.name});
+    else{const birth=await store.lookupReauthorization(input.generation,input.reauthorizationOperationId);if(!birth.ok)throw fail('owner-operation-generation-unproven');const recovery=birth.fact.evidence.reauthorization;origin={pointer:birth.fact.pointer,receiptDigest:birth.receiptDigest,q0:recovery.request,k:recovery.qualification};}
+    if(!h.ok||!h.snapshot?.active||!equal(h.snapshot.pointer,origin.pointer))throw fail('owner-operation-generation-unproven');
+    const {q0,k}=origin,context=await source.capture(),record=await source.inspect(context),account=await cutover.capture(),c=h.snapshot.control;
     if(!account.manifest.supported||account.manifest.physicalVersion!==3||digest(record)!==q0.sourceAccountDigest||digest(account.manifest)!==q0.sourceManifestDigest||c.state!=='active'||!c.suspended||!c.fenceRevoked||c.identityInvalidated||c.recoveryRequired||record.accountId!==q0.accountId||record.accountDeviceId!==q0.accountDeviceId)throw fail('owner-operation-source-unproven');
-    const rows=await inventory(),prefix='port-recovery-v1:'+scope.name+':',known=new Set(['renew-'+q0.adoptionOperationId]);
-    const reauthRow=await backup.read('reauth-'+input.reauthorizationOperationId),adopt=reauthRow?.packet?.adopt;
-    if(!adopt||reauthRow.packet.requestDigest!==recovery.requestDigest)throw fail('owner-operation-provenance-unproven');
-    known.clear();for(const id of ['renew-'+adopt.renewalOperationId,'adopt-'+adopt.operationId,'reauth-'+input.reauthorizationOperationId])known.add(prefix+id);
+    const rows=await inventory(),prefix='port-recovery-v1:'+scope.name+':';let known;
+    if(consumerReadmission)known=origin.known;
+    else{const reauthRow=await backup.read('reauth-'+input.reauthorizationOperationId),adopt=reauthRow?.packet?.adopt;
+     if(!adopt||reauthRow.packet.requestDigest!==digest(q0))throw fail('owner-operation-provenance-unproven');
+     known=new Set(['renew-'+adopt.renewalOperationId,'adopt-'+adopt.operationId,'reauth-'+input.reauthorizationOperationId].map(id=>prefix+id));}
     const seen=new Set();for(const row of rows){if(known.has(row.id)){seen.add(row.id);continue;}if(row.id===prefix+'op-'+input.operationId||row.id===prefix+'op-lease-'+input.operationId)throw fail('owner-operation-reconcile-required');
      if(row.id.startsWith(prefix+'op-lease-'))continue;
      if(!row.id.startsWith(prefix+'op-')||row.id!==prefix+'op-'+row.packet?.operationId||row.packet?.envelope?.authority?.generation!==input.generation)throw fail('owner-operation-pending-unresolved');if(!(await resolved(row.packet,await leaseFor(row.packet.operationId))).ok)throw fail('owner-operation-pending-unresolved');
     }
-    if(seen.size!==3)throw fail('owner-operation-provenance-unproven');
+    if(seen.size!==known.size)throw fail('owner-operation-provenance-unproven');
     // No orphan lease pin may be silently skipped.
     for(const row of rows.filter(r=>r.id.startsWith(prefix+'op-lease-'))){const p=row.packet,op=rows.find(r=>r.id===prefix+'op-'+p?.operationId);
      if(!p||p.schemaVersion!==1||p.purpose!=='owner-operation-lease-pin-v1'||!equal(Object.keys(p).sort(),['schemaVersion','purpose','operationId','lease'].sort())||!uuid(p.operationId)||row.id!==prefix+'op-lease-'+p.operationId||!op||op.packet?.purpose!=='owner-operation-pending-v1'||op.packet.envelopeDigest!==digest(op.packet.envelope))throw fail('owner-operation-pending-unresolved');validateOperationLease(p.lease,op.packet.envelope);if(p.lease.envelopeDigest!==op.packet.envelopeDigest)throw fail('owner-operation-pending-unresolved');
@@ -84,7 +98,7 @@ export async function createIsolatedOwnerOperation({scope,indexedDB,source,locks
     Object.assign(q,{localGeneration:input.generation,localRevision:digest(h.snapshot),accountId:q0.accountId,accountDeviceId:q0.accountDeviceId,accountGeneration:q0.accountGeneration,membershipId:q0.membershipId,membershipGeneration:q0.membershipGeneration,credentialVersion:q0.credentialVersion,credentialLeaseRevision:q0.credentialLeaseRevision,runtimeGeneration:q0.runtimeGeneration,datasetId:k.datasetId,appDeviceId:k.appDeviceId,writeEpoch:k.writeEpoch});
     if(q.operation.operationId!==input.operationId||q.operation.baseRevision!==input.expectedBackendRevision||!equal(q.operation.payload.value,JSON.parse(next)))throw fail('owner-operation-request-mismatch');
     const consumer=consumerBinding?await store.readConsumer():null;if(consumerBinding&&!consumer?.ok)throw fail('owner-operation-source-unproven');
-    const envelope=frozen(structuredClone({schemaVersion:consumerBinding?2:1,purpose:consumerBinding?'owner-operation-lease-envelope-v2':'owner-operation-lease-envelope-v1',...(consumerBinding?{consumer:consumer.consumer}:{}),request:q,authority:{generation:input.generation,controlEpoch:c.epoch,fenceEpoch:c.fenceEpoch,pointer:h.snapshot.pointer,headRevision:h.snapshot.head.revision,baseDigest:digest(h.snapshot),keyRevision:h.snapshot.versions['cruisePort.metronome']},accountDigest:digest(record),accountManifestDigest:digest(account.manifest),reauthorizationReceiptDigest:birth.receiptDigest}));validateOperationEnvelope(envelope);
+    const envelope=frozen(structuredClone({schemaVersion:consumerReadmission?3:consumerBinding?2:1,purpose:consumerReadmission?'owner-consumer-readmission-envelope-v1':consumerBinding?'owner-operation-lease-envelope-v2':'owner-operation-lease-envelope-v1',...(consumerReadmission?{readmission:origin.readmission}:{}),...(consumerBinding?{consumer:consumer.consumer}:{}),request:q,authority:{generation:input.generation,controlEpoch:c.epoch,fenceEpoch:c.fenceEpoch,pointer:h.snapshot.pointer,headRevision:h.snapshot.head.revision,baseDigest:digest(h.snapshot),keyRevision:h.snapshot.versions['cruisePort.metronome']},accountDigest:digest(record),accountManifestDigest:digest(account.manifest),reauthorizationReceiptDigest:origin.receiptDigest}));validateOperationEnvelope(envelope);
     const p={context,account,envelope,localIdentity,handle,attempted:false,inventoryDigest:digest(rows),inventoryRows:rows};await current(p);await checkpoint('before-operation-pin');await current(p);
     const pin={schemaVersion:1,purpose:'owner-operation-pending-v1',operationId:input.operationId,envelope,envelopeDigest:digest(envelope),localIdentity};await appendPin(p,'op-'+input.operationId,pin,'after-own-operation-pin');p.pin=pin;
     p.lease=(await request('lease',p)).lease;validateOperationLease(p.lease,envelope);await current(p);await appendPin(p,'op-lease-'+input.operationId,{schemaVersion:1,purpose:'owner-operation-lease-pin-v1',operationId:input.operationId,lease:p.lease},'after-own-lease-pin');
@@ -100,6 +114,30 @@ export async function createIsolatedOwnerOperation({scope,indexedDB,source,locks
     await checkpoint('before-operation-local');await current(p);const local=await store.applyCommittedOwnerOperation({handle:p.handle,capability:issuer.issue('control:apply-owner-operation',{generation:p.envelope.authority.generation}),attestation:issuer.attestFixtureOwnerOperation(proof(p,r))});
     if(!local.ok)throw fail('owner-operation-local-unproven');Object.assign(facts,{localCommitted:true,localReceipt:local});await checkpoint('local-application-result',local);await checkpoint('after-operation-local');await current(p,{authority:false});const reconciled=await resolved(p.pin,p.lease);return reconciled.ok?reconciled:closed({...reconciled,...facts,ok:false,status:'operation-applied-current-unconfirmed',recoveryRequired:true});
     }catch(e){return closed({...facts,ok:false,stopReason:classify(e),status:facts.backendCommitted===true?(facts.localCommitted===true?'operation-applied-current-unconfirmed':'backend-committed-local-unproven'):'operation-unproven',recoveryRequired:true});}
+   });
+  }),
+  // Explicit application of ONE proven SQL success on the exact same local base.
+  // Never calls operation/save, never changes generation or deletes a pin.
+  recoverPending:attempt(async({operationId,explicit}={})=>{
+   if(!consumerReadmission||explicit!==true||!uuid(operationId))throw fail('owner-operation-explicit-required');
+   return locks.request('sound-cruise-port-account-coordination-v1:'+scope.partitionId,{mode:'exclusive'},async()=>{
+    const pin=(await backup.read('op-'+operationId))?.packet,lease=await leaseFor(operationId),p=await contextFor(pin);validateOperationLease(lease,p.envelope);
+    if(p.envelope.schemaVersion!==3||p.envelope.readmission.transitionId!==consumerReadmission)throw fail('owner-operation-authority-stale');
+    const observed=await resolved(pin,lease);if(observed.ok)return observed;
+    const facts={backendCommitted:observed.backendCommitted,localCommitted:observed.localCommitted,operationId,historical:true};try{
+    const local=await store.reconcileOperation(pin.localIdentity);if(local.ok||local.reason!=='operation-unproven')throw fail('owner-operation-local-unproven');
+    const basis=await readConsumerReadmissionBasis({store,backup,generation:p.envelope.authority.generation,transitionId:consumerReadmission,scopeName:scope.name}),rows=await inventory(),prefix='port-recovery-v1:'+scope.name+':';
+    for(const row of rows){if(basis.known.has(row.id)||row.id===prefix+'op-'+operationId||row.id===prefix+'op-lease-'+operationId)continue;
+     if(row.id.startsWith(prefix+'op-lease-')){const op=rows.find(r=>r.id===prefix+'op-'+row.packet?.operationId);if(!op||!equal(Object.keys(row.packet).sort(),['schemaVersion','purpose','operationId','lease'].sort())||row.packet.schemaVersion!==1||row.packet.purpose!=='owner-operation-lease-pin-v1'||row.id!==prefix+'op-lease-'+row.packet.operationId)throw fail('owner-operation-pending-unresolved');validateOperationLease(row.packet.lease,op.packet.envelope);continue;}
+     if(row.id!==prefix+'op-'+row.packet?.operationId||row.packet?.envelope?.authority?.generation!==p.envelope.authority.generation||!(await resolved(row.packet,await leaseFor(row.packet.operationId))).ok)throw fail('owner-operation-pending-unresolved');
+    }
+    p.inventoryDigest=digest(rows);p.inventoryRows=rows;p.lease=lease;await current(p);
+    const h=await store.hydrate(p.envelope.authority.generation);p.handle=store.prepare({base:h.snapshot,operationId,action:'saveBpm',changes:pin.localIdentity.body.changes});
+    if(!equal(store.recoveryIdentity(p.handle),pin.localIdentity))throw fail('owner-operation-local-unproven');
+    const r=await request('current',p,lease),receiptProof=proof(p,r);Object.assign(facts,{backendCommitted:true,receipt:r.receipt,operationLeaseReceipt:r.operationLeaseReceipt});await current(p);await checkpoint('before-explicit-consumer-local');await current(p);
+    const applied=await store.applyCommittedOwnerOperation({handle:p.handle,capability:issuer.issue('control:apply-owner-operation',{generation:p.envelope.authority.generation}),attestation:issuer.attestFixtureOwnerOperation(receiptProof)});
+    if(!applied.ok)throw fail('owner-operation-local-unproven');Object.assign(facts,{backendCommitted:true,localCommitted:true,localReceipt:applied});await checkpoint('after-explicit-consumer-local');const reconciled=await resolved(pin,lease);return reconciled.ok?reconciled:closed({...reconciled,...facts,ok:false,status:'operation-applied-current-unconfirmed',recoveryRequired:true});
+    }catch(e){return closed({...facts,ok:false,status:facts.localCommitted===true?'operation-applied-current-unconfirmed':'backend-committed-local-unproven',stopReason:classify(e),recoveryRequired:true});}
    });
   }),
   recover:attempt(async({operationId}={})=>{if(!uuid(operationId))throw fail('owner-operation-id-invalid');const row=await backup.read('op-'+operationId);return resolved(row?.packet,await leaseFor(operationId));}),
