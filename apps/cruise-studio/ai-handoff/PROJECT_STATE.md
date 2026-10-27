@@ -1,3 +1,7 @@
+# Studio 0.47.16 — 操作単位Owner Lease/Fencing（未公開隔離候補）
+
+Port1.24.19 / Project schema2。PR #21固定head 43b4eb11を直接親とする。操作ごとに既存Account/app/Pro/writerを確認し、owner SQL最終assertionへlease・fence・UUID・digest・CAS・receiptを結合する。新Authorityはsuspended/fenceRevokedのまま、同一backend確定BPM操作だけをopaque fixture purposeで限定適用。独立DB間の原子性・remote expiry through IDB・live pointerのserver把握は保証しない。部分成功はbackend/local receiptを分離して保持し自動再送しない。未知pending・floorは補修しない。Shared Write OFF/canWrite=false、通常writer/本番/Cloud/cutover/L3d未接続。契約: [Owner Operation Lease Admission](../../cruise-port/docs/OWNER_OPERATION_LEASE_ADMISSION.md)。以下は履歴。
+
 # Studio 0.47.15 — 明示再認可 / readonly Authority世代復旧（未公開隔離候補）
 
 Port1.24.18 / Project schema2。PR #20固定head 79083244が直接親。現行Account資格のHMAC・expiry・世代・Pro/writerを隔離owner SQLで再確認し、専用purpose/receiptで新Authority世代へ移る。新世代は公開時からsuspended+fenceRevokedでreadonly、旧採用stopを保持。通常publishのinvalidated拒否は維持。Account/SQL/Authority/backup間は非原子的で、結果不明や未解決backupは停止・保持、historical照合のみ。Cloud fence/排他leaseは未提供。v1は既知empty binary/Sync fixture限定、データmigrationや通常writer再開ではない。Shared Write OFF/canWrite=false、本番/Cloud/consumer/L3d未接続。契約: [Authority Reauthorization Recovery](../../cruise-port/docs/AUTHORITY_REAUTHORIZATION_RECOVERY.md)。以下は履歴。

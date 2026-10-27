@@ -18,13 +18,19 @@ export function createIsolatedAccountSaveRoutes(options={}){
  const lifecycle=createIsolatedCredentialLifecycle({...options,pepper:options.accountPepper}),transaction=createIsolatedAccountSaveTransaction({...options,requireLifecycleBinding:true});
  return Object.freeze({fixtureOnly:true,async handle(req){
   const url=new URL(req.url),path=url.pathname.slice(ROOT.length);
-  if(!url.pathname.startsWith(ROOT)||!Object.hasOwn(paths,path)&&!['save','reconcile','credential/renew/reconcile','authority/reauthorize'].includes(path))return reply(404,{ok:false,code:'not-found'});
+  if(!url.pathname.startsWith(ROOT)||!Object.hasOwn(paths,path)&&!['save','reconcile','credential/renew/reconcile','authority/reauthorize','operation/lease','operation/save','operation/reconcile','operation/current'].includes(path))return reply(404,{ok:false,code:'not-found'});
   if(req.method!=='POST'||url.search||url.hash)return reply(405,{ok:false,code:'method-denied'});
   if(!req.headers.get('Authorization')?.startsWith('Bearer '))return reply(401,{ok:false,code:'authentication-required'});
   let input;try{input=await body(req);}catch{return reply(400,{ok:false,code:'request-invalid'});}
   const credentials={accountAuthorization:req.headers.get('Authorization'),appAuthorization:req.headers.get('X-Sound-Cruise-App-Authorization'),proAuthorization:req.headers.get('X-Sound-Cruise-Pro-Authorization')};
   try{let result;
-   if(path==='authority/reauthorize'){
+   if(path.startsWith('operation/')){
+    if(options.enableOperationLease!==true)return reply(404,{ok:false,code:'not-found'});
+    if(!shape(input,path==='operation/lease'?['envelope','envelopeDigest']:['envelope','envelopeDigest','lease'])||await exactRequestDigest(input.envelope)!==input.envelopeDigest)return reply(400,{ok:false,code:'request-invalid'});
+    if(path==='operation/lease')result=await transaction.issueOperationLease(input.envelope,credentials);
+    else if(path==='operation/save'){const p=await transaction.prepareLeased(input.envelope,input.lease,credentials);result=p.ok?await transaction.commit(p):p;}
+    else result=await transaction.reconcileLeased(input.envelope,input.lease,credentials,{current:path==='operation/current'});
+   }else if(path==='authority/reauthorize'){
     if(options.enableAuthorityReauthorization!==true)return reply(404,{ok:false,code:'not-found'});
     if(!shape(input,['request','requestDigest'])||await exactRequestDigest(input.request)!==input.requestDigest)return reply(400,{ok:false,code:'request-invalid'});
     result=await transaction.reauthorize(input.request,credentials);
@@ -40,6 +46,7 @@ export function createIsolatedAccountSaveRoutes(options={}){
     if(!shape(input,['binding']))return reply(400,{ok:false,code:'request-invalid'});result=await transaction.reconcileCurrent(input.binding,credentials);
    }
    // Authentication failures never expose rows, operation existence or raw SQL.
+   if(!result.ok&&path.startsWith('operation/')){const reasons={'backend-owner-expired':'credential-expired','backend-owner-revoked':'credential-revoked','backend-account-credential-invalid':'credential-unverified','backend-owner-generation-mismatch':'owner-generation-changed','backend-credential-generation-unbound':'owner-generation-changed','operation-lease-unproven':'lease-or-fence-unproven','pro_required':'pro-or-writer-denied','backend-conflict':'cas-conflict'};return reply(409,{ok:false,code:'owner-operation-unproven',stopReason:Object.hasOwn(reasons,result.reason)?reasons[result.reason]:'owner-admission-unproven',recoveryRequired:true});}
    return result.ok?reply(200,result):reply(409,{ok:false,code:'owner-operation-unproven',recoveryRequired:true});
   }catch{return reply(409,{ok:false,code:'owner-operation-unproven',recoveryRequired:true});}
  },dispose(){lifecycle.dispose();transaction.dispose();}});

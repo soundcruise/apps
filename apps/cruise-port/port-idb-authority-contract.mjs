@@ -1,3 +1,4 @@
+import {OWNER_OPERATION_ROW,validateOwnerOperationRow} from './port-owner-operation-contract.mjs';
 import {REAUTHORIZATION_PUBLICATION,validateReauthorizationPublication} from './port-authority-reauthorization-contract.mjs';
 import {validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
 import {validateAccountTransition} from './port-account-transition-intent.mjs';
@@ -143,6 +144,7 @@ export function validatePointer(p) {
 }
 export const reservationKey = (generation, operationId) => RESERVED_JOURNAL_PREFIX + digest([generation, operationId]);
 export function validateReservation(r, generation, operationId) {
+    if(r?.kind===OWNER_OPERATION_ROW){if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');validateOwnerOperationRow(r);return;}
     if(r?.kind==='account-bootstrap'){if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');validateAccountBootstrap(r);return;}
     if(r?.kind==='account-transition'){
         if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');
