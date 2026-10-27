@@ -1,3 +1,4 @@
+import {REAUTHORIZATION_PUBLICATION} from './port-authority-reauthorization-contract.mjs';
 import {captureAccountBootstrap,accountBootstrapFingerprint,accountBootstrapRow,validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
 import {CUTOVER_KIND,validateCutoverJournal,nextCutoverJournal} from './port-account-cutover-contract.mjs';
 // L2a dormant Port-owned store. Only explicitly branded isolated scopes can open
@@ -9,7 +10,7 @@ import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COM
     inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
 import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } from './port-authority-action-policy.mjs';
-import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime } from './port-authority-capabilities.mjs';
+import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime, readReauthorizationAttestation } from './port-authority-capabilities.mjs';
 import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
 import {evidenceLifetimeKey,evidenceLifetimeRow,validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
 import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard,invalidateTrustedProClock} from './port-authority-pro-device-adapter.mjs';
@@ -211,7 +212,7 @@ function makeStore(db,env,lifecycle,lease) {
                 validatePointer(pointer);
                 if(pointer.partitionId!==env.partitionId)throw fail('pointer-invalid');
                 if(namespace.pointerEpoch!==pointer.pointerEpoch)throw fail('pointer-provenance-mismatch');
-                if(pointer.publication.kind==='isolated-fixture'&&!env.testProvider)throw fail('fixture-pointer-untrusted');
+                if(['isolated-fixture','isolated-reauthorization'].includes(pointer.publication.kind)&&!env.testProvider)throw fail('fixture-pointer-untrusted');
                 ctx.request(ctx.store('reservations').get([pointer.activeGeneration,pointer.operationId]),row=>{
                     if(!row?.publication)throw fail('pointer-provenance-missing');
                     validateReservation(row,pointer.activeGeneration,pointer.operationId);
@@ -713,7 +714,27 @@ function makeStore(db,env,lifecycle,lease) {
             });
         });
     }
-    return Object.freeze({
+    function checkReauthorizationSource(ctx,active,p,done){
+        const q=p.request;let scanned=0;
+        ctx.request(ctx.store('reservations').get([q.sourceGeneration,q.adoptionOperationId]),adoption=>{
+            validateReservation(adoption,q.sourceGeneration,q.adoptionOperationId);
+            if(adoption?.kind!=='account-transition'||adoption.accountTransition.phase!=='account-confirmed'||!equal(adoption.accountTransition.after,active.control)||adoption.fingerprint!==p.adoptionReceipt.binding.intentFingerprint)throw fail('reauthorization-adoption-unproven');
+            ctx.request(ctx.store('reservations').openCursor(),cursor=>{
+                if(cursor){if(++scanned>4096)throw fail('reauthorization-scan-capacity');const row=cursor.value;
+                    if(row.generation!==q.sourceGeneration){cursor.continue();return;}
+                    validateReservation(row,row.generation,row.operationId);
+                    if(row.kind==='account-transition'&&row.operationId===q.adoptionOperationId){cursor.continue();return;}
+                    if(row.kind==='evidence-lifetime'){cursor.continue();return;}
+                    if(row.kind==='publication'){cursor.continue();return;}
+                    if(row.kind==='operation-identity'){ctx.request(ctx.store('oplog').get([row.generation,row.operationId]),log=>{if(!log)throw fail('reauthorization-pending-operation');validateOplog(log,row.generation,row.operationId);if(log.fingerprint!==row.fingerprint)throw fail('reauthorization-pending-operation');cursor.continue();});return;}
+                    throw fail('reauthorization-pending-operation');
+                }
+                let journals=0;ctx.request(ctx.store('journal').openCursor(),j=>{if(j){if(++journals>4096)throw fail('reauthorization-scan-capacity');if(j.value.generation===q.sourceGeneration&&(j.value.state!=='active'||j.value.migrationId!==active.pointer.migrationId))throw fail('reauthorization-pending-journal');j.continue();}else done();});
+            });
+        });
+    }
+    const recoveryRequests=new WeakMap();
+    const api=Object.freeze({
         get status(){return state==='open'&&!lease.active?'scope-runtime-inactive':state;},
         dispose(){if(state==='open'){state='disposed';lease.active=false;db.close();lifecycle('disposed');}},
         hydrate(generation){
@@ -756,8 +777,29 @@ function makeStore(db,env,lifecycle,lease) {
         // sealed -> active in ONE transaction: current pointer CAS, sealed journal,
         // full manifest/records/references, evidence, old control superseded,
         // new control active, pointer update and the publication reservation.
+        checkReauthorizationSource({reauthorization,generation}={}){
+            let proof;try{if(!env.testProvider)throw fail('reauthorization-isolation-required');proof=readReauthorizationAttestation(reauthorization,{scope:env.scope,lease,generation});}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(COMMIT_STORES,'readonly',ctx=>readActive(ctx,(pointer,active)=>{
+                if(!active||!equal(pointer,proof.sourcePointer)||!equal(active.control,proof.sourceControl)||digest(active)!==proof.request.sourceAuthorityDigest)throw fail('reauthorization-source-stale');
+                checkReauthorizationSource(ctx,active,proof,()=>ctx.done({ok:true,canWrite:false}));
+            }));
+        },
+        lookupReauthorization(generation,operationId){
+            if(!env.testProvider)return Promise.resolve(rejected('reauthorization-isolation-required'));
+            try{identifier(generation);identifier(operationId);}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(COMMIT_STORES,'readonly',ctx=>ctx.request(ctx.store('reservations').get([generation,operationId]),row=>{
+                if(!row||row.kind!==REAUTHORIZATION_PUBLICATION){ctx.done({ok:false,reason:'reauthorization-receipt-missing'});return;}
+                validateReservation(row,generation,operationId);verifyPublicationFact(ctx,row,()=>ctx.done({ok:true,fact:row.publication,receiptDigest:digest(row),historical:true,canWrite:false,operationAuthorized:false,currentAuthorityVerified:false,productionReady:false}));
+            }));
+        },
+        publishReauthorized(request={}){
+            try{if(!env.testProvider)throw fail('reauthorization-isolation-required');
+                verifyCapability(request.recoveryCapability,{scope:env.scope,lease,purpose:'control:reauthorize',generation:request.generation});
+                const proof=readReauthorizationAttestation(request.reauthorization,{scope:env.scope,lease,generation:request.generation}),copy={...request};recoveryRequests.set(copy,proof);return api.publish(copy).then(result=>frozen({...result,readOnly:true,canWrite:false,operationAuthorized:false,productionReady:false}));
+            }catch(e){return Promise.resolve(rejected(errorCode(e)));}
+        },
         publish(request={}){
-            let r;
+            const recovery=recoveryRequests.get(request);let r;
             try{
                 r={generation:request.generation,migrationId:request.migrationId,operationId:request.operationId,
                     expectedPointerEpoch:request.expectedPointerEpoch??null,expectedControlEpoch:request.expectedControlEpoch};
@@ -767,7 +809,10 @@ function makeStore(db,env,lifecycle,lease) {
             }catch(e){return Promise.resolve(rejected(errorCode(e)));}
             return transact(COMMIT_STORES,'readwrite',ctx=>readActive(ctx,(pointer,active)=>{
                 verifyCapability(request.capability,{scope:env.scope,lease,purpose:'migration-publication',generation:r.generation});
-                if(active&&(active.control.recoveryRequired||active.control.identityInvalidated||active.control.state==='recovery-required'))throw fail('authority-invalidated');
+                if(recovery){
+                    if(!env.testProvider||!active||!equal(pointer,recovery.sourcePointer)||!equal(active.control,recovery.sourceControl)||digest(active)!==recovery.request.sourceAuthorityDigest||r.operationId!==recovery.request.operationId)throw fail('reauthorization-source-stale');
+                }else if(active&&(active.control.recoveryRequired||active.control.identityInvalidated||active.control.state==='recovery-required'))throw fail('authority-invalidated');
+                const proceed=()=>{
                 // Every success path first verifies the current active head, all
                 // records, control, and independent publication provenance.
                 ctx.request(ctx.store('oplog').get([r.generation,r.operationId]),log=>{
@@ -789,13 +834,17 @@ function makeStore(db,env,lifecycle,lease) {
                             if(!current)throw fail('generation-missing');const c=current.control;
                             if(c.state!=='sealed')throw fail('publication-state-invalid');
                             if(c.epoch!==r.expectedControlEpoch)throw fail('control-stale');
-                            if(c.suspended||c.fenceRevoked||c.identityInvalidated||c.recoveryRequired)throw fail('authority-invalidated');
+                            if(recovery?!c.suspended||!c.fenceRevoked||c.identityInvalidated||c.recoveryRequired: c.suspended||c.fenceRevoked||c.identityInvalidated||c.recoveryRequired)throw fail('authority-invalidated');
+                            if(recovery&&(!equal(c.identity,active.control.identity)||!equal(current.values,active.values)))throw fail('reauthorization-data-changed');
                             ctx.request(ctx.store('journal').get(r.migrationId),j=>{
                                 if(!j)throw fail('journal-missing');validateJournal(j);
                                 if(j.generation!==r.generation||j.state!=='ready-to-publish'||!equal(j.identity,c.identity))throw fail('publication-state-invalid');
                                 if(j.sealHash!==current.manifest.digest||j.sealManifestId!==current.head.manifestId||j.sealHeadSeq!==current.head.seq)throw fail('seal-mismatch');
-                                const evidence=publicationEvidence(request.attestation,r,j.sealHash),f=evidence.fence;
-                                if(c.identity.ownership==='bound-account'?!f||f.accountId!==c.identity.accountId||f.membershipId!==c.identity.membershipId||
+                                const baseEvidence=publicationEvidence(request.attestation,r,j.sealHash);
+                                const evidence=recovery?frozen({...baseEvidence,kind:'isolated-reauthorization',reauthorization:recovery,
+                                    readonlyFence:{purpose:'owner-qualification-only-v1',requestDigest:recovery.requestDigest,datasetId:recovery.qualification.datasetId,appDeviceId:recovery.qualification.appDeviceId,writeEpoch:recovery.qualification.writeEpoch,exclusive:false,cloudConnected:false}}):baseEvidence,f=evidence.fence;
+                                if(recovery){if(f!==null||baseEvidence.binary.assetCount!==0||baseEvidence.sync.cloudConnected!==false||baseEvidence.sync.scope!=='local-known-empty-fixture')throw fail('reauthorization-readonly-evidence-invalid');}
+                                else if(c.identity.ownership==='bound-account'?!f||f.accountId!==c.identity.accountId||f.membershipId!==c.identity.membershipId||
                                     f.accountGeneration!==c.identity.accountGeneration||f.membershipGeneration!==c.identity.membershipGeneration:f!==null)throw fail('cloud-fence-required');
                                 if(active)ctx.request(ctx.store('control').put({...active.control,state:'superseded',epoch:active.control.epoch+1}));
                                 const control={...c,state:'active',epoch:c.epoch+1};validateControl(control);
@@ -806,8 +855,8 @@ function makeStore(db,env,lifecycle,lease) {
                                 validatePointer(next);
                                 const fact={schemaVersion:1,pointer:next,identity:control.identity,request:r,evidence};
                                 const journal={...j,state:'active',revision:j.revision+1,publishedPointerEpoch:next.pointerEpoch,publication:fact};validateJournal(journal);
-                                const reservation={generation:r.generation,operationId:r.operationId,schemaVersion:1,kind:'publication',
-                                    fingerprint:digest({kind:'publication',...r,evidence}),action:'publish',policy:'migration-publication',targetKeys:[],origin:'v2',publication:fact};
+                                const reservation={generation:r.generation,operationId:r.operationId,schemaVersion:1,kind:recovery?REAUTHORIZATION_PUBLICATION:'publication',
+                                    fingerprint:digest({kind:recovery?REAUTHORIZATION_PUBLICATION:'publication',...r,evidence}),action:recovery?'publishReauthorized':'publish',policy:recovery?'control:reauthorize':'migration-publication',targetKeys:[],origin:'v2',publication:fact};
                                 validateReservation(reservation,r.generation,r.operationId);
                                 ctx.request(ctx.store('control').put(control));ctx.request(ctx.store('journal').put(journal));
                                 ctx.request(ctx.store('pointer').put(next));ctx.request(ctx.store('pointer').put(namespaceState(env.partitionId,next.pointerEpoch)));
@@ -818,6 +867,8 @@ function makeStore(db,env,lifecycle,lease) {
                         });
                     });
                 });
+                };
+                if(recovery)checkReauthorizationSource(ctx,active,recovery,proceed);else proceed();
             }));
         },
         // Historical publication lookup never asserts current active integrity or
@@ -961,4 +1012,5 @@ function makeStore(db,env,lifecycle,lease) {
             return transact(['roots'],'readonly',ctx=>ctx.request(ctx.store('roots').get([generation,rootId]),r=>{if(r)validateRoot(r);ctx.done({ok:true,root:r||null});}));
         }
     });
+    return api;
 }

@@ -1,3 +1,4 @@
+import {REAUTHORIZATION_PUBLICATION,validateReauthorizationPublication} from './port-authority-reauthorization-contract.mjs';
 import {validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
 import {validateAccountTransition} from './port-account-transition-intent.mjs';
 import {validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
@@ -133,7 +134,7 @@ export function validatePointer(p) {
         typeof p.partitionId !== 'string' || !p.partitionId || !positive(p.pointerEpoch) || p.namespaceVersion !== 1 ||
         p.repositoryProtocol !== PORT_DATASET_PROTOCOL || p.writerProtocol !== AUTHORITY_WRITER_PROTOCOL ||
         !exactKeys(p.publication,['kind','manifestId','headSeq','sealHash','controlEpoch']) ||
-        !['migration','isolated-fixture'].includes(p.publication.kind) || !positive(p.publication.headSeq) ||
+        !['migration','isolated-fixture','isolated-reauthorization'].includes(p.publication.kind) || !positive(p.publication.headSeq) ||
         !positive(p.publication.controlEpoch) || !/^[a-f0-9]{64}$/.test(p.publication.sealHash)) throw fail('pointer-invalid');
     for (const field of ['activeGeneration','migrationId','operationId']) identifier(p[field]);
     identifier(p.publication.manifestId);
@@ -147,6 +148,7 @@ export function validateReservation(r, generation, operationId) {
         if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');
         validateAccountTransition(r);return;
     }
+    if(r?.kind===REAUTHORIZATION_PUBLICATION){if(r.generation!==generation||r.operationId!==operationId)throw fail('reservation-invalid');validateReauthorizationPublication(r);return;}
     if(r?.kind==='evidence-lifetime'){validateEvidenceLifetimeRow(r);return;}
     assertJSONEvidence(r);
     const keys=['generation','operationId','schemaVersion','kind','fingerprint','action','policy','targetKeys','origin'];
@@ -161,6 +163,7 @@ export function validateReservation(r, generation, operationId) {
     if((r.kind==='control')!==(r.control!==undefined)||r.kind==='control'&&(!object(r.control)||r.publication!==undefined))throw fail('reservation-invalid');
 }
 export function validatePublicationFact(r) {
+    if(r?.kind===REAUTHORIZATION_PUBLICATION){validateReauthorizationPublication(r);return;}
     const f=r.publication;
     if(!exactKeys(f,['schemaVersion','pointer','identity','request','evidence'])||f.schemaVersion!==1)throw fail('publication-fact-invalid');
     validatePointer(f.pointer);

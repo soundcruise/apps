@@ -11,6 +11,7 @@ import {canonicalJson,validateOperation,hashRecord} from './records.js';
 import {createD1SyncRepository} from './sync-database.js';
 import {evaluateSaveCredential} from './account-save-admission.js';
 import {observeOwnerClock} from './account-owner-clock.js';
+import {validateReauthorizationRequest} from '../../../apps/shared/sync-account/authority-reauthorization-contract.mjs';
 import {ownerBindingSQL} from './account-credential-lifecycle.js';
 
 const TIME="CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)";
@@ -45,7 +46,7 @@ const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.cr
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
 
-export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,checkpoint=async()=>{}}={}){
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,checkpoint=async()=>{}}={}){
  if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
  const handles=new WeakMap();let disposed=false;
  const ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
@@ -88,6 +89,17 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
   const lifecycle=evaluateSaveCredential(history?{...row,save_enabled:row.history_enabled}:row,q,row?.owner_now);
   if(lifecycle!=='valid'||row.credential_lease_revision!==q.credentialLeaseRevision||row.runtime_generation!==q.runtimeGeneration||row.sync_user_id!==q.datasetId||row.write_epoch!==q.writeEpoch)throw error('backend-owner-'+lifecycle);
   return {session,row,q};
+ }
+ async function writerAuthorization(q,credentials,auth){
+   const appToken=credentials?.appAuthorization?.startsWith('Bearer ')?credentials.appAuthorization.slice(7):null;
+   if(parseDeviceCredential(appToken)?.deviceId!==q.appDeviceId)throw error('backend-app-credential-invalid');
+   const pro=await inspectProCredentialReadOnly(credentials.proAuthorization,{SYNC_DB:db,PRO_CREDENTIAL_PEPPER:proPepper},{includeWriterProof:true,now:()=>auth.row.owner_now});
+   if(!pro.ok||!pro.writerProof)throw error(pro.code||'pro_required');
+   const admission=await admitWriter(auth.session,{userId:q.datasetId,deviceId:q.appDeviceId,appId:'port'},
+    {writerProtocol:2,syncProtocol:1,expectedWriteEpoch:q.writeEpoch},{accountId:q.accountId,membershipId:q.membershipId},
+    {policy,deviceVerifier:await hmacVerifier(appToken,devicePepper),proCredentialId:pro.writerProof.id,proVerifier:pro.writerProof.verifier,defer:true});
+   if(admission.error)throw error(admission.error);
+   return admission;
  }
  function guard(session,p,{observation=false}={}){
   const {q,row}=p,sql=`EXISTS(SELECT 1 FROM (${ownerSql}) o WHERE
@@ -157,16 +169,34 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    const current=await auth.session.prepare("SELECT payload_json FROM sync_records WHERE user_id=? AND app_id='port' AND record_type='metronome_settings' AND record_id='default'").bind(p.q.datasetId).first();
    if(current){const previous=JSON.parse(current.payload_json),next=data(p.operation.payload);delete previous.value.bpm;delete next.value.bpm;
     if(canonicalJson(previous)!==canonicalJson(next))throw error('backend-non-bpm-conflict');}
-   const appToken=credentials?.appAuthorization?.startsWith('Bearer ')?credentials.appAuthorization.slice(7):null;
-   if(parseDeviceCredential(appToken)?.deviceId!==p.q.appDeviceId)throw error('backend-app-credential-invalid');
-   const pro=await inspectProCredentialReadOnly(credentials.proAuthorization,{SYNC_DB:db,PRO_CREDENTIAL_PEPPER:proPepper},{includeWriterProof:true,now:()=>auth.row.owner_now});
-   if(!pro.ok||!pro.writerProof)throw error(pro.code||'pro_required');
-   const admission=await admitWriter(auth.session,{userId:p.q.datasetId,deviceId:p.q.appDeviceId,appId:'port'},
-    {writerProtocol:2,syncProtocol:1,expectedWriteEpoch:p.q.writeEpoch},{accountId:p.q.accountId,membershipId:p.q.membershipId},
-    {policy,deviceVerifier:await hmacVerifier(appToken,devicePepper),proCredentialId:pro.writerProof.id,proVerifier:pro.writerProof.verifier,defer:true});
-   if(admission.error)throw error(admission.error);
+   const admission=await writerAuthorization(p.q,credentials,auth);
    const binding=frozen(JSON.parse(canonicalJson({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest})));
    const handle=closed({ok:true,binding});handles.set(handle,{...p,admission,credentials,attempted:false});await checkpoint('after-prepare');return handle;
+  }),
+  // A current owner qualification fact, NEVER a lease through local IDB
+  // publication. Its purpose/ledger is separate from dataset/Account receipts.
+  reauthorize:attempt(async(input,credentials)=>{
+   if(!enableAuthorityReauthorization||!requireLifecycleBinding)throw error('reauthorization-unavailable');
+   const request=data(input);validateReauthorizationRequest(request);const requestDigest=await checksum(request);
+   const appToken=credentials?.appAuthorization?.startsWith('Bearer ')?credentials.appAuthorization.slice(7):null,appDeviceId=parseDeviceCredential(appToken)?.deviceId;
+   if(!appDeviceId)throw error('reauthorization-app-invalid');
+   const first=await db.withSession('first-primary').prepare(ownerSql).bind(appDeviceId,request.accountDeviceId).first();
+   if(!first)throw error('reauthorization-owner-unknown');
+   const q={...request,appDeviceId,datasetId:first.sync_user_id,writeEpoch:first.write_epoch},auth=await authenticate(q,credentials),admission=await writerAuthorization(q,credentials,auth);
+   const g=guard(auth.session,{q,row:auth.row}),w=fenceQuery(admission),binding=canonicalJson(request);
+   await checkpoint('before-reauthorization-transaction');live();
+   const results=await auth.session.batch([
+    assertion(auth.session,g.sql,g.values),
+    auth.session.prepare('INSERT INTO sync_writer_fence_assertion(code) '+w.sql).bind(...w.values),
+    auth.session.prepare(`INSERT INTO sync_account_authority_reauthorizations(account_id,operation_id,request_digest,request_json,observed_at)
+     VALUES (?,?,?,?,${TIME}) ON CONFLICT(account_id,operation_id) DO UPDATE SET observed_at=${TIME}
+     WHERE request_digest=excluded.request_digest AND request_json=excluded.request_json`).bind(q.accountId,q.operationId,requestDigest,binding),
+    assertion(auth.session,g.sql+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok') AND EXISTS(SELECT 1 FROM sync_account_authority_reauthorizations WHERE account_id=? AND operation_id=? AND request_digest=? AND request_json=?)`,[...g.values,...w.values,q.accountId,q.operationId,requestDigest,binding]),clearAssertions(auth.session)]);
+   if(!Array.isArray(results)||results.some(r=>r?.success===false))throw error('reauthorization-unproven');
+   await checkpoint('after-reauthorization-transaction');live();
+   return closed({ok:true,qualification:{purpose:'authority-reauthorization-qualification-v1',request:JSON.parse(binding),requestDigest,
+    datasetId:q.datasetId,appDeviceId:q.appDeviceId,writeEpoch:q.writeEpoch,credentialExpiresAt:auth.row.credential_expires_at,
+    proChecked:true,writerChecked:true,leaseThroughLocalCommit:false}});
   }),
   commit:attempt(async(handle)=>{
    const p=handles.get(handle);if(!p||p.attempted)throw error('backend-replay-requires-recovery');p.attempted=true;
