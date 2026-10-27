@@ -6,7 +6,7 @@
 
 ## 読み取りAPI
 
-`js/core/feature-registry.mjs?v=0.47.17`から次をimportできる。
+`js/core/feature-registry.mjs?v=0.47.18`から次をimportできる。
 
 - `getComponentMetadata(componentId)` / `getAppVersion(componentId)`
 - `getFeatureMetadata(featureId)` / `listFeatures()`
@@ -19,14 +19,14 @@
 
 | componentId | 現行appVersion | repository-relative source / symbol | 読み方 |
 |---|---|---|---|
-| cruise-port | 1.24.20 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
+| cruise-port | 1.24.21 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
 | chord-cruise | 1.21.0 | apps/chord-cruise/js/app.js / CHORD_CRUISE_APP_VERSION | source-mirror |
 | pitch-cruise | 2.30.0 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.25.0 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.21.0 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.47.17 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.47.18 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
-Studio 0.47.17 patch候補ではPort 1.24.20の正式ESM参照とStudioのversion/cacheを整合。Project schemaVersion=2を維持。Account consumerの隔離readonly移行は[契約](../../cruise-port/docs/ACCOUNT_CONSUMER_MIGRATION.md)を参照。Chord等の他owner versionは維持。
+Studio 0.47.18 patch候補ではPort 1.24.21の正式ESM参照とStudioのversion/cacheを整合。Project schemaVersion=2を維持。Account consumerの隔離readonly移行は[契約](../../cruise-port/docs/ACCOUNT_CONSUMER_MIGRATION.md)を参照。Chord等の他owner versionは維持。
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -41,8 +41,8 @@ API / backend versionやbuildの推測値は登録しない。独立componentは
 
 ### Importとcache
 
-Studio内部importは現在のmodule cache運用に合わせ`?v=0.47.17`。
-Port元ESMへのStudio側importは現行sourceのcache key `?v=1.24.20`を使う。
+Studio内部importは現在のmodule cache運用に合わせ`?v=0.47.18`。
+Port元ESMへのStudio側importは現行sourceのcache key `?v=1.24.21`を使う。
 商品versionをcache keyから抽出することはない。他ownerのHTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
 classic ownerの正式version更新後は、Studio所有のmirrorだけを追従更新し、全6componentを個別に照合する。

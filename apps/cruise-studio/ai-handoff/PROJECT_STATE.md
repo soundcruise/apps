@@ -2058,3 +2058,14 @@ Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（sch
 ## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
 
 0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](../docs/SCHEMA2_FOUNDATION.md)を参照。
+
+## 0.47.18 isolated candidate — new consumer operation Admission
+
+Base bbaab206cded382d49190335540a1bd1711bbede. Port candidate 1.24.21.
+V3 operation envelopes bind completed readonly pointer/consumer publication and
+SQL registry revision/stop fence, without reopening stopped scopes. New BPM facade
+uses existing Studio draft controller and immutable operation pins. Explicit local
+recovery never resends SQL. Actual owner renewal tests distinguish new backend
+lease success from still-blocked local credential adoption/new Authority recovery.
+Normal boot, Shared Write OFF, canWrite=false and production routes stay unchanged.
+Contract: apps/cruise-port/docs/CONSUMER_READMISSION_BPM_ISOLATED.md.
