@@ -1,6 +1,8 @@
 // Unrouted owner capability. Columns/gates are installed by fixtures only.
 import {verifyAccountCredentialSnapshot} from './account-auth.js';
 import {createAccountCredential,parseAccountCredential,accountCredentialVerifier} from './account-crypto.js';
+import {renewalRecoveryCommitment,renewalDigest,sealRenewalCredential} from './account-renewal-recovery.js';
+import {observeOwnerClock} from './account-owner-clock.js';
 import {canonicalJson} from './records.js';
 import {assertion,clearAssertions,policyAllows} from './writer-fence.js';
 export const OWNER_SQL_TIME="CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)";
@@ -18,8 +20,8 @@ export const CREDENTIAL_OWNER_SELECT=`SELECT d.*,d.id AS device_id,a.state AS ac
  FROM sync_account_devices d JOIN sync_accounts a ON a.id=d.account_id
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
-export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=false,leaseTtlMs=60000,checkpoint=async()=>{}}={}){
- if(fixtureOnly!==true||typeof db?.withSession!=='function'||typeof pepper!=='string'||pepper.length<32||!positive(leaseTtlMs)||leaseTtlMs>3600000)throw fail('credential-isolation-required');
+export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=false,leaseTtlMs=60000,enableRenewalRecovery=false,recoveryTtlMs=30000,checkpoint=async()=>{}}={}){
+ if(fixtureOnly!==true||typeof db?.withSession!=='function'||typeof pepper!=='string'||pepper.length<32||!positive(leaseTtlMs)||leaseTtlMs>3600000||!positive(recoveryTtlMs)||recoveryTtlMs>leaseTtlMs)throw fail('credential-isolation-required');
  let disposed=false;
  async function authenticated(authorization){
   if(disposed)throw fail('credential-disposed');const token=typeof authorization==='string'&&authorization.startsWith('Bearer ')?authorization.slice(7):null;
@@ -42,14 +44,9 @@ export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=
  const bound=row=>row.credential_account_generation===row.generation&&row.credential_membership_id===row.membership_id&&row.credential_membership_generation===row.membership_generation;
  const unissued=row=>['credential_issued_at','credential_expires_at','credential_lease_revision','credential_account_generation','credential_membership_id','credential_membership_generation','credential_operations_json','credential_transition_id'].every(k=>row[k]===null)&&row.credential_lifecycle===null;
  const liveLease=row=>bound(row)&&positive(row.credential_issued_at)&&positive(row.credential_expires_at)&&row.credential_issued_at<=row.owner_now&&row.owner_now<row.credential_expires_at&&row.credential_expires_at>row.credential_issued_at;
- async function clockFact(row,allowUnissued=false){
-  const result=await db.withSession('first-primary').prepare(`UPDATE sync_account_devices SET credential_clock_floor=CASE WHEN credential_clock_floor IS NULL THEN ${OWNER_SQL_TIME} ELSE MAX(credential_clock_floor,${OWNER_SQL_TIME}) END,
-   credential_lifecycle=CASE WHEN credential_lifecycle IN ('active','renewing') AND typeof(credential_expires_at)='integer' AND credential_expires_at<=${OWNER_SQL_TIME} THEN 'expired' ELSE credential_lifecycle END
-   WHERE id=? AND account_id=? AND credential_version=? AND credential_verifier=? AND
-   ((typeof(credential_clock_floor)='integer' AND credential_clock_floor>0) ${allowUnissued?"OR (credential_clock_floor IS NULL AND credential_lifecycle IS NULL AND credential_issued_at IS NULL AND credential_expires_at IS NULL AND credential_lease_revision IS NULL AND credential_account_generation IS NULL AND credential_membership_id IS NULL AND credential_membership_generation IS NULL AND credential_operations_json IS NULL AND credential_transition_id IS NULL)":''})`).bind(row.device_id,row.account_id,row.credential_version,row.credential_verifier).run();
-  if(result?.success!==true||Number(result.meta?.changes)!==1)throw fail('credential-clock-unproven');
- }
- async function mutate(action,input,authorization){
+ const clockFact=(row,allowUnissued=false)=>observeOwnerClock(db.withSession('first-primary'),row,{allowUnissued});
+
+ async function mutate(action,input,authorization,recovery){
   const q=request(input,action),first=await authenticated(authorization),bootstrap=action==='issue'&&unissued(first.row);
   if(!positive(first.row.credential_clock_floor)&&!(bootstrap&&first.row.credential_clock_floor===null))throw fail('credential-clock-unknown');
   if(action==='issue'&&!bootstrap)throw fail('credential-enrollment-conflict');
@@ -62,7 +59,11 @@ export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=
   if(action==='begin-renew'&&(row.credential_lifecycle!=='active'||!liveLease(row)))throw fail('credential-renew-unavailable');
   if(['finish-renew','fail-renew'].includes(action)&&(row.credential_lifecycle!=='renewing'||row.credential_transition_id!==q.transitionId||!liveLease(row)))throw fail('credential-renew-unavailable');
   if(action==='revoke'&&['revoked','unknown'].includes(row.credential_lifecycle))throw fail('credential-revoke-unavailable');
-  const digest=await exactRequestDigest({action,request:q,accountId:row.account_id,deviceId:row.device_id,membershipId:row.membership_id});
+  if(recovery&&(!enableRenewalRecovery||action!=='finish-renew'))throw fail('renewal-recovery-unavailable');
+  const identity={accountId:row.account_id,accountDeviceId:row.device_id,membershipId:row.membership_id};
+  const commitment=recovery?await renewalRecoveryCommitment(recovery.secret):null;
+  const digest=recovery?await renewalDigest(q,identity,commitment):await exactRequestDigest({action,request:q,accountId:row.account_id,deviceId:row.device_id,membershipId:row.membership_id});
+  if(recovery&&digest!==recovery.requestDigest)throw fail('renewal-recovery-digest-mismatch');
   let ledger=Object.create(null);if(!unenrolled){try{ledger=JSON.parse(row.credential_operations_json);}catch{throw fail('credential-ledger-unknown');}
    if(!ledger||Array.isArray(ledger)||Object.getPrototypeOf(ledger)!==Object.prototype||Object.keys(ledger).some(k=>!uuid(k)))throw fail('credential-ledger-unknown');}
   if(Object.values(ledger).some(v=>!v||Object.keys(v).length!==4||!['issue','begin-renew','finish-renew','fail-renew','revoke'].includes(v.action)||typeof v.digest!=='string'||!/^[a-f0-9]{64}$/.test(v.digest)||!positive(v.previousVersion)||v.previousLease!==null&&!positive(v.previousLease)))throw fail('credential-ledger-unknown');
@@ -72,6 +73,13 @@ export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=
   if(issue){material=createAccountCredential({randomUUID:()=>row.device_id,getRandomValues:crypto.getRandomValues.bind(crypto)});verifier=await accountCredentialVerifier(material.credential,pepper);}
   const version=row.credential_version+(issue?1:0),lease=(row.credential_lease_revision||0)+1,state=issue?'active':action==='begin-renew'?'renewing':action==='fail-renew'?'renewal-failed':'revoked';
   if(!positive(version)||!positive(lease)||!positive(row.owner_now+leaseTtlMs))throw fail('credential-counter-exhausted');
+  let recoveryText=null;
+  if(recovery){
+   if(row.credential_recovery_json!==null){let old;try{old=JSON.parse(row.credential_recovery_json);}catch{throw fail('renewal-recovery-state-unknown');}if(old?.schemaVersion!==1||old.binding?.purpose!=='credential-renewal-recovery-v1')throw fail('renewal-recovery-state-unknown');}
+   const binding={purpose:'credential-renewal-recovery-v1',...identity,operationId:q.operationId,requestDigest:digest,accountGeneration:row.generation,membershipGeneration:row.membership_generation,runtimeGeneration:row.runtime_generation,
+    oldVersion:row.credential_version,oldLease:row.credential_lease_revision,oldVerifier:row.credential_verifier,newVersion:version,newLease:lease,newVerifier:verifier,recoveryCommitment:commitment};
+   recoveryText=JSON.stringify({schemaVersion:1,binding,sealed:await sealRenewalCredential(recovery.secret,material.credential,binding)});
+  }
   const session=db.withSession('first-primary'),owner=`EXISTS(SELECT 1 FROM (${CREDENTIAL_OWNER_SELECT}) o WHERE o.account_id=? AND o.credential_verifier=? AND o.credential_version=? AND o.generation=? AND o.membership_generation=? AND o.runtime_generation=?
    AND o.credential_lifecycle_enabled=1 AND o.account_state='active' AND o.membership_state='active' AND o.membership_deleted_at IS NULL AND o.device_linked=1 AND o.revoked_at IS NULL AND o.admission_provenance='production'
    AND o.owner_now>=o.credential_clock_floor AND o.credential_clock_floor>0)`;
@@ -83,13 +91,15 @@ export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=
    credential_issued_at=${issue?OWNER_SQL_TIME:'credential_issued_at'},credential_expires_at=${issue?OWNER_SQL_TIME+'+?':'credential_expires_at'},
    credential_clock_floor=${OWNER_SQL_TIME},credential_account_generation=?,credential_membership_id=?,credential_membership_generation=?,
    credential_transition_id=?,credential_operations_json=?,revoked_at=${action==='revoke'?OWNER_SQL_TIME:'revoked_at'}
-   WHERE id=? AND ${statePin}${expiry} AND ${owner}`)
-   .bind(version,verifier,lease,state,...(issue?[leaseTtlMs]:[]),row.generation,row.membership_id,row.membership_generation,action==='begin-renew'?q.operationId:row.credential_transition_id,JSON.stringify(ledger),row.device_id,...pins,...values);
+   ${recoveryText?',credential_recovery_json=?,credential_recovery_until=MIN('+OWNER_SQL_TIME+'+?,'+OWNER_SQL_TIME+'+?)':''}
+   WHERE id=? AND ${statePin}${recoveryText?' AND credential_recovery_json IS ?':''}${expiry} AND ${owner}`)
+   .bind(version,verifier,lease,state,...(issue?[leaseTtlMs]:[]),row.generation,row.membership_id,row.membership_generation,action==='begin-renew'?q.operationId:row.credential_transition_id,JSON.stringify(ledger),...(recoveryText?[recoveryText,recoveryTtlMs,leaseTtlMs]:[]),row.device_id,...pins,...(recoveryText?[row.credential_recovery_json]:[]),...values);
   const after=`EXISTS(SELECT 1 FROM (${CREDENTIAL_OWNER_SELECT}) o WHERE o.account_id=? AND o.credential_version=? AND o.credential_verifier=? AND o.credential_lease_revision=? AND o.credential_lifecycle=? AND o.credential_operations_json=?
    AND o.generation=? AND o.membership_generation=? AND o.runtime_generation=? AND o.credential_lifecycle_enabled=1 AND o.account_state='active' AND o.membership_state='active' AND o.membership_deleted_at IS NULL AND o.device_linked=1
+   ${recoveryText?'AND o.credential_recovery_json=? AND o.credential_recovery_until<=o.credential_expires_at AND o.owner_now<o.credential_recovery_until':''}
    AND ${ownerBindingSQL('o')} AND o.owner_now>=o.credential_clock_floor ${state==='active'?"AND o.revoked_at IS NULL AND o.owner_now<o.credential_expires_at":''})`;
   await checkpoint('before-lifecycle-transaction',{action,accountId:row.account_id});
-  try{const results=await session.batch([assertion(session,owner,values),update,assertion(session,after,[row.device_id,row.account_id,version,verifier,lease,state,JSON.stringify(ledger),row.generation,row.membership_generation,row.runtime_generation]),clearAssertions(session)]);
+  try{const results=await session.batch([assertion(session,owner,values),update,assertion(session,after,[row.device_id,row.account_id,version,verifier,lease,state,JSON.stringify(ledger),row.generation,row.membership_generation,row.runtime_generation,...(recoveryText?[recoveryText]:[])]),clearAssertions(session)]);
    if(!Array.isArray(results)||results.length!==4||results.some(r=>r?.success!==true))throw fail('credential-transaction-unproven');}
   catch(e){await clockFact(row);throw e;}
   await checkpoint('after-lifecycle-transaction',{action,accountId:row.account_id});
@@ -98,7 +108,7 @@ export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=
    ${issue?`AND revoked_at IS NULL AND ${OWNER_SQL_TIME}<credential_expires_at`:''}`).bind(row.device_id,row.account_id,version,verifier,lease,state,JSON.stringify(ledger)).first();
   if(!actual)throw fail('credential-readback-unproven');
   // Secret is returned once, after the successful atomic owner transition.
-  return closed({ok:true,historical:true,state,accountId:row.account_id,accountDeviceId:row.device_id,credentialVersion:version,credentialLeaseRevision:lease,credentialIssuedAt:actual.credential_issued_at,credentialExpiresAt:actual.credential_expires_at,transitionId:action==='begin-renew'?q.operationId:row.credential_transition_id,...(issue?{credential:material.credential}:{})});
+  return closed({ok:true,historical:true,state,accountId:row.account_id,accountDeviceId:row.device_id,credentialVersion:version,credentialLeaseRevision:lease,credentialIssuedAt:actual.credential_issued_at,credentialExpiresAt:actual.credential_expires_at,transitionId:action==='begin-renew'?q.operationId:row.credential_transition_id,...(issue?{credential:material.credential}:{}),...(recoveryText?{renewalReceipt:{purpose:'credential-renewal-result-v1',operationId:q.operationId,requestDigest:digest,accountId:row.account_id,accountDeviceId:row.device_id,credentialVersion:version,credentialLeaseRevision:lease}}:{})});
  }
- return Object.freeze({fixtureOnly:true,async mutate(action,input,{authorization}={}){try{if(!['issue','begin-renew','finish-renew','fail-renew','revoke'].includes(action))throw fail('credential-action-invalid');return await mutate(action,input,authorization);}catch(e){return closed({ok:false,reason:e.code||'credential-outcome-unproven',recoveryRequired:true});}},dispose(){disposed=true;}});
+ return Object.freeze({fixtureOnly:true,async mutate(action,input,{authorization,recovery}={}){try{if(!['issue','begin-renew','finish-renew','fail-renew','revoke'].includes(action))throw fail('credential-action-invalid');return await mutate(action,input,authorization,recovery);}catch(e){return closed({ok:false,reason:e.code||'credential-outcome-unproven',recoveryRequired:true});}},dispose(){disposed=true;}});
 }
