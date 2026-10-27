@@ -1,6 +1,6 @@
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.23.1';
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.24.16';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.24.17';
 import { createPortAccountJoin } from './port-account-join.js?v=1.23.1';
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 

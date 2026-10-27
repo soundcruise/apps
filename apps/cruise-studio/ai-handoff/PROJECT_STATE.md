@@ -1,3 +1,7 @@
+# Studio 0.47.14 — 復旧Credential明示採用（未公開隔離候補）
+
+Port1.24.17 / Project schema2。PR #19固定head a24244d3が直接親。既存Account coordinatorの同一Account/device switch、停止intent、Shared Account CAS/receipt、immutable backupを利用する。候補確認はAccountを変更せず、明示採用時だけ資格を差し替える。前後owner照合と独立DBの非原子性を区別し、部分成功は停止を維持。ACK喪失/reopenはhistorical照合のみ、自動再採用・再開・削除なし。通常writer/consumer/Cloud/L3d/本番未接続、Shared Write OFF / canWrite=false。契約: [Credential Adoption](../../cruise-port/docs/CREDENTIAL_ADOPTION.md)。以下は履歴。
+
 # Studio 0.47.13 — Owner clock / 永続expiry / renewal復旧（未公開隔離候補）
 
 Port1.24.16 / Project schema2。PR #18固定head cc84091bが直接親。信頼済みSQL観測時刻を永続floorへ結合し、historyは認可fact UPDATE RETURNINGでexpired確定とreceipt選択を同一stepへ統合。通常データreadonlyと認可fact更新を分離。ACK喪失復旧は既存renew CASへprivate暗号化結果を保存し、旧資格＋専用256bit proofで同じ既発行tokenだけ再配送。clientはShared immutable ownerへ非抽出Key/暗号文を事前保全、正式full-source manifest/revision一致を要求し、Account採用は行わない。SQL abort内だけの未記録expiryはunknownであり、物理時刻/電源断保証とは区別する。本番/通常writer/consumer/Cloud/L3d未接続、Shared Write OFF/canWrite=false。契約: [Owner Clock / Renewal Recovery](../../cruise-port/docs/OWNER_CLOCK_RENEWAL_RECOVERY.md)。以下は履歴。

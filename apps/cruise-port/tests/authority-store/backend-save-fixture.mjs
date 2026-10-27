@@ -31,5 +31,5 @@ export async function backendSaveFixture(t,{localCheckpoint,backendCheckpoint,co
   const scope=createTestAuthorityScope(opts),admission=createIsolatedPortSaveAdmission({scope,mutationStore:tab.mutationStore,owner:x.server.createOwner()}),owner=await createIsolatedMetronomeBpmOwner({scope,indexedDB,generation:'g1',provider:tab.provider,finalAdmission:admission});
   const c=createIsolatedBackendSaveCoordinator({...options,scope,source:tab.mutationStore,localOwner:owner});t.after(()=>{c.dispose();owner.dispose();admission.dispose();tab.dispose();});return c;
  }
- return {...x,indexedDB,f,pending,coordinator,options,secondTab,head:()=>x.store.hydrate('g1'),prepare:(bpm=149,revision=0,id=crypto.randomUUID())=>coordinator.prepare({operationId:id,bpm,expectedBackendRevision:revision})};
+ return {...x,root:root.SoundCruiseSyncAccount,indexedDB,f,pending,coordinator,options,secondTab,head:()=>x.store.hydrate('g1'),prepare:(bpm=149,revision=0,id=crypto.randomUUID())=>coordinator.prepare({operationId:id,bpm,expectedBackendRevision:revision})};
 }
