@@ -1,3 +1,4 @@
+import {readTwoCycleArchive} from './account-two-cycle-history.js';
 import {createSuccessorRecoveryOwner} from './account-successor-recovery.js';
 import {validateSuccessorStopRequest} from '../../../apps/shared/sync-account/owner-successor-contract.mjs';
 import {predecessorVerifier} from './account-successor-lineage.js';
@@ -53,17 +54,18 @@ const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.cr
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
 
-export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,enableOwnerCutover=false,enableConsumerReadmission=false,enableSuccessorRecovery=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,enableOwnerCutover=false,enableConsumerReadmission=false,enableSuccessorRecovery=false,enableSuccessorTwoCycle=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
  if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
  const handles=new WeakMap();let disposed=false;
  let ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
  if(enableSuccessorRecovery)ownerSql=ownerSql.replace('SELECT ','SELECT d.credential_recovery_json,d.credential_operations_json,d.credential_transition_id, ');
  if(enableOperationLease)ownerSql=ownerSql.replace('SELECT ','SELECT d.operation_fence_revision, ');
  if(enableOwnerCutover&&(!enableOperationLease||!requireLifecycleBinding))throw error('owner-cutover-mode-invalid');
+ if(enableSuccessorTwoCycle&&!enableSuccessorRecovery)throw error('two-cycle-mode-invalid');
  if(enableSuccessorRecovery&&(!enableConsumerReadmission||!enableOwnerCutover))throw error('successor-mode-invalid');
  if(enableConsumerReadmission&&!enableOwnerCutover)throw error('consumer-readmission-mode-invalid');
  const successors=createSuccessorRecoveryOwner({db,checksum,guard,checkpoint,historical:successorHistory});
- const cutovers=createOwnerCutoverOwner({db,checksum,guard,checkpoint,enableConsumerReadmission,enableSuccessorRecovery});
+ const cutovers=createOwnerCutoverOwner({db,checksum,guard,checkpoint,enableConsumerReadmission,enableSuccessorRecovery,enableSuccessorTwoCycle});
  const leases=createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtlMs:operationLeaseTtlMs,...(enableOwnerCutover?{operationGate:cutovers.operationGate}:{})});
  const live=()=>{if(disposed)throw error('backend-disposed');};
  const attempt=fn=>async(...args)=>{try{live();return await fn(...args);}catch(e){return closed({ok:false,reason:e.code||e.message||'backend-unavailable',recoveryRequired:true});}};
@@ -203,17 +205,22 @@ async function reconcileLease(envelope,lease,credentials,{current=false}={}){
   const p=await fixed(envelope.request),auth=await authenticate(p.q,credentials,{history:true});
   if(['accountGeneration','membershipGeneration','runtimeGeneration','writeEpoch'].some(k=>p.q[k]!==auth.q[k]))throw error('successor-history-identity-mismatch');
   const admission=await writerAuthorization(auth.q,credentials,auth),oldRow={...auth.row};
-  if(p.q.credentialVersion!==auth.q.credentialVersion||p.q.credentialLeaseRevision!==auth.q.credentialLeaseRevision)oldRow.credential_verifier=await predecessorVerifier(auth.row,p.q);
+  const archive=enableSuccessorTwoCycle?await readTwoCycleArchive(db,auth.row):null;
+  if(p.q.credentialVersion!==auth.q.credentialVersion||p.q.credentialLeaseRevision!==auth.q.credentialLeaseRevision)oldRow.credential_verifier=await predecessorVerifier(auth.row,p.q,archive?.packet);
   const historical={...p,row:oldRow,admission},row=await leases.status(envelope,lease,historical);
   let saved=null;if(row.state==='committed')saved=await receipt({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest},{q:auth.q,row:auth.row,history:true});
   const current={q:auth.q,row:auth.row,admission,history:true},g=guard(auth.session,current),w=fenceQuery(admission);
-  await checkpoint('before-successor-history-final');const final=await auth.session.prepare('SELECT ('+g.sql+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok')) AS valid`).bind(...g.values,...w.values).first();
+  await checkpoint('before-successor-history-final');const final=await auth.session.prepare('SELECT ('+g.sql+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok') ${archive?'AND '+archive.guard.sql:''}) AS valid`).bind(...g.values,...w.values,...(archive?archive.guard.values:[])).first();
   if(final?.valid!==1)throw error('successor-history-permission-unproven');
   if(!saved)return closed({ok:true,historical:true,currentAuthorization:false,backendCommitted:false,state:auth.row.operation_fence_revision>lease.fencingRevision?'fenced-not-committed':'not-committed',operationId:p.q.operation.operationId});
   return closed({...saved,historical:true,currentAuthorization:false,operationLeaseReceipt:await leases.commitReceipt(historical,saved)});
  }
  async function successorContext(input,credentials){
-  if(!enableSuccessorRecovery)throw error('successor-unavailable');const q=frozen(data(input));validateSuccessorStopRequest(q);validateReauthorizationRequest(q.request);const p=await fixed(q.anchorRequest),auth=await authenticate(p.q,credentials);p.row=auth.row;p.credentials=credentials;p.admission=await writerAuthorization(p.q,credentials,auth);return {q,p};
+  if(!enableSuccessorRecovery)throw error('successor-unavailable');const q=frozen(data(input));validateSuccessorStopRequest(q);validateReauthorizationRequest(q.request);const p=await fixed(q.anchorRequest),auth=await authenticate(p.q,credentials);p.row=auth.row;p.credentials=credentials;p.admission=await writerAuthorization(p.q,credentials,auth);
+  if(q.request.contractVersion===3){if(!enableSuccessorTwoCycle)throw error('two-cycle-unavailable');const archive=await readTwoCycleArchive(db,p.row,{required:true}),a=archive.packet,s=q.request.successor;
+   if(a.nextBeginOperationId!==p.row.credential_transition_id||a.scope.requestDigest!==s.previousRequestDigest||a.scope.completionDigest!==s.previousCompletionDigest||a.scope.registryRevision!==s.registryRevision||a.scope.stopFenceRevision!==s.stopFenceRevision||a.scope.pointerDigest!==await checksum(s.sourcePointer)||a.scope.consumerJSON!==canonicalJson(s.consumer))throw error('two-cycle-scope-unproven');
+   await predecessorVerifier(p.row,{...p.q,credentialVersion:a.binding.oldVersion,credentialLeaseRevision:a.binding.oldLease-1},a);p.lineageGuard=archive.guard;
+  }return {q,p};
  }
  async function cutoverContext(input,credentials){
   if(!enableOwnerCutover)throw error('owner-cutover-unavailable');const q=frozen(data(input));validateCutoverRequest(q);const p=await fixed(q.anchorRequest),auth=await authenticate(p.q,credentials);p.row=auth.row;p.admission=await writerAuthorization(p.q,credentials,auth);return {q,p};
@@ -248,7 +255,7 @@ async function reconcileLease(envelope,lease,credentials,{current=false}={}){
   // publication. Its purpose/ledger is separate from dataset/Account receipts.
   reauthorize:attempt(async(input,credentials)=>{
    if(!enableAuthorityReauthorization||!requireLifecycleBinding)throw error('reauthorization-unavailable');
-   const request=data(input);validateReauthorizationRequest(request);if(request.contractVersion===2&&!enableSuccessorRecovery)throw error('successor-unavailable');const requestDigest=await checksum(request);
+   const request=data(input);validateReauthorizationRequest(request);if([2,3].includes(request.contractVersion)&&!enableSuccessorRecovery||request.contractVersion===3&&!enableSuccessorTwoCycle)throw error('successor-unavailable');const requestDigest=await checksum(request);
    const appToken=credentials?.appAuthorization?.startsWith('Bearer ')?credentials.appAuthorization.slice(7):null,appDeviceId=parseDeviceCredential(appToken)?.deviceId;
    if(!appDeviceId)throw error('reauthorization-app-invalid');
    const first=await db.withSession('first-primary').prepare(ownerSql).bind(appDeviceId,request.accountDeviceId).first();

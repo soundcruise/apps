@@ -6,7 +6,7 @@ export const REAUTHORIZATION_PUBLICATION='reauthorization-publication';
 const exact=(x,k)=>x&&Object.getPrototypeOf(x)===Object.prototype&&equal(Object.keys(x).sort(),[...k].sort());
 const hash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 export function validateReauthorizationProof(p){
- const successor=p?.schemaVersion===2&&p.purpose==='adoption-authority-recovery-v2';
+ const successor=p?.schemaVersion===2&&p.purpose==='adoption-authority-recovery-v2'||p?.schemaVersion===3&&p.purpose==='adoption-authority-recovery-v3';
  if(!exact(p,['schemaVersion','purpose','request','requestDigest','qualification','sourceControl','sourcePointer','adoptionReceipt',...(successor?['successor']:[])])||!successor&&(p.schemaVersion!==1||p.purpose!=='adoption-authority-recovery-v1'))throw fail('reauthorization-proof-invalid');
  validateReauthorizationRequest(p.request);const q=p.request,r=p.adoptionReceipt,k=p.qualification;
  validateControl(p.sourceControl);validatePointer(p.sourcePointer);
@@ -19,7 +19,7 @@ export function validateReauthorizationProof(p){
  r.requestHash!==digest({binding:r.binding,beforeDigest:r.beforeDigest,afterDigest:r.afterDigest})||r.checksum!==digest(Object.fromEntries(Object.entries(r).filter(([key])=>key!=='checksum')))||
  !exact(k,['purpose','request','requestDigest','datasetId','appDeviceId','writeEpoch','credentialExpiresAt','proChecked','writerChecked','leaseThroughLocalCommit'])||k.purpose!=='authority-reauthorization-qualification-v1'||!equal(k.request,q)||k.requestDigest!==p.requestDigest||
  typeof k.datasetId!=='string'||!k.datasetId||typeof k.appDeviceId!=='string'||!k.appDeviceId||!Number.isSafeInteger(k.writeEpoch)||k.writeEpoch<1||!Number.isSafeInteger(k.credentialExpiresAt)||k.credentialExpiresAt<1||k.proChecked!==true||k.writerChecked!==true||k.leaseThroughLocalCommit!==false)throw fail('reauthorization-proof-invalid');
- if(successor){if(q.contractVersion!==2)throw fail('reauthorization-proof-invalid');validateSuccessorProof(p.successor,q);}else if(q.contractVersion!==1)throw fail('reauthorization-proof-invalid');
+ if(successor){if(q.contractVersion!==p.schemaVersion)throw fail('reauthorization-proof-invalid');validateSuccessorProof(p.successor,q);}else if(q.contractVersion!==1)throw fail('reauthorization-proof-invalid');
  return p;
 }
 export function validateReauthorizationPublication(r){

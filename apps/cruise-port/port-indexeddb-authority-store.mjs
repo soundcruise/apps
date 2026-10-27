@@ -739,7 +739,7 @@ function makeStore(db,env,lifecycle,lease) {
         });
     }
     function checkReauthorizationSource(ctx,active,p,done){
-        const q=p.request,successor=p.schemaVersion===2?p.successor:null,seen=new Set();let scanned=0;
+        const q=p.request,successor=[2,3].includes(p.schemaVersion)?p.successor:null,seen=new Set();let scanned=0;
         if(successor)validateSuccessorProof(successor,q);
         ctx.request(ctx.store('reservations').get([q.sourceGeneration,q.adoptionOperationId]),adoption=>{
             validateReservation(adoption,q.sourceGeneration,q.adoptionOperationId);
@@ -751,7 +751,7 @@ function makeStore(db,env,lifecycle,lease) {
                     if(row.kind==='account-transition'&&row.operationId===q.adoptionOperationId){cursor.continue();return;}
                     if(row.kind==='evidence-lifetime'){cursor.continue();return;}
                     if(row.kind==='publication'){cursor.continue();return;}
-                    if(successor&&row.kind===CUTOVER_PUBLICATION&&row.operationId===active.pointer.operationId&&digest(row)===q.successor.publicationDigest&&equal(row.publication,successor.sourcePublication)){verifyPublicationFact(ctx,row,()=>cursor.continue());return;}
+                    if(successor&&(row.kind===CUTOVER_PUBLICATION&&p.schemaVersion===2||row.kind===REAUTHORIZATION_PUBLICATION&&p.schemaVersion===3)&&row.operationId===active.pointer.operationId&&digest(row)===q.successor.publicationDigest&&equal(row.publication,successor.sourcePublication)){verifyPublicationFact(ctx,row,()=>cursor.continue());return;}
                     if(successor&&row.kind===OWNER_OPERATION_ROW){validateOwnerOperationRow(row);const i=successor.roster.items.find(i=>i.operationId===row.operationId&&i.envelope.authority.generation===q.sourceGeneration);if(i?.state!=='backend-committed'||!equal(row.proof.envelope,i.envelope)||!equal(row.proof.lease,i.lease)||!equal(row.proof.backendReceipt,i.backendFact)||!equal(row.proof.operationLeaseReceipt,i.operationLeaseReceipt))throw fail('successor-local-history-unproven');ctx.request(ctx.store('oplog').get([row.generation,row.operationId]),log=>{validateOplog(log,row.generation,row.operationId);if(log.fingerprint!==row.fingerprint)throw fail('successor-local-history-unproven');seen.add(row.operationId);cursor.continue();});return;}
                     if(row.kind==='operation-identity'){ctx.request(ctx.store('oplog').get([row.generation,row.operationId]),log=>{if(!log)throw fail('reauthorization-pending-operation');validateOplog(log,row.generation,row.operationId);if(log.fingerprint!==row.fingerprint)throw fail('reauthorization-pending-operation');cursor.continue();});return;}
                     throw fail('reauthorization-pending-operation');
@@ -997,7 +997,7 @@ function makeStore(db,env,lifecycle,lease) {
                                 ctx.request(ctx.store('control').put(control));ctx.request(ctx.store('journal').put(journal));
                                 ctx.request(ctx.store('pointer').put(next));ctx.request(ctx.store('pointer').put(namespaceState(env.partitionId,next.pointerEpoch)));
                                 if(cutover){const consumer={...cutover.consumer,id:cutover.request.targetConsumerId,epoch:cutover.consumer.epoch+1,authorityGeneration:r.generation,pointerEpoch:next.pointerEpoch,transitionId:r.operationId,publicationDigest:digest(reservation),readOnly:true};validateConsumer(consumer);ctx.request(ctx.store('pointer').put(consumer));}
-                                if(recovery?.schemaVersion===2){const s=recovery.request.successor,consumer={...s.consumer,id:s.targetConsumerId,epoch:s.consumer.epoch+1,authorityGeneration:r.generation,pointerEpoch:next.pointerEpoch,transitionId:r.operationId,publicationDigest:digest(reservation),readOnly:true};validateConsumer(consumer);ctx.request(ctx.store('pointer').put(consumer));}
+                                if([2,3].includes(recovery?.schemaVersion)){const s=recovery.request.successor,consumer={...s.consumer,id:s.targetConsumerId,epoch:s.consumer.epoch+1,authorityGeneration:r.generation,pointerEpoch:next.pointerEpoch,transitionId:r.operationId,publicationDigest:digest(reservation),readOnly:true};validateConsumer(consumer);ctx.request(ctx.store('pointer').put(consumer));}
                                 ctx.request(ctx.store('reservations').add(reservation),()=>ctx.tx.commit?.());
                                 ctx.done({ok:true,status:'published',generation:r.generation,operationId:r.operationId,pointerEpoch:next.pointerEpoch,
                                     previousGeneration:next.previousGeneration,publish:false,currentAuthorityVerified:true});
@@ -1006,7 +1006,7 @@ function makeStore(db,env,lifecycle,lease) {
                     });
                 });
                 };
-                if(cutover)readStop(ctx,cutover.request,stop=>{if(!equal(stop,cutover.stop)||!equal(active.control,stop.after))throw fail('owner-cutover-stop-stale');readConsumerFact(ctx,pointer,consumer=>{if(!equal(consumer,cutover.consumer))throw fail('owner-cutover-consumer-stale');classifyCutover(ctx,cutover.request,cutover.roster,cutover.pins,consumer,items=>{if(items.some(i=>i.state==='backend-committed-local-unapplied'))throw fail('owner-cutover-partial-unresolved');if(cutover.roster.latest&&!equal(JSON.parse(active.values['cruisePort.metronome']),JSON.parse(cutover.roster.latest.payload_json).value))throw fail('owner-cutover-latest-mismatch');proceed();});});});else if(recovery){if(recovery.schemaVersion===2)readConsumerFact(ctx,pointer,consumer=>{if(!equal(consumer,recovery.successor.consumer))throw fail('successor-consumer-stale');checkReauthorizationSource(ctx,active,recovery,proceed);});else checkReauthorizationSource(ctx,active,recovery,proceed);}else proceed();
+                if(cutover)readStop(ctx,cutover.request,stop=>{if(!equal(stop,cutover.stop)||!equal(active.control,stop.after))throw fail('owner-cutover-stop-stale');readConsumerFact(ctx,pointer,consumer=>{if(!equal(consumer,cutover.consumer))throw fail('owner-cutover-consumer-stale');classifyCutover(ctx,cutover.request,cutover.roster,cutover.pins,consumer,items=>{if(items.some(i=>i.state==='backend-committed-local-unapplied'))throw fail('owner-cutover-partial-unresolved');if(cutover.roster.latest&&!equal(JSON.parse(active.values['cruisePort.metronome']),JSON.parse(cutover.roster.latest.payload_json).value))throw fail('owner-cutover-latest-mismatch');proceed();});});});else if(recovery){if([2,3].includes(recovery.schemaVersion))readConsumerFact(ctx,pointer,consumer=>{if(!equal(consumer,recovery.successor.consumer))throw fail('successor-consumer-stale');checkReauthorizationSource(ctx,active,recovery,proceed);});else checkReauthorizationSource(ctx,active,recovery,proceed);}else proceed();
             }));
         },
         // Historical publication lookup never asserts current active integrity or

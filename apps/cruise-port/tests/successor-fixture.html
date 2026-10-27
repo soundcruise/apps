@@ -18,6 +18,7 @@ import {createIsolatedConsumerBpm} from '../port-consumer-bpm-isolated.mjs';
 import {createIsolatedSuccessorRecovery} from '../port-successor-recovery-isolated.mjs';
 import {createIsolatedBpmController} from '../../cruise-studio/js/modules/metronome/isolated-bpm-controller.mjs';
 let successor,successorAdoption,successorClient,successorCandidate,successorRenewal,successorAdoptionId,successorPhase;
+let testPendingHandle;
 let readmission,bpmController,bpmFacade,readmissionPhase;
 let cutover,cutoverPhase,transitionId,cutoverSource,cutoverBirth,operation,operationGeneration,operationBirth,operationHandle,operationPhase,x,vault,client,owner,candidate,name,record,credentials,renewalOperationId,phase,reauthorization,adoptionOperationId,abaDigest;
 const api=(action,input={})=>fetch('/__clock_fixture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,action,...input})}).then(r=>r.json());
@@ -25,6 +26,10 @@ const dispatch=req=>{const h=new Headers(req.headers);h.set('X-Isolated-Fixture'
 const send=async(path,body)=>{const r=await dispatch(new Request(new URL('/__isolated/account/v1/'+path,location.origin),{method:'POST',headers:{'Content-Type':'application/json',Authorization:credentials.accountAuthorization},body:JSON.stringify(body)}));return {status:r.status,body:await r.json()};};
 async function patchAuthority(stores,fn){const db=await new Promise((r,j)=>{const q=indexedDB.open(name);q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error);});try{await new Promise((r,j)=>{const tx=db.transaction(stores,'readwrite');fn(tx);tx.oncomplete=r;tx.onabort=()=>j(tx.error);});}finally{db.close();}}
 window.adoptionFixture={
+ async consumerPrepare(id){const p=await x.store.readPointer();testPendingHandle=await readmission.prepare({generation:p.pointer.activeGeneration,operationId:id,bpm:220,expectedBackendRevision:(await api('revision')).revision,explicit:true});return {ok:testPendingHandle.ok};},
+ consumerCommitPrepared:()=>readmission.commit(testPendingHandle),
+ async historicalAll(){const rows=await createIsolatedRecoveryBackupStore({indexedDB,scopeName:name}).inventory(),account=await x.mutationStore.inspect(await x.mutationStore.capture()),results=[];for(const r of rows){const p=r.packet;if(p?.purpose!=='owner-operation-pending-v1')continue;const l=rows.find(v=>v.packet?.purpose==='owner-operation-lease-pin-v1'&&v.packet.operationId===p.operationId);const response=await dispatch(new Request(new URL('/__isolated/account/v1/operation/history',location.origin),{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+account.accountCredential,'X-Sound-Cruise-App-Authorization':credentials.appAuthorization,'X-Sound-Cruise-Pro-Authorization':credentials.proAuthorization},body:JSON.stringify({envelope:p.envelope,envelopeDigest:p.envelopeDigest,lease:l.packet.lease})}));const b=await response.json();results.push({status:response.status,historical:b.historical,currentAuthorization:b.currentAuthorization,backendCommitted:b.backendCommitted});}return results;},
+
  async successorInit(o={}){
   successorPhase=o.phase;const fresh=()=>createTestAuthorityScope({indexedDB,name,partitionId:'fixture-partition',now:()=>x.clock.wall,monotonicNow:()=>x.clock.mono,clockIdentity:()=>x.clock.origin});
   successorClient=createIsolatedRenewalRecoveryClient({scope:fresh(),indexedDB,source:x.mutationStore,vault,url:location.origin+'/__isolated/account/v1/',dispatch});
@@ -35,7 +40,7 @@ window.adoptionFixture={
   const h=await successorClient.prepare({request:await api('lifecycle'),identity:{accountId:'A',accountDeviceId:account.accountDeviceId,membershipId:'member-A'}});if(!h.ok)return h;if(lost)await api('lose');let finish=await successorClient.finish(h);if(lost){if(finish.ok)throw Error('ack-was-not-lost');finish=await successorClient.recover({operationId:h.operationId});}successorRenewal=h.operationId;return {ok:finish.ok};
  },
  async successorAdopt(){const p=await x.store.readPointer();successorCandidate=await successorAdoption.inspect({generation:p.pointer.activeGeneration,renewalOperationId:successorRenewal});if(!successorCandidate.ok)return successorCandidate;successorAdoptionId=crypto.randomUUID();return successorAdoption.adopt({candidate:successorCandidate,operationId:successorAdoptionId,explicit:true});},
- async successorRun(id){const p=await x.store.readPointer();return successor.run({sourceGeneration:p.pointer.activeGeneration,adoptionOperationId:successorAdoptionId,operationId:id,targetConsumerId:'port-bpm-fixture-v1',explicit:true});},
+ async successorRun(id){const p=await x.store.readPointer();return successor.run({sourceGeneration:p.pointer.activeGeneration,adoptionOperationId:successorAdoptionId,operationId:id,targetConsumerId:(await x.store.readConsumer()).consumer.id==='port-bpm-fixture-v1'?'studio-bpm-readonly-fixture-v1':'port-bpm-fixture-v1',explicit:true});},
  successorRecover:(operationId,explicit=true)=>successor.recover({operationId,explicit}),successorReconcile:operationId=>successor.reconcile({operationId}),
  async successorValues(){const p=await x.store.readPointer();return (await x.store.hydrate(p.pointer.activeGeneration)).snapshot.values;},
 

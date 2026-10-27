@@ -1,3 +1,15 @@
+# Studio 0.47.20 / Port 1.24.23 — bounded two-cycle renewal candidate
+
+Parent PR27 dedb2719e0c5544417c783bc4978c522dd4e44cc. q3/proof3/cycle2 uses
+exact q2 source, one immutable owner archive atomic with begin2, two-link history
+and existing readonly Authority/consumer transactions. Third cycle is refused by
+the enabled fixture owner/local source. Shared Write OFF/canWrite=false, schema2.
+No production routes, migrations, writer/consumer/Cloud or deployment are enabled.
+After two-cycle acceptance, stop adding isolated cycles; the next unit is disabled
+production owner route/schema compatibility plus explicit clock/admission semantics.
+[Current production gates and initial-release roadmap](../docs/PRODUCTION_CONNECTION_GATES.md).
+The following sections are historical records.
+
 # Studio 0.47.19 / Port 1.24.22 — Renewal successor isolated candidate
 
 PR #26 fixed head e01c061a7c5fa2b26c5997ef580e38d0b3ceef61 is the direct parent.

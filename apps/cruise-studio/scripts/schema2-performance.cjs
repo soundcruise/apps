@@ -12,7 +12,7 @@ async function runRhythmPerformance(){
   const context=await browser.newContext({viewport:result.environment.viewport,serviceWorkers:'block'}),page=await context.newPage(),origin=new URL(url).origin;page.setDefaultTimeout(15000);
   await context.route('**/*',route=>{const u=new URL(route.request().url());if(u.origin===origin&&route.request().method()==='GET')return route.continue();if(u.hostname==='fonts.googleapis.com')return route.fulfill({body:'',contentType:'text/css'});result.network.push(u.href);return route.abort();});
   page.on('pageerror',e=>result.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')result.errors.push(m.text());});page.on('response',r=>{if(r.status()>=400)result.http.push(r.url());});
-  await page.goto(url);await page.waitForFunction(()=>!!window.CruiseStudio?.sheetCruise);assert.equal(await page.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.47.19');
+  await page.goto(url);await page.waitForFunction(()=>!!window.CruiseStudio?.sheetCruise);assert.equal(await page.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.47.20');
   const fixture=await page.evaluate(async({count,profile,materials})=>{
    const C=CruiseStudio,v1=C.model.createLegacySampleProject();v1.projectId='r5-perf-'+profile+'-'+count;v1.sections=[{id:'perf-section',name:'A',lyricsHidden:false}];v1.bars=Array.from({length:count},(_,i)=>({barNumber:i+1,sectionId:'perf-section',lineBreakAfter:false,chords:[{tick:0,symbol:'C'}],melody:[0,1,2,3].map(j=>({tick:j*480,durationTicks:480,step:j,alter:0,octave:0})),lyrics:[0,1,2,3].map(j=>({tick:j*480,text:'ら'})),strumOverride:null}));
    const migration=C.model.schema2.migrate(v1,JSON.stringify(v1));if(!migration.ok)throw Error(migration.error);const d=migration.project;
@@ -48,7 +48,7 @@ async function runRhythmPerformance(){
 }
 
 if(process.env.RHYTHM_PERF==='1')runRhythmPerformance().catch(e=>{console.error(e);process.exitCode=1;});else (async()=>{
- const urls=[['0.38.1',process.env.BASELINE_URL],['0.47.19',process.env.STUDIO_URL]];for(const[,u]of urls)assert.equal(new URL(u).hostname,'127.0.0.1');
+ const urls=[['0.38.1',process.env.BASELINE_URL],['0.47.20',process.env.STUDIO_URL]];for(const[,u]of urls)assert.equal(new URL(u).hostname,'127.0.0.1');
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--disable-background-networking','--disable-component-update','--disable-sync']}),result={environment:{browser:browser.version(),node:process.version,platform:process.platform,arch:process.arch,viewport:{width:1440,height:1000},runs,warmup},fixtures:{},rows:[],errors:[],http:[],network:[]},out=process.env.PERF_OUT;
  const persist=()=>fs.writeFileSync(out,JSON.stringify(result,null,2));
  try{for(const[version,url]of urls)for(const count of counts){

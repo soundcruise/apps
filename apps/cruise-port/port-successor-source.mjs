@@ -6,7 +6,8 @@ import {validateCutoverPin} from './port-owner-cutover-contract.mjs';
 export async function readSuccessorSource({store,backup,scopeName,generation,renewalOperationId,adoptionOperationId=null,stopped=false}){
  const consumer=await store.readConsumer(),h=await store.hydrate(generation);if(!consumer.ok||!h.ok||!h.snapshot.active)throw fail('successor-source-unproven');
  const c=h.snapshot.control;if(c.state!=='active'||!c.suspended||!c.fenceRevoked||c.recoveryRequired||c.identityInvalidated!==stopped)throw fail('successor-source-unproven');
- const basis=await readConsumerReadmissionBasis({store,backup,generation,transitionId:consumer.consumer.transitionId,scopeName}),pub=await store.lookupOwnerCutoverPublication({generation,transitionId:consumer.consumer.transitionId});
+ const basis=await readConsumerReadmissionBasis({store,backup,generation,transitionId:consumer.consumer.transitionId,scopeName});let pub=await store.lookupOwnerCutoverPublication({generation,transitionId:consumer.consumer.transitionId}),cycle=0;
+ if(!pub.ok){pub=await store.lookupReauthorization(generation,consumer.consumer.transitionId);if(!pub.ok||pub.fact.evidence.reauthorization.schemaVersion!==2||pub.fact.evidence.reauthorization.request.contractVersion!==2)throw fail('successor-cycle-limit');pub={...pub,publicationDigest:pub.receiptDigest};cycle=1;}
  if(!pub.ok||!equal(pub.fact.pointer,h.snapshot.pointer))throw fail('successor-source-unproven');
  const rows=(await backup.inventory()).sort((a,b)=>a.id.localeCompare(b.id)),known=new Set(basis.known),prefix='port-recovery-v1:'+scopeName+':',items=[];
  const renewal=rows.find(r=>r.id===prefix+'renew-'+renewalOperationId);if(renewal?.packet?.purpose!=='renewal-client-recovery-v1'||renewal.packet.operationId!==renewalOperationId)throw fail('successor-inventory-unproven');known.add(renewal.id);
@@ -17,5 +18,5 @@ export async function readSuccessorSource({store,backup,scopeName,generation,ren
   if(l.schemaVersion!==1||!equal(Object.keys(l).sort(),['schemaVersion','purpose','operationId','lease'].sort())||l.lease.envelopeDigest!==pin.envelopeDigest)throw fail('successor-inventory-unproven');known.add(r.id);known.add(prefix+'op-lease-'+id);items.push({pin,lease:l.lease});
  }
  if(rows.some(r=>!known.has(r.id))||known.size!==rows.length)throw fail('successor-inventory-unproven');
- return {snapshot:h.snapshot,consumer:consumer.consumer,publication:pub.fact,publicationDigest:pub.publicationDigest,basis,items,inventory:rows.map(r=>({id:r.id,digest:digest(r)}))};
+ return {cycle,snapshot:h.snapshot,consumer:consumer.consumer,publication:pub.fact,publicationDigest:pub.publicationDigest,basis,items,inventory:rows.map(r=>({id:r.id,digest:digest(r)}))};
 }
