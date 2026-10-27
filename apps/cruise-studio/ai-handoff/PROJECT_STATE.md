@@ -1,3 +1,7 @@
+# Studio 0.47.17 — Pointer/Consumer停止協調・明示部分復旧（未公開隔離候補）
+
+Port1.24.20 / Project schema2。PR #22固定head ae1309d5が直接親。Authorityのtyped stop/Control epochとowner SQLの永続stopped fenceを協調させ、旧lease消費/新規発行を停止。完全roster・元pin・typed local receiptを分類し、最新backend結果のみを別UUIDの明示復旧で元世代へ適用する。pointer/consumer CAS・journal・receiptは同Authority tx、新世代はsuspended/fenceRevoked/readOnly維持。owner確定もreadonly止まりで通常writerを再開しない。独立DBの原子性、全device/Cloud writer排除、本番cutoverは未保証。Shared Write OFF/canWrite=false、schema2・公開版・他owner不変。契約: [Owner Pointer Consumer Cutover](../../cruise-port/docs/OWNER_POINTER_CONSUMER_CUTOVER.md)。以下は履歴。
+
 # Studio 0.47.16 — 操作単位Owner Lease/Fencing（未公開隔離候補）
 
 Port1.24.19 / Project schema2。PR #21固定head 43b4eb11を直接親とする。操作ごとに既存Account/app/Pro/writerを確認し、owner SQL最終assertionへlease・fence・UUID・digest・CAS・receiptを結合する。新Authorityはsuspended/fenceRevokedのまま、同一backend確定BPM操作だけをopaque fixture purposeで限定適用。独立DB間の原子性・remote expiry through IDB・live pointerのserver把握は保証しない。部分成功はbackend/local receiptを分離して保持し自動再送しない。未知pending・floorは補修しない。Shared Write OFF/canWrite=false、通常writer/本番/Cloud/cutover/L3d未接続。契約: [Owner Operation Lease Admission](../../cruise-port/docs/OWNER_OPERATION_LEASE_ADMISSION.md)。以下は履歴。

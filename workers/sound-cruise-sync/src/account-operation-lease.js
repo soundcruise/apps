@@ -5,10 +5,11 @@ import {assertion,clearAssertions,fenceQuery} from './writer-fence.js';
 import {validateOperationEnvelope,validateOperationLease} from '../../../apps/shared/sync-account/owner-operation-lease-contract.mjs';
 const T="CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)",fail=()=>{throw Error('operation-lease-unproven');};
 const positive=x=>Number.isSafeInteger(x)&&x>0;
-export function createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtlMs=10000}){
+export const leaseTokenFromRow=r=>({schemaVersion:1,purpose:'owner-operation-lease-v1',accountId:r.account_id,accountDeviceId:r.device_id,operationId:r.operation_id,envelopeDigest:r.envelope_digest,authorizationDigest:r.authorization_digest,leaseRevision:r.lease_revision,fencingRevision:r.fencing_revision,issuedAt:r.issued_at,expiresAt:r.expires_at,credentialExpiresAt:r.credential_expires_at});
+export function createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtlMs=10000,operationGate=()=>({sql:'1',values:[]})}){
  if(!positive(leaseTtlMs)||leaseTtlMs>30000)fail();
  const authDigest=p=>checksum({accountVerifier:p.row.credential_verifier,appVerifier:p.admission.deviceVerifier,proId:p.admission.proCredentialId,proVerifier:p.admission.proVerifier,writeEpoch:p.q.writeEpoch});
- const token=r=>({schemaVersion:1,purpose:'owner-operation-lease-v1',accountId:r.account_id,accountDeviceId:r.device_id,operationId:r.operation_id,envelopeDigest:r.envelope_digest,authorizationDigest:r.authorization_digest,leaseRevision:r.lease_revision,fencingRevision:r.fencing_revision,issuedAt:r.issued_at,expiresAt:r.expires_at,credentialExpiresAt:r.credential_expires_at});
+ const token=leaseTokenFromRow;
  const read=(session,q)=>session.prepare('SELECT * FROM sync_account_operation_leases WHERE account_id=? AND operation_id=?').bind(q.accountId,q.operation.operationId).first();
  async function observed(p){
   const q=p.q;const result=await db.withSession('first-primary').prepare(`UPDATE sync_account_operation_leases SET last_owner_now=MAX(last_owner_now,${T}),state=CASE WHEN state='issued' AND expires_at<=${T} THEN 'expired' ELSE state END WHERE account_id=? AND operation_id=? AND device_id=? AND envelope_digest=? AND typeof(last_owner_now)='integer' AND last_owner_now>0 AND last_owner_now<=9007199254740991 AND ${T}>=last_owner_now AND typeof(issued_at)='integer' AND issued_at>0 AND last_owner_now>=issued_at AND state IN ('issued','committed','expired')`).bind(q.accountId,q.operation.operationId,q.accountDeviceId,p.lease.envelopeDigest).run();
@@ -19,17 +20,17 @@ export function createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtl
   const row=await read(db.withSession('first-primary'),p.q);if(!row||!positive(row.last_owner_now)||row.last_owner_now<row.issued_at||!['issued','committed','expired'].includes(row.state)||row.state==='committed'&&(!positive(row.committed_revision)||row.payload_hash!==p.q.operation.payloadHash)||canonicalJson(token(row))!==canonicalJson(lease)||row.envelope_json!==canonicalJson(e)||row.request_digest!==p.digest)fail();return row;
  }
  function condition(p,state='issued'){
-  const q=p.q,l=p.lease;
+  const q=p.q,l=p.lease,g=operationGate(p);
   return {sql:`EXISTS(SELECT 1 FROM sync_account_operation_leases ol JOIN sync_account_devices od ON od.id=ol.device_id AND od.account_id=ol.account_id
    WHERE ol.account_id=? AND ol.device_id=? AND ol.operation_id=? AND ol.envelope_digest=? AND ol.authorization_digest=? AND ol.envelope_json=? AND ol.request_digest=? AND ol.lease_revision=? AND ol.fencing_revision=?
    AND od.operation_fence_revision=ol.fencing_revision AND typeof(od.operation_fence_revision)='integer' AND ol.state=? AND typeof(ol.last_owner_now)='integer' AND ol.last_owner_now>0 AND ${T}>=ol.last_owner_now AND ${T}>=ol.issued_at AND ${T}<ol.expires_at
-   ${state==='committed'?'AND ol.committed_revision=? AND ol.payload_hash=?':''})`,values:[q.accountId,q.accountDeviceId,q.operation.operationId,l.envelopeDigest,l.authorizationDigest,canonicalJson(p.envelope),p.digest,l.leaseRevision,l.fencingRevision,state,...(state==='committed'?[q.operation.baseRevision+1,q.operation.payloadHash]:[])]};
+   ${state==='committed'?'AND ol.committed_revision=? AND ol.payload_hash=?':''}) AND ${g.sql}`,values:[q.accountId,q.accountDeviceId,q.operation.operationId,l.envelopeDigest,l.authorizationDigest,canonicalJson(p.envelope),p.digest,l.leaseRevision,l.fencingRevision,state,...(state==='committed'?[q.operation.baseRevision+1,q.operation.payloadHash]:[]),...g.values]};
  }
  return Object.freeze({
   async issue(e,p){
    validateOperationEnvelope(e);const q=p.q,session=db.withSession('first-primary'),counter=p.row.operation_fence_revision;
    if(!positive(counter)||!Number.isSafeInteger(counter+1))fail();
-   const envelopeDigest=await checksum(e),authorizationDigest=await authDigest(p),g=guard(session,p),w=fenceQuery(p.admission,{payload:p.operation.payload});
+   const envelopeDigest=await checksum(e),authorizationDigest=await authDigest(p),base=guard(session,p),opGate=operationGate(p),g={sql:base.sql+' AND '+opGate.sql,values:[...base.values,...opGate.values]},w=fenceQuery(p.admission,{payload:p.operation.payload});
    await checkpoint('before-operation-lease-issue');
    const noReplay='NOT EXISTS(SELECT 1 FROM sync_account_operation_leases WHERE account_id=? AND operation_id=?)',cas="COALESCE((SELECT revision FROM sync_records WHERE user_id=? AND app_id='port' AND record_type='metronome_settings' AND record_id='default'),0)=?";
    const results=await session.batch([

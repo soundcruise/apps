@@ -1,3 +1,5 @@
+import {CUTOVER_STOP,CUTOVER_PUBLICATION,CUTOVER_RECOVERY,validateCutoverStop,validateCutoverRoster,validateCutoverPin,originalOperationProof,recoveryRow,assertCutoverRecoveryApplication} from './port-owner-cutover-contract.mjs';
+import {validateConsumer} from '../shared/sync-account/owner-cutover-contract.mjs';
 import {OWNER_OPERATION_ROW,ownerOperationRow,assertOwnerOperationApplication,validateOwnerOperationProof} from './port-owner-operation-contract.mjs';
 import {REAUTHORIZATION_PUBLICATION} from './port-authority-reauthorization-contract.mjs';
 import {captureAccountBootstrap,accountBootstrapFingerprint,accountBootstrapRow,validateAccountBootstrap} from './port-account-bootstrap-intent.mjs';
@@ -11,7 +13,7 @@ import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COM
     inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
 import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } from './port-authority-action-policy.mjs';
-import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime, readReauthorizationAttestation, readOwnerOperationAttestation } from './port-authority-capabilities.mjs';
+import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime, readReauthorizationAttestation, readOwnerOperationAttestation,readOwnerCutoverAttestation } from './port-authority-capabilities.mjs';
 import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
 import {evidenceLifetimeKey,evidenceLifetimeRow,validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
 import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard,invalidateTrustedProClock} from './port-authority-pro-device-adapter.mjs';
@@ -213,7 +215,7 @@ function makeStore(db,env,lifecycle,lease) {
                 validatePointer(pointer);
                 if(pointer.partitionId!==env.partitionId)throw fail('pointer-invalid');
                 if(namespace.pointerEpoch!==pointer.pointerEpoch)throw fail('pointer-provenance-mismatch');
-                if(['isolated-fixture','isolated-reauthorization'].includes(pointer.publication.kind)&&!env.testProvider)throw fail('fixture-pointer-untrusted');
+                if(['isolated-fixture','isolated-reauthorization','isolated-owner-cutover'].includes(pointer.publication.kind)&&!env.testProvider)throw fail('fixture-pointer-untrusted');
                 ctx.request(ctx.store('reservations').get([pointer.activeGeneration,pointer.operationId]),row=>{
                     if(!row?.publication)throw fail('pointer-provenance-missing');
                     validateReservation(row,pointer.activeGeneration,pointer.operationId);
@@ -349,7 +351,7 @@ function makeStore(db,env,lifecycle,lease) {
         const handle=Object.freeze({generation,operationId});prepared.set(handle,{...value,authorizationContext,
             recoveryBody:structuredClone(body),capability:env.testProvider?.capture(value,systemCapability,authorizationContext)});return handle;
     }
-    const ownerApplications=new WeakMap(),ownerApplicationAttempts=new WeakSet();
+    const ownerApplications=new WeakMap(),ownerApplicationAttempts=new WeakSet(),cutoverRecoveries=new WeakMap(),cutoverRecoveryAttempts=new WeakSet();
     async function reserveOperation(handle) {
         const p=prepared.get(handle);if(!p)return Promise.resolve(rejected('prepared-handle-invalid'));
         // Reserve the immutable identity even when authorization later rejects.
@@ -360,12 +362,12 @@ function makeStore(db,env,lifecycle,lease) {
                 ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),log=>{
                     if(log){validateOplog(log,p.generation,p.operationId);if(log.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');ctx.done({ok:true});return;}
                     ctx.request(ctx.store('reservations').get([p.generation,p.operationId]),old=>{
-                        const row=ownerApplications.has(handle)?ownerOperationRow(ownerApplications.get(handle),p):{generation:p.generation,operationId:p.operationId,schemaVersion:1,kind:'operation-identity',fingerprint:p.fingerprint,
+                        const row=cutoverRecoveries.has(handle)?recoveryRow(cutoverRecoveries.get(handle),p.fingerprint):ownerApplications.has(handle)?ownerOperationRow(ownerApplications.get(handle),p):{generation:p.generation,operationId:p.operationId,schemaVersion:1,kind:'operation-identity',fingerprint:p.fingerprint,
                             action:p.action,policy:p.policy,targetKeys:Object.keys(p.changes).sort(),origin:'v2'};
                         if(old){
                             validateReservation(old,p.generation,p.operationId);
                             // A migrated v1 row keeps only its identity fingerprint.
-                            if(ownerApplications.has(handle)?!equal(old,row):old.kind!=='operation-identity'||old.fingerprint!==row.fingerprint||
+                            if(ownerApplications.has(handle)||cutoverRecoveries.has(handle)?!equal(old,row):old.kind!=='operation-identity'||old.fingerprint!==row.fingerprint||
                                 old.origin==='v2'&&!equal(old,row))throw fail('operation-id-payload-conflict');
                         }
                         else ctx.request(ctx.store('reservations').add(row));ctx.done({ok:true});
@@ -378,13 +380,13 @@ function makeStore(db,env,lifecycle,lease) {
     }
     async function commit(handle,{commitGuard}={}) {
         const p=prepared.get(handle);if(!p)return rejected('prepared-handle-invalid');
-        const ownerProof=ownerApplications.get(handle);
+        const ownerProof=ownerApplications.get(handle),cutoverRecovery=cutoverRecoveries.get(handle);
         const reservation=await reserveOperation(handle);if(!reservation.ok)return reservation;
         return transact(COMMIT_STORES,'readwrite',ctx=>ctx.request(ctx.store('reservations').get([p.generation,p.operationId]),reserved=>{
-            if(reserved){validateReservation(reserved,p.generation,p.operationId);if(ownerProof?!equal(reserved,ownerOperationRow(ownerProof,p)):reserved.kind!=='operation-identity'||reserved.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');}
+            if(reserved){validateReservation(reserved,p.generation,p.operationId);if(cutoverRecovery?!equal(reserved,recoveryRow(cutoverRecovery,p.fingerprint)):ownerProof?!equal(reserved,ownerOperationRow(ownerProof,p)):reserved.kind!=='operation-identity'||reserved.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');}
             ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),old=>{
             if(old){
-                if(ownerProof)throw fail('owner-operation-reconcile-required');
+                if(ownerProof||cutoverRecovery)throw fail('owner-operation-reconcile-required');
                 validateOplog(old,p.generation,p.operationId);
                 if(old.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');
                 checkCommittedFact(ctx,old,()=>ctx.done({...old.result,replayed:true}));return;
@@ -409,7 +411,9 @@ function makeStore(db,env,lifecycle,lease) {
                     if(!equal(baseManifest,p.base.manifest)||p.base.head.seq>current.head.seq)throw fail('base-invalid');
                     const keys=[...new Set([...Object.keys(p.changes).filter(k=>k!==PORT_DELETE_INTENTS),...p.dependencyKeys])];
                     for(const key of keys)if(current.versions[key]!==p.base.versions[key])throw fail('stale');
-                    if(ownerProof){assertOwnerOperationApplication(ownerProof,p,current);
+                    if(cutoverRecovery){assertCutoverRecoveryApplication(cutoverRecovery,p,current);readConsumerFact(ctx,current.pointer,consumer=>{if(!equal(consumer,cutoverRecovery.consumer))throw fail('owner-cutover-consumer-stale');classifyCutover(ctx,cutoverRecovery.request,cutoverRecovery.roster,cutoverRecovery.roster.items.map(i=>i.operationId===cutoverRecovery.sourcePin.operationId?cutoverRecovery.sourcePin:null),null,()=>{},true,cutoverRecovery,()=>write(current));});
+                    }else if(ownerProof){assertOwnerOperationApplication(ownerProof,p,current);
+                        const scanOwner=()=>{
                         ctx.request(ctx.store('journal').getAll(undefined,4097),journals=>{
                             if(journals.length>4096||journals.some(j=>j.generation===p.generation&&(j.state!=='active'||j.migrationId!==current.pointer.migrationId)))throw fail('owner-operation-unresolved-journal');
                             ctx.request(ctx.store('reservations').getAll(undefined,4097),rows=>{
@@ -421,6 +425,7 @@ function makeStore(db,env,lifecycle,lease) {
                                 }
                             });
                         });
+                                            };if(ownerProof.envelope.schemaVersion===2)readConsumerFact(ctx,current.pointer,c=>{if(!equal(c,ownerProof.envelope.consumer))throw fail('owner-operation-consumer-stale');scanOwner();});else scanOwner();
                     }else{assertWritableControl(current.control,p.base.control);write(current);}
                 });
             });
@@ -428,7 +433,8 @@ function makeStore(db,env,lifecycle,lease) {
                 const control=current?.control||p.initialControl;validateControl(control);
                 if(control.generation!==p.generation||control.identity.partitionId!==env.partitionId)throw fail('control-identity-invalid');
                 if(p.initialControl&&!['staging','prepared','active'].includes(control.state))throw fail('initial-state-invalid');
-                if(ownerProof)assertOwnerOperationApplication(ownerProof,p,current);
+                if(cutoverRecovery)assertCutoverRecoveryApplication(cutoverRecovery,p,current);
+                else if(ownerProof)assertOwnerOperationApplication(ownerProof,p,current);
                 else if(!p.initialControl||control.state==='active')assertWritableControl(control,p.base?.control||control);
                 const empty=Object.fromEntries(PORT_DATASET_KEYS.map(k=>[k,null])),before=current?.values||empty;
                 const values={...before,...p.changes};
@@ -750,8 +756,115 @@ function makeStore(db,env,lifecycle,lease) {
             });
         });
     }
-    const recoveryRequests=new WeakMap();
+    const CONSUMER_KEY='isolated-consumer';
+    function readConsumerFact(ctx,pointer,done){
+        if(!env.testProvider||!pointer)throw fail('owner-cutover-isolation-required');
+        ctx.request(ctx.store('pointer').get(CONSUMER_KEY),c=>{
+            validateConsumer(c);if(c.authorityGeneration!==pointer.activeGeneration||c.pointerEpoch!==pointer.pointerEpoch||c.transitionId!==pointer.operationId)throw fail('owner-cutover-consumer-stale');
+            ctx.request(ctx.store('reservations').get([pointer.activeGeneration,pointer.operationId]),row=>{
+                validateReservation(row,pointer.activeGeneration,pointer.operationId);if(digest(row)!==c.publicationDigest)throw fail('owner-cutover-consumer-stale');
+                if(row.kind===REAUTHORIZATION_PUBLICATION){if(c.epoch!==1||c.id!=='port-bpm-fixture-v1')throw fail('owner-cutover-consumer-stale');}
+                else if(row.kind===CUTOVER_PUBLICATION){const q=row.publication.evidence.cutover.request;if(c.id!==q.targetConsumerId||c.epoch!==q.consumer.epoch+1)throw fail('owner-cutover-consumer-stale');}
+                else throw fail('owner-cutover-consumer-unregistered');done(c);
+            });
+        });
+    }
+    function readStop(ctx,q,done){ctx.request(ctx.store('reservations').get([q.sourceGeneration,q.transitionId]),row=>{validateCutoverStop(row);if(!equal(row.request,q))throw fail('owner-cutover-stop-stale');done(row);});}
+    function historical(ctx,generation,operationId,fingerprint,value,done){
+        ctx.request(ctx.store('oplog').get([generation,operationId]),log=>{
+            if(!log){done(null);return;}validateOplog(log,generation,operationId);if(log.fingerprint!==fingerprint)throw fail('owner-cutover-receipt-mismatch');
+            ctx.request(ctx.store('manifests').get([generation,log.result.manifestId]),m=>{
+                validateManifest(m);if(m.generation!==generation||m.seq!==log.result.seq||m.revision!==log.result.revision)throw fail('owner-cutover-receipt-mismatch');
+                readManifestValues(ctx,generation,m,values=>{if(value!==null&&values['cruisePort.metronome']!==value)throw fail('owner-cutover-receipt-mismatch');done({result:log.result,values,manifest:m});});
+            });
+        });
+    }
+    // One readonly/commit transaction observes the complete bounded local inventory.
+    function classifyCutover(ctx,q,roster,pins,consumer,done,recovering=false,recoveryProof=null,recoveryDone=null){
+        validateCutoverRoster(roster,q);
+        ctx.request(ctx.store('reservations').getAll(undefined,4097),all=>{
+            if(all.length>4096)throw fail('owner-cutover-inventory-capacity');const rows=all.filter(r=>r.generation===q.sourceGeneration),byId=new Map(rows.map(r=>[r.operationId,r]));
+            for(const row of rows)validateReservation(row,row.generation,row.operationId);
+            const pinMap=new Map();if(recovering){for(const item of roster.items){const pin=item.operationId===recoveryProof.sourcePin.operationId?recoveryProof.sourcePin:recoveryProof.pins?.find(p=>p.operationId===item.operationId);if(pin)pinMap.set(item.operationId,pin);}}
+            else {if(!Array.isArray(pins)||pins.length!==roster.items.length)throw fail('owner-cutover-pin-missing');for(let i=0;i<pins.length;i++){validateCutoverPin(pins[i],roster.items[i]);pinMap.set(pins[i].operationId,pins[i]);}}
+            const itemIds=new Set(roster.items.map(i=>i.operationId)),allowedRecovery=recovering?recoveryProof.intent.operationId:null;
+            const init=rows.find(r=>r.kind==='operation-identity'&&r.action==='fixture-initialize'&&r.operationId==='reauth-stage-'+q.sourcePointer.operationId);
+            for(const row of rows){
+                if(row.kind===CUTOVER_STOP&&row.operationId===q.transitionId){if(!equal(row.request,q))throw fail('owner-cutover-stop-stale');continue;}
+                if(row.kind===REAUTHORIZATION_PUBLICATION&&row.operationId===q.sourcePointer.operationId&&equal(row.publication.pointer,q.sourcePointer))continue;
+                if(row===init)continue;
+                if(itemIds.has(row.operationId)){if(![OWNER_OPERATION_ROW,'operation-identity'].includes(row.kind))throw fail('owner-cutover-local-unregistered');continue;}
+                if(row.kind===CUTOVER_RECOVERY&&row.proof.request.transitionId===q.transitionId&&itemIds.has(row.proof.sourcePin.operationId))continue;
+                throw fail('owner-cutover-local-unregistered');
+            }
+            let pending=roster.items.length+(init?1:0);const items=[];
+            const finish=()=>{if(--pending>0)return;ctx.request(ctx.store('journal').getAll(undefined,4097),journals=>{if(journals.length>4096||journals.some(j=>j.generation===q.sourceGeneration&&(j.state!=='active'||j.migrationId!==q.sourcePointer.migrationId)))throw fail('owner-cutover-journal-pending');items.sort((a,b)=>a.operationId.localeCompare(b.operationId));if(recovering){if(items.some(i=>i.operationId!==recoveryProof.sourcePin.operationId&&i.state==='backend-committed-local-unapplied'))throw fail('owner-cutover-other-partial');recoveryDone();}else done(items);});};
+            if(!pending){pending=1;finish();return;}
+            if(init)historical(ctx,q.sourceGeneration,init.operationId,init.fingerprint,null,log=>{if(!log)throw fail('owner-cutover-local-unregistered');finish();});
+            for(const item of roster.items){
+                const pin=pinMap.get(item.operationId),row=byId.get(item.operationId),recoveries=rows.filter(r=>r.kind===CUTOVER_RECOVERY&&r.proof.request.transitionId===q.transitionId&&r.proof.sourcePin.operationId===item.operationId&&r.operationId!==allowedRecovery);
+                if(!pin)throw fail('owner-cutover-pin-missing');validateCutoverPin(pin,item);if(recoveries.length>1)throw fail('owner-cutover-recovery-ambiguous');
+                if(row&&(row.fingerprint!==pin.localIdentity.fingerprint||row.kind===OWNER_OPERATION_ROW&&!equal(row,ownerOperationRow(originalOperationProof(pin,item),pin.localIdentity))))throw fail('owner-cutover-receipt-mismatch');
+                historical(ctx,q.sourceGeneration,item.operationId,pin.localIdentity.fingerprint,pin.localIdentity.body.changes['cruisePort.metronome'],log=>{
+                    if(log){if(item.state!=='backend-committed'||row?.kind!==OWNER_OPERATION_ROW||recoveries.length)throw fail('owner-cutover-receipt-mismatch');items.push({operationId:item.operationId,state:'backend-committed-local-applied',localReceiptDigest:digest(row)});finish();return;}
+                    if(recoveries.length){const r=recoveries[0];if(item.state!=='backend-committed'||!equal(r.proof.sourcePin,pin))throw fail('owner-cutover-receipt-mismatch');historical(ctx,q.sourceGeneration,r.operationId,r.fingerprint,pin.localIdentity.body.changes['cruisePort.metronome'],recovered=>{if(!recovered)throw fail('owner-cutover-recovery-pending');items.push({operationId:item.operationId,state:'backend-committed-local-recovered',localReceiptDigest:digest(r)});finish();});return;}
+                    items.push({operationId:item.operationId,state:item.state==='backend-committed'?'backend-committed-local-unapplied':'backend-not-committed',localReceiptDigest:null});finish();
+                });
+            }
+        });
+    }
+
+    const recoveryRequests=new WeakMap(),cutoverPublications=new WeakMap();
     const api=Object.freeze({
+        fixtureBootstrapConsumer({generation,capability}={}){
+            try{if(!env.testProvider)throw fail('owner-cutover-isolation-required');verifyCapability(capability,{scope:env.scope,lease,purpose:'control:fixture-consumer',generation});}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(COMMIT_STORES,'readwrite',ctx=>readSnapshot(ctx,generation,s=>{
+                if(!s?.active||s.pointer.publication.kind!=='isolated-reauthorization'||!s.control.suspended||!s.control.fenceRevoked||s.control.recoveryRequired||s.control.identityInvalidated)throw fail('owner-cutover-bootstrap-stale');
+                ctx.request(ctx.store('pointer').get(CONSUMER_KEY),old=>{if(old)throw fail('owner-cutover-consumer-exists');ctx.request(ctx.store('reservations').get([generation,s.pointer.operationId]),pub=>{
+                    validateReservation(pub,generation,s.pointer.operationId);const consumer={schemaVersion:1,key:CONSUMER_KEY,owner:'port',id:'port-bpm-fixture-v1',epoch:1,authorityGeneration:generation,pointerEpoch:s.pointer.pointerEpoch,transitionId:s.pointer.operationId,publicationDigest:digest(pub),readOnly:true};validateConsumer(consumer);ctx.request(ctx.store('pointer').add(consumer));ctx.done({ok:true,consumer,canWrite:false});
+                });});
+            }));
+        },
+        readConsumer(){
+            if(!env.testProvider)return Promise.resolve(rejected('owner-cutover-isolation-required'));
+            return transact(COMMIT_STORES,'readonly',ctx=>readActive(ctx,pointer=>readConsumerFact(ctx,pointer,consumer=>ctx.done({ok:true,consumer,canWrite:false}))));
+        },
+        stopOwnerCutover({capability,attestation}={}){
+            let proof;try{if(!env.testProvider)throw fail('owner-cutover-isolation-required');const tokenGeneration=capability?.generation;verifyCapability(capability,{scope:env.scope,lease,purpose:'control:owner-cutover',generation:tokenGeneration});proof=readOwnerCutoverAttestation(attestation,{scope:env.scope,lease,generation:tokenGeneration,purpose:'owner-cutover-stop-proof-v1'});}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            const q=proof.request;return transact(COMMIT_STORES,'readwrite',ctx=>readSnapshot(ctx,q.sourceGeneration,s=>{
+                if(!s?.active||digest(s)!==q.sourceAuthorityDigest||!equal(s,proof.snapshot))throw fail('owner-cutover-source-stale');readConsumerFact(ctx,s.pointer,c=>{if(!equal(c,q.consumer))throw fail('owner-cutover-consumer-stale');
+                    ctx.request(ctx.store('reservations').get([q.sourceGeneration,q.transitionId]),old=>{if(old)throw fail('owner-cutover-reconcile-required');const row={schemaVersion:1,kind:CUTOVER_STOP,generation:q.sourceGeneration,operationId:q.transitionId,request:q,requestDigest:digest(q),before:{control:s.control,head:s.head},after:{...s.control,epoch:s.control.epoch+1,fenceEpoch:s.control.fenceEpoch+1,recoveryRequired:true}};validateCutoverStop(row);ctx.request(ctx.store('control').put(row.after));ctx.request(ctx.store('reservations').add(row));ctx.done({ok:true,stop:row,canWrite:false});
+                    });
+                });
+            }));
+        },
+        lookupOwnerCutoverStop({generation,transitionId}={}){
+            if(!env.testProvider)return Promise.resolve(rejected('owner-cutover-isolation-required'));
+            return transact(COMMIT_STORES,'readonly',ctx=>ctx.request(ctx.store('reservations').get([generation,transitionId]),row=>{validateCutoverStop(row);ctx.done({ok:true,stop:row,historical:true,canWrite:false});}));
+        },
+        classifyOwnerCutover({request,roster,pins}={}){
+            try{if(!env.testProvider)throw fail('owner-cutover-isolation-required');validateCutoverRoster(roster,request);}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(COMMIT_STORES,'readonly',ctx=>readSnapshot(ctx,request.sourceGeneration,s=>{
+                if(!s?.active||!equal(s.pointer,request.sourcePointer))throw fail('owner-cutover-source-stale');readStop(ctx,request,stop=>{if(!equal(s.control,stop.after))throw fail('owner-cutover-stop-stale');readConsumerFact(ctx,s.pointer,c=>{if(!equal(c,request.consumer))throw fail('owner-cutover-consumer-stale');classifyCutover(ctx,request,roster,pins,c,items=>ctx.done({ok:true,items,snapshot:s,stop,consumer:c,canWrite:false}));});});
+            }));
+        },
+        async applyOwnerCutoverRecovery({handle,capability,attestation}={}){
+            const p=prepared.get(handle);try{if(!env.testProvider||!p||cutoverRecoveryAttempts.has(handle))throw fail('owner-cutover-recovery-unavailable');verifyCapability(capability,{scope:env.scope,lease,purpose:'control:owner-recover',generation:p.generation});const proof=readOwnerCutoverAttestation(attestation,{scope:env.scope,lease,generation:p.generation,purpose:'owner-cutover-recovery-proof-v1'});assertCutoverRecoveryApplication(proof,p,p.base);cutoverRecoveryAttempts.add(handle);cutoverRecoveries.set(handle,proof);try{const r=await commit(handle);return frozen({...r,historical:true,canWrite:false,operationAuthorized:false,productionReady:false});}finally{cutoverRecoveries.delete(handle);}}catch(e){return rejected(errorCode(e));}
+        },
+        lookupOwnerCutoverRecovery({generation,operationId}={}){
+            if(!env.testProvider)return Promise.resolve(rejected('owner-cutover-isolation-required'));
+            return transact(COMMIT_STORES,'readonly',ctx=>ctx.request(ctx.store('reservations').get([generation,operationId]),row=>{
+                if(!row||row.kind!==CUTOVER_RECOVERY)throw fail('owner-cutover-recovery-unproven');validateReservation(row,generation,operationId);
+                historical(ctx,generation,operationId,row.fingerprint,row.proof.sourcePin.localIdentity.body.changes['cruisePort.metronome'],result=>{if(!result)throw fail('owner-cutover-recovery-unproven');ctx.done({ok:true,row,result:result.result,historical:true,canWrite:false});});
+            }));
+        },
+        publishOwnerCutover(request={}){
+            try{if(!env.testProvider)throw fail('owner-cutover-isolation-required');verifyCapability(request.recoveryCapability,{scope:env.scope,lease,purpose:'control:owner-cutover',generation:request.generation});const proof=readOwnerCutoverAttestation(request.cutover,{scope:env.scope,lease,generation:request.generation,purpose:'owner-cutover-publication-proof-v1'}),copy={...request};cutoverPublications.set(copy,proof);return api.publish(copy).then(r=>frozen({...r,readOnly:true,canWrite:false,operationAuthorized:false,productionReady:false}));}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+        },
+        lookupOwnerCutoverPublication({generation,transitionId}={}){
+            if(!env.testProvider)return Promise.resolve(rejected('owner-cutover-isolation-required'));
+            return transact(COMMIT_STORES,'readonly',ctx=>ctx.request(ctx.store('reservations').get([generation,transitionId]),row=>{if(!row||row.kind!==CUTOVER_PUBLICATION)throw fail('owner-cutover-publication-unproven');validateReservation(row,generation,transitionId);verifyPublicationFact(ctx,row,()=>ctx.done({ok:true,fact:row.publication,publicationDigest:digest(row),historical:true,canWrite:false}));}));
+        },
         get status(){return state==='open'&&!lease.active?'scope-runtime-inactive':state;},
         dispose(){if(state==='open'){state='disposed';lease.active=false;db.close();lifecycle('disposed');}},
         hydrate(generation){
@@ -816,7 +929,7 @@ function makeStore(db,env,lifecycle,lease) {
             }catch(e){return Promise.resolve(rejected(errorCode(e)));}
         },
         publish(request={}){
-            const recovery=recoveryRequests.get(request);let r;
+            const recovery=recoveryRequests.get(request),cutover=cutoverPublications.get(request),readonlyPublication=recovery||cutover;let r;
             try{
                 r={generation:request.generation,migrationId:request.migrationId,operationId:request.operationId,
                     expectedPointerEpoch:request.expectedPointerEpoch??null,expectedControlEpoch:request.expectedControlEpoch};
@@ -826,7 +939,8 @@ function makeStore(db,env,lifecycle,lease) {
             }catch(e){return Promise.resolve(rejected(errorCode(e)));}
             return transact(COMMIT_STORES,'readwrite',ctx=>readActive(ctx,(pointer,active)=>{
                 verifyCapability(request.capability,{scope:env.scope,lease,purpose:'migration-publication',generation:r.generation});
-                if(recovery){
+                if(cutover){if(!env.testProvider||!active||!equal(pointer,cutover.request.sourcePointer)||digest(active)!==cutover.intent.sourceDigest||!equal(active,cutover.snapshot)||r.operationId!==cutover.request.transitionId)throw fail('owner-cutover-source-stale');}
+                else if(recovery){
                     if(!env.testProvider||!active||!equal(pointer,recovery.sourcePointer)||!equal(active.control,recovery.sourceControl)||digest(active)!==recovery.request.sourceAuthorityDigest||r.operationId!==recovery.request.operationId)throw fail('reauthorization-source-stale');
                 }else if(active&&(active.control.recoveryRequired||active.control.identityInvalidated||active.control.state==='recovery-required'))throw fail('authority-invalidated');
                 const proceed=()=>{
@@ -851,16 +965,16 @@ function makeStore(db,env,lifecycle,lease) {
                             if(!current)throw fail('generation-missing');const c=current.control;
                             if(c.state!=='sealed')throw fail('publication-state-invalid');
                             if(c.epoch!==r.expectedControlEpoch)throw fail('control-stale');
-                            if(recovery?!c.suspended||!c.fenceRevoked||c.identityInvalidated||c.recoveryRequired: c.suspended||c.fenceRevoked||c.identityInvalidated||c.recoveryRequired)throw fail('authority-invalidated');
-                            if(recovery&&(!equal(c.identity,active.control.identity)||!equal(current.values,active.values)))throw fail('reauthorization-data-changed');
+                            if(readonlyPublication?!c.suspended||!c.fenceRevoked||c.identityInvalidated||c.recoveryRequired: c.suspended||c.fenceRevoked||c.identityInvalidated||c.recoveryRequired)throw fail('authority-invalidated');
+                            if(readonlyPublication&&(!equal(c.identity,active.control.identity)||!equal(current.values,active.values)))throw fail('reauthorization-data-changed');
                             ctx.request(ctx.store('journal').get(r.migrationId),j=>{
                                 if(!j)throw fail('journal-missing');validateJournal(j);
                                 if(j.generation!==r.generation||j.state!=='ready-to-publish'||!equal(j.identity,c.identity))throw fail('publication-state-invalid');
                                 if(j.sealHash!==current.manifest.digest||j.sealManifestId!==current.head.manifestId||j.sealHeadSeq!==current.head.seq)throw fail('seal-mismatch');
                                 const baseEvidence=publicationEvidence(request.attestation,r,j.sealHash);
-                                const evidence=recovery?frozen({...baseEvidence,kind:'isolated-reauthorization',reauthorization:recovery,
+                                const evidence=cutover?frozen({...baseEvidence,kind:'isolated-owner-cutover',cutover}):recovery?frozen({...baseEvidence,kind:'isolated-reauthorization',reauthorization:recovery,
                                     readonlyFence:{purpose:'owner-qualification-only-v1',requestDigest:recovery.requestDigest,datasetId:recovery.qualification.datasetId,appDeviceId:recovery.qualification.appDeviceId,writeEpoch:recovery.qualification.writeEpoch,exclusive:false,cloudConnected:false}}):baseEvidence,f=evidence.fence;
-                                if(recovery){if(f!==null||baseEvidence.binary.assetCount!==0||baseEvidence.sync.cloudConnected!==false||baseEvidence.sync.scope!=='local-known-empty-fixture')throw fail('reauthorization-readonly-evidence-invalid');}
+                                if(readonlyPublication){if(f!==null||baseEvidence.binary.assetCount!==0||baseEvidence.sync.cloudConnected!==false||baseEvidence.sync.scope!=='local-known-empty-fixture')throw fail('reauthorization-readonly-evidence-invalid');}
                                 else if(c.identity.ownership==='bound-account'?!f||f.accountId!==c.identity.accountId||f.membershipId!==c.identity.membershipId||
                                     f.accountGeneration!==c.identity.accountGeneration||f.membershipGeneration!==c.identity.membershipGeneration:f!==null)throw fail('cloud-fence-required');
                                 if(active)ctx.request(ctx.store('control').put({...active.control,state:'superseded',epoch:active.control.epoch+1}));
@@ -872,11 +986,12 @@ function makeStore(db,env,lifecycle,lease) {
                                 validatePointer(next);
                                 const fact={schemaVersion:1,pointer:next,identity:control.identity,request:r,evidence};
                                 const journal={...j,state:'active',revision:j.revision+1,publishedPointerEpoch:next.pointerEpoch,publication:fact};validateJournal(journal);
-                                const reservation={generation:r.generation,operationId:r.operationId,schemaVersion:1,kind:recovery?REAUTHORIZATION_PUBLICATION:'publication',
-                                    fingerprint:digest({kind:recovery?REAUTHORIZATION_PUBLICATION:'publication',...r,evidence}),action:recovery?'publishReauthorized':'publish',policy:recovery?'control:reauthorize':'migration-publication',targetKeys:[],origin:'v2',publication:fact};
+                                const reservation={generation:r.generation,operationId:r.operationId,schemaVersion:1,kind:cutover?CUTOVER_PUBLICATION:recovery?REAUTHORIZATION_PUBLICATION:'publication',
+                                    fingerprint:digest({kind:cutover?CUTOVER_PUBLICATION:recovery?REAUTHORIZATION_PUBLICATION:'publication',...r,evidence}),action:cutover?'publishOwnerCutover':recovery?'publishReauthorized':'publish',policy:cutover?'control:owner-cutover':recovery?'control:reauthorize':'migration-publication',targetKeys:[],origin:'v2',publication:fact};
                                 validateReservation(reservation,r.generation,r.operationId);
                                 ctx.request(ctx.store('control').put(control));ctx.request(ctx.store('journal').put(journal));
                                 ctx.request(ctx.store('pointer').put(next));ctx.request(ctx.store('pointer').put(namespaceState(env.partitionId,next.pointerEpoch)));
+                                if(cutover){const consumer={...cutover.consumer,id:cutover.request.targetConsumerId,epoch:cutover.consumer.epoch+1,authorityGeneration:r.generation,pointerEpoch:next.pointerEpoch,transitionId:r.operationId,publicationDigest:digest(reservation),readOnly:true};validateConsumer(consumer);ctx.request(ctx.store('pointer').put(consumer));}
                                 ctx.request(ctx.store('reservations').add(reservation),()=>ctx.tx.commit?.());
                                 ctx.done({ok:true,status:'published',generation:r.generation,operationId:r.operationId,pointerEpoch:next.pointerEpoch,
                                     previousGeneration:next.previousGeneration,publish:false,currentAuthorityVerified:true});
@@ -885,7 +1000,7 @@ function makeStore(db,env,lifecycle,lease) {
                     });
                 });
                 };
-                if(recovery)checkReauthorizationSource(ctx,active,recovery,proceed);else proceed();
+                if(cutover)readStop(ctx,cutover.request,stop=>{if(!equal(stop,cutover.stop)||!equal(active.control,stop.after))throw fail('owner-cutover-stop-stale');readConsumerFact(ctx,pointer,consumer=>{if(!equal(consumer,cutover.consumer))throw fail('owner-cutover-consumer-stale');classifyCutover(ctx,cutover.request,cutover.roster,cutover.pins,consumer,items=>{if(items.some(i=>i.state==='backend-committed-local-unapplied'))throw fail('owner-cutover-partial-unresolved');if(cutover.roster.latest&&!equal(JSON.parse(active.values['cruisePort.metronome']),JSON.parse(cutover.roster.latest.payload_json).value))throw fail('owner-cutover-latest-mismatch');proceed();});});});else if(recovery)checkReauthorizationSource(ctx,active,recovery,proceed);else proceed();
             }));
         },
         // Historical publication lookup never asserts current active integrity or

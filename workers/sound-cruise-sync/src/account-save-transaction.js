@@ -1,3 +1,5 @@
+import {createOwnerCutoverOwner} from './account-owner-cutover.js';
+import {validateCutoverRequest,isDigest,isUUID} from '../../../apps/shared/sync-account/owner-cutover-contract.mjs';
 import {createOperationLeaseOwner} from './account-operation-lease.js';
 import {validateOperationEnvelope} from '../../../apps/shared/sync-account/owner-operation-lease-contract.mjs';
 // UNROUTED fixture capability. No app.js/account-app.js import or production
@@ -48,12 +50,14 @@ const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.cr
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
 
-export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,enableOwnerCutover=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
  if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
  const handles=new WeakMap();let disposed=false;
  let ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
  if(enableOperationLease)ownerSql=ownerSql.replace('SELECT ','SELECT d.operation_fence_revision, ');
- const leases=createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtlMs:operationLeaseTtlMs});
+ if(enableOwnerCutover&&(!enableOperationLease||!requireLifecycleBinding))throw error('owner-cutover-mode-invalid');
+ const cutovers=createOwnerCutoverOwner({db,checksum,guard,checkpoint});
+ const leases=createOperationLeaseOwner({db,checksum,guard,checkpoint,leaseTtlMs:operationLeaseTtlMs,...(enableOwnerCutover?{operationGate:cutovers.operationGate}:{})});
  const live=()=>{if(disposed)throw error('backend-disposed');};
  const attempt=fn=>async(...args)=>{try{live();return await fn(...args);}catch(e){return closed({ok:false,reason:e.code||e.message||'backend-unavailable',recoveryRequired:true});}};
  async function fixed(input){
@@ -179,22 +183,37 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    const binding=frozen(JSON.parse(canonicalJson({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest})));
    const handle=closed({ok:true,binding});handles.set(handle,{...p,admission,credentials,attempted:false});await checkpoint('after-prepare');return handle;
  }
+async function reconcileLease(envelope,lease,credentials,{current=false}={}){
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);
+   lease=frozen(data(lease));let p;if(current){const h=await prepareSave(envelope.request,credentials);p=handles.get(h);}else{p=await fixed(envelope.request);const auth=await authenticate(p.q,credentials,{recordClock:true,history:true});p.row=auth.row;p.admission=await writerAuthorization(p.q,credentials,auth);}
+   const row=await leases.status(envelope,lease,p);if(row.state!=='committed')return closed({ok:true,state:row.state,backendCommitted:false,historical:true});
+   if(current){if(enableOwnerCutover)await cutovers.binding(envelope,p);const c=leases.condition(p,'committed'),g=guard(db.withSession('first-primary'),p),w=fenceQuery(p.admission,{payload:p.operation.payload});const r=await db.withSession('first-primary').prepare('SELECT ('+c.sql+' AND '+g.sql+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok')) AS valid`).bind(...c.values,...g.values,...w.values).first();if(r?.valid!==1)throw error('operation-lease-current-unproven');}
+   const auth=await authenticate(p.q,credentials,{recordClock:true,history:true}),saved=await receipt({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest},{q:auth.q,row:auth.row,history:true});return closed({...saved,operationLeaseReceipt:await leases.commitReceipt(p,saved)});
+  }
+ async function cutoverContext(input,credentials){
+  if(!enableOwnerCutover)throw error('owner-cutover-unavailable');const q=frozen(data(input));validateCutoverRequest(q);const p=await fixed(q.anchorRequest),auth=await authenticate(p.q,credentials);p.row=auth.row;p.admission=await writerAuthorization(p.q,credentials,auth);return {q,p};
+ }
  return Object.freeze({fixtureOnly:true,
   prepare:attempt(async(...args)=>{if(enableOperationLease)throw error('operation-lease-required');return prepareSave(...args);}),
   issueOperationLease:attempt(async(envelope,credentials)=>{
    if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);
-   const h=await prepareSave(envelope.request,credentials),p=handles.get(h),lease=await leases.issue(envelope,p);return closed({ok:true,lease});
+   const h=await prepareSave(envelope.request,credentials),p=handles.get(h);if(enableOwnerCutover)await cutovers.binding(envelope,p);const lease=await leases.issue(envelope,p);return closed({ok:true,lease});
   }),
   prepareLeased:attempt(async(envelope,lease,credentials)=>{
-   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);lease=frozen(data(lease));const h=await prepareSave(envelope.request,credentials),p=handles.get(h);await leases.requireIssued(envelope,lease,p);return h;
+   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);lease=frozen(data(lease));const h=await prepareSave(envelope.request,credentials),p=handles.get(h);if(enableOwnerCutover)await cutovers.binding(envelope,p);await leases.requireIssued(envelope,lease,p);return h;
   }),
-  reconcileLeased:attempt(async(envelope,lease,credentials,{current=false}={})=>{
-   if(!enableOperationLease||!requireLifecycleBinding)throw error('operation-lease-unavailable');envelope=frozen(data(envelope));validateOperationEnvelope(envelope);
-   lease=frozen(data(lease));let p;if(current){const h=await prepareSave(envelope.request,credentials);p=handles.get(h);}else{p=await fixed(envelope.request);const auth=await authenticate(p.q,credentials,{recordClock:true,history:true});p.row=auth.row;p.admission=await writerAuthorization(p.q,credentials,auth);}
-   const row=await leases.status(envelope,lease,p);if(row.state!=='committed')return closed({ok:true,state:row.state,backendCommitted:false,historical:true});
-   if(current){const c=leases.condition(p,'committed'),g=guard(db.withSession('first-primary'),p),w=fenceQuery(p.admission,{payload:p.operation.payload});const r=await db.withSession('first-primary').prepare('SELECT ('+c.sql+' AND '+g.sql+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok')) AS valid`).bind(...c.values,...g.values,...w.values).first();if(r?.valid!==1)throw error('operation-lease-current-unproven');}
-   const auth=await authenticate(p.q,credentials,{recordClock:true,history:true}),saved=await receipt({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest},{q:auth.q,row:auth.row,history:true});return closed({...saved,operationLeaseReceipt:await leases.commitReceipt(p,saved)});
+  reconcileLeased:attempt(reconcileLease),
+  cutoverStop:attempt(async(input,credentials)=>{const {q,p}=await cutoverContext(input,credentials);return closed({ok:true,stopReceipt:await cutovers.stop(q,p),phase:'stopped'});}),
+  cutoverInspect:attempt(async(input,credentials)=>{const {q,p}=await cutoverContext(input,credentials);return closed({ok:true,...await cutovers.inspect(q,p,(e,l)=>reconcileLease(e,l,credentials))});}),
+  cutoverQualify:attempt(async(input,credentials)=>{
+   const {q,p}=await cutoverContext(input?.request,credentials),intent=frozen(data(input?.intent));
+   if(!intent||!isUUID(intent.operationId)||!isDigest(intent.sourceDigest)||!isDigest(intent.rosterDigest)||!['owner-cutover-publication-intent-v1','owner-cutover-recovery-intent-v1'].includes(intent.purpose))throw error('owner-cutover-intent-invalid');
+   const roster=await cutovers.inspect(q,p,(e,l)=>reconcileLease(e,l,credentials));if(roster.rosterDigest!==intent.rosterDigest)throw error('owner-cutover-roster-stale');
+   if(intent.purpose==='owner-cutover-recovery-intent-v1'){const item=roster.items.find(i=>i.operationId===intent.sourceOperationId);if(!item||item.state!=='backend-committed'||roster.latest?.last_operation_id!==item.operationId||roster.latest.revision!==item.backendFact.revision||roster.latest.payload_hash!==item.backendFact.payloadHash)throw error('owner-cutover-recovery-stale');}
+   const qualification=await cutovers.qualify(q,p,{sourceDigest:intent.sourceDigest,rosterDigest:intent.rosterDigest,purpose:'owner-cutover-current-qualification-v1',operationId:intent.operationId,operationDigest:await checksum(intent)});return closed({ok:true,qualification:{...qualification,intent,intentDigest:await checksum(intent)}});
   }),
+  cutoverConfirm:attempt(async(input,credentials)=>{const {q,p}=await cutoverContext(input?.request,credentials);return closed({ok:true,...await cutovers.confirm(q,p,frozen(data(input?.completion)))});}),
+  cutoverReconcile:attempt(async(input,credentials)=>{const {q,p}=await cutoverContext(input,credentials);return closed({ok:true,...await cutovers.reconcile(q,p)});}),
   // A current owner qualification fact, NEVER a lease through local IDB
   // publication. Its purpose/ledger is separate from dataset/Account receipts.
   reauthorize:attempt(async(input,credentials)=>{
