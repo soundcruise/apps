@@ -52,16 +52,17 @@ export async function createIsolatedMetronomeBpmOwner({scope,indexedDB,generatio
   prepare:attempt(async(view,bpm,{operationId}={})=>{
    live();identifier(operationId);const p=drafts.get(view);if(!p||!Number.isInteger(bpm)||bpm<30||bpm>240)throw fail('bpm-draft-invalid');
    if(!await current(p))throw fail('bpm-source-stale');
-   const auth=await finalAdmission.prepare(frozen({operationId,action:'saveBpm',generation,bpm,identity:p.snapshot.control.identity,account:p.source.manifest,baseRevision:p.snapshot.head.revision}));
-   if(!auth||!Object.isFrozen(auth.context)||typeof auth.guard!=='function'||typeof auth.assertCurrent!=='function')throw fail('bpm-final-admission-missing');
-   const check=async()=>{if(!await current(p)||await auth.assertCurrent()!==true)throw fail('bpm-final-admission-stale');};await check();
    const before=p.snapshot.values[KEY],baseSettings=settings(p.snapshot);let next=before;
    const mem={getItem:k=>k===KEY?before:null,setItem(k,v){if(k!==KEY)throw fail('bpm-target-invalid');next=v;}};
    if(!saveMetronomeSettings({...baseSettings,bpm},mem).ok)throw fail('bpm-settings-invalid');
    // Preserve unknown fields without inventing a second settings model.
    next=JSON.stringify({...JSON.parse(before||'{}'),...JSON.parse(next)});
+   const auth=await finalAdmission.prepare(frozen({operationId,action:'saveBpm',generation,bpm,identity:p.snapshot.control.identity,
+    account:p.source.manifest,baseRevision:p.snapshot.head.revision,credentialVersion:p.observation.credentialVersion,changesDigest:digest({[KEY]:next})}));
+   if(!auth||!Object.isFrozen(auth.context)||typeof auth.guard!=='function'||typeof auth.assertCurrent!=='function')throw fail('bpm-final-admission-missing');
+   const check=async()=>{if(!await current(p)||await auth.assertCurrent()!==true)throw fail('bpm-final-admission-stale');};await check();
    const guard=(context,details)=>{live();if(context!==auth.context)return false;const verdict=auth.guard(context,details);if(verdict?.then){verdict.catch?.(()=>{});return false;}return verdict===true;};
-   const handle=store.prepare({base:p.snapshot,operationId,action:'saveBpm',changes:{[KEY]:next},dependencyKeys:[KEY],authorizationContext:auth.context,authorizationIdentity:{accountDigest:digest(p.source.manifest),identity:p.snapshot.control.identity,credentialVersion:p.observation.credentialVersion}});
+   const handle=store.prepare({base:p.snapshot,operationId,action:'saveBpm',changes:{[KEY]:next},dependencyKeys:[KEY],authorizationContext:auth.context,authorizationIdentity:{accountDigest:digest(p.source.manifest),identity:p.snapshot.control.identity,credentialVersion:p.observation.credentialVersion,...(auth.binding?{admission:auth.binding}:{})}});
    const reserved=await store.reserveOperation(handle);if(!reserved.ok)throw fail(reserved.reason);await check();
    const body={schemaVersion:1,scopeName:scope.name,...store.recoveryIdentity(handle),bpm,accountDigest:digest(p.source.manifest)},recoveryTicket=frozen({...body,checksum:digest(body)});
    const value=closed({ok:true,operationId,recoveryTicket});prepared.set(value,{handle,guard,check,recoveryTicket});await checkpoint('after-prepare');return value;
