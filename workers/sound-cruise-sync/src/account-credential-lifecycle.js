@@ -1,3 +1,4 @@
+import {twoCycleLifecycleStatements} from './account-two-cycle-history.js';
 // Unrouted owner capability. Columns/gates are installed by fixtures only.
 import {verifyAccountCredentialSnapshot} from './account-auth.js';
 import {createAccountCredential,parseAccountCredential,accountCredentialVerifier} from './account-crypto.js';
@@ -20,8 +21,9 @@ export const CREDENTIAL_OWNER_SELECT=`SELECT d.*,d.id AS device_id,a.state AS ac
  FROM sync_account_devices d JOIN sync_accounts a ON a.id=d.account_id
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
-export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=false,leaseTtlMs=60000,enableRenewalRecovery=false,recoveryTtlMs=30000,checkpoint=async()=>{}}={}){
+export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=false,leaseTtlMs=60000,enableRenewalRecovery=false,enableSuccessorTwoCycle=false,recoveryTtlMs=30000,checkpoint=async()=>{}}={}){
  if(fixtureOnly!==true||typeof db?.withSession!=='function'||typeof pepper!=='string'||pepper.length<32||!positive(leaseTtlMs)||leaseTtlMs>3600000||!positive(recoveryTtlMs)||recoveryTtlMs>leaseTtlMs)throw fail('credential-isolation-required');
+ if(enableSuccessorTwoCycle&&!enableRenewalRecovery)throw fail('two-cycle-isolation-required');
  let disposed=false;
  async function authenticated(authorization){
   if(disposed)throw fail('credential-disposed');const token=typeof authorization==='string'&&authorization.startsWith('Bearer ')?authorization.slice(7):null;
@@ -98,9 +100,10 @@ export function createIsolatedCredentialLifecycle({db,pepper,policy,fixtureOnly=
    AND o.generation=? AND o.membership_generation=? AND o.runtime_generation=? AND o.credential_lifecycle_enabled=1 AND o.account_state='active' AND o.membership_state='active' AND o.membership_deleted_at IS NULL AND o.device_linked=1
    ${recoveryText?'AND o.credential_recovery_json=? AND o.credential_recovery_until<=o.credential_expires_at AND o.owner_now<o.credential_recovery_until':''}
    AND ${ownerBindingSQL('o')} AND o.owner_now>=o.credential_clock_floor ${state==='active'?"AND o.revoked_at IS NULL AND o.owner_now<o.credential_expires_at":''})`;
+  const history=enableSuccessorTwoCycle?await twoCycleLifecycleStatements({db,session,row,q,action}):{before:[],after:[]};
   await checkpoint('before-lifecycle-transaction',{action,accountId:row.account_id});
-  try{const results=await session.batch([assertion(session,owner,values),update,assertion(session,after,[row.device_id,row.account_id,version,verifier,lease,state,JSON.stringify(ledger),row.generation,row.membership_generation,row.runtime_generation,...(recoveryText?[recoveryText]:[])]),clearAssertions(session)]);
-   if(!Array.isArray(results)||results.length!==4||results.some(r=>r?.success!==true))throw fail('credential-transaction-unproven');}
+  try{const results=await session.batch([assertion(session,owner,values),...history.before,update,assertion(session,after,[row.device_id,row.account_id,version,verifier,lease,state,JSON.stringify(ledger),row.generation,row.membership_generation,row.runtime_generation,...(recoveryText?[recoveryText]:[])]),...history.after,clearAssertions(session)]);
+   if(!Array.isArray(results)||results.length!==4+history.before.length+history.after.length||results.some(r=>r?.success!==true))throw fail('credential-transaction-unproven');}
   catch(e){await clockFact(row);throw e;}
   await checkpoint('after-lifecycle-transaction',{action,accountId:row.account_id});
   const actual=await db.withSession('first-primary').prepare(`SELECT credential_issued_at,credential_expires_at FROM sync_account_devices

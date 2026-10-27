@@ -1,7 +1,7 @@
 // Dormant, explicitly isolated Account/Authority coordination. Importing this
 // module performs no I/O and installs no writer, credential or Sync runtime.
 import { openIDBAuthorityStore, claimPortAuthorityIssuer, authorityProEnvironment } from './port-indexeddb-authority-store.mjs';
-import { equal, frozen, fail, identifier } from './port-idb-authority-contract.mjs';
+import { equal, frozen, fail, identifier, digest } from './port-idb-authority-contract.mjs';
 import { accountTransitionFingerprint } from './port-account-transition-intent.mjs';
 
 // Nonsecret receipt binding. The full exact intent remains in Authority.
@@ -66,7 +66,7 @@ export function projectPortAccountIdentity(account, summary) {
  * No ordinary route imports/calls this factory. No arbitrary onStop callback is
  * accepted as durable evidence. No value returned here grants write access.
  */
-export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, accountStorage, locks, mutationStore = null, accountProtocol=1 } = {}) {
+export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, accountStorage, locks, mutationStore = null, accountProtocol=1, readonlyAdoption=false } = {}) {
     if (!/^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(scope?.name ?? '') ||
         !indexedDB?.open || !locks?.request ||
         ['getGeneration', 'subscribeAccount', 'changeAccountIfCurrent'].some(name => typeof accountStorage?.[name] !== 'function')) {
@@ -152,6 +152,14 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
                 identity: frozen(structuredClone(control.identity)), mutationContext, blocked: false });
             return token;
         },
+        async observeReadonlyAdoption({generation,summary,adoption}={}) {
+            if(!readonlyAdoption||!environment.fixtureOnly||!mutationStore)throw fail('readonly-adoption-unavailable');
+            const version=revision,local=localGeneration(),record=await read(),identity=projectPortAccountIdentity(record,summary),h=await store.hydrate(generation),consumer=await store.readConsumer(),facts=await store.accountTransitions(generation),control=h.snapshot?.control;
+            if(!adoption||!equal(Object.keys(adoption).sort(),['operationId','beforeDigest','afterDigest','credentialDigest','consumer'].sort())||typeof adoption.operationId!=='string'||adoption.beforeDigest!==digest(record)||!consumer.ok||!equal(consumer.consumer,adoption.consumer)||!h.ok||!h.snapshot.active||control.state!=='active'||!control.suspended||!control.fenceRevoked||control.identityInvalidated||control.recoveryRequired||!facts.ok||facts.recoveryRequired||!identity||control.identity.ownership!=='bound-account'||!Object.keys(identity).every(k=>control.identity[k]===identity[k])||version!==revision||local!==localGeneration())return null;
+            let birth=await store.lookupOwnerCutoverPublication({generation,transitionId:consumer.consumer.transitionId});if(!birth.ok){birth=await store.lookupReauthorization(generation,consumer.consumer.transitionId);if(!birth.ok||birth.fact.evidence.reauthorization.schemaVersion!==2||birth.fact.evidence.reauthorization.request.contractVersion!==2)return null;birth={...birth,publicationDigest:birth.receiptDigest};}if(!birth.ok||!equal(birth.fact.pointer,h.snapshot.pointer)||birth.publicationDigest!==consumer.consumer.publicationDigest)return null;
+            const mutationContext=await mutationStore.capture();if(!mutationStore.matches(mutationContext,await read())||version!==revision)return null;
+            const token=Object.freeze({});contexts.set(token,{revision,localGeneration:local,accountKey:accountKey(record),generation,controlEpoch:control.epoch,pointerEpoch:h.snapshot.pointer.pointerEpoch,identity:frozen(structuredClone(control.identity)),mutationContext,blocked:false,readonlyAdoption:structuredClone(adoption)});return token;
+        },
         // Stop is durable BEFORE an Account publication is submitted. Notifications
         // can invalidate a local observation sooner but are not this barrier.
         async transition({ context: token, operationId, nextAccount, kind = nextAccount === null ? 'detach' : 'switch' } = {}) {
@@ -159,6 +167,7 @@ export async function createIsolatedPortAccountCoordinator({ scope, indexedDB, a
             const context = contexts.get(token);
             if (!context || !['switch', 'detach', 'revoke'].includes(kind) ||
                 (kind === 'switch' ? !accountKey(nextAccount) : nextAccount !== null)) throw fail('account-context-invalid');
+            if(context.readonlyAdoption){const a=context.readonlyAdoption;if(kind!=='switch'||operationId!==a.operationId||nextAccount?.accountId!==context.accountKey[0]||(nextAccount.accountDeviceId??null)!==context.accountKey[2]||digest(nextAccount)!==a.afterDigest||digest(nextAccount.accountCredential)!==a.credentialDigest)throw fail('readonly-adoption-scope-mismatch');}
             // Copy before the first await; callers cannot retag the destination.
             const replacement = nextAccount === null ? null : structuredClone(nextAccount);
             return locks.request(lockName, { mode: 'exclusive' }, async () => {
