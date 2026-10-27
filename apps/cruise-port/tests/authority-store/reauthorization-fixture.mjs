@@ -8,7 +8,7 @@ export function installReauthorizationFixture(db){db.raw.exec('CREATE TABLE sync
 export async function reauthorizationFixture(t,{checkpoint,dispatch,ownerCheckpoint,afterAdopt=true,clean=true}={}){
  const x=await credentialAdoptionFixture(t);
  // Known empty-material fixture only; no real legacy or user data is changed.
- if(clean){const h=await x.head(),p=x.store.prepare({base:h.snapshot,operationId:'known-empty-material-fixture',action:'fixture-save',changes:{'cruisePort.syncAssetMetadata':cleanValues()['cruisePort.syncAssetMetadata']}});if(!(await x.store.commit(p)).ok)throw Error('fixture-material-setup');}
+ if(clean){const h=await x.head(),p=x.store.prepare({base:h.snapshot,operationId:'known-empty-material-fixture',action:'fixture-save',changes:{'cruisePort.syncAssetMetadata':cleanValues()['cruisePort.syncAssetMetadata'],'cruisePort.metronome':JSON.stringify({...JSON.parse(h.snapshot.values['cruisePort.metronome']),futureOwnerField:{preserve:['unknown',17]}})}});if(!(await x.store.commit(p)).ok)throw Error('fixture-material-setup');}
  const oldPrepared=bpmHandle(x.store,(await x.head()).snapshot,'old-prepared');
  const candidate=await x.inspect(),adoptionOperationId=crypto.randomUUID();if(!candidate.ok)throw Error(candidate.reason);
  if(afterAdopt){const a=await x.owner.adopt({candidate,operationId:adoptionOperationId,explicit:true});if(!a.ok)throw Error(a.reason);}

@@ -1,3 +1,16 @@
+# Studio 0.47.19 / Port 1.24.22 — Renewal successor isolated candidate
+
+PR #26 fixed head e01c061a7c5fa2b26c5997ef580e38d0b3ceef61 is the direct parent.
+Explicit readonly credential adoption, authenticated history-only reconcile across
+one direct renewal, and typed successor Authority/consumer publication use existing
+owners. Pointer/consumer CAS is one IDB transaction; SQL stop/confirmation and
+Account/backup DB remain separate. New per-operation V3 Admission enables isolated
+BPM draft/save/reload while all normal writers remain disconnected.
+Shared Write OFF / canWrite=false, schema 2. Multiple renewal cycles, production
+backend/cutover/Cloud and physical commit expiry remain gates.
+Contract: [Renewal successor lifecycle](../../cruise-port/docs/RENEWAL_SUCCESSOR_LIFECYCLE_ISOLATED.md).
+The sections below are historical implementation records.
+
 # Studio 0.47.17 — Pointer/Consumer停止協調・明示部分復旧（未公開隔離候補）
 
 Port1.24.20 / Project schema2。PR #22固定head ae1309d5が直接親。Authorityのtyped stop/Control epochとowner SQLの永続stopped fenceを協調させ、旧lease消費/新規発行を停止。完全roster・元pin・typed local receiptを分類し、最新backend結果のみを別UUIDの明示復旧で元世代へ適用する。pointer/consumer CAS・journal・receiptは同Authority tx、新世代はsuspended/fenceRevoked/readOnly維持。owner確定もreadonly止まりで通常writerを再開しない。独立DBの原子性、全device/Cloud writer排除、本番cutoverは未保証。Shared Write OFF/canWrite=false、schema2・公開版・他owner不変。契約: [Owner Pointer Consumer Cutover](../../cruise-port/docs/OWNER_POINTER_CONSUMER_CUTOVER.md)。以下は履歴。
@@ -2058,3 +2071,14 @@ Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（sch
 ## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
 
 0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](../docs/SCHEMA2_FOUNDATION.md)を参照。
+
+## 0.47.18 isolated candidate — new consumer operation Admission
+
+Base bbaab206cded382d49190335540a1bd1711bbede. Port candidate 1.24.21.
+V3 operation envelopes bind completed readonly pointer/consumer publication and
+SQL registry revision/stop fence, without reopening stopped scopes. New BPM facade
+uses existing Studio draft controller and immutable operation pins. Explicit local
+recovery never resends SQL. Actual owner renewal tests distinguish new backend
+lease success from still-blocked local credential adoption/new Authority recovery.
+Normal boot, Shared Write OFF, canWrite=false and production routes stay unchanged.
+Contract: apps/cruise-port/docs/CONSUMER_READMISSION_BPM_ISOLATED.md.
