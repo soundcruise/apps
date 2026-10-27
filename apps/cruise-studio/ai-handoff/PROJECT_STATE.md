@@ -1,3 +1,7 @@
+# Studio 0.47.11 — Backend save transaction隔離候補（未公開）
+
+Port 1.24.14 / Project schema2。PR #16固定head c543724bを直接の親とする。既存backend SQLのAccount最終再認可・Pro/writer fence・Port record/CAS/oplogを同一batchで確定する未公開fixtureを追加。ローカルAuthority commitは別結果であり、SQL receiptを保存資格にしない。部分成功・ack喪失・reopenは既存Shared immutable pending pinと二種類のreceiptから照合し、自動再送・削除なし。通常router/production migration/consumerは未接続、Shared Write OFF / canWrite=false。資格発行/更新route、production owner時計・cutover・最終認可は未完成。契約: [Backend/local transaction](../../cruise-port/docs/BACKEND_SAVE_TRANSACTION.md)。以下は履歴。
+
 # Studio 0.47.10 — Owner final admission隔離契約（未公開topic）
 
 Port 1.24.13内部保守候補、Project schema2維持。基準公開main d66107c5 / Studio0.47.9 / Port1.24.12。既存Account sca1 HMACとAuthority保存transactionを再利用し、owner資格lifecycle/expiry、exact request digest、operation ID/CAS/receiptを結合する。owner lease columns・同期commit probeは隔離fixture限定。本番owner router、遠隔ownerとIndexedDBの原子性、資格発行/更新routeは未完成。通常writer/Cloud/Shared Write未接続、canWrite=false。契約: [Account Save Admission](../../cruise-port/docs/ACCOUNT_SAVE_ADMISSION.md)。以下は履歴。

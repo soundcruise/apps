@@ -1,0 +1,20 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><link rel="icon" href="data:,"><title>Backend / Local transaction fixture</title>
+<p>隔離SQL backend + native IndexedDB / Shared Write OFF</p>
+<script src="../../shared/sync-account/sync-account-db.js"></script><script src="../../shared/sync-account/sync-account-client.js"></script>
+<script type="module">
+import {setupBrowserSaveAdmission} from './authority-store/save-admission-browser-fixture.mjs';
+import {createIsolatedBackendSaveCoordinator,createIsolatedBackendSavePending} from '../port-backend-save-isolated.mjs';
+import {digest} from '../port-idb-authority-contract.mjs';
+import {hashRecord} from '../../../workers/sound-cruise-sync/src/records.js';
+let x,c,p,name,hold,release;
+const api=(action,input={})=>fetch('/__backend_fixture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,action,...input})}).then(r=>r.json());
+const checkpoint=async phase=>{if(phase===hold){window.backendFixture.entered=phase;await new Promise(r=>release=r);}};
+window.backendFixture={async init(o){name=o.name;const data=await api('init');x=await setupBrowserSaveAdmission({indexedDB,root:SoundCruiseSyncAccount,name,seed:o.seed,record:data.account,checkpoint});
+ const pending=createIsolatedBackendSavePending({indexedDB,scopeName:name}),backend={fixtureOnly:true,prepare:q=>api('prepare',{q}),commit:h=>api('commit',{id:h.id}),reconcile:binding=>api('reconcile',{binding})};
+ c=createIsolatedBackendSaveCoordinator({scope:x.scope,source:x.mutationStore,localOwner:x.owner,pending,backend,checkpoint,makeBackendRequest:async({operationId,bpm,expectedBackendRevision,localTicket})=>{
+  const q=await api('request',{operationId,bpm,revision:expectedBackendRevision});q.localGeneration=localTicket.generation;q.localRevision=digest(localTicket.body.base);q.operation.payload.value=JSON.parse(localTicket.body.changes['cruisePort.metronome']);q.operation.payloadHash=await hashRecord(q.operation,crypto,'port');return q;}});return {ok:true};},
+ async prepare(bpm,id,rev=0){p=await c.prepare({operationId:id,bpm,expectedBackendRevision:rev});return p;},commit:()=>c.commit(p),recover:id=>c.recover({operationId:id}),
+ authority:()=>x.store.hydrate('g1'),rows:()=>x.rows(),backendState:()=>api('state'),revoke:()=>api('revoke'),expire:()=>api('expire'),
+ hold(phase){hold=phase;this.entered=null;},release(){release?.();hold=null;}
+};
+</script></html>

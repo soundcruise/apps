@@ -1,0 +1,161 @@
+// UNROUTED fixture capability. No app.js/account-app.js import or production
+// schema installation. The protected resource here is the EXISTING SQL record,
+// never a promise of atomic commit with a browser's IndexedDB.
+import {parseAccountCredential} from './account-crypto.js';
+import {verifyAccountCredentialSnapshot} from './account-auth.js';
+import {parseDeviceCredential,hmacVerifier} from './crypto.js';
+import {inspectProCredentialReadOnly} from './pro-auth-app.js';
+import {admitWriter,writerMutationDatabase} from './writer-admission.js';
+import {policyAllows,assertion,clearAssertions,fenceQuery} from './writer-fence.js';
+import {canonicalJson,validateOperation,hashRecord} from './records.js';
+import {createD1SyncRepository} from './sync-database.js';
+import {evaluateSaveCredential} from './account-save-admission.js';
+
+const TIME="CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)";
+const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(x);
+const positive=x=>Number.isSafeInteger(x)&&x>0;
+const text=x=>typeof x==='string'&&x.length>0&&x.length<=256;
+const keys=['contractVersion','purpose','accountId','accountDeviceId','accountGeneration','membershipId','membershipGeneration',
+ 'credentialVersion','credentialLeaseRevision','runtimeGeneration','datasetId','appDeviceId','writeEpoch','localGeneration','localRevision','operation'];
+const closed=v=>Object.freeze({canWrite:false,operationAuthorized:false,productionReady:false,...v});
+function error(code){const e=Error(code);e.code=code;return e;}
+function data(value,depth=0,seen=new Set(),budget={nodes:0}){
+ if(depth>16||++budget.nodes>5000)throw error('backend-request-invalid');
+ if(value===null||['string','boolean'].includes(typeof value))return value;
+ if(typeof value==='number'&&Number.isFinite(value))return value;
+ if(!value||typeof value!=='object'||seen.has(value)||Object.getOwnPropertySymbols(value).length||
+  ![Object.prototype,null,Array.prototype].includes(Object.getPrototypeOf(value)))throw error('backend-request-invalid');
+ seen.add(value);const result=Array.isArray(value)?[]:Object.create(null);
+ for(const k of Object.keys(value)){const d=Object.getOwnPropertyDescriptor(value,k);if(!Object.hasOwn(d,'value'))throw error('backend-request-invalid');result[k]=data(d.value,depth+1,seen,budget);}
+ seen.delete(value);return result;
+}
+async function checksum(value){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonicalJson(value))))].map(x=>x.toString(16).padStart(2,'0')).join('');}
+function frozen(value){if(value&&typeof value==='object'){for(const x of Object.values(value))frozen(x);Object.freeze(value);}return value;}
+const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.credential_verifier,d.revoked_at,
+ d.credential_issued_at,d.credential_expires_at,d.credential_lease_revision,d.credential_lifecycle,d.credential_clock_floor,
+ a.state AS account_state,a.generation,a.admission_provenance,m.id AS membership_id,m.state AS membership_state,
+ m.generation AS membership_generation,m.deleted_at AS membership_deleted_at,m.sync_user_id,m.write_epoch,
+ c.generation AS runtime_generation,CASE WHEN c.rollout_mode IN ('cohort','open') AND c.account_save_enabled=1 THEN 1 ELSE 0 END AS save_enabled,${TIME} AS owner_now,
+ EXISTS(SELECT 1 FROM sync_membership_device_links l JOIN sync_devices pd ON pd.id=l.app_device_id
+ WHERE l.account_id=a.id AND l.membership_id=m.id AND l.account_device_id=d.id AND l.app_device_id=?
+ AND pd.user_id=m.sync_user_id AND pd.app_id='port' AND pd.revoked_at IS NULL) AS device_linked
+ FROM sync_account_devices d JOIN sync_accounts a ON a.id=d.account_id
+ LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
+ LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
+
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,checkpoint=async()=>{}}={}){
+ if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
+ const handles=new WeakMap();let disposed=false;
+ const live=()=>{if(disposed)throw error('backend-disposed');};
+ const attempt=fn=>async(...args)=>{try{live();return await fn(...args);}catch(e){return closed({ok:false,reason:e.code||e.message||'backend-unavailable',recoveryRequired:true});}};
+ async function fixed(input){
+  const q=data(input);if(Object.keys(q).length!==keys.length||!keys.every(k=>Object.hasOwn(q,k))||
+   q.contractVersion!==1||q.purpose!=='backend-port-save'||!policyAllows(policy,q.accountId)||
+   !['accountId','accountDeviceId','membershipId','datasetId','appDeviceId','localGeneration','localRevision'].every(k=>text(q[k]))||
+   !['accountGeneration','membershipGeneration','credentialVersion','credentialLeaseRevision','runtimeGeneration','writeEpoch'].every(k=>positive(q[k])))throw error('backend-binding-invalid');
+  const parsed=await validateOperation(q.operation,crypto,'port');
+  if(!parsed.ok||!uuid(q.operation.operationId)||parsed.operation.recordType!=='metronome_settings'||parsed.operation.recordId!=='default'||parsed.operation.deleted)throw error('backend-operation-invalid');
+  const bpm=parsed.operation.payload?.value?.bpm;if(!Number.isInteger(bpm)||bpm<30||bpm>240)throw error('backend-operation-invalid');
+  return {q,operation:parsed.operation,digest:await checksum(q)};
+ }
+ async function clockFact(session,q,verifier){
+  // Restrictive owner fact only, separate from data mutation. A denial is never
+  // reported as durably observed expiry until this owner write is proven.
+  const r=await session.prepare(`UPDATE sync_account_devices SET
+   credential_clock_floor=MAX(credential_clock_floor,${TIME}),
+   credential_lifecycle=CASE WHEN credential_lifecycle='active' AND typeof(credential_expires_at)='integer'
+    AND credential_expires_at<=${TIME} THEN 'expired' ELSE credential_lifecycle END
+   WHERE id=? AND account_id=? AND credential_version=? AND credential_verifier=?`)
+   .bind(q.accountDeviceId,q.accountId,q.credentialVersion,verifier).run();
+  if(r?.success===false)throw error('backend-owner-clock-unproven');
+ }
+ async function authenticate(q,credentials,{recordClock=true}={}){
+  const token=typeof credentials?.accountAuthorization==='string'&&credentials.accountAuthorization.startsWith('Bearer ')?credentials.accountAuthorization.slice(7):null;
+  if(parseAccountCredential(token)?.deviceId!==q.accountDeviceId)throw error('backend-account-credential-invalid');
+  const session=db.withSession('first-primary');let row=await session.prepare(OWNER_SQL).bind(q.appDeviceId,q.accountDeviceId).first();
+  const verified=await verifyAccountCredentialSnapshot(row,token,accountPepper);if(!verified?.row)throw error('backend-account-credential-invalid');
+  if(recordClock){await clockFact(session,q,row.credential_verifier);row=await db.withSession('first-primary').prepare(OWNER_SQL).bind(q.appDeviceId,q.accountDeviceId).first();
+   if(!(await verifyAccountCredentialSnapshot(row,token,accountPepper))?.row)throw error('backend-account-credential-invalid');}
+  const lifecycle=evaluateSaveCredential(row,q,row?.owner_now);
+  if(lifecycle!=='valid'||row.credential_lease_revision!==q.credentialLeaseRevision||row.runtime_generation!==q.runtimeGeneration||row.sync_user_id!==q.datasetId||row.write_epoch!==q.writeEpoch)throw error('backend-owner-'+lifecycle);
+  return {session,row};
+ }
+ function guard(session,p){
+  const {q,row}=p,sql=`EXISTS(SELECT 1 FROM (${OWNER_SQL}) o WHERE
+   o.account_id=? AND o.device_id=? AND o.generation=? AND o.membership_id=? AND o.membership_generation=?
+   AND o.sync_user_id=? AND o.write_epoch=? AND o.credential_version=? AND o.credential_verifier=?
+   AND o.credential_lease_revision=? AND o.runtime_generation=? AND o.account_state='active' AND o.admission_provenance='production'
+   AND o.membership_state='active' AND o.membership_deleted_at IS NULL AND o.revoked_at IS NULL AND o.device_linked=1
+   AND o.save_enabled=1 AND o.credential_lifecycle='active'
+   AND typeof(o.credential_clock_floor)='integer' AND o.credential_clock_floor>0 AND o.owner_now>=o.credential_clock_floor
+   AND typeof(o.credential_issued_at)='integer' AND o.credential_issued_at>0 AND o.credential_issued_at<=o.owner_now
+   AND typeof(o.credential_expires_at)='integer' AND o.credential_expires_at>o.credential_issued_at AND o.owner_now<o.credential_expires_at)`;
+  return {sql,values:[q.appDeviceId,q.accountDeviceId,q.accountId,q.accountDeviceId,q.accountGeneration,q.membershipId,q.membershipGeneration,
+   q.datasetId,q.writeEpoch,q.credentialVersion,row.credential_verifier,q.credentialLeaseRevision,q.runtimeGeneration]};
+ }
+ function guardedDatabase(session,p){
+  const query=guard(session,p),q=p.q,op=p.operation;
+  const noReplay=`NOT EXISTS(SELECT 1 FROM sync_changes WHERE user_id=? AND app_id='port' AND operation_id=?)`;
+  const cas=`COALESCE((SELECT revision FROM sync_records WHERE user_id=? AND app_id='port' AND record_type='metronome_settings' AND record_id='default'),0)=?`;
+  return {prepare:session.prepare.bind(session),async batch(statements){
+   const bind=session.prepare(`UPDATE sync_changes SET isolated_request_digest=?,isolated_account_binding=?
+    WHERE user_id=? AND app_id='port' AND operation_id=? AND operation_hash=? AND isolated_request_digest IS NULL`)
+    .bind(p.digest,canonicalJson(q),q.datasetId,op.operationId,op.operationHash);
+   const exact=`EXISTS(SELECT 1 FROM sync_changes l JOIN sync_records r ON r.user_id=l.user_id AND r.app_id=l.app_id
+    AND r.record_type=l.record_type AND r.record_id=l.record_id WHERE l.user_id=? AND l.app_id='port' AND l.operation_id=?
+    AND l.operation_hash=? AND l.isolated_request_digest=? AND l.isolated_account_binding=? AND l.revision=?
+    AND l.payload_hash=? AND l.payload_json=? AND l.deleted_at IS NULL AND l.schema_version=1
+    AND r.revision=l.revision AND r.last_operation_id=l.operation_id AND r.payload_hash=l.payload_hash AND r.payload_json=l.payload_json)`;
+   const prefix=assertion(session,query.sql+' AND '+noReplay+' AND '+cas,[...query.values,q.datasetId,op.operationId,q.datasetId,op.baseRevision]);
+   const final=assertion(session,query.sql+' AND '+exact,[...query.values,q.datasetId,op.operationId,op.operationHash,p.digest,canonicalJson(q),op.baseRevision+1,op.payloadHash,canonicalJson(op.payload)]);
+   const w=fenceQuery(p.admission,{payload:op.payload}),finalWriter=session.prepare('INSERT INTO sync_writer_fence_assertion(code) '+w.sql).bind(...w.values);
+   const result=await session.batch([prefix,...statements,bind,finalWriter,final,clearAssertions(session)]);
+   if(!Array.isArray(result)||result.some(r=>r?.success===false))throw error('backend-transaction-unproven');
+   return result.slice(1,1+statements.length);
+  }};
+ }
+ async function receipt(binding){
+  if(!binding||binding.contractVersion!==1||binding.purpose!=='backend-save-receipt-binding')throw error('backend-receipt-invalid');
+  const p=await fixed(binding.request);if(p.digest!==binding.requestDigest)throw error('backend-receipt-mismatch');
+  const q=p.q,op=p.operation,session=db.withSession('first-primary');
+  const row=await session.prepare(`SELECT * FROM sync_changes WHERE user_id=? AND app_id='port' AND operation_id=?`).bind(q.datasetId,op.operationId).first();
+  if(!row||row.isolated_request_digest!==p.digest||row.isolated_account_binding!==canonicalJson(q)||row.operation_hash!==op.operationHash||
+   row.record_type!==op.recordType||row.record_id!==op.recordId||row.revision!==op.baseRevision+1||row.payload_hash!==op.payloadHash||
+   row.payload_json!==canonicalJson(op.payload)||row.deleted_at!==null||row.schema_version!==1||await hashRecord({recordType:row.record_type,recordId:row.record_id,schemaVersion:row.schema_version,payload:JSON.parse(row.payload_json)},crypto,'port')!==row.payload_hash)
+   throw error('backend-receipt-unproven');
+  return closed({ok:true,backendCommitted:true,historical:true,receipt:{operationId:op.operationId,requestDigest:p.digest,datasetId:q.datasetId,
+   accountId:q.accountId,accountGeneration:q.accountGeneration,membershipGeneration:q.membershipGeneration,revision:row.revision,changeSeq:row.change_seq,payloadHash:row.payload_hash}});
+ }
+ return Object.freeze({fixtureOnly:true,
+  prepare:attempt(async(input,credentials)=>{
+   const p=await fixed(input);const auth=await authenticate(p.q,credentials);p.row=auth.row;
+   const current=await auth.session.prepare("SELECT payload_json FROM sync_records WHERE user_id=? AND app_id='port' AND record_type='metronome_settings' AND record_id='default'").bind(p.q.datasetId).first();
+   if(current){const previous=JSON.parse(current.payload_json),next=data(p.operation.payload);delete previous.value.bpm;delete next.value.bpm;
+    if(canonicalJson(previous)!==canonicalJson(next))throw error('backend-non-bpm-conflict');}
+   const appToken=credentials?.appAuthorization?.startsWith('Bearer ')?credentials.appAuthorization.slice(7):null;
+   if(parseDeviceCredential(appToken)?.deviceId!==p.q.appDeviceId)throw error('backend-app-credential-invalid');
+   const pro=await inspectProCredentialReadOnly(credentials.proAuthorization,{SYNC_DB:db,PRO_CREDENTIAL_PEPPER:proPepper},{includeWriterProof:true,now:()=>auth.row.owner_now});
+   if(!pro.ok||!pro.writerProof)throw error(pro.code||'pro_required');
+   const admission=await admitWriter(auth.session,{userId:p.q.datasetId,deviceId:p.q.appDeviceId,appId:'port'},
+    {writerProtocol:2,syncProtocol:1,expectedWriteEpoch:p.q.writeEpoch},{accountId:p.q.accountId,membershipId:p.q.membershipId},
+    {policy,deviceVerifier:await hmacVerifier(appToken,devicePepper),proCredentialId:pro.writerProof.id,proVerifier:pro.writerProof.verifier,defer:true});
+   if(admission.error)throw error(admission.error);
+   const binding=frozen(JSON.parse(canonicalJson({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest})));
+   const handle=closed({ok:true,binding});handles.set(handle,{...p,admission,credentials,attempted:false});await checkpoint('after-prepare');return handle;
+  }),
+  commit:attempt(async(handle)=>{
+   const p=handles.get(handle);if(!p||p.attempted)throw error('backend-replay-requires-recovery');p.attempted=true;
+   await checkpoint('before-transaction');live();
+   const session=db.withSession('first-primary'),protectedDb=guardedDatabase(session,p),wrapped=writerMutationDatabase(protectedDb,p.admission);
+   // Writer wrappers may clear their assertion rows, but the final Account/data
+   // assertion remains in this same outer batch, after those statements.
+   try{
+    const result=await createD1SyncRepository(wrapped).applyOperation({userId:p.q.datasetId,deviceId:p.q.appDeviceId,appId:'port'},p.operation);
+    if(result.status!=='applied')throw error(result.status==='duplicate'?'backend-replay-requires-recovery':'backend-'+result.status);
+   }catch(e){await clockFact(db.withSession('first-primary'),p.q,p.row.credential_verifier);throw e;}
+   await checkpoint('after-transaction');return receipt(handle.binding);
+  }),
+  reconcile:attempt(async(binding,credentials)=>{const p=await fixed(binding?.request);await authenticate(p.q,credentials,{recordClock:false});return receipt(binding);}),
+  dispose(){disposed=true;}
+ });
+}
