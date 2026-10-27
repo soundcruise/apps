@@ -1,3 +1,7 @@
+## Owner Route/Schema候補v1による更新
+
+既存Production dispatcherとの接続候補を実装。通常indexはcapabilityなしで常時拒否、候補DDLはmigrations外・default OFF。原本schema/旧route互換と隔離route/lease/復旧を検証する段階。本番A/C gate（physical commit expiry、clock/TTL/rotation、enrollment/fence、raw writer containment、正式consumer）は解除しない。詳細: `workers/sound-cruise-sync/OWNER_ROUTE_SCHEMA_CANDIDATE.md`。次は未知の本番保証を解消したうえで、別承認の無効状態infra rolloutを判断する。canary/Cloud/1.0.0承認とは分離。
+
 # Studio initial release — production connection gates
 
 2026-10-27 / Studio 0.47.20 candidate, Port 1.24.23, Project schema 2.

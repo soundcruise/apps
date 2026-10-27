@@ -1,3 +1,9 @@
+## Owner Route / Schema接続候補 v1 — default OFF（未公開）
+
+PR28直接子。既存Worker dispatcherへ予約namespaceを追加するが、Production indexはopaque capabilityを渡さず、flagのみでは404。使い捨てcapability＋既存HMAC/Pro/writer＋exact候補schema/DB gateで隔離接続を検証。DDLは通常migrations外、NULL/default0で既存データbackfillなし。ブラウザ製品module/version/cache不変（Studio0.47.20 / Port1.24.23 / schema2）。
+
+契約は `workers/sound-cruise-sync/OWNER_ROUTE_SCHEMA_CANDIDATE.md`。本番physical-commit expiry・時計/TTL/rotation・旧writer containment・enrollment/cutover・反復履歴運用は未保証。Production capability/infra rollout/BPM canaryは別受入・別承認。本番保存・Cloud未接続、Shared Write OFF、canWrite=false。今回の合格を1.0.0や本番保存完成と扱わない。
+
 # Studio 0.47.20 / Port 1.24.23 — bounded two-cycle renewal candidate
 
 Parent PR27 dedb2719e0c5544417c783bc4978c522dd4e44cc. q3/proof3/cycle2 uses
