@@ -1,3 +1,16 @@
+# Studio 0.47.19 / Port 1.24.22 — Renewal successor isolated candidate
+
+PR #26 fixed head e01c061a7c5fa2b26c5997ef580e38d0b3ceef61 is the direct parent.
+Explicit readonly credential adoption, authenticated history-only reconcile across
+one direct renewal, and typed successor Authority/consumer publication use existing
+owners. Pointer/consumer CAS is one IDB transaction; SQL stop/confirmation and
+Account/backup DB remain separate. New per-operation V3 Admission enables isolated
+BPM draft/save/reload while all normal writers remain disconnected.
+Shared Write OFF / canWrite=false, schema 2. Multiple renewal cycles, production
+backend/cutover/Cloud and physical commit expiry remain gates.
+Contract: [Renewal successor lifecycle](../../cruise-port/docs/RENEWAL_SUCCESSOR_LIFECYCLE_ISOLATED.md).
+The sections below are historical implementation records.
+
 # Studio 0.47.17 — Pointer/Consumer停止協調・明示部分復旧（未公開隔離候補）
 
 Port1.24.20 / Project schema2。PR #22固定head ae1309d5が直接親。Authorityのtyped stop/Control epochとowner SQLの永続stopped fenceを協調させ、旧lease消費/新規発行を停止。完全roster・元pin・typed local receiptを分類し、最新backend結果のみを別UUIDの明示復旧で元世代へ適用する。pointer/consumer CAS・journal・receiptは同Authority tx、新世代はsuspended/fenceRevoked/readOnly維持。owner確定もreadonly止まりで通常writerを再開しない。独立DBの原子性、全device/Cloud writer排除、本番cutoverは未保証。Shared Write OFF/canWrite=false、schema2・公開版・他owner不変。契約: [Owner Pointer Consumer Cutover](../../cruise-port/docs/OWNER_POINTER_CONSUMER_CUTOVER.md)。以下は履歴。

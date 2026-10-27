@@ -1,3 +1,4 @@
+import {validateSuccessorProof} from './port-successor-proof.mjs';
 // Local provenance reader only; SQL owner remains the authority for each lease.
 // No stopped scope is reopened and no backup row is consumed or rewritten.
 import {digest,equal,fail} from './port-idb-authority-contract.mjs';
@@ -6,7 +7,8 @@ import {validateCutoverIntent} from './port-owner-cutover-contract.mjs';
 export async function readConsumerReadmissionBasis({store,backup,generation,transitionId,scopeName}){
  if(!isUUID(transitionId))throw fail('owner-operation-source-unproven');
  const pub=await store.lookupOwnerCutoverPublication({generation,transitionId}),consumer=await store.readConsumer();
- if(!pub.ok||!consumer.ok)throw fail('owner-operation-source-unproven');
+ if(!pub.ok)return readSuccessorBasis({store,backup,generation,transitionId,scopeName});
+ if(!consumer.ok)throw fail('owner-operation-source-unproven');
  const proof=pub.fact.evidence.cutover,q=proof.request;validateCutoverRequest(q);validateConsumer(consumer.consumer);
  if(q.targetGeneration!==generation||pub.fact.pointer.operationId!==transitionId||pub.fact.pointer.previousGeneration!==q.sourceGeneration||consumer.consumer.publicationDigest!==pub.publicationDigest||consumer.consumer.transitionId!==transitionId)throw fail('owner-operation-source-unproven');
  const cutover=await backup.read('cutover-'+transitionId),pin=cutover?.packet;
@@ -29,3 +31,13 @@ export async function readConsumerReadmissionBasis({store,backup,generation,tran
   readmission:{transitionId,requestDigest:digest(q),completionDigest:digest(completion),registryRevision:stop.registryRevision,stopFenceRevision:stop.fencingRevision}};
 }
 
+
+async function readSuccessorBasis({store,backup,generation,transitionId,scopeName}){
+ const birth=await store.lookupReauthorization(generation,transitionId),consumer=await store.readConsumer();if(!birth.ok||!consumer.ok)throw fail('owner-operation-source-unproven');const p=birth.fact.evidence.reauthorization,q=p.request;if(p.schemaVersion!==2||q.contractVersion!==2)throw fail('owner-operation-source-unproven');validateSuccessorProof(p.successor,q);
+ const packet=(await backup.read('successor-'+transitionId))?.packet,h=(await backup.read('successor-stop-'+transitionId))?.packet,c=(await backup.read('successor-complete-'+transitionId))?.packet;
+ if(!packet||!exactKeys(packet,['schemaVersion','purpose','operationId','request','requestDigest','sourcePublication','snapshot','adoptionReceipt','valuesDigest'])||packet.valuesDigest!==digest(packet.snapshot?.values)||packet.purpose!=='owner-successor-pending-v1'||packet.schemaVersion!==1||packet.operationId!==transitionId||packet.requestDigest!==digest(packet.request)||!equal(packet.request,p.successor.request)||!equal(packet.snapshot.control,p.sourceControl)||digest(packet.snapshot)!==q.sourceAuthorityDigest||!equal(packet.sourcePublication,p.successor.sourcePublication)||!equal(packet.adoptionReceipt,p.adoptionReceipt)||!h||!exactKeys(h,['schemaVersion','purpose','operationId','requestDigest','stop','roster'])||h.schemaVersion!==1||h.purpose!=='owner-successor-history-pin-v1'||h.operationId!==transitionId||h.requestDigest!==packet.requestDigest||!equal(h.stop,p.successor.stop)||!equal(h.roster,p.successor.roster))throw fail('owner-operation-pending-unresolved');
+ const completion={purpose:'readonly-pointer-consumer-completion-v1',transitionId,pointer:birth.fact.pointer,pointerDigest:digest(birth.fact.pointer),consumer:consumer.consumer,publicationDigest:birth.receiptDigest};
+ if(!c||!exactKeys(c,['schemaVersion','purpose','operationId','requestDigest','completion','completionDigest'])||c.schemaVersion!==1||c.purpose!=='owner-successor-completion-pin-v1'||c.operationId!==transitionId||c.requestDigest!==packet.requestDigest||c.completionDigest!==digest(completion)||!equal(c.completion,completion)||consumer.consumer.publicationDigest!==birth.receiptDigest)throw fail('owner-operation-source-unproven');
+ const rows=await backup.inventory(),prefix='port-recovery-v1:'+scopeName+':',known=new Set();for(const item of q.successor.inventory){const row=rows.find(r=>r.id===item.id);if(!row||digest(row)!==item.digest)throw fail('owner-operation-pending-unresolved');known.add(item.id);}for(const id of ['successor-','successor-stop-','successor-complete-'])known.add(prefix+id+transitionId);
+ return {pointer:birth.fact.pointer,receiptDigest:birth.receiptDigest,q0:q,k:p.qualification,known,readmission:{transitionId,requestDigest:packet.requestDigest,completionDigest:digest(completion),registryRevision:h.stop.registryRevision,stopFenceRevision:h.stop.fencingRevision,successorRequestDigest:digest(q)}};
+}

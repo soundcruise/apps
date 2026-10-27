@@ -1,7 +1,7 @@
-import { loadNewsPresentation } from '../../../cruise-port/news-provider.js?v=1.24.21';
-import { prepareNews, groupNews, NEWS_CATEGORIES, NEWS_FILTER_GROUPS } from '../../../cruise-port/news-data.js?v=1.24.21';
+import { loadNewsPresentation } from '../../../cruise-port/news-provider.js?v=1.24.22';
+import { prepareNews, groupNews, NEWS_CATEGORIES, NEWS_FILTER_GROUPS } from '../../../cruise-port/news-data.js?v=1.24.22';
 import { NEWS_ARTICLES } from '../../../cruise-port/news-articles.js?v=1.16.1';
-import { newsSourceDisplayName } from '../../../cruise-port/news-ui.js?v=1.24.21';
+import { newsSourceDisplayName } from '../../../cruise-port/news-ui.js?v=1.24.22';
 import { newsOriginalArticleHref } from '../../../cruise-port/news-external-link.js?v=1.23.1';
 
 // Memory-only lifecycle. No cache fallback can resurrect an old/taken-down
