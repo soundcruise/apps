@@ -1,0 +1,25 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><link rel="icon" href="data:,"><title>Isolated authenticated owner routes</title><p>Owner lifecycle + SQL / native IndexedDB fixture. Shared Write OFF.</p>
+<script src="../../shared/sync-account/sync-account-db.js"></script><script src="../../shared/sync-account/sync-account-client.js"></script>
+<script type="module">
+import {setupBrowserSaveAdmission} from './authority-store/save-admission-browser-fixture.mjs';
+import {createIsolatedBackendSaveCoordinator,createIsolatedBackendSavePending} from '../port-backend-save-isolated.mjs';
+import {createIsolatedOwnerRouteTransport} from './authority-store/owner-route-transport.mjs';
+import {digest} from '../port-idb-authority-contract.mjs';import {hashRecord} from '../../../workers/sound-cruise-sync/src/records.js';import {exactRequestDigest} from '../../../workers/sound-cruise-sync/src/account-credential-lifecycle.js';
+let x,c,p,name,credentials,hold,release;
+const api=(action,input={})=>fetch('/__owner_fixture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,action,...input})}).then(r=>r.json());
+const send=async(path,input,auth=credentials)=>{const r=await fetch('/__isolated/account/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Isolated-Fixture':name,Authorization:auth.accountAuthorization,'X-Sound-Cruise-App-Authorization':auth.appAuthorization,'X-Sound-Cruise-Pro-Authorization':auth.proAuthorization},body:JSON.stringify(input)});return {status:r.status,body:await r.json()};};
+const checkpoint=async phase=>{if(phase===hold){ownerRouteFixture.entered=phase;await new Promise(r=>release=r);}};
+window.ownerRouteFixture={async init(o){name=o.name;const d=await api('init');credentials=d.credentials;x=await setupBrowserSaveAdmission({indexedDB,root:SoundCruiseSyncAccount,name,seed:o.seed,record:d.account,checkpoint});
+ const backend=createIsolatedOwnerRouteTransport({url:location.origin+'/__isolated/account/v1/',fixtureOnly:true,credentials:()=>credentials,dispatch:request=>{const h=new Headers(request.headers);h.set('X-Isolated-Fixture',name);return fetch(new Request(request,{headers:h}));}}),pending=createIsolatedBackendSavePending({indexedDB,scopeName:name});
+ c=createIsolatedBackendSaveCoordinator({scope:x.scope,source:x.mutationStore,localOwner:x.owner,pending,backend,checkpoint,makeBackendRequest:async({operationId,bpm,expectedBackendRevision,localTicket})=>{const {request:q}=await api('request',{operationId,bpm,revision:expectedBackendRevision});q.localGeneration=localTicket.generation;q.localRevision=digest(localTicket.body.base);q.operation.payload.value=JSON.parse(localTicket.body.changes['cruisePort.metronome']);q.operation.payloadHash=await hashRecord(q.operation,crypto,'port');return q;}});return {ok:true};},
+ async prepare(id,bpm=150){p=await c.prepare({operationId:id,bpm,expectedBackendRevision:0});return p;},commit:()=>c.commit(p),recover:id=>c.recover({operationId:id}),
+ authority:()=>x.store.hydrate('g1'),rows:()=>x.rows(),state:()=>api('state'),expire:()=>api('expire'),
+ async directSave(revision=0){const q=await api('request',{operationId:crypto.randomUUID(),bpm:150,revision});return {q,result:await send('save',q)};},
+ async renew(){const old={...credentials},start=await send('credential/renew/begin',await api('lifecycle'));if(start.status!==200)return start;
+  const body=await api('lifecycle',{extra:{transitionId:start.body.transitionId}}),finish=await send('credential/renew/finish',body);if(finish.status===200)credentials={...credentials,accountAuthorization:'Bearer '+finish.body.credential};return {start,finish,old};},
+ async checkOld(auth,q){return send('reconcile',{binding:{contractVersion:1,purpose:'backend-save-receipt-binding',request:q.request,requestDigest:q.requestDigest}},auth);},
+ async revoke(){return send('credential/revoke',await api('lifecycle'));},
+ async history(q){return send('reconcile',{binding:{contractVersion:1,purpose:'backend-save-receipt-binding',request:q.request,requestDigest:q.requestDigest}});},
+ hold(phase){hold=phase;this.entered=null;},release(){release?.();hold=null;}
+};
+</script></html>

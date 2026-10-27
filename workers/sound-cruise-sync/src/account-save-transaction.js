@@ -10,6 +10,7 @@ import {policyAllows,assertion,clearAssertions,fenceQuery} from './writer-fence.
 import {canonicalJson,validateOperation,hashRecord} from './records.js';
 import {createD1SyncRepository} from './sync-database.js';
 import {evaluateSaveCredential} from './account-save-admission.js';
+import {ownerBindingSQL} from './account-credential-lifecycle.js';
 
 const TIME="CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)";
 const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(x);
@@ -43,9 +44,10 @@ const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.cr
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
 
-export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,checkpoint=async()=>{}}={}){
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,checkpoint=async()=>{}}={}){
  if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
  const handles=new WeakMap();let disposed=false;
+ const ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
  const live=()=>{if(disposed)throw error('backend-disposed');};
  const attempt=fn=>async(...args)=>{try{live();return await fn(...args);}catch(e){return closed({ok:false,reason:e.code||e.message||'backend-unavailable',recoveryRequired:true});}};
  async function fixed(input){
@@ -65,28 +67,33 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    credential_clock_floor=MAX(credential_clock_floor,${TIME}),
    credential_lifecycle=CASE WHEN credential_lifecycle='active' AND typeof(credential_expires_at)='integer'
     AND credential_expires_at<=${TIME} THEN 'expired' ELSE credential_lifecycle END
-   WHERE id=? AND account_id=? AND credential_version=? AND credential_verifier=?`)
+   WHERE id=? AND account_id=? AND credential_version=? AND credential_verifier=? ${requireLifecycleBinding?"AND typeof(credential_clock_floor)='integer' AND credential_clock_floor>0":''}`)
    .bind(q.accountDeviceId,q.accountId,q.credentialVersion,verifier).run();
   if(r?.success===false)throw error('backend-owner-clock-unproven');
  }
- async function authenticate(q,credentials,{recordClock=true}={}){
+ async function authenticate(q,credentials,{recordClock=true,history=false}={}){
   const token=typeof credentials?.accountAuthorization==='string'&&credentials.accountAuthorization.startsWith('Bearer ')?credentials.accountAuthorization.slice(7):null;
   if(parseAccountCredential(token)?.deviceId!==q.accountDeviceId)throw error('backend-account-credential-invalid');
-  const session=db.withSession('first-primary');let row=await session.prepare(OWNER_SQL).bind(q.appDeviceId,q.accountDeviceId).first();
+  const session=db.withSession('first-primary');let row=await session.prepare(ownerSql).bind(q.appDeviceId,q.accountDeviceId).first();
   const verified=await verifyAccountCredentialSnapshot(row,token,accountPepper);if(!verified?.row)throw error('backend-account-credential-invalid');
-  if(recordClock){await clockFact(session,q,row.credential_verifier);row=await db.withSession('first-primary').prepare(OWNER_SQL).bind(q.appDeviceId,q.accountDeviceId).first();
+  if(requireLifecycleBinding&&(!positive(row.credential_clock_floor)||!positive(row.credential_lease_revision)))throw error('backend-owner-clock-or-lease-unknown');
+  if(recordClock){await clockFact(session,q,row.credential_verifier);row=await db.withSession('first-primary').prepare(ownerSql).bind(q.appDeviceId,q.accountDeviceId).first();
    if(!(await verifyAccountCredentialSnapshot(row,token,accountPepper))?.row)throw error('backend-account-credential-invalid');}
-  const lifecycle=evaluateSaveCredential(row,q,row?.owner_now);
+  if(requireLifecycleBinding&&(!row||row.credential_account_generation!==row.generation||row.credential_membership_id!==row.membership_id||row.credential_membership_generation!==row.membership_generation))throw error('backend-credential-generation-unbound');
+  if(history){if(!requireLifecycleBinding||row.account_id!==q.accountId||row.device_id!==q.accountDeviceId||row.membership_id!==q.membershipId||row.sync_user_id!==q.datasetId)throw error('backend-history-identity-mismatch');
+   q={...q,accountGeneration:row.generation,membershipGeneration:row.membership_generation,credentialVersion:row.credential_version,credentialLeaseRevision:row.credential_lease_revision,runtimeGeneration:row.runtime_generation,writeEpoch:row.write_epoch};}
+  const lifecycle=evaluateSaveCredential(history?{...row,save_enabled:row.history_enabled}:row,q,row?.owner_now);
   if(lifecycle!=='valid'||row.credential_lease_revision!==q.credentialLeaseRevision||row.runtime_generation!==q.runtimeGeneration||row.sync_user_id!==q.datasetId||row.write_epoch!==q.writeEpoch)throw error('backend-owner-'+lifecycle);
-  return {session,row};
+  return {session,row,q};
  }
  function guard(session,p){
-  const {q,row}=p,sql=`EXISTS(SELECT 1 FROM (${OWNER_SQL}) o WHERE
+  const {q,row}=p,sql=`EXISTS(SELECT 1 FROM (${ownerSql}) o WHERE
    o.account_id=? AND o.device_id=? AND o.generation=? AND o.membership_id=? AND o.membership_generation=?
    AND o.sync_user_id=? AND o.write_epoch=? AND o.credential_version=? AND o.credential_verifier=?
    AND o.credential_lease_revision=? AND o.runtime_generation=? AND o.account_state='active' AND o.admission_provenance='production'
    AND o.membership_state='active' AND o.membership_deleted_at IS NULL AND o.revoked_at IS NULL AND o.device_linked=1
-   AND o.save_enabled=1 AND o.credential_lifecycle='active'
+   AND ${p.history?'o.history_enabled':'o.save_enabled'}=1 AND o.credential_lifecycle='active'
+   ${requireLifecycleBinding?'AND '+ownerBindingSQL('o'):''}
    AND typeof(o.credential_clock_floor)='integer' AND o.credential_clock_floor>0 AND o.owner_now>=o.credential_clock_floor
    AND typeof(o.credential_issued_at)='integer' AND o.credential_issued_at>0 AND o.credential_issued_at<=o.owner_now
    AND typeof(o.credential_expires_at)='integer' AND o.credential_expires_at>o.credential_issued_at AND o.owner_now<o.credential_expires_at)`;
@@ -114,11 +121,12 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    return result.slice(1,1+statements.length);
   }};
  }
- async function receipt(binding){
+ async function receipt(binding,authorization){
   if(!binding||binding.contractVersion!==1||binding.purpose!=='backend-save-receipt-binding')throw error('backend-receipt-invalid');
   const p=await fixed(binding.request);if(p.digest!==binding.requestDigest)throw error('backend-receipt-mismatch');
   const q=p.q,op=p.operation,session=db.withSession('first-primary');
-  const row=await session.prepare(`SELECT * FROM sync_changes WHERE user_id=? AND app_id='port' AND operation_id=?`).bind(q.datasetId,op.operationId).first();
+  const g=authorization?guard(session,authorization):null;
+  const row=await session.prepare(`SELECT * FROM sync_changes WHERE user_id=? AND app_id='port' AND operation_id=? ${g?'AND '+g.sql:''}`).bind(q.datasetId,op.operationId,...(g?g.values:[])).first();
   if(!row||row.isolated_request_digest!==p.digest||row.isolated_account_binding!==canonicalJson(q)||row.operation_hash!==op.operationHash||
    row.record_type!==op.recordType||row.record_id!==op.recordId||row.revision!==op.baseRevision+1||row.payload_hash!==op.payloadHash||
    row.payload_json!==canonicalJson(op.payload)||row.deleted_at!==null||row.schema_version!==1||await hashRecord({recordType:row.record_type,recordId:row.record_id,schemaVersion:row.schema_version,payload:JSON.parse(row.payload_json)},crypto,'port')!==row.payload_hash)
@@ -156,6 +164,10 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    await checkpoint('after-transaction');return receipt(handle.binding);
   }),
   reconcile:attempt(async(binding,credentials)=>{const p=await fixed(binding?.request);await authenticate(p.q,credentials,{recordClock:false});return receipt(binding);}),
+  // Separate current history permission from the historical operation binding.
+  // Final identity/expiry/generation gate and receipt read are ONE SQL SELECT.
+  reconcileCurrent:attempt(async(binding,credentials)=>{if(!requireLifecycleBinding)throw error('backend-history-contract-required');const p=await fixed(binding?.request),auth=await authenticate(p.q,credentials,{recordClock:false,history:true});
+   await checkpoint('before-history-read');return receipt(binding,{q:auth.q,row:auth.row,history:true});}),
   dispose(){disposed=true;}
  });
 }
