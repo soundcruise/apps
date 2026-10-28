@@ -1,0 +1,13 @@
+// Isolated UI acceptance only: binds localhost, in-memory DB, fixture identity.
+// Not an Access bypass endpoint, production Worker/config or publisher client.
+import {createServer} from 'node:http';import {readFile} from 'node:fs/promises';
+import {SignJWT,generateKeyPair,exportJWK,createLocalJWKSet} from 'jose';
+import {store,pepper} from './helpers.js';import {handleOperatorRequest} from '../src/operator-worker.js';
+const now=Date.parse('2026-10-28T19:00:00+09:00'),s=await store(),origin='https://isolated-operator.test',issuer='https://isolated.cloudflareaccess.com',aud='a'.repeat(64);
+await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();await s.db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('yamaha',1)").run();
+const {privateKey,publicKey}=await generateKeyPair('RS256'),jwks=createLocalJWKSet({keys:[{...await exportJWK(publicKey),kid:'local-fixture'}]});
+const token=await new SignJWT({email:'human@fixture.test',type:'app'}).setProtectedHeader({alg:'RS256',kid:'local-fixture'}).setIssuer(issuer).setAudience(aud).setSubject('local-human-fixture').setIssuedAt(now/1000).setExpirationTime(now/1000+3600).sign(privateKey);
+const env={NEWS_DB:s.db,NEWS_HEADLINE_PEPPER:pepper,NEWS_OPERATOR_EMAILS:'["human@fixture.test"]',NEWS_OPERATOR_ORIGIN:origin,NEWS_ACCESS_ISSUER:issuer,NEWS_ACCESS_AUD:aud,OPERATOR_ASSETS:{fetch:async r=>{const p=new URL(r.url).pathname,name=p==='/'?'index.html':p.slice(1);return new Response(await readFile(new URL('../operator-ui/'+name,import.meta.url)),{headers:{'Content-Type':name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html'}});}}};
+let externalAttempts=0;globalThis.fetch=async()=>{externalAttempts++;throw Error('External HTTP forbidden in isolated acceptance');};
+createServer(async(req,res)=>{try{let body='';for await(const c of req){body+=c;if(body.length>10000)throw Error('too_large');}const h=new Headers({'Cf-Access-Jwt-Assertion':token});for(const k of ['content-type','x-news-csrf','sec-fetch-site'])if(req.headers[k])h.set(k,req.headers[k]);if(req.headers.origin)h.set('Origin',origin);const response=await handleOperatorRequest(new Request(origin+req.url,{method:req.method,headers:h,...(body?{body}: {})}),env,now,{jwks});res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));}catch{res.writeHead(500);res.end('isolated fixture failed');}}).listen(8799,'127.0.0.1',()=>console.log('Isolated Operator fixture http://127.0.0.1:8799; external HTTP blocked; test DB only'));
+process.on('SIGINT',()=>{console.log('External HTTP attempts:',externalAttempts);process.exit();});

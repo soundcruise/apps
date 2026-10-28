@@ -195,15 +195,67 @@ $('presentation-reset')?.addEventListener('click',()=>{if(presentationBusy)retur
 $('presentation-save')?.addEventListener('click',async()=>{if(presentationBusy||!presentationDirty)return;presentationInput ||= {day:presentationDay.day,revision:presentationDay.revision,snapshot:presentationDay.snapshot,items:presentationDraft.map(i=>({id:i.id,hot:!!i.hot})),requestId:crypto.randomUUID()};presentationBusy=true;paintPresentation();try{session=await api('/api/session');await api('/api/presentation',{method:'POST',headers:{'Content-Type':'application/json','X-News-CSRF':session.csrf},body:JSON.stringify(presentationInput)});presentationDirty=false;presentationInput=null;message('この日の並び順・ホット表示を保存しました。掲載判断は変更していません。');await loadPresentation();}catch(e){message(e.message);if(e.code==='presentation_changed'){presentationDirty=false;presentationInput=null;await loadPresentation();}}finally{presentationBusy=false;paintPresentation();}});
 
 // This form never fetches the supplied publisher URL. Only same-origin Operator APIs.
-const assistedFields=$('assisted-fields'),assistedInputs={},assistedStatus=$('assisted-status');let assistedEdit=null,assistedReady=false,assistedBusy=false,assistedRequest=null;
-for(const [key,label,type]of [['sourceId','情報源','select'],['url','原記事URL','url'],['publishedAt','記事公開日','date'],['brand','ブランド・主催者・人物','text'],['product','製品・イベント・インタビューの対象名','text'],['productType','製品・記事種別','select'],['action','出来事','select'],['eventDate','開催日（イベントのみ）','date'],['venue','会場（イベントのみ）','text'],['label','独自見出し（空欄なら自動生成／編集可能）','text']]){const wrap=el('label',label),field=el(type==='select'?'select':'input');if(type!=='select')field.type=type;field.id='assisted-'+key;field.maxLength=key==='url'?500:160;wrap.htmlFor=field.id;wrap.append(field);assistedFields.append(wrap);assistedInputs[key]=field;field.addEventListener('input',()=>{assistedRequest=null;assistedReady=false;assistedSave.disabled=true;});}
-const assistedConfirm=el('input');assistedConfirm.type='checkbox';const assistedCheck=el('label','公式原記事で事実・公開日・対象範囲・利用条件を確認し、原文見出し・本文・画像を転載していません');assistedCheck.prepend(assistedConfirm);assistedFields.append(assistedCheck);
-const assistedPreview=el('button','見出し・カテゴリ・重複を確認'),assistedSave=el('button','掲載判断待ちとして保存'),assistedNew=el('button','新しい記事');for(const b of [assistedPreview,assistedSave,assistedNew])b.type='button';assistedSave.disabled=true;assistedFields.append(assistedPreview,assistedSave,assistedNew);
-const assistedPayload=()=>({...Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>f.value||!['eventDate','venue','label'].includes(k)).map(([k,f])=>[k,f.value])),confirmed:assistedConfirm.checked,...(assistedEdit?{id:assistedEdit.id,snapshot:assistedEdit.snapshot}:{})});
-assistedConfirm.addEventListener('change',()=>{assistedRequest=null;assistedSave.disabled=true;assistedReady=false;});
+const assistedFields=$('assisted-fields'),assistedInputs={},assistedWraps={},assistedStatus=$('assisted-status');
+let assistedEdit=null,assistedReady=false,assistedBusy=false,assistedRequest=null,assistedParsed=null,assistedMissing=[],assistedGeneration=0,assistedConfig=null;
+const assistedStart=el('a','1. Yamaha公式Topics一覧を開く');assistedStart.target='_blank';assistedStart.rel='noopener noreferrer';assistedStart.hidden=true;assistedFields.append(assistedStart);
+const assistedMode=el('button','詳細入力に切り替え');assistedMode.type='button';assistedMode.setAttribute('aria-expanded','false');
+const assistedSimple=el('div',undefined,'assisted-simple'),assistedAdvanced=el('div',undefined,'assisted-advanced');assistedAdvanced.hidden=true;
+for(const [key,label,type]of [['sourceId','情報源','select'],['url','記事URL','url'],['publishedAt','記事公開日','date'],['brand','ブランド・主催者・人物','text'],['product','製品・イベント・インタビューの対象名','text'],['productType','製品・記事種別','select'],['action','出来事','select'],['eventDate','開催日（イベントのみ）','date'],['venue','会場（イベントのみ）','text'],['label','独自見出し（空欄なら自動生成／編集可能）','text']]){
+ const wrap=el('label',label),field=el(type==='select'?'select':'input');if(type!=='select')field.type=type;field.id='assisted-'+key;field.maxLength=key==='url'?500:160;wrap.htmlFor=field.id;wrap.append(field);(key==='url'?assistedFields:assistedAdvanced).append(wrap);assistedInputs[key]=field;assistedWraps[key]=wrap;
+ const changed=()=>{invalidateAssisted();if(['url','sourceId'].includes(key)){assistedParsed=null;assistedMissing=[];showAssistedFields([]);}};field.addEventListener('input',changed);field.addEventListener('change',changed);
+}
+const assistedText=el('textarea');assistedText.id='assisted-information';assistedText.maxLength=2000;assistedText.rows=7;assistedText.placeholder='記事公開日と、誰が・何を・どうしたかが分かる部分を貼り付けてください。記事全文や画像は不要です。';
+const assistedTextLabel=el('label','人間が確認した記事の必要な情報');assistedTextLabel.htmlFor=assistedText.id;assistedTextLabel.append(assistedText);
+assistedSimple.append(assistedTextLabel,el('p','2. 公開日・製品やイベントの名称・出来事が分かる必要な部分だけを貼り付けます。足りない情報だけ追加で確認します。','meta'));
+assistedFields.append(assistedSimple,assistedMode,assistedAdvanced);
+const assistedConfirm=el('input');assistedConfirm.type='checkbox';const assistedCheck=el('label','公式原記事で事実・公開日・対象範囲・利用条件を確認し、原文見出し・本文・画像を転載していません');assistedCheck.className='assisted-check';assistedCheck.prepend(assistedConfirm);
+const assistedPreview=el('button','記事案を作る'),assistedSave=el('button','掲載判断待ちとして保存'),assistedNew=el('button','新しい記事');for(const b of [assistedPreview,assistedSave,assistedNew])b.type='button';assistedSave.disabled=true;
+const assistedDraft=el('section',undefined,'assisted-draft');assistedDraft.hidden=true;assistedDraft.setAttribute('aria-label','記事案');
+assistedFields.append(assistedCheck,assistedPreview,assistedDraft,assistedSave,assistedNew);
+function invalidateAssisted(){if(assistedBusy)assistedStatus.textContent='入力が変わりました。記事案を作り直してください。';assistedGeneration++;assistedRequest=null;assistedReady=false;assistedSave.disabled=true;assistedDraft.hidden=true;}
+assistedText.addEventListener('input',()=>{invalidateAssisted();assistedParsed=null;assistedMissing=[];showAssistedFields([]);});
+function showAssistedFields(keys){for(const [k,w]of Object.entries(assistedWraps))if(k!=='url')w.hidden=!assistedSimple.hidden&&!keys.includes(k);assistedAdvanced.hidden=!assistedSimple.hidden&&!keys.length;}
+assistedMode.addEventListener('click',()=>{if(assistedBusy)return;invalidateAssisted();assistedSimple.hidden=!assistedSimple.hidden;assistedMode.textContent=assistedSimple.hidden?'簡易入力に戻る':'詳細入力に切り替え';assistedMode.setAttribute('aria-expanded',String(assistedSimple.hidden));showAssistedFields(assistedMissing);});
+const assistedPayload=()=>({...Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>f.value||!['eventDate','venue','label'].includes(k)).map(([k,f])=>[k,f.value])),confirmed:assistedConfirm.checked,...((assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence)?.productType===assistedInputs.productType.value?{typeEvidence:assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence}:{}),...(assistedEdit?{id:assistedEdit.id,snapshot:assistedEdit.snapshot}:{})});
+assistedConfirm.addEventListener('change',invalidateAssisted);
 async function assistedCall(path,payload){session=await api('/api/session');return api(path,{method:'POST',headers:{'Content-Type':'application/json','X-News-CSRF':session.csrf},body:JSON.stringify(payload)});}
-assistedPreview.addEventListener('click',async()=>{if(assistedBusy)return;assistedBusy=true;try{const p=await assistedCall('/api/assisted-preview',assistedPayload());assistedReady=p.valid===true;assistedSave.disabled=!assistedReady;assistedStatus.textContent=p.valid?`${p.label} / カテゴリ：${categoryLabel(p.category)} / 重複 ${p.duplicates.length}件。${p.duplicates.length?'保存しても掲載可にはなりません。':''}外部HTTP取得なし。`:p.errors.join('。');}catch(e){assistedStatus.textContent=e.message;}finally{assistedBusy=false;}});
-assistedSave.addEventListener('click',async()=>{if(assistedBusy||!assistedReady)return;assistedBusy=true;assistedSave.disabled=true;try{const r=await assistedCall('/api/assisted-save',assistedRequest ||= {...assistedPayload(),requestId:crypto.randomUUID()});if(!r.saved){assistedStatus.textContent=r.errors.join('。');return;}assistedStatus.textContent=r.validation?.valid?'保存しました。正式掲載可です。掲載するかは審査一覧で判断してください。':'保存しました。掲載条件：'+(r.validation?.errors||[]).join('、');assistedEdit=null;assistedRequest=null;assistedReady=false;await refresh();}catch(e){assistedStatus.textContent='保存結果を確認してください：'+e.message;}finally{assistedBusy=false;}});
-assistedNew.addEventListener('click',()=>{assistedEdit=null;assistedRequest=null;assistedInputs.url.readOnly=false;assistedInputs.publishedAt.readOnly=false;for(const [k,f]of Object.entries(assistedInputs))if(!['sourceId','productType','action'].includes(k))f.value='';assistedConfirm.checked=false;assistedReady=false;assistedSave.disabled=true;assistedStatus.textContent='';});
-function assistedEditButton(id){const b=el('button','手動確認facts・見出しを編集');b.addEventListener('click',async()=>{try{const r=await api('/api/assisted/'+encodeURIComponent(id));assistedEdit=r;assistedRequest=null;assistedInputs.url.readOnly=true;assistedInputs.publishedAt.readOnly=true;for(const [k,f]of Object.entries(assistedInputs))f.value=r[k]||'';assistedConfirm.checked=false;assistedReady=false;assistedSave.disabled=true;$('assisted-entry').open=true;assistedInputs.product.focus();assistedStatus.textContent='公開日・URLは編集できません。訂正後、プレビューで確認してください。';}catch(e){message(e.message);}});return b;}
-api('/api/assisted').then(c=>{for(const [k,options]of [['sourceId',c.sources.map(s=>[s.id,s.name])],['productType',Object.entries(c.types).map(([k,v])=>[k,v[0]])],['action',Object.entries(c.actions)]])for(const [value,label]of options){const o=el('option',label);o.value=value;assistedInputs[k].append(o);}}).catch(e=>{assistedStatus.textContent=e.message;});
+function paintAssistedDraft(p){
+ assistedDraft.replaceChildren(el('h3',p.label),el('p','カテゴリ：'+categoryLabel(p.category)));
+ const f=p.facts;assistedDraft.append(el('p',`主体：${f.brand} / 対象：${f.product}`),el('p',`記事公開日：${assistedInputs.publishedAt.value} / 種別：${assistedConfig?.types[f.productType]?.[0]||f.productType} / 出来事：${assistedConfig?.actions[f.action]||f.action}`));
+ if(f.typeEvidence?.usageTargets?.length)assistedDraft.append(el('p','用途・対応対象：'+f.typeEvidence.usageTargets.map(t=>assistedConfig?.types[t]?.[0]||({guitar:'ギター',amplifier:'アンプ'})[t]||t).join('、')+'（主製品の種別とは別）'));
+ if(f.typeEvidence?.accessories?.length)assistedDraft.append(el('p','付属品：'+f.typeEvidence.accessories.map(t=>assistedConfig?.types[t]?.[0]||t).join('、')));
+ if(f.eventDate)assistedDraft.append(el('p',`開催日：${f.eventDate} / 会場：${f.venue}`));
+ assistedDraft.append(el('p','出典：ヤマハ / ヤマハミュージックジャパン'),el('p',`重複：${p.duplicates.length}件。${p.duplicates.length?'重複のため正式掲載可にはなりません。':'入力条件を満たしています。保存時に正式validationを行います。'}`),el('p','証拠：人間による公式記事の確認。Bot取得ではありません。外部HTTP取得0件。貼り付け文は保存・公開しません。','meta'));assistedDraft.hidden=false;
+}
+assistedPreview.addEventListener('click',async()=>{
+ if(assistedBusy)return;assistedBusy=true;const generation=assistedGeneration;assistedSave.disabled=true;assistedReady=false;assistedDraft.hidden=true;assistedStatus.textContent='記事案を確認しています…';
+ try{
+  if(!assistedSimple.hidden&&!assistedEdit){
+   if(!assistedParsed){const p=await assistedCall('/api/assisted-parse',{sourceId:assistedInputs.sourceId.value,url:assistedInputs.url.value,information:assistedText.value});if(generation!==assistedGeneration)return;
+    if(p.errors.length){assistedStatus.textContent=p.errors.join('。');return;}
+    for(const [k,f]of Object.entries(assistedInputs))if(!['url','sourceId'].includes(k))f.value=p.fields[k]||'';
+    assistedParsed=p;assistedMissing=p.missing.map(m=>m.key);showAssistedFields(assistedMissing);
+    if(p.missing.length){assistedStatus.textContent='不足している情報だけ確認してください：'+p.missing.map(m=>m.label+'（'+m.reason+'）').join('、');return;}
+   }
+  }
+  const p=await assistedCall('/api/assisted-preview',assistedPayload());if(generation!==assistedGeneration)return;
+  assistedReady=p.valid===true&&!p.duplicates.length;assistedSave.disabled=!assistedReady;
+  if(p.valid){paintAssistedDraft(p);assistedStatus.textContent=p.duplicates.length?'重複記事を確認してください。保存は行いません。':'3. 記事案の事実・見出し・カテゴリを確認して保存してください。公開は別の掲載判断です。';}
+  else assistedStatus.textContent=p.errors.join('。');
+ }catch(e){if(generation===assistedGeneration)assistedStatus.textContent=e.message;}finally{assistedBusy=false;}
+});
+function lockAssistedInput(locked){for(const f of [...Object.values(assistedInputs),assistedText,assistedConfirm,assistedMode,assistedPreview,assistedNew])f.disabled=locked;}
+assistedSave.addEventListener('click',async()=>{
+ if(assistedBusy||!assistedReady)return;assistedBusy=true;assistedSave.disabled=true;lockAssistedInput(true);
+ try{const r=await assistedCall('/api/assisted-save',assistedRequest ||= {...assistedPayload(),requestId:crypto.randomUUID()});
+  if(!r.saved){assistedStatus.textContent=r.errors.join('。');return;}
+  const detail=await api('/api/candidates/'+encodeURIComponent(r.id));
+  assistedStatus.textContent=detail.validation?.valid?'保存しました。正式掲載可です。下の審査一覧で掲載するか判断してください。':'保存しました。掲載条件：'+(detail.validation?.errors||[]).join('、');
+  assistedEdit=null;assistedRequest=null;assistedReady=false;assistedParsed=null;await refresh();
+ }catch(e){assistedStatus.textContent='保存結果を確認・再送してください：'+e.message;assistedSave.disabled=false;}finally{assistedBusy=false;lockAssistedInput(false);}
+});
+assistedNew.addEventListener('click',()=>{if(assistedBusy)return;invalidateAssisted();assistedEdit=null;assistedParsed=null;assistedMissing=[];assistedText.value='';assistedInputs.url.readOnly=false;assistedInputs.publishedAt.readOnly=false;for(const [k,f]of Object.entries(assistedInputs))if(k!=='sourceId')f.value='';assistedConfirm.checked=false;assistedStatus.textContent='';showAssistedFields([]);});
+function assistedEditButton(id){const b=el('button','手動確認facts・見出しを編集');b.addEventListener('click',async()=>{if(assistedBusy)return;try{const r=await api('/api/assisted/'+encodeURIComponent(id));invalidateAssisted();assistedEdit=r;assistedParsed=null;assistedRequest=null;assistedInputs.url.readOnly=true;assistedInputs.publishedAt.readOnly=true;for(const [k,f]of Object.entries(assistedInputs))f.value=r[k]||'';assistedSimple.hidden=true;assistedMode.textContent='簡易入力に戻る';assistedMode.setAttribute('aria-expanded','true');showAssistedFields([]);assistedConfirm.checked=false;$('assisted-entry').open=true;assistedInputs.product.focus();assistedStatus.textContent='公開日・URLは編集できません。訂正後、プレビューで確認してください。';}catch(e){message(e.message);}});return b;}
+api('/api/assisted').then(c=>{assistedConfig=c;for(const [k,options]of [['sourceId',c.sources.map(s=>[s.id,s.name])],['productType',Object.entries(c.types).map(([k,v])=>[k,v[0]])],['action',Object.entries(c.actions)]]){if(k!=='sourceId'){const empty=el('option','確認してください');empty.value='';assistedInputs[k].append(empty);}for(const [value,label]of options){const o=el('option',label);o.value=value;assistedInputs[k].append(o);}assistedInputs[k].value=k==='sourceId'?c.sources[0]?.id||'':'';}
+ const start=c.sources.find(s=>s.id===assistedInputs.sourceId.value)?.startUrl;if(start){const u=new URL(start);if(u.protocol==='https:'&&!u.username&&!u.password){assistedStart.href=start;assistedStart.hidden=false;}}showAssistedFields([]);
+}).catch(e=>{assistedStatus.textContent=e.message;});
