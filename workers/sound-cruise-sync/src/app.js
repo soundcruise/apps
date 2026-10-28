@@ -1,3 +1,4 @@
+import {OWNER_CANDIDATE_ROOT,handleOwnerRouteCandidate} from './account-owner-route-candidate.js';
 import { recoverAssetDeletion } from './asset-deletion.js';
 import { WriterFenceError } from './writer-fence.js';
 import { readAuthorityEvidence } from './authority-cutover.js';
@@ -1108,6 +1109,10 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/health') {
     if (request.method !== 'GET') return errorResponse(405, 'method_not_allowed', null, null, { Allow: 'GET' });
     return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p-roll-2b' });
+  }
+  // Production index has no disposable capability: flags alone cannot expose this namespace.
+  if (url.pathname.startsWith(OWNER_CANDIDATE_ROOT)) {
+    return handleOwnerRouteCandidate(request, env, dependencies.ownerRouteCandidate);
   }
   if (url.pathname === '/v2/accounts' || url.pathname.startsWith('/v2/accounts/')) {
     return handleAccountApiRequest(request, env, _ctx, dependencies);
