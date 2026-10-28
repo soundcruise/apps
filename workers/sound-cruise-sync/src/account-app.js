@@ -319,6 +319,9 @@ function createSession(env, request) {
     : env.SYNC_DB;
 }
 
+// Read-only validation reused by the isolated Maintenance HTTP adapter.
+export { validBookmark as isValidAccountOwnerBookmark };
+
 function sessionBookmark(session) {
   if (!session || typeof session.getBookmark !== 'function') return null;
   try { return session.getBookmark() || null; } catch { return null; }
@@ -1159,6 +1162,9 @@ async function currentAppEnvironmentContext(request, env, dependencies) {
     }
   };
 }
+
+// Internal readonly inspection; existing App HMAC/identity decisions are reused.
+export { currentAppEnvironmentContext as inspectCurrentAppEnvironmentOwner };
 
 async function handleCurrentAppEnvironmentDetach(request, env, origin, route, dependencies) {
   const parsed = await readJson(request);

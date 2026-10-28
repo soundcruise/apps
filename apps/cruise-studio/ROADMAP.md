@@ -1,3 +1,34 @@
+## Owner Route / Schema接続候補 v1 — default OFF（未公開）
+
+PR28直接子。既存Worker dispatcherへ予約namespaceを追加するが、Production indexはopaque capabilityを渡さず、flagのみでは404。使い捨てcapability＋既存HMAC/Pro/writer＋exact候補schema/DB gateで隔離接続を検証。DDLは通常migrations外、NULL/default0で既存データbackfillなし。ブラウザ製品module/version/cache不変（Studio0.47.20 / Port1.24.23 / schema2）。
+
+契約は `workers/sound-cruise-sync/OWNER_ROUTE_SCHEMA_CANDIDATE.md`。本番physical-commit expiry・時計/TTL/rotation・旧writer containment・enrollment/cutover・反復履歴運用は未保証。Production capability/infra rollout/BPM canaryは別受入・別承認。本番保存・Cloud未接続、Shared Write OFF、canWrite=false。今回の合格を1.0.0や本番保存完成と扱わない。
+
+# Studio 0.47.20 / Port 1.24.23 — bounded two-cycle renewal candidate
+
+Parent PR27 dedb2719e0c5544417c783bc4978c522dd4e44cc. q3/proof3/cycle2 uses
+exact q2 source, one immutable owner archive atomic with begin2, two-link history
+and existing readonly Authority/consumer transactions. Third cycle is refused by
+the enabled fixture owner/local source. Shared Write OFF/canWrite=false, schema2.
+No production routes, migrations, writer/consumer/Cloud or deployment are enabled.
+After two-cycle acceptance, stop adding isolated cycles; the next unit is disabled
+production owner route/schema compatibility plus explicit clock/admission semantics.
+[Current production gates and initial-release roadmap](docs/PRODUCTION_CONNECTION_GATES.md).
+The following sections are historical records.
+
+# Studio 0.47.19 / Port 1.24.22 — Renewal successor isolated candidate
+
+PR #26 fixed head e01c061a7c5fa2b26c5997ef580e38d0b3ceef61 is the direct parent.
+Explicit readonly credential adoption, authenticated history-only reconcile across
+one direct renewal, and typed successor Authority/consumer publication use existing
+owners. Pointer/consumer CAS is one IDB transaction; SQL stop/confirmation and
+Account/backup DB remain separate. New per-operation V3 Admission enables isolated
+BPM draft/save/reload while all normal writers remain disconnected.
+Shared Write OFF / canWrite=false, schema 2. Multiple renewal cycles, production
+backend/cutover/Cloud and physical commit expiry remain gates.
+Contract: [Renewal successor lifecycle](../cruise-port/docs/RENEWAL_SUCCESSOR_LIFECYCLE_ISOLATED.md).
+The sections below are historical implementation records.
+
 # Studio 0.47.17 — Pointer/Consumer停止協調・明示部分復旧（未公開隔離候補）
 
 Port1.24.20 / Project schema2。PR #22固定head ae1309d5が直接親。Authorityのtyped stop/Control epochとowner SQLの永続stopped fenceを協調させ、旧lease消費/新規発行を停止。完全roster・元pin・typed local receiptを分類し、最新backend結果のみを別UUIDの明示復旧で元世代へ適用する。pointer/consumer CAS・journal・receiptは同Authority tx、新世代はsuspended/fenceRevoked/readOnly維持。owner確定もreadonly止まりで通常writerを再開しない。独立DBの原子性、全device/Cloud writer排除、本番cutoverは未保証。Shared Write OFF/canWrite=false、schema2・公開版・他owner不変。契約: [Owner Pointer Consumer Cutover](../cruise-port/docs/OWNER_POINTER_CONSUMER_CUTOVER.md)。以下は履歴。
@@ -1508,3 +1539,11 @@ Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（sch
 ## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
 
 0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](docs/SCHEMA2_FOUNDATION.md)を参照。
+
+## New consumer Admission / BPM isolated vertical (0.47.18 candidate)
+
+Readonly cutover generations can request a new, exact operation lease through the
+existing owner SQL gate. Studio's injected draft controller exercises read/edit/
+explicit save/reload; normal boot and canWrite=false remain unchanged. See Port
+`docs/CONSUMER_READMISSION_BPM_ISOLATED.md`. Renewal adoption into another local
+Authority, normal consumer/provider cutover and production Cloud remain later gates.
