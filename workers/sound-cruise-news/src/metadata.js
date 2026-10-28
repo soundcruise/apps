@@ -1,3 +1,4 @@
+import {assistedLabel} from './assisted-facts.js';
 import {validPrimaryAnnouncement,primaryAnnouncementLabel} from './primary-announcement.js';
 import {validKikutaniListingFacts,kikutaniListingFacts,kikutaniListingLabel,kikutaniListingProvenance} from './kikutani-listing-evidence.js';
 import {attributedProductHeadline} from './product-attribution.js';
@@ -263,6 +264,7 @@ export function allowedArticlePath(url,source) {
 }
 const actions={other:'の製品情報',new_product:'を発表',release:'を発売',update:'を更新',firmware:'のファームウェア更新',price_change:'の価格改定',discontinued:'の販売終了',recall:'のリコール情報',review:'の製品レビュー'};
 export function factualLabel(facts,eventType){
+ if(facts?.kind==='assisted_notice')return assistedLabel(facts);
  if(facts?.kind==='primary_product_notice')return primaryAnnouncementLabel(facts);
  if(facts?.identifierBasis==='explicit_kikutani_listing_product')return kikutaniListingLabel(facts,eventType);
  if(facts?.kind==='morris_notice')return morrisNoticeLabel(facts,eventType);

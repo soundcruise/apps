@@ -26,6 +26,7 @@ export function missingFacts(row,facts,validation){
  return missing;
 }
 export function recoverySurface(row,source,{primaryRecovery=false}={}){
+ if(row.origin==='operator_assisted')return null;
  if(source?.id==='morris')return morrisPermissionValid(source)&&row.source_id==='morris'&&morrisArticleUrl(row.source_url)?{url:row.source_url,method:'morris_once_only_article',parser:MORRIS_PARSER}:null;
  const policy=sourcePolicySurface(row,source);if(policy)return policy;
  const exhibition=guitarExhibitionSurface(row,source);if(exhibition)return exhibition;

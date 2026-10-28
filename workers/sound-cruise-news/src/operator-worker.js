@@ -1,3 +1,5 @@
+import {prepareAssisted,saveAssisted} from './assisted-entry.js';
+import {assistedSources,assistedTypes,assistedActions,ASSISTED_ORIGIN} from './assisted-facts.js';
 import {categoryDetail,saveCategory} from './category-editor.js';
 import {publishedPresentation,savePresentation} from './news-presentation.js';
 import {confirmMorrisFacts} from './morris-fact-confirmation.js';
@@ -25,13 +27,16 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.36.1'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.37.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
    if(input.scope==='pending'&&Object.keys(input).length===1)return json(await evaluatePending(store,now,registry,env.NEWS_HEADLINE_PEPPER));
    return json(await saveShadowEvaluation(store,input,now,registry,env.NEWS_HEADLINE_PEPPER));
   }
+  if(request.method==='GET'&&url.pathname==='/api/assisted')return json({sources:assistedSources,types:assistedTypes,actions:assistedActions});
+  if(request.method==='POST'&&['/api/assisted-preview','/api/assisted-save'].includes(url.pathname)){await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);const p=url.pathname.endsWith('-save')?await saveAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor):await prepareAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER);return json({...p,row:undefined,existing:undefined});}
+  if(request.method==='GET'&&/^\/api\/assisted\/[a-f0-9]{64}$/.test(url.pathname)){const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=? AND origin=?').bind(url.pathname.split('/').at(-1),ASSISTED_ORIGIN).first();if(!row)throw Error('candidate_not_found');return json({id:row.id,url:row.source_url,publishedAt:new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10),sourceId:row.source_id,label:row.label,...JSON.parse(row.product_facts),snapshot:await candidateSnapshot(row)});}
   if(request.method==='GET'&&url.pathname==='/api/summary')return json(await dashboardSummary(store,now));
   if(request.method==='GET'&&url.pathname==='/api/human-decisions'){
    const offset=url.searchParams.get('offset')||'0';if(!/^\d{1,7}$/.test(offset))throw Error('operator_query_invalid');
@@ -78,7 +83,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   return json({error:'not_found'},404);
  }catch(error){
   const code=error.message,status=code==='operator_not_configured'?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate','facts_recheck_busy','presentation_changed','category_changed'].includes(code)?409:['decision_transaction_failed','facts_transaction_failed','category_transaction_failed'].includes(code)?503:422;
-  const known=/^(category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
+  const known=/^(assisted_|category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
   if(request.method==='GET'&&['/','/index.html'].includes(new URL(request.url).pathname)&&['authentication_required','authentication_invalid'].includes(code))return authenticationPage(security);
   return json({error:known?code:'operator_unavailable'},known?status:503);
  }

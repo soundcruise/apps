@@ -1379,3 +1379,21 @@ No invented facts or forced READY is permitted. The response is held only in mem
 for diagnosis/replay; only bounded facts metadata/hash/outcome persist. The second
 late URL is not fetched after this budget is spent. No approval/rejection or existing
 published article, human Ledger/feedback/Shadow, HOT/order/category edit is authorized.
+
+## 2026-10-28 — Yamaha human-confirmed registration / Bot refusal
+
+The owner reports Yamaha's 2026-10-28 reply that the current Bot method is not
+permitted (Gmail thread 1a143ade3d41af2c, received message 1a181b448fcd337b;
+connector snippet confirms the refusal; ISO-2022-JP full-body decoding was lossy).
+Preserve the October 16 facts / independent short label / requested attribution /
+direct link permission only within the previously reviewed jp.yamaha.com guitar
+Topics scope. Automatic acquisition remains OFF: no fetch on URL entry, no browser
+crawl, alternate host, UA/IP or access-control circumvention. No automation
+permission is inferred from sitemap availability or manual registration.
+
+Operator-assisted entries are human-confirmed facts, pending final publication
+judgment; they are not HTTP-success evidence or approve/reject teachers. They
+require per-entry confirmation, provenance, formal validation and duplicate checks.
+www.yamaha.com newsroom/news releases and Martin remain unapproved for this input
+path pending their own scope/terms assessment. Existing automatic sources retain
+all existing collection, maintenance recovery and budget policies.

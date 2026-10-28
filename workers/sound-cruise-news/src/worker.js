@@ -1,3 +1,4 @@
+import {assistedPredicate} from './assisted-facts.js';
 import {compareTicker} from '../../../apps/cruise-port/news-quality.js';
 import {preferredIndependentLabel} from './label-quality.js';
 import {manualPredicate} from './manual-sources.js';
@@ -32,7 +33,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
  if(request.method==='OPTIONS')return finish(new Response(null,{status:204}));
  if(request.method!=='GET')return finish(json({error:'method_not_allowed'},405));
  if(url.pathname==='/health'){
-  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.38.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
+  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.39.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
   catch{return finish(json({ok:false,error:'news_unavailable'},503));}
  }
  if(!['/v1/news','/v1/news/ticker'].includes(url.pathname))return finish(json({error:'not_found'},404));
@@ -50,7 +51,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
   const controls=await new NewsStore(env.NEWS_DB).controls();
   if(!controls.api_enabled)return finish(json({disabled:true,items:[]},503));
   const active=registry.filter(s=>s.enabled&&!evidenceGate(s,now)).map(s=>s.id);
-  const eligible=`(c.source_id IN (${(active.length?active:['__none__']).map(()=>'?').join(',')}) OR ${legacyPredicate()} OR ${manualPredicate(now)})`;
+  const eligible=`(c.source_id IN (${(active.length?active:['__none__']).map(()=>'?').join(',')}) OR ${legacyPredicate()} OR ${manualPredicate(now)} OR ${assistedPredicate()})`;
   const activeBindings=active.length?active:['__none__'];
   // A page can change when any preceding sale/event expires. Bound all cached pages by that
   // transition; do not trust only the deadlines of the rows returned on this page.

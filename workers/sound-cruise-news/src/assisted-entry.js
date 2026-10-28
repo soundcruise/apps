@@ -1,0 +1,36 @@
+import {ASSISTED_ORIGIN,ASSISTED_PERMISSION,assistedSources,assistedTypes,assistedUrl,assistedLabel,assistedProof} from './assisted-facts.js';
+import {hash,DAY} from './policy.js';
+import {fingerprint} from './fingerprint.js';
+import {publicationValidation,duplicatePredicate} from './decision-policy.js';
+import {candidateSnapshot} from './operator-review.js';
+export async function prepareAssisted(store,input,now,registry,pepper){
+ const errors=[];if(!input||Object.keys(input).some(k=>!['sourceId','url','publishedAt','brand','product','productType','action','eventDate','venue','label','confirmed','id','snapshot','requestId'].includes(k)))throw Error('assisted_fields_invalid');
+ if(input.sourceId!=='yamaha'||!assistedUrl(input.url))errors.push('対象は許諾済みjp.yamaha.comのギターTopics記事URLに限ります');
+ const stamp=/^20\d{2}-\d\d-\d\d$/.test(input.publishedAt||'')?Date.parse(input.publishedAt+'T00:00:00+09:00'):NaN;if(!Number.isFinite(stamp)||new Date(stamp+9*3600000).toISOString().slice(0,10)!==input.publishedAt||stamp>now||now-stamp>=90*DAY)errors.push('90日以内の正しい記事公開日が必要です');
+ const facts={kind:'assisted_notice',brand:input.brand,product:input.product,models:[input.product],version:null,productType:input.productType,category:assistedTypes[input.productType]?.[1],action:input.action,...(input.productType==='event'?{eventDate:input.eventDate,venue:input.venue}:{})},generated=assistedLabel(facts);
+ if(!generated)errors.push('主体・製品／イベント名・製品種別・出来事を確認してください（開催案内は開催日と会場も必要）');
+ const label=input.label||generated;if(typeof label!=='string'||label.length<8||label.length>160||/[<>\x00-\x1f]/.test(label)||!label.includes(input.product||'\u0000')||!label.includes(input.brand||'\u0000'))errors.push('見出しには確認済みの主体と対象名を含めてください');
+ if(input.confirmed!==true)errors.push('原記事・日付・事実・利用条件・転載なしの確認が必要です');
+ if(errors.length)return {valid:false,errors,publisherHttpRequests:0};
+ if(facts.eventDate&&(!Number.isFinite(Date.parse(facts.eventDate))||new Date(Date.parse(facts.eventDate)).toISOString().slice(0,10)!==facts.eventDate||Date.parse(facts.eventDate+'T23:59:59+09:00')<now))return {valid:false,errors:['開催日が不正または終了済みです'],publisherHttpRequests:0};
+ const row={id:await hash(input.url),source_id:'yamaha',source_url:input.url,normalized_url:input.url,published_at:new Date(stamp).toISOString(),category:facts.category,event_type:facts.action==='release'?'release':facts.productType==='event'?'guitar_event':facts.productType==='interview'?'guitar_artist':facts.action==='introduction'?'product_article':'new_product',product_facts:JSON.stringify(facts),topic_key:JSON.stringify([facts.brand,facts.product,facts.action,facts.eventDate||'']),label,expires_at:Math.min(stamp+90*DAY,...(facts.eventDate?[Date.parse(facts.eventDate+'T23:59:59+09:00')]:[]))};
+ const predicate=duplicatePredicate(row,facts),duplicates=(await store.db.prepare('SELECT d.id,d.label,d.source_url FROM candidate_items d WHERE '+predicate.sql).bind(...predicate.args).all()).results;
+ const existing=await store.db.prepare('SELECT * FROM candidate_items WHERE id=? OR normalized_url=?').bind(row.id,row.source_url).first();
+ if(existing&&(!input.id||input.id!==existing.id))errors.push('同じURLが登録済みです。既存記事の編集を開いてください');
+ if(input.id&&(!existing||!await assistedProof(store,existing,now)||!['pending','reopened','approved'].includes(existing.review_status)||input.snapshot!==await candidateSnapshot(existing)||existing.published_at!==row.published_at))errors.push('編集対象が変更されたか、編集可能な半自動記事ではありません');
+ return {valid:!errors.length,errors,label,generatedLabel:generated,category:facts.category,facts,duplicates,row,existing,publisherHttpRequests:0};
+}
+export async function saveAssisted(store,input,now,registry,pepper,actor){
+ if(actor?.type!=='human_operator')throw Error('operator_denied');if(!/^[-a-zA-Z0-9_]{16,100}$/.test(input.requestId||''))throw Error('assisted_request_invalid');
+ const payloadHash=await hash(JSON.stringify({input,actor})),prior=await store.db.prepare('SELECT * FROM news_assisted_edits WHERE request_id=?').bind(input.requestId).first();if(prior){if(prior.payload_hash!==payloadHash)throw Error('idempotency_payload_changed');return {saved:true,id:prior.candidate_id,replayed:true};}
+ const p=await prepareAssisted(store,input,now,registry,pepper);if(!p.valid)return p;
+ if(p.existing?.review_status==='approved'&&p.duplicates.length)throw Error('duplicate');
+ const controls=await store.controls(),state=await store.state('yamaha');if(!controls.publication_enabled||state.publicationBlocked||await store.db.prepare('SELECT 1 FROM news_takedowns WHERE item_id=?').bind(p.row.id).first())throw Error('assisted_source_stopped');
+ const proof=JSON.stringify({method:'human_official_article_confirmation',permissionRef:ASSISTED_PERMISSION,confirmationId:input.requestId,verifiedAt:now,actor:actor.id,publisherHttpRequests:0}),r=p.row,fp=JSON.stringify(await fingerprint(p.label,pepper));
+ const writeGate=" AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id='yamaha' AND (publication_blocked=1 OR takedown=1)) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id='"+r.id+"')";
+ let statement;
+ if(p.existing){const old=p.existing,keys=Object.keys(old);statement=store.db.prepare('UPDATE candidate_items SET label=?,product_facts=?,category=?,event_type=?,topic_key=?,facts_provenance=?,title_fingerprint=?,expires_at=?,review_revision=review_revision+1 WHERE '+keys.map(k=>k+' IS ?').join(' AND ')+writeGate).bind(p.label,r.product_facts,r.category,r.event_type,r.topic_key,proof,fp,r.expires_at,...keys.map(k=>old[k]));}
+ else statement=store.db.prepare(`INSERT OR IGNORE INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,review_status,review_reason,expires_at,event_type,product_facts,publication_decision,decision_reason,origin,facts_provenance,title_fingerprint) SELECT ?,'yamaha',?,?,?,?,?,?,?,?,'pending','human_facts_entered',?,?,?,'PUBLISH_REVIEW','human_facts_entered',?,?,? WHERE 1=1 ${writeGate}`).bind(r.id,assistedSources[0].name,r.source_url,r.normalized_url,r.published_at,r.category,p.label,r.topic_key,new Date(now).toISOString(),r.expires_at,r.event_type,r.product_facts,ASSISTED_ORIGIN,proof,fp);
+ const batch=await store.db.batch([statement,store.db.prepare(`INSERT INTO news_assisted_edits SELECT ?,?,c.id,c.source_url,c.published_at,c.product_facts,c.label,?,?,?, ?,? FROM candidate_items c WHERE c.id=? AND c.facts_provenance=?`).bind(input.requestId,payloadHash,ASSISTED_PERMISSION,now,actor.type,actor.id,p.existing?'edit':'create',r.id,proof),store.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1 AND EXISTS(SELECT 1 FROM news_assisted_edits WHERE request_id=?)').bind(input.requestId)]);if(batch[0].meta.changes!==1||batch[1].meta.changes!==1)throw Error('assisted_save_conflict');
+ const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(r.id).first();return {saved:true,id:r.id,validation:await publicationValidation(store,row,now,registry,pepper),publisherHttpRequests:0};
+}

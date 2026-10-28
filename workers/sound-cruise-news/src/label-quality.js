@@ -21,6 +21,7 @@ function independentTopicItems(row){
 }
 export function independentTopicUrls(row){return independentTopicItems(row).map(i=>i.sourceUrl);}
 export function preferredIndependentLabel(row){
+ if(row.event_type?.startsWith('assisted_')||(typeof row.product_facts==='string'?row.product_facts:'')?.includes('\"kind\":\"assisted_notice\"'))return row.label;
  const reviewed=publishedHeadlineFromRow(row);if(reviewed)return reviewed;
  let facts;try{facts=typeof row.product_facts==='string'?JSON.parse(row.product_facts):row.product_facts;}catch{}
  // A verified action refinement must not be replaced by a coarse legacy label.

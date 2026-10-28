@@ -1,3 +1,4 @@
+import {ASSISTED_ORIGIN,assistedProof,assistedLabel} from './assisted-facts.js';
 import {validPrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS} from './primary-announcement.js';
 import {productBrandVariants} from './product-brand-identity.js';
 import {validKikutaniListingFacts,KIKUTANI_LISTING_PARSER,KIKUTANI_LISTING_PARSERS} from './kikutani-listing-evidence.js';
@@ -27,6 +28,8 @@ export function duplicatePredicate(row,facts,alias='d'){
  const paths=independentTopicUrls(row),j=key=>`json_extract(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.${key}')`;
  const brands=productBrandVariants(facts?.brand),brandValues=brands.length?brands:['__no_verified_brand__'],brandMatch=`${j('brand')} IN (${brandValues.map(()=>'?').join(',')})`;
  const clauses=[`${alias}.topic_key=?`,`${alias}.normalized_url=?`,`${alias}.source_url=?`],args=[row.topic_key,row.normalized_url,row.source_url];
+ if(facts?.kind==='assisted_notice'&&!['event','interview'].includes(facts.productType)&&['release','announcement'].includes(facts.action)){clauses.push(`(${brandMatch} AND ${j('product')}=? AND ${alias}.event_type IN ('new_product','release') AND ${j('productEvent')} IS NULL)`);args.push(...brandValues,facts.product);}
+ if(facts?.kind==='assisted_notice'&&facts.productType==='event'){clauses.push(`(${j('kind')}='guitar_event' AND COALESCE(${j('eventName')},${j('event')})=? AND ${j('eventDate')}=? AND ${j('venue')}=?)`);args.push(facts.product,facts.eventDate,facts.venue);}
  if(facts?.kind==='product_family'){
   const familyClauses=[`${alias}.normalized_url=?`,`${alias}.source_url=?`];
   const familyArgs=[row.normalized_url,row.source_url];
@@ -41,7 +44,7 @@ export function duplicatePredicate(row,facts,alias='d'){
   args.push(facts.eventName,facts.eventDate,facts.performer,JSON.stringify(facts.venues));
  }
  if(paths.length){clauses.push(`${alias}.source_url IN (${paths.map(()=>'?').join(',')})`);args.push(...paths);}
- if(facts?.product&&facts.kind!=='product_article'&&facts.evidence!=='morris_explicit_article_v1'){clauses.push(`((? IS NULL OR ${brandMatch} OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,...brandValues,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
+ if(facts?.product&&!['product_article','assisted_notice'].includes(facts.kind)&&facts.evidence!=='morris_explicit_article_v1'){clauses.push(`((? IS NULL OR ${brandMatch} OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,...brandValues,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
  if(facts?.articleIdentity?.basis==='explicit_primary_definition'&&facts.identifierBasis==='explicit_article_product_fields'){clauses.push(`(${j('brand')}=? AND ${j('product')} IN (${facts.articleIdentity.models.map(()=>'?').join(',')}) AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('new_product','release') AND ? IN ('new_product','release') AND COALESCE(${j('productEvent.action')},'')=?)`);args.push(facts.articleIdentity.brand,...facts.articleIdentity.models,row.category,facts.version||'',row.event_type,facts.productEvent?.action||'');}
  if(facts?.evidence==='morris_explicit_article_v1'&&facts.kind==='product'){
   clauses.push(`(${j('brand')} IN ('Morris','MORRIS','Morris Guitars','モーリス') AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(CASE WHEN json_type(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.productEvent')='object' THEN ${j('productEvent.action')} ELSE ${j('productEvent')} END,'')=? AND ${alias}.event_type IN ('new_product','release') AND ? IN ('new_product','release'))`);args.push(row.category,facts.product,facts.productEvent?.action||'',row.event_type);
@@ -90,11 +93,13 @@ export function duplicatePredicate(row,facts,alias='d'){
  return {sql:`${alias}.review_status='approved' AND ${alias}.id<>? AND (${clauses.join(' OR ')})`,args:[row.id,...args]};
 }
 export async function publicationValidation(store,row,now,registry,pepper){
- const errors=[],source=registry.find(s=>s.id===row.source_id),facts=parseFacts(row),label=factualLabel(facts,row.event_type),controls=await store.controls(),state=await store.state(row.source_id),health=(await store.sourceHealth()).find(h=>h.source_id===row.source_id);
+ const assisted=row.origin===ASSISTED_ORIGIN,verifiedAssisted=assisted&&await assistedProof(store,row,now);
+ const errors=[],source=registry.find(s=>s.id===row.source_id),facts=parseFacts(row),label=verifiedAssisted?row.label:factualLabel(facts,row.event_type),controls=await store.controls(),state=await store.state(row.source_id),health=(await store.sourceHealth()).find(h=>h.source_id===row.source_id);
  if(row.publication_decision==='REJECT')errors.push('publication_policy_rejected');
  const sourceGate=legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0},now,'production',registry);
- if(sourceGate||!source?.discoveryValid||health?.status!=='healthy'||!Number.isSafeInteger(health?.last_successful_run_at)||health.last_successful_run_at>now||!controls.publication_enabled)errors.push('operator_source_gate');
- if(!source||!sourceUrl(row.source_url,source)||!allowedArticlePath(row.source_url,source))errors.push('source_url_invalid');
+ if(!controls.publication_enabled||state.publicationBlocked||(assisted?!verifiedAssisted:sourceGate||!source?.discoveryValid||health?.status!=='healthy'||!Number.isSafeInteger(health?.last_successful_run_at)||health.last_successful_run_at>now))errors.push('operator_source_gate');
+ if(!source||!sourceUrl(row.source_url,source)||(!assisted&&!allowedArticlePath(row.source_url,source)))errors.push('source_url_invalid');
+ if(facts?.kind==='assisted_notice'&&(!verifiedAssisted||!assistedLabel(facts)))errors.push('facts_provenance_invalid');
  if(!facts||!label||facts.scopeUncertain||row.event_type==='other'||!validLabel(label)||facts.category!==row.category||!CATEGORIES.includes(row.category))errors.push('facts_incomplete');
  if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source?.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source?.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source?.id!=='at-distribution'||facts?.manufacturerSource&&facts.manufacturerSource!==row.source_id||facts?.listingSource&&facts.listingSource!==row.source_id)errors.push('facts_provenance_invalid');
  if(facts?.evidence==='guitar_exhibition_article_v1'&&(row.source_id!=='kikutani'||facts.articleUrl!==row.source_url||facts.listingSource!==row.source_id))errors.push('facts_provenance_invalid');

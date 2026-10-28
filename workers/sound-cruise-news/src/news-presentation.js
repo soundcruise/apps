@@ -13,6 +13,7 @@ export async function publishedPresentation(store,env,now,registry){
  const preferences=(await store.db.prepare('SELECT * FROM news_presentation_days').all()).results;
  const rows=await store.candidates(),controls=await store.controls();
  const result=[];for(const [day,items]of days){const p=preferences.find(p=>p.day===day),revision=p?.revision||0;
+ for(const item of items)item.assistedEditable=rows.some(r=>r.id===item.id&&r.origin==='operator_assisted');
  items.sort((a,b)=>(a.displayOrder??100000)-(b.displayOrder??100000)||b.publishedAt.localeCompare(a.publishedAt)||a.id.localeCompare(b.id));
  const guard=dayGuard(rows,day),snapshot=await hash(canonical({day,revision,guard,controls:controls.revision,items}));
  result.push({day,revision,snapshot,items});}return {days:result};

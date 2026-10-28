@@ -1,3 +1,4 @@
+import {ASSISTED_ORIGIN,assistedPredicate} from './assisted-facts.js';
 import {effectiveCategory} from './category-editor.js';
 import {MORRIS_EDITORIAL_POLICY,MORRIS_REVIEW_TYPES,MORRIS_PRODUCT_TYPES} from './morris-editorial-policy.js';
 import {morrisRecoveryView} from './morris-collector.js';
@@ -26,7 +27,7 @@ export async function reviewDetail(store,id,now,registry,pepper){
   factsReview.nextAction=morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'?'システム側の証拠待ちです。保存済み一次証拠が不足し、許諾範囲では過去詳細を再取得できません。新しい許可済み一覧に正式なfactsが得られた場合だけ再評価します。事実入力・掲載判断はまだ不要です。':'新着は許可済みの1回取得で自動解析します。不足が残る間は掲載判断を求めません。';
   if(morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'){factsReview.available=false;factsReview.reviewability='EVIDENCE_WAIT';morrisReview.confirmationAvailable=false;}
  }}
- return {systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle:await lifecycleView(store,row,now),factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
+ return {assistedEditable:row.origin===ASSISTED_ORIGIN,systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle:await lifecycleView(store,row,now),factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
 }
 export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  const rows=(await store.candidates()).filter(i=>i.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(i.review_status));
@@ -70,11 +71,11 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
  FROM candidate_items c WHERE c.id=? AND c.review_revision=? AND c.review_status=? ${takedown?'':"AND c.origin<>'legacy_fixture_backfill'"} AND ${snapshotWhere}
  ${approve?`AND c.expires_at>? AND (c.sale_ends_at IS NULL OR c.sale_ends_at>=?) AND (c.event_ends_at IS NULL OR c.event_ends_at>=?)
  AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1)
- AND EXISTS(SELECT 1 FROM source_health WHERE source_id=c.source_id AND status='healthy' AND last_successful_run_at=?)
- AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND (disabled=1 OR takedown=1 OR publication_blocked=1))
+ ${row.origin===ASSISTED_ORIGIN?'AND '+assistedPredicate():"AND EXISTS(SELECT 1 FROM source_health WHERE source_id=c.source_id AND status='healthy' AND last_successful_run_at=?)"}
+ AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND (${row.origin===ASSISTED_ORIGIN?'':'disabled=1 OR '}takedown=1 OR publication_blocked=1))
  AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=c.id)
  AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql})`:''}`)
- .bind(decisionId,input.action,input.reason,actor.type,actor.id,now,features,DECISION_POLICY_VERSION,input.requestId,payloadHash,input.snapshot,now,approve?validation.publishableLabel:null,canonical(approve?{basis:'validated_official_surface',...input.checks}:{}),row.id,row.review_revision,row.review_status,...snapshotColumns.map(k=>row[k]),...(approve?[now,now,now,validation.healthSuccessfulAt,...predicate.args]:[]));
+ .bind(decisionId,input.action,input.reason,actor.type,actor.id,now,features,DECISION_POLICY_VERSION,input.requestId,payloadHash,input.snapshot,now,approve?validation.publishableLabel:null,canonical(approve?{basis:'validated_official_surface',...input.checks}:{}),row.id,row.review_revision,row.review_status,...snapshotColumns.map(k=>row[k]),...(approve?[now,now,now,...(row.origin===ASSISTED_ORIGIN?[]:[validation.healthSuccessfulAt]),...predicate.args]:[]));
  try{await statement.run();}catch(error){const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;throw Error('decision_transaction_failed',{cause:error});}
  const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;
  const current=await store.db.prepare('SELECT review_status,review_revision FROM candidate_items WHERE id=?').bind(row.id).first();
