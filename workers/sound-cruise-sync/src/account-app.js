@@ -319,6 +319,9 @@ function createSession(env, request) {
     : env.SYNC_DB;
 }
 
+// Read-only validation reused by the isolated Maintenance HTTP adapter.
+export { validBookmark as isValidAccountOwnerBookmark };
+
 function sessionBookmark(session) {
   if (!session || typeof session.getBookmark !== 'function') return null;
   try { return session.getBookmark() || null; } catch { return null; }
