@@ -1,15 +1,19 @@
+import {typeEvidence,validTypeEvidence,labelMatchesType} from './assisted-product-type.js';
 import {ASSISTED_ORIGIN,ASSISTED_PERMISSION,assistedSources,assistedTypes,assistedUrl,assistedLabel,assistedProof} from './assisted-facts.js';
 import {hash,DAY} from './policy.js';
 import {fingerprint} from './fingerprint.js';
 import {publicationValidation,resolvedDuplicatePredicate} from './decision-policy.js';
 import {candidateSnapshot} from './operator-review.js';
 export async function prepareAssisted(store,input,now,registry,pepper){
- const errors=[];if(!input||Object.keys(input).some(k=>!['sourceId','url','publishedAt','brand','product','productType','action','eventDate','venue','label','confirmed','id','snapshot','requestId'].includes(k)))throw Error('assisted_fields_invalid');
+ const errors=[];if(!input||Object.keys(input).some(k=>!['sourceId','url','publishedAt','brand','product','productType','action','eventDate','venue','label','confirmed','id','snapshot','requestId','typeEvidence'].includes(k)))throw Error('assisted_fields_invalid');
  if(input.sourceId!=='yamaha'||!assistedUrl(input.url))errors.push('対象は許諾済みjp.yamaha.comのギターTopics記事URLに限ります');
  const stamp=/^20\d{2}-\d\d-\d\d$/.test(input.publishedAt||'')?Date.parse(input.publishedAt+'T00:00:00+09:00'):NaN;if(!Number.isFinite(stamp)||new Date(stamp+9*3600000).toISOString().slice(0,10)!==input.publishedAt||stamp>now||now-stamp>=90*DAY)errors.push('90日以内の正しい記事公開日が必要です');
- const facts={kind:'assisted_notice',brand:input.brand,product:input.product,models:[input.product],version:null,productType:input.productType,category:assistedTypes[input.productType]?.[1],action:input.action,...(input.productType==='event'?{eventDate:input.eventDate,venue:input.venue}:{})},generated=assistedLabel(facts);
+ const evidence=input.typeEvidence??typeEvidence(assistedTypes[input.productType]?.[0]||'','human_type_selection');
+ if(!validTypeEvidence(evidence,input.productType))errors.push('主製品の具体的な種別を確認してください。用途・対応機器だけでは種別を確定できません');
+ const facts={typeEvidence:evidence,kind:'assisted_notice',brand:input.brand,product:input.product,models:[input.product],version:null,productType:input.productType,category:assistedTypes[input.productType]?.[1],action:input.action,...(input.productType==='event'?{eventDate:input.eventDate,venue:input.venue}:{})},generated=assistedLabel(facts);
  if(!generated)errors.push('主体・製品／イベント名・製品種別・出来事を確認してください（開催案内は開催日と会場も必要）');
  const label=input.label||generated;if(typeof label!=='string'||label.length<8||label.length>160||/[<>\x00-\x1f]/.test(label)||!label.includes(input.product||'\u0000')||!label.includes(input.brand||'\u0000'))errors.push('見出しには確認済みの主体と対象名を含めてください');
+ if(label&&!labelMatchesType(label,facts.productType))errors.push('見出しの主製品種別が確認済みfactsと一致しません');
  if(input.confirmed!==true)errors.push('原記事・日付・事実・利用条件・転載なしの確認が必要です');
  if(errors.length)return {valid:false,errors,publisherHttpRequests:0};
  if(facts.eventDate&&(!Number.isFinite(Date.parse(facts.eventDate))||new Date(Date.parse(facts.eventDate)).toISOString().slice(0,10)!==facts.eventDate||Date.parse(facts.eventDate+'T23:59:59+09:00')<now))return {valid:false,errors:['開催日が不正または終了済みです'],publisherHttpRequests:0};

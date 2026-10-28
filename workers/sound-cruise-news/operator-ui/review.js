@@ -216,12 +216,14 @@ function invalidateAssisted(){if(assistedBusy)assistedStatus.textContent='入力
 assistedText.addEventListener('input',()=>{invalidateAssisted();assistedParsed=null;assistedMissing=[];showAssistedFields([]);});
 function showAssistedFields(keys){for(const [k,w]of Object.entries(assistedWraps))if(k!=='url')w.hidden=!assistedSimple.hidden&&!keys.includes(k);assistedAdvanced.hidden=!assistedSimple.hidden&&!keys.length;}
 assistedMode.addEventListener('click',()=>{if(assistedBusy)return;invalidateAssisted();assistedSimple.hidden=!assistedSimple.hidden;assistedMode.textContent=assistedSimple.hidden?'簡易入力に戻る':'詳細入力に切り替え';assistedMode.setAttribute('aria-expanded',String(assistedSimple.hidden));showAssistedFields(assistedMissing);});
-const assistedPayload=()=>({...Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>f.value||!['eventDate','venue','label'].includes(k)).map(([k,f])=>[k,f.value])),confirmed:assistedConfirm.checked,...(assistedEdit?{id:assistedEdit.id,snapshot:assistedEdit.snapshot}:{})});
+const assistedPayload=()=>({...Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>f.value||!['eventDate','venue','label'].includes(k)).map(([k,f])=>[k,f.value])),confirmed:assistedConfirm.checked,...((assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence)?.productType===assistedInputs.productType.value?{typeEvidence:assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence}:{}),...(assistedEdit?{id:assistedEdit.id,snapshot:assistedEdit.snapshot}:{})});
 assistedConfirm.addEventListener('change',invalidateAssisted);
 async function assistedCall(path,payload){session=await api('/api/session');return api(path,{method:'POST',headers:{'Content-Type':'application/json','X-News-CSRF':session.csrf},body:JSON.stringify(payload)});}
 function paintAssistedDraft(p){
  assistedDraft.replaceChildren(el('h3',p.label),el('p','カテゴリ：'+categoryLabel(p.category)));
  const f=p.facts;assistedDraft.append(el('p',`主体：${f.brand} / 対象：${f.product}`),el('p',`記事公開日：${assistedInputs.publishedAt.value} / 種別：${assistedConfig?.types[f.productType]?.[0]||f.productType} / 出来事：${assistedConfig?.actions[f.action]||f.action}`));
+ if(f.typeEvidence?.usageTargets?.length)assistedDraft.append(el('p','用途・対応対象：'+f.typeEvidence.usageTargets.map(t=>assistedConfig?.types[t]?.[0]||({guitar:'ギター',amplifier:'アンプ'})[t]||t).join('、')+'（主製品の種別とは別）'));
+ if(f.typeEvidence?.accessories?.length)assistedDraft.append(el('p','付属品：'+f.typeEvidence.accessories.map(t=>assistedConfig?.types[t]?.[0]||t).join('、')));
  if(f.eventDate)assistedDraft.append(el('p',`開催日：${f.eventDate} / 会場：${f.venue}`));
  assistedDraft.append(el('p','出典：ヤマハ / ヤマハミュージックジャパン'),el('p',`重複：${p.duplicates.length}件。${p.duplicates.length?'重複のため正式掲載可にはなりません。':'入力条件を満たしています。保存時に正式validationを行います。'}`),el('p','証拠：人間による公式記事の確認。Bot取得ではありません。外部HTTP取得0件。貼り付け文は保存・公開しません。','meta'));assistedDraft.hidden=false;
 }

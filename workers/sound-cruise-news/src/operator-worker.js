@@ -28,14 +28,14 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.38.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.39.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
    if(input.scope==='pending'&&Object.keys(input).length===1)return json(await evaluatePending(store,now,registry,env.NEWS_HEADLINE_PEPPER));
    return json(await saveShadowEvaluation(store,input,now,registry,env.NEWS_HEADLINE_PEPPER));
   }
-  if(request.method==='GET'&&url.pathname==='/api/assisted')return json({sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:assistedTypes,actions:assistedActions});
+  if(request.method==='GET'&&url.pathname==='/api/assisted')return json({sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:Object.fromEntries(Object.entries(assistedTypes).filter(([id])=>id!=='guitar_accessory')),actions:assistedActions});
   if(request.method==='POST'&&url.pathname==='/api/assisted-parse'){await verifyCsrf(request,identity,env,now);return json(parseAssistedPaste(await inputJSON(request)));}
   if(request.method==='POST'&&['/api/assisted-preview','/api/assisted-save'].includes(url.pathname)){await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);const p=url.pathname.endsWith('-save')?await saveAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor):await prepareAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER);return json({...p,row:undefined,existing:undefined});}
   if(request.method==='GET'&&/^\/api\/assisted\/[a-f0-9]{64}$/.test(url.pathname)){const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=? AND origin=?').bind(url.pathname.split('/').at(-1),ASSISTED_ORIGIN).first();if(!row)throw Error('candidate_not_found');return json({id:row.id,url:row.source_url,publishedAt:new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10),sourceId:row.source_id,label:row.label,...JSON.parse(row.product_facts),snapshot:await candidateSnapshot(row)});}
