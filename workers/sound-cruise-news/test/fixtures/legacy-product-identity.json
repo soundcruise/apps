@@ -1,0 +1,14 @@
+{
+  "id": "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+  "source_id": "yamaha",
+  "source_url": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+  "published_at": "2026-09-17T15:00:00.000Z",
+  "label": "Yamaha、アコースティックギター「FG7 / FS7」を10月に発売予定",
+  "product_facts": "{\"headlineQuality\":{\"schemaVersion\":1,\"scope\":\"published_admin_quality\",\"candidateId\":\"953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1\",\"sourceUrl\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"kind\":\"product\",\"brand\":\"Yamaha\",\"product\":\"FG7 / FS7\",\"productType\":\"acoustic_guitar\",\"action\":\"scheduled_release\",\"date\":\"2026-10\",\"evidence\":[{\"url\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"basis\":\"official_product_review\",\"verifiedAt\":1791239248299,\"fields\":[\"identity\",\"productType\",\"action\",\"date\"]}]}}",
+  "facts_provenance": "[{\"sourceId\":\"yamaha\",\"sourceUrl\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"verifiedAt\":1791239977709,\"extractionMethod\":\"authorized_published_primary_review\",\"parserVersion\":\"published-headline-1\",\"factField\":\"headlineQuality\",\"evidence\":[{\"url\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"basis\":\"official_product_review\",\"verifiedAt\":1791239248299,\"fields\":[\"identity\",\"productType\",\"action\",\"date\"]}]}]",
+  "review_status": "approved",
+  "event_type": "other",
+  "category": "acoustic_guitar",
+  "normalized_url": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+  "topic_key": "yamaha-fg-fs7"
+}
