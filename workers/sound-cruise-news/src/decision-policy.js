@@ -24,11 +24,27 @@ export const CHECKS=Object.freeze(['factsChecked','relevanceChecked','duplicateC
 export const parseFacts=row=>{try{return JSON.parse(row.product_facts);}catch{return null;}};
 // Same publication identities as AUTO: topic, immutable independent article, product + version + launch family.
 // Artist/event identities additionally retain performer, venue and actual event date, never just a scalar label.
+// Keep automatic-to-automatic matching unchanged. The assisted boundary adds
+// case-insensitive explicit model matching in both arrival orders, with action identity.
 export function duplicatePredicate(row,facts,alias='d'){
+ const base=standardDuplicatePredicate(row,facts,alias);
+ if(facts?.kind==='assisted_notice')return base;
+ const json=`CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END`,j=key=>`json_extract(${json},'$.${key}')`;
+ const clauses=[`${alias}.topic_key=?`,`${alias}.normalized_url=?`,`${alias}.source_url=?`],args=[row.topic_key,row.normalized_url,row.source_url];
+ const models=Array.isArray(facts?.models)&&facts.models.length>0&&facts.models.length<=4&&facts.models.every(m=>typeof m==='string'&&m.length>0)?facts.models:typeof facts?.product==='string'?[facts.product]:[];
+ if(['new_product','release'].includes(row.event_type)&&facts?.brand&&models.length&&!facts.version&&!facts.productEvent){
+  const brands=productBrandVariants(facts.brand);
+  clauses.push(`(${j('brand')} COLLATE NOCASE IN (${brands.map(()=>'?').join(',')}) AND ${j('product')} COLLATE NOCASE IN (${models.map(()=>'?').join(',')}) AND ${j('action')} IN ('announcement','release') AND ${j('productType')} NOT IN ('event','interview'))`);
+  args.push(...brands,...models);
+ }
+ if(facts?.kind==='guitar_event'&&(facts.eventName||facts.event)&&facts.eventDate&&facts.venue){clauses.push(`(${j('productType')}='event' AND ${j('action')}='event_announcement' AND ${j('product')}=? AND ${j('eventDate')}=? AND ${j('venue')}=?)`);args.push(facts.eventName||facts.event,facts.eventDate,facts.venue);}
+ return {sql:`(((${base.sql}) AND COALESCE(${alias}.origin,'')<>'operator_assisted') OR (${alias}.review_status='approved' AND ${alias}.id<>? AND ${alias}.origin='operator_assisted' AND ${j('kind')}='assisted_notice' AND (${clauses.join(' OR ')})))`,args:[...base.args,row.id,...args]};
+}
+function standardDuplicatePredicate(row,facts,alias='d'){
  const paths=independentTopicUrls(row),j=key=>`json_extract(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.${key}')`;
  const brands=productBrandVariants(facts?.brand),brandValues=brands.length?brands:['__no_verified_brand__'],brandMatch=`${j('brand')} IN (${brandValues.map(()=>'?').join(',')})`;
  const clauses=[`${alias}.topic_key=?`,`${alias}.normalized_url=?`,`${alias}.source_url=?`],args=[row.topic_key,row.normalized_url,row.source_url];
- if(facts?.kind==='assisted_notice'&&!['event','interview'].includes(facts.productType)&&['release','announcement'].includes(facts.action)){clauses.push(`(${brandMatch} AND ${j('product')}=? AND ${alias}.event_type IN ('new_product','release') AND ${j('productEvent')} IS NULL)`);args.push(...brandValues,facts.product);}
+ if(facts?.kind==='assisted_notice'&&!['event','interview'].includes(facts.productType)&&['release','announcement'].includes(facts.action)){clauses.push(`(${j('brand')} COLLATE NOCASE IN (${brandValues.map(()=>'?').join(',')}) AND (${j('product')} COLLATE NOCASE=? OR (json_type(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models')='array' AND EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') model WHERE model.type='text' AND model.value COLLATE NOCASE=?))) AND ${alias}.event_type IN ('new_product','release') AND COALESCE(${j('version')},'')='' AND ${j('productEvent')} IS NULL)`);args.push(...brandValues,facts.product,facts.product);}
  if(facts?.kind==='assisted_notice'&&facts.productType==='event'){clauses.push(`(${j('kind')}='guitar_event' AND COALESCE(${j('eventName')},${j('event')})=? AND ${j('eventDate')}=? AND ${j('venue')}=?)`);args.push(facts.product,facts.eventDate,facts.venue);}
  if(facts?.kind==='product_family'){
   const familyClauses=[`${alias}.normalized_url=?`,`${alias}.source_url=?`];

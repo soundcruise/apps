@@ -24,3 +24,15 @@ The existing duplicate, 90-day, global publication stop, takedown and source pub
 ## Release verification
 
 Apply only additive migration `0024_assisted_entries.sql` before deploying NEWS and Operator. Do not modify Pages, Sync, Studio, cron or collection configuration. Check both Worker versions, an authenticated empty-form preview, and unchanged preexisting candidate/teacher/presentation data. Do not create a fabricated production article for a smoke test. Actual Yamaha publication requires a human to supply verified real facts and separately approve.
+
+## 2026-10-28 final technical acceptance candidate
+
+The initial Operator 0.37.1 input-to-READY path passed isolated authenticated API acceptance, but duplicate matching missed brand case differences and a single model included in a peer's explicit multi-model launch. The acceptance candidate (NEWS 0.39.1 / Operator 0.37.2) corrects only the assisted boundary. It compares explicit model identities case-insensitively and supports either arrival order. Automatic-to-automatic matching retains the existing rules. An introduction, a different version or an explicit color/edition event is not silently collapsed into the original launch. It does not split a combined model-name string or infer model aliases.
+
+The added acceptance test uses fixed-clock, isolated human-confirmation inputs. FG7 identity/publication-day examples reference previously saved facts; article URLs and other type examples are fixtures, not newly verified Yamaha articles. The tests do not establish that a human has now visited an actual article. No production article is inserted or approved.
+
+Acceptance covers authenticated Operator preview/save, facts/proof, generated label/category, URL collision, cross-source duplicates, reverse arrival order, missing facts, scope gates and zero external fetch. A real local workerd/D1 test additionally checks READY, replay and atomic audit rollback. It uses a local-only database binding and never connects to production D1.
+
+First real registration still requires the human to read the permitted official Topics article, use its real publication day, enter only evidenced actor/subject/type/action, and select an action matching the article. “発売” must not substitute for “紹介” or a future release plan. Product launch dates and free-form supplemental claims are not inferred. The current supported form is intentionally limited; if a material qualifier, multiple-model identity or action cannot be represented accurately, do not force a match or register a misleading label. Category overrides remain available after saving.
+
+This candidate must not be described as deployed merely because isolated tests pass. Shared-main, Pages and production Worker release require the applicable ownership/release approval. The original NEWS worktree, Studio clone and their refs/index/worktree metadata are not modified by this isolated acceptance branch.
