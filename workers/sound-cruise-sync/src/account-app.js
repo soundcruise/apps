@@ -1163,6 +1163,9 @@ async function currentAppEnvironmentContext(request, env, dependencies) {
   };
 }
 
+// Internal readonly inspection; existing App HMAC/identity decisions are reused.
+export { currentAppEnvironmentContext as inspectCurrentAppEnvironmentOwner };
+
 async function handleCurrentAppEnvironmentDetach(request, env, origin, route, dependencies) {
   const parsed = await readJson(request);
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);

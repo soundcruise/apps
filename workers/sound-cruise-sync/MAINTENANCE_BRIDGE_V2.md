@@ -27,7 +27,9 @@ The native tests use a synthetic owner + existing Account/member/device/Pro tabl
 
 Generic execute is an internal trusted-adapter API. Its outcome and callback are NOT client inputs.
 maintenance-v2-bpm-adapter snapshots every operation/identity field, fixes the exact sync_changes + sync_records outcome, and reuses createD1SyncRepository.
-It is not an HTTP endpoint or normal Port writer connection. The subsequent isolated Account/Pro adapter connects13 of the84 indexed HTTP entries; the other71 remain unconnected/HOLD.
+It is not an HTTP endpoint or normal Port writer connection. The subsequent isolated Account/Pro adapter connects17 isolated HTTP entries. The historical84 index contains83 HTTP entries
+plus one scheduled entry; remaining66 HTTP plus scheduled remain unconnected/HOLD.
+MAINTENANCE_ENTRYPOINT_COVERAGE.json records this count correction and owner boundaries.
 See MAINTENANCE_OWNER_HTTP_ISOLATED.md for that limited scope, existing-owner HMAC verification, recovery/revocation security lane and per-transaction outcomes. This does not connect the normal router.
 
 ## Stop, commit and receipt

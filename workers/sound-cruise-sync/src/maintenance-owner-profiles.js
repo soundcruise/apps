@@ -3,6 +3,7 @@ import { accountCredentialVerifier, accountRecoveryCodeVerifier, accountRecovery
 import { inspectProMaintenanceOwner } from './pro-auth-app.js';
 import { maintenanceCanonical, maintenanceDigest } from './maintenance-bridge-v2.js';
 import { hmacVerifier } from './crypto.js';
+import { readLifecycleContext, lifecycleTransactionProfile } from './maintenance-account-lifecycle.js';
 
 export const MAINTENANCE_OWNER_ROUTES = Object.freeze({
  '/v2/accounts/start': {method:'POST',owner:'account',state:'account-unregistered',lane:'writer'},
@@ -12,6 +13,10 @@ export const MAINTENANCE_OWNER_ROUTES = Object.freeze({
  '/v2/accounts/devices/revoke': {method:'POST',owner:'account',state:'account-device',lane:'security'},
  '/v2/accounts/recovery/prepare': {method:'POST',owner:'account',state:'account-recovery',lane:'security'},
  '/v2/accounts/recovery/commit': {method:'POST',owner:'account',state:'account-recovery',lane:'security'},
+ '/v2/accounts/recovery-rotation/prepare': {method:'POST',owner:'account',state:'account-device',lane:'security'},
+ '/v2/accounts/recovery-rotation/commit': {method:'POST',owner:'account',state:'account-device',lane:'security'},
+ '/v2/accounts/environments/current/detach': {method:'POST',owner:'account',state:'account-device',lane:'security'},
+ '/v2/accounts/apps/current/detach': {method:'POST',owner:'account',state:'account-app-device',lane:'security'},
  '/v2/pro-auth/verify': {method:'POST',owner:'pro',state:'pro-attempt',lane:'security'},
  '/v2/pro-auth/session': {method:'GET',owner:'pro',state:'pro-observation',lane:'security'},
  '/v2/pro-auth/policy': {method:'GET',owner:'pro',state:'pro-observation',lane:'security'},
@@ -27,8 +32,8 @@ export async function ownerFingerprint(value,env,route){
 }
 export async function ownerContext({request,body,route,operationId,env,db,dependencies}){
  const url=new URL(request.url),auth=request.headers.get('Authorization')||'';
- const fingerprint=await ownerFingerprint({method:request.method,path:url.pathname,query:url.search,origin:request.headers.get('Origin'),service:url.origin,body,authorization:auth,operationId},env,route);
- const ctx={route,path:url.pathname,body,operationId,fingerprint,env,db,dependencies,account:null,recovery:null,pro:null,accountVerifier:null};
+ const fingerprint=await ownerFingerprint({method:request.method,path:url.pathname,query:url.search,origin:request.headers.get('Origin'),service:url.origin,body,authorization:auth,operationId,...(route.state==='account-app-device'?{appAuthorization:request.headers.get('X-Sound-Cruise-App-Authorization')||''}:{})},env,route);
+ const ctx={route,path:url.pathname,body,operationId,fingerprint,env,db,dependencies,request,account:null,recovery:null,pro:null,accountVerifier:null};
  const control=route.owner==='account'
   ?await db.prepare('SELECT * FROM sync_account_runtime_control WHERE singleton_id=1').first()
   :await db.prepare('SELECT * FROM pro_auth_state WHERE singleton_id=1').first();
@@ -60,10 +65,11 @@ export async function ownerContext({request,body,route,operationId,env,db,depend
  if(route.owner==='pro'&&(route.state==='pro-credential'||url.pathname==='/v2/pro-auth/session')){
   ctx.pro=await inspectProMaintenanceOwner(request,{...env,SYNC_DB:db},url.pathname.endsWith('/revoke')?'revoke':'renew',dependencies);
  }
- const subject=ctx.account?{kind:'account-device',accountId:ctx.account.accountId,accountDeviceId:ctx.account.accountDeviceId,generation:ctx.account.generation,recoveryVersion:ctx.account.recoveryVersion,credentialVersion:ctx.device?.credential_version||null}
+ await readLifecycleContext(ctx);
+ const subject=ctx.lifecycleSubject|| (ctx.account?{kind:'account-device',accountId:ctx.account.accountId,accountDeviceId:ctx.account.accountDeviceId,generation:ctx.account.generation,recoveryVersion:ctx.account.recoveryVersion,credentialVersion:ctx.device?.credential_version||null}
  :ctx.recovery?{kind:'recovery-proof',accountId:ctx.recovery.id,generation:ctx.recovery.generation,recoveryVersion:ctx.recovery.recovery_version}
  :ctx.pro?{kind:'pro-credential',credentialId:ctx.pro.id,generation:ctx.pro.generation}
- :{kind:route.state==='account-unregistered'?'unregistered':route.state==='pro-attempt'?'pro-attempt':'unknown'};
+ :{kind:route.state==='account-unregistered'?'unregistered':route.state==='pro-attempt'?'pro-attempt':'unknown'});
  ctx.actor=Object.freeze({ownerId:'maintenance-'+route.owner+'-owner-v1',profile:'owner-http-v1',purpose:route.state,invocationId:operationId,requestFingerprint:fingerprint,subject});
  return ctx;
 }
@@ -74,7 +80,7 @@ function controlAssertion(ctx){
 }
 function accountAssertion(ctx,{history=false}={}){
  if(!ctx.account||!ctx.device)throw Error('account_owner_unverified');
- return query('EXISTS(SELECT 1 FROM sync_account_devices d JOIN sync_accounts a ON a.id=d.account_id WHERE d.id=? AND a.id=? AND d.credential_verifier=? AND d.credential_version=? AND d.revoked_at IS NULL AND a.state=\'active\' AND a.generation=? AND a.recovery_version=?)',
+ return query('EXISTS(SELECT 1 FROM sync_account_devices d JOIN sync_accounts a ON a.id=d.account_id WHERE d.id=? AND a.id=? AND d.credential_verifier=? AND d.credential_version=? AND d.revoked_at IS NULL AND a.state=\'active\' AND a.deleted_at IS NULL AND a.admission_provenance=\'production\' AND a.generation=? AND a.recovery_version=?)',
   ctx.account.accountDeviceId,ctx.account.accountId,ctx.accountVerifier,ctx.device.credential_version,ctx.account.generation,ctx.account.recoveryVersion);
 }
 function recoveryAssertion(ctx,activity=false){
@@ -93,6 +99,7 @@ function proAssertion(ctx,revoke=false){
 function sqlText(items){return items.map(x=>x.sql.replace(/\s+/g,' ').trim()).join('\n');}
 export function transactionProfile(ctx,items){
  const text=sqlText(items),first=items[0],p=first.values,base={assertions:[controlAssertion(ctx)],lane:'writer',summary:{}};
+ const lifecycle=lifecycleTransactionProfile(ctx,items,base,accountAssertion);if(lifecycle)return lifecycle;
  // Source-owned statement plans only. An unmatched write is HOLD, never a generic permission.
  if(ctx.path==='/v2/accounts/start'&&/^INSERT INTO sync_accounts\b/i.test(text)){
   const record=items.find(x=>/INSERT INTO sync_account_start_operations/i.test(x.sql));

@@ -1,4 +1,4 @@
-# Account / Pro Maintenance Owner HTTP — isolated v1
+# Account / Pro Maintenance Owner HTTP — isolated v1 + lifecycle extension
 
 Limited candidate on PR29. Full Bridge remains HOLD. No normal router import,
 Production binding, migration, deployment, consumer cutover, Shared Write or
@@ -29,6 +29,8 @@ Fingerprints use the existing respective owner pepper and a separate HMAC
 domain. Method, service origin, path/query, Origin, body, Authorization and
 invocation UUID are bound. Plain passcode/token hashes, Authorization values,
 request payloads and response credentials are not retained in Bridge metadata.
+The current-app detach fingerprint additionally binds X-Sound-Cruise-App-Authorization;
+existing13 route fingerprint formats remain unchanged.
 Key rotation/reconciliation across unavailable historical keys is not solved;
 unverifiable historical requests stay HOLD.
 
@@ -50,10 +52,19 @@ unverifiable historical requests stay HOLD.
 | POST | /v2/pro-auth/device-session/challenge | Original signed device challenge |
 | POST | /v2/pro-auth/device-session/renew | Original signed device-session renewal writer |
 
-These are13 indexed entries. Remaining71, including other Account join,
-invitations, recovery rotation, detach/delete, QA/operator, legacy sync, assets,
-cleanup and administrative paths are not claimed connected. Scheduled and
-external/manual writers are additional Full Bridge gates. QA credentials,
+The lifecycle extension adds these four POST routes on PR30:
+
+- /v2/accounts/recovery-rotation/prepare
+- /v2/accounts/recovery-rotation/commit
+- /v2/accounts/environments/current/detach
+- /v2/accounts/apps/current/detach
+
+See MAINTENANCE_ACCOUNT_LIFECYCLE.md for their exact Owner semantics. There are
+now17 connected isolated HTTP entries. The historical84 index actually contains
+83 HTTP entries plus one scheduled entry, not84 HTTP entries. Remaining66 HTTP
+and one scheduled entry are HOLD. Account joins/invitations, membership-wide
+mutation/delete, QA/operator, legacy Sync, Asset/R2 and administrative paths
+remain unconnected. External/manual writers also require separate exclusion. QA credentials,
 even without the QA header, are HOLD before activity/canonical mutations.
 
 The wrapper enforces original Origin/method/body bounds and bookmark rules,
@@ -121,8 +132,8 @@ CORS and Studio boot checks. The script never uses remote bindings and uses
 synthetic credentials/empty schema fixtures only. Existing owner tests and
 maintenance-bridge-v2-native.mjs are separate regression runs.
 
-The accepted run used Miniflare5.20260911.0-alpha/workerd1.20260911.1 and Chrome
-through Playwright1.56.1. Current direct evidence: native26 PASS, Browser6 PASS,
+The historical PR30 accepted run used Miniflare5.20260911.0-alpha/workerd1.20260911.1 and Chrome
+through Playwright1.56.1. Historical PR30 evidence: native26 PASS, Browser6 PASS,
 core regression23 PASS, existing Account/Pro Node81 PASS and Studio metadata/host
 Node31 PASS, all with zero fail/skip. Native raw R13 is the final accepted run;
 earlier failed development runs are retained separately and are not PASS evidence.
@@ -137,3 +148,8 @@ schema promotion/journal ordering, backup/restore, normal consumer migration,
 Owner key rotation, production expiry/physical-commit guarantee or Cloud saving
 is accepted by this candidate. Separate approvals and implementation remain
 required. Do not infer Full Bridge or Production rollout readiness from this PR.
+
+The lifecycle extension reruns existing13 native26, Account/Pro Node81 and Studio
+Node31; its final direct native19 and Browser9 cover the four added routes. Core23
+is reused unchanged historical evidence, not newly executed. See the lifecycle
+contract and current evidence manifest for exact run identities.

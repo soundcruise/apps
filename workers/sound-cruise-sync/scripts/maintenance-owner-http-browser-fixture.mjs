@@ -8,7 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {createIsolatedMaintenanceOwnerHttp} from '../src/maintenance-owner-http.js';
 
 // Explicitly invoked by the native harness, never discovered as a default test.
-export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody}){
+export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody,lifecycleFixture=null}){
  const {chromium}=createRequire(runtime)('playwright');
  const root=path.resolve(fileURLToPath(new URL('../../../',import.meta.url)));
  const result={scope:'Disposable Chrome; real isolated HTTP + native D1; normal Studio boot',tests:[],pageErrors:[],missing:[],blockedOrigins:[],productionAccess:false};
@@ -65,6 +65,20 @@ export async function runOwnerBrowser({db,env,writerScope,securityScope,dependen
   assert.deepEqual(stopped,{status:423,code:'maintenance_writer_stopped',reconcile:200,classification:'historical-owner-facts-only',duplicate:409});
   assert.equal((await db.prepare('SELECT COUNT(*) n FROM sync_accounts').first()).n,before);pass('stopped bootstrap refusal and explicit reconcile readable across origins without replay');
   assert.equal(result.pageErrors.length,0);pass('isolated HTTP Browser page has no uncaught errors');
+  if(lifecycleFixture){
+   const rotation=await page.evaluate(async({apiOrigin,f})=>{
+    const send=async(path,body)=>{const r=await fetch(apiOrigin+path,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+f.accountCredential,'X-Maintenance-Operation-Id':body.operationId},body:JSON.stringify(body)});return{status:r.status,value:await r.json()};};
+    const a=await send('/v2/accounts/recovery-rotation/prepare',f.prepare),b=await send('/v2/accounts/recovery-rotation/commit',f.commit);return{prepare:a.status,commit:b.status,version:b.value.recoveryVersion};
+   },{apiOrigin,f:lifecycleFixture});assert.deepEqual(rotation,{prepare:201,commit:201,version:2});pass('Browser rotation prepare/commit retain real Account auth and CORS while writer stopped');
+   const detached=await page.evaluate(async({apiOrigin,f})=>{
+    const headers={'Content-Type':'application/json','X-Sound-Cruise-App-Authorization':'Bearer '+f.appCredential,'X-Maintenance-Operation-Id':f.detach.operationId},body=JSON.stringify(f.detach);
+    const a=await fetch(apiOrigin+'/v2/accounts/apps/current/detach',{method:'POST',headers,body}),value=await a.json();
+    const b=await fetch(apiOrigin+'/__reconcile/v2/accounts/apps/current/detach',{method:'POST',headers,body});
+    const c=await fetch(apiOrigin+'/v2/accounts/apps/current/detach',{method:'POST',headers,body});
+    const noAuth={...headers};delete noAuth['X-Sound-Cruise-App-Authorization'];const d=await fetch(apiOrigin+'/__reconcile/v2/accounts/apps/current/detach',{method:'POST',headers:noAuth,body});
+    return{detach:a.status,scope:value.scope,reconcile:b.status,duplicate:c.status,missingCredential:d.status};
+   },{apiOrigin,f:lifecycleFixture});assert.deepEqual(detached,{detach:200,scope:'current_app_environment',reconcile:200,duplicate:409,missingCredential:409});pass('Browser app-header preflight and detach scope work without Account Authorization');pass('Browser historical reconcile preserves App credential binding and duplicate refusal');
+  }
   const studio=await context.newPage();
   await studio.addInitScript(()=>{
    window.__ownerNoWrite={opens:0,writes:0,fetches:0};const open=indexedDB.open.bind(indexedDB);indexedDB.open=(...args)=>{__ownerNoWrite.opens++;return open(...args);};
