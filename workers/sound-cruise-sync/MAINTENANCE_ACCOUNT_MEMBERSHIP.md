@@ -1,3 +1,5 @@
+Current additional27 lifecycle entries: [Account / Membership / Device contract](MAINTENANCE_ACCOUNT_DEVICE_LIFECYCLE.md). Inventory57 HTTP isolated,26 HTTP +1 Scheduled HOLD. Earlier counts/results below describe their historical stage. Full Bridge / Production HOLD.
+
 # Account / membership grant lifecycle — isolated Maintenance profile
 
 Direct parent PR #31 `663dae6bf6d52b1a98b63c924b315f483a12f6f2` (tree `4d1945a3cb6ef762cccc940c7358cb59b62358cb`). Dependency main → #26 → #27 → #28 → #29 → #30 → #31 → this topic. Full Bridge and Production rollout remain **HOLD**.

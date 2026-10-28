@@ -1,3 +1,4 @@
+import { accountDeviceRoute, readAccountDeviceContext, accountDeviceTransactionProfile } from './maintenance-account-device.js';
 import { MEMBERSHIP_OWNER_ROUTES, readMembershipContext, membershipTransactionProfile } from './maintenance-account-membership.js';
 import { inspectAccountCredentialReadOnly } from './account-auth.js';
 import { accountCredentialVerifier, accountRecoveryCodeVerifier, accountRecoveryClaimVerifier, parseAccountCredential, parseAccountRecoveryClaim } from './account-crypto.js';
@@ -25,7 +26,7 @@ export const MAINTENANCE_OWNER_ROUTES = Object.freeze({
  '/v2/pro-auth/device-session/challenge': {method:'POST',owner:'pro',state:'pro-credential',lane:'security'},
  '/v2/pro-auth/device-session/renew': {method:'POST',owner:'pro',state:'pro-credential',lane:'writer'}
 });
-export function maintenanceOwnerRoute(path,method){return MEMBERSHIP_OWNER_ROUTES[method+' '+path]||MAINTENANCE_OWNER_ROUTES[path];}
+export function maintenanceOwnerRoute(path,method){return accountDeviceRoute(path,method)||MEMBERSHIP_OWNER_ROUTES[method+' '+path]||MAINTENANCE_OWNER_ROUTES[path];}
 export async function ownerFingerprint(value,env,route){
  const key=route.owner==='account'?env.SYNC_ACCOUNT_CREDENTIAL_PEPPER:env.PRO_CREDENTIAL_PEPPER;
  if(typeof key!=='string'||key.length<32)throw Error('owner_pepper_unavailable');
@@ -69,6 +70,7 @@ export async function ownerContext({request,body,route,operationId,env,db,depend
  }
  await readLifecycleContext(ctx);
  await readMembershipContext(ctx);
+ await readAccountDeviceContext(ctx);
  const subject=ctx.membershipSubject||ctx.lifecycleSubject|| (ctx.account?{kind:'account-device',accountId:ctx.account.accountId,accountDeviceId:ctx.account.accountDeviceId,generation:ctx.account.generation,recoveryVersion:ctx.account.recoveryVersion,credentialVersion:ctx.device?.credential_version||null}
  :ctx.recovery?{kind:'recovery-proof',accountId:ctx.recovery.id,generation:ctx.recovery.generation,recoveryVersion:ctx.recovery.recovery_version}
  :ctx.pro?{kind:'pro-credential',credentialId:ctx.pro.id,generation:ctx.pro.generation}
@@ -102,6 +104,7 @@ function proAssertion(ctx,revoke=false){
 function sqlText(items){return items.map(x=>x.sql.replace(/\s+/g,' ').trim()).join('\n');}
 export function transactionProfile(ctx,items){
  const text=sqlText(items),first=items[0],p=first.values,base={assertions:[controlAssertion(ctx)],lane:'writer',summary:{}};
+ const accountDevice=accountDeviceTransactionProfile(ctx,items,base,accountAssertion);if(accountDevice)return accountDevice;
  const membership=membershipTransactionProfile(ctx,items,base,accountAssertion);if(membership)return membership;
  const lifecycle=lifecycleTransactionProfile(ctx,items,base,accountAssertion);if(lifecycle)return lifecycle;
  // Source-owned statement plans only. An unmatched write is HOLD, never a generic permission.

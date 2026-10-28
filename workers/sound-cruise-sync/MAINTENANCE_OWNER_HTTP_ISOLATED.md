@@ -1,3 +1,5 @@
+Current additional27 lifecycle entries: [Account / Membership / Device contract](MAINTENANCE_ACCOUNT_DEVICE_LIFECYCLE.md). Inventory57 HTTP isolated,26 HTTP +1 Scheduled HOLD. Earlier counts/results below describe their historical stage. Full Bridge / Production HOLD.
+
 Subsequent isolated membership/grant profiles: [MAINTENANCE_ACCOUNT_MEMBERSHIP](MAINTENANCE_ACCOUNT_MEMBERSHIP.md). The historical results below remain historical; Full Bridge / Production HOLD persists.
 
 # Account / Pro Maintenance Owner HTTP — isolated v1 + lifecycle extension

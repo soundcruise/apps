@@ -8,7 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {createIsolatedMaintenanceOwnerHttp} from '../src/maintenance-owner-http.js';
 
 // Explicitly invoked by the native harness, never discovered as a default test.
-export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody,lifecycleFixture=null,membershipFixture=null}){
+export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody,lifecycleFixture=null,membershipFixture=null,deviceFixture=null}){
  const {chromium}=createRequire(runtime)('playwright');
  const root=path.resolve(fileURLToPath(new URL('../../../',import.meta.url)));
  const result={scope:'Disposable Chrome; real isolated HTTP + native D1; normal Studio boot',tests:[],pageErrors:[],missing:[],blockedOrigins:[],productionAccess:false};
@@ -87,6 +87,14 @@ export async function runOwnerBrowser({db,env,writerScope,securityScope,dependen
    const denied=await page.evaluate(async({apiOrigin,f,id})=>{
     const r=await fetch(apiOrigin+'/v2/accounts/memberships',{method:'POST',headers:{Authorization:'Bearer '+f.credential,'Content-Type':'application/json','X-Maintenance-Operation-Id':id},body:JSON.stringify({operationId:id,appId:'pitch'})});return r.status;
    },{apiOrigin,f:membershipFixture,id:randomUUID()});assert.equal(denied,423);pass('membership POST same path CORS preserves writer stop');
+  }
+  if(deviceFixture){
+   const deletion=await page.evaluate(async({apiOrigin,f})=>{
+    const send=async(path,method,body)=>{const r=await fetch(apiOrigin+path,{method,headers:{Authorization:'Bearer '+f.credential,'Content-Type':'application/json','X-Maintenance-Operation-Id':body.operationId},body:JSON.stringify(body)});return {status:r.status,id:r.headers.get('X-Maintenance-Operation-Id')};};
+    const intent=await send('/v2/accounts/delete-intent','POST',f.intent),commit=await send('/v2/accounts','DELETE',f.commit),history=await send('/__reconcile/v2/accounts','DELETE',f.commit),duplicate=await send('/v2/accounts','DELETE',f.commit);
+    return {intent:intent.status,commit:commit.status,id:commit.id,history:history.status,duplicate:duplicate.status};
+   },{apiOrigin,f:deviceFixture});
+   assert.deepEqual(deletion,{intent:201,commit:202,id:deviceFixture.commit.operationId,history:200,duplicate:409});pass('DELETE CORS body and security lane work while writer stopped; self-delete historical reconcile only');
   }
   const studio=await context.newPage();
   await studio.addInitScript(()=>{

@@ -37,7 +37,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   if(request.headers.has('X-Sound-Cruise-QA-Authorization'))return {response:error(503,'qa_owner_profile_hold')};
   const id=request.headers.get(OP);if(!UUID.test(id||''))return {response:error(400,'maintenance_operation_required')};
   let body=null,text='';
-  if(route.method==='POST'){
+  if(['POST','DELETE'].includes(route.method)){
    if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('Content-Type')||''))return {response:error(415,'invalid_content_type',id)};
    const read=await readBodyWithLimit(request,route.owner==='account'?16384:4096);if(!read.ok)return {response:error(read.tooLarge?413:400,'invalid_input',id)};
    text=read.text;try{body=JSON.parse(text);}catch{return {response:error(400,'invalid_json',id)};}
@@ -51,7 +51,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   const bookmark=route.owner==='account'?request.headers.get('X-D1-Bookmark'):null;
   if(route.owner==='account'&&!isValidAccountOwnerBookmark(bookmark))return {response:error(400,'invalid_bookmark',id)};
   const session=typeof db.withSession==='function'?db.withSession(bookmark||'first-primary'):db;
-  const rebuilt=new Request(request.url,{method:request.method,headers:request.headers,...(route.method==='POST'?{body:text}:{})});
+  const rebuilt=new Request(request.url,{method:request.method,headers:request.headers,...(['POST','DELETE'].includes(route.method)?{body:text}:{})});
   const ctx=await ownerContext({request:rebuilt,body,route,operationId:id,env,db:session,dependencies:deps});
   ctx.writer=await stat(writerScope,session);ctx.security=await stat(securityScope,session);
   ctx.nativeRequest=rebuilt;ctx.ownerBookmark=bookmark||'first-primary';ctx.steps=[];ctx.uncertain=false;ctx.rejected=false;ctx.sequence=new Set();
