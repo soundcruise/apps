@@ -8,7 +8,7 @@ import {retainedDecisionProfile} from './operator-insights.js';
 import {prepareShadowEvaluation} from './operator-shadow.js';
 import {missingFacts,recoverySurface,resolvedRecoverySurface,recoveryAssessment,recoveryCacheKey} from './facts-readiness.js';
 import {hash,DAY} from './policy.js';
-import {CHECKS,REASONS,DECISION_POLICY_VERSION,parseFacts,duplicatePredicate,publicationValidation} from './decision-policy.js';
+import {CHECKS,REASONS,DECISION_POLICY_VERSION,parseFacts,resolvedDuplicatePredicate,publicationValidation} from './decision-policy.js';
 export const FEEDBACK_REASONS=Object.freeze([...new Set(Object.values(REASONS).flat())]);
 export const canonical=value=>JSON.stringify(sort(value));
 function sort(value){if(Array.isArray(value))return value.map(sort);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,sort(value[k])]));return value;}
@@ -54,7 +54,7 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
   if(input.label!==validation.publishableLabel||input.category!==await effectiveCategory(store,row)||input.publishedAt!==row.published_at)throw Error('verified_factual_label_required');
   if(!input.checks||Object.keys(input.checks).some(k=>!CHECKS.includes(k))||CHECKS.some(k=>input.checks[k]!==true))throw Error('operator_checks_required');
  }else if(input.checks&&Object.keys(input.checks).length)throw Error('operator_decision_invalid');
- const predicate=duplicatePredicate(row,parseFacts(row)),decisionId=crypto.randomUUID();
+ const predicate=await resolvedDuplicatePredicate(store,row,parseFacts(row),now),decisionId=crypto.randomUUID();
  // A full row CAS also catches collector/recovery edits without altering their UPDATE
  // change counts. Only this decision service increments review_revision.
  const snapshotColumns=Object.keys(row).sort();if(snapshotColumns.some(k=>!/^[_a-z]+$/.test(k)))throw Error('candidate_schema_invalid');
@@ -74,8 +74,8 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
  ${row.origin===ASSISTED_ORIGIN?'AND '+assistedPredicate():"AND EXISTS(SELECT 1 FROM source_health WHERE source_id=c.source_id AND status='healthy' AND last_successful_run_at=?)"}
  AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND (${row.origin===ASSISTED_ORIGIN?'':'disabled=1 OR '}takedown=1 OR publication_blocked=1))
  AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=c.id)
- AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql})`:''}`)
- .bind(decisionId,input.action,input.reason,actor.type,actor.id,now,features,DECISION_POLICY_VERSION,input.requestId,payloadHash,input.snapshot,now,approve?validation.publishableLabel:null,canonical(approve?{basis:'validated_official_surface',...input.checks}:{}),row.id,row.review_revision,row.review_status,...snapshotColumns.map(k=>row[k]),...(approve?[now,now,now,...(row.origin===ASSISTED_ORIGIN?[]:[validation.healthSuccessfulAt]),...predicate.args]:[]));
+ AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql}) AND ${predicate.fenceSql}`:''}`)
+ .bind(decisionId,input.action,input.reason,actor.type,actor.id,now,features,DECISION_POLICY_VERSION,input.requestId,payloadHash,input.snapshot,now,approve?validation.publishableLabel:null,canonical(approve?{basis:'validated_official_surface',...input.checks}:{}),row.id,row.review_revision,row.review_status,...snapshotColumns.map(k=>row[k]),...(approve?[now,now,now,...(row.origin===ASSISTED_ORIGIN?[]:[validation.healthSuccessfulAt]),...predicate.args,...predicate.fenceArgs]:[]));
  try{await statement.run();}catch(error){const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;throw Error('decision_transaction_failed',{cause:error});}
  const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;
  const current=await store.db.prepare('SELECT review_status,review_revision FROM candidate_items WHERE id=?').bind(row.id).first();

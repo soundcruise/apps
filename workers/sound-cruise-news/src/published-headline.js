@@ -1,5 +1,6 @@
 // Owner-authorized presentation facts for already published articles only.
-// Not consumed by extraction, publication validation, duplicates, or learning.
+// Never rehydrated into extraction/publication facts or learning. A strict
+// read-only legacy adapter may use the verified identity for duplicate checks.
 import {attributedProductHeadline} from './product-attribution.js';
 export const PUBLISHED_PRODUCT_TYPES=Object.freeze({
  electric_acoustic_guitar:'エレアコ',truss_rod_tool:'トラスロッド調整工具',fret_sprout_tool:'フレット用バリ取り工具',fret_leveling_tool:'フレットすり合わせ工具',
