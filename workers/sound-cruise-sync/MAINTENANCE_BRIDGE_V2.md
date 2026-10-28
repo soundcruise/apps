@@ -1,3 +1,5 @@
+Subsequent isolated membership/grant profiles: [MAINTENANCE_ACCOUNT_MEMBERSHIP](MAINTENANCE_ACCOUNT_MEMBERSHIP.md). The historical results below remain historical; Full Bridge / Production HOLD persists.
+
 # Maintenance / Quiescence Bridge v2 — isolated candidate
 
 Status: core + trusted BPM repository adapter accepted in isolation. **Full Bridge HOLD.**

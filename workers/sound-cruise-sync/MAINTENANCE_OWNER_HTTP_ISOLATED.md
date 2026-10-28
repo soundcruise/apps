@@ -1,3 +1,5 @@
+Subsequent isolated membership/grant profiles: [MAINTENANCE_ACCOUNT_MEMBERSHIP](MAINTENANCE_ACCOUNT_MEMBERSHIP.md). The historical results below remain historical; Full Bridge / Production HOLD persists.
+
 # Account / Pro Maintenance Owner HTTP — isolated v1 + lifecycle extension
 
 Limited candidate on PR29. Full Bridge remains HOLD. No normal router import,

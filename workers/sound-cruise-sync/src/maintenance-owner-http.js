@@ -1,5 +1,5 @@
 import { createIsolatedMaintenanceBridgeV2, maintenanceCanonical, maintenanceDigest } from './maintenance-bridge-v2.js';
-import { MAINTENANCE_OWNER_ROUTES, ownerContext, ownerFingerprint, transactionProfile, bridgeOwner } from './maintenance-owner-profiles.js';
+import { maintenanceOwnerRoute, ownerContext, ownerFingerprint, transactionProfile, bridgeOwner } from './maintenance-owner-profiles.js';
 import { handleAccountApiRequest, isValidAccountOwnerBookmark } from './account-app.js';
 import { handleProAuthRequest } from './pro-auth-app.js';
 import { readBodyWithLimit } from './validation.js';
@@ -20,7 +20,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
  const stat=async(scope,session)=>{const c=await session.prepare('SELECT epoch,phase FROM sync_maintenance_v2_control WHERE scope=?').bind(scope).first();if(!c||!Number.isSafeInteger(c.epoch))throw Error('maintenance_control_unknown');return c;};
  function native(ctx){return ctx.route.owner==='account'?handleAccountApiRequest:handleProAuthRequest;}
  async function prepare(request){
-  const url=new URL(request.url),route=MAINTENANCE_OWNER_ROUTES[url.pathname];
+  const url=new URL(request.url),route=maintenanceOwnerRoute(url.pathname,request.method==='OPTIONS'?request.headers.get('Access-Control-Request-Method'):request.method);
   if(!route)return {response:error(503,'owner_route_unconnected_hold')};
   const allowed=String(route.owner==='account'?env.ACCOUNT_ALLOWED_ORIGINS:env.ALLOWED_ORIGINS).split(',').map(x=>x.trim());
   if(!allowed.includes(request.headers.get('Origin')))return {response:error(403,'invalid_origin')};
@@ -174,7 +174,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   }catch{return error(409,'owner_resolution_hold',ctx?.operationId);}
  }
  function cors(response,request){
-  const route=MAINTENANCE_OWNER_ROUTES[new URL(request.url).pathname],origin=request.headers.get('Origin');
+  const route=maintenanceOwnerRoute(new URL(request.url).pathname,request.method==='OPTIONS'?request.headers.get('Access-Control-Request-Method'):request.method),origin=request.headers.get('Origin');
   const allowed=route&&String(route.owner==='account'?env.ACCOUNT_ALLOWED_ORIGINS:env.ALLOWED_ORIGINS).split(',').map(x=>x.trim()).includes(origin);
   const headers=new Headers(response.headers);headers.set('Vary','Origin');headers.set('X-Content-Type-Options','nosniff');
   if(allowed){headers.set('Access-Control-Allow-Origin',origin);headers.set('Access-Control-Allow-Methods',route.method+', OPTIONS');

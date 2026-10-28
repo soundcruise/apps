@@ -1,3 +1,5 @@
+Subsequent isolated membership/grant profiles: [MAINTENANCE_ACCOUNT_MEMBERSHIP](MAINTENANCE_ACCOUNT_MEMBERSHIP.md). The historical results below remain historical; Full Bridge / Production HOLD persists.
+
 # Account lifecycle Maintenance Bridge — isolated extension on PR30
 
 Limited acceptance only. Full Bridge and Production rollout remain HOLD.

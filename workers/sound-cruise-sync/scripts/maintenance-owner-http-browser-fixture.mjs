@@ -8,7 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {createIsolatedMaintenanceOwnerHttp} from '../src/maintenance-owner-http.js';
 
 // Explicitly invoked by the native harness, never discovered as a default test.
-export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody,lifecycleFixture=null}){
+export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody,lifecycleFixture=null,membershipFixture=null}){
  const {chromium}=createRequire(runtime)('playwright');
  const root=path.resolve(fileURLToPath(new URL('../../../',import.meta.url)));
  const result={scope:'Disposable Chrome; real isolated HTTP + native D1; normal Studio boot',tests:[],pageErrors:[],missing:[],blockedOrigins:[],productionAccess:false};
@@ -78,6 +78,15 @@ export async function runOwnerBrowser({db,env,writerScope,securityScope,dependen
     const noAuth={...headers};delete noAuth['X-Sound-Cruise-App-Authorization'];const d=await fetch(apiOrigin+'/__reconcile/v2/accounts/apps/current/detach',{method:'POST',headers:noAuth,body});
     return{detach:a.status,scope:value.scope,reconcile:b.status,duplicate:c.status,missingCredential:d.status};
    },{apiOrigin,f:lifecycleFixture});assert.deepEqual(detached,{detach:200,scope:'current_app_environment',reconcile:200,duplicate:409,missingCredential:409});pass('Browser app-header preflight and detach scope work without Account Authorization');pass('Browser historical reconcile preserves App credential binding and duplicate refusal');
+  }
+  if(membershipFixture){
+   const observed=await page.evaluate(async({apiOrigin,f,id})=>{
+    const headers={Authorization:'Bearer '+f.credential,'X-Maintenance-Operation-Id':id};
+    const r=await fetch(apiOrigin+'/v2/accounts/memberships',{headers});return {status:r.status,id:r.headers.get('X-Maintenance-Operation-Id')};
+   },{apiOrigin,f:membershipFixture,id:randomUUID()});assert.equal(observed.status,200);assert(observed.id);pass('membership GET method-specific CORS and Account observation while writer stopped');
+   const denied=await page.evaluate(async({apiOrigin,f,id})=>{
+    const r=await fetch(apiOrigin+'/v2/accounts/memberships',{method:'POST',headers:{Authorization:'Bearer '+f.credential,'Content-Type':'application/json','X-Maintenance-Operation-Id':id},body:JSON.stringify({operationId:id,appId:'pitch'})});return r.status;
+   },{apiOrigin,f:membershipFixture,id:randomUUID()});assert.equal(denied,423);pass('membership POST same path CORS preserves writer stop');
   }
   const studio=await context.newPage();
   await studio.addInitScript(()=>{
