@@ -1,0 +1,750 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soundcruise.example/schemas/dot-candidate-v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "type": "string",
+              "format": "date-time",
+              "maxLength": 40
+            },
+            "end_exclusive": {
+              "type": "string",
+              "format": "date-time",
+              "maxLength": 40
+            },
+            "timezone": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "start",
+            "end_exclusive",
+            "timezone"
+          ]
+        },
+        "queries_audit_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "run_id",
+        "started_at",
+        "window",
+        "queries_audit_ref"
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40
+        },
+        "entity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "manufacturer": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "brand": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "product": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "models": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "version": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "product_type": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "manufacturer",
+            "brand",
+            "product",
+            "models",
+            "version",
+            "product_type"
+          ]
+        },
+        "event": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "announcement",
+                "release",
+                "domestic_release",
+                "limited_edition",
+                "new_color",
+                "revival",
+                "event_announcement",
+                "event_report",
+                "interview",
+                "update",
+                "beta",
+                "other",
+                "unknown"
+              ]
+            },
+            "qualifiers": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "market": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "qualifiers",
+            "market"
+          ]
+        },
+        "dates": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "article_published": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "precision": {
+                  "enum": [
+                    "timestamp",
+                    "day",
+                    "month",
+                    "unknown"
+                  ]
+                },
+                "timezone": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "value",
+                "precision",
+                "timezone",
+                "evidence_ids"
+              ]
+            },
+            "first_announcement": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "precision": {
+                  "enum": [
+                    "timestamp",
+                    "day",
+                    "month",
+                    "unknown"
+                  ]
+                },
+                "timezone": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "value",
+                "precision",
+                "timezone",
+                "evidence_ids"
+              ]
+            },
+            "release": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "precision": {
+                  "enum": [
+                    "timestamp",
+                    "day",
+                    "month",
+                    "unknown"
+                  ]
+                },
+                "timezone": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "value",
+                "precision",
+                "timezone",
+                "evidence_ids"
+              ]
+            },
+            "event": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "precision": {
+                  "enum": [
+                    "timestamp",
+                    "day",
+                    "month",
+                    "unknown"
+                  ]
+                },
+                "timezone": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "value",
+                "precision",
+                "timezone",
+                "evidence_ids"
+              ]
+            },
+            "updated": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "precision": {
+                  "enum": [
+                    "timestamp",
+                    "day",
+                    "month",
+                    "unknown"
+                  ]
+                },
+                "timezone": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              },
+              "required": [
+                "value",
+                "precision",
+                "timezone",
+                "evidence_ids"
+              ]
+            }
+          },
+          "required": [
+            "article_published",
+            "first_announcement",
+            "release",
+            "event",
+            "updated"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "source_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://",
+                "maxLength": 2048
+              },
+              "canonical_url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://",
+                "maxLength": 2048
+              },
+              "publisher": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "source_type": {
+                "enum": [
+                  "official",
+                  "rights_holder",
+                  "publisher_release",
+                  "authorized_distributor",
+                  "third_party",
+                  "unknown"
+                ]
+              },
+              "acquisition_method": {
+                "enum": [
+                  "search_index_snippet",
+                  "permitted_article_body",
+                  "unknown"
+                ]
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time",
+                "maxLength": 40
+              },
+              "body_verified": {
+                "type": "boolean"
+              },
+              "policy_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "policy_revision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "evidence_locator": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "source_id",
+              "url",
+              "canonical_url",
+              "publisher",
+              "source_type",
+              "acquisition_method",
+              "observed_at",
+              "body_verified",
+              "policy_id",
+              "policy_revision",
+              "evidence_locator"
+            ]
+          }
+        },
+        "claims": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claim_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "field": {
+                "enum": [
+                  "manufacturer",
+                  "brand",
+                  "product",
+                  "models",
+                  "product_type",
+                  "event_type",
+                  "qualifiers",
+                  "market",
+                  "version",
+                  "article_published",
+                  "first_announcement",
+                  "release",
+                  "event_date",
+                  "updated"
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    }
+                  }
+                ]
+              },
+              "evidence_ids": {
+                "type": "array",
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "verification": {
+                "enum": [
+                  "unverified",
+                  "supported",
+                  "contradicted"
+                ]
+              },
+              "conflicting_evidence_ids": {
+                "type": "array",
+                "maxItems": 10,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "required": [
+              "claim_id",
+              "field",
+              "value",
+              "evidence_ids",
+              "verification",
+              "conflicting_evidence_ids"
+            ]
+          }
+        },
+        "recommendation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "level": {
+              "enum": [
+                "high",
+                "medium",
+                "low",
+                "unknown"
+              ]
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "requires_human_verification": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "level",
+            "rationale",
+            "requires_human_verification"
+          ]
+        },
+        "unresolved_questions": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "duplicate_candidates": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "dedupe_status": {
+          "enum": [
+            "unchecked",
+            "same",
+            "distinct",
+            "uncertain"
+          ]
+        }
+      },
+      "required": [
+        "candidate_id",
+        "idempotency_key",
+        "observed_at",
+        "entity",
+        "event",
+        "dates",
+        "sources",
+        "claims",
+        "recommendation",
+        "unresolved_questions",
+        "duplicate_candidates",
+        "dedupe_status"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "run",
+    "candidate"
+  ]
+}

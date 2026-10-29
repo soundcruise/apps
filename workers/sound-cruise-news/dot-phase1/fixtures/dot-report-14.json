@@ -1,0 +1,1611 @@
+[
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N01",
+      "idempotency_key": "report-20261029-N01",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "BOSS",
+        "product": null,
+        "models": [
+          "KATANA ARTIST GEN 3",
+          "KATANA ARTIST HEAD GEN 3",
+          "CABINET 212 WAZA"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "limited_edition",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-23",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.roland.com/jp/news/1221/",
+          "canonical_url": "https://www.roland.com/jp/news/1221/",
+          "publisher": "BOSS",
+          "source_type": "official",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "BOSS",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "limited_edition",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N02",
+      "idempotency_key": "report-20261029-N02",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Fender",
+        "product": null,
+        "models": [
+          "Kim Gordon Jazzmaster"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-27",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.fender.com/newsroom/273808-fender-and-kim-gordon-introduce-signature-jazzmaster-a-guitar-built-for-original-expression/",
+          "canonical_url": "https://www.fender.com/newsroom/273808-fender-and-kim-gordon-introduce-signature-jazzmaster-a-guitar-built-for-original-expression/",
+          "publisher": "Fender",
+          "source_type": "official",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Fender",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N03",
+      "idempotency_key": "report-20261029-N03",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Ibanez",
+        "product": null,
+        "models": [
+          "RG",
+          "TS808"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [
+          "2027 planned"
+        ],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-28",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://en.dragon-ball-official.com/news/01_4521.html",
+          "canonical_url": "https://en.dragon-ball-official.com/news/01_4521.html",
+          "publisher": "report-specified source",
+          "source_type": "rights_holder",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Ibanez",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N04",
+      "idempotency_key": "report-20261029-N04",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Epiphone",
+        "product": null,
+        "models": [
+          "Les Paul",
+          "Les Paul Baritone",
+          "SG",
+          "Victory FR",
+          "Flying V"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-28",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.guitarworld.com/gear/electric-guitars/epiphone-prophecy-series-2026",
+          "canonical_url": "https://www.guitarworld.com/gear/electric-guitars/epiphone-prophecy-series-2026",
+          "publisher": "report-specified source",
+          "source_type": "third_party",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Epiphone",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N05",
+      "idempotency_key": "report-20261029-N05",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Positive Grid",
+        "product": null,
+        "models": [
+          "Spark CAB 2"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-28",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.guitarworld.com/gear/speaker-cabinets/positive-grid-spark-cab-2",
+          "canonical_url": "https://www.guitarworld.com/gear/speaker-cabinets/positive-grid-spark-cab-2",
+          "publisher": "report-specified source",
+          "source_type": "third_party",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Positive Grid",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N06",
+      "idempotency_key": "report-20261029-N06",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Bacchus",
+        "product": null,
+        "models": [
+          "WOODLINE"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-27",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.deviser.co.jp/information/624555",
+          "canonical_url": "https://www.deviser.co.jp/information/624555",
+          "publisher": "Bacchus",
+          "source_type": "official",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Bacchus",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "medium",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N07",
+      "idempotency_key": "report-20261029-N07",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "ZOOM",
+        "product": null,
+        "models": [
+          "NEURIG"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "event_announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-26",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://zoomcorp.com/ja/jp/news/tokyogakkiexpo2026/",
+          "canonical_url": "https://zoomcorp.com/ja/jp/news/tokyogakkiexpo2026/",
+          "publisher": "ZOOM",
+          "source_type": "official",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "ZOOM",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "event_announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N08",
+      "idempotency_key": "report-20261029-N08",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "teenage engineering",
+        "product": null,
+        "models": [
+          "EP-35"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "domestic_release",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-23",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://store.minet.jp/ext/news.html",
+          "canonical_url": "https://store.minet.jp/ext/news.html",
+          "publisher": "report-specified source",
+          "source_type": "authorized_distributor",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "teenage engineering",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "domestic_release",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N09",
+      "idempotency_key": "report-20261029-N09",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Image-Line",
+        "product": null,
+        "models": [
+          "FL Studio Mobile 5"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "update",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-26",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.image-line.com/news/whats-new-fl-mobile-5",
+          "canonical_url": "https://www.image-line.com/news/whats-new-fl-mobile-5",
+          "publisher": "Image-Line",
+          "source_type": "official",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Image-Line",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "update",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "high",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "N10",
+      "idempotency_key": "report-20261029-N10",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "TASCAM",
+        "product": null,
+        "models": [
+          "Sonicview Rack"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "event_announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-26",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://prtimes.jp/main/html/rd/p/000000621.000021574.html",
+          "canonical_url": "https://prtimes.jp/main/html/rd/p/000000621.000021574.html",
+          "publisher": "TASCAM",
+          "source_type": "publisher_release",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "TASCAM",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "event_announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "medium",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "H01",
+      "idempotency_key": "report-20261029-H01",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Yamaha",
+        "product": null,
+        "models": [
+          "VOCALOID7"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "update",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-24",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://katsudousha.com/news-vocaloid7-new-features-voicebanks/",
+          "canonical_url": "https://katsudousha.com/news-vocaloid7-new-features-voicebanks/",
+          "publisher": "report-specified source",
+          "source_type": "third_party",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Yamaha",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "update",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "medium",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review",
+        "Yamaha official article not verified"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "H02",
+      "idempotency_key": "report-20261029-H02",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Yamaha",
+        "product": null,
+        "models": [
+          "TDM-600GY",
+          "TDM-600BE"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-23",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://discover.chuya-online.com/20261023/95791/",
+          "canonical_url": "https://discover.chuya-online.com/20261023/95791/",
+          "publisher": "report-specified source",
+          "source_type": "third_party",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Yamaha",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "announcement",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "medium",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "H03",
+      "idempotency_key": "report-20261029-H03",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Tracktion",
+        "product": null,
+        "models": [
+          "Waveform 14.1"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "update",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-27",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.prosoundweb.com/tracktion-waveform-14-1-update-adds-plugin-generation/",
+          "canonical_url": "https://www.prosoundweb.com/tracktion-waveform-14-1-update-adds-plugin-generation/",
+          "publisher": "report-specified source",
+          "source_type": "third_party",
+          "acquisition_method": "permitted_article_body",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": true,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Tracktion",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "update",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "medium",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review",
+        "formal release versus beta unknown"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "run": {
+      "run_id": "dot-report-20261029",
+      "started_at": "2026-10-29T16:22:00+09:00",
+      "window": {
+        "start": "2026-10-23T00:00:00+09:00",
+        "end_exclusive": "2026-10-30T00:00:00+09:00",
+        "timezone": "Asia/Tokyo"
+      },
+      "queries_audit_ref": null
+    },
+    "candidate": {
+      "candidate_id": "H04",
+      "idempotency_key": "report-20261029-H04",
+      "observed_at": "2026-10-29T16:22:00+09:00",
+      "entity": {
+        "manufacturer": null,
+        "brand": "Bacchus",
+        "product": null,
+        "models": [
+          "BLP-FMH/R"
+        ],
+        "version": null,
+        "product_type": null
+      },
+      "event": {
+        "type": "new_color",
+        "qualifiers": [],
+        "market": null
+      },
+      "dates": {
+        "article_published": {
+          "value": "2026-10-23",
+          "precision": "day",
+          "timezone": null,
+          "evidence_ids": [
+            "s"
+          ]
+        },
+        "first_announcement": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "release": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "event": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        },
+        "updated": {
+          "value": null,
+          "precision": "unknown",
+          "timezone": null,
+          "evidence_ids": []
+        }
+      },
+      "sources": [
+        {
+          "source_id": "s",
+          "url": "https://www.deviser.co.jp/information/category/new",
+          "canonical_url": "https://www.deviser.co.jp/information/category/new",
+          "publisher": "Bacchus",
+          "source_type": "official",
+          "acquisition_method": "search_index_snippet",
+          "observed_at": "2026-10-29T16:22:00+09:00",
+          "body_verified": false,
+          "policy_id": "unverified-policy",
+          "policy_revision": "0",
+          "evidence_locator": null
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "brand",
+          "field": "brand",
+          "value": "Bacchus",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        },
+        {
+          "claim_id": "event",
+          "field": "event_type",
+          "value": "new_color",
+          "evidence_ids": [
+            "s"
+          ],
+          "verification": "unverified",
+          "conflicting_evidence_ids": []
+        }
+      ],
+      "recommendation": {
+        "level": "medium",
+        "rationale": "reported editorial assessment",
+        "requires_human_verification": true
+      },
+      "unresolved_questions": [
+        "formal evidence and permission require independent review",
+        "index-only date; individual body not verified"
+      ],
+      "duplicate_candidates": [],
+      "dedupe_status": "unchecked"
+    }
+  }
+]
