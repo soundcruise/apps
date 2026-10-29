@@ -1,5 +1,5 @@
-import { resolveLibraryLaunch, launchLibraryApp } from './launch.mjs?v=0.47.20';
-import { filterLibraryItems } from '../../port-data/library-projection.mjs?v=0.47.20';
+import { resolveLibraryLaunch, launchLibraryApp } from './launch.mjs?v=0.47.21';
+import { filterLibraryItems } from '../../port-data/library-projection.mjs?v=0.47.21';
 const CS = globalThis.CruiseStudio;
 function initialize() {
     CS.libraryViews = CS.library.init({ document, shell: CS.shellHost, filterItems: filterLibraryItems, resolveLaunch: resolveLibraryLaunch, launchApp: launchLibraryApp });
