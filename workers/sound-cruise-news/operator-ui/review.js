@@ -199,6 +199,22 @@ const assistedFields=$('assisted-fields'),assistedInputs={},assistedWraps={},ass
 let assistedEdit=null,assistedReady=false,assistedBusy=false,assistedRequest=null,assistedParsed=null,assistedMissing=[],assistedGeneration=0,assistedConfig=null;
 
 const assistedMode=el('button','詳細入力に切り替え');assistedMode.type='button';assistedMode.setAttribute('aria-expanded','false');
+// Only the selected text and current URL are copied; nothing is fetched or sent.
+function newsCopyBookmark(){
+ const url=location.href,selected=String(window.getSelection()).trim();
+ if(!/^https:\/\/jp\.yamaha\.com\/musical-instruments\/guitars-basses-amps\/explore\/topics\/20\d{2}\/[a-zA-Z0-9_-]+\.html$/.test(url)){alert('現在の登録対象はYamahaギターTopicsの記事URLです。');return;}
+ if(!selected){alert('記事の必要な部分を選択してください。');return;}
+ if(selected.length>2000){alert('選択文が長すぎます。必要な部分を2000文字以内で選び直してください。');return;}
+ const data=JSON.stringify({format:'cruise-news-selection-v1',url,information:selected});
+ if(!navigator.clipboard||!navigator.clipboard.writeText){alert('コピーできませんでした。記事URLと選択文をOperatorへ個別に貼り付けてください。');return;}
+ navigator.clipboard.writeText(data).then(()=>alert('コピーしました。Operatorの「まとめて貼り付け」に貼り付けてください。')).catch(()=>alert('コピーできませんでした。記事URLと選択文をOperatorへ個別に貼り付けてください。'));
+}
+function unpackNewsSelection(text){
+ try{const v=JSON.parse(text);if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).sort().join(',')!=='format,information,url'||v.format!=='cruise-news-selection-v1'||typeof v.url!=='string'||typeof v.information!=='string'||!v.information.trim()||v.information.length>2000||!/^https:\/\/jp\.yamaha\.com\/musical-instruments\/guitars-basses-amps\/explore\/topics\/20\d{2}\/[a-zA-Z0-9_-]+\.html$/.test(v.url))return null;return v;}catch{return null;}
+}
+const copyHelp=el('details'),copySummary=el('summary','「NEWSへコピー」の設定と使い方'),bookmark=el('a','NEWSへコピー');
+bookmark.href='javascript:('+newsCopyBookmark.toString()+')()';copyHelp.append(copySummary,el('p','このリンクをブックマークバーへドラッグして登録します。記事の必要部分を選び、ブックマークを押してから下へ貼り付けてください。スマートフォンやドラッグできない場合は通常の2項目入力を使えます。','meta'),bookmark);
+const combinedLabel=el('label','まとめて貼り付け'),combined=el('textarea');combined.id='assisted-combined';combined.value='';combined.rows=3;combined.maxLength=13000;combined.placeholder='「NEWSへコピー」でコピーした内容をここに貼り付け';combinedLabel.htmlFor=combined.id;combinedLabel.append(combined);assistedFields.append(copyHelp,combinedLabel);
 const assistedSimple=el('div',undefined,'assisted-simple'),assistedAdvanced=el('div',undefined,'assisted-advanced');assistedAdvanced.hidden=true;
 for(const [key,label,type]of [['sourceId','情報源','select'],['url','記事URL','url'],['publishedAt','記事公開日','date'],['brand','ブランド・主催者・人物','text'],['product','製品・イベント・インタビューの対象名','text'],['productType','製品・記事種別','select'],['action','出来事','select'],['eventDate','開催日（イベントのみ）','date'],['venue','会場（イベントのみ）','text'],['label','独自見出し（空欄なら自動生成／編集可能）','text']]){
  const wrap=el('label',label),field=el(type==='select'?'select':'input');if(type!=='select')field.type=type;field.id='assisted-'+key;field.maxLength=key==='url'?500:160;wrap.htmlFor=field.id;wrap.append(field);(key==='url'?assistedFields:assistedAdvanced).append(wrap);assistedInputs[key]=field;assistedWraps[key]=wrap;
@@ -214,6 +230,8 @@ const assistedDraft=el('section',undefined,'assisted-draft');assistedDraft.hidde
 assistedFields.append(assistedCheck,assistedPreview,assistedDraft,assistedSave,assistedNew);
 function invalidateAssisted(){if(assistedBusy)assistedStatus.textContent='入力が変わりました。記事案を作り直してください。';assistedGeneration++;assistedRequest=null;assistedReady=false;assistedSave.disabled=true;assistedDraft.hidden=true;}
 assistedText.addEventListener('input',()=>{invalidateAssisted();assistedParsed=null;assistedMissing=[];showAssistedFields([]);});
+combined.addEventListener('input',()=>{const v=unpackNewsSelection(combined.value);if(!v){invalidateAssisted();assistedStatus.textContent='コピーした内容を貼り付けてください。対象外URLや2000文字を超える選択文は使えません。';return;}if(assistedEdit||assistedBusy){assistedStatus.textContent='編集中または処理中は取り込めません。新しい記事を開いてください。';return;}invalidateAssisted();assistedParsed=null;assistedMissing=[];assistedInputs.url.value=v.url;assistedText.value=v.information;assistedConfirm.checked=false;showAssistedFields([]);combined.value='';assistedStatus.textContent='記事URLと選択文を入力しました。内容を確認してください。';});
+
 function showAssistedFields(keys){for(const [k,w]of Object.entries(assistedWraps))if(k!=='url')w.hidden=!assistedSimple.hidden&&!keys.includes(k);assistedAdvanced.hidden=!assistedSimple.hidden&&!keys.length;}
 assistedMode.addEventListener('click',()=>{if(assistedBusy)return;invalidateAssisted();assistedSimple.hidden=!assistedSimple.hidden;assistedMode.textContent=assistedSimple.hidden?'簡易入力に戻る':'詳細入力に切り替え';assistedMode.setAttribute('aria-expanded',String(assistedSimple.hidden));showAssistedFields(assistedMissing);});
 const assistedPayload=()=>({...Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>f.value||!['eventDate','venue','label'].includes(k)).map(([k,f])=>[k,f.value])),confirmed:assistedConfirm.checked,...((assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence)?.productType===assistedInputs.productType.value?{typeEvidence:assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence}:{}),...(assistedEdit?{id:assistedEdit.id,snapshot:assistedEdit.snapshot}:{})});
@@ -228,6 +246,7 @@ function paintAssistedDraft(p){
  assistedDraft.append(el('p','出典：ヤマハ / ヤマハミュージックジャパン'),el('p',`重複：${p.duplicates.length}件。${p.duplicates.length?'重複のため正式掲載可にはなりません。':'入力条件を満たしています。保存時に正式validationを行います。'}`),el('p','証拠：人間による公式記事の確認。Bot取得ではありません。外部HTTP取得0件。貼り付け文は保存・公開しません。','meta'));assistedDraft.hidden=false;
 }
 assistedPreview.addEventListener('click',async()=>{
+ if(combined.value){assistedStatus.textContent='まとめて貼り付けの内容を確認してください。';return;}
  if(assistedBusy)return;assistedBusy=true;const generation=assistedGeneration;assistedSave.disabled=true;assistedReady=false;assistedDraft.hidden=true;assistedStatus.textContent='記事案を確認しています…';
  try{
   if(!assistedSimple.hidden&&!assistedEdit){
