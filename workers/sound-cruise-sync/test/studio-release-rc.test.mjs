@@ -104,7 +104,7 @@ try{
 }else{
 try{
  await boot();await init();bucket=await mf.getR2Bucket('BUCKET');A=await account();B=await account();P=await pro();owner=makeOwner();
- await check('formal Studio migration is additive, independent journal, default OFF',async()=>{assert.equal((await release.inspectStudioRelease(db)).migrationId,'studio_0001_rc1');assert.equal(await count('d1_migrations'),33);assert.equal((await db.prepare('SELECT count(*) n FROM studio_document_migrations').first()).n,1);});
+ await check('formal Studio migration is additive, independent journal, default OFF',async()=>{assert.equal((await release.inspectStudioRelease(db)).migrationId,'studio_0001_rc2');assert.equal(await count('d1_migrations'),33);assert.equal((await db.prepare('SELECT count(*) n FROM studio_document_migrations').first()).n,1);});
  await check('migration replay rejected without mutation',async()=>{const before=await oldRows();await assert.rejects(()=>release.installStudioRelease(db),/partial_or_replay/);assert.equal(await oldRows(),before);});
  await check('unknown base schema rejected before DDL',()=>freshBase(async d=>{await d.prepare('CREATE TABLE unknown_fixture(id TEXT)').run();await assert.rejects(()=>release.installStudioRelease(d),/base_unknown/);assert.equal((await d.prepare("SELECT count(*) n FROM sqlite_master WHERE name LIKE 'studio_document_%'").first()).n,0);}));
  await check('unknown journal and partial Studio schema refused',()=>freshBase(async d=>{await d.prepare("UPDATE d1_migrations SET name='fixture-unknown' WHERE id=33").run();await assert.rejects(()=>release.installStudioRelease(d),/base_unknown/);await d.prepare('CREATE TABLE studio_document_partial(id INTEGER)').run();await assert.rejects(()=>release.installStudioRelease(d),/partial_or_replay/);}));
