@@ -1,3 +1,4 @@
+import { assetRoute, readAssetContext, assetTransactionProfile } from './maintenance-asset-owner.js';
 import { SYNC_OWNER_ROUTES, readSyncContext, syncTransactionProfile, syncBridgeOwner } from './maintenance-sync-owner.js';
 import { accountDeviceRoute, readAccountDeviceContext, accountDeviceTransactionProfile } from './maintenance-account-device.js';
 import { MEMBERSHIP_OWNER_ROUTES, readMembershipContext, membershipTransactionProfile } from './maintenance-account-membership.js';
@@ -27,7 +28,7 @@ export const MAINTENANCE_OWNER_ROUTES = Object.freeze({
  '/v2/pro-auth/device-session/challenge': {method:'POST',owner:'pro',state:'pro-credential',lane:'security'},
  '/v2/pro-auth/device-session/renew': {method:'POST',owner:'pro',state:'pro-credential',lane:'writer'}
 });
-export function maintenanceOwnerRoute(path,method){return SYNC_OWNER_ROUTES[path]||accountDeviceRoute(path,method)||MEMBERSHIP_OWNER_ROUTES[method+' '+path]||MAINTENANCE_OWNER_ROUTES[path];}
+export function maintenanceOwnerRoute(path,method){return assetRoute(path,method)||SYNC_OWNER_ROUTES[path]||accountDeviceRoute(path,method)||MEMBERSHIP_OWNER_ROUTES[method+' '+path]||MAINTENANCE_OWNER_ROUTES[path];}
 export async function ownerFingerprint(value,env,route){
  const key=route.owner==='sync'?env.SYNC_CREDENTIAL_PEPPER:route.owner==='account'?env.SYNC_ACCOUNT_CREDENTIAL_PEPPER:env.PRO_CREDENTIAL_PEPPER;
  if(typeof key!=='string'||key.length<32)throw Error('owner_pepper_unavailable');
@@ -37,6 +38,7 @@ export async function ownerFingerprint(value,env,route){
 export async function ownerContext({request,body,route,operationId,env,db,dependencies}){
  const url=new URL(request.url),auth=request.headers.get('Authorization')||'';
  const fingerprint=await ownerFingerprint({method:request.method,path:url.pathname,query:url.search,origin:request.headers.get('Origin'),service:url.origin,body,authorization:auth,operationId,...(route.owner==='sync'?{proAuthorization:request.headers.get('X-Sound-Cruise-Pro-Authorization')||''}:{}),...(route.state==='account-app-device'?{appAuthorization:request.headers.get('X-Sound-Cruise-App-Authorization')||''}:{})},env,route);
+ if(route.asset)return readAssetContext({request,body,route,operationId,env,db,dependencies,fingerprint});
  if(route.owner==='sync')return readSyncContext({request,body,route,operationId,env,db,dependencies,fingerprint});
  const ctx={route,path:url.pathname,body,operationId,fingerprint,env,db,dependencies,request,account:null,recovery:null,pro:null,accountVerifier:null};
  const control=route.owner==='account'
@@ -105,6 +107,7 @@ function proAssertion(ctx,revoke=false){
 }
 function sqlText(items){return items.map(x=>x.sql.replace(/\s+/g,' ').trim()).join('\n');}
 export function transactionProfile(ctx,items){
+ if(ctx.route.asset)return assetTransactionProfile(ctx,items);
  if(ctx.route.owner==='sync')return syncTransactionProfile(ctx,items);
  const text=sqlText(items),first=items[0],p=first.values,base={assertions:[controlAssertion(ctx)],lane:'writer',summary:{}};
  const accountDevice=accountDeviceTransactionProfile(ctx,items,base,accountAssertion);if(accountDevice)return accountDevice;

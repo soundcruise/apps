@@ -251,7 +251,7 @@ export function createIsolatedMaintenanceBridgeV2({db,owner,clock=Date.now}){
   const pending=(await statement(`SELECT operation_id,kind,phase,epoch FROM ${TABLE}operations WHERE scope=? AND phase NOT IN('committed','resolved') ORDER BY operation_id`,scope).all()).results;
   return {state:pending.length?'HOLD':c.phase,control:c,pending,initialProductionHandover:'UNPROVEN'};
  }
- async function recover(input){
+ async function recover(input,business=null){
   const r=parseRequest(input,'recovery');await checkSchema();const digest=await maintenanceDigest(r);
   const guards=ownerGuards(await verified(r,'recovery'));
   const existing=await match(r,digest);if(existing){if(existing.receipt)return {status:'historical',receipt:existing.receipt};fail('recovery_unknown');}
@@ -267,10 +267,26 @@ export function createIsolatedMaintenanceBridgeV2({db,owner,clock=Date.now}){
   if(operationFenceOnly&&(source.kind!=='mutation'||source.phase!=='registered'||source.receipt_json!==null||source.pending_json!==null||source.resolved_by!==null))fail('operation_fence_not_safe');
   const gate=assertion('EXISTS(SELECT 1 FROM '+TABLE+'control WHERE scope=? AND epoch=? AND (phase=\'closed\' OR (?=1 AND phase=\'open\')))',[r.scope,r.expectedEpoch,operationFenceOnly?1:0]);
   const sourceGuard=assertion('EXISTS(SELECT 1 FROM '+TABLE+'operations WHERE operation_id=? AND request_digest=? AND binding_digest=? AND phase=?)',[source.operation_id,source.request_digest,source.binding_digest,source.phase]);
-  const receipt=await committed(r,digest,{sourceOperationId:source.operation_id,sourceRequestDigest:source.request_digest,pendingDigest:source.pending_digest,outcome:r.outcome});
+  const businessOutcome=business?spec(business.outcome):null;
+  if(business&&(source.kind!=='external'||typeof business.run!=='function'||proof.businessOutcomeDigest!==await maintenanceDigest(businessOutcome)))fail('recovery_business_unverified');
+  const receipt=await committed(r,digest,{sourceOperationId:source.operation_id,sourceRequestDigest:source.request_digest,pendingDigest:source.pending_digest,outcome:r.outcome,...(businessOutcome?{businessOutcomeDigest:await maintenanceDigest(businessOutcome)}:{})});
   const one=assertion('changes()=1'),all=[...guards,gate,sourceGuard];
-  await db.batch([...all.map(x=>x.q),await insert(r,digest,'committed',receipt,null,source.operation_id),
-   statement('UPDATE '+TABLE+'operations SET phase=\'resolved\',resolved_by=?,updated_at=? WHERE operation_id=? AND phase=?',r.operationId,stamp(),source.operation_id,source.phase),one.q,clear([...all,one])]);
+  async function commitRecovery(body=[]){
+   const outcomeGuard=businessOutcome?assertion(`(SELECT ok FROM (${businessOutcome.sql}))=1`,businessOutcome.params):null;
+   const results=await db.batch([...all.map(x=>x.q),...body,...(outcomeGuard?[outcomeGuard.q]:[]),await insert(r,digest,'committed',receipt,null,source.operation_id),
+    statement('UPDATE '+TABLE+'operations SET phase=\'resolved\',resolved_by=?,updated_at=? WHERE operation_id=? AND phase=?',r.operationId,stamp(),source.operation_id,source.phase),one.q,clear([...all,one,...(outcomeGuard?[outcomeGuard]:[])])]);
+   return results.slice(all.length,all.length+body.length);
+  }
+  if(business){
+   const natives=new WeakMap();let batches=0;
+   function prepare(sql,values=[]){
+    if(typeof sql!=='string'||sql.includes(';')||/sync_maintenance_v2_|maintenance_v2_/i.test(sql)||!/^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i.test(sql))fail('recovery_sql_hold');
+    const native=statement(sql,...values),read=/^\s*SELECT\b/i.test(sql);
+    const wrapped={bind(...v){return prepare(sql,snapshot(v));},all(){if(!read)fail('recovery_read_hold');return native.all();},first(){if(!read)fail('recovery_read_hold');return native.first();},async run(){return (await binding.batch([wrapped]))[0];}};natives.set(wrapped,native);return wrapped;
+   }
+   const binding={prepare,async batch(items){if(++batches!==1||items.some(x=>!natives.has(x)))fail('recovery_batch_hold');return commitRecovery(items.map(x=>natives.get(x)));}};
+   await business.run(binding);if(batches!==1)fail('recovery_missing_batch');
+  }else await commitRecovery();
   const read=await match(r,digest);if(!read?.receipt)fail('recovery_unknown');return {status:'committed',receipt:read.receipt};
  }
  return Object.freeze({checkSchema,stop,handover,open,execute,reserveOwnerRequest,finishOwnerRequest,reconcile,externalIntent,recordExternalUnknown,recover,inspect});
