@@ -276,9 +276,9 @@ async function authenticatedContext(request, env, appId, dependencies, writerInp
     accountState: managed.account_state, membershipState: managed.membership_state,
     datasetState: managed.dataset_state
   }) : null;
-  const writerAdmission = writerInput === null ? null : await admitWriter(session, identity, writerInput, authority, { policy: dependencies.writerPolicy, proCredentialId: dependencies.verifiedProId, proVerifier: dependencies.verifiedProVerifier, deviceVerifier, defer: new URL(request.url).pathname === '/v1/sync/bootstrap' });
+  const writerAdmission = writerInput === null ? null : await (dependencies.admitWriter || admitWriter)(session, identity, writerInput, authority, { policy: dependencies.writerPolicy, proCredentialId: dependencies.verifiedProId, proVerifier: dependencies.verifiedProVerifier, deviceVerifier, defer: new URL(request.url).pathname === '/v1/sync/bootstrap' });
   if (writerAdmission?.error) return writerAdmission;
-  const mutationSession = writerMutationDatabase(session, writerAdmission);
+  const mutationSession = (dependencies.writerMutationDatabase || writerMutationDatabase)(session, writerAdmission);
   const createRepository = dependencies.createRepository || createD1SyncRepository;
   return { session, mutationSession, identity, writerAdmission,
     repository: createRepository(mutationSession), authority };
