@@ -1,0 +1,6 @@
+import {readFileSync} from 'node:fs';
+const data=JSON.parse(readFileSync(new URL('../fixtures/phase2b-minimal.json',import.meta.url),'utf8')).entries;
+// Explicit URLs below were in the Phase 2B read-only report; no current D1 is accessed.
+const dates={'existing-kim':'2026-10-28','existing-neurig':'2026-10-13','existing-megpoid':'2026-10-10','existing-tdm':'2026-10-07','existing-motu':'2026-10-09'};
+const links={'existing-megpoid':'https://www.shimamura.co.jp/update/dtm-recording/2026/10/95206/','existing-tdm':'https://www.ikebe-gakki-pb.com/new_product/172830/','existing-motu':'https://www.shimamura.co.jp/update/dtm-recording/2026/10/94633/'};
+export const existing=data.filter(x=>x.candidate_id.startsWith('existing-')||x.candidate_id==='human-reject-fixture'||x.candidate_id==='system-excluded-fixture').map(x=>({...x,url:x.url||links[x.candidate_id],publishedAt:dates[x.candidate_id]||null,title:x.entity.brand+' / '+x.entity.models.join(' / ')})).concat([{candidate_id:'neurig-discovery',entity:{brand:'ZOOM',models:['NEURIG']},event:{type:'event_announcement'},review_status:'discovery_out_of_scope',scope:'source_event_scope',url:'https://zoomcorp.com/ja/jp/news/tokyogakkiexpo2026/',title:'NEURIG先行体験：発見台帳の対象外記録'}]);
