@@ -143,3 +143,20 @@ test('parsed main-type evidence reaches preview and save; usage target is never 
  test('official check links are ordered native new-tab anchors and do not expand URL registration',async()=>{
  const html=await readFile(new URL('../operator-ui/index.html',import.meta.url),'utf8');const section=html.split('class="yamaha-check-links"')[1].split('</div>')[0];const urls=[...section.matchAll(/href="([^"]+)"/g)].map(m=>m[1]);assert.deepEqual(urls,['https://www.yamaha.com/ja/news_release/','https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/shops/yage/news.html','https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/index.html','https://www.yamaha.com/ja/newsroom/']);assert.equal((section.match(/target="_blank" rel="noopener noreferrer"/g)||[]).length,4);assert(!section.includes('onclick'));assert(!code.includes('assistedStart'));const {assistedUrl}=await import('../src/assisted-facts.js');for(const u of urls)assert.equal(assistedUrl(u),null);assert(assistedUrl(urls[2].replace('index.html','2026/fixture.html')));assert(html.includes('記事登録の許可範囲を広げるものではありません'));
  });
+
+test('combined selected text preserves multiline Japanese and rejects unsupported or excessive input',async()=>{
+ const u=ui([]);await settle();const valid={format:'cruise-news-selection-v1',url:'https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/2026/fixture.html',information:'記事公開日：2026年10月27日\nヤマハのアコースティックギターを紹介'};
+ u.context.pasteJSON=JSON.stringify(valid);assert.equal(u.run('unpackNewsSelection(pasteJSON).information'),valid.information);
+ for(const p of [{...valid,url:'https://www.yamaha.com/ja/news_release/a.html'},{...valid,information:'x'.repeat(2001)},{...valid,url:valid.url+'?track=1'},{...valid,information:''},{...valid,extra:'x'}]){u.context.pasteJSON=JSON.stringify(p);assert.equal(u.run('unpackNewsSelection(pasteJSON)'),null);}
+ u.context.pasteJSON=JSON.stringify(valid);u.run('combined.value=pasteJSON;combined.events.input()');assert.equal(u.run('assistedInputs.url.value'),valid.url);assert.equal(u.run('assistedText.value'),valid.information);assert.equal(u.run('assistedConfirm.checked'),false);assert.equal(u.run('assistedSave.disabled'),true);assert.equal(u.run('combined.value'),'');
+});
+
+test('bookmark copies only an approved URL and explicitly selected text, and refuses invalid input or clipboard failures',async()=>{
+ const u=ui([]);await settle();const c=u.context;c.location={href:'https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/2026/fixture.html'};c.window={getSelection:()=>({toString:()=>c.selection})};c.selection='確認した文章\n二行目';c.alerts=[];c.alert=x=>c.alerts.push(x);c.copied=[];c.navigator={clipboard:{writeText:async v=>c.copied.push(v)}};
+ u.run('newsCopyBookmark()');await settle();assert.deepEqual(JSON.parse(c.copied[0]),{format:'cruise-news-selection-v1',url:c.location.href,information:c.selection});assert(c.alerts.at(-1).includes('コピーしました'));
+ c.location.href='https://www.yamaha.com/ja/news_release/a.html';u.run('newsCopyBookmark()');assert.equal(c.copied.length,1);assert(c.alerts.at(-1).includes('登録対象'));
+ c.location.href='https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/2026/fixture.html';c.selection='長'.repeat(2001);u.run('newsCopyBookmark()');assert.equal(c.copied.length,1);assert(c.alerts.at(-1).includes('長すぎ'));
+ c.selection='試験';c.navigator={clipboard:{writeText:async()=>{throw Error('denied')}}};u.run('newsCopyBookmark()');await settle();assert(c.alerts.at(-1).includes('個別に貼り付け'));
+});
+
+test('bookmark setup explains browser bars, selection limit, Topics scope and missing dates',async()=>{const u=ui([]);await settle();const text=u.run("copyHelp.children.map(n=>n.textContent).join(' ')");for(const key of ['Safari','Chrome','2000文字','ギターTopics','公開日','ニュースリリース','クリックしません'])assert(text.includes(key));});
