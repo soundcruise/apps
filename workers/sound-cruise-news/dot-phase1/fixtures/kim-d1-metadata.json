@@ -1,0 +1,18 @@
+{
+  "provenance_scope": "Read-only production metadata observed 2026-10-29; response bytes were not retained or retrieved in Phase 2D.",
+  "id": "409f8715a0d7ad3c5e7ce4d368ea59b3fc1af5516f8c4c10c012b64e8f9edfac",
+  "source_id": "ikebe",
+  "source_url": "https://www.ikebe-gakki-pb.com/new_product/173792/",
+  "published_at": "2026-10-27T15:00:00.000Z",
+  "review_status": "approved",
+  "event_type": "new_product",
+  "brand": "Fender MEX",
+  "models": ["Limited Edition Kim Gordon Jazzmaster"],
+  "product_event_action": "limited_edition",
+  "parser_version": "ikebe-product-fields-12",
+  "extraction_method": "explicit_ikebe_product_fields",
+  "response_hash": "249dd49047956a63f5d4b4fb3fc850d7da5df7179c19ab5b45221c9f36ba6e0b",
+  "evidence_key": "3724ff6cf64d332414defb1f5ec8d9ae7741490dd5832a0d595fc5aa4597e201",
+  "verified_at": 1793221228685,
+  "provenance_fields": ["brand", "models", "event_type", "productEvent"]
+}
