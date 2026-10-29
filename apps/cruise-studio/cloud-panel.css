@@ -12,3 +12,8 @@
 .studio-cloud-actions button:disabled { opacity: .45; cursor: not-allowed; border-color: #555145; }
 .studio-cloud-panel [hidden] { display: none; }
 @media (max-width: 600px) { .studio-cloud-panel { padding: 16px; } .studio-cloud-actions button { flex: 1 1 100%; } }
+
+.studio-cloud-panel input:not([type="checkbox"]), .studio-cloud-panel textarea { background:#24231d; color:#eee5c9; border:1px solid #625a40; border-radius:6px; padding:10px; font:inherit; min-width:0; width:min(100%,560px); }
+.studio-cloud-panel textarea { display:block; min-height:100px; overflow-wrap:anywhere; }
+.studio-cloud-panel > button { margin:6px; min-height:44px; padding:10px; background:#29271e; color:#eee5c9; border:1px solid #7b6b3f; border-radius:6px; }
+.studio-cloud-panel > button:disabled {opacity:.45;}
