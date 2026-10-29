@@ -14,9 +14,8 @@ import {STUDIO_DOCUMENT_DDL} from './studio-document-schema.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HEX=/^[0-9a-f]{64}$/;
 const fail=code=>{throw Object.assign(Error(code),{code});};
+import {studioCanonical as canonical,studioDigest as digest,studioDocumentUpload} from '../../../apps/cruise-studio/js/cloud/document-codec.mjs';
 const utf8=new TextEncoder();
-function canonical(x){if(x===null||typeof x==='string'||typeof x==='boolean')return JSON.stringify(x);if(typeof x==='number'&&Number.isFinite(x))return JSON.stringify(x);if(Array.isArray(x))return '['+x.map(canonical).join(',')+']';if(x&&Object.getPrototypeOf(x)===Object.prototype)return '{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}';fail('invalid_json');}
-async function digest(s){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',utf8.encode(s))),x=>x.toString(16).padStart(2,'0')).join('');}
 
 const exact=(x,keys)=>x&&Object.getPrototypeOf(x)===Object.prototype&&Object.keys(x).sort().join('|')===keys.slice().sort().join('|');
 const names={sync_records:'studio_document_records',sync_changes:'studio_document_changes',sync_datasets:'studio_document_datasets',sync_users:'studio_document_users',sync_devices:'studio_document_devices'};
@@ -109,7 +108,7 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
  const expected=expectedReceipt(p);if(r.binding_json!==p.request_digest||r.receipt_json!==canonical(expected))fail('receipt_binding');
  const change=(await read(c,'SELECT * FROM studio_document_changes WHERE user_id=? AND app_id=\'studio\' AND operation_id=?',p.account_id,p.operation_id))[0];
  if(!change||change.record_id!==p.document_id||change.record_type!=='project'||change.operation_hash!==p.request_digest||change.revision!==expected.revision||change.payload_hash!==expected.documentDigest||(change.deleted_at!==null)!==expected.deleted)fail('receipt_change_mismatch');return expected;}
- async function reconcile(headers,id){const c=await authorize(headers),p=await pending(c,id);if(!p)fail('pending_binding');const r=await receipt(c,p);if(r)return{...r,historical:true,authorizesNewOperation:false};return{status:p.binding_json===canonical(c.binding)?'pending':'pending-recovery-required',operationId:id};}
+ async function reconcile(headers,id,requestDigest=null){const c=await authorize(headers),p=await pending(c,id);if(!p){if(!HEX.test(requestDigest||''))fail('pending_binding');return{status:'absent',operationId:id,accountId:c.binding.accountId,requestDigest};}if(requestDigest!==null&&p.request_digest!==requestDigest)fail('operation_digest_mismatch');const r=await receipt(c,p);if(r)return{...r,historical:true,authorizesNewOperation:false};return{status:p.binding_json===canonical(c.binding)?'pending':'pending-recovery-required',operationId:id};}
  async function commit(headers,id){const c=await authorize(headers),p=await pending(c,id);match(c,p);const prior=await reconcile(headers,id);if(prior.status!=='pending')return prior;
   const current=(await read(c,'SELECT revision,deleted_at FROM studio_document_records WHERE user_id=? AND record_id=?',p.account_id,p.document_id))[0];if((current?.revision||0)!==p.expected_revision)return{status:'conflict',operationId:id,pendingPreserved:true};if(current?.deleted_at!=null)fail('document_deleted');
   const {m,rows}=await assembled(c,p);const specs=new WeakMap();
@@ -164,7 +163,8 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
    else if(body.kind==='device')result=await deviceOperation(request.headers,body.payload);
    else if(body.kind==='begin')result=await begin(request.headers,body.payload);
    else if(body.kind==='upload'){if(!exact(body.payload,['operationId','index','data']))fail('upload_payload');result=await upload(request.headers,body.payload.operationId,body.payload.index,body.payload.data);}
-   else if(body.kind==='commit'||body.kind==='reconcile'){if(!exact(body.payload,['operationId']))fail('operation_payload');result=await (body.kind==='commit'?commit:reconcile)(request.headers,body.payload.operationId);}
+   else if(body.kind==='commit'){if(!exact(body.payload,['operationId']))fail('operation_payload');result=await commit(request.headers,body.payload.operationId);}
+   else if(body.kind==='reconcile'){if(!exact(body.payload,['operationId'])&&!exact(body.payload,['operationId','requestDigest']))fail('operation_payload');if(body.payload.requestDigest!==undefined&&!HEX.test(body.payload.requestDigest))fail('operation_digest');result=await reconcile(request.headers,body.payload.operationId,body.payload.requestDigest??null);}
    else if(body.kind==='snapshot'){if(!exact(body.payload,['documentId']))fail('snapshot_payload');result=await snapshot(request.headers,body.payload.documentId);}
    else fail('kind');if(body.kind!=='register'&&result.status!=='conflict'){const c=await authorize(request.headers);await touchAccountActivity(c.guarded,c.binding.accountId);}return respond(200,result);
   }catch(error){return respond(409,{status:'HOLD',code:typeof error.code==='string'?error.code:'unknown_result',retryAutomatically:false});}
@@ -174,10 +174,5 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
 }
 export {canonical as studioCanonical,digest as studioDigest};
 
-// Canonical JSON contains escaped lone surrogates; split only on codepoint boundaries.
-export async function studioDocumentUpload(project,expectedRevision,operationId=crypto.randomUUID()){
- const text=canonical(project),parts=[];let part='',bytes=0;
- for(const c of text){const n=utf8.encode(c).length;if(bytes+n>128*1024){parts.push(part);part='';bytes=0;}part+=c;bytes+=n;}if(part)parts.push(part);
- const chunks=[];for(const data of parts)chunks.push({digest:await digest(data),bytes:utf8.encode(data).length});
- return{request:{operationId,documentId:project.projectId,expectedRevision,manifest:{digest:await digest(text),bytes:utf8.encode(text).length,chunks,deleted:false}},parts};
-}
+
+export {studioDocumentUpload};

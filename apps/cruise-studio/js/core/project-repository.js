@@ -71,6 +71,7 @@
         function save(request) {
             var token = request.token || {};
             return underLock(function () {
+                if(request.precondition && request.precondition()!==true) return {ok:false,code:'precondition-changed'};
                 var marker=Object.getOwnPropertyDescriptor(request.snapshot,'sourceSchemaVersion');
                 if(marker && marker.value===2) return {ok:false,code:'projection-not-persistable',error:'派生表示を保存できません'};
                 if(options.model.schema2){try{options.model.schema2.assertJson(request.snapshot);}catch(e){return {ok:false,code:'validation',error:e.message};}}
@@ -100,6 +101,7 @@
                     var latest = readRevision(request.target);
                     if (!latest.ok) return latest;
                     if (latest.revision !== request.baseRevision) return { ok: false, code: latest.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: read(request.target) };
+                    if(request.precondition && request.precondition()!==true) return {ok:false,code:'precondition-changed'};
                     var result = writeTransaction([[PROJECT + project.projectId, raw], [INDEX, indexRaw]]);
                     if (!result.ok) { result.current = read(request.target); return result; }
                     notify(request.target, 'same-studio', token);
