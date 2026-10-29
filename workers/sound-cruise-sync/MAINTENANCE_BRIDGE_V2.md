@@ -83,3 +83,7 @@ Do not label these results Full Bridge PASS.
 
 No commit/push/PR until all required work and independent review pass.
 No Production stop/migration/backup/deploy, main merge, Pages, canWrite activation, Shared Write or Cloud cutover is authorized by this candidate.
+
+## Sync Owner isolated extension
+
+Managed Sync dataset/device operations now reuse the same protected D1 transaction and typed child/root receipts. The native schema0037 writer dependency and Port removal-safety exclusion are explicit, not relaxed. See MAINTENANCE_SYNC_OWNER.md. The current route inventory adds the already-existing writer-authority GET previously absent from the historical83-HTTP list. Full Bridge, old-worker exclusion, Asset/R2, Scheduled, formal schema, backup/restore and Cloud cutover remain HOLD. Independent-clone scope acceptance does not release the adopted B+C v2 formal protection HOLD.

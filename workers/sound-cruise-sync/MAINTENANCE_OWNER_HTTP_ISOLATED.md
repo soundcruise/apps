@@ -157,3 +157,7 @@ The lifecycle extension reruns existing13 native26, Account/Pro Node81 and Studi
 Node31; its final direct native19 and Browser9 cover the four added routes. Core23
 is reused unchanged historical evidence, not newly executed. See the lifecycle
 contract and current evidence manifest for exact run identities.
+
+## Managed Sync continuation
+
+The isolated factory now also connects9 existing managed Sync HTTP routes through `maintenance-sync-owner.js`; see MAINTENANCE_SYNC_OWNER.md for schema/app restrictions, Pro dual-credential request binding, typed outcomes and UNKNOWN recovery. Existing57 Account/Pro routes retain their profiles. Current inventory corrects one pre-existing omitted GET writer-authority route:84 HTTP +1 Scheduled,66 isolated connected,18 HTTP +1 Scheduled HOLD. This is neither full-mode coverage nor Production acceptance.
