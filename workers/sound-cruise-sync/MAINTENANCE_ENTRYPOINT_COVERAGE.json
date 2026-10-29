@@ -1400,5 +1400,21 @@
   "scheduled_partial_isolated": 1,
   "isolated_refused_http_count": 13,
   "retention_qualification": "Isolated refusal is not migration or production closure; Scheduled2 Account actions plus HOLD observations only.",
-  "first_handover_qualification": "Isolated typed evidence + encrypted native D1/ledger restore only; production exclusions/provider/key custody/R2 restore not accepted."
+  "first_handover_qualification": "Isolated actual-v137 + typed external fixture evidence + encrypted synthetic native D1/R2 full-row/byte restore only; Production exclusion/provider/key custody/historical operation enumeration are not accepted.",
+  "compatible_assembly": {
+    "revision": "isolated-compatible-v1",
+    "production_entry_unchanged": true,
+    "candidate_entry": "src/maintenance-compatible-entry.js",
+    "public_pure0033": "Current native router; native authentication/Pro and strict legacy33 final SQL admission. Asset R2 mutations and Scheduled remain explicitly HOLD. Sample successful Account/Pro/Port and standalone Chord writes tested; not every route/payload qualified.",
+    "public_metadata_or0034_0037": "Explicit maintenance window: public business routes 423. This is not approval to close Production clients and not uninterrupted normal-route compatibility.",
+    "private_owner": "Trusted in-process WeakMap capability + request keyed fingerprint + exact schema + external sealed fixture proof; no Production service identity or public capability binding.",
+    "schema0034_0036": "Private Account/Pro qualified subset only; Sync writes HOLD before0037.",
+    "schema0037": "Existing qualified Owner HTTP/Sync/Chord/Retention subsets. Asset cleanup requires explicit server capability, native proofs, legacy authority protocol0/epoch1, ready dataset and no cutover.",
+    "owner_candidate_schema": "HOLD: exact maintenance profiles do not include Owner candidate schema; no implicit upgrade.",
+    "scheduled": "Public scheduled always HOLD. Explicit existing private Asset/Retention subsets only; no fallback to v137 purge.",
+    "handover": "Reconstructed exact-byte v137 fixture + typed exclusion evidence + encrypted full synthetic D1/R2 restore. Production exclusion, drain, durable key custody and independent operational provider unaccepted.",
+    "full_bridge": "HOLD",
+    "production_deploy": "NOT_PERFORMED",
+    "legacy_qa": "Existing isolated Owner release refusal remains separate from pure0033 native passthrough. No Production legacy closure."
+  }
 }
