@@ -137,6 +137,23 @@ async function credential(session, parsed) {
   return row && timingSafeHexEqual(row.verifier, parsed.verifier) ? row : null;
 }
 
+// Internal read-only Owner profile for the isolated Maintenance adapter.
+// Reuses the existing parser/HMAC/row comparison and lifecycle decisions. Never returned by HTTP.
+// Revocation intentionally accepts an authentic old generation/expired/revoked token, as revoke() does.
+export async function inspectProMaintenanceOwner(request, env, mode, dependencies = {}) {
+  if (!['revoke', 'renew'].includes(mode)) return null;
+  const parsed = await bearer(request, env.PRO_CREDENTIAL_PEPPER, dependencies.cryptoImpl || crypto);
+  if (!parsed) return null;
+  const session = db(env), current = await state(session), row = await credential(session, parsed);
+  if (!row || row.scope !== 'global_pro') return null;
+  if (mode === 'renew' && (row.revoked_at !== null || row.generation !== current.generation ||
+      sessionInactive(row, current, dependencies.now ? dependencies.now() : Date.now()))) return null;
+  return Object.freeze({ id: parsed.id, verifier: parsed.verifier, generation: row.generation,
+    currentGeneration: current.generation, devicePublicKey: row.device_public_key,
+    lastValidatedAt: row.last_validated_at, createdAt: row.created_at,
+    revokedAt: row.revoked_at, leaseExpiresAt: row.lease_expires_at });
+}
+
 async function verify(request, env, origin, route, dependencies) {
   const ip = request.headers.get('CF-Connecting-IP');
   if (!ip || !env.PRO_VERIFY_RATE_LIMITER?.limit) return error(503, 'verification_unavailable', origin, route);
