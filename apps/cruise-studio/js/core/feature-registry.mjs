@@ -1,4 +1,4 @@
-export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.49.0';
+export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.49.1';
 
 function freeze(value) {
     if (value && typeof value === 'object') {

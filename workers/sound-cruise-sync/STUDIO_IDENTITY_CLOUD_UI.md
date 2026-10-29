@@ -1,6 +1,6 @@
 # Studio Identity / Cloud UI candidate
 
-PR #55 is the direct dependency. Studio 0.49.0, Project schema 2. The existing Account/Pro Owners, P-256 device session, D1 transactions, Project repository/Web Locks/CAS and IndexedDB outbox remain authoritative. No shared Account/Pro implementation or legacy writer is changed.
+PR #55 is the direct dependency. Studio 0.49.1, Project schema 2. The existing Account/Pro Owners, P-256 device session, D1 transactions, Project repository/Web Locks/CAS and IndexedDB outbox remain authoritative. No shared Account/Pro implementation or legacy writer is changed.
 
 ## Entry and trust
 
