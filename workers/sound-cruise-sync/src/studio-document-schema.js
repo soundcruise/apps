@@ -1,5 +1,7 @@
 // Candidate only. Not a numbered migration; never installed by a request.
 export const STUDIO_DOCUMENT_DDL = Object.freeze([
+ `CREATE TABLE studio_document_owner_events (account_id TEXT NOT NULL,operation_id TEXT NOT NULL,source_operation_id TEXT NOT NULL,source_digest TEXT NOT NULL,request_digest TEXT NOT NULL,binding_json TEXT NOT NULL,receipt_json TEXT NOT NULL,PRIMARY KEY(account_id,operation_id),UNIQUE(account_id,source_operation_id))`,
+ `CREATE TRIGGER studio_document_owner_events_immutable BEFORE UPDATE ON studio_document_owner_events BEGIN SELECT RAISE(ABORT,'immutable_owner_event'); END`,
  `CREATE TABLE studio_document_enrollments (account_id TEXT NOT NULL,device_id TEXT NOT NULL,generation INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0 CHECK(revoked IN(0,1)),PRIMARY KEY(account_id,device_id))`,
  `CREATE TABLE studio_document_identity_operations (account_id TEXT NOT NULL,operation_id TEXT NOT NULL,digest TEXT NOT NULL,result_json TEXT NOT NULL,PRIMARY KEY(account_id,operation_id))`,
  `CREATE TABLE studio_document_control (id INTEGER PRIMARY KEY CHECK(id=1), epoch INTEGER NOT NULL CHECK(epoch>0), enabled INTEGER NOT NULL CHECK(enabled IN(0,1)), version INTEGER NOT NULL CHECK(version=1))`,
