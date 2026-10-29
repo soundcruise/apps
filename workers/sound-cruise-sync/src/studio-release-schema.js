@@ -1,14 +1,16 @@
 // Trusted offline migration tool; never called by an HTTP request.
+import {EVIDENCE_DDL} from './studio-evidence-ledger.js';
+import {ACTIVATION_DDL} from './studio-activation.js';
 import {STUDIO_DOCUMENT_DDL} from './studio-document-schema.js';
 import {maintenanceDigest,maintenanceCanonical} from './maintenance-bridge-v2.js';
 import {MAINTENANCE_V2_PROFILES} from './maintenance-v2-profiles.js';
-export const STUDIO_RELEASE_ID='studio_0001_rc2';
+export const STUDIO_RELEASE_ID='studio_0001_rc4';
 export const STUDIO_RELEASE_EXTRA=Object.freeze([
  `CREATE TABLE studio_document_migrations (sequence INTEGER PRIMARY KEY CHECK(sequence=1),migration_id TEXT NOT NULL UNIQUE,ddl_hash TEXT NOT NULL,base_fingerprint TEXT NOT NULL)`,
  `CREATE TABLE studio_document_schema_marker (id INTEGER PRIMARY KEY CHECK(id=1),migration_id TEXT NOT NULL,ddl_hash TEXT NOT NULL)`,
  `CREATE TABLE studio_document_recovery_proofs (account_id TEXT NOT NULL,operation_id TEXT NOT NULL,device_id TEXT NOT NULL,generation INTEGER NOT NULL,recovery_version INTEGER NOT NULL,request_fingerprint TEXT NOT NULL,result_json TEXT NOT NULL,proof_hash TEXT NOT NULL,PRIMARY KEY(account_id,operation_id))`,
  `CREATE TRIGGER studio_document_recovery_proofs_immutable BEFORE UPDATE ON studio_document_recovery_proofs BEGIN SELECT RAISE(ABORT,'immutable_recovery_proof'); END`,
- `CREATE TRIGGER studio_document_recovery_proofs_no_delete BEFORE DELETE ON studio_document_recovery_proofs BEGIN SELECT RAISE(ABORT,'retention_policy_unapproved'); END`,
+ `CREATE TRIGGER studio_document_recovery_proofs_no_delete BEFORE DELETE ON studio_document_recovery_proofs WHEN COALESCE((SELECT compacting FROM studio_document_evidence_state WHERE account_id=OLD.account_id),0)<>1 BEGIN SELECT RAISE(ABORT,'retention_policy_unapproved'); END`,
  `CREATE TABLE studio_document_rate (account_id TEXT NOT NULL,window INTEGER NOT NULL,requests INTEGER NOT NULL CHECK(requests>0),PRIMARY KEY(account_id,window))`
 ]);
 export const STUDIO_RC2_DDL=Object.freeze([
@@ -17,7 +19,7 @@ export const STUDIO_RC2_DDL=Object.freeze([
  `CREATE TABLE studio_document_resolutions (account_id TEXT NOT NULL,operation_id TEXT NOT NULL,request_digest TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('collected','discarded')),receipt_json TEXT NOT NULL,PRIMARY KEY(account_id,operation_id))`,
  `CREATE TABLE studio_document_maintenance_receipts (account_id TEXT NOT NULL,operation_id TEXT NOT NULL,digest TEXT NOT NULL,result_json TEXT NOT NULL,PRIMARY KEY(account_id,operation_id))`,
  `CREATE TRIGGER studio_document_maintenance_receipts_immutable BEFORE UPDATE ON studio_document_maintenance_receipts BEGIN SELECT RAISE(ABORT,'immutable_maintenance_receipt'); END`,
- `CREATE TRIGGER studio_document_maintenance_receipts_no_delete BEFORE DELETE ON studio_document_maintenance_receipts BEGIN SELECT RAISE(ABORT,'immutable_maintenance_receipt'); END`,
+ `CREATE TRIGGER studio_document_maintenance_receipts_no_delete BEFORE DELETE ON studio_document_maintenance_receipts WHEN COALESCE((SELECT compacting FROM studio_document_evidence_state WHERE account_id=OLD.account_id),0)<>1 BEGIN SELECT RAISE(ABORT,'immutable_maintenance_receipt'); END`,
  `CREATE TABLE studio_document_erase_intents (account_id TEXT NOT NULL,operation_id TEXT NOT NULL,binding_json TEXT NOT NULL,scope_json TEXT NOT NULL,scope_digest TEXT NOT NULL,policy_digest TEXT NOT NULL,expires_at INTEGER NOT NULL,PRIMARY KEY(account_id,operation_id))`,
  `CREATE TABLE studio_document_erased_accounts (account_id TEXT PRIMARY KEY,operation_id TEXT NOT NULL,receipt_json TEXT NOT NULL)`,
  `CREATE TRIGGER studio_document_usage_pending AFTER INSERT ON studio_document_pending BEGIN INSERT INTO studio_document_usage(account_id,bytes,operations) VALUES(NEW.account_id,0,1) ON CONFLICT(account_id) DO UPDATE SET operations=operations+1; END`,
@@ -25,16 +27,16 @@ export const STUDIO_RC2_DDL=Object.freeze([
  `CREATE TRIGGER studio_document_usage_chunk_delete AFTER DELETE ON studio_document_chunks BEGIN UPDATE studio_document_usage SET bytes=bytes-OLD.bytes WHERE account_id=OLD.account_id; END`,
  `CREATE TRIGGER studio_document_usage_resolved AFTER INSERT ON studio_document_resolutions BEGIN UPDATE studio_document_usage SET operations=operations-1 WHERE account_id=NEW.account_id; END`,
  `CREATE TRIGGER studio_document_resolutions_immutable BEFORE UPDATE ON studio_document_resolutions BEGIN SELECT RAISE(ABORT,'immutable_resolution'); END`,
- `CREATE TRIGGER studio_document_resolutions_no_delete BEFORE DELETE ON studio_document_resolutions BEGIN SELECT RAISE(ABORT,'immutable_resolution'); END`,
+ `CREATE TRIGGER studio_document_resolutions_no_delete BEFORE DELETE ON studio_document_resolutions WHEN COALESCE((SELECT compacting FROM studio_document_evidence_state WHERE account_id=OLD.account_id),0)<>1 BEGIN SELECT RAISE(ABORT,'immutable_resolution'); END`,
  `CREATE TRIGGER studio_document_erase_intents_immutable BEFORE UPDATE ON studio_document_erase_intents BEGIN SELECT RAISE(ABORT,'immutable_erase_intent'); END`,
- `CREATE TRIGGER studio_document_erase_intents_no_delete BEFORE DELETE ON studio_document_erase_intents BEGIN SELECT RAISE(ABORT,'immutable_erase_intent'); END`,
+ `CREATE TRIGGER studio_document_erase_intents_no_delete BEFORE DELETE ON studio_document_erase_intents WHEN COALESCE((SELECT compacting FROM studio_document_evidence_state WHERE account_id=OLD.account_id),0)<>1 BEGIN SELECT RAISE(ABORT,'immutable_erase_intent'); END`,
  `CREATE TRIGGER studio_document_erased_accounts_immutable BEFORE UPDATE ON studio_document_erased_accounts BEGIN SELECT RAISE(ABORT,'immutable_erased_account'); END`,
  `CREATE TRIGGER studio_document_erased_accounts_no_delete BEFORE DELETE ON studio_document_erased_accounts BEGIN SELECT RAISE(ABORT,'immutable_erased_account'); END`,
  `CREATE INDEX studio_document_pending_document ON studio_document_pending(account_id,document_id)`,
  `CREATE INDEX studio_document_records_head ON studio_document_records(user_id,last_operation_id)`,
  `CREATE INDEX studio_document_changes_account_record ON studio_document_changes(user_id,record_id,revision)`
 ]);
-export const STUDIO_RELEASE_DDL=Object.freeze([...STUDIO_DOCUMENT_DDL,...STUDIO_RELEASE_EXTRA,...STUDIO_RC2_DDL]);
+export const STUDIO_RELEASE_DDL=Object.freeze([...STUDIO_DOCUMENT_DDL,...STUDIO_RELEASE_EXTRA,...STUDIO_RC2_DDL,...EVIDENCE_DDL,...ACTIVATION_DDL]);
 export const STUDIO_SCHEMA_SQL="SELECT json_group_array(json_array(type,name,sql)) encoded FROM (SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name<>'_cf_KV' ORDER BY type,name)";
 export const STUDIO_JOURNAL_SQL='SELECT json_group_array(json_array(id,name)) encoded FROM (SELECT id,name FROM d1_migrations ORDER BY id)';
 const fail=code=>{throw Object.assign(Error(code),{code});};
