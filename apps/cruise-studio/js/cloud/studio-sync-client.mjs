@@ -19,10 +19,11 @@ function createOutbox(indexedDB,name){
  return{read,write,keys,async close(){if(opened)(await opened).close();opened=null;}};
 }
 
-export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl=globalThis.fetch,indexedDB=globalThis.indexedDB,locks=globalThis.navigator?.locks,repository,model,readSession,databaseName='cruiseStudio.isolatedCloud.v1',timeoutMs=15000}={}){
+export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl=globalThis.fetch,indexedDB=globalThis.indexedDB,locks=globalThis.navigator?.locks,repository,model,readSession,databaseName='cruiseStudio.isolatedCloud.v1',timeoutMs=15000,uploadBatchSize=4}={}){
  if(!repository?.read||!repository?.save||typeof model?.validateProject!=='function'||typeof readSession!=='function')fail('client-dependencies');
  const url=new URL(endpoint||'https://disabled.invalid/isolated/studio/document');
  if(url.username||url.password||url.search||url.hash||url.pathname!=='/isolated/studio/document'||!(url.protocol==='https:'&&url.hostname.endsWith('.invalid')||url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))fail('production-endpoint-forbidden');
+ if(!Number.isSafeInteger(uploadBatchSize)||uploadBatchSize<1||uploadBatchSize>4)fail('upload-batch-config');
  if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>60000)fail('timeout-config');
  const box=createOutbox(indexedDB,databaseName);
  let disposed=false;
@@ -72,7 +73,15 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   try{
    o=await update(o,{state:'UPLOADING',phase:'enroll'});await call(c,'enroll',{});
    o=await update(o,{phase:'begin'});const began=await call(c,'begin',o.request);if(began.status!=='pending'||began.operationId!==o.operationId)fail('begin-mismatch');
-   for(let i=o.nextChunk;i<o.parts.length;i++){o=await update(o,{phase:'chunk'});const uploaded=await call(c,'upload',{operationId,index:i,data:o.parts[i]});if(uploaded.status!=='staged')fail('chunk-response');o=await update(o,{nextChunk:i+1});}
+   for(let i=o.nextChunk;i<o.parts.length;){
+    let end=Math.min(o.parts.length,i+uploadBatchSize),chunks,kind,payload;
+    // Bound encoded wire bytes, including JSON escaping, below the existing HTTP limit.
+    do{chunks=o.parts.slice(i,end).map((data,j)=>({index:i+j,data}));kind=chunks.length===1?'upload':'upload-batch';payload=chunks.length===1?{operationId,...chunks[0]}:{operationId,chunks};if(new TextEncoder().encode(JSON.stringify({kind,payload})).length<=900*1024)break;end--;}while(end>i);
+    if(end<=i)fail('chunk-wire-limit');
+    o=await update(o,{phase:'chunk'});const uploaded=await call(c,kind,payload);
+    if(uploaded.status!=='staged'||uploaded.operationId!==operationId||uploaded.manifestDigest!==o.request.manifest.digest||canonical(uploaded.indexes)!==canonical(chunks.map(x=>x.index)))fail('chunk-response');
+    o=await update(o,{nextChunk:end});i=end;
+   }
    o=await update(o,{state:'COMMITTING',phase:'commit'});const r=await call(c,'commit',{operationId});if(r.status==='conflict')return update(o,{state:'CONFLICT',conflictRevision:o.request.expectedRevision});
    receipt(o,r);o=await update(o,{state:'RECEIPTED',receipt:r,phase:'readback'});return await linkAfterCommit(c,o,r);
   }catch(e){return uncertain(c,o,e);}
