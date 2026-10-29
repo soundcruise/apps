@@ -1,0 +1,189 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "sound-cruise-sync",
+  "main": "src/studio-production-entry.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "triggers": {
+    "crons": [
+      "15 3 * * *"
+    ]
+  },
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 1
+    }
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://soundcruise.jp",
+    "ACCOUNT_ALLOWED_ORIGINS": "https://soundcruise.jp",
+    "SYNC_ALLOWED_APP_IDS": "chord",
+    "SYNC_QA_ALLOWED_APP_IDS": "chord,pitch,rhythm,fretboard,port",
+    "SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED": "true",
+    "SYNC_ACCOUNT_PUBLIC_APP_IDS": "chord,pitch,fretboard,rhythm,port",
+    "SYNC_ASSET_WRITE_ENABLED": "true",
+    "SYNC_ASSET_DOWNLOAD_ENABLED": "true",
+    "SYNC_ASSET_CLEANUP_ENABLED": "true",
+    "TURNSTILE_EXPECTED_HOSTNAME": "soundcruise.jp",
+    "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start",
+    "TURNSTILE_PAIR_EXPECTED_ACTION": "sound_cruise_sync_pair",
+    "TURNSTILE_RECOVER_EXPECTED_ACTION": "sound_cruise_sync_recover",
+    "TURNSTILE_PRO_EXPECTED_ACTION": "sound_cruise_pro_verify",
+    "AI_SUPPORT_MODE": "off",
+    "AI_SUPPORT_MODEL": "gpt-oss-120b",
+    "STUDIO_RELEASE_ROUTE_ENABLED": "false"
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "d1_databases": [
+    {
+      "binding": "SYNC_DB",
+      "database_name": "sound-cruise-sync",
+      "database_id": "e37759f8-df08-4d2a-92b0-ffdd50de66df",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "SYNC_ASSETS",
+      "bucket_name": "sound-cruise-sync-assets"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "START_RATE_LIMITER",
+      "namespace_id": "32001",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "SYNC_RATE_LIMITER",
+      "namespace_id": "32002",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    },
+    {
+      "name": "PAIRING_ISSUE_RATE_LIMITER",
+      "namespace_id": "32003",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "PAIR_RATE_LIMITER",
+      "namespace_id": "32004",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "RECOVERY_RATE_LIMITER",
+      "namespace_id": "32005",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_QA_ENROLL_RATE_LIMITER",
+      "namespace_id": "32006",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_START_RATE_LIMITER",
+      "namespace_id": "32007",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER",
+      "namespace_id": "32008",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER",
+      "namespace_id": "32009",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER",
+      "namespace_id": "32010",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER",
+      "namespace_id": "32011",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_RECOVERY_RATE_LIMITER",
+      "namespace_id": "32012",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_BRIDGE_RATE_LIMITER",
+      "namespace_id": "32013",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "PRO_VERIFY_RATE_LIMITER",
+      "namespace_id": "32014",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "AI_SUPPORT_RATE_LIMITER",
+      "namespace_id": "32015",
+      "simple": {
+        "limit": 6,
+        "period": 60
+      }
+    },
+    {
+      "name": "AI_SUPPORT_IP_RATE_LIMITER",
+      "namespace_id": "32016",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    }
+  ]
+}
