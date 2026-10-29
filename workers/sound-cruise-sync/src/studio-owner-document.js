@@ -118,10 +118,19 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
   await c.guarded.batch([...(release?[terminalStatement(c,input.operationId)]:[]),c.guarded.prepare('INSERT INTO studio_document_pending VALUES(?,?,?,?,?,?,?,?,?,?)').bind(c.binding.accountId,input.operationId,c.binding.deviceId,c.binding.generation,c.binding.epoch,input.documentId,input.expectedRevision,rd,canonical(m),canonical(c.binding)),]);
   return{status:'pending',operationId:input.operationId};
  }
- async function upload(headers,id,index,data){const c=await authorize(headers),p=await pending(c,id);match(c,p);if(p.resolution_state)fail('operation-terminal');const m=JSON.parse(p.manifest_json);if(!Number.isSafeInteger(index)||index<0||index>=m.chunks.length||typeof data!=='string'||utf8.encode(data).length!==m.chunks[index].bytes||await digest(data)!==m.chunks[index].digest)fail('chunk_invalid');
-  const statements=[...(release?[terminalStatement(c,id)]:[]),c.guarded.prepare('INSERT INTO studio_document_chunks VALUES(?,?,?,?,?,?) ON CONFLICT(account_id,operation_id,ordinal) DO NOTHING').bind(c.binding.accountId,id,index,data,m.chunks[index].digest,m.chunks[index].bytes),
-   c.guarded.prepare("SELECT CASE WHEN EXISTS(SELECT 1 FROM studio_document_chunks WHERE account_id=? AND operation_id=? AND ordinal=? AND data=? AND digest=? AND bytes=?) THEN 1 ELSE json_extract('chunk_collision','$.abort') END").bind(c.binding.accountId,id,index,data,m.chunks[index].digest,m.chunks[index].bytes),...await activityPlan(c)];
-  await c.guarded.batch(statements);c.activityTouched=true;return{status:'staged'};
+ async function upload(headers,id,index,data){return uploadBatch(headers,{operationId:id,chunks:[{index,data}]});}
+ async function uploadBatch(headers,input){
+  if(!exact(input,['operationId','chunks'])||!UUID.test(input.operationId)||!Array.isArray(input.chunks)||input.chunks.length<1||input.chunks.length>4)fail('chunk_batch_invalid');
+  const c=await authorize(headers),id=input.operationId,p=await pending(c,id);match(c,p);if(p.resolution_state)fail('operation-terminal');
+  const m=JSON.parse(p.manifest_json),seen=new Set(),statements=[...(release?[terminalStatement(c,id)]:[])];let total=0;
+  for(const chunk of input.chunks){
+   if(!exact(chunk,['index','data']))fail('chunk_invalid');const {index,data}=chunk;
+   if(!Number.isSafeInteger(index)||index<0||index>=m.chunks.length||seen.has(index)||typeof data!=='string'||utf8.encode(data).length!==m.chunks[index].bytes||await digest(data)!==m.chunks[index].digest)fail('chunk_invalid');
+   seen.add(index);total+=m.chunks[index].bytes;if(total>512*1024)fail('chunk_batch_limit');
+   statements.push(c.guarded.prepare('INSERT INTO studio_document_chunks VALUES(?,?,?,?,?,?) ON CONFLICT(account_id,operation_id,ordinal) DO NOTHING').bind(c.binding.accountId,id,index,data,m.chunks[index].digest,m.chunks[index].bytes),
+    c.guarded.prepare("SELECT CASE WHEN EXISTS(SELECT 1 FROM studio_document_chunks WHERE account_id=? AND operation_id=? AND ordinal=? AND data=? AND digest=? AND bytes=?) THEN 1 ELSE json_extract('chunk_collision','$.abort') END").bind(c.binding.accountId,id,index,data,m.chunks[index].digest,m.chunks[index].bytes));
+  }
+  statements.push(...await activityPlan(c));await c.guarded.batch(statements);c.activityTouched=true;return{status:'staged',operationId:id,indexes:input.chunks.map(x=>x.index),manifestDigest:m.digest};
  }
  async function assembled(c,p){const m=JSON.parse(p.manifest_json),rows=await read(c,'SELECT * FROM studio_document_chunks WHERE account_id=? AND operation_id=? ORDER BY ordinal',c.binding.accountId,p.operation_id);if(rows.length!==m.chunks.length)fail('chunk_missing');
   for(let i=0;i<rows.length;i++)if(rows[i].ordinal!==i||rows[i].digest!==m.chunks[i].digest||rows[i].bytes!==m.chunks[i].bytes||utf8.encode(rows[i].data).length!==rows[i].bytes||await digest(rows[i].data)!==m.chunks[i].digest)fail('chunk_corrupt');
@@ -247,6 +256,7 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
    else if(body.kind==='enroll'){if(!exact(body.payload,[]))fail('enroll_payload');result=await enroll(authHeaders);}
    else if(body.kind==='device')result=await deviceOperation(authHeaders,body.payload);
    else if(body.kind==='begin')result=await begin(authHeaders,body.payload);
+   else if(body.kind==='upload-batch')result=await uploadBatch(authHeaders,body.payload);
    else if(body.kind==='upload'){if(!exact(body.payload,['operationId','index','data']))fail('upload_payload');result=await upload(authHeaders,body.payload.operationId,body.payload.index,body.payload.data);}
    else if(body.kind==='commit'){if(!exact(body.payload,['operationId']))fail('operation_payload');result=await commit(authHeaders,body.payload.operationId);}
    else if(body.kind==='reconcile'){if(!exact(body.payload,['operationId'])&&!exact(body.payload,['operationId','requestDigest']))fail('operation_payload');if(body.payload.requestDigest!==undefined&&!HEX.test(body.payload.requestDigest))fail('operation_digest');result=await reconcile(authHeaders,body.payload.operationId,body.payload.requestDigest??null);}
@@ -257,7 +267,7 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
  async function activityPlan(c){const ss=[];function prepare(sql,values=[]){return{bind(...v){return prepare(sql,v)},async run(){ss.push(c.guarded.prepare(sql).bind(...values));return{success:true,meta:{changes:0}}}};}await touchAccountActivity({prepare},c.binding.accountId);return ss;}
  async function activity(c){if(c.activityTouched)return;const ss=await activityPlan(c);if(ss.length)await c.guarded.batch(ss);c.activityTouched=true;}
  async function active(fn,headers,...args){const h=new Headers(headers),scope={context:null};executions.set(h,scope);try{const result=await fn(h,...args);if(result.status!=='conflict'&&fn!==commit&&scope.context)await activity(scope.context);return result;}finally{executions.delete(h);}}
- return Object.freeze({retentionPlan:lifecycle.plan,collect:lifecycle.collect,discard:lifecycle.discard,requestAccountErase:lifecycle.requestAccountErase,identityHistory,adoptionHistory,session:sessionInfo,recoverEnrollment,adopt,retention,enroll:(...a)=>active(enroll,...a),register,deviceOperation:(...a)=>active(deviceOperation,...a),begin:(...a)=>active(begin,...a),upload:(...a)=>active(upload,...a),commit:(...a)=>active(commit,...a),reconcile:(...a)=>active(reconcile,...a),snapshot:(...a)=>active(snapshot,...a),fetch:fetchRequest});
+ return Object.freeze({retentionPlan:lifecycle.plan,collect:lifecycle.collect,discard:lifecycle.discard,requestAccountErase:lifecycle.requestAccountErase,identityHistory,adoptionHistory,session:sessionInfo,recoverEnrollment,adopt,retention,enroll:(...a)=>active(enroll,...a),register,deviceOperation:(...a)=>active(deviceOperation,...a),begin:(...a)=>active(begin,...a),upload:(...a)=>active(upload,...a),uploadBatch:(...a)=>active(uploadBatch,...a),commit:(...a)=>active(commit,...a),reconcile:(...a)=>active(reconcile,...a),snapshot:(...a)=>active(snapshot,...a),fetch:fetchRequest});
 }
 export {canonical as studioCanonical,digest as studioDigest};
 
