@@ -158,3 +158,5 @@ test('bookmark copies only an approved URL and explicitly selected text, and ref
  c.location.href='https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/2026/fixture.html';c.selection='長'.repeat(2001);u.run('newsCopyBookmark()');assert.equal(c.copied.length,1);assert(c.alerts.at(-1).includes('長すぎ'));
  c.selection='試験';c.navigator={clipboard:{writeText:async()=>{throw Error('denied')}}};u.run('newsCopyBookmark()');await settle();assert(c.alerts.at(-1).includes('個別に貼り付け'));
 });
+
+test('bookmark setup explains browser bars, selection limit, Topics scope and missing dates',async()=>{const u=ui([]);await settle();const text=u.run("copyHelp.children.map(n=>n.textContent).join(' ')");for(const key of ['Safari','Chrome','2000文字','ギターTopics','公開日','ニュースリリース','クリックしません'])assert(text.includes(key));});
