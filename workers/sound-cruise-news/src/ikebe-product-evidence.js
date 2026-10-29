@@ -5,7 +5,7 @@ import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-12';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-13';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -31,7 +31,7 @@ const types=[
  ['signal_buffer','amps_effects','effector',/バッファ[ーァ]|\bsignal buffer\b/i],
  ['multi_effect_processor','amps_effects','effector',/マルチ[・ ]?エフェクト[・ ]?(?:プラットフォーム|プロセッサー)|マルチエフェクター/i],
  ['hardware_compressor','recording_audio','recording-pa',/バスコンプ(?:レッサー)?|ハードウェア[・ ]?コンプレッサー/],
- ['effect_pedal','amps_effects','effector',/エフェクター|ペダル|ファズ|\b(?:effects? pedal|overdrive|distortion pedal)\b/i],
+ ['effect_pedal','amps_effects','effector',/エフェクター|ペダル|ファズ|オーバードライブ|\b(?:effects? pedal|overdrive|distortion pedal)\b/i],
  ['guitar_amp','amps_effects','amplifier',/ギターアンプ|ギター用アンプ|\bguitar amplifier\b/i],
  ['acoustic_guitar','acoustic_guitar','acoustic-guitar',/アコースティックギター|\bacoustic guitar\b/i],
  ['electric_guitar','electric_guitar_bass','guitar',/エレキギター|\belectric guitar\b/i],
@@ -45,6 +45,7 @@ const types=[
  ['studio_monitor','recording_audio','recording-pa',/スタジオモニター|モニタースピーカー|\bstudio monitor\b/i]
 ];
 export function validatedIkebeProductFacts(f){
+ if(f?.appearanceEvidence&&(f.appearanceEvidence.basis!=='verified_primary_article'||f.appearanceEvidence.product!==f.product||Object.keys(f.appearanceEvidence).some(k=>!['basis','product'].includes(k))))return false;
  if(definitionRequired.includes(f?.productType)&&!f.subjectEvidence)return false;
  if(f?.subjectEvidence&&(!definitionKinds.includes(f.productType)||f.subjectEvidence.basis!=='verified_primary_article'||f.subjectEvidence.role!=='explicit_product_heading_definition'||f.subjectEvidence.model!==f.product||f.subjectEvidence.productType!==f.productType))return false;
  if(f?.referencedModels&&(!f.subjectEvidence||!Array.isArray(f.referencedModels)||f.referencedModels.length!==1||!modelOK(f.referencedModels[0].model)||f.referencedModels[0].model===f.product||f.referencedModels[0].role!=='commemorated_model'))return false;
@@ -54,6 +55,7 @@ export function validatedIkebeProductFacts(f){
 }
 export function ikebeProductLabel(f,eventType){
  if(!validatedIkebeProductFacts(f)||!['new_product','release'].includes(eventType))return null;
+ if(f.appearanceEvidence&&eventType==='new_product'&&!f.productEvent)return `${f.brand}、${productSubject(f)}が登場`;
  if(f.referencedModels)return `${f.brand}、${f.referencedModels[0].model}の記念モデル「${f.product}」を${eventType==='release'?'発売':'発表'}`;
  if(f.limitedReissue)return `${f.brand}、${productSubject(f)}の限定復刻モデルを${eventType==='release'?'発売':'発表'}`;
  if(f.signatureModel)return `${f.brand}、${f.stringsCount===12?'12弦':''}シグネチャー${f.productType==='guitar_amp'?'ギターアンプ':'エレキギター'}「${f.product}」を${eventType==='release'?'発売':'発表'}`;
@@ -153,7 +155,9 @@ export function parseIkebeProductEvidence(html,source,row){
   const titleLaunch=/(?:新登場|新発売|新製品|発売|登場|発表|リリース|復刻|復活)/.test(title),signature=/シグネ(?:イ|ー)?チャ[ーア]?モデル/.test(title)&&['electric_guitar','guitar_amp'].includes(typeMatches[0][0])&&blocks.every((b,i)=>modelBound(b,models[i])&&!denied.test(b));
   if(!titleLaunch&&!models.some(m=>modelBound(title,m)||m.match(/^([A-Z]{2,}-\d+)/)?.[1]&&title.includes(m.match(/^([A-Z]{2,}-\d+)/)[1])))throw Error('facts_scope_uncertain');
   const statements=[...paras.slice(0,4),paras.slice(0,2).join(' '),...paras.slice(0,4).flatMap(p=>p.split(/[。!?！？]/)),...paras.slice(0,4).flatMap(p=>{const a=p.split(/[。!?！？]/);return a.flatMap((v,i)=>/モデルを生み出しました/.test(v)&&/^それが/.test(a[i+1]||'')?[v+'。'+a[i+1]]:[]);})].filter(p=>!denied.test(p)&&/(?:新登場|新発売|新製品|発売|登場(?:します|しました|！|!|。|$)|発表|復刻|モデルを生み出しました)/.test(p));
-  if(titleLaunch&&!signature&&!explicitMulti&&!((titleSubject||uniqueSubject)&&blocks.every((b,i)=>b.split(/[。!?！？]/).some((sentence,j,parts)=>modelBound(sentence,models[i])&&!denied.test(sentence)&&! /関連商品|参考製品|付属品|例えば|他社/.test(sentence)&&!(j>0&&/^(?:それ|これ|その|この)/.test(sentence)&&denied.test(parts[j-1])))))&&(!statements.length||!statements.some(p=>p.toLowerCase().includes(brand.toLowerCase())||models.some(m=>modelBound(p,m)))))throw Error('facts_scope_uncertain');
+  const escapedModel=models[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const explicitHeadingNotice=heads.length===1&&models.length===1&&typeMatches[0][0]==='effect_pedal'&&title.includes(brand)&&new RegExp('オーバードライブ\\s*[「『“" ]'+escapedModel+'(?:\\([^)]{1,30}\\))?[」』”"]?[^。]{0,8}登場','i').test(title)&&paras.length>=2&&paras[1].length>=40&&!denied.test(paras[1]);
+  if(titleLaunch&&!signature&&!explicitMulti&&!explicitHeadingNotice&&!((titleSubject||uniqueSubject)&&blocks.every((b,i)=>b.split(/[。!?！？]/).some((sentence,j,parts)=>modelBound(sentence,models[i])&&!denied.test(sentence)&&! /関連商品|参考製品|付属品|例えば|他社/.test(sentence)&&!(j>0&&/^(?:それ|これ|その|この)/.test(sentence)&&denied.test(parts[j-1])))))&&(!statements.length||!statements.some(p=>p.toLowerCase().includes(brand.toLowerCase())||models.some(m=>modelBound(p,m)))))throw Error('facts_scope_uncertain');
   const refinement=explicitProductAction(title),editionInBody=(/限定(?:企画)?モデル|限定生産|限定カラー|限定色|限定版|limited edition/i.test(primary)||heads.every(h=>/\[Limited Model\]/i.test(plain(h))));
   if(/限定|特別仕様|特別モデル|新色|コラボ|復刻|再発売/.test(title)&&(!refinement||!editionInBody&&refinement.action==='limited_edition'))throw Error('facts_scope_uncertain');
   const [productType,category]=typeMatches[0],eventType=!titleLaunch?'other':/発売|リリース/.test(title)?'release':'new_product';
@@ -162,6 +166,7 @@ export function parseIkebeProductEvidence(html,source,row){
   const definitions=models.map((model,i)=>{const words=model.toLowerCase().split(/\s+/);const names=[...blocks[i].matchAll(/([A-Za-z][A-Za-z0-9 .&+'/-]{4,110})は[^。]{0,180}(?:モデル|ギター)です/g)].map(m=>m[1].trim()).filter(v=>v!==model&&v.split(/\s+/).length>=4&&v.toLowerCase().split(/\s+/).every(t=>words.includes(t))&&words.length-v.split(/\s+/).length<=2);return [...new Set(names)];});
   const articleIdentity=parentCorroborated&&definitions.length===1&&definitions[0].length===1?{brand:parentBrand,models:definitions[0],basis:'explicit_primary_definition'}:null;
   const base={brand,models,product:models.join(' / '),version:null,category,productType,identifierBasis:'explicit_article_product_fields',listingSource:'ikebe',articleUrl:row.source_url,
+   ...(explicitHeadingNotice&&!refinement&&eventType==='new_product'?{appearanceEvidence:{basis:'verified_primary_article',product:models.join(' / ')}}:{}),
    ...(definitionTypes.length===1?{subjectEvidence:{basis:'verified_primary_article',role:'explicit_product_heading_definition',model:models[0],productType}}:{}),
    ...(refinement?.action==='reissue'&&/限定復刻/.test(title)&&paras.slice(0,4).some(p=>p.split(/[。!?！？]/).some(v=>!denied.test(v)&&/限定復刻モデル/.test(v)&&modelBound(v,models[0])))?{limitedReissue:true}:{}),
    ...(articleIdentity?{articleIdentity}:{}),

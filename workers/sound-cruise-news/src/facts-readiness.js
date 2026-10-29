@@ -53,7 +53,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
  else if(validation.valid)recoveryClass='READY_FOR_HUMAN_DECISION';
  else if(errors.some(e=>['operator_source_gate','source_url_invalid','publication_policy_rejected','candidate_takedown','expired_candidate','event_validation_failed'].includes(e))||facts?.scope==='expansion'||facts?.kind==='guitar_event'&&facts.artist&&facts.eventType&&facts.eventDate&&facts.venue&&!validation.publishableLabel)recoveryClass='POLICY_BLOCKED';
  else if(surface?.method==='morris_once_only_article')recoveryClass='NOT_SAFELY_RECOVERABLE';
- else if(!surface||['facts_not_on_current_surface','facts_identity_changed','facts_official_identity_missing','facts_official_identity_conflict','facts_date_changed','facts_event_missing','facts_scope_uncertain'].includes(last?.outcome))recoveryClass='NOT_SAFELY_RECOVERABLE';
+ else if(!surface||['facts_not_on_current_surface','facts_identity_changed','facts_official_identity_missing','facts_official_identity_conflict','facts_date_changed','facts_release_date_conflict','facts_event_missing','facts_scope_uncertain'].includes(last?.outcome))recoveryClass='NOT_SAFELY_RECOVERABLE';
  else if(surface.method!=='existing_listing_parser')recoveryClass='RECOVERABLE_FROM_ORIGINAL_SOURCE';
  else {
   let item;try{item=JSON.parse(cached?.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url);}catch{}
