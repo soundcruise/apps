@@ -185,3 +185,6 @@ export function bridgeOwner(ctx,plan=null,{parentRequired=Boolean(plan)}={}){
   async verifyHandover(){return false;}
  };
 }
+
+// Read-only current Owner proofs reused by the isolated Scheduled adapter.
+export function accountOwnerAssertions(ctx){return [controlAssertion(ctx),accountAssertion(ctx)];}

@@ -16,13 +16,15 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:55",
       "owner_transaction_boundary": "Sync repository / authentication activity / migration",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -30,13 +32,15 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:56",
       "owner_transaction_boundary": "Sync repository / authentication activity / migration",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -44,13 +48,15 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:57",
       "owner_transaction_boundary": "Sync repository / authentication activity / migration",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -72,13 +78,15 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:59",
       "owner_transaction_boundary": "Sync repository / authentication activity / migration",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -86,13 +94,15 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:60",
       "owner_transaction_boundary": "Sync repository / authentication activity / migration",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "GET",
@@ -128,13 +138,15 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:63",
       "owner_transaction_boundary": "Sync repository / authentication activity / migration",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "DELETE",
@@ -142,13 +154,15 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:64",
       "owner_transaction_boundary": "Sync repository / authentication activity / migration",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -268,13 +282,15 @@
       "source_group": "Account",
       "source_locator_historical": "account-app.js:85",
       "owner_transaction_boundary": "Account lifecycle / membership native D1",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "C",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -780,13 +796,15 @@
       "source_group": "Chord bridge",
       "source_locator_historical": "account-bridge-app.js:22",
       "owner_transaction_boundary": "Chord bridge owner",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -794,13 +812,15 @@
       "source_group": "Chord bridge",
       "source_locator_historical": "account-bridge-app.js:26",
       "owner_transaction_boundary": "Chord bridge owner",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -808,13 +828,15 @@
       "source_group": "Chord bridge",
       "source_locator_historical": "account-bridge-app.js:30",
       "owner_transaction_boundary": "Chord bridge owner",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -822,13 +844,15 @@
       "source_group": "Chord bridge",
       "source_locator_historical": "account-bridge-app.js:34",
       "owner_transaction_boundary": "Chord bridge owner",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -836,13 +860,15 @@
       "source_group": "Chord bridge",
       "source_locator_historical": "account-bridge-app.js:38",
       "owner_transaction_boundary": "Chord bridge owner",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_RELEASE_REFUSED_BUSINESS_HOLD",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
-      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
+      "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
+      "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
+      "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
+      "production_closure": "NOT_PERFORMED"
     },
     {
       "method": "POST",
@@ -1322,12 +1348,12 @@
       "source_group": "background",
       "source_locator_historical": "app.js:1162",
       "owner_transaction_boundary": "Scheduled retention / cleanup D1 + R2",
-      "connection": "PARTIAL_ISOLATED_ASSET_CLEANUP",
+      "connection": "PARTIAL_ISOLATED_OWNER_RETENTION",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Owned unreferenced >=30d Asset cleanup only at0036/0037, isolated handover and durable external pending, explicit closed-scope readback. Broad retention/purge/security cleanup HOLD.",
+      "next_requirement": "Existing Asset subset + Account dormancy/old recovery-attempt1row and HOLD preservation observations only. Account purge/receipts/Pro proof/tombstones/history/cascade remain HOLD; production scheduler identity absent.",
       "historical_write_effect": "R2 delete; asset state; D1 retention/purge, changes/tombstones/credentials"
     },
     {
@@ -1366,5 +1392,7 @@
   "coverage_qualification": "Connected counts are exact route+method with explicit mode restrictions, not complete lifecycle or Production readiness.",
   "historical_http_count": 83,
   "supplemental_http_count": 1,
-  "scheduled_partial_isolated": 1
+  "scheduled_partial_isolated": 1,
+  "isolated_refused_http_count": 13,
+  "retention_qualification": "Isolated refusal is not migration or production closure; Scheduled2 Account actions plus HOLD observations only."
 }

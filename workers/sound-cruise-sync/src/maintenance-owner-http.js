@@ -1,3 +1,4 @@
+import {isolatedReleaseRefusal} from './maintenance-release-policy.js';
 import { sha256Hex } from './asset-validation.js';
 import { assetBucket, reconcileAssetExternal } from './maintenance-asset-owner.js';
 import { createIsolatedWriterPolicy } from './writer-fence.js';
@@ -25,6 +26,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
  const stat=async(scope,session)=>{const c=await session.prepare('SELECT epoch,phase FROM sync_maintenance_v2_control WHERE scope=?').bind(scope).first();if(!c||!Number.isSafeInteger(c.epoch))throw Error('maintenance_control_unknown');return c;};
  function native(ctx){return ctx.route.owner==='sync'?handleSyncRequest:ctx.route.owner==='account'?handleAccountApiRequest:handleProAuthRequest;}
  async function prepare(request){
+  const refusal=isolatedReleaseRefusal(request);if(refusal)return{response:refusal};
   const url=new URL(request.url),route=maintenanceOwnerRoute(url.pathname,request.method==='OPTIONS'?request.headers.get('Access-Control-Request-Method'):request.method);
   if(!route)return {response:error(503,'owner_route_unconnected_hold')};
   const allowed=String(route.owner==='account'?env.ACCOUNT_ALLOWED_ORIGINS:env.ALLOWED_ORIGINS).split(',').map(x=>x.trim());
