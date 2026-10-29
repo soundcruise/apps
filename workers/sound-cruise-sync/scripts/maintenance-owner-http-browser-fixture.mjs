@@ -8,7 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {createIsolatedMaintenanceOwnerHttp} from '../src/maintenance-owner-http.js';
 
 // Explicitly invoked by the native harness, never discovered as a default test.
-export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody,lifecycleFixture=null,membershipFixture=null,deviceFixture=null}){
+export async function runOwnerBrowser({db,env,writerScope,securityScope,dependencies,out,runtime,bootstrapBody,lifecycleFixture=null,membershipFixture=null,deviceFixture=null,syncFixture=null}){
  const {chromium}=createRequire(runtime)('playwright');
  const root=path.resolve(fileURLToPath(new URL('../../../',import.meta.url)));
  const result={scope:'Disposable Chrome; real isolated HTTP + native D1; normal Studio boot',tests:[],pageErrors:[],missing:[],blockedOrigins:[],productionAccess:false};
@@ -95,6 +95,10 @@ export async function runOwnerBrowser({db,env,writerScope,securityScope,dependen
     return {intent:intent.status,commit:commit.status,id:commit.id,history:history.status,duplicate:duplicate.status};
    },{apiOrigin,f:deviceFixture});
    assert.deepEqual(deletion,{intent:201,commit:202,id:deviceFixture.commit.operationId,history:200,duplicate:409});pass('DELETE CORS body and security lane work while writer stopped; self-delete historical reconcile only');
+  }
+  if(syncFixture){
+   const observation=await page.evaluate(async({apiOrigin,f,id})=>{const r=await fetch(apiOrigin+'/v1/sync/snapshot?appId=port',{headers:{Authorization:'Bearer '+f.credential,'X-Sound-Cruise-Pro-Authorization':'Bearer '+f.pro,'X-Maintenance-Operation-Id':id}});return{status:r.status,id:r.headers.get('X-Maintenance-Operation-Id'),body:await r.json()};},{apiOrigin,f:syncFixture,id:randomUUID()});assert.equal(observation.status,200);assert(observation.id);pass('Sync snapshot real Browser CORS binds App and independent Pro while writer stopped');
+   const stopped=await page.evaluate(async({apiOrigin,f,id})=>{const headers={Authorization:'Bearer '+f.credential,'X-Sound-Cruise-Pro-Authorization':'Bearer '+f.pro,'Content-Type':'application/json','X-Maintenance-Operation-Id':id},body=JSON.stringify(f.pushBody);const a=await fetch(apiOrigin+'/v1/sync/push',{method:'POST',headers,body}),b=await fetch(apiOrigin+'/__reconcile/v1/sync/push',{method:'POST',headers,body}),c=await fetch(apiOrigin+'/v1/sync/push',{method:'POST',headers,body});return{status:a.status,history:b.status,duplicate:c.status};},{apiOrigin,f:syncFixture,id:randomUUID()});assert.deepEqual(stopped,{status:423,history:200,duplicate:409});pass('Sync writer stop and explicit historical reconcile never replay data save');
   }
   const studio=await context.newPage();
   await studio.addInitScript(()=>{

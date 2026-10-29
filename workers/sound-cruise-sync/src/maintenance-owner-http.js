@@ -1,8 +1,11 @@
+import { createIsolatedWriterPolicy } from './writer-fence.js';
+import { syncReadOnlySql } from './maintenance-sync-owner.js';
+import { handleRequest as handleSyncRequest } from './app.js';
 import { createIsolatedMaintenanceBridgeV2, maintenanceCanonical, maintenanceDigest } from './maintenance-bridge-v2.js';
 import { maintenanceOwnerRoute, ownerContext, ownerFingerprint, transactionProfile, bridgeOwner } from './maintenance-owner-profiles.js';
 import { handleAccountApiRequest, isValidAccountOwnerBookmark } from './account-app.js';
 import { handleProAuthRequest } from './pro-auth-app.js';
-import { readBodyWithLimit } from './validation.js';
+import { MAX_PUSH_BODY_BYTES, readBodyWithLimit } from './validation.js';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OP='X-Maintenance-Operation-Id';
@@ -18,7 +21,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
  if(!db?.prepare||!db?.batch||!writerScope||!securityScope||writerScope===securityScope)throw Error('owner_http_dependencies_missing');
  const deps=Object.fromEntries(['verifyTurnstileToken','verifyProTurnstile','now','cryptoImpl'].filter(k=>dependencies[k]!==undefined).map(k=>[k,dependencies[k]]));
  const stat=async(scope,session)=>{const c=await session.prepare('SELECT epoch,phase FROM sync_maintenance_v2_control WHERE scope=?').bind(scope).first();if(!c||!Number.isSafeInteger(c.epoch))throw Error('maintenance_control_unknown');return c;};
- function native(ctx){return ctx.route.owner==='account'?handleAccountApiRequest:handleProAuthRequest;}
+ function native(ctx){return ctx.route.owner==='sync'?handleSyncRequest:ctx.route.owner==='account'?handleAccountApiRequest:handleProAuthRequest;}
  async function prepare(request){
   const url=new URL(request.url),route=maintenanceOwnerRoute(url.pathname,request.method==='OPTIONS'?request.headers.get('Access-Control-Request-Method'):request.method);
   if(!route)return {response:error(503,'owner_route_unconnected_hold')};
@@ -28,7 +31,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
    const h=new Headers(request.headers);const list=(h.get('Access-Control-Request-Headers')||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
    h.set('Access-Control-Request-Headers',list.filter(x=>x!==OP.toLowerCase()).join(','));
    const clean=new Request(request.url,{method:'OPTIONS',headers:h});
-   const response=await (route.owner==='account'?handleAccountApiRequest:handleProAuthRequest)(clean,env,null,deps);
+   const response=await (route.owner==='sync'?handleSyncRequest:route.owner==='account'?handleAccountApiRequest:handleProAuthRequest)(clean,env,null,deps);
    if(response.status===204){const headers=new Headers(response.headers);headers.set('Access-Control-Allow-Headers',(headers.get('Access-Control-Allow-Headers')||'')+', '+OP);return {response:new Response(null,{status:204,headers})};}
    return {response};
   }
@@ -39,7 +42,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   let body=null,text='';
   if(['POST','DELETE'].includes(route.method)){
    if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('Content-Type')||''))return {response:error(415,'invalid_content_type',id)};
-   const read=await readBodyWithLimit(request,route.owner==='account'?16384:4096);if(!read.ok)return {response:error(read.tooLarge?413:400,'invalid_input',id)};
+   const read=await readBodyWithLimit(request,route.owner==='sync'?MAX_PUSH_BODY_BYTES:route.owner==='account'?16384:4096);if(!read.ok)return {response:error(read.tooLarge?413:400,'invalid_input',id)};
    text=read.text;try{body=JSON.parse(text);}catch{return {response:error(400,'invalid_json',id)};}
    if(!body||typeof body!=='object'||Array.isArray(body))return {response:error(400,'invalid_input',id)};
    if(body.operationId!==undefined&&body.operationId!==id)return {response:error(409,'operation_id_mismatch',id)};
@@ -48,8 +51,8 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   if(!ip||!env.SYNC_RATE_LIMITER?.limit)return {response:error(503,'maintenance_rate_limiter_unavailable',id)};
   let limited;try{limited=await env.SYNC_RATE_LIMITER.limit({key:'maintenance:'+route.owner+':'+ip});}catch{return {response:error(503,'maintenance_rate_limiter_unavailable',id)};}
   if(limited?.success!==true)return {response:error(429,'rate_limited',id)};
-  const bookmark=route.owner==='account'?request.headers.get('X-D1-Bookmark'):null;
-  if(route.owner==='account'&&!isValidAccountOwnerBookmark(bookmark))return {response:error(400,'invalid_bookmark',id)};
+  const bookmark=['account','sync'].includes(route.owner)?request.headers.get('X-D1-Bookmark'):null;
+  if(['account','sync'].includes(route.owner)&&!isValidAccountOwnerBookmark(bookmark))return {response:error(400,'invalid_bookmark',id)};
   const session=typeof db.withSession==='function'?db.withSession(bookmark||'first-primary'):db;
   const rebuilt=new Request(request.url,{method:request.method,headers:request.headers,...(['POST','DELETE'].includes(route.method)?{body:text}:{})});
   const ctx=await ownerContext({request:rebuilt,body,route,operationId:id,env,db:session,dependencies:deps});
@@ -98,16 +101,24 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
    ctx.steps.push({id,status:'unknown',type:plan.summary.type});
    try{
     const out=await core.execute(req,{outcome:plan.outcome,receiptDetails:{...plan.summary,classification:'owner-transaction-proven'},
-     run:d=>d.batch(items.map(s=>d.prepare(s.sql).bind(...s.values)))});
+     run:async d=>{
+      const indexes=[],statements=[];
+      for(const [index,s]of items.entries()){indexes.push(statements.length);statements.push(d.prepare(s.sql).bind(...s.values));
+       if(plan.requiredChanges?.includes(index))statements.push(d.prepare("SELECT CASE WHEN changes()=1 THEN 1 ELSE json_extract('maintenance-required-row-change','$.invalid') END AS required_change"));
+      }
+      const results=await d.batch(statements);return indexes.map(i=>results[i]);
+     }});
     ctx.steps[ctx.steps.length-1].status=out.status;
     if(plan.label==='port-membership-ensure'&&!ctx.membership)ctx.membership=await ctx.db.prepare("SELECT id,state,generation,sync_user_id FROM sync_account_memberships WHERE account_id=? AND app_id='port'").bind(ctx.account.accountId).first();
+    if(plan.selfRevocation){ctx.proof[5]=plan.selfRevocation;ctx.selfRevoked=true;}
+    if(ctx.route.owner==='sync')ctx.dataset=await ctx.db.prepare('SELECT state,schema_version FROM sync_datasets WHERE user_id=? AND app_id=?').bind(ctx.userId,ctx.appId).first();
     return out.value;
    }catch(e){ctx.uncertain=true;throw Error('owner_transaction_unknown');}
   }
   const schedule=items=>{const running=queue.then(()=>{if(ctx.uncertain)throw Error('prior_result_unknown');return transact(items);});queue=running.catch(()=>{});return running;};
   function prepare(sql,values=[]){
    if(typeof sql!=='string'||sql.includes(';')||/sync_maintenance_v2_|maintenance_v2_/i.test(sql))throw Error('owner_sql_hold');
-   const read=readonly(sql);
+   const read=readonly(sql)||(ctx.route.owner==='sync'&&syncReadOnlySql(sql));
    if(!read&&!/^\s*(INSERT|UPDATE|DELETE|WITH)\b/i.test(sql))throw Error('owner_sql_hold');
    const spec={sql,values},wrapped=Object.freeze({
     bind(...v){return prepare(sql,v);},
@@ -117,7 +128,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
    });specs.set(wrapped,spec);return wrapped;
   }
   const bound=Object.freeze({prepare,batch(items){if(!Array.isArray(items)||items.some(x=>!specs.has(x)))throw Error('foreign_statement_hold');return schedule(items.map(x=>specs.get(x)));},
-   withSession(bookmark){if(bookmark!==ctx.ownerBookmark)throw Error('session_bookmark_hold');return bound;},getBookmark(){return typeof ctx.db.getBookmark==='function'?ctx.db.getBookmark():null;},exec(){throw Error('raw_exec_hold');}});
+   withSession(bookmark){if(bookmark!==ctx.ownerBookmark&&!(ctx.route.owner==='sync'&&bookmark==='first-primary'))throw Error('session_bookmark_hold');return bound;},getBookmark(){return typeof ctx.db.getBookmark==='function'?ctx.db.getBookmark():null;},exec(){throw Error('raw_exec_hold');}});
   return bound;
  }
  async function finish(ctx,response){
@@ -152,7 +163,8 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
    if(await previous(ctx))return error(409,'owner_reconcile_required',ctx.operationId);
    const reservation=await reserve(ctx);if(reservation.status!=='reserved')return error(409,'owner_reconcile_required',ctx.operationId);
    const ownedEnv={...env,SYNC_DB:binding(ctx)};
-   const response=await native(ctx)(ctx.nativeRequest,ownedEnv,null,deps);
+   const nativeDeps=ctx.route.owner==='sync'?{...deps,writerPolicy:createIsolatedWriterPolicy(ctx.proof[8])}:deps;
+   const response=await native(ctx)(ctx.nativeRequest,ownedEnv,null,nativeDeps);
    return await finish(ctx,response);
   }catch{return error(503,'owner_profile_hold',ctx?.operationId);}
  }
