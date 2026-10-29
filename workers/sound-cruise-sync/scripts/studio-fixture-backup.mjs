@@ -1,3 +1,4 @@
+import {maintenanceCanonical} from '../src/maintenance-bridge-v2.js';
 // Synthetic fixture tool only. No remote API, credentials discovery, or SQL export.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,6 +27,10 @@ export function validateFixtureSnapshot(s){
  if(parts.length!==m.chunks.length||parts.some((c,i)=>c.ordinal!==i||c.bytes!==Buffer.byteLength(c.data)||hash(c.data)!==c.digest||c.digest!==m.chunks[i].digest||c.bytes!==m.chunks[i].bytes)||hash(parts.map(c=>c.data).join(''))!==m.digest)fail('backup-head-chunk-missing');
  const rr=JSON.parse(r.receipt_json);if(rr.operationId!==h.last_operation_id||rr.revision!==h.revision)fail('backup-receipt-mismatch');
  }
+ if(by.has('studio_document_evidence_state')){const states=new Set(by.get('studio_document_evidence_state').map(x=>x.account_id));for(const [name,rows]of by)if(name.startsWith('studio_document_')&&!['studio_document_activation','studio_document_activation_log','studio_document_rate'].includes(name))for(const row of rows){const account=row.account_id??row.user_id;if(account&&!states.has(account))fail('backup-epoch-missing');}}
+ for(const state of by.get('studio_document_evidence_state')||[]){if(!Number.isSafeInteger(state.epoch)||state.epoch<1||state.epoch>4294967295||!Number.isSafeInteger(state.revision)||state.revision<0||state.compacting!==0)fail('backup-epoch-invalid');if(state.epoch>1&&!state.checkpoint_json)fail('backup-checkpoint-missing');if(state.checkpoint_json){const c=JSON.parse(state.checkpoint_json);if(c.type!=='studio-epoch-checkpoint-v1'||c.accountId!==state.account_id||c.epoch!==state.epoch||c.previousEpoch+1!==c.epoch)fail('backup-checkpoint-invalid');}}
+ let previous='0'.repeat(64),revision=0;const logs=[...(by.get('studio_document_activation_log')||[])].sort((a,b)=>a.revision-b.revision);for(const r of logs){const record=JSON.parse(r.record_json);if(r.revision!==++revision||r.previous_hash!==previous||record.previousHash!==previous||record.revision!==r.revision||record.operationId!==r.operation_id||hash(r.record_json)!==r.record_hash)fail('backup-activation-history');previous=r.record_hash;}
+ const activation=by.get('studio_document_activation')||[];if(activation.length){const a=activation[0],r=logs.at(-1);if(activation.length!==1||!r||a.revision!==r.revision||a.record_hash!==r.record_hash||a.targets_json!==maintenanceCanonical(JSON.parse(r.record_json).targets)||a.mode!==JSON.parse(r.record_json).mode)fail('backup-activation-current');}
  return hash(s);
 }
 export async function encryptFixtureBackup({db,bucket,directory,syntheticFixture=false}){
@@ -54,7 +59,7 @@ export async function restoreFixtureBackup({db,bucket,manifestPath,ciphertext,ke
  for(const t of s.tables)for(const row of t.rows){const keys=Object.keys(row);ss.push(db.prepare('INSERT INTO '+quote(t.name)+'('+keys.map(quote).join(',')+') VALUES('+keys.map(()=>'?').join(',')+')').bind(...keys.map(k=>row[k])));}
  ss.push(db.prepare('DELETE FROM sqlite_sequence'));for(const r of s.sequence)ss.push(db.prepare('INSERT INTO sqlite_sequence(name,seq) VALUES(?,?)').bind(r.name,r.seq));
  ss.push(...s.schema.filter(x=>x.type!=='table').map(x=>db.prepare(x.sql)));
- ss.push(db.prepare("SELECT CASE WHEN (SELECT count(*) FROM pragma_foreign_key_check)=0 THEN 1 ELSE json_extract('restore_fk','$.abort') END"));await db.batch(ss);
+ ss.push(db.prepare("SELECT CASE WHEN (SELECT count(*) FROM pragma_foreign_key_check)=0 THEN 1 ELSE json_extract('restore_fk','$.abort') END"));await db.batch(ss);if(s.tables.some(t=>t.name==='studio_document_schema_marker'))await (await import('../src/studio-release-schema.js')).inspectStudioRelease(db);
  // D1 and R2 are not atomic. If R2 application/readback fails this target is
  // PARTIAL/UNKNOWN and cannot be reused by an automatic retry.
  try{for(const o of s.objects)await bucket.put(o.key,Buffer.from(o.bytes,'base64'),{httpMetadata:{...o.httpMetadata,...(o.httpMetadata?.cacheExpiry?{cacheExpiry:new Date(o.httpMetadata.cacheExpiry)}:{})},customMetadata:o.customMetadata});const after=await fixtureSnapshot({db,bucket,syntheticFixture});if(hash(after)!==m.plainHash)fail('restore-readback-mismatch');return {type:'studio-synthetic-restore-v1',state:'RESTORED',plainHash:m.plainHash,productionAcceptance:false};}catch(e){throw Object.assign(Error('restore-partial-unknown'),{cause:e});}

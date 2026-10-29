@@ -3,9 +3,10 @@ import {studioCanonical as canonical,studioDigest as digest,studioDocumentUpload
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const clone=x=>JSON.parse(JSON.stringify(x));
+const operationIdFor=b=>{const id=crypto.randomUUID();return b.operationEpoch===undefined?id:b.operationEpoch.toString(16).padStart(8,'0')+id.slice(8);};
 const terminal=new Set(['SYNCED','LOCAL_CHANGED','CONFLICT','REMOTE_ADVANCED','HISTORICAL_RECEIPT','ADOPTED']);
 const BINDING=['audience','accountId','deviceId','generation','recoveryVersion','credentialVersion','proId','proGeneration','epoch'];
-function validBinding(b){return b&&Object.keys(b).sort().join('|')===BINDING.slice().sort().join('|')&&b.audience==='studio-document-v1'&&['accountId','deviceId','proId'].every(k=>UUID.test(b[k]))&&['generation','recoveryVersion','credentialVersion','proGeneration','epoch'].every(k=>Number.isSafeInteger(b[k])&&b[k]>0);}
+function validBinding(b){return b&&Object.keys(b).sort().join('|')===[...BINDING,...(b.operationEpoch!==undefined?['operationEpoch']:[])].sort().join('|')&& (b.operationEpoch===undefined||Number.isSafeInteger(b.operationEpoch)&&b.operationEpoch>0&&b.operationEpoch<=4294967295)&&b.audience==='studio-document-v1'&&['accountId','deviceId','proId'].every(k=>UUID.test(b[k]))&&['generation','recoveryVersion','credentialVersion','proGeneration','epoch'].every(k=>Number.isSafeInteger(b[k])&&b[k]>0);}
 async function material(project){const p=clone(project);delete p.updatedAt;delete p.appVersion;return digest(canonical(p));}
 
 // Integrity seals detect corruption; they are not signatures against a same-origin privileged attacker.
@@ -61,7 +62,7 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
  async function enqueue(documentId,{deleted=false}={}){const c=session();return lock(documentId,async()=>{
   assertCurrent(c);await bindAffinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(l?.intent)fail('local-apply-unknown');if(l?.deleted)fail('document-deleted');
   if(l?.active){const prior=await op(c,l.active);if(!terminal.has(prior.state))fail('operation-unresolved');}
-  const here=local(documentId);if(!here.exists)fail('local-missing');validate(here.snapshot,documentId);const operationId=crypto.randomUUID(),cloudRevision=l?.cloudRevision??0;
+  const here=local(documentId);if(!here.exists)fail('local-missing');validate(here.snapshot,documentId);const operationId=operationIdFor(c.binding),cloudRevision=l?.cloudRevision??0;
   const u=deleted?{request:{operationId,documentId,expectedRevision:cloudRevision,manifest:{digest:await digest(''),bytes:0,chunks:[],deleted:true}},parts:[]}:await studioDocumentUpload(here.snapshot,cloudRevision,operationId);
   assertCurrent(c);const o=await box.write(opKey(operationId),{operationId,documentId,binding:c.binding,sessionId:c.sessionId,localRevision:here.revision,localDigest:await digest(here.revision),request:u.request,requestDigest:await digest(canonical({binding:c.binding,...u.request})),parts:u.parts,nextChunk:0,phase:'queued',state:'QUEUED',receipt:null},0);
   // If the next write fails, the sealed operation still exists, but is not sent. Explicit recoverIndex can attach it.
@@ -90,6 +91,7 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   let o=await op(c,operationId);assertCurrent(c);try{
    const r=await call(c,'reconcile',{operationId,requestDigest:o.requestDigest});
    if(r.status==='absent'){if(r.requestDigest!==o.requestDigest||r.operationId!==o.operationId||r.accountId!==c.binding.accountId||!['enroll','begin','queued'].includes(o.phase)||canonical(o.binding)!==canonical(c.binding)||o.sessionId!==c.sessionId)fail('missing-pending-unknown');return update(o,{state:'QUEUED',phase:'queued'});}
+   if(r.status==='history-retired'){if(r.operationId!==o.operationId||r.authorizesNewOperation!==false)fail('retired-mismatch');return update(o,{state:'HISTORY_RETIRED',previousOutcome:'UNPROVEN',localPreserved:true});}
    if(r.status==='pending-recovery-required')return update(o,{state:'PENDING_RECOVERY'});
    if(r.status==='pending')return update(o,{nextChunk:0,state:canonical(o.binding)===canonical(c.binding)&&o.sessionId===c.sessionId?'UPLOADING':'PENDING_RECOVERY'});
    receipt(o,r);o=await update(o,{state:'RECEIPTED',receipt:r});return await linkAfterCommit(c,o,r);
@@ -98,7 +100,7 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
 
  async function adoptOperation(sourceId,{proofOperationId=null}={}){const c=session(),first=await op(c,sourceId);return lock(first.documentId,async()=>{
   let old=await op(c,sourceId);assertCurrent(c);await affinity(c,old.documentId);const link=await box.read(linkKey(c,old.documentId));if(link?.intent||link?.active&&link.active!==sourceId&&link.active!==old.adoptionRequest?.operationId&&!terminal.has((await op(c,link.active)).state))fail('adoption-active-conflict');
-  const input=old.adoptionRequest||{operationId:crypto.randomUUID(),sourceOperationId:sourceId,sourceDigest:old.requestDigest,documentId:old.documentId,proofOperationId};
+  const input=old.adoptionRequest||{operationId:operationIdFor(c.binding),sourceOperationId:sourceId,sourceDigest:old.requestDigest,documentId:old.documentId,proofOperationId};
   if(old.adoptionBinding&&canonical(old.adoptionBinding)!==canonical(c.binding))fail('adoption-generation-changed');if(input.proofOperationId!==proofOperationId)fail('adoption-proof-changed');
   old=await update(old,{state:'ADOPTION_UNKNOWN',adoptionRequest:input,adoptionBinding:c.binding});
   try{
@@ -135,6 +137,8 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   await box.write(linkKey(c,documentId),{accountId:c.binding.accountId,documentId,cloudRevision:head.revision,cloudDigest:l.intent.cloudDigest,lastLocalRevision:here.revision,deleted:false,intent:null},l.version);return{state:'LOCAL_RECONCILED'};
  });}
  async function preserveLocal(documentId,expectedLocalRevision){const c=session();return lock(documentId,async()=>{await affinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(!l?.intent)fail('no-local-intent');if(local(documentId).revision!==expectedLocalRevision)fail('local-conflict');await call(c,'snapshot',{documentId});assertCurrent(c);await box.write(linkKey(c,documentId),{...l,intent:null,lastLocalFailure:'explicit-local-conflict-preserved'},l.version);return{state:'LOCAL_CONFLICT_PRESERVED'};});}
+ // Explicit local-only escape from an obsolete epoch. Does not declare the old save failed.
+ async function retainRetiredDraft(operationId,{confirm=false}={}){if(confirm!==true)fail('retired-confirmation-required');const c=session(),first=await op(c,operationId);return lock(first.documentId,async()=>{const o=await op(c,operationId),r=await call(c,'reconcile',{operationId,requestDigest:o.requestDigest});if(r.status!=='history-retired'||r.operationId!==operationId||r.authorizesNewOperation!==false||!Number.isSafeInteger(o.binding.operationEpoch)||c.binding.operationEpoch<=o.binding.operationEpoch)fail('history-not-retired');const l=await box.read(linkKey(c,o.documentId));if(l?.intent||l?.active!==operationId)fail('retired-link-conflict');assertCurrent(c);await update(o,{state:'ARCHIVED_UNKNOWN',previousOutcome:'UNPROVEN',localPreserved:true});await box.write(linkKey(c,o.documentId),{...l,active:null},l.version);return{state:'LOCAL_RETAINED',previousOutcome:'UNPROVEN',cloudRevisionUnchanged:true};});}
  async function recoverIndex(operationId){const c=session(),o=await op(c,operationId);return lock(o.documentId,async()=>{assertCurrent(c);await affinity(c,o.documentId);const l=await box.read(linkKey(c,o.documentId));if(l?.active&&l.active!==operationId&&!terminal.has((await op(c,l.active)).state))fail('operation-index-conflict');if(l?.intent)fail('local-apply-unknown');if(canonical(o.binding)!==canonical(c.binding))fail('pending-recovery-required');await box.write(linkKey(c,o.documentId),{...(l||{}),accountId:c.binding.accountId,documentId:o.documentId,cloudRevision:l?.cloudRevision??o.request.expectedRevision,active:operationId},l?.version??0);return{state:'INDEX_RECONCILED'};});}
- return Object.freeze({enqueue,send,reconcile,adoptOperation,recoverAdoption,observe,applyRemote,recoverLocal,preserveLocal,recoverIndex,async inspect(operationId){const c=session();const o=await op(c,operationId);assertCurrent(c);return clone(o);},async list(documentId){const c=session(),items=[];for(const k of await box.keys()){if(k.startsWith('op:')){const o=await box.read(k);if(o.binding?.accountId===c.binding.accountId&&(!documentId||o.documentId===documentId)){await verify(o);items.push(clone(o));}}}assertCurrent(c);return items;},async dispose(){disposed=true;await box.close();}});
+ return Object.freeze({retainRetiredDraft,enqueue,send,reconcile,adoptOperation,recoverAdoption,observe,applyRemote,recoverLocal,preserveLocal,recoverIndex,async inspect(operationId){const c=session();const o=await op(c,operationId);assertCurrent(c);return clone(o);},async list(documentId){const c=session(),items=[];for(const k of await box.keys()){if(k.startsWith('op:')){const o=await box.read(k);if(o.binding?.accountId===c.binding.accountId&&(!documentId||o.documentId===documentId)){await verify(o);items.push(clone(o));}}}assertCurrent(c);return items;},async dispose(){disposed=true;await box.close();}});
 }

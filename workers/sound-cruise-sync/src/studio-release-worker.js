@@ -19,3 +19,13 @@ export function createStudioReleaseWorker({legacy,capability=null}){
  async scheduled(event,env,ctx){const gate=await studioScheduledDatabase(env.SYNC_DB);if(!gate.allowed)return gate;return legacy.scheduled(event,{...env,SYNC_DB:gate.db},ctx);}
  });
 }
+
+// Explicit future deployment integration. Server configuration must be reviewed separately.
+// D1 activation and final SQL authorization are mandatory even when this factory is enabled.
+export function createStudioActivatedWorker({legacy,configuration=null}){
+ if(!configuration||configuration.routeEnabled!==true)return createStudioReleaseWorker({legacy});
+ if(!configuration.evidencePolicy||!configuration.limits||!configuration.rate||!configuration.retentionPolicy)throw Error('activation-operating-policy-required');
+ const owner=createIsolatedStudioDocumentOwner({...configuration,enabled:true,release:true,serverActivation:true});
+ const off=createStudioReleaseWorker({legacy});
+ return Object.freeze({async fetch(request,env,ctx){const u=new URL(request.url);if(u.pathname==='/v2/studio/document'||u.pathname==='/isolated/studio/document'){u.pathname='/isolated/studio/document';return owner.fetch(new Request(u,request));}return off.fetch(request,env,ctx);},scheduled:off.scheduled});
+}

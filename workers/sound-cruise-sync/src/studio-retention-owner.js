@@ -8,16 +8,8 @@ export function retentionPolicy(input){
  return Object.freeze({...input});
 }
 // Metadata observation, not a deletion capability. All values are account scoped.
-const scopeSQL=`SELECT json_array(
- (SELECT json_group_array(json_array(operation_id,request_digest,manifest_json,binding_json)) FROM (SELECT * FROM studio_document_pending WHERE account_id=?1 ORDER BY operation_id)),
- (SELECT json_group_array(json_array(operation_id,ordinal,digest,bytes)) FROM (SELECT * FROM studio_document_chunks WHERE account_id=?1 ORDER BY operation_id,ordinal)),
- (SELECT json_group_array(json_array(record_id,last_operation_id,revision,payload_hash,deleted_at)) FROM (SELECT * FROM studio_document_records WHERE user_id=?1 ORDER BY record_id)),
- (SELECT json_group_array(json_array(operation_id,binding_json,receipt_json)) FROM (SELECT * FROM studio_document_receipts WHERE account_id=?1 ORDER BY operation_id)),
- (SELECT json_group_array(json_array(operation_id,source_operation_id,source_digest,request_digest,binding_json,receipt_json)) FROM (SELECT * FROM studio_document_owner_events WHERE account_id=?1 ORDER BY operation_id)),
- (SELECT json_group_array(json_array(operation_id,request_digest,state,receipt_json)) FROM (SELECT * FROM studio_document_resolutions WHERE account_id=?1 ORDER BY operation_id)),
- (SELECT json_group_array(json_array(device_id,generation,revoked)) FROM (SELECT * FROM studio_document_enrollments WHERE account_id=?1 ORDER BY device_id))
-) encoded`;
-export function createStudioRetentionOwner({db,release,policy:input,authorize,read,pending,receipt,eventReceipt,recoveryProof,proofStatements,canonical,digest,fail}){
+const scopeSQL="SELECT json_array(COALESCE((SELECT epoch FROM studio_document_evidence_state WHERE account_id=?1),1),COALESCE((SELECT revision FROM studio_document_evidence_state WHERE account_id=?1),0)) encoded";
+export function createStudioRetentionOwner({db,release,policy:input,authorize,read,pending,receipt,eventReceipt,recoveryProof,proofStatements,canonical,digest,fail,operation=()=>{}}){
  const policy=retentionPolicy(input);
  const required=()=>{if(!release)fail('release-required');};
  async function observation(c){return(await read(c,scopeSQL,c.binding.accountId))[0].encoded;}
@@ -44,27 +36,36 @@ export function createStudioRetentionOwner({db,release,policy:input,authorize,re
  async function prior(c,operationId,rd){const r=(await read(c,'SELECT * FROM studio_document_maintenance_receipts WHERE account_id=? AND operation_id=?',c.binding.accountId,operationId))[0];if(!r)return null;if(r.digest!==rd)fail('maintenance-operation-reused');return{...JSON.parse(r.result_json),historical:true,authorizesNewOperation:false};}
  function audit(c,id,rd,result){return c.guarded.prepare('INSERT INTO studio_document_maintenance_receipts VALUES(?,?,?,?)').bind(c.binding.accountId,id,rd,canonical(result));}
  async function collect(headers,input){required();if(!policy)fail('retention-policy-unapproved');if(!exact(input,['operationId','targetOperationId','planDigest'])||!uuid.test(input.operationId)||!uuid.test(input.targetOperationId))fail('collect-request');
-  const c=await authorize(headers,{securityDelete:true}),rd=await digest(canonical({kind:'collect',input,account:c.binding.accountId,policy})),old=await prior(c,input.operationId,rd);if(old)return old;
+  const c=await authorize(headers,{securityDelete:true});if(c.activationMode==='canary')fail('canary-account-maintenance-hold');operation(c,input.operationId);const rd=await digest(canonical({kind:'collect',input,account:c.binding.accountId,policy})),old=await prior(c,input.operationId,rd);if(old)return old;
   const x=await inspect(c,input.targetOperationId);if(x.view.state!=='COLLECTIBLE'||x.view.planDigest!==input.planDigest)fail('retention-plan-stale-or-hold');
   const result={type:'studio-collection-v2',accountId:c.binding.accountId,operationId:input.operationId,targetOperationId:input.targetOperationId,requestDigest:x.p.request_digest,removedBytes:x.view.bytes,policyDigest:x.view.policyDigest,scopeDigest:x.view.scopeDigest};
   await c.guarded.batch([pinned(c,x.encoded),c.guarded.prepare('INSERT INTO studio_document_resolutions VALUES(?,?,?,?,?)').bind(c.binding.accountId,x.p.operation_id,x.p.request_digest,'collected',canonical(result)),c.guarded.prepare('DELETE FROM studio_document_chunks WHERE account_id=? AND operation_id=?').bind(c.binding.accountId,x.p.operation_id),audit(c,input.operationId,rd,result)]);
   return{...result,historical:false,authorizesNewOperation:false};
  }
  async function discard(headers,input){required();if(!policy)fail('retention-policy-unapproved');if(!exact(input,['operationId','targetOperationId','requestDigest','proofOperationId'])||!uuid.test(input.operationId)||!uuid.test(input.targetOperationId))fail('discard-request');
-  const c=await authorize(headers,{securityDelete:true}),rd=await digest(canonical({kind:'discard',input,account:c.binding.accountId,policy})),old=await prior(c,input.operationId,rd);if(old)return old;
+  const c=await authorize(headers,{securityDelete:true});if(c.activationMode==='canary')fail('canary-account-maintenance-hold');operation(c,input.operationId);const rd=await digest(canonical({kind:'discard',input,account:c.binding.accountId,policy})),old=await prior(c,input.operationId,rd);if(old)return old;
   const x=await inspect(c,input.targetOperationId);if(x.head?.last_operation_id===x.p.operation_id||x.p.request_digest!==input.requestDigest||x.terminal||await receipt(c,x.p))fail('discard-not-uncommitted');
   if((await read(c,'SELECT operation_id FROM studio_document_owner_events WHERE account_id=? AND (source_operation_id=? OR operation_id=?)',c.binding.accountId,x.p.operation_id,x.p.operation_id)).length)fail('discard-adoption-dependency');
   const b=JSON.parse(x.p.binding_json),same=['accountId','deviceId','generation','recoveryVersion','credentialVersion'].every(k=>b[k]===c.binding[k]);const proof=same&&input.proofOperationId===null?null:await recoveryProof(c,input.proofOperationId);
   const result={type:'studio-discard-v2',accountId:c.binding.accountId,operationId:input.operationId,targetOperationId:x.p.operation_id,requestDigest:x.p.request_digest,proofOperationId:proof?.operation_id??null,removedBytes:x.view.bytes};
   await c.guarded.batch([...(proof?proofStatements(c,proof):[]),pinned(c,x.encoded),c.guarded.prepare('INSERT INTO studio_document_resolutions VALUES(?,?,?,?,?)').bind(c.binding.accountId,x.p.operation_id,x.p.request_digest,'discarded',canonical(result)),c.guarded.prepare('DELETE FROM studio_document_chunks WHERE account_id=? AND operation_id=?').bind(c.binding.accountId,x.p.operation_id),audit(c,input.operationId,rd,result)]);return{...result,historical:false,authorizesNewOperation:false};
  }
- async function requestAccountErase(headers,input){required();if(!policy)fail('retention-policy-unapproved');if(!exact(input,['operationId','confirmAccountId'])||!uuid.test(input.operationId))fail('erase-request');const c=await authorize(headers,{securityDelete:true});if(input.confirmAccountId!==c.binding.accountId)fail('erase-account-mismatch');
+ async function requestAccountErase(headers,input){required();if(!policy)fail('retention-policy-unapproved');if(!exact(input,['operationId','confirmAccountId'])||!uuid.test(input.operationId))fail('erase-request');const c=await authorize(headers,{securityDelete:true});if(c.activationMode==='canary')fail('canary-account-maintenance-hold');operation(c,input.operationId);if(input.confirmAccountId!==c.binding.accountId)fail('erase-account-mismatch');
+  if((await read(c,'SELECT operation_id FROM studio_document_maintenance_receipts WHERE account_id=? AND operation_id=?',c.binding.accountId,input.operationId)).length)fail('erase-intent-terminal');
   const existing=(await read(c,'SELECT * FROM studio_document_erase_intents WHERE account_id=? AND operation_id=?',c.binding.accountId,input.operationId))[0];if(existing)return{type:'studio-erase-request-v2',operationId:input.operationId,scopeDigest:existing.scope_digest,expiresAt:existing.expires_at,historical:true};
-  const encoded=await observation(c),scopeDigest=await digest(encoded),pd=await digest(canonical(policy)),expires=Date.now()+policy.intentLifetimeMs;
-  await c.guarded.batch([pinned(c,encoded),c.guarded.prepare('INSERT INTO studio_document_erase_intents VALUES(?,?,?,?,?,?,?)').bind(c.binding.accountId,input.operationId,canonical(c.binding),encoded,scopeDigest,pd,expires)]);
+  const observed=await observation(c),next=JSON.parse(observed);next[1]++;const encoded=JSON.stringify(next),scopeDigest=await digest(encoded),pd=await digest(canonical(policy)),expires=Date.now()+policy.intentLifetimeMs;
+  await c.guarded.batch([pinned(c,observed),c.guarded.prepare('INSERT INTO studio_document_erase_intents VALUES(?,?,?,?,?,?,?)').bind(c.binding.accountId,input.operationId,canonical(c.binding),encoded,scopeDigest,pd,expires)]);
   return{type:'studio-erase-request-v2',operationId:input.operationId,scopeDigest,expiresAt:expires,historical:false,requiresNativeAccountDeletion:true};
  }
- return Object.freeze({plan,collect,discard,requestAccountErase});
+ async function cancelAccountErase(headers,input){required();if(!exact(input,['operationId','confirmAccountId'])||!uuid.test(input.operationId))fail('erase-cancel-request');const c=await authorize(headers,{securityDelete:true});if(c.activationMode==='canary')fail('canary-account-maintenance-hold');if(input.confirmAccountId!==c.binding.accountId)fail('erase-account-mismatch');operation(c,input.operationId);
+  const rd=await digest(canonical({kind:'cancel-erase',accountId:c.binding.accountId,operationId:input.operationId})),old=await prior(c,input.operationId,rd);if(old)return old;
+  const row=(await read(c,'SELECT * FROM studio_document_erase_intents WHERE account_id=? AND operation_id=?',c.binding.accountId,input.operationId))[0];if(!row)fail('erase-intent-missing');
+  const result={type:'studio-erase-cancelled-v1',accountId:c.binding.accountId,operationId:input.operationId,expired:row.expires_at<=Date.now(),payloadDeleted:false,authorizesNewOperation:false};
+  await c.guarded.batch([c.guarded.prepare('UPDATE studio_document_evidence_state SET compacting=1 WHERE account_id=?').bind(c.binding.accountId),c.guarded.prepare('DELETE FROM studio_document_erase_intents WHERE account_id=? AND operation_id=?').bind(c.binding.accountId,input.operationId),audit(c,input.operationId,rd,result),c.guarded.prepare('UPDATE studio_document_evidence_state SET compacting=0 WHERE account_id=?').bind(c.binding.accountId)]);return result;
+ }
+ async function eraseStatus(headers,input){required();if(!exact(input,['operationId'])||!uuid.test(input.operationId))fail('erase-status-request');const c=await authorize(headers,{securityDelete:true}),r=(await read(c,'SELECT expires_at,scope_digest FROM studio_document_erase_intents WHERE account_id=? AND operation_id=?',c.binding.accountId,input.operationId))[0];if(r)return{status:r.expires_at<=Date.now()?'EXPIRED_HOLD':'AWAITING_NATIVE_ACCOUNT_DELETE',expiresAt:r.expires_at,scopeDigest:r.scope_digest,automaticExtension:false};const old=(await read(c,'SELECT result_json FROM studio_document_maintenance_receipts WHERE account_id=? AND operation_id=?',c.binding.accountId,input.operationId))[0];return{status:old?'CANCELLED':'ABSENT_OR_HISTORY_RETIRED',payloadDeleted:false};}
+ return Object.freeze({plan,collect,discard,requestAccountErase,cancelAccountErase,eraseStatus});
+
 }
 // Internal job only, no HTTP path. Authority is the immutable intent captured while the
 // Account was active, exact unchanged scope, approved injected policy and Account absence.

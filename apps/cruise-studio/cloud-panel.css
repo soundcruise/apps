@@ -1,0 +1,14 @@
+.studio-cloud-panel { border: 1px solid #39372d; border-radius: 14px; padding: 22px; background: #151510; color: #f3f0e8; margin: 24px 0; }
+.studio-cloud-panel h2 { font-size: 1.3rem; margin: 0 0 12px; }
+.studio-cloud-panel p { line-height: 1.6; margin: 6px 0; overflow-wrap: anywhere; }
+.studio-cloud-panel [role="status"] { padding: 12px 14px; border-left: 3px solid #c7b478; background: #232218; margin: 14px 0; }
+.studio-cloud-panel > label { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-size: .9rem; line-height: 1.5; }
+.studio-cloud-panel > label input { margin-top: 4px; accent-color: #d6c17f; flex: none; }
+.studio-cloud-panel select { display: block; width: 100%; max-width: 660px; padding: 10px; color: inherit; background: #24231d; border: 1px solid #625a40; border-radius: 6px; font: inherit; }
+.studio-cloud-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.studio-cloud-actions button { min-height: 44px; padding: 10px 16px; color: #eee5c9; background: #29271e; border: 1px solid #7b6b3f; border-radius: 8px; font: inherit; font-size: .9rem; cursor: pointer; }
+.studio-cloud-actions button:hover:not(:disabled) { background: #3b3524; }
+.studio-cloud-actions button:focus-visible, .studio-cloud-panel select:focus-visible { outline: 2px solid #ecd68f; outline-offset: 3px; }
+.studio-cloud-actions button:disabled { opacity: .45; cursor: not-allowed; border-color: #555145; }
+.studio-cloud-panel [hidden] { display: none; }
+@media (max-width: 600px) { .studio-cloud-panel { padding: 16px; } .studio-cloud-actions button { flex: 1 1 100%; } }
