@@ -804,7 +804,8 @@
       "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
       "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
-      "production_closure": "NOT_PERFORMED"
+      "production_closure": "NOT_PERFORMED",
+      "migration_alternative": "Private existing-repository migration factory; not public HTTP connection. Typed handover/source preservation/legacy device retirement; imported unknown states HOLD."
     },
     {
       "method": "POST",
@@ -820,7 +821,8 @@
       "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
       "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
-      "production_closure": "NOT_PERFORMED"
+      "production_closure": "NOT_PERFORMED",
+      "migration_alternative": "Private existing-repository migration factory; not public HTTP connection. Typed handover/source preservation/legacy device retirement; imported unknown states HOLD."
     },
     {
       "method": "POST",
@@ -836,7 +838,8 @@
       "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
       "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
-      "production_closure": "NOT_PERFORMED"
+      "production_closure": "NOT_PERFORMED",
+      "migration_alternative": "Private existing-repository migration factory; not public HTTP connection. Typed handover/source preservation/legacy device retirement; imported unknown states HOLD."
     },
     {
       "method": "POST",
@@ -852,7 +855,8 @@
       "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
       "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
-      "production_closure": "NOT_PERFORMED"
+      "production_closure": "NOT_PERFORMED",
+      "migration_alternative": "Private existing-repository migration factory; not public HTTP connection. Typed handover/source preservation/legacy device retirement; imported unknown states HOLD."
     },
     {
       "method": "POST",
@@ -868,7 +872,8 @@
       "next_requirement": "Preserve existing clients; actual migration/handover proof before production closure. Exact isolated release refusal is not business connection.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly",
       "release_classification": "B_CANDIDATE_MIGRATION_UNPROVEN",
-      "production_closure": "NOT_PERFORMED"
+      "production_closure": "NOT_PERFORMED",
+      "migration_alternative": "Private existing-repository migration factory; not public HTTP connection. Typed handover/source preservation/legacy device retirement; imported unknown states HOLD."
     },
     {
       "method": "POST",
@@ -1394,5 +1399,6 @@
   "supplemental_http_count": 1,
   "scheduled_partial_isolated": 1,
   "isolated_refused_http_count": 13,
-  "retention_qualification": "Isolated refusal is not migration or production closure; Scheduled2 Account actions plus HOLD observations only."
+  "retention_qualification": "Isolated refusal is not migration or production closure; Scheduled2 Account actions plus HOLD observations only.",
+  "first_handover_qualification": "Isolated typed evidence + encrypted native D1/ledger restore only; production exclusions/provider/key custody/R2 restore not accepted."
 }
