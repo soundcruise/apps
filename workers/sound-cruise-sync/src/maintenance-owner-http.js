@@ -1,3 +1,5 @@
+import { sha256Hex } from './asset-validation.js';
+import { assetBucket, reconcileAssetExternal } from './maintenance-asset-owner.js';
 import { createIsolatedWriterPolicy } from './writer-fence.js';
 import { syncReadOnlySql } from './maintenance-sync-owner.js';
 import { handleRequest as handleSyncRequest } from './app.js';
@@ -17,7 +19,7 @@ async function stepId(root,label){
 const readonly=sql=>/^\s*SELECT\b/i.test(sql)&&!sql.includes(';');
 // Isolated entrypoint factory only. Not imported by normal app/index.
 // Existing handlers retain all HMAC/Turnstile/rate/Origin/body validation and business SQL.
-export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityScope,dependencies={}}){
+export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityScope,dependencies={},assetExternalScopeForAccount=null}){
  if(!db?.prepare||!db?.batch||!writerScope||!securityScope||writerScope===securityScope)throw Error('owner_http_dependencies_missing');
  const deps=Object.fromEntries(['verifyTurnstileToken','verifyProTurnstile','now','cryptoImpl'].filter(k=>dependencies[k]!==undefined).map(k=>[k,dependencies[k]]));
  const stat=async(scope,session)=>{const c=await session.prepare('SELECT epoch,phase FROM sync_maintenance_v2_control WHERE scope=?').bind(scope).first();if(!c||!Number.isSafeInteger(c.epoch))throw Error('maintenance_control_unknown');return c;};
@@ -40,12 +42,19 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   if(request.headers.has('X-Sound-Cruise-QA-Authorization'))return {response:error(503,'qa_owner_profile_hold')};
   const id=request.headers.get(OP);if(!UUID.test(id||''))return {response:error(400,'maintenance_operation_required')};
   let body=null,text='';
+  if(route.asset&&route.method==='PUT'){
+   const length=Number(request.headers.get('Content-Length'));if(!Number.isSafeInteger(length)||length<1||length>6*1024*1024)return {response:error(413,'asset_body_limit',id)};
+   const reader=request.body?.getReader(),parts=[];let size=0;if(!reader)return {response:error(400,'asset_body_missing',id)};
+   while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>length){await reader.cancel();return {response:error(413,'asset_body_limit',id)};}parts.push(r.value);}
+   if(size!==length)return {response:error(400,'asset_size_mismatch',id)};text=new Uint8Array(size);let offset=0;for(const part of parts){text.set(part,offset);offset+=part.length;}
+   body={appId:'port',binaryDigest:await sha256Hex(text),contentType:request.headers.get('Content-Type'),assetOperationId:request.headers.get('X-Sound-Cruise-Operation-Id'),claimedHash:request.headers.get('X-Content-SHA256'),writerProtocol:request.headers.get('X-Sound-Cruise-Writer-Protocol'),syncProtocol:request.headers.get('X-Sound-Cruise-Sync-Protocol'),expectedEpoch:request.headers.get('X-Sound-Cruise-Write-Epoch')};
+  }
   if(['POST','DELETE'].includes(route.method)){
    if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get('Content-Type')||''))return {response:error(415,'invalid_content_type',id)};
    const read=await readBodyWithLimit(request,route.owner==='sync'?MAX_PUSH_BODY_BYTES:route.owner==='account'?16384:4096);if(!read.ok)return {response:error(read.tooLarge?413:400,'invalid_input',id)};
    text=read.text;try{body=JSON.parse(text);}catch{return {response:error(400,'invalid_json',id)};}
    if(!body||typeof body!=='object'||Array.isArray(body))return {response:error(400,'invalid_input',id)};
-   if(body.operationId!==undefined&&body.operationId!==id)return {response:error(409,'operation_id_mismatch',id)};
+   if(!route.asset&&body.operationId!==undefined&&body.operationId!==id)return {response:error(409,'operation_id_mismatch',id)};
   }
   const ip=request.headers.get('CF-Connecting-IP');
   if(!ip||!env.SYNC_RATE_LIMITER?.limit)return {response:error(503,'maintenance_rate_limiter_unavailable',id)};
@@ -54,10 +63,10 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   const bookmark=['account','sync'].includes(route.owner)?request.headers.get('X-D1-Bookmark'):null;
   if(['account','sync'].includes(route.owner)&&!isValidAccountOwnerBookmark(bookmark))return {response:error(400,'invalid_bookmark',id)};
   const session=typeof db.withSession==='function'?db.withSession(bookmark||'first-primary'):db;
-  const rebuilt=new Request(request.url,{method:request.method,headers:request.headers,...(['POST','DELETE'].includes(route.method)?{body:text}:{})});
+  const rebuilt=new Request(request.url,{method:request.method,headers:request.headers,...(['POST','DELETE','PUT'].includes(route.method)?{body:text}:{})});
   const ctx=await ownerContext({request:rebuilt,body,route,operationId:id,env,db:session,dependencies:deps});
   ctx.writer=await stat(writerScope,session);ctx.security=await stat(securityScope,session);
-  ctx.nativeRequest=rebuilt;ctx.ownerBookmark=bookmark||'first-primary';ctx.steps=[];ctx.uncertain=false;ctx.rejected=false;ctx.sequence=new Set();
+  ctx.assetExternalScopeForAccount=assetExternalScopeForAccount;ctx.writerScope=writerScope;ctx.securityScope=securityScope;ctx.nativeRequest=rebuilt;ctx.ownerBookmark=bookmark||'first-primary';ctx.steps=[];ctx.uncertain=false;ctx.rejected=false;ctx.sequence=new Set();
   return {ctx};
  }
  const frame=(ctx,id,label,scope,epoch,action={})=>({kind:'mutation',operationId:id,scope,expectedEpoch:epoch,identity:ctx.actor,action:{purpose:label,path:ctx.path,requestFingerprint:ctx.fingerprint,...action}});
@@ -136,7 +145,7 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   if(ctx.rejected)response=error(423,'maintenance_writer_stopped',ctx.operationId);
   const core=createIsolatedMaintenanceBridgeV2({db:ctx.db,owner:bridgeOwner(ctx)});
   const safe={type:'http-result-recorded-not-an-authorization',httpStatus:response.status,businessSteps:ctx.steps.map(x=>({operationId:x.id,type:x.type}))};
-  const responseRead=await readBodyWithLimit(response.clone(),65536);
+  const responseRead=ctx.route.asset&&ctx.route.method==='GET'&&response.status===200?{ok:true,text:'asset-content-not-retained:'+ctx.fingerprint}:await readBodyWithLimit(response.clone(),65536);
   if(!responseRead.ok)return error(503,'owner_response_readback_hold',ctx.operationId);
   const responseFingerprint=await ownerFingerprint({status:response.status,body:responseRead.text},env,ctx.route);
   const ids=ctx.steps.map(x=>x.id),outcome=ids.length?{sql:'SELECT CASE WHEN COUNT(*)=? THEN 1 ELSE 0 END AS ok FROM sync_maintenance_v2_operations WHERE operation_id IN('+ids.map(()=>'?').join(',')+') AND phase=\'committed\'',params:[ids.length,...ids]}:{sql:'SELECT 1 AS ok',params:[]};
@@ -162,12 +171,13 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   let ctx;try{const p=await prepare(request);if(p.response)return p.response;ctx=p.ctx;
    if(await previous(ctx))return error(409,'owner_reconcile_required',ctx.operationId);
    const reservation=await reserve(ctx);if(reservation.status!=='reserved')return error(409,'owner_reconcile_required',ctx.operationId);
-   const ownedEnv={...env,SYNC_DB:binding(ctx)};
+   const ownedEnv={...env,SYNC_DB:binding(ctx),...(ctx.route.asset?{SYNC_ASSETS:assetBucket(ctx)}:{})};
    const nativeDeps=ctx.route.owner==='sync'?{...deps,writerPolicy:createIsolatedWriterPolicy(ctx.proof[8])}:deps;
    const response=await native(ctx)(ctx.nativeRequest,ownedEnv,null,nativeDeps);
    return await finish(ctx,response);
   }catch{return error(503,'owner_profile_hold',ctx?.operationId);}
  }
+ async function reconcileExternal(request,options){try{const p=await prepare(request);if(p.response)return p.response;return new Response(JSON.stringify(await reconcileAssetExternal(p.ctx,options)),{headers:{'Content-Type':'application/json'}});}catch{return error(409,'asset_external_recovery_hold');}}
  async function resolvePending(request,{sourceOperationId,resolutionOperationId}){
   let ctx;try{
    if(!UUID.test(sourceOperationId||'')||!UUID.test(resolutionOperationId||''))return error(400,'invalid_resolution');
@@ -195,5 +205,5 @@ export function createIsolatedMaintenanceOwnerHttp({db,env,writerScope,securityS
   }
   return new Response(response.body,{status:response.status,headers});
  }
- return Object.freeze({async fetch(request){return cors(await fetch(request),request);},async reconcile(request){return cors(await reconcile(request),request);},async resolvePending(request,options){return cors(await resolvePending(request,options),request);}});
+ return Object.freeze({async fetch(request){return cors(await fetch(request),request);},async reconcile(request){return cors(await reconcile(request),request);},async reconcileExternal(request,options){return cors(await reconcileExternal(request,options),request);},async resolvePending(request,options){return cors(await resolvePending(request,options),request);}});
 }

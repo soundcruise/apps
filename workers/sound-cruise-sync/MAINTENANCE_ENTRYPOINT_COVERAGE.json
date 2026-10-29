@@ -4,8 +4,8 @@
   "count_correction": "Previous83 HTTP +1 Scheduled index omitted existing GET /v1/sync/writer-authority in normal app.js. Added exactly one existing route, no new production endpoint. 8 historical entries +1 supplemental managed Sync profiles; counts do not imply all-app/mode/production readiness.",
   "http_count": 84,
   "scheduled_count": 1,
-  "isolated_connected_http_count": 66,
-  "unconnected_http_count": 18,
+  "isolated_connected_http_count": 71,
+  "unconnected_http_count": 13,
   "unconnected_scheduled_count": 1,
   "not_a_production_actor_inventory": true,
   "full_bridge": "HOLD",
@@ -226,12 +226,12 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:73",
       "owner_transaction_boundary": "Asset D1 + R2 non-atomic",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_ASSET_OWNER_CONNECTED",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
-      "bridge_registry_mutates": false,
-      "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
+      "bridge_registry_mutates": true,
+      "lane": "writer",
+      "next_requirement": "Default-OFF isolated factory only; schema0037 managed Port, Account scoped external pending; explicit stopped-scope recovery; no Production admission.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
     },
     {
@@ -240,12 +240,12 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:74",
       "owner_transaction_boundary": "Asset D1 + R2 non-atomic",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_ASSET_OWNER_CONNECTED",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
-      "bridge_registry_mutates": false,
-      "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
+      "bridge_registry_mutates": true,
+      "lane": "writer",
+      "next_requirement": "Default-OFF isolated factory only; schema0037 managed Port, Account scoped external pending; explicit stopped-scope recovery; no Production admission.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
     },
     {
@@ -254,12 +254,12 @@
       "source_group": "v1",
       "source_locator_historical": "app.js:75",
       "owner_transaction_boundary": "Asset D1 + R2 non-atomic",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_ASSET_OWNER_CONNECTED",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
-      "bridge_registry_mutates": false,
-      "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
+      "bridge_registry_mutates": true,
+      "lane": "writer",
+      "next_requirement": "Default-OFF isolated factory only; schema0037 managed Port, Account scoped external pending; explicit stopped-scope recovery; no Production admission.",
       "historical_write_effect": "mutation or authentication last_seen/activity; route+method alone insufficient for readonly"
     },
     {
@@ -1294,12 +1294,12 @@
       "source_group": "Asset dynamic route",
       "source_locator_historical": "app.js assetRoute",
       "owner_transaction_boundary": "Asset D1 + R2 non-atomic",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_ASSET_OWNER_CONNECTED",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
-      "bridge_registry_mutates": false,
-      "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
+      "bridge_registry_mutates": true,
+      "lane": "writer",
+      "next_requirement": "Default-OFF isolated factory only; schema0037 managed Port, Account scoped external pending; explicit stopped-scope recovery; no Production admission.",
       "historical_write_effect": "R2 upload+D1 lifecycle"
     },
     {
@@ -1308,12 +1308,12 @@
       "source_group": "Asset dynamic route",
       "source_locator_historical": "app.js assetRoute",
       "owner_transaction_boundary": "Asset D1 + R2 non-atomic",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "ISOLATED_ASSET_OWNER_CONNECTED",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
-      "bridge_registry_mutates": false,
-      "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
+      "bridge_registry_mutates": true,
+      "lane": "security",
+      "next_requirement": "Default-OFF isolated factory only; schema0037 managed Port, Account scoped external pending; explicit stopped-scope recovery; no Production admission.",
       "historical_write_effect": "download plus device/activity auth touch"
     },
     {
@@ -1322,12 +1322,12 @@
       "source_group": "background",
       "source_locator_historical": "app.js:1162",
       "owner_transaction_boundary": "Scheduled retention / cleanup D1 + R2",
-      "connection": "UNCONNECTED_HOLD",
+      "connection": "PARTIAL_ISOLATED_ASSET_CLEANUP",
       "normal_router_connected": false,
       "business_readonly": "NOT_CLAIMED_READONLY",
       "bridge_registry_mutates": false,
       "lane": null,
-      "next_requirement": "Existing owner authenticated profile + purpose/identity SQL assertion + typed outcome + all D1/R2 paths.",
+      "next_requirement": "Owned unreferenced >=30d Asset cleanup only at0036/0037, isolated handover and durable external pending, explicit closed-scope readback. Broad retention/purge/security cleanup HOLD.",
       "historical_write_effect": "R2 delete; asset state; D1 retention/purge, changes/tombstones/credentials"
     },
     {
@@ -1365,5 +1365,6 @@
   ],
   "coverage_qualification": "Connected counts are exact route+method with explicit mode restrictions, not complete lifecycle or Production readiness.",
   "historical_http_count": 83,
-  "supplemental_http_count": 1
+  "supplemental_http_count": 1,
+  "scheduled_partial_isolated": 1
 }
