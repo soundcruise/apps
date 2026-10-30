@@ -10,6 +10,7 @@ import {saveShadowEvaluation,evaluatePending,shadowMetrics} from './operator-sha
 import {dashboardSummary,humanDecisionHistory,similarDecisions} from './operator-insights.js';
 import {recheckFacts} from './facts-recheck.js';
 import {authenticateOperator,csrfToken,verifyCsrf} from './operator-auth.js';
+import {createDotCloudRunProxy} from './dot-cloudrun-proxy.js';
 import {NewsStore} from './store.js';
 import {runtimeSources} from './runtime.js';
 import {reviewQueue,reviewDetail,operatorDecision,candidateSnapshot} from './operator-review.js';
@@ -28,13 +29,14 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  // Test-injected reader only: no production identity or network binding exists.
-  if(request.method==='GET'&&url.pathname==='/api/dot-capabilities')return json({available:Boolean(options.dotReader)});
+  // Explicit injection only: no production network binding or endpoint is configured.
+  const dotReader=options.dotReader||(options.dotProxy?createDotCloudRunProxy({...options.dotProxy,assertion:request.headers.get('Cf-Access-Jwt-Assertion')}):null);
+  if(request.method==='GET'&&url.pathname==='/api/dot-capabilities')return json({available:Boolean(dotReader)});
   if(request.method==='GET'&&(url.pathname==='/api/dot-candidates'||/^\/api\/dot-candidates\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname))){
-   if(!options.dotReader)throw Error('operator_not_configured');
+   if(!dotReader)throw Error('operator_not_configured');
    const detail=url.pathname!=='/api/dot-candidates';let output;
-   if(detail){if(url.search)throw Error('operator_query_invalid');output=await options.dotReader.detail(url.pathname.split('/').at(-1));if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');}
-   else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await options.dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
+   if(detail){if(url.search)throw Error('operator_query_invalid');output=await dotReader.detail(url.pathname.split('/').at(-1));if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');}
+   else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
   if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.40.0'});
