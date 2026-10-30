@@ -33,7 +33,7 @@ test('MONSTER multi-model power equipment is recovered without category/target-d
  assert.deepEqual(result.productFacts.models,['MONSTER POWER 8000','MONSTER POWER 8001']);
  assert.equal(result.productFacts.category,'recording_audio');assert.equal(result.publishedAt,row.published_at);
  assert.match(factualLabel(result.productFacts,result.eventType),/電源タップ/);
- assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-10');
+ assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-11');
 });
 
 for(const phrase of ['オーディオインターフェースを保護する電源タップ',
@@ -83,6 +83,16 @@ test('subject-bound appearance yields an appearance headline and needs its own p
  const stored=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(item.id).first(),registry=[{...source,enabled:true,productionEnabled:true}];
  assert.deepEqual((await publicationValidation(s,stored,now,registry,pepper)).errors,[]);
  assert((await publicationValidation(s,{...stored,facts_provenance:'[]'},now,registry,pepper)).errors.includes('facts_provenance_invalid'));
+});
+
+test('software synthesizer with parenthesized reading holds a past date with future release wording',()=>{
+ const make=date=>article('Nova Tone Nova Synth 製品情報',
+  'Nova Tone ( ノヴァトーン ) がソフトウェアシンセサイザー「Nova Synth」を発売します。',
+  `<h2>Nova Synth</h2><h2>発売日</h2><p>${date}</p>`);
+ assert.throws(()=>parseShimamuraProductEvidence(make('2026年10月10日'),source,row),/facts_release_date_conflict/);
+ const p=parseShimamuraProductEvidence(make('2026年10月12日'),source,row);
+ assert.equal(p.productFacts.brand,'Nova Tone');assert.equal(p.productFacts.productType,'software_instrument');
+ assert.equal(p.productFacts.releaseEvent.date,'2026-10-12');
 });
 
 test('a quoted protection/connection target is not a second main product',()=>{
