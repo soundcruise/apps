@@ -1,6 +1,6 @@
 {
   "name": "sound-cruise-sync",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
     "qa:enrollment:cancel-orphan": "node scripts/cancel-account-qa-enrollment.mjs",
     "qa:enrollment:rotate-and-create": "node scripts/rotate-account-qa-enrollment-pepper-and-issue.mjs",
     "qa:session:revoke": "node scripts/revoke-account-qa-session.mjs",
-    "test:studio-operations": "node test/studio-operations-adapters.test.mjs"
+    "test:studio-operations": "node test/studio-operations-adapters.test.mjs",
+    "test:studio-host": "node --test test/studio-host-provider.test.mjs"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1160.0",

@@ -3,6 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { contained, same, fail, digest } from "./contracts.mjs";
+import { checkMountedImage } from "./volume.mjs";
 const run = promisify(execFile);
 export async function keychainHandle({ service, account }) {
   if (!service || !account) fail("key-reference");
@@ -59,13 +60,27 @@ export async function openHost({
     p.maxStagingBytes < 0
   )
     fail("host-approval");
+  // Metadata alone cannot bind later path-based core I/O to a mounted filesystem.
+  // Until descriptor-relative I/O is implemented, never execute this candidate on a real image.
+  if (p.volume && !authority.synthetic) fail("image-io-pinning-unavailable");
   await contained(root, root);
   const initial = await fs.lstat(root);
-  if (!initial.isDirectory() || (initial.mode & 0o077) !== 0)
+  if (
+    !initial.isDirectory() ||
+    initial.uid !== process.getuid() ||
+    (initial.mode & 0o077) !== 0
+  )
     fail("host-permissions");
-  const volume = authority.synthetic
-    ? await observeFixture()
-    : await observeMacHost(root);
+  const volume = p.volume
+    ? await checkMountedImage({
+        root,
+        spec: p.volume,
+        synthetic: authority.synthetic,
+        observeFixture,
+      })
+    : authority.synthetic
+      ? await observeFixture()
+      : await observeMacHost(root);
   same(volume, { volumeUUID: p.volumeUUID, encrypted: true }, "host-volume");
   const anchors = new Map();
   async function anchor(dir) {
@@ -89,6 +104,13 @@ export async function openHost({
     return k;
   };
   async function check() {
+    if (p.volume)
+      await checkMountedImage({
+        root,
+        spec: p.volume,
+        synthetic: authority.synthetic,
+        observeFixture,
+      });
     authority.check(envelope, "host", scope);
     await contained(root, root);
     const st = await fs.lstat(root);
