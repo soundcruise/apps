@@ -184,6 +184,22 @@
         "limit": 20,
         "period": 60
       }
+    },
+    {
+      "name": "STUDIO_DOCUMENT_RATE_LIMITER",
+      "namespace_id": "32017",
+      "simple": {
+        "limit": 240,
+        "period": 60
+      }
+    },
+    {
+      "name": "STUDIO_REGISTRATION_RATE_LIMITER",
+      "namespace_id": "32018",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
     }
   ]
 }

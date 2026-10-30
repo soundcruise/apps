@@ -1,0 +1,647 @@
+// Exact schema metadata only; no user rows. Source evidence SHA256 d8e632f559ce5da2d6edd131b7253e3812d3118465f5755a1d8c327111a414d9
+export const STUDIO_PRODUCTION_BASE = [
+ [
+  "index",
+  "idx_account_delete_intents_user",
+  "CREATE INDEX idx_account_delete_intents_user\n    ON account_delete_intents(user_id, app_id, expires_at, consumed_at)"
+ ],
+ [
+  "index",
+  "idx_account_qa_sessions_account",
+  "CREATE INDEX idx_account_qa_sessions_account\n  ON sync_account_qa_sessions(account_id, revoked_at, expires_at)"
+ ],
+ [
+  "index",
+  "idx_account_qa_sessions_app_device",
+  "CREATE INDEX idx_account_qa_sessions_app_device\n  ON sync_account_qa_sessions(app_id, app_device_id, revoked_at, expires_at)"
+ ],
+ [
+  "index",
+  "idx_app_device_sync_safety_membership",
+  "CREATE INDEX idx_app_device_sync_safety_membership\n  ON sync_app_device_sync_safety(membership_id, state, reported_at)"
+ ],
+ [
+  "index",
+  "idx_app_join_active_membership",
+  "CREATE UNIQUE INDEX idx_app_join_active_membership\n  ON sync_app_join_invitations(account_id, membership_id)\n  WHERE consumed_at IS NULL AND cancelled_at IS NULL"
+ ],
+ [
+  "index",
+  "idx_app_join_expiry",
+  "CREATE INDEX idx_app_join_expiry\n  ON sync_app_join_invitations(expires_at, consumed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_app_join_issuer",
+  "CREATE INDEX idx_app_join_issuer\n  ON sync_app_join_invitations(account_id, created_by_account_device_id, created_at)"
+ ],
+ [
+  "index",
+  "idx_membership_handoffs_qa_app_session",
+  "CREATE UNIQUE INDEX idx_membership_handoffs_qa_app_session\n  ON sync_membership_handoffs(qa_app_session_id) WHERE qa_app_session_id IS NOT NULL"
+ ],
+ [
+  "index",
+  "idx_pairing_attempts_expiry",
+  "CREATE INDEX idx_pairing_attempts_expiry\n    ON pairing_attempts(first_attempt_at)"
+ ],
+ [
+  "index",
+  "idx_pairing_codes_expiry",
+  "CREATE INDEX idx_pairing_codes_expiry\n    ON pairing_codes(expires_at, consumed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_pairing_codes_user_active",
+  "CREATE INDEX idx_pairing_codes_user_active\n    ON pairing_codes(user_id, target_app_id, created_by_device_id, expires_at, consumed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_port_join_account",
+  "CREATE INDEX idx_port_join_account\n  ON sync_port_join_invitations(account_id, created_at)"
+ ],
+ [
+  "index",
+  "idx_port_join_active_issuer",
+  "CREATE UNIQUE INDEX idx_port_join_active_issuer\n  ON sync_port_join_invitations(account_id, created_by_account_device_id)\n  WHERE consumed_at IS NULL AND cancelled_at IS NULL"
+ ],
+ [
+  "index",
+  "idx_port_join_expiry",
+  "CREATE INDEX idx_port_join_expiry\n  ON sync_port_join_invitations(expires_at, consumed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_recovery_attempts_expiry",
+  "CREATE INDEX idx_recovery_attempts_expiry\n    ON recovery_attempts(first_attempt_at)"
+ ],
+ [
+  "index",
+  "idx_recovery_claims_user_active",
+  "CREATE INDEX idx_recovery_claims_user_active\n    ON recovery_claims(user_id, target_app_id, expected_recovery_version, expires_at, committed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_sync_account_activity_lifecycle",
+  "CREATE INDEX idx_sync_account_activity_lifecycle\n    ON sync_account_activity(state, last_activity_at, inactive_purge_after)"
+ ],
+ [
+  "index",
+  "idx_sync_account_delete_consume_operation",
+  "CREATE UNIQUE INDEX idx_sync_account_delete_consume_operation\n    ON sync_account_delete_intents(consume_operation_id)\n    WHERE consume_operation_id IS NOT NULL"
+ ],
+ [
+  "index",
+  "idx_sync_account_delete_intents_active",
+  "CREATE INDEX idx_sync_account_delete_intents_active\n    ON sync_account_delete_intents(account_id, scope, expires_at, consumed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_sync_account_delete_issue_operation",
+  "CREATE UNIQUE INDEX idx_sync_account_delete_issue_operation\n    ON sync_account_delete_intents(issue_operation_id)\n    WHERE issue_operation_id IS NOT NULL"
+ ],
+ [
+  "index",
+  "idx_sync_account_devices_active",
+  "CREATE INDEX idx_sync_account_devices_active\n    ON sync_account_devices(account_id, revoked_at, last_seen_at)"
+ ],
+ [
+  "index",
+  "idx_sync_account_lifecycle_operations_account",
+  "CREATE INDEX idx_sync_account_lifecycle_operations_account\n    ON sync_account_lifecycle_operations(account_id, kind, created_at)"
+ ],
+ [
+  "index",
+  "idx_sync_account_managed_users_membership",
+  "CREATE INDEX idx_sync_account_managed_users_membership\n    ON sync_account_managed_users(account_id, membership_id, app_id)"
+ ],
+ [
+  "index",
+  "idx_sync_account_memberships_purge",
+  "CREATE INDEX idx_sync_account_memberships_purge\n    ON sync_account_memberships(state, purge_after)"
+ ],
+ [
+  "index",
+  "idx_sync_account_memberships_state",
+  "CREATE INDEX idx_sync_account_memberships_state\n    ON sync_account_memberships(account_id, state, app_id)"
+ ],
+ [
+  "index",
+  "idx_sync_account_recovery_attempts_window",
+  "CREATE INDEX idx_sync_account_recovery_attempts_window\n    ON sync_account_recovery_attempts(first_attempt_at)"
+ ],
+ [
+  "index",
+  "idx_sync_account_recovery_claims_active",
+  "CREATE INDEX idx_sync_account_recovery_claims_active\n    ON sync_account_recovery_claims(\n        account_id, expected_recovery_version, expires_at, committed_at, cancelled_at\n    )"
+ ],
+ [
+  "index",
+  "idx_sync_account_recovery_commit_operation",
+  "CREATE UNIQUE INDEX idx_sync_account_recovery_commit_operation\n    ON sync_account_recovery_claims(commit_operation_id)\n    WHERE commit_operation_id IS NOT NULL"
+ ],
+ [
+  "index",
+  "idx_sync_account_recovery_prepare_operation",
+  "CREATE UNIQUE INDEX idx_sync_account_recovery_prepare_operation\n    ON sync_account_recovery_claims(prepare_operation_id)\n    WHERE prepare_operation_id IS NOT NULL"
+ ],
+ [
+  "index",
+  "idx_sync_account_recovery_rotations_active",
+  "CREATE INDEX idx_sync_account_recovery_rotations_active\n    ON sync_account_recovery_rotations(\n        account_id, expected_recovery_version, expires_at, committed_at, cancelled_at\n    )"
+ ],
+ [
+  "index",
+  "idx_sync_account_start_operations_created",
+  "CREATE INDEX idx_sync_account_start_operations_created\n    ON sync_account_start_operations(created_at)"
+ ],
+ [
+  "index",
+  "idx_sync_accounts_purge",
+  "CREATE INDEX idx_sync_accounts_purge\n    ON sync_accounts(state, purge_after)"
+ ],
+ [
+  "index",
+  "idx_sync_asset_daily_counts_cleanup",
+  "CREATE INDEX idx_sync_asset_daily_counts_cleanup\n    ON sync_asset_daily_variant_counts(day_key, updated_at)"
+ ],
+ [
+  "index",
+  "idx_sync_asset_operations_owner",
+  "CREATE INDEX idx_sync_asset_operations_owner\n    ON sync_asset_operations(account_id, app_device_id, created_at)"
+ ],
+ [
+  "index",
+  "idx_sync_assets_category_quota",
+  "CREATE INDEX idx_sync_assets_category_quota\n    ON sync_assets(account_id, storage_category, state, created_at)"
+ ],
+ [
+  "index",
+  "idx_sync_assets_cleanup",
+  "CREATE INDEX idx_sync_assets_cleanup\n    ON sync_assets(state, unreferenced_at, updated_at)"
+ ],
+ [
+  "index",
+  "idx_sync_assets_owner",
+  "CREATE INDEX idx_sync_assets_owner\n    ON sync_assets(account_id, sync_user_id, state, created_at)"
+ ],
+ [
+  "index",
+  "idx_sync_assets_practice_owner",
+  "CREATE INDEX idx_sync_assets_practice_owner\n    ON sync_assets(account_id, sync_user_id, owner_record_id, state, created_at)"
+ ],
+ [
+  "index",
+  "idx_sync_changes_pull",
+  "CREATE INDEX idx_sync_changes_pull\n    ON sync_changes(user_id, app_id, change_seq)"
+ ],
+ [
+  "index",
+  "idx_sync_chord_account_bridges_active_membership",
+  "CREATE UNIQUE INDEX idx_sync_chord_account_bridges_active_membership\n    ON sync_chord_account_bridges(account_id, membership_id)\n    WHERE state IN ('prepared', 'dual', 'finalized')"
+ ],
+ [
+  "index",
+  "idx_sync_chord_account_bridges_active_user",
+  "CREATE UNIQUE INDEX idx_sync_chord_account_bridges_active_user\n    ON sync_chord_account_bridges(sync_user_id)\n    WHERE state IN ('prepared', 'dual', 'finalized')"
+ ],
+ [
+  "index",
+  "idx_sync_chord_account_bridges_cleanup",
+  "CREATE INDEX idx_sync_chord_account_bridges_cleanup\n    ON sync_chord_account_bridges(state, expires_at, updated_at)"
+ ],
+ [
+  "index",
+  "idx_sync_chord_account_bridges_operation",
+  "CREATE INDEX idx_sync_chord_account_bridges_operation\n    ON sync_chord_account_bridges(\n        prepare_operation_id, dual_operation_id, finalize_operation_id, rollback_operation_id\n    )"
+ ],
+ [
+  "index",
+  "idx_sync_devices_pairing_pending",
+  "CREATE INDEX idx_sync_devices_pairing_pending\n    ON sync_devices(user_id, app_id, pairing_pending_at, paired_at)"
+ ],
+ [
+  "index",
+  "idx_sync_devices_user_active",
+  "CREATE INDEX idx_sync_devices_user_active\n    ON sync_devices(user_id, app_id, revoked_at)"
+ ],
+ [
+  "index",
+  "idx_sync_devices_user_last_seen",
+  "CREATE INDEX idx_sync_devices_user_last_seen\n    ON sync_devices(user_id, app_id, revoked_at, last_seen_at)"
+ ],
+ [
+  "index",
+  "idx_sync_enrollment_codes_status",
+  "CREATE INDEX idx_sync_enrollment_codes_status\n    ON sync_enrollment_codes(app_id, expires_at, consumed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_sync_membership_device_links_account_device",
+  "CREATE INDEX idx_sync_membership_device_links_account_device\n    ON sync_membership_device_links(account_device_id, membership_id)"
+ ],
+ [
+  "index",
+  "idx_sync_membership_handoffs_active",
+  "CREATE INDEX idx_sync_membership_handoffs_active\n    ON sync_membership_handoffs(account_id, membership_id, expires_at, consumed_at, cancelled_at)"
+ ],
+ [
+  "index",
+  "idx_sync_membership_handoffs_consume_mode",
+  "CREATE INDEX idx_sync_membership_handoffs_consume_mode\n    ON sync_membership_handoffs(account_id, membership_id, consume_mode, consumed_at)"
+ ],
+ [
+  "index",
+  "idx_sync_membership_handoffs_consume_operation",
+  "CREATE UNIQUE INDEX idx_sync_membership_handoffs_consume_operation\n    ON sync_membership_handoffs(consume_operation_id)\n    WHERE consume_operation_id IS NOT NULL"
+ ],
+ [
+  "index",
+  "idx_sync_membership_handoffs_issue_operation",
+  "CREATE UNIQUE INDEX idx_sync_membership_handoffs_issue_operation\n    ON sync_membership_handoffs(issue_operation_id)\n    WHERE issue_operation_id IS NOT NULL"
+ ],
+ [
+  "index",
+  "idx_sync_membership_handoffs_rejoin",
+  "CREATE INDEX idx_sync_membership_handoffs_rejoin\n  ON sync_membership_handoffs(\n    account_id, membership_id, handoff_kind, expires_at, consumed_at, cancelled_at\n  )"
+ ],
+ [
+  "index",
+  "idx_sync_port_device_operations_account",
+  "CREATE INDEX idx_sync_port_device_operations_account\n    ON sync_port_device_operations(account_id, account_device_id, created_at)"
+ ],
+ [
+  "index",
+  "idx_sync_records_dataset",
+  "CREATE INDEX idx_sync_records_dataset\n    ON sync_records(user_id, app_id, deleted_at, record_type)"
+ ],
+ [
+  "index",
+  "idx_sync_users_purge",
+  "CREATE INDEX idx_sync_users_purge\n    ON sync_users(state, purge_after)"
+ ],
+ [
+  "index",
+  "pro_auth_lockouts_last_failure_idx",
+  "CREATE INDEX pro_auth_lockouts_last_failure_idx\n  ON pro_auth_lockouts (last_failure_at)"
+ ],
+ [
+  "index",
+  "pro_credentials_generation_active_idx",
+  "CREATE INDEX pro_credentials_generation_active_idx\n  ON pro_credentials (generation, revoked_at)"
+ ],
+ [
+  "index",
+  "pro_session_proofs_expiry_idx",
+  "CREATE INDEX pro_session_proofs_expiry_idx ON pro_session_proofs(expires_at)"
+ ],
+ [
+  "table",
+  "account_delete_intents",
+  "CREATE TABLE account_delete_intents (\n    intent_id TEXT PRIMARY KEY,\n    intent_verifier TEXT NOT NULL UNIQUE,\n    user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    app_id TEXT NOT NULL,\n    requested_by_device_id TEXT NOT NULL REFERENCES sync_devices(id) ON DELETE CASCADE,\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    consumed_at INTEGER,\n    CHECK (expires_at > created_at),\n    CHECK (consumed_at IS NULL OR consumed_at >= created_at)\n)"
+ ],
+ [
+  "table",
+  "d1_migrations",
+  "CREATE TABLE \"d1_migrations\"(\n\t\tid         INTEGER PRIMARY KEY AUTOINCREMENT,\n\t\tname       TEXT UNIQUE,\n\t\tapplied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n)"
+ ],
+ [
+  "table",
+  "pairing_attempts",
+  "CREATE TABLE pairing_attempts (\n    code_verifier TEXT PRIMARY KEY,\n    first_attempt_at INTEGER NOT NULL,\n    last_attempt_at INTEGER NOT NULL,\n    attempts INTEGER NOT NULL CHECK (attempts >= 1 AND attempts <= 5)\n)"
+ ],
+ [
+  "table",
+  "pairing_codes",
+  "CREATE TABLE pairing_codes (\n    code_verifier TEXT PRIMARY KEY,\n    user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    created_by_device_id TEXT REFERENCES sync_devices(id) ON DELETE SET NULL,\n    target_app_id TEXT NOT NULL,\n    attempts_remaining INTEGER NOT NULL DEFAULT 5\n        CHECK (attempts_remaining >= 0 AND attempts_remaining <= 5),\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    consumed_at INTEGER,\n    cancelled_at INTEGER\n)"
+ ],
+ [
+  "table",
+  "pairing_issue_windows",
+  "CREATE TABLE pairing_issue_windows (\n    device_id TEXT PRIMARY KEY REFERENCES sync_devices(id) ON DELETE CASCADE,\n    window_started_at INTEGER NOT NULL,\n    issued_count INTEGER NOT NULL CHECK (issued_count >= 1 AND issued_count <= 3),\n    last_issue_id TEXT NOT NULL\n)"
+ ],
+ [
+  "table",
+  "pro_auth_lockouts",
+  "CREATE TABLE pro_auth_lockouts (\n  ip_key TEXT PRIMARY KEY CHECK (length(ip_key) = 64 AND ip_key NOT GLOB '*[^0-9a-f]*'),\n  failure_count INTEGER NOT NULL CHECK (failure_count BETWEEN 0 AND 4),\n  lock_level INTEGER NOT NULL CHECK (lock_level BETWEEN 0 AND 2),\n  locked_until INTEGER CHECK (locked_until IS NULL OR locked_until >= 0),\n  last_failure_at INTEGER NOT NULL CHECK (last_failure_at >= 0),\n  updated_at INTEGER NOT NULL CHECK (updated_at >= last_failure_at)\n)"
+ ],
+ [
+  "table",
+  "pro_auth_state",
+  "CREATE TABLE pro_auth_state (\n  singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),\n  generation INTEGER NOT NULL CHECK (generation > 0),\n  active_code_slot TEXT NOT NULL CHECK (active_code_slot IN ('A', 'B')),\n  legacy_compat_enabled INTEGER NOT NULL CHECK (legacy_compat_enabled IN (0, 1)),\n  legacy_retired_at INTEGER CHECK (legacy_retired_at IS NULL OR legacy_retired_at >= 0),\n  updated_at INTEGER NOT NULL CHECK (updated_at >= 0), session_lifecycle_started_at INTEGER, unbound_backend_until INTEGER,\n  CHECK (legacy_compat_enabled = 1 OR legacy_retired_at IS NOT NULL)\n)"
+ ],
+ [
+  "table",
+  "pro_credentials",
+  "CREATE TABLE pro_credentials (\n  id TEXT PRIMARY KEY,\n  verifier TEXT NOT NULL UNIQUE CHECK (length(verifier) = 64),\n  generation INTEGER NOT NULL CHECK (generation > 0),\n  scope TEXT NOT NULL CHECK (scope = 'global_pro'),\n  created_at INTEGER NOT NULL CHECK (created_at >= 0),\n  revoked_at INTEGER CHECK (revoked_at IS NULL OR revoked_at >= created_at)\n, device_public_key TEXT, session_bound_at INTEGER, last_validated_at INTEGER, lease_expires_at INTEGER)"
+ ],
+ [
+  "table",
+  "pro_session_proofs",
+  "CREATE TABLE pro_session_proofs (\n  challenge_id TEXT PRIMARY KEY,\n  credential_id TEXT NOT NULL REFERENCES pro_credentials(id) ON DELETE CASCADE,\n  expires_at INTEGER NOT NULL\n)"
+ ],
+ [
+  "table",
+  "recovery_attempts",
+  "CREATE TABLE recovery_attempts (\n    recovery_verifier TEXT PRIMARY KEY,\n    first_attempt_at INTEGER NOT NULL,\n    last_attempt_at INTEGER NOT NULL,\n    attempts INTEGER NOT NULL CHECK (attempts >= 1 AND attempts <= 5)\n)"
+ ],
+ [
+  "table",
+  "recovery_claims",
+  "CREATE TABLE recovery_claims (\n    claim_id TEXT PRIMARY KEY,\n    claim_verifier TEXT NOT NULL UNIQUE,\n    user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    target_app_id TEXT NOT NULL,\n    expected_recovery_version INTEGER NOT NULL CHECK (expected_recovery_version >= 1),\n    next_recovery_verifier TEXT NOT NULL UNIQUE,\n    next_device_id TEXT NOT NULL UNIQUE,\n    next_credential_verifier TEXT NOT NULL UNIQUE,\n    device_label TEXT,\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    committed_at INTEGER,\n    cancelled_at INTEGER,\n    CHECK (expires_at > created_at),\n    CHECK (committed_at IS NULL OR committed_at >= created_at),\n    CHECK (cancelled_at IS NULL OR cancelled_at >= created_at)\n)"
+ ],
+ [
+  "table",
+  "sync_account_activity",
+  "CREATE TABLE sync_account_activity (\n    account_id TEXT PRIMARY KEY REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    state TEXT NOT NULL CHECK(state IN ('active', 'dormant')) DEFAULT 'active',\n    last_activity_at INTEGER NOT NULL,\n    dormant_at INTEGER,\n    inactive_purge_after INTEGER,\n    updated_at INTEGER NOT NULL,\n    CHECK((state = 'active' AND dormant_at IS NULL AND inactive_purge_after IS NULL)\n       OR (state = 'dormant' AND dormant_at IS NOT NULL AND inactive_purge_after IS NOT NULL))\n)"
+ ],
+ [
+  "table",
+  "sync_account_asset_quotas",
+  "CREATE TABLE sync_account_asset_quotas (\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    storage_category TEXT NOT NULL CHECK(storage_category IN (\n        'image', 'document_score', 'audio', 'practice_attachment'\n    )),\n    storage_limit_bytes INTEGER NOT NULL CHECK(storage_limit_bytes > 0),\n    asset_variant_limit INTEGER NOT NULL CHECK(asset_variant_limit > 0),\n    daily_new_variant_limit INTEGER NOT NULL CHECK(daily_new_variant_limit > 0),\n    total_storage_limit_bytes INTEGER CHECK(total_storage_limit_bytes IS NULL OR total_storage_limit_bytes > 0),\n    created_at INTEGER NOT NULL,\n    updated_at INTEGER NOT NULL,\n    PRIMARY KEY(account_id, storage_category)\n)"
+ ],
+ [
+  "table",
+  "sync_account_delete_intents",
+  "CREATE TABLE sync_account_delete_intents (\n    intent_id TEXT PRIMARY KEY,\n    intent_verifier TEXT NOT NULL UNIQUE,\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    scope TEXT NOT NULL CHECK (scope IN ('app', 'account')),\n    target_membership_id TEXT,\n    requested_by_account_device_id TEXT NOT NULL,\n    expected_account_generation INTEGER NOT NULL CHECK (expected_account_generation >= 1),\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    consumed_at INTEGER,\n    cancelled_at INTEGER, issue_operation_id TEXT, issue_fingerprint TEXT\n        CHECK (issue_fingerprint IS NULL OR (\n            length(issue_fingerprint) = 64 AND issue_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )), consume_operation_id TEXT, consume_fingerprint TEXT\n        CHECK (consume_fingerprint IS NULL OR (\n            length(consume_fingerprint) = 64 AND consume_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )),\n    FOREIGN KEY (account_id, target_membership_id)\n        REFERENCES sync_account_memberships(account_id, id) ON DELETE CASCADE,\n    FOREIGN KEY (account_id, requested_by_account_device_id)\n        REFERENCES sync_account_devices(account_id, id) ON DELETE CASCADE,\n    CHECK (\n        (scope = 'app' AND target_membership_id IS NOT NULL)\n        OR\n        (scope = 'account' AND target_membership_id IS NULL)\n    ),\n    CHECK (expires_at > created_at),\n    CHECK (consumed_at IS NULL OR consumed_at >= created_at),\n    CHECK (cancelled_at IS NULL OR cancelled_at >= created_at)\n)"
+ ],
+ [
+  "table",
+  "sync_account_devices",
+  "CREATE TABLE sync_account_devices (\n    id TEXT PRIMARY KEY,\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    credential_version INTEGER NOT NULL DEFAULT 1\n        CHECK (credential_version >= 1),\n    credential_verifier TEXT NOT NULL UNIQUE,\n    label TEXT,\n    created_at INTEGER NOT NULL,\n    last_seen_at INTEGER NOT NULL,\n    revoked_at INTEGER, user_label TEXT\n  CHECK (user_label IS NULL OR length(user_label) BETWEEN 1 AND 40),\n    UNIQUE (account_id, id),\n    CHECK (last_seen_at >= created_at),\n    CHECK (revoked_at IS NULL OR revoked_at >= created_at)\n)"
+ ],
+ [
+  "table",
+  "sync_account_lifecycle_operations",
+  "CREATE TABLE sync_account_lifecycle_operations (\n    operation_id TEXT PRIMARY KEY,\n    request_fingerprint TEXT NOT NULL\n        CHECK (length(request_fingerprint) = 64 AND request_fingerprint NOT GLOB '*[^0-9a-f]*'),\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    kind TEXT NOT NULL CHECK (kind IN ('recovery', 'device_revoke', 'app_delete', 'account_delete')),\n    target_id TEXT,\n    result_json TEXT NOT NULL CHECK (json_valid(result_json)),\n    created_at INTEGER NOT NULL\n)"
+ ],
+ [
+  "table",
+  "sync_account_managed_users",
+  "CREATE TABLE \"sync_account_managed_users\" (\n    sync_user_id TEXT PRIMARY KEY REFERENCES sync_users(id) ON DELETE CASCADE,\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    membership_id TEXT NOT NULL UNIQUE,\n    app_id TEXT NOT NULL CHECK (app_id IN ('chord', 'pitch', 'fretboard', 'rhythm', 'port')),\n    created_at INTEGER NOT NULL,\n    UNIQUE (account_id, app_id),\n    FOREIGN KEY (account_id, membership_id)\n        REFERENCES sync_account_memberships(account_id, id) ON DELETE CASCADE\n)"
+ ],
+ [
+  "table",
+  "sync_account_memberships",
+  "CREATE TABLE \"sync_account_memberships\" (\n    id TEXT PRIMARY KEY,\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    app_id TEXT NOT NULL CHECK (app_id IN ('chord', 'pitch', 'fretboard', 'rhythm', 'port')),\n    state TEXT NOT NULL DEFAULT 'pending'\n        CHECK (state IN ('pending', 'active', 'deleting', 'deleted')),\n    sync_user_id TEXT UNIQUE REFERENCES sync_users(id) ON DELETE SET NULL\n        DEFERRABLE INITIALLY DEFERRED,\n    recovery_mode TEXT NOT NULL DEFAULT 'account'\n        CHECK (recovery_mode IN ('legacy', 'dual', 'account')),\n    generation INTEGER NOT NULL DEFAULT 1 CHECK (generation >= 1),\n    created_at INTEGER NOT NULL,\n    activated_at INTEGER,\n    updated_at INTEGER NOT NULL,\n    deleted_at INTEGER,\n    prepared_operation_id TEXT,\n    prepared_by_account_device_id TEXT REFERENCES sync_account_devices(id),\n    legacy_recovery_disabled_at INTEGER,\n    delete_requested_at INTEGER,\n    purge_after INTEGER,\n    UNIQUE (account_id, app_id),\n    UNIQUE (account_id, id),\n    CHECK (updated_at >= created_at),\n    CHECK (\n        (state = 'pending' AND sync_user_id IS NULL AND activated_at IS NULL)\n        OR\n        (state IN ('active', 'deleting') AND sync_user_id IS NOT NULL AND activated_at IS NOT NULL)\n        OR state = 'deleted'\n    ),\n    CHECK (activated_at IS NULL OR activated_at >= created_at),\n    CHECK (deleted_at IS NULL OR deleted_at >= created_at),\n    CHECK (legacy_recovery_disabled_at IS NULL OR legacy_recovery_disabled_at >= created_at),\n    CHECK (purge_after IS NULL OR delete_requested_at IS NOT NULL)\n)"
+ ],
+ [
+  "table",
+  "sync_account_qa_enrollments",
+  "CREATE TABLE sync_account_qa_enrollments (\n  id TEXT PRIMARY KEY,\n  code_verifier TEXT NOT NULL UNIQUE,\n  created_at INTEGER NOT NULL,\n  expires_at INTEGER NOT NULL,\n  consumed_at INTEGER,\n  cancelled_at INTEGER,\n  consumed_by_session_id TEXT UNIQUE,\n  CHECK (length(code_verifier) = 64),\n  CHECK (expires_at > created_at)\n)"
+ ],
+ [
+  "table",
+  "sync_account_qa_sessions",
+  "CREATE TABLE sync_account_qa_sessions (\n  id TEXT PRIMARY KEY,\n  credential_verifier TEXT NOT NULL UNIQUE,\n  enrollment_id TEXT NOT NULL,\n  scope TEXT NOT NULL CHECK (scope IN ('port', 'app')),\n  account_id TEXT,\n  app_id TEXT CHECK (app_id IS NULL OR app_id IN ('chord', 'pitch', 'fretboard', 'rhythm')),\n  app_device_id TEXT,\n  parent_session_id TEXT,\n  created_at INTEGER NOT NULL,\n  expires_at INTEGER NOT NULL,\n  last_used_at INTEGER NOT NULL,\n  revoked_at INTEGER,\n  generation INTEGER NOT NULL DEFAULT 1 CHECK (generation >= 1),\n  FOREIGN KEY (enrollment_id) REFERENCES sync_account_qa_enrollments(id) ON DELETE RESTRICT,\n  FOREIGN KEY (account_id) REFERENCES sync_accounts(id) ON DELETE CASCADE,\n  FOREIGN KEY (app_device_id) REFERENCES sync_devices(id) ON DELETE CASCADE,\n  FOREIGN KEY (parent_session_id) REFERENCES sync_account_qa_sessions(id) ON DELETE RESTRICT,\n  CHECK (expires_at > created_at),\n  CHECK (\n    (scope = 'port' AND app_id IS NULL AND app_device_id IS NULL) OR\n    (scope = 'app' AND account_id IS NOT NULL AND app_id IS NOT NULL AND app_device_id IS NOT NULL AND parent_session_id IS NOT NULL)\n  )\n)"
+ ],
+ [
+  "table",
+  "sync_account_recovery_attempts",
+  "CREATE TABLE sync_account_recovery_attempts (\n    recovery_verifier TEXT PRIMARY KEY,\n    first_attempt_at INTEGER NOT NULL,\n    last_attempt_at INTEGER NOT NULL,\n    attempts INTEGER NOT NULL CHECK (attempts BETWEEN 1 AND 5)\n)"
+ ],
+ [
+  "table",
+  "sync_account_recovery_claims",
+  "CREATE TABLE sync_account_recovery_claims (\n    claim_id TEXT PRIMARY KEY,\n    claim_verifier TEXT NOT NULL UNIQUE,\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    scope TEXT NOT NULL CHECK (scope IN ('app', 'account')),\n    target_membership_id TEXT,\n    expected_recovery_version INTEGER NOT NULL CHECK (expected_recovery_version >= 1),\n    expected_account_generation INTEGER NOT NULL CHECK (expected_account_generation >= 1),\n    next_recovery_verifier TEXT NOT NULL UNIQUE,\n    next_account_device_id TEXT NOT NULL UNIQUE,\n    next_account_credential_verifier TEXT NOT NULL UNIQUE,\n    device_label TEXT,\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    committed_at INTEGER,\n    cancelled_at INTEGER, prepare_operation_id TEXT, prepare_fingerprint TEXT\n        CHECK (prepare_fingerprint IS NULL OR (\n            length(prepare_fingerprint) = 64 AND prepare_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )), commit_operation_id TEXT, commit_fingerprint TEXT\n        CHECK (commit_fingerprint IS NULL OR (\n            length(commit_fingerprint) = 64 AND commit_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )),\n    FOREIGN KEY (account_id, target_membership_id)\n        REFERENCES sync_account_memberships(account_id, id) ON DELETE CASCADE,\n    CHECK (\n        (scope = 'app' AND target_membership_id IS NOT NULL)\n        OR\n        (scope = 'account' AND target_membership_id IS NULL)\n    ),\n    CHECK (expires_at > created_at),\n    CHECK (committed_at IS NULL OR committed_at >= created_at),\n    CHECK (cancelled_at IS NULL OR cancelled_at >= created_at)\n)"
+ ],
+ [
+  "table",
+  "sync_account_recovery_rotations",
+  "CREATE TABLE sync_account_recovery_rotations (\n    claim_id TEXT PRIMARY KEY,\n    claim_verifier TEXT NOT NULL UNIQUE\n        CHECK (length(claim_verifier) = 64 AND claim_verifier NOT GLOB '*[^0-9a-f]*'),\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    requested_by_account_device_id TEXT NOT NULL\n        REFERENCES sync_account_devices(id) ON DELETE CASCADE,\n    expected_recovery_version INTEGER NOT NULL CHECK (expected_recovery_version >= 1),\n    expected_account_generation INTEGER NOT NULL CHECK (expected_account_generation >= 1),\n    next_recovery_verifier TEXT NOT NULL UNIQUE\n        CHECK (length(next_recovery_verifier) = 64 AND next_recovery_verifier NOT GLOB '*[^0-9a-f]*'),\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    committed_at INTEGER,\n    cancelled_at INTEGER,\n    prepare_operation_id TEXT NOT NULL UNIQUE,\n    prepare_fingerprint TEXT NOT NULL\n        CHECK (length(prepare_fingerprint) = 64 AND prepare_fingerprint NOT GLOB '*[^0-9a-f]*'),\n    commit_operation_id TEXT UNIQUE,\n    commit_fingerprint TEXT\n        CHECK (commit_fingerprint IS NULL OR (\n            length(commit_fingerprint) = 64 AND commit_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )),\n    CHECK (expires_at > created_at),\n    CHECK (committed_at IS NULL OR committed_at >= created_at),\n    CHECK (cancelled_at IS NULL OR cancelled_at >= created_at),\n    CHECK ((commit_operation_id IS NULL) = (commit_fingerprint IS NULL))\n)"
+ ],
+ [
+  "table",
+  "sync_account_runtime_control",
+  "CREATE TABLE sync_account_runtime_control (\n    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),\n    rollout_mode TEXT NOT NULL\n        CHECK (rollout_mode IN ('development', 'closed', 'cohort', 'open')),\n    account_admission_enabled INTEGER NOT NULL CHECK (account_admission_enabled IN (0, 1)),\n    membership_admission_enabled INTEGER NOT NULL CHECK (membership_admission_enabled IN (0, 1)),\n    account_read_enabled INTEGER NOT NULL CHECK (account_read_enabled IN (0, 1)),\n    account_recovery_enabled INTEGER NOT NULL CHECK (account_recovery_enabled IN (0, 1)),\n    account_delete_enabled INTEGER NOT NULL CHECK (account_delete_enabled IN (0, 1)),\n    port_orchestration_enabled INTEGER NOT NULL CHECK (port_orchestration_enabled IN (0, 1)),\n    generation INTEGER NOT NULL CHECK (generation >= 1),\n    updated_at INTEGER NOT NULL\n)"
+ ],
+ [
+  "table",
+  "sync_account_start_operations",
+  "CREATE TABLE sync_account_start_operations (\n    operation_id TEXT PRIMARY KEY,\n    request_fingerprint TEXT NOT NULL\n        CHECK (length(request_fingerprint) = 64 AND request_fingerprint NOT GLOB '*[^0-9a-f]*'),\n    account_id TEXT NOT NULL UNIQUE REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    account_device_id TEXT NOT NULL UNIQUE,\n    created_at INTEGER NOT NULL,\n    FOREIGN KEY (account_id, account_device_id)\n        REFERENCES sync_account_devices(account_id, id) ON DELETE CASCADE\n)"
+ ],
+ [
+  "table",
+  "sync_accounts",
+  "CREATE TABLE sync_accounts (\n    id TEXT PRIMARY KEY,\n    state TEXT NOT NULL DEFAULT 'provisioning'\n        CHECK (state IN ('provisioning', 'active', 'deleting', 'deleted')),\n    recovery_version INTEGER NOT NULL DEFAULT 0\n        CHECK (recovery_version >= 0),\n    recovery_verifier TEXT UNIQUE,\n    generation INTEGER NOT NULL DEFAULT 1\n        CHECK (generation >= 1),\n    created_at INTEGER NOT NULL,\n    updated_at INTEGER NOT NULL,\n    recovery_created_at INTEGER,\n    recovery_rotated_at INTEGER,\n    delete_requested_at INTEGER,\n    purge_after INTEGER,\n    deleted_at INTEGER, admission_provenance TEXT NOT NULL DEFAULT 'qa'\n  CHECK (admission_provenance IN ('qa', 'production')),\n    CHECK (updated_at >= created_at),\n    CHECK (\n        (state = 'provisioning' AND recovery_version = 0 AND recovery_verifier IS NULL)\n        OR\n        (state IN ('active', 'deleting') AND recovery_version >= 1 AND recovery_verifier IS NOT NULL)\n        OR\n        (state = 'deleted' AND recovery_version >= 1)\n    ),\n    CHECK (recovery_created_at IS NULL OR recovery_created_at >= created_at),\n    CHECK (recovery_rotated_at IS NULL OR recovery_rotated_at >= created_at),\n    CHECK (delete_requested_at IS NULL OR delete_requested_at >= created_at),\n    CHECK (purge_after IS NULL OR delete_requested_at IS NOT NULL),\n    CHECK (deleted_at IS NULL OR deleted_at >= created_at)\n)"
+ ],
+ [
+  "table",
+  "sync_app_device_sync_safety",
+  "CREATE TABLE sync_app_device_sync_safety (\n  app_device_id TEXT PRIMARY KEY REFERENCES sync_devices(id) ON DELETE CASCADE,\n  account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n  membership_id TEXT NOT NULL REFERENCES sync_account_memberships(id) ON DELETE CASCADE,\n  app_id TEXT NOT NULL CHECK (app_id IN ('chord', 'pitch', 'fretboard', 'rhythm')),\n  state TEXT NOT NULL CHECK (state IN ('clean', 'pending', 'attention', 'error')),\n  last_successful_sync_at INTEGER,\n  reported_at INTEGER NOT NULL, attention_count INTEGER NOT NULL DEFAULT 0\n  CHECK (attention_count BETWEEN 0 AND 10000),\n  CHECK ((state = 'clean' AND last_successful_sync_at IS NOT NULL) OR state != 'clean')\n)"
+ ],
+ [
+  "table",
+  "sync_app_join_invitations",
+  "CREATE TABLE \"sync_app_join_invitations\" (\n  invitation_id TEXT PRIMARY KEY CHECK(length(invitation_id) = 36),\n  code_verifier TEXT NOT NULL UNIQUE\n    CHECK(length(code_verifier) = 64 AND code_verifier NOT GLOB '*[^0-9a-f]*'),\n  account_id TEXT NOT NULL,\n  membership_id TEXT NOT NULL,\n  target_app_id TEXT NOT NULL\n    CHECK(target_app_id IN ('chord', 'pitch', 'fretboard', 'rhythm')),\n  admission_provenance TEXT NOT NULL DEFAULT 'qa'\n    CHECK(admission_provenance IN ('qa', 'production')),\n  created_by_account_device_id TEXT NOT NULL,\n  claimed_by_app_device_id TEXT,\n  claimed_by_account_device_id TEXT,\n  created_at INTEGER NOT NULL CHECK(created_at >= 0),\n  expires_at INTEGER NOT NULL CHECK(expires_at > created_at),\n  consumed_at INTEGER,\n  cancelled_at INTEGER,\n  issue_operation_id TEXT NOT NULL UNIQUE,\n  issue_fingerprint TEXT NOT NULL CHECK(length(issue_fingerprint) = 64),\n  consume_operation_id TEXT UNIQUE,\n  consume_fingerprint TEXT,\n  consume_mode TEXT CHECK(consume_mode IN ('new_app', 'existing_chord')),\n  cancelled_by_account_device_id TEXT,\n  qa_issuer_session_id TEXT,\n  qa_app_session_id TEXT,\n  FOREIGN KEY (account_id) REFERENCES sync_accounts(id),\n  FOREIGN KEY (membership_id) REFERENCES sync_account_memberships(id),\n  FOREIGN KEY (created_by_account_device_id) REFERENCES sync_account_devices(id),\n  FOREIGN KEY (claimed_by_app_device_id) REFERENCES sync_devices(id),\n  FOREIGN KEY (claimed_by_account_device_id) REFERENCES sync_account_devices(id),\n  FOREIGN KEY (cancelled_by_account_device_id) REFERENCES sync_account_devices(id),\n  FOREIGN KEY (qa_issuer_session_id) REFERENCES sync_account_qa_sessions(id),\n  FOREIGN KEY (qa_app_session_id) REFERENCES sync_account_qa_sessions(id),\n  CHECK (\n    (admission_provenance = 'qa' AND qa_issuer_session_id IS NOT NULL)\n    OR\n    (admission_provenance = 'production' AND qa_issuer_session_id IS NULL AND qa_app_session_id IS NULL)\n  ),\n  CHECK(consumed_at IS NULL OR consumed_at >= created_at),\n  CHECK(cancelled_at IS NULL OR cancelled_at >= created_at),\n  CHECK(NOT (consumed_at IS NOT NULL AND cancelled_at IS NOT NULL)),\n  CHECK(\n    (consumed_at IS NULL AND consume_operation_id IS NULL AND consume_fingerprint IS NULL AND\n      consume_mode IS NULL AND claimed_by_app_device_id IS NULL AND\n      claimed_by_account_device_id IS NULL AND qa_app_session_id IS NULL)\n    OR\n    (consumed_at IS NOT NULL AND consume_operation_id IS NOT NULL AND consume_fingerprint IS NOT NULL AND\n      consume_mode IS NOT NULL AND claimed_by_app_device_id IS NOT NULL AND\n      claimed_by_account_device_id IS NOT NULL AND\n      ((admission_provenance = 'qa' AND qa_app_session_id IS NOT NULL) OR\n       (admission_provenance = 'production' AND qa_app_session_id IS NULL)))\n  )\n)"
+ ],
+ [
+  "table",
+  "sync_asset_daily_variant_counts",
+  "CREATE TABLE sync_asset_daily_variant_counts (\n    scope TEXT NOT NULL CHECK(scope IN ('account', 'global')),\n    scope_id TEXT NOT NULL,\n    storage_category TEXT NOT NULL CHECK(storage_category IN (\n        'image', 'document_score', 'audio', 'practice_attachment'\n    )),\n    day_key TEXT NOT NULL CHECK(length(day_key) = 10),\n    variant_count INTEGER NOT NULL CHECK(variant_count >= 0),\n    updated_at INTEGER NOT NULL,\n    PRIMARY KEY(scope, scope_id, storage_category, day_key)\n)"
+ ],
+ [
+  "table",
+  "sync_asset_operations",
+  "CREATE TABLE \"sync_asset_operations\" (\n    operation_id TEXT PRIMARY KEY CHECK(length(operation_id) = 36),\n    asset_id TEXT NOT NULL REFERENCES \"sync_assets\"(asset_id) ON DELETE CASCADE,\n    account_id TEXT NOT NULL,\n    sync_user_id TEXT NOT NULL,\n    app_device_id TEXT NOT NULL,\n    request_fingerprint TEXT NOT NULL\n        CHECK(length(request_fingerprint) = 64 AND request_fingerprint NOT GLOB '*[^0-9a-f]*'),\n    created_at INTEGER NOT NULL,\n    updated_at INTEGER NOT NULL,\n    UNIQUE(sync_user_id, asset_id)\n)"
+ ],
+ [
+  "table",
+  "sync_assets",
+  "CREATE TABLE \"sync_assets\" (\n    asset_id TEXT PRIMARY KEY CHECK(length(asset_id) = 36),\n    account_id TEXT NOT NULL,\n    membership_id TEXT NOT NULL,\n    sync_user_id TEXT NOT NULL,\n    kind TEXT NOT NULL CHECK(kind IN (\n        'gear_photo_final', 'gear_photo_source',\n        'my_app_icon_final', 'my_app_icon_source',\n        'practice_attachment_image', 'practice_attachment_pdf', 'practice_attachment_text'\n    )),\n    state TEXT NOT NULL CHECK(state IN (\n        'prepared', 'uploaded', 'available', 'unreferenced', 'deleted'\n    )),\n    content_hash TEXT NOT NULL\n        CHECK(length(content_hash) = 64 AND content_hash NOT GLOB '*[^0-9a-f]*'),\n    mime_type TEXT NOT NULL CHECK(mime_type IN (\n        'image/webp', 'image/png', 'image/jpeg', 'application/pdf', 'text/plain'\n    )),\n    byte_size INTEGER NOT NULL CHECK(byte_size > 0),\n    width INTEGER NOT NULL CHECK(width > 0),\n    height INTEGER NOT NULL CHECK(height > 0),\n    object_key TEXT NOT NULL UNIQUE,\n    object_version INTEGER NOT NULL DEFAULT 1 CHECK(object_version >= 1),\n    created_by_device_id TEXT NOT NULL,\n    owner_record_type TEXT,\n    owner_record_id TEXT,\n    original_filename TEXT,\n    created_at INTEGER NOT NULL,\n    updated_at INTEGER NOT NULL,\n    uploaded_at INTEGER,\n    committed_at INTEGER,\n    unreferenced_at INTEGER,\n    deleted_at INTEGER,\n    storage_category TEXT NOT NULL DEFAULT 'image'\n        CHECK(storage_category IN ('image', 'document_score', 'audio', 'practice_attachment')),\n    CHECK(updated_at >= created_at),\n    CHECK(uploaded_at IS NULL OR uploaded_at >= created_at),\n    CHECK(committed_at IS NULL OR committed_at >= created_at),\n    CHECK(unreferenced_at IS NULL OR unreferenced_at >= created_at),\n    CHECK(deleted_at IS NULL OR deleted_at >= created_at),\n    CHECK(\n      (kind IN ('practice_attachment_image', 'practice_attachment_pdf', 'practice_attachment_text')\n       AND storage_category = 'practice_attachment'\n       AND owner_record_type = 'practice_menu'\n       AND owner_record_id IS NOT NULL AND length(owner_record_id) BETWEEN 1 AND 200\n       AND original_filename IS NOT NULL AND length(original_filename) BETWEEN 1 AND 255)\n      OR\n      (kind NOT IN ('practice_attachment_image', 'practice_attachment_pdf', 'practice_attachment_text')\n       AND storage_category <> 'practice_attachment'\n       AND owner_record_type IS NULL AND owner_record_id IS NULL AND original_filename IS NULL)\n    )\n)"
+ ],
+ [
+  "table",
+  "sync_changes",
+  "CREATE TABLE \"sync_changes\" (\n    change_seq INTEGER PRIMARY KEY AUTOINCREMENT,\n    user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    app_id TEXT NOT NULL,\n    record_type TEXT NOT NULL CHECK (record_type IN (\n        'settings', 'folder', 'chord', 'library_order',\n        'custom_chord', 'custom_progression', 'melody_stage', 'chord_stage',\n        'stage_order', 'progress', 'custom_stage', 'create_preset',\n        'custom_preset', 'preset_order', 'builtin_stage_preferences',\n        'custom_route', 'custom_quiz', 'builtin_route_override',\n        'builtin_quiz_override', 'metronome_settings', 'metronome_preset',\n        'tuner_settings', 'gear_category', 'gear_category_order', 'gear_item',\n        'gear_order', 'calendar_event', 'practice_menu', 'practice_menu_order',\n        'practice_attachment', 'practice_attachment_set',\n        'practice_history_event', 'practice_cycle', 'my_app', 'my_app_order',\n        'practice_menu_set'\n    )),\n    record_id TEXT NOT NULL,\n    revision INTEGER NOT NULL CHECK (revision >= 1),\n    operation_id TEXT NOT NULL,\n    operation_hash TEXT NOT NULL,\n    payload_json TEXT,\n    payload_hash TEXT NOT NULL,\n    deleted_at INTEGER,\n    changed_at INTEGER NOT NULL,\n    schema_version INTEGER NOT NULL DEFAULT 1 CHECK (schema_version >= 1),\n    UNIQUE (user_id, app_id, operation_id)\n)"
+ ],
+ [
+  "table",
+  "sync_chord_account_bridges",
+  "CREATE TABLE sync_chord_account_bridges (\n    bridge_id TEXT PRIMARY KEY,\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    membership_id TEXT NOT NULL,\n    sync_user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    app_device_id TEXT NOT NULL REFERENCES sync_devices(id) ON DELETE RESTRICT,\n    account_device_id TEXT NOT NULL REFERENCES sync_account_devices(id) ON DELETE RESTRICT,\n    state TEXT NOT NULL DEFAULT 'prepared'\n        CHECK (state IN ('prepared', 'dual', 'finalized', 'rolled_back')),\n    generation INTEGER NOT NULL DEFAULT 1 CHECK (generation >= 1),\n    expected_account_generation INTEGER NOT NULL CHECK (expected_account_generation >= 1),\n    expected_membership_generation INTEGER NOT NULL CHECK (expected_membership_generation >= 1),\n    expected_legacy_recovery_version INTEGER NOT NULL CHECK (expected_legacy_recovery_version >= 1),\n    account_recovery_version INTEGER NOT NULL CHECK (account_recovery_version >= 1),\n    recovery_acknowledged_at INTEGER,\n    prepare_operation_id TEXT NOT NULL UNIQUE,\n    prepare_fingerprint TEXT NOT NULL\n        CHECK (length(prepare_fingerprint) = 64 AND prepare_fingerprint NOT GLOB '*[^0-9a-f]*'),\n    dual_operation_id TEXT UNIQUE,\n    dual_fingerprint TEXT\n        CHECK (dual_fingerprint IS NULL OR (\n            length(dual_fingerprint) = 64 AND dual_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )),\n    finalize_operation_id TEXT UNIQUE,\n    finalize_fingerprint TEXT\n        CHECK (finalize_fingerprint IS NULL OR (\n            length(finalize_fingerprint) = 64 AND finalize_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )),\n    rollback_operation_id TEXT UNIQUE,\n    rollback_fingerprint TEXT\n        CHECK (rollback_fingerprint IS NULL OR (\n            length(rollback_fingerprint) = 64 AND rollback_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )),\n    created_at INTEGER NOT NULL,\n    updated_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    dual_committed_at INTEGER,\n    finalized_at INTEGER,\n    rolled_back_at INTEGER,\n    FOREIGN KEY (account_id, membership_id)\n        REFERENCES sync_account_memberships(account_id, id) ON DELETE CASCADE,\n    CHECK (updated_at >= created_at),\n    CHECK (expires_at > created_at),\n    CHECK (recovery_acknowledged_at IS NULL OR recovery_acknowledged_at >= created_at),\n    CHECK (dual_committed_at IS NULL OR dual_committed_at >= created_at),\n    CHECK (finalized_at IS NULL OR finalized_at >= created_at),\n    CHECK (rolled_back_at IS NULL OR rolled_back_at >= created_at),\n    CHECK (\n        (state = 'prepared' AND dual_committed_at IS NULL AND finalized_at IS NULL AND rolled_back_at IS NULL)\n        OR\n        (state = 'dual' AND dual_committed_at IS NOT NULL AND finalized_at IS NULL AND rolled_back_at IS NULL)\n        OR\n        (state = 'finalized' AND dual_committed_at IS NOT NULL AND finalized_at IS NOT NULL AND rolled_back_at IS NULL)\n        OR\n        (state = 'rolled_back' AND finalized_at IS NULL AND rolled_back_at IS NOT NULL)\n    )\n)"
+ ],
+ [
+  "table",
+  "sync_datasets",
+  "CREATE TABLE sync_datasets (\n    user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    app_id TEXT NOT NULL,\n    state TEXT NOT NULL DEFAULT 'initializing'\n        CHECK (state IN ('initializing', 'ready')),\n    schema_version INTEGER NOT NULL CHECK (schema_version >= 1),\n    record_count INTEGER NOT NULL DEFAULT 0 CHECK (record_count >= 0),\n    manifest_hash TEXT,\n    min_change_seq INTEGER NOT NULL DEFAULT 0 CHECK (min_change_seq >= 0),\n    initialized_at INTEGER,\n    updated_at INTEGER NOT NULL, last_change_seq INTEGER NOT NULL DEFAULT 0\n        CHECK (last_change_seq >= 0),\n    PRIMARY KEY (user_id, app_id)\n)"
+ ],
+ [
+  "table",
+  "sync_devices",
+  "CREATE TABLE sync_devices (\n    id TEXT PRIMARY KEY,\n    user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    app_id TEXT NOT NULL,\n    credential_version INTEGER NOT NULL DEFAULT 1 CHECK (credential_version >= 1),\n    credential_verifier TEXT NOT NULL UNIQUE,\n    label TEXT,\n    last_cursor INTEGER NOT NULL DEFAULT 0 CHECK (last_cursor >= 0),\n    created_at INTEGER NOT NULL,\n    last_seen_at INTEGER NOT NULL,\n    revoked_at INTEGER\n, pairing_pending_at INTEGER, paired_at INTEGER, user_label TEXT\n  CHECK (user_label IS NULL OR length(user_label) BETWEEN 1 AND 40))"
+ ],
+ [
+  "table",
+  "sync_enrollment_codes",
+  "CREATE TABLE sync_enrollment_codes (\n    code_verifier TEXT PRIMARY KEY,\n    app_id TEXT NOT NULL CHECK (app_id = 'chord'),\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    consumed_at INTEGER,\n    consumed_by_user_id TEXT REFERENCES sync_users(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,\n    cancelled_at INTEGER,\n    CHECK (expires_at > created_at),\n    CHECK (consumed_at IS NULL OR consumed_at >= created_at),\n    CHECK (cancelled_at IS NULL OR cancelled_at >= created_at),\n    CHECK ((consumed_at IS NULL) = (consumed_by_user_id IS NULL))\n)"
+ ],
+ [
+  "table",
+  "sync_membership_device_links",
+  "CREATE TABLE sync_membership_device_links (\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    membership_id TEXT NOT NULL,\n    app_device_id TEXT NOT NULL UNIQUE REFERENCES sync_devices(id) ON DELETE CASCADE,\n    account_device_id TEXT REFERENCES sync_account_devices(id) ON DELETE SET NULL,\n    linked_at INTEGER NOT NULL,\n    PRIMARY KEY (membership_id, app_device_id),\n    FOREIGN KEY (account_id, membership_id)\n        REFERENCES sync_account_memberships(account_id, id) ON DELETE CASCADE\n)"
+ ],
+ [
+  "table",
+  "sync_membership_handoffs",
+  "CREATE TABLE sync_membership_handoffs (\n    handoff_id TEXT PRIMARY KEY,\n    handoff_verifier TEXT NOT NULL UNIQUE,\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    membership_id TEXT NOT NULL,\n    created_by_account_device_id TEXT\n        REFERENCES sync_account_devices(id) ON DELETE SET NULL,\n    claimed_by_app_device_id TEXT UNIQUE\n        REFERENCES sync_devices(id) ON DELETE SET NULL,\n    created_at INTEGER NOT NULL,\n    expires_at INTEGER NOT NULL,\n    consumed_at INTEGER,\n    cancelled_at INTEGER, issue_operation_id TEXT, issue_fingerprint TEXT\n        CHECK (issue_fingerprint IS NULL OR (\n            length(issue_fingerprint) = 64 AND issue_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )), consume_operation_id TEXT, consume_fingerprint TEXT\n        CHECK (consume_fingerprint IS NULL OR (\n            length(consume_fingerprint) = 64 AND consume_fingerprint NOT GLOB '*[^0-9a-f]*'\n        )), claimed_by_account_device_id TEXT\n        REFERENCES sync_account_devices(id) ON DELETE SET NULL, cancelled_by_account_device_id TEXT\n        REFERENCES sync_account_devices(id) ON DELETE SET NULL, consume_mode TEXT\n        CHECK (consume_mode IS NULL OR consume_mode IN ('new_app', 'existing_chord')), qa_issuer_session_id TEXT\n  REFERENCES sync_account_qa_sessions(id) ON DELETE RESTRICT, qa_app_session_id TEXT\n  REFERENCES sync_account_qa_sessions(id) ON DELETE SET NULL, admission_provenance TEXT NOT NULL DEFAULT 'qa'\n  CHECK (admission_provenance IN ('qa', 'production')), handoff_kind TEXT NOT NULL DEFAULT 'initial'\n  CHECK (handoff_kind IN ('initial', 'rejoin')), expected_sync_user_id TEXT\n  REFERENCES sync_users(id) ON DELETE CASCADE,\n    FOREIGN KEY (account_id, membership_id)\n        REFERENCES sync_account_memberships(account_id, id) ON DELETE CASCADE,\n    CHECK (expires_at > created_at),\n    CHECK (consumed_at IS NULL OR consumed_at >= created_at),\n    CHECK (cancelled_at IS NULL OR cancelled_at >= created_at),\n    CHECK ((consumed_at IS NULL) = (claimed_by_app_device_id IS NULL))\n)"
+ ],
+ [
+  "table",
+  "sync_port_device_operations",
+  "CREATE TABLE sync_port_device_operations (\n    operation_id TEXT PRIMARY KEY CHECK(length(operation_id) = 36),\n    request_fingerprint TEXT NOT NULL\n        CHECK(length(request_fingerprint) = 64 AND request_fingerprint NOT GLOB '*[^0-9a-f]*'),\n    account_id TEXT NOT NULL REFERENCES sync_accounts(id) ON DELETE CASCADE,\n    account_device_id TEXT NOT NULL REFERENCES sync_account_devices(id) ON DELETE CASCADE,\n    membership_id TEXT NOT NULL,\n    sync_user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    app_device_id TEXT NOT NULL UNIQUE REFERENCES sync_devices(id) ON DELETE CASCADE,\n    created_at INTEGER NOT NULL,\n    FOREIGN KEY (account_id, membership_id)\n        REFERENCES sync_account_memberships(account_id, id) ON DELETE CASCADE\n)"
+ ],
+ [
+  "table",
+  "sync_port_join_invitations",
+  "CREATE TABLE sync_port_join_invitations (\n  invitation_id TEXT PRIMARY KEY CHECK(length(invitation_id) = 36),\n  code_verifier TEXT NOT NULL UNIQUE\n    CHECK(length(code_verifier) = 64 AND code_verifier NOT GLOB '*[^0-9a-f]*'),\n  account_id TEXT NOT NULL,\n  admission_provenance TEXT NOT NULL\n    CHECK(admission_provenance IN ('qa', 'production')),\n  created_by_account_device_id TEXT NOT NULL,\n  claimed_by_account_device_id TEXT UNIQUE,\n  expected_recovery_version INTEGER NOT NULL CHECK(expected_recovery_version >= 1),\n  expected_account_generation INTEGER NOT NULL CHECK(expected_account_generation >= 1),\n  created_at INTEGER NOT NULL CHECK(created_at >= 0),\n  expires_at INTEGER NOT NULL CHECK(expires_at > created_at),\n  consumed_at INTEGER,\n  cancelled_at INTEGER,\n  issue_operation_id TEXT NOT NULL UNIQUE,\n  issue_fingerprint TEXT NOT NULL CHECK(length(issue_fingerprint) = 64),\n  consume_operation_id TEXT UNIQUE,\n  consume_fingerprint TEXT,\n  cancelled_by_account_device_id TEXT,\n  qa_issuer_session_id TEXT,\n  qa_port_session_id TEXT,\n  FOREIGN KEY (account_id) REFERENCES sync_accounts(id),\n  FOREIGN KEY (created_by_account_device_id) REFERENCES sync_account_devices(id),\n  FOREIGN KEY (claimed_by_account_device_id) REFERENCES sync_account_devices(id),\n  FOREIGN KEY (cancelled_by_account_device_id) REFERENCES sync_account_devices(id),\n  FOREIGN KEY (qa_issuer_session_id) REFERENCES sync_account_qa_sessions(id),\n  FOREIGN KEY (qa_port_session_id) REFERENCES sync_account_qa_sessions(id),\n  CHECK (\n    (admission_provenance = 'qa' AND qa_issuer_session_id IS NOT NULL)\n    OR\n    (admission_provenance = 'production' AND qa_issuer_session_id IS NULL AND qa_port_session_id IS NULL)\n  ),\n  CHECK(consumed_at IS NULL OR consumed_at >= created_at),\n  CHECK(cancelled_at IS NULL OR cancelled_at >= created_at),\n  CHECK(NOT (consumed_at IS NOT NULL AND cancelled_at IS NOT NULL)),\n  CHECK(\n    (consumed_at IS NULL AND consume_operation_id IS NULL AND consume_fingerprint IS NULL\n      AND claimed_by_account_device_id IS NULL AND qa_port_session_id IS NULL)\n    OR\n    (consumed_at IS NOT NULL AND consume_operation_id IS NOT NULL AND consume_fingerprint IS NOT NULL\n      AND claimed_by_account_device_id IS NOT NULL\n      AND ((admission_provenance = 'qa' AND qa_port_session_id IS NOT NULL)\n        OR (admission_provenance = 'production' AND qa_port_session_id IS NULL)))\n  )\n)"
+ ],
+ [
+  "table",
+  "sync_records",
+  "CREATE TABLE \"sync_records\" (\n    user_id TEXT NOT NULL REFERENCES sync_users(id) ON DELETE CASCADE,\n    app_id TEXT NOT NULL,\n    record_type TEXT NOT NULL CHECK (record_type IN (\n        'settings', 'folder', 'chord', 'library_order',\n        'custom_chord', 'custom_progression', 'melody_stage', 'chord_stage',\n        'stage_order', 'progress', 'custom_stage', 'create_preset',\n        'custom_preset', 'preset_order', 'builtin_stage_preferences',\n        'custom_route', 'custom_quiz', 'builtin_route_override',\n        'builtin_quiz_override', 'metronome_settings', 'metronome_preset',\n        'tuner_settings', 'gear_category', 'gear_category_order', 'gear_item',\n        'gear_order', 'calendar_event', 'practice_menu', 'practice_menu_order',\n        'practice_attachment', 'practice_attachment_set',\n        'practice_history_event', 'practice_cycle', 'my_app', 'my_app_order',\n        'practice_menu_set'\n    )),\n    record_id TEXT NOT NULL,\n    payload_json TEXT,\n    payload_hash TEXT NOT NULL,\n    revision INTEGER NOT NULL CHECK (revision >= 1),\n    updated_at INTEGER NOT NULL,\n    deleted_at INTEGER,\n    updated_by_device_id TEXT,\n    last_operation_id TEXT NOT NULL,\n    schema_version INTEGER NOT NULL DEFAULT 1 CHECK (schema_version >= 1),\n    PRIMARY KEY (user_id, app_id, record_type, record_id),\n    CHECK ((deleted_at IS NULL AND payload_json IS NOT NULL)\n        OR (deleted_at IS NOT NULL AND payload_json IS NULL))\n)"
+ ],
+ [
+  "table",
+  "sync_runtime_control",
+  "CREATE TABLE sync_runtime_control (\n    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),\n    rollout_mode TEXT NOT NULL CHECK (rollout_mode IN ('closed', 'cohort', 'open')),\n    admission_enabled INTEGER NOT NULL CHECK (admission_enabled IN (0, 1)),\n    data_write_enabled INTEGER NOT NULL CHECK (data_write_enabled IN (0, 1)),\n    data_read_enabled INTEGER NOT NULL CHECK (data_read_enabled IN (0, 1)),\n    recovery_enabled INTEGER NOT NULL CHECK (recovery_enabled IN (0, 1)),\n    cloud_delete_enabled INTEGER NOT NULL CHECK (cloud_delete_enabled IN (0, 1)),\n    generation INTEGER NOT NULL CHECK (generation >= 1),\n    updated_at INTEGER NOT NULL\n)"
+ ],
+ [
+  "table",
+  "sync_users",
+  "CREATE TABLE sync_users (\n    id TEXT PRIMARY KEY,\n    state TEXT NOT NULL DEFAULT 'provisioning'\n        CHECK (state IN ('provisioning', 'active', 'deleting', 'deleted')),\n    recovery_version INTEGER NOT NULL DEFAULT 0\n        CHECK (recovery_version >= 0),\n    recovery_verifier TEXT UNIQUE,\n    created_at INTEGER NOT NULL,\n    updated_at INTEGER NOT NULL,\n    deleted_at INTEGER, recovery_created_at INTEGER, recovery_rotated_at INTEGER, delete_requested_at INTEGER, purge_after INTEGER,\n    CHECK (\n        (state = 'provisioning' AND recovery_version = 0 AND recovery_verifier IS NULL)\n        OR\n        (state <> 'provisioning' AND recovery_version >= 1 AND recovery_verifier IS NOT NULL)\n    )\n)"
+ ]
+];
+export const STUDIO_BASE_JOURNAL = [
+ [
+  1,
+  "0001_create_sync_foundation.sql"
+ ],
+ [
+  2,
+  "0002_add_sync_revision_metadata.sql"
+ ],
+ [
+  3,
+  "0003_add_pairing_device_lifecycle.sql"
+ ],
+ [
+  4,
+  "0004_add_pairing_attempt_limiter.sql"
+ ],
+ [
+  5,
+  "0005_add_recovery_lifecycle.sql"
+ ],
+ [
+  6,
+  "0006_add_device_management_and_account_deletion.sql"
+ ],
+ [
+  7,
+  "0007_add_production_rollout_control.sql"
+ ],
+ [
+  8,
+  "0008_add_multi_app_account_backbone.sql"
+ ],
+ [
+  9,
+  "0009_add_account_api_handoff_state.sql"
+ ],
+ [
+  10,
+  "0010_add_chord_account_bridge.sql"
+ ],
+ [
+  11,
+  "0011_add_pitch_record_types.sql"
+ ],
+ [
+  12,
+  "0012_add_rhythm_record_types.sql"
+ ],
+ [
+  13,
+  "0013_add_fretboard_record_types.sql"
+ ],
+ [
+  14,
+  "0014_add_handoff_consume_mode.sql"
+ ],
+ [
+  15,
+  "0015_add_account_qa_admission.sql"
+ ],
+ [
+  16,
+  "0016_add_app_join_invitations.sql"
+ ],
+ [
+  17,
+  "0017_add_account_lifecycle.sql"
+ ],
+ [
+  18,
+  "0018_add_account_admission_provenance.sql"
+ ],
+ [
+  19,
+  "0019_add_authenticated_recovery_rotation.sql"
+ ],
+ [
+  20,
+  "0020_add_port_join_invitations.sql"
+ ],
+ [
+  21,
+  "0021_add_port_data_plane.sql"
+ ],
+ [
+  22,
+  "0022_add_binary_assets.sql"
+ ],
+ [
+  23,
+  "0023_add_asset_quota_and_account_activity.sql"
+ ],
+ [
+  24,
+  "0024_add_auto_rejoin_handoffs.sql"
+ ],
+ [
+  25,
+  "0025_add_app_sync_safety.sql"
+ ],
+ [
+  26,
+  "0026_add_practice_attachment_assets.sql"
+ ],
+ [
+  27,
+  "0027_add_practice_attachment_record_types.sql"
+ ],
+ [
+  28,
+  "0028_add_app_attention_count.sql"
+ ],
+ [
+  29,
+  "0029_add_pro_auth.sql"
+ ],
+ [
+  30,
+  "0030_add_pro_auth_lockout.sql"
+ ],
+ [
+  31,
+  "0031_add_sync_target_user_labels.sql"
+ ],
+ [
+  32,
+  "0032_add_practice_menu_set_record_type.sql"
+ ],
+ [
+  33,
+  "0033_add_pro_device_sessions.sql"
+ ]
+];

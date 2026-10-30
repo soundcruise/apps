@@ -14,6 +14,7 @@ import {createD1SyncRepository} from './sync-database.js';
 import {guardCompatibleD1} from './maintenance-compatible-schema.js';
 import {maintenanceDigest,maintenanceCanonical} from './maintenance-bridge-v2.js';
 import {MAINTENANCE_V2_PROFILES} from './maintenance-v2-profiles.js';
+import {identifyStudioBase,STUDIO_PLATFORM_SQL,STUDIO_BASE_PROFILES} from './studio-base-profiles.js';
 import {STUDIO_DOCUMENT_DDL} from './studio-document-schema.js';
 import {STUDIO_RELEASE_DDL,studioReleaseHash,releaseAssertion} from './studio-release-schema.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -26,8 +27,9 @@ const exact=(x,keys)=>x&&Object.getPrototypeOf(x)===Object.prototype&&Object.key
 const names={sync_records:'studio_document_records',sync_changes:'studio_document_changes',sync_datasets:'studio_document_datasets',sync_users:'studio_document_users',sync_devices:'studio_document_devices'};
 // Trusted isolated adapter only: no production router imports this module. Validator is the real
 // Studio schema2 validator supplied by the host bundle. Never accept it from HTTP input.
-export function createIsolatedStudioDocumentOwner({db,env,validateProject,enabled=false,allowedOrigins=[],verifyEnrollment=verifyTurnstileToken,limits=null,release=false,rate=null,retentionPolicy=null,evidencePolicy=null,serverActivation=false}){
+export function createIsolatedStudioDocumentOwner({db,env,validateProject,enabled=false,allowedOrigins=[],verifyEnrollment=verifyTurnstileToken,limits=null,release=false,rate=null,retentionPolicy=null,evidencePolicy=null,serverActivation=false,expectedBaseProfile=null}){
  if(!db?.batch||typeof validateProject!=='function')fail('dependencies');
+ if(expectedBaseProfile!==null&&(!release||!Object.hasOwn(STUDIO_BASE_PROFILES,expectedBaseProfile)))fail('studio_base_profile_required');
  const q=(s,...v)=>db.prepare(s).bind(...v);
  const executions=new WeakMap();
  evidencePolicy=validateEvidencePolicy(evidencePolicy);if((evidencePolicy||serverActivation)&&!release)fail('release-required');
@@ -53,8 +55,9 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
   if(schema.length!==expected.length||schema.some((r,i)=>r.name!==expected[i].name||r.sql.trim()!==expected[i].sql))fail('studio_schema_unknown');
   const base=JSON.parse(schemaEncoded).filter(x=>!x[1].startsWith('studio_document_')).map(([type,name,sql])=>({type,name,sql:sql.trim().replace(/;$/,'')}));
   const journal=JSON.parse(journalEncoded),fingerprint=await maintenanceDigest(base);
-  const profile=Object.values(MAINTENANCE_V2_PROFILES).find(x=>x.stage===33&&x.fingerprint===fingerprint&&maintenanceCanonical(x.journal)===maintenanceCanonical(journal.map(x=>x[1])));
+  const profile=release?identifyStudioBase(JSON.parse(schemaEncoded).filter(x=>!x[1].startsWith('studio_document_')),journal,JSON.parse((await q(STUDIO_PLATFORM_SQL).first()).encoded)):Object.values(MAINTENANCE_V2_PROFILES).find(x=>x.stage===33&&x.fingerprint===fingerprint&&maintenanceCanonical(x.journal)===maintenanceCanonical(journal.map(x=>x[1])));
   if(!profile||journal.some((x,i)=>x[0]!==i+1))fail('base_schema_unknown');
+  if(expectedBaseProfile!==null&&profile.id!==expectedBaseProfile)fail('studio_base_profile_mismatch');
   const runtime=await readAccountRuntimeControl(db),needsAdmission=registration||enrollment||admission;
   const decision=accountGateDecision(needsAdmission?ACCOUNT_GATE_ACTIONS.ACCOUNT_ADMISSION:securityDelete?ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE:ACCOUNT_GATE_ACTIONS.ACCOUNT_READ,runtime);
   if(!decision.allowed||!Number.isSafeInteger(runtime.generation)||(needsAdmission&&runtime.rolloutMode!=='open'))fail('account_runtime_hold');
@@ -73,7 +76,7 @@ export function createIsolatedStudioDocumentOwner({db,env,validateProject,enable
   const sql=`SELECT CASE WHEN (?=1 OR EXISTS(SELECT 1 FROM sync_accounts a JOIN sync_account_devices d ON d.account_id=a.id WHERE a.id=? AND a.generation=? AND a.state='active' AND a.admission_provenance='production' AND a.deleted_at IS NULL AND a.recovery_version=? AND d.id=? AND d.credential_version=? AND d.credential_verifier=? AND d.revoked_at IS NULL)) AND (?=1 OR EXISTS(SELECT 1 FROM studio_document_enrollments WHERE account_id=? AND device_id=? AND generation=? AND revoked=0)) AND EXISTS(SELECT 1 FROM pro_credentials p JOIN pro_auth_state s ON s.singleton_id=1 WHERE p.id=? AND p.verifier=? AND p.generation=? AND s.generation=p.generation AND p.scope='global_pro' AND p.revoked_at IS NULL AND CASE WHEN p.device_public_key IS NOT NULL THEN p.last_validated_at+7776000000>unixepoch('subsec')*1000 AND p.lease_expires_at>unixepoch('subsec')*1000 ELSE MAX(p.created_at,s.session_lifecycle_started_at)+7776000000>unixepoch('subsec')*1000 AND s.unbound_backend_until>unixepoch('subsec')*1000 END) AND EXISTS(SELECT 1 FROM studio_document_control WHERE id=1 AND enabled=1 AND version=1 AND epoch=?) ${release?'AND NOT EXISTS(SELECT 1 FROM studio_document_erased_accounts WHERE account_id=?)':''} THEN 1 ELSE 0 END AS ok`;
   const guarded=guardCompatibleD1(db,{guard:{sql:'SELECT CASE WHEN (SELECT ok FROM ('+sql+'))=1 AND EXISTS(SELECT 1 FROM sync_account_runtime_control WHERE singleton_id=1 AND generation=? AND ((?=1 AND account_admission_enabled=1 AND rollout_mode=\'open\') OR (?=0 AND account_read_enabled=1))) AND EXISTS(SELECT 1 FROM sync_account_runtime_control WHERE singleton_id=1 AND (?=0 OR account_delete_enabled=1)) AND (SELECT encoded FROM ('+schemaSQL+'))=? AND (SELECT encoded FROM ('+journalSQL+'))=? THEN 1 ELSE 0 END AS ok',params:[registration?1:0,a.accountId,a.generation,row.recovery_version,a.accountDeviceId,d.credential_version,verifier,(registration||enrollment)?1:0,a.accountId,a.accountDeviceId,a.generation,pi.writerProof.id,pi.writerProof.verifier,pro.generation,control.epoch,...(release?[a.accountId]:[]),runtime.generation,needsAdmission?1:0,needsAdmission?1:0,securityDelete?1:0,schemaEncoded,journalEncoded]}});
   let releaseGuard=guarded;
-  if(release){const hash=await studioReleaseHash();await releaseAssertion(db,hash).all();releaseGuard={prepare:sql=>guarded.prepare(sql),async batch(ss){const result=await guarded.batch([releaseAssertion(guarded,hash),...ss,releaseAssertion(guarded,hash)]);return result.slice(1,-1);}};}
+  if(release){const hash=await studioReleaseHash();await releaseAssertion(db,hash,profile.id).all();releaseGuard={prepare:sql=>guarded.prepare(sql),async batch(ss){const result=await guarded.batch([releaseAssertion(guarded,hash,profile.id),...ss,releaseAssertion(guarded,hash,profile.id)]);return result.slice(1,-1);}};}
   const activation=serverActivation?await activationGuard(db,a.accountId,a.accountDeviceId):null;
   if(activation)releaseGuard=activation.wrap(releaseGuard);
   const result={activation,activationMode:activation?.mode??null,binding,guarded:releaseGuard,identity:Object.freeze({userId:a.accountId,deviceId:a.accountDeviceId,appId:'studio'})};if(evidencePolicy&&!registration){const state=await db.prepare('SELECT epoch FROM studio_document_evidence_state WHERE account_id=?').bind(a.accountId).first();if(!state&&(await db.prepare('SELECT 1 FROM studio_document_enrollments WHERE account_id=? LIMIT 1').bind(a.accountId).first()))fail('evidence-epoch-missing');binding.operationEpoch=state?.epoch??1;result.epochBase=result.guarded;const under=result.guarded;result.guarded={prepare:sql=>under.prepare(sql),async batch(ss){const r=await under.batch([evidenceEpochGuard(under,a.accountId,binding.operationEpoch),...ss,evidenceEpochGuard(under,a.accountId,binding.operationEpoch)]);return r.slice(1,-1);}};}

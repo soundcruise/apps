@@ -1,0 +1,37 @@
+// Synthetic fixture helpers. No remote credentials or remote bindings.
+import fs from 'node:fs';import {spawnSync}from'node:child_process';import path from 'node:path';import vm from 'node:vm';import {createRequire}from'node:module';import{fileURLToPath}from'node:url';import{randomUUID,createHash,webcrypto}from'node:crypto';
+export const W=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..'),src=W+'/workers/sound-cruise-sync/src';
+export const H=x=>createHash('sha256').update(typeof x==='string'?x:JSON.stringify(x)).digest('hex');
+export const pepper='synthetic-only-schema102-account-key',proPepper='synthetic-only-schema102-pro-key';
+const input=JSON.parse(fs.readFileSync(W+'/workers/sound-cruise-sync/test/fixtures/studio-production-schema33.json'));
+export const base=input.objects,journal=input.journal;
+export function runtime(profile){const p=profile==='production102'?process.env.STUDIO_TEST_RUNTIME_102:process.env.STUDIO_TEST_RUNTIME;if(!p)throw Error('explicit-test-runtime-required');return createRequire(p);}
+let script;
+export async function boot(profile,root,{initialize=true,platformReady=false}={}){
+ const brandNew=!fs.existsSync(root);if(initialize&&!brandNew)throw Error('fixture-root-must-be-new');
+ const req=runtime(profile),{Miniflare,convertV4MiniflareOptions}=req('miniflare');
+ if(!script){const{build}=req('esbuild');script=(await build({stdin:{contents:`import candidate from '${src}/studio-production-entry.js';import legacy from '${src}/studio-legacy-v137.mjs';export default{async fetch(r,e,c){e={...e,SYNC_RATE_LIMITER:{limit:async()=>({success:true})}};if(new URL(r.url).pathname==='/fixture/scheduled'){const jobs=[];const outcome=await candidate.scheduled({},e,{waitUntil:p=>jobs.push(p)});await Promise.all(jobs);return Response.json(outcome??{status:'DONE'});}return candidate.fetch(r,e,c)}}`,resolveDir:W,sourcefile:'schema102-native-host.mjs'},bundle:true,format:'esm',platform:'browser',target:'es2022',write:false,logLevel:'silent'})).outputFiles[0].text;}
+ const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script,compatibilityDate:'2026-09-01',host:'127.0.0.1',port:0,inspectorPort:0,
+ bindings:{SYNC_ACCOUNT_CREDENTIAL_PEPPER:pepper,SYNC_ACCOUNT_RECOVERY_PEPPER:pepper,SYNC_CREDENTIAL_PEPPER:pepper,PRO_CREDENTIAL_PEPPER:proPepper,STUDIO_RELEASE_ROUTE_ENABLED:'false',SYNC_ASSET_CLEANUP_ENABLED:'true',ALLOWED_ORIGINS:'https://studio.fixture.invalid',ACCOUNT_ALLOWED_ORIGINS:'https://studio.fixture.invalid',SYNC_ALLOWED_APP_IDS:'port,chord,pitch,fretboard,rhythm'},
+ d1Databases:{DB:'schema-fixture',SYNC_DB:'schema-fixture'},r2Buckets:{BUCKET:'schema-fixture-r2',SYNC_ASSETS:'schema-fixture-r2'},resourcePersistencePath:root,
+ outboundService:()=>{throw Error('external-network-forbidden')}}));
+ const db=await mf.getD1Database('DB'),bucket=await mf.getR2Bucket('BUCKET');
+ if(initialize){for(const [type,,sql]of base.filter(x=>x[0]==='table'))await db.prepare(sql).run();for(const [type,,sql]of base.filter(x=>x[0]!=='table'))await db.prepare(sql).run();for(const [id,name]of journal)await db.prepare('INSERT INTO d1_migrations(id,name) VALUES(?,?)').bind(id,name).run();}
+ if(profile==='production102'&&brandNew&&!platformReady){
+  await db.prepare('SELECT 1').all();await mf.dispose();
+  const kv="CREATE TABLE _cf_KV (\n        key TEXT PRIMARY KEY,\n        value BLOB\n      ) WITHOUT ROWID";
+  const py="import pathlib,sqlite3;ps=[p for p in (pathlib.Path("+JSON.stringify(path.resolve(root))+")/'d1/miniflare-D1DatabaseObject').glob('*.sqlite') if p.name!='metadata.sqlite'];assert len(ps)==1; c=sqlite3.connect(str(ps[0]));c.execute("+JSON.stringify(kv)+");c.commit();c.close()";
+  const p=spawnSync('python3',['-c',py],{encoding:'utf8'});if(p.status!==0)throw Error('fixture-platform-bootstrap-failed');
+  return boot(profile,root,{initialize:false,platformReady:true});
+ }
+ return{mf,db,bucket,profile,root};
+}
+export function model(){const realm={window:{CruiseStudio:{},ChordCruise:{},crypto:webcrypto},TextEncoder,Date};for(const f of['core/music-theory.js','core/song-model.js'])vm.runInNewContext(fs.readFileSync(W+'/apps/cruise-studio/js/'+f,'utf8'),realm);vm.runInNewContext(fs.readFileSync(W+'/apps/chord-cruise/js/core/music-theory.js','utf8'),realm);const C=realm.window.CruiseStudio;C.schema2=createRequire(import.meta.url)(W+'/apps/cruise-studio/js/core/schema2.js');C.model.configureSchema2();return C.model;}
+export async function seedRuntime(db){const now=Date.now();await db.prepare("INSERT INTO sync_account_runtime_control(singleton_id,rollout_mode,account_admission_enabled,membership_admission_enabled,account_read_enabled,account_recovery_enabled,account_delete_enabled,port_orchestration_enabled,generation,updated_at) VALUES(1,'open',1,0,1,0,1,0,1,1)").run();await db.prepare("INSERT INTO pro_auth_state(singleton_id,generation,active_code_slot,legacy_compat_enabled,updated_at,session_lifecycle_started_at,unbound_backend_until) VALUES(1,1,'A',1,?,?,?)").bind(now,now,now+600000).run();await db.prepare("INSERT INTO sync_runtime_control VALUES(1,'open',1,1,1,1,1,1,?)").bind(now).run();}
+export async function account(db){const{createAccountCredential,accountCredentialVerifier}=await import(src+'/account-crypto.js');const c=createAccountCredential(),id=randomUUID(),verifier=await accountCredentialVerifier(c.credential,pepper);await db.prepare("INSERT INTO sync_accounts(id,state,recovery_version,recovery_verifier,generation,created_at,updated_at,admission_provenance) VALUES(?,'active',1,?,1,1,1,'production')").bind(id,H(id)).run();await db.prepare('INSERT INTO sync_account_devices(id,account_id,credential_version,credential_verifier,created_at,last_seen_at) VALUES(?,?,1,?,1,1)').bind(c.deviceId,id,verifier).run();return{id,...c,verifier};}
+export async function pro(db){const{hmacVerifier}=await import(src+'/crypto.js');const id=randomUUID(),token='scp1.'+id+'.'+'a'.repeat(43),verifier=await hmacVerifier('sound-cruise-pro:v1:'+token,proPepper);await db.prepare("INSERT INTO pro_credentials(id,verifier,generation,scope,created_at) VALUES(?,?,1,'global_pro',?)").bind(id,verifier,Date.now()).run();return{id,token};}
+export const headers=(a,p)=>new Headers({Authorization:'Bearer '+a.credential,'X-Sound-Cruise-Pro-Authorization':'Bearer '+p.token});
+export async function makeOwner(db,options={}){const{createIsolatedStudioDocumentOwner}=await import(src+'/studio-owner-document.js');return createIsolatedStudioDocumentOwner({db,env:{SYNC_ACCOUNT_CREDENTIAL_PEPPER:pepper,SYNC_ACCOUNT_RECOVERY_PEPPER:pepper,PRO_CREDENTIAL_PEPPER:proPepper},validateProject:model().validateProject,enabled:true,release:true,limits:{documents:10,operations:64,bytes:128*1024*1024},...options});}
+export async function stage(owner,a,p,doc,revision=0){const{studioDocumentUpload}=await import(src+'/studio-owner-document.js');await owner.enroll(headers(a,p));const upload=await studioDocumentUpload(doc,revision);await owner.begin(headers(a,p),upload.request);for(let i=0;i<upload.parts.length;i++)await owner.upload(headers(a,p),upload.request.operationId,i,upload.parts[i]);return upload;}
+export function statements(text){return text.split(/;\n(?=(?:CREATE|INSERT|SELECT)\b)/).map(x=>x.replace(/^--[^\n]*\n/,'').replace(/;\s*$/,'').trim()).filter(Boolean);}
+export async function nativeRows(db){const tables=base.filter(x=>x[0]==='table').map(x=>x[1]);const out=[];for(const t of tables)out.push([t,(await db.prepare('SELECT * FROM "'+t+'"').all()).results]);return H(out);}
