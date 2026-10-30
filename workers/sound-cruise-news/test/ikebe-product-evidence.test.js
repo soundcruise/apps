@@ -44,6 +44,37 @@ test('strict canonical article URL, published date, opt-out and bounded response
 test('existing Ikebe identity and precise target recovery unchanged',()=>{assert.equal(recoverySurface({...row(172475)},source).parser,'target-evidence-3');assert.equal(productFacts('Yamaha RS20MM').product,'RS20MM');assert.equal(factualLabel({brand:'BOSS',product:'EX-4',category:'amps_effects',version:null},'new_product'),'BOSS、EX-4を発表');});
 async function prepare(o=fulltone,id=172640){const s=await setup(),a={...source,enabled:true,productionEnabled:true,robotsHash:await hash(robot)},r=row(id),item=await put(s,'generic-'+id,{id:await hash(r.source_url),sourceId:'ikebe',sourceName:a.name,sourceUrl:r.source_url,normalizedUrl:r.source_url,publishedAt:r.published_at,productFacts:null,category:o===monster?'recording_audio':'amps_effects',eventType:'other'});await s.recordHealth({sourceId:'ikebe',status:'healthy',reasonCode:'ok',checkedAt:now,successfulAt:now});const before=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(item.id).first();let calls=0;return {s,a,item,before,options:{sleep:async()=>{},fetcher:async u=>{calls++;assert([a.robotsUrl,r.source_url].includes(u));return new Response(u===a.robotsUrl?robot:html(o,id),{headers:{'Content-Type':'text/html'}});}},calls:()=>calls};}
 async function recover(c){const {requestId,snapshot,revision}=await decisionInput(c.s,{id:c.item.id});return recheckFacts(c.s,{id:c.item.id,requestId,snapshot,revision},now,[c.a],pepper,fixtureActor,c.options);}
+async function failedReceipt(c,parser,checked=now-2*86400000){
+ await c.s.db.prepare("UPDATE candidate_items SET event_type='new_product' WHERE id=?").bind(c.item.id).run();
+ c.before=await c.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.item.id).first();
+ const p={sourceId:'ikebe',sourceUrl:c.before.source_url,publishedAt:c.before.published_at,verifiedAt:checked,extractionMethod:'explicit_ikebe_product_fields',parserVersion:parser,pipelineVersion:'primary-announcement-3',evidenceKey:await hash(c.before.title_fingerprint),responseHash:'a'.repeat(64),failureReason:'facts_primary_type_unbound',factField:'_extraction_failure'};
+ await c.s.db.prepare('INSERT INTO news_facts_rechecks(request_id,request_payload_hash,candidate_id,checked_at,outcome,provenance_json) VALUES(?,?,?,?,?,?)').bind('old-failure-fixture','old-hash',c.item.id,checked,p.failureReason,JSON.stringify([p])).run();return p;
+}
+test('old parser failure does not suppress later permitted new parser recovery',async()=>{
+ const o={brand:'Craft Lab',models:['VOYAGER'],tag:'effector',title:'従来の回路を一体化。Craft Labよりオーバードライブ “VOYAGER”登場！',lead:'【2種類の回路を組み合わせた設計】',type:'製品は2種類の回路をひとつの筐体にまとめ、接続順序を切り替えられるよう設計されています。'};
+ const c=await prepare(o,172777),old=await failedReceipt(c,'ikebe-product-fields-12'),r=await recover(c);
+ assert.equal(r.outcome,'facts_recovered');assert.equal(r.validation.valid,true);assert.equal(c.calls(),2);
+ const row=await c.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.item.id).first(),p=JSON.parse(row.facts_provenance);
+ assert.equal(row.review_status,'pending');assert.equal(row.publication_decision,'PUBLISH_REVIEW');assert.equal(row.review_revision,1);
+ assert(p.some(v=>v.factField==='appearanceEvidence'&&v.parserVersion===IKEBE_PRODUCT_PARSER&&v.sourceUrl===row.source_url));
+ assert.deepEqual(JSON.parse((await c.s.db.prepare("SELECT provenance_json FROM news_facts_rechecks WHERE request_id='old-failure-fixture'").first()).provenance_json),[old]);
+ assert.equal((await c.s.db.prepare('SELECT count(*) n FROM news_decision_ledger').first()).n,0);
+});
+test('unchanged parser failure remains cached without publisher requests',async()=>{
+ const c=await prepare(fulltone,172778);await failedReceipt(c,IKEBE_PRODUCT_PARSER);const r=await recover(c);
+ assert.equal(r.outcome,'facts_primary_evidence_unchanged');assert.equal(c.calls(),0);assert.equal(r.validation.valid,false);
+});
+test('parser upgrade does not bypass the same-day source budget or URL restriction',async()=>{
+ const c=await prepare(fulltone,172779);const p=await failedReceipt(c,'ikebe-product-fields-12',now-1000);
+ await c.s.db.prepare("INSERT INTO news_facts_sources(source_id,lease_token,checked_at,outcome,proof_json) VALUES(?,'old',?,'facts_primary_type_unbound',?)").bind('ikebe:ikebe-product-fields-12:'+c.item.id,now-1000,JSON.stringify(p)).run();
+ const r=await recover(c);assert.equal(r.recovered,false);assert.equal(c.calls(),0);assert.equal(r.validation.valid,false);
+});
+test('changed candidate revision prevents recovery before any HTTP',async()=>{
+ const c=await prepare(fulltone,172780),input=await decisionInput(c.s,{id:c.item.id});
+ await c.s.db.prepare('UPDATE candidate_items SET review_revision=review_revision+1 WHERE id=?').bind(c.item.id).run();
+ await assert.rejects(recheckFacts(c.s,{id:c.item.id,requestId:input.requestId,snapshot:input.snapshot,revision:input.revision},now,[c.a],pepper,fixtureActor,c.options),/candidate_changed/);
+ assert.equal(c.calls(),0);
+});
 for(const [name,o,id]of [['Fulltone',fulltone,172640],['MONSTER',monster,172649]])test(name+' recovery is READY but pending, same dates, no decision or teacher writes',async()=>{const c=await prepare(o,id),r=await recover(c);assert(r.recovered);assert(r.validation.valid);const d=await reviewDetail(c.s,c.item.id,now,[c.a],pepper);assert.equal(d.factsReview.recoveryClass,'READY_FOR_HUMAN_DECISION');const after=await c.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.item.id).first();for(const k of ['published_at','expires_at','source_url','title_fingerprint','review_status','publication_decision'])assert.equal(after[k],c.before[k]);assert.equal(c.calls(),2);assert(JSON.parse(after.facts_provenance).every(p=>p.parserVersion===IKEBE_PRODUCT_PARSER&&p.sourceUrl===after.source_url));for(const t of ['news_decision_ledger','news_operator_feedback'])assert.equal((await c.s.db.prepare(`SELECT COUNT(*) n FROM ${t}`).first()).n,0);});
 test('multi-model recovery retains duplicate block against a published individual model',async()=>{const c=await prepare(),other=await put(c.s,'existing',{productFacts:{brand:'Fulltone',product:fulltone.models[0],version:null,category:'amps_effects'},category:'amps_effects',eventType:'release'});await c.s.db.prepare("UPDATE candidate_items SET review_status='approved' WHERE id=?").bind(other.id).run();const r=await recover(c);assert(r.recovered);assert(r.validation.errors.includes('duplicate'));assert.equal((await reviewDetail(c.s,c.item.id,now,[c.a],pepper)).factsReview.recoveryClass,'DUPLICATE_BLOCKED');});
 test('article cache is per candidate and cannot borrow neighboring product evidence',()=>{const a=recoverySurface(row(172640),source),b=recoverySurface(row(172649),source);assert.notEqual(recoveryCacheKey(row(172640),source,a),recoveryCacheKey(row(172649),source,b));});
