@@ -1,3 +1,4 @@
+import { verifiedCutlineProvider } from './verified-cutline.mjs';
 // Explicit signed operation API. No automatic discovery, resource creation or default execution.
 import { digest, fail, same, durable, readJournal } from "./contracts.mjs";
 import { openHost } from "./host.mjs";
@@ -17,6 +18,8 @@ export async function runApprovedOperation({
   archiveEnvelope,
   inventory,
   readWitness,
+  readWindow,
+  readReceipt,
   fixture,
   readKeyFixture,
   observeFixture,
@@ -51,6 +54,7 @@ export async function runApprovedOperation({
     )
   )
     fail("execution-action");
+  if(!authority.synthetic&&["backup","resume-backup"].includes(p.action)&&(!/^[a-f0-9]{64}$/.test(p.cutlineWindowHash||"")||[readWindow,readReceipt,readWitness].some(f=>typeof f!=="function")))fail("production-cutline-provider-required");
   for (const [name, x] of Object.entries({
     host: hostEnvelope,
     resources: resourceEnvelope,
@@ -149,13 +153,13 @@ export async function runApprovedOperation({
             validator,
             resume: p.action === "resume-backup",
             operationId: p.operationId,
-            cutline: cutlineProvider({
+            cutline: authority.synthetic ? cutlineProvider({
               authority,
               scope,
               inventory,
               operationId: p.operationId,
               readWitness,
-            }),
+            }) : verifiedCutlineProvider({authority,scope,inventory,operationId:p.operationId,source:resources.identity,expectedWindowHash:p.cutlineWindowHash,readWindow,readReceipt,readWitness}),
           });
         return await (p.action === "restore" ? runRestore : reconcileRestore)({
           authority,
