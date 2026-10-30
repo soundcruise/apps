@@ -1,4 +1,11 @@
-// No deployment configuration is wired here: this proxy is injected only in isolated tests.
+// Configuration is server-side; no request parameter can choose an upstream.
+export function configuredDotProxy(env, assertion) {
+ if(env.NEWS_DOT_REVIEW_ENABLED===undefined || env.NEWS_DOT_REVIEW_ENABLED==='false')return null;
+ if(env.NEWS_DOT_REVIEW_ENABLED!=='true')throw Error('operator_not_configured');
+ const origin=env.NEWS_DOT_REVIEW_ORIGIN;
+ if(origin!=='https://news-dot-review-isolation-607890849010.asia-northeast1.run.app')throw Error('operator_not_configured');
+ return createDotCloudRunProxy({origin,assertion});
+}
 export function createDotCloudRunProxy({origin,assertion,fetchImpl=fetch,timeoutMs=5000}) {
  let u;try{u=new URL(origin);if(u.protocol!=='https:'||u.origin!==origin||u.username||u.password)throw Error();}catch{throw Error('operator_not_configured');}
  if(typeof assertion!=='string'||!assertion||assertion.length>16000||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>10000)throw Error('operator_not_configured');
