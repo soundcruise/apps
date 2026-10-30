@@ -32,7 +32,7 @@ test('MONSTER multi-model power equipment is recovered without category/target-d
  assert.deepEqual(result.productFacts.models,['MONSTER POWER 8000','MONSTER POWER 8001']);
  assert.equal(result.productFacts.category,'recording_audio');assert.equal(result.publishedAt,row.published_at);
  assert.match(factualLabel(result.productFacts,result.eventType),/電源タップ/);
- assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-8');
+ assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-9');
 });
 
 for(const phrase of ['オーディオインターフェースを保護する電源タップ',
@@ -54,6 +54,20 @@ test('a genuinely connected audio interface stays an audio interface',()=>{
  const parsed=parseShimamuraProductEvidence(article('Maker「INT-2」オーディオインターフェースが登場',
  'Makerより、電源タップに接続するオーディオインターフェース「INT-2」が登場しました。'),source,row);
  assert.equal(parsed.productFacts.productType,'audio_interface');
+});
+
+test('a pickup layout on a guitar is not a pickup product',()=>{
+ const parsed=parseShimamuraProductEvidence(article('Makerの限定モデル「ZX-20」が登場',
+  'Makerより、限定モデル「ZX-20」が登場しました。',
+  '<p class="wp-block-paragraph">本モデルはピックアップレイアウトを採用しています。ZX-20は限定ギターです。</p>'),source,row);
+ assert.equal(parsed.productFacts.productType,'guitar');
+ assert.equal(parsed.productFacts.category,'electric_guitar_bass');
+});
+
+test('a pickup remains a pickup when it is the announced primary product',()=>{
+ const parsed=parseShimamuraProductEvidence(article('Maker ギター用ピックアップ「PU-20」が登場',
+  'Makerより、ギター用ピックアップ「PU-20」が登場しました。'),source,row);
+ assert.equal(parsed.productFacts.productType,'guitar_pickup');
 });
 
 test('a quoted protection/connection target is not a second main product',()=>{
