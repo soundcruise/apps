@@ -6,9 +6,9 @@ const knownAccount=a=>`(EXISTS(SELECT 1 FROM studio_document_enrollments e WHERE
 const verified=p=>`EXISTS(SELECT 1 FROM json_each(?) v WHERE v.value=json_array(${p}.account_id,${p}.operation_id,${p}.device_id,${p}.generation,${p}.recovery_version,${p}.request_fingerprint,${p}.result_json,${p}.proof_hash))`;
 const captured=(o,r)=>`EXISTS(SELECT 1 FROM studio_document_recovery_proofs p WHERE p.account_id=${o}.account_id AND p.operation_id=${o}.operation_id AND p.device_id=${o}.target_id AND p.request_fingerprint=${o}.request_fingerprint AND p.result_json=${o}.result_json AND ${verified('p')} ${r?`AND p.generation=${r}.expected_account_generation+1 AND p.recovery_version=${r}.expected_recovery_version+1 AND p.device_id=${r}.next_account_device_id`:''})`;
 const unresolved=o=>`${o}.kind='recovery' AND ${knownAccount(o+'.account_id')} AND NOT ${captured(o,null)}`;
-export async function studioScheduledDatabase(db){
+export async function studioScheduledDatabase(db,{expectedBaseProfile=null}={}){
  const exists=await db.prepare("SELECT count(*) n FROM sqlite_master WHERE name GLOB 'studio_document_*'").first();if(!exists.n)return{allowed:true,db,status:'NO_STUDIO_SCHEMA'};
- try{await inspectStudioRelease(db);}catch{return{allowed:false,status:'HOLD_PARTIAL_OR_UNKNOWN_STUDIO_SCHEMA'};}
+ try{const inspected=await inspectStudioRelease(db);if(expectedBaseProfile!==null&&inspected.baseProfile!==expectedBaseProfile)throw Error('studio_base_profile_mismatch');}catch{return{allowed:false,status:'HOLD_PARTIAL_OR_UNKNOWN_STUDIO_SCHEMA'};}
  const schema=(await db.prepare(STUDIO_SCHEMA_SQL).first()).encoded,journal=(await db.prepare(STUDIO_JOURNAL_SQL).first()).encoded;
  // Bound validation to this DELETE's native target. Oversized or malformed proof
  // is not captured; it retains the affected Account only. No global proof scan.

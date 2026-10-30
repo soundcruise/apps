@@ -3,7 +3,7 @@ import legacy from './studio-legacy-v137.mjs';
 import {createStudioReleaseWorker,createStudioActivatedWorker} from './studio-release-worker.js';
 import {validateStudioProject} from './studio-release-validator.js';
 import {maintenanceDigest} from './maintenance-bridge-v2.js';
-const off=createStudioReleaseWorker({legacy});
+const off=createStudioReleaseWorker({legacy,expectedBaseProfile:'production102'});
 export default Object.freeze({
  async fetch(request,env,ctx){
   const url=new URL(request.url);
@@ -15,7 +15,7 @@ export default Object.freeze({
   try{
    const policy=JSON.parse(env.STUDIO_RELEASE_POLICY||'null');
    if(!policy||Object.keys(policy).sort().join('|')!==['id','limits','rate','evidencePolicy','retentionPolicy','allowedOrigins'].sort().join('|')||typeof policy.id!=='string'||!policy.id||!Array.isArray(policy.allowedOrigins)||!policy.allowedOrigins.length||policy.allowedOrigins.some(x=>new URL(x).origin!==x)||await maintenanceDigest(policy)!==env.STUDIO_RELEASE_POLICY_SHA256)throw Error('policy');
-   worker=createStudioActivatedWorker({legacy,configuration:{...policy,routeEnabled:true,db:env.SYNC_DB,env,validateProject:validateStudioProject}});
+   worker=createStudioActivatedWorker({legacy,configuration:{...policy,expectedBaseProfile:'production102',routeEnabled:true,db:env.SYNC_DB,env,validateProject:validateStudioProject}});
   }catch{return new Response(JSON.stringify({status:'HOLD',code:'studio_policy_unapproved'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});}
   const result=await worker.fetch(request,env,ctx);
   if(result.status===409){const body=await result.json();return new Response(JSON.stringify(body),{status:body.code==='studio_off'?423:409,headers:result.headers});}
