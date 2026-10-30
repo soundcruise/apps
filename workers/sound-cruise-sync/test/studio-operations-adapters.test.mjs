@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { runApprovedOperation } from "../scripts/studio-operations/runner.mjs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -231,6 +232,32 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
         result: output,
         reconcile,
       };
+    data.keyEnvelope = envelope("key-handles", {
+      custodian: "fixture-custodian",
+      recoveryEvidenceHash: digest("fixture-recovery"),
+      handles: Object.fromEntries(
+        ["archive", "volume", "management", "s3"].map((n) => [
+          n,
+          {
+            service: "fixture-" + n,
+            account: "fixture",
+            keyId: n === "archive" ? "fixture-key" : n,
+            purpose: n,
+          },
+        ]),
+      ),
+    });
+    data.execution = envelope("execution", {
+      action: reconcile ? "reconcile-restore" : "restore",
+      journalHash: data.journalHash,
+      bindings: {
+        host: digest(data.host),
+        resources: digest(data.resources),
+        keys: digest(data.keyEnvelope),
+        archive: digest(data.archive),
+        inventory: digest(null),
+      },
+    });
     const code = await new Promise((resolve, reject) => {
       const p = spawn(
         process.execPath,
@@ -640,29 +667,82 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     await check(
       "preDDL full encrypted backup streams native D1+R2 through actual HTTP clients",
       async () => {
+        const keys = envelope("key-handles", {
+          custodian: "fixture",
+          recoveryEvidenceHash: digest("fixture-recovery"),
+          handles: Object.fromEntries(
+            ["archive", "volume", "management", "s3"].map((n) => [
+              n,
+              {
+                service: "fixture-" + n,
+                account: "fixture",
+                keyId: n === "archive" ? "fixture-key" : n,
+                purpose: n,
+              },
+            ]),
+          ),
+        });
+        const bindings = {
+          host: digest(hostEnvelope),
+          resources: digest(sourceCap.e),
+          keys: digest(keys),
+          archive: digest(null),
+          inventory: digest(inventory),
+        };
+        const initial = envelope("execution", {
+          action: "backup",
+          bindings,
+          journalHash: digest(canonical(journal)),
+        });
+        const call = (e) =>
+          runApprovedOperation({
+            authority: A,
+            envelope: e,
+            scope,
+            hostEnvelope,
+            resourceEnvelope: sourceCap.e,
+            keyEnvelope: keys,
+            inventory,
+            readWitness: async () => frozen,
+            fixture: net,
+            observeFixture: async () => ({
+              volumeUUID: "fixture-volume",
+              encrypted: true,
+            }),
+            readKeyFixture: async (r) =>
+              r.service === "fixture-archive"
+                ? key.toString("base64")
+                : r.service === "fixture-s3"
+                  ? JSON.stringify({
+                      accessKeyId: "fixture-access",
+                      secretAccessKey: "fixture-secret",
+                    })
+                  : "fixture-read",
+          });
         net.state.failR2Read = true;
-        await assert.rejects(() =>
-          runBackup({
-            host,
-            resources: sourceCap.r,
-            cutline,
-            validator,
-            operationId: op,
-          }),
-        );
+        await assert.rejects(() => call(initial));
+        await assert.rejects(() => call(initial)); // Durable execution replay rejected before retry.
         const cp = JSON.parse(
           fs.readFileSync(hostRoot + "/backup-" + op + "/CHECKPOINT.json"),
         );
         assert.equal(cp.state, "OPEN");
         assert(cp.pages.length > 50);
-        sealed = await runBackup({
-          host,
-          resources: sourceCap.r,
-          cutline,
-          validator,
-          operationId: op,
-          resume: true,
-        });
+        const prior = JSON.parse(
+          fs.readFileSync(
+            hostRoot +
+              `/journals/execution-${op}-backup-${initial.payload.id}.json`,
+          ),
+        );
+        sealed = await call(
+          envelope("execution", {
+            action: "resume-backup",
+            bindings,
+            journalHash: digest(canonical(journal)),
+            priorAction: "backup",
+            priorGrantId: initial.payload.id,
+            priorIntentHash: digest(prior),
+          }),
+        );
         assert(sealed.pages > 100);
         const m = await verify({
           directory: sealed.directory,
