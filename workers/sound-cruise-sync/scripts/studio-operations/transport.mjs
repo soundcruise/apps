@@ -1,3 +1,4 @@
+import { r2Endpoint } from './r2-endpoint.mjs';
 import {
   S3Client,
   ListObjectsV2Command,
@@ -181,10 +182,7 @@ export async function connectResources({
     : "https://api.cloudflare.com/client/v4";
   const endpoint = authority.synthetic
     ? fixture.s3
-    : "https://" +
-      r.account +
-      (r.r2.jurisdiction ? "." + r.r2.jurisdiction : "") +
-      ".r2.cloudflarestorage.com";
+    : r2Endpoint(r.account,r.r2.jurisdiction || "");
   async function request(suffix, body) {
     authority.check(envelope, "resources", scope);
     let token;
