@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises';
+import fs from '../filesystem.mjs';
 import path from 'node:path';
 import {createHash,randomBytes,createCipheriv,createDecipheriv} from 'node:crypto';
 export const MAX_PAGE=256*1024, MAX_PAGES=100000, MAX_MANIFEST=32*1024*1024;
@@ -53,5 +53,5 @@ export async function restore({directory,scope,keyHandle,manifestHash,target,jou
  try{
   for(const p of m.pages){const {records}=await decryptPage(directory,p,scope,key);await target.apply(records,p.index);await afterApply(p.index);j.appliedPages++;await atomic(journalPath,j)}
   if(target.finalize)await target.finalize();await target.validate();if(!equal(await target.inventory(),m.inventory))fail('restore-inventory');const chain=createHash('sha256');let index=0,count=0;for await(const records of target.pages()){if(index>=m.pages.length)fail('readback-extra');const b=bytes(records),page=m.pages[index++];if(b.length>MAX_PAGE||hash(b)!==page.plainHash)fail('readback-page');chain.update(b);count+=records.length}if(index!==m.pages.length||count!==m.totalRecords||chain.digest('hex')!==m.plainDigest)fail('readback-coverage');j.state='RESTORED';await atomic(journalPath,j);return j;
- }catch(e){j.state='PARTIAL_UNKNOWN';j.reason=e.message;await atomic(journalPath,j);throw Object.assign(Error('restore-partial-unknown'),{cause:e})}finally{key.fill(0)}
+ }catch(e){j.state='PARTIAL_UNKNOWN';j.reason=e.message;await atomic(journalPath,j);throw Object.assign(Error('restore-partial-unknown'),{cause:e})}finally{key.fill(0);await target.dispose?.()}
 }

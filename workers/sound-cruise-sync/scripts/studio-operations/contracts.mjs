@@ -1,5 +1,6 @@
+import { currentFilesystem } from "./filesystem.mjs";
 import { createHash, verify } from "node:crypto";
-import fs from "node:fs/promises";
+import fs from "./filesystem.mjs";
 import path from "node:path";
 export const canonical = (x) =>
   x !== null && typeof x === "object"
@@ -62,6 +63,8 @@ export function authority({
   });
 }
 export async function contained(root, value) {
+  const active = currentFilesystem();
+  if (active) return active.contained(root, value);
   if (
     !path.isAbsolute(root) ||
     path.resolve(root) !== root ||

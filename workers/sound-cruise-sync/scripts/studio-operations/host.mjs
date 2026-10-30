@@ -48,6 +48,15 @@ export async function openHost({
 }) {
   envelope = structuredClone(envelope);
   scope = structuredClone(scope);
+  if (envelope?.payload?.storageKind === "boot-fd-v1")
+    return (await import("./boot-host.mjs")).openBootHost({
+      authority,
+      envelope,
+      scope,
+      root,
+      keyHandle,
+      observeFixture,
+    });
   const p = authority.check(envelope, "host", scope);
   if (
     p.root !== root ||
@@ -141,6 +150,9 @@ export async function openHost({
     guardTarget(target) {
       return new Proxy(target, {
         get(t, k) {
+          // Local memory cleanup must run even after Host identity/approval failure.
+          if (k === "dispose" && typeof t[k] === "function")
+            return t[k].bind(t);
           if (k === "apply")
             return async (records) => {
               await check();

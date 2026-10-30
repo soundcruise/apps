@@ -30,6 +30,9 @@ if (process.env.STUDIO_OPS_SYNTHETIC_CHILD === "1") {
         observeFixture: async () => ({
           volumeUUID: "fixture-volume",
           encrypted: true,
+          ...(x.host.payload.storageKind === "boot-fd-v1"
+            ? { dev: x.host.payload.anchors.root[0] }
+            : {}),
         }),
         readKeyFixture: async (ref) =>
           ref.service === "fixture-archive"
@@ -64,6 +67,9 @@ if (process.env.STUDIO_OPS_SYNTHETIC_CHILD === "1") {
         observeFixture: async () => ({
           volumeUUID: "fixture-volume",
           encrypted: true,
+          ...(x.host.payload.storageKind === "boot-fd-v1"
+            ? { dev: x.host.payload.anchors.root[0] }
+            : {}),
         }),
       });
     const r = await connectResources({

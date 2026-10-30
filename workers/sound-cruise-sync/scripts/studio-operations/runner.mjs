@@ -62,7 +62,11 @@ export async function runApprovedOperation({
   if (!/^[0-9a-f]{64}$/.test(p.journalHash || "")) fail("execution-journal");
   if (!authority.synthetic && (fixture || readKeyFixture || observeFixture))
     fail("production-provider-injection");
-  if (!authority.synthetic && !hostEnvelope.payload.volume)
+  if (
+    !authority.synthetic &&
+    !hostEnvelope.payload.volume &&
+    hostEnvelope.payload.storageKind !== "boot-fd-v1"
+  )
     fail("execution-dedicated-volume-required");
   const keys = separatedKeyHandles({
     authority,
@@ -75,6 +79,13 @@ export async function runApprovedOperation({
     hostEnvelope.payload.keyId !== keyEnvelope.payload.handles.archive.keyId
   )
     fail("execution-key-binding");
+  if (
+    hostEnvelope.payload.storageKind === "boot-fd-v1" &&
+    (keyEnvelope.payload.hostKind !== "boot-fd-v1" ||
+      hostEnvelope.payload.keyMaterialSHA256 !==
+        keyEnvelope.payload.handles.archive.materialSHA256)
+  )
+    fail("execution-boot-key-binding");
   const host = await openHost({
     authority,
     envelope: hostEnvelope,
@@ -83,77 +94,83 @@ export async function runApprovedOperation({
     keyHandle: keys.archive,
     observeFixture,
   });
-  const backupAction = ["backup", "resume-backup"].includes(p.action);
-  if (p.action === "resume-backup") {
-    if (
-      !/^[A-Za-z0-9_-]{1,100}$/.test(p.priorGrantId || "") ||
-      !["backup", "resume-backup"].includes(p.priorAction)
-    )
-      fail("resume-prior");
-    const prior = await readJournal(
-      path.join(
-        host.journals,
-        `execution-${p.operationId}-${p.priorAction}-${p.priorGrantId}.json`,
-      ),
-    );
-    same(digest(prior), p.priorIntentHash, "resume-prior-hash");
-    same(prior.bindings, p.bindings, "resume-bindings");
-  }
-  // Claim before remote I/O; any later failure is explicit and never an automatic resend.
-  await durable(
-    path.join(
-      host.journals,
-      "execution-" + p.operationId + "-" + p.action + "-" + p.id + ".json",
-    ),
-    {
-      grant: p.id,
-      action: p.action,
-      operationId: p.operationId,
-      packetHash: digest(envelope),
-      bindings: p.bindings,
-      state: "ATTEMPTED",
-    },
-  );
-  const resources = await connectResources({
-    authority,
-    envelope: resourceEnvelope,
-    scope,
-    role: backupAction ? "source" : "restore",
-    tokenHandle: keys.management,
-    s3Credentials: keys.s3,
-    fixture,
-  });
   try {
-    const validator = preStudioValidator({
-      bucket: resources.bucket,
-      expectedJournalHash: p.journalHash,
-      hash: digest,
-    });
-    if (backupAction)
-      return await runBackup({
-        host,
-        resources,
-        validator,
-        resume: p.action === "resume-backup",
-        operationId: p.operationId,
-        cutline: cutlineProvider({
-          authority,
-          scope,
-          inventory,
+    return await (host.withIO || ((fn) => fn()))(async () => {
+      const backupAction = ["backup", "resume-backup"].includes(p.action);
+      if (p.action === "resume-backup") {
+        if (
+          !/^[A-Za-z0-9_-]{1,100}$/.test(p.priorGrantId || "") ||
+          !["backup", "resume-backup"].includes(p.priorAction)
+        )
+          fail("resume-prior");
+        const prior = await readJournal(
+          path.join(
+            host.journals,
+            `execution-${p.operationId}-${p.priorAction}-${p.priorGrantId}.json`,
+          ),
+        );
+        same(digest(prior), p.priorIntentHash, "resume-prior-hash");
+        same(prior.bindings, p.bindings, "resume-bindings");
+      }
+      // Claim before remote I/O; any later failure is explicit and never an automatic resend.
+      await durable(
+        path.join(
+          host.journals,
+          "execution-" + p.operationId + "-" + p.action + "-" + p.id + ".json",
+        ),
+        {
+          grant: p.id,
+          action: p.action,
           operationId: p.operationId,
-          readWitness,
-        }),
+          packetHash: digest(envelope),
+          bindings: p.bindings,
+          state: "ATTEMPTED",
+        },
+      );
+      const resources = await connectResources({
+        authority,
+        envelope: resourceEnvelope,
+        scope,
+        role: backupAction ? "source" : "restore",
+        tokenHandle: keys.management,
+        s3Credentials: keys.s3,
+        fixture,
       });
-    return await (p.action === "restore" ? runRestore : reconcileRestore)({
-      authority,
-      archiveEnvelope,
-      scope,
-      host,
-      resources,
-      validator,
-      operationId: p.operationId,
+      try {
+        const validator = preStudioValidator({
+          bucket: resources.bucket,
+          expectedJournalHash: p.journalHash,
+          hash: digest,
+        });
+        if (backupAction)
+          return await runBackup({
+            host,
+            resources,
+            validator,
+            resume: p.action === "resume-backup",
+            operationId: p.operationId,
+            cutline: cutlineProvider({
+              authority,
+              scope,
+              inventory,
+              operationId: p.operationId,
+              readWitness,
+            }),
+          });
+        return await (p.action === "restore" ? runRestore : reconcileRestore)({
+          authority,
+          archiveEnvelope,
+          scope,
+          host,
+          resources,
+          validator,
+          operationId: p.operationId,
+        });
+      } finally {
+        resources.close();
+      }
     });
   } finally {
-    resources.close();
+    host.close?.();
   }
 }

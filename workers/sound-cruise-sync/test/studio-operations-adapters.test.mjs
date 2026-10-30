@@ -1,9 +1,11 @@
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import { runApprovedOperation } from "../scripts/studio-operations/runner.mjs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import assert from "node:assert/strict";
 import {
+  createHash,
   randomUUID,
   randomBytes,
   generateKeyPairSync,
@@ -32,7 +34,7 @@ import {
   reconcileDDL,
 } from "../scripts/studio-operations/operations.mjs";
 import { fixedBatch } from "../scripts/studio-operations/ddl-plan.mjs";
-import { verify } from "../scripts/studio-operations/core/adapter.mjs";
+import { verify as coreVerify } from "../scripts/studio-operations/core/adapter.mjs";
 import { gateway } from "./studio-operations-fixture.mjs";
 import {
   boot,
@@ -52,6 +54,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     () => {},
   );
 } else {
+  const bootMode = process.env.STUDIO_BOOT_HOST_TEST === "1";
   const R = path.resolve(process.env.STUDIO_OPS_OUTPUT);
   fs.mkdirSync(R, { recursive: false });
   const result = {
@@ -75,6 +78,19 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     rootHash = digest(pub),
     A = authority({ publicKey: pub, rootHash, synthetic: true });
   function envelope(kind, extra = {}) {
+    if (bootMode && kind === "key-handles") {
+      extra = {
+        ...extra,
+        hostKind: "boot-fd-v1",
+        handles: {
+          ...extra.handles,
+          archive: {
+            ...extra.handles.archive,
+            materialSHA256: createHash("sha256").update(key).digest("hex"),
+          },
+        },
+      };
+    }
     const payload = {
       kind,
       scope: digest(scope),
@@ -104,7 +120,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     const s = fs.lstatSync(n === "root" ? hostRoot : hostRoot + "/" + n);
     anchors[n] = [s.dev, s.ino, s.mode];
   }
-  const hostEnvelope = envelope("host", {
+  let hostEnvelope = envelope("host", {
     root: hostRoot,
     anchors,
     volumeUUID: "fixture-volume",
@@ -114,17 +130,48 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     minFreeBytes: 1,
     maxStagingBytes: 8 * 1024 * 1024,
   });
-  const host = await openHost({
-    authority: A,
-    envelope: hostEnvelope,
-    scope,
-    root: hostRoot,
-    keyHandle: async () => Buffer.from(key),
-    observeFixture: async () => ({
-      volumeUUID: "fixture-volume",
-      encrypted: true,
-    }),
-  });
+  if (bootMode) {
+    const addonPath = process.env.STUDIO_PINNED_FS_ADDON,
+      addonSHA256 = createHash("sha256")
+        .update(fs.readFileSync(addonPath))
+        .digest("hex"),
+      addon = createRequire(import.meta.url)(addonPath),
+      fd = fs.openSync(hostRoot, "r");
+    const observed = addon.info(fd);
+    fs.closeSync(fd);
+    hostEnvelope = envelope("host", {
+      ...hostEnvelope.payload,
+      storageKind: "boot-fd-v1",
+      addonPath,
+      addonSHA256,
+      filesystem: {
+        fsid: observed.fsid,
+        mount: observed.mount,
+        type: observed.type,
+      },
+      keyMaterialSHA256: createHash("sha256").update(key).digest("hex"),
+    });
+  }
+  let host;
+  const verify = (options) =>
+    host.withIO ? host.withIO(() => coreVerify(options)) : coreVerify(options);
+  async function reopenHost() {
+    host = await openHost({
+      authority: A,
+      envelope: hostEnvelope,
+      scope,
+      root: hostRoot,
+      keyHandle: async () => Buffer.from(key),
+      observeFixture: async () => ({
+        volumeUUID: "fixture-volume",
+        encrypted: true,
+        ...(hostEnvelope.payload.storageKind === "boot-fd-v1"
+          ? { dev: anchors.root[0] }
+          : {}),
+      }),
+    });
+  }
+  await reopenHost();
   const native = [],
     caps = [];
   let net,
@@ -214,8 +261,17 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     caps.push(r);
     return { r, e };
   }
+  let childNumber = 0;
+  const childEvidence = [];
   async function child(reconcile = false) {
-    const output = R + "/child-" + (reconcile ? "reopen" : "restore") + ".json",
+    host.close?.();
+    const output =
+        R +
+        "/child-" +
+        childNumber++ +
+        "-" +
+        (reconcile ? "reopen" : "restore") +
+        ".json",
       data = {
         mode: "synthetic-fixture",
         publicKey: pub,
@@ -274,6 +330,12 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
       p.on("exit", (n) => resolve({ n, err }));
       p.stdin.end(JSON.stringify(data));
     });
+    await reopenHost();
+    childEvidence.push({ output, exit: code.n, reconcile });
+    fs.writeFileSync(
+      R + "/CHILD-EXITS.json",
+      JSON.stringify(childEvidence, null, 2),
+    );
     return { ...code, result: JSON.parse(fs.readFileSync(output)) };
   }
   async function saveLegacy(app) {
@@ -667,6 +729,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     await check(
       "preDDL full encrypted backup streams native D1+R2 through actual HTTP clients",
       async () => {
+        host.close?.();
         const keys = envelope("key-handles", {
           custodian: "fixture",
           recoveryEvidenceHash: digest("fixture-recovery"),
@@ -708,6 +771,9 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
             observeFixture: async () => ({
               volumeUUID: "fixture-volume",
               encrypted: true,
+              ...(hostEnvelope.payload.storageKind === "boot-fd-v1"
+                ? { dev: anchors.root[0] }
+                : {}),
             }),
             readKeyFixture: async (r) =>
               r.service === "fixture-archive"
@@ -743,6 +809,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
             priorIntentHash: digest(prior),
           }),
         );
+        await reopenHost();
         assert(sealed.pages > 100);
         const m = await verify({
           directory: sealed.directory,
@@ -856,6 +923,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
           scope2 = { ...scope, operationId: op2 },
           e = (kind, x) =>
             envelope(kind, { ...x, scope: digest(scope2), operationId: op2 });
+        host.close?.();
         const h = await openHost({
           authority: A,
           envelope: e("host", hostEnvelope.payload),
@@ -865,6 +933,9 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
           observeFixture: async () => ({
             volumeUUID: "fixture-volume",
             encrypted: true,
+            ...(hostEnvelope.payload.storageKind === "boot-fd-v1"
+              ? { dev: anchors.root[0] }
+              : {}),
           }),
         });
         const c = await connectResources({
@@ -933,6 +1004,8 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
           }),
         );
         assert.equal(net.state.d1Writes + net.state.s3Writes, writes);
+        h.close?.();
+        await reopenHost();
       },
     );
     await check(
@@ -981,6 +1054,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
     await check(
       "key provider failure and staging overrun fail closed",
       async () => {
+        host.close?.();
         const badHost = await openHost({
           authority: A,
           envelope: hostEnvelope,
@@ -992,9 +1066,14 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
           observeFixture: async () => ({
             volumeUUID: "fixture-volume",
             encrypted: true,
+            ...(hostEnvelope.payload.storageKind === "boot-fd-v1"
+              ? { dev: anchors.root[0] }
+              : {}),
           }),
         });
         await assert.rejects(() => badHost.getKey());
+        badHost.close?.();
+        await reopenHost();
         await assert.rejects(() =>
           host
             .guardTarget({ apply: async () => assert.fail("must not apply") })
@@ -1006,6 +1085,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
       "signed grant envelope replacement cannot change bound host scope",
       async () => {
         const changed = structuredClone(hostEnvelope);
+        host.close?.();
         const h = await openHost({
           authority: A,
           envelope: changed,
@@ -1015,6 +1095,9 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
           observeFixture: async () => ({
             volumeUUID: "fixture-volume",
             encrypted: true,
+            ...(hostEnvelope.payload.storageKind === "boot-fd-v1"
+              ? { dev: anchors.root[0] }
+              : {}),
           }),
         });
         Object.assign(
@@ -1022,6 +1105,8 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
           envelope("host", { ...hostEnvelope.payload, root: "/wrong" }),
         );
         await h.check();
+        h.close?.();
+        await reopenHost();
       },
     );
     await check(
@@ -1164,6 +1249,7 @@ if (!process.env.STUDIO_OPS_OUTPUT || !process.env.STUDIO_TEST_RUNTIME_102) {
   } finally {
     for (const r of caps) r.close();
     if (net) await net.close();
+    host.close?.();
     for (const n of native) await n.mf.dispose();
     key.fill(0);
     result.pass = result.tests.length;

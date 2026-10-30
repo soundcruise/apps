@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";
+import fs from "./filesystem.mjs";
 import path from "node:path";
 import { backup, restore, verify } from "./core/adapter.mjs";
 import {
@@ -21,7 +21,7 @@ function bind(host, resources, operationId) {
   if (host.operationId !== operationId || resources.operationId !== operationId)
     fail("operation-owner-mismatch");
 }
-export async function runBackup({
+async function runBackupBody({
   host,
   resources,
   cutline,
@@ -122,7 +122,7 @@ const denied = (xs) =>
       "/" +
       (x.r2?.created || ""),
   }));
-export async function runRestore({
+async function runRestoreBody({
   authority,
   archiveEnvelope,
   scope,
@@ -160,7 +160,7 @@ export async function runRestore({
     forbiddenTargets: denied(resources.productionDenylist),
   });
 }
-export async function reconcileRestore({
+async function reconcileRestoreBody({
   authority,
   archiveEnvelope,
   scope,
@@ -232,7 +232,7 @@ export async function reconcileDDL({ resources }) {
     };
   }
 }
-export async function executeDDL({
+async function executeDDLBody({
   host,
   resources,
   operationId,
@@ -271,4 +271,28 @@ export async function executeDDL({
     return reconcileDDL({ resources });
   }
   return reconcileDDL({ resources });
+}
+
+export function runBackup(options) {
+  return options.host.withIO
+    ? options.host.withIO(() => runBackupBody(options))
+    : runBackupBody(options);
+}
+
+export function runRestore(options) {
+  return options.host.withIO
+    ? options.host.withIO(() => runRestoreBody(options))
+    : runRestoreBody(options);
+}
+
+export function reconcileRestore(options) {
+  return options.host.withIO
+    ? options.host.withIO(() => reconcileRestoreBody(options))
+    : reconcileRestoreBody(options);
+}
+
+export function executeDDL(options) {
+  return options.host.withIO
+    ? options.host.withIO(() => executeDDLBody(options))
+    : executeDDLBody(options);
 }
