@@ -10,7 +10,8 @@
   "dependencies": {
     "@google-cloud/firestore": "9.4.0",
     "ajv": "8.18.0",
-    "ajv-formats": "3.0.1"
+    "ajv-formats": "3.0.1",
+    "google-auth-library": "11.3.2"
   },
   "private": true
 }
