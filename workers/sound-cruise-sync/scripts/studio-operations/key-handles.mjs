@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // Existing entries only. No generation, mutation, unlock, sharing or automatic rotation.
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -25,7 +26,10 @@ export function separatedKeyHandles({
   envelope = structuredClone(envelope);
   scope = structuredClone(scope);
   const p = authority.check(envelope, "key-handles", scope),
-    names = ["archive", "volume", "management", "s3"];
+    names =
+      p.hostKind === "boot-fd-v1"
+        ? ["archive", "management", "s3"]
+        : ["archive", "volume", "management", "s3"];
   if (readFixture && !authority.synthetic) fail("production-key-injection");
   const ids = names.map((n) => {
     const x = p.handles?.[n];
@@ -55,6 +59,14 @@ export function separatedKeyHandles({
       const b = Buffer.from(x, "base64");
       if (b.length !== 32 || b.toString("base64") !== x)
         fail("archive-key-format");
+      if (
+        p.hostKind === "boot-fd-v1" &&
+        createHash("sha256").update(b).digest("hex") !==
+          p.handles.archive.materialSHA256
+      ) {
+        b.fill(0);
+        fail("archive-key-material-drift");
+      }
       return b;
     },
     management: () => fetch("management"),
@@ -77,6 +89,6 @@ export function separatedKeyHandles({
         fail("s3-key-format");
       }
     },
-    volumeHandleId: p.handles.volume.keyId,
+    volumeHandleId: p.handles.volume?.keyId ?? null,
   });
 }

@@ -1,5 +1,5 @@
 // Binding-only operational candidate. No REST credentials or Production discovery.
-import fs from 'node:fs/promises';import path from 'node:path';import {createHash} from 'node:crypto';import {MAX_PAGE} from './adapter.mjs';
+import fs from '../filesystem.mjs';import path from 'node:path';import {createHash} from 'node:crypto';import {MAX_PAGE} from './adapter.mjs';
 const H=x=>createHash('sha256').update(x).digest('hex'),quote=x=>'"'+x.replaceAll('"','""')+'"',json=x=>JSON.stringify(x),fail=x=>{throw Error(x)};
 const BLOCK=65536,PART=5*1024*1024;
 async function* list(bucket){let cursor;do{const p=await bucket.list({limit:32,cursor});for(const x of p.objects)yield x;cursor=p.truncated?p.cursor:undefined;if(p.truncated&&!cursor)fail('r2-cursor-missing')}while(cursor)}
@@ -22,13 +22,12 @@ export function createBindingTarget({db,bucket,identity,claimRoot,stagingDirecto
  async apply(records){for(const r of records){if(r.kind==='schema'){if(r.value.type==='table')await db.prepare(r.value.sql).run();else pendingSchemas.push(r.value);}
  else if(r.kind==='row'){const keys=Object.keys(r.value),columns=(await db.prepare('PRAGMA table_info('+quote(r.table)+')').all()).results;await db.prepare('INSERT INTO '+quote(r.table)+'('+keys.map(quote).join(',')+') VALUES('+keys.map(()=>'?').join(',')+')').bind(...keys.map(k=>Array.isArray(r.value[k])&&columns.find(c=>c.name===k)?.type.toUpperCase()==='BLOB'?new Uint8Array(r.value[k]):r.value[k])).run()}
  else if(r.kind==='sequence'){await db.prepare('DELETE FROM sqlite_sequence WHERE name=?').bind(r.value.name).run();await db.prepare('INSERT INTO sqlite_sequence(name,seq) VALUES(?,?)').bind(r.value.name,r.value.seq).run()}
- else if(r.kind==='r2-start'){if(object)fail('interleaved-object');const filename=path.join(stagingDirectory,H(r.key)+'.body');const handle=await fs.open(filename,'wx',0o600);object={...r,filename,handle,offset:0}}
- else if(r.kind==='r2-part'){if(!object||object.key!==r.key||r.offset!==object.offset)fail('r2-part-order');const data=Buffer.from(r.data,'base64');if(data.length>BLOCK||object.offset+data.length>object.size)fail('r2-part-budget');await object.handle.write(data,0,data.length,object.offset);object.offset+=data.length}
- else if(r.kind==='r2-end'){if(!object||object.key!==r.key||object.offset!==object.size)fail('r2-object-coverage');await object.handle.sync();await object.handle.close();const options=normalizedMeta(object);if(options.httpMetadata.cacheExpiry)options.httpMetadata.cacheExpiry=new Date(options.httpMetadata.cacheExpiry);
- if(object.size<=PART){await bucket.put(object.key,await fs.readFile(object.filename),options)}else{const upload=await bucket.createMultipartUpload(object.key,options),parts=[],file=await fs.open(object.filename,'r');try{let offset=0,index=1;while(offset<object.size){const b=Buffer.alloc(Math.min(PART,object.size-offset));const{bytesRead}=await file.read(b,0,b.length,offset);if(bytesRead!==b.length)fail('staged-body-truncated');parts.push(await upload.uploadPart(index++,b));offset+=b.length}await upload.complete(parts)}finally{await file.close()}}
- await fs.unlink(object.filename);object=null}
+ else if(r.kind==='r2-start'){if(object||!Number.isSafeInteger(r.size)||r.size<0||r.size>PART*10000)fail('r2-start');const options=normalizedMeta(r);if(options.httpMetadata.cacheExpiry)options.httpMetadata.cacheExpiry=new Date(options.httpMetadata.cacheExpiry);object={...r,options,buffer:Buffer.alloc(Math.min(PART,r.size)),used:0,offset:0,parts:[],upload:r.size>PART?await bucket.createMultipartUpload(r.key,options):null}}
+ else if(r.kind==='r2-part'){if(!object||object.key!==r.key||r.offset!==object.offset)fail('r2-part-order');const data=Buffer.from(r.data,'base64');if(data.length>BLOCK||object.offset+data.length>object.size)fail('r2-part-budget');let at=0;while(at<data.length){const size=Math.min(data.length-at,object.buffer.length-object.used);data.copy(object.buffer,object.used,at,at+size);at+=size;object.used+=size;object.offset+=size;if(object.upload&&object.used===PART){object.parts.push(await object.upload.uploadPart(object.parts.length+1,object.buffer));object.buffer.fill(0);object.used=0;}}data.fill(0)}
+ else if(r.kind==='r2-end'){if(!object||object.key!==r.key||object.offset!==object.size)fail('r2-object-coverage');if(object.upload){if(object.used)object.parts.push(await object.upload.uploadPart(object.parts.length+1,object.buffer.subarray(0,object.used)));await object.upload.complete(object.parts);}else await bucket.put(object.key,object.buffer.subarray(0,object.used),object.options);object.buffer.fill(0);object=null}
  else fail('record-kind');}},
  async finalize(){if(object)fail('unfinished-r2');for(const s of pendingSchemas)await db.prepare(s.sql).run();pendingSchemas=[]},
+ dispose(){object?.buffer?.fill(0);object=null;},
  async validate(){await source.validate()}
  }
 }
