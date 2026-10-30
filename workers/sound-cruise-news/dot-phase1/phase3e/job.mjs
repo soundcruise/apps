@@ -2,11 +2,12 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {driveProvider} from '../phase3b/drive-provider.mjs';
 import {initRelay} from '../phase3b/relay.mjs';
 import {initNotice,processNotice} from '../phase3d/notice.mjs';
 import {openStore,list} from '../phase2e/store.mjs';
+import {saveDelivery,recordFailure} from '../phase3f/firestore-store.mjs';
 
 // This smoke test accepts exactly the previously approved fictional document pair.
 export const FOLDER='1UzzhEnH0uSGadK5zIg1XBCqcfAf7q1q-';
@@ -49,5 +50,11 @@ export async function metadataToken(fetchImpl=fetch){
  const r=await fetchImpl('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{headers:{'Metadata-Flavor':'Google'},redirect:'error'});
  if(!r.ok)throw Error('metadata_auth_failed');const d=await r.json();if(typeof d.access_token!=='string'||!d.access_token||!(d.expires_in>0))throw Error('metadata_auth_failed');return d.access_token;
 }
-async function main(){const dir=mkdtempSync(join(tmpdir(),'dot2e-'));let db;try{const token=await metadataToken();db=openStore(join(dir,'staging.sqlite'));const result=await run(db,docsProvider(token));console.log(JSON.stringify(result));if(result.status!=='created'||result.ready)process.exitCode=1;}catch{console.error('isolated_job_failed');process.exitCode=1;}finally{db?.close();rmSync(dir,{recursive:true,force:true});}}
+export async function persistRun(store,db,result,attemptId,now,expectedHash=EXPECTED_HASH){
+ if(result.status!=='created')return recordFailure(store,{attemptId,status:result.status,noticeId:NOTICE,now});
+ const rows=list(db),audit=db.prepare('SELECT * FROM drive_attempts ORDER BY id DESC LIMIT 1').get();
+ if(rows.length!==1||!audit||audit.file_id!==TARGET||audit.status!=='created'||audit.payload_digest!==expectedHash||!audit.version)throw Error('invalid_pipeline_evidence');
+ return saveDelivery(store,{input:rows[0].input,delivery:{fileId:audit.file_id,version:audit.version,noticeId:NOTICE,bodySha256:audit.payload_digest,hashVerified:true},attemptId,now});
+}
+async function main(){const dir=mkdtempSync(join(tmpdir(),'dot2e-'));let db,store;try{const token=await metadataToken();db=openStore(join(dir,'staging.sqlite'));const result=await run(db,docsProvider(token));if(process.env.DOT_STAGE==='firestore'){if(process.env.DOT_FIRESTORE_PROJECT!=='cruise-news-drive-isolation')throw Error('invalid_project');const {Firestore}=await import('@google-cloud/firestore');store=new Firestore({projectId:process.env.DOT_FIRESTORE_PROJECT});const saved=await persistRun(store,db,result,randomUUID(),new Date().toISOString());console.log(JSON.stringify({status:saved.status,ready:false,persistent:['created','replay'].includes(saved.status)}));if(!['created','replay'].includes(saved.status))process.exitCode=1;}else if(!process.env.DOT_STAGE||process.env.DOT_STAGE==='ephemeral'){console.log(JSON.stringify(result));if(result.status!=='created'||result.ready)process.exitCode=1;}else throw Error('invalid_stage');}catch{console.error('isolated_job_failed');process.exitCode=1;}finally{await store?.terminate();db?.close();rmSync(dir,{recursive:true,force:true});}}
 if(process.argv[1]===fileURLToPath(import.meta.url))await main();

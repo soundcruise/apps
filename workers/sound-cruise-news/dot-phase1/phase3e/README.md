@@ -14,12 +14,13 @@ Run in `workers/sound-cruise-news`, after explicit approval, with `gcloud` confi
 
 ```sh
 ctx="$(mktemp -d)"
-mkdir -p "$ctx/dot-phase1/phase2e" "$ctx/dot-phase1/phase3b" "$ctx/dot-phase1/phase3d" "$ctx/dot-phase1/phase3e"
+mkdir -p "$ctx/dot-phase1/phase2e" "$ctx/dot-phase1/phase3b" "$ctx/dot-phase1/phase3d" "$ctx/dot-phase1/phase3e" "$ctx/dot-phase1/phase3f"
 cp dot-phase1/package.json dot-phase1/package-lock.json dot-phase1/engine.mjs dot-phase1/candidate.schema.json "$ctx/dot-phase1/"
 cp dot-phase1/phase2e/store.mjs "$ctx/dot-phase1/phase2e/"
 cp dot-phase1/phase3b/drive-provider.mjs dot-phase1/phase3b/relay.mjs "$ctx/dot-phase1/phase3b/"
 cp dot-phase1/phase3d/notice.mjs "$ctx/dot-phase1/phase3d/"
 cp dot-phase1/phase3e/job.mjs "$ctx/dot-phase1/phase3e/"
+cp dot-phase1/phase3f/firestore-store.mjs "$ctx/dot-phase1/phase3f/"
 cp dot-phase1/phase3e/Dockerfile "$ctx/Dockerfile"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com --project=cruise-news-drive-isolation
 gcloud artifacts repositories create news-dot-isolation --repository-format=docker --location=asia-northeast1 --project=cruise-news-drive-isolation
