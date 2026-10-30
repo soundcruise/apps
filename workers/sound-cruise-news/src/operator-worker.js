@@ -10,7 +10,7 @@ import {saveShadowEvaluation,evaluatePending,shadowMetrics} from './operator-sha
 import {dashboardSummary,humanDecisionHistory,similarDecisions} from './operator-insights.js';
 import {recheckFacts} from './facts-recheck.js';
 import {authenticateOperator,csrfToken,verifyCsrf} from './operator-auth.js';
-import {createDotCloudRunProxy} from './dot-cloudrun-proxy.js';
+import {createDotCloudRunProxy,configuredDotProxy} from './dot-cloudrun-proxy.js';
 import {NewsStore} from './store.js';
 import {runtimeSources} from './runtime.js';
 import {reviewQueue,reviewDetail,operatorDecision,candidateSnapshot} from './operator-review.js';
@@ -29,8 +29,10 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  // Explicit injection only: no production network binding or endpoint is configured.
-  const dotReader=options.dotReader||(options.dotProxy?createDotCloudRunProxy({...options.dotProxy,assertion:request.headers.get('Cf-Access-Jwt-Assertion')}):null);
+  // Configuration is consulted only on Dot routes; other Operator functionality remains independent.
+  const isDotRoute=url.pathname==='/api/dot-capabilities'||url.pathname==='/api/dot-candidates'||url.pathname.startsWith('/api/dot-candidates/');
+  const assertion=request.headers.get('Cf-Access-Jwt-Assertion');
+  const dotReader=isDotRoute?(options.dotReader||(options.dotProxy?createDotCloudRunProxy({...options.dotProxy,assertion}):configuredDotProxy(env,assertion))):null;
   if(request.method==='GET'&&url.pathname==='/api/dot-capabilities')return json({available:Boolean(dotReader)});
   if(request.method==='GET'&&(url.pathname==='/api/dot-candidates'||/^\/api\/dot-candidates\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname))){
    if(!dotReader)throw Error('operator_not_configured');

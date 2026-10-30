@@ -7,11 +7,11 @@ export function createCloudRunReadApi({reader, issuer, audience, operators, jwks
  const keySet=jwks||createRemoteJWKSet(new URL(issuer+'/cdn-cgi/access/certs'));
  const json=(body,status)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
  return async function(request){
-  if(request.method!=='GET')return json({error:'method_not_allowed'},405);
   const token=request.headers.get('Cf-Access-Jwt-Assertion');
   if(!token||token.length>16000)return json({error:'unauthorized'},401);
   let payload;try{({payload}=await jwtVerify(token,keySet,{issuer,audience,algorithms:['RS256'],requiredClaims:['exp','iat','sub','email','type'],maxTokenAge:'168h',currentDate:new Date(now())}));}catch{return json({error:'unauthorized'},401);}
   if(payload.type!=='app'||typeof payload.sub!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(payload.sub)||typeof payload.email!=='string'||!permitted.has(payload.email.toLowerCase()))return json({error:'forbidden'},403);
+  if(request.method!=='GET')return json({error:'method_not_allowed'},405);
   const url=new URL(request.url),keys=[...url.searchParams.keys()];let result;
   try{
    if(url.pathname==='/v1/dot-candidates'){
@@ -27,5 +27,23 @@ export function createCloudRunReadApi({reader, issuer, audience, operators, jwks
    if(new TextEncoder().encode(JSON.stringify(result)).length>65536)throw Error();
    return json(result,200);
   }catch{return json({error:'reader_unavailable'},503);}
+ };
+}
+
+// Per-process admission is an overload safeguard, not a distributed rate limit.
+export function protectReadApi(handler,{maxConcurrent=4,timeoutMs=8000,audit=record=>console.info(JSON.stringify(record))}={}) {
+ if(!Number.isInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>4||!Number.isInteger(timeoutMs)||timeoutMs<100||timeoutMs>9000)throw Error('invalid_config');
+ let active=0;
+ return async request=>{
+  const started=Date.now();let response;
+  if(request.url.length>2048||[...request.headers].reduce((n,[k,v])=>n+k.length+v.length,0)>16384)response=Response.json({error:'request_too_large'},{status:413});
+  else if(active>=maxConcurrent)response=Response.json({error:'busy'},{status:503});
+  else {
+   active++;let timer;
+   const operation=Promise.resolve().then(()=>handler(request)).catch(()=>Response.json({error:'reader_unavailable'},{status:503})).finally(()=>{active--});
+   response=await Promise.race([operation,new Promise(resolve=>{timer=setTimeout(()=>resolve(Response.json({error:'timeout'},{status:503})),timeoutMs)})]);clearTimeout(timer);
+  }
+  try{audit({event:'dot_review_request',status:response.status,durationMs:Math.min(Date.now()-started,99999)});}catch{}
+  const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('X-Content-Type-Options','nosniff');return new Response(response.body,{status:response.status,headers});
  };
 }
