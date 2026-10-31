@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict'),{chromium}=require('playwright');
+test('Studio protects My Apps draft through continue, save and discard',async()=>{
+ const url=process.env.STUDIO_URL;const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH});const context=await browser.newContext({serviceWorkers:'block'});await context.route('**/*',r=>new URL(r.request().url()).origin===new URL(url).origin?r.continue():r.abort());const p=await context.newPage();p.setDefaultTimeout(10000);
+ try{await p.goto(url);await p.waitForFunction(()=>!!CruiseStudio.shellHost);const f=p.frameLocator('#port-my-apps-surface iframe');
+ await p.evaluate(()=>CruiseStudio.shellHost.navigate('portMyApps'));await f.locator('#my-apps-add').click();await f.locator('#my-apps-name').fill('Saved draft');await f.locator('#my-apps-other-urls summary').click();await f.locator('#my-apps-web-url').fill('https://example.invalid/draft');
+ await p.locator('.studio-nav [data-workspace=home]').click();await p.locator('[data-leave-action=continue]').click();assert.equal(await f.locator('#my-apps-name').inputValue(),'Saved draft');
+ await p.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden;});assert.equal(await f.locator('#my-apps-name').inputValue(),'Saved draft');
+ await p.locator('.studio-nav [data-workspace=home]').click();await p.locator('[data-leave-action=save]').click();await p.waitForFunction(()=>CruiseStudio.shellHost.getActiveWorkspace()==='home');assert.equal(await p.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.myApps')).items[0].name),'Saved draft');
+ await p.evaluate(()=>CruiseStudio.shellHost.navigate('portMyApps'));await f.locator('#my-apps-add').click();await f.locator('#my-apps-name').fill('Discard me');await p.locator('.studio-nav [data-workspace=home]').click();await p.locator('[data-leave-action=discard]').click();await p.waitForFunction(()=>CruiseStudio.shellHost.getActiveWorkspace()==='home');assert.equal(await p.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.myApps')).items.length),1);
+ }finally{await browser.close();}
+});

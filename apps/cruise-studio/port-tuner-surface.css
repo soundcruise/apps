@@ -23,3 +23,5 @@
     .port-practice-frame { height: max(720px, calc(100dvh - 155px)); }
     .port-library-frame { height: max(720px, calc(100dvh - 155px)); }
 }
+/* Keep Port fixed dialogs inside the visible PC workspace; the document scrolls internally. */
+.port-practice-frame, .port-library-frame { height: max(320px, calc(100dvh - 260px)); }

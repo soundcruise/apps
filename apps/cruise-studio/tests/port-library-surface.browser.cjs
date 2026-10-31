@@ -99,7 +99,7 @@ test('Port Gear and My Apps use the owner UI and storage inside Studio', async (
         await apps().locator('#my-apps-manage-view [data-action="my-apps-home"]').click();
         await apps().locator('#my-apps-section').waitFor({ state: 'visible' });
 
-        for (const theme of ['dark', 'charcoal', 'gray', 'light']) {
+        for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
             await page.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
             for (const width of [390, 1440]) {
                 await page.setViewportSize({ width, height: 900 });
@@ -202,50 +202,23 @@ test('synthetic existing photo and icon bodies survive reload and Port deletion 
     } finally { await browser.close(); }
 });
 
-test('Port Standard limits and Pro image prompts stay owned by Port', async () => {
-    const url = process.env.STUDIO_URL;
-    assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
-    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
-    const context = await browser.newContext({ serviceWorkers: 'block' });
-    await context.route('**/__cruise_preview/news**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"contractVersion":1,"items":[],"nextOffset":null}' }));
-    const page = await context.newPage();
-    page.setDefaultTimeout(12000);
+test('Studio Pro allows a sixth My App through the original form', async () => {
+    const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH});
+    const context=await browser.newContext({serviceWorkers:'block'});
+    await context.route('**/*',r=>new URL(r.request().url()).origin===new URL(process.env.STUDIO_URL).origin?r.continue():r.abort());
+    const page=await context.newPage();page.setDefaultTimeout(12000);
     try {
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await page.goto(process.env.STUDIO_URL);
         await page.locator('[data-home-workspace="portMyApps"]').click();
-        const apps = page.frameLocator('#port-my-apps-surface iframe');
-        await page.waitForFunction(() => document.querySelector('#screen-port-my-apps').dataset.portLibraryPhase === 'ready');
-        await page.waitForFunction(() => document.querySelector('#port-my-apps-surface iframe')?.contentDocument?.querySelector('#my-apps-add')?.disabled === false);
-        await apps.locator('#my-apps-add').click();
-        await apps.locator('#my-apps-form-view').waitFor({ state: 'visible' });
-        await apps.locator('.my-apps-icon-select').click();
-        await apps.locator('.port-pro-prompt').waitFor({ state: 'visible' });
-        assert.match(await apps.locator('.port-pro-prompt p').innerText(), /カスタムアイコン/);
-        await apps.locator('.port-pro-prompt button').click();
-        for (let index = 0; index < 5; index++) {
-            if (index) await apps.locator('#my-apps-add').click();
-            await apps.locator('#my-apps-name').fill(`Standard App ${index}`);
-            if (!await apps.locator('#my-apps-web-url').isVisible()) await apps.locator('#my-apps-other-urls summary').click();
-            await apps.locator('#my-apps-web-url').fill(`https://example.invalid/app-${index}`);
-            await apps.locator('#my-apps-submit').click();
-            await apps.locator('.my-app-launch-card', { hasText: `Standard App ${index}` }).waitFor();
+        const apps=page.frameLocator('#port-my-apps-surface iframe');
+        for(let i=0;i<6;i++) {
+            await apps.locator('#my-apps-add').click();await apps.locator('#my-apps-name').fill('Pro App '+i);
+            await apps.locator('#my-apps-other-urls summary').click();await apps.locator('#my-apps-web-url').fill('https://example.invalid/'+i);
+            await apps.locator('#my-apps-submit').click();await apps.locator('.my-app-launch-card',{hasText:'Pro App '+i}).waitFor();
         }
-        await apps.locator('#my-apps-add').click();
-        await apps.locator('.port-pro-prompt').waitFor({ state: 'visible' });
-        assert.match(await apps.locator('.port-pro-prompt p').innerText(), /5件/);
-        assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('cruisePort.myApps')))).items.length, 5);
-        await apps.locator('.port-pro-prompt button').click();
-        await page.locator('.studio-nav [data-workspace="portGear"]').click();
-        const gear = page.frameLocator('#port-gear-surface iframe');
-        await gear.locator('#gear-list-title-add').click();
-        await gear.locator('#gear-photo-select-label').click();
-        await gear.locator('.port-pro-prompt').waitFor({ state: 'visible' });
-        assert.match(await gear.locator('.port-pro-prompt p').innerText(), /機材写真/);
-        await gear.locator('.port-pro-prompt a[href="#pro-access"]').click();
-        await gear.locator('#pro-access-view').waitFor({ state: 'visible' });
-        assert.equal(await page.evaluate(() => CruiseStudio.shellHost.getActiveWorkspace()), 'portGear');
-        assert.equal(await page.evaluate(() => CruiseStudio.portDataHost.canWrite), false);
-    } finally { await browser.close(); }
+        assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.myApps')).items.length),6);
+        assert.equal(await apps.locator('.port-pro-prompt').count(),0);
+    } finally {await browser.close();}
 });
 
 test('Port category, order and Home display size persist through Studio routes', async () => {
