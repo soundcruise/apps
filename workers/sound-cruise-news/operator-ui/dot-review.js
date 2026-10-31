@@ -17,8 +17,8 @@ export function initDotReview(){
   for(const source of arr(c.sources)){card.append(row('出典・取得',`${source.publisher||'不明'} / ${source.acquisition_method||'未確認'} / ${source.evidence_locator||'箇所未確認'}`));const a=safeLink(source.url);if(a)card.append(a);}
   if(!arr(c.sources).length)card.append(row('原記事URL・出典','未確認'));
   card.append(row('正式重複判定','未実施（未検証factsは使用しません）'));
-  if(v.coverage&&typeof v.coverage==='object')for(const [scope,state] of Object.entries(v.coverage))card.append(row(`照合範囲 ${scope}`,state));
-  card.append(row('照合時点','各範囲を別々に読み取り。同一時点の完全照合ではありません'),row('判断履歴','保持範囲のみ。削除済み・期限切れは不明'));
+  if(v.coverage&&typeof v.coverage==='object')for(const [scope,state] of Object.entries(v.coverage))card.append(row(`照合範囲 ${scope}`,`${state}（${Number.isInteger(v.coverageCounts?.[scope])?`参考候補 ${v.coverageCounts[scope]}件`:'件数不明'}）`));
+  card.append(row('照合条件','候補ID・出典URL・4文字以上の製品名で参考検索。別名や期限切れ履歴は取りこぼす可能性があります'),row('照合時点','各範囲を別々に読み取り。同一時点の完全照合ではありません'),row('判断履歴','保持範囲のみ。削除済み・期限切れは不明'));
   for(const match of arr(v.similar))card.append(row('類似候補（正式重複判定ではありません）',`${match.title||'不明'} / ${match.status||'状態不明'} / ${match.scope||'範囲不明'} / ${arr(match.reason).join(' / ')||'根拠未確認'}`));
   card.append(row('配送日時',v.delivery?.createdAt),row('配送記録',arr(v.delivery?.attempts).map(a=>`${a.status||'不明'} ${a.processedAt||''}`).join(' / ')||'未確認'));const back=text('button','一覧へ戻る');back.type='button';back.addEventListener('click',()=>void load());card.append(back);items.append(card);
  }
