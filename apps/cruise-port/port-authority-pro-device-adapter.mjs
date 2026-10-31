@@ -4,7 +4,7 @@ import {authorityProEnvironment} from './port-indexeddb-authority-store.mjs';
 import {digest,equal,fail,frozen,identifier,AUTHORIZATION_MARGIN_MS} from './port-idb-authority-contract.mjs';
 const contexts=new WeakMap(),guards=new WeakMap();
 let officialHelper;
-const proActions=new Set(['saveAdvanced','createPreset','applyPresetAdvanced']);
+const proActions=new Set(['saveAdvanced','createPreset','applyPresetAdvanced','savePortDataset']);
 const AUTH='soundCruiseProAuth',EPOCH='soundCruiseProOperationEpoch',PENDING='soundCruiseProRevokePending';
 const credentialPattern=/^scp1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/;
 function receiptReader(indexedDB){
@@ -65,7 +65,7 @@ export async function createAuthorityProDeviceAdapter({scope,...unsupported}={})
      return receipt.ok?{...validated,offlineRemainingMs:Math.min(validated.offlineRemainingMs,receipt.offlineRemainingMs)}:{ok:false};
     }}});
    const a=auth();if(!a)throw fail('pro-required');
-   const proof=await resolver(action==='applyPresetAdvanced'?'saveAdvanced':action);
+   const proof=await resolver(['applyPresetAdvanced','savePortDataset'].includes(action)?'saveAdvanced':action);
    env.assertLive();if(!proof.allowed||!equal(auth(),a)||env.clockIdentity()!==origin)throw fail('pro-required');
    const identity=frozen({generation:a.generation,credentialFingerprint:digest(a.credential),sessionVersion:a.sessionVersion,operationRevisionFingerprint:digest(a.operationRevision)});
    if(expectedIdentity!==undefined&&!equal(identity,expectedIdentity))throw fail('pro-operation-identity-changed');

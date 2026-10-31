@@ -54,8 +54,8 @@ const OWNER_SQL=`SELECT d.id AS device_id,d.account_id,d.credential_version,d.cr
  LEFT JOIN sync_account_memberships m ON m.account_id=a.id AND m.app_id='port'
  LEFT JOIN sync_account_runtime_control c ON c.singleton_id=1 WHERE d.id=?`;
 
-export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,enableOwnerCutover=false,enableConsumerReadmission=false,enableSuccessorRecovery=false,enableSuccessorTwoCycle=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
- if(fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
+export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,devicePepper,proPepper,fixtureOnly=false,allowPortRecords=false,requireLifecycleBinding=false,enableAuthorityReauthorization=false,enableOperationLease=false,enableOwnerCutover=false,enableConsumerReadmission=false,enableSuccessorRecovery=false,enableSuccessorTwoCycle=false,operationLeaseTtlMs=10000,checkpoint=async()=>{}}={}){
+ if(![true,false].includes(allowPortRecords)||allowPortRecords&&(enableOperationLease||enableOwnerCutover||enableAuthorityReauthorization)||fixtureOnly!==true||typeof db?.withSession!=='function'||[accountPepper,devicePepper,proPepper].some(p=>typeof p!=='string'||p.length<32))throw error('backend-isolation-required');
  const handles=new WeakMap();let disposed=false;
  let ownerSql=requireLifecycleBinding?OWNER_SQL.replace('SELECT d.id AS','SELECT d.credential_account_generation,d.credential_membership_id,d.credential_membership_generation,c.account_history_enabled AS history_enabled,d.id AS'):OWNER_SQL;
  if(enableSuccessorRecovery)ownerSql=ownerSql.replace('SELECT ','SELECT d.credential_recovery_json,d.credential_operations_json,d.credential_transition_id, ');
@@ -75,8 +75,9 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    !['accountId','accountDeviceId','membershipId','datasetId','appDeviceId','localGeneration','localRevision'].every(k=>text(q[k]))||
    !['accountGeneration','membershipGeneration','credentialVersion','credentialLeaseRevision','runtimeGeneration','writeEpoch'].every(k=>positive(q[k])))throw error('backend-binding-invalid');
   const parsed=await validateOperation(q.operation,crypto,'port');
-  if(!parsed.ok||!uuid(q.operation.operationId)||parsed.operation.recordType!=='metronome_settings'||parsed.operation.recordId!=='default'||parsed.operation.deleted)throw error('backend-operation-invalid');
-  const bpm=parsed.operation.payload?.value?.bpm;if(!Number.isInteger(bpm)||bpm<30||bpm>240)throw error('backend-operation-invalid');
+  if(!parsed.ok||!uuid(q.operation.operationId))throw error('backend-operation-invalid');
+  if(!allowPortRecords && (parsed.operation.recordType!=='metronome_settings'||parsed.operation.recordId!=='default'||parsed.operation.deleted))throw error('backend-operation-invalid');
+  const bpm=parsed.operation.payload?.value?.bpm;if(!allowPortRecords&&(!Number.isInteger(bpm)||bpm<30||bpm>240))throw error('backend-operation-invalid');
   return {q,operation:parsed.operation,digest:await checksum(q)};
  }
  async function clockFact(session,q,verifier,observed){
@@ -135,7 +136,7 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
  function guardedDatabase(session,p){
   const query=guard(session,p),q=p.q,op=p.operation;
   const noReplay=`NOT EXISTS(SELECT 1 FROM sync_changes WHERE user_id=? AND app_id='port' AND operation_id=?)`;
-  const cas=`COALESCE((SELECT revision FROM sync_records WHERE user_id=? AND app_id='port' AND record_type='metronome_settings' AND record_id='default'),0)=?`;
+  const cas=`COALESCE((SELECT revision FROM sync_records WHERE user_id=? AND app_id='port' AND record_type=? AND record_id=?),0)=?`;
   return {prepare:session.prepare.bind(session),async batch(statements){
    const bind=session.prepare(`UPDATE sync_changes SET isolated_request_digest=?,isolated_account_binding=?
     WHERE user_id=? AND app_id='port' AND operation_id=? AND operation_hash=? AND isolated_request_digest IS NULL`)
@@ -143,14 +144,14 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
    const exact=`EXISTS(SELECT 1 FROM sync_changes l JOIN sync_records r ON r.user_id=l.user_id AND r.app_id=l.app_id
     AND r.record_type=l.record_type AND r.record_id=l.record_id WHERE l.user_id=? AND l.app_id='port' AND l.operation_id=?
     AND l.operation_hash=? AND l.isolated_request_digest=? AND l.isolated_account_binding=? AND l.revision=?
-    AND l.payload_hash=? AND l.payload_json=? AND l.deleted_at IS NULL AND l.schema_version=1
-    AND r.revision=l.revision AND r.last_operation_id=l.operation_id AND r.payload_hash=l.payload_hash AND r.payload_json=l.payload_json)`;
+    AND l.payload_hash=? AND l.payload_json IS ? AND ${op.deleted?'l.deleted_at IS NOT NULL':'l.deleted_at IS NULL'} AND l.schema_version=1
+    AND r.revision=l.revision AND r.last_operation_id=l.operation_id AND r.payload_hash=l.payload_hash AND r.payload_json IS l.payload_json AND r.deleted_at IS l.deleted_at)`;
    const leasePrefix=p.lease?leases.condition(p):null;
-   const prefix=assertion(session,query.sql+' AND '+noReplay+' AND '+cas+(leasePrefix?' AND '+leasePrefix.sql:''),[...query.values,q.datasetId,op.operationId,q.datasetId,op.baseRevision,...(leasePrefix?.values||[])]);
-   const final=assertion(session,query.sql+' AND '+exact,[...query.values,q.datasetId,op.operationId,op.operationHash,p.digest,canonicalJson(q),op.baseRevision+1,op.payloadHash,canonicalJson(op.payload)]);
+   const prefix=assertion(session,query.sql+' AND '+noReplay+' AND '+cas+(leasePrefix?' AND '+leasePrefix.sql:''),[...query.values,q.datasetId,op.operationId,q.datasetId,op.recordType,op.recordId,op.baseRevision,...(leasePrefix?.values||[])]);
+   const final=assertion(session,query.sql+' AND '+exact,[...query.values,q.datasetId,op.operationId,op.operationHash,p.digest,canonicalJson(q),op.baseRevision+1,op.payloadHash,op.deleted?null:canonicalJson(op.payload)]);
    const w=fenceQuery(p.admission,{payload:op.payload}),finalWriter=session.prepare('INSERT INTO sync_writer_fence_assertion(code) '+w.sql).bind(...w.values);
    const leaseFinal=p.lease?leases.condition(p,'committed'):null;
-   const jointFinal=p.lease?assertion(session,query.sql+' AND '+exact+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok') AND `+leaseFinal.sql,[...query.values,q.datasetId,op.operationId,op.operationHash,p.digest,canonicalJson(q),op.baseRevision+1,op.payloadHash,canonicalJson(op.payload),...w.values,...leaseFinal.values]):final;
+   const jointFinal=p.lease?assertion(session,query.sql+' AND '+exact+` AND EXISTS(SELECT 1 FROM (${w.sql}) f WHERE f.code='ok') AND `+leaseFinal.sql,[...query.values,q.datasetId,op.operationId,op.operationHash,p.digest,canonicalJson(q),op.baseRevision+1,op.payloadHash,op.deleted?null:canonicalJson(op.payload),...w.values,...leaseFinal.values]):final;
    const result=await session.batch([prefix,...statements,bind,...(p.lease?[leases.consume(session,p)]:[]),finalWriter,jointFinal,clearAssertions(session)]);
    if(!Array.isArray(result)||result.some(r=>r?.success===false))throw error('backend-transaction-unproven');
    return result.slice(1,1+statements.length);
@@ -178,7 +179,7 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
   }else row=await session.prepare(`SELECT * FROM sync_changes WHERE user_id=? AND app_id='port' AND operation_id=?`).bind(q.datasetId,op.operationId).first();
   if(!row||row.isolated_request_digest!==p.digest||row.isolated_account_binding!==canonicalJson(q)||row.operation_hash!==op.operationHash||
    row.record_type!==op.recordType||row.record_id!==op.recordId||row.revision!==op.baseRevision+1||row.payload_hash!==op.payloadHash||
-   row.payload_json!==canonicalJson(op.payload)||row.deleted_at!==null||row.schema_version!==1||await hashRecord({recordType:row.record_type,recordId:row.record_id,schemaVersion:row.schema_version,payload:JSON.parse(row.payload_json)},crypto,'port')!==row.payload_hash)
+   row.payload_json!==(op.deleted?null:canonicalJson(op.payload))||(op.deleted?row.deleted_at===null:row.deleted_at!==null)||row.schema_version!==1||await hashRecord({recordType:row.record_type,recordId:row.record_id,schemaVersion:row.schema_version,payload:row.payload_json===null?null:JSON.parse(row.payload_json)},crypto,'port')!==row.payload_hash)
    throw error('backend-receipt-unproven');
   return closed({ok:true,backendCommitted:true,historical:true,receipt:{operationId:op.operationId,requestDigest:p.digest,datasetId:q.datasetId,
    accountId:q.accountId,accountGeneration:q.accountGeneration,membershipGeneration:q.membershipGeneration,revision:row.revision,changeSeq:row.change_seq,payloadHash:row.payload_hash}});
@@ -186,7 +187,7 @@ export function createIsolatedAccountSaveTransaction({db,policy,accountPepper,de
  async function prepareSave(input,credentials){
    const p=await fixed(input);const auth=await authenticate(p.q,credentials);p.row=auth.row;
    const current=await auth.session.prepare("SELECT payload_json FROM sync_records WHERE user_id=? AND app_id='port' AND record_type='metronome_settings' AND record_id='default'").bind(p.q.datasetId).first();
-   if(current){const previous=JSON.parse(current.payload_json),next=data(p.operation.payload);delete previous.value.bpm;delete next.value.bpm;
+   if(!allowPortRecords&&current){const previous=JSON.parse(current.payload_json),next=data(p.operation.payload);delete previous.value.bpm;delete next.value.bpm;
     if(canonicalJson(previous)!==canonicalJson(next))throw error('backend-non-bpm-conflict');}
    const admission=await writerAuthorization(p.q,credentials,auth);
    const binding=frozen(JSON.parse(canonicalJson({contractVersion:1,purpose:'backend-save-receipt-binding',request:p.q,requestDigest:p.digest})));

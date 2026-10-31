@@ -221,7 +221,7 @@ test('script registration has no storage / DOM / timer / network / audio side ef
     assert.equal(context.CruiseStudio.colorTheme.resolveColorTheme('light'),'light');
 });
 test('actual entry bootstrap runs before stylesheets with exactly the runtime resolver', () => {
-    const src=html.indexOf('src="js/core/color-theme.js?v=0.53.1"');
+    const src=html.indexOf('src="js/core/color-theme.js?v=0.53.2"');
     const inline=html.match(/<script>\s*(CruiseStudio\.colorTheme[\s\S]*?)<\/script>/)[1];
     assert.ok(src>0 && html.indexOf(inline)<html.indexOf('rel="stylesheet"'));
     for (const value of [null,'{}',...ids.map(id=>JSON.stringify({colorTheme:id})),'{"colorTheme":"invalid"}','{bad','[]']) {
