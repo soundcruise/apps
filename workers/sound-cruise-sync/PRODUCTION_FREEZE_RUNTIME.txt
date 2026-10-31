@@ -1,5 +1,80 @@
 Production Freeze Runtime — isolated candidate, not deployed
 
+Default-OPEN revision (operations package 0.4.0)
+The reviewed candidate now uses production-freeze-control-entry.js: public/default
+HTTP is always 404. Only the named FreezeOperatorGateway service entrypoint accepts
+signed requests. The previous unconfigured public gateway entry is not selected
+by the new preparation compiler. No private HTTPS relay, binding or resource has
+been provisioned. A separately approved authenticated HTTPS caller must forward
+through this named entrypoint; a user-controlled header is not such authentication.
+
+Production availability is conditional on Control health, even while OPEN.
+Admission and pre-mutation Control failures return bounded 503/UNKNOWN; CLOSED
+admission returns 423. No untracked/fail-open fallback exists. RPC deadline defaults
+to 2000ms per call and is validated before admission; timing out does not cancel
+the remote operation. There is no automatic retry. New deployment therefore needs
+explicit acceptance of this availability dependency and measured capacity/latency.
+
+If a native Source operation succeeded but only effectEnd acknowledgment was lost,
+its original success value is preserved for the legacy handler. A sticky tracking
+UNKNOWN blocks freeze certification; the Source operation is never repeated.
+Later native or effectBegin failures still produce 503/UNKNOWN. Completion or
+background failures after an HTTP response cannot change that response: logs and
+the ACTIVE/UNKNOWN ledger are authoritative for tracking, not a successful HTTP
+code. Account credential rotation must not be retried merely to repair tracking.
+
+Single plain SELECT statements avoid per-query mutation RPCs while remaining
+inside admitted invocation/Promise lifetime tracking. Any non-SELECT, semicolon,
+CTE/unknown SQL or mixed batch is treated conservatively as mutation. Business
+exceptions without mutation intent can complete with an explicit error outcome;
+exceptions after mutation remain UNKNOWN. Completion does not mean business save
+success. All mutation start/end and waitUntil tracking remain mandatory.
+
+OPEN ledger bounds
+Epoch/state and invocation/state indexes avoid per-request whole-history scans.
+Explicit production limits bound invocations, effects, active concurrency and
+effects per invocation. Admission reserves its effect budget before Source use;
+budget exhaustion rejects before the next native mutation. Existing reservations
+keep completion possible after new admission is capped. Historical counters and
+reservations survive reopen and are transactionally backfilled from PR79 layout.
+Signed CURRENT publishes occupancy/limits/warnings. No record is auto-purged and
+UNKNOWN/STARTED is never discarded. Counts are not a physical byte/quota guarantee:
+approved storage measurements, retention, warning monitoring and manual rollover
+are required before deployment. The controller fails closed at capacity instead
+of silently changing namespace or deleting evidence.
+
+Preparation compiler
+scripts/studio-operations/freeze-open-plan.mjs is pure and has no credential or
+network access. It pins the existing Product profile digest, preserves its D1/R2,
+vars, sixteen limiters, compatibility date and Cron, and renders a cross-script
+DO binding plus a separate private Control profile. Control has no Source D1/R2
+binding, no public routes/workers.dev/preview/Cron, and only the receipt signing
+Secret. Its SQLite migration creates a new control namespace, not Source D1 DDL.
+Authority roles must have distinct canonical Ed25519 key material, not different
+JWK labels. Missing real Source timestamp/namespace, roots/certificate, current
+floor, private HTTPS caller or approved capacity/retention keeps profilesReady=false.
+Even a complete render is candidateOnly and productionEligible=false; it cannot
+grant deployment authority or prove that supplied metadata was actually observed.
+OPEN readiness verification is separate from authorization of a CLOSED Backup
+window and checks owner/epoch/synthetic/nonce/revision/issuer signature.
+
+Tests for this revision
+npm run test:production-freeze:open
+FREEZE_OPEN_OUTPUT=/absolute/new-output npm run test:production-freeze:open-native
+The latter uses the locked direct workerd dependency for the new Control date;
+the inherited old runtime cannot execute that compatibility target. Product
+compatibility remains 2026-09-01. Test dependencies do not update any deployed
+Worker or the separately pinned Backup Host helper.
+
+Rollback and kill-switch boundary
+Signed close is the kill switch; UNKNOWN cannot be cleared by a timer or broad
+exception handler. Signed cancel/reopen retain their PR79 conditions. A return to
+old v138 must never occur while CLOSING/SEALED or a Backup depends on the barrier.
+Even an approved OPEN-only code return requires actual invocation/effect handoff,
+fixed original bundle/settings, no Studio schema/claims/activation changes, and
+explicit monitoring; subsequent coverage is UNPROVEN until reinstrumented.
+No automatic rollback, root adoption or Production operation is included.
+
 Purpose and unchanged boundaries
 This candidate wraps the existing studio-production-entry / reconstructed v137
 delegate. Studio remains OFF. Existing Wrangler entries, configuration, shared
@@ -85,10 +160,10 @@ Live signatures/nonces defend network replay; they do not defeat an authorized
 Cloudflare administrator, issuer compromise or DO PITR/namespace replacement.
 An independently approved durable revision/window floor and control custody are
 required. No independent pin service or root was modified in this candidate.
-The ledger retains historical invocation/effect/command rows. 2048 limits active
-concurrency only. Growth, DO capacity, latency, retention/rotation and budget
-must be bounded before deployment; no automatic purge or silent Source fallback
-is permitted. A capacity/transport failure fails closed, affecting availability.
+The ledger retains historical invocation/effect/command rows. Configured limits
+now bound admission and effects as described above. Storage/latency/retention and
+budget approval remain deployment prerequisites. No automatic purge or silent
+Source fallback is permitted. A capacity/transport failure affects availability.
 
 Backup freeze and Studio release stages
 v138 OFF continuation, additive studio_0001_rc5 DDL, a consistent shared D1/R2

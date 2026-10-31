@@ -20,6 +20,9 @@ export async function freezeStub(env) {
     !cfg.workerArtifactHash ||
     p.bindingNames?.d1 !== "SYNC_DB" ||
     p.bindingNames?.r2 !== "SYNC_ASSETS" ||
+    !Number.isSafeInteger(p.issued) ||
+    !Number.isSafeInteger(p.expires) ||
+    p.expires <= p.issued ||
     p.issued > Date.now() ||
     p.expires <= Date.now()
   )

@@ -746,7 +746,7 @@ try {
             "https://fixture.invalid/fixture/effect/partial",
           )
         ).status,
-        200,
+        503,
       );
       assert.equal(await bucket.head("synthetic-victim"), null);
     },
