@@ -1,5 +1,5 @@
 /* Port is the URL and icon catalog. The target app owns its Pro gate and data. */
-import { resolveCruiseAppHref, CRUISE_APP_ICONS } from '../../../../cruise-port/cruise-app-links.js?v=0.61.0';
+import { resolveCruiseAppHref, CRUISE_APP_ICONS } from '../../../../cruise-port/cruise-app-links.js?v=0.62.0';
 
 for (const link of document.querySelectorAll('[data-studio-cruise-app][data-studio-edition]')) {
     const id = link.dataset.studioCruiseApp;

@@ -57,7 +57,45 @@
         var positions = Object.create(null), focus = Object.create(null);
         var visitHistory = [];
         var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, portPractice: CS.portPractice, practice: CS.practice, tuner: CS.tuner, metronome: CS.portMetronome, portGear: CS.portGear, gear: CS.gear, portMyApps: CS.portMyApps, myApps: CS.myApps, portNews: CS.portNews, news: CS.news };
-        var nodes = {};
+        var nodes = {}, dockedTool = null;
+        var toolIds = ['tuner','metronome','portPractice','portGear','portMyApps'];
+        var realTools = {};
+        toolIds.forEach(function(id){realTools[id]=adapters[id];adapters[id]={load:function(){realTools[id].load?.();},activate:function(){if(dockedTool!==id)realTools[id].activate();},deactivate:function(){if(dockedTool!==id)return realTools[id].deactivate();}};});
+        var toolWindow=doc.createElement('aside');toolWindow.id='studio-tool-window';toolWindow.hidden=true;toolWindow.setAttribute('aria-label','独立ツール');
+        toolWindow.innerHTML='<div class="tool-window-bar"><select id="tool-window-select" aria-label="ツールを切り替え"></select><button type="button" id="tool-window-close" aria-label="ツールを閉じる" title="ツールを閉じる">×</button></div><p id="tool-window-status" role="status"></p><div id="tool-window-slot"></div><div id="tool-window-resize" role="separator" aria-label="ツール幅" aria-orientation="vertical" tabindex="0"></div>';
+        shell.append(toolWindow);
+        var toolSlot=toolWindow.querySelector('#tool-window-slot'),toolSelect=toolWindow.querySelector('select'),toolTrigger=null;
+        var toolNames={tuner:'チューナー',metronome:'メトロノーム',portPractice:'練習・カレンダー',portGear:'機材',portMyApps:'My Apps'};
+        toolIds.forEach(function(id){var o=doc.createElement('option');o.value=id;o.textContent=toolNames[id];toolSelect.append(o);});
+        function moveNode(parent,node){if(parent.moveBefore&&node.isConnected)parent.moveBefore(node,null);else parent.append(node);}
+        function hasToolInput(){var d=dockedTool&&nodes[dockedTool].querySelector('iframe')?.contentDocument;return !!d&&Array.from(d.querySelectorAll('form,[role=dialog]')).some(function(e){return !e.closest('[hidden]')&&d.defaultView.getComputedStyle(e).display!=='none';});}
+        function guardTool(next){if(!dockedTool)return false;if(realTools[dockedTool].requestLeave?.(next))return true;if(hasToolInput()){doc.getElementById('tool-window-status').textContent='編集中のフォームを保存またはキャンセルしてから移動してください。';return true;}return false;}
+        function closeToolUnchecked(){if(!dockedTool)return;var id=dockedTool;dockedTool=null;realTools[id].deactivate();moveNode(main.querySelector('.studio-container'),nodes[id]);nodes[id].hidden=true;nodes[id].inert=true;nodes[id].classList.add('hidden');toolWindow.hidden=true;shell.removeAttribute('data-tool-window');if(toolTrigger?.isConnected)toolTrigger.focus({preventScroll:true});refreshGeometry();}
+        function closeTool(){if(modal.getActive())return false;if(guardTool(closeTool))return false;closeToolUnchecked();return true;}
+        function openTool(id){
+            if(!toolIds.includes(id)||modal.getActive())return false;
+            doc.getElementById('tool-window-status').textContent='';
+            if(dockedTool===id){toolSelect.focus();return true;}
+            if(guardTool(function(){openTool(id);}))return false;
+            var central=host.getActive()===id;
+            if(!central&&toolIds.includes(host.getActive())&&realTools[host.getActive()].requestLeave?.(function(){openTool(id);}))return false;
+            if(central&&nodes[id].querySelector('iframe')&&!toolSlot.moveBefore){window.alert('このブラウザでは使用中画面の状態を維持して移動できません。保存して譜面へ戻ってから開いてください。');return false;}
+            closeToolUnchecked();layout.closeRight();renderLayout();toolTrigger=doc.activeElement;dockedTool=id;
+            moveNode(toolSlot,nodes[id]);nodes[id].hidden=false;nodes[id].inert=false;nodes[id].classList.remove('hidden');toolSelect.value=id;toolWindow.hidden=false;shell.dataset.toolWindow='open';
+            if(toolIds.includes(host.getActive())){host.activate('sheetCruise');if(!central)realTools[id].activate();}else realTools[id].activate();
+            refreshGeometry();return true;
+        }
+        toolWindow.addEventListener('keydown',function(e){if(e.key==='Escape'&&!e.isComposing&&!modal.getActive()){e.preventDefault();e.stopPropagation();closeTool();}});
+        toolSelect.addEventListener('change',function(){var id=toolSelect.value;toolSelect.value=dockedTool;openTool(id);});
+        toolWindow.querySelector('#tool-window-close').addEventListener('click',closeTool);
+        var resizeHandle=toolWindow.querySelector('#tool-window-resize');
+        function setToolWidth(width){shell.style.setProperty('--studio-tool-width',Math.min(600,Math.max(300,width))+'px');refreshGeometry();}
+        resizeHandle.addEventListener('pointerdown',function(e){if(e.button!==0)return;e.preventDefault();resizeHandle.setPointerCapture(e.pointerId);});
+        resizeHandle.addEventListener('pointermove',function(e){if(resizeHandle.hasPointerCapture(e.pointerId))setToolWidth(shell.getBoundingClientRect().right-e.clientX);});
+        resizeHandle.addEventListener('pointerup',function(e){if(resizeHandle.hasPointerCapture(e.pointerId))resizeHandle.releasePointerCapture(e.pointerId);});
+        resizeHandle.addEventListener('keydown',function(e){if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();setToolWidth(toolWindow.getBoundingClientRect().width+(e.key==='ArrowLeft'?20:-20));}});
+        window.addEventListener('beforeunload',function(e){if(hasToolInput()){e.preventDefault();e.returnValue='';}});
+        CS.toolWindow=Object.freeze({open:openTool,close:closeTool,hasUnsaved:hasToolInput,getTool:function(){return dockedTool;}});
         var focusRouting = CS.focusRouting.createFocusRouting(doc, function () { return nodes[host.getActive()]; }, function () {
             return doc.querySelector('.studio-nav [aria-current="page"]');
         }, function (element) {
@@ -79,6 +117,7 @@
             show: function (id, previous) {
                 if (previous) positions[previous] = { x: main.scrollLeft, y: main.scrollTop };
                 Object.keys(nodes).forEach(function (key) {
+                    if(key===dockedTool)return;
                     var inactive = key !== id;
                     nodes[key].hidden = inactive;
                     nodes[key].inert = inactive;
@@ -124,7 +163,8 @@
             dock.hidden = s.dockCollapsed; dock.inert = s.dockCollapsed;
             shell.dataset.rightOpen = String(s.rightOpen);
             shell.dataset.paneMode = s.persistent ? 'persistent' : 'overlay';
-            ['inspector', 'tool'].forEach(function (type) {
+            doc.querySelectorAll('[data-open-tool]').forEach(function(button){button.addEventListener('click',function(){openTool(button.dataset.openTool);});});
+        ['inspector', 'tool'].forEach(function (type) {
                 var panel = doc.getElementById('shell-'+type+'-content');
                 panel.hidden = type !== s.rightType; panel.inert = type !== s.rightType;
                 doc.getElementById('shell-'+type).setAttribute('aria-expanded', String(s.rightOpen && s.rightType === type));
@@ -134,6 +174,9 @@
             refreshGeometry();
         }
         function navigate(id) {
+            if(modal.getActive())return false;
+            if(dockedTool&&toolIds.includes(id))return openTool(id);
+            if(dockedTool){if(guardTool(function(){navigate(id);}))return false;closeToolUnchecked();}
             if (modal.getActive() || !Object.hasOwn(WORKSPACES, id) || host.getActive() === id) return false;
             if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(function () { navigate(id); })) return false;
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(function () { navigate(id); })) return false;
@@ -146,6 +189,8 @@
             return host.activate(id);
         }
         function goBack() {
+            if(modal.getActive())return false;
+            if(dockedTool){if(guardTool(goBack))return false;closeToolUnchecked();}
             if (modal.getActive()) return false;
             if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(goBack)) return false;
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(goBack)) return false;
@@ -173,6 +218,8 @@
         });
         ['inspector', 'tool'].forEach(function (type) {
             doc.getElementById('shell-'+type).addEventListener('click', function () {
+                if(modal.getActive())return;
+                if(dockedTool){if(guardTool(function(){doc.getElementById('shell-'+type).click();}))return;closeToolUnchecked();}
                 var s = layout.get();
                 if (s.rightOpen && s.rightType === type) layout.closeRight(); else layout.openRight(type);
                 renderLayout();
