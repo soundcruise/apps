@@ -256,6 +256,36 @@ try {
       assert.equal(v.receipt.payload.capacity.invocations, 0);
     },
   );
+  await check(
+    "new private service reader verifies signed native OPEN without control capability",
+    async () => {
+      const { privateCurrentReader } = await import(
+        "./studio-operations/private-current.mjs"
+      );
+      const reader = privateCurrentReader({
+        binding: {
+          fetch: async (r) =>
+            mf.dispatchFetch("http://fixture.invalid/open/private", {
+              method: r.method,
+              headers: r.headers,
+              body: await r.text(),
+            }),
+        },
+        signRequest: async (kind, data) => signed(kind, data),
+        publicJwk: issuer.public,
+        issuerPin: digest(issuer.public),
+        source,
+        ownerId: "fixture",
+        minimumRevision: 0,
+        synthetic: true,
+      });
+      const v = await reader.observe();
+      assert.equal(v.receipt.state, "OPEN");
+      assert.equal(v.freezeAuthorized, false);
+      assert.equal(reader.control, undefined);
+      await assert.rejects(reader.observe("CLOSED"));
+    },
+  );
   await check("private binding still rejects an unsigned request", async () =>
     assert.equal(
       (
