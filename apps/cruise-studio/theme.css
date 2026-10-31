@@ -2451,6 +2451,15 @@ body.loupe-resizing {
     align-self: flex-start;
 }
 
+.series-launch-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.series-pro-link {
+    display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+    border: 1px solid var(--card-border); border-radius: 9px;
+    background: var(--surface-raised); color: var(--text-color);
+}
+.series-pro-link img { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; }
+.series-pro-link:hover, .series-pro-link:focus-visible { border-color: var(--secondary-color); }
+
 /* ══════════ フォーカスリングの統一（高級感のあるアンバーの淡いグロー） ══════════ */
 
 .form-grid input:focus,

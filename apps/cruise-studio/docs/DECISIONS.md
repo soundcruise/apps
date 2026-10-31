@@ -966,3 +966,13 @@ window resizeはgeometry-onlyで入力DOM/focus/IMEを維持。紙面色、編�
 ## Schema 2 Foundation M1（2026-10-15）
 
 StudioProjectを単一正本とし、実音pitch・stable ID・明示rest・時間provenanceを導入する。元JSONは同一Project内の復元専用immutable provenanceとして保持。移行は読込時memory-only、保存は既存Session commitのみ。旧consumerは明示adapterを通す。履歴なしの新command確定は禁止。Inspector UIはM2。
+
+---
+
+## ADR-031: Port の実画面と保存処理を Studio の正本とする
+
+- 日付: 2026-10-31 / 状態: 採用（埋め込み可否は検証 gate 付き）
+
+**決定**: Port のチューナー、メトロノーム、練習/カレンダー、機材、My Apps、NEWS は Port の実画面と実処理を使う。Studio に同等 UI、保存形式、Pro 判定を再実装しない。PC 固有の shell、サイズ、ナビと譜面補助ツールを Studio が担当する。Port 正規 route を別タブで開く導線を先に整え、同一オリジンの Port 文書を Studio の専用領域に埋め込む方式は、保存・Pro・音声・権限・履歴・Service Worker の隔離試験に合格した場合だけ有効化する。詳細契約と受入基準は [共通化設計](PORT_STUDIO_PARITY_DESIGN.md) を参照する。
+
+**適用範囲**: Port の UI 統合について、2026-10-10 の「mobile UI の丸ごと埋込を行わない」という暫定方針を更新する。音感・指板・リズム・コードの独立アプリには ADR-012 の別タブ起動を引き続き適用する。現行 `canWrite=false` の Studio read-only 境界と Cloud Sync/Pro owner の責務は変更しない。

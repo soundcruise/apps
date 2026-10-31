@@ -67,6 +67,6 @@ test('My Apps launch requests noopener/noreferrer once; no resolver or launch st
 });
 test('NEWS and Home markup owns no save/Account mutation and prints no new screen', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8'), print = readFileSync(new URL('../print.css', import.meta.url), 'utf8');
-    assert.match(html, /data-workspace="news"/); assert.match(html, /data-home-workspace="practice"/); assert.match(print, /#screen-news/);
+    assert.match(html, /data-workspace="portNews"/); assert.match(html, /data-home-workspace="portPractice"/); assert.match(print, /#screen-news/);
     assert.match(readFileSync(new URL('../js/modules/library/workspace.js', import.meta.url), 'utf8'), /event\.isTrusted/);
 });

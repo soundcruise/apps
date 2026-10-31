@@ -36,8 +36,11 @@
 
 /* Practice is a screen-only local-data viewer; existing A4 score print stays scoped. */
 #screen-practice { display: none !important; }
+#screen-port-practice { display: none !important; }
 #screen-tuner { display: none !important; }
+#screen-metronome { display: none !important; }
 #screen-gear, #screen-my-apps { display: none !important; }
+#screen-port-gear, #screen-port-my-apps, #screen-port-news { display: none !important; }
 
 /* 画面専用の編集オーバーレイ類は印刷に絶対に出さない。
    S1bの編集レイヤー（.slot-overlay。F1で紙面デザインのフローティング小節ルーペ化）と、

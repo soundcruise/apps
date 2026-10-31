@@ -67,7 +67,6 @@
     // Shell navigation retains workspace drafts. Explicit project changes remain module-owned.
     function enterSheetCruise() { shellHost.navigate('sheetCruise'); }
     function enterPreDtm() { shellHost.navigate('preDtm'); }
-    function enterSeries() { shellHost.navigate('series'); }
     function goHome() { shellHost.navigate('home'); }
 
     /* ══════════ 開発用: 保存基盤の動作確認パネル ══════════ */
@@ -273,6 +272,11 @@
         CS.practiceView = CS.practice.init({ document: document, shell: shellHost });
         CS.practice.attachHost(CS.portDataHost || null);
         CS.audio = CS.audioCoordinator.createCoordinator();
+        CS.portPractice.attach({ audio: CS.audio, shell: shellHost });
+        CS.portGear.attach({ shell: shellHost });
+        CS.portMyApps.attach({ shell: shellHost });
+        CS.portNews.attach({ shell: shellHost });
+        CS.portMetronome.attach({ audio: CS.audio, shell: shellHost });
         CS.metronomeMemoryStore = CS.metronomeStore.createMemoryStore({ schema: CS.metronomeSchema });
         CS.metronomeSettingsController = CS.metronomeSettings.createController({ schema: CS.metronomeSchema, store: CS.metronomeMemoryStore });
         CS.metronomeM1 = CS.metronome.createRuntime({ core: CS.metronomeCore, coordinator: CS.audio,
@@ -298,9 +302,6 @@
         if (openSheetBtn) openSheetBtn.addEventListener('click', enterSheetCruise);
         var openPreDtmBtn = document.getElementById('open-pre-dtm');
         if (openPreDtmBtn) openPreDtmBtn.addEventListener('click', enterPreDtm);
-        Array.prototype.forEach.call(document.querySelectorAll('.js-open-series'), function (btn) {
-            btn.addEventListener('click', enterSeries);
-        });
 
         // 開発用パネル
         var createBtn = document.getElementById('dev-create-sample');

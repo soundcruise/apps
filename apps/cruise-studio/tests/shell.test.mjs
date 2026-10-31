@@ -21,8 +21,10 @@ test('four Shell regions and two logical Dock slots exist once',()=>{
  assert.match(html,/<nav class="studio-nav"/);assert.match(html,/data-dock-slot="transport"/);assert.match(html,/data-dock-slot="auxiliary"/);
 });
 test('Navigation IDs resolve to real workspaces including retained Home/Apps',()=>{
- assert.deepEqual(Object.keys(WORKSPACES),['home','sheetCruise','preDtm','series','practice','tuner','gear','myApps','news']);
- for(const [id,node] of Object.entries(WORKSPACES)){assert.match(html,new RegExp('data-workspace="'+id+'"'));assert.match(html,new RegExp('id="'+node+'"'));}
+ assert.deepEqual(Object.keys(WORKSPACES),['home','sheetCruise','preDtm','series','portPractice','practice','tuner','metronome','portGear','gear','portMyApps','myApps','portNews','news']);
+ for(const [id,node] of Object.entries(WORKSPACES)){if(!['practice','gear','myApps','news'].includes(id))assert.match(html,new RegExp('data-workspace="'+id+'"'));assert.match(html,new RegExp('id="'+node+'"'));}
+ assert.match(html,/id="port-practice-overview"/);
+ assert.match(html,/id="port-gear-overview"/);assert.match(html,/id="port-my-apps-overview"/);
 });
 test('active workspace remains unique and inactive views hidden/inert',()=>{
  const f=fixture();for(const id of ['home','sheetCruise','preDtm','sheetCruise','series']){f.host.activate(id);assert.equal(f.host.getActive(),id);assert.equal(Object.values(f.visible).filter(v=>!v.hidden).length,1);assert(Object.values(f.visible).every(v=>v.hidden===v.inert));}
@@ -48,7 +50,7 @@ test('Inspector and Tool keep separate logical state without sharing mutable sna
  const l=createLayoutState(1440),s=l.get();assert.notEqual(s.inspector,s.tool);s.inspector.selection='bar';assert.equal(l.get().inspector.selection,null);l.openRight('tool');assert.equal(l.get().inspector.selection,null);
 });
 test('Dock toggles independently of workspace/pane and has no audio effects',()=>{
- const l=createLayoutState(1440);l.openRight('tool');l.toggleDock();assert.equal(l.get().dockCollapsed,false);assert.equal(l.get().rightType,'tool');l.toggleDock();assert.equal(l.get().dockCollapsed,true);assert.doesNotMatch(source,/AudioContext|play\(|stop\(|Metronome/);
+ const l=createLayoutState(1440);l.openRight('tool');l.toggleDock();assert.equal(l.get().dockCollapsed,false);assert.equal(l.get().rightType,'tool');l.toggleDock();assert.equal(l.get().dockCollapsed,true);assert.doesNotMatch(source,/AudioContext|play\(|stop\(/);
 });
 test('responsive state closes pane across threshold; compact widths start closed',()=>{
  assert.equal(PERSISTENT_MIN,1280);for(const width of [1600,1440,1280,1024,900,800,680]){const l=createLayoutState(width);assert.equal(l.get().persistent,width>=1280);assert.equal(l.get().rightOpen,false);}

@@ -370,5 +370,92 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .pc-news [data-news-detail] a { color: var(--studio-accent-text); }
 .pc-news [data-news-detail][hidden], .pc-news [data-news-list][hidden] { display: none; }
 
+/* Home: the two creation paths lead, compact Port tools follow, then the app shelf. */
+.studio-nav-workspaces [data-workspace] { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; column-gap: 8px; }
+.studio-nav-workspaces .nav-icon { grid-row: span 2; width: 26px; height: 26px; object-fit: contain; border-radius: 6px; }
+.studio-nav-workspaces span.nav-icon { display: grid; place-items: center; margin: 0; font-size: 26px; line-height: 1; }
+.studio-nav-workspaces [data-workspace] > span:not(.nav-icon) { grid-column: 2; }
+.studio-nav-workspaces [data-workspace] > span:not(.nav-icon) { display: none; }
+.studio-main .screen:focus-visible { outline: none; }
+.studio-main #screen-home { gap: clamp(28px, 4vw, 52px); }
+.studio-main #screen-home .studio-header { text-align: left; padding: 18px 0 0; }
+.studio-main #screen-home .studio-header h1 { font-size: clamp(30px, 3.2vw, 42px); }
+.studio-main #screen-home .studio-subcopy { margin-top: 2px; letter-spacing: 0; }
+.studio-main #screen-home .studio-version { margin-top: 8px; padding: 0; border: 0; font-size: 11px; }
+.studio-main #screen-home .section-label { margin: 0; font-size: 16px; letter-spacing: .04em; color: var(--studio-text-primary); }
+.home-section-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 16px; }
+.home-section-heading p { margin: 0; font-size: 13px; color: var(--studio-text-muted); }
+.home-primary .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.studio-main .home-primary .module-card { min-height: 245px; padding: clamp(22px, 3vw, 34px); gap: 12px; border-radius: 18px; background: var(--studio-panel); }
+.studio-main .home-primary .module-card:first-child { border-color: var(--studio-accent); background: var(--studio-selected-bg); }
+.home-primary .module-card-icon img { width: 64px; height: 64px; object-fit: contain; }
+.studio-main .home-primary .module-card-label { color: var(--studio-text-primary); font-size: clamp(21px, 2vw, 27px); }
+.studio-main .home-primary .module-card-sub { max-width: 30ch; color: var(--studio-text-muted); font-size: 14px; }
+.home-card-link { margin-top: auto; color: var(--studio-accent-text); font-weight: 700; font-size: 13px; }
+.home-tools .pc-home-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.home-tools .pc-home-grid button { position: relative; align-items: center; justify-content: center; gap: 7px; min-height: 114px; padding: 14px 8px; overflow: visible; border-radius: 13px; text-align: center; }
+.home-tools .pc-home-grid img { width: 50px; height: 50px; object-fit: contain; }
+.home-tools .pc-home-grid strong { font-size: 12px; font-weight: 600; line-height: 1.25; }
+.home-tools .pc-home-grid .home-tool-tip { position: absolute; z-index: 5; left: 50%; top: calc(100% + 6px); width: max-content; max-width: min(220px, 70vw); transform: translateX(-50%); padding: 7px 10px; border: 1px solid var(--studio-border-strong); border-radius: 7px; background: var(--studio-panel); color: var(--studio-text-primary); box-shadow: var(--studio-shadow-high); font-size: 12px; opacity: 0; visibility: hidden; pointer-events: none; }
+.home-tools .pc-home-grid button:is(:hover, :focus-visible) .home-tool-tip { opacity: 1; visibility: visible; }
+.home-options { margin-top: 15px; color: var(--studio-text-muted); font-size: 12px; }
+.home-options summary { width: fit-content; cursor: pointer; }
+.home-options-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.home-options-actions button { padding: 8px 12px; border: 1px solid var(--studio-border-default); border-radius: 8px; background: var(--studio-control); color: var(--studio-text-primary); cursor: pointer; }
+.home-options-actions button:focus-visible, .home-options summary:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+.studio-main .home-series .module-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.studio-main .home-series .module-card { align-items: center; justify-content: center; min-height: 155px; padding: 18px 10px; border-radius: 13px; text-align: center; text-decoration: none; }
+.home-series .module-card-icon img { width: 62px; height: 62px; border-radius: 14px; object-fit: contain; }
+.studio-main .home-series .module-card-label { color: var(--studio-text-primary); font-size: 14px; }
+.studio-main .home-series .module-card-sub { font-size: 11px; }
+.studio-main .series-card-icon img { width: 58px; height: 58px; border-radius: 13px; object-fit: contain; }
+.studio-main .home-series .module-card:focus-visible, .studio-main .home-primary .module-card:focus-visible { outline: 3px solid var(--studio-focus); outline-offset: 3px; }
+.workspace-local-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.studio-main .workspace-local-nav button { font: inherit; font-size: 12px; font-weight: 600; color: var(--studio-text-primary); background: var(--studio-control); border: 1px solid var(--studio-border-default); border-radius: 8px; padding: 7px 12px; min-height: 36px; cursor: pointer; }
+.studio-main .workspace-local-nav button:hover { background: var(--studio-control-hover); }
+.studio-main .workspace-local-nav button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+.studio-dock { grid-template-columns: minmax(0, 1fr); }
+.studio-dock [data-dock-slot="transport"] { display: none; }
+@media screen and (max-width: 1050px) {
+    .home-tools .pc-home-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .studio-main .home-series .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media screen and (max-width: 600px) {
+    .studio-nav-workspaces [data-workspace] { display: flex; gap: 5px; }
+    .studio-nav-workspaces .nav-icon, .studio-nav-workspaces span.nav-icon { display: block; width: 18px; height: 18px; font-size: 18px; }
+    .studio-main .home-primary .module-grid { grid-template-columns: minmax(0, 1fr); }
+    .studio-main .home-primary .module-card { min-height: 190px; }
+    .home-tools .pc-home-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .home-tools .pc-home-grid button { min-height: 102px; }
+    .home-tools .pc-home-grid img { width: 40px; height: 40px; }
+    .home-tools .pc-home-grid .home-tool-tip { position: static; transform: none; opacity: 1; visibility: visible; width: auto; max-width: none; padding: 0; border: 0; box-shadow: none; background: transparent; font-size: 10px; line-height: 1.2; }
+    .studio-main .home-series .module-card { min-height: 145px; }
+}
+@media (pointer: coarse) {
+    .home-tools .pc-home-grid .home-tool-tip { position: static; transform: none; opacity: 1; visibility: visible; width: auto; max-width: none; padding: 0; border: 0; box-shadow: none; background: transparent; font-size: 10px; line-height: 1.2; }
+}
+
+/* Keep Home labels concise; descriptions appear while pointing, focusing or pressing. */
+.home-primary .module-card-icon img { width: 108px; height: 108px; }
+.home-tools .pc-home-grid img { width: 76px; height: 76px; }
+.home-series .module-card-icon img { width: 100px; height: 100px; }
+.studio-main .home-primary .module-card, .studio-main .home-series .module-card { position: relative; }
+.studio-main #screen-home .module-card-sub,
+.home-tools .pc-home-grid .home-tool-tip {
+    position: absolute; z-index: 5; left: 8px; right: 8px; bottom: 8px; top: auto;
+    width: auto; max-width: none; transform: none; padding: 9px;
+    border: 1px solid var(--studio-border-strong); border-radius: 8px;
+    background: var(--studio-panel); color: var(--studio-text-primary);
+    box-shadow: var(--studio-shadow-high); text-align: center; font-size: 12px; line-height: 1.4;
+    opacity: 0; visibility: hidden; pointer-events: none;
+}
+.studio-main #screen-home .module-card:is(:hover, :focus-visible, :active, .is-touch-explaining) .module-card-sub,
+.home-tools .pc-home-grid button:is(:hover, :focus-visible, :active, .is-touch-explaining) .home-tool-tip { opacity: 1; visibility: visible; }
+@media screen and (max-width: 600px) {
+    .home-primary .module-card-icon img { width: 90px; height: 90px; }
+    .home-tools .pc-home-grid img { width: 64px; height: 64px; }
+    .home-series .module-card-icon img { width: 86px; height: 86px; }
+}
+
 .pc-news :is(button, select) { font: inherit; min-height: 40px; padding: 10px 12px; border: 1px solid var(--studio-border-default); border-radius: 7px; background: var(--studio-control); color: var(--studio-text-primary); }
 .pc-news button:disabled { opacity: .6; cursor: default; }
