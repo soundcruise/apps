@@ -272,6 +272,7 @@
         refreshSessionStatus();
         return result;
     }
+    var selectedBarIds = [], dragFrame = null, rangeAnchor = null;
     var selectionListeners = new Set(), selectionDeleted = false, selectionSignature = null;
     // Read projection of Structure's existing single-bar selection and session draft.
     function getSelectionSnapshot() {
@@ -2853,7 +2854,8 @@
         var selectedExists = false;
         Array.prototype.forEach.call(els.scaleBox.querySelectorAll('.sheet-bar[data-bar-number]'), function (cell) {
             var barNumber = parseInt(cell.dataset.barNumber, 10);
-            var selected = barNumber === state.selectedBarNumber;
+            var selected = barNumber === state.selectedBarNumber || selectedBarIds.includes(state.session?.draft.bars[barNumber-1]?.id);
+            cell.draggable = true;
             if (selected) selectedExists = true;
             cell.classList.toggle('is-selected', selected);
             cell.setAttribute('aria-pressed', selected ? 'true' : 'false');
@@ -2943,6 +2945,7 @@
     }
 
     function selectSheetBar(barNumber) {
+        selectedBarIds = [];rangeAnchor = barNumber;
         finishTextInputs();
         if (!state.project || !barNumber) return;
         var exists = state.project.bars.some(function (bar) {
@@ -2957,10 +2960,19 @@
         syncSheetSelection();
     }
 
+    function selectBarRange(number, extend) {
+        var anchor=rangeAnchor || state.selectedBarNumber;
+        selectSheetBar(number);
+        if(extend&&anchor){rangeAnchor=anchor;var from=Math.min(anchor,number)-1,to=Math.max(anchor,number);selectedBarIds=state.session.draft.bars.slice(from,to).map(function(b){return b.id;});syncSheetSelection();setSaveStatus((from+1)+'〜'+to+'小節を選択');}
+    }
+    function moveSelectedBars(args) {
+        var ids=args.barIds.slice(),res=runStructureOperation('moveBars',args);if(!res.ok)return;
+        var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
+    }
     function onPreviewClick(event) {
         var cell = event.target.closest && event.target.closest('.sheet-bar[data-bar-number]');
         if (!cell || cell.classList.contains('sheet-bar--empty')) return;
-        selectSheetBar(parseInt(cell.dataset.barNumber, 10));
+        selectBarRange(parseInt(cell.dataset.barNumber, 10), event.shiftKey);
     }
 
     function onPreviewKeydown(event) {
@@ -2968,7 +2980,7 @@
         var cell = event.target.closest && event.target.closest('.sheet-bar[data-bar-number]');
         if (!cell || cell.classList.contains('sheet-bar--empty')) return;
         event.preventDefault();
-        selectSheetBar(parseInt(cell.dataset.barNumber, 10));
+        selectBarRange(parseInt(cell.dataset.barNumber, 10), event.shiftKey);
     }
 
     /* ══════════ 表示トグル（sheetSettings.showChords / showStrum / showLyrics /
@@ -3165,6 +3177,10 @@
             openProject(selectedId);
         });
         els.newProjectBtn.addEventListener('click', createNewProject);
+        els.scaleBox.addEventListener('dragstart',function(e){var cell=e.target.closest('.sheet-bar[data-bar-number]');if(!cell||!operationEligible()){e.preventDefault();return;}var bar=state.session.draft.bars[Number(cell.dataset.barNumber)-1];dragFrame={ticket:CS().structureOperations.capture(state.session),ids:selectedBarIds.includes(bar.id)?selectedBarIds.slice():[bar.id]};e.dataTransfer.setData('text/plain','Studio bars');e.dataTransfer.effectAllowed='move';});
+        els.scaleBox.addEventListener('dragover',function(e){if(dragFrame&&e.target.closest('.sheet-bar[data-bar-number]'))e.preventDefault();});
+        els.scaleBox.addEventListener('drop',function(e){var cell=e.target.closest('.sheet-bar[data-bar-number]'),frame=dragFrame;dragFrame=null;if(!cell||!frame||!operationEligible()||!CS().structureOperations.isCurrent(frame.ticket,state.session))return;e.preventDefault();var bar=state.session.draft.bars[Number(cell.dataset.barNumber)-1];moveSelectedBars({barIds:frame.ids,beforeId:bar.id});});
+        els.scaleBox.addEventListener('dragend',function(){dragFrame=null;});
 
         function rejectUnsupportedMeter(event) {
             if (state.session && state.session.draft.schemaVersion === 2 && els.timeSig.value !== '4/4') {
@@ -3189,6 +3205,7 @@
             var index=state.selectedBarNumber-1, canonical=state.session.draft, selected=canonical.bars[index];
             if(!selected){setSaveStatus('編集する小節を選択してください',true);return;}
             var kind=button.dataset.barOperation, direction=Number(button.dataset.direction), id=selected.id;
+            if(kind==='moveBar'&&selectedBarIds.length>1){moveSelectedBars({barIds:selectedBarIds.slice(),direction:direction});return;}
             var result=runStructureOperation(kind,{barId:id,direction:direction});
             if(!result.ok)return;
             var next=kind==='deleteBar'?Math.min(index,state.session.draft.bars.length-1):kind==='moveBar'?index+direction:kind==='addBar'||kind==='duplicateBar'?index+1:index;
@@ -3236,6 +3253,7 @@
                 // barNumber is not stable: never carry a Loupe into a different bar after renumbering.
                 var selectedId=session.draft.schemaVersion===2 && publishedBars && publishedBars[state.selectedBarNumber-1]?.id;
                 selectionDeleted = !!(state.selectedBarNumber && (selectedId ? !session.draft.bars.some(function(b){return b.id===selectedId;}) : !getSelectedBar()));
+                selectedBarIds = [];
                 state.selectedBarNumber = null; state.dockManualRes = {}; state.overlayWarnings = {};
                 state.lastAutoScrollBar = null; state.dockBulkOpen = false;
                 syncSheetSelection();

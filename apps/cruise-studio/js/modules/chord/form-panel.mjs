@@ -1,6 +1,6 @@
-import { createChordFormAdapter } from './form-adapter.mjs?v=0.59.0';
-import { createFormAdoptionService } from './form-adoption.mjs?v=0.59.0';
-import { getAppVersion } from '../../core/component-metadata.mjs?v=0.59.0';
+import { createChordFormAdapter } from './form-adapter.mjs?v=0.60.0';
+import { createFormAdoptionService } from './form-adoption.mjs?v=0.60.0';
+import { getAppVersion } from '../../core/component-metadata.mjs?v=0.60.0';
 
 const STANDARD = Object.freeze([64,59,55,50,45,40]);
 // Missing/destroyed documents and selections are normal lifecycle states, never booleans.
@@ -122,6 +122,7 @@ export function mountFormPanel({C,document:doc,owner=globalThis.ChordCruise}) {
     const instrumentLabel=node('label','',controls),confirmed=node('input',undefined,instrumentLabel);confirmed.type='checkbox';confirmed.id='form-instrument';instrumentLabel.append(' 標準6弦チューニング（1弦→6弦 E B G D A E）を確認');
     const maxLabel=node('label','楽器の物理フレット上限',controls),max=node('input',undefined,maxLabel);max.type='number';max.min='0';max.max='36';max.step='1';max.id='form-max-fret';
     const request=node('button','条件を確認しておすすめを表示',controls);request.type='button';request.id='form-preview';
+    const positionLabel=node('label','フォーム候補',controls),position=node('select',undefined,positionLabel);position.id='form-position';positionLabel.hidden=true;
     const strings=node('fieldset',undefined,controls);node('legend','実際に鳴らす弦を指定',strings);
     const stringInputs=[1,2,3,4,5,6].map(n=>{const l=node('label','',strings),x=node('input',undefined,l);x.type='checkbox';x.dataset.formString=String(n);x.disabled=true;l.append(' '+n+'弦');return x;});
 
@@ -208,7 +209,7 @@ export function mountFormPanel({C,document:doc,owner=globalThis.ChordCruise}) {
         if(reset)clearCandidate();
         if(!reset&&!lease.current(frame)){clearCandidate();announce(formMessage('stale-candidate'));return;}
         const played=stringInputs.filter(x=>x.checked).map(x=>Number(x.dataset.formString));
-        const result=adapter.resolve({symbol:t.event.symbol,capo:t.s.draft.instrument.capo,tuningMidi:STANDARD.slice(),maxAbsoluteFret:max.valueAsNumber,...(played.length?{playedStrings:played}:{})});
+        const result=adapter.resolve({symbol:t.event.symbol,capo:t.s.draft.instrument.capo,tuningMidi:STANDARD.slice(),maxAbsoluteFret:max.valueAsNumber,...(position.value?{generation:JSON.parse(position.value)}:{}),...(played.length?{playedStrings:played}:{})});
         frame=token;shown=result;adopt.disabled=true;
         if(!result.display.possible){diagram.replaceChildren();announce(formMessage(result.display.reasons));stringInputs.forEach(x=>x.disabled=true);return;}
         paint(snapshotOf(result),result.form.shape,result.request.soundingSymbol,result.request.playedStrings);
@@ -217,18 +218,29 @@ export function mountFormPanel({C,document:doc,owner=globalThis.ChordCruise}) {
         announce(result.performance.voicingUsable?'使用弦の構成音と最低音を確認しました。保存はまだ行いません。':formMessage(result.performance.reasons));
         adopt.disabled=!result.performance.voicingUsable;
     }
-    function open(){if(disposed||!lease.capture(barId,eventId))return;mode='fixed';clearCandidate();confirmed.checked=false;const t=getTarget();max.value=t.s?.draft.instrument.maxAbsoluteFret??'';clearNotice();opened=!opened;render();}
+    function open(){position.replaceChildren();positionLabel.hidden=true;if(disposed||!lease.capture(barId,eventId))return;mode='fixed';clearCandidate();confirmed.checked=false;const t=getTarget();max.value=t.s?.draft.instrument.maxAbsoluteFret??'';clearNotice();opened=!opened;render();}
     toggle.addEventListener('click',open);
-    selector.addEventListener('change',()=>{if(disposed)return;clearNotice();eventId=selector.value||null;opened=false;mode='fixed';clearCandidate();render();});
-    change.addEventListener('click',()=>{if(!actionable())return;mode='recommendation';clearCandidate();confirmed.checked=false;max.value=getTarget().s.draft.instrument.maxAbsoluteFret??'';clearNotice();render();});
-    request.addEventListener('click',()=>preview(true));
-    const resetPreview=()=>{clearCandidate();clearNotice();};
+    selector.addEventListener('change',()=>{if(disposed)return;position.replaceChildren();positionLabel.hidden=true;clearNotice();eventId=selector.value||null;opened=false;mode='fixed';clearCandidate();render();});
+    change.addEventListener('click',()=>{if(!actionable())return;position.replaceChildren();positionLabel.hidden=true;mode='recommendation';clearCandidate();confirmed.checked=false;max.value=getTarget().s.draft.instrument.maxAbsoluteFret??'';clearNotice();render();});
+    request.addEventListener('click',()=>{
+        position.replaceChildren();node('option','おすすめ',position).value='';
+        const t=getTarget(),seen=new Set();
+        if(t.event&&Number.isInteger(max.valueAsNumber)&&max.valueAsNumber>=t.s.draft.instrument.capo&&max.valueAsNumber<=36)for(let min=0;min<=max.valueAsNumber-t.s.draft.instrument.capo;min++){
+            const generation={minRelativeFret:min,maxRelativeFret:Math.min(min+13,max.valueAsNumber-t.s.draft.instrument.capo)};
+            const candidate=adapter.resolve({symbol:t.event.symbol,capo:t.s.draft.instrument.capo,tuningMidi:STANDARD.slice(),maxAbsoluteFret:max.valueAsNumber,generation});
+            if(!candidate.display.possible)continue;const key=JSON.stringify(candidate.form.notes.map(n=>[n.string,n.relativeFret]));if(seen.has(key))continue;seen.add(key);
+            node('option',candidate.form.shape+'形 / '+min+'〜'+generation.maxRelativeFret+'フレット',position).value=JSON.stringify(generation);
+        }
+        positionLabel.hidden=position.options.length<=1;preview(true);
+    });
+    position.addEventListener('change',()=>preview(true));
+    const resetPreview=()=>{clearCandidate();clearNotice();position.replaceChildren();positionLabel.hidden=true;};
     confirmed.addEventListener('change',resetPreview);max.addEventListener('input',resetPreview);
     for(const x of stringInputs)x.addEventListener('change',()=>preview(false));
     function apply(removal){
         if(!actionable())return;
         if(!removal&&(!lease.current(frame)||!shown?.performance.voicingUsable)){announce(formMessage('stale-candidate'));adopt.disabled=true;return;}
-        const h=removal?service.prepareRemoval({barId,chordEventId:eventId}):service.prepare({barId,chordEventId:eventId,instrument:{confirmed:confirmed.checked,tuningMidi:STANDARD.slice(),maxAbsoluteFret:max.valueAsNumber},playedStrings:stringInputs.filter(x=>x.checked).map(x=>Number(x.dataset.formString))});
+        const h=removal?service.prepareRemoval({barId,chordEventId:eventId}):service.prepare({barId,chordEventId:eventId,instrument:{confirmed:confirmed.checked,tuningMidi:STANDARD.slice(),maxAbsoluteFret:max.valueAsNumber},playedStrings:stringInputs.filter(x=>x.checked).map(x=>Number(x.dataset.formString)),generation:shown.request.generation});
         const result=h.ok?service.apply(h):h;
         if(!result.ok){announce(formMessage(result));return;}
         mode='fixed';clearCandidate();render();announce('',removal?'押さえ方の指定を解除しました。':'このコードに採用しました。');

@@ -1,0 +1,25 @@
+# Studio 0.60.0 forms, range moves and guitar export
+
+Base #125 ff9f542499f6b2fc40e1da571c31f8403a307040. Only Studio code changes; no stored schema/CAS/Outbox/Account or Port/Chord product changes. The localhost fixture supplies synthetic authority only. Production authorization and writer P2 remain HOLD.
+
+## Product changes
+
+- Shift-click or Shift-Enter/Space selects a contiguous range. Previous/next buttons move that range as one session Undo operation. Native drag/drop moves a bar or selected range before the destination. Source generation is captured at drag start; stale/IME-blocked drops are rejected. IDs and event associations stay stable; crossing sections adopts the destination's section. Noncontiguous selection and drag-after targeting are not provided. Existing single-bar operations remain.
+- Form candidates are derived solely from the released Chord owner getCommonForm/getForm API, using different valid fret ranges, and deduplicated by actual string/fret geometry. This is a list of owner-recommended candidates, not a claim of all possible guitar fingerings. Choosing a candidate revalidates played strings. The existing adoption service stores the exact source snapshot/generation and owns Undo/Redo, replacement/removal and explicit save. Original Chord forms are never mutated.
+- Fixed-form transposition still rejects with the existing explanation. Automatically choosing a new fingering changes a musical decision; shifting saved frets would break open/muted strings and instrument limits. No automatic repair or silent confirmation is introduced.
+- Guitar output calls the existing evaluateBinding for every relevant chord/strum. Only current, confirmed, instrument-matching forms produce notes. The pure projection enriches the generated arrangement; no Project writes occur. Played MIDI pitches are deduplicated per strum, and note durations end at the next chord boundary. The current export is simultaneous block voicing at the strum onset, not string-by-string strum timing. Missing/unconfirmed forms and mute strokes are omitted with an aggregate warning. Forms are not inferred for carried-over empty bars.
+- Existing MIDI output adds a Guitar track on ch2, GM program 24, when verified notes exist. Bass ch1 and drums ch10 stay intact. Accompaniment JSON retains its prior generatedEvents and adds generatedGuitarNotes. Transport/audio remains unimplemented. A future Transport must consume this same note projection and own an audio lease, cancellation generation and reliable note-off cleanup.
+
+## Variable-meter contract proposal — NOT IMPLEMENTED
+
+Current schema2 validation requires global 4/4, ticksPerBeat 480, melody/chord/lyric bounds of 1920 and legacy rhythm snapshot length 1920. Old Studio builds reject other meters even if JSON field names are unchanged. Merely broadening a dropdown would produce incompatible saved content.
+
+Proposed schema3 (requires owner/Sync review): retain songInfo.timeSignature and ticksPerBeat, define barLengthTicks = beats * 480 * 4 / beatUnit, require integral supported meter values (initial 4/4, 3/4, 6/8), derive all event bounds and rhythm lengths from that duration. No per-bar meter in the first version. Migration 2→3 preserves every event ID/tick/value and 4/4 rhythm snapshot; inverse 3→2 is only allowed for exactly representable 4/4 content. For shorter bars, reject change if any melody end, chord duration/onset, lyric onset, stroke duration/onset or native rhythm event exceeds the proposed end. Never clip, rescale or drop events. A later explicit split/reflow action can be separately designed.
+
+Required coordinated work: schema reader/validator and format dispatch; legacy structure projection; rhythm-owner snapshot contracts; score grids/notation; melody timing operations; arrangement bass/drum patterns and SMF time-signature metadata; JSON import/export; byte-preserving 4/4 migration fixtures. Sync must accept/advertise schema3 compatibility before upload/download adoption; old clients must retain unsupported payloads without overwrite. Project CAS/outbox semantics need no UI-line change, but version admission and rollout are owner decisions. Existing Projects remain schema2 here; no migration runs.
+
+## Verification and limits
+
+Product E2E exercises range move/Undo, real drag/drop/Undo, owner form candidate selection, adoption/save, exact C sounding MIDI [48,52,55,60,64], exported Guitar track/program and omission after synthetic unconfirmation while Bass/Drums remain. Existing form UI/adoption suites cover save/reload, Undo/Redo, change/remove, invalid/invisible frets and stale candidates. Retained song-production suite covers JSON/A4 PDF/Pre-DTM; retained tools/themes suites cover regressions.
+
+Manual Mac mouse/IME, real guitar sound, Safari, physical phones and real Account/Pro/Sync remain unaccepted. The five-theme and narrow-layout suites are synthetic Chrome tests, not a complete human accessibility review. The app is not release complete: variable meter, full fixed-form transposition, true strum articulation, carried-form policy and Transport/audio remain separate work.

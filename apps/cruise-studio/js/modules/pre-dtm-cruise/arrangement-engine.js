@@ -296,6 +296,7 @@
      * @param {object} [settings] 伴奏設定（省略時はデフォルト。normalizeSettingsで補完）
      */
     function generateArrangement(project, settings) {
+        var canonical=project&&project.schemaVersion===2?project:null;
         if(project && project.schemaVersion===2){try{project=CS().model.schema2.readArrangementProjection(project);}catch(error){return {ok:false,code:'unsupported-legacy-rhythm',meta:{},settings:normalizeSettings(settings),bars:[],totals:{guitar:0,bass:0,drums:0,chordBars:0},warnings:['採用リズムのPre-DTM出力は未対応です']};}}
         else if(project && project.schemaVersion!==1) throw Error('unsupported-schema');
         var theory = CS().theory;
@@ -360,7 +361,7 @@
             return result;
         });
 
-        return {
+        var output = {
             ok: true,
             meta: {
                 projectId: project.projectId,
@@ -380,6 +381,7 @@
             totals: totals,
             warnings: warnings
         };
+        return canonical && CS().guitarVoicing ? CS().guitarVoicing.enrich(canonical,output) : output;
     }
 
     /**
