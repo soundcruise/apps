@@ -22,13 +22,15 @@ import {effectiveCategory} from '../src/category-editor.js';
 import {retainedArticleHashes} from '../src/dot-retained-decisions.js';
 import {migrationStatements} from '../scripts/migration-statements.mjs';
 const actor={type:'human_operator',id:'access:fixture-human'};
+const compatibilityDate=process.env.NEWS_DOT_TEST_COMPATIBILITY_DATE||'2026-09-18';
+if(!['2026-09-18','2026-09-28'].includes(compatibilityDate))throw Error('unsupported_test_compatibility_date');
 
 test('persistent workerd D1 retains >526 rows and >256 KiB while a scoped human approval succeeds',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'dot-scale-scope-'));let rt;
  const archive=new Map();
  const now=Date.now(),url='https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/2026/scale_fixture.html';
  try{
- rt=await localDatabase(join(dir,'v3'),{compatibilityDate:'2026-09-18'});let db=rt.db,s=rt.store;
+ rt=await localDatabase(join(dir,'v3'),{compatibilityDate});let db=rt.db,s=rt.store;
  await db.prepare('UPDATE news_controls SET publication_enabled=1').run();
  await db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('yamaha',1)").run();
  const c=fictionalInput().candidate;c.candidate_id='scale-yamaha';c.entity={manufacturer:'Yamaha',brand:'Yamaha',product:'FG700',models:['FG700'],version:null,product_type:null};c.sources=[{url,canonical_url:url}];c.event.type='announcement';c.dates.article_published={value:'2026-10-30',precision:'day'};
@@ -57,6 +59,14 @@ test('persistent workerd D1 retains >526 rows and >256 KiB while a scoped human 
  for(let i=0;i<3;i++){archive.set('takedown:orphan-takedown-'+i,{url:'https://fixture.invalid/withdrawn/'+i,brand:'OtherFixture',product:'OTHER-WITHDRAWN-'+i,event:'independent_announcement',evidenceRef:'synthetic independent archive manifest for withdrawn item orphan-takedown-'+i+'; original product inspected'});await db.prepare('INSERT INTO news_takedowns(item_id,expires_at) VALUES(?,?)').bind('orphan-takedown-'+i,i===2?now-1000:now+100000).run();}
  const scale=await db.prepare('SELECT (SELECT COUNT(*) FROM candidate_items)+(SELECT COUNT(*) FROM news_decision_ledger)+(SELECT COUNT(*) FROM news_discovery_work)+(SELECT COUNT(*) FROM news_takedowns) AS rows,(SELECT SUM(length(CAST(decision_features_json AS BLOB))) FROM news_decision_ledger) AS bytes').first();assert.ok(scale.rows>=526);assert.ok(scale.bytes>262144);
  const registered=await admitDotCandidate(s,reader,{candidateId:c.candidate_id,confirmationId:'scale-confirmation-000001',requestId:'scale-registration-000001',human},actor,now,SOURCES,pepper);assert.equal(registered.status,'registered',JSON.stringify(registered));row=await db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(registered.id).first();const snapshot=await candidateSnapshot(row);
+ // Main/old Worker approval metadata cannot bypass the new Dot protocol after
+ // schema migration; its normal non-Dot writes retain the original contract.
+ const oldApprove=ledgerSql.replace("'reject'","'approve'").replace("'fixture','synthetic'","'human_operator','access:fixture-human'");
+ await assert.rejects(()=>db.prepare(oldApprove).bind('old-dot-approval',row.id,now,row.category,'{}','old-dot-request-000001',now).run(),/dot_scope_protocol_required/);
+ assert.equal((await db.prepare('SELECT review_status FROM candidate_items WHERE id=?').bind(row.id).first()).review_status,'pending');
+ await assert.rejects(()=>db.prepare("UPDATE candidate_items SET review_status='approved' WHERE id=?").bind(row.id).run(),/dot_scope_protocol_required/);
+ const directInsert='INSERT OR REPLACE INTO candidate_items('+cols.map(x=>'"'+x+'"').join(',')+') SELECT '+cols.map(x=>x==='review_status'?"'approved'":'"'+x+'"').join(',')+' FROM candidate_items WHERE id=?';
+ await assert.rejects(()=>db.prepare(directInsert).bind(row.id).run(),/dot_scope_protocol_required/);
  await saveDotSourceRecheck(s,reader,{id:row.id,snapshot,revision:row.review_revision,requestId:'scale-source-check-000001',observation:'Synthetic source currently confirms FG700 and date',checks:{facts:true,original:true,rights:true}},actor,now+1);
  await saveDotHistoryCheck(s,{id:row.id,snapshot,revision:row.review_revision,requestId:'scale-history-check-000001',basis:'Synthetic archive establishes unrelated original subjects; expired unobserved history is unknown',evidenceRef:'fixture-archive:complete-scoped-evidence',checks:{archives:true,identity:true,scope:true}},actor,now+2);
  assert.equal((await dotPublicationGate(s,reader,row.id,now+3,SOURCES,pepper)).status,'HOLD');
@@ -66,23 +76,24 @@ test('persistent workerd D1 retains >526 rows and >256 KiB while a scoped human 
  await db.prepare('DELETE FROM news_dot_history_exclusions WHERE request_id=?').bind('scale-exclusion-00000000').run();assert.equal((await dotPublicationGate(s,reader,row.id,now+3,SOURCES,pepper)).status,'HOLD');
  // Restore that observation by re-inspecting the same archived original subject.
  const first=(await historySubjects(s,row.id)).items[0];await saveDotHistoryExclusion(s,{id:row.id,snapshot,revision:row.review_revision,requestId:'scale-rechecked-exclusion-01',subjectKey:first.subject_key,subjectToken:first.subject_token,archive:archive.get(first.subject_key)},actor,now+2);
- await rt.mf.dispose();rt=await localDatabase(join(dir,'v3'),{compatibilityDate:'2026-09-18'});db=rt.db;s=rt.store;
+ await rt.mf.dispose();rt=await localDatabase(join(dir,'v3'),{compatibilityDate});db=rt.db;s=rt.store;
  assert.equal((await db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,156);
  const nativePrepare=db.prepare.bind(db),metrics={queries:0,returnedRows:0,returnedBytes:0,rowsRead:0,sqlMilliseconds:0};
  const tracked=(sql,args=[])=>({bind:(...a)=>tracked(sql,a),all:async()=>{const r=await nativePrepare(sql).bind(...args).all();metrics.queries++;metrics.returnedRows+=r.results.length;metrics.returnedBytes+=new TextEncoder().encode(JSON.stringify(r.results)).length;metrics.rowsRead+=r.meta?.rows_read||0;metrics.sqlMilliseconds+=r.meta?.duration||0;return r;},first:async()=>((await tracked(sql,args).all()).results[0]||null)});s.db={prepare:tracked};
  const started=performance.now(),gate=await dotPublicationGate(s,reader,row.id,now+3,SOURCES,pepper);assert.equal(gate.status,'PASS',JSON.stringify(gate.blockers));s.db=db;
  assert.ok(new TextEncoder().encode(JSON.stringify(gate.fence)).length<65536);
- console.log(JSON.stringify({test:'synthetic_workerd_scope',retainedRows:scale.rows,ledgerBytes:scale.bytes,archivalObservations:n,gateMilliseconds:Math.round(performance.now()-started),fenceBytes:new TextEncoder().encode(JSON.stringify(gate.fence)).length,...metrics}));
+ console.log(JSON.stringify({test:'synthetic_workerd_scope',compatibilityDate,retainedRows:scale.rows,ledgerBytes:scale.bytes,archivalObservations:n,gateMilliseconds:Math.round(performance.now()-started),fenceBytes:new TextEncoder().encode(JSON.stringify(gate.fence)).length,...metrics}));
  const v=await publicationValidation(s,row,now+3,SOURCES,pepper),input={id:row.id,revision:row.review_revision,snapshot,action:'approve',reason:'operator_review',requestId:'scale-approve-000000001',label:v.publishableLabel,category:await effectiveCategory(s,row),publishedAt:row.published_at,checks:{factsChecked:true,relevanceChecked:true,duplicateChecked:true,independentLabelChecked:true}};
- const decision=await operatorDecision(s,input,now+3,SOURCES,pepper,actor,{enabled:true,reader,clock:()=>now+3});assert.equal(decision.action,'approve');
+ const decision=await operatorDecision(s,input,now+3,SOURCES,pepper,actor,{enabled:true,reader});assert.equal(decision.action,'approve');
  // Lost ACK / process restart: same authenticated request returns the one result.
  await rt.mf.dispose();
- const config=join(dir,'wrangler-scope.json');await writeFile(config,JSON.stringify({name:'news-scope-test',compatibility_date:'2026-09-18',d1_databases:[{binding:'NEWS_DB',database_name:'sound-cruise-news-local',database_id:'00000000-0000-0000-0000-000000000001',remote:false}]}));
+ const config=join(dir,'wrangler-scope.json');await writeFile(config,JSON.stringify({name:'news-scope-test',compatibility_date:compatibilityDate,d1_databases:[{binding:'NEWS_DB',database_name:'sound-cruise-news-local',database_id:'00000000-0000-0000-0000-000000000001',remote:false}]}));
  const cli=await promisify(execFile)(process.execPath,['node_modules/wrangler/bin/wrangler.js','d1','execute','NEWS_DB','--local','--persist-to',dir,'--config',config,'--command','SELECT COUNT(*) AS n FROM candidate_items','--json'],{timeout:60000,maxBuffer:1048576});assert.ok(JSON.parse(cli.stdout)[0].results[0].n>=300);
- rt=await localDatabase(join(dir,'v3'),{compatibilityDate:'2026-09-18'});db=rt.db;s=rt.store;
+ rt=await localDatabase(join(dir,'v3'),{compatibilityDate});db=rt.db;s=rt.store;
  assert.deepEqual(await operatorDecision(s,input,now+3,SOURCES,pepper,actor,{enabled:true,reader,clock:()=>now+3}),decision);
  assert.equal((await db.prepare('SELECT COUNT(*) n FROM news_decision_ledger WHERE candidate_id=?').bind(row.id).first()).n,1);
  assert.equal((await db.prepare('SELECT review_status FROM candidate_items WHERE id=?').bind(row.id).first()).review_status,'approved');
+ await assert.rejects(()=>db.prepare("UPDATE candidate_items SET source_id='fixture' WHERE id=?").bind(row.id).run(),/dot_scope_protocol_required/);
  const audit=await db.prepare('SELECT checks_json FROM news_decision_ledger WHERE request_id=?').bind(input.requestId).first();assert.match(JSON.parse(audit.checks_json).dotPublication.scopeDigest,/^[a-f0-9]{64}$/);
  // Idempotent additive migration; preexisting write contracts gain no triggers.
  const sql=await readFile(new URL('../migrations/0029_dot_history_scope.sql',import.meta.url),'utf8');await db.batch(migrationStatements(sql).map(q=>db.prepare(q)));

@@ -72,7 +72,7 @@ Ledgerの現在の紐付け候補だけでは過去identityを証明できない
 - 元から存在しない/期限切れで失われた履歴は復元していない。保持範囲外・別名の不足は、従来の候補別履歴確認の範囲と根拠が必要。検索0件を非重複と断定しない。
 - product名の自動補完や新しいalias推測はしない。短い対象identityはHOLD。
 
-証拠テーブルへのUPDATEは拒否するトリガーのみ追加。既存表への補助書込みは発生せず、通常NEWSのmeta.changesへ影響しない。DELETEによる撤回は可能で、最終条件の再評価に反映される。期限切れレコードの自動削除/課金TTLは設定していない。
+証拠テーブルへのUPDATEは拒否するトリガーのみ追加。既存表への補助書込みは発生せず、通常NEWSのmeta.changesへ影響しない。Ledgerへは、旧形式のDot承認だけを拒否するSELECT-onlyのBEFORE INSERT検査（candidate_itemsの直接承認/承認済みfacts変更/再INSERTも検査）を追加する。これは世代更新ではない。通常NEWSと人間reject/takedownは継続できる。DELETEによる撤回は可能で、最終条件の再評価に反映される。期限切れレコードの自動削除/課金TTLは設定していない。
 
 ## Operatorの変更
 
@@ -109,31 +109,35 @@ manifestと人間認証は隔離fixtureであり、実ニュース媒体の権�
 代表測定値（ローカル単発、クラウドの性能保証ではない）:
 
 - ゲート全体: 28 SQL呼出し、返却249行（メタデータを含む）、52,218 bytes
-- SQL内部rows_read: 153,568。保守的な未知履歴と証拠の走査が残る
-- SQL duration合計: 約16 ms、Node/境界を含むゲートwall time: 約270 ms
+- SQL内部rows_read: 153,574。保守的な未知履歴と証拠の走査が残る
+- SQL duration合計: 約15 ms、Node/境界を含むゲートwall time: 約298 ms
 - 最終条件の値とSQLを含む内部fence: 約33 KB
 - 履歴1.1 MBをWorkerへ全件転送していない
 
 現在の実規模では通るが、さらに大きな履歴でのSQL負荷改善は残る。単に上限を増やしたものではない。一方、無制限の負荷保証もしていない。
 
-## ローカル互換日付の限界
+## 互換日付別の検証
 
-インストール済workerdは2026-09-18まで対応。2026-09-28での実行を試したが、起動時に非対応として拒否された。実規模試験は2026-09-18を明示し、Wrangler CLI用の隔離configにも同じ日付を指定した。本番設定の互換日付は変更していない。
+標準のinstalled workerdは2026-09-18まで対応し、初回の2026-09-28指定は起動時に拒否された。リポジトリ依存を変えず、一時ディレクトリへ `@cloudflare/workerd-darwin-arm64@1.20261031.1` を取得した。`workerd --version` は2026-10-31。
 
-本番互換日付そのもののruntime受入をPASS扱いしてはいけない。新しいworkerdでの再試験または承認後の限定受入が必要。
+そのbinaryを `MINIFLARE_WORKERD_PATH` に指定し、`NEWS_DOT_TEST_COMPATIBILITY_DATE=2026-09-28 node --test test/dot-scale-d1.test.js` を実行しPASS。Wrangler CLIによる同じDB再読取りも含む。本番設定やpackage-lockの依存versionを変更していない。
+
+デフォルトnpm testは従来binary/2026-09-18で全回帰を実行。本番互換日付の実規模試験は別の明示実行として区別する。2026-09-28測定は28クエリ、52,218返却bytes、rows_read 153,574、SQL約15 ms、wall約298 ms。
+
+再現時はnpm packで同じtool versionを一時フォルダへ取得し、展開した `package/bin/workerd` の絶対パスを指定する。今回は `/tmp` の一時toolを使用した。試験はローカルであり、本番D1の実行証明ではない。
 
 ## migrationと復旧
 
 0025人間確認 → 0026登録receipt → 0027原出典確認 → 0028履歴確認 → 0029候補限定archive確認。
 
-0029は追加テーブル・index・新テーブルのみのUPDATE拒否トリガー。既存候補・Ledger・discovery・takedownを書換えない。ローカル再適用可能。旧Worker相当の既存表更新件数は1のまま。新migrationがない場合、新ゲートはHOLDになる。
+0029は追加テーブル・index・新テーブルのUPDATE拒否検査、およびLedgerおよび候補行へのSELECT-onlyのDot protocol検査。既存候補・Ledger・discovery・takedownを書換えない。ローカル再適用可能。旧Worker相当の既存表更新件数は1のまま。旧WorkerのDot承認metadataと直接UPDATEは新しい検査で拒否するため、旧版へ戻した場合に新ゲートを迂回できない。新migrationがない場合、新ゲートはHOLDになる。
 
 将来の本番受入前:
 
 1. mainと全積み上げhead、最終統合treeを再固定。
 2. D1の現行schema、migration履歴、バックアップ/復旧可能時点を読み取り確認。
 3. Dot OFFでのコード配備と追加migrationの順序を確定。
-4. 0029には通常NEWS表の変更がないことと、既存環境固有triggerとの競合がないことを確認。
+4. 0029が既存表の列・データを変更せず、補助書込みも追加しないこと、Dot限定検査が既存環境固有triggerと競合しないことを確認。
 5. 対象候補・書込行・本人確認方法・誤公開防止・停止/復旧を具体的に承認。
 
 異常時はDot機能OFF、新しい人間確認/登録/承認操作停止。旧Operatorへ戻しても0029の追加テーブルは残してよく、既存データを削除して戻す必要はない。Worker rollbackをD1データrollbackと同一視しない。
@@ -141,10 +145,10 @@ manifestと人間認証は隔離fixtureであり、実ニュース媒体の権�
 ## 残る受入と次にやること
 
 - 実クラウドのAccess・Firestore・本番D1を通したPhase 4B受入は未実施。Phase 4B全体はHOLD。
-- 最優先は新しいゲートSQLと履歴確認の契約を独立レビューし、本番互換日付で再検証すること。
+- 最優先は新しいゲートSQLと履歴確認の契約を独立レビューし、実媒体のarchive証拠を確認できる範囲を固定すること。
 - 実NEWSの156件等を自動的に無関係と判断してはいけない。今回の262件の架空manifestを実媒体の証拠として利用しない。
 - 実データで候補限定の独立archive確認を行える範囲と、照合不能としてHOLDする範囲を固定する。
-- 実Access本人による追加確認フォームのPC/スマートフォン受入は別途必要。
+- 追加フォームはローカルの署名fixture経由でChromeの1280px/375pxを受入した。実Access本人によるフォーム受入は別途必要。
 - 非ヤマハの許諾を推測してPASSさせない。既存の出典別policyを再利用する。
 - Cloud Run/Firestore間・外部出典の更新はD1でロックできない。既存の直前再読取、digest/revision、短命の原出典確認が検出する範囲までの保証。
 - 同時承認/却下はD1で検証済み。最終SQL直前の新履歴追加はSQLite注入試験、D1条件そのものの再評価はworkerdで検証。広い多拠点本番負荷試験とは区別する。
@@ -172,8 +176,20 @@ SQL仕様と実際のinstalled workerd D1試験を併用した。ローカル結
 - `node --test apps/cruise-port/news*.test.mjs`: 60件PASS。
 - NEWSとOperatorの両Wrangler dry-run: PASS（配備していない）。
 - syntax、`git diff --check`: PASS。
-- 変更15ファイルの秘密鍵/アクセストークン類パターン検査: 検出0。
+- 変更17ファイルの秘密鍵/アクセストークン類パターン検査: 検出0。
 - 初回はD1の式深度上限で失敗したが、全列CASを均等なAND木に変え、実workerd D1の登録→承認を再試験しPASS。その後の全回帰もPASS。
-- ブラウザでの新しい追加確認フォーム操作と、本番互換日付2026-09-28のruntimeは未受入。
+- 本番互換日付2026-09-28の実規模runtime試験も別途PASS。新フォームはローカルChromeでHOLD→確認保存→PASS、ACK喪失→同一request replayを受入した。実Access上のフォーム操作は未受入。
 
 成果の正確なcommitと新Draft PR URLは最終報告とこのbranchのGit履歴を参照。
+
+## ローカル実ブラウザの追加受入
+
+Chrome 156を新規headless profileで起動し、1280pxと375pxで表示を確認。375pxはscrollWidth=375で横はみ出しがないことも確認。アプリのHTTPS/Access設定は変更せず、ループバックのQAサーバーでHTTPS originとローカル署名fixtureを模擬した。JWTはQAサーバー内に保持し、ブラウザへ送っていない。
+
+操作: 候補詳細→HOLD表示→履歴読取→独立archive根拠の入力→確認保存→PASS表示。保存ACKを一度破棄し、同一request IDで再送され、サーバーのreplayed=trueになることも確認した。掲載承認ボタンはブラウザQAでは押していない。D1承認E2Eとは別の試験。
+
+手順スクリプトは一時QA用 `/tmp/dot-scope-browser-preview.mjs` と `/tmp/dot-scope-browser-check.mjs`。本番の認証成功を証明するものではない。
+
+ブラウザ画像は `~/.codex/news-artifacts/phase4b-candidate-scope-20261031/dot-scope-ui-pc.png` と `dot-scope-ui-mobile.png` に保持。一時QAサーバーとheadless browserは停止済み。実Google資格情報はブラウザに渡していない。
+
+最終実装のversionは0.47.1。旧形式のDot Ledger承認、候補行の直接承認UPDATE、承認済みsource変更は拒否する試験がPASS。通常NEWSの全回帰はその検査を適用したschemaで1,582件PASS。
