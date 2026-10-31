@@ -66,27 +66,32 @@
         shell.append(toolWindow);
         var toolSlot=toolWindow.querySelector('#tool-window-slot'),toolSelect=toolWindow.querySelector('select'),toolTrigger=null;
         var toolNames={tuner:'チューナー',metronome:'メトロノーム',portPractice:'練習・カレンダー',portGear:'機材',portMyApps:'My Apps'};
+        var placeholder=doc.createElement('option');placeholder.value='';placeholder.textContent='ツールを選択';toolSelect.append(placeholder);
         toolIds.forEach(function(id){var o=doc.createElement('option');o.value=id;o.textContent=toolNames[id];toolSelect.append(o);});
         function moveNode(parent,node){if(parent.moveBefore&&node.isConnected)parent.moveBefore(node,null);else parent.append(node);}
         function hasToolInput(){var d=dockedTool&&nodes[dockedTool].querySelector('iframe')?.contentDocument;return !!d&&Array.from(d.querySelectorAll('form,[role=dialog]')).some(function(e){return !e.closest('[hidden]')&&d.defaultView.getComputedStyle(e).display!=='none';});}
         function guardTool(next){if(!dockedTool)return false;if(realTools[dockedTool].requestLeave?.(next))return true;if(hasToolInput()){doc.getElementById('tool-window-status').textContent='編集中のフォームを保存またはキャンセルしてから移動してください。';return true;}return false;}
-        function closeToolUnchecked(){if(!dockedTool)return;var id=dockedTool;dockedTool=null;realTools[id].deactivate();moveNode(main.querySelector('.studio-container'),nodes[id]);nodes[id].hidden=true;nodes[id].inert=true;nodes[id].classList.add('hidden');toolWindow.hidden=true;shell.removeAttribute('data-tool-window');if(toolTrigger?.isConnected)toolTrigger.focus({preventScroll:true});refreshGeometry();}
+        function closeToolUnchecked(){if(!dockedTool){toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');return;}var id=dockedTool;dockedTool=null;realTools[id].deactivate();moveNode(main.querySelector('.studio-container'),nodes[id]);nodes[id].hidden=true;nodes[id].inert=true;nodes[id].classList.add('hidden');toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');if(toolTrigger?.isConnected)toolTrigger.focus({preventScroll:true});refreshGeometry();}
         function closeTool(){if(modal.getActive())return false;if(guardTool(closeTool))return false;closeToolUnchecked();return true;}
-        function openTool(id){
+        function openTool(id, preserveCenter){
             if(!toolIds.includes(id)||modal.getActive())return false;
             doc.getElementById('tool-window-status').textContent='';
             if(dockedTool===id){toolSelect.focus();return true;}
-            if(guardTool(function(){openTool(id);}))return false;
+            if(guardTool(function(){openTool(id,preserveCenter);}))return false;
             var central=host.getActive()===id;
-            if(!central&&toolIds.includes(host.getActive())&&realTools[host.getActive()].requestLeave?.(function(){openTool(id);}))return false;
+            if(central&&preserveCenter){doc.getElementById('tool-window-status').textContent='このツールは中央で使用中です。別の画面へ移動してから選択してください。';return false;}
+            if(central&&realTools[id].requestLeave?.(function(){openTool(id,preserveCenter);}))return false;
             if(central&&nodes[id].querySelector('iframe')&&!toolSlot.moveBefore){window.alert('このブラウザでは使用中画面の状態を維持して移動できません。保存して譜面へ戻ってから開いてください。');return false;}
             closeToolUnchecked();layout.closeRight();renderLayout();toolTrigger=doc.activeElement;dockedTool=id;
-            moveNode(toolSlot,nodes[id]);nodes[id].hidden=false;nodes[id].inert=false;nodes[id].classList.remove('hidden');toolSelect.value=id;toolWindow.hidden=false;shell.dataset.toolWindow='open';
-            if(toolIds.includes(host.getActive())){host.activate('sheetCruise');if(!central)realTools[id].activate();}else realTools[id].activate();
+            moveNode(toolSlot,nodes[id]);nodes[id].hidden=false;nodes[id].inert=false;nodes[id].classList.remove('hidden');toolSelect.value=id;toolWindow.hidden=false;shell.dataset.toolWindow='open';toolToggle.setAttribute('aria-expanded','true');
+            if(central)host.activate('home');else realTools[id].activate();
             refreshGeometry();return true;
         }
+        doc.querySelectorAll('[data-open-tool]').forEach(function(button){button.addEventListener('click',function(){openTool(button.dataset.openTool);});});
+        var toolToggle=doc.createElement('button');toolToggle.type='button';toolToggle.id='studio-tool-toggle';toolToggle.textContent='◧';toolToggle.title='右側ツールを開閉';toolToggle.setAttribute('aria-label','右側ツールを開閉');toolToggle.setAttribute('aria-controls','studio-tool-window');toolToggle.setAttribute('aria-expanded','false');shell.append(toolToggle);
+        toolToggle.addEventListener('click',function(){if(modal.getActive())return;if(!toolWindow.hidden){closeTool();return;}layout.closeRight();renderLayout();toolTrigger=toolToggle;toolSelect.value='';toolWindow.hidden=false;shell.dataset.toolWindow='open';toolToggle.setAttribute('aria-expanded','true');toolSelect.focus();refreshGeometry();});
         toolWindow.addEventListener('keydown',function(e){if(e.key==='Escape'&&!e.isComposing&&!modal.getActive()){e.preventDefault();e.stopPropagation();closeTool();}});
-        toolSelect.addEventListener('change',function(){var id=toolSelect.value;toolSelect.value=dockedTool;openTool(id);});
+        toolSelect.addEventListener('change',function(){var id=toolSelect.value;toolSelect.value=dockedTool||'';if(id)openTool(id,true);});
         toolWindow.querySelector('#tool-window-close').addEventListener('click',closeTool);
         var resizeHandle=toolWindow.querySelector('#tool-window-resize');
         function setToolWidth(width){shell.style.setProperty('--studio-tool-width',Math.min(600,Math.max(300,width))+'px');refreshGeometry();}
@@ -163,7 +168,6 @@
             dock.hidden = s.dockCollapsed; dock.inert = s.dockCollapsed;
             shell.dataset.rightOpen = String(s.rightOpen);
             shell.dataset.paneMode = s.persistent ? 'persistent' : 'overlay';
-            doc.querySelectorAll('[data-open-tool]').forEach(function(button){button.addEventListener('click',function(){openTool(button.dataset.openTool);});});
         ['inspector', 'tool'].forEach(function (type) {
                 var panel = doc.getElementById('shell-'+type+'-content');
                 panel.hidden = type !== s.rightType; panel.inert = type !== s.rightType;
@@ -175,8 +179,7 @@
         }
         function navigate(id) {
             if(modal.getActive())return false;
-            if(dockedTool&&toolIds.includes(id))return openTool(id);
-            if(dockedTool){if(guardTool(function(){navigate(id);}))return false;closeToolUnchecked();}
+            if(dockedTool===id){toolSelect.focus();return true;}
             if (modal.getActive() || !Object.hasOwn(WORKSPACES, id) || host.getActive() === id) return false;
             if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(function () { navigate(id); })) return false;
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(function () { navigate(id); })) return false;
@@ -190,7 +193,6 @@
         }
         function goBack() {
             if(modal.getActive())return false;
-            if(dockedTool){if(guardTool(goBack))return false;closeToolUnchecked();}
             if (modal.getActive()) return false;
             if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(goBack)) return false;
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(goBack)) return false;

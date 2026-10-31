@@ -1,0 +1,7 @@
+# Studio 0.63.0: independent tool pane
+
+The fixed tool button opens an empty chooser without changing the central workspace. Selecting a tool, changing the selection and closing the pane leave the workspace in place. Central workspace navigation normally leaves the pane open. Opening a tool from its own central screen transfers its existing document to the pane and takes the center to Home after the tool's existing leave guard permits it. This behavior supersedes the navigation descriptions in TOOL_WINDOW_062.md.
+
+A tool cannot simultaneously own the central screen and the pane. If the chooser selects a tool already active in the center, Studio leaves both locations unchanged and explains that the user must first navigate away. Moving a live central iframe requires browser support for `moveBefore`; otherwise Studio refuses the transfer rather than silently reinitializing the controller. Existing leave guards and the crop-dialog guard remain in force. The tool's existing audio, timer, local storage and Pro boundary implementations remain responsible for their original behavior.
+
+Port return chrome is hidden only in the Studio-owned tool document with selectors limited to the corresponding home actions. The My Apps inner return remains available with a My Apps label. Port source and its standalone pages are not changed. The shared writer-admission issue, production authentication, and Sync remain outside this change and are not accepted by these tests.
