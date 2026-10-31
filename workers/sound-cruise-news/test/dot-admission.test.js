@@ -93,3 +93,14 @@ test('retained event identity rejection cannot be dismissed by a different URL o
  await assert.rejects(async()=>saveDotHistoryExclusion(f.h.store,{id:row.id,snapshot:await candidateSnapshot(row),revision:row.review_revision,requestId:'cannot-override-event-00001',subjectKey:subject.subject_key,subjectToken:subject.subject_token,archive:{url:'https://fixture.invalid/other-original',brand:'OtherFixture',product:'OTHER-ORIGINAL',event:'other_announcement',evidenceRef:'different URL is not proof that a retained exact event rejection is unrelated'}},actor,now+3),/operator_query_invalid/);
  }finally{f.h.close();}
 });
+
+test('AUDIT: retained Dot receipt blocks the existing expiry purge batch',async()=>{
+ const f=await fixture();try{
+  const saved=await admitDotCandidate(f.h.store,f.reader,f.input,actor,now,SOURCES,pepper);
+  assert.equal(saved.status,'registered');
+  assert.equal(f.h.raw.prepare('PRAGMA foreign_keys').get().foreign_keys,1);
+  await assert.rejects(()=>f.h.store.purge(now+100*86400000),/FOREIGN KEY constraint failed/);
+  assert.equal(f.h.raw.prepare('SELECT COUNT(*) AS n FROM candidate_items WHERE id=?').get(saved.id).n,1);
+  assert.equal(f.h.raw.prepare('SELECT COUNT(*) AS n FROM news_dot_admission_receipts WHERE candidate_id=?').get(saved.id).n,1);
+ }finally{f.h.close();}
+});
