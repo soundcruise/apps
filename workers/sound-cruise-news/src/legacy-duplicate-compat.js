@@ -3,8 +3,8 @@ import {assistedProof} from './assisted-facts.js';
 const columns=['id','source_id','source_url','published_at','label','product_facts','facts_provenance','review_revision','review_status'];
 const legacyFilter=a=>`${a}.review_status='approved' AND json_type(CASE WHEN json_valid(${a}.product_facts) THEN ${a}.product_facts ELSE '{}' END,'$.headlineQuality')='object'`;
 const assistedFilter=a=>`${a}.review_status='approved' AND ${a}.origin='operator_assisted'`;
-export async function withLegacyDuplicates(store,row,facts,now,base){
- const assisted=facts?.kind==='assisted_notice'&&row.source_id==='yamaha',identity=assisted?assistedProductIdentity(facts):legacyProductIdentity(row,now);
+export async function withLegacyDuplicates(store,row,facts,now,base,registry){
+ const assisted=facts?.kind==='assisted_notice',identity=assisted?assistedProductIdentity(facts):legacyProductIdentity(row,now);
  if(!identity)return {...base,fenceSql:'1',fenceArgs:[]};
  const filter=assisted?legacyFilter:assistedFilter;
  const peers=(await store.db.prepare(`SELECT ${columns.map(c=>'x.'+c).join(',')}${assisted?'':',x.origin'} FROM candidate_items x WHERE ${filter('x')} ORDER BY x.id LIMIT 513`).all()).results;
@@ -12,7 +12,7 @@ export async function withLegacyDuplicates(store,row,facts,now,base){
  if(peers.length>512||new TextEncoder().encode(snapshot).length>1048576)return {...base,fenceSql:'0',fenceArgs:[],compatibilityError:'duplicate_check_unavailable'};
  const ids=[],trustedIds=[];for(const peer of peers){
   if(peer.id===row.id)continue;
-  let other;if(assisted)other=legacyProductIdentity(peer,now);else if(await assistedProof(store,peer,now)){try{other=assistedProductIdentity(JSON.parse(peer.product_facts));}catch{}}
+  let other;if(assisted)other=legacyProductIdentity(peer,now);else if(await assistedProof(store,peer,now,registry)){try{other=assistedProductIdentity(JSON.parse(peer.product_facts));}catch{}}
   if(other)trustedIds.push(peer.id);
   if(sameProductLaunch(identity,other))ids.push(peer.id);
  }

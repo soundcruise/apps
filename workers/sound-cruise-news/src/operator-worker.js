@@ -1,6 +1,7 @@
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
 import {parseAssistedPaste,YAMAHA_TOPICS_START} from './assisted-paste.js';
-import {assistedSources,assistedTypes,assistedActions,ASSISTED_ORIGIN} from './assisted-facts.js';
+import {assistedSources,assistedTypes,assistedActions,ASSISTED_ORIGIN,ASSISTED_PERMISSION,assistedUrl} from './assisted-facts.js';
+import {manualFactsPolicy} from './manual-facts-policy.js';
 import {categoryDetail,saveCategory} from './category-editor.js';
 import {publishedPresentation,savePresentation} from './news-presentation.js';
 import {confirmMorrisFacts} from './morris-fact-confirmation.js';
@@ -32,7 +33,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   const identity=await authenticateOperator(request,env,now,options),url=new URL(request.url);
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
-  const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
+  const store=new NewsStore(env.NEWS_DB),registry=options.registry||runtimeSources(env,undefined,now);
   // Configuration is consulted only on Dot routes; other Operator functionality remains independent.
   const isDotRoute=url.pathname==='/api/dot-capabilities'||url.pathname==='/api/dot-candidates'||url.pathname.startsWith('/api/dot-candidates/');
   const assertion=request.headers.get('Cf-Access-Jwt-Assertion');
@@ -41,6 +42,11 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='POST'&&url.pathname==='/api/dot-candidates/admit'){
    if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true'||env.NEWS_DOT_ADMISSION_ENABLED!=='true')return json({error:'not_found'},404);
    await verifyCsrf(request,identity,env,now);return json(await admitDotCandidate(store,dotReader,await inputJSON(request),identity.actor,now,registry,env.NEWS_HEADLINE_PEPPER));
+  }
+  if(request.method==='GET'&&/^\/api\/dot-candidates\/[A-Za-z0-9_-]{1,128}\/admission$/.test(url.pathname)){
+   if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true'||env.NEWS_DOT_ADMISSION_ENABLED!=='true')return json({error:'not_found'},404);
+   if(url.search)throw Error('operator_query_invalid');const id=url.pathname.split('/')[3],row=await env.NEWS_DB.prepare('SELECT r.request_id,r.candidate_id,r.candidate_digest,r.staging_revision,r.delivery_key_hash,r.created_at,c.review_status FROM news_dot_admission_receipts r LEFT JOIN candidate_items c ON c.id=r.candidate_id WHERE r.dot_candidate_id=? AND r.actor_id=?').bind(id,identity.actor.id).first();
+   if(!row)return json({status:'not_found'},404);if(!row.review_status)throw Error('operator_unavailable');let stagingConsistency='UNCERTAIN';try{const current=await dotReader.detail(id),snapshot=await dotSnapshot(current,id);stagingConsistency=snapshot.digest===row.candidate_digest&&snapshot.revision===row.staging_revision&&current.deliveryKeyHash===row.delivery_key_hash?'MATCH':'CHANGED';}catch{}return json({status:'registered',receiptId:row.request_id,id:row.candidate_id,createdAt:row.created_at,reviewStatus:row.review_status,stagingConsistency});
   }
   if(request.method==='POST'&&url.pathname==='/api/dot-candidates/confirm'){
    if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true')return json({error:'not_found'},404);
@@ -54,11 +60,11 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='GET'&&(url.pathname==='/api/dot-candidates'||/^\/api\/dot-candidates\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname))){
    if(!dotReader)throw Error('operator_not_configured');
    const detail=url.pathname!=='/api/dot-candidates';let output;
-   if(detail){if(url.search)throw Error('operator_query_invalid');const id=url.pathname.split('/').at(-1);output=await dotReader.detail(id);if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');let snapshot;try{snapshot=options.dotNewsSnapshot?await options.dotNewsSnapshot():await readDotNewsSnapshot(env.NEWS_DB,output.candidate);}catch{}let confirmationSnapshot=null;if(env.NEWS_DOT_CONFIRMATION_ENABLED==='true'){try{confirmationSnapshot=await dotSnapshot(output,id);}catch{}}output={...output,...compareDotWithNews(output.candidate,snapshot),formalComparison:'NOT_EVALUATED',confirmationSnapshot};}
+   if(detail){if(url.search)throw Error('operator_query_invalid');const id=url.pathname.split('/').at(-1);output=await dotReader.detail(id);if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');let snapshot;try{snapshot=options.dotNewsSnapshot?await options.dotNewsSnapshot():await readDotNewsSnapshot(env.NEWS_DB,output.candidate);}catch{}let confirmationSnapshot=null;if(env.NEWS_DOT_CONFIRMATION_ENABLED==='true'){try{confirmationSnapshot=await dotSnapshot(output,id);}catch{}}const manualSources=[];if(env.NEWS_DOT_ADMISSION_ENABLED==='true')for(const candidateSource of (Array.isArray(output.candidate?.sources)?output.candidate.sources.slice(0,8):[])){const raw=candidateSource?.url;if(assistedUrl(raw))manualSources.push({url:raw,kind:'official',policyRef:ASSISTED_PERMISSION,evidenceUrl:null});else for(const source of registry){const policy=manualFactsPolicy(source,raw,now);if(policy)manualSources.push({url:raw,kind:source.sourceKind,policyRef:policy.permissionRef,evidenceUrl:policy.evidenceUrl});}}output={...output,...compareDotWithNews(output.candidate,snapshot),formalComparison:'NOT_EVALUATED',confirmationSnapshot,manualSources};}
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.42.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.43.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -115,7 +121,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   return json({error:'not_found'},404);
  }catch(error){
   const code=error.message,status=['operator_not_configured','operator_unavailable'].includes(code)?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate','facts_recheck_busy','presentation_changed','category_changed'].includes(code)?409:['decision_transaction_failed','facts_transaction_failed','category_transaction_failed'].includes(code)?503:422;
-  const known=/^(assisted_|category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
+  const known=/^(assisted_|category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|dot_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
   if(request.method==='GET'&&['/','/index.html'].includes(new URL(request.url).pathname)&&['authentication_required','authentication_invalid'].includes(code))return authenticationPage(security);
   return json({error:known?code:'operator_unavailable'},known?status:503);
  }
