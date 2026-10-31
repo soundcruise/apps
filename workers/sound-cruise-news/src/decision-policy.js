@@ -41,7 +41,7 @@ export function duplicatePredicate(row,facts,alias='d'){
  if(facts?.kind==='guitar_event'&&(facts.eventName||facts.event)&&facts.eventDate&&facts.venue){clauses.push(`(${j('productType')}='event' AND ${j('action')}='event_announcement' AND ${j('product')}=? AND ${j('eventDate')}=? AND ${j('venue')}=?)`);args.push(facts.eventName||facts.event,facts.eventDate,facts.venue);}
  return {sql:`(((${base.sql}) AND COALESCE(${alias}.origin,'')<>'operator_assisted') OR (${alias}.review_status='approved' AND ${alias}.id<>? AND ${alias}.origin='operator_assisted' AND ${j('kind')}='assisted_notice' AND (${clauses.join(' OR ')})))`,args:[...base.args,row.id,...args]};
 }
-export async function resolvedDuplicatePredicate(store,row,facts,now){return withLegacyDuplicates(store,row,facts,now,duplicatePredicate(row,facts));}
+export async function resolvedDuplicatePredicate(store,row,facts,now,registry){return withLegacyDuplicates(store,row,facts,now,duplicatePredicate(row,facts),registry);}
 function standardDuplicatePredicate(row,facts,alias='d'){
  const paths=independentTopicUrls(row),j=key=>`json_extract(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.${key}')`;
  const brands=productBrandVariants(facts?.brand),brandValues=brands.length?brands:['__no_verified_brand__'],brandMatch=`${j('brand')} IN (${brandValues.map(()=>'?').join(',')})`;
@@ -118,11 +118,11 @@ function standardDuplicatePredicate(row,facts,alias='d'){
  return {sql:`${alias}.review_status='approved' AND ${alias}.id<>? AND (${clauses.join(' OR ')})`,args:[row.id,...args]};
 }
 export async function publicationValidation(store,row,now,registry,pepper){
- const assisted=row.origin===ASSISTED_ORIGIN,verifiedAssisted=assisted&&await assistedProof(store,row,now);
+ const assisted=row.origin===ASSISTED_ORIGIN,verifiedAssisted=assisted&&await assistedProof(store,row,now,registry);
  const errors=[],source=registry.find(s=>s.id===row.source_id),facts=parseFacts(row),label=verifiedAssisted?row.label:factualLabel(facts,row.event_type),controls=await store.controls(),state=await store.state(row.source_id),health=(await store.sourceHealth()).find(h=>h.source_id===row.source_id);
  if(row.publication_decision==='REJECT')errors.push('publication_policy_rejected');
  const sourceGate=legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0},now,'production',registry);
- if(!controls.publication_enabled||state.publicationBlocked||(assisted?!verifiedAssisted:sourceGate||!source?.discoveryValid||health?.status!=='healthy'||!Number.isSafeInteger(health?.last_successful_run_at)||health.last_successful_run_at>now))errors.push('operator_source_gate');
+ if(!controls.publication_enabled||state.publicationBlocked||(assisted&&row.source_id==='yamaha'?!verifiedAssisted:sourceGate||!source?.discoveryValid||health?.status!=='healthy'||!Number.isSafeInteger(health?.last_successful_run_at)||health.last_successful_run_at>now||assisted&&!verifiedAssisted))errors.push('operator_source_gate');
  if(!source||!sourceUrl(row.source_url,source)||(!assisted&&!allowedArticlePath(row.source_url,source)))errors.push('source_url_invalid');
  if(facts?.kind==='assisted_notice'&&(!verifiedAssisted||!assistedLabel(facts)))errors.push('facts_provenance_invalid');
  if(!facts||!label||facts.scopeUncertain||row.event_type==='other'||!validLabel(label)||facts.category!==row.category||!CATEGORIES.includes(row.category))errors.push('facts_incomplete');
@@ -177,7 +177,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(sale&&(!saleAuthorized(source)||row.category!=='sale'||row.event_type!=='sale'||facts?.kind!=='sale'||facts.seller!==source?.name||facts.scope!=='broad'||facts.nature!=='sale'||!facts.equipment?.length||!Number.isFinite(saleDeadline)||saleDeadline<now||row.sale_ends_at!==saleDeadline))errors.push('sale_validation_failed');
  if((row.event_ends_at!=null&&row.event_ends_at<now)||(eventDeadline!==null&&(!Number.isSafeInteger(eventDeadline)||eventDeadline<now||eventDeadline!==row.event_ends_at)))errors.push('event_validation_failed');
  if(facts?.kind==='guitar_event'&&eventDeadline===null)errors.push('event_date_missing');
- const predicate=await resolvedDuplicatePredicate(store,row,facts,now);
+ const predicate=await resolvedDuplicatePredicate(store,row,facts,now,registry);
  if(predicate.compatibilityError||!await duplicateFenceValid(store,predicate))errors.push(predicate.compatibilityError||'candidate_changed');
  const duplicates=(await store.db.prepare(`SELECT d.id,d.label,d.source_name,d.source_url,d.topic_key FROM candidate_items d WHERE ${predicate.sql} ORDER BY d.id LIMIT 20`).bind(...predicate.args).all()).results;
  if(duplicates.length)errors.push('duplicate');
