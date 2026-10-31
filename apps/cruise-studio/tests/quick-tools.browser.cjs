@@ -6,7 +6,7 @@ test('quick tuner and Port-style BPM steps keep the score and audio ownership in
     const url = process.env.STUDIO_URL;
     assert(url, 'STUDIO_URL must point to an isolated loopback server');
     const origin = new URL(url).origin;
-    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH,
         args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['microphone'], serviceWorkers: 'block' });
     const page = await context.newPage(), errors = [], foreign = [], missing = [];

@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),test=require('node:test'),assert=require('node:assert/strict'),{chromium}=require('playwright');
 const url=process.env.STUDIO_URL,origin=new URL(url).origin;
 test('Schema 2 M1 real Studio integration',async t=>{
- const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),ctx=await browser.newContext({viewport:{width:1440,height:1000}}),p=await ctx.newPage();
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),ctx=await browser.newContext({viewport:{width:1440,height:1000}}),p=await ctx.newPage();
  const ledger=[],phases=[];
  async function installAudit(context,scope){
   await context.exposeBinding('__recordSchema2Write',(_source,entry)=>{if(entry.kind==='barrier')return ledger.length;ledger.push({scope,...entry,sequence:ledger.length});return ledger.length;});

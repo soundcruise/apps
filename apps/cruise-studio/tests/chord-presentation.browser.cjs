@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {chromium}=require('playwright');
 const url=process.env.STUDIO_URL||'http://127.0.0.1:8766/apps/cruise-studio/index.html',origin=new URL(url).origin;
 test('Chord Standard PC Inspector real Chrome',async t=>{
- const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),context=await browser.newContext({viewport:{width:1440,height:900}});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),context=await browser.newContext({viewport:{width:1440,height:900}});
  const errors=[],missing=[],network=[],report={version:null,cases:[],screenshots:[],noWrite:null};
  await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin)return r.continue();if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});network.push(u.href);return r.abort();});
  await context.addInitScript(()=>{

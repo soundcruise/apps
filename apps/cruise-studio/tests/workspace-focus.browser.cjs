@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/index.html';
 test('Workspace Focus Restoration real Chrome', async t => {
     const { libraryFixture, serializeFixture } = await import('./library-fixture.mjs');
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const errors = [], missing = [], external = [], report = { cases: [], screenshots: [] };
     await context.route('**/*', r => { const u = new URL(r.request().url()); if (u.origin === new URL(url).origin) return r.continue(); if (u.hostname === 'fonts.googleapis.com') return r.fulfill({ body: '', contentType: 'text/css' }); external.push(u.href); return r.abort(); });

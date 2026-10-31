@@ -3,7 +3,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const { chromium } = require('playwright');
 const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/index.html';
 test('Active Document alignment real Chrome', async t => {
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
     const p = await context.newPage(); p.setDefaultTimeout(8000); p.on('dialog', d => d.accept());

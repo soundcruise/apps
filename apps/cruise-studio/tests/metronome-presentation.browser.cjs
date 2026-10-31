@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {chromium}=require('playwright');
 const url=process.env.STUDIO_URL||'http://127.0.0.1:8766/apps/cruise-studio/index.html',origin=new URL(url).origin;
 test('Metronome PC presentation real Chrome',async t=>{
- const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH,headless:true});
  const context=await browser.newContext({viewport:{width:1440,height:900}}),errors=[],missing=[],network=[];
  const report={version:null,cases:[],screenshots:[],noWrite:null};
  await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin)return r.continue();if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});network.push(u.href);return r.abort();});

@@ -3,7 +3,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const { chromium } = require('playwright');
 const url = process.env.STUDIO_URL || 'http://127.0.0.1:8767/apps/cruise-studio/index.html', origin = new URL(url).origin;
 test('F3: released versions, real cache paths and readonly workspace boot', async t => {
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const ctx = await browser.newContext(), requests = [], errors = [], missing = [], forbidden = [];
     const report = { versions: null, requests, errors, missing, forbidden, noWrite: null };
     try {

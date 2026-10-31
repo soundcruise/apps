@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 test('Port Gear and My Apps use the owner UI and storage inside Studio', async () => {
     const url = process.env.STUDIO_URL;
     assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
     await context.route('**/__cruise_preview/news**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"contractVersion":1,"items":[],"nextOffset":null}' }));
     await context.route('https://fonts.googleapis.com/**', r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
@@ -129,7 +129,7 @@ test('Port Gear and My Apps use the owner UI and storage inside Studio', async (
 test('synthetic existing photo and icon bodies survive reload and Port deletion removes their references', async () => {
     const url = process.env.STUDIO_URL;
     assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ serviceWorkers: 'block' });
     await context.route('**/__cruise_preview/news**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"contractVersion":1,"items":[],"nextOffset":null}' }));
     const page = await context.newPage();
@@ -205,7 +205,7 @@ test('synthetic existing photo and icon bodies survive reload and Port deletion 
 test('Port Standard limits and Pro image prompts stay owned by Port', async () => {
     const url = process.env.STUDIO_URL;
     assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ serviceWorkers: 'block' });
     await context.route('**/__cruise_preview/news**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"contractVersion":1,"items":[],"nextOffset":null}' }));
     const page = await context.newPage();
@@ -254,7 +254,7 @@ test('Port category, order and Home display size persist through Studio routes',
     const fixture = libraryFixture();
     fixture['cruisePort.gearList'].items = fixture['cruisePort.gearList'].items.slice(0, 2).map((item, index) => ({ ...item, order: index, photoId: null, photoSourceId: null, photoCrop: null }));
     fixture['cruisePort.myApps'].items = fixture['cruisePort.myApps'].items.slice(0, 2).map(item => ({ ...item, iconId: null, iconSourceId: null, iconCrop: null }));
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ serviceWorkers: 'block' });
     await context.route('**/__cruise_preview/news**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"contractVersion":1,"items":[],"nextOffset":null}' }));
     const page = await context.newPage();

@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),{chromium}=require('playwright');
 const url=process.env.STUDIO_URL,origin=new URL(url).origin;
 test('final metadata budget through explicit Studio Save',async t=>{
- const b=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),reports=[];
+ const b=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),reports=[];
  try{for(const [name,kind,accepted]of [['small','small',true],['migrated schema1','migration',true],['just below final limit','below',true],['timestamp at limit','timestamp',false],['appVersion at limit','version',false],['exact final limit','exact',true],['timestamp headroom','headroom',true]])await t.test(name,async()=>{
   const c=await b.newContext({serviceWorkers:'block'}),p=await c.newPage(),errors=[],http=[],foreign=[];
   try{await c.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin&&r.request().method()==='GET')return r.continue();if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});foreign.push(u.href);return r.abort();});p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('response',r=>{if(r.status()>=400)http.push(r.url());});

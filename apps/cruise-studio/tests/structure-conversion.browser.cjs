@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{chromium}=require('playwright');
 const url=process.env.STUDIO_URL||'http://127.0.0.1:8767/apps/cruise-studio/index.html',origin=new URL(url).origin;
 test('Common Music conversion real Studio read-only',async t=>{
- const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),ctx=await browser.newContext();await require('./helpers/schema2-fixture.cjs').install(ctx);const p=await ctx.newPage();
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),ctx=await browser.newContext();await require('./helpers/schema2-fixture.cjs').install(ctx);const p=await ctx.newPage();
  const errors=[],missing=[],external=[];
  await ctx.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin&&['GET','HEAD'].includes(r.request().method()))return r.continue();if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});external.push(u.href);return r.abort();});
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('response',r=>{if(r.status()>=400)missing.push(r.url());});

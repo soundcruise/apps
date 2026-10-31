@@ -7,7 +7,7 @@ test('Studio reuses Port NEWS and launches each official Standard/Pro app route'
     const url = process.env.STUDIO_URL;
     assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
     const origin = new URL(url).origin;
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
     const publishedAt = new Date(Date.now() - 3600000).toISOString();
     const item = { id: 'studio-news-fixture', label: '合成ギターニュース', sourceName: 'Fixture Music', sourceUrl: 'https://example.invalid/article', publishedAt, category: 'acoustic_guitar', publishable: true };

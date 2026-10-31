@@ -21,7 +21,7 @@ test('Studio/Port tuner UI, save and audio lifetime', async t => {
     assert(url, 'STUDIO_URL is required');
     const origin = new URL(url).origin, audio = fakeAudio(), errors = [], missing = [], foreign = [];
     const browser = await chromium.launch({ headless: true,
-        executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        executablePath: process.env.CHROME_PATH,
         args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--use-file-for-fake-audio-capture=' + audio.file] });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['microphone'], serviceWorkers: 'block' });
     await context.route('**/*', route => {

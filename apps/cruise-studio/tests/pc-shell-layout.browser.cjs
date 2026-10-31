@@ -5,7 +5,7 @@ const url=process.env.STUDIO_URL||'http://127.0.0.1:8766/apps/cruise-studio/inde
 test('PC Shell layout real Chrome',async t=>{
  const {libraryFixture,serializeFixture}=await import('./library-fixture.mjs');
  const audioFile=process.env.TUNER_FAKE_AUDIO;if(!audioFile||!fs.existsSync(audioFile))throw Error('synthetic TUNER_FAKE_AUDIO required');
- const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-audio-capture='+audioFile]});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH,headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-audio-capture='+audioFile]});
  const context=await browser.newContext({viewport:{width:390,height:600}}),p=await context.newPage();p.setDefaultTimeout(8000);
  const report={cases:[],screenshots:[]},errors=[],missing=[],external=[];
  await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin&&u.pathname==='/__cruise_preview/news')return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({contractVersion:1,items:[],nextOffset:null})});if(u.origin===origin){if(!['GET','HEAD'].includes(r.request().method()))external.push(r.request().method()+' '+u.href);return r.continue();}if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});external.push(u.href);return r.abort();});

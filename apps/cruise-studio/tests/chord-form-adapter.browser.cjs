@@ -5,7 +5,7 @@ const url = process.env.STUDIO_URL;
 test('Chord pure adapter in real Chrome: owner import and memory-only boundary', async t => {
     assert(url, 'isolated STUDIO_URL required');
     const origin = new URL(url).origin, errors = [], missing = [], forbidden = [];
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext();
     try {
         await context.route('**/*', r => {

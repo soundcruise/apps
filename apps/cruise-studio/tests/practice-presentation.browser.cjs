@@ -5,7 +5,7 @@ const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/
 test('Practice readonly PC workspace real Chrome', async t => {
     const { practiceFixture, serializeFixture } = await import('./practice-fixture.mjs');
     const fixture = practiceFixture(); delete fixture['cruisePort.syncAssetMetadata'].attachments.broken;
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const report = { cases: [], screenshots: [] }, errors = [], missing = [], network = [];
     await context.route('**/*', r => { const u = new URL(r.request().url()); if (u.origin === origin) return r.continue(); if (u.hostname === 'fonts.googleapis.com') return r.fulfill({ body: '', contentType: 'text/css' }); network.push(u.href); return r.abort(); });

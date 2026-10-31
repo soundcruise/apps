@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const url=process.env.STUDIO_URL;
 test('persistent form adoption through released Studio Session/Repository',async t=>{
  assert(url,'isolated STUDIO_URL required');const origin=new URL(url).origin,ledger=[],errors=[],http=[],network=[];
- const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),context=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),context=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});
  await context.exposeBinding('__recordFormWrite',(_,record)=>{ledger.push({...record,sequence:ledger.length});});
  await context.addInitScript(()=>{
   window.__formPhase='boot';window.__formPromises=[];const documentId=crypto.randomUUID();

@@ -10,7 +10,7 @@ test('Home, NEWS and explicit My Apps launch in real disposable Chrome', async t
     const { libraryFixture, serializeFixture } = await import('./library-fixture.mjs');
     const fixture = libraryFixture(); fixture['cruisePort.myApps'].items[0].urls.macos = 'https://example.invalid/mac-app';
     const rawFixture = serializeFixture(fixture);
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
     let mode = 'ready', hold, requestCount = 0;
     const external = [], consoleErrors = [], missing = [], report = { cases: [], screenshots: [] };

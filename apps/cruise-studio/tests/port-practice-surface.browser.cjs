@@ -6,7 +6,7 @@ const url = process.env.STUDIO_URL;
 
 test('Studio uses Port practice and calendar with Port-owned storage', async t => {
     assert(url && ['localhost', '127.0.0.1'].includes(new URL(url).hostname));
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
     await context.route('**/__cruise_preview/news**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contractVersion: 1, items: [], nextOffset: null }) }));
     const page = await context.newPage();
