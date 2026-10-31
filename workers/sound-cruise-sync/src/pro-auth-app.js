@@ -126,7 +126,7 @@ export async function inspectProCredentialReadOnly(headerValue, env, dependencie
   if (!row || row.scope !== 'global_pro' || row.revoked_at !== null) return { ok: false, code: 'pro_required' };
   if (row.generation !== current.generation) return { ok: false, code: 'pro_reauth_required' };
   const decision = backendSessionDecision(row, current, dependencies.now ? dependencies.now() : Date.now());
-  return decision.ok && dependencies.includeWriterProof ? { ...decision, writerProof: { id: parsed.id, verifier: parsed.verifier } } : decision;
+  return decision.ok && dependencies.includeWriterProof ? { ...decision, writerProof: { id: parsed.id, verifier: parsed.verifier, generation: row.generation } } : decision;
 }
 
 async function credential(session, parsed) {

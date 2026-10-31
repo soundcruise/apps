@@ -28,9 +28,13 @@ test('failed local commit is not retried automatically',{skip:!newIDB && 'Dedica
 test('read before Account observation cannot acquire authority retrospectively',async()=>{const r={...root(),SoundCruiseSyncAccount:{storage:{getAccount:async()=>null}}},c=createPortWriterContext({root:r,storage:values()}),token=c.captureRead();await tick();assert.throws(()=>c.assertRead(token),/read-admission-required/);c.assertRead(c.captureRead());});
 
 test('first and repeated store saves retain the validated read admission',async()=>{
- const {registerPortRepository,readPortStore,writePortStore}=await import('./port-dataset-storage.js?v=1.27.0');
+ const {registerPortRepository,readPortStore,writePortStore}=await import('./port-dataset-storage.js?v=1.28.0');
  const storage=values(),c=createPortWriterContext({root:root(),storage}),r=repo(c,storage),key='cruisePort.gearList';
  registerPortRepository(storage,r);readPortStore(storage,view=>view.getItem(key));
  for(let n=0;n<3;n++) {const result=await writePortStore(storage,[key],draft=>{draft.setItem(key,JSON.stringify({version:5,items:[{id:'item',name:'edit-'+n}]}));return{ok:true};});assert.equal(result.ok,true,result.reason);}
  assert.equal(JSON.parse(storage.getItem(key)).items[0].name,'edit-2');
+});
+test('same credential validation timestamp renewal is compatible; generation change still fences',()=>{
+ const s=values(),auth={credential:'synthetic',generation:1,sessionVersion:3,operationRevision:'same',validatedAt:1};s.setItem('soundCruiseProAuth',JSON.stringify(auth));const r={...root(),SoundCruiseProOperationSource:{read:()=>({auth,revoked:false})}},c=createPortWriterContext({root:r,storage:s});
+ s.setItem('soundCruiseProAuth',JSON.stringify({...auth,validatedAt:2}));assert.doesNotThrow(()=>c.assertCurrent());s.setItem('soundCruiseProAuth',JSON.stringify({...auth,generation:2}));assert.throws(()=>c.assertCurrent(),/port-pro-context-changed/);
 });

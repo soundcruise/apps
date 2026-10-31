@@ -141,7 +141,7 @@
         runtime = new syncRoot.MultiAppSyncRuntime({ appId: 'port', endpoint: config.endpoint, adapter, store,
           accountClient: client, accountCore: accountRoot.core, admissionMode, fetchImpl, hostLifecycle: true, assertCurrent: guard, assertCurrentAsync: accountGuard });
         runtime.identity = Object.freeze({ accountId, appId: 'port', generation: epoch });
-        for (const name of ['sync', 'initializeDataset', 'resolveConflict', 'retryLegacyFailures']) {
+        for (const name of ['sync', 'initializeDataset', 'resolveConflict', 'retryLegacyFailures', 'reconcileUnknown']) {
           const original = runtime[name];
           if (original) runtime[name] = function (...args) {
             return canSync() ? original.apply(this, args) : Promise.resolve({ ok: false, code: 'pro_required' });
@@ -320,6 +320,7 @@
         inspectLocalAccount: requireConsumer(() => attribution()), chooseLocalAccount: requireConsumer(value => attribution(value)),
         sync: requireConsumer((reason = 'manual') => run('sync', reason)), resume: requireConsumer(() => run('sync', 'resume')),
         retryLegacyFailures: requireConsumer(() => run('retryLegacyFailures')),
+        reconcileUnknown: requireConsumer(() => run('reconcileUnknown')),
         listConflicts: requireConsumer(() => runtime?.listConflictPresentations() || []),
         resolveConflict: requireConsumer((...args) => run('resolveConflict', ...args)),
         reconcileAssetReferences: requireConsumer(async () => {

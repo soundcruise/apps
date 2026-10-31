@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { PortDatasetRepository, PORT_DATASET_META, PORT_DELETE_INTENTS } from './port-dataset-repository.js';
-import { registerPortRepository } from './port-dataset-storage.js?v=1.27.0';
+import { registerPortRepository } from './port-dataset-storage.js?v=1.28.0';
 import { loadMetronomeSettings, saveMetronomeSettings, METRONOME_DEFAULTS } from './metronome-store.js';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from './settings-store.js';
 const settingKey = 'cruisePort.settings', presetKey = 'cruisePort.metronomePresets';
@@ -289,4 +289,14 @@ test('Sync/ack publication fences an Account generation change while waiting for
  const result=await repo.runWrite({expectedRevision:base.revision,source:'sync',assertCurrent:async()=>{if(!current)throw Object.assign(Error('account_generation_changed'),{code:'account_generation_changed'});}},async draft=>{draft.setItem(settingKey,settings({theme:'gray'}));current=false;return {ok:true};});
  assert.equal(result.ok,false);assert.equal(result.reason,'account_generation_changed');assert.equal(target.getItem(settingKey),raw);
  const ack=await repo.acknowledgeDelete('metronome_preset/old','old-generation',base.revision,()=>{throw Object.assign(Error('account_generation_changed'),{code:'account_generation_changed'});});assert.equal(ack.ok,false);assert.equal(target.getItem(settingKey),raw);
+});
+
+test('local image removal retires metadata in the same dataset publication and rejects stale hydrate',async()=>{
+ const key='cruisePort.gearList',metaKey='cruisePort.syncAssetMetadata',item={id:'visual',photoId:'old-final',photoSourceId:'old-source',photoCrop:{x:0,y:0,size:1}},entry={published:{availability:'available',final:{assetId:'remote-final'},source:{assetId:'remote-source'}},binding:{final:{assetId:'remote-final',localId:'old-final'},source:{assetId:'remote-source',localId:'old-source'}},pending:null};
+ const f=setup({[key]:JSON.stringify({version:5,items:[item]}),[metaKey]:JSON.stringify({version:4,gear:{visual:entry},myApps:{},attachments:{},releaseQueue:[],discardQueue:[]})});
+ assert.equal((await write(f.repo,key,{version:5,items:[{...item,photoId:null,photoSourceId:null,photoCrop:null}]})).ok,true);const meta=JSON.parse(f.target.getItem(metaKey));assert.equal(meta.gear.visual.published,null);assert.equal(meta.gear.visual.binding,null);assert.deepEqual(meta.releaseQueue,['remote-final','remote-source']);assert(f.notifications[0].keys.includes(key)&&f.notifications[0].keys.includes(metaKey));
+ const sync=new PortAssetSync({storage:f.target,controller:{runtime:{assertCurrentAsync:async()=>{}}}});assert.equal(await sync.commitHydratedPair('gear','visual',entry,entry,{finalId:null,sourceId:null,crop:null},{finalId:'stale-final',sourceId:'stale-source',crop:item.photoCrop}),false);assert.equal(JSON.parse(f.target.getItem(key)).items[0].photoId,null);
+});
+test('sync cache absence preserves remote binding and never queues a local image deletion',async()=>{
+ const key='cruisePort.gearList',mk='cruisePort.syncAssetMetadata',item={id:'cache',photoId:'cached',photoSourceId:'source',photoCrop:{x:0,y:0,size:1}},published={availability:'available',final:{assetId:'cloud'}};const f=setup({[key]:JSON.stringify({version:5,items:[item]}),[mk]:JSON.stringify({version:4,gear:{cache:{published}},myApps:{},attachments:{},releaseQueue:[],discardQueue:[]})});assert.equal((await write(f.repo,key,{version:5,items:[{...item,photoId:null,photoSourceId:null,photoCrop:null}]},'sync')).ok,true);assert.deepEqual(JSON.parse(f.target.getItem(mk)).gear.cache.published,published);assert.deepEqual(JSON.parse(f.target.getItem(mk)).releaseQueue,[]);
 });

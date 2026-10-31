@@ -1,5 +1,5 @@
 /* Studio owner boundary for shared Port components. No authority is minted here. */
-import { isProAccessReady } from '../../../cruise-port/cruise-port-capabilities.js?v=1.27.0';
+import { isProAccessReady } from '../../../cruise-port/cruise-port-capabilities.js?v=1.28.0';
 
 // An Account/device writer admission does not exist in this integration yet.
 // This must not become a boolean inferred from Pro, UI state or stored data.

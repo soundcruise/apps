@@ -21,8 +21,12 @@ export function createPortWriterContext({ root = globalThis, storage } = {}) {
         if (getGeneration() !== generation) blocked = true;
     }, () => { blocked = true; }) : Promise.resolve();
     account?.subscribeAccount?.(() => { blocked = true; });
-    const pro = () => JSON.stringify([storage?.getItem('soundCruiseProAuth'),
-        storage?.getItem('soundCruiseProOperationEpoch'), storage?.getItem('soundCruiseProRevokePending')]);
+    const pro = () => {
+        const raw = storage?.getItem('soundCruiseProAuth'); let identity = raw;
+        try { const auth = JSON.parse(raw || 'null'); if (auth) identity = [auth.credential, auth.generation, auth.sessionVersion, auth.operationRevision]; } catch (_) {}
+        // Validation timestamps are cache metadata, not a change of writer authority.
+        return JSON.stringify([identity, storage?.getItem('soundCruiseProOperationEpoch'), storage?.getItem('soundCruiseProRevokePending')]);
+    };
     const initialPro = pro();
     function assertCurrent() {
         if ((root.SoundCruiseSyncAccount?.storage ?? null) !== (account ?? null)) fail('port-account-source-changed');
