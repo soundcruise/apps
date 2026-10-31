@@ -1,5 +1,5 @@
 /* Port owns markup, styling, controller and local stores; Studio owns this document lifetime. */
-import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.60.0';
+import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.61.0';
 const boundary = createPortProBoundary();
 let controller, epoch = 0, stopped = false, fullApplication = false, policy;
 function pause() { const button = document.getElementById('practice-timer-toggle'); if (button?.getAttribute('aria-label') === '練習を一時停止する') button.click(); }
@@ -42,7 +42,7 @@ async function mount() {
         document.head.append(style);
     }
     const style = document.createElement('style');
-    style.textContent = isApplication ? 'body{margin:0}' : 'body{margin:0}.port-view{max-width:1100px;margin:0 auto;padding:24px}'; document.head.append(style);
+    style.textContent = isApplication ? (tool === 'myApps' ? 'body{margin:0} #home-view > :not(#my-apps-section){display:none!important}' : 'body{margin:0}') : 'body{margin:0}.port-view{max-width:1100px;margin:0 auto;padding:24px}'; document.head.append(style);
     if (isApplication) {
         // Import only inert markup; none of Port's gate, Account or Sync script tags execute.
         root.querySelectorAll('script').forEach(script => script.remove());
