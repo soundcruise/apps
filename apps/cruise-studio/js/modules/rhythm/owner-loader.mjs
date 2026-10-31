@@ -1,5 +1,5 @@
 /* Lazy owner material loader. Only the pinned bytes are executed; no owner import at boot. */
-import {createOfficialRhythmAdapter} from './official-pattern-adapter.mjs?v=0.53.1';
+import {createOfficialRhythmAdapter} from './official-pattern-adapter.mjs?v=0.53.2';
 export const OWNER_PIN=Object.freeze({ownerApp:'rhythm-cruise',ownerAppVersion:'1.21.0',commit:'c1f99ff68e61da57f52a8dfe14ebcfa298659120',tree:'7d1bcf9bee610ba809c4808d7c48eb067dc6984d',modulePath:'apps/rhythm-cruise/js/official-patterns.mjs',moduleSha256:'e2f89b27261035b80d6eb4b50e810456b3446c714c5f32b62622418f354c97cd',versionSource:Object.freeze({path:'apps/rhythm-cruise/script.js',symbol:'RHYTHM_CRUISE_VERSION',sha256:'d93ed5932fe9aaceacb5a596f005acedd9e42877dc505caaf133c3c193664716'}),verification:'fixed-git-object'});
 async function executeBytes(bytes){
     const url=URL.createObjectURL(new Blob([bytes],{type:'text/javascript'}));

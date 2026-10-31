@@ -100,11 +100,11 @@ export async function openIsolatedIDBRepositoryBackend({ scope, generation, toke
         prepared.get(handle).writerResult = result;
         return handle;
     }
-    async function commitPreparedWrite(opaque, { commitGuard } = {}, notify = () => {}) {
+    async function commitPreparedWrite(opaque, { commitGuard, ownerCommitGuard } = {}, notify = () => {}) {
         if (opaque?.rejected) return opaque.rejected;
         const p = prepared.get(opaque);
         if (!p) return rejected(fail('prepared-handle-invalid'));
-        const fact = await store.commit(p.handle, { commitGuard });
+        const fact = await store.commit(p.handle, { commitGuard, ownerCommitGuard });
         if (!fact.ok) {
             await hydrate().catch(() => {});
             return fact;

@@ -2,6 +2,8 @@
 // implement readAtCommit for a browser IndexedDB transaction.
 import { verifyAccountCredentialSnapshot } from './account-auth.js';
 
+const datasetOwners = new WeakSet();
+export const isIsolatedDatasetAdmissionOwner = owner => datasetOwners.has(owner);
 const positive = n => Number.isSafeInteger(n) && n > 0;
 const text = x => typeof x === 'string' && x.length > 0 && x.length <= 256;
 const hex = x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
@@ -9,7 +11,7 @@ const keys = ['contractVersion','purpose','operationId','action','partitionId','
   'accountId','accountDeviceId','accountGeneration','membershipId','membershipGeneration','credentialVersion',
   'sourceDigest','baseRevision','changesDigest'];
 function failure(code) { const e = Error(code); e.code = code; return e; }
-function fixedRequest(value) {
+function fixedRequest(value,allowPortDataset=false) {
   if (!value || typeof value !== 'object' || Object.getOwnPropertySymbols(value).length ||
       Object.keys(value).length !== keys.length) throw failure('save-admission-request-invalid');
   const result = {};
@@ -18,8 +20,7 @@ function fixedRequest(value) {
     if (!d || !Object.hasOwn(d,'value')) throw failure('save-admission-request-invalid');
     result[key] = d.value;
   }
-  if (result.contractVersion !== 1 || result.purpose !== 'port-dataset-save' || result.action !== 'saveBpm' ||
-      result.targetKey !== 'cruisePort.metronome' || !/^[A-Za-z0-9_-]{1,64}$/.test(result.operationId) ||
+  if (result.contractVersion !== 1 || result.purpose !== 'port-dataset-save' || !(result.action==='saveBpm'&&result.targetKey==='cruisePort.metronome'||allowPortDataset&&result.action==='savePortDataset'&&result.targetKey==='*') || !/^[A-Za-z0-9_-]{1,64}$/.test(result.operationId) ||
       !['partitionId','datasetGeneration','accountId','accountDeviceId','membershipId','baseRevision'].every(k=>text(result[k])) ||
       !['accountGeneration','membershipGeneration','credentialVersion'].every(k=>positive(result[k])) ||
       !hex(result.sourceDigest) || !hex(result.changesDigest)) throw failure('save-admission-request-invalid');
@@ -58,8 +59,8 @@ async function requestHash(request) {
     .map(n=>n.toString(16).padStart(2,'0')).join('');
 }
 
-export function createIsolatedAccountSaveAdmissionOwner({backend,pepper,now=Date.now}={}) {
-  if (backend?.fixtureOnly !== true || backend.boundary !== 'co-located-owner-fixture' ||
+export function createIsolatedAccountSaveAdmissionOwner({backend,pepper,now=Date.now,allowPortDataset=false}={}) {
+  if (![true,false].includes(allowPortDataset) || backend?.fixtureOnly !== true || backend.boundary !== 'co-located-owner-fixture' ||
       typeof backend.readPrimary !== 'function' || typeof backend.readAtCommit !== 'function' ||
       typeof pepper !== 'string' || pepper.length < 32 || typeof now !== 'function')
     throw failure('save-admission-owner-boundary-required');
@@ -83,10 +84,10 @@ export function createIsolatedAccountSaveAdmissionOwner({backend,pepper,now=Date
     if (!verified?.row) throw failure('save-admission-credential-invalid');
     return check(row,q,p);
   }
-  return Object.freeze({
+  const owner = Object.freeze({
     fixtureOnly:true,
     async prepare(value,{authorization}={}) {
-      const q = fixedRequest(value), operationKey = JSON.stringify([q.partitionId,q.datasetGeneration,q.operationId]);
+      const q = fixedRequest(value,allowPortDataset), operationKey = JSON.stringify([q.partitionId,q.datasetGeneration,q.operationId]);
       const serialized = JSON.stringify(q), previousRequest = operations.get(operationKey);
       if (previousRequest && previousRequest !== serialized) throw failure('save-admission-operation-conflict');
       const row = await authenticated(q,authorization);
@@ -117,7 +118,7 @@ export function createIsolatedAccountSaveAdmissionOwner({backend,pepper,now=Date
         const q = p.q, i = details?.control?.identity;
         if (details?.operationId !== q.operationId || details.action !== q.action || details.generation !== q.datasetGeneration ||
             details.head?.revision !== q.baseRevision || details.changesDigest !== q.changesDigest ||
-            details.targetKeys?.length !== 1 || details.targetKeys[0] !== q.targetKey ||
+            (q.action==='saveBpm'?(details.targetKeys?.length!==1||details.targetKeys[0]!==q.targetKey):!Array.isArray(details.targetKeys)||details.targetKeys.length===0) ||
             i?.ownership !== 'bound-account' || i.appId !== 'port' || i.datasetOwner !== 'port' ||
             i.partitionId !== q.partitionId || i.accountId !== q.accountId || i.accountGeneration !== q.accountGeneration ||
             i.membershipId !== q.membershipId || i.membershipGeneration !== q.membershipGeneration ||
@@ -133,4 +134,6 @@ export function createIsolatedAccountSaveAdmissionOwner({backend,pepper,now=Date
     },
     dispose() { disposed = true; operations.clear(); }
   });
+  if(allowPortDataset)datasetOwners.add(owner);
+  return owner;
 }

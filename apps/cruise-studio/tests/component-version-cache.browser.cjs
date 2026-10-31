@@ -48,13 +48,13 @@ test('F3: released versions, real cache paths and readonly workspace boot', asyn
             assert.equal(await p.evaluate(() => CruiseStudio.tunerRuntime.snapshot().state), 'idle');
             assert.equal(await p.evaluate(() => CruiseStudio.metronomeM1.snapshot().running), false);
             for (const file of ['js/app.js', 'js/port-data/panel.mjs', 'js/port-data/connection.mjs', 'js/modules/tuner/panel.mjs', 'js/modules/library/panel.mjs', 'js/modules/chord/form-panel.mjs', 'js/modules/chord/form-adapter.mjs', 'js/modules/chord/form-adoption.mjs', 'js/core/component-metadata.mjs']) {
-                assert.ok(requests.includes('/apps/cruise-studio/' + file + '?v=0.53.1'), file);
+                assert.ok(requests.includes('/apps/cruise-studio/' + file + '?v=0.53.2'), file);
             }
         });
         await t.test('registry import obtains Port owner ESM via its actual 1.24.23 URL', async () => {
             // Registry is a public reader API, not a claim that every Home feature activates it.
             report.versions = await p.evaluate(async () => {
-                const m = await import('/apps/cruise-studio/js/core/feature-registry.mjs?v=0.53.1');
+                const m = await import('/apps/cruise-studio/js/core/feature-registry.mjs?v=0.53.2');
                 return Object.fromEntries(m.listComponents().map(c => [c.componentId, c.appVersion]));
             });
             assert.deepEqual(report.versions, { 'cruise-port': '1.24.23', 'chord-cruise': '1.21.0', 'pitch-cruise': '2.30.0', 'fretboard-cruise': '2.25.0', 'rhythm-cruise': '1.21.0', 'cruise-studio': '0.53.0' });
@@ -73,7 +73,7 @@ test('F3: released versions, real cache paths and readonly workspace boot', asyn
         });
         await t.test('all observed Studio product cache URLs are current; zero stale owner URLs', async () => {
             for (const ref of requests.filter(r => r.startsWith('/apps/cruise-studio/') && /\.(js|mjs|css)\?/.test(r) && !r.includes('/vendor/'))) {
-                assert.equal(new URL(ref, origin).search, '?v=0.53.1', ref);
+                assert.equal(new URL(ref, origin).search, '?v=0.53.2', ref);
             }
             assert.equal(requests.includes('/apps/cruise-port/app-version.js?v=1.23.0'), false);
             assert.equal(requests.includes('/apps/cruise-port/app-version.js?v=1.23.1'), false);

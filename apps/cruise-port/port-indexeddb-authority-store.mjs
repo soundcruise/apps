@@ -1,3 +1,4 @@
+import {verifyDatasetOwnerCommitGuard} from './port-account-save-admission.mjs';
 import {validateSuccessorProof} from './port-successor-proof.mjs';
 import {CUTOVER_STOP,CUTOVER_PUBLICATION,CUTOVER_RECOVERY,validateCutoverStop,validateCutoverRoster,validateCutoverPin,originalOperationProof,recoveryRow,assertCutoverRecoveryApplication} from './port-owner-cutover-contract.mjs';
 import {validateConsumer} from '../shared/sync-account/owner-cutover-contract.mjs';
@@ -379,7 +380,7 @@ function makeStore(db,env,lifecycle,lease) {
         }
         return {ok:true};
     }
-    async function commit(handle,{commitGuard}={}) {
+    async function commit(handle,{commitGuard,ownerCommitGuard}={}) {
         const p=prepared.get(handle);if(!p)return rejected('prepared-handle-invalid');
         const ownerProof=ownerApplications.get(handle),cutoverRecovery=cutoverRecoveries.get(handle);
         const reservation=await reserveOperation(handle);if(!reservation.ok)return reservation;
@@ -447,6 +448,13 @@ function makeStore(db,env,lifecycle,lease) {
                 let authorizedAt;
                 try{authorizedAt=env.now();if(!Number.isFinite(authorizedAt)||authorizedAt<0)throw fail('authorization-time-invalid');}
                 catch(e){invalidateTrustedProClock(env.scope,p.authorizationContext);throw e;}
+                if(p.action==='savePortDataset') {
+                    if(typeof ownerCommitGuard!=='function'||!verifyDatasetOwnerCommitGuard(env.scope,ownerCommitGuard,p))throw fail('owner-commit-guard-required');
+                    const verdict=ownerCommitGuard(frozen({operationId:p.operationId,action:p.action,generation:p.generation,
+                        head:current?.head||null,control,targetKeys:Object.keys(p.changes),changesDigest:digest(p.changes)}));
+                    if(verdict?.then){verdict.catch?.(()=>{});throw fail('owner-commit-guard-async');}
+                    if(verdict!==true)throw fail('owner-commit-denied');
+                }
                 if((p.policy==='pro'||p.authorizationContext!==undefined)&&typeof commitGuard!=='function')throw fail('operation-commit-guard-required');
                 if(p.policy==='pro'&&!verifyTrustedProGuard(env.scope,p.authorizationContext,commitGuard,p)&&!env.testProvider?.verify(p.authorizationContext,commitGuard,p))throw fail('operation-guard-untrusted');
                 if(commitGuard!==undefined){
