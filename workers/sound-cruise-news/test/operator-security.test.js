@@ -73,3 +73,17 @@ test('category edit endpoint retains Access, origin, CSRF and bounded categories
  assert.equal((await call(env,'/api/category',token,{method:'POST',headers,body})).status,200);assert.equal((await(await call(env,path,token)).json()).category,'acoustic_guitar');
  for(const table of['news_decision_ledger','news_operator_feedback','news_shadow_evaluations'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+table).first()).n,0);
 });
+
+test('candidate-specific archival endpoints keep Access, feature flags and CSRF',async()=>{
+ const {s,env}=await environment(),token=await jwt(),session=await(await call(env,'/api/session',token)).json();
+ const configured={...env,NEWS_DOT_CONFIRMATION_ENABLED:'true',NEWS_DOT_PUBLICATION_ENABLED:'true'},path='/api/candidates/unknown/dot-history-exclusion',options={jwks,dotReader:{detail:async()=>null}};
+ const invoke=(credentials,headers={})=>handleOperatorRequest(new Request(origin+path,{method:'POST',headers:{...(credentials?{'Cf-Access-Jwt-Assertion':credentials}:{}),...headers},body:'{}'}),configured,now,options);
+ assert.equal((await invoke(null)).status,401);
+ assert.equal((await invoke(await jwt({email:'other@fixture.test'}))).status,403);
+ assert.equal((await invoke(token,{Origin:origin,'Content-Type':'application/json'})).status,403);
+ assert.equal((await invoke(token,{Origin:'https://evil.fixture.test','Content-Type':'application/json','X-News-CSRF':session.csrf})).status,403);
+ assert.equal((await invoke(token,{Origin:origin,'Content-Type':'application/json','X-News-CSRF':session.csrf})).status,422);
+ assert.equal((await handleOperatorRequest(new Request(origin+'/api/candidates/unknown/dot-history-subjects',{headers:{'Cf-Access-Jwt-Assertion':token}}),configured,now,options)).status,404);
+ assert.equal((await call(env,path,token,{method:'POST',body:'{}'})).status,404);
+ assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_dot_history_exclusions').first()).n,0);
+});
