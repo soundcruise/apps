@@ -1,4 +1,5 @@
-import { verifiedCutlineProvider } from './verified-cutline.mjs';
+import { maintenanceCutline } from "./maintenance-window.mjs";
+import { verifiedCutlineProvider } from "./verified-cutline.mjs";
 // Explicit signed operation API. No automatic discovery, resource creation or default execution.
 import { digest, fail, same, durable, readJournal } from "./contracts.mjs";
 import { openHost } from "./host.mjs";
@@ -23,6 +24,10 @@ export async function runApprovedOperation({
   fixture,
   readKeyFixture,
   observeFixture,
+  maintenanceEnvelope,
+  readFloor,
+  casFloor,
+  readDeployment,
 }) {
   // Freeze caller-owned grants before the first await, including optional scopes.
   ({
@@ -33,6 +38,7 @@ export async function runApprovedOperation({
     keyEnvelope,
     archiveEnvelope,
     inventory,
+    maintenanceEnvelope,
   } = structuredClone({
     envelope,
     scope,
@@ -41,6 +47,7 @@ export async function runApprovedOperation({
     keyEnvelope,
     archiveEnvelope,
     inventory,
+    maintenanceEnvelope,
   }));
   const p = authority.check(envelope, "execution", scope);
   if (
@@ -54,7 +61,30 @@ export async function runApprovedOperation({
     )
   )
     fail("execution-action");
-  if(!authority.synthetic&&["backup","resume-backup"].includes(p.action)&&(!/^[a-f0-9]{64}$/.test(p.cutlineWindowHash||"")||[readWindow,readReceipt,readWitness].some(f=>typeof f!=="function")))fail("production-cutline-provider-required");
+  if (
+    !authority.synthetic &&
+    ["backup", "resume-backup"].includes(p.action) &&
+    (!/^[a-f0-9]{64}$/.test(p.cutlineWindowHash || "") ||
+      [readWindow, readReceipt, readWitness].some(
+        (f) => typeof f !== "function",
+      ))
+  )
+    fail("production-cutline-provider-required");
+  if (!authority.synthetic && ["backup", "resume-backup"].includes(p.action)) {
+    if (
+      !maintenanceEnvelope ||
+      [readFloor, casFloor, readDeployment].some((f) => typeof f !== "function")
+    )
+      fail("production-maintenance-floor-required");
+    same(
+      p.bindings?.maintenance,
+      digest(maintenanceEnvelope),
+      "execution-maintenance-binding",
+    );
+    const m = authority.check(maintenanceEnvelope, "maintenance-window", scope);
+    if (m.operationId !== p.operationId || m.windowHash !== p.cutlineWindowHash)
+      fail("execution-maintenance-window");
+  }
   for (const [name, x] of Object.entries({
     host: hostEnvelope,
     resources: resourceEnvelope,
@@ -141,6 +171,18 @@ export async function runApprovedOperation({
         fixture,
       });
       try {
+        if (!authority.synthetic && backupAction) {
+          const m = authority.check(
+            maintenanceEnvelope,
+            "maintenance-window",
+            scope,
+          );
+          same(
+            m.sourceDigest,
+            digest(resources.identity),
+            "maintenance-source-identity",
+          );
+        }
         const validator = preStudioValidator({
           bucket: resources.bucket,
           expectedJournalHash: p.journalHash,
@@ -153,13 +195,46 @@ export async function runApprovedOperation({
             validator,
             resume: p.action === "resume-backup",
             operationId: p.operationId,
-            cutline: authority.synthetic ? cutlineProvider({
-              authority,
-              scope,
-              inventory,
-              operationId: p.operationId,
-              readWitness,
-            }) : verifiedCutlineProvider({authority,scope,inventory,operationId:p.operationId,source:resources.identity,expectedWindowHash:p.cutlineWindowHash,readWindow,readReceipt,readWitness}),
+            cutline: authority.synthetic
+              ? cutlineProvider({
+                  authority,
+                  scope,
+                  inventory,
+                  operationId: p.operationId,
+                  readWitness,
+                })
+              : maintenanceCutline({
+                  authority,
+                  envelope: maintenanceEnvelope,
+                  scope,
+                  readFloor,
+                  casFloor,
+                  readDeployment,
+                  claimFinalization: (intent) =>
+                    durable(
+                      path.join(
+                        host.journals,
+                        "maintenance-finalize-" + p.operationId + ".json",
+                      ),
+                      {
+                        kind: "maintenance-finalization-attempt",
+                        operationId: p.operationId,
+                        bindingHash: digest(maintenanceEnvelope),
+                        intent,
+                      },
+                    ),
+                  cutline: verifiedCutlineProvider({
+                    authority,
+                    scope,
+                    inventory,
+                    operationId: p.operationId,
+                    source: resources.identity,
+                    expectedWindowHash: p.cutlineWindowHash,
+                    readWindow,
+                    readReceipt,
+                    readWitness,
+                  }),
+                }),
           });
         return await (p.action === "restore" ? runRestore : reconcileRestore)({
           authority,
