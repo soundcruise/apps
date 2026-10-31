@@ -21,8 +21,8 @@ test('four Shell regions and two logical Dock slots exist once',()=>{
  assert.match(html,/<nav class="studio-nav"/);assert.match(html,/data-dock-slot="transport"/);assert.match(html,/data-dock-slot="auxiliary"/);
 });
 test('Navigation IDs resolve to real workspaces including retained Home/Apps',()=>{
- assert.deepEqual(Object.keys(WORKSPACES),['home','sheetCruise','preDtm','series','portPractice','practice','tuner','metronome','portGear','gear','portMyApps','myApps','portNews','news']);
- for(const [id,node] of Object.entries(WORKSPACES)){if(!['practice','gear','myApps','news'].includes(id))assert.match(html,new RegExp('data-workspace="'+id+'"'));assert.match(html,new RegExp('id="'+node+'"'));}
+ assert.deepEqual(Object.keys(WORKSPACES),['app_pitch','app_fretboard','app_rhythm','app_chord','home','sheetCruise','preDtm','series','portPractice','practice','tuner','metronome','portGear','gear','portMyApps','myApps','portNews','news']);
+ for(const [id,node] of Object.entries(WORKSPACES)){if(!id.startsWith('app_')&&!['practice','gear','myApps','news'].includes(id))assert.match(html,new RegExp('data-workspace="'+id+'"'));assert.match(html,new RegExp('id="'+node+'"'));}
  assert.match(html,/id="port-practice-overview"/);
  assert.match(html,/id="port-gear-overview"/);assert.match(html,/id="port-my-apps-overview"/);
 });
@@ -61,7 +61,7 @@ test('Shell colors use semantic tokens, with no palette literals or Port import'
  assert.match(css,/color-scheme: var\(--studio-color-scheme\)/);assert.doesNotMatch(html,/cruise-port\/.*\.css/);
 });
 test('four themes use the existing runtime, save failure is visible',()=>{
- assert.match(source,/colorTheme\.listColorThemes\(\)/);assert.match(source,/colorTheme\.setColorTheme\(input\.value\)/);assert.match(source,/result\.ok/);assert.match(html,/id="shell-theme-status" role="status"/);assert.doesNotMatch(source,/localStorage|cruisePort\.settings/);
+ assert.match(source,/colorTheme\.listColorThemes\(\)/);assert.match(source,/colorTheme\.setColorTheme\(input\.value\)/);assert.match(source,/result\.ok/);assert.match(html,/id="shell-theme-status" role="status"/);assert.doesNotMatch(source,/cruisePort\.settings/);assert.match(source,/cruiseStudio\.sidebarWidth/);
 });
 test('Main owns scroll and no Shell ancestor transforms fixed Loupe',()=>{
  assert.match(css,/\.studio-main \{[\s\S]*?overflow: auto; scrollbar-gutter: stable/);assert.match(source,/CS\.scroll\.setRoot\(id, main\)/);assert.doesNotMatch(css,/(?:^|\n)\s*(?:transform|filter|contain|backdrop-filter): (?!none)/);assert.doesNotMatch(source,/wheel/);

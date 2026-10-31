@@ -493,3 +493,16 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 }
 @media print { #studio-tool-toggle { display:none!important; } }
 .studio-pane-heading { padding-right:48px; }
+
+/* Resizable chrome keeps app-specific palettes inside each document. */
+@media screen and (min-width:601px){#studio-shell{grid-template-columns:var(--studio-sidebar-width,176px) minmax(0,1fr)}.studio-nav{position:relative}#studio-sidebar-resize{position:absolute;right:-4px;top:0;bottom:0;width:8px;cursor:ew-resize;touch-action:none;z-index:10}#studio-sidebar-resize:hover,#studio-sidebar-resize:focus-visible{background:var(--studio-border-strong);outline:2px solid var(--studio-focus)}}
+@media(max-width:600px){#studio-sidebar-resize{display:none}.studio-nav{grid-template-columns:minmax(0,1fr) 94px 66px}}
+#studio-tool-toggle{width:46px;height:46px;top:16px;right:16px;font-size:22px;border-radius:8px}
+.tool-window-bar{padding-right:72px;min-height:74px}
+.studio-pane-heading{padding-right:64px}
+.studio-series-frame{display:block;border:0;width:100%;height:calc(100dvh - 200px);min-height:400px;background:var(--studio-surface)}
+@media print{#studio-sidebar-resize{display:none!important}}
+
+.series-reopen{align-self:flex-start;width:44px;min-height:40px}
+
+.screen[id^="screen-app-"] > [data-open-tool]{align-self:flex-start}
