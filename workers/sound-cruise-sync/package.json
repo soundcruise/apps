@@ -1,6 +1,6 @@
 {
   "name": "sound-cruise-sync",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,6 +23,7 @@
     "test:production-freeze:open-native": "node scripts/production-freeze-open-native.mjs",
     "test:studio-maintenance": "node --test test/studio-maintenance-window.test.mjs",
     "test:studio-maintenance:normal-native": "node scripts/maintenance-normal-native.mjs",
+    "test:current-evidence": "node --test test/current-evidence.test.mjs",
     "test:current-floor": "node --test test/current-floor-transport.test.mjs"
   },
   "devDependencies": {

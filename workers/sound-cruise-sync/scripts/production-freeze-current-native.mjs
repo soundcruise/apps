@@ -3,9 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { generateKeyPairSync, sign } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { canonical, digest } from "./studio-operations/contracts.mjs";
 import { verifyFreezeState } from "../src/production-freeze-current.js";
+import { currentEvidenceStore } from "./studio-operations/current-evidence.mjs";
+import { privateCurrentReader } from "./studio-operations/private-current.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const out = process.env.CURRENT_CLOCK_OUTPUT;
@@ -108,6 +112,36 @@ try {
     await assert.rejects(() => validate(x, "6".repeat(64)), /freeze-state-untrusted/);
     x.receipt.signature = sign(null, Buffer.from("tampered"), operator.private).toString("base64");
     await assert.rejects(() => validate(x, "5".repeat(64)), /freeze-state-signature/);
+  });
+  await check("native signed CURRENT envelopes survive protected capture and separate-process verification", async () => {
+    const context = { sessionId: randomUUID(), source, ownerId: cfg.ownerId, minimumRevision: 0,
+      expectedEpoch: 1, synthetic: true, control: { account: "a".repeat(32), worker: "native-control",
+        namespaceId: cfg.namespaceId, versionId: randomUUID(), deploymentId: randomUUID(), artifactSHA256: digest(codeFixed) },
+      operatorPublicJwk: operator.public, operatorIssuerPin: digest(operator.public),
+      receiptPublicJwk: issuer.public, receiptIssuerPin: digest(issuer.public) };
+    const evidenceRoot = out + "/signed-evidence";
+    const store = currentEvidenceStore({ root: evidenceRoot, context });
+    const reader = privateCurrentReader({ source, ownerId: cfg.ownerId, minimumRevision: 0, synthetic: true,
+      publicJwk: issuer.public, issuerPin: digest(issuer.public), evidence: store,
+      async signRequest(kind, { nonce }) {
+        const issued = Date.now(), payload = { kind, nonce, sourceDigest: digest(source), issued, expires: issued + 120000 };
+        return { payload, signature: sign(null, Buffer.from(canonical(payload)), operator.private).toString("base64") };
+      },
+      binding: { async fetch(request) {
+        const body = await request.json(); return Response.json(await current(body.envelope.payload.nonce));
+      } },
+    });
+    const a = await reader.observe(), b = await reader.observe();
+    assert.notEqual(a.receipt.nonce, b.receipt.nonce);
+    assert.equal(a.receipt.revision, b.receipt.revision); assert.equal(a.receipt.epoch, b.receipt.epoch);
+    const independent = [];
+    for (const x of [a, b]) {
+      const p = spawnSync(process.execPath, [root + "/scripts/studio-operations/verify-current-evidence.mjs"], {
+        input: JSON.stringify({ root: evidenceRoot, nonce: x.savedEvidence.nonce,
+          expectedRecordHash: x.savedEvidence.recordFileHash, trustedContext: context }), encoding: "utf8" });
+      assert.equal(p.status, 0, p.stdout); independent.push(JSON.parse(p.stdout));
+    }
+    fs.writeFileSync(out + "/INDEPENDENT-VERIFICATION.json", JSON.stringify({ context, results: independent }, null, 2));
   });
   fs.writeFileSync(out + "/RESULT.json", JSON.stringify({ status: "PASS_NATIVE_CLOCK_BOUNDARY", tests: results,
     productionCalls: 0, realControlRestart: false,
