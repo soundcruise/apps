@@ -24,3 +24,13 @@ test('configured Worker forwards only validated app assertion to independently a
   const denyApi=createCloudRunReadApi({reader,issuer,audience:aud,operators:['different@fixture.test'],jwks,now:()=>now});globalThis.fetch=async(url,init)=>denyApi(new Request(url,init));const denied=await handleOperatorRequest(request(valid),env,now,{jwks});assert.equal(denied.status,503);assert.doesNotMatch(await denied.text(),/fixture-human|human@fixture|eyJ/);assert.equal(readCalls,1);
  }finally{globalThis.fetch=previous;}
 });
+test('Operator and isolated Access audiences never cross-authorize at either layer',async()=>{
+ const isolatedAud='b'.repeat(64);let reads=0;const reader={list:async()=>{reads++;return {items:[{id:'fictional',validation:{ready:false,formalFacts:false}}],historyComplete:false}},detail:async()=>null};
+ const isolatedApi=createCloudRunReadApi({reader,issuer,audience:isolatedAud,operators:['human@fixture.test'],jwks,now:()=>now});const operatorApi=createCloudRunReadApi({reader,issuer,audience:aud,operators:['human@fixture.test'],jwks,now:()=>now});const original=globalThis.fetch;const operatorJwt=await token(),isolatedJwt=await token({audience:isolatedAud});
+ try{
+  globalThis.fetch=async(url,init)=>isolatedApi(new Request(url,init));const mismatch=await handleOperatorRequest(request(operatorJwt),env,now,{jwks});assert.equal(mismatch.status,503);assert.equal(reads,0);
+  globalThis.fetch=async(url,init)=>operatorApi(new Request(url,init));const success=await handleOperatorRequest(request(operatorJwt),env,now,{jwks});assert.equal(success.status,200);assert.equal(reads,1);
+  const wrongOperator=await handleOperatorRequest(request(isolatedJwt),env,now,{jwks});assert.equal(wrongOperator.status,401);assert.equal(reads,1);
+  const directWrong=await operatorApi(new Request('https://run.fixture.test/v1/dot-candidates',{headers:{'Cf-Access-Jwt-Assertion':isolatedJwt}}));assert.equal(directWrong.status,401);assert.equal(reads,1);
+ }finally{globalThis.fetch=original;}
+});
