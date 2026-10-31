@@ -169,7 +169,7 @@
             home.setAttribute('aria-label', 'ホームに戻る');
             home.addEventListener('click', function () { navigate('home'); });
             nav.appendChild(back); nav.appendChild(home);
-            header.insertBefore(nav, header.firstChild);
+            header.parentNode.insertBefore(nav, header);
         });
         ['inspector', 'tool'].forEach(function (type) {
             doc.getElementById('shell-'+type).addEventListener('click', function () {

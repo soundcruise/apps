@@ -204,3 +204,7 @@
     .studio-main .home-series .module-card { transition: none; }
     .studio-main .home-series .module-card:is(:hover, :focus-visible) { transform: none; }
 }
+#studio-refresh { border: 1px solid var(--studio-border-default); border-radius: 7px; background: var(--studio-control); color: var(--studio-text-primary); min-width: 36px; min-height: 36px; cursor: pointer; }
+#studio-refresh:hover { background: var(--studio-control-hover); }
+#studio-refresh:focus-visible { outline: 2px solid var(--studio-focus); }
+#studio-refresh-status { color: var(--studio-text-muted); font-size: 12px; }

@@ -459,3 +459,5 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 
 .pc-news :is(button, select) { font: inherit; min-height: 40px; padding: 10px 12px; border: 1px solid var(--studio-border-default); border-radius: 7px; background: var(--studio-control); color: var(--studio-text-primary); }
 .pc-news button:disabled { opacity: .6; cursor: default; }
+/* Workspace controls stay inside the active scroll container and below dialogs. */
+.workspace-local-nav { position: sticky; top: 0; z-index: 20; width: max-content; margin-bottom: 0; padding: 4px; border-radius: 9px; background: var(--studio-surface); }
