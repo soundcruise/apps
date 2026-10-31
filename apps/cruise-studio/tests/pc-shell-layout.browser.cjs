@@ -5,10 +5,10 @@ const url=process.env.STUDIO_URL||'http://127.0.0.1:8766/apps/cruise-studio/inde
 test('PC Shell layout real Chrome',async t=>{
  const {libraryFixture,serializeFixture}=await import('./library-fixture.mjs');
  const audioFile=process.env.TUNER_FAKE_AUDIO;if(!audioFile||!fs.existsSync(audioFile))throw Error('synthetic TUNER_FAKE_AUDIO required');
- const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-audio-capture='+audioFile]});
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH,headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--use-file-for-fake-audio-capture='+audioFile]});
  const context=await browser.newContext({viewport:{width:390,height:600}}),p=await context.newPage();p.setDefaultTimeout(8000);
  const report={cases:[],screenshots:[]},errors=[],missing=[],external=[];
- await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin){if(!['GET','HEAD'].includes(r.request().method()))external.push(r.request().method()+' '+u.href);return r.continue();}if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});external.push(u.href);return r.abort();});
+ await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin&&u.pathname==='/__cruise_preview/news')return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({contractVersion:1,items:[],nextOffset:null})});if(u.origin===origin){if(!['GET','HEAD'].includes(r.request().method()))external.push(r.request().method()+' '+u.href);return r.continue();}if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});external.push(u.href);return r.abort();});
  await context.addInitScript(()=>{
  window.__layoutQA={writes:[],projectWrites:[],mutations:[],opens:[],unhandled:[],contexts:[],streams:[]};
  for(const method of ['setItem','removeItem','clear']){const fn=Storage.prototype[method];Storage.prototype[method]=function(key,...args){if(method==='clear'||/^(cruisePort\.|soundCruise|sound-cruise)/i.test(key))__layoutQA.writes.push({method,key});if(/^cruiseStudio\.project/.test(key))__layoutQA.projectWrites.push({method,key});return fn.call(this,key,...args);};}
@@ -84,7 +84,7 @@ test('PC Shell layout real Chrome',async t=>{
  await p.setViewportSize({width:390,height:600});await settle();
  });
  await step('600px Global Stop also cleans native Tuner without hidden navigation',async()=>{
- await nav('tuner');await p.click('#tuner-start');await p.waitForFunction(()=>CruiseStudio.tunerRuntime.snapshot().state==='active');await p.click('#shell-dock-toggle');await inside('#shell-audio-stop');await p.click('#shell-audio-stop');await p.waitForFunction(()=>CruiseStudio.tunerRuntime.snapshot().state==='idle');assert.equal(await p.evaluate(()=>__layoutQA.streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))),true);assert.equal(await p.evaluate(()=>__layoutQA.contexts.every(c=>c.state==='closed')),true);await p.click('#shell-dock-toggle');
+ await nav('tuner');await p.waitForFunction(()=>document.querySelector('#port-tuner-surface iframe')?.contentDocument.querySelector('#tuner-status')?.textContent==='マイク入力中');await p.click('#shell-dock-toggle');await inside('#shell-audio-stop');await p.click('#shell-audio-stop');await p.waitForFunction(()=>!document.querySelector('#port-tuner-surface iframe'));assert.equal(await p.evaluate(()=>__layoutQA.streams.every(s=>s.getTracks().every(t=>t.readyState==='ended'))),true);assert.equal(await p.evaluate(()=>__layoutQA.contexts.every(c=>c.state==='closed')),true);await p.click('#shell-dock-toggle');
  });
  await step('Practice Gear My Apps retain item/search focus and query after compact navigation',async()=>{
  await nav('practice');await p.click('#practice-read');await p.waitForFunction(()=>document.querySelector('#screen-practice').dataset.status==='ready');
@@ -101,8 +101,8 @@ test('PC Shell layout real Chrome',async t=>{
  await p.emulateMedia({media:'print'});for(const selector of ['.studio-nav','#studio-dock','#studio-right-pane','#sc-slot-overlay'])assert.equal(await p.locator(selector).evaluate(e=>getComputedStyle(e).display),'none');const r=await box('.sheet-page');assert(Math.abs(r.width-210*96/25.4)<1);assert.match(await p.locator('.sheet-page').innerText(),/Layout fixture/);await p.pdf({path:'/private/tmp/psl-print.pdf',preferCSSPageSize:true});await p.emulateMedia({media:'screen'});await settle();await inside('#sc-slot-overlay');
  });
  await step('source version, no-write, project unchanged and console/404/unhandled zero',async()=>{
- assert.equal(await p.locator('#studio-version').textContent(),'v0.49.1');assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.49.1');assert.equal(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty),false);assert.equal(await p.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().draft)),originalProject);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);
+ assert.equal(await p.locator('#studio-version').textContent(),'v0.53.0');assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.53.0');assert.equal(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty),false);assert.equal(await p.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().draft)),originalProject);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);
  const qa=await p.evaluate(()=>({writes:__layoutQA.writes,projectWrites:__layoutQA.projectWrites,mutations:__layoutQA.mutations,opens:__layoutQA.opens,unhandled:__layoutQA.unhandled}));assert.deepEqual(qa.writes,[]);assert.deepEqual(qa.projectWrites,[]);assert.deepEqual(qa.mutations,[]);assert.deepEqual(qa.unhandled,[]);assert(!qa.opens.some(n=>/authority|cruisePortGear|cruisePortMyApps|cruisePortPractice|pro-device/i.test(n)));assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.deepEqual(external,[]);report.noWrite=qa;
  });
- }finally{fs.writeFileSync('/private/tmp/psl-browser.json',JSON.stringify(report,null,2));await browser.close();}
+ }finally{fs.writeFileSync(require('node:path').join(require('node:os').tmpdir(),'psl-browser.json'),JSON.stringify(report,null,2));await context.close();await browser.close();}
 });

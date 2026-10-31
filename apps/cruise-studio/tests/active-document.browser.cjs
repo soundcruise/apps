@@ -3,7 +3,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const { chromium } = require('playwright');
 const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/index.html';
 test('Active Document alignment real Chrome', async t => {
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
     const p = await context.newPage(); p.setDefaultTimeout(8000); p.on('dialog', d => d.accept());
@@ -114,7 +114,7 @@ test('Active Document alignment real Chrome', async t => {
             assert.deepEqual(await get(), before); assert.match(await page.locator('#sc-save-status').innerText(), /中止/); await go('preDtm'); assert.equal(await page.locator('#pd-project-select').inputValue(), 'A');
         }));
         await t.test('four themes, five widths, pane/resize and Print preserve document and draft', () => fresh(async (page, { go, get, dl }) => {
-            const before = await get(); await go('preDtm'); assert.equal(await page.locator('#studio-version').textContent(), 'v0.49.1');
+            const before = await get(); await go('preDtm'); assert.equal(await page.locator('#studio-version').textContent(), 'v0.53.0');
             for (const theme of ['dark', 'charcoal', 'gray', 'light']) { await page.evaluate(x => CruiseStudio.colorTheme.setColorTheme(x), theme); for (const width of [390, 768, 1024, 1440, 1920]) { await page.setViewportSize({ width, height: 900 }); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); assert.equal(await page.locator('#pd-project-select').inputValue(), 'A'); assert.equal(JSON.parse(await dl('#pd-export-json')).projectId, 'A'); await page.screenshot({ path: '/private/tmp/ada-' + theme + '-' + width + '.png' }); } }
             await page.setViewportSize({ width: 1440, height: 900 }); await page.click('#shell-inspector'); await page.click('#shell-pane-close'); await go('sheetCruise'); assert.deepEqual(await get(), before); await page.emulateMedia({ media: 'print' }); assert.match(await page.locator('.sheet-page').innerText(), /Song A/); assert.equal(await page.locator('.studio-nav').evaluate(e => getComputedStyle(e).display), 'none'); await page.emulateMedia({ media: 'screen' });
         }));

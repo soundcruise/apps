@@ -184,6 +184,12 @@
             else if (options.shell.getCommandContext().audioOwner === runtime) options.shell.setCommandTarget('audioOwner', null);
         }
         listen(input, 'change', function () { runtime.setBpm(input.value); input.value = String(runtime.snapshot().bpm); });
+        Array.from(root.querySelectorAll('[data-studio-bpm-delta]')).forEach(function (button) {
+            listen(button, 'click', function () {
+                if (button.closest('[hidden], [inert]') || options.shell.getCommandContext().activeModal || options.shell.keyboard.isIMEBlocked({})) return;
+                runtime.setBpm(runtime.snapshot().bpm + Number(button.dataset.studioBpmDelta));
+            });
+        });
         listen(input, 'keydown', function (event) {
             if (event.defaultPrevented || input.closest('[hidden], [inert]') || options.shell.getCommandContext().activeModal || options.shell.keyboard.isIMEBlocked(event)) return;
             if (event.key === 'Enter') {

@@ -5,7 +5,7 @@
     else root.CruiseStudio.shell = factory();
 })(typeof globalThis === 'object' ? globalThis : this, function () {
     'use strict';
-    var WORKSPACES = Object.freeze({ home: 'screen-home', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', practice: 'screen-practice', tuner: 'screen-tuner', gear: 'screen-gear', myApps: 'screen-my-apps', news: 'screen-news' });
+    var WORKSPACES = Object.freeze({ home: 'screen-home', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', portPractice: 'screen-port-practice', practice: 'screen-practice', tuner: 'screen-tuner', metronome: 'screen-metronome', portGear: 'screen-port-gear', gear: 'screen-gear', portMyApps: 'screen-port-my-apps', myApps: 'screen-my-apps', portNews: 'screen-port-news', news: 'screen-news' });
     var PERSISTENT_MIN = 1280;
 
     function createWorkspaceHost(workspaces, view) {
@@ -55,7 +55,8 @@
         var dock = doc.getElementById('studio-dock');
         var layout = createLayoutState(shell.clientWidth);
         var positions = Object.create(null), focus = Object.create(null);
-        var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, practice: CS.practice, tuner: CS.tuner, gear: CS.gear, myApps: CS.myApps, news: CS.news };
+        var visitHistory = [];
+        var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, portPractice: CS.portPractice, practice: CS.practice, tuner: CS.tuner, metronome: CS.portMetronome, portGear: CS.portGear, gear: CS.gear, portMyApps: CS.portMyApps, myApps: CS.myApps, portNews: CS.portNews, news: CS.news };
         var nodes = {};
         var focusRouting = CS.focusRouting.createFocusRouting(doc, function () { return nodes[host.getActive()]; }, function () {
             return doc.querySelector('.studio-nav [aria-current="page"]');
@@ -132,8 +133,43 @@
             doc.getElementById('shell-dock-toggle').setAttribute('aria-expanded', String(!s.dockCollapsed));
             refreshGeometry();
         }
+        function navigate(id) {
+            if (modal.getActive() || !Object.hasOwn(WORKSPACES, id) || host.getActive() === id) return false;
+            if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(function () { navigate(id); })) return false;
+            if (host.getActive() === 'portGear' && CS.portGear.requestLeave(function () { navigate(id); })) return false;
+            if (host.getActive() === 'portMyApps' && CS.portMyApps.requestLeave(function () { navigate(id); })) return false;
+            var current = host.getActive();
+            if (current) {
+                visitHistory.push(current);
+                if (visitHistory.length > 40) visitHistory.shift();
+            }
+            return host.activate(id);
+        }
+        function goBack() {
+            if (modal.getActive()) return false;
+            if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(goBack)) return false;
+            if (host.getActive() === 'portGear' && CS.portGear.requestLeave(goBack)) return false;
+            if (host.getActive() === 'portMyApps' && CS.portMyApps.requestLeave(goBack)) return false;
+            var previous;
+            do { previous = visitHistory.pop(); } while (previous === host.getActive());
+            return host.activate(previous || 'home');
+        }
         doc.querySelectorAll('.studio-nav [data-workspace]').forEach(function (button) {
-            button.addEventListener('click', function () { host.activate(button.dataset.workspace); });
+            button.addEventListener('click', function () { navigate(button.dataset.workspace); });
+        });
+        doc.querySelectorAll('.screen:not(#screen-home) > .screen-header').forEach(function (header) {
+            var nav = doc.createElement('div');
+            nav.className = 'workspace-local-nav';
+            var back = doc.createElement('button');
+            back.type = 'button'; back.className = 'workspace-back'; back.textContent = '← 戻る';
+            back.setAttribute('aria-label', '前の画面に戻る');
+            back.addEventListener('click', goBack);
+            var home = doc.createElement('button');
+            home.type = 'button'; home.className = 'workspace-home'; home.textContent = '⌂ ホーム';
+            home.setAttribute('aria-label', 'ホームに戻る');
+            home.addEventListener('click', function () { navigate('home'); });
+            nav.appendChild(back); nav.appendChild(home);
+            header.insertBefore(nav, header.firstChild);
         });
         ['inspector', 'tool'].forEach(function (type) {
             doc.getElementById('shell-'+type).addEventListener('click', function () {
@@ -199,7 +235,7 @@
         renderLayout();
         host.activate('home');
         return Object.freeze({
-            navigate: function (id) { return modal.getActive() ? false : host.activate(id); },
+            navigate: navigate, goBack: goBack,
             getActiveWorkspace: host.getActive, getWorkspaceGeneration: host.getGeneration, getLayoutState: layout.get,
             getCommandContext: getCommandContext, commands: commands, keyboard: keyboard, modal: modal,
             setCommandTarget: function (name, value) {

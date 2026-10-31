@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),{chromium}=
 const {install:installSvgProbe,read:readSvg,painted,assertMeasure,cases:engravingCases}=require('./helpers/staff-svg-probe.cjs');
 const url=process.env.STUDIO_URL||'http://127.0.0.1:8767/apps/cruise-studio/index.html',origin=new URL(url).origin;
 test('Melody staff preview in real Structure',async t=>{
- const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),ctx=await browser.newContext();await require('./helpers/schema2-fixture.cjs').install(ctx);const p=await ctx.newPage();
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),ctx=await browser.newContext();await require('./helpers/schema2-fixture.cjs').install(ctx);const p=await ctx.newPage();
  const errors=[],missing=[],external=[];
  await ctx.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin&&r.request().method()==='GET')return r.continue();if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});external.push(u.href);return r.abort();});
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('response',r=>{if(r.status()>=400)missing.push(r.url());});
@@ -165,7 +165,7 @@ test('Melody staff preview in real Structure',async t=>{
   await p.evaluate(()=>{CruiseStudio.documents.select('staff-A');});await ready();
  });
  await t.test('no project writes/IDB, schema1, shared write OFF, Console/404/network zero',async()=>{
-  assert.deepEqual(await p.evaluate(()=>__staffWrites),[]);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.49.1');assert.equal(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.schemaVersion),2);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.deepEqual(external,[]);
+  assert.deepEqual(await p.evaluate(()=>__staffWrites),[]);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.53.0');assert.equal(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.schemaVersion),2);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.deepEqual(external,[]);
  });
  }finally{await ctx.close();await browser.close();}
 });

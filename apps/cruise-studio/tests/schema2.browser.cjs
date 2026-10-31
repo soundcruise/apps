@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),test=require('node:test'),assert=require('node:assert/strict'),{chromium}=require('playwright');
 const url=process.env.STUDIO_URL,origin=new URL(url).origin;
 test('Schema 2 M1 real Studio integration',async t=>{
- const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),ctx=await browser.newContext({viewport:{width:1440,height:1000}}),p=await ctx.newPage();
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),ctx=await browser.newContext({viewport:{width:1440,height:1000}}),p=await ctx.newPage();
  const ledger=[],phases=[];
  async function installAudit(context,scope){
   await context.exposeBinding('__recordSchema2Write',(_source,entry)=>{if(entry.kind==='barrier')return ledger.length;ledger.push({scope,...entry,sequence:ledger.length});return ledger.length;});
@@ -40,7 +40,7 @@ test('Schema 2 M1 real Studio integration',async t=>{
    const recorded=writes('counterexample',first).filter(e=>e.key==='schema2.audit.counterexample');assert.equal(recorded.length,2);assert.equal(new Set(recorded.map(e=>e.documentId)).size,2);assert(recorded[0].sequence<firstEnd);assert(recorded[1].sequence>=second);
   }finally{await probe.close();}
  });
- await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.49.1');});
+ await t.test('load migrates memory only and displays pending migration separately',async()=>{let s=await check();assert.equal(s.draft.schemaVersion,2);assert.equal(s.raw,s.revision);assert.equal(s.dirty,false);assert.deepEqual(s.writes,[]);assert.match(await p.locator('#sc-save-status').innerText(),/変換済み・未保存/);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.53.0');});
  await t.test('F1 unconfirmed legacy pitch edit retains 240/180, ID/provenance, Undo and A/B',async()=>{
   const before=await check();await p.locator('.sheet-bar').first().click();await p.locator('[data-overlay-field=doremi]').fill('レ');await p.locator('[data-overlay-field=doremi]').press('Tab');
   const after=await check(),old=before.draft.bars[0].melody[0],note=after.draft.bars[0].melody[0];
