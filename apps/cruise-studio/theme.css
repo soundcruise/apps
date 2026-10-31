@@ -2500,3 +2500,6 @@ body.loupe-resizing {
         grid-template-columns: 1fr;
     }
 }
+.sheet-bar-actions { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.sheet-bar-actions button, #sc-transpose-up, #sc-transpose-down { min-width: 36px; min-height: 36px; border: 1px solid var(--studio-border-default); border-radius: 6px; background: var(--studio-control); color: var(--studio-text-primary); cursor: pointer; }
+.sheet-bar-actions button:focus-visible, #sc-transpose-up:focus-visible, #sc-transpose-down:focus-visible { outline: 2px solid var(--studio-focus); }

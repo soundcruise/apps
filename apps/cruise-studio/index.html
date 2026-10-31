@@ -7,30 +7,30 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.58.0"></script>
+    <script src="js/core/color-theme.js?v=0.59.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.58.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.59.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.58.0">
-    <link rel="stylesheet" href="melody-staff.css?v=0.58.0">
-    <link rel="stylesheet" href="melody-editor.css?v=0.58.0">
-    <link rel="stylesheet" href="shell.css?v=0.58.0">
-    <link rel="stylesheet" href="studio-home.css?v=0.58.0">
-    <link rel="stylesheet" href="studio-tools.css?v=0.58.0">
-    <link rel="stylesheet" href="port-tuner-surface.css?v=0.58.0">
-    <link rel="stylesheet" href="chord-form.css?v=0.58.0">
+    <link rel="stylesheet" href="theme.css?v=0.59.0">
+    <link rel="stylesheet" href="melody-staff.css?v=0.59.0">
+    <link rel="stylesheet" href="melody-editor.css?v=0.59.0">
+    <link rel="stylesheet" href="shell.css?v=0.59.0">
+    <link rel="stylesheet" href="studio-home.css?v=0.59.0">
+    <link rel="stylesheet" href="studio-tools.css?v=0.59.0">
+    <link rel="stylesheet" href="port-tuner-surface.css?v=0.59.0">
+    <link rel="stylesheet" href="chord-form.css?v=0.59.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.58.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.59.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
     <!-- service-worker / manifest は当面作らない（ADR-002） -->
-    <link rel="stylesheet" href="rhythm-panel.css?v=0.58.0">
-    <link rel="stylesheet" href="cloud-panel.css?v=0.58.0">
+    <link rel="stylesheet" href="rhythm-panel.css?v=0.59.0">
+    <link rel="stylesheet" href="cloud-panel.css?v=0.59.0">
 </head>
 
 <body>
@@ -72,7 +72,7 @@
 
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
-                <span class="studio-version" id="studio-version">v0.58.0</span>
+                <span class="studio-version" id="studio-version">v0.59.0</span>
             </header>
 
             <section class="module-section studio-cloud-panel" data-studio-cloud-panel aria-label="Cloud Sync"></section>
@@ -191,6 +191,15 @@
                     <button type="button" id="sc-undo" class="btn-ghost btn-compact" disabled aria-label="元に戻す" aria-keyshortcuts="Meta+Z Control+Z" title="元に戻す（⌘Z / Ctrl+Z）。入力欄ではブラウザーのUndoを使います">元に戻す</button>
                     <button type="button" id="sc-redo" class="btn-ghost btn-compact" disabled aria-label="やり直す" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z" title="やり直す（⌘⇧Z / Ctrl+Shift+Z）。入力欄ではブラウザーのRedoを使います">やり直す</button>
                     <button type="button" id="sc-save" class="btn-primary btn-compact">保存</button>
+                    <span class="sheet-bar-actions" role="group" aria-label="選択小節を編集">
+                        <button type="button" data-bar-operation="addBar" title="選択小節の後に追加" aria-label="小節を追加">＋</button>
+                        <button type="button" data-bar-operation="duplicateBar" title="選択小節を複製" aria-label="小節を複製">⧉</button>
+                        <button type="button" data-bar-operation="moveBar" data-direction="-1" title="前の位置へ移動。境界では所属セクションも変更" aria-label="小節を前へ">←</button>
+                        <button type="button" data-bar-operation="moveBar" data-direction="1" title="次の位置へ移動。境界では所属セクションも変更" aria-label="小節を後ろへ">→</button>
+                        <button type="button" data-bar-operation="deleteBar" title="選択小節を削除" aria-label="小節を削除">−</button>
+                    </span>
+                    <button type="button" id="sc-transpose-down" title="実音を半音下げる。カポは変更しません" aria-label="実音を半音下げる">♭</button>
+                    <button type="button" id="sc-transpose-up" title="実音を半音上げる。カポは変更しません" aria-label="実音を半音上げる">♯</button>
                     <button type="button" id="sc-goto-pre-dtm" class="btn-ghost btn-compact" aria-label="プレDTMで伴奏を確認" title="現在の譜面から伴奏イベントを確認・書き出し">♫</button>
                     <button type="button" id="sc-print" class="btn-ghost btn-compact">印刷</button>
                     <button type="button" id="sc-export-json" class="btn-ghost btn-compact">JSON書き出し</button>
@@ -200,6 +209,7 @@
                 </div>
                 <button type="button" id="sc-adopt-external" class="btn-ghost" hidden>保存済みを採用</button>
                 <span id="sc-history-status" class="studio-history-announcement" role="status" aria-live="polite"></span>
+                <span id="sc-edit-error" class="save-status is-error" role="alert"></span>
                 <span id="sc-save-status" class="save-status" aria-live="polite"></span>
             </div>
 
@@ -656,66 +666,66 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/port-frame-theme.js?v=0.58.0"></script>
-    <script src="js/core/music-theory.js?v=0.58.0"></script>
+    <script src="js/core/port-frame-theme.js?v=0.59.0"></script>
+    <script src="js/core/music-theory.js?v=0.59.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/caged-forms.js?v=1.21.0"></script>
-    <script src="js/modules/chord/read-model.js?v=0.58.0"></script>
-    <script src="js/modules/chord/inspector.js?v=0.58.0"></script>
-    <script src="js/core/rhythm-snapshot.js?v=0.58.0"></script>
-    <script src="js/core/schema2.js?v=0.58.0"></script>
-    <script src="js/core/melody-commands.js?v=0.58.0"></script>
-    <script src="js/core/song-model.js?v=0.58.0"></script>
-    <script src="js/core/storage.js?v=0.58.0"></script>
-    <script src="js/core/editing-session.js?v=0.58.0"></script>
-    <script src="js/core/project-repository.js?v=0.58.0"></script>
-    <script src="js/core/active-document.js?v=0.58.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.58.0"></script>
-    <script src="js/modules/sheet-cruise/history-commands.js?v=0.58.0"></script>
-    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.58.0"></script>
-    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.58.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.58.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.58.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.58.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.58.0"></script>
-    <script src="js/core/command-router.js?v=0.58.0"></script>
-    <script src="js/core/focus-routing.js?v=0.58.0"></script>
-    <script src="js/core/keyboard-router.js?v=0.58.0"></script>
-    <script src="js/core/modal-manager.js?v=0.58.0"></script>
-    <script src="js/shell.js?v=0.58.0"></script>
-    <script src="js/modules/practice/workspace.js?v=0.58.0"></script>
-    <script src="js/modules/practice/port-surface.js?v=0.58.0"></script>
-    <script src="js/modules/tuner/port-surface.js?v=0.58.0"></script>
-    <script src="js/modules/metronome/port-surface.js?v=0.58.0"></script>
-    <script src="js/modules/library/workspace.js?v=0.58.0"></script>
-    <script src="js/modules/library/port-surface.js?v=0.58.0"></script>
-    <script src="js/core/audio-coordinator.js?v=0.58.0"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.58.0"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.58.0"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.58.0"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.58.0"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.58.0"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.58.0"></script>
-    <script src="js/core/common-music-model.js?v=0.58.0"></script>
-    <script src="js/core/structure-conversion.js?v=0.58.0"></script>
+    <script src="js/modules/chord/read-model.js?v=0.59.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.59.0"></script>
+    <script src="js/core/rhythm-snapshot.js?v=0.59.0"></script>
+    <script src="js/core/schema2.js?v=0.59.0"></script>
+    <script src="js/core/melody-commands.js?v=0.59.0"></script>
+    <script src="js/core/song-model.js?v=0.59.0"></script>
+    <script src="js/core/storage.js?v=0.59.0"></script>
+    <script src="js/core/editing-session.js?v=0.59.0"></script>
+    <script src="js/core/project-repository.js?v=0.59.0"></script>
+    <script src="js/core/active-document.js?v=0.59.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.59.0"></script>
+    <script src="js/modules/sheet-cruise/history-commands.js?v=0.59.0"></script>
+    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.59.0"></script>
+    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.59.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.59.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.59.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.59.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.59.0"></script>
+    <script src="js/core/command-router.js?v=0.59.0"></script>
+    <script src="js/core/focus-routing.js?v=0.59.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.59.0"></script>
+    <script src="js/core/modal-manager.js?v=0.59.0"></script>
+    <script src="js/shell.js?v=0.59.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.59.0"></script>
+    <script src="js/modules/practice/port-surface.js?v=0.59.0"></script>
+    <script src="js/modules/tuner/port-surface.js?v=0.59.0"></script>
+    <script src="js/modules/metronome/port-surface.js?v=0.59.0"></script>
+    <script src="js/modules/library/workspace.js?v=0.59.0"></script>
+    <script src="js/modules/library/port-surface.js?v=0.59.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.59.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.59.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.59.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.59.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.59.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.59.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.59.0"></script>
+    <script src="js/core/common-music-model.js?v=0.59.0"></script>
+    <script src="js/core/structure-conversion.js?v=0.59.0"></script>
     <script src="vendor/vexflow.js?v=4.2.3"></script>
-    <script src="js/core/melody-notation.js?v=0.58.0"></script>
-    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.58.0"></script>
-    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.58.0"></script>
-    <script src="js/app.js?v=0.58.0"></script>
-    <script type="module" src="js/modules/port-pro-components.mjs?v=0.58.0"></script>
-    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.58.0"></script>
-    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.58.0"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.58.0"></script>
-    <script type="module" src="js/modules/tuner/panel.mjs?v=0.58.0"></script>
-    <script type="module" src="js/modules/tuner/quick-panel.mjs?v=0.58.0"></script>
-    <script type="module" src="js/modules/library/panel.mjs?v=0.58.0"></script>
-    <script type="module" src="js/modules/pc-home-news.mjs?v=0.58.0"></script>
-    <script type="module" src="js/modules/series/official-links.mjs?v=0.58.0"></script>
-    <script src="../shared/sync-account/sync-account-core.js?v=0.58.0"></script>
-    <script src="../shared/pro-device-session.js?v=0.58.0"></script>
-    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.58.0"></script>
+    <script src="js/core/melody-notation.js?v=0.59.0"></script>
+    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.59.0"></script>
+    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.59.0"></script>
+    <script src="js/app.js?v=0.59.0"></script>
+    <script type="module" src="js/modules/port-pro-components.mjs?v=0.59.0"></script>
+    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.59.0"></script>
+    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.59.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.59.0"></script>
+    <script type="module" src="js/modules/tuner/panel.mjs?v=0.59.0"></script>
+    <script type="module" src="js/modules/tuner/quick-panel.mjs?v=0.59.0"></script>
+    <script type="module" src="js/modules/library/panel.mjs?v=0.59.0"></script>
+    <script type="module" src="js/modules/pc-home-news.mjs?v=0.59.0"></script>
+    <script type="module" src="js/modules/series/official-links.mjs?v=0.59.0"></script>
+    <script src="../shared/sync-account/sync-account-core.js?v=0.59.0"></script>
+    <script src="../shared/pro-device-session.js?v=0.59.0"></script>
+    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.59.0"></script>
 </body>
 
 </html>
