@@ -8,7 +8,7 @@ import {candidateSnapshot} from './operator-review.js';
 import {candidateScopeKeys,candidateFence,SCOPE_RULE} from './dot-candidate-fence.js';
 import {retainedArticleHashes,hasRetainedHumanRejection} from './dot-retained-decisions.js';
 
-// Read-only diagnostic. It cannot prove source freshness or atomically lock
+// Diagnostic with an internal D1 witness cache. It cannot atomically lock
 // Firestore and D1, so it never grants publication authority.
 export async function dotPublicationGate(store,reader,id,now,registry,pepper){
  let startFence=null,scopeKeys=null;
@@ -45,5 +45,5 @@ export async function dotPublicationGate(store,reader,id,now,registry,pepper){
  const identityValues=[...(Array.isArray(current?.candidate?.entity?.models)?current.candidate.entity.models:[]),current?.candidate?.entity?.product].filter(x=>typeof x==='string'&&x.trim());if(!identityValues.length||identityValues.some(x=>x.trim().length<4))blockers.push('identity_search_incomplete');
  if(!startFence||!endFence||JSON.stringify(startFence)!==JSON.stringify(endFence))blockers.push('history_changed_during_check');
  blockers.push(...disqualifying);const status=disqualifying.length?'BLOCK':blockers.length?'HOLD':'PASS';if(status==='PASS')checks.atomicity='D1_FENCED_EXTERNAL_UNRESOLVED';
- return {status,candidateId:id,ruleVersion:SCOPE_RULE,checkedAt:now,checks,scopeCoverage,blockers:[...new Set(blockers)],residualRisk:'external_state_can_change_after_read',...(status==='PASS'?{fence:{snapshotParts:endFence.parts,scopeDigest:endFence.digest,scopeEvidenceIds:endFence.summary.evidence,sourceCheckId:sourceCheck.request_id,historyCheckId:historyCheck.request_id,receiptId:receipt.request_id,candidateDigest:receipt.candidate_digest,stagingRevision:receipt.staging_revision,ruleVersion:SCOPE_RULE,expiresAt:Math.min(sourceCheck.checked_at+300000,historyCheck.checked_at+300000,confirmation.confirmed_at+DAY,endFence.summary.evidenceExpiresAt??Number.MAX_SAFE_INTEGER)}}:{})};
+ return {status,candidateId:id,ruleVersion:SCOPE_RULE,checkedAt:now,checks,scopeCoverage,blockers:[...new Set(blockers)],residualRisk:'external_state_can_change_after_read',...(status==='PASS'?{fence:{snapshotParts:endFence.parts,scopeDigest:endFence.digest,scopeWitnessId:endFence.witnessId,scopeEvidenceCount:endFence.summary.evidenceCount,scopeEvidenceVersion:endFence.summary.evidenceVersion,sourceCheckId:sourceCheck.request_id,historyCheckId:historyCheck.request_id,receiptId:receipt.request_id,candidateDigest:receipt.candidate_digest,stagingRevision:receipt.staging_revision,ruleVersion:SCOPE_RULE,expiresAt:Math.min(sourceCheck.checked_at+300000,historyCheck.checked_at+300000,confirmation.confirmed_at+DAY,endFence.summary.evidenceExpiresAt??Number.MAX_SAFE_INTEGER)}}:{})};
 }
