@@ -41,3 +41,10 @@ test('triage prompt makes freshness and signature uncertainty explicit',async()=
  assert.match(messages[0].content,/If date is absent or unclear, use medium or low priority/);
  assert.match(messages[0].content,/compilations/);
 });
+
+test('default rotation favors Japanese while preserving English discovery',async()=>{
+ const {rotatedQueries,DEFAULT_QUERIES,hasJapaneseTitle}=await import('../src/web-discovery.js');
+ const start=Date.parse('2026-11-01T00:00:00+09:00');let english=false;
+ for(let day=0;day<8;day++){const q=rotatedQueries(DEFAULT_QUERIES,start+day*86400000);assert(q.filter(hasJapaneseTitle).length>=2);english ||= q.some(x=>!hasJapaneseTitle(x));}
+ assert(english);assert.equal(hasJapaneseTitle('Emerald X20'),false);assert.equal(hasJapaneseTitle('新製品 Headway'),true);
+});

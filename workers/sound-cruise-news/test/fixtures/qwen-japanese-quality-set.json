@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ja_limited",
+    "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/97022/",
+    "title": "Headwayの旗艦シリーズ「The Eagle」に伝統の漆塗装を施したマホガニー＆ローズウッド限定モデルが登場 | 楽器情報メディア - 島村楽器 Update!",
+    "expected": "limited"
+  },
+  {
+    "id": "ja_new",
+    "url": "https://www.yamaha.com/ja/news_release/2026/26091801/",
+    "title": "シンガーソングライターの演奏表現を支える新たなハイエンドモデル　ヤマハ アコースティックギター『FG7』『FS7』 - ニュースリリース - ヤマハ株式会社",
+    "expected": "launch"
+  },
+  {
+    "id": "ja_signature",
+    "url": "https://acousticguitarmagazine.jp/2026-1001-martin-crosroads-erickclapton-signature/",
+    "title": "マーティンより“Crossroads Collection”クラプトン限定シグネチャー・アコギ2モデル発表！ | アコースティック・ギター・マガジンWEB",
+    "expected": "signature_not_signed"
+  },
+  {
+    "id": "ja_roundup",
+    "url": "https://nihon-meisho.com/3547/",
+    "title": "2026年9月に登場したアコギ新製品まとめ - アコースティックギター博士",
+    "expected": "summary"
+  },
+  {
+    "id": "ja_store",
+    "url": "https://www.watanabe-mi.com/shopping/list/p182663/",
+    "title": "Headway ヘッドウェイ HC-桜仙峡’26/ATB PPS-GRD 国産 アコースティックギター りくごうおうせんきょう 限定生産品 送料無料! | ワタナベ楽器店 ONLINE SHOP",
+    "expected": "store_listing"
+  }
+]

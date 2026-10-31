@@ -17,10 +17,10 @@ test('persistent workerd D1: Exa fixture → mock AI → authenticated Operator 
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_DAILY_LIMIT:'5'};let searches=0,models=0;
   const dependencies={search:async()=>fixtures[searches++%3].items,classify:async hints=>{models++;return hints.map(estimate);}};
-  const result=await runWebDiscovery(env,now,dependencies);assert.equal(result.searches,3);assert.equal(result.ai_calls,2);assert.equal(models,2);
-  let data=await listWebHints(env,now);assert.equal(data.items.length,15);assert(data.items.some(i=>i.estimate?.brand==='Emerald'));assert(data.items.some(i=>i.title.includes('Headway')));assert(data.items.some(i=>i.status==='excluded'));assert(data.items.every(i=>i.formalFacts===false&&i.publishedAt===null));
-  await runWebDiscovery(env,now,dependencies);assert.equal(models,2); // classified URLs are not reevaluated
-  await runWebDiscovery(env,now,dependencies);assert.equal(searches,5);assert.equal(models,2);
+  const result=await runWebDiscovery(env,now,dependencies);assert.equal(result.searches,3);assert.equal(result.ai_calls,1);assert.equal(models,1);
+  let data=await listWebHints(env,now);assert.equal(data.items.length,15);assert(data.items.some(i=>i.title.includes('Emerald')&&i.status==='hold'&&i.reason==='japanese_article_unconfirmed')); assert(data.items.some(i=>i.title.includes('Headway')));assert(data.items.some(i=>i.titleLanguageHint==='japanese_unconfirmed')); assert(data.items.every(i=>i.formalFacts===false&&i.publishedAt===null&&i.publicationCandidate===false&&i.pageLanguage==='unverified'));
+  await runWebDiscovery(env,now,dependencies);assert.equal(models,1); // classified and language-hold URLs are not reevaluated
+  await runWebDiscovery(env,now,dependencies);assert.equal(searches,5);assert.equal(models,1);
   assert.equal((await runtime.db.prepare('SELECT COUNT(*) n FROM candidate_items').first()).n,0);
   const {privateKey,publicKey}=await generateKeyPair('RS256'),issuer='https://fixture.cloudflareaccess.com',aud='a'.repeat(64),origin='https://operator.fixture.test';
   const jwks=createLocalJWKSet({keys:[{...await exportJWK(publicKey),kid:'fixture'}]});
@@ -40,9 +40,9 @@ test('failed model holds, invalid output rejected, known URL and denied host avo
  const dir=await mkdtemp(join(tmpdir(),'web-hold-'));const runtime=await localDatabase(dir);
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["acoustic"]',NEWS_WEB_DENIED_HOSTS:'["blocked.test"]'};
-  const d={search:async()=>[{url:'https://blocked.test/news',title:'blocked'},{url:'https://example.test/new',title:'<script>bad</script>'}],classify:async()=>[{formalFacts:true}]};
+  const d={search:async()=>[{url:'https://blocked.test/news',title:'blocked'},{url:'https://example.test/new',title:'<script>悪意</script>'}],classify:async()=>[{formalFacts:true}]};
   await runWebDiscovery(env,now,d);let data=await listWebHints(env,now);assert.equal(data.items.length,1);assert.equal(data.items[0].status,'hold');assert.equal(data.items[0].reason,'classification_failed');
-  const view=renderWebDiscovery(dom,data);assert.equal(view.children[1].children[0].textContent,'<script>bad</script>');
+  const view=renderWebDiscovery(dom,data);assert.equal(view.children[1].children[0].textContent,'<script>悪意</script>');
   const before=(await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls;await runWebDiscovery(env,now,d);assert.equal((await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls,before);
   await runWebDiscovery(env,now+31*86400000,{search:async()=>[],classify:()=>assert.fail()});assert.equal((await listWebHints(env,now+31*86400000)).items.length,0);
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
