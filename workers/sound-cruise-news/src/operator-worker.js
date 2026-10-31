@@ -13,6 +13,7 @@ import {authenticateOperator,csrfToken,verifyCsrf} from './operator-auth.js';
 import {createDotCloudRunProxy,configuredDotProxy} from './dot-cloudrun-proxy.js';
 import {compareDotWithNews} from './dot-news-comparison.js';
 import {readDotNewsSnapshot} from './dot-news-snapshot.js';
+import {dotSnapshot,saveDotConfirmation} from './dot-human-confirmation.js';
 import {NewsStore} from './store.js';
 import {runtimeSources} from './runtime.js';
 import {reviewQueue,reviewDetail,operatorDecision,candidateSnapshot} from './operator-review.js';
@@ -35,11 +36,20 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   const isDotRoute=url.pathname==='/api/dot-capabilities'||url.pathname==='/api/dot-candidates'||url.pathname.startsWith('/api/dot-candidates/');
   const assertion=request.headers.get('Cf-Access-Jwt-Assertion');
   const dotReader=isDotRoute?(options.dotReader||(options.dotProxy?createDotCloudRunProxy({...options.dotProxy,assertion}):configuredDotProxy(env,assertion))):null;
-  if(request.method==='GET'&&url.pathname==='/api/dot-capabilities')return json({available:Boolean(dotReader)});
+  if(request.method==='GET'&&url.pathname==='/api/dot-capabilities')return json({available:Boolean(dotReader),humanConfirmation:Boolean(dotReader)&&env.NEWS_DOT_CONFIRMATION_ENABLED==='true'});
+  if(request.method==='POST'&&url.pathname==='/api/dot-candidates/confirm'){
+   if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true')return json({error:'not_found'},404);
+   await verifyCsrf(request,identity,env,now);return json(await saveDotConfirmation(env.NEWS_DB,dotReader,await inputJSON(request),identity.actor,now));
+  }
+  if(request.method==='GET'&&/^\/api\/dot-candidates\/confirm\/[A-Za-z0-9_-]{16,100}$/.test(url.pathname)){
+   if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true')return json({error:'not_found'},404);
+   if(url.search)throw Error('operator_query_invalid');const row=await env.NEWS_DB.prepare('SELECT candidate_id,candidate_digest,staging_revision,confirmed_at,evidence_json,outcome FROM news_dot_confirmations WHERE request_id=? AND actor_id=?').bind(url.pathname.split('/').at(-1),identity.actor.id).first();
+   if(!row)return json({error:'not_found'},404);return json({candidateId:row.candidate_id,digest:row.candidate_digest,revision:row.staging_revision,confirmedAt:row.confirmed_at,...JSON.parse(row.evidence_json),formalFacts:false,ready:false,registration:'NOT_AVAILABLE'});
+  }
   if(request.method==='GET'&&(url.pathname==='/api/dot-candidates'||/^\/api\/dot-candidates\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname))){
    if(!dotReader)throw Error('operator_not_configured');
    const detail=url.pathname!=='/api/dot-candidates';let output;
-   if(detail){if(url.search)throw Error('operator_query_invalid');output=await dotReader.detail(url.pathname.split('/').at(-1));if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');let snapshot;try{snapshot=options.dotNewsSnapshot?await options.dotNewsSnapshot():await readDotNewsSnapshot(env.NEWS_DB,output.candidate);}catch{}output={...output,...compareDotWithNews(output.candidate,snapshot),formalComparison:'NOT_EVALUATED'};}
+   if(detail){if(url.search)throw Error('operator_query_invalid');const id=url.pathname.split('/').at(-1);output=await dotReader.detail(id);if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');let snapshot;try{snapshot=options.dotNewsSnapshot?await options.dotNewsSnapshot():await readDotNewsSnapshot(env.NEWS_DB,output.candidate);}catch{}let confirmationSnapshot=null;if(env.NEWS_DOT_CONFIRMATION_ENABLED==='true'){try{confirmationSnapshot=await dotSnapshot(output,id);}catch{}}output={...output,...compareDotWithNews(output.candidate,snapshot),formalComparison:'NOT_EVALUATED',confirmationSnapshot};}
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
