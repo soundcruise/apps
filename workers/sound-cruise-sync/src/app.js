@@ -279,6 +279,10 @@ async function authenticatedContext(request, env, appId, dependencies, writerInp
   const writerAdmission = writerInput === null ? null : await (dependencies.admitWriter || admitWriter)(session, identity, writerInput, authority, { policy: dependencies.writerPolicy, proCredentialId: dependencies.verifiedProId, proVerifier: dependencies.verifiedProVerifier, deviceVerifier, defer: new URL(request.url).pathname === '/v1/sync/bootstrap' });
   if (writerAdmission?.error) return writerAdmission;
   const mutationSession = (dependencies.writerMutationDatabase || writerMutationDatabase)(session, writerAdmission);
+  if (appId === 'port' && new URL(request.url).pathname === '/v1/sync/push') {
+    if (!dependencies.verifiedProProof) return { error: 'pro_auth_unavailable', status: 503 };
+    identity = { ...identity, proProof: dependencies.verifiedProProof };
+  }
   const createRepository = dependencies.createRepository || createD1SyncRepository;
   return { session, mutationSession, identity, writerAdmission,
     repository: createRepository(mutationSession), authority };
@@ -1169,7 +1173,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
       return errorResponse(403, entitlement?.code || 'pro_required', origin, route);
     }
     // Extract only AFTER the existing verifier/scope/generation/session check succeeded.
-    dependencies = { ...dependencies, verifiedProId: entitlement.writerProof?.id || request.headers.get(PRO_HEADER)?.match(/^Bearer scp1\.([^.]+)\./)?.[1] || null, verifiedProVerifier: entitlement.writerProof?.verifier };
+    dependencies = { ...dependencies, verifiedProId: entitlement.writerProof?.id || request.headers.get(PRO_HEADER)?.match(/^Bearer scp1\.([^.]+)\./)?.[1] || null, verifiedProVerifier: entitlement.writerProof?.verifier, verifiedProProof: entitlement.writerProof };
   }
   if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies, runtimeControl);
   if (url.pathname === '/v1/sync/bootstrap') return handleBootstrap(request, env, origin, route, dependencies);

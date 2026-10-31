@@ -10624,7 +10624,8 @@ async function inspectProCredentialReadOnly(headerValue, env, dependencies = {})
   const row = await credential(session, parsed);
   if (!row || row.scope !== "global_pro" || row.revoked_at !== null) return { ok: false, code: "pro_required" };
   if (row.generation !== current.generation) return { ok: false, code: "pro_reauth_required" };
-  return backendSessionDecision(row, current, dependencies.now ? dependencies.now() : Date.now());
+  const decision = backendSessionDecision(row, current, dependencies.now ? dependencies.now() : Date.now());
+  return decision.ok && dependencies.includeWriterProof ? { ...decision, writerProof: { id: parsed.id, verifier: parsed.verifier, generation: row.generation } } : decision;
 }
 __name(inspectProCredentialReadOnly, "inspectProCredentialReadOnly");
 async function credential(session, parsed) {
@@ -12924,6 +12925,16 @@ function createD1SyncRepository(db2, clock = Date.now) {
   __name(getRecord, "getRecord");
   async function applyOperation(identity, requested, options = {}) {
     let operation = requested;
+    const proof = identity.appId === 'port' ? identity.proProof : null;
+    // Conservative SQL clock rounds up one second; it never extends an expired lease.
+    const sqlNow = "(CAST(strftime('%s','now') AS INTEGER) * 1000 + 1000)";
+    const proSql = proof ? ` AND EXISTS (SELECT 1 FROM pro_credentials p JOIN pro_auth_state s ON s.singleton_id=1
+      WHERE p.id=? AND p.verifier=? AND p.generation=? AND p.generation=s.generation
+      AND p.scope='global_pro' AND p.revoked_at IS NULL
+      AND CASE WHEN p.device_public_key IS NOT NULL THEN p.last_validated_at + 7776000000 > ${sqlNow} AND p.lease_expires_at > ${sqlNow}
+        ELSE max(p.created_at,s.session_lifecycle_started_at) + 7776000000 > ${sqlNow} AND s.unbound_backend_until > ${sqlNow} END)` : '';
+    const proValues = proof ? [proof.id, proof.verifier, proof.generation] : [];
+
     const existing = await getChangeByOperation(identity.userId, identity.appId, operation.operationId);
     if (existing) {
       return existing.operationHash === operation.operationHash ? { status: "duplicate", record: existing } : { status: "invalid", code: "operation_id_reused" };
@@ -12949,6 +12960,7 @@ function createD1SyncRepository(db2, clock = Date.now) {
         WHERE d.id = ? AND d.user_id = ? AND d.app_id = ?
           AND d.revoked_at IS NULL AND u.state IN ('provisioning', 'active')
       )
+      ${proSql}
       ON CONFLICT(user_id, app_id, record_type, record_id) DO UPDATE SET
         payload_json = excluded.payload_json,
         payload_hash = excluded.payload_hash,
@@ -12965,7 +12977,7 @@ function createD1SyncRepository(db2, clock = Date.now) {
           JOIN sync_users u ON u.id = d.user_id
           WHERE d.id = ? AND d.user_id = ? AND d.app_id = ?
             AND d.revoked_at IS NULL AND u.state IN ('provisioning', 'active')
-        )
+        ) ${proSql}
     `).bind(
       identity.userId,
       identity.appId,
@@ -12981,10 +12993,12 @@ function createD1SyncRepository(db2, clock = Date.now) {
       identity.deviceId,
       identity.userId,
       identity.appId,
+      ...proValues,
       operation.baseRevision,
       identity.deviceId,
       identity.userId,
-      identity.appId
+      identity.appId,
+      ...proValues
     );
     const insertChange = db2.prepare(`
       INSERT INTO sync_changes (
@@ -13048,6 +13062,7 @@ function createD1SyncRepository(db2, clock = Date.now) {
     if (applied) {
       return applied.operationHash === operation.operationHash ? { status: "applied", record: applied } : { status: "invalid", code: "operation_id_reused" };
     }
+    if (proof && !await db2.prepare(`SELECT 1 WHERE 1=1 ${proSql}`).bind(...proValues).first()) return { status: 'forbidden', code: 'pro_reauth_required' };
     const stillAuthorized = await db2.prepare(`
       SELECT 1 AS allowed FROM sync_devices d
       JOIN sync_users u ON u.id = d.user_id
@@ -13983,6 +13998,10 @@ async function authenticatedContext(request, env, appId2, dependencies) {
       return { error: "qa_admission_unavailable", status: 503 };
     }
     if (!qa) return { error: "qa_admission_required", status: 403 };
+  }
+  if (appId2 === 'port' && new URL(request.url).pathname === '/v1/sync/push') {
+    if (!dependencies.verifiedProProof) return { error: 'pro_auth_unavailable', status: 503 };
+    identity = { ...identity, proProof: dependencies.verifiedProProof };
   }
   const createRepository = dependencies.createRepository || createD1SyncRepository;
   return {
@@ -15013,7 +15032,7 @@ async function handleRequest(request, env = {}, _ctx, dependencies = {}) {
       entitlement = await (dependencies.inspectProCredentialReadOnly || inspectProCredentialReadOnly)(
         request.headers.get(PRO_HEADER),
         env,
-        dependencies
+        { ...dependencies, includeWriterProof: true }
       );
     } catch {
       return errorResponse2(503, "pro_auth_unavailable", origin, route);
@@ -15021,6 +15040,7 @@ async function handleRequest(request, env = {}, _ctx, dependencies = {}) {
     if (entitlement?.ok !== true) {
       return errorResponse2(403, entitlement?.code || "pro_required", origin, route);
     }
+    dependencies = { ...dependencies, verifiedProProof: entitlement.writerProof };
   }
   if (url.pathname === "/v1/sync/start") return handleStart2(request, env, origin, route, dependencies, runtimeControl);
   if (url.pathname === "/v1/sync/bootstrap") return handleBootstrap(request, env, origin, route, dependencies);
