@@ -5,7 +5,7 @@
     else (root.CruiseStudio = root.CruiseStudio || {}).structureOperations = api;
 }(typeof window !== 'undefined' ? window : globalThis, function () {
     'use strict';
-    var labels = Object.freeze({ addBar:'小節を追加', deleteBar:'小節を削除', duplicateBar:'小節を複製', moveBar:'小節を移動', transpose:'実音を移調', addSection: 'セクションを追加', removeSection: 'セクションを削除',
+    var labels = Object.freeze({ addBar:'小節を追加', deleteBar:'小節を削除', duplicateBar:'小節を複製', moveBar:'小節を移動', moveBars:'複数小節を移動', transpose:'実音を移調', addSection: 'セクションを追加', removeSection: 'セクションを削除',
         renameSection: 'セクション名を変更', barCount: 'セクションの小節数を変更',
         strum: 'ストロークセルを変更', resetStrum: '基本ストロークへ戻す',
         bulkChord: 'コードをまとめて適用', bulkDoremi: 'ドレミをまとめて適用', display: '譜面表示設定を変更' });
@@ -34,9 +34,23 @@
             args = args || {};
             var before = structureKey(session.draft), warnings = [];
             var result = session.runOperation(labels[kind], function (canonical) {
-                if (['addBar','deleteBar','duplicateBar','moveBar','transpose'].includes(kind)) {
+                if (['addBar','deleteBar','duplicateBar','moveBar','moveBars','transpose'].includes(kind)) {
                     if (canonical.schemaVersion !== 2) throw Error('この操作はschema2の曲で使用できます');
                     var api=model.schema2, i=canonical.bars.findIndex(function(b){return b.id===args.barId;});
+                    if (kind==='moveBars') {
+                        if(!args.beforeId&&![-1,1].includes(args.direction))throw Error('移動方向が不正です');
+                        var ids=args.barIds, positions=ids.map(function(id){return canonical.bars.findIndex(function(b){return b.id===id;});}).sort(function(a,b){return a-b;});
+                        if(!ids.length||new Set(ids).size!==ids.length||positions.some(function(n,k){return n<0||(k&&n!==positions[0]+k);}))throw Error('連続する小節を選択してください');
+                        var target=args.beforeId?canonical.bars.find(function(b){return b.id===args.beforeId;}):canonical.bars[args.direction===-1?positions[0]-1:positions[positions.length-1]+1];
+                        if(!target||ids.includes(target.id))throw Error('移動先が選択範囲内または範囲外です');
+                        var targetId=target.id,section=target.sectionId,after=!args.beforeId&&args.direction===1;
+                        var movedBars=canonical.bars.filter(function(b){return ids.includes(b.id);}).map(function(b){var copy=JSON.parse(JSON.stringify(b));copy.sectionId=section;return copy;});
+                        canonical.bars=canonical.bars.filter(function(b){return !ids.includes(b.id);});
+                        var destination=canonical.bars.findIndex(function(b){return b.id===targetId;})+(after?1:0);
+                        canonical.bars.splice.apply(canonical.bars,[destination,0].concat(movedBars));
+                        var movedCheck=api.validate(canonical);if(!movedCheck.ok)throw Error(movedCheck.errors.join('/'));
+                        return;
+                    }
                     if (kind==='transpose') {
                         var delta=Number(args.semitones);
                         if (!Number.isInteger(delta)||Math.abs(delta)>12) throw Error('移調は半音単位で±12以内です');
