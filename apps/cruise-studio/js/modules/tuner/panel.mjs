@@ -1,4 +1,4 @@
-import { createRuntime } from './runtime.mjs?v=0.55.0';
+import { createRuntime } from './runtime.mjs?v=0.55.1';
 const CS = globalThis.CruiseStudio;
 function initialize() {
     // The memory-only runtime is retained solely for the score-side quick tool.
