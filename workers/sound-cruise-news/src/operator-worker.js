@@ -72,7 +72,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.45.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.45.1'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
