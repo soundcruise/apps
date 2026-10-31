@@ -6,6 +6,7 @@ import path from "node:path";
 import { fail, same } from "./contracts.mjs";
 import { openPinnedFilesystem } from "./pinned-filesystem.mjs";
 import { withFilesystem } from "./filesystem.mjs";
+import { ARCHIVE_METADATA_RESERVE } from "./archive-budget.mjs";
 const run = promisify(execFile);
 export async function observeBootVolume(root) {
   const code =
@@ -50,7 +51,8 @@ export async function openBootHost({
     p.minFreeBytes < 0 ||
     !Number.isSafeInteger(p.maxStagingBytes) ||
     p.maxStagingBytes < 0 ||
-    !/^[a-f0-9]{64}$/.test(p.keyMaterialSHA256 || "")
+    !/^[a-f0-9]{64}$/.test(p.keyMaterialSHA256 || "") ||
+    (p.maxArchiveBytes !== undefined && (!Number.isSafeInteger(p.maxArchiveBytes) || p.maxArchiveBytes <= ARCHIVE_METADATA_RESERVE))
   )
     fail("boot-host-approval");
   if (observeFixture && !authority.synthetic)
@@ -88,6 +90,7 @@ export async function openBootHost({
     operationId: p.operationId,
     grantId: p.id,
     storageKind: p.storageKind,
+    maxArchiveBytes: p.maxArchiveBytes,
     withIO: (fn) =>
       withFilesystem(io, async () => {
         try {

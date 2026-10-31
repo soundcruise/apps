@@ -1,6 +1,6 @@
 {
   "name": "sound-cruise-sync",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,7 +24,8 @@
     "test:studio-maintenance": "node --test test/studio-maintenance-window.test.mjs",
     "test:studio-maintenance:normal-native": "node scripts/maintenance-normal-native.mjs",
     "test:current-evidence": "node --test test/current-evidence.test.mjs",
-    "test:current-floor": "node --test test/current-floor-transport.test.mjs"
+    "test:current-floor": "node --test test/current-floor-transport.test.mjs",
+    "test:predeploy-trust": "node --test test/predeploy-trust.test.mjs"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1160.0",

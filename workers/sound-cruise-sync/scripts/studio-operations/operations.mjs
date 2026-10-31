@@ -16,6 +16,7 @@ import {
 import { inspectPreStudio } from "./prestudio-validator.mjs";
 import { inspectStudioRelease } from "../../src/studio-release-schema.js";
 import { fixedBatch } from "./ddl-plan.mjs";
+import { boundedArchivePages } from "./archive-budget.mjs";
 const scopeFor = (identity, cutline) => ({ ...identity, cutline });
 function bind(host, resources, operationId) {
   if (host.operationId !== operationId || resources.operationId !== operationId)
@@ -59,7 +60,7 @@ async function runBackupBody({
   });
   const pages = source.pages.bind(source);
   source.pages = async function* () {
-    for await (const p of pages()) {
+    for await (const p of boundedArchivePages(pages(), host.maxArchiveBytes)) {
       await cutline.assertCutline();
       await host.check();
       yield p;
