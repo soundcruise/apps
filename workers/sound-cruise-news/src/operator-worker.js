@@ -14,6 +14,7 @@ import {createDotCloudRunProxy,configuredDotProxy} from './dot-cloudrun-proxy.js
 import {compareDotWithNews} from './dot-news-comparison.js';
 import {readDotNewsSnapshot} from './dot-news-snapshot.js';
 import {dotSnapshot,saveDotConfirmation} from './dot-human-confirmation.js';
+import {admitDotCandidate} from './dot-admission.js';
 import {NewsStore} from './store.js';
 import {runtimeSources} from './runtime.js';
 import {reviewQueue,reviewDetail,operatorDecision,candidateSnapshot} from './operator-review.js';
@@ -36,7 +37,11 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   const isDotRoute=url.pathname==='/api/dot-capabilities'||url.pathname==='/api/dot-candidates'||url.pathname.startsWith('/api/dot-candidates/');
   const assertion=request.headers.get('Cf-Access-Jwt-Assertion');
   const dotReader=isDotRoute?(options.dotReader||(options.dotProxy?createDotCloudRunProxy({...options.dotProxy,assertion}):configuredDotProxy(env,assertion))):null;
-  if(request.method==='GET'&&url.pathname==='/api/dot-capabilities')return json({available:Boolean(dotReader),humanConfirmation:Boolean(dotReader)&&env.NEWS_DOT_CONFIRMATION_ENABLED==='true'});
+  if(request.method==='GET'&&url.pathname==='/api/dot-capabilities')return json({available:Boolean(dotReader),humanConfirmation:Boolean(dotReader)&&env.NEWS_DOT_CONFIRMATION_ENABLED==='true',admission:Boolean(dotReader)&&env.NEWS_DOT_CONFIRMATION_ENABLED==='true'&&env.NEWS_DOT_ADMISSION_ENABLED==='true'});
+  if(request.method==='POST'&&url.pathname==='/api/dot-candidates/admit'){
+   if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true'||env.NEWS_DOT_ADMISSION_ENABLED!=='true')return json({error:'not_found'},404);
+   await verifyCsrf(request,identity,env,now);return json(await admitDotCandidate(store,dotReader,await inputJSON(request),identity.actor,now,registry,env.NEWS_HEADLINE_PEPPER));
+  }
   if(request.method==='POST'&&url.pathname==='/api/dot-candidates/confirm'){
    if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true')return json({error:'not_found'},404);
    await verifyCsrf(request,identity,env,now);return json(await saveDotConfirmation(env.NEWS_DB,dotReader,await inputJSON(request),identity.actor,now));
@@ -53,7 +58,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.41.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.42.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
