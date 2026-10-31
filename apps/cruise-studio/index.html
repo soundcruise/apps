@@ -7,30 +7,30 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.62.0"></script>
+    <script src="js/core/color-theme.js?v=0.63.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.62.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.63.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.62.0">
-    <link rel="stylesheet" href="melody-staff.css?v=0.62.0">
-    <link rel="stylesheet" href="melody-editor.css?v=0.62.0">
-    <link rel="stylesheet" href="shell.css?v=0.62.0">
-    <link rel="stylesheet" href="studio-home.css?v=0.62.0">
-    <link rel="stylesheet" href="studio-tools.css?v=0.62.0">
-    <link rel="stylesheet" href="port-tuner-surface.css?v=0.62.0">
-    <link rel="stylesheet" href="chord-form.css?v=0.62.0">
+    <link rel="stylesheet" href="theme.css?v=0.63.0">
+    <link rel="stylesheet" href="melody-staff.css?v=0.63.0">
+    <link rel="stylesheet" href="melody-editor.css?v=0.63.0">
+    <link rel="stylesheet" href="shell.css?v=0.63.0">
+    <link rel="stylesheet" href="studio-home.css?v=0.63.0">
+    <link rel="stylesheet" href="studio-tools.css?v=0.63.0">
+    <link rel="stylesheet" href="port-tuner-surface.css?v=0.63.0">
+    <link rel="stylesheet" href="chord-form.css?v=0.63.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.62.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.63.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
     <!-- service-worker / manifest は当面作らない（ADR-002） -->
-    <link rel="stylesheet" href="rhythm-panel.css?v=0.62.0">
-    <link rel="stylesheet" href="cloud-panel.css?v=0.62.0">
+    <link rel="stylesheet" href="rhythm-panel.css?v=0.63.0">
+    <link rel="stylesheet" href="cloud-panel.css?v=0.63.0">
 </head>
 
 <body>
@@ -72,7 +72,7 @@
 
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
-                <span class="studio-version" id="studio-version">v0.62.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">↻</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
+                <span class="studio-version" id="studio-version">v0.63.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">↻</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
             </header>
 
             <section class="module-section studio-cloud-panel" data-studio-cloud-panel aria-label="Cloud Sync"></section>
@@ -518,7 +518,7 @@
             <div class="port-tuner-actions">
                 <button type="button" id="port-practice-resume" hidden>練習メニューを開く</button>
                 <button type="button" id="port-practice-overview">保存値の概要</button>
-                <button type="button" data-open-tool="portPractice" title="譜面を保持して右側に開く">右側で開く ◧</button>
+                <button type="button" data-open-tool="portPractice" title="右側に開き、中央をホームへ戻す">右側で開く ◧</button>
             </div>
             <p id="port-practice-status" role="status" aria-live="polite"></p>
             <div id="port-practice-surface" class="port-tuner-surface"></div>
@@ -527,7 +527,7 @@
             <header class="screen-header"><h1 class="screen-title">チューナー</h1><p class="screen-subcopy">Cruise Port</p></header>
             <div class="port-tuner-actions">
                 <button type="button" id="port-tuner-resume" hidden>チューナーを開く</button>
-                <button type="button" data-open-tool="tuner" title="譜面を保持して右側に開く">右側で開く ◧</button>
+                <button type="button" data-open-tool="tuner" title="右側に開き、中央をホームへ戻す">右側で開く ◧</button>
             </div>
             <p id="port-tuner-status" role="status" aria-live="polite"></p>
             <div id="port-tuner-surface" class="port-tuner-surface"></div>
@@ -536,7 +536,7 @@
             <header class="screen-header"><h1 class="screen-title">メトロノーム</h1><p class="screen-subcopy">Cruise Port</p></header>
             <div class="port-tuner-actions">
                 <button type="button" id="port-metronome-resume" hidden>メトロノームを開く</button>
-                <button type="button" data-open-tool="metronome" title="譜面を保持して右側に開く">右側で開く ◧</button>
+                <button type="button" data-open-tool="metronome" title="右側に開き、中央をホームへ戻す">右側で開く ◧</button>
             </div>
             <p id="port-metronome-status" role="status" aria-live="polite"></p>
             <div id="port-metronome-surface" class="port-tuner-surface"></div>
@@ -578,7 +578,7 @@
                 <button type="button" id="port-gear-resume" hidden>機材リストを開く</button>
                 <button type="button" id="port-gear-settings">Port表示設定</button>
                 <button type="button" id="port-gear-overview">保存値の概要</button>
-                <button type="button" data-open-tool="portGear" title="譜面を保持して右側に開く">右側で開く ◧</button>
+                <button type="button" data-open-tool="portGear" title="右側に開き、中央をホームへ戻す">右側で開く ◧</button>
             </div>
             <p id="port-gear-status" role="status" aria-live="polite"></p>
             <div id="port-gear-surface" class="port-tuner-surface"></div>
@@ -589,7 +589,7 @@
                 <button type="button" id="port-my-apps-resume" hidden>My Appsを開く</button>
                 <button type="button" id="port-my-apps-settings">Port表示設定</button>
                 <button type="button" id="port-my-apps-overview">保存値の概要</button>
-                <button type="button" data-open-tool="portMyApps" title="譜面を保持して右側に開く">右側で開く ◧</button>
+                <button type="button" data-open-tool="portMyApps" title="右側に開き、中央をホームへ戻す">右側で開く ◧</button>
             </div>
             <p id="port-my-apps-status" role="status" aria-live="polite"></p>
             <div id="port-my-apps-surface" class="port-tuner-surface"></div>
@@ -661,68 +661,68 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/port-frame-theme.js?v=0.62.0"></script>
-    <script src="js/core/music-theory.js?v=0.62.0"></script>
+    <script src="js/core/port-frame-theme.js?v=0.63.0"></script>
+    <script src="js/core/music-theory.js?v=0.63.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/caged-forms.js?v=1.21.0"></script>
-    <script src="js/modules/chord/read-model.js?v=0.62.0"></script>
-    <script src="js/modules/chord/inspector.js?v=0.62.0"></script>
-    <script src="js/core/rhythm-snapshot.js?v=0.62.0"></script>
-    <script src="js/core/schema2.js?v=0.62.0"></script>
-    <script src="js/core/melody-commands.js?v=0.62.0"></script>
-    <script src="js/core/song-model.js?v=0.62.0"></script>
-    <script src="js/core/storage.js?v=0.62.0"></script>
-    <script src="js/core/editing-session.js?v=0.62.0"></script>
-    <script src="js/core/project-repository.js?v=0.62.0"></script>
-    <script src="js/core/active-document.js?v=0.62.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.62.0"></script>
-    <script src="js/modules/sheet-cruise/history-commands.js?v=0.62.0"></script>
-    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.62.0"></script>
-    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.62.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.62.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.62.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.62.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.62.0"></script>
-    <script src="js/core/command-router.js?v=0.62.0"></script>
-    <script src="js/core/focus-routing.js?v=0.62.0"></script>
-    <script src="js/core/keyboard-router.js?v=0.62.0"></script>
-    <script src="js/core/modal-manager.js?v=0.62.0"></script>
-    <script src="js/shell.js?v=0.62.0"></script>
-    <script src="js/core/app-refresh.js?v=0.62.0"></script>
-    <script src="js/modules/practice/workspace.js?v=0.62.0"></script>
-    <script src="js/modules/practice/port-surface.js?v=0.62.0"></script>
-    <script src="js/modules/tuner/port-surface.js?v=0.62.0"></script>
-    <script src="js/modules/metronome/port-surface.js?v=0.62.0"></script>
-    <script src="js/modules/library/workspace.js?v=0.62.0"></script>
-    <script src="js/modules/library/port-surface.js?v=0.62.0"></script>
-    <script src="js/core/audio-coordinator.js?v=0.62.0"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.62.0"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.62.0"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.62.0"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.62.0"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.62.0"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.62.0"></script>
-    <script src="js/core/common-music-model.js?v=0.62.0"></script>
-    <script src="js/core/structure-conversion.js?v=0.62.0"></script>
+    <script src="js/modules/chord/read-model.js?v=0.63.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.63.0"></script>
+    <script src="js/core/rhythm-snapshot.js?v=0.63.0"></script>
+    <script src="js/core/schema2.js?v=0.63.0"></script>
+    <script src="js/core/melody-commands.js?v=0.63.0"></script>
+    <script src="js/core/song-model.js?v=0.63.0"></script>
+    <script src="js/core/storage.js?v=0.63.0"></script>
+    <script src="js/core/editing-session.js?v=0.63.0"></script>
+    <script src="js/core/project-repository.js?v=0.63.0"></script>
+    <script src="js/core/active-document.js?v=0.63.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.63.0"></script>
+    <script src="js/modules/sheet-cruise/history-commands.js?v=0.63.0"></script>
+    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.63.0"></script>
+    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.63.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.63.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.63.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.63.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.63.0"></script>
+    <script src="js/core/command-router.js?v=0.63.0"></script>
+    <script src="js/core/focus-routing.js?v=0.63.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.63.0"></script>
+    <script src="js/core/modal-manager.js?v=0.63.0"></script>
+    <script src="js/shell.js?v=0.63.0"></script>
+    <script src="js/core/app-refresh.js?v=0.63.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.63.0"></script>
+    <script src="js/modules/practice/port-surface.js?v=0.63.0"></script>
+    <script src="js/modules/tuner/port-surface.js?v=0.63.0"></script>
+    <script src="js/modules/metronome/port-surface.js?v=0.63.0"></script>
+    <script src="js/modules/library/workspace.js?v=0.63.0"></script>
+    <script src="js/modules/library/port-surface.js?v=0.63.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.63.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.63.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.63.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.63.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.63.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.63.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.63.0"></script>
+    <script src="js/core/common-music-model.js?v=0.63.0"></script>
+    <script src="js/core/structure-conversion.js?v=0.63.0"></script>
     <script src="vendor/vexflow.js?v=4.2.3"></script>
-    <script src="js/core/melody-notation.js?v=0.62.0"></script>
-    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.62.0"></script>
-    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.62.0"></script>
-    <script src="js/app.js?v=0.62.0"></script>
-    <script type="module" src="js/modules/port-pro-components.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.62.0"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/tuner/panel.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/tuner/quick-panel.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/library/panel.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/pc-home-news.mjs?v=0.62.0"></script>
-    <script type="module" src="js/modules/series/official-links.mjs?v=0.62.0"></script>
-    <script src="../shared/sync-account/sync-account-core.js?v=0.62.0"></script>
-    <script src="../shared/pro-device-session.js?v=0.62.0"></script>
-    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.62.0"></script>
+    <script src="js/core/melody-notation.js?v=0.63.0"></script>
+    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.63.0"></script>
+    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.63.0"></script>
+    <script src="js/app.js?v=0.63.0"></script>
+    <script type="module" src="js/modules/port-pro-components.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.63.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/tuner/panel.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/tuner/quick-panel.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/library/panel.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/pc-home-news.mjs?v=0.63.0"></script>
+    <script type="module" src="js/modules/series/official-links.mjs?v=0.63.0"></script>
+    <script src="../shared/sync-account/sync-account-core.js?v=0.63.0"></script>
+    <script src="../shared/pro-device-session.js?v=0.63.0"></script>
+    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.63.0"></script>
 </body>
 
 </html>

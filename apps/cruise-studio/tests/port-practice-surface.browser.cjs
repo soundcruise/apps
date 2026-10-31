@@ -159,7 +159,7 @@ test('Studio uses Port practice and calendar with Port-owned storage', async t =
             await frame().locator('#practice-set-delete').click();
             await page.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenuSets')).items.length===0);
         });
-        await t.test('five themes, narrow width and Port home return', async () => {
+        await t.test('five themes, narrow width and Studio home return', async () => {
             for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
                 await page.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
                 assert.equal(await frame().locator('#practice-list-view').isVisible(), true);
@@ -168,7 +168,7 @@ test('Studio uses Port practice and calendar with Port-owned storage', async t =
             assert.equal(await page.evaluate(() => document.querySelector('#studio-main').scrollWidth <= document.querySelector('#studio-main').clientWidth), true);
             assert.equal(await page.locator('#screen-port-practice iframe').evaluate(element => element.contentDocument.documentElement.scrollWidth <= element.contentDocument.documentElement.clientWidth), true);
             await page.setViewportSize({ width: 1440, height: 900 });
-            await frame().locator('#practice-list-view .view-back[data-action="home"]').click();
+            await page.locator('#screen-port-practice .workspace-home').click();
             await page.waitForFunction(() => CruiseStudio.shellHost.getActiveWorkspace() === 'home');
             assert.equal(await page.locator('#screen-port-practice iframe').count(), 0);
         });

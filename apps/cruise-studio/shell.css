@@ -481,3 +481,15 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .sheet-tool-launchers button { min-width:36px; }
 #tool-window-resize::after { content:''; position:absolute; left:4px; top:40%; bottom:40%; width:2px; border-radius:2px; background:var(--studio-border-strong); }
 #tool-window-resize:focus-visible { outline:2px solid var(--studio-focus); }
+#studio-tool-toggle { position:fixed; right:12px; top:12px; z-index:46; width:40px; height:40px; border:1px solid var(--studio-border-default); border-radius:8px; background:var(--studio-control); color:var(--studio-text-primary); cursor:pointer; }
+#studio-tool-toggle[aria-expanded="true"] { background:var(--studio-selected-bg); border-color:var(--studio-selected-border); color:var(--studio-selected-text); }
+#studio-tool-toggle:focus-visible { outline:2px solid var(--studio-focus); }
+.tool-window-bar { padding-right:60px; }
+.workspace-local-nav { top:24px; }
+@media(max-width:800px) { .workspace-local-nav { top:16px; } }
+@media(max-width:600px) {
+    .workspace-local-nav { top:12px; }
+    .studio-nav { grid-template-columns:minmax(0,1fr) 94px 52px; }
+}
+@media print { #studio-tool-toggle { display:none!important; } }
+.studio-pane-heading { padding-right:48px; }
