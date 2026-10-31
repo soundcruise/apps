@@ -1,6 +1,6 @@
 // Real Port Pro and Studio entry, separate Chrome profiles; local native D1/R2 only.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import {randomUUID,createHash} from 'node:crypto';
-const require=createRequire(process.env.STUDIO_TEST_RUNTIME),{chromium}=require('playwright'),{Miniflare,convertV4MiniflareOptions}=require('miniflare'),{build}=require('esbuild');
+const require=createRequire(process.env.STUDIO_TEST_RUNTIME),{chromium}=require('playwright'),{Miniflare,convertV4MiniflareOptions}=require('miniflare'),{build,stop:stopBuildService}=require('esbuild');
 const W=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..'),OUT=process.env.STUDIO_CLIENT_OUTPUT;assert(OUT);
 const src=W+'/workers/sound-cruise-sync/src',pepper='synthetic-account-key-not-production-key-0000',proPepper='synthetic-pro-key-not-production-key-000000';
 const {createAccountCredential,accountCredentialVerifier}=await import(src+'/account-crypto.js');
@@ -72,6 +72,7 @@ async function go(frame,hash){
 async function readStable(frame,fn,arg){for(let i=0;i<3;i++){try{return await frame.evaluate(fn,arg);}catch(error){if(!/Execution context was destroyed/.test(String(error)))throw error;await frame.waitForLoadState('networkidle');await ready(frame);}}throw Error('read keeps navigating');}
 async function consent(frame){await frame.evaluate(()=>location.hash='#sync-center');await frame.getByText('同期先と端末データを確認',{exact:true}).click();await frame.locator('[data-port-local-account] input').check();await frame.locator('[data-port-attribution-choice=current]').click();await frame.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}
 async function sync(frame){
+ await ready(frame);await frame.waitForFunction(()=>!!globalThis.SoundCruiseMultiAppSync?.runtimes?.port);
  const page=frame.page?.()||frame,target=frame.mainFrame?.()||frame,oldUrl=frame.url();let navigated=false;const onNav=f=>{if(f===target)navigated=true;};page.on('framenavigated',onNav);let value;
  try{value=await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}catch(e){if(!/Execution context was destroyed|runtime_disposed/.test(String(e)))throw e;await frame.waitForURL(u=>u.href!==oldUrl,{timeout:10000});navigated=true;}
  await frame.waitForLoadState('networkidle');page.off('framenavigated',onNav);
@@ -198,4 +199,4 @@ try{
   assert(await readStable(pa,()=>localStorage.getItem('cruisePort.gearList').includes('Device pending retained')));const cloud=await db.prepare("SELECT payload_json FROM sync_records WHERE app_id='port' AND record_type='gear_item'").all();assert(!cloud.results.some(x=>x.payload_json.includes('Device pending retained')));await sync(pb);assert(!await readStable(pb,()=>localStorage.getItem('cruisePort.gearList').includes('Device pending retained')));result.deviceRevoke={finalSqlRejected:true,localRetained:true,otherDeviceUnaffected:true};
  });
  assert.equal(errors.length,0);result.productionRequestsSent=0;
-}catch(e){result.status='FAIL';result.failure=String(e);throw e;}finally{result.status||='PASS';fs.writeFileSync(OUT+'/REMAINING-E2E-RESULT.json',JSON.stringify(result,null,2));for(const c of contexts)await Promise.race([c.close(),new Promise(r=>setTimeout(r,3000))]);await browser?.close();await mf?.dispose();}
+}catch(e){result.status='FAIL';result.failure=String(e);throw e;}finally{result.status||='PASS';fs.writeFileSync(OUT+'/REMAINING-E2E-RESULT.json',JSON.stringify(result,null,2));for(const c of contexts)await Promise.race([c.close(),new Promise(r=>setTimeout(r,3000))]);await browser?.close();await mf?.dispose();stopBuildService();}
