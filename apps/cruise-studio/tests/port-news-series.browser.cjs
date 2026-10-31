@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 
-test('Studio reuses Port NEWS and launches each official Standard/Pro app route', async () => {
+test('Studio reuses Port NEWS and launches each official Pro app route', async () => {
     const url = process.env.STUDIO_URL;
     assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
     const origin = new URL(url).origin;
@@ -93,15 +93,15 @@ test('Studio reuses Port NEWS and launches each official Standard/Pro app route'
         assert.equal(await page.locator('#port-news-surface iframe').count(), 0);
 
         const expected = {
-            pitch: ['pitch-cruise/standard/', 'pitch-cruise/pro_x9v7q2m8/'],
-            fretboard: ['fretboard_cruise/standard/', 'fretboard_cruise/pro_a9f4k7q2m8z/'],
-            rhythm: ['rhythm-cruise/standard/', 'rhythm-cruise/pro_r4m8k7n2q9x/'],
-            chord: ['chord-cruise/standard/', 'chord-cruise/pro_k7m4q9v2x8/']
+            pitch: 'pitch-cruise/pro_x9v7q2m8/',
+            fretboard: 'fretboard_cruise/pro_a9f4k7q2m8z/',
+            rhythm: 'rhythm-cruise/pro_r4m8k7n2q9x/',
+            chord: 'chord-cruise/pro_k7m4q9v2x8/'
         };
-        for (const [id, [standard, pro]] of Object.entries(expected)) {
+        for (const [id, pro] of Object.entries(expected)) {
             const links = page.locator(`#screen-series [data-studio-cruise-app="${id}"]`);
-            assert.equal(await links.count(), 2);
-            for (const [edition, path] of [['standard', standard], ['pro', pro]]) {
+            assert.equal(await links.count(), 1);
+            for (const [edition, path] of [['pro', pro]]) {
                 const target = page.locator(`#screen-series [data-studio-cruise-app="${id}"][data-studio-edition="${edition}"]`);
                 assert.equal(new URL(await target.getAttribute('href'), origin).pathname, `/apps/${path}`);
                 assert.equal(await target.getAttribute('target'), '_blank');
@@ -115,9 +115,9 @@ test('Studio reuses Port NEWS and launches each official Standard/Pro app route'
                 await app.close();
             }
             const home = page.locator(`#screen-home [data-studio-cruise-app="${id}"]`);
-            assert.equal(new URL(await home.getAttribute('href'), origin).pathname, `/apps/${standard}`);
+            assert.equal(new URL(await home.getAttribute('href'), origin).pathname, `/apps/${pro}`);
         }
-        for (const theme of ['dark', 'charcoal', 'gray', 'light']) {
+        for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
             await page.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
             assert.equal(await page.locator('#screen-series').isVisible(), true);
             assert.equal(await page.locator('#screen-series .series-pro-link').count(), 4);
