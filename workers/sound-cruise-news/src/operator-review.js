@@ -8,6 +8,7 @@ import {retainedDecisionProfile} from './operator-insights.js';
 import {prepareShadowEvaluation} from './operator-shadow.js';
 import {missingFacts,recoverySurface,resolvedRecoverySurface,recoveryAssessment,recoveryCacheKey} from './facts-readiness.js';
 import {hash,DAY} from './policy.js';
+import {findDotReceipt} from './dot-receipt.js';
 import {CHECKS,REASONS,DECISION_POLICY_VERSION,parseFacts,resolvedDuplicatePredicate,publicationValidation} from './decision-policy.js';
 export const FEEDBACK_REASONS=Object.freeze([...new Set(Object.values(REASONS).flat())]);
 export const canonical=value=>JSON.stringify(sort(value));
@@ -17,20 +18,22 @@ export async function decisionHistory(store,id){return (await store.db.prepare('
 const visibleFacts=facts=>facts?Object.fromEntries(Object.entries(facts).filter(([k])=>['author','focus','serviceAction','publicationAction','subject','actor','deadline','releaseDate','officialIdentity','productType','releaseEvent','models','components','theme','relevance','articleEvidence','section','articleType','person','brand','product','version','category','identifierBasis','manufacturerSource','listingSource','scopeUncertain','productEvent','kind','artist','performer','event','evidence','eventType','eventDate','endDate','endTime','startDate','venue','action','topic','seller','sellerKind','scope','nature','equipment','percentOff','brands'].includes(k))):null;
 export async function reviewDetail(store,id,now,registry,pepper){
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(id).first();if(!row)throw Error('candidate_not_found');
+ const receipt=row.origin===ASSISTED_ORIGIN?await findDotReceipt(store,row.id):null;
  const validation=await publicationValidation(store,row,now,registry,pepper);
  // Generic Dot admission is review-only until the independent publication and
  // Firestore freshness gates are implemented. Never display it as approvable.
- if(row.origin===ASSISTED_ORIGIN&&row.source_id!=='yamaha'){validation.valid=false;validation.errors.push('dot_publication_gate_pending');}
+ if(receipt||row.origin===ASSISTED_ORIGIN&&row.source_id!=='yamaha'){validation.valid=false;validation.errors.push('dot_publication_gate_pending');}
  const source=registry.find(s=>s.id===row.source_id),surface=await resolvedRecoverySurface(store,row,source);
  const last=await store.db.prepare('SELECT checked_at,outcome,provenance_json FROM news_facts_rechecks WHERE candidate_id=? ORDER BY checked_at DESC LIMIT 1').bind(id).first();
  const cached=await store.db.prepare('SELECT checked_at,outcome,items_json FROM news_facts_sources WHERE source_id=?').bind(surface?recoveryCacheKey(row,source,surface):row.source_id).first();
  const factsReview={...recoveryAssessment(row,validation,surface,last,cached),missing:missingFacts(row,validation.facts,validation),available:!!surface&&!validation.errors.includes('operator_source_gate')&&!validation.errors.includes('source_url_invalid')&&['pending','reopened'].includes(row.review_status),surfaceUrl:surface?.url||null,method:surface?.method||null,lastVerifiedAt:last?.checked_at||cached?.checked_at||null,outcome:last?.outcome||cached?.outcome||null,provenance:last?.provenance_json&&last.provenance_json!=='[]'?JSON.parse(last.provenance_json):row.facts_provenance?JSON.parse(row.facts_provenance):[],reviewability:validation.errors.includes('duplicate')?'DUPLICATE_BLOCKED':validation.valid?'READY_FOR_HUMAN_DECISION':validation.errors.includes('operator_source_gate')?'POLICY_BLOCKED':surface?'FACTS_RECOVERY_UNCERTAIN':'POLICY_BLOCKED'};
+ if(receipt){factsReview.available=false;factsReview.nextAction='Dot候補の現在版と原出典を再確認するまで掲載できません。自動再取得は行いません。';}
  const morrisReview=row.source_id==='morris'?{policy:MORRIS_EDITORIAL_POLICY,state:validation.valid?'READY':validation.errors.some(e=>['duplicate','expired_candidate','event_validation_failed','candidate_takedown','publication_policy_rejected'].includes(e))?'EXCLUDED':'NEEDS_CONFIRMATION',historical:row.review_reason==='morris_historical_confirmation_required',types:MORRIS_REVIEW_TYPES,productTypes:Object.keys(MORRIS_PRODUCT_TYPES),confirmationAvailable:['pending','reopened'].includes(row.review_status)&&!validation.valid&&!validation.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e))}:null;
  if(morrisReview){morrisReview.automation=await morrisRecoveryView(store,row,now);if(morrisReview.state==='NEEDS_CONFIRMATION'){
   factsReview.nextAction=morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'?'システム側の証拠待ちです。保存済み一次証拠が不足し、許諾範囲では過去詳細を再取得できません。新しい許可済み一覧に正式なfactsが得られた場合だけ再評価します。事実入力・掲載判断はまだ不要です。':'新着は許可済みの1回取得で自動解析します。不足が残る間は掲載判断を求めません。';
   if(morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'){factsReview.available=false;factsReview.reviewability='EVIDENCE_WAIT';morrisReview.confirmationAvailable=false;}
  }}
- return {assistedEditable:row.origin===ASSISTED_ORIGIN&&row.source_id==='yamaha',systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle:await lifecycleView(store,row,now),factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
+ return {dotAdmission:!!receipt,assistedEditable:row.origin===ASSISTED_ORIGIN&&row.source_id==='yamaha'&&!receipt,systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle:await lifecycleView(store,row,now),factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
 }
 export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  const rows=(await store.candidates()).filter(i=>i.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(i.review_status));
@@ -52,7 +55,7 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
  if(row.review_revision!==input.revision||await candidateSnapshot(row)!==input.snapshot)throw Error('candidate_changed');
  const approve=input.action==='approve';let validation=null;
  if(approve){
-  if(row.origin===ASSISTED_ORIGIN&&row.source_id!=='yamaha')throw Error('dot_publication_gate_pending');
+  if(row.origin===ASSISTED_ORIGIN&&(row.source_id!=='yamaha'||await findDotReceipt(store,row.id)))throw Error('dot_publication_gate_pending');
   validation=await publicationValidation(store,row,now,registry,pepper);
   if(!validation.valid)throw Error(validation.errors[0]);
   if(input.label!==validation.publishableLabel||input.category!==await effectiveCategory(store,row)||input.publishedAt!==row.published_at)throw Error('verified_factual_label_required');
