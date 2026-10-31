@@ -506,3 +506,16 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .series-reopen{align-self:flex-start;width:44px;min-height:40px}
 
 .screen[id^="screen-app-"] > [data-open-tool]{align-self:flex-start}
+
+/* Studio spacing scale: compact controls, comfortable groups, clear sections. */
+#studio-shell{--studio-space-1:4px;--studio-space-2:8px;--studio-space-3:12px;--studio-space-4:16px;--studio-space-6:24px;--studio-space-8:32px;--studio-space-12:48px}
+#studio-refresh{margin-left:var(--studio-space-3);padding:var(--studio-space-2) var(--studio-space-4);min-height:40px;vertical-align:middle;font:inherit;border-radius:8px;border:1px solid var(--studio-border-default);background:var(--studio-control);color:var(--studio-text-primary)}
+#studio-refresh:hover{background:var(--studio-control-hover)}
+#studio-refresh:focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
+.tool-window-bar{gap:var(--studio-space-2);padding:var(--studio-space-3);padding-right:76px}
+#tool-window-select{padding:var(--studio-space-3) var(--studio-space-4);min-width:0;border-radius:8px;font:inherit}
+#tool-window-center{min-width:40px;min-height:44px;border-radius:8px;padding:var(--studio-space-2)}
+#studio-tool-window:not(:has(.studio-series-frame)) #tool-window-center{display:none}
+#tool-window-slot{padding:var(--studio-space-2)}
+.studio-series-frame{height:calc(100dvh - 220px)}
+#tool-window-slot .studio-series-frame{height:calc(100dvh - 150px)}

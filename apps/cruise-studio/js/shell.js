@@ -72,13 +72,13 @@
         var realTools = {};
         toolIds.forEach(function(id){realTools[id]=adapters[id];adapters[id]={load:function(){realTools[id].load?.();},activate:function(){if(dockedTool!==id)realTools[id].activate();},deactivate:function(){if(dockedTool!==id)return realTools[id].deactivate();}};});
         var toolWindow=doc.createElement('aside');toolWindow.id='studio-tool-window';toolWindow.hidden=true;toolWindow.setAttribute('aria-label','独立ツール');
-        toolWindow.innerHTML='<div class="tool-window-bar"><select id="tool-window-select" aria-label="ツールを切り替え"></select><button type="button" id="tool-window-close" aria-label="ツールを閉じる" title="ツールを閉じる">×</button></div><p id="tool-window-status" role="status"></p><div id="tool-window-slot"></div><div id="tool-window-resize" role="separator" aria-label="ツール幅" aria-orientation="vertical" tabindex="0"></div>';
+        toolWindow.innerHTML='<div class="tool-window-bar"><select id="tool-window-select" aria-label="ツールを切り替え"></select><button type="button" id="tool-window-center" title="中央へ移動" aria-label="中央へ移動">▣</button></div><p id="tool-window-status" role="status"></p><div id="tool-window-slot"></div><div id="tool-window-resize" role="separator" aria-label="ツール幅" aria-orientation="vertical" tabindex="0"></div>';
         shell.append(toolWindow);
         var toolSlot=toolWindow.querySelector('#tool-window-slot'),toolSelect=toolWindow.querySelector('select'),toolTrigger=null;
         var toolNames={app_pitch:'音感クルーズ',app_fretboard:'指板クルーズ',app_rhythm:'リズムクルーズ',app_chord:'コードクルーズ',tuner:'チューナー',metronome:'メトロノーム',portPractice:'練習・カレンダー',portGear:'機材',portMyApps:'My Apps'};
         var placeholder=doc.createElement('option');placeholder.value='';placeholder.textContent='ツールを選択';toolSelect.append(placeholder);
         toolIds.forEach(function(id){var o=doc.createElement('option');o.value=id;o.textContent=toolNames[id];toolSelect.append(o);});
-        function moveNode(parent,node){if(parent.moveBefore&&node.isConnected)parent.moveBefore(node,null);else parent.append(node);}
+        function moveNode(parent,node){if(parent.moveBefore&&node.isConnected)parent.moveBefore(node,null);else parent.append(node);if(node.id.startsWith('screen-app-'))CS.seriesApps[node.id.slice(11)]?.refreshLayout();}
         function hasToolInput(){if(dockedTool?.startsWith('app_'))return !!nodes[dockedTool].querySelector('iframe')?.contentWindow?.studioAppDirty;var d=dockedTool&&nodes[dockedTool].querySelector('iframe')?.contentDocument;return !!d&&Array.from(d.querySelectorAll('form,[role=dialog]')).some(function(e){return !e.closest('[hidden]')&&d.defaultView.getComputedStyle(e).display!=='none';});}
         function guardTool(next){if(!dockedTool)return false;if(realTools[dockedTool].requestLeave?.(next))return true;if(hasToolInput()&&!dockedTool.startsWith('app_')){doc.getElementById('tool-window-status').textContent='編集中のフォームを保存またはキャンセルしてから移動してください。';return true;}return false;}
         function closeToolUnchecked(){if(!dockedTool){toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');return;}var id=dockedTool;dockedTool=null;realTools[id].deactivate();moveNode(main.querySelector('.studio-container'),nodes[id]);nodes[id].hidden=true;nodes[id].inert=true;nodes[id].classList.add('hidden');toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');if(toolTrigger?.isConnected)toolTrigger.focus({preventScroll:true});refreshGeometry();}
@@ -102,7 +102,14 @@
         toolToggle.addEventListener('click',function(){if(modal.getActive())return;if(!toolWindow.hidden){closeTool();return;}layout.closeRight();renderLayout();toolTrigger=toolToggle;toolSelect.value='';toolWindow.hidden=false;shell.dataset.toolWindow='open';toolToggle.setAttribute('aria-expanded','true');toolSelect.focus();refreshGeometry();});
         toolWindow.addEventListener('keydown',function(e){if(e.key==='Escape'&&!e.isComposing&&!modal.getActive()){e.preventDefault();e.stopPropagation();closeTool();}});
         toolSelect.addEventListener('change',function(){var id=toolSelect.value;toolSelect.value=dockedTool||'';if(id)openTool(id,true);});
-        toolWindow.querySelector('#tool-window-close').addEventListener('click',closeTool);
+        function centerTool(){
+            if(!dockedTool?.startsWith('app_')||modal.getActive())return;
+            var id=dockedTool,active=host.getActive();
+            if(realTools[active]?.requestLeave?.(centerTool))return;
+            if(!toolSlot.moveBefore){doc.getElementById('tool-window-status').textContent='このブラウザでは画面を維持した移動ができません。';return;}
+            dockedTool=null;moveNode(main.querySelector('.studio-container'),nodes[id]);toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');host.activate(id);refreshGeometry();
+        }
+        toolWindow.querySelector('#tool-window-center').addEventListener('click',centerTool);
         var resizeHandle=toolWindow.querySelector('#tool-window-resize');
         function setToolWidth(width){shell.style.setProperty('--studio-tool-width',Math.min(600,Math.max(300,width))+'px');refreshGeometry();}
         resizeHandle.addEventListener('pointerdown',function(e){if(e.button!==0)return;e.preventDefault();resizeHandle.setPointerCapture(e.pointerId);});
