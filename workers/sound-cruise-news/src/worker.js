@@ -1,3 +1,4 @@
+import {runWebDiscovery} from './web-discovery.js';
 import {assistedPredicate} from './assisted-facts.js';
 import {compareTicker} from '../../../apps/cruise-port/news-quality.js';
 import {preferredIndependentLabel} from './label-quality.js';
@@ -95,4 +96,4 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
   return finish(response);
  }catch{return finish(json({error:'news_unavailable'},503));}
 }
-export default {fetch:(request,env)=>handleNewsRequest(request,env,Date.now(),{registry:env.NEWS_API_MODE==='production'?runtimeSources(env):SOURCES}),scheduled:scheduledNews};
+export default {fetch:(request,env)=>handleNewsRequest(request,env,Date.now(),{registry:env.NEWS_API_MODE==='production'?runtimeSources(env):SOURCES}),scheduled:async(event,env,ctx,now=Date.now(),options={})=>{const result=await scheduledNews(event,env,ctx,now,options);if(event.cron==='0 21 * * *'&&env.NEWS_WEB_ENABLED==='true'){try{await runWebDiscovery(env,now);}catch{console.error(JSON.stringify({event:'news_web_failed'}));}}return result;}};
