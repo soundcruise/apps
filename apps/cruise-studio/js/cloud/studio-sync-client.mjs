@@ -1,3 +1,4 @@
+import { registerStudioPortContext } from '../../../cruise-port/port-writer-context.mjs?v=1.24.24';
 import {createStudioTransport,isStudioTransport} from './studio-transport.mjs';
 /* Isolated Client v1. Not imported by normal Studio boot. Project remains localStorage-owned. */
 import {studioCanonical as canonical,studioDigest as digest,studioDocumentUpload} from './document-codec.mjs';
@@ -26,6 +27,7 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
  transport ||= createStudioTransport({endpoint:endpoint||'https://disabled.invalid/isolated/studio/document',fetchImpl});if(!isStudioTransport(transport))fail('untrusted-transport');fetchImpl=transport.fetch;const url=new URL(transport.endpoint);
  if(!Number.isSafeInteger(uploadBatchSize)||uploadBatchSize<1||uploadBatchSize>4)fail('upload-batch-config');
  if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>60000)fail('timeout-config');
+ if(enabled===true && globalThis.document)registerStudioPortContext();
  const box=createOutbox(indexedDB,databaseName);
  let disposed=false;
  function session(){if(enabled!==true||disposed)fail('client-off');const s=readSession();if(!s||typeof s.then==='function'||!validBinding(s.binding)||typeof s.sessionId!=='string'||!s.sessionId||typeof s.credential!=='string'||typeof s.proCredential!=='string'||!Number.isFinite(s.validUntil)||s.validUntil<=Date.now())fail('session-required');return{...s,binding:clone(s.binding),token:canonical({binding:s.binding,sessionId:s.sessionId,credential:s.credential,proCredential:s.proCredential})};}
