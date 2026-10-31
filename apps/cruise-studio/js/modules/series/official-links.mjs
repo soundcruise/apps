@@ -4,7 +4,7 @@ import { resolveCruiseAppHref, CRUISE_APP_ICONS } from '../../../../cruise-port/
 for (const link of document.querySelectorAll('[data-studio-cruise-app][data-studio-edition]')) {
     const id = link.dataset.studioCruiseApp;
     const edition = link.dataset.studioEdition;
-    if (!['standard', 'pro'].includes(edition)) continue;
+    if (edition !== 'pro') continue;
     const href = resolveCruiseAppHref(id, edition);
     const icon = CRUISE_APP_ICONS[id]?.[edition];
     if (!href || !icon) continue;
