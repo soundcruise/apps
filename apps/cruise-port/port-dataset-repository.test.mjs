@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { PortDatasetRepository, PORT_DATASET_META, PORT_DELETE_INTENTS } from './port-dataset-repository.js';
-import { registerPortRepository } from './port-dataset-storage.js?v=1.23.1';
+import { registerPortRepository } from './port-dataset-storage.js?v=1.27.0';
 import { loadMetronomeSettings, saveMetronomeSettings, METRONOME_DEFAULTS } from './metronome-store.js';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from './settings-store.js';
 const settingKey = 'cruisePort.settings', presetKey = 'cruisePort.metronomePresets';

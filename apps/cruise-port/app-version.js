@@ -1,4 +1,4 @@
-export const CRUISE_PORT_APP_VERSION = '1.24.23';
+export const CRUISE_PORT_APP_VERSION = '1.27.0';
 
 let reloadInProgress = false;
 
@@ -24,6 +24,7 @@ export function applyVersionDisplay(root = globalThis.document) {
 export function reloadAppWithCacheBust({
     documentObject = globalThis.document,
     locationObject = globalThis.location,
+    preserveRoute = false,
     timestamp = Date.now()
 } = {}) {
     if (reloadInProgress || !locationObject) return false;
@@ -34,7 +35,9 @@ export function reloadAppWithCacheBust({
         button.textContent = '更新中…';
     });
     try {
-        locationObject.replace(buildReloadUrl(locationObject.href, timestamp));
+        const next = new URL(buildReloadUrl(locationObject.href, timestamp));
+        if (preserveRoute) next.hash = new URL(locationObject.href).hash;
+        locationObject.replace(next.href);
     } catch (_) {
         locationObject.reload();
     }

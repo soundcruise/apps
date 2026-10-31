@@ -6,14 +6,15 @@ import { CRUISE_PORT_APP_VERSION } from './app-version.js';
 // A changed ES module must be requested under a new query key by every importer; otherwise a
 // browser can combine a new caller with an old cached module and fail on a missing export.
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
-const modules = readdirSync(new URL('.', import.meta.url)).filter((name) => name.endsWith('.js') && !name.includes('.test.'));
-const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=([0-9.]+)'/g)].map(([, name, key]) => ({ name, key }));
+const modules = readdirSync(new URL('.', import.meta.url)).filter((name) => (/\.(?:js|mjs)$/.test(name)) && !name.includes('.test.'));
+const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.(?:js|mjs))\?v=([0-9.]+)'/g)].map(([, name, key]) => ({ name, key }));
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
 // 1.23.1 adds publisher-required Ikebe link tracking and synchronizes the Port module cache graph.
 const PREVIOUS_RELEASE_MODULES = Object.freeze(["news-external-link.js", "pro-prompt.js", "pro-access-content.js", "ai-support-client.js", "ai-support-ui.js", "app-version.js", "cruise-port-capabilities.js", "gear-category-store.js", "gear-list-store.js", "gear-photo-store.js", "gear-photo-workflow.js", "home-display.js", "metronome-app.js", "metronome-presets-store.js", "metronome-store.js", "metronome-timing.js", "my-apps-capabilities.js", "my-apps-icon-store.js", "my-apps-icon-workflow.js", "my-apps-store.js", "port-account-join.js", "port-asset-sync.js", "port-sync-status.js", "sync-center-refresh.js", "sync-center-controller.js", "sync-center-navigation.js", "port-dataset-repository.js", "port-dataset-storage.js", "port-sync-local-validation.js", "practice-capabilities.js", "practice-dataset-writes.js", "practice-menu-app-resolver.js", "practice-menu-attachment-store.js", "practice-menu-calendar-store.js", "practice-menu-history-store.js", "practice-menu-pending-attachments.js", "practice-menu-progress-store.js", "practice-menu-sets-store.js", "practice-menu-store.js", "settings-store.js", "sync-center-orchestrator.js", "sync-center-ui.js", "sync-pro-lock.js", "tool-capabilities.js", "tuner-app.js", "tuner-store.js"]);
-const RELEASE_MODULES = Object.freeze(['app-version.js','news-data.js','sync-center-controller.js','sync-center-orchestrator.js','sync-center-navigation.js','sync-center-ui.js']);
+const LAST_RELEASE_MODULES = Object.freeze(['ai-support-client.js', 'ai-support-ui.js', 'app-version.js', 'cruise-port-capabilities.js', 'gear-category-store.js', 'gear-list-store.js', 'gear-photo-store.js', 'gear-photo-workflow.js', 'home-display.js', 'metronome-app.js', 'metronome-presets-store.js', 'metronome-store.js', 'metronome-timing.js', 'my-apps-capabilities.js', 'my-apps-icon-store.js', 'my-apps-icon-workflow.js', 'my-apps-store.js', 'port-account-join.js', 'port-asset-sync.js', 'port-dataset-repository.js', 'port-dataset-storage.js', 'port-metronome-authorization.mjs', 'port-sync-local-validation.js', 'port-writer-context.mjs', 'practice-capabilities.js', 'practice-dataset-writes.js', 'practice-menu-app-resolver.js', 'practice-menu-attachment-store.js', 'practice-menu-calendar-store.js', 'practice-menu-history-store.js', 'practice-menu-pending-attachments.js', 'practice-menu-progress-store.js', 'practice-menu-sets-store.js', 'practice-menu-store.js', 'settings-store.js', 'sync-center-orchestrator.js', 'sync-center-ui.js', 'sync-pro-lock.js', 'tool-capabilities.js', 'tuner-app.js', 'tuner-store.js']);
+const RELEASE_MODULES = Object.freeze(["ai-support-client.js", "ai-support-ui.js", "app-version.js", "cruise-port-capabilities.js", "gear-category-store.js", "gear-list-store.js", "gear-photo-store.js", "gear-photo-workflow.js", "home-display.js", "metronome-app.js", "metronome-presets-store.js", "metronome-store.js", "metronome-timing.js", "my-apps-capabilities.js", "my-apps-icon-store.js", "my-apps-icon-workflow.js", "my-apps-store.js", "port-account-join.js", "port-asset-sync.js", "port-dataset-repository.js", "port-dataset-storage.js", "port-metronome-authorization.mjs", "port-sync-local-validation.js", "port-writer-context.mjs", "practice-capabilities.js", "practice-dataset-writes.js", "practice-menu-app-resolver.js", "practice-menu-attachment-store.js", "practice-menu-calendar-store.js", "practice-menu-history-store.js", "practice-menu-pending-attachments.js", "practice-menu-progress-store.js", "practice-menu-sets-store.js", "practice-menu-store.js", "settings-store.js", "sync-center-orchestrator.js", "sync-center-ui.js", "sync-pro-lock.js", "tool-capabilities.js", "tuner-app.js", "tuner-store.js"]);
 // NEWS UI gets this release key for publisher tracking; its provider keeps its reviewed key.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
 // Other modules retain the cache key of their last real change.
@@ -41,11 +42,13 @@ const UNCHANGED_KEYS = Object.freeze(Object.fromEntries(Object.entries({
   'sync-target-rename.js': '0.66.0',
   'sync-center-device-detail.js': '0.66.0',
   'sync-center-refresh.js': '0.65.0'
-  ,...Object.fromEntries(PREVIOUS_RELEASE_MODULES.map(name=>[name,'1.23.1']))
+  ,...Object.fromEntries(PREVIOUS_RELEASE_MODULES.map(name=>[name,'1.23.1'])),
+  ...Object.fromEntries(['news-data.js','sync-center-controller.js','sync-center-navigation.js'].map(name=>[name,'1.24.23']))
+  ,...Object.fromEntries(LAST_RELEASE_MODULES.map(name=>[name,'1.24.24']))
 }).filter(([name]) => !RELEASE_MODULES.includes(name))));
 
-test('the release is 1.24.23', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.24.23');
+test('the release is 1.27.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.27.0');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -75,26 +78,26 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.24.23');
-  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.23.1');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.27.0');
+  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.27.0');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
-  assert.equal(key('practice-menu-app.js', 'settings-store.js'), '1.23.1');
-  assert.equal(key('practice-menu-app.js', 'home-display.js'), '1.23.1');
-  assert.equal(key('home-display.js', 'settings-store.js'), '1.23.1');
-  assert.equal(key('practice-menu-app.js', 'practice-menu-sets-store.js'), '1.23.1');
-  assert.equal(key('port-sync-local-validation.js', 'practice-menu-sets-store.js'), '1.23.1');
+  assert.equal(key('practice-menu-app.js', 'settings-store.js'), '1.27.0');
+  assert.equal(key('practice-menu-app.js', 'home-display.js'), '1.27.0');
+  assert.equal(key('home-display.js', 'settings-store.js'), '1.27.0');
+  assert.equal(key('practice-menu-app.js', 'practice-menu-sets-store.js'), '1.27.0');
+  assert.equal(key('port-sync-local-validation.js', 'practice-menu-sets-store.js'), '1.27.0');
   assert.equal(key('practice-menu-app.js', 'practice-menu-presets.js'), '1.2.0', 'name suggestions are a separate module');
-  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.24.23');
+  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.27.0');
   assert.equal(key('practice-menu-app.js', 'sync-center-controller.js'), '1.24.23');
-  assert.equal(key('practice-menu-app.js', 'sync-center-orchestrator.js'), '1.24.23');
+  assert.equal(key('practice-menu-app.js', 'sync-center-orchestrator.js'), '1.27.0');
   for (const name of ['sync-center-navigation.js']) {
     assert.equal(key('practice-menu-app.js', name), '1.24.23');
   }
-  assert.equal(key('practice-menu-app.js', 'practice-menu-history-store.js'), '1.23.1');
-  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '1.23.1');
-  assert.equal(key('port-sync-local-validation.js', 'practice-menu-history-store.js'), '1.23.1');
-  assert.equal(key('practice-menu-app.js', 'port-sync-local-validation.js'), '1.23.1');
+  assert.equal(key('practice-menu-app.js', 'practice-menu-history-store.js'), '1.27.0');
+  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '1.27.0');
+  assert.equal(key('port-sync-local-validation.js', 'practice-menu-history-store.js'), '1.27.0');
+  assert.equal(key('practice-menu-app.js', 'port-sync-local-validation.js'), '1.27.0');
   for (const [name, expected] of Object.entries(UNCHANGED_KEYS)) {
     const incoming = edges.filter((edge) => edge.name === name);
     assert.ok(incoming.length > 0, `${name} is imported`);
@@ -124,7 +127,7 @@ test('a module that imports a release-keyed module is itself fetched under the r
 test('no module changed in this release is still requested under an earlier key', () => {
   const sources = modules.map((name) => read(`./${name}`)).join('\n');
   for (const name of RELEASE_MODULES) {
-    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0', '0.68.0', '0.69.0', '0.69.1', '0.69.2', '0.69.3', '0.69.4', '0.69.5', '0.70.0', '0.70.1', '0.60.0', '0.59.3', '1.0.0', '1.0.1', '1.1.0', '1.1.1', '1.1.5', '1.1.8', '1.3.0', '1.4.0', '1.4.1', '1.4.2', '1.4.3', '1.11.1', '0.25.0', '1.12.0', '1.12.1', '1.13.0', '1.15.0', '1.16.0', '1.16.1']) {
+    for (const stale of ['1.23.1', '1.24.23', '0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0', '0.68.0', '0.69.0', '0.69.1', '0.69.2', '0.69.3', '0.69.4', '0.69.5', '0.70.0', '0.70.1', '0.60.0', '0.59.3', '1.0.0', '1.0.1', '1.1.0', '1.1.1', '1.1.5', '1.1.8', '1.3.0', '1.4.0', '1.4.1', '1.4.2', '1.4.3', '1.11.1', '0.25.0', '1.12.0', '1.12.1', '1.13.0', '1.15.0', '1.16.0', '1.16.1']) {
       assert.equal(sources.includes(`${name}?v=${stale}`), false, `${name}?v=${stale}`);
     }
   }
@@ -144,7 +147,7 @@ test('Sync Center and launch modules have exactly one public URL each', () => {
 test('NEWS dynamic modules use their reviewed revision keys', () => {
   const app = read('./practice-menu-app.js');
   for (const name of RELEASE_DYNAMIC_NEWS_MODULES) {
-    const expectedKey = CRUISE_PORT_APP_VERSION;
+    const expectedKey = '1.24.23'; // Unchanged NEWS modules retain their prior release key.
     assert.match(app, new RegExp(`import\\('\\./${name.replace('.', '\\.')}\\?v=${expectedKey.replaceAll('.', '\\.')}'\\)`), name);
   }
   for (const name of ['news-ui.js', 'news-provider.js']) {
