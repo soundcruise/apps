@@ -44,4 +44,13 @@ export function mountStudioCloudPanel({element,session=null,client=null,reposito
  function changed(){render();}globalThis.addEventListener?.('online',changed);globalThis.addEventListener?.('offline',changed);const expiryTimer=globalThis.setInterval?.(render,1000);render();
  return Object.freeze({refresh:refreshList,reset(){generation++;activeId=null;operations=[];list.replaceChildren();status='Account変更：現在の資格を再確認してください';render();},dispose(){disposed=true;generation++;globalThis.clearInterval?.(expiryTimer);globalThis.removeEventListener?.('online',changed);globalThis.removeEventListener?.('offline',changed);element.replaceChildren();}});
 }
-const normal=globalThis.document?.querySelector('[data-studio-cloud-panel]');if(normal)mountStudioCloudPanel({element:normal});
+const normal=globalThis.document?.querySelector('[data-studio-cloud-panel]');
+if(normal){
+ const config=globalThis.__SOUND_CRUISE_STUDIO_CLOUD__;
+ if(config?.endpoint){
+  import('./identity-host.mjs').then(({mountStudioIdentityHost})=>{
+   // Transport enforces the existing production-release boundary; no override.
+   globalThis.CruiseStudio.identityHost=mountStudioIdentityHost({element:normal,...config});
+  }).catch(()=>{normal.textContent='Cloud接続を確認できません。ローカルProjectは保持しています。';});
+ }else mountStudioCloudPanel({element:normal});
+}

@@ -11,7 +11,7 @@
     var resume = document.getElementById('port-practice-resume');
     var overview = document.getElementById('port-practice-overview');
     var stopButton = document.getElementById('shell-audio-stop');
-    var portUrl = new URL('port-tool.html?tool=practice', document.baseURI);
+    var portUrl = new URL('../cruise-port/pro_9a3943176561/#practice-menu', document.baseURI);
 
     function isPracticeRoute(hash) { return hash === '#practice-menu' || hash.startsWith('#practice-menu/'); }
     function setPhase(next, message) {

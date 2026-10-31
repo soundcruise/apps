@@ -1,9 +1,9 @@
 // Dormant Port-backed boundary. Production calls only the existing read host.
 // A repository executor is injected solely by isolated integration fixtures.
 import { createOperationBoundary } from '../../../cruise-port/port-write-readiness.mjs?v=1.22.17';
-import { saveMetronomeSettings, METRONOME_DEFAULTS, METRONOME_STORAGE_KEY } from '../../../cruise-port/metronome-store.js?v=1.22.4';
+import { saveMetronomeSettings, METRONOME_DEFAULTS, METRONOME_STORAGE_KEY } from '../../../cruise-port/metronome-store.js?v=1.27.0';
 import { createMetronomePreset, deleteMetronomePreset, loadMetronomePresets,
-    METRONOME_PRESETS_STORAGE_KEY, settingsFromMetronomePreset } from '../../../cruise-port/metronome-presets-store.js?v=1.22.4';
+    METRONOME_PRESETS_STORAGE_KEY, settingsFromMetronomePreset } from '../../../cruise-port/metronome-presets-store.js?v=1.27.0';
 const copy = value => value == null ? value : JSON.parse(JSON.stringify(value));
 export function createPortMetronomeFacade({ host, fixtureExecutor = null }) {
     let disposed = false;

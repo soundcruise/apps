@@ -16,7 +16,7 @@ const production = base.startsWith('https:');
   if (edition) {
    // Synthetic gate state in the isolated local context only.
    await page.evaluate(() => { document.querySelector('#pro-gate-overlay')?.remove(); document.body.classList.remove('pro-gate-active'); document.querySelectorAll('[inert]').forEach(el=>el.removeAttribute('inert')); window.__SOUNDCRUISE_PRO_GATE__=true; window.__soundCruiseClearGate=()=>{}; });
-   await page.evaluate(() => import('../practice-menu-app.js?v=1.23.1'));
+   await page.evaluate(() => import('../practice-menu-app.js?v=1.27.0'));
   }
   await page.locator('.port-app-version-display').first().filter({hasText:'1.23.1'}).waitFor();
   for (const width of [375,393,768,1280]) {
