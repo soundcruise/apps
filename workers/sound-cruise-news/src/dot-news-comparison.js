@@ -8,7 +8,7 @@ export function compareDotWithNews(candidate,snapshot){
  if(!candidate||!snapshot||typeof snapshot!=='object')return unavailable;
  try{
   const coverage={},records=[];
-  for(const scope of scopes){const part=snapshot[scope];if(!part||part.complete!==true||!Array.isArray(part.items)||part.items.length>500){coverage[scope]='未照合';continue;}coverage[scope]='取得済み';for(const entry of part.items){if(!entry||typeof entry!=='object'||!entry.entity||!Array.isArray(entry.entity.models)||typeof entry.candidate_id!=='string')throw Error('invalid');records.push({...entry,scope});}}
+  for(const scope of scopes){const part=snapshot[scope];if(!part||!Array.isArray(part.items)||part.items.length>500){coverage[scope]='未照合';continue;}coverage[scope]=part.complete===true?'取得済み':part.items.length?'部分照合':'未照合';for(const entry of part.items){if(!entry||typeof entry!=='object'||!entry.entity||!Array.isArray(entry.entity.models)||typeof entry.candidate_id!=='string')throw Error('invalid');records.push({...entry,scope});}}
   if(records.length>2000)throw Error('too_large');
   return {duplicateStatus:'UNCERTAIN',historyComplete:false,similar:findSimilar(candidate,records),coverage};
  }catch{return unavailable;}
