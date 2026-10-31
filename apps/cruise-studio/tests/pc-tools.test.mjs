@@ -49,10 +49,12 @@ test('failed context close retains lease until explicit retry; Global Stop close
     fail = false; assert((await f.reference.stop()).ok); assert(await f.reference.play({ targetFrequency: 220 }));
     assert((await f.coordinator.stopAll()).every(result => result.ok)); assert.equal(f.coordinator.snapshot()[0].contextCount, 0); await f.reference.dispose();
 });
-test('UI keeps advanced metronome disabled, explicit drafts and owner code without persistence imports', () => {
+test('Port tuner surface and memory-only score reference keep their separate owners', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.match(read('../index.html'), /class="metronome-advanced" disabled/);
-    assert.match(read('../index.html'), /id="tuner-apply"/); assert.match(read('../index.html'), /id="tuner-cancel"/);
+    assert.match(read('../index.html'), /id="port-tuner-surface"/);
+    assert.doesNotMatch(read('../index.html'), /id="tuner-apply"|id="tuner-cancel"/);
+    assert.match(read('../js/modules/tuner/port-surface.js'), /cruise-port\//);
     const source = read('../js/modules/tuner/reference.mjs'); assert.match(source, /synthesizeReferencePluck/);
     assert.doesNotMatch(source, /localStorage|indexedDB|fetch\(|tuner-store|sync-account/);
 });

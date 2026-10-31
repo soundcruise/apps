@@ -1,12 +1,14 @@
-import { createRuntime } from './runtime.mjs?v=0.47.17';
-import { createReference, TUNING_PRESET_LIST, getTuningTargets, midiToNoteInfo } from './reference.mjs?v=0.47.17';
+import { createRuntime } from './runtime.mjs?v=0.53.0';
 const CS = globalThis.CruiseStudio;
 function initialize() {
+    // The memory-only runtime is retained solely for the score-side quick tool.
     CS.tunerRuntime = createRuntime({ coordinator: CS.audio });
-    CS.tunerReference = createReference({ coordinator: CS.audio });
-    CS.tunerView = CS.tunerPresentation.mount({ document, shell: CS.shellHost, runtime: CS.tunerRuntime, reference: CS.tunerReference,
-        tuning: { presets: TUNING_PRESET_LIST, targets: getTuningTargets, a4: midiToNoteInfo(69) }, coordinator: CS.audio, metronome: CS.metronomeM1 });
-    CS.tuner.attach(CS.tunerView, CS.tunerRuntime);
+    CS.tuner.attach({ audio: CS.audio, shell: CS.shellHost });
+    CS.tunerView = Object.freeze({ async dispose() {
+        const surface = await CS.tuner.dispose();
+        const quick = await CS.tunerRuntime.dispose();
+        return !surface.ok ? surface : quick;
+    } });
 }
 if (CS.audio) initialize();
 else document.addEventListener('DOMContentLoaded', initialize, { once: true });

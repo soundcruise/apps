@@ -7,26 +7,29 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.47.17"></script>
+    <script src="js/core/color-theme.js?v=0.53.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.47.17">
+    <link rel="stylesheet" href="theme-projection.css?v=0.53.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.47.17">
-    <link rel="stylesheet" href="melody-staff.css?v=0.47.17">
-    <link rel="stylesheet" href="melody-editor.css?v=0.47.17">
-    <link rel="stylesheet" href="shell.css?v=0.47.17">
-    <link rel="stylesheet" href="chord-form.css?v=0.47.17">
+    <link rel="stylesheet" href="theme.css?v=0.53.0">
+    <link rel="stylesheet" href="melody-staff.css?v=0.53.0">
+    <link rel="stylesheet" href="melody-editor.css?v=0.53.0">
+    <link rel="stylesheet" href="shell.css?v=0.53.0">
+    <link rel="stylesheet" href="studio-home.css?v=0.53.0">
+    <link rel="stylesheet" href="studio-tools.css?v=0.53.0">
+    <link rel="stylesheet" href="port-tuner-surface.css?v=0.53.0">
+    <link rel="stylesheet" href="chord-form.css?v=0.53.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.47.17" media="print">
+    <link rel="stylesheet" href="print.css?v=0.53.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
     <!-- service-worker / manifest は当面作らない（ADR-002） -->
-    <link rel="stylesheet" href="rhythm-panel.css?v=0.47.17">
+    <link rel="stylesheet" href="rhythm-panel.css?v=0.53.0">
 </head>
 
 <body>
@@ -35,20 +38,22 @@
             <div class="studio-nav-scroll">
             <div class="studio-brand">CRUISE<span>STUDIO</span></div>
             <div class="studio-nav-workspaces">
-                <button type="button" data-workspace="home">Home</button>
-                <button type="button" data-workspace="sheetCruise">Structure<span>コード譜を編集</span></button>
-                <button type="button" data-workspace="preDtm">Pre-DTM<span>伴奏を組み立てる</span></button>
-                <button type="button" data-workspace="series">Apps<span>既存アプリを開く</span></button>
-                <button type="button" data-workspace="news">NEWS<span>ニュースを読む</span></button>
-                <button type="button" data-workspace="practice">Practice<span>練習データを閲覧</span></button>
-                <button type="button" data-workspace="tuner">Tuner<span>音程を確認</span></button>
-                <button type="button" data-workspace="gear">Gear<span>機材を閲覧</span></button>
-                <button type="button" data-workspace="myApps">My Apps<span>登録アプリを開く</span></button>
+                <button type="button" data-workspace="home" title="ホーム"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#house"></use></svg>ホーム</button>
+                <button type="button" data-workspace="sheetCruise" title="譜面を編集"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#music-2"></use></svg>譜面<span>コード・歌詞を編集</span></button>
+                <button type="button" data-workspace="preDtm" title="伴奏を組み立てる"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#sliders-horizontal"></use></svg>プレDTM<span>伴奏を組み立てる</span></button>
+                <button type="button" data-workspace="series" title="SOUND CRUISEシリーズ"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#grid-2x2"></use></svg>アプリ<span>シリーズを開く</span></button>
+                <button type="button" data-workspace="portNews" title="音楽のニュース"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt="">ニュース<span>ニュースを読む</span></button>
+                <button type="button" data-workspace="portPractice" title="練習メニューとカレンダー"><img class="nav-icon home-port-icon practice-menu-icon" src="../cruise-port/assets/my-app-icons/practice-menu.png" alt="">練習メニュー<span>メニュー・カレンダー</span></button>
+                <button type="button" data-workspace="tuner" title="チューナー"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/tool-tuner.png" alt="">チューナー<span>音程を確認</span></button>
+                <button type="button" data-workspace="metronome" title="メトロノーム"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/tool-metronome.png" alt="">メトロノーム<span>テンポを刻む</span></button>
+                <button type="button" data-workspace="portGear" title="機材リスト"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/gear-list.png" alt="">機材リスト<span>追加・編集・写真</span></button>
+                <button type="button" data-workspace="portMyApps" title="登録アプリ"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/note.png" alt="">マイアプリ<span>登録・編集・起動</span></button>
             </div>
             <div class="studio-nav-utilities">
                 <button type="button" id="shell-inspector" aria-controls="studio-right-pane" aria-expanded="false">Inspector</button>
                 <button type="button" id="shell-tool" aria-controls="studio-right-pane" aria-expanded="false">Tools</button>
-                <button type="button" id="shell-dock-toggle" aria-controls="studio-dock" aria-expanded="false">Metronome<span>Dockを開く / 閉じる</span></button>
+                <button type="button" id="shell-tuner-quick" class="studio-tool-launch" aria-controls="studio-quick-tuner" aria-expanded="false" aria-label="譜面補助のクイックチューナーを開く" title="譜面を見ながら音程を確認"><img src="../cruise-port/assets/my-app-icons/tool-tuner.png" alt="">譜面補助<span class="studio-tool-hint">譜面を見ながら音程を確認</span></button>
+                <button type="button" id="shell-dock-toggle" class="studio-tool-launch" aria-controls="studio-dock" aria-expanded="false" title="譜面補助のBPMを開く"><img src="../cruise-port/assets/my-app-icons/tool-metronome.png" alt="">譜面補助BPM<span class="studio-tool-hint">譜面を見ながらテンポを刻む</span></button>
                 <fieldset id="shell-theme" class="studio-theme-control" aria-describedby="shell-theme-status"><legend>テーマ</legend></fieldset>
                 <p id="shell-theme-status" role="status"></p>
             </div>
@@ -66,79 +71,73 @@
 
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
-                <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.47.17</span>
+                <span class="studio-version" id="studio-version">v0.53.0</span>
             </header>
 
-            <section class="module-section pc-home-features" aria-labelledby="pc-home-title">
-                <h2 id="pc-home-title" class="section-label">練習と音楽のツール</h2>
-                <p data-home-port-status role="status">Port保存値：未確認。</p>
-                <div class="pc-home-grid">
-                    <button type="button" data-home-workspace="tuner"><strong>Tuner</strong><span>音程を確認する</span></button>
-                    <button type="button" data-home-action="metronome"><strong>Metronome</strong><span>Dockでテンポを刻む・一時設定</span></button>
-                    <button type="button" data-home-workspace="practice"><strong>Practice</strong><span>練習メニュー・履歴を閲覧</span></button>
-                    <button type="button" data-home-workspace="gear"><strong>Gear</strong><span>機材リストを閲覧</span></button>
-                    <button type="button" data-home-workspace="myApps"><strong>My Apps</strong><span>登録アプリを選んで開く</span></button>
-                    <button type="button" data-home-workspace="news"><strong>NEWS</strong><span>音楽のニュースを読む</span></button>
-                    <button type="button" data-home-workspace="series"><strong>Cruise Apps</strong><span>クルーズアプリを開く</span></button>
-                    <button type="button" data-home-action="settings"><strong>表示設定</strong><span>4つのカラーテーマ</span></button>
-                    <button type="button" data-home-action="port"><strong>Portデータの状態</strong><span>保存済みの値を明示的に確認</span></button>
-                </div>
-                <p>練習・機材・My AppsはPortの保存値を閲覧します。登録・編集・保存・Cloud Syncは未接続です。</p>
-            </section>
-
-            <section class="module-section">
-                <h2 class="section-label">スタジオモジュール</h2>
+            <section class="module-section home-primary" aria-labelledby="home-primary-title">
+                <div class="home-section-heading"><h2 id="home-primary-title" class="section-label">曲づくりを始める</h2></div>
                 <div class="module-grid">
 
-                    <button type="button" id="open-sheet-cruise" class="module-card module-card--featured module-card--clickable">
-                        <span class="module-card-icon" aria-hidden="true">📝</span>
-                        <span class="module-card-label">譜面クルーズ</span>
-                        <span class="module-card-sub">弾き語り教材用のコード譜をつくる。現在のプロジェクトを開いて編集。</span>
-                        <span class="module-card-status">MVP / コード・歌詞・ドレミ・印刷対応</span>
+                    <button type="button" id="open-sheet-cruise" class="module-card module-card--featured module-card--clickable" aria-label="譜面クルーズ" aria-describedby="home-sheet-description">
+                        <span class="home-art home-score-art" aria-hidden="true">
+                            <span class="home-page home-page-back"></span>
+                            <span class="home-page home-page-front"><span class="home-chords">Cmaj7 <span>Am7</span><span>Dm7</span></span><span class="home-staff"><b class="home-note n1"></b><b class="home-note n2"></b><b class="home-note n3"></b><b class="home-note n4"></b><b class="home-note n5"></b></span><span class="home-staff home-staff-lower"><b class="home-note n2"></b><b class="home-note n4"></b><b class="home-note n5"></b></span></span>
+                        </span>
+                        <span class="home-feature-label"><span class="module-card-label">譜面クルーズ</span><span class="home-feature-arrow" aria-hidden="true">↗</span></span>
+                        <span class="module-card-sub" id="home-sheet-description">コード・歌詞・メロディを入力して、曲の譜面を作る</span>
                     </button>
 
-                    <button type="button" id="open-pre-dtm" class="module-card module-card--featured module-card--clickable">
-                        <span class="module-card-icon" aria-hidden="true">🎛️</span>
-                        <span class="module-card-label">プレDTMクルーズ</span>
-                        <span class="module-card-sub">譜面データから伴奏を作る。アコギ・ベース・ドラムの生成イベントを確認。</span>
-                        <span class="module-card-status">MVP骨格 / 生成イベント確認</span>
+                    <button type="button" id="open-pre-dtm" class="module-card module-card--featured module-card--clickable" aria-label="プレDTMクルーズ" aria-describedby="home-dtm-description">
+                        <span class="home-art home-arrange-art" aria-hidden="true">
+                            <span class="home-session"><span class="home-timeline"><i></i><i></i><i></i><i></i></span><span class="home-track"><b></b><b></b><b></b></span><span class="home-track home-track-b"><b></b><b></b></span><span class="home-track home-track-c"><b></b><b></b><b></b><b></b></span><span class="home-track home-track-d"><b></b><b></b></span><span class="home-playhead"></span></span>
+                        </span>
+                        <span class="home-feature-label"><span class="module-card-label">プレDTMクルーズ</span><span class="home-feature-arrow" aria-hidden="true">↗</span></span>
+                        <span class="module-card-sub" id="home-dtm-description">作った譜面から伴奏を組み立てて、イベントを確認する</span>
                     </button>
 
                 </div>
             </section>
 
-            <section class="module-section">
-                <h2 class="section-label">Sound Cruise シリーズ（既存アプリ）</h2>
+            <section class="module-section pc-home-features home-tools" aria-labelledby="pc-home-title">
+                <div class="home-section-heading"><h2 id="pc-home-title" class="section-label">ツール</h2></div>
+                <div class="pc-home-grid">
+                    <button type="button" data-home-workspace="tuner" aria-label="チューナー：マイクで音程を確認"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/tool-tuner.png" alt=""><strong>チューナー</strong><span class="home-tool-tip">マイクで音程を確認する</span></button>
+                    <button type="button" data-home-workspace="metronome" aria-label="メトロノーム：テンポを刻む"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/tool-metronome.png" alt=""><strong>メトロノーム</strong><span class="home-tool-tip">テンポを刻む</span></button>
+                    <button type="button" data-home-workspace="portPractice" aria-label="練習メニュー：メニューとカレンダーを開く"><img class="home-port-icon practice-menu-icon" src="../cruise-port/assets/my-app-icons/practice-menu.png" alt=""><strong>練習メニュー</strong><span class="home-tool-tip">練習メニューとカレンダーを開く</span></button>
+                    <button type="button" data-home-workspace="portGear" aria-label="機材リスト：機材を追加・編集"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/gear-list.png" alt=""><strong>機材リスト</strong><span class="home-tool-tip">機材を追加・編集する</span></button>
+                    <button type="button" data-home-workspace="portMyApps" aria-label="マイアプリ：登録アプリを管理"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/note.png" alt=""><strong>マイアプリ</strong><span class="home-tool-tip">アプリを登録・起動する</span></button>
+                    <button type="button" data-home-workspace="portNews" aria-label="ニュース：音楽のニュースを読む"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt=""><strong>ニュース</strong><span class="home-tool-tip">音楽のニュースを読む</span></button>
+                </div>
+                <details class="home-options"><summary>表示設定・データの状態</summary><div class="home-options-actions"><button type="button" data-home-action="settings">表示テーマを選ぶ</button><button type="button" data-home-action="port">Portデータを確認</button></div><p data-home-port-status role="status">Port保存値：未確認。</p></details>
+            </section>
+
+            <section class="module-section home-series" aria-labelledby="home-series-title">
+                <div class="home-section-heading"><h2 id="home-series-title" class="section-label">SOUND CRUISEシリーズ</h2></div>
                 <div class="module-grid module-grid--series">
 
-                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
-                        <span class="module-card-icon" aria-hidden="true">🎧</span>
+                    <a class="module-card module-card--series module-card--clickable" href="../pitch-cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="pitch" data-studio-edition="standard" aria-label="音感クルーズを新しいタブで開く">
+                        <span class="module-card-icon" aria-hidden="true"><img src="../pitch-cruise/icon_pwa_192.png" alt=""></span>
                         <span class="module-card-label">音感クルーズ</span>
-                        <span class="module-card-sub">既存アプリを開く（音感トレーニング）</span>
-                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
-                    </button>
+                        <span class="module-card-sub">音を聴いて当てる</span>
+                    </a>
 
-                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
-                        <span class="module-card-icon" aria-hidden="true">🎸</span>
+                    <a class="module-card module-card--series module-card--clickable" href="../fretboard_cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="fretboard" data-studio-edition="standard" aria-label="指板クルーズを新しいタブで開く">
+                        <span class="module-card-icon" aria-hidden="true"><img src="../fretboard_cruise/generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-192.png" alt=""></span>
                         <span class="module-card-label">指板クルーズ</span>
-                        <span class="module-card-sub">既存アプリを開く（指板の音名トレーニング）</span>
-                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
-                    </button>
+                        <span class="module-card-sub">指板の音名を覚える</span>
+                    </a>
 
-                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
-                        <span class="module-card-icon" aria-hidden="true">🥁</span>
+                    <a class="module-card module-card--series module-card--clickable" href="../rhythm-cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="rhythm" data-studio-edition="standard" aria-label="リズムクルーズを新しいタブで開く">
+                        <span class="module-card-icon" aria-hidden="true"><img src="../rhythm-cruise/icon-192.png" alt=""></span>
                         <span class="module-card-label">リズムクルーズ</span>
-                        <span class="module-card-sub">既存アプリを開く（リズムトレーニング）</span>
-                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
-                    </button>
+                        <span class="module-card-sub">リズムを鍛える</span>
+                    </a>
 
-                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
-                        <span class="module-card-icon" aria-hidden="true">🎼</span>
+                    <a class="module-card module-card--series module-card--clickable" href="../chord-cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="chord" data-studio-edition="standard" aria-label="コードクルーズを新しいタブで開く">
+                        <span class="module-card-icon" aria-hidden="true"><img src="../chord-cruise/icons/chord-cruise-192.png" alt=""></span>
                         <span class="module-card-label">コードクルーズ</span>
-                        <span class="module-card-sub">既存アプリを開く（コードライブラリ）</span>
-                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
-                    </button>
+                        <span class="module-card-sub">コードを調べる</span>
+                    </a>
 
                 </div>
             </section>
@@ -441,43 +440,55 @@
             <div class="series-grid">
 
                 <div class="series-card">
-                    <span class="series-card-icon" aria-hidden="true">🎧</span>
+                    <span class="series-card-icon" aria-hidden="true"><img src="../pitch-cruise/icon_pwa_192.png" alt=""></span>
                     <h3 class="series-card-name">音感クルーズ</h3>
                     <p class="series-card-desc">音を聴いて当てる音感トレーニング。移動ドの感覚を鍛え、耳コピやメロディの聴き取りに効きます。</p>
                     <p class="series-card-note">スマホ向け既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
-                    <a class="btn-primary btn-compact series-open-link" href="../pitch-cruise/standard/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                    <div class="series-launch-actions">
+                        <a class="btn-primary btn-compact series-open-link" href="../pitch-cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="pitch" data-studio-edition="standard">通常版を開く ↗</a>
+                        <a class="btn-compact series-pro-link" href="../pitch-cruise/pro_x9v7q2m8/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="pitch" data-studio-edition="pro"><img src="../pitch-cruise/pro_icon_192.png" alt="">Pro版を開く ↗</a>
+                    </div>
                 </div>
 
                 <div class="series-card">
-                    <span class="series-card-icon" aria-hidden="true">🎸</span>
+                    <span class="series-card-icon" aria-hidden="true"><img src="../fretboard_cruise/generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-192.png" alt=""></span>
                     <h3 class="series-card-name">指板クルーズ</h3>
                     <p class="series-card-desc">ギター指板の音名トレーニング。ポジションと音名を結びつけ、コードフォームやスケールの土台を作ります。</p>
                     <p class="series-card-note">スマホ向け既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
-                    <a class="btn-primary btn-compact series-open-link" href="../fretboard_cruise/standard/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                    <div class="series-launch-actions">
+                        <a class="btn-primary btn-compact series-open-link" href="../fretboard_cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="fretboard" data-studio-edition="standard">通常版を開く ↗</a>
+                        <a class="btn-compact series-pro-link" href="../fretboard_cruise/pro_a9f4k7q2m8z/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="fretboard" data-studio-edition="pro"><img src="../fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png" alt="">Pro版を開く ↗</a>
+                    </div>
                 </div>
 
                 <div class="series-card">
-                    <span class="series-card-icon" aria-hidden="true">🥁</span>
+                    <span class="series-card-icon" aria-hidden="true"><img src="../rhythm-cruise/icon-192.png" alt=""></span>
                     <h3 class="series-card-name">リズムクルーズ</h3>
                     <p class="series-card-desc">リズムのズレを見ながら練習できるリズムトレーニング。ストロークの安定感・グルーヴ強化に。</p>
                     <p class="series-card-note">スマホ向け既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
-                    <a class="btn-primary btn-compact series-open-link" href="../rhythm-cruise/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                    <div class="series-launch-actions">
+                        <a class="btn-primary btn-compact series-open-link" href="../rhythm-cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="rhythm" data-studio-edition="standard">通常版を開く ↗</a>
+                        <a class="btn-compact series-pro-link" href="../rhythm-cruise/pro_r4m8k7n2q9x/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="rhythm" data-studio-edition="pro"><img src="../rhythm-cruise/pro_r4m8k7n2q9x/icon-192.png" alt="">Pro版を開く ↗</a>
+                    </div>
                 </div>
 
                 <div class="series-card">
-                    <span class="series-card-icon" aria-hidden="true">🎼</span>
+                    <span class="series-card-icon" aria-hidden="true"><img src="../chord-cruise/icons/chord-cruise-192.png" alt=""></span>
                     <h3 class="series-card-name">コードクルーズ</h3>
                     <p class="series-card-desc">コードを調べて学べるコードライブラリ。コード本棚や任意コード作成で、コードの引き出しを増やせます。</p>
                     <p class="series-card-note">既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
-                    <a class="btn-primary btn-compact series-open-link" href="../chord-cruise/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                    <div class="series-launch-actions">
+                        <a class="btn-primary btn-compact series-open-link" href="../chord-cruise/standard/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="chord" data-studio-edition="standard">通常版を開く ↗</a>
+                        <a class="btn-compact series-pro-link" href="../chord-cruise/pro_k7m4q9v2x8/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="chord" data-studio-edition="pro"><img src="../chord-cruise/icons/chord-cruise-pro-192.png" alt="">Pro版を開く ↗</a>
+                    </div>
                 </div>
 
             </div>
 
         </section>
 
-        <section id="screen-practice" class="screen hidden practice-workspace" hidden inert tabindex="-1" aria-label="Practice">
-            <header class="screen-header"><h1 class="screen-title">Practice</h1><p class="screen-subcopy">Portの練習データ · 閲覧専用</p></header>
+        <section id="screen-practice" class="screen hidden practice-workspace" hidden inert tabindex="-1" aria-label="練習データ概要">
+            <header class="screen-header"><h1 class="screen-title">練習データ概要</h1><p class="screen-subcopy">Port保存値 · 閲覧専用</p></header>
             <p>このブラウザに保存されたPortデータを読み取ります。作成・編集・保存・同期は行いません。</p>
             <button type="button" id="practice-read">ローカル保存値を確認</button>
             <p data-practice-status role="status" aria-live="polite"></p>
@@ -492,51 +503,92 @@
             </div>
             <section class="practice-card"><h2>添付metadata</h2><p data-practice-attachments></p><p data-practice-state="attachments"></p><ul data-practice-list="attachments"></ul><button type="button" data-practice-more="attachments" hidden>metadataをさらに表示</button></section>
         </section>
-        <section id="screen-tuner" class="screen hidden tuner-workspace" hidden inert tabindex="-1" aria-label="Tuner">
-            <header class="screen-header"><h1 class="screen-title">Tuner</h1><p class="screen-subcopy">Standard · マイクで音程を確認</p></header>
-            <p>Portの音程検出・調弦・基準音エンジンを使用。A4 = 440 Hz · 検出範囲 70–1400 Hz</p>
-            <p>一時的な入力のみ。音声録音・設定保存・Portデータ更新・同期は行いません。</p>
-            <fieldset class="tuner-settings"><legend>一時設定</legend>
-                <label for="tuner-tuning">調弦</label><select id="tuner-tuning"></select>
-                <label for="tuner-threshold">入力閾値（dBFS）</label><input id="tuner-threshold" type="number" min="-100" max="-40" step="1" value="-80">
-                <button type="button" id="tuner-apply">一時適用</button><button type="button" id="tuner-cancel">変更を戻す</button>
-                <p data-tuner-draft-status role="status">一時設定（保存しません）</p><p data-tuner-applied></p>
-            </fieldset>
-            <div class="tuner-controls"><button type="button" id="tuner-start">マイク開始</button><button type="button" id="tuner-stop" disabled>マイク停止</button></div>
-            <p>マイク権限: <span data-tuner-permission>未使用（開始操作で権限を確認）</span></p>
-            <p data-tuner-status role="status" aria-live="polite">準備中</p>
-            <section class="tuner-reading" aria-label="検出された音程">
-                <p class="tuner-note"><span data-tuner-note>—</span><small aria-label="オクターブ" data-tuner-octave>—</small></p>
-                <p data-tuner-frequency>— Hz</p><p data-tuner-cents>— cents</p>
-                <p data-tuner-confidence>入力停止</p>
-                <div class="tuner-meter-labels" aria-hidden="true"><span>−50 cents</span><span>0</span><span>+50 cents</span></div>
-                <meter data-tuner-meter min="-50" max="50" value="0" aria-label="検出音のcentsメーター" hidden></meter>
-            </section>
-            <section class="tuner-reference" aria-label="調弦の基準音"><h2>基準音</h2><div id="tuner-targets"></div><button type="button" id="tuner-reference-stop">基準音を停止</button><p data-tuner-reference-status role="status">基準音は停止中</p></section>
-            <p>表示は実際の検出音名です。調弦は基準音の選択に使います。基準音とマイクは同時再生せず、先に停止してください。カポ補正（Pro）は未接続です。</p>
-            <p>ブラウザ既定の入力デバイスを使用します。workspaceを離れる、画面を非表示にする、Global Stopで入力を停止します。自動再開はしません。</p>
+        <section id="screen-port-practice" class="screen hidden port-tuner-workspace" hidden inert tabindex="-1" aria-label="Port 練習メニューとカレンダー">
+            <header class="screen-header"><h1 class="screen-title">練習メニュー</h1><p class="screen-subcopy">Cruise Port</p></header>
+            <div class="port-tuner-actions">
+                <button type="button" id="port-practice-resume" hidden>練習メニューを開く</button>
+                <button type="button" id="port-practice-overview">保存値の概要</button>
+                <a href="../cruise-port/" target="_blank" rel="noopener" aria-label="Cruise Port 通常版を新しいタブで開く">別タブで開く ↗</a>
+                <a href="../cruise-port/pro_9a3943176561/" target="_blank" rel="noopener" aria-label="Cruise Port Pro版を新しいタブで開く">Pro版 ↗</a>
+            </div>
+            <p id="port-practice-status" role="status" aria-live="polite"></p>
+            <div id="port-practice-surface" class="port-tuner-surface"></div>
         </section>
-        <section id="screen-news" class="screen hidden pc-news" hidden inert tabindex="-1" aria-label="NEWS">
-            <header class="screen-header"><h1 class="screen-title">NEWS</h1><p class="screen-subcopy">音楽のニュース · 読み取り専用</p></header>
+        <section id="screen-tuner" class="screen hidden port-tuner-workspace" hidden inert tabindex="-1" aria-label="Port チューナー">
+            <header class="screen-header"><h1 class="screen-title">チューナー</h1><p class="screen-subcopy">Cruise Port</p></header>
+            <div class="port-tuner-actions">
+                <button type="button" id="port-tuner-resume" hidden>チューナーを開く</button>
+                <a href="../cruise-port/" target="_blank" rel="noopener" aria-label="Cruise Port 通常版を新しいタブで開く">別タブで開く ↗</a>
+                <a href="../cruise-port/pro_9a3943176561/" target="_blank" rel="noopener" aria-label="Cruise Port Pro版を新しいタブで開く">Pro版 ↗</a>
+            </div>
+            <p id="port-tuner-status" role="status" aria-live="polite"></p>
+            <div id="port-tuner-surface" class="port-tuner-surface"></div>
+        </section>
+        <section id="screen-metronome" class="screen hidden port-tuner-workspace" hidden inert tabindex="-1" aria-label="Port メトロノーム">
+            <header class="screen-header"><h1 class="screen-title">メトロノーム</h1><p class="screen-subcopy">Cruise Port</p></header>
+            <div class="port-tuner-actions">
+                <button type="button" id="port-metronome-resume" hidden>メトロノームを開く</button>
+                <a href="../cruise-port/" target="_blank" rel="noopener" aria-label="Cruise Port 通常版を新しいタブで開く">別タブで開く ↗</a>
+                <a href="../cruise-port/pro_9a3943176561/" target="_blank" rel="noopener" aria-label="Cruise Port Pro版を新しいタブで開く">Pro版 ↗</a>
+            </div>
+            <p id="port-metronome-status" role="status" aria-live="polite"></p>
+            <div id="port-metronome-surface" class="port-tuner-surface"></div>
+        </section>
+        <section id="screen-port-news" class="screen hidden port-tuner-workspace" hidden inert tabindex="-1" aria-label="Port NEWS">
+            <header class="screen-header"><h1 class="screen-title">NEWS</h1><p class="screen-subcopy">Cruise Port</p></header>
+            <div class="port-tuner-actions">
+                <button type="button" id="port-news-resume" hidden>NEWSを開く</button>
+                <button type="button" id="port-news-settings">Port表示設定</button>
+                <button type="button" id="port-news-overview">Studio NEWS概要</button>
+                <a href="../cruise-port/#news" target="_blank" rel="noopener noreferrer">別タブで開く ↗</a>
+            </div>
+            <p id="port-news-status" role="status" aria-live="polite"></p>
+            <div id="port-news-surface" class="port-tuner-surface"></div>
+        </section>
+        <section id="screen-news" class="screen hidden pc-news" hidden inert tabindex="-1" aria-label="NEWS概要">
+            <header class="screen-header"><h1 class="screen-title">NEWS概要</h1><p class="screen-subcopy">Studioの読み取り専用表示</p></header>
             <div class="pc-news-controls"><button type="button" data-news-refresh>ニュースを再読込</button><label>カテゴリ<select data-news-category><option value="">すべて</option></select></label></div>
             <p data-news-status role="status" aria-live="polite"></p>
             <div data-news-list></div><article data-news-detail hidden aria-label="ニュース詳細"></article>
         </section>
-        <section id="screen-gear" class="screen hidden library-workspace" hidden inert tabindex="-1" aria-label="Gear">
-            <header class="screen-header"><h1 class="screen-title">Gear</h1><p class="screen-subcopy">Portの機材リスト · 閲覧専用</p></header>
+        <section id="screen-gear" class="screen hidden library-workspace" hidden inert tabindex="-1" aria-label="機材リスト">
+            <header class="screen-header"><h1 class="screen-title">機材データ概要</h1><p class="screen-subcopy">Portの保存値 · 閲覧専用</p></header>
             <p>ローカル保存値の閲覧のみ。追加・編集・並替え・保存・同期は行いません。写真の本体取得は未接続です。</p>
             <button type="button" data-library-read>ローカル保存値を確認</button><p data-library-status role="status" aria-live="polite"></p>
             <div class="library-filters"><label>検索<input type="search" data-library-search placeholder="メーカー・名前・memo" autocomplete="off"></label><label>所有状態<select data-library-filter="status"><option value="all">全状態</option><option value="owned">自分の機材</option><option value="sold">手放した機材</option><option value="wishlist">ほしい機材</option><option value="unsupported">非対応の状態</option></select></label><label>カテゴリ<select data-library-filter="category"><option value="all">全カテゴリ</option></select></label></div>
             <p data-library-count></p><div class="library-grid"><section class="library-card"><h2>機材一覧</h2><ol data-library-list></ol><p data-library-no-matches hidden>現在の検索・filterに該当する機材なし</p><button type="button" data-library-more hidden>さらに表示</button></section><section class="library-card" aria-label="選択機材の詳細"><h2>機材詳細</h2><div data-library-detail></div></section></div>
         </section>
         <section id="screen-my-apps" class="screen hidden library-workspace" hidden inert tabindex="-1" aria-label="My Apps">
-            <header class="screen-header"><h1 class="screen-title">My Apps</h1><p class="screen-subcopy">Portの登録アプリ · 閲覧専用</p></header>
+            <header class="screen-header"><h1 class="screen-title">My Appsデータ概要</h1><p class="screen-subcopy">Portの保存値 · 閲覧専用</p></header>
             <p>登録URLは明示操作で別タブに開けます。iconはmetadataのみ。画像取得・登録・編集・保存・同期は行いません。</p>
             <button type="button" data-library-read>ローカル保存値を確認</button><p data-library-status role="status" aria-live="polite"></p>
             <div class="library-filters"><label>アプリ名で検索<input type="search" data-library-search placeholder="表示名" autocomplete="off"></label></div>
             <p data-library-count></p><div class="library-grid"><section class="library-card"><h2>登録アプリ一覧</h2><ol data-library-list></ol><p data-library-no-matches hidden>検索に該当するアプリなし</p><button type="button" data-library-more hidden>さらに表示</button></section><section class="library-card" aria-label="選択アプリの詳細"><h2>アプリ詳細</h2><div data-library-detail></div></section></div>
         </section>
-        <footer class="studio-footer">Sound Cruise Series</footer>
+        <section id="screen-port-gear" class="screen hidden port-tuner-workspace" hidden inert tabindex="-1" aria-label="Port 機材リスト">
+            <header class="screen-header"><h1 class="screen-title">機材リスト</h1><p class="screen-subcopy">Cruise Port</p></header>
+            <div class="port-tuner-actions">
+                <button type="button" id="port-gear-resume" hidden>機材リストを開く</button>
+                <button type="button" id="port-gear-settings">Port表示設定</button>
+                <button type="button" id="port-gear-overview">保存値の概要</button>
+                <a href="../cruise-port/" target="_blank" rel="noopener">別タブで開く ↗</a>
+                <a href="../cruise-port/pro_9a3943176561/" target="_blank" rel="noopener">Pro版 ↗</a>
+            </div>
+            <p id="port-gear-status" role="status" aria-live="polite"></p>
+            <div id="port-gear-surface" class="port-tuner-surface"></div>
+        </section>
+        <section id="screen-port-my-apps" class="screen hidden port-tuner-workspace" hidden inert tabindex="-1" aria-label="Port My Apps">
+            <header class="screen-header"><h1 class="screen-title">My Apps</h1><p class="screen-subcopy">Cruise Port</p></header>
+            <div class="port-tuner-actions">
+                <button type="button" id="port-my-apps-resume" hidden>My Appsを開く</button>
+                <button type="button" id="port-my-apps-settings">Port表示設定</button>
+                <button type="button" id="port-my-apps-overview">保存値の概要</button>
+                <a href="../cruise-port/" target="_blank" rel="noopener">別タブで開く ↗</a>
+                <a href="../cruise-port/pro_9a3943176561/" target="_blank" rel="noopener">Pro版 ↗</a>
+            </div>
+            <p id="port-my-apps-status" role="status" aria-live="polite"></p>
+            <div id="port-my-apps-surface" class="port-tuner-surface"></div>
+        </section>
             </div>
         </main>
         <aside id="studio-right-pane" class="studio-right-pane" aria-labelledby="shell-pane-title" hidden inert>
@@ -574,6 +626,7 @@
                     <button type="button" id="studio-metronome-toggle" aria-label="Metronome Start / Stop（Space・Enter）" aria-pressed="false">Start</button>
                     <ol class="studio-metronome-beats" aria-label="現在拍（4/4）"><li data-metronome-beat="0">1</li><li data-metronome-beat="1">2</li><li data-metronome-beat="2">3</li><li data-metronome-beat="3">4</li></ol>
                 </div>
+                <div class="studio-metronome-steps" role="group" aria-label="BPMを調整"><button type="button" data-studio-bpm-delta="-5" aria-label="BPMを5下げる">−5</button><button type="button" data-studio-bpm-delta="-1" aria-label="BPMを1下げる">−1</button><button type="button" data-studio-bpm-delta="1" aria-label="BPMを1上げる">＋1</button><button type="button" data-studio-bpm-delta="5" aria-label="BPMを5上げる">＋5</button></div>
                 <details id="studio-metronome-details"><summary>設定・状態 <span id="studio-metronome-save-status" role="status" aria-live="polite">準備中</span></summary>
                 <div class="studio-metronome-controls">
                     <button type="button" id="studio-metronome-start" aria-label="Metronomeを開始" aria-pressed="false">Start</button>
@@ -592,59 +645,72 @@
                 <span id="studio-metronome-status" role="status" aria-live="polite">停止中</span>
             </div>
         </section>
+        <section id="studio-quick-tuner" class="studio-quick-tuner" aria-label="クイックチューナー" hidden inert>
+            <header><img src="../cruise-port/assets/my-app-icons/tool-tuner.png" alt=""><h2>チューナー</h2><button type="button" id="studio-quick-tuner-close" aria-label="クイックチューナーを閉じる">×</button></header>
+            <div class="studio-quick-tuner-reading"><strong data-quick-tuner-note>—</strong><span data-quick-tuner-frequency>— Hz</span></div>
+            <div class="studio-quick-tuner-meter" role="meter" aria-label="音程、入力待ち" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="0" aria-valuetext="入力待ち"><span data-quick-tuner-marker></span></div>
+            <p data-quick-tuner-cents>— cents</p><p data-quick-tuner-status role="status" aria-live="polite">停止中</p>
+            <div class="studio-quick-tuner-actions"><button type="button" id="studio-quick-tuner-toggle" aria-pressed="false">マイク開始</button><button type="button" id="studio-quick-tuner-full">Port チューナーを開く</button></div>
+            <p class="studio-quick-tuner-note">譜面作業中の一時操作です。調弦・設定・Pro機能はPort チューナーで操作します。</p>
+        </section>
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.47.17"></script>
+    <script src="js/core/music-theory.js?v=0.53.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/caged-forms.js?v=1.21.0"></script>
-    <script src="js/modules/chord/read-model.js?v=0.47.17"></script>
-    <script src="js/modules/chord/inspector.js?v=0.47.17"></script>
-    <script src="js/core/rhythm-snapshot.js?v=0.47.17"></script>
-    <script src="js/core/schema2.js?v=0.47.17"></script>
-    <script src="js/core/melody-commands.js?v=0.47.17"></script>
-    <script src="js/core/song-model.js?v=0.47.17"></script>
-    <script src="js/core/storage.js?v=0.47.17"></script>
-    <script src="js/core/editing-session.js?v=0.47.17"></script>
-    <script src="js/core/project-repository.js?v=0.47.17"></script>
-    <script src="js/core/active-document.js?v=0.47.17"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.47.17"></script>
-    <script src="js/modules/sheet-cruise/history-commands.js?v=0.47.17"></script>
-    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.47.17"></script>
-    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.47.17"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.47.17"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.47.17"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.47.17"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.47.17"></script>
-    <script src="js/core/command-router.js?v=0.47.17"></script>
-    <script src="js/core/focus-routing.js?v=0.47.17"></script>
-    <script src="js/core/keyboard-router.js?v=0.47.17"></script>
-    <script src="js/core/modal-manager.js?v=0.47.17"></script>
-    <script src="js/shell.js?v=0.47.17"></script>
-    <script src="js/modules/practice/workspace.js?v=0.47.17"></script>
-    <script src="js/modules/tuner/workspace.js?v=0.47.17"></script>
-    <script src="js/modules/library/workspace.js?v=0.47.17"></script>
-    <script src="js/core/audio-coordinator.js?v=0.47.17"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.47.17"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.47.17"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.47.17"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.47.17"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.47.17"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.47.17"></script>
-    <script src="js/core/common-music-model.js?v=0.47.17"></script>
-    <script src="js/core/structure-conversion.js?v=0.47.17"></script>
+    <script src="js/modules/chord/read-model.js?v=0.53.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.53.0"></script>
+    <script src="js/core/rhythm-snapshot.js?v=0.53.0"></script>
+    <script src="js/core/schema2.js?v=0.53.0"></script>
+    <script src="js/core/melody-commands.js?v=0.53.0"></script>
+    <script src="js/core/song-model.js?v=0.53.0"></script>
+    <script src="js/core/storage.js?v=0.53.0"></script>
+    <script src="js/core/editing-session.js?v=0.53.0"></script>
+    <script src="js/core/project-repository.js?v=0.53.0"></script>
+    <script src="js/core/active-document.js?v=0.53.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.53.0"></script>
+    <script src="js/modules/sheet-cruise/history-commands.js?v=0.53.0"></script>
+    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.53.0"></script>
+    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.53.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.53.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.53.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.53.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.53.0"></script>
+    <script src="js/core/command-router.js?v=0.53.0"></script>
+    <script src="js/core/focus-routing.js?v=0.53.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.53.0"></script>
+    <script src="js/core/modal-manager.js?v=0.53.0"></script>
+    <script src="js/shell.js?v=0.53.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.53.0"></script>
+    <script src="js/modules/practice/port-surface.js?v=0.53.0"></script>
+    <script src="js/modules/tuner/port-surface.js?v=0.53.0"></script>
+    <script src="js/modules/metronome/port-surface.js?v=0.53.0"></script>
+    <script src="js/modules/library/workspace.js?v=0.53.0"></script>
+    <script src="js/modules/library/port-surface.js?v=0.53.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.53.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.53.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.53.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.53.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.53.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.53.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.53.0"></script>
+    <script src="js/core/common-music-model.js?v=0.53.0"></script>
+    <script src="js/core/structure-conversion.js?v=0.53.0"></script>
     <script src="vendor/vexflow.js?v=4.2.3"></script>
-    <script src="js/core/melody-notation.js?v=0.47.17"></script>
-    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.47.17"></script>
-    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.47.17"></script>
-    <script src="js/app.js?v=0.47.17"></script>
-    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.47.17"></script>
-    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.47.17"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.47.17"></script>
-    <script type="module" src="js/modules/tuner/panel.mjs?v=0.47.17"></script>
-    <script type="module" src="js/modules/library/panel.mjs?v=0.47.17"></script>
-    <script type="module" src="js/modules/pc-home-news.mjs?v=0.47.17"></script>
+    <script src="js/core/melody-notation.js?v=0.53.0"></script>
+    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.53.0"></script>
+    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.53.0"></script>
+    <script src="js/app.js?v=0.53.0"></script>
+    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.53.0"></script>
+    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.53.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.53.0"></script>
+    <script type="module" src="js/modules/tuner/panel.mjs?v=0.53.0"></script>
+    <script type="module" src="js/modules/tuner/quick-panel.mjs?v=0.53.0"></script>
+    <script type="module" src="js/modules/library/panel.mjs?v=0.53.0"></script>
+    <script type="module" src="js/modules/pc-home-news.mjs?v=0.53.0"></script>
+    <script type="module" src="js/modules/series/official-links.mjs?v=0.53.0"></script>
 </body>
 
 </html>

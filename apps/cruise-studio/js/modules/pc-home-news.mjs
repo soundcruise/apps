@@ -124,14 +124,20 @@ export function mountHome({ document: doc, shell, getHost = () => globalThis.Cru
         const button = event.target.closest('[data-home-workspace], [data-home-action]');
         if (!button || !home.contains(button) || home.closest('[hidden], [inert]') || shell.getCommandContext().activeModal) return;
         if (button.dataset.homeWorkspace) shell.navigate(button.dataset.homeWorkspace);
-        else if (button.dataset.homeAction === 'metronome') { if (shell.getLayoutState().dockCollapsed) doc.getElementById('shell-dock-toggle').click(); doc.getElementById('studio-dock').querySelector('button')?.focus(); }
         else if (button.dataset.homeAction === 'settings') doc.querySelector('#shell-theme input')?.focus();
         else if (button.dataset.homeAction === 'port') { const s = shell.getLayoutState(); if (!s.rightOpen || s.rightType !== 'tool') doc.getElementById('shell-tool').click(); doc.getElementById('studio-port-read').focus(); }
     };
+    const touchStart = event => {
+        if (event.pointerType !== 'touch') return;
+        const card = event.target.closest('.home-primary .module-card, .home-series .module-card, .pc-home-grid button');
+        if (card && home.contains(card)) card.classList.add('is-touch-explaining');
+    };
+    const touchEnd = () => home.querySelectorAll('.is-touch-explaining').forEach(card => card.classList.remove('is-touch-explaining'));
     home.addEventListener('click', click);
+    home.addEventListener('pointerdown', touchStart); home.addEventListener('pointerup', touchEnd); home.addEventListener('pointercancel', touchEnd);
     // Cached projection only. No ensure/read/provision on Home or status render.
     const off = getHost()?.subscribe(render) || (() => {}); render();
-    return { render, dispose() { off(); home.removeEventListener('click', click); } };
+    return { render, dispose() { off(); home.removeEventListener('click', click); home.removeEventListener('pointerdown', touchStart); home.removeEventListener('pointerup', touchEnd); home.removeEventListener('pointercancel', touchEnd); } };
 }
 
 // Establish the workspace adapter before app.js initializes the Shell. All I/O

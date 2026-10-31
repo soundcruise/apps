@@ -815,7 +815,17 @@ Worker deploy・production D1適用は未実施。次はB1-2のprotocol adoption
 下部のPhase 1〜8は既存実装・計画の履歴であり、現在の着手順は次の正式実装順を優先する。
 今後の個別設計変更は、許可された作業範囲で契約・ADRへ記録する。
 
-## PC統合の新方針（2026-10-10正式採用）
+## PC統合の新方針（2026-10-31更新）
+
+Port UI・機能の完全共通化は [Port / Studio 共通化設計](docs/PORT_STUDIO_PARITY_DESIGN.md) と
+[ADR-031](docs/DECISIONS.md#adr-031-port-の実画面と保存処理を-studio-の正本とする) を優先する。
+Studio 側の類似UIを完全版として増やさず、Port の実画面と保存処理を使用する。
+現行 `PortDataHost.canWrite=false` と Cloud Sync / Pro の責務境界は維持する。
+Standard チューナーとメトロノームは Port 正規文書の埋め込みを初期実装し、合成環境で保存・音声停止を検証済み。
+Pro と残りの Port 機能は機能別の受入 gate を通すまで正規 Port 別タブ導線を用いる。
+現時点の合否と Sync line への要求は [チューナー結果](docs/PORT_TUNER_PHASE1_RESULT.md) と
+[メトロノーム結果](docs/PORT_METRONOME_PHASE1_RESULT.md) に記録する。
+以下の2026-10-10の記述は、その時点の方針として残す。
 
 Cruise Studioは未リリースのPC向け制作ソフトとして、Cruise Port / Cruise appsの
 機能・データ契約・Sync・Pro・Versionを正確に共有し、PC専用UIとStructure譜、
@@ -1508,3 +1518,15 @@ Studio 0.39.0 / schema 2。新しい保存能力を追加するminor更新（sch
 ## Schema 2 M1 Data Amplification Recovery 停止（2026-10-16）
 
 0.39.0/schema 2候補。保存後RangeErrorとraw反復展開は解消。Node1051 PASS（FAIL/skip0）、Browser460 PASS／2 FAIL／skip0。64小節command p95 11.4ms、Staff104.4ms（保存・再読込後）。128小節command p95 23.2msとCMM変換baseline比約1.9倍が残り、M1未受入。fresh remote mainもdbd9a46から10296dbbへ進行したため、個別停止条件に従い差分保持・staged空・commit/pushなし。既存main root/Studio worktree/原本9hashは不変。M2/M3未着手。[最新停止記録と35項目](docs/SCHEMA2_FOUNDATION.md)を参照。
+
+## Port 練習メニュー・カレンダー共通化（Studio 0.51.0候補、2026-10-31）
+
+隔離 worktree `codex/studio-ui-practice-20261031` で、Port Standard 実文書を Studio の主入口に接続。旧閲覧専用画面は「保存値の概要」へ移し、Port owner の保存キー・schema・Pro gate を変更せず作成/編集/削除/並べ替え/タイマー/記録/カレンダーを受入した。実 Pro、Account、添付 binary、二端末 Sync は未受入。次は機材リスト、その後 My Apps。詳細は [Phase 3 結果](docs/PORT_PRACTICE_PHASE1_RESULT.md)。
+
+## Port 機材リスト・My Apps 共通化（Studio 0.52.0候補、2026-10-31）
+
+隔離 worktree `codex/studio-ui-gear-myapps-20261031` に 0.51.0 候補をハッシュ一致で複製し、機材と My Apps の正規入口を Port Standard 実文書へ接続。Studio 旧画面は read-only 概要に限定した。Port の保存・認証・Sync 契約を変更せず、合成 Chrome で CRUD、カテゴリ、並べ替え、表示サイズ、プリセット、写真/アイコンの既存 Blob 表示と削除、Standard 制限、外部 URL の別タブ起動を確認した。実 Pro、実 Account、二端末 Sync、画像書出しは未受入。次は NEWS 実画面、続いて4アプリの正規 launcher と独立データ契約を確認する。詳細は [Phase 4 結果](docs/PORT_GEAR_MYAPPS_PHASE1_RESULT.md)。
+
+## Port NEWS・4アプリ正規導線（Studio 0.53.0候補、2026-10-31）
+
+隔離 worktree `codex/studio-ui-news-apps-20261031` に0.52.0候補をハッシュ一致で複製し、Home/左ナビのNEWSをPort実画面へ接続した。4アプリの通常版/Pro版リンクとアイコンはPortのカタログを参照し、別タブで元アプリを起動する。合成ChromeでNEWS単独/埋込表示、カテゴリ、記事詳細、外部リンク、8つの起動先、4テーマ、狭いPC幅を確認した。実Pro/Account/二端末Syncと本番originのNEWS表示は未受入。PortテーマNodeの旧期待値修正はUI差分から分離した。[Phase 5 結果・統合手順](docs/PORT_NEWS_SERIES_PHASE1_RESULT.md)。

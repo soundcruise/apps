@@ -1,0 +1,25 @@
+.port-tuner-workspace { width: 100%; }
+.port-tuner-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.port-tuner-actions :is(button, a) {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 8px 13px;
+    border: 1px solid var(--studio-border-default); border-radius: 8px;
+    background: var(--studio-control); color: var(--studio-text-primary);
+    font: inherit; font-size: 13px; text-decoration: none; cursor: pointer;
+}
+.port-tuner-actions :is(button, a):hover { background: var(--studio-control-hover); }
+.port-tuner-actions :is(button, a):focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+#port-tuner-status:empty { display: none; }
+#port-tuner-status { margin: 0; color: var(--studio-text-muted); }
+.port-tuner-surface { width: 100%; min-width: 0; }
+.port-tuner-frame {
+    display: block; width: 100%; height: max(680px, calc(100dvh - 180px));
+    border: 1px solid var(--studio-border-default); border-radius: 12px;
+    background: var(--studio-surface);
+}
+.port-practice-frame { height: max(780px, calc(100dvh - 160px)); }
+.port-library-frame { height: max(800px, calc(100dvh - 160px)); }
+@media (max-width: 680px) {
+    .port-tuner-frame { height: max(680px, calc(100dvh - 155px)); border-radius: 8px; }
+    .port-practice-frame { height: max(720px, calc(100dvh - 155px)); }
+    .port-library-frame { height: max(720px, calc(100dvh - 155px)); }
+}
