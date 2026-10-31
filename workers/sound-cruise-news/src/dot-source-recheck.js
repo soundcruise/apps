@@ -2,15 +2,16 @@ import {findDotReceipt} from './dot-receipt.js';
 import {dotSnapshot} from './dot-human-confirmation.js';
 import {candidateSnapshot} from './operator-review.js';
 import {assistedUrl} from './assisted-facts.js';
+import {manualFactsPolicy} from './manual-facts-policy.js';
 import {hash} from './policy.js';
 
 // This records a human observation only; neither permission nor approval is inferred.
-export async function saveDotSourceRecheck(store,reader,input,actor,now){
+export async function saveDotSourceRecheck(store,reader,input,actor,now,registry=[]){
  if(actor?.type!=='human_operator'||!/^[a-zA-Z0-9:_@.\-]{1,200}$/.test(actor.id||''))throw Error('operator_denied');
  if(!input||Object.keys(input).sort().join(',')!=='checks,id,observation,requestId,revision,snapshot'||!/^[a-zA-Z0-9_-]{1,128}$/.test(input.id||'')||!/^[a-f0-9]{64}$/.test(input.snapshot||'')||!Number.isSafeInteger(input.revision)||input.revision<0||!/^[a-zA-Z0-9_-]{16,100}$/.test(input.requestId||'')||typeof input.observation!=='string'||input.observation.trim()!==input.observation||input.observation.length<10||input.observation.length>500||/[\x00-\x1f<>]/.test(input.observation)||!input.checks||Object.keys(input.checks).sort().join(',')!=='facts,original,rights'||Object.values(input.checks).some(v=>v!==true))throw Error('operator_query_invalid');
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(input.id).first(),receipt=await findDotReceipt(store,input.id);
  if(!row||!receipt)throw Error('candidate_not_found');
- if(row.source_id!=='yamaha'||!assistedUrl(row.source_url)||!['pending','reopened'].includes(row.review_status))throw Error('operator_source_gate');
+ if(!(row.source_id==='yamaha'?assistedUrl(row.source_url):manualFactsPolicy(registry.find(s=>s.id===row.source_id),row.source_url,now))||!['pending','reopened'].includes(row.review_status))throw Error('operator_source_gate');
  if(row.review_revision!==input.revision||await candidateSnapshot(row)!==input.snapshot)throw Error('candidate_changed');
  if(!reader)throw Error('operator_unavailable');
  const current=await reader.detail(receipt.dot_candidate_id),snap=await dotSnapshot(current,receipt.dot_candidate_id);
