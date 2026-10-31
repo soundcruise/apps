@@ -17,7 +17,7 @@ function searchTerms(candidate){
  const ids=typeof candidate?.candidate_id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(candidate.candidate_id)?[candidate.candidate_id]:[];
  const allSources=Array.isArray(candidate?.sources)?candidate.sources:[],urls=[];let incomplete=allSources.length>8;
  for(const source of allSources.slice(0,8)){for(const raw of [source?.url,source?.canonical_url]){if(raw==null)continue;try{const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||u.href.length>2048){incomplete=true;continue;}if(!urls.includes(u.href))urls.push(u.href);}catch{incomplete=true;}}}
- const e=candidate?.entity||{},allModels=Array.isArray(e.models)?e.models:[];if(allModels.length>8)incomplete=true;
+ const e=candidate?.entity||{},allModels=Array.isArray(e.models)?e.models:[];if(allModels.length>8||allModels.some(x=>typeof x!=='string'||x.length>100)||(typeof e.product==='string'&&e.product.length>100))incomplete=true;
  const models=[...new Set([...allModels.slice(0,8),e.product].filter(x=>typeof x==='string'&&x.trim().length>=4&&x.length<=100).map(x=>x.trim()))];
  if(urls.length>8||models.length>8)incomplete=true;
  return {ids,urls:urls.slice(0,8),models:models.slice(0,8),incomplete};
