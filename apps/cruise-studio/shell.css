@@ -517,5 +517,4 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 #tool-window-center{min-width:40px;min-height:44px;border-radius:8px;padding:var(--studio-space-2)}
 #studio-tool-window:not(:has(.studio-series-frame)) #tool-window-center{display:none}
 #tool-window-slot{padding:var(--studio-space-2)}
-.studio-series-frame{height:calc(100dvh - 220px)}
 #tool-window-slot .studio-series-frame{height:calc(100dvh - 150px)}

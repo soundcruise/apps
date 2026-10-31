@@ -15,34 +15,11 @@ html[data-studio-theme] body{background:var(--studio-app-bg);color:var(--studio-
 :root[data-studio-theme] :is(input:not([type=range]):not([type=checkbox]):not([type=radio]),select,textarea){background-color:var(--studio-field);color:var(--studio-text-primary);border-color:var(--studio-border-default)}
 :root[data-studio-theme] :is(button,input,select,textarea):focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
 :root[data-studio-theme] :is(.modal-content,.pro-settings-modal,.settings-card,.cc-settings-panel,.cc-settings-card){background-color:var(--studio-surface);color:var(--studio-text-primary)}
-/* Center-only overrides: pane retains the native mobile layout. */
-@media(min-width:700px){
- :root[data-studio-layout=center] .app-container{max-width:1100px!important;width:100%;padding:var(--studio-space-6);gap:var(--studio-space-6);margin-inline:auto}
- :root[data-studio-layout=center] .cc-app{max-width:1100px;padding:var(--studio-space-6);margin-inline:auto}
- :root[data-studio-layout=center] .cc-app--library{max-width:1180px}
- :root[data-studio-layout=center] :is(.modal-content,.pro-settings-modal){max-width:min(900px,calc(100vw - var(--studio-space-12)));max-height:calc(100dvh - var(--studio-space-12));overflow:auto}
- :root[data-studio-layout=center] :is(.cc-home-menu,.home-menu){width:100%;max-width:900px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--studio-space-6)}
- :root[data-studio-layout=center] :is(.cc-home-card,.home-menu-card){width:100%;max-width:none}
- :root[data-studio-layout=center] .cc-explore{max-width:1050px;margin-inline:auto}
- :root[data-studio-layout=center] .cc-section{max-width:1050px;margin-inline:auto}
-}
+/* The pane retains its 0.65.0 layout; the center uses the original app layout. */
 :root[data-studio-layout=pane] :is(.app-container,.cc-app){max-width:600px!important;margin-inline:auto}
 
 
-@media(min-width:700px){:root[data-studio-layout=center] .cc-home-actions{width:100%;max-width:1000px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--studio-space-6)}}
 :root[data-studio-theme]{--in-game-refresh-stack-height:var(--studio-space-4)}
-@media(min-width:700px){
- :root[data-studio-layout=center][data-studio-app=pitch] .modal{max-width:960px;width:calc(100% - var(--studio-space-12));padding:var(--studio-space-8);max-height:calc(100dvh - var(--studio-space-12))}
- :root[data-studio-layout=center][data-studio-app=pitch] .level-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--studio-space-4);width:100%}
- :root[data-studio-layout=center][data-studio-app=pitch] .stage-row{width:100%;min-width:0}
- :root[data-studio-layout=center][data-studio-app=pitch] .level-buttons .btn-primary{width:100%;max-width:none}
- :root[data-studio-layout=center][data-studio-app=pitch] .custom-stage-btn{grid-column:1/-1;justify-self:center;max-width:400px!important}
- :root[data-studio-layout=center][data-studio-app=pitch] .category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--studio-space-6);width:100%}
- :root[data-studio-layout=center][data-studio-app=rhythm] .app-container{max-width:960px!important}
- :root[data-studio-layout=center] .cc-explore-controls{flex-direction:row;align-items:center;flex-wrap:wrap}
- :root[data-studio-layout=center] .cc-explore-controls .cc-control-row{flex:1 1 280px}
- :root[data-studio-layout=center] .cc-save-section{max-width:900px}
-}
 /* Neutral navigation must remain legible on both light and dark projections. */
 :root[data-studio-theme] .modal{background-color:var(--studio-surface);color:var(--studio-text-primary)}
 :root[data-studio-theme] :is(.btn-back,.cc-nav-btn,.icon-btn){color:var(--studio-text-primary);background-color:var(--studio-control);border-color:var(--studio-border-default)}
