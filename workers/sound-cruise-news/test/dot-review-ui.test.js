@@ -1,0 +1,14 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {initDotReview} from '../operator-ui/dot-review.js';
+class Element{constructor(tag='div'){this.tagName=tag;this.children=[];this.listeners={};this.dataset={};this.textContent='';this.open=false;this.hidden=false;}append(...x){this.children.push(...x)}replaceChildren(...x){this.children=[...x]}addEventListener(type,fn){this.listeners[type]=fn}click(){return this.listeners.click?.()}}
+const tick=()=>new Promise(r=>setTimeout(r,0));
+test('read-only UI uses text sinks, rejects unsafe links and labels unverified candidate',async()=>{
+ const section=new Element(),items=new Element(),status=new Element();section.open=true;const nodes={'#dot-review':section,'#dot-items':items,'#dot-status':status};const original={document:globalThis.document,fetch:globalThis.fetch};
+ globalThis.document={querySelector:s=>nodes[s],createElement:s=>new Element(s)};
+ const candidate={entity:{manufacturer:'<img src=x onerror=alert(1)>',models:[],product:'M1'},event:{type:'announcement'},dates:{article_published:{value:null,precision:'unknown',evidence_ids:[]}},sources:[{url:'javascript:alert(1)',publisher:'test'}],claims:[],unresolved_questions:[],recommendation:{level:'unknown'}};
+ globalThis.fetch=async path=>({ok:true,json:async()=>path.includes('capabilities')?{available:true}:path.endsWith('fictional')?{candidate,validation:{formalFacts:false,ready:false,blockers:[],sourceStates:[]},similar:[],delivery:{attempts:[]}}:{items:[{id:'fictional',manufacturer:candidate.entity.manufacturer,product:'M1',models:[],validation:{formalFacts:false,ready:false}}]}});
+ try{initDotReview();await tick();await tick();assert.equal(items.children.length,1);assert.match(items.children[0].textContent,/<img/);items.children[0].click();await tick();const card=items.children[0];assert.equal(card.children.some(x=>x.tagName==='a'),false);const text=card.children.map(x=>x.textContent).join(' ');assert.match(text,/正式facts：未検証/);assert.match(text,/READY：不可/);assert.match(text,/UNCERTAIN/);assert.match(text,/公開日：不明/);}finally{globalThis.document=original.document;globalThis.fetch=original.fetch;}
+});
+test('disabled or failed connection gives a safe status without fetching candidates',async()=>{
+ const section=new Element(),items=new Element(),status=new Element();section.dataset.showDisabled='true';const original={document:globalThis.document,fetch:globalThis.fetch};globalThis.document={querySelector:s=>({'#dot-review':section,'#dot-items':items,'#dot-status':status})[s],createElement:s=>new Element(s)};let calls=0;globalThis.fetch=async()=>{calls++;return {ok:true,json:async()=>({available:false})}};
+ try{initDotReview();await tick();assert.equal(calls,1);assert.match(status.textContent,/停止中/);}finally{globalThis.document=original.document;globalThis.fetch=original.fetch;}
+});
