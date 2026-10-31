@@ -81,7 +81,7 @@ export class NewsStore {
   await this.db.batch([this.db.prepare('DELETE FROM news_presentation_days WHERE day<?').bind(new Date(now-90*DAY).toISOString().slice(0,10)),this.db.prepare('DELETE FROM news_presentation_requests WHERE created_at<=?').bind(now-365*DAY)]);
   await this.db.batch([this.db.prepare('DELETE FROM news_facts_rechecks WHERE checked_at<=?').bind(now-90*DAY),this.db.prepare('DELETE FROM news_facts_sources WHERE checked_at<=? AND lease_until<=?').bind(now-DAY,now)]);
   const result=await this.db.batch([
-   this.db.prepare('DELETE FROM candidate_items WHERE expires_at <= ?').bind(now+leadMs),
+   this.db.prepare('DELETE FROM candidate_items WHERE expires_at <= ? RETURNING id').bind(now+leadMs),
    this.db.prepare('DELETE FROM collection_runs WHERE collected_at <= ?').bind(now-90*DAY),
    this.db.prepare('DELETE FROM news_admin_audit WHERE occurred_at <= ?').bind(now-365*DAY),
    this.db.prepare('DELETE FROM news_takedowns WHERE expires_at <= ?').bind(now),
@@ -92,7 +92,7 @@ export class NewsStore {
   ]);
   await this.db.prepare('DELETE FROM news_category_overrides WHERE NOT EXISTS(SELECT 1 FROM candidate_items c WHERE c.id=news_category_overrides.candidate_id)').run();
   await this.db.prepare('DELETE FROM news_pending_lifecycle WHERE NOT EXISTS(SELECT 1 FROM candidate_items c WHERE c.id=news_pending_lifecycle.candidate_id)').run();
-  return {news:result[0].meta.changes,runs:result[1].meta.changes,audit:result[2].meta.changes,takedowns:result[3].meta.changes,alerts:result[4].meta.changes};
+  return {news:result[0].results.length,runs:result[1].meta.changes,audit:result[2].meta.changes,takedowns:result[3].meta.changes,alerts:result[4].meta.changes};
  }
  async candidates(){return (await this.db.prepare('SELECT * FROM candidate_items ORDER BY published_at DESC,id').all()).results;}
 
