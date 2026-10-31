@@ -156,7 +156,8 @@
         if (!operationAdapter) operationAdapter = CS().structureOperations.create({ model: CS().model,
             getSession: function () { return state.session; }, isEligible: operationEligible });
         var result = operationAdapter.execute(kind, args, expected);
-        if (!result.ok) { setSaveStatus(result.error || '編集を適用できませんでした', true); return result; }
+        if (!result.ok) { q('sc-edit-error').textContent = result.error || '編集を適用できませんでした'; setSaveStatus(result.error || '編集を適用できませんでした', true); return result; }
+        q('sc-edit-error').textContent = '';
         if (result.code === 'history-overflow') setSaveStatus('編集は反映されましたが、履歴容量を超えたため記録できませんでした', true);
         return result;
     }
@@ -522,7 +523,8 @@
         els.capo.value = si.capo;
         els.bpm.value = si.bpm;
         els.timeSig.value = si.timeSignature.beats + '/' + si.timeSignature.beatUnit;
-        [els.playKey,els.capo,els.timeSig].forEach(function(e){e.disabled=state.session.draft.schemaVersion===2;e.title=e.disabled?'schema 2 M1では表示専用です。実音保持・移調の編集導線は次工程です':'';});
+        els.timeSig.title = '現在のschema2は4/4のみ対応しています。拍別データの切捨ては行いません';
+        [els.playKey,els.capo].forEach(function(e){e.disabled=state.session.draft.schemaVersion===2;e.title=e.disabled?'schema 2 M1では表示専用です。実音保持・移調の編集導線は次工程です':'';});
         // 基本ストローク: slotsから記号列を再生成して表示（slotsが正。ADR-018）
         var basic=CS().model.getBasicStrumText(state.project);els.basicStrum.disabled=!!(basic&&basic.ok===false);els.basicStrum.value=basic&&basic.ok===false?basic.name+'（採用済み・旧編集非対応）':basic;
         els.basicStrum.classList.remove('is-invalid');
@@ -533,6 +535,9 @@
     function readFormIntoProject() { finishTextInputs(); } // DOM is not the content owner.
 
     function onFieldChange(event) {
+        if (event.target === els.timeSig && state.session.draft.schemaVersion === 2 && els.timeSig.value !== '4/4') {
+            els.timeSig.value = '4/4';q('sc-edit-error').textContent = '現在のschema2保存契約は4/4のみです。変更しませんでした';setSaveStatus('現在のschema2保存契約は4/4のみです。拍別データを保持するため変更しませんでした', true);return;
+        }
         var result = applyTextInput(event.target, event);
         if (!result.ok || result.deferred) return;
         markDirty(); updateKeyCheck(); renderPreview(true);
@@ -3161,6 +3166,15 @@
         });
         els.newProjectBtn.addEventListener('click', createNewProject);
 
+        function rejectUnsupportedMeter(event) {
+            if (state.session && state.session.draft.schemaVersion === 2 && els.timeSig.value !== '4/4') {
+                els.timeSig.value = '4/4';
+                q('sc-edit-error').textContent = '現在のschema2保存契約は4/4のみです。拍別データを保持するため変更しませんでした';
+                event.stopImmediatePropagation();
+            }
+        }
+        els.timeSig.addEventListener('input', rejectUnsupportedMeter, true);
+        els.timeSig.addEventListener('change', rejectUnsupportedMeter, true);
         [[els.title, 'title'], [els.artist, 'artist'], [els.capo, 'capo'], [els.bpm, 'bpm'],
          [els.originalKey, 'originalKey'], [els.playKey, 'playKey'], [els.timeSig, 'timeSignature']].forEach(function (pair) {
             wireTextControl(pair[0], { kind: 'song', field: pair[1] }, onFieldChange, true);
@@ -3170,6 +3184,17 @@
 
         els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
+        document.querySelectorAll('[data-bar-operation]').forEach(function(button){button.addEventListener('click',function(){
+            if (!operationEligible()) return;
+            var index=state.selectedBarNumber-1, canonical=state.session.draft, selected=canonical.bars[index];
+            if(!selected){setSaveStatus('編集する小節を選択してください',true);return;}
+            var kind=button.dataset.barOperation, direction=Number(button.dataset.direction), id=selected.id;
+            var result=runStructureOperation(kind,{barId:id,direction:direction});
+            if(!result.ok)return;
+            var next=kind==='deleteBar'?Math.min(index,state.session.draft.bars.length-1):kind==='moveBar'?index+direction:kind==='addBar'||kind==='duplicateBar'?index+1:index;
+            selectSheetBar(next+1);setSaveStatus((next+1)+'小節目を選択（未保存）');
+        });});
+        [['sc-transpose-down',-1],['sc-transpose-up',1]].forEach(function(pair){q(pair[0]).addEventListener('click',function(){if(operationEligible())runStructureOperation('transpose',{semitones:pair[1]});});});
         q('sc-goto-pre-dtm').addEventListener('click', function () {
             if (state.session && state.session.inputPending) { setSaveStatus('入力の確定を待ってください', true); return; }
             finishTextInputs();
