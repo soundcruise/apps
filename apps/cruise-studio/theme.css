@@ -5,21 +5,21 @@
 
 :root {
     /* 基本カラー（DESIGN_SYSTEM.md 8章のトークンを継承） */
-    --bg-color: #120f0c;
-    --surface-color: #1d1813;
-    --surface-raised: #251f18;
-    --primary-color: #ff9f1c;
-    --secondary-color: #ffd166;
+    --bg-color: var(--studio-app-bg);
+    --surface-color: var(--studio-surface);
+    --surface-raised: var(--studio-elevated);
+    --primary-color: var(--studio-accent-text);
+    --secondary-color: var(--studio-accent-bright);
     --accent-cool: #4d96ff;
-    --text-color: #fdf6ee;
-    --muted-color: rgba(253, 246, 238, 0.62);
-    --error-color: #ff4f6e;
+    --text-color: var(--studio-text-primary);
+    --muted-color: var(--studio-text-muted);
+    --error-color: var(--studio-danger);
 
     /* クルーズスタジオ固有 */
     --studio-max-width: 1200px;   /* PCファースト。600pxのスマホ上限は採用しない */
     --card-radius: 18px;
-    --card-border: rgba(255, 209, 102, 0.16);
-    --card-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --card-border: var(--studio-border-default);
+    --card-shadow: var(--studio-shadow-low);
 
     /* ══════════ ペーパートークン（F1: 小節ルーペが紙面と同じ視覚言語を使うための共有変数。
        docs/DECISIONS.md ADR-027） ══════════
@@ -259,7 +259,7 @@ body {
 }
 
 .btn-ghost:hover {
-    border-color: rgba(253, 246, 238, 0.45);
+    border-color: var(--studio-text-muted);
     color: var(--text-color);
 }
 
@@ -1227,7 +1227,7 @@ body {
 
 .preview-note {
     font-size: 11.5px;
-    color: rgba(253, 246, 238, 0.45);
+    color: var(--studio-text-muted);
     text-align: center;
 }
 
@@ -2104,7 +2104,7 @@ body.loupe-resizing {
     text-align: center;
     font-size: 12px;
     letter-spacing: 0.18em;
-    color: rgba(253, 246, 238, 0.35);
+    color: var(--studio-text-muted);
     padding: 12px 0 4px;
 }
 
@@ -2242,9 +2242,9 @@ body.loupe-resizing {
 .pd-midi-note {
     margin-top: 16px;
     padding: 10px 14px;
-    border: 1px solid rgba(253, 246, 238, 0.1);
+    border: 1px solid var(--studio-border-default);
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--studio-control);
     font-size: 12px;
     color: var(--muted-color);
     line-height: 1.7;
@@ -2256,7 +2256,7 @@ body.loupe-resizing {
 
 .pd-part-midi {
     font-size: 11px;
-    color: rgba(253, 246, 238, 0.45);
+    color: var(--studio-text-muted);
 }
 
 /* パート一覧 */

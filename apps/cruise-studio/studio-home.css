@@ -1,5 +1,5 @@
-/* Midnight Session: presentation tokens follow the existing four-theme runtime. */
-:root, :root[data-theme="dark"] {
+/* Midnight Session and Port Dark use distinct palettes. */
+:root[data-theme="midnight"] {
     --home-bg: #10151c;
     --home-panel: #1d2631;
     --home-art-panel: #2a3541;
@@ -10,6 +10,18 @@
     --home-warm: #c7aa7b;
     --home-cool: #81aaa9;
     --home-shadow: #00000040;
+}
+:root, :root[data-theme="dark"] {
+    --home-bg: #090806;
+    --home-panel: #17150f;
+    --home-art-panel: #252117;
+    --home-art-raised: #3b3424;
+    --home-text: #f3f0e8;
+    --home-muted: #c4bba9;
+    --home-line: #cdb47455;
+    --home-warm: #d8bc76;
+    --home-cool: #bcae8e;
+    --home-shadow: #00000066;
 }
 :root[data-theme="charcoal"] {
     --home-bg: #343a3e;
@@ -133,11 +145,11 @@
 .home-primary .module-card:is(:hover, :focus-visible, :active, .is-touch-explaining) .module-card-label,
 .home-series .module-card:is(:hover, :focus-visible, :active, .is-touch-explaining) .module-card-label,
 .home-tools .pc-home-grid button:is(:hover, :focus-visible, :active, .is-touch-explaining) strong { visibility: hidden; }
-:root[data-theme="dark"] .studio-main .home-tools .pc-home-grid button {
-    background: #1b222b; border: 1px solid #ffffff1c;
+:root:is([data-theme="dark"], [data-theme="midnight"]) .studio-main .home-tools .pc-home-grid button {
+    background: var(--home-panel); border: 1px solid var(--home-line);
 }
-:root[data-theme="dark"] .studio-main .home-tools .pc-home-grid button:hover {
-    background: #242e39; border-color: var(--home-line);
+:root:is([data-theme="dark"], [data-theme="midnight"]) .studio-main .home-tools .pc-home-grid button:hover {
+    background: var(--home-art-panel); border-color: var(--home-line);
 }
 :root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .studio-main .home-tools .pc-home-grid button,
 :root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .studio-main .home-series .module-card {

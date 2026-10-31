@@ -18,6 +18,7 @@ const html = read('../index.html');
 const legacyCss = read('../theme.css');
 const printCss = read('../print.css');
 const ids = ['dark', 'charcoal', 'gray', 'light'];
+const studioIds = ['dark', 'midnight', 'charcoal', 'gray', 'light'];
 const names = [
     'app-bg','surface','surface-deep','panel','panel-alt','panel-deep','elevated',
     'text-primary','text-muted','border-default','accent','accent-bright','accent-text',
@@ -57,8 +58,8 @@ function documentStub() {
 }
 const token = name => projection.tokens.find(entry => entry.semanticToken === '--studio-' + name);
 
-test('four IDs, Dark default, frozen metadata agree with Port settings', () => {
-    assert.deepEqual(contract.listColorThemes().map(theme => theme.id), ids);
+test('five Studio IDs, four Port IDs, Dark default and frozen metadata', () => {
+    assert.deepEqual(contract.listColorThemes().map(theme => theme.id), studioIds);
     const portIds = portSettings.match(/export const THEMES = Object.freeze\(\[([^\]]+)\]\)/)[1].match(/'([^']+)'/g).map(s=>s.slice(1,-1));
     assert.deepEqual(portIds, ids);
     assert.equal(contract.DEFAULT_THEME, 'dark');
@@ -67,12 +68,15 @@ test('four IDs, Dark default, frozen metadata agree with Port settings', () => {
     assert.ok(contract.listColorThemes().every(Object.isFrozen));
 });
 test('resolver: supported values only; invalid input resolves to Dark', () => {
-    for (const id of ids) assert.equal(contract.resolveColorTheme(id), id);
+    for (const id of studioIds) assert.equal(contract.resolveColorTheme(id), id);
     for (const value of [null,undefined,'Dark','LIGHT','system','',1,true,{},['light']]) assert.equal(contract.resolveColorTheme(value),'dark');
 });
 test('all 39 tokens and 156 projections have exact source selector/property/literal/value', () => validate(projection));
 test('CSS artifact is exactly the verified projection, without Port variables', () => {
-    assert.equal(projectionCss, renderProjectionCss(projection));
+    const midnight = projectionCss.match(/:root\[data-theme="midnight"\] \{[\s\S]*?\}\n\n/);
+    assert.ok(midnight);
+    assert.equal(projectionCss.replace(midnight[0], ''), renderProjectionCss(projection));
+    assert.match(midnight[0], /--studio-app-bg: #10151c/);
     assert.doesNotMatch(projectionCss, /--port-|--paper-|@import/);
     for (const rule of parseRules(projectionCss)) {
         assert.ok(rule.selector.startsWith(':root'));
@@ -136,7 +140,7 @@ test('shadow geometries and theme alpha agree with card/panel/dialog sources', (
     assert.throws(()=>validate(projection,portCss.replace('0 22px 60px rgba(0, 0, 0, 0.48)','0 22px 60px rgba(0, 0, 0, 0.40)')),/source drift/);
 });
 test('theme-color agrees with Port runtime and both first-paint bootstraps', () => {
-    for (const theme of contract.listColorThemes()) {
+    for (const theme of contract.listColorThemes().filter(theme => theme.id !== 'midnight')) {
         const pattern = new RegExp(theme.id+": '"+theme.themeColor+"'");
         for (const source of [portSettings,portStandard,portPro]) assert.match(source,pattern);
     }
@@ -221,7 +225,7 @@ test('script registration has no storage / DOM / timer / network / audio side ef
     assert.equal(context.CruiseStudio.colorTheme.resolveColorTheme('light'),'light');
 });
 test('actual entry bootstrap runs before stylesheets with exactly the runtime resolver', () => {
-    const src=html.indexOf('src="js/core/color-theme.js?v=0.53.0"');
+    const src=html.indexOf('src="js/core/color-theme.js?v=0.54.0"');
     const inline=html.match(/<script>\s*(CruiseStudio\.colorTheme[\s\S]*?)<\/script>/)[1];
     assert.ok(src>0 && html.indexOf(inline)<html.indexOf('rel="stylesheet"'));
     for (const value of [null,'{}',...ids.map(id=>JSON.stringify({colorTheme:id})),'{"colorTheme":"invalid"}','{bad','[]']) {
@@ -268,7 +272,7 @@ test('print remains white A4, hides Shell/Loupe/selection and has no Shell token
 test('Theme does not couple to Feature Metadata / Port runtime / Sync / project data', () => {
     assert.doesNotMatch(runtimeSource,/cruisePort\.settings|feature-registry|component-metadata|SoundCruise|fetch\(|matchMedia\(|\.reload\(/);
     for (const file of ['../js/core/feature-registry.mjs','../js/core/component-metadata.mjs']) assert.doesNotMatch(read(file),/color-theme|theme-projection/);
-    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.53.0'/);
+    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.54.0'/);
     assert.match(read('../js/core/song-model.js'),/SCHEMA_VERSION = 1/);
 });
 test('Port source verification is read-only', () => {

@@ -41,6 +41,20 @@
     --studio-shadow-high: 0 22px 60px rgba(0, 0, 0, 0.48);
 }
 
+:root[data-theme="midnight"] {
+    --studio-app-bg: #10151c;
+    --studio-surface: #1d2631;
+    --studio-surface-deep: #151d26;
+    --studio-panel: #1d2631;
+    --studio-panel-alt: #252f3b;
+    --studio-panel-deep: #10151c;
+    --studio-elevated: #39434f;
+    --studio-control: #252f3b;
+    --studio-control-hover: #39434f;
+    --studio-control-active: #303c49;
+    --studio-field: #10151c;
+}
+
 :root[data-theme="charcoal"] {
     --studio-app-bg: #424346;
     --studio-surface: #4c4e52;

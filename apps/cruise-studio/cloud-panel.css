@@ -1,19 +1,17 @@
-.studio-cloud-panel { border: 1px solid #39372d; border-radius: 14px; padding: 22px; background: #151510; color: #f3f0e8; margin: 24px 0; }
+.studio-cloud-panel { border: 1px solid var(--studio-border-default); border-radius: 14px; padding: 22px; background: var(--studio-panel); color: var(--studio-text-primary); margin: 24px 0; }
 .studio-cloud-panel h2 { font-size: 1.3rem; margin: 0 0 12px; }
 .studio-cloud-panel p { line-height: 1.6; margin: 6px 0; overflow-wrap: anywhere; }
-.studio-cloud-panel [role="status"] { padding: 12px 14px; border-left: 3px solid #c7b478; background: #232218; margin: 14px 0; }
+.studio-cloud-panel [role="status"] { padding: 12px 14px; border-left: 3px solid var(--studio-accent); background: var(--studio-control); margin: 14px 0; }
 .studio-cloud-panel > label { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; font-size: .9rem; line-height: 1.5; }
-.studio-cloud-panel > label input { margin-top: 4px; accent-color: #d6c17f; flex: none; }
-.studio-cloud-panel select { display: block; width: 100%; max-width: 660px; padding: 10px; color: inherit; background: #24231d; border: 1px solid #625a40; border-radius: 6px; font: inherit; }
+.studio-cloud-panel > label input { margin-top: 4px; accent-color: var(--studio-accent); flex: none; }
+.studio-cloud-panel select { display: block; width: 100%; max-width: 660px; padding: 10px; color: var(--studio-text-primary); background: var(--studio-field); border: 1px solid var(--studio-field-border); border-radius: 6px; font: inherit; }
 .studio-cloud-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
-.studio-cloud-actions button { min-height: 44px; padding: 10px 16px; color: #eee5c9; background: #29271e; border: 1px solid #7b6b3f; border-radius: 8px; font: inherit; font-size: .9rem; cursor: pointer; }
-.studio-cloud-actions button:hover:not(:disabled) { background: #3b3524; }
-.studio-cloud-actions button:focus-visible, .studio-cloud-panel select:focus-visible { outline: 2px solid #ecd68f; outline-offset: 3px; }
-.studio-cloud-actions button:disabled { opacity: .45; cursor: not-allowed; border-color: #555145; }
+.studio-cloud-actions button, .studio-cloud-panel > button { min-height: 44px; padding: 10px 16px; color: var(--studio-text-primary); background: var(--studio-control); border: 1px solid var(--studio-border-strong); border-radius: 8px; font: inherit; font-size: .9rem; cursor: pointer; }
+.studio-cloud-actions button:hover:not(:disabled), .studio-cloud-panel > button:hover:not(:disabled) { background: var(--studio-control-hover); }
+.studio-cloud-actions button:focus-visible, .studio-cloud-panel > button:focus-visible, .studio-cloud-panel select:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 3px; }
+.studio-cloud-actions button:disabled, .studio-cloud-panel > button:disabled { opacity: .45; cursor: not-allowed; }
 .studio-cloud-panel [hidden] { display: none; }
+.studio-cloud-panel input:not([type="checkbox"]), .studio-cloud-panel textarea { background: var(--studio-field); color: var(--studio-text-primary); border: 1px solid var(--studio-field-border); border-radius: 6px; padding: 10px; font: inherit; min-width: 0; width: min(100%,560px); }
+.studio-cloud-panel textarea { display: block; min-height: 100px; overflow-wrap: anywhere; }
+.studio-cloud-panel > button { margin: 6px; }
 @media (max-width: 600px) { .studio-cloud-panel { padding: 16px; } .studio-cloud-actions button { flex: 1 1 100%; } }
-
-.studio-cloud-panel input:not([type="checkbox"]), .studio-cloud-panel textarea { background:#24231d; color:#eee5c9; border:1px solid #625a40; border-radius:6px; padding:10px; font:inherit; min-width:0; width:min(100%,560px); }
-.studio-cloud-panel textarea { display:block; min-height:100px; overflow-wrap:anywhere; }
-.studio-cloud-panel > button { margin:6px; min-height:44px; padding:10px; background:#29271e; color:#eee5c9; border:1px solid #7b6b3f; border-radius:6px; }
-.studio-cloud-panel > button:disabled {opacity:.45;}
