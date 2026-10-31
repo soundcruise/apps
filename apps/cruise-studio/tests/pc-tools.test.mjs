@@ -54,7 +54,8 @@ test('Port tuner surface and memory-only score reference keep their separate own
     assert.match(read('../index.html'), /class="metronome-advanced" disabled/);
     assert.match(read('../index.html'), /id="port-tuner-surface"/);
     assert.doesNotMatch(read('../index.html'), /id="tuner-apply"|id="tuner-cancel"/);
-    assert.match(read('../js/modules/tuner/port-surface.js'), /cruise-port\//);
+    assert.match(read('../js/modules/tuner/port-surface.js'), /port-tool\.html/);
+    assert.match(read('../js/port-components/tool-document.mjs'), /module\.initTuner/);
     const source = read('../js/modules/tuner/reference.mjs'); assert.match(source, /synthesizeReferencePluck/);
     assert.doesNotMatch(source, /localStorage|indexedDB|fetch\(|tuner-store|sync-account/);
 });

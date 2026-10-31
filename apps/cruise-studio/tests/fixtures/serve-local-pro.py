@@ -1,0 +1,26 @@
+"""TEST ONLY: loopback origin with synthetic Pro policy, no real credentials/backend.
+Run in a disposable browser profile. Port data keys are real but data must be synthetic.
+"""
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+import argparse
+ROOT = Path(__file__).resolve().parents[4]
+BOUNDARY = b'''import {getCapabilities} from '/apps/cruise-port/cruise-port-capabilities.js';
+const auth={credential:'synthetic-local-fixture',generation:1,sessionVersion:1};
+const source=Object.freeze({read:()=>({auth,revoked:false,revision:'fixture'}),validate:async()=>({ok:true,offlineRemainingMs:60000})});
+globalThis.SoundCruiseProOperationSource=source;
+export function createPortProBoundary(){let disposed=false;return {authorize:async()=>disposed?{ok:false}:{ok:true,capabilities:getCapabilities('pro')},invalidate(){},dispose(){disposed=true;}};}
+'''
+class Handler(SimpleHTTPRequestHandler):
+    def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(ROOT),**kwargs)
+    def end_headers(self):
+        self.send_header('Content-Security-Policy', "connect-src 'self'; form-action 'self'; object-src 'none'")
+        super().end_headers()
+    def do_GET(self):
+        if self.path.split('?')[0] == '/apps/cruise-studio/js/core/port-pro-boundary.mjs':
+            self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(BOUNDARY); return
+        super().do_GET()
+if __name__ == '__main__':
+    parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18781);args=parser.parse_args()
+    print('SYNTHETIC TEST ENVIRONMENT ONLY. Do not enter real Account or Pro credentials.',flush=True)
+    ThreadingHTTPServer(('127.0.0.1',args.port),Handler).serve_forever()
