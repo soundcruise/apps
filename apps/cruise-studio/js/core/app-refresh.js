@@ -4,10 +4,10 @@
     var button = document.getElementById('studio-refresh'), status = document.getElementById('studio-refresh-status');
     function blocked() {
         var sessions = window.CruiseStudio?.sessions;
-        return !sessions || sessions.listSessions().some(function (s) { return s.dirty || s.commitInFlight || s.inputPending || s.externalUpdatePending || s.conflict; });
+        return window.CruiseStudio?.toolWindow?.hasUnsaved() || !sessions || sessions.listSessions().some(function (s) { return s.dirty || s.commitInFlight || s.inputPending || s.externalUpdatePending || s.conflict; });
     }
     button.addEventListener('click', async function () {
-        if (blocked()) { status.textContent = '編集中の曲を保存し、入力を確定してから更新してください。'; return; }
+        if (blocked()) { status.textContent = '編集中の内容を保存し、入力を確定してから更新してください。'; return; }
         if (navigator.serviceWorker?.controller) { status.textContent = 'Service Workerが配信中です。ブラウザの更新設定を確認してください。'; return; }
         button.disabled = true; status.textContent = '配信を確認中…';
         try {

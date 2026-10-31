@@ -461,3 +461,23 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .pc-news button:disabled { opacity: .6; cursor: default; }
 /* Workspace controls stay inside the active scroll container and below dialogs. */
 .workspace-local-nav { position: sticky; top: 0; z-index: 20; width: max-content; margin-bottom: 0; padding: 4px; border-radius: 9px; background: var(--studio-surface); }
+#studio-tool-window { position: absolute; inset: 0 0 0 auto; width: var(--studio-tool-width,380px); z-index: 40; background: var(--studio-app-bg); color: var(--studio-text-primary); border-left: 1px solid var(--studio-border-default); display: flex; flex-direction: column; box-shadow: var(--studio-shadow-high); }
+#studio-tool-window[hidden] { display: none; }
+.tool-window-bar { display:flex; gap:8px; padding:8px; flex-shrink:0; }
+.tool-window-bar select { min-width:0; flex:1; }
+#tool-window-slot { overflow:auto; flex:1; min-height:0; padding:8px; }
+#tool-window-slot .screen { display:flex; flex-direction:column; gap:8px; }
+#tool-window-slot .screen.hidden { display:none; }
+#tool-window-slot .screen-header, #tool-window-slot .workspace-local-nav, #tool-window-slot [data-open-tool], #tool-window-slot [id$="-overview"] { display:none; }
+#tool-window-slot iframe { width:100%; height:calc(100dvh - 150px); min-height:320px; }
+#tool-window-resize { position:absolute; width:10px; left:-5px; top:0; bottom:0; cursor:ew-resize; touch-action:none; }
+#studio-shell[data-tool-window="open"] .studio-main { margin-right:var(--studio-tool-width,380px); }
+.sheet-tool-launchers { display:inline-flex; flex-wrap:wrap; gap:4px; }
+.sheet-tool-launchers button,.tool-window-bar :is(button,select) { min-height:36px; background:var(--studio-control); color:var(--studio-text-primary); border:1px solid var(--studio-border-default); border-radius:6px; }
+@media(max-width:1100px) { #studio-shell[data-tool-window="open"] .studio-main { margin-right:0; } #studio-tool-window { width:min(var(--studio-tool-width,380px),calc(100% - 72px)); } }
+@media print { #studio-tool-window { display:none!important; } #studio-shell[data-tool-window="open"] .studio-main { margin-right:0; } }
+@media(max-width:1100px) { #studio-tool-window { top:72px; } }
+.tool-window-bar button { flex: 0 0 36px; min-width:36px; }
+.sheet-tool-launchers button { min-width:36px; }
+#tool-window-resize::after { content:''; position:absolute; left:4px; top:40%; bottom:40%; width:2px; border-radius:2px; background:var(--studio-border-strong); }
+#tool-window-resize:focus-visible { outline:2px solid var(--studio-focus); }
