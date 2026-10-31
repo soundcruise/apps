@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {webcrypto} from 'node:crypto';
 const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.url), 'utf8');
 const deferred = () => { let resolve; const promise = new Promise(r => {resolve = r;}); return {promise,resolve}; };
-function harness({canSync = () => true, readerFirst = false} = {}) {
+function harness({canSync = () => true, readerFirst = false, localData} = {}) {
   let account = {accountId:'A',accountCredential:'sca1.A.secret'}, generation = 0;
   const listeners = new Set(), databases = new Map(), events=[], network=[], runtimes=[];
   const window = new EventTarget(), document = new EventTarget(); document.visibilityState='visible';
@@ -37,13 +38,18 @@ function harness({canSync = () => true, readerFirst = false} = {}) {
     async retryLegacyFailures(){return {ok:true};}
     dispose(){this.disposed=true;}
   }
-  const context={EventTarget,CustomEvent,AbortController,structuredClone,Date,
+  const context={EventTarget,CustomEvent,AbortController,structuredClone,Date,TextEncoder,crypto:webcrypto,
     addEventListener(type,fn){policyListeners.add(fn);window.addEventListener(type,fn);},removeEventListener(type,fn){policyListeners.delete(fn);window.removeEventListener(type,fn);},dispatchEvent:e=>events.push(e),document,
     navigator:{onLine:true,locks:{request:async (_name,_options,work)=>work()}},setInterval(fn){intervals.add(fn);return fn;},clearInterval:id=>intervals.delete(id),
-    SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
+    SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;}assertLocalAccount(){}async ensureLocalAccount(){}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
     SoundCruiseSyncAccount:{AccountClient:Client,storage:{getAccount:async()=>account,getGeneration:()=>generation,subscribeAccount:fn=>{listeners.add(fn);return ()=>listeners.delete(fn);},getQaAdmission:async()=>null},
       core:{validAccountCredential:x=>x?.startsWith('sca1.'),validAppCredential:x=>x?.startsWith('scd1.'),createAppCredential:()=>({appDeviceCredential:'scd1.port.secret'}),createOperationId:()=> 'stable-id'}},
     SoundCruiseMultiAppSync:{dataStorage:{createStore},MultiAppSyncRuntime:Runtime}};
+  if (localData) {
+    const data = new Map(Object.entries(localData));
+    context.localStorage = {getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key)};
+    vm.runInNewContext(fs.readFileSync(new URL('./port-sync-adapter.js', import.meta.url),'utf8'),context);
+  }
   vm.runInNewContext(source,context);
   const config={enabled:true,environment:'production',endpoint:'https://sync.example'};
   const create=(readOnly=false)=>context.SoundCruisePortSync.createPortSyncController({config,canSync,readOnly}); const controller=create(readerFirst);
@@ -144,4 +150,42 @@ test('owner mismatch fails explicitly without replacing active runtime', async (
 test('no Web Locks rejects activation before provision while local status remains readable', async () => {
  const h=harness();delete h.context.navigator.locks;await assert.rejects(h.controller.ensure(),/sync_locks_unavailable/);
  assert.equal(h.network.length,0);assert.equal(h.runtimes.length,0);await h.controller.readLocalStatus();h.controller.release();
+});
+
+test('real adapter refuses B activation before provisioning or bootstrap, retaining A pending data', async () => {
+  for(const marker of [undefined,JSON.stringify({version:1,accountId:'A'})]) {
+    const localData={'cruisePort.gearList':JSON.stringify({version:5,items:[{id:'A-unsynced',name:'A local'}]})};
+    if(marker)localData['cruisePort.syncLocalAccount.v1']=marker;
+    const h=harness({localData});h.changeAccount('B');
+    const pending={operationId:'A-pending',payload:{name:'A local'}};
+    const a=h.createStore('port',{accountId:'A'});await a.putOutbox(pending);
+    await assert.rejects(h.controller.ensure(), /port_local_account_unconfirmed/);
+    assert.equal(h.network.length,0);assert.equal(h.runtimes.length,0);
+    assert.deepEqual(a.data.outbox,[pending]);
+    assert.equal(h.context.localStorage.getItem('cruisePort.gearList'),localData['cruisePort.gearList']);
+    h.controller.dispose();
+  }
+});
+test('real adapter same-account resumes while Account switch remains held', async () => {
+  const h=harness({localData:{'cruisePort.syncLocalAccount.v1':JSON.stringify({version:1,accountId:'A'})}});
+  await h.controller.ensure();assert.equal(h.runtimes[0].initialized,1);
+  h.changeAccount('B');const calls=h.network.length;
+  await assert.rejects(h.controller.ensure(), /port_local_account_unconfirmed/);
+  assert.equal(h.network.length,calls);assert.equal(h.runtimes.length,1);
+  h.controller.dispose();
+});
+
+test('explicit current choice enables existing user bootstrap without moving A outbox to B', async () => {
+ const localData={'cruisePort.gearList':JSON.stringify({version:5,items:[]})};const h=harness({localData});
+ const a=h.createStore('port',{accountId:'A'});await a.putOutbox({operationId:'A-kept'});
+ const observed=await h.controller.inspectLocalAccount();
+ await h.controller.chooseLocalAccount({choice:'current',snapshotId:observed.snapshotId,confirmed:true});
+ await h.controller.ensure();assert.equal(h.runtimes[0].initialized,1);
+ h.changeAccount('B');await assert.rejects(h.controller.ensure(),/account_unconfirmed/);
+ assert.deepEqual(a.data.outbox,[{operationId:'A-kept'}]);h.controller.dispose();
+});
+test('consent observed under A cannot be reinterpreted under B after Account change', async () => {
+ const h=harness({localData:{}}),observed=await h.controller.inspectLocalAccount();h.changeAccount('B');
+ await assert.rejects(h.controller.chooseLocalAccount({choice:'current',snapshotId:observed.snapshotId,confirmed:true}),/account_changed/);
+ assert.equal(h.context.localStorage.getItem('cruisePort.syncLocalAccount.v1'),null);assert.equal(h.network.length,0);h.controller.dispose();
 });

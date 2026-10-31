@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {proFixture} from './authority-store/pro-device-fixture.mjs';
-import {PORT_DATASET_KEYS} from '../port-dataset-repository.js?v=1.24.24';
+import {PORT_DATASET_KEYS} from '../port-dataset-repository.js?v=1.26.0';
 test('official Pro gate/Device Session can authorize dataset action but cannot substitute for Account Owner',async t=>{
  const x=await proFixture(t,{bound:true}),base=(await x.store.hydrate('g1')).snapshot,gear=JSON.parse(base.values['cruisePort.gearList']);gear.items[0].name='authenticated Pro';
  const p=await x.prepare({id:'dataset-pro',action:'savePortDataset',changes:{'cruisePort.gearList':JSON.stringify(gear)},dependencyKeys:PORT_DATASET_KEYS});assert(p.reserved.ok,p.reserved.reason);

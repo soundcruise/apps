@@ -134,6 +134,7 @@ export class PortDatasetRepository {
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
             this.localWriterContext?.assertCurrent();
+            this.localWriterContext?.assertLocalAccount?.();
             const guarded = typeof this.authorityProvider?.captureCommitContext === 'function';
             const context = this.authorityProvider?.captureCommitContext?.();
             const prepare = async () => {
@@ -193,6 +194,7 @@ export class PortDatasetRepository {
                     }
                 };
                 this.localWriterContext?.assertCurrent();
+            this.localWriterContext?.assertLocalAccount?.();
                 assertOperation();
                 if (!changed.length) return { ...result, ok: true, status: 'unchanged', revision: before.revision, state: before,
                     ...(guarded || commitGuard ? { authorityContext, authorizationContext, publish: false, operationId } : {}) };
@@ -203,6 +205,7 @@ export class PortDatasetRepository {
                     // Time/revoke can change during synchronous storage I/O too.
                     // Reject/rollback before the final publication if it is now invalid.
                     this.localWriterContext?.assertCurrent();
+            this.localWriterContext?.assertLocalAccount?.();
                     assertOperation();
                     this.storage.setItem(PORT_DATASET_META, JSON.stringify(meta));
                 } catch (failure) {
