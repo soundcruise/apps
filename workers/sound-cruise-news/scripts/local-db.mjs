@@ -3,10 +3,10 @@ import { readFile, mkdir, readdir } from 'node:fs/promises';
 import {expireReport} from './report.mjs';
 import { NewsStore } from '../src/store.js';
 import {migrationStatements} from './migration-statements.mjs';
-export async function localDatabase(persistencePath='.local/d1'){
+export async function localDatabase(persistencePath='.local/d1',{compatibilityDate='2026-09-18'}={}){
  await mkdir('.local',{recursive:true});
  await expireReport();
- const mf=new Miniflare(convertV4MiniflareOptions({name:'news-local-db',modules:true,script:'export default {fetch(){return new Response("local news DB");}}',compatibilityDate:'2026-09-18',d1Databases:{NEWS_DB:'00000000-0000-0000-0000-000000000001'},resourcePersistencePath:persistencePath}));
+ const mf=new Miniflare(convertV4MiniflareOptions({name:'news-local-db',modules:true,script:'export default {fetch(){return new Response("local news DB");}}',compatibilityDate,d1Databases:{NEWS_DB:'00000000-0000-0000-0000-000000000001'},resourcePersistencePath:persistencePath}));
  const db=await mf.getD1Database('NEWS_DB');
  try {
   await db.prepare('CREATE TABLE IF NOT EXISTS local_news_migrations (name TEXT PRIMARY KEY)').run();

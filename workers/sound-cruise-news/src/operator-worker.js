@@ -19,6 +19,7 @@ import {admitDotCandidate} from './dot-admission.js';
 import {dotPublicationGate} from './dot-publication-gate.js';
 import {saveDotSourceRecheck} from './dot-source-recheck.js';
 import {saveDotHistoryCheck} from './dot-history-check.js';
+import {saveDotHistoryExclusion,historySubjects} from './dot-history-exclusion.js';
 import {NewsStore} from './store.js';
 import {runtimeSources} from './runtime.js';
 import {reviewQueue,reviewDetail,operatorDecision,candidateSnapshot} from './operator-review.js';
@@ -38,9 +39,15 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=options.registry||runtimeSources(env,undefined,now);
   // Configuration is consulted only on Dot routes; other Operator functionality remains independent.
-  const isDotRoute=url.pathname==='/api/dot-capabilities'||url.pathname==='/api/dot-candidates'||url.pathname.startsWith('/api/dot-candidates/')||/^\/api\/candidates\/[A-Za-z0-9_-]{1,128}\/dot-(?:publish-check|source-recheck|history-check)$/.test(url.pathname);
+  const isDotRoute=url.pathname==='/api/dot-capabilities'||url.pathname==='/api/dot-candidates'||url.pathname.startsWith('/api/dot-candidates/')||/^\/api\/candidates\/[A-Za-z0-9_-]{1,128}\/dot-(?:publish-check|source-recheck|history-check|history-subjects|history-exclusion)$/.test(url.pathname);
   const assertion=request.headers.get('Cf-Access-Jwt-Assertion');
   const dotReader=isDotRoute?(options.dotReader||(options.dotProxy?createDotCloudRunProxy({...options.dotProxy,assertion}):configuredDotProxy(env,assertion))):null;
+  if(request.method==='GET'&&/^\/api\/candidates\/[A-Za-z0-9_-]{1,128}\/dot-history-subjects$/.test(url.pathname)){
+   if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true'||env.NEWS_DOT_PUBLICATION_ENABLED!=='true')return json({error:'not_found'},404);if([...url.searchParams.keys()].some(k=>k!=='after'))throw Error('operator_query_invalid');return json(await historySubjects(store,url.pathname.split('/')[3],url.searchParams.get('after')||''));
+  }
+  if(request.method==='POST'&&/^\/api\/candidates\/[A-Za-z0-9_-]{1,128}\/dot-history-exclusion$/.test(url.pathname)){
+   if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true'||env.NEWS_DOT_PUBLICATION_ENABLED!=='true')return json({error:'not_found'},404);if(url.search)throw Error('operator_query_invalid');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(input.id!==url.pathname.split('/')[3])throw Error('operator_query_invalid');return json(await saveDotHistoryExclusion(store,input,identity.actor,now));
+  }
   if(request.method==='POST'&&/^\/api\/candidates\/[A-Za-z0-9_-]{1,128}\/dot-history-check$/.test(url.pathname)){
    if(!dotReader||env.NEWS_DOT_CONFIRMATION_ENABLED!=='true'||env.NEWS_DOT_PUBLICATION_ENABLED!=='true')return json({error:'not_found'},404);if(url.search)throw Error('operator_query_invalid');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(input.id!==url.pathname.split('/')[3])throw Error('operator_query_invalid');return json(await saveDotHistoryCheck(store,input,identity.actor,now));
   }
@@ -76,7 +83,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.46.3'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.47.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
