@@ -89,8 +89,9 @@ function parseJournal(raw) {
     return value;
 }
 export class PortDatasetRepository {
-    constructor({ storage, authorityProvider, backend, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
+    constructor({ storage, authorityProvider, backend, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {}, localWriterContext = null } = {}) {
         if (backend !== undefined && (!isIsolatedRepositoryBackend(backend) || authorityProvider)) throw error('isolated-backend-required');
+        this.localWriterContext = localWriterContext;
         this.backend = backend;
         this.storage = authorityProvider?.storage || storage;
         this.authorityProvider = authorityProvider;
@@ -132,6 +133,7 @@ export class PortDatasetRepository {
         });
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
+            this.localWriterContext?.assertCurrent();
             const guarded = typeof this.authorityProvider?.captureCommitContext === 'function';
             const context = this.authorityProvider?.captureCommitContext?.();
             const prepare = async () => {
@@ -190,6 +192,7 @@ export class PortDatasetRepository {
                             throw error(verdict?.reason || 'operation-authorization-rejected');
                     }
                 };
+                this.localWriterContext?.assertCurrent();
                 assertOperation();
                 if (!changed.length) return { ...result, ok: true, status: 'unchanged', revision: before.revision, state: before,
                     ...(guarded || commitGuard ? { authorityContext, authorizationContext, publish: false, operationId } : {}) };
@@ -199,6 +202,7 @@ export class PortDatasetRepository {
                     for (const key of changed) this.writeRaw(key, draft.values[key]);
                     // Time/revoke can change during synchronous storage I/O too.
                     // Reject/rollback before the final publication if it is now invalid.
+                    this.localWriterContext?.assertCurrent();
                     assertOperation();
                     this.storage.setItem(PORT_DATASET_META, JSON.stringify(meta));
                 } catch (failure) {
@@ -224,12 +228,14 @@ export class PortDatasetRepository {
                 return { ...result, ok: true, status: 'committed', revision: state.revision, state, ...(commitGuard?{operationAuthorized}:{}),
                     ...(guarded || commitGuard ? { authorityContext, authorizationContext, publish: false, operationId } : {}) };
             };
+            const publish = prepared => this.localWriterContext
+                ? this.localWriterContext.commit(() => commit(prepared)) : commit(prepared);
             if (guarded) {
                 // Private async preparation never monopolizes the commit lock.
                 const prepared = await prepare();
-                return await this.locks.request(this.lockName, { mode: 'exclusive' }, () => commit(prepared));
+                return await this.locks.request(this.lockName, { mode: 'exclusive' }, () => publish(prepared));
             }
-            return await this.locks.request(this.lockName, { mode: 'exclusive' }, async () => commit(await prepare()));
+            return await this.locks.request(this.lockName, { mode: 'exclusive' }, async () => publish(await prepare()));
         } catch (e) { return { ok: false, status: e.code === 'recovery-required' ? 'recovery-required' : 'rejected', reason: e.code || 'read-failed',
             ...(operationId === undefined ? {} : { operationId }) }; }
     }

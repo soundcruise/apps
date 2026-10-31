@@ -3,11 +3,11 @@ import {
     deleteMyApp,
     saveMyApps,
     updateMyApp
-} from './my-apps-store.js?v=1.23.1';
+} from './my-apps-store.js?v=1.24.24';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.23.1';
-import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.23.1';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.24.24';
 
 async function deleteIconBestEffort(iconStore, iconId) {
     if (!iconId || !iconStore?.deleteIcon) return;
