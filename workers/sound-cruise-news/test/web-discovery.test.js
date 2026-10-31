@@ -25,3 +25,10 @@ test('daily rotation and fenced JSON preserve Japanese and reject oversized outp
  assert.throws(()=>parseModelJson('```json\nnot-json\n```'));assert.throws(()=>parseModelJson('あ'.repeat(7000)));
  assert.throws(()=>discoveryConfig({NEWS_WEB_ENABLED:'true',NEWS_WEB_DAILY_LIMIT:'6'}));
 });
+
+test('Qwen structured array is accepted and oversized arrays are refused',async()=>{
+ const {llmAdapter}=await import('../src/web-discovery.js');
+ const item={category:'アコギ',brand:'工房',product:'試作',event:'新製品',value:'high',priority:'high',relevance:'high',duplicate:'unknown',reason:'要確認'};
+ const ai={run:async()=>({response:[item]})};assert.deepEqual(await llmAdapter(ai,'@cf/test')([]),[item]);
+ await assert.rejects(llmAdapter({run:async()=>({response:[{reason:'あ'.repeat(7000)}]})},'@cf/test')([]));
+});
