@@ -50,6 +50,7 @@ test('five Studio themes project into every Port surface without changing Port s
                     const root = document.querySelector(selector + ' iframe')?.contentDocument?.documentElement;
                     return root?.dataset.studioTheme === theme && root.dataset.theme === (theme === 'midnight' ? 'dark' : theme);
                 }, { selector, theme });
+                if (process.env.STUDIO_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.STUDIO_SCREENSHOTS, theme + '-' + workspace + '.png') });
             }
             const expectedBackground = { dark: '#080806', midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' };
             assert.equal(await page.locator('#screen-port-news iframe').evaluate(frame => getComputedStyle(frame.contentDocument.documentElement).getPropertyValue('--port-bg').trim()), expectedBackground[theme]);

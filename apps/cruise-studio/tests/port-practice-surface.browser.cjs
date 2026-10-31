@@ -22,7 +22,7 @@ test('Studio uses Port practice and calendar with Port-owned storage', async t =
         await frame().locator('#practice-menu-add').click();
         await frame().locator('#practice-form-view').waitFor({ state: 'visible' });
         assert.equal(await frame().locator('#practice-form-attachments').isVisible(), true);
-        assert.match(await frame().locator('#practice-form-attachments .practice-attachment-add').getAttribute('class'), /tool-pro-locked/);
+        assert.match(await frame().locator('#practice-form-attachments .practice-attachment-add').getAttribute('class'), /practice-attachment-add/);
         await frame().locator('#practice-name-preset').selectOption('custom');
         await frame().locator('#practice-name').fill(name);
         await frame().locator('#practice-duration').fill('12');
@@ -31,7 +31,7 @@ test('Studio uses Port practice and calendar with Port-owned storage', async t =
     };
     try {
         await page.goto(url, { waitUntil: 'domcontentloaded' });
-        await t.test('Port Standard screen and Studio return controls', async () => {
+        await t.test('Port Pro screen and Studio return controls', async () => {
             await open();
             assert.equal(await frame().locator('#practice-menu-add').isVisible(), true);
             assert.equal(await frame().locator('#practice-history-open').isVisible(), true);
@@ -132,19 +132,35 @@ test('Studio uses Port practice and calendar with Port-owned storage', async t =
             await frame().locator('#practice-history-open').click();
             assert.match(await frame().locator('#practice-calendar-notes-list').innerText(), /Studio calendar QA/);
         });
-        await t.test('Port Standard limit and Pro prompt remain intact', async () => {
+        await t.test('Port Pro permits six saved menus and another create form', async () => {
             await frame().locator('#practice-history-back').click();
             await frame().locator('#practice-list-view').waitFor({ state: 'visible' });
             let count = await page.evaluate(() => JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length);
-            while (count < 5) { await add(`Studio Standard ${count}`); count++; }
-            assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length), 5);
+            while (count < 6) { await add(`Studio Standard ${count}`); count++; }
+            assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length), 6);
             await frame().locator('#practice-menu-add').click();
-            assert.equal(await frame().locator('.port-pro-prompt').isVisible(), true);
-            assert.equal(await frame().locator('#practice-form-view').isVisible(), false);
-            await frame().locator('.port-pro-prompt').press('Escape').catch(() => {});
+            assert.equal(await frame().locator('.port-pro-prompt').isVisible(), false);
+            await frame().locator('#practice-form-view').waitFor({state:'visible'});
+            await frame().locator('#practice-form-view .view-back[data-action=cancel-form]').click();
+            await frame().locator('#practice-list-view').waitFor({state:'visible'});
         });
-        await t.test('four themes, narrow width and Port home return', async () => {
-            for (const theme of ['dark', 'charcoal', 'gray', 'light']) {
+        await t.test('practice preset create, edit and delete use Port stores', async () => {
+            await frame().locator('#practice-set-create').click();
+            await frame().locator('#practice-set-name').fill('Studio set');
+            await frame().locator('#practice-set-item-list input[type=checkbox]').first().check();
+            await frame().locator('#practice-set-save').click();
+            await page.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenuSets')||'{}').items?.some(x=>x.name==='Studio set'));
+            await frame().locator('#practice-set-edit').click();
+            await frame().locator('#practice-set-name').fill('Studio set edited');
+            await frame().locator('#practice-set-save').click();
+            await page.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenuSets')).items.some(x=>x.name==='Studio set edited'));
+            await frame().locator('#practice-set-edit').click();
+            page.once('dialog', dialog=>dialog.accept());
+            await frame().locator('#practice-set-delete').click();
+            await page.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenuSets')).items.length===0);
+        });
+        await t.test('five themes, narrow width and Port home return', async () => {
+            for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
                 await page.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
                 assert.equal(await frame().locator('#practice-list-view').isVisible(), true);
             }
@@ -158,7 +174,10 @@ test('Studio uses Port practice and calendar with Port-owned storage', async t =
         });
         await t.test('Global Stop, hidden tab, pagehide and tool navigation release the Port frame', async () => {
             await open();
+            await frame().locator('#practice-timer-toggle').click();
+            await frame().locator('#practice-timer-toggle.is-running').waitFor();
             await page.locator('#shell-audio-stop').click();
+            assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceTimer')).paused),true);
             await page.waitForFunction(() => !document.querySelector('#port-practice-surface iframe'));
             await page.locator('#port-practice-resume').click();
             await frame().locator('#practice-list-view').waitFor({ state: 'visible' });

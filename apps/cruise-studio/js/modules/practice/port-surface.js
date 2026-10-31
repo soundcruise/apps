@@ -11,7 +11,7 @@
     var resume = document.getElementById('port-practice-resume');
     var overview = document.getElementById('port-practice-overview');
     var stopButton = document.getElementById('shell-audio-stop');
-    var portUrl = new URL('../cruise-port/', document.baseURI);
+    var portUrl = new URL('port-tool.html?tool=practice', document.baseURI);
 
     function isPracticeRoute(hash) { return hash === '#practice-menu' || hash.startsWith('#practice-menu/'); }
     function setPhase(next, message) {
@@ -25,6 +25,7 @@
         if (!frame) return;
         var old = frame;
         frame = null;
+        try { void old.contentWindow?.CruiseStudioPortTool?.stop(); } catch (_) {}
         old.onload = null;
         old.onerror = null;
         old.remove(); // Port owns timer persistence and pagehide cleanup.
@@ -40,6 +41,8 @@
         var child, form, dialog, cancel, error;
         try {
             child = frame.contentWindow;
+            var preset = child.document.getElementById('practice-set-dialog');
+            if (preset && !preset.hidden) { status.textContent = 'プリセットの編集を保存またはキャンセルしてから移動してください。'; return true; }
             form = child.document.getElementById('practice-form-view');
             dialog = child.document.getElementById('practice-exit-dialog');
             cancel = form?.querySelector('.view-back[data-action="cancel-form"]');
@@ -115,10 +118,11 @@
                 if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname)
                     throw new Error('unexpected-port-document');
                 function checkRoute() {
-                    if (!active || frame !== next) return;
+                    if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
                     if (isPracticeRoute(child.location.hash)) setPhase('ready', '');
                     else shell.navigate('home');
                 }
+                child.addEventListener('studio-port-ready', checkRoute);
                 child.addEventListener('hashchange', checkRoute);
                 child.addEventListener('popstate', checkRoute);
                 // Port's Home and Calendar controls also use history.pushState,
@@ -141,13 +145,19 @@
         surface.append(next);
         return true;
     }
+    function preserveEditor() {
+        var form = frame?.contentDocument?.getElementById('practice-form-view');
+        var preset = frame?.contentDocument?.getElementById('practice-set-dialog');
+        if ((form && !form.hidden) || (preset && !preset.hidden)) { frame.contentWindow.CruiseStudioPortTool?.pause(); return true; }
+        return false;
+    }
     function onVisibility() {
-        if (document.hidden && active) void stop('page-hidden', 'Port画面を閉じました。再開するには練習メニューを開いてください。');
+        if (document.hidden && active && !preserveEditor()) void stop('page-hidden', 'Port画面を閉じました。再開するには練習メニューを開いてください。');
     }
     function onPagehide() { if (active) void stop('pagehide'); }
     function onGlobalStop() {
         if (shell.getCommandContext().activeModal || shell.keyboard.isIMEBlocked({})) return;
-        if (active) void stop('global-stop', 'Port画面を閉じました。再開するには練習メニューを開いてください。');
+        if (active && !preserveEditor()) void stop('global-stop', 'Port画面を閉じました。再開するには練習メニューを開いてください。');
     }
     function onResume() { if (active && phase !== 'loading' && phase !== 'ready') void start(); }
     function onOverview() { shell.navigate('practice'); }

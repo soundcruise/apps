@@ -6,6 +6,8 @@
     var routeWorkspaces = Object.freeze({ '#tuner': 'tuner', '#metronome': 'metronome', '#practice-menu': 'portPractice', '#wishlist': 'portGear', '#my-apps/manage': 'portMyApps', '#news': 'portNews' });
 
     function createSurface(config) {
+        var component = config.kind !== 'news';
+        var portUrl = new URL(component ? 'port-tool.html?tool=' + config.kind : '../cruise-port/', document.baseURI);
         var node = document.getElementById(config.screen);
         var surface = document.getElementById(config.surface);
         var status = document.getElementById(config.status);
@@ -32,6 +34,7 @@
             if (!frame) return;
             var old = frame;
             frame = null;
+            try { void old.contentWindow?.CruiseStudioPortTool?.stop(); } catch (_) {}
             old.onload = null;
             old.onerror = null;
             old.remove();
@@ -61,7 +64,7 @@
             return routeWorkspaces[hash] || 'home';
         }
         function checkRoute(child, currentFrame) {
-            if (!active || frame !== currentFrame) return;
+            if (!active || frame !== currentFrame || (component && child.document.body.dataset.componentState !== 'ready')) return;
             var hash = child.location.hash;
             if (isAllowed(hash)) { setPhase('ready', ''); scrollMyApps(child); }
             else shell.navigate(destination(hash));
@@ -78,7 +81,7 @@
             var link = event.target.closest('a[href]');
             if (link && !event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                 var href = link.getAttribute('href');
-                if (href && href[0] === '#' && config.kind === 'myApps' && routeWorkspaces[href] && !isAllowed(href)) {
+                if (href && href[0] === '#' && component && routeWorkspaces[href] && !isAllowed(href)) {
                     event.preventDefault(); event.stopImmediatePropagation(); shell.navigate(routeWorkspaces[href]); return;
                 }
                 if (config.kind === 'myApps' && href && href[0] !== '#' && !link.hasAttribute('download') && !link.target) {
@@ -102,6 +105,7 @@
                 try {
                     var child = next.contentWindow;
                     if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname) throw new Error('unexpected-port-document');
+                    child.addEventListener('studio-port-ready', function () { checkRoute(child, next); });
                     child.addEventListener('hashchange', function () { checkRoute(child, next); });
                     child.addEventListener('popstate', function () { checkRoute(child, next); });
                     child.document.addEventListener('click', function (event) { onChildClick(child, next, event); }, true);
@@ -126,6 +130,31 @@
                 child = frame.contentWindow;
                 crop = child.document.getElementById(config.kind === 'gear' ? 'gear-photo-crop-dialog' : 'my-apps-crop-dialog');
                 if (crop && !crop.hidden) { status.textContent = '画像の調整を終えてから画面を移動してください。'; return true; }
+                if (config.kind === 'myApps') {
+                    var appForm = child.document.getElementById('my-apps-form-view');
+                    if (!appForm || appForm.hidden) return false;
+                    var content = document.createElement('div');
+                    for (var action of ['save', 'discard', 'continue']) {
+                        var button = document.createElement('button'); button.type = 'button'; button.dataset.leaveAction = action;
+                        button.textContent = { save: '保存して移動', discard: '破棄して移動', continue: '編集を続ける' }[action];
+                        content.append(button);
+                    }
+                    var saveObserver;
+                    shell.modal.open({ title: '編集中の内容', content: content, onClose: function () { saveObserver?.disconnect(); } });
+                    content.addEventListener('click', function (event) {
+                        var action = event.target.dataset.leaveAction;
+                        if (!action) return;
+                        if (action === 'continue') { shell.modal.close(); return; }
+                        saveObserver?.disconnect();
+                        var observer = saveObserver = new child.MutationObserver(function () {
+                            if (appForm.hidden) { observer.disconnect(); shell.modal.close(); next(); }
+                        });
+                        observer.observe(appForm, { attributes: true, attributeFilter: ['hidden'] });
+                        if (action === 'discard') appForm.querySelector('[data-action=cancel-my-apps-form]').click();
+                        else child.document.getElementById('my-apps-form').requestSubmit();
+                    });
+                    return true;
+                }
                 if (config.kind !== 'gear') return false;
                 form = child.document.getElementById('gear-form-view');
                 dialog = child.document.getElementById('gear-exit-dialog');
@@ -163,11 +192,18 @@
             child.setTimeout(check, 0);
             return true;
         }
-        function onVisibility() { if (document.hidden && active) stop('Port画面を閉じました。再開してください。'); }
+        function preserveEditor() {
+            if (!frame || !component) return false;
+            var doc = frame.contentDocument;
+            var editing = ['gear-form-view', 'my-apps-form-view'].some(function (id) { var view = doc?.getElementById(id); return view && !view.hidden; });
+            if (editing) { frame.contentWindow.CruiseStudioPortTool?.pause(); return true; }
+            return false;
+        }
+        function onVisibility() { if (document.hidden && active && !preserveEditor()) stop('Port画面を閉じました。再開してください。'); }
         function onPagehide() { if (active) stop(); }
         function onGlobalStop() {
             if (shell.getCommandContext().activeModal || shell.keyboard.isIMEBlocked({})) return;
-            if (active) stop('Port画面を閉じました。再開してください。');
+            if (active && !preserveEditor()) stop('Port画面を閉じました。再開してください。');
         }
         function onResume() { if (active && phase !== 'loading' && phase !== 'ready') start(); }
         function onOverview() { shell.navigate(config.overviewWorkspace); }
