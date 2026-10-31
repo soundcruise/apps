@@ -10,3 +10,7 @@ export function productBrandVariants(brand){
  const group=reviewed.find(names=>names.some(name=>normalized(name)===normalized(brand)));
  return [...new Set([brand,...(group||[])])];
 }
+// Reviewed only for same-day, explicitly limited-edition identity checks.
+export function limitedEditionBrandVariants(brand){
+ return ['fender','fender mex'].includes(normalized(brand))?[...new Set([brand,'Fender','Fender MEX'])]:productBrandVariants(brand);
+}

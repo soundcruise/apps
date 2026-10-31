@@ -6,9 +6,10 @@ import {parseShimamuraProductEvidence,SHIMAMURA_PRODUCT_PARSER} from '../src/shi
 import {verifiedHeadlineCorrection,headlineCorrectionStatements,verifiedCorrectionRobots} from '../src/headline-correction.js';
 import {hash,robotsEvidence,BOT} from '../src/policy.js';
 import {factualLabel} from '../src/metadata.js';
-import {duplicatePredicate} from '../src/decision-policy.js';
+import {duplicatePredicate,publicationValidation} from '../src/decision-policy.js';
 import {getSource} from '../src/registry.js';
-import {database} from './helpers.js';
+import {database,pepper} from './helpers.js';
+import {setup,put,now} from './operator-case.js';
 import {sqlLiteral as q} from '../scripts/remote-db.mjs';
 
 const source=getSource('shimamura'),url='https://www.shimamura.co.jp/update/dtm-recording/2026/10/94705/';
@@ -32,7 +33,7 @@ test('MONSTER multi-model power equipment is recovered without category/target-d
  assert.deepEqual(result.productFacts.models,['MONSTER POWER 8000','MONSTER POWER 8001']);
  assert.equal(result.productFacts.category,'recording_audio');assert.equal(result.publishedAt,row.published_at);
  assert.match(factualLabel(result.productFacts,result.eventType),/電源タップ/);
- assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-8');
+ assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-11');
 });
 
 for(const phrase of ['オーディオインターフェースを保護する電源タップ',
@@ -54,6 +55,44 @@ test('a genuinely connected audio interface stays an audio interface',()=>{
  const parsed=parseShimamuraProductEvidence(article('Maker「INT-2」オーディオインターフェースが登場',
  'Makerより、電源タップに接続するオーディオインターフェース「INT-2」が登場しました。'),source,row);
  assert.equal(parsed.productFacts.productType,'audio_interface');
+});
+
+test('a pickup layout on a guitar is not a pickup product',()=>{
+ const parsed=parseShimamuraProductEvidence(article('Makerの限定モデル「ZX-20」が登場',
+  'Makerより、限定モデル「ZX-20」が登場しました。',
+  '<p class="wp-block-paragraph">本モデルはピックアップレイアウトを採用しています。ZX-20は限定ギターです。</p>'),source,row);
+ assert.equal(parsed.productFacts.productType,'guitar');
+ assert.equal(parsed.productFacts.category,'electric_guitar_bass');
+});
+
+test('a pickup remains a pickup when it is the announced primary product',()=>{
+ const parsed=parseShimamuraProductEvidence(article('Maker ギター用ピックアップ「PU-20」が登場',
+  'Makerより、ギター用ピックアップ「PU-20」が登場しました。'),source,row);
+ assert.equal(parsed.productFacts.productType,'guitar_pickup');
+});
+
+test('subject-bound appearance yields an appearance headline and needs its own provenance',async()=>{
+ const r=parseShimamuraProductEvidence(article('Maker「TR-20」ギターが登場',
+  'Makerより、トラベルギター「TR-20」が登場しました。'),source,row);
+ assert.equal(factualLabel(r.productFacts,r.eventType),'Maker、ギター「TR-20」が登場');
+ assert.equal(r.productFacts.appearanceEvidence.product,'TR-20');
+ const s=await setup(),proof={sourceId:'shimamura',sourceUrl:url,verifiedAt:now,extractionMethod:'explicit_shimamura_product_fields',parserVersion:SHIMAMURA_PRODUCT_PARSER,responseHash:'a'.repeat(64)};
+ const p=JSON.stringify([...Object.keys(r.productFacts),'event_type'].map(factField=>({...proof,factField})));
+ const item=await put(s,'appearance-check',{sourceUrl:url,normalizedUrl:url,publishedAt:'2026-10-01T00:00:00.000Z',category:r.productFacts.category,productFacts:r.productFacts,eventType:r.eventType,factsProvenance:p});
+ await s.db.prepare('UPDATE candidate_items SET facts_provenance=? WHERE id=?').bind(p,item.id).run();
+ const stored=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(item.id).first(),registry=[{...source,enabled:true,productionEnabled:true}];
+ assert.deepEqual((await publicationValidation(s,stored,now,registry,pepper)).errors,[]);
+ assert((await publicationValidation(s,{...stored,facts_provenance:'[]'},now,registry,pepper)).errors.includes('facts_provenance_invalid'));
+});
+
+test('software synthesizer with parenthesized reading holds a past date with future release wording',()=>{
+ const make=date=>article('Nova Tone Nova Synth 製品情報',
+  'Nova Tone ( ノヴァトーン ) がソフトウェアシンセサイザー「Nova Synth」を発売します。',
+  `<h2>Nova Synth</h2><h2>発売日</h2><p>${date}</p>`);
+ assert.throws(()=>parseShimamuraProductEvidence(make('2026年10月10日'),source,row),/facts_release_date_conflict/);
+ const p=parseShimamuraProductEvidence(make('2026年10月12日'),source,row);
+ assert.equal(p.productFacts.brand,'Nova Tone');assert.equal(p.productFacts.productType,'software_instrument');
+ assert.equal(p.productFacts.releaseEvent.date,'2026-10-12');
 });
 
 test('a quoted protection/connection target is not a second main product',()=>{

@@ -86,7 +86,10 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
  const evidenceKey=await hash(row.title_fingerprint||'');
  const previousProof=(()=>{try{return JSON.parse(previous?.proof_json||'null');}catch{return null;}})();
  if(await reusablePrimaryEvidence(previous,row,source,now))return previous;
- if(initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey)return {...previous,outcome:'facts_primary_evidence_unchanged'};
+ // An unchanged failure is reusable only for the same parser and pipeline. A
+ // changed parser still passes the existing daily URL and source budget gates.
+ // Missing historical parser metadata remains fail-closed.
+ if(initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey&&(!previousProof.parserVersion||!previousProof.extractionMethod||(previousProof.parserVersion===surface?.parser&&previousProof.extractionMethod===surface?.method)))return {...previous,outcome:'facts_primary_evidence_unchanged'};
  const budget=await recoveryBudget(store,source,now),freshSince=initialPrimarySource(source)?budget.since-1:now-DAY;
  if(previous?.checked_at>freshSince){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
  if(dailyOnly&&initialPrimarySource(source)&&work)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
