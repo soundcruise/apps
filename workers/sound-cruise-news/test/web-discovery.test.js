@@ -15,3 +15,13 @@ test('model estimate schema is closed and rejects invented states',async()=>{
  assert.throws(()=>validateEstimate({...e,duplicate:'none'}));
  assert.throws(()=>validateEstimate({...e,formalFacts:true}));
 });
+
+test('daily rotation and fenced JSON preserve Japanese and reject oversized output',async()=>{
+ const {rotatedQueries,DEFAULT_QUERIES,parseModelJson,discoveryConfig}=await import('../src/web-discovery.js');
+ const now=Date.parse('2026-11-01T00:00:00+09:00');
+ assert.notDeepEqual(rotatedQueries(DEFAULT_QUERIES,now),rotatedQueries(DEFAULT_QUERIES,now+86400000));
+ assert.equal(rotatedQueries(DEFAULT_QUERIES,now).length,3);
+ assert.deepEqual(parseModelJson('```json\n[{"brand":"工房"}]\n```'),[{brand:'工房'}]);
+ assert.throws(()=>parseModelJson('```json\nnot-json\n```'));assert.throws(()=>parseModelJson('あ'.repeat(7000)));
+ assert.throws(()=>discoveryConfig({NEWS_WEB_ENABLED:'true',NEWS_WEB_DAILY_LIMIT:'6'}));
+});

@@ -17,9 +17,9 @@ test('persistent workerd D1: Exa fixture → mock AI → authenticated Operator 
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_DAILY_LIMIT:'5'};let searches=0,models=0;
   const dependencies={search:async()=>fixtures[searches++%3].items,classify:async hints=>{models++;return hints.map(estimate);}};
-  const result=await runWebDiscovery(env,now,dependencies);assert.equal(result.searches,3);assert.equal(result.ai_calls,1);assert.equal(models,1);
+  const result=await runWebDiscovery(env,now,dependencies);assert.equal(result.searches,3);assert.equal(result.ai_calls,2);assert.equal(models,2);
   let data=await listWebHints(env,now);assert.equal(data.items.length,15);assert(data.items.some(i=>i.estimate?.brand==='Emerald'));assert(data.items.some(i=>i.title.includes('Headway')));assert(data.items.some(i=>i.status==='excluded'));assert(data.items.every(i=>i.formalFacts===false&&i.publishedAt===null));
-  await runWebDiscovery(env,now,dependencies);assert.equal(models,2); // remaining five, never reevaluate classified URLs
+  await runWebDiscovery(env,now,dependencies);assert.equal(models,2); // classified URLs are not reevaluated
   await runWebDiscovery(env,now,dependencies);assert.equal(searches,5);assert.equal(models,2);
   assert.equal((await runtime.db.prepare('SELECT COUNT(*) n FROM candidate_items').first()).n,0);
   const {privateKey,publicKey}=await generateKeyPair('RS256'),issuer='https://fixture.cloudflareaccess.com',aud='a'.repeat(64),origin='https://operator.fixture.test';

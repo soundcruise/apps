@@ -4,14 +4,14 @@ The existing NEWS scheduled entry point may run Web discovery after the daily co
 
 ## Configuration
 
-- NEWS_WEB_DAILY_LIMIT: integer 1–10, default 5; UTC day. D1 UPDATE RETURNING reserves quota before each attempt, including failures and concurrent runs.
-- NEWS_WEB_QUERIES: JSON array of 1–10 nonempty strings, max 1024 characters. Default three Japanese/English cross-brand acoustic launch/limited-model queries.
+- NEWS_WEB_DAILY_LIMIT: integer 1–5, default 5; UTC day. D1 UPDATE RETURNING reserves quota before each attempt, including failures and concurrent runs.
+- NEWS_WEB_QUERIES: JSON array of 1–10 nonempty strings, max 1024 characters. Default eight Japanese/English cross-brand acoustic, limited model, reissue, workshop and manufacturing queries; three rotate each JST day.
 - NEWS_WEB_DENIED_HOSTS: JSON array of hostnames; matches each hostname and its subdomains.
 - NEWS_WEB_GATEWAY: existing AI Gateway id, default `default`.
 - NEWS_WEB_MODEL: approved Workers AI model name starting `@cf/`; required for live operation.
 - An AI binding named AI must be configured in the collector Worker at separately approved deployment. No new credentials or paid bindings are activated here.
 
-Exa adapter uses `AI.websearch`, five results/search. Model adapter uses `AI.run`, at most ten hints/batch and 1500 output tokens/call. Daily AI-call reservations use the same daily limit (default five). This is a count/output bound, not a hard monetary or total token billing cap. Input is capped by ten hints with title <=300 and URL <=2048 characters; model price and actual tokenizer determine input costs. Search cost at the observed $0.007/query: default limit <=$0.035/day, upper configurable limit <=$0.07/day, excluding gateway fees/tax. No paid calls were made for this PR. Live model quality and actual cost require separate acceptance.
+Exa adapter uses `AI.websearch`, five results/search. Model adapter uses `AI.run`, at most three batches per run, ten hints/batch and 1500 output tokens/call. Daily AI-call reservations use the same daily limit (default five). This is a count/output bound, not a hard monetary or total token billing cap. Input is capped by ten hints with title <=300 and URL <=2048 characters; model price and actual tokenizer determine input costs. Search cost at the observed $0.007/query: default limit <=$0.035/day, upper configurable limit <=$0.035/day, excluding gateway fees/tax. No paid calls were made for this PR. Live model quality and actual cost require separate acceptance.
 
 ## Storage and safety
 
@@ -37,3 +37,11 @@ Open http://127.0.0.1:8798. This loopback-only fixture preview runs the producti
 - NEWS and Operator Wrangler dry-run, syntax, diff whitespace and secret-pattern checks passed.
 - The Operator endpoint returns the newest 100 retained hints; pagination/edit controls are outside this initial read-only slice.
 - Mock AI exercises schema, low-value exclusion and failure handling; it does not establish real model accuracy. Paid search/model calls: zero.
+
+## Limited acceptance preparation (requires explicit approval)
+
+Recommended trial candidate: `@cf/qwen/qwen3-30b-a3b-fp8`; multilingual support and advertised pricing make it a plausible first choice, but accuracy, JSON compliance, latency and actual tokens are untested. Compare against `@cf/meta/llama-3.3-70b-instruct-fp8-fast` only if necessary. Fixture tests use mocks and do not compare model quality. Request separate approval specifying exact model, number of calls and spending limit before any paid model test.
+
+Daily default is 3 Exa searches (up to five under retries/re-runs), $0.63 for 30 days at $0.007/query; 5/day maximum $1.05. Three 1500-output-token model calls/day for 30 days at $0.335/M output tokens cost up to $0.045225 in output tokens; up to five calls/day across repeated runs cost $0.075375. Inputs are extra at $0.0509/M tokens and not yet measured. Taxes, retries, plan, AI Gateway billing and other services are extra; these are estimates, not spend caps.
+
+Before production changes, verify current main/PR head and tree, D1 schema and existing migration list; confirm recoverable backup and restore procedure, current Worker versions and kill switches. Obtain approval together for main integration, additive migration 0025, NEWS and Operator deployments with NEWS_WEB_ENABLED unset/off, and the separately scoped monitored short ON period. Configure collector AI binding and selected model; configure the same Web feature flag on both Workers. Verify real Access and normal NEWS functions with Web OFF. On ON, bound first run to three Exa queries and model calls, monitor calls, errors and spend; stop immediately for unexpected access, existing NEWS disruption, budget anomalies or failed rollback. Turn Web OFF on both Workers on completion, confirm calls stop, verify existing NEWS. Worker rollback and D1 restore are separate; retain additive tables and existing records unless separately approved. Monitor errors, costs, duplicates and quality daily for seven days only if continued operation is separately authorized.
