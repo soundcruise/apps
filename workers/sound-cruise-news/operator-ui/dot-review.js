@@ -1,19 +1,26 @@
 'use strict';
-(()=>{
+export function initDotReview(){
  const section=document.querySelector('#dot-review'),items=document.querySelector('#dot-items'),status=document.querySelector('#dot-status');
  if(!section||!items||!status)return;
  const text=(tag,value)=>{const n=document.createElement(tag);n.textContent=String(value??'不明');return n;};
  const row=(label,value)=>text('p',`${label}：${value??'不明'}`);
+ const arr=v=>Array.isArray(v)?v:[];
  const safeLink=url=>{try{const u=new URL(url);if(u.protocol!=='https:'||u.username||u.password)return null;const a=text('a','出典を開く');a.href=u.href;a.target='_blank';a.rel='noopener noreferrer';return a;}catch{return null}};
- async function get(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error('unavailable');return r.json();}
+ async function get(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw Error('unavailable');const value=await r.json();if(!value||typeof value!=='object'||Array.isArray(value))throw Error('invalid');return value;}
  function renderDetail(v){
-  items.replaceChildren();const c=v.candidate,card=document.createElement('article');card.append(text('h3',`${c.entity.brand||c.entity.manufacturer||'主体未確認'} / ${(c.entity.models||[]).join('・')||c.entity.product||'不明'}`));
-  card.append(row('出来事',c.event.type),row('公開日',`${c.dates.article_published.value||'不明'}（${c.dates.article_published.precision}）`),row('日付根拠ID',(c.dates.article_published.evidence_ids||[]).join(' / ')||'なし'),row('AI掲載推奨',`${c.recommendation.level}（人間判断ではありません）`),row('取得方式',c.sources.map(s=>s.acquisition_method).join(' / ')||'なし'),row('未検証事項',c.unresolved_questions.join(' / ')||'なし'),row('根拠不足',v.validation.blockers.join(' / ')||'別途確認'),row('正式facts','未検証'),row('READY','対象外'),row('重複','未照合（履歴の全件確認なし）'));
-  for(const claim of c.claims)card.append(row(`主張 ${claim.field}`,`${Array.isArray(claim.value)?claim.value.join(' / '):claim.value} / 根拠 ${(claim.evidence_ids||[]).join(' / ')||'なし'} / ${claim.verification}`));
-  for(const source of c.sources){card.append(row('出典・取得',`${source.publisher||'不明'} / ${source.acquisition_method} / ${source.evidence_locator||'箇所未確認'}`));const a=safeLink(source.url);if(a)card.append(a);}
-  card.append(row('配送日時',v.delivery?.createdAt),row('配送記録',(v.delivery?.attempts||[]).map(a=>`${a.status} ${a.processedAt||''}`).join(' / ')||'なし'));items.append(card);
+  if(!v.candidate?.entity||!v.candidate?.event||!v.candidate?.dates?.article_published||!v.validation||v.validation.formalFacts!==false||v.validation.ready!==false)throw Error('invalid');
+  items.replaceChildren();const c=v.candidate,card=document.createElement('article');card.className='dot-card';card.append(text('h3',`${c.entity.brand||c.entity.manufacturer||'主体未確認'} / ${arr(c.entity.models).join('・')||c.entity.product||'不明'}`));
+  card.append(row('出来事',c.event.type),row('公開日',`${c.dates.article_published.value||'不明'}（${c.dates.article_published.precision||'unknown'}）`),row('日付根拠ID',arr(c.dates.article_published.evidence_ids).join(' / ')||'なし'),row('AI掲載推奨',`${c.recommendation?.level||'不明'}（人間判断ではありません）`),row('取得方式',arr(c.sources).map(s=>s.acquisition_method).join(' / ')||'なし'),row('未確認事項',arr(c.unresolved_questions).join(' / ')||'別途確認'),row('検証上の不足',arr(v.validation.blockers).join(' / ')||'別途確認'),row('正式facts','未検証'),row('READY','不可'),row('重複','UNCERTAIN：既存NEWS全状態との照合は未完了'));
+  for(const state of arr(v.validation.sourceStates))card.append(row('出典policy',`${state.id||'不明'} / ${state.allowed===true?'許可':'未確認または制限'} / ${state.reason||'根拠未確認'}`));
+  if(!arr(v.validation.sourceStates).length)card.append(row('出典policy','出典がないため未確認'));
+  for(const claim of arr(c.claims))card.append(row(`主張 ${claim.field}`,`${Array.isArray(claim.value)?claim.value.join(' / '):claim.value} / 根拠 ${arr(claim.evidence_ids).join(' / ')||'なし'} / ${claim.verification}`));
+  for(const source of arr(c.sources)){card.append(row('出典・取得',`${source.publisher||'不明'} / ${source.acquisition_method||'未確認'} / ${source.evidence_locator||'箇所未確認'}`));const a=safeLink(source.url);if(a)card.append(a);}
+  if(!arr(c.sources).length)card.append(row('原記事URL・出典','未確認'));
+  for(const match of arr(v.similar))card.append(row('類似候補（正式重複判定ではありません）',`${match.title||'不明'} / ${arr(match.reason).join(' / ')||'根拠未確認'}`));
+  card.append(row('配送日時',v.delivery?.createdAt),row('配送記録',arr(v.delivery?.attempts).map(a=>`${a.status||'不明'} ${a.processedAt||''}`).join(' / ')||'未確認'));const back=text('button','一覧へ戻る');back.type='button';back.addEventListener('click',()=>void load());card.append(back);items.append(card);
  }
- async function load(){try{status.textContent='読み込み中';const v=await get('/api/dot-candidates?limit=10');items.replaceChildren();status.textContent=`${v.items.length}件（既存NEWSの重複は未照合）`;for(const item of v.items){const button=text('button',`${item.brand||item.manufacturer||'主体未確認'} / ${(item.models||[]).join('・')||item.product||'不明'}`);button.type='button';button.addEventListener('click',async()=>{try{renderDetail(await get('/api/dot-candidates/'+encodeURIComponent(item.id)));status.textContent='読み取り専用';}catch{status.textContent='候補を読み込めませんでした';}});items.append(button);}if(v.nextCursor)items.append(text('p','続きがあります。ページングUIは未対応です。'));}catch{status.textContent='候補を読み込めませんでした';}}
+ async function load(){try{status.textContent='読み込み中';const v=await get('/api/dot-candidates?limit=10');if(!Array.isArray(v.items)||v.items.length>10)throw Error('invalid');items.replaceChildren();status.textContent=`${v.items.length}件（既存NEWSの重複は未照合）`;for(const item of v.items){if(typeof item.id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(item.id)||item.validation?.formalFacts!==false||item.validation?.ready!==false)throw Error('invalid');const button=text('button',`${item.brand||item.manufacturer||'主体未確認'} / ${arr(item.models).join('・')||item.product||'不明'}`);button.type='button';button.addEventListener('click',async()=>{try{renderDetail(await get('/api/dot-candidates/'+encodeURIComponent(item.id)));status.textContent='読み取り専用';}catch{items.replaceChildren();status.textContent='候補を読み込めませんでした';}});items.append(button);}if(v.nextCursor)items.append(text('p','続きがあります。ページングUIは未対応です。'));}catch{items.replaceChildren();status.textContent='候補を読み込めませんでした';}}
  section.addEventListener('toggle',()=>{if(section.open)void load()});
- get('/api/dot-capabilities').then(v=>{if(v.available===true)section.hidden=false}).catch(()=>{});
-})();
+ get('/api/dot-capabilities').then(v=>{if(v.available===true){section.hidden=false;if(section.open)void load();}else if(section.dataset.showDisabled==='true'){section.hidden=false;status.textContent='Dot候補の接続は停止中です。';}}).catch(()=>{if(section.dataset.showDisabled==='true'){section.hidden=false;status.textContent='Dot候補に接続できません。';}});
+}
+if(typeof document!=='undefined')initDotReview();
