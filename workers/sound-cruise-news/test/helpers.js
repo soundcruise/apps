@@ -15,7 +15,7 @@ export const mock=(extra={})=>async url=>url.endsWith('/robots.txt')?response(ro
 export function database(){
  const db=new DatabaseSync(':memory:');const directory=new URL('../migrations/',import.meta.url);
  for(const name of readdirSync(directory).sort())db.exec(readFileSync(new URL(name,directory),'utf8'));
- const wrap=(sql,args=[])=>({bind:(...values)=>wrap(sql,values),first:async()=>db.prepare(sql).get(...args)||null,all:async()=>({results:db.prepare(sql).all(...args)}),run:()=>({meta:db.prepare(sql).run(...args)})});
+ const wrap=(sql,args=[])=>({bind:(...values)=>wrap(sql,values),first:async()=>db.prepare(sql).get(...args)||null,all:async()=>({results:db.prepare(sql).all(...args)}),run:()=>/\bRETURNING\b/i.test(sql)?{results:db.prepare(sql).all(...args),meta:{changes:db.prepare('SELECT changes() AS n').get().n}}:{meta:db.prepare(sql).run(...args)}});
  // DatabaseSync transactions must not yield between statements: concurrent callers
  // otherwise nest BEGIN unlike D1's serialized atomic batch execution.
  return {prepare:wrap,batch:async statements=>{db.exec('BEGIN');try {const values=[];for(const s of statements)values.push(s.run());db.exec('COMMIT');return values;}catch(error){db.exec('ROLLBACK');throw error;}},raw:db};
