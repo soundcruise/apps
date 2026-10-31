@@ -3043,6 +3043,10 @@
                 dirty: true,
                 statusMessage: 'JSONを読み込みました（未保存）' + warnText
             });
+            if (state.session && state.session.target.projectId === res.project.projectId &&
+                !state.session.dirty && !state.session.inputPending && !state.session.commitInFlight && state.session.baseRevision !== null) {
+                setSaveStatus('JSONを読み込みました（保存済みの内容と一致）' + warnText);
+            }
         };
         reader.onerror = function () {
             if (!CS().documents.isSelected(intent) || !CS().structureOperations.isCurrent(importFrame, state.session)) return;
@@ -3166,6 +3170,11 @@
 
         els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
+        q('sc-goto-pre-dtm').addEventListener('click', function () {
+            if (state.session && state.session.inputPending) { setSaveStatus('入力の確定を待ってください', true); return; }
+            finishTextInputs();
+            CS().shellHost.navigate('preDtm');
+        });
         [els.undoBtn, els.redoBtn].forEach(function (button) {
             button.addEventListener('pointerdown', function (event) {
                 if (event.button === 0) event.preventDefault(); // explicit domain button does not blur the editor first
