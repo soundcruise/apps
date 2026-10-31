@@ -1,3 +1,4 @@
+import {listWebHints,runWebDiscovery} from './web-discovery.js';
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
 import {parseAssistedPaste,YAMAHA_TOPICS_START} from './assisted-paste.js';
 import {assistedSources,assistedTypes,assistedActions,ASSISTED_ORIGIN} from './assisted-facts.js';
@@ -43,7 +44,9 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.41.0'});
+  if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,now));
+  if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,now,options.webDiscoveryDependencies||{},true));}
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.42.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -93,7 +96,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
    return json(await operatorDecision(store,input,now,registry,env.NEWS_HEADLINE_PEPPER,url.pathname==='/api/cli-decision'?{...identity.actor,type:'system_repair'}:identity.actor));
   }
-  if(request.method==='GET'&&['/','/index.html','/review.js','/review.css','/dot-review.js'].includes(url.pathname)){
+  if(request.method==='GET'&&['/','/index.html','/review.js','/review.css','/dot-review.js','/web-discovery.js'].includes(url.pathname)){
    if(!env.OPERATOR_ASSETS)throw Error('operator_not_configured');
    const response=await env.OPERATOR_ASSETS.fetch(request),headers=new Headers(response.headers);for(const [k,v]of Object.entries(security))headers.set(k,v);return new Response(response.body,{status:response.status,headers});
   }

@@ -2,6 +2,7 @@
   "name": "sound-cruise-news",
   "account_id": "a9f2a3e9fcb6d0f68fd2eaa9df909e33",
   "main": "src/worker.js",
+  "ai": { "binding": "AI" },
   "compatibility_date": "2026-09-30",
   "workers_dev": true,
   "preview_urls": false,
