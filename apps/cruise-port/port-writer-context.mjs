@@ -44,9 +44,17 @@ export function createPortWriterContext({ root = globalThis, storage } = {}) {
         if (storage?.getItem('soundCruiseProAuth') !== null && storage?.getItem('soundCruiseProAuth') !== undefined
             && (!source?.auth || source.revoked)) fail('port-pro-revoked');
     }
+    function assertLocalAccount() {
+        assertCurrent();
+        let binding, selected;
+        try { binding = JSON.parse(storage?.getItem('cruisePort.syncLocalAccount.v1') || 'null'); selected = JSON.parse(accountIdentity || 'null'); }
+        catch { fail('port-local-account-invalid'); }
+        const selectedId = selected?.accountId || selected?.accountCredential?.split('.')[1];
+        if (binding?.accountId && selectedId && binding.accountId !== selectedId) fail('port-local-account-mismatch');
+    }
     const reads = new WeakSet();
     return Object.freeze({
-        assertCurrent, initialized,
+        assertCurrent, assertLocalAccount, initialized,
         captureRead() {
             const token = Object.freeze({});
             if (ready && !blocked) reads.add(token);

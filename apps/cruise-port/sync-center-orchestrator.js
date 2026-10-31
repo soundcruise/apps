@@ -1,7 +1,7 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.26.0';
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.24.23';
-import { createPortAccountJoin } from './port-account-join.js?v=1.24.24';
+import { createPortAccountJoin } from './port-account-join.js?v=1.26.0';
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 
 export function createSyncCenterOrchestrator({
@@ -69,6 +69,12 @@ export function createSyncCenterOrchestrator({
     const operations = {
         enabled: true,
         qaAdmissionRequired: config.qaAdmissionRequired === true,
+        async inspectPortLocalAccount() { return portSync?.inspectLocalAccount?.(); },
+        async choosePortLocalAccount(value) {
+            if (!canSync()) throw new Error('pro_required');
+            const binding = await portSync.chooseLocalAccount(value);
+            return { binding, ...(value.choice === 'current' ? { portSyncState: await settlePortSync() } : {}) };
+        },
         async hasConfiguredAccount() {
             const saved = await account();
             return accountRoot.core.validAccountCredential(saved?.accountCredential);

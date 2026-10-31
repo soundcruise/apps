@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.26.0';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.24.23';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
@@ -707,11 +707,59 @@ function bindAdvancedEnvironmentManagement(root) {
     });
 }
 
+// Existing Sync Center, one local dataset. This choice neither creates an
+// Account nor copies/clears records, binaries, Project data or Account Outboxes.
+export function mountPortLocalAccountChoices(root, { orchestrator, canSync = () => true } = {}) {
+    if (!root?.ownerDocument?.createElement || !orchestrator?.inspectPortLocalAccount ||
+        root.querySelector?.('[data-port-local-account]')) return;
+    const doc = root.ownerDocument, section = doc.createElement('section');
+    section.dataset.portLocalAccount = ''; section.className = 'sync-center-card';
+    const heading = doc.createElement('h3'); heading.textContent = 'この端末のPortデータと同期先';
+    const status = doc.createElement('p'); status.setAttribute('role', 'status');
+    status.textContent = '帰属が不明なデータを別のAccountへ自動同期しません。データは削除しません。';
+    const inspect = doc.createElement('button'); inspect.type = 'button'; inspect.textContent = '同期先と端末データを確認';
+    const panel = doc.createElement('div'); panel.hidden = true;
+    const label = doc.createElement('label'), consent = doc.createElement('input'); consent.type = 'checkbox';
+    label.append(consent, doc.createTextNode('設定・未同期変更・画像・添付が表示Accountのデータであることを確認しました'));
+    const buttons = [];
+    let observed = null, busy = false;
+    const draw = () => { for (const [button, choice] of buttons) button.disabled = busy || !observed ||
+        (choice === 'current' && (!canSync() || !consent.checked || observed.binding?.accountId && observed.binding.accountId !== observed.accountId)); };
+    for (const [choice, text] of [['current','現Accountへ採用して同期'],['previous','以前のAccountのデータとして保持'],['device','同期せず端末内に保持']]) {
+        const button = doc.createElement('button'); button.type = 'button'; button.textContent = text; button.dataset.portAttributionChoice = choice;
+        button.addEventListener('click', async () => {
+            if (!observed || busy) return; busy = true; draw();
+            try {
+                await orchestrator.choosePortLocalAccount({ choice, snapshotId: observed.snapshotId, confirmed: consent.checked });
+                status.textContent = choice === 'current' ? '帰属を確認しました。同期結果はSync Centerの状態表示を確認してください。'
+                    : 'データと未同期変更を保持しました。Cloud同期は停止しています。';
+            } catch (_) { status.textContent = 'Accountまたは端末データが変わったか、処理を確認できません。削除・再送せず、Accountを変更した場合はページを再読み込みしてから確認してください。'; }
+            finally { observed = null; consent.checked = false; busy = false; draw(); }
+        });
+        buttons.push([button,choice]); panel.append(button);
+    }
+    consent.addEventListener('change',draw);
+    inspect.addEventListener('click', async () => {
+        if (busy) return; busy = true; observed = null; consent.checked = false; draw();
+        try {
+            observed = await orchestrator.inspectPortLocalAccount();
+            if (!observed?.accountId) throw Error('account_not_configured');
+            status.textContent = '現在のAccount: ' + observed.accountId + '。端末データ: ' +
+                (observed.binding?.accountId ? observed.binding.accountId + ' に帰属' : '帰属未確認') +
+                '。別Accountのデータは再採用できません。画像・添付も含めて選択してください。';
+            panel.hidden = false;
+        } catch (_) { status.textContent = '既存のAccount接続と端末データを確認できません。データは保持しています。'; }
+        finally { busy = false; draw(); }
+    });
+    panel.prepend(label); section.append(heading,status,inspect,panel); root.prepend(section); draw();
+}
+
 export function bindSyncCenterActions(root, {
     orchestrator = null, refresh = async () => {}, tokenProvider = async () => null,
     edition = 'standard', onPortConflictOpen = async () => {},
     canSync = () => getCapabilities().cloudSyncOperations
 } = {}) {
+    mountPortLocalAccountChoices(root, { orchestrator, canSync });
     bindSectionHelp(root);
     bindAdvancedEnvironmentManagement(root);
     const setup = root?.querySelector?.('#sync-center-setup');
