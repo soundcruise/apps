@@ -1,0 +1,189 @@
+{
+  "provenance": "Minimal transcription of 2026-10-29 read-only D1 assessment and user-supplied Dot report; no fresh source retrieval. Attestations in tests are simulated, not verified for production.",
+  "entries": [
+    {
+      "candidate_id": "existing-kim",
+      "entity": {
+        "brand": "Fender MEX",
+        "models": [
+          "Limited Edition Kim Gordon Jazzmaster"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [
+          "signature",
+          "limited"
+        ],
+        "market": null
+      },
+      "review_status": "approved",
+      "evidence": "d1:409f8715a0d7:ikebe-product-fields-12",
+      "url": "https://www.ikebe-gakki-pb.com/new_product/173792/"
+    },
+    {
+      "candidate_id": "dot-kim",
+      "entity": {
+        "brand": "Fender",
+        "models": [
+          "Kim Gordon Jazzmaster"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [
+          "signature",
+          "limited"
+        ],
+        "market": null
+      },
+      "evidence": "dot-report:N02:official",
+      "url": "https://www.fender.com/newsroom/273808-fender-and-kim-gordon-introduce-signature-jazzmaster-a-guitar-built-for-original-expression/"
+    },
+    {
+      "candidate_id": "existing-neurig",
+      "entity": {
+        "brand": "ZOOM",
+        "models": [
+          "NEURIG"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "review_status": "approved",
+      "evidence": "d1:0634be195ef6:product",
+      "url": "https://www.ikebe-gakki-pb.com/new_product/173070/"
+    },
+    {
+      "candidate_id": "dot-neurig",
+      "entity": {
+        "brand": "ZOOM",
+        "models": [
+          "NEURIG"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "event_announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "scope": "source_event_scope",
+      "evidence": "d1:discovery:source_event_scope",
+      "url": "https://zoomcorp.com/ja/jp/news/tokyogakkiexpo2026/"
+    },
+    {
+      "candidate_id": "existing-megpoid",
+      "entity": {
+        "brand": "インターネット",
+        "models": [
+          "VOCALOID7 Voicebank AI Megpoid",
+          "VOCALOID7 Starter Pack AI Megpoid"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "review_status": "approved",
+      "evidence": "d1:b6ea5be394c5:voicebank"
+    },
+    {
+      "candidate_id": "existing-tdm",
+      "entity": {
+        "brand": "YAMAHA",
+        "models": [
+          "TDM-600GY",
+          "TDM-600BE"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "other",
+        "qualifiers": [],
+        "market": null
+      },
+      "review_status": "approved",
+      "evidence": "d1:495d1c7721f4:product_article"
+    },
+    {
+      "candidate_id": "existing-motu",
+      "entity": {
+        "brand": "MOTU",
+        "models": [
+          "OctaLite"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "review_status": "rejected",
+      "actor_type": "unconfirmed",
+      "evidence": "d1:486d0824a43c:duplicate"
+    },
+    {
+      "candidate_id": "system-excluded-fixture",
+      "entity": {
+        "brand": "Fixture",
+        "models": [
+          "TEST-2"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "review_status": "rejected",
+      "actor_type": "system_policy",
+      "evidence": "fixture:system-decision"
+    },
+    {
+      "candidate_id": "expired-history-fixture",
+      "entity": {
+        "brand": "Fixture",
+        "models": [
+          "TEST-3"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "review_status": "expired_history",
+      "evidence": "fixture:retention-gap"
+    },
+    {
+      "candidate_id": "human-reject-fixture",
+      "entity": {
+        "brand": "Fixture",
+        "models": [
+          "TEST-1"
+        ],
+        "version": null
+      },
+      "event": {
+        "type": "announcement",
+        "qualifiers": [],
+        "market": null
+      },
+      "review_status": "rejected",
+      "actor_type": "human_operator",
+      "evidence": "fixture:human-decision"
+    }
+  ]
+}

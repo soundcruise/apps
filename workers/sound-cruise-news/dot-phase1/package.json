@@ -1,0 +1,17 @@
+{
+  "name": "dot-phase1",
+  "version": "1.0.0",
+  "description": "Offline Dot candidate validation prototype",
+  "scripts": {
+    "test": "node --test engine.test.mjs",
+    "dryrun": "node dry-run.mjs"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@google-cloud/firestore": "9.4.0",
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1",
+    "google-auth-library": "11.3.2"
+  },
+  "private": true
+}

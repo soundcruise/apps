@@ -1,0 +1,42 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {Firestore} from '@google-cloud/firestore';
+import {execFileSync} from 'node:child_process';
+import {saveDelivery,readReview} from './phase3f/firestore-store.mjs';
+import {createReviewServer} from './phase3f/review-server.mjs';
+const emulator=process.env.FIRESTORE_EMULATOR_HOST;
+if(!emulator||!/^127\.0\.0\.1:\d+$/.test(emulator))throw Error('localhost emulator required');
+const projectId='demo-news-phase3f';
+const db=new Firestore({projectId});
+const now='2026-10-30T00:00:00.000Z';
+const source=JSON.parse(readFileSync(new URL('./fixtures/dot-report-14.json',import.meta.url)))[0];
+const input=structuredClone(source);input.candidate.candidate_id='phase3f-fictional-candidate';input.candidate.idempotency_key='phase3f-fictional-idempotency';
+const delivery={fileId:'fictional-file-001',version:'1',noticeId:'fictional-notice-001',bodySha256:'a'.repeat(64),hashVerified:true};
+async function clean(){for(const col of ['candidates','receipts','attempts']){const docs=await db.collection(col).get();await Promise.all(docs.docs.map(d=>d.ref.delete()));}}
+const save=(attemptId,i=input,d=delivery)=>saveDelivery(db,{input:i,delivery:d,attemptId,now});
+test('transactions, parallel deliveries, conflict, restart and review',async()=>{
+ await clean();
+ const results=await Promise.all(Array.from({length:6},(_,i)=>save('parallel-'+i)));
+ assert.equal(results.filter(x=>x.status==='created').length,1);
+ assert.equal(results.filter(x=>x.status==='replay').length,5);
+ assert.equal((await db.collection('candidates').get()).size,1);
+ assert.equal((await db.collection('receipts').get()).size,1);
+ assert.equal((await db.collection('attempts').get()).size,6);
+ const changed=structuredClone(input);changed.candidate.entity.brand='Different';
+ assert.equal((await save('conflict-001',changed)).status,'conflict');
+ const rekeyed=structuredClone(input);rekeyed.candidate.idempotency_key='other-key';
+ assert.equal((await save('same-candidate',rekeyed)).status,'candidate_conflict');
+ assert.equal((await save('another-file',input,{...delivery,fileId:'another-file'})).status,'replay');
+ const first=await save('ack-loss-001');const again=await save('ack-loss-001');assert.deepEqual(first,again);
+ const lost={collection:(...x)=>db.collection(...x),runTransaction:async callback=>{await db.runTransaction(callback);throw Error('ack_lost')}};await assert.rejects(()=>saveDelivery(lost,{input,delivery,attemptId:'ack-lost-committed',now}),/ack_lost/);assert.equal((await save('ack-lost-committed')).status,'replay');
+ await assert.rejects(()=>save('ack-loss-001',changed),/attempt_conflict/);
+ const restarted=new Firestore({projectId});const review=await readReview(restarted,input.candidate.candidate_id);assert.equal(review.validation.ready,false);assert.equal(review.validation.formalFacts,false);assert.equal(review.input.candidate.candidate_id,input.candidate.candidate_id);await restarted.terminate();
+ const server=createReviewServer(db);await new Promise(ok=>server.listen(0,'127.0.0.1',ok));try{const url=`http://127.0.0.1:${server.address().port}`;const response=await fetch(url+'/api/review');const body=await response.json();assert.equal(body.items.length,1);assert.equal(body.items[0].input.candidate.candidate_id,input.candidate.candidate_id);assert.equal(body.items[0].validation.ready,false);assert.equal((await fetch(url+'/api/demo-decision',{method:'POST'})).status,404);assert.equal((await fetch(url+'/')).status,200);}finally{await new Promise(ok=>server.close(ok));}
+ const child=execFileSync(process.execPath,['--input-type=module','-e',`import {Firestore} from '@google-cloud/firestore';import {readReview} from './phase3f/firestore-store.mjs';const d=new Firestore({projectId:'demo-news-phase3f'});const v=await readReview(d,'phase3f-fictional-candidate');process.stdout.write(v?.input.candidate.candidate_id||'missing');await d.terminate()`],{cwd:new URL('./',import.meta.url),encoding:'utf8'});assert.equal(child,'phase3f-fictional-candidate');
+ const invalid=structuredClone(input);invalid.candidate.unknown=true;assert.equal((await save('invalid-test',invalid)).status,'invalid');
+ await assert.rejects(()=>save('bad-hash-test',input,{...delivery,hashVerified:false}),/invalid_delivery/);
+ const broken={collection:(...x)=>db.collection(...x),runTransaction:async()=>{throw Error('simulated_unavailable')}};await assert.rejects(()=>saveDelivery(broken,{input,delivery,attemptId:'failed-store',now}),/simulated_unavailable/);
+ assert.equal((await db.collection('candidates').get()).size,1);
+ await clean();assert.equal(await readReview(db,input.candidate.candidate_id),null);await db.terminate();
+});

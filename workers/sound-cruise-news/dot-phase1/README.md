@@ -1,0 +1,9 @@
+# Dot candidate contract — isolated Phase 1
+
+This Node-only prototype is not imported by either Worker. It has no HTTP client, API, secrets, cron, D1, migration, publishing, or human-decision capability. `npm ci && node --test engine.test.mjs` runs locally. Schema version is independent of deployed NEWS / Operator versions.
+
+The fixture is a limited transcription of the user-supplied 2026-10-29 Dot report; it is not independent primary evidence. In particular the H04 URL is an index, not a confirmed individual article, and every source policy is deliberately unconfirmed. No publisher was contacted to prepare it. Event facts and dates are proposal data, not verified facts. See output blockers; never treat a source's self-reported body status as authority. No live HTTP is required or performed.
+
+`validateInput` verifies strict JSON Schema, 64 KiB limit, link shape, IDs, references and date structure. `policyGate` receives an independently governed policy snapshot and an explicit clock; it defaults to deny. Production would require strong provenance authentication, explicit canonicalization and actual publisher policy review. `assessEvidence` never returns READY or formal facts. `compareEvents` is a conservative offline comparison; a caller-provided independent verified-identity callback must only be backed by trusted evidence, never by candidate input. `DryRun` uses volatile memory only and provides request replay semantics for exact payloads; it is not concurrency-safe or durable. Its duplicate results are review hints, not publication exclusions.
+
+The dry-run has no production data or D1. Full 90-day/rejected/takedown history, trustworthy independent evidence, detailed market/edition reconciliation, durable atomic idempotency, permissions and DOT delivery capabilities remain to be designed and tested before a staging API. This package is not a migration and does not authorize collection.

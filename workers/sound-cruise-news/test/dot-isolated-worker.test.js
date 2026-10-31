@@ -1,0 +1,17 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {generateKeyPair,exportJWK,createLocalJWKSet,SignJWT} from 'jose';
+import {handleIsolatedDotRequest} from '../src/dot-isolated-worker.js';
+import {createCloudRunReadApi} from '../dot-phase1/phase4a/cloudrun-api.mjs';
+import {pepper} from './helpers.js';
+const origin='https://isolated.fixture.test',issuer='https://fixture-team.cloudflareaccess.com',aud='a'.repeat(64),now=Date.parse('2026-10-30T00:00:00Z'),sec=now/1000;
+const keys=await generateKeyPair('RS256'),jwks=createLocalJWKSet({keys:[{...await exportJWK(keys.publicKey),kid:'test'}]});
+const jwt=await new SignJWT({email:'human@fixture.test',type:'app'}).setProtectedHeader({alg:'RS256',kid:'test'}).setIssuer(issuer).setAudience(aud).setSubject('fixture-human').setIssuedAt(sec).setExpirationTime(sec+60).sign(keys.privateKey);
+let d1Calls=0,reads=0;const env={NEWS_DB:{prepare(){d1Calls++;throw Error('must never access D1')}},NEWS_HEADLINE_PEPPER:pepper,NEWS_OPERATOR_ORIGIN:origin,NEWS_ACCESS_ISSUER:issuer,NEWS_ACCESS_AUD:aud,NEWS_OPERATOR_EMAILS:'["human@fixture.test"]',NEWS_SOURCE_IDS:'["shimamura"]'};
+const reader={list:async()=>{reads++;return {items:[{id:'fictional-moon-guitar-m1-001',validation:{formalFacts:false,ready:false}}],historyComplete:false}},detail:async()=>null};
+const api=createCloudRunReadApi({reader,issuer,audience:aud,operators:['human@fixture.test'],jwks,now:()=>now});let calls=0;
+const opts={jwks,dotProxy:{origin:'https://run.fixture.test',fetchImpl:(url,init)=>{calls++;assert.deepEqual(Object.keys(init.headers).sort(),['Accept','Cf-Access-Jwt-Assertion']);return api(new Request(url,init))}}};
+const req=(path,token=jwt,method='GET')=>new Request(origin+path,{method,headers:token?{'Cf-Access-Jwt-Assertion':token}:{}});
+test('isolated Worker to independently authenticated reader never reaches D1',async()=>{const res=await handleIsolatedDotRequest(req('/api/dot-candidates'),env,now,opts);assert.equal(res.status,200);const body=await res.json();assert.equal(body.historyComplete,false);assert.equal(body.items[0].validation.ready,false);assert.equal(reads,1);assert.equal(d1Calls,0)});
+test('isolated Worker rejects unauthenticated and all non-review routes',async()=>{assert.equal((await handleIsolatedDotRequest(req('/api/dot-candidates',null),env,now,opts)).status,401);for(const [p,m] of [['/api/decision','POST'],['/api/pending','GET'],['/api/dot-candidates','POST'],['/api/dot-candidates/a/delete','GET']])assert.equal((await handleIsolatedDotRequest(req(p,jwt,m),env,now,opts)).status,404);assert.equal(calls,1);assert.equal(reads,1);assert.equal(d1Calls,0)});
+
+test('review shell and script require Access authentication and remain read-only',async()=>{assert.notEqual((await handleIsolatedDotRequest(req('/review.css',null),env,now,opts)).status,200);const page=await handleIsolatedDotRequest(req('/'),env,now,opts);assert.equal(page.status,200);const html=await page.text();assert.match(html,/読み取り専用/);assert.doesNotMatch(html,/承認|却下|公開ボタン/);const script=await handleIsolatedDotRequest(req('/dot-review.js'),env,now,opts);assert.equal(script.status,200);assert.match(await script.text(),/const __name = \(target\) => target/);assert.equal((await handleIsolatedDotRequest(req('/','x','POST'),env,now,opts)).status,404);});
