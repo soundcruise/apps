@@ -772,16 +772,17 @@ export class ProductionFreezeCoordinator extends DurableObject {
   async current(nonce) {
     if (!hex.test(nonce || "")) fail("current-challenge");
     const s = this.#state(),
-      source = await this.#source;
+      source = await this.#source,
+      observedAt = Date.now();
     const result = {
       ...this.#common(s),
       id: crypto.randomUUID(),
-      issued: Date.now(),
-      expires: Math.min(Date.now() + 30000, s.expires ?? Infinity),
+      issued: observedAt,
+      expires: Math.min(observedAt + 30000, s.expires ?? Infinity),
       sourceDigest: source,
       nonce,
       revision: s.revision,
-      state: s.expires && s.expires <= Date.now() ? "EXPIRED" : s.mode,
+      state: s.expires && s.expires <= observedAt ? "EXPIRED" : s.mode,
       windowHash: s.bundle?.windowHash ?? null,
       capacity: this.#capacity(),
       ownerId: this.#cfg.ownerId,
