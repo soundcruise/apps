@@ -30,14 +30,15 @@ export function freezeControlClient({
       if (size > 4 * 1024 * 1024) throw Error("current-response-budget");
       parts.push(b);
     }
-    if (!q.ok) throw Error("freeze-control-result-unknown");
+    if (!q.ok) throw Object.assign(Error("freeze-control-result-unknown"), { status: q.status });
     const b = new Uint8Array(size);
     let at = 0;
     for (const p of parts) {
       b.set(p, at);
       at += p.length;
     }
-    return JSON.parse(new TextDecoder().decode(b));
+    try { return JSON.parse(new TextDecoder().decode(b)); }
+    catch { throw Error("current-json-invalid"); }
   }
   return Object.freeze({
     current: async (nonce) =>
