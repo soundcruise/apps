@@ -214,6 +214,7 @@ test('Port Standard limits and Pro image prompts stay owned by Port', async () =
         await page.goto(url, { waitUntil: 'domcontentloaded' });
         await page.locator('[data-home-workspace="portMyApps"]').click();
         const apps = page.frameLocator('#port-my-apps-surface iframe');
+        await page.waitForFunction(() => document.querySelector('#screen-port-my-apps').dataset.portLibraryPhase === 'ready');
         await page.waitForFunction(() => document.querySelector('#port-my-apps-surface iframe')?.contentDocument?.querySelector('#my-apps-add')?.disabled === false);
         await apps.locator('#my-apps-add').click();
         await apps.locator('#my-apps-form-view').waitFor({ state: 'visible' });
