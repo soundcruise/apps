@@ -1,6 +1,6 @@
 {
   "name": "sound-cruise-sync",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,7 +16,9 @@
     "test:studio-operations": "node test/studio-operations-adapters.test.mjs",
     "test:studio-host": "node --test test/studio-host-provider.test.mjs",
     "test:studio-boot-host": "node --test test/studio-boot-filesystem.test.mjs",
-    "build:studio-pinned-io": "node scripts/studio-operations/build-pinned-io.mjs"
+    "build:studio-pinned-io": "node scripts/studio-operations/build-pinned-io.mjs",
+    "test:production-freeze:native": "node scripts/production-freeze-native.mjs",
+    "test:production-freeze:boundaries": "node --test test/production-freeze-boundaries.test.mjs"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1160.0",

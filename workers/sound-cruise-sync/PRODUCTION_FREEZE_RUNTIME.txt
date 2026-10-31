@@ -1,0 +1,110 @@
+Production Freeze Runtime — isolated candidate, not deployed
+
+Purpose and unchanged boundaries
+This candidate wraps the existing studio-production-entry / reconstructed v137
+delegate. Studio remains OFF. Existing Wrangler entries, configuration, shared
+D1 schema, R2 contents, credentials and scheduled configuration are unchanged.
+It adds a control ledger, not another product data store or Backup engine.
+Production v138 is NOT currently participating in this ledger.
+
+Admission and drain
+Every HTTP request, including GET handlers with activity writes, and every
+Scheduled invocation must durably obtain admission before calling the delegate.
+The Source is the exact shared D1/R2 physical pair. A single SQLite Durable
+Object name is derived from its canonical digest. Synchronous ledger transactions
+linearize OPEN -> CLOSING against admission. Existing admitted invocations can
+finish. New admissions are rejected with 423. Authentication and the original
+Account/Pro/Port/4-app SQL stay in the unchanged delegate.
+
+Before each D1 execution/batch or R2 put/delete, a durable effect STARTED record
+is required. CONFIRMED follows a successful response. Errors, lost acknowledgments
+and unfinished effects remain ACTIVE/UNKNOWN. waitUntil work is included before
+invocation completion. A successful handler response does not clear a swallowed
+native D1/R2 error. R2 deletion and D1 mutation are never treated as atomic.
+The wrapper exposes only the binding operations used by the fixed delegate;
+new delegates or new native mutation APIs require another scope review.
+
+close, seal, reopen, cancel
+close: signed operator command, expectedRevision CAS, unique operation/window.
+seal: no non-COMPLETE invocation or non-CONFIRMED effect in the epoch; independent
+signed proof of old-version/in-flight resolution, partial effects resolution,
+all-entry deployment coverage, external SQL/R2 exclusion and manual exclusion.
+Explicit external-d1/external-r2/manual start and completion ID sets must match.
+An empty registry alone cannot seal. Timers and cron removal cannot seal.
+reopen: SEALED plus separately signed verified Archive/copy evidence; advances
+the epoch. It never restores Source data or deletes unknown operations.
+cancel: CLOSING only, all drain complete and signed evidence that Backup/readers
+are stopped; allows explicit abandonment without inventing an Archive receipt.
+UNKNOWN or in-flight state blocks both seal and cancel. No automatic recovery,
+replay, rollback, reopen or retry is implemented. Same command ID+body can be
+read back; a different body with that ID is rejected.
+
+CURRENT and the existing PR77 runner
+The receipt key signs a fresh nonce, Source, state, window hash and revision.
+CURRENT lives at most 30 seconds and cannot outlive its closed window. The client
+requires the approved issuer pin and minimumRevision. Each readWindow challenges
+the live coordinator; returned immutable receipts feed PR77 verifiedCutlineProvider
+and the existing bounded encrypted Backup core. Cached CLOSED windows do not
+remain current after reopen. A crash/reopen keeps ledger state.
+
+The operator gateway is a separate, unconfigured entry. It accepts only signed,
+bounded POST /control or /current. freeze-client.mjs requires an explicit HTTPS
+origin, signing handle, no redirects and no retries. Before Production use it
+needs an approved private route/authenticated transport and observed readback.
+No gateway route, workers.dev, preview, Cron or Cloudflare resource is created
+by these files.
+
+Physical deployment and authority prerequisites — currently HOLD
+The Source digest/name is enforced inside the coordinator as well as its caller.
+The signed deployment certificate binds namespace ID, Source digest, fixed worker
+artifact hash, derived object name and SYNC_DB/SYNC_ASSETS binding names.
+JavaScript bindings do NOT expose their physical Cloudflare IDs. An independent
+issuer must compare actual Account/D1/R2/DO namespace/deployment metadata before
+signing. Correct strings without that observation are not physical proof.
+
+Every entry capable of mutating the shared pair must use that same physical
+namespace and object, not another namespace with the same object name. Old v138,
+v137, Version/override/service paths and pre-instrumentation work require separate
+effective exclusion/resolution evidence. External SQL, R2 clients and manual
+management need named exclusion custodians and verifiable completion records;
+the code cannot make a custodian assertion true. No legacy operation is inferred
+from an empty ledger, fixed wait or current 100% deployment.
+
+Production adoption needs separate explicit approval for:
+- the SQLite DO namespace/binding and its costs, unconfigured entry bundles,
+  exact resource mapping, private operator gateway and controlled rollout;
+- separate operator / external-attestation / receipt key custody, Secret entries
+  and approved public roots (no real keys were generated in these tests);
+- authoritative external observers, old-version exclusion and initial handover;
+- current Host grant, Source S3 read capability, fresh Restore resources/privacy;
+- actual freeze, Source reads for Backup and real-data Restore.
+Do not deploy these files by merely turning on a flag or reusing test keys.
+
+Trust limits, retention and failure handling
+Live signatures/nonces defend network replay; they do not defeat an authorized
+Cloudflare administrator, issuer compromise or DO PITR/namespace replacement.
+An independently approved durable revision/window floor and control custody are
+required. No independent pin service or root was modified in this candidate.
+The ledger retains historical invocation/effect/command rows. 2048 limits active
+concurrency only. Growth, DO capacity, latency, retention/rotation and budget
+must be bounded before deployment; no automatic purge or silent Source fallback
+is permitted. A capacity/transport failure fails closed, affecting availability.
+
+Backup freeze and Studio release stages
+v138 OFF continuation, additive studio_0001_rc5 DDL, a consistent shared D1/R2
+Backup freeze, and Owner canary are separate approvals and safety conditions.
+This control ledger does not require shared migrations 0034-0037. Additive DDL
+still needs its own schema/journal serialization and Backup/Restore policy.
+To shorten user interruption, Source may be explicitly reopened after sealed
+Archive/copy verification and a valid reopen receipt; isolated Restore can then
+continue from the sealed Archive. An unknown result never authorizes reopening.
+Never restore the whole live Source to undo a later Account B/other-owner update.
+
+Repeatable isolated checks
+Install the existing package-lock dependencies, then use a fresh absolute output:
+FREEZE_TEST_OUTPUT=/absolute/new-run npm run test:production-freeze:native
+npm run test:production-freeze:boundaries
+The native test uses workerd D1/R2 and SQLite DO with ephemeral fixture keys and
+blocked outbound networking. It is not a real Cloudflare or Production freeze
+test. Production fixture/admin paths exist only in test/production-freeze-fixture.js;
+never select that test entry for a deploy.
