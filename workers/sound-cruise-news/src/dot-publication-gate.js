@@ -6,6 +6,7 @@ import {hash,DAY} from './policy.js';
 import {manualFactsPolicy} from './manual-facts-policy.js';
 import {candidateSnapshot} from './operator-review.js';
 import {safetySnapshot} from './dot-safety-snapshot.js';
+import {retainedArticleHashes,hasRetainedHumanRejection} from './dot-retained-decisions.js';
 
 // Read-only diagnostic. It cannot prove source freshness or atomically lock
 // Firestore and D1, so it never grants publication authority.
@@ -22,6 +23,10 @@ export async function dotPublicationGate(store,reader,id,now,registry,pepper){
  const validation=await publicationValidation(store,row,now,registry,pepper);checks.formalFacts=validation.errors.some(e=>/facts_|label_|date_|expired_|event_/.test(e))?'HOLD':'PASS';checks.sourcePolicy=validation.errors.some(e=>['operator_source_gate','source_url_invalid','publication_policy_rejected'].includes(e))||(row.source_id!=='yamaha'&&!manualFactsPolicy(registry.find(s=>s.id===row.source_id),row.source_url,now))?'HOLD':'PASS';
  if(!validation.valid)blockers.push(...validation.errors);if(!['pending','reopened'].includes(row.review_status))blockers.push('candidate_not_pending');
  let scopeCoverage=null;const disqualifying=[];if(validation.errors.includes('duplicate'))disqualifying.push('duplicate');if(validation.errors.includes('candidate_takedown'))disqualifying.push('candidate_takedown');if(validation.errors.includes('publication_policy_rejected'))disqualifying.push('publication_policy_rejected');if(row.review_status==='rejected'||row.review_status==='system_excluded')disqualifying.push('retained_exclusion');const sourceState=await store.db.prepare('SELECT takedown FROM source_state WHERE source_id=?').bind(row.source_id).first();if(sourceState?.takedown===1)disqualifying.push('source_takedown');
+ // A retained human rejection can still identify its original URL even when
+ // the candidate row was purged or its current identity later changed.
+ const urlHashes=await retainedArticleHashes([row.source_url,row.normalized_url,...(Array.isArray(current?.candidate?.sources)?current.candidate.sources.slice(0,8).flatMap(x=>[x?.url,x?.canonical_url]):[])]);
+ if(await hasRetainedHumanRejection(store.db,urlHashes))disqualifying.push('retained_exclusion');
  if(validation.errors.includes('duplicate'))checks.duplicate='SAME';
  if(current?.candidate){const snapshot=await readDotNewsSnapshot(store.db,current.candidate);if(snapshot){scopeCoverage=Object.fromEntries(Object.entries(snapshot).map(([scope,part])=>[scope,part.complete?'RETAINED_SEARCH_COMPLETE':'INCOMPLETE']));if(Object.values(snapshot).every(s=>s.complete)){const matches=Object.entries(snapshot).flatMap(([scope,part])=>part.items.filter(x=>!(scope==='pending'&&x.candidate_id===row.id)));checks.history='RETAINED_SEARCH_COMPLETE';if(checks.duplicate!=='SAME')checks.duplicate=matches.length?'RELATED_OR_HISTORY':'UNCERTAIN';if(matches.some(x=>['rejected','system_excluded','ledger_reject','takedown'].includes(x.review_status)&&(x.candidate_id===row.id||x.url===row.source_url||x.url===row.normalized_url)))disqualifying.push('retained_exclusion');if(matches.length)blockers.push('related_or_retained_history');}else blockers.push('history_read_incomplete');}else blockers.push('history_read_incomplete');}else blockers.push('history_read_incomplete');
  // Fresh, explicit human observation is distinct from the admission-time evidence.

@@ -4,6 +4,7 @@ import {assistedUrl,ASSISTED_PERMISSION} from './assisted-facts.js';
 import {readDotNewsSnapshot} from './dot-news-snapshot.js';
 import {hash,sourceUrl} from './policy.js';
 import {manualFactsPolicy,observationsMatchHuman} from './manual-facts-policy.js';
+import {retainedArticleHashes,hasRetainedHumanRejection} from './dot-retained-decisions.js';
 
 // Only Yamaha's separately authorized manual Topics route is currently supported.
 // Observation strings are an explicit human attestation, never a new permission.
@@ -23,13 +24,14 @@ export async function admitDotCandidate(store,reader,input,actor,now,registry,pe
  const detail=await reader.detail(input.candidateId),snapshot=await dotSnapshot(detail,input.candidateId),c=detail.candidate;
  if(snapshot.digest!==confirmation.candidate_digest||snapshot.revision!==confirmation.staging_revision)throw Error('candidate_changed');if(!/^[a-f0-9]{64}$/.test(detail.deliveryKeyHash||''))return {status:'needs_confirmation',reasons:['delivery_identity_unavailable']};
  if(!Array.isArray(c.sources)||!c.sources.some(s=>s.url===h.url&&s.canonical_url===h.url)||![c.entity?.brand,c.entity?.manufacturer].includes(h.brand)||![c.entity?.product,...(Array.isArray(c.entity?.models)?c.entity.models:[])].includes(h.product)||(c.event?.type!=='unknown'&&c.event?.type!==h.action)||(c.dates?.article_published?.precision==='day'&&c.dates.article_published.value!==h.publishedAt))return {status:'needs_confirmation',reasons:['candidate_evidence_mismatch']};
+ const historyHashes=await retainedArticleHashes([h.url,...c.sources.slice(0,8).flatMap(x=>[x?.url,x?.canonical_url])]);if(await hasRetainedHumanRejection(store.db,historyHashes))return {status:'excluded',reasons:['retained_human_rejection']};
  const humanFacts={...h,sourceId:source.id,confirmed:true,requestId:input.requestId};const prepared=await prepareAssisted(store,humanFacts,now,registry,pepper,{allowGeneric:source.id!=='yamaha'});if(prepared.duplicates?.length)return {status:'duplicate',reasons:['formal_same'],matches:prepared.duplicates.map(d=>d.id)};if(!prepared.valid)return {status:'needs_confirmation',reasons:prepared.errors||['formal_validation_failed']};
  const scopes=await readDotNewsSnapshot(store.db,c);if(!scopes||Object.values(scopes).some(x=>!x.complete))return {status:'needs_confirmation',reasons:['history_search_incomplete']};
  if(Object.values(scopes).some(x=>x.items.length))return {status:'needs_confirmation',reasons:['existing_news_or_history']};
  // Re-read immediately before the atomic D1 operation; this still cannot provide
  // a cross-database transaction, so later use must revalidate the snapshot too.
  const latestDetail=await reader.detail(input.candidateId),latest=await dotSnapshot(latestDetail,input.candidateId);if(latest.digest!==snapshot.digest||latest.revision!==snapshot.revision||latestDetail.deliveryKeyHash!==detail.deliveryKeyHash)throw Error('candidate_changed');
- const saved=await saveAssisted(store,humanFacts,now,registry,pepper,actor,{dotCandidateId:input.candidateId,confirmationId:input.confirmationId,digest:snapshot.digest,revision:snapshot.revision,evidenceHash:confirmation.evidence_hash,deliveryKeyHash:detail.deliveryKeyHash,permissionRef,admissionHash});
+ const saved=await saveAssisted(store,humanFacts,now,registry,pepper,actor,{dotCandidateId:input.candidateId,confirmationId:input.confirmationId,digest:snapshot.digest,revision:snapshot.revision,evidenceHash:confirmation.evidence_hash,deliveryKeyHash:detail.deliveryKeyHash,permissionRef,admissionHash,historyHashes});
  if(!saved.saved)return {status:'needs_confirmation',reasons:saved.errors||['formal_validation_failed']};
  return {status:'registered',id:saved.id,replayed:!!saved.replayed,validation:saved.validation};
 }
