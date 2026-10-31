@@ -5,7 +5,7 @@ const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/
 test('Practice readonly PC workspace real Chrome', async t => {
     const { practiceFixture, serializeFixture } = await import('./practice-fixture.mjs');
     const fixture = practiceFixture(); delete fixture['cruisePort.syncAssetMetadata'].attachments.broken;
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const report = { cases: [], screenshots: [] }, errors = [], missing = [], network = [];
     await context.route('**/*', r => { const u = new URL(r.request().url()); if (u.origin === origin) return r.continue(); if (u.hostname === 'fonts.googleapis.com') return r.fulfill({ body: '', contentType: 'text/css' }); network.push(u.href); return r.abort(); });
@@ -27,12 +27,12 @@ test('Practice readonly PC workspace real Chrome', async t => {
     const step = async (label, fn) => t.test(label, async () => { await fn(); report.cases.push(label); });
     const workspace = p.locator('#screen-practice'), menu = id => p.locator(`[data-practice-select="menus"][data-practice-id="${id}"]`), detail = p.locator('[data-practice-detail="menus"]');
     const state = () => workspace.getAttribute('data-status');
-    const nav = () => p.click('.studio-nav [data-workspace="practice"]');
+    const nav = () => p.evaluate(() => CruiseStudio.shellHost.navigate('practice'));
     const raw = () => p.evaluate(() => Object.fromEntries(Object.keys(localStorage).filter(k => /^cruisePort\./.test(k)).map(k => [k, localStorage.getItem(k)])));
     let writer;
     try {
         await p.goto(url, { waitUntil: 'networkidle' }); await p.waitForFunction(() => !!CruiseStudio.portDataHost && !!CruiseStudio.practiceView);
-        await step('formal 0.49.1 and cold navigation do not read Port/create DB', async () => { assert.equal(await p.locator('#studio-version').innerText(), 'v0.49.1'); assert.equal(await p.evaluate(() => CruiseStudio.model.APP_VERSION), '0.49.1'); await nav(); assert.equal(await state(), 'unknown'); assert.equal(await p.evaluate(() => __practiceQA.reads.length), 0); assert.deepEqual(await p.evaluate(() => indexedDB.databases()), []); assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false); });
+        await step('formal 0.53.0 and cold navigation do not read Port/create DB', async () => { assert.equal(await p.locator('#studio-version').innerText(), 'v0.53.0'); assert.equal(await p.evaluate(() => CruiseStudio.model.APP_VERSION), '0.53.0'); await nav(); assert.equal(await state(), 'unknown'); assert.equal(await p.evaluate(() => __practiceQA.reads.length), 0); assert.deepEqual(await p.evaluate(() => indexedDB.databases()), []); assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false); });
         writer = await context.newPage(); await writer.goto(origin + '/apps/cruise-studio/index.html');
         // Only the fixture/writer page mutates Port storage. The measured reader never does.
         await writer.evaluate(values => { for (const [key, value] of Object.entries(values)) localStorage.setItem(key, value); }, serializeFixture(fixture));

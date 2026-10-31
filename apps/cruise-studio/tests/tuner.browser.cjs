@@ -1,68 +1,174 @@
-/* Isolated native microphone/Web Audio and normal UI regression. No auth probes. */
-const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
-const { chromium } = require('playwright');
-const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/index.html', origin = new URL(url).origin;
-test('Tuner Standard PC real Chrome', async t => {
-    const audioFile = process.env.TUNER_FAKE_AUDIO;
-    if (!audioFile || !fs.existsSync(audioFile)) throw Error('TUNER_FAKE_AUDIO must be a local synthetic 443 Hz PCM WAV');
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--use-file-for-fake-audio-capture=' + audioFile] });
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const errors = [], missing = [], network = [], report = { cases: [], screenshots: [] };
-    await context.route('**/*', r => { const u = new URL(r.request().url()); if (u.origin === origin) return r.continue(); if (u.hostname === 'fonts.googleapis.com') return r.fulfill({ body: '', contentType: 'text/css' }); network.push(u.href); return r.abort(); });
-    await context.addInitScript(() => {
-        window.__tunerQA = { contexts: [], streams: [], nodes: [], writes: [], mutations: [], opens: [], requests: [], unhandled: [], timers: new Set(), bindings: new Map() };
-        const Native = window.AudioContext; window.AudioContext = class extends Native { constructor(...args) { super(...args); __tunerQA.contexts.push(this); } createMediaStreamSource(...args) { const n = super.createMediaStreamSource(...args); __tunerQA.nodes.push(n); return n; } createAnalyser(...args) { const n = super.createAnalyser(...args); __tunerQA.nodes.push(n); return n; } };
-        const get = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); window.__nativeTunerCapture = async (...args) => { const s = await get(...args); __tunerQA.streams.push(s); return s; }; navigator.mediaDevices.getUserMedia = __nativeTunerCapture;
-        const timeout = window.setTimeout.bind(window), clear = window.clearTimeout.bind(window); window.setTimeout = (fn, ...args) => { const tracked = String(fn).includes('analyze(old)'); let id; id = timeout(() => { __tunerQA.timers.delete(id); fn(); }, ...args); if (tracked) __tunerQA.timers.add(id); return id; }; window.clearTimeout = id => { __tunerQA.timers.delete(id); clear(id); };
-        const add = EventTarget.prototype.addEventListener, remove = EventTarget.prototype.removeEventListener;
-        const tracked = (target, type) => target instanceof Native && type === 'statechange' || target instanceof MediaStreamTrack && type === 'ended' || target === window && ['pagehide', 'unload'].includes(type) || target === document && type === 'visibilitychange' || target === navigator.mediaDevices && type === 'devicechange' || target instanceof Element && /^(tuner-|shell-audio-stop)/.test(target.id) && ['click', 'keydown'].includes(type);
-        EventTarget.prototype.addEventListener = function (type, fn, ...args) { if (tracked(this, type)) { if (!__tunerQA.bindings.has(this)) __tunerQA.bindings.set(this, new Map()); const types = __tunerQA.bindings.get(this); if (!types.has(type)) types.set(type, new Set()); types.get(type).add(fn); } return add.call(this, type, fn, ...args); };
-        EventTarget.prototype.removeEventListener = function (type, fn, ...args) { __tunerQA.bindings.get(this)?.get(type)?.delete(fn); return remove.call(this, type, fn, ...args); };
-        for (const method of ['setItem', 'removeItem', 'clear']) { const fn = Storage.prototype[method]; Storage.prototype[method] = function (key, ...args) { if (/^(cruisePort\.|soundCruise|sound-cruise)/i.test(key) || method === 'clear') __tunerQA.writes.push({ method, key }); return fn.call(this, key, ...args); }; }
-        for (const name of ['put', 'add', 'delete', 'clear']) { const fn = IDBObjectStore.prototype[name]; IDBObjectStore.prototype[name] = function (...args) { __tunerQA.mutations.push({ name, store: this.name }); return fn.apply(this, args); }; }
-        const transaction = IDBDatabase.prototype.transaction; IDBDatabase.prototype.transaction = function (names, mode, ...args) { if (mode === 'readwrite') __tunerQA.mutations.push({ db: this.name, mode }); return transaction.call(this, names, mode, ...args); };
-        const open = IDBFactory.prototype.open; IDBFactory.prototype.open = function (name, ...args) { __tunerQA.opens.push(name); return open.call(this, name, ...args); };
-        const fetch = window.fetch.bind(window); window.fetch = (...args) => { __tunerQA.requests.push(String(args[0])); return fetch(...args); };
-        window.addEventListener('unhandledrejection', e => __tunerQA.unhandled.push(String(e.reason)));
+/* Disposable loopback browser: Studio hosts the real Port tuner document. */
+const test = require('node:test'), assert = require('node:assert/strict');
+const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+
+function fakeAudio() {
+    if (process.env.TUNER_FAKE_AUDIO) return { file: process.env.TUNER_FAKE_AUDIO, cleanup() {} };
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-port-tuner-'));
+    const file = path.join(folder, 'a4.wav'), rate = 48000, count = rate * 2, wav = Buffer.alloc(44 + count * 2);
+    wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+    wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+    wav.write('data', 36); wav.writeUInt32LE(count * 2, 40);
+    for (let i = 0; i < count; i++) wav.writeInt16LE(Math.round(Math.sin(2 * Math.PI * 443 * i / rate) * 24000), 44 + i * 2);
+    fs.writeFileSync(file, wav);
+    return { file, cleanup() { fs.rmSync(folder, { recursive: true, force: true }); } };
+}
+
+test('Studio/Port tuner UI, save and audio lifetime', async t => {
+    const url = process.env.STUDIO_URL;
+    assert(url, 'STUDIO_URL is required');
+    const origin = new URL(url).origin, audio = fakeAudio(), errors = [], missing = [], foreign = [];
+    const browser = await chromium.launch({ headless: true,
+        executablePath: process.env.CHROME_PATH,
+        args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--use-file-for-fake-audio-capture=' + audio.file] });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['microphone'], serviceWorkers: 'block' });
+    await context.route('**/*', route => {
+        const request = route.request(), target = new URL(request.url());
+        if (target.origin === origin && target.pathname === '/__cruise_preview/news')
+            return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contractVersion: 1, items: [], nextOffset: null }) });
+        if (target.origin === origin && request.method() === 'GET') return route.continue();
+        if (target.hostname === 'fonts.googleapis.com') return route.fulfill({ body: '', contentType: 'text/css' });
+        foreign.push(request.method() + ' ' + request.url()); return route.abort();
     });
-    const p = await context.newPage(); p.setDefaultTimeout(10000); p.on('pageerror', e => errors.push(e.message)); p.on('console', m => { if (m.type() === 'error') errors.push(m.text()); }); p.on('response', r => { if (r.status() === 404) missing.push(r.url()); });
-    const step = async (name, fn) => t.test(name, async () => { await fn(); report.cases.push(name); });
-    const state = () => p.evaluate(() => CruiseStudio.tunerRuntime.snapshot().state), nav = () => p.click('[data-workspace="tuner"]');
-    const start = async () => { await p.click('#tuner-start'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'active'); };
-    const stop = async () => { await p.click('#tuner-stop'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'idle' && !CruiseStudio.tunerRuntime.snapshot().pendingCleanup); };
-    const pitch = () => p.waitForFunction(() => { const p = CruiseStudio.tunerRuntime.snapshot().reading; return p?.noteName === 'A' && Math.abs(p.frequency - 443) < 1 && p.confidence > .98; });
-    try {
-        await p.goto(url, { waitUntil: 'networkidle' }); await p.waitForFunction(() => !!CruiseStudio.tunerRuntime); await nav();
-        await step('formal version 0.49.1, real navigation, cold no capture/context/Port I/O', async () => { assert.equal(await p.locator('#studio-version').innerText(), 'v0.49.1'); assert.equal(await p.evaluate(() => CruiseStudio.model.APP_VERSION), '0.49.1'); assert.equal(await state(), 'idle'); assert.deepEqual(await p.evaluate(() => ({ contexts: __tunerQA.contexts.length, streams: __tunerQA.streams.length, opens: __tunerQA.opens, writes: __tunerQA.writes })), { contexts: 0, streams: 0, opens: [], writes: [] }); assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false); });
-        await step('native fake microphone sine 443 Hz yields actual A4/Hz/cents/confidence/meter', async () => { await start(); await pitch(); report.pitch = await p.evaluate(() => CruiseStudio.tunerRuntime.snapshot().reading); assert.equal(report.pitch.octave, 4); assert(Math.abs(report.pitch.frequency - 443) < 1); assert(Math.abs(report.pitch.cents - 1200 * Math.log2(443 / 440)) < 3); assert(report.pitch.confidence >= .82); assert.equal(await p.locator('[data-tuner-note]').innerText(), 'A'); assert.equal(await p.locator('[data-tuner-octave]').innerText(), '4'); assert.match(await p.locator('[data-tuner-frequency]').innerText(), /Hz/); assert.equal(await p.locator('[data-tuner-meter]').isVisible(), true); });
-        await step('muted microphone clears old pitch and meter; unmute uses fresh engine result', async () => { await p.evaluate(() => __tunerQA.streams.at(-1).getAudioTracks().forEach(t => t.enabled = false)); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().reading === null); assert.equal(await p.locator('[data-tuner-note]').innerText(), '—'); assert.equal(await p.locator('[data-tuner-meter]').isVisible(), false); await p.evaluate(() => __tunerQA.streams.at(-1).getAudioTracks().forEach(t => t.enabled = true)); await pitch(); });
-        await step('native Stop synchronously ends all tracks and fully closes owned context/timer', async () => { await stop(); assert.deepEqual(await p.evaluate(() => ({ liveTracks: __tunerQA.streams.flatMap(s => s.getTracks()).filter(t => t.readyState !== 'ended').length, contexts: __tunerQA.contexts.filter(c => c.state !== 'closed').length, timers: __tunerQA.timers.size, owned: CruiseStudio.audio.snapshot().find(s => s.ownerFeatureId === 'port.tuner').contextCount })), { liveTracks: 0, contexts: 0, timers: 0, owned: 0 }); });
-        await step('permission denied/no-device/device-busy/constraints errors stop and release', async () => { for (const [name, code] of [['NotAllowedError', 'permission-denied'], ['NotFoundError', 'no-device'], ['NotReadableError', 'device-busy'], ['OverconstrainedError', 'constraints']]) { await p.evaluate(name => navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('fixture', name)), name); await p.click('#tuner-start'); await p.waitForFunction(code => CruiseStudio.tunerRuntime.snapshot().error === code && CruiseStudio.tunerRuntime.snapshot().state === 'failed', code); assert.equal(await p.evaluate(() => __tunerQA.contexts.filter(c => c.state !== 'closed').length), 0); } await p.evaluate(() => navigator.mediaDevices.getUserMedia = __nativeTunerCapture); });
-        await step('Stop during delayed permission; old real stream cannot damage newer capture', async () => { await p.evaluate(() => { let first = true; navigator.mediaDevices.getUserMedia = async (...args) => { const s = await __nativeTunerCapture(...args); if (!first) return s; first = false; window.__oldStream = s; return new Promise(resolve => window.__finishOldCapture = () => resolve(s)); }; }); await p.click('#tuner-start'); await p.waitForFunction(() => !!window.__finishOldCapture); assert.equal(await state(), 'requesting'); await stop(); await start(); await pitch(); await p.evaluate(() => __finishOldCapture()); await p.waitForFunction(() => __oldStream.getTracks().every(t => t.readyState === 'ended')); assert.equal(await state(), 'active'); assert.equal(await p.evaluate(() => __tunerQA.streams.at(-1).getTracks().every(t => t.readyState === 'live')), true); assert.equal(await p.evaluate(() => __tunerQA.contexts.filter(c => c.state !== 'closed').length), 1); await stop(); await p.evaluate(() => navigator.mediaDevices.getUserMedia = __nativeTunerCapture); });
-        await step('50 native Start/Stop cycles release tracks/context/timer and listener count stays stable', async () => { const before = await p.evaluate(() => [...__tunerQA.bindings.values()].reduce((n, m) => n + [...m.values()].reduce((v, s) => v + s.size, 0), 0)); for (let i = 0; i < 50; i++) { await start(); await stop(); } assert.equal(await p.evaluate(() => [...__tunerQA.bindings.values()].reduce((n, m) => n + [...m.values()].reduce((v, s) => v + s.size, 0), 0)), before); assert.equal(await p.evaluate(() => __tunerQA.streams.flatMap(s => s.getTracks()).filter(t => t.readyState !== 'ended').length + __tunerQA.contexts.filter(c => c.state !== 'closed').length + __tunerQA.timers.size), 0); });
-        await step('Metronome→Tuner cancel preserves output; confirm stops output and never resumes it', async () => { await p.evaluate(() => CruiseStudio.metronomeM1.start()); await p.click('#tuner-start'); assert.equal(await p.locator('.studio-modal').count(), 1); await p.click('#tuner-confirm-cancel'); assert.equal(await p.evaluate(() => CruiseStudio.metronomeM1.snapshot().running), true); assert.equal(await state(), 'idle'); await p.click('#tuner-start'); await p.click('#tuner-confirm-start'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'active'); assert.equal(await p.evaluate(() => CruiseStudio.metronomeM1.snapshot().running), false); await stop(); assert.equal(await p.evaluate(() => CruiseStudio.metronomeM1.snapshot().running), false); });
-        await step('changed conflict generation / Global Stop invalidates outstanding confirmation', async () => { await p.evaluate(() => CruiseStudio.metronomeM1.start()); await p.click('#tuner-start'); await p.evaluate(async () => { await CruiseStudio.audio.stopAll(); await CruiseStudio.metronomeM1.start(); }); await p.click('#tuner-confirm-start'); assert.equal(await state(), 'idle'); assert.equal(await p.evaluate(() => CruiseStudio.metronomeM1.snapshot().running), true); assert.match(await p.locator('[data-tuner-status]').innerText(), /再確認/); await p.evaluate(() => CruiseStudio.audio.stopAll()); });
-        await step('Tuner→Metronome request rejects without stealing microphone; audio target remains Tuner', async () => { await start(); assert.equal(await p.evaluate(() => CruiseStudio.metronomeM1.start()), false); assert.equal(await state(), 'active'); assert.equal(await p.evaluate(() => CruiseStudio.shellHost.getCommandContext().audioOwner === CruiseStudio.tunerRuntime), true); await stop(); });
-        await step('workspace leave/return while confirmed output close is pending cancels old mic intent', async () => {
-            await p.evaluate(() => CruiseStudio.metronomeM1.start());
-            await p.evaluate(() => { const context = __tunerQA.contexts.at(-1), close = context.close.bind(context); context.close = () => new Promise(resolve => window.__finishOutputClose = async () => { await close(); resolve(); }); });
-            const captures = await p.evaluate(() => __tunerQA.streams.length);
-            await p.click('#tuner-start'); await p.click('#tuner-confirm-start'); await p.waitForFunction(() => !!window.__finishOutputClose);
-            await p.evaluate(() => { CruiseStudio.shellHost.navigate('home'); CruiseStudio.shellHost.navigate('tuner'); });
-            await p.evaluate(() => __finishOutputClose()); await p.waitForFunction(() => CruiseStudio.metronomeM1.snapshot().pendingCloseCount === 0);
-            assert.equal(await state(), 'idle'); assert.equal(await p.evaluate(() => __tunerQA.streams.length), captures);
+    await context.addInitScript(() => {
+        window.__tunerStreams = [];
+        const native = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+        if (native) navigator.mediaDevices.getUserMedia = async (...args) => {
+            const stream = await native(...args); window.__tunerStreams.push(stream); return stream;
+        };
+    });
+    const page = await context.newPage(), frame = page.frameLocator('#port-tuner-surface iframe');
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('response', response => { if (response.status() === 404) missing.push(response.url()); });
+    const open = async () => {
+        await page.click('[data-workspace="tuner"]');
+        await page.waitForFunction(() => CruiseStudio.tuner.getState().phase === 'running');
+        await page.waitForFunction(() => {
+            const child = document.querySelector('#port-tuner-surface iframe')?.contentWindow;
+            return child?.__tunerStreams?.length > 0 && child.document.querySelector('#tuner-status')?.textContent === 'マイク入力中';
         });
-        await step('Global Stop ends active and pending capture with no automatic restart', async () => { await start(); await p.click('#shell-audio-stop'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'idle'); await p.evaluate(() => { navigator.mediaDevices.getUserMedia = (...args) => __nativeTunerCapture(...args).then(s => new Promise(resolve => window.__pendingGlobalCapture = () => resolve(s))); }); await p.click('#tuner-start'); await p.waitForFunction(() => !!window.__pendingGlobalCapture); await p.click('#shell-audio-stop'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'idle'); await p.evaluate(() => __pendingGlobalCapture()); await p.waitForFunction(() => __tunerQA.streams.at(-1).getTracks().every(t => t.readyState === 'ended')); assert.equal(await state(), 'idle'); await p.evaluate(() => navigator.mediaDevices.getUserMedia = __nativeTunerCapture); });
-        await step('workspace exit stops microphone; round trips do not reacquire; Dock does not stop it', async () => { await start(); await p.click('#shell-dock-toggle'); assert.equal(await state(), 'active'); await p.click('#shell-dock-toggle'); await p.click('[data-workspace="practice"]'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'idle'); const captures = await p.evaluate(() => __tunerQA.streams.length); for (const id of ['home', 'sheetCruise', 'preDtm', 'series', 'practice', 'tuner']) await p.evaluate(id => CruiseStudio.shellHost.navigate(id), id); assert.equal(await p.evaluate(() => __tunerQA.streams.length), captures); });
-        await step('context suspend interruption stops tracks; explicit restart only', async () => { await start(); await p.evaluate(() => __tunerQA.contexts.at(-1).suspend()); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'interrupted'); assert.equal(await p.evaluate(() => __tunerQA.streams.at(-1).getTracks().every(t => t.readyState === 'ended')), true); });
-        await step('devicechange alone preserves input; track-ended disconnect stops and clears', async () => { await start(); await p.evaluate(() => navigator.mediaDevices.dispatchEvent(new Event('devicechange'))); assert.equal(await state(), 'active'); await p.evaluate(() => { const track = __tunerQA.streams.at(-1).getAudioTracks()[0]; track.stop(); track.dispatchEvent(new Event('ended')); }); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'interrupted'); assert.equal(await p.locator('[data-tuner-note]').innerText(), '—'); });
-        await step('visibility hidden notification and pagehide stop; restore never auto starts', async () => { await start(); await p.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); }); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'idle'); await p.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); }); assert.equal(await state(), 'idle'); await start(); await p.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide'))); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'idle'); assert.equal(await p.evaluate(() => __tunerQA.streams.at(-1).getTracks().every(t => t.readyState === 'ended')), true); });
-        await step('native keyboard/focus, repeat/IME protection, Modal Escape and text input ownership', async () => { await p.locator('#tuner-start').focus(); await p.keyboard.press('Enter'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'active'); assert.equal(await p.evaluate(() => document.activeElement.id), 'tuner-stop'); await p.keyboard.press('Space'); await p.waitForFunction(() => CruiseStudio.tunerRuntime.snapshot().state === 'idle'); assert.equal(await p.evaluate(() => document.activeElement.id), 'tuner-start'); await p.locator('#tuner-start').evaluate(e => { e.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })); e.click(); e.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); }); assert.equal(await state(), 'idle'); await p.waitForFunction(() => !CruiseStudio.shellHost.keyboard.isIMEBlocked({})); await p.evaluate(() => { const input = document.createElement('input'); input.id = 'tuner-fixture-text'; document.querySelector('#screen-tuner').append(input); }); await p.locator('#tuner-fixture-text').focus(); await p.keyboard.press('Enter'); await p.keyboard.press('Space'); assert.equal(await state(), 'idle'); await p.locator('#tuner-start').focus(); await p.evaluate(() => CruiseStudio.shellHost.modal.open({ title: 'Tuner focus', content: document.createElement('input') })); await p.keyboard.press('Space'); assert.equal(await state(), 'idle'); await p.keyboard.press('Escape'); assert.equal(await p.evaluate(() => document.activeElement.id), 'tuner-start'); await p.evaluate(() => document.querySelector('#tuner-fixture-text').remove()); });
-        await step('wide/narrow layout and four themes; no horizontal overflow', async () => { for (const width of [1920, 1440, 1024, 680, 390]) { await p.setViewportSize({ width, height: 900 }); assert.equal(await p.evaluate(() => document.querySelector('#studio-main').scrollWidth <= document.querySelector('#studio-main').clientWidth), true); } await p.setViewportSize({ width: 1440, height: 900 }); await start(); await pitch(); for (const theme of ['dark', 'charcoal', 'gray', 'light']) { await p.evaluate(t => CruiseStudio.colorTheme.setColorTheme(t), theme); const colors = await p.locator('.tuner-reading').evaluate(e => ({ fg: getComputedStyle(e).color, bg: getComputedStyle(e).backgroundColor })); assert.notEqual(colors.fg, colors.bg); const path = '/private/tmp/tpv-' + theme + '.png'; await p.screenshot({ path }); report.screenshots.push(path); } await stop(); });
-        await step('print excludes Tuner under existing A4-score policy', async () => { await p.emulateMedia({ media: 'print' }); assert.equal(await p.locator('#screen-tuner').isVisible(), false); await p.pdf({ path: '/private/tmp/tpv-print.pdf', format: 'A4' }); await p.emulateMedia({ media: 'screen' }); });
-        await step('disposed Tuner releases its runtime/track/context/UI listeners and session', async () => { const before = await p.evaluate(() => [...__tunerQA.bindings.values()].reduce((n, m) => n + [...m.values()].reduce((v, s) => v + s.size, 0), 0)); await start(); await p.evaluate(() => CruiseStudio.tunerView.dispose()); assert.equal(await p.evaluate(() => CruiseStudio.audio.snapshot().some(s => s.ownerFeatureId === 'port.tuner')), false); assert.equal(await p.evaluate(() => __tunerQA.contexts.filter(c => c.state !== 'closed').length + __tunerQA.streams.flatMap(s => s.getTracks()).filter(t => t.readyState !== 'ended').length + __tunerQA.timers.size), 0); assert(await p.evaluate(() => [...__tunerQA.bindings.values()].reduce((n, m) => n + [...m.values()].reduce((v, s) => v + s.size, 0), 0)) < before); });
-        await step('no Port/Authority/Account/Pro/Sync write or network mutation; no DB creation', async () => { report.noWrite = await p.evaluate(async () => ({ writes: __tunerQA.writes, mutations: __tunerQA.mutations, opens: __tunerQA.opens, requests: __tunerQA.requests, unhandled: __tunerQA.unhandled, databases: await indexedDB.databases() })); assert.deepEqual(report.noWrite, { writes: [], mutations: [], opens: [], requests: [], unhandled: [], databases: [] }); assert.deepEqual(errors, []); assert.deepEqual(missing, []); assert.deepEqual(network, []); });
-        await step('reload returns idle without microphone permission request or persistent device/settings', async () => { await p.reload({ waitUntil: 'networkidle' }); await p.waitForFunction(() => !!CruiseStudio.tunerRuntime); await nav(); assert.equal(await state(), 'idle'); assert.equal(await p.evaluate(() => __tunerQA.contexts.length + __tunerQA.streams.length), 0); assert.deepEqual(await p.evaluate(() => Object.keys(localStorage).filter(k => /^cruisePort\./.test(k))), []); });
-        assert.deepEqual(errors, []); assert.deepEqual(missing, []); assert.deepEqual(network, []);
-    } finally { fs.writeFileSync('/private/tmp/tpv-browser.json', JSON.stringify({ ...report, errors, missing, network }, null, 2)); await context.close(); await browser.close(); }
+    };
+    const remember = () => page.evaluate(() => { window.__lastPortStream = document.querySelector('#port-tuner-surface iframe').contentWindow.__tunerStreams.at(-1); });
+    const ended = () => page.evaluate(() => __lastPortStream.getTracks().every(track => track.readyState === 'ended'));
+    try {
+        await page.goto(url, { waitUntil: 'networkidle' });
+        await page.waitForFunction(() => !!CruiseStudio.tunerRuntime && !!CruiseStudio.portDataHost);
+        await t.test('cold Studio is read-only and has no Port frame', async () => {
+            assert.equal(await page.evaluate(() => CruiseStudio.portDataHost.canWrite), false);
+            assert.equal(await page.locator('#port-tuner-surface iframe').count(), 0);
+        });
+        await t.test('Port UI opens with capture, complete controls and Standard Pro lock', async () => {
+            await open();
+            assert.equal(await frame.locator('#tuner-tuning option').count(), 11);
+            for (const selector of ['#tuner-note-value', '#tuner-frequency', '#tuner-meter', '#tuner-cents', '#tuner-input-settings-toggle', '#tuner-input-level', '#tuner-meter-visibility', '[data-tuner-string]'])
+                assert(await frame.locator(selector).count() > 0, selector);
+            assert.equal(await frame.locator('#tuner-capo-lock').isVisible(), true);
+            assert.equal(await frame.locator('#tuner-capo-up').isVisible(), false);
+            await page.waitForFunction(() => document.querySelector('#port-tuner-surface iframe').contentDocument.querySelector('#tuner-note-value').textContent !== '—');
+            assert.equal(await frame.locator('#tuner-note-value').textContent(), 'A4');
+        });
+        await t.test('Port writes its existing v3 key and loads it after a Studio round trip', async () => {
+            await frame.locator('#tuner-tuning').selectOption('drop-d');
+            await frame.locator('#tuner-input-settings-toggle').click();
+            await frame.locator('#tuner-threshold').evaluate(element => {
+                element.value = '-65'; element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            await page.waitForFunction(() => JSON.parse(localStorage.getItem('cruisePort.tuner') || 'null')?.thresholdDb === -65);
+            assert.deepEqual(await page.evaluate(() => {
+                const value = JSON.parse(localStorage.getItem('cruisePort.tuner'));
+                return [value.version, value.tuningId, value.thresholdDb, value.capo];
+            }), [3, 'drop-d', -65, 0]);
+            await remember(); await page.click('[data-workspace="home"]'); assert.equal(await ended(), true);
+            await open(); assert.equal(await frame.locator('#tuner-tuning').inputValue(), 'drop-d');
+            await frame.locator('#tuner-input-settings-toggle').click();
+            assert.equal(await frame.locator('#tuner-threshold').inputValue(), '-65');
+        });
+        await t.test('Port page-local Home and return retain Port routing and release the old track', async () => {
+            await remember();
+            await frame.locator('#tuner-view [data-action="home"]').click();
+            assert.equal(await ended(), true);
+            assert(await frame.locator('#tuner-card').isVisible());
+            await frame.locator('#tuner-card').click();
+            await page.waitForFunction(() => document.querySelector('#port-tuner-surface iframe')?.contentDocument.querySelector('#tuner-status')?.textContent === 'マイク入力中');
+        });
+        await t.test('Global Stop, hidden tab and pagehide unload the Port microphone', async () => {
+            await remember(); await page.click('#shell-audio-stop'); assert.equal(await ended(), true);
+            assert.equal(await page.locator('#port-tuner-surface iframe').count(), 0);
+            await page.click('#port-tuner-resume');
+            await page.waitForFunction(() => document.querySelector('#port-tuner-surface iframe')?.contentWindow.__tunerStreams?.length > 0);
+            await remember();
+            await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
+            assert.equal(await ended(), true);
+            await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
+            assert.equal(await page.locator('#port-tuner-surface iframe').count(), 0);
+            await page.click('#port-tuner-resume');
+            await page.waitForFunction(() => document.querySelector('#port-tuner-surface iframe')?.contentWindow.__tunerStreams?.length > 0);
+            await remember(); await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+            assert.equal(await ended(), true);
+        });
+        await t.test('Studio score, layout, theme and read-only Host survive navigation', async () => {
+            await page.click('[data-workspace="sheetCruise"]');
+            await page.locator('#sc-editor-drawer > summary').click();
+            await page.fill('#sc-title', 'Tuner draft');
+            for (const width of [390, 768, 1440, 1920]) {
+                await page.setViewportSize({ width, height: 900 }); await open(); await remember();
+                assert.equal(await page.evaluate(() => document.querySelector('#studio-main').scrollWidth <= document.querySelector('#studio-main').clientWidth), true, String(width));
+                await page.click('[data-workspace="sheetCruise"]'); assert.equal(await ended(), true);
+                assert.equal(await page.inputValue('#sc-title'), 'Tuner draft');
+            }
+            for (const theme of ['dark', 'charcoal', 'gray', 'light']) {
+                await page.evaluate(id => CruiseStudio.colorTheme.setColorTheme(id), theme);
+                assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme);
+            }
+            assert.equal(await page.evaluate(() => CruiseStudio.portDataHost.canWrite), false);
+            assert.match(await page.locator('.port-tuner-actions a').last().getAttribute('href'), /cruise-port\/pro_9a3943176561\/$/);
+            assert.deepEqual(errors, []); assert.deepEqual(missing, []); assert.deepEqual(foreign, []);
+        });
+        await t.test('first capture denial keeps the Port retry control and a later retry works', async () => {
+            const denied = await browser.newContext({ permissions: ['microphone'], serviceWorkers: 'block' });
+            await denied.route('**/*', route => {
+                const target = new URL(route.request().url());
+                if (target.origin === origin && target.pathname === '/__cruise_preview/news')
+                    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contractVersion: 1, items: [], nextOffset: null }) });
+                if (target.origin === origin) return route.continue();
+                if (target.hostname === 'fonts.googleapis.com') return route.fulfill({ body: '', contentType: 'text/css' });
+                return route.abort();
+            });
+            await denied.addInitScript(() => {
+                if (!location.pathname.startsWith('/apps/cruise-port/')) return;
+                window.__nativeCapture = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+                navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('fixture', 'NotAllowedError'));
+            });
+            const retryPage = await denied.newPage();
+            try {
+                await retryPage.goto(url); await retryPage.click('[data-workspace="tuner"]');
+                const retryFrame = retryPage.frameLocator('#port-tuner-surface iframe');
+                await retryFrame.locator('#tuner-error').waitFor({ state: 'visible' });
+                assert.match(await retryFrame.locator('#tuner-error').textContent(), /許可/);
+                assert.equal(await retryFrame.locator('#tuner-toggle').isVisible(), true);
+                await retryFrame.locator('#tuner-toggle').evaluate(() => {
+                    navigator.mediaDevices.getUserMedia = window.__nativeCapture;
+                });
+                await retryFrame.locator('#tuner-toggle').click();
+                await retryFrame.locator('#tuner-status').getByText('マイク入力中').waitFor();
+            } finally { await denied.close(); }
+        });
+        await t.test('two Studio tabs retain separate microphone lifetimes on one origin', async () => {
+            await open(); await remember();
+            const second = await context.newPage();
+            try {
+                await second.goto(url);
+                await second.click('[data-workspace="tuner"]');
+                await second.waitForFunction(() => document.querySelector('#port-tuner-surface iframe')?.contentDocument.querySelector('#tuner-status')?.textContent === 'マイク入力中');
+                assert.equal(await ended(), false);
+                await second.click('[data-workspace="home"]');
+                assert.equal(await ended(), false);
+            } finally { await second.close(); }
+            await page.click('[data-workspace="home"]');
+            assert.equal(await ended(), true);
+        });
+    } finally { await context.close(); await browser.close(); audio.cleanup(); }
 });

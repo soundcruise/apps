@@ -10,7 +10,7 @@ test('Home, NEWS and explicit My Apps launch in real disposable Chrome', async t
     const { libraryFixture, serializeFixture } = await import('./library-fixture.mjs');
     const fixture = libraryFixture(); fixture['cruisePort.myApps'].items[0].urls.macos = 'https://example.invalid/mac-app';
     const rawFixture = serializeFixture(fixture);
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
     let mode = 'ready', hold, requestCount = 0;
     const external = [], consoleErrors = [], missing = [], report = { cases: [], screenshots: [] };
@@ -39,26 +39,129 @@ test('Home, NEWS and explicit My Apps launch in real disposable Chrome', async t
     }, rawFixture);
     const p = await context.newPage(); p.setDefaultTimeout(10000);
     p.on('pageerror', e => consoleErrors.push(e.message)); p.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); }); p.on('response', r => { if (r.status() === 404) missing.push(r.url()); });
-    const nav = id => p.locator(`.studio-nav [data-workspace="${id}"]`).click();
+    const nav = id => ['gear', 'myApps', 'news'].includes(id) ? p.evaluate(id => CruiseStudio.shellHost.navigate(id), id) : p.locator(`.studio-nav [data-workspace="${id}"]`).click();
     const ready = () => p.waitForFunction(() => ['ready', 'error', 'off'].includes(document.querySelector('#screen-news').dataset.status));
     const step = (label, fn) => t.test(label, async () => { await fn(); report.cases.push(label); });
     try {
         await p.goto(url, { waitUntil: 'networkidle' }); await p.waitForFunction(() => !!CruiseStudio.homeView && !!CruiseStudio.newsView && !!CruiseStudio.libraryViews);
         await step('Home is cold, readonly and exposes every principal PC entry', async () => {
-            assert.equal(requestCount, 0); assert.match(await p.locator('[data-home-port-status]').innerText(), /未確認/);
-            assert.deepEqual(await p.locator('.pc-home-grid [data-home-workspace]').evaluateAll(es => es.map(e => e.dataset.homeWorkspace)), ['tuner', 'practice', 'gear', 'myApps', 'news', 'series']);
+            assert.equal(requestCount, 0); assert.match(await p.locator('[data-home-port-status]').textContent(), /未確認/);
+            assert.deepEqual(await p.locator('.pc-home-grid [data-home-workspace]').evaluateAll(es => es.map(e => e.dataset.homeWorkspace)), ['tuner', 'metronome', 'portPractice', 'portGear', 'portMyApps', 'portNews']);
             assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false);
-            for (const id of ['practice', 'gear', 'myApps', 'tuner', 'series']) { await p.locator(`[data-home-workspace="${id}"]`).click(); assert.equal(await p.evaluate(() => CruiseStudio.shellHost.getActiveWorkspace()), id); await nav('home'); }
-            assert.equal(requestCount, 0); assert.deepEqual(await p.evaluate(() => __pcUI.idb), []);
+            for (const id of ['portPractice', 'portGear', 'portMyApps']) { await p.locator(`[data-home-workspace="${id}"]`).click(); assert.equal(await p.evaluate(() => CruiseStudio.shellHost.getActiveWorkspace()), id); await nav('home'); }
+            assert.equal(await p.locator('.home-series a[target="_blank"]').count(), 4);
+            // The Port document may request its own NEWS feed while visiting My Apps.
         });
-        await step('Home Metronome, settings and explicit Port-status entry use existing shell controls', async () => {
-            await p.locator('[data-home-action="metronome"]').click(); assert.equal(await p.locator('#studio-dock').isVisible(), true);
+        await step('Home prioritizes creation, reuses icons and explains tools on hover and focus', async () => {
+            assert.deepEqual(await p.locator('.home-primary .module-card-label').allTextContents(), ['譜面クルーズ', 'プレDTMクルーズ']);
+            assert.equal(await p.locator('#screen-home').getByText('Cruise Apps', { exact: true }).count(), 0);
+            assert.equal(await p.locator('.home-series a[target="_blank"]').count(), 4);
+            assert.equal(await p.locator('#screen-home img').evaluateAll(es => es.every(e => e.complete && e.naturalWidth > 0)), true);
+            const tip = p.locator('[data-home-workspace="tuner"] .home-tool-tip');
+            await p.locator('[data-home-workspace="tuner"]').hover();
+            assert.equal(await tip.evaluate(e => getComputedStyle(e).visibility), 'visible');
+            await p.mouse.move(0, 0); await p.locator('#open-pre-dtm').focus(); await p.keyboard.press('Tab');
+            assert.equal(await p.evaluate(() => document.activeElement.dataset.homeWorkspace), 'tuner');
+            assert.equal(await tip.evaluate(e => getComputedStyle(e).visibility), 'visible');
+        });
+        await step('Home motion responds to hover and keyboard focus and respects reduced motion', async () => {
+            await p.emulateMedia({ reducedMotion: 'no-preference' }); await p.mouse.move(0, 0);
+            const sheet = p.locator('#open-sheet-cruise .home-page-front');
+            const before = await sheet.evaluate(el => getComputedStyle(el).transform);
+            await p.locator('#open-sheet-cruise').hover();
+            await p.waitForFunction(before => getComputedStyle(document.querySelector('#open-sheet-cruise .home-page-front')).transform !== before, before);
+            await p.locator('#open-pre-dtm').focus(); await p.keyboard.press('Tab'); await p.keyboard.press('Shift+Tab');
+            await p.waitForFunction(() => new DOMMatrix(getComputedStyle(document.querySelector('.home-playhead')).transform).m41 > 10);
+            const explanation = await p.locator('#open-pre-dtm .module-card-sub').boundingBox();
+            const artwork = await p.locator('#open-pre-dtm .home-art').boundingBox();
+            assert(explanation && artwork && explanation.y >= artwork.y + artwork.height, 'the explanation must not cover the artwork');
+            assert.equal(await p.locator('#open-pre-dtm .module-card-label').isVisible(), false);
+            const cards = p.locator('.home-tools .pc-home-grid button, .home-series .module-card');
+            assert.equal(await cards.count(), 10);
+            for (const width of [1440, 390]) {
+                await p.setViewportSize({ width, height: 900 });
+                for (const card of await cards.all()) {
+                    await card.hover();
+                    await p.waitForFunction(el => new DOMMatrix(getComputedStyle(el).transform).m42 < -1, await card.elementHandle());
+                    const tip = await card.locator('.home-tool-tip, .module-card-sub').boundingBox();
+                    const icon = await card.locator('img').boundingBox();
+                    assert(tip && icon && tip.y >= icon.y + icon.height - 1, `the explanation must not cover the icon at ${width}px`);
+                    assert.equal(await card.locator('strong, .module-card-label').isVisible(), false);
+                }
+            }
+            await p.setViewportSize({ width: 1440, height: 900 });
+            const tuner = p.locator('[data-home-workspace="tuner"]');
+            await p.mouse.move(0, 0); await tuner.focus(); await p.keyboard.press('Tab'); await p.keyboard.press('Shift+Tab');
+            await p.waitForFunction(el => el.matches(':focus-visible') && new DOMMatrix(getComputedStyle(el).transform).m42 < -1, await tuner.elementHandle());
+            await p.mouse.move(0, 0); await p.emulateMedia({ reducedMotion: 'reduce' });
+            assert.equal(await sheet.evaluate(el => getComputedStyle(el).transitionDuration), '0s');
+            assert.equal(await p.locator('.home-playhead').evaluate(el => getComputedStyle(el).transform), 'none');
+            await p.locator('.home-series .module-card').first().hover();
+            assert.equal(await p.locator('.home-series .module-card').first().evaluate(el => getComputedStyle(el).transform), 'none');
+            await p.emulateMedia({ reducedMotion: 'no-preference' });
+        });
+        await step('Midnight is the default; all four themes recolor the same cards without changing layout', async () => {
+            assert.equal(await p.evaluate(() => CruiseStudio.colorTheme.getColorTheme()), 'dark');
+            const colors = [], layouts = [], practiceBoards = [];
+            for (const theme of ['dark', 'charcoal', 'gray', 'light']) {
+                await p.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
+                const result = await p.locator('#open-sheet-cruise').evaluate(el => ({ color: getComputedStyle(el).backgroundColor, width: el.clientWidth, height: el.clientHeight, art: el.querySelector('.home-art').getBoundingClientRect().height }));
+                colors.push(result.color); layouts.push([result.width, result.height, result.art]);
+                practiceBoards.push(await p.locator('[data-home-workspace="portPractice"] .practice-menu-icon').evaluate(el => getComputedStyle(el).filter));
+            }
+            assert.equal(new Set(colors).size, 4);
+            assert.equal(new Set(practiceBoards).size, 4);
+            assert(layouts.every(layout => JSON.stringify(layout) === JSON.stringify(layouts[0])));
+            assert(layouts[0][2] > 100);
+            assert.equal(await p.locator('.pc-home-grid img.home-port-icon').count(), 6);
+            assert.deepEqual(await p.locator('[data-home-workspace="portPractice"] strong, [data-home-workspace="portGear"] strong').allTextContents(), ['練習メニュー', '機材リスト']);
+            await p.evaluate(() => CruiseStudio.colorTheme.setColorTheme('dark'));
+        });
+        await step('Charcoal, gray and light keep card boundaries and tool labels legible', async () => {
+            await p.emulateMedia({ reducedMotion: 'reduce' });
+            for (const theme of ['charcoal', 'gray', 'light']) {
+                await p.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
+                const contrast = await p.evaluate(() => {
+                    const rgb = color => color.match(/[\d.]+/g).slice(0, 3).map(Number).map(c => { c /= 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; });
+                    const luminance = color => { const [r, g, b] = rgb(color); return .2126 * r + .7152 * g + .0722 * b; };
+                    const ratio = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((a, b) => b - a); return (x + .05) / (y + .05); };
+                    const main = getComputedStyle(document.querySelector('#studio-main'));
+                    const card = getComputedStyle(document.querySelector('#open-sheet-cruise'));
+                    const tool = document.querySelector('[data-home-workspace="tuner"]');
+                    return { boundary: ratio(card.borderTopColor, main.backgroundColor), label: ratio(getComputedStyle(tool.querySelector('strong')).color, getComputedStyle(tool).backgroundColor) };
+                });
+                assert(contrast.boundary >= 3, `${theme} card boundary: ${contrast.boundary}`);
+                assert(contrast.label >= 4.5, `${theme} tool label: ${contrast.label}`);
+            }
+            await p.evaluate(() => CruiseStudio.colorTheme.setColorTheme('dark'));
+            await p.emulateMedia({ reducedMotion: 'no-preference' });
+        });
+        await step('Every workspace has local Back and Home; Back returns to the previous workspace', async () => {
+            for (const id of ['sheetCruise', 'preDtm', 'series', 'news', 'portNews', 'portPractice', 'tuner', 'portGear', 'portMyApps']) {
+                await nav(id);
+                const screen = p.locator('.screen:not([hidden])');
+                assert.equal(await screen.locator('.workspace-back').count(), 1);
+                assert.equal(await screen.locator('.workspace-home').count(), 1);
+                await screen.locator('.workspace-home').click();
+                assert.equal(await p.evaluate(() => CruiseStudio.shellHost.getActiveWorkspace()), 'home');
+            }
+            await p.locator('#open-sheet-cruise').click();
+            await nav('preDtm');
+            await p.locator('#screen-pre-dtm .workspace-back').click();
+            assert.equal(await p.evaluate(() => CruiseStudio.shellHost.getActiveWorkspace()), 'sheetCruise');
+            await p.locator('#screen-sheet-cruise .workspace-back').click();
+            assert.equal(await p.evaluate(() => CruiseStudio.shellHost.getActiveWorkspace()), 'home');
+        });
+        await step('Home Port Metronome, settings and explicit Port-status entry use existing shell controls', async () => {
+            await p.locator('[data-home-workspace="metronome"]').click(); assert.equal(await p.locator('#screen-metronome').isVisible(), true);
+            await p.locator('[data-workspace="home"]').click();
+            await p.locator('.home-options summary').click();
             await p.locator('[data-home-action="settings"]').click(); assert.equal(await p.evaluate(() => document.activeElement.name), 'studio-theme');
             await p.locator('[data-home-action="port"]').click(); assert.equal(await p.evaluate(() => document.activeElement.id), 'studio-port-read');
             await p.locator('#shell-pane-close').click(); await p.locator('#shell-dock-toggle').click();
         });
         await step('NEWS loading, official source normalization, list and external detail', async () => {
-            mode = 'hold'; await p.locator('[data-home-workspace="news"]').click(); await p.waitForFunction(() => document.querySelector('#screen-news').dataset.status === 'loading');
+            mode = 'hold'; await nav('news'); await p.waitForFunction(() => document.querySelector('#screen-news').dataset.status === 'loading');
             assert.match(await p.locator('[data-news-status]').innerText(), /読み込んでいます/); mode = 'ready'; hold(); await ready();
             assert.equal(await p.locator('[data-news-id="pc-news-test"]').count(), 1);
             await p.locator('[data-news-id="pc-news-test"]').focus(); await p.keyboard.press('Enter');
@@ -99,12 +202,29 @@ test('Home, NEWS and explicit My Apps launch in real disposable Chrome', async t
                 for (const width of [390, 768, 1440, 1920]) {
                     await p.setViewportSize({ width, height: 900 }); await nav('home');
                     const home = await p.locator('.pc-home-grid').boundingBox(); assert(home.x >= 0 && home.x + home.width <= width + 1);
-                    await p.locator('[data-home-workspace="news"]').focus(); await p.keyboard.press('Enter'); await ready();
+                    await nav('news'); await ready();
                     const geometry = await p.locator('.pc-news-card').first().evaluate(e => ({ x: e.getBoundingClientRect().x, right: e.getBoundingClientRect().right, width: window.innerWidth })); assert(geometry.x >= 0 && geometry.right <= geometry.width + 1);
                     await p.locator('[data-news-id="pc-news-test"]').focus(); await p.keyboard.press('Tab'); assert.equal(await p.evaluate(() => getComputedStyle(document.activeElement).outlineStyle !== 'none'), true);
                     if (artifacts && width === 390) { const path = `${artifacts}/news-${theme}-${width}.png`; await p.screenshot({ path }); report.screenshots.push(path); }
                 }
             }
+        });
+        await step('Touch press reveals a tool explanation and Home fits the viewport', async () => {
+            const touch = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, serviceWorkers: 'block' });
+            try {
+                await touch.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+                const page = await touch.newPage(); await page.goto(url, { waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => !!CruiseStudio.homeView);
+                const button = page.locator('[data-home-workspace="tuner"]'); await button.scrollIntoViewIfNeeded();
+                const box = await button.boundingBox(), cdp = await touch.newCDPSession(page);
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+                const result = await page.evaluate(() => {
+                    const main = document.querySelector('#studio-main');
+                    const tip = document.querySelector('[data-home-workspace="tuner"] .home-tool-tip');
+                    return { coarse: matchMedia('(pointer: coarse)').matches, tip: getComputedStyle(tip).visibility, width: main.clientWidth, scrollWidth: main.scrollWidth };
+                });
+                assert.equal(result.coarse, true); assert.equal(result.tip, 'visible'); assert(result.scrollWidth <= result.width + 1, JSON.stringify(result));
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+            } finally { await touch.close(); }
         });
         await step('Print hides NEWS; no Port/Account/IDB/network mutations, no console or 404', async () => {
             await p.emulateMedia({ media: 'print' }); assert.equal(await p.locator('#screen-news').evaluate(e => getComputedStyle(e).display), 'none'); await p.emulateMedia({ media: 'screen' });

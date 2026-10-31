@@ -5,7 +5,7 @@ const url = process.env.STUDIO_URL;
 test('Chord pure adapter in real Chrome: owner import and memory-only boundary', async t => {
     assert(url, 'isolated STUDIO_URL required');
     const origin = new URL(url).origin, errors = [], missing = [], forbidden = [];
-    const browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH });
     const context = await browser.newContext();
     try {
         await context.route('**/*', r => {
@@ -21,7 +21,7 @@ test('Chord pure adapter in real Chrome: owner import and memory-only boundary',
         await p.goto(url, { waitUntil: 'networkidle' });
         await p.waitForFunction(() => !!CruiseStudio.sheetCruise && !!CruiseStudio.repository);
         await t.test('production boot has schema 2 and pure CAGED dependency for explicit form UI', async () => {
-            assert.equal(await p.locator('#studio-version').innerText(), 'v0.49.1');
+            assert.equal(await p.locator('#studio-version').innerText(), 'v0.53.0');
             assert.equal(await p.evaluate(() => !!ChordCruise.caged), true);
             assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false);
         });
