@@ -100,17 +100,17 @@ test('Home, NEWS and explicit My Apps launch in real disposable Chrome', async t
             assert.equal(await p.locator('.home-series .module-card').first().evaluate(el => getComputedStyle(el).transform), 'none');
             await p.emulateMedia({ reducedMotion: 'no-preference' });
         });
-        await step('Midnight is the default; all four themes recolor the same cards without changing layout', async () => {
+        await step('Dark is the default; all five themes recolor the same cards without changing layout', async () => {
             assert.equal(await p.evaluate(() => CruiseStudio.colorTheme.getColorTheme()), 'dark');
             const colors = [], layouts = [], practiceBoards = [];
-            for (const theme of ['dark', 'charcoal', 'gray', 'light']) {
+            for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
                 await p.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
                 const result = await p.locator('#open-sheet-cruise').evaluate(el => ({ color: getComputedStyle(el).backgroundColor, width: el.clientWidth, height: el.clientHeight, art: el.querySelector('.home-art').getBoundingClientRect().height }));
                 colors.push(result.color); layouts.push([result.width, result.height, result.art]);
                 practiceBoards.push(await p.locator('[data-home-workspace="portPractice"] .practice-menu-icon').evaluate(el => getComputedStyle(el).filter));
             }
-            assert.equal(new Set(colors).size, 4);
-            assert.equal(new Set(practiceBoards).size, 4);
+            assert.equal(new Set(colors).size, 5);
+            assert.equal(new Set(practiceBoards).size, 5);
             assert(layouts.every(layout => JSON.stringify(layout) === JSON.stringify(layouts[0])));
             assert(layouts[0][2] > 100);
             assert.equal(await p.locator('.pc-home-grid img.home-port-icon').count(), 6);
@@ -197,7 +197,7 @@ test('Home, NEWS and explicit My Apps launch in real disposable Chrome', async t
             await p.evaluate(() => __restorePCGet()); await p.locator('#screen-my-apps [data-library-read]').click(); await p.waitForFunction(() => document.querySelector('#screen-my-apps').dataset.status === 'ready');
         });
         await step('Four themes and narrow/PC widths fit Main and keep visible keyboard focus', async () => {
-            for (const theme of ['dark', 'charcoal', 'gray', 'light']) {
+            for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
                 await p.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
                 for (const width of [390, 768, 1440, 1920]) {
                     await p.setViewportSize({ width, height: 900 }); await nav('home');

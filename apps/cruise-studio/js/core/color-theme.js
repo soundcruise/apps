@@ -19,6 +19,7 @@
     var DEFAULT_THEME = 'dark';
     var themes = Object.freeze([
         Object.freeze({ id: 'dark', displayName: 'ダーク', colorScheme: 'dark', themeColor: '#090806' }),
+        Object.freeze({ id: 'midnight', displayName: 'ミッドナイト', colorScheme: 'dark', themeColor: '#10151c' }),
         Object.freeze({ id: 'charcoal', displayName: 'チャコール', colorScheme: 'dark', themeColor: '#424346' }),
         Object.freeze({ id: 'gray', displayName: 'グレー', colorScheme: 'light', themeColor: '#c8cbd0' }),
         Object.freeze({ id: 'light', displayName: 'ライト', colorScheme: 'light', themeColor: '#f7f6f2' })
