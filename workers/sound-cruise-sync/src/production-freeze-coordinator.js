@@ -59,18 +59,49 @@ export class ProductionFreezeCoordinator extends DurableObject {
   #cfg;
   #source;
   #key;
+  #limits;
   constructor(ctx, env) {
     super(ctx, env);
     this.#sql = ctx.storage.sql;
     this.#storage = ctx.storage;
     this.#cfg = JSON.parse(env.FREEZE_CONFIG);
     this.#key = JSON.parse(env.FREEZE_RECEIPT_PRIVATE_JWK);
+    this.#limits =
+      this.#cfg.limits ??
+      (this.#cfg.environment === "isolated"
+        ? {
+            maxInvocations: 100000,
+            maxEffects: 1000000,
+            effectsPerInvocation: 512,
+            maxActive: 2048,
+            warnPercent: 70,
+          }
+        : null);
+    const l = this.#limits;
+    if (
+      !l ||
+      ![
+        "maxInvocations",
+        "maxEffects",
+        "effectsPerInvocation",
+        "maxActive",
+        "warnPercent",
+      ].every((k) => Number.isSafeInteger(l[k]) && l[k] > 0) ||
+      l.maxInvocations > 10000000 ||
+      l.maxEffects > 100000000 ||
+      l.effectsPerInvocation > 10000 ||
+      l.maxActive > 2048 ||
+      l.warnPercent >= 100 ||
+      l.maxEffects < l.effectsPerInvocation
+    )
+      fail("freeze-capacity-config");
     if (
       !["isolated", "production"].includes(this.#cfg.environment) ||
       typeof this.#cfg.source?.d1 !== "string" ||
       typeof this.#cfg.source?.r2 !== "string" ||
       !this.#cfg.source.d1 ||
       !this.#cfg.source.r2 ||
+      typeof this.#cfg.ownerId !== "string" ||
       !this.#cfg.ownerId ||
       !hex.test(this.#cfg.workerArtifactHash || "") ||
       !/^([a-f0-9]{32})$/.test(this.#cfg.namespaceId || "")
@@ -96,6 +127,35 @@ export class ProductionFreezeCoordinator extends DurableObject {
     this.#sql.exec(
       "CREATE TABLE IF NOT EXISTS commands(id TEXT PRIMARY KEY,hash TEXT,j TEXT)",
     );
+    this.#sql.exec(
+      "CREATE INDEX IF NOT EXISTS invocations_epoch_state ON invocations(epoch,state)",
+    );
+    this.#sql.exec(
+      "CREATE INDEX IF NOT EXISTS effects_invocation_state ON effects(invocation,state)",
+    );
+    this.#sql.exec(
+      "CREATE TABLE IF NOT EXISTS capacity(k INTEGER PRIMARY KEY,invocations INTEGER,effects INTEGER,reserved INTEGER)",
+    );
+    this.#sql.exec(
+      "CREATE TABLE IF NOT EXISTS reservations(id TEXT PRIMARY KEY,remaining INTEGER)",
+    );
+    this.#sql.exec(
+      "CREATE TABLE IF NOT EXISTS invocation_outcomes(id TEXT PRIMARY KEY,outcome TEXT)",
+    );
+    // Backfill only once, atomically, from existing ledger state. Never reset history on reopen.
+    this.#storage.transactionSync(() => {
+      if (
+        !this.#sql.exec("SELECT k FROM capacity WHERE k=1").toArray().length
+      ) {
+        this.#sql.exec(
+          "INSERT OR IGNORE INTO reservations SELECT i.id,max(0,?-count(e.id)) FROM invocations i LEFT JOIN effects e ON e.invocation=i.id WHERE i.state='ACTIVE' GROUP BY i.id",
+          l.effectsPerInvocation,
+        );
+        this.#sql.exec(
+          "INSERT INTO capacity SELECT 1,(SELECT count(*) FROM invocations),(SELECT count(*) FROM effects),coalesce((SELECT sum(remaining) FROM reservations),0)",
+        );
+      }
+    });
     if (!this.#sql.exec("SELECT k FROM control").toArray().length)
       this.#sql.exec(
         "INSERT INTO control VALUES(1,?)",
@@ -106,6 +166,22 @@ export class ProductionFreezeCoordinator extends DurableObject {
           source: this.#cfg.source,
         }),
       );
+  }
+  #capacity() {
+    const c = this.#sql.exec("SELECT * FROM capacity WHERE k=1").one();
+    const l = this.#limits;
+    return {
+      invocations: c.invocations,
+      effects: c.effects,
+      reservedEffects: c.reserved,
+      limits: l,
+      warning:
+        c.invocations * 100 >= l.maxInvocations * l.warnPercent ||
+        (c.effects + c.reserved) * 100 >= l.maxEffects * l.warnPercent,
+      admissionCapacity:
+        c.invocations < l.maxInvocations &&
+        c.effects + c.reserved + l.effectsPerInvocation <= l.maxEffects,
+    };
   }
   #state() {
     return JSON.parse(
@@ -170,9 +246,21 @@ export class ProductionFreezeCoordinator extends DurableObject {
             "SELECT count(*) n FROM invocations WHERE epoch=? AND state='ACTIVE'",
             s.epoch,
           )
-          .one().n >= 2048
+          .one().n >= this.#limits.maxActive
       )
         fail("freeze-epoch-budget");
+      const capacity = this.#capacity();
+      if (!capacity.admissionCapacity)
+        return { allowed: false, mode: "CAPACITY", capacity };
+      this.#sql.exec(
+        "UPDATE capacity SET invocations=invocations+1,reserved=reserved+? WHERE k=1",
+        this.#limits.effectsPerInvocation,
+      );
+      this.#sql.exec(
+        "INSERT INTO reservations VALUES(?,?)",
+        id,
+        this.#limits.effectsPerInvocation,
+      );
       this.#sql.exec(
         "INSERT INTO invocations VALUES(?,?,?,'ACTIVE',?,NULL)",
         id,
@@ -199,6 +287,17 @@ export class ProductionFreezeCoordinator extends DurableObject {
         !["OPEN", "CLOSING"].includes(s.mode)
       )
         fail("freeze-effect-no-admission");
+      const budget = this.#sql
+        .exec("SELECT remaining FROM reservations WHERE id=?", invocation)
+        .toArray()[0];
+      if (!budget || budget.remaining <= 0) fail("freeze-effect-budget");
+      this.#sql.exec(
+        "UPDATE reservations SET remaining=remaining-1 WHERE id=?",
+        invocation,
+      );
+      this.#sql.exec(
+        "UPDATE capacity SET effects=effects+1,reserved=reserved-1 WHERE k=1",
+      );
       this.#sql.exec(
         "INSERT INTO effects VALUES(?,?,?,'STARTED')",
         id,
@@ -226,8 +325,10 @@ export class ProductionFreezeCoordinator extends DurableObject {
       );
     });
   }
-  async finish(id, ok) {
+  async finish(id, ok, outcome = "RETURNED") {
     await this.#source;
+    if (!["RETURNED", "HANDLER_ERROR", "BACKGROUND_ERROR"].includes(outcome))
+      fail("freeze-outcome");
     this.#storage.transactionSync(() => {
       const i = this.#sql
         .exec("SELECT * FROM invocations WHERE id=?", id)
@@ -251,6 +352,19 @@ export class ProductionFreezeCoordinator extends DurableObject {
         ok === true && !unknown ? "COMPLETE" : "UNKNOWN",
         Date.now(),
         id,
+      );
+      const r = this.#sql
+        .exec("SELECT remaining FROM reservations WHERE id=?", id)
+        .one();
+      this.#sql.exec(
+        "UPDATE capacity SET reserved=reserved-? WHERE k=1",
+        r.remaining,
+      );
+      this.#sql.exec("UPDATE reservations SET remaining=0 WHERE id=?", id);
+      this.#sql.exec(
+        "INSERT INTO invocation_outcomes VALUES(?,?)",
+        id,
+        outcome,
       );
     });
   }
@@ -669,6 +783,9 @@ export class ProductionFreezeCoordinator extends DurableObject {
       revision: s.revision,
       state: s.expires && s.expires <= Date.now() ? "EXPIRED" : s.mode,
       windowHash: s.bundle?.windowHash ?? null,
+      capacity: this.#capacity(),
+      ownerId: this.#cfg.ownerId,
+      epoch: s.epoch,
     };
     const receipt = await this.#sign("freeze-current", result);
     if (this.#state().revision !== s.revision) fail("current-race");

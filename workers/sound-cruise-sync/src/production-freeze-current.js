@@ -2,6 +2,63 @@ import {
   maintenanceCanonical as canonical,
   maintenanceDigest as digest,
 } from "./maintenance-bridge-v2.js";
+// OPEN readiness is a separate verification from authorization of a CLOSED Backup window.
+export async function verifyFreezeState({
+  result,
+  publicJwk,
+  issuerPin,
+  source,
+  nonce,
+  minimumRevision,
+  expectedState,
+  ownerId,
+  synthetic = false,
+}) {
+  const p = result?.receipt?.payload;
+  if (
+    (await digest(publicJwk)) !== issuerPin ||
+    !Number.isSafeInteger(minimumRevision) ||
+    minimumRevision < 0 ||
+    typeof ownerId !== "string" ||
+    !ownerId ||
+    !p ||
+    p.ownerId !== ownerId ||
+    p.synthetic !== synthetic ||
+    !Number.isSafeInteger(p.epoch) ||
+    p.epoch < 1 ||
+    p.kind !== "freeze-current" ||
+    p.nonce !== nonce ||
+    p.sourceDigest !== (await digest(source)) ||
+    !Number.isSafeInteger(p.issued) ||
+    !Number.isSafeInteger(p.expires) ||
+    !Number.isSafeInteger(p.revision) ||
+    p.revision < minimumRevision ||
+    p.issued > Date.now() ||
+    p.expires <= Date.now() ||
+    p.expires <= p.issued ||
+    p.expires - p.issued > 30000 ||
+    !["OPEN", "CLOSING", "SEALED", "EXPIRED"].includes(p.state) ||
+    p.state !== expectedState
+  )
+    throw Error("freeze-state-untrusted");
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    publicJwk,
+    { name: "Ed25519" },
+    false,
+    ["verify"],
+  );
+  if (
+    !(await crypto.subtle.verify(
+      "Ed25519",
+      key,
+      Uint8Array.from(atob(result.receipt.signature), (c) => c.charCodeAt(0)),
+      new TextEncoder().encode(canonical(p)),
+    ))
+  )
+    throw Error("freeze-state-signature");
+  return structuredClone(p);
+}
 export async function verifyFreezeCurrent({
   result,
   publicJwk,

@@ -2,12 +2,15 @@ import {
   maintenanceCanonical as canonical,
   maintenanceDigest as digest,
 } from "./maintenance-bridge-v2.js";
+import { boundedFreezeCoordinator } from "./production-freeze-rpc.js";
 // Dedicated, unconfigured operator gateway; expose only behind an approved private route.
 export function createFreezeGateway({
   coordinator,
   operatorPublicJwk,
   source,
+  timeoutMs = 2000,
 }) {
+  coordinator = boundedFreezeCoordinator(coordinator, { timeoutMs });
   return {
     async fetch(request) {
       try {
@@ -38,6 +41,9 @@ export function createFreezeGateway({
         if (
           p?.kind !== kind ||
           p.sourceDigest !== (await digest(source)) ||
+          !Number.isSafeInteger(p.issued) ||
+          !Number.isSafeInteger(p.expires) ||
+          p.expires <= p.issued ||
           p.issued > Date.now() ||
           p.expires <= Date.now() ||
           p.expires - p.issued > 600000
@@ -65,10 +71,17 @@ export function createFreezeGateway({
             : await coordinator.current(p.nonce),
           { headers: { "Cache-Control": "no-store" } },
         );
-      } catch {
+      } catch (e) {
+        const unknown = e.message === "freeze-control-unknown";
         return Response.json(
-          { code: "freeze_gateway_hold" },
-          { status: 409, headers: { "Cache-Control": "no-store" } },
+          {
+            code: "freeze_gateway_hold",
+            outcome: unknown ? "UNKNOWN" : "REJECTED",
+          },
+          {
+            status: unknown ? 503 : 409,
+            headers: { "Cache-Control": "no-store" },
+          },
         );
       }
     },
