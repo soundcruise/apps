@@ -15,8 +15,12 @@ const queries={
 function project(r){let f={};try{f=JSON.parse(r.product_facts||'{}')||{};}catch{}const models=Array.isArray(f.models)?f.models.filter(x=>typeof x==='string').slice(0,8):typeof f.product==='string'?[f.product]:[];return {candidate_id:String(r.candidate_id||''),title:String(r.title||'不明').slice(0,200),url:typeof r.url==='string'?r.url:null,review_status:String(r.review_status||'unknown'),entity:{brand:typeof f.brand==='string'?f.brand:null,models,version:typeof f.version==='string'?f.version:null},event:{type:typeof r.event_type==='string'?r.event_type:'unknown',qualifiers:[]}};}
 function searchTerms(candidate){
  const ids=typeof candidate?.candidate_id==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(candidate.candidate_id)?[candidate.candidate_id]:[];
- const urls=[];for(const source of Array.isArray(candidate?.sources)?candidate.sources.slice(0,8):[]){for(const raw of [source?.url,source?.canonical_url])try{const u=new URL(raw);if(u.protocol==='https:'&&!u.username&&!u.password&&u.href.length<=2048&&!urls.includes(u.href))urls.push(u.href);}catch{}}
- const e=candidate?.entity||{};const models=[...(Array.isArray(e.models)?e.models.slice(0,8):[]),e.product].filter(x=>typeof x==='string'&&x.trim().length>=4&&x.length<=100).map(x=>x.trim());return {ids,urls:urls.slice(0,8),models:[...new Set(models)].slice(0,8)};
+ const allSources=Array.isArray(candidate?.sources)?candidate.sources:[],urls=[];let incomplete=allSources.length>8;
+ for(const source of allSources.slice(0,8)){for(const raw of [source?.url,source?.canonical_url]){if(raw==null)continue;try{const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||u.href.length>2048){incomplete=true;continue;}if(!urls.includes(u.href))urls.push(u.href);}catch{incomplete=true;}}}
+ const e=candidate?.entity||{},allModels=Array.isArray(e.models)?e.models:[];if(allModels.length>8||allModels.some(x=>typeof x!=='string'||x.length>100)||(typeof e.product==='string'&&e.product.length>100))incomplete=true;
+ const models=[...new Set([...allModels.slice(0,8),e.product].filter(x=>typeof x==='string'&&x.trim().length>=4&&x.length<=100).map(x=>x.trim()))];
+ if(urls.length>8||models.length>8)incomplete=true;
+ return {ids,urls:urls.slice(0,8),models:models.slice(0,8),incomplete};
 }
 export async function readDotNewsSnapshot(db,candidate){
  if(!db||typeof db.prepare!=='function')return null;
@@ -26,5 +30,5 @@ export async function readDotNewsSnapshot(db,candidate){
  for(const model of terms.models){clauses.push("instr(lower(COALESCE(r.product_facts,'')),lower(?))>0");args.push(model);}
  if(!clauses.length)return null;
  const entries=await Promise.all(Object.entries(queries).map(async([scope,sql])=>{try{const items=[];for(let offset=0;offset<maxRows;offset+=limit){const statement='SELECT * FROM ('+sql+') r WHERE ('+clauses.join(' OR ')+') ORDER BY r.candidate_id,r.url,r.title LIMIT 101 OFFSET ?';const result=await db.prepare(statement).bind(...args,offset).all();if(!Array.isArray(result?.results))throw Error('bad_result');const rows=result.results;items.push(...rows.slice(0,limit).map(project));if(rows.length<=limit)return [scope,{complete:true,items,mode:'targeted'}];}return [scope,{complete:false,items,mode:'targeted'}];}catch{return [scope,{complete:false,items:[]}];}}));
- return Object.fromEntries(entries);
+ return Object.fromEntries(entries.map(([scope,part])=>[scope,terms.incomplete?{...part,complete:false,reason:'candidate_terms_truncated'}:part]));
 }
