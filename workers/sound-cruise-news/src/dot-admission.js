@@ -1,3 +1,4 @@
+import {deletedDotReceipt} from './dot-deleted-receipt.js';
 import {dotSnapshot} from './dot-human-confirmation.js';
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
 import {assistedUrl,ASSISTED_PERMISSION} from './assisted-facts.js';
@@ -11,6 +12,7 @@ import {retainedArticleHashes,hasRetainedHumanRejection} from './dot-retained-de
 export async function admitDotCandidate(store,reader,input,actor,now,registry,pepper){
  if(actor?.type!=='human_operator')throw Error('operator_denied');
  if(!input||Object.keys(input).sort().join(',')!=='candidateId,confirmationId,human,requestId'||!/^[-A-Za-z0-9_]{1,128}$/.test(input.candidateId||'')||!/^[-A-Za-z0-9_]{16,100}$/.test(input.confirmationId||'')||!/^[-A-Za-z0-9_]{16,100}$/.test(input.requestId||'')||!input.human||typeof input.human!=='object'||Array.isArray(input.human)||Object.keys(input.human).sort().join(',')!=='action,brand,product,productType,publishedAt,url'||Object.values(input.human).some(x=>typeof x!=='string'||x.length>2048))throw Error('operator_query_invalid');
+ const deleted=await deletedDotReceipt(store.db,input,actor);if(deleted)return deleted;
  const h=input.human;
  const confirmation=await store.db.prepare('SELECT * FROM news_dot_confirmations WHERE request_id=? AND candidate_id=? AND actor_id=?').bind(input.confirmationId,input.candidateId,actor.id).first();
  if(!confirmation||confirmation.outcome!=='confirmed'||confirmation.confirmed_at>now||now-confirmation.confirmed_at>=90*86400000)return {status:'needs_confirmation',reasons:['human_confirmation_required']};
