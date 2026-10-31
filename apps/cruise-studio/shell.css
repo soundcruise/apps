@@ -518,3 +518,17 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 #studio-tool-window:not(:has(.studio-series-frame)) #tool-window-center{display:none}
 #tool-window-slot{padding:var(--studio-space-2)}
 #tool-window-slot .studio-series-frame{height:calc(100dvh - 150px)}
+
+/* Shared header controls align to the fixed pane toggle. */
+.tool-window-bar{height:78px;min-height:78px;align-items:flex-start;padding-top:16px;padding-bottom:16px}
+#tool-window-select,#tool-window-center,#studio-tool-toggle{box-sizing:border-box;height:46px;min-height:46px;border:1px solid var(--studio-border-default);border-radius:8px}
+#tool-window-select{padding:0 12px;line-height:normal}
+#tool-window-center{padding:0 10px;display:grid;place-items:center}
+.studio-nav-safety{display:flex;justify-content:center}
+#shell-audio-stop{width:44px;min-height:40px;padding:6px;font-size:18px}
+#shell-audio-stop span{font-size:10px}
+[data-studio-dev-only][hidden]{display:none!important}
+
+@media(max-width:1100px){#studio-shell[data-tool-window="open"] #studio-tool-toggle{top:88px}}
+
+#shell-audio-stop{height:44px;box-sizing:border-box;line-height:1.1;padding:4px}

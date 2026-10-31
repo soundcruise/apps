@@ -1,5 +1,5 @@
 /* Port owns markup, styling, controller and local stores; Studio owns this document lifetime. */
-import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.66.0';
+import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.67.0';
 const boundary = createPortProBoundary();
 let controller, epoch = 0, stopped = false, fullApplication = false, policy;
 function pause() { const button = document.getElementById('practice-timer-toggle'); if (button?.getAttribute('aria-label') === '練習を一時停止する') button.click(); }

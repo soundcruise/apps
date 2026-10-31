@@ -7,30 +7,30 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.66.0"></script>
+    <script src="js/core/color-theme.js?v=0.67.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.66.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.67.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.66.0">
-    <link rel="stylesheet" href="melody-staff.css?v=0.66.0">
-    <link rel="stylesheet" href="melody-editor.css?v=0.66.0">
-    <link rel="stylesheet" href="shell.css?v=0.66.0">
-    <link rel="stylesheet" href="studio-home.css?v=0.66.0">
-    <link rel="stylesheet" href="studio-tools.css?v=0.66.0">
-    <link rel="stylesheet" href="port-tuner-surface.css?v=0.66.0">
-    <link rel="stylesheet" href="chord-form.css?v=0.66.0">
+    <link rel="stylesheet" href="theme.css?v=0.67.0">
+    <link rel="stylesheet" href="melody-staff.css?v=0.67.0">
+    <link rel="stylesheet" href="melody-editor.css?v=0.67.0">
+    <link rel="stylesheet" href="shell.css?v=0.67.0">
+    <link rel="stylesheet" href="studio-home.css?v=0.67.0">
+    <link rel="stylesheet" href="studio-tools.css?v=0.67.0">
+    <link rel="stylesheet" href="port-tuner-surface.css?v=0.67.0">
+    <link rel="stylesheet" href="chord-form.css?v=0.67.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.66.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.67.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
     <!-- service-worker / manifest は当面作らない（ADR-002） -->
-    <link rel="stylesheet" href="rhythm-panel.css?v=0.66.0">
-    <link rel="stylesheet" href="cloud-panel.css?v=0.66.0">
+    <link rel="stylesheet" href="rhythm-panel.css?v=0.67.0">
+    <link rel="stylesheet" href="cloud-panel.css?v=0.67.0">
 </head>
 
 <body>
@@ -39,29 +39,35 @@
             <div class="studio-nav-scroll">
             <div class="studio-brand">CRUISE<span>STUDIO</span></div>
             <div class="studio-nav-workspaces">
-                <button type="button" data-workspace="home" title="ホーム"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#house"></use></svg>ホーム</button>
-                <button type="button" data-workspace="sheetCruise" title="譜面を編集"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#music-2"></use></svg>譜面<span>コード・歌詞を編集</span></button>
-                <button type="button" data-workspace="preDtm" title="伴奏を組み立てる"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#sliders-horizontal"></use></svg>プレDTM<span>伴奏を組み立てる</span></button>
-                <button type="button" data-workspace="series" title="クルーズapps"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#grid-2x2"></use></svg>アプリ<span>シリーズを開く</span></button>
-                <button type="button" data-workspace="portNews" title="音楽のニュース"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt="">ニュース<span>ニュースを読む</span></button>
-                <button type="button" data-workspace="portPractice" title="練習メニューとカレンダー"><img class="nav-icon home-port-icon practice-menu-icon" src="../cruise-port/assets/my-app-icons/practice-menu.png" alt="">練習メニュー<span>メニュー・カレンダー</span></button>
+                <button type="button" data-workspace="home" title="ホーム"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#house"></use></svg>Home</button>
+                <button type="button" data-workspace="sheetCruise" title="譜面を編集"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#music-2"></use></svg>譜面クルーズ<span>コード・歌詞を編集</span></button>
+                <button type="button" data-workspace="preDtm" title="伴奏を組み立てる"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#sliders-horizontal"></use></svg>プレDTMクルーズ<span>伴奏を組み立てる</span></button>
                 <button type="button" data-workspace="tuner" title="チューナー"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/tool-tuner.png" alt="">チューナー<span>音程を確認</span></button>
                 <button type="button" data-workspace="metronome" title="メトロノーム"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/tool-metronome.png" alt="">メトロノーム<span>テンポを刻む</span></button>
+                <button type="button" data-workspace="portPractice" title="練習メニューとカレンダー"><img class="nav-icon home-port-icon practice-menu-icon" src="../cruise-port/assets/my-app-icons/practice-menu.png" alt="">練習メニュー<span>メニュー・カレンダー</span></button>
                 <button type="button" data-workspace="portGear" title="機材リスト"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/gear-list.png" alt="">機材リスト<span>追加・編集・写真</span></button>
                 <button type="button" data-workspace="portMyApps" title="登録アプリ"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/note.png" alt="">My Apps<span>登録・編集・起動</span></button>
+                <button type="button" data-workspace="series" title="クルーズApps"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg#grid-2x2"></use></svg>クルーズApps<span>シリーズを開く</span></button>
+<button type="button" data-workspace="app_pitch" title="音感クルーズ"><img class="nav-icon" src="../pitch-cruise/pro_icon_192.png" alt="">音感クルーズ</button>
+<button type="button" data-workspace="app_fretboard" title="指板クルーズ"><img class="nav-icon" src="../fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png" alt="">指板クルーズ</button>
+<button type="button" data-workspace="app_rhythm" title="リズムクルーズ"><img class="nav-icon" src="../rhythm-cruise/pro_r4m8k7n2q9x/icon-192.png" alt="">リズムクルーズ</button>
+<button type="button" data-workspace="app_chord" title="コードクルーズ"><img class="nav-icon" src="../chord-cruise/icons/chord-cruise-pro-192.png" alt="">コードクルーズ</button>
+                <button type="button" data-workspace="portNews" title="音楽のニュース"><img class="nav-icon home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt="">ニュース<span>ニュースを読む</span></button>
             </div>
             <div class="studio-nav-utilities">
+                <div data-studio-dev-only hidden inert>
                 <button type="button" id="shell-inspector" aria-controls="studio-right-pane" aria-expanded="false">Inspector</button>
                 <button type="button" id="shell-tool" aria-controls="studio-right-pane" aria-expanded="false">Tools</button>
                 <button type="button" id="shell-tuner-quick" class="studio-tool-launch" aria-controls="studio-quick-tuner" aria-expanded="false" aria-label="譜面補助のクイックチューナーを開く" title="譜面を見ながら音程を確認"><img src="../cruise-port/assets/my-app-icons/tool-tuner.png" alt="">譜面補助<span class="studio-tool-hint">譜面を見ながら音程を確認</span></button>
                 <button type="button" id="shell-dock-toggle" class="studio-tool-launch" aria-controls="studio-dock" aria-expanded="false" title="譜面補助のBPMを開く"><img src="../cruise-port/assets/my-app-icons/tool-metronome.png" alt="">譜面補助BPM<span class="studio-tool-hint">譜面を見ながらテンポを刻む</span></button>
+                </div>
                 <fieldset id="shell-theme" class="studio-theme-control" aria-describedby="shell-theme-status"><legend>テーマ</legend></fieldset>
                 <p id="shell-theme-status" role="status"></p>
             </div>
             </div>
             <div class="studio-nav-safety">
                 <div id="shell-metronome-running" hidden><span>Metronome 再生中</span><button type="button" id="shell-metronome-stop" aria-label="Metronomeを停止">Stop</button></div>
-                <button type="button" id="shell-audio-stop">Global Stop<span>Studioの音声を停止</span></button>
+                <button type="button" id="shell-audio-stop" aria-label="Studioの音声をすべて停止" title="音声・タイマーを停止">■<span>停止</span></button>
             </div>
         </nav>
         <main id="studio-main" class="studio-main" aria-label="制作ワークスペース" tabindex="-1">
@@ -72,7 +78,7 @@
 
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
-                <span class="studio-version" id="studio-version">v0.66.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
+                <span class="studio-version" id="studio-version">v0.67.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
             </header>
 
             <section class="module-section studio-cloud-panel" data-studio-cloud-panel aria-label="Cloud Sync"></section>
@@ -109,13 +115,13 @@
                     <button type="button" data-home-workspace="portPractice" aria-label="練習メニュー：メニューとカレンダーを開く"><img class="home-port-icon practice-menu-icon" src="../cruise-port/assets/my-app-icons/practice-menu.png" alt=""><strong>練習メニュー</strong><span class="home-tool-tip">練習メニューとカレンダーを開く</span></button>
                     <button type="button" data-home-workspace="portGear" aria-label="機材リスト：機材を追加・編集"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/gear-list.png" alt=""><strong>機材リスト</strong><span class="home-tool-tip">機材を追加・編集する</span></button>
                     <button type="button" data-home-workspace="portMyApps" aria-label="My Apps：登録アプリを管理"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/note.png" alt=""><strong>My Apps</strong><span class="home-tool-tip">アプリを登録・起動する</span></button>
-                    <button type="button" data-home-workspace="portNews" aria-label="ニュース：音楽のニュースを読む"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt=""><strong>ニュース</strong><span class="home-tool-tip">音楽のニュースを読む</span></button>
+
                 </div>
-                <details class="home-options"><summary>表示設定・データの状態</summary><div class="home-options-actions"><button type="button" data-home-action="settings">表示テーマを選ぶ</button><button type="button" data-home-action="port">Portデータを確認</button></div><p data-home-port-status role="status">Port保存値：未確認。</p></details>
+                <details class="home-options" data-studio-dev-only hidden inert><summary>表示設定・データの状態</summary><div class="home-options-actions"><button type="button" data-home-action="settings">表示テーマを選ぶ</button><button type="button" data-home-action="port">Portデータを確認</button></div><p data-home-port-status role="status">Port保存値：未確認。</p></details>
             </section>
 
             <section class="module-section home-series" aria-labelledby="home-series-title">
-                <div class="home-section-heading"><h2 id="home-series-title" class="section-label">クルーズapps</h2></div>
+                <div class="home-section-heading"><h2 id="home-series-title" class="section-label">クルーズApps</h2></div>
                 <div class="module-grid module-grid--series">
 
                     <a class="module-card module-card--series module-card--clickable" href="../pitch-cruise/pro_x9v7q2m8/" target="_blank" rel="noopener noreferrer" data-studio-cruise-app="pitch" data-studio-edition="pro" aria-label="音感クルーズ Proを新しいタブで開く">
@@ -145,8 +151,9 @@
                 </div>
             </section>
 
+            <section class="module-section home-other"><div class="home-section-heading"><h2 class="section-label">その他</h2></div><div class="pc-home-grid">                    <button type="button" data-home-workspace="portNews" aria-label="ニュース：音楽のニュースを読む"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt=""><strong>ニュース</strong><span class="home-tool-tip">音楽のニュースを読む</span></button></div></section>
             <!-- 開発用: 保存基盤の動作確認（Phase 1）。主UIより目立たせない -->
-            <details class="dev-panel">
+            <details class="dev-panel" data-studio-dev-only hidden inert>
                 <summary>開発用: 曲データ保存基盤の動作確認</summary>
                 <div class="dev-panel-body">
                     <p class="dev-note">
@@ -665,69 +672,68 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/port-frame-theme.js?v=0.66.0"></script>
-    <script src="js/core/music-theory.js?v=0.66.0"></script>
+    <script src="js/core/port-frame-theme.js?v=0.67.0"></script>
+    <script src="js/core/music-theory.js?v=0.67.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/caged-forms.js?v=1.21.0"></script>
-    <script src="js/modules/chord/read-model.js?v=0.66.0"></script>
-    <script src="js/modules/chord/inspector.js?v=0.66.0"></script>
-    <script src="js/core/rhythm-snapshot.js?v=0.66.0"></script>
-    <script src="js/core/schema2.js?v=0.66.0"></script>
-    <script src="js/core/melody-commands.js?v=0.66.0"></script>
-    <script src="js/core/song-model.js?v=0.66.0"></script>
-    <script src="js/core/storage.js?v=0.66.0"></script>
-    <script src="js/core/editing-session.js?v=0.66.0"></script>
-    <script src="js/core/project-repository.js?v=0.66.0"></script>
-    <script src="js/core/active-document.js?v=0.66.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.66.0"></script>
-    <script src="js/modules/sheet-cruise/history-commands.js?v=0.66.0"></script>
-    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.66.0"></script>
-    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.66.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.66.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.66.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.66.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.66.0"></script>
-    <script src="js/core/command-router.js?v=0.66.0"></script>
-    <script src="js/core/focus-routing.js?v=0.66.0"></script>
-    <script src="js/core/keyboard-router.js?v=0.66.0"></script>
-    <script src="js/core/modal-manager.js?v=0.66.0"></script>
-    <script src="js/shell.js?v=0.66.0"></script>
-    <script src="js/core/app-refresh.js?v=0.66.0"></script>
-    <script src="js/modules/practice/workspace.js?v=0.66.0"></script>
-    <script src="js/modules/practice/port-surface.js?v=0.66.0"></script>
-    <script src="js/modules/tuner/port-surface.js?v=0.66.0"></script>
-    <script src="js/modules/metronome/port-surface.js?v=0.66.0"></script>
-    <script src="js/modules/library/workspace.js?v=0.66.0"></script>
-    <script src="js/modules/library/port-surface.js?v=0.66.0"></script>
-    <script src="js/core/audio-coordinator.js?v=0.66.0"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.66.0"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.66.0"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.66.0"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.66.0"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.66.0"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.66.0"></script>
-    <script src="js/core/common-music-model.js?v=0.66.0"></script>
-    <script src="js/core/structure-conversion.js?v=0.66.0"></script>
+    <script src="js/modules/chord/read-model.js?v=0.67.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.67.0"></script>
+    <script src="js/core/rhythm-snapshot.js?v=0.67.0"></script>
+    <script src="js/core/schema2.js?v=0.67.0"></script>
+    <script src="js/core/melody-commands.js?v=0.67.0"></script>
+    <script src="js/core/song-model.js?v=0.67.0"></script>
+    <script src="js/core/storage.js?v=0.67.0"></script>
+    <script src="js/core/editing-session.js?v=0.67.0"></script>
+    <script src="js/core/project-repository.js?v=0.67.0"></script>
+    <script src="js/core/active-document.js?v=0.67.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.67.0"></script>
+    <script src="js/modules/sheet-cruise/history-commands.js?v=0.67.0"></script>
+    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.67.0"></script>
+    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.67.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.67.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.67.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.67.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.67.0"></script>
+    <script src="js/core/command-router.js?v=0.67.0"></script>
+    <script src="js/core/focus-routing.js?v=0.67.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.67.0"></script>
+    <script src="js/core/modal-manager.js?v=0.67.0"></script>
+    <script src="js/shell.js?v=0.67.0"></script>
+    <script src="js/core/app-refresh.js?v=0.67.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.67.0"></script>
+    <script src="js/modules/practice/port-surface.js?v=0.67.0"></script>
+    <script src="js/modules/tuner/port-surface.js?v=0.67.0"></script>
+    <script src="js/modules/metronome/port-surface.js?v=0.67.0"></script>
+    <script src="js/modules/library/workspace.js?v=0.67.0"></script>
+    <script src="js/modules/library/port-surface.js?v=0.67.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.67.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.67.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.67.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.67.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.67.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.67.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.67.0"></script>
+    <script src="js/core/common-music-model.js?v=0.67.0"></script>
+    <script src="js/core/structure-conversion.js?v=0.67.0"></script>
     <script src="vendor/vexflow.js?v=4.2.3"></script>
-    <script src="js/core/melody-notation.js?v=0.66.0"></script>
-    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.66.0"></script>
-    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.66.0"></script>
-    <script src="js/modules/series/workspaces.js?v=0.66.0"></script>
-    <script src="js/app.js?v=0.66.0"></script>
-    <script type="module" src="js/modules/port-pro-components.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.66.0"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/tuner/panel.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/tuner/quick-panel.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/library/panel.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/pc-home-news.mjs?v=0.66.0"></script>
-    <script type="module" src="js/modules/series/official-links.mjs?v=0.66.0"></script>
-    <script src="../shared/sync-account/sync-account-core.js?v=0.66.0"></script>
-    <script src="../shared/pro-device-session.js?v=0.66.0"></script>
-    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.66.0"></script>
+    <script src="js/core/melody-notation.js?v=0.67.0"></script>
+    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.67.0"></script>
+    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.67.0"></script>
+    <script src="js/modules/series/workspaces.js?v=0.67.0"></script>
+    <script src="js/app.js?v=0.67.0"></script>
+    <script type="module" src="js/modules/port-pro-components.mjs?v=0.67.0"></script>
+    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.67.0"></script>
+    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.67.0"></script>
+    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.67.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.67.0"></script>
+    <script type="module" src="js/modules/tuner/panel.mjs?v=0.67.0"></script>
+    <script type="module" src="js/modules/library/panel.mjs?v=0.67.0"></script>
+    <script type="module" src="js/modules/pc-home-news.mjs?v=0.67.0"></script>
+    <script type="module" src="js/modules/series/official-links.mjs?v=0.67.0"></script>
+    <script src="../shared/sync-account/sync-account-core.js?v=0.67.0"></script>
+    <script src="../shared/pro-device-session.js?v=0.67.0"></script>
+    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.67.0"></script>
 </body>
 
 </html>

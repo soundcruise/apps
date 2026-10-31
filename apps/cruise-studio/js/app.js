@@ -258,6 +258,8 @@
         preDtm.setProjectSourceProvider(projectSource);
         preDtm.setDocumentHost(CS.documents, ensureDocument);
         preDtm.init();
+        var devEnabled=['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('studioDev')==='1';
+        if(devEnabled)document.querySelectorAll('[data-studio-dev-only]').forEach(function(e){e.hidden=false;e.inert=false;});
         shellHost = CS.shell.init(CS);
         CS.shellHost = shellHost;
         CS.melodyEditing = CS.melodyCommands.create({owner:CS.documents,schema:CS.model.schema2,repository:CS.repository,
@@ -304,6 +306,7 @@
         if (openPreDtmBtn) openPreDtmBtn.addEventListener('click', enterPreDtm);
 
         // 開発用パネル
+        if(!devEnabled)return;
         var createBtn = document.getElementById('dev-create-sample');
         if (createBtn) createBtn.addEventListener('click', onCreateSample);
 
