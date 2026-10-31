@@ -32,3 +32,12 @@ test('Qwen structured array is accepted and oversized arrays are refused',async(
  const ai={run:async()=>({response:[item]})};assert.deepEqual(await llmAdapter(ai,'@cf/test')([]),[item]);
  await assert.rejects(llmAdapter({run:async()=>({response:[{reason:'あ'.repeat(7000)}]})},'@cf/test')([]));
 });
+
+test('triage prompt makes freshness and signature uncertainty explicit',async()=>{
+ const {llmAdapter}=await import('../src/web-discovery.js');let messages;
+ const adapter=llmAdapter({run:async(_,input)=>{messages=input.messages;return {response:[]};}},'@cf/test');
+ await adapter([{title:'2026年9月の新製品まとめ',url:'https://example.test/'}]);
+ assert.match(messages[0].content,/not evidence an instrument was signed/);
+ assert.match(messages[0].content,/If date is absent or unclear, use medium or low priority/);
+ assert.match(messages[0].content,/compilations/);
+});

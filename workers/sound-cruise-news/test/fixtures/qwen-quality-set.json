@@ -1,0 +1,44 @@
+[
+  {
+    "id": "ja_signature",
+    "url": "https://acousticguitarmagazine.jp/2026-1001-martin-crosroads-erickclapton-signature/",
+    "title": "マーティンより“Crossroads Collection”クラプトン限定シグネチャー・アコギ2モデル発表！ | アコースティック・ギター・マガジンWEB",
+    "expected": "freshness_unknown"
+  },
+  {
+    "id": "ja_summary",
+    "url": "https://nihon-meisho.com/3547/",
+    "title": "2026年9月に登場したアコギ新製品まとめ - アコースティックギター博士",
+    "expected": "summary"
+  },
+  {
+    "id": "ja_launch",
+    "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/97022/",
+    "title": "Headwayの旗艦シリーズ「The Eagle」に伝統の漆塗装を施したマホガニー＆ローズウッド限定モデルが登場 | 楽器情報メディア - 島村楽器 Update!",
+    "expected": "freshness_unknown"
+  },
+  {
+    "id": "en_emerging",
+    "url": "https://emeraldguitars.com/a-new-era-for-emerald-guitars/",
+    "title": "A New Era for Emerald Guitars - Emerald Guitars",
+    "expected": "freshness_unknown"
+  },
+  {
+    "id": "en_unrelated",
+    "url": "https://gearstrings.com/gear-reviews/fu-tone-launches-sully-guitars",
+    "title": "Fu Tone Launches Sully Guitars: A Deep Dive into the New Line of Boutique Solid-Body Instruments | GearStrings",
+    "expected": "electric_guitar"
+  },
+  {
+    "id": "en_product_page",
+    "url": "https://bourgeoisguitars.com/product/hawaiian-gac-de/",
+    "title": "Hawaiian GAC/DE | Downeast Series | Bourgeois Guitars",
+    "expected": "product_page"
+  },
+  {
+    "id": "en_old",
+    "url": "https://www.musicradar.com/news/collings-unveils-c100-parlour-acoustic-guitars",
+    "title": "Collings unveils C100 parlour acoustic guitars | MusicRadar",
+    "expected": "verified_published_2018_not_in_input"
+  }
+]
