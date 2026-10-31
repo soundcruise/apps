@@ -63,6 +63,8 @@ async function runBackupBody({
       await cutline.assertCutline();
       await host.check();
       yield p;
+      await cutline.assertCutline();
+      await host.check();
     }
   };
   const receipt = await backup({
@@ -72,8 +74,10 @@ async function runBackupBody({
     source,
     resume,
   });
+  const acceptance = cutline.finalizeBackup ? await cutline.finalizeBackup(receipt) : null;
   const value = {
     kind: "sealed-backup",
+    ...(acceptance ? { maintenanceAcceptance: acceptance } : {}),
     operationId,
     directory,
     scope,
