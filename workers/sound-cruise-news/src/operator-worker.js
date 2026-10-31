@@ -1,4 +1,4 @@
-import {listWebHints} from './web-discovery.js';
+import {listWebHints,runWebDiscovery} from './web-discovery.js';
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
 import {parseAssistedPaste,YAMAHA_TOPICS_START} from './assisted-paste.js';
 import {assistedSources,assistedTypes,assistedActions,ASSISTED_ORIGIN} from './assisted-facts.js';
@@ -45,6 +45,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
   if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,now));
+  if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,now,options.webDiscoveryDependencies||{},true));}
   if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.42.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){

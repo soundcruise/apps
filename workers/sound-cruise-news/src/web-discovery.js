@@ -1,3 +1,4 @@
+import {SOURCES,evidenceGate} from './registry.js';
 // Japanese characters in the title are only a hint; page language must be verified by a human.
 export const hasJapaneseTitle=title=>/[\u3040-\u30ff\u3400-\u9fff]/u.test(title);
 // Search results are untrusted hints. This module does not fetch result URLs or publish.
@@ -84,15 +85,21 @@ export function llmAdapter(ai,model) {
 export async function listWebHints(env,now=Date.now()){
  if(env.NEWS_WEB_ENABLED!=='true')return {enabled:false,items:[]};
  const rows=(await env.NEWS_DB.prepare('SELECT url,title,provider,searched_at,status,reason,estimate_json FROM news_web_hints WHERE expires_at>? ORDER BY searched_at DESC,url LIMIT 100').bind(now).all()).results;
- return {enabled:true,items:rows.map(row=>({...row,estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'}))};
+ return {enabled:true,manualEnabled:env.NEWS_WEB_MANUAL_ENABLED==='true',items:rows.map(row=>({...row,estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'}))};
 }
-export async function runWebDiscovery(env,now=Date.now(),dependencies={}){
+export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=false){
  const config=discoveryConfig(env);if(!config)return {disabled:true};
  const db=env.NEWS_DB,day=new Date(now).toISOString().slice(0,10);
  await db.prepare('DELETE FROM news_web_hints WHERE expires_at<=?').bind(now).run();
  await db.prepare('DELETE FROM news_web_runs WHERE day<?').bind(new Date(now-31*86400000).toISOString().slice(0,10)).run();
  await db.prepare('INSERT OR IGNORE INTO news_web_runs(day) VALUES(?)').bind(day).run();
+ // Claim an entire run across cron and manual entry points. Manual is once per UTC day,
+ // even after failure or ACK loss. Do not clear the flag without a new day.
+ const claimed=await db.prepare(`UPDATE news_web_runs SET lock_until=?, manual_started=CASE WHEN ?=1 THEN 1 ELSE manual_started END WHERE day=? AND lock_until<=? AND NOT EXISTS (SELECT 1 FROM news_web_runs WHERE lock_until>?) AND (?=0 OR (manual_started=0 AND searches=0 AND ai_calls=0)) AND (?=1 OR manual_started=0) RETURNING day`).bind(now+900000,manual?1:0,day,now,now,manual?1:0,manual?1:0).first();
+ if(!claimed)return {skipped:true,reason:'busy_or_already_run'};
+ try{
  const reserve=async column=>Boolean(await db.prepare(`UPDATE news_web_runs SET ${column}=${column}+1 WHERE day=? AND ${column}<? RETURNING day`).bind(day,config.max).first());
+ const policyDenied=SOURCES.filter(source=>evidenceGate(source,now)==='legal_block').map(source=>new URL(source.baseUrl).hostname.replace(/^www\./,''));
  const search=dependencies.search||exaAdapter(env.AI,env.NEWS_WEB_GATEWAY||'default');
  const classify=dependencies.classify||llmAdapter(env.AI,env.NEWS_WEB_MODEL);
  const error=()=>db.prepare('UPDATE news_web_runs SET errors=errors+1 WHERE day=?').bind(day).run();
@@ -102,7 +109,7 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={}){
    const hints=normalizeSearchHints(await search(query),{provider:'exa',searchedAt:now});
    for(const hint of hints){
     const host=new URL(hint.url).hostname;
-    if(config.denied.some(d=>host===d||host.endsWith('.'+d)))continue;
+    if([...config.denied,...policyDenied].some(d=>host===d||host.endsWith('.'+d)))continue;
     if(await db.prepare('SELECT id FROM candidate_items WHERE source_url=? OR normalized_url=? LIMIT 1').bind(hint.url,hint.url).first())continue;
     await saveHint(db,hint,now);
    }
@@ -123,5 +130,6 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={}){
   }catch{await error();await db.batch(pending.map(h=>db.prepare("UPDATE news_web_hints SET reason='classification_failed' WHERE url=?").bind(h.url)));}
  }
  }
- return db.prepare('SELECT * FROM news_web_runs WHERE day=?').bind(day).first();
+ return await db.prepare('SELECT day,searches,ai_calls,processed,errors FROM news_web_runs WHERE day=?').bind(day).first();
+ }finally{await db.prepare('UPDATE news_web_runs SET lock_until=0 WHERE day=? AND lock_until=?').bind(day,now+900000).run();}
 }

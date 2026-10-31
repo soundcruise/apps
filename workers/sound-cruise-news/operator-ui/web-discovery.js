@@ -2,6 +2,8 @@
 export function renderWebDiscovery(document,data){
  const section=document.createElement('section');section.setAttribute('aria-label','Web発見');
  const heading=document.createElement('h2');heading.textContent='Web発見 · 未検証のAI推定';section.append(heading);
+ const notice=document.createElement('p');notice.textContent='AIによる推定情報です。日付・掲載価値・優先度には誤りが含まれる可能性があります。原記事を確認してください。';section.append(notice);
+ if(data.manualEnabled){const run=document.createElement('button'),result=document.createElement('p');run.type='button';run.textContent='Web探索を1回実行';result.setAttribute('role','status');section.append(run,result);run.addEventListener('click',async()=>{if(!confirm('Web検索とAI分類を1回実行します。費用が発生します。実行しますか？'))return;run.disabled=true;result.textContent='実行中…';try{const session=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});if(!session.ok)throw Error();const {csrf}=await session.json();const response=await fetch('/api/web-discovery/run',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-News-CSRF':csrf},body:'{}'});if(!response.ok)throw Error();const r=await response.json();result.textContent=r.skipped?'既に実行済み、または実行中です。':'完了。検索 '+r.searches+'回、AI '+r.ai_calls+'回、分類 '+r.processed+'件、エラー '+r.errors+'件。一覧を更新してください。';}catch{result.textContent='実行結果を確認できません。再実行せず管理者へ確認してください。';}});}
  for(const item of data.items){
   const card=document.createElement('article'),title=document.createElement('p');title.textContent=item.title;card.append(title);
   const u=new URL(item.url);if(u.protocol==='https:'&&!u.username&&!u.password){const link=document.createElement('a');link.href=u.href;link.textContent='原記事';link.target='_blank';link.rel='noopener noreferrer';card.append(link);}
