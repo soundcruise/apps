@@ -5,7 +5,7 @@
     else root.CruiseStudio.shell = factory();
 })(typeof globalThis === 'object' ? globalThis : this, function () {
     'use strict';
-    var WORKSPACES = Object.freeze({ home: 'screen-home', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', portPractice: 'screen-port-practice', practice: 'screen-practice', tuner: 'screen-tuner', metronome: 'screen-metronome', portGear: 'screen-port-gear', gear: 'screen-gear', portMyApps: 'screen-port-my-apps', myApps: 'screen-my-apps', portNews: 'screen-port-news', news: 'screen-news' });
+    var WORKSPACES = Object.freeze({ app_pitch:'screen-app-pitch',app_fretboard:'screen-app-fretboard',app_rhythm:'screen-app-rhythm',app_chord:'screen-app-chord', home: 'screen-home', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', portPractice: 'screen-port-practice', practice: 'screen-practice', tuner: 'screen-tuner', metronome: 'screen-metronome', portGear: 'screen-port-gear', gear: 'screen-gear', portMyApps: 'screen-port-my-apps', myApps: 'screen-my-apps', portNews: 'screen-port-news', news: 'screen-news' });
     var PERSISTENT_MIN = 1280;
 
     function createWorkspaceHost(workspaces, view) {
@@ -54,23 +54,33 @@
         var right = doc.getElementById('studio-right-pane');
         var dock = doc.getElementById('studio-dock');
         var layout = createLayoutState(shell.clientWidth);
+        var rail=doc.createElement('div');rail.id='studio-sidebar-resize';rail.tabIndex=0;rail.setAttribute('role','separator');rail.setAttribute('aria-label','左メニュー幅');rail.setAttribute('aria-orientation','vertical');doc.querySelector('.studio-nav').append(rail);
+        var sidebarWidth=176;
+        try{var savedWidth=Number(localStorage.getItem('cruiseStudio.sidebarWidth'));if(savedWidth>=128&&savedWidth<=300)sidebarWidth=savedWidth;}catch(_){}
+        function sizeSidebar(value,save){sidebarWidth=Math.min(300,Math.max(128,value));var effective=Math.min(sidebarWidth,Math.max(128,shell.clientWidth*.22));shell.style.setProperty('--studio-sidebar-width',effective+'px');rail.setAttribute('aria-valuemin','128');rail.setAttribute('aria-valuemax','300');rail.setAttribute('aria-valuenow',String(Math.round(effective)));if(save)try{localStorage.setItem('cruiseStudio.sidebarWidth',String(sidebarWidth));}catch(_){} }
+        rail.addEventListener('pointerdown',function(e){if(e.button!==0)return;e.preventDefault();rail.setPointerCapture(e.pointerId);});
+        rail.addEventListener('pointermove',function(e){if(rail.hasPointerCapture(e.pointerId))sizeSidebar(e.clientX-shell.getBoundingClientRect().left,true);});
+        rail.addEventListener('pointerup',function(e){if(rail.hasPointerCapture(e.pointerId))rail.releasePointerCapture(e.pointerId);});
+        rail.addEventListener('keydown',function(e){if(e.isComposing)return;if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();sizeSidebar(e.key==='Home'?128:e.key==='End'?300:sidebarWidth+(e.key==='ArrowRight'?16:-16),true);}});
+        sizeSidebar(sidebarWidth,false);window.addEventListener('resize',function(){sizeSidebar(sidebarWidth,false);});
         var positions = Object.create(null), focus = Object.create(null);
         var visitHistory = [];
         var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, portPractice: CS.portPractice, practice: CS.practice, tuner: CS.tuner, metronome: CS.portMetronome, portGear: CS.portGear, gear: CS.gear, portMyApps: CS.portMyApps, myApps: CS.myApps, portNews: CS.portNews, news: CS.news };
+        ['pitch','fretboard','rhythm','chord'].forEach(function(id){adapters['app_'+id]=CS.seriesApps[id];});
         var nodes = {}, dockedTool = null;
-        var toolIds = ['tuner','metronome','portPractice','portGear','portMyApps'];
+        var toolIds = ['app_pitch','app_fretboard','app_rhythm','app_chord','tuner','metronome','portPractice','portGear','portMyApps'];
         var realTools = {};
         toolIds.forEach(function(id){realTools[id]=adapters[id];adapters[id]={load:function(){realTools[id].load?.();},activate:function(){if(dockedTool!==id)realTools[id].activate();},deactivate:function(){if(dockedTool!==id)return realTools[id].deactivate();}};});
         var toolWindow=doc.createElement('aside');toolWindow.id='studio-tool-window';toolWindow.hidden=true;toolWindow.setAttribute('aria-label','独立ツール');
         toolWindow.innerHTML='<div class="tool-window-bar"><select id="tool-window-select" aria-label="ツールを切り替え"></select><button type="button" id="tool-window-close" aria-label="ツールを閉じる" title="ツールを閉じる">×</button></div><p id="tool-window-status" role="status"></p><div id="tool-window-slot"></div><div id="tool-window-resize" role="separator" aria-label="ツール幅" aria-orientation="vertical" tabindex="0"></div>';
         shell.append(toolWindow);
         var toolSlot=toolWindow.querySelector('#tool-window-slot'),toolSelect=toolWindow.querySelector('select'),toolTrigger=null;
-        var toolNames={tuner:'チューナー',metronome:'メトロノーム',portPractice:'練習・カレンダー',portGear:'機材',portMyApps:'My Apps'};
+        var toolNames={app_pitch:'音感クルーズ',app_fretboard:'指板クルーズ',app_rhythm:'リズムクルーズ',app_chord:'コードクルーズ',tuner:'チューナー',metronome:'メトロノーム',portPractice:'練習・カレンダー',portGear:'機材',portMyApps:'My Apps'};
         var placeholder=doc.createElement('option');placeholder.value='';placeholder.textContent='ツールを選択';toolSelect.append(placeholder);
         toolIds.forEach(function(id){var o=doc.createElement('option');o.value=id;o.textContent=toolNames[id];toolSelect.append(o);});
         function moveNode(parent,node){if(parent.moveBefore&&node.isConnected)parent.moveBefore(node,null);else parent.append(node);}
-        function hasToolInput(){var d=dockedTool&&nodes[dockedTool].querySelector('iframe')?.contentDocument;return !!d&&Array.from(d.querySelectorAll('form,[role=dialog]')).some(function(e){return !e.closest('[hidden]')&&d.defaultView.getComputedStyle(e).display!=='none';});}
-        function guardTool(next){if(!dockedTool)return false;if(realTools[dockedTool].requestLeave?.(next))return true;if(hasToolInput()){doc.getElementById('tool-window-status').textContent='編集中のフォームを保存またはキャンセルしてから移動してください。';return true;}return false;}
+        function hasToolInput(){if(dockedTool?.startsWith('app_'))return !!nodes[dockedTool].querySelector('iframe')?.contentWindow?.studioAppDirty;var d=dockedTool&&nodes[dockedTool].querySelector('iframe')?.contentDocument;return !!d&&Array.from(d.querySelectorAll('form,[role=dialog]')).some(function(e){return !e.closest('[hidden]')&&d.defaultView.getComputedStyle(e).display!=='none';});}
+        function guardTool(next){if(!dockedTool)return false;if(realTools[dockedTool].requestLeave?.(next))return true;if(hasToolInput()&&!dockedTool.startsWith('app_')){doc.getElementById('tool-window-status').textContent='編集中のフォームを保存またはキャンセルしてから移動してください。';return true;}return false;}
         function closeToolUnchecked(){if(!dockedTool){toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');return;}var id=dockedTool;dockedTool=null;realTools[id].deactivate();moveNode(main.querySelector('.studio-container'),nodes[id]);nodes[id].hidden=true;nodes[id].inert=true;nodes[id].classList.add('hidden');toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');if(toolTrigger?.isConnected)toolTrigger.focus({preventScroll:true});refreshGeometry();}
         function closeTool(){if(modal.getActive())return false;if(guardTool(closeTool))return false;closeToolUnchecked();return true;}
         function openTool(id, preserveCenter){
@@ -178,6 +188,7 @@
             refreshGeometry();
         }
         function navigate(id) {
+            if(host.getActive()?.startsWith('app_')&&host.getActive()!==id&&realTools[host.getActive()].requestLeave())return false;
             if(modal.getActive())return false;
             if(dockedTool===id){toolSelect.focus();return true;}
             if (modal.getActive() || !Object.hasOwn(WORKSPACES, id) || host.getActive() === id) return false;
@@ -192,6 +203,7 @@
             return host.activate(id);
         }
         function goBack() {
+            if(host.getActive()?.startsWith('app_')&&realTools[host.getActive()].requestLeave())return false;
             if(modal.getActive())return false;
             if (modal.getActive()) return false;
             if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(goBack)) return false;

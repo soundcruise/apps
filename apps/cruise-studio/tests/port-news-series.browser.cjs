@@ -103,19 +103,17 @@ test('Studio reuses Port NEWS and launches each official Pro app route', async (
             assert.equal(await links.count(), 1);
             for (const [edition, path] of [['pro', pro]]) {
                 const target = page.locator(`#screen-series [data-studio-cruise-app="${id}"][data-studio-edition="${edition}"]`);
-                assert.equal(new URL(await target.getAttribute('href'), origin).pathname, `/apps/${path}`);
-                assert.equal(await target.getAttribute('target'), '_blank');
+                assert.equal(await target.getAttribute('href'), '#app_'+id);
+                assert.equal(await target.getAttribute('target'), null);
                 assert.match(await target.getAttribute('rel'), /noopener/);
                 if (edition === 'pro') assert.equal(await target.locator('img').evaluate(el => el.complete && el.naturalWidth > 0), true);
-                const open = page.waitForEvent('popup');
                 await target.click();
-                const app = await open;
-                await app.waitForURL(`**/apps/${path}`);
-                assert.equal(new URL(app.url()).pathname, `/apps/${path}`);
-                await app.close();
+                await page.waitForFunction(id=>CruiseStudio.shellHost.getActiveWorkspace()==='app_'+id,id);
+                await page.locator('#series-'+id+'-surface iframe').waitFor();
+                await page.evaluate(()=>CruiseStudio.shellHost.navigate('series'));
             }
             const home = page.locator(`#screen-home [data-studio-cruise-app="${id}"]`);
-            assert.equal(new URL(await home.getAttribute('href'), origin).pathname, `/apps/${pro}`);
+            assert.equal(await home.getAttribute('href'), '#app_'+id);
         }
         for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
             await page.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
