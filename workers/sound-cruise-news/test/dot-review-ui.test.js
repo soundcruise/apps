@@ -12,3 +12,10 @@ test('disabled or failed connection gives a safe status without fetching candida
  const section=new Element(),items=new Element(),status=new Element();section.dataset.showDisabled='true';const original={document:globalThis.document,fetch:globalThis.fetch};globalThis.document={querySelector:s=>({'#dot-review':section,'#dot-items':items,'#dot-status':status})[s],createElement:s=>new Element(s)};let calls=0;globalThis.fetch=async()=>{calls++;return {ok:true,json:async()=>({available:false})}};
  try{initDotReview();await tick();assert.equal(calls,1);assert.match(status.textContent,/停止中/);}finally{globalThis.document=original.document;globalThis.fetch=original.fetch;}
 });
+test('bundled renderer runs when served as a standalone script in Workers',async()=>{
+ const {transform}=await import('esbuild');const vm=await import('node:vm');const built=await transform(`const render = (${initDotReview.toString()}); globalThis.render = render;`,{keepNames:true});
+ const context=vm.createContext({});vm.runInContext(built.code,context);const bundledFunction=context.render.toString();assert.match(bundledFunction,/__name/);
+ const section=new Element(),items=new Element(),status=new Element();section.dataset.showDisabled='true';
+ const sandbox={document:{querySelector:s=>({'#dot-review':section,'#dot-items':items,'#dot-status':status})[s],createElement:s=>new Element(s)},fetch:async()=>({ok:true,json:async()=>({available:false})})};
+ vm.runInNewContext(`const __name = (target) => target;\n(${bundledFunction})();`,sandbox);await tick();assert.match(status.textContent,/停止中/);
+});
