@@ -12,6 +12,7 @@ import {recheckFacts} from './facts-recheck.js';
 import {authenticateOperator,csrfToken,verifyCsrf} from './operator-auth.js';
 import {createDotCloudRunProxy,configuredDotProxy} from './dot-cloudrun-proxy.js';
 import {compareDotWithNews} from './dot-news-comparison.js';
+import {readDotNewsSnapshot} from './dot-news-snapshot.js';
 import {NewsStore} from './store.js';
 import {runtimeSources} from './runtime.js';
 import {reviewQueue,reviewDetail,operatorDecision,candidateSnapshot} from './operator-review.js';
@@ -38,7 +39,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='GET'&&(url.pathname==='/api/dot-candidates'||/^\/api\/dot-candidates\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname))){
    if(!dotReader)throw Error('operator_not_configured');
    const detail=url.pathname!=='/api/dot-candidates';let output;
-   if(detail){if(url.search)throw Error('operator_query_invalid');output=await dotReader.detail(url.pathname.split('/').at(-1));if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');if(options.dotNewsSnapshot){let snapshot;try{snapshot=await options.dotNewsSnapshot();}catch{}output={...output,...compareDotWithNews(output.candidate,snapshot)};}}
+   if(detail){if(url.search)throw Error('operator_query_invalid');output=await dotReader.detail(url.pathname.split('/').at(-1));if(!output)return json({error:'not_found'},404);if(output.validation?.ready!==false||output.validation?.formalFacts!==false)throw Error('operator_query_invalid');let snapshot;try{snapshot=options.dotNewsSnapshot?await options.dotNewsSnapshot():await readDotNewsSnapshot(env.NEWS_DB);}catch{}output={...output,...compareDotWithNews(output.candidate,snapshot),formalComparison:'NOT_EVALUATED'};}
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
