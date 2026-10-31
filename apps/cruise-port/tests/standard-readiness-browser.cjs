@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const base=process.argv[2]||'http://127.0.0.1:8765';
 const out=process.argv[3]||'/tmp/port-standard-readiness';
 const root='/apps/cruise-port/',pro=root+'pro_9a3943176561/';
-const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
+let credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
 (async()=>{
  const {CRUISE_PORT_APP_VERSION}=await import('../app-version.js');
  const expectedVersionText=`Ver ${CRUISE_PORT_APP_VERSION}`;
@@ -123,6 +123,8 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length),6);
   await hash('#settings');await Promise.all([page.waitForEvent('framenavigated',{predicate:frame=>frame===page.mainFrame()}),page.locator('#settings-pro-auth-reset').click()]);await page.waitForLoadState('networkidle');await page.locator('#pro-gate-overlay').waitFor();
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length),6);
+  // A fresh issuance must not reuse the credential explicitly revoked by reset.
+  credential='scp1.00000000-0000-4000-8000-000000000001.'+'B'.repeat(43);
   await page.evaluate(()=>{window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__={getToken:async()=> 'synthetic-local-token'};});
   await page.locator('#pro-gate-input').fill('0000');await page.locator('#pro-gate-submit').click();
   await expectCurrentVersion();assert.equal(await page.locator('#pro-gate-overlay').count(),0);
