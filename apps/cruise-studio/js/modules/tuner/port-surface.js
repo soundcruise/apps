@@ -9,7 +9,7 @@
     var status = document.getElementById('port-tuner-status');
     var resume = document.getElementById('port-tuner-resume');
     var stopButton = document.getElementById('shell-audio-stop');
-    var portUrl = new URL('../cruise-port/', document.baseURI);
+    var portUrl = new URL('port-tool.html', document.baseURI);
 
     function setPhase(next, message) {
         phase = next;
@@ -21,6 +21,7 @@
         if (!frame) return;
         var old = frame;
         frame = null;
+        try { void old.contentWindow?.CruiseStudioPortTool?.stop(); } catch (_) { /* Navigated documents own their cleanup. */ }
         old.onload = null;
         old.onerror = null;
         old.remove(); // A Port pagehide stops its microphone and preview audio.
