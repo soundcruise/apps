@@ -14,6 +14,7 @@
         var child = frame.contentWindow;
         if (child.location.origin !== location.origin || !child.document.head) return;
         var doc = child.document;
+        CS.attachAccountFrame?.(frame);
         // A permission prompt may finish after the entrance has locked. Retain
         // the form/document, but never let that old microphone request revive.
         if (!child.studioEntryStopMedia && child.navigator.mediaDevices?.getUserMedia) {

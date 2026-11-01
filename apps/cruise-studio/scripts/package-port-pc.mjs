@@ -19,7 +19,7 @@ export function packagePortPC(output){
   const source=path.join(studio,name),bytes=fs.readFileSync(source),target=path.join(destination,name);
   fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
  }
- const manifest={product:'Cruise Studio Port PC',version:'1.0.3',sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
+ const manifest={product:'Cruise Studio Port PC',version:'0.71.0',sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
   existingDeploymentDependencies:['apps/cruise-port/','apps/pitch-cruise/','apps/fretboard_cruise/','apps/rhythm-cruise/','apps/chord-cruise/','apps/shared/'],
   excluded:['development.html','Project model/repository/editor','Pre-DTM','Project Sync and Cloud clients','Worker and migrations','native app releases/themes'],
   productionReady:false};

@@ -1,6 +1,6 @@
 /* One Studio entrance. Native Account DB, Pro gate and device session are the owners. */
 export function createStudioEntry({storage, source, validatePro, summary, gateReady, changed=()=>{}, rejectPro=()=>{}, now=()=>performance.now()}) {
-    let epoch=0, proof=null, pending=null, pendingEpoch=-1, phase='locked';
+    let epoch=0, proof=null, pending=null, pendingEpoch=-1, phase='locked', measurement=null;
     const same=(a,b)=>!!a&&!!b&&a.revision===b.revision&&a.revoked===false&&b.revoked===false&&
         a.auth?.credential===b.auth?.credential&&a.auth?.generation===b.auth?.generation&&a.auth?.sessionVersion===b.auth?.sessionVersion;
     function isAuthorized(){return !!proof&&gateReady()&&proof.epoch===epoch&&
@@ -9,15 +9,15 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
     function read(){return {phase:isAuthorized()?'ready':phase==='ready'?'locked':phase,accountId:proof?.account.accountId||null,revision:epoch,offline:!!proof?.offline};}
     async function check(){
         if(pending&&pendingEpoch===epoch)return pending;
-        const turn=epoch,previous=isAuthorized()?proof:null;
+        const turn=epoch,previous=isAuthorized()?proof:null,started=now(),stages={};
         let flight;flight=(async()=>{
             try{
                 if(!gateReady())throw Error('pro-required');
                 const pro=source.read(),generation=storage.getGeneration();
                 if(pro?.revoked!==false||!pro.auth)throw Error('pro-required');
-                const account=await storage.getAccount();
+                let stageStart=now();const account=await storage.getAccount();stages.accountReadMs=now()-stageStart;
                 if(!account?.accountId||!account.accountCredential)throw Error('account-required');
-                const result=await validatePro({...pro.auth,operationRevision:pro.revision});
+                stageStart=now();let result;try{result=await validatePro({...pro.auth,operationRevision:pro.revision});}finally{stages.proValidationMs=now()-stageStart;}
                 if(result?.terminal===true&&same(pro,source.read()))rejectPro(pro.auth.credential);
                 const allowance=Number.isFinite(result?.offlineRemainingMs)&&result.offlineRemainingMs>0;
                 const retained=previous&&previous.generation===generation&&same(previous.pro,pro)&&
@@ -25,7 +25,7 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
                 if(result?.ok!==true||(result.online!==true&&!(result.offline===true&&allowance&&retained)))throw Error('pro-required');
                 const expiresAt=allowance?now()+result.offlineRemainingMs:Infinity;
                 let remote,accountUnavailable=false,offline=result.online!==true;
-                try{remote=await summary(account.accountCredential);}
+                try{stageStart=now();try{remote=await summary(account.accountCredential);}finally{stages.accountSummaryMs=now()-stageStart;}}
                 catch(error){
                     // A network failure is not a new Account grant. Only the same
                     // in-memory, previously verified owner may retain native Pro grace.
@@ -33,16 +33,17 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
                     if(!retained||!allowance||!transient)throw error;
                     accountUnavailable=true;offline=true;
                 }
-                const after=await storage.getAccount();
+                stageStart=now();const after=await storage.getAccount();stages.accountRecheckMs=now()-stageStart;
                 if(turn!==epoch||generation!==storage.getGeneration()||!gateReady()||!same(pro,source.read())||
                     after?.accountId!==account.accountId||after?.accountCredential!==account.accountCredential||(!accountUnavailable&&remote?.account?.id!==account.accountId)||now()>=expiresAt)
                     throw Error('session-changed');
+                measurement={...stages,totalMs:now()-started,result:offline?'offline':'ready'};
                 proof={epoch:turn,generation,pro,account,offline,expiresAt};phase='ready';changed(read());return true;
-            }catch(error){if(turn===epoch)invalidate(error.message||'locked');return false;}
+            }catch(error){if(turn===epoch){measurement={...stages,totalMs:now()-started,result:'failed',code:/^[a-z][a-z0-9_-]{0,63}$/.test(error.code||error.message||'')?(error.code||error.message):'check_failed'};invalidate(error.message||'locked');}return false;}
         })().finally(()=>{if(pending===flight)pending=null;});
         pending=flight;pendingEpoch=turn;return flight;
     }
-    return Object.freeze({check,isAuthorized,read,invalidate});
+    return Object.freeze({check,isAuthorized,read,invalidate,diagnostics:()=>measurement?{...measurement}:null});
 }
 
 if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
@@ -118,11 +119,12 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
     panel.querySelector('[data-entry-retry]').onclick=()=>void entry.check();
     panel.querySelector('[data-entry-pro]').onclick=()=>{entry.invalidate('pro-required');void window.__soundCruiseClearGate();};
     panel.querySelector('[data-entry-connect]').onclick=()=>{
-        if(accountFrame)return;accountFrame=document.createElement('iframe');accountFrame.title='既存Accountの接続';
+        if(accountFrame)return;accountFrame=document.createElement('iframe');accountFrame.title='既存Accountの接続';accountFrame.style.visibility='hidden';
         accountFrame.onload=()=>{
             const child=accountFrame?.contentWindow;if(!child||child.location.origin!==location.origin)return;
             const style=child.document.createElement('style');style.textContent='.port-view:not(#sync-center-view){display:none!important} #sync-center-view>[data-action=home]{display:none!important}';child.document.head.append(style);
-            const center=()=>{if(child.location.hash!=='#sync-center')child.location.hash='#sync-center';};
+            const center=()=>{if(child.location.hash!=='#sync-center')child.location.hash='#sync-center';const view=child.document.getElementById('sync-center-view');if(view&&!view.hidden&&child.document.body.dataset.componentState==='ready')accountFrame.style.visibility='';};
+            const viewObserver=new child.MutationObserver(center);viewObserver.observe(child.document.body,{subtree:true,attributes:true,attributeFilter:['hidden','data-component-state']});child.addEventListener('pagehide',()=>viewObserver.disconnect(),{once:true});
             child.addEventListener('studio-port-ready',center);child.addEventListener('hashchange',center);center();
         };
         accountFrame.src='../cruise-port/pro_9a3943176561/#sync-center';panel.querySelector('[data-entry-account-frame]').append(accountFrame);

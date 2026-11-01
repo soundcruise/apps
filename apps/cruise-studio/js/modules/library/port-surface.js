@@ -68,7 +68,13 @@
         function checkRoute(child, currentFrame) {
             if (!active || frame !== currentFrame || (component && child.document.body.dataset.componentState !== 'ready')) return;
             var hash = child.location.hash;
-            if (isAllowed(hash)) { setPhase('ready', ''); scrollMyApps(child); }
+            if (isAllowed(hash)) {
+                var visible = child.document.querySelector('.port-view:not([hidden])');
+                if (!visible || (hash === '#sync-center' && visible.id !== 'sync-center-view') || (config.kind !== 'myApps' && visible.id === 'home-view')) return;
+                if (currentFrame.studioReadyMs == null) currentFrame.studioReadyMs = performance.now() - currentFrame.studioStartedAt;
+                currentFrame.style.visibility = ''; currentFrame.removeAttribute('aria-busy');
+                setPhase('ready', ''); scrollMyApps(child);
+            }
             else shell.navigate(destination(hash));
         }
         function openExternal(child, href) {
@@ -99,6 +105,7 @@
             setPhase('loading', 'Cruise Port を開いています…');
             var next = document.createElement('iframe');
             next.title = config.title;
+            next.style.visibility = 'hidden'; next.setAttribute('aria-busy', 'true'); next.studioStartedAt = performance.now();
             next.className = 'port-tuner-frame port-library-frame';
             next.referrerPolicy = 'same-origin';
             if (config.kind !== 'news') next.allow = 'microphone'; // NEWS needs no audio permission.
@@ -107,6 +114,7 @@
                 try {
                     var child = next.contentWindow;
                     CS.presentNativePort(next);
+                    child.addEventListener('pagehide', function (event) { if (event.isTrusted && frame === next) { next.style.visibility = 'hidden'; next.setAttribute('aria-busy', 'true'); next.studioStartedAt = performance.now(); } });
                     if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname) throw new Error('unexpected-port-document');
                     child.addEventListener('studio-port-ready', function () { checkRoute(child, next); });
                     child.addEventListener('studio-port-account-changed', function () { if(frame===next)setPhase('account-changed','Accountが更新されました。未保存入力は保持しています。編集を終えてから再開してください。'); });
@@ -114,7 +122,7 @@
                     child.addEventListener('popstate', function () { checkRoute(child, next); });
                     child.document.addEventListener('click', function (event) { onChildClick(child, next, event); }, true);
                     var home = child.document.getElementById('home-view');
-                    if (home) new child.MutationObserver(function () { checkRoute(child, next); }).observe(home, { attributes: true, attributeFilter: ['hidden'] });
+                    if (home) new child.MutationObserver(function () { checkRoute(child, next); }).observe(child.document.querySelector('.port-shell'), { subtree: true, attributes: true, attributeFilter: ['hidden'] });
                     checkRoute(child, next); // Native entry restores the exact requested route after boot.
                 } catch (_) {
                     stop('Port画面を開けませんでした。別タブで開いてください。');

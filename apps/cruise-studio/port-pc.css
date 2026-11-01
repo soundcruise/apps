@@ -3,3 +3,6 @@
 [data-port-sync-status] { margin-block: var(--studio-space-6, 24px); padding: var(--studio-space-6, 24px); border: 1px solid var(--studio-border-default); border-radius: 16px; background: var(--studio-surface); }
 [data-port-sync-status] h2 { margin-top: 0; }
 [data-port-sync-status] button { padding: 12px 18px; }
+
+[data-port-sync-status] details { margin-top: var(--studio-space-4,16px); }
+[data-port-sync-status] li { margin-block:8px; }

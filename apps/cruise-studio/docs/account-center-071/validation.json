@@ -1,0 +1,126 @@
+{
+  "baseMain": "71916c19e73a813086a2f425688b5667186faa49",
+  "version": "0.71.0",
+  "productionCredentialsUsed": false,
+  "productionRequests": false,
+  "mainOrPagesChanged": false,
+  "newAccountOrSavePath": false,
+  "protectedTreesUnchanged": {
+    "apps/cruise-port": "84c7dea346259d48b808ca421a5364327f577780",
+    "apps/shared": "ed13d8330234d1c7605f38038c0d6d49cca450ad",
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "workers": "585bde6d34ed6627442dc3649d1469651cc1d075"
+  },
+  "baseline": {
+    "production": false,
+    "version": "1.0.3",
+    "elapsedMs": 907,
+    "homeFlashFrames": 18,
+    "accountLabel": "確認が必要",
+    "nativeAccountState": "unknown",
+    "accountStatusRequests": 0,
+    "measured180SecondWait": false
+  },
+  "candidateTimings": {
+    "production": false,
+    "syntheticNativeBootDelayMs": 250,
+    "homeFlashFrames": 0,
+    "state": "connected",
+    "errorCode": null,
+    "timings": {
+      "readMs": 3.7000000178813934,
+      "requestMs": 3.5,
+      "totalMs": 7.200000017881393
+    },
+    "frames": [
+      {
+        "iframeReadyMs": 387.40000000596046,
+        "nativeFirstStateMs": 91.5,
+        "nativeState": "unknown"
+      }
+    ]
+  },
+  "node": {
+    "studio": {
+      "pass": 31,
+      "fail": 0
+    },
+    "portRelated": {
+      "pass": 49,
+      "fail": 0
+    }
+  },
+  "browserFinal": {
+    "pass": 14,
+    "fail": 0,
+    "skipped": 0,
+    "themes": 5,
+    "widths": [
+      1440,
+      1024,
+      768,
+      390
+    ]
+  },
+  "nativeProductRuns": [
+    {
+      "run": 1,
+      "pass": 30,
+      "fail": 0,
+      "errors": 0
+    },
+    {
+      "run": 2,
+      "pass": 30,
+      "fail": 0,
+      "errors": 0,
+      "entranceTiming": {
+        "accountReadMs": 0.30000001192092896,
+        "proValidationMs": 12.800000011920929,
+        "accountSummaryMs": 8.799999982118607,
+        "accountRecheckMs": 0.09999999403953552,
+        "totalMs": 22,
+        "result": "ready"
+      }
+    }
+  ],
+  "lastNativeRuntimeMatchesFinalExceptGuideCopy": true,
+  "publishedStudioFiles": 34,
+  "nativeJekyllBytesMatch": 774,
+  "productionThreeOrFiveMinuteCauseConfirmed": false,
+  "sameProfileCrossAccountDatasetAdoptionAccepted": false,
+  "newProfileNativeJoinCoveredByNativeProductSuite": true,
+  "unaccepted": [
+    "real Account/Pro",
+    "actual Production delay trace",
+    "real phone-to-PC same-Account Sync",
+    "Safari and real microphone"
+  ],
+  "screenshots": [
+    "midnight-1440.png",
+    "charcoal-768.png",
+    "account-existing-pc.png",
+    "midnight-1024.png",
+    "charcoal-390.png",
+    "light-1440.png",
+    "dark-390.png",
+    "gray-1024.png",
+    "charcoal-1024.png",
+    "gray-768.png",
+    "dark-1024.png",
+    "dark-768.png",
+    "gray-390.png",
+    "midnight-390.png",
+    "light-1024.png",
+    "midnight-768.png",
+    "light-390.png",
+    "gray-1440.png",
+    "charcoal-1440.png",
+    "dark-1440.png",
+    "light-768.png"
+  ],
+  "existingWorktreeHeadsUnchanged": 106
+}
