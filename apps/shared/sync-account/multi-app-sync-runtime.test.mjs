@@ -1,7 +1,7 @@
 import { createWriterWireContext, AUTHORITY_ERROR_CODES } from './writer-authority.mjs';
 import { createFixtureLocks as fixtureLocks } from './test-fixtures/web-locks.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.27.0';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.28.0';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -352,9 +352,12 @@ test('confirmed Port deletion cleans its intent only after response-loss recover
   fixture.storage.setItem(key, JSON.stringify({ version: 1, items: [] }));
   fixture.storage.setItem('cruisePort.syncDeletionIntent.v1', JSON.stringify({ 'metronome_preset/preset-a': true }));
   fixture.server.responseLossAfterApply = true;
-  await assert.rejects(fixture.runtime.sync('delete'), (error) => error.code === 'network_error');
+  await assert.rejects(fixture.runtime.sync('delete'), (error) => error.code === 'push_outcome_unknown');
   assert.equal(JSON.parse(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'))['metronome_preset/preset-a'], true);
   fixture.runtime.now = () => Date.now() + 500000;
+  assert.equal((await fixture.runtime.sync('automatic')).code,'push_outcome_unknown');
+  assert((await fixture.store.listOutbox()).some(o=>o.outcome==='UNKNOWN'));
+  assert((await fixture.runtime.reconcileUnknown()).resolved>0);
   await fixture.runtime.sync('retry-delete');
   assert.equal(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'), null);
   assert.ok(fixture.server.records.get('metronome_preset/preset-a').deletedAt);
@@ -374,10 +377,13 @@ test('real Port interrupted migration sends only an explicit deletion and comple
   assert.equal(deleteMetronomePreset({ presets: loaded.presets, id: 'delete', storage: fixture.storage }).ok, true);
   assert.equal(JSON.parse(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'))['metronome_preset/delete'], true);
   fixture.server.responseLossAfterApply = true;
-  await assert.rejects(fixture.runtime.initializeDataset(), (error) => error.code === 'network_error');
+  await assert.rejects(fixture.runtime.initializeDataset(), (error) => error.code === 'push_outcome_unknown');
   assert.equal(JSON.parse(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'))['metronome_preset/delete'], true);
   assert.ok(fixture.server.records.get('metronome_preset/delete').deletedAt);
   assert.equal(fixture.server.records.get('metronome_preset/keep').deletedAt, null);
+  assert.equal((await fixture.runtime.initializeDataset()).code, 'push_outcome_unknown');
+  assert((await fixture.store.listOutbox()).some(o=>o.outcome==='UNKNOWN'));
+  assert((await fixture.runtime.reconcileUnknown()).resolved>0);
   assert.equal((await fixture.runtime.initializeDataset()).ok, true);
   assert.equal(fixture.server.state, 'ready');
   assert.equal(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'), null);
@@ -3323,9 +3329,11 @@ test('one device: response loss after an applied push retries without a conflict
   const fixture = await tunerFixture();
   fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 6 }));
   fixture.server.responseLossAfterApply = true;
-  await assert.rejects(fixture.runtime.sync('save'), (error) => error.code === 'network_error');
+  await assert.rejects(fixture.runtime.sync('save'), (error) => error.code === 'push_outcome_unknown');
   fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 7 }));
   fixture.runtime.now = () => Date.now() + 500000;
+  assert.equal((await fixture.runtime.sync('automatic')).code,'push_outcome_unknown');
+  assert((await fixture.runtime.reconcileUnknown()).resolved>0);
   const retry = await fixture.runtime.sync('retry');
   assert.equal(retry.ok, true, JSON.stringify(retry));
   const after = await fixture.runtime.sync('save');
@@ -3535,11 +3543,14 @@ test('coordinated Port repository survives actual runtime delete response loss a
   assert.equal((await deleteMetronomePreset({ presets: loaded.presets, id: preset.id, storage: fixture.storage })).ok, true);
   const journalKey = 'cruisePort.syncDeletionIntent.v1';
   const generation = JSON.parse(fixture.storage.getItem(journalKey))['metronome_preset/preset-core'].generation;
-  assert.equal(typeof generation, 'string', 'fixture must use the same coordinated module as production writers');
+  assert.equal(typeof generation, 'string');
   fixture.server.responseLossAfterApply = true;
-  await assert.rejects(fixture.runtime.sync('delete-core'), error => error.code === 'network_error');
+  await assert.rejects(fixture.runtime.sync('delete-core'), error => error.code === 'push_outcome_unknown');
   assert.equal(JSON.parse(fixture.storage.getItem(journalKey))['metronome_preset/preset-core'].generation, generation);
   fixture.runtime.now = () => Date.now() + 500000;
+  assert.equal((await fixture.runtime.sync('automatic')).code,'push_outcome_unknown');
+  assert((await fixture.store.listOutbox()).some(o=>o.outcome==='UNKNOWN'));
+  assert((await fixture.runtime.reconcileUnknown()).resolved>0);
   await fixture.runtime.sync('retry-core');
   assert.equal(JSON.parse(fixture.storage.getItem(journalKey) || '{}')['metronome_preset/preset-core'], undefined);
   assert.ok(fixture.server.records.get('metronome_preset/preset-core').deletedAt);
@@ -3585,7 +3596,7 @@ test('conflict/bulk push path shares byte chunking and rejects malformed partial
   const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');const ops=Array.from({length:51},(_,i)=>({operationId:'bulk-'+i,payload:{text:'a'.repeat(7000)}}));const bodies=[];
   fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'duplicate'}))});};
   assert.equal((await fixture.runtime.pushRequest({appId:'port',mode:'sync',operations:ops})).results.length,51);assert.ok(bodies.every(body=>JSON.parse(body).operations.length<=50&&new TextEncoder().encode(body).byteLength<=256*1024));
-  fixture.runtime.fetchImpl=async()=>Response.json({ok:true,results:[]});await assert.rejects(fixture.runtime.pushRequest({operations:[ops[0]]}),e=>e.code==='invalid_response');fixture.runtime.dispose();
+  fixture.runtime.fetchImpl=async()=>Response.json({ok:true,results:[]});await assert.rejects(fixture.runtime.pushRequest({operations:[ops[0]]}),e=>e.code==='push_outcome_unknown');assert((await fixture.store.listOutbox()).some(o=>o.outcome==='UNKNOWN'));fixture.runtime.dispose();
 });
 
 for(const phase of ['pull','push','credential','bootstrap','conflict']) test(`dispose fences late ${phase}, aborts and prevents all further effects`,async()=>{
@@ -3717,8 +3728,8 @@ test('B1-1 response loss preserves protocol context and operationId',async()=>{
   f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:1});
   const op=await f.runtime.operationFor(record('retry'),0);await f.store.putOutbox({...op,migration:false});
   const bodies=[];f.runtime.fetchImpl=async(u,o)=>{bodies.push(JSON.parse(o.body));if(bodies.length===1)throw Error('lost');return Response.json({ok:true,results:[{operationId:op.operationId,status:'duplicate'}]});};
-  await assert.rejects(f.runtime.flushOutbox(),e=>e.code==='network_error');
-  await f.runtime.flushOutbox({force:true});assert.deepEqual(bodies[0],bodies[1]);assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
+  await assert.rejects(f.runtime.flushOutbox(),e=>e.code==='push_outcome_unknown');
+  await f.runtime.flushOutbox({force:true});assert.equal(bodies.length,1);assert.equal((await f.store.listOutbox())[0].outcome,'UNKNOWN');f.runtime.serverSnapshot=async()=>({records:[{...op,operationId:op.operationId,revision:1,deletedAt:null}],cursor:null});assert.equal((await f.runtime.reconcileUnknown()).resolved,1);assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
 });
 for (const count of [49, 50, 51]) test(`authority push wire chunks respect count boundary ${count}`, async () => {
   const fixture = runtimeFixture([], 'port', 'production');
@@ -3774,3 +3785,30 @@ test('B1-2 scoped protocol context rejects different Account/authority, includin
 for(const [code,status] of [['writer_protocol_required','needs-upgrade'],['dataset_epoch_stale','stale-epoch'],['dataset_authority_unavailable','blocked-authority']])test('B1-2 blocked authority outbox preserves fields and is not auto-ACKed: '+code,async()=>{const f=runtimeFixture([record('kept')],'port','production');await f.store.setMeta('credential','scd1.valid');f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:7});const op=await f.runtime.operationFor(record('kept'),0);await f.store.putOutbox({...op,migration:false});f.runtime.fetchImpl=async()=>Response.json({ok:false,code},{status:code==='dataset_authority_unavailable'?503:409});await assert.rejects(f.runtime.flushOutbox(),e=>e.code===code);const pending=(await f.store.listOutbox())[0];assert.equal(pending.authorityStatus,status);assert.equal(pending.writerAuthority.expectedWriteEpoch,7);assert.equal(pending.writerAuthority.writerProtocol,2);assert.equal(pending.operationId,op.operationId);await f.runtime.acknowledgeOwnEchoes([{...op,revision:1}]);assert.equal((await f.store.listOutbox()).length,1);assert.equal(f.runtime.adapter.records.length,1);assert.equal(f.runtime.retryTimer,null);f.runtime.dispose();});
 
 test('B1-2 generic conflict cleanup cannot discard protocol blocked/legacy outbox',async()=>{const f=runtimeFixture([],'port','production');const op=await f.runtime.operationFor(record('held'),0);await f.store.putOutbox({...op,migration:false});f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:7});await f.runtime.clearConflictOutbox('custom_record/held');assert.equal((await f.store.listOutbox()).length,1);f.runtime.authorityFailure='dataset_epoch_stale';const before=structuredClone(f.runtime.adapter.records);await assert.rejects(f.runtime.performSync('blocked'),e=>e.code==='dataset_epoch_stale');assert.deepEqual(f.runtime.adapter.records,before);assert.equal((await f.store.listOutbox()).length,1);f.runtime.dispose();});
+
+test('Port UNKNOWN blocks a fresh-ID direct push and conflict cleanup until explicit readback',async()=>{
+ const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');await f.store.putOutbox({operationId:'unknown-old',recordType:'x',recordId:'x',outcome:'UNKNOWN'});let calls=0;f.runtime.fetchImpl=async()=>{calls++;throw Error('forbidden automatic wire');};
+ await assert.rejects(f.runtime.pushRequest({appId:'port',mode:'sync',operations:[{operationId:'new-id',recordType:'x',recordId:'x'}]}),e=>e.code==='push_outcome_unknown');await f.runtime.clearConflictOutbox('x/x');assert.equal((await f.store.listOutbox()).length,1);assert.equal((await f.runtime.resolveConflict('not-needed','remote')).code,'push_outcome_unknown');assert.equal(calls,0);
+ f.runtime.serverSnapshot=async()=>({records:[],cursor:null});f.runtime.request=async()=>({changes:[],hasMore:false});assert.equal((await f.runtime.reconcileUnknown()).unknown,1);assert.equal((await f.store.listOutbox()).length,1);f.runtime.dispose();
+});
+test('direct Port delete ACK loss retains deletion generation and reconciles only exact tombstone',async()=>{
+ const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');f.runtime.adapter.deleteIntentGeneration=()=> 'generation-direct-delete';let ack;f.runtime.adapter.acknowledgeDelete=(key,generation)=>{ack={key,generation};};const op={operationId:'direct-delete',recordType:'x',recordId:'gone',payload:null,payloadHash:'hash-delete',deleted:true,baseRevision:1,schemaVersion:1};
+ f.runtime.fetchImpl=async()=>{throw Error('lost after commit');};await assert.rejects(f.runtime.pushRequest({appId:'port',mode:'sync',operations:[op]}),e=>e.code==='push_outcome_unknown');assert.equal((await f.store.listOutbox())[0].deleteIntentGeneration,'generation-direct-delete');
+ f.runtime.serverSnapshot=async()=>({records:[{...op,operationId:'different',deletedAt:1}],cursor:null});f.runtime.request=async()=>({changes:[],hasMore:false});assert.equal((await f.runtime.reconcileUnknown()).unknown,1);assert.equal(ack,undefined);
+ f.runtime.serverSnapshot=async()=>({records:[{...op,deletedAt:1}],cursor:null});assert.equal((await f.runtime.reconcileUnknown()).resolved,1);assert.deepEqual(ack,{key:'x/gone',generation:'generation-direct-delete'});assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
+});
+
+test('Port explicit history readback preserves a newer remote head and never resends UNKNOWN',async()=>{
+ const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');const op=await f.runtime.operationFor(record('history-kept'),0);await f.store.putOutbox({...op,outcome:'UNKNOWN',readbackCursor:'before-send'});const committed={...op,revision:1,deletedAt:null},newHead={...committed,operationId:'other-device',revision:2,payloadHash:'newer-hash'};f.runtime.serverSnapshot=async()=>({records:[newHead]});let requests=0;f.runtime.request=async(method,path)=>{assert.equal(method,'GET');assert.match(path,/cursor=before-send/);requests++;return{changes:[committed,newHead],hasMore:false};};const r=await f.runtime.reconcileUnknown();assert.equal(r.historical,1);assert.equal(requests,1);assert.equal((await f.store.getShadow('custom_record/history-kept')).revision,1);assert.equal((await f.store.listOutbox()).length,0);assert.equal(newHead.revision,2);f.runtime.dispose();
+});
+test('Port expired or bounded history keeps UNKNOWN and its payload intact',async()=>{
+ for(const expired of [true,false]){const f=runtimeFixture([],'port','production');const op=await f.runtime.operationFor(record('history-pending'),0);await f.store.putOutbox({...op,outcome:'UNKNOWN'});f.runtime.serverSnapshot=async()=>({records:[]});let calls=0;f.runtime.request=async()=>{calls++;if(expired)throw Object.assign(Error('expired'),{code:'cursor_expired'});return{changes:[],hasMore:true,nextCursor:'cursor-'+calls};};assert.equal((await f.runtime.reconcileUnknown()).unknown,1);assert.equal(calls,expired?1:10);assert.equal((await f.store.listOutbox())[0].payloadHash,op.payloadHash);f.runtime.dispose();}
+});
+
+test('direct Port delete normal ACK uses the same captured intent generation as lost-ACK readback',async()=>{
+ const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');let generation='before-dispatch',ack;f.runtime.adapter.deleteIntentGeneration=()=>generation;f.runtime.adapter.acknowledgeDelete=(key,g)=>{ack={key,g};};const op={operationId:'direct-normal-delete',recordType:'x',recordId:'gone',payload:null,payloadHash:'deleted',deleted:true,baseRevision:1,schemaVersion:1};f.runtime.fetchImpl=async()=>{generation='newer-intent';return Response.json({ok:true,results:[{operationId:op.operationId,status:'applied'}]});};await f.runtime.pushRequest({appId:'port',mode:'sync',operations:[op]});assert.deepEqual(ack,{key:'x/gone',g:'before-dispatch'});assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
+});
+
+test('save error after qualification invalidation does not publish through a retired runtime or leave an unhandled rejection',async()=>{
+ const f=runtimeFixture([],'port','production');let current=true,states=0;f.runtime.assertCurrent=()=>{if(!current)throw Error('pro_required');};f.runtime.sync=async()=>{current=false;throw Error('pro_required');};f.runtime.setState=()=>{states++;throw Error('must not publish after invalidation');};f.runtime.notifyLocalSave();await new Promise(r=>setImmediate(r));assert.equal(states,0);f.runtime.dispose();
+});

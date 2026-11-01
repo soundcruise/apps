@@ -7,8 +7,8 @@ import { releasedBoundaryViolations } from '../scripts/git-safety.mjs';
 import {
     getComponentMetadata, getAppVersion, listComponents,
     getFeatureMetadata, listFeatures
-} from '../js/core/feature-registry.mjs?v=0.69.0';
-import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=0.69.0';
+} from '../js/core/feature-registry.mjs?v=0.69.1';
+import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=0.69.1';
 
 const root = new URL('../../../', import.meta.url);
 const readSource = path => readFileSync(new URL(path, root), 'utf8');
@@ -92,7 +92,7 @@ test('all version projections and the imported Port value equal current source t
         });
     }
     assert.equal(getComponentMetadata('cruise-port').versionSource.type, 'esm-import');
-    assert.equal(getAppVersion('cruise-studio'), '0.69.0');
+    assert.equal(getAppVersion('cruise-studio'), '0.69.1');
 });
 
 test('Studio Port version import uses the current owner cache key without deriving appVersion from it', () => {
@@ -349,8 +349,8 @@ test('unknown and prototype-like IDs are safe and return null', () => {
 });
 
 test('fresh import uses no DOM, storage, permission, audio, network or timers; adds no globals', () => {
-    const url = new URL('../js/core/feature-registry.mjs?v=0.69.0', import.meta.url).href;
-    const reader = new URL('../js/core/version-reader.mjs?v=0.69.0', import.meta.url).href;
+    const url = new URL('../js/core/feature-registry.mjs?v=0.69.1', import.meta.url).href;
+    const reader = new URL('../js/core/version-reader.mjs?v=0.69.1', import.meta.url).href;
     execFileSync(process.execPath, ['--input-type=module', '-e', `
         import assert from 'node:assert/strict';
         for (const key of ['window', 'document', 'localStorage', 'sessionStorage', 'navigator',

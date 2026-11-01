@@ -93,6 +93,16 @@ export function createD1SyncRepository(db, clock = Date.now) {
 
   async function applyOperation(identity, requested, options = {}) {
     let operation = requested;
+    const proof = identity.appId === 'port' ? identity.proProof : null;
+    // Conservative SQL clock rounds up one second; it never extends an expired lease.
+    const sqlNow = "(CAST(strftime('%s','now') AS INTEGER) * 1000 + 1000)";
+    const proSql = proof ? ` AND EXISTS (SELECT 1 FROM pro_credentials p JOIN pro_auth_state s ON s.singleton_id=1
+      WHERE p.id=? AND p.verifier=? AND p.generation=? AND p.generation=s.generation
+      AND p.scope='global_pro' AND p.revoked_at IS NULL
+      AND CASE WHEN p.device_public_key IS NOT NULL THEN p.last_validated_at + 7776000000 > ${sqlNow} AND p.lease_expires_at > ${sqlNow}
+        ELSE max(p.created_at,s.session_lifecycle_started_at) + 7776000000 > ${sqlNow} AND s.unbound_backend_until > ${sqlNow} END)` : '';
+    const proValues = proof ? [proof.id, proof.verifier, proof.generation] : [];
+
     const existing = await getChangeByOperation(identity.userId, identity.appId, operation.operationId);
     if (existing) {
       return existing.operationHash === operation.operationHash
@@ -121,6 +131,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
         WHERE d.id = ? AND d.user_id = ? AND d.app_id = ?
           AND d.revoked_at IS NULL AND u.state IN ('provisioning', 'active')
       )
+      ${proSql}
       ON CONFLICT(user_id, app_id, record_type, record_id) DO UPDATE SET
         payload_json = excluded.payload_json,
         payload_hash = excluded.payload_hash,
@@ -137,13 +148,13 @@ export function createD1SyncRepository(db, clock = Date.now) {
           JOIN sync_users u ON u.id = d.user_id
           WHERE d.id = ? AND d.user_id = ? AND d.app_id = ?
             AND d.revoked_at IS NULL AND u.state IN ('provisioning', 'active')
-        )
+        ) ${proSql}
     `).bind(
       identity.userId, identity.appId, operation.recordType, operation.recordId,
       payloadJson, operation.payloadHash, now, deletedAt, identity.deviceId,
       operation.operationId, operation.schemaVersion,
-      identity.deviceId, identity.userId, identity.appId,
-      operation.baseRevision, identity.deviceId, identity.userId, identity.appId
+      identity.deviceId, identity.userId, identity.appId, ...proValues,
+      operation.baseRevision, identity.deviceId, identity.userId, identity.appId, ...proValues
     );
     const insertChange = db.prepare(`
       INSERT INTO sync_changes (
@@ -194,6 +205,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
         ? { status: 'applied', record: applied }
         : { status: 'invalid', code: 'operation_id_reused' };
     }
+    if (proof && !await db.prepare(`SELECT 1 WHERE 1=1 ${proSql}`).bind(...proValues).first()) return { status: 'forbidden', code: 'pro_reauth_required' };
     const stillAuthorized = await db.prepare(`
       SELECT 1 AS allowed FROM sync_devices d
       JOIN sync_users u ON u.id = d.user_id

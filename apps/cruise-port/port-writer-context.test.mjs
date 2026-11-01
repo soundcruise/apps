@@ -28,7 +28,7 @@ test('failed local commit is not retried automatically',{skip:!newIDB && 'Dedica
 test('read before Account observation cannot acquire authority retrospectively',async()=>{const r={...root(),SoundCruiseSyncAccount:{storage:{getAccount:async()=>null}}},c=createPortWriterContext({root:r,storage:values()}),token=c.captureRead();await tick();assert.throws(()=>c.assertRead(token),/read-admission-required/);c.assertRead(c.captureRead());});
 
 test('first and repeated store saves retain the validated read admission',async()=>{
- const {registerPortRepository,readPortStore,writePortStore}=await import('./port-dataset-storage.js?v=1.27.0');
+ const {registerPortRepository,readPortStore,writePortStore}=await import('./port-dataset-storage.js?v=1.28.0');
  const storage=values(),c=createPortWriterContext({root:root(),storage}),r=repo(c,storage),key='cruisePort.gearList';
  registerPortRepository(storage,r);readPortStore(storage,view=>view.getItem(key));
  for(let n=0;n<3;n++) {const result=await writePortStore(storage,[key],draft=>{draft.setItem(key,JSON.stringify({version:5,items:[{id:'item',name:'edit-'+n}]}));return{ok:true};});assert.equal(result.ok,true,result.reason);}
@@ -40,4 +40,16 @@ test('Project-only identity remains quarantined even with a valid shared Account
  const r={...root(),indexedDB:{open(){assert.fail('Owner-less Project must not open a publication transaction');}},SoundCruiseSyncAccount:{storage:account},parent:{[Symbol.for('sound-cruise.port-writer-context.v1')]:{hasIdentity:()=>true}}};
  const c=createPortWriterContext({root:r,storage:s});await c.initialized;
  const result=await write(repo(c,s));assert.equal(result.reason,'port-owner-admission-required');assert.equal(s.m.size,0);
+});
+
+test('native Account attribution admits only matching Pro and explicitly bound local dataset', {skip:!newIDB},async()=>{
+ const name='owner-'+crypto.randomUUID(),db=await database(name),a={accountId:'A',accountCredential:'sca1.device.synthetic'};await put(db,a);let generation=1;
+ const s=values(),auth={credential:'synthetic-pro',generation:1};s.setItem('soundCruiseProAuth',JSON.stringify(auth));
+ const source={read:()=>({auth,revoked:false})},r={...root(),indexedDB:newIDB,parent:{[Symbol.for('sound-cruise.port-writer-context.v1')]:{hasIdentity:()=>true}},SoundCruiseProOperationSource:source,SoundCruiseSyncAccount:{storage:{DATABASE_NAME:name,getGeneration:()=>generation,getAccount:async()=>a}}};
+ const c=createPortWriterContext({root:r,storage:s});await c.initialized;c.assertCurrent();assert.throws(()=>c.assertLocalAccount(),/admission-required/);
+ s.setItem('cruisePort.syncLocalAccount.v1',JSON.stringify({version:1,mode:'sync',accountId:'B'}));assert.throws(()=>c.assertLocalAccount(),/admission-required/);
+ s.setItem('cruisePort.syncLocalAccount.v1',JSON.stringify({version:1,mode:'sync',accountId:'A'}));assert.equal((await write(repo(c,s))).ok,true);
+ source.read=()=>({auth:{...auth,credential:'other'},revoked:false});assert.throws(()=>c.assertCurrent(),/admission-required/);
+ source.read=()=>({auth,revoked:true});assert.throws(()=>c.assertCurrent(),/admission-required/);
+ generation++;assert.throws(()=>c.assertCurrent(),/context-changed/);db.close();
 });

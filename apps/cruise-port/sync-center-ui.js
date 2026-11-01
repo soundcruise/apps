@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.27.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.28.0';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.24.23';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
@@ -479,6 +479,8 @@ function renderPortStatus(root, presentation) {
     }
     const conflictsOpen = root.querySelector('#sync-center-port-conflicts-open');
     if (conflictsOpen) conflictsOpen.hidden = !shouldShowPortConflictAction(presentation);
+    const reconcile = root.querySelector('#sync-center-port-reconcile');
+    if (reconcile) reconcile.hidden = !presentation.portUnknownCount;
     const legacyRetry = root.querySelector('#sync-center-port-legacy-retry');
     if (legacyRetry) legacyRetry.hidden = !presentation.legacyRetryCount;
 }
