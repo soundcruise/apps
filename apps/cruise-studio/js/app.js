@@ -16,6 +16,8 @@
     try { projectStorage = window.localStorage; } catch (_) { /* repository reports unavailable storage */ }
         CS.model.configureSchema2();
     CS.repository = CS.projectRepository.createRepository({ storage: projectStorage, model: model,
+        authorizeWrite: function () { return CS.entryAuth ? CS.entryAuth.check() : false; },
+        canWrite: function () { return CS.entryAuth ? CS.entryAuth.isAuthorized() : false; },
         snapshot: CS.editing.snapshot, locks: navigator.locks, events: window,
         now: function () { return new Date().toISOString(); },
         knownTargets: function () { return CS.sessions ? CS.sessions.listSessions().map(function (session) { return session.target; }) : []; }

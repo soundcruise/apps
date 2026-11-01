@@ -1,6 +1,6 @@
 import { getKnownApp } from '../../../cruise-port/my-apps-known-apps.js?v=1.3.0';
 import { getMyAppsIconPreset } from '../../../cruise-port/my-apps-icon-presets.js?v=1.0.3';
-import { projectPractice, freezePractice } from './practice-projection.mjs?v=0.69.3';
+import { projectPractice, freezePractice } from './practice-projection.mjs?v=0.70.0';
 // Closed catalog slice; no binary stores, loaders, writers or credentials. Launch data remains readonly.
 export const LIBRARY_KEYS = Object.freeze(['gearList', 'gearCategories', 'myApps', 'practiceMenus', 'practiceHistory', 'syncAssetMetadata', 'schemaVersion'].map(x => 'cruisePort.' + x));
 export const GEAR_STATUSES = Object.freeze([{ id: 'owned', name: '自分の機材' }, { id: 'sold', name: '手放した機材' }, { id: 'wishlist', name: 'ほしい機材' }].map(Object.freeze));

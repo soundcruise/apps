@@ -1,0 +1,7 @@
+html[data-studio-entry=locked] #studio-shell { pointer-events: none; }
+#studio-entry-account[hidden] { display: none; }
+#studio-entry-account { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; overflow: auto; padding: 24px; background: var(--bg, #090806); color: var(--text, #eee); }
+#studio-entry-account > div { width: min(100%, 680px); }
+#studio-entry-account button { padding: 12px 18px; margin-block: 12px; }
+#studio-entry-account iframe { width: 100%; height: min(650px, 65dvh); border: 1px solid var(--border, #777); border-radius: 12px; }
+[data-entry-owner-hold] { padding: 12px; border: 1px solid var(--border, #777); }

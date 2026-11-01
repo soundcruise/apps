@@ -17,18 +17,27 @@ window.SoundCruiseProOperationSource=Object.freeze({read:()=>({auth:{credential:
 window.__soundCruiseRequireProBackendAuth=async()=>{};
 window.__soundCruiseEnsureProSession=async()=>true;
 """
+ENTRY = b"""// TEST ONLY, served exclusively by loopback fixture, never referenced by product.
+const cs=globalThis.CruiseStudio;cs.entryAuth=Object.freeze({check:async()=>true,isAuthorized:()=>true,read:()=>({phase:'ready',accountId:'synthetic-fixture'})});
+document.documentElement.dataset.studioEntry='ready';document.getElementById('studio-shell').inert=false;
+"""
 class Handler(SimpleHTTPRequestHandler):
+    synthetic = True
     def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(ROOT),**kwargs)
     def end_headers(self):
         self.send_header('Content-Security-Policy', "connect-src 'self'; form-action 'self'; object-src 'none'")
         super().end_headers()
     def do_GET(self):
+        if not self.synthetic:
+            super().do_GET(); return
+        if self.path.split('?')[0] == '/apps/cruise-studio/js/core/studio-entry.mjs':
+            self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(ENTRY); return
         if self.path.split('?')[0] == '/apps/shared/pro-gate.js':
             self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(GATE); return
         if self.path.split('?')[0] == '/apps/cruise-studio/js/core/port-pro-boundary.mjs':
             self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(BOUNDARY); return
         super().do_GET()
 if __name__ == '__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18781);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18781);parser.add_argument('--native-entry',action='store_true');args=parser.parse_args();Handler.synthetic=not args.native_entry
     print('SYNTHETIC TEST ENVIRONMENT ONLY. Do not enter real Account or Pro credentials.',flush=True)
     ThreadingHTTPServer(('127.0.0.1',args.port),Handler).serve_forever()

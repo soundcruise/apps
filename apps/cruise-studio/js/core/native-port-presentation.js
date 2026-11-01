@@ -3,6 +3,7 @@
     'use strict';
     var CS = root.CruiseStudio;
     CS.stopNativePort = function (frame) {
+        frame.contentWindow?.studioEntryStopMedia?.();
         var tool = frame.contentWindow?.CruiseStudioPortTool;
         // Native pagehide intentionally leaves standalone Port's timer running.
         // A Studio tool pauses through its existing control before losing ownership.
@@ -13,6 +14,22 @@
         var child = frame.contentWindow;
         if (child.location.origin !== location.origin || !child.document.head) return;
         var doc = child.document;
+        // A permission prompt may finish after the entrance has locked. Retain
+        // the form/document, but never let that old microphone request revive.
+        if (!child.studioEntryStopMedia && child.navigator.mediaDevices?.getUserMedia) {
+            var streams = new Set(), getMedia = child.navigator.mediaDevices.getUserMedia.bind(child.navigator.mediaDevices);
+            child.studioEntryStopMedia = function () { streams.forEach(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); }); streams.clear(); };
+            child.navigator.mediaDevices.getUserMedia = async function (options) {
+                var entry = CS.entryAuth, revision = entry?.read().revision;
+                if (!entry?.isAuthorized() || frame.inert || !frame.isConnected) throw new DOMException('Studio is locked', 'AbortError');
+                var stream = await getMedia(options);
+                if (!entry.isAuthorized() || entry.read().revision !== revision || frame.inert || !frame.isConnected) {
+                    stream.getTracks().forEach(function (t) { t.stop(); });
+                    throw new DOMException('Studio qualification changed', 'AbortError');
+                }
+                streams.add(stream); return stream;
+            };
+        }
         if (!doc.getElementById('studio-native-port-chrome')) {
             var style = doc.createElement('style');
             style.id = 'studio-native-port-chrome';

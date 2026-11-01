@@ -1,5 +1,5 @@
-/* Shared Port component owner; production is deliberately closed until writer admission exists. */
-import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.69.3';
+/* Shared Port component owner; the native entrance grants Pro access, never writer admission. */
+import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.70.0';
 
 const boundary = createPortProBoundary();
 const allowed = new Set(['tuner', 'metronome']);
