@@ -33,3 +33,7 @@ html[data-studio-theme] body{background:var(--studio-app-bg);color:var(--studio-
  :root[data-studio-layout=center][data-studio-app=chord] #cc-explore-home-btn{max-width:560px;margin-inline:auto}
  :root[data-studio-layout=center][data-studio-app=chord] .cc-save-section{max-width:560px;margin-inline:auto;width:100%}
 }
+
+@media(min-width:700px){
+ :root[data-studio-layout=center][data-studio-app=chord] #cc-fretboard-host .cc-fb-stage{margin-inline:auto}
+}
