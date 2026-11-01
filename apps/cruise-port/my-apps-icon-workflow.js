@@ -3,11 +3,11 @@ import {
     deleteMyApp,
     saveMyApps,
     updateMyApp
-} from './my-apps-store.js?v=1.24.23';
+} from './my-apps-store.js?v=1.24.24';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.23';
-import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.24.23';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.24.24';
 
 async function deleteIconBestEffort(iconStore, iconId) {
     if (!iconId || !iconStore?.deleteIcon) return;
@@ -37,6 +37,7 @@ export async function createMyAppEntry({
     iconCrop = null,
     iconPresetKey = null,
     storage,
+    writeOptions = {},
     iconStore,
     now = new Date(),
     appIdFactory,
@@ -84,7 +85,7 @@ export async function createMyAppEntry({
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'creation-blocked' };
     }
-    const saveResult = (await saveMyApps(nextItems, storage));
+    const saveResult = (await saveMyApps(nextItems, storage, writeOptions));
     if (!saveResult.ok) {
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'metadata-write-failed' };
@@ -103,6 +104,7 @@ export async function updateMyAppEntry({
     iconPresetKey = null,
     useCurrentIconAsSource = false,
     storage,
+    writeOptions = {},
     iconStore,
     now = new Date(),
     iconIdFactory,
@@ -180,7 +182,7 @@ export async function updateMyAppEntry({
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'pro-required' };
     }
-    const saveResult = (await saveMyApps(nextItems, storage));
+    const saveResult = (await saveMyApps(nextItems, storage, writeOptions));
     if (!saveResult.ok) {
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'metadata-write-failed' };
@@ -191,11 +193,11 @@ export async function updateMyAppEntry({
     return { ok: true, items: nextItems };
 }
 
-export async function deleteMyAppEntry({ items, id, storage, iconStore }) {
+export async function deleteMyAppEntry({ items, id, storage, iconStore, writeOptions = {} }) {
     const currentItem = items.find((item) => item.id === id) || null;
     if (!currentItem) return { ok: false, reason: 'not-found' };
     const deleteResult = deleteMyApp(items, id);
-    const saveResult = (await saveMyApps(deleteResult.items, storage));
+    const saveResult = (await saveMyApps(deleteResult.items, storage, writeOptions));
     if (!saveResult.ok) return { ok: false, reason: 'metadata-write-failed' };
     await deleteIconsBestEffort(iconStore, [currentItem.iconId, currentItem.iconSourceId]);
     return { ok: true, items: deleteResult.items };

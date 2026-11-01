@@ -6,14 +6,14 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.24.23';
+import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.24.24';
 import './feature-help.js?v=1.21.2';
-import { bindSyncProLock } from './sync-pro-lock.js?v=1.24.23';
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.24.24';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.24.23';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.24.23';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.23';
-import { requestToolPro } from './tool-capabilities.js?v=1.24.23';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.24.24';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.24.24';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { requestToolPro } from './tool-capabilities.js?v=1.24.24';
 import {
     LIMITS,
     createPracticeMenu,
@@ -23,7 +23,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=1.24.23';
+} from './practice-menu-store.js?v=1.24.24';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
@@ -37,12 +37,12 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=1.24.20';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.23';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.24';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.23.1';
-import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.23';
-import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.23';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
+import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
 import { createPortSyncStatus } from './port-sync-status.js?v=1.23.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.23';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.24';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
@@ -61,7 +61,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=1.24.23';
+} from './practice-menu-progress-store.js?v=1.24.24';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -81,7 +81,7 @@ import {
     savePracticeHistory,
     toLocalDateKey,
     updatePracticeHistoryRecord
-} from './practice-menu-history-store.js?v=1.24.23';
+} from './practice-menu-history-store.js?v=1.24.24';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -96,7 +96,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=1.24.23';
+} from './practice-menu-calendar-store.js?v=1.24.24';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -113,12 +113,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=1.24.23';
+} from './practice-menu-attachment-store.js?v=1.24.24';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=1.24.23';
+} from './practice-menu-pending-attachments.js?v=1.24.24';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -129,7 +129,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.24.23';
+} from './practice-menu-app-resolver.js?v=1.24.24';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -144,7 +144,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=1.24.23';
+} from './my-apps-store.js?v=1.24.24';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -165,7 +165,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.24.23';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.24.24';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -183,22 +183,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=1.24.23';
+} from './my-apps-icon-workflow.js?v=1.24.24';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=1.24.23';
+import { initMetronome } from './metronome-app.js?v=1.24.24';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.24.23';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.23';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.23';
-import { initTuner } from './tuner-app.js?v=1.24.23';
+} from './app-version.js?v=1.24.24';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
+import { initTuner } from './tuner-app.js?v=1.24.24';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -216,7 +216,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=1.24.23';
+} from './gear-list-store.js?v=1.24.24';
 import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.59.3';
 import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.59.3';
 import { createGearListPng } from './gear-list-image-export.js?v=0.59.3';
@@ -228,10 +228,10 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=1.24.23';
-import { createGearPhotoStore } from './gear-photo-store.js?v=1.24.23';
-import { PortAssetSync } from './port-asset-sync.js?v=1.24.23';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.24.23';
+} from './gear-category-store.js?v=1.24.24';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.24.24';
+import { PortAssetSync } from './port-asset-sync.js?v=1.24.24';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.24.24';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
     addPracticeMenuToSets,
@@ -246,7 +246,7 @@ import {
     reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.24.23';
+} from './practice-menu-sets-store.js?v=1.24.24';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -255,7 +255,7 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=1.24.23';
+} from './gear-photo-workflow.js?v=1.24.24';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -2004,6 +2004,7 @@ function renderMyAppsForm(mode, id = null) {
         renderMyAppsNotFound();
         return;
     }
+    myAppsState.accountContext = window.SoundCruisePortSync.portRepository().captureAccountContext();
     myAppsState.formMode = mode;
     myAppsState.activeId = item?.id || null;
     elements.myAppsFormTitle.textContent = mode === 'edit' ? 'My Appを編集' : 'My Appを追加';
@@ -2061,7 +2062,8 @@ async function handleMyAppsSubmit(event) {
             iconCrop: myAppsState.iconCrop,
             iconPresetKey: myAppsState.iconAction === 'preset' ? myAppsState.iconPresetKey : null,
             useCurrentIconAsSource: myAppsState.useCurrentIconAsSource,
-            iconStore: myAppsIconStore
+            iconStore: myAppsIconStore,
+            writeOptions: { accountContext: myAppsState.accountContext }
         })
         : await createMyAppEntry({
             items: myAppsState.items,
@@ -2070,7 +2072,8 @@ async function handleMyAppsSubmit(event) {
             iconSourceBlob: myAppsState.iconAction === 'replace' ? myAppsState.iconSourceBlob : null,
             iconCrop: myAppsState.iconAction === 'replace' ? myAppsState.iconCrop : null,
             iconPresetKey: myAppsState.iconAction === 'preset' ? myAppsState.iconPresetKey : null,
-            iconStore: myAppsIconStore
+            iconStore: myAppsIconStore,
+            writeOptions: { accountContext: myAppsState.accountContext }
         });
 
     if (formGeneration !== myAppsRenderGeneration.form) {
@@ -2127,7 +2130,8 @@ async function handleMyAppsDelete() {
     const result = await deleteMyAppEntry({
         items: myAppsState.items,
         id: item.id,
-        iconStore: myAppsIconStore
+        iconStore: myAppsIconStore,
+        writeOptions: { accountContext: myAppsState.accountContext }
     });
     if (formGeneration !== myAppsRenderGeneration.form) {
         if (result.ok) myAppsState.items = result.items;
@@ -3918,7 +3922,7 @@ async function canWritePracticeAttachment(scope) {
     try {
         const repo = window.SoundCruisePortSync.portRepository();
         const base = repo.inspect();
-        const result = await repo.runWrite({ expectedRevision: base.revision }, () => ({ ok: true }));
+        const result = await repo.runWrite({ expectedRevision: base.revision, accountContext: scope === 'form' ? state.accountContext : state.detailAccountContext }, () => ({ ok: true }));
         if (result.ok) return true;
     } catch (_) { /* keep the current file and metadata on rejection */ }
     setPracticeAttachmentStatus(scope, '保存できませんでした。Accountを確認してください。現在のファイルは保持しています。', { error: true });
@@ -4024,6 +4028,7 @@ function renderDetail(id) {
     }
 
     const app = resolveCurrentPracticeApp(item.appId);
+    state.detailAccountContext = window.SoundCruisePortSync.portRepository().captureAccountContext();
     state.activeId = item.id;
     elements.detailTitle.textContent = item.name;
     elements.detailDuration.textContent = `${item.durationMinutes}分`;
@@ -4233,6 +4238,7 @@ function renderForm(mode, id = null) {
         return;
     }
 
+    state.accountContext = window.SoundCruisePortSync.portRepository().captureAccountContext();
     state.formMode = mode;
     state.activeId = item?.id || null;
     cleanupPendingPracticeAttachments();
@@ -4649,6 +4655,7 @@ function populateGearCategoryOptions(selectedId = '') {
 }
 
 function openGearCategoryDialog(mode) {
+    gearState.categoryAccountContext = window.SoundCruisePortSync.portRepository().captureAccountContext();
     if (!gearState.categoryStorageReady || gearState.reorderMode) return;
     const category = gearState.categories.find(({ id }) => id === gearState.activeCategory);
     if (mode === 'rename' && !category) return;
@@ -4685,7 +4692,7 @@ async function handleGearCategorySubmit(event) {
         elements.gearCategoryName.focus();
         return;
     }
-    const saved = (await saveGearCategories(result.categories));
+    const saved = (await saveGearCategories(result.categories, undefined, { accountContext: gearState.categoryAccountContext }));
     if (!saved.ok) {
         showNotice(elements.gearCategoryError, 'カテゴリを保存できませんでした。入力内容を控えてからページを更新してください。');
         return;
@@ -5117,6 +5124,7 @@ function renderGearForm(mode, id = null) {
         correctGearListRoute();
         return;
     }
+    gearState.accountContext = window.SoundCruisePortSync.portRepository().captureAccountContext();
     gearState.formMode = mode;
     gearState.activeId = item?.id || null;
     elements.gearFormTitle.textContent = mode === 'edit'
@@ -5268,18 +5276,18 @@ async function handleGearSubmit(event) {
             },
             previousReferences: getGearPhotoReferences(originalItem),
             buildItems: (references) => buildItems(references),
-            persist: async (items) => (await saveGearList(items))
+            persist: async (items) => (await saveGearList(items, undefined, { accountContext: gearState.accountContext }))
         });
     } else if (gearState.photoAction === 'remove' && originalItem) {
         result = await commitGearPhotoRemoval({
             photoStore: gearPhotoStore,
             previousReferences: getGearPhotoReferences(originalItem),
             buildItems: () => buildItems(null, true),
-            persist: async (items) => (await saveGearList(items))
+            persist: async (items) => (await saveGearList(items, undefined, { accountContext: gearState.accountContext }))
         });
     } else {
         const candidateItems = buildItems();
-        const persisted = (await saveGearList(candidateItems));
+        const persisted = (await saveGearList(candidateItems, undefined, { accountContext: gearState.accountContext }));
         result = persisted.ok ? { ok: true, items: candidateItems } : { ok: false, reason: 'metadata-write-failed' };
     }
     gearState.saving = false;
@@ -5629,8 +5637,8 @@ function readFormValues() {
     return { ok: true, values: { name, durationMinutes, appId, memo, hidden } };
 }
 
-async function persist(candidateItems) {
-    const result = (await savePracticeMenus(candidateItems));
+async function persist(candidateItems, writeOptions = {}) {
+    const result = (await savePracticeMenus(candidateItems, undefined, writeOptions));
     if (!result.ok) {
         showNotice(elements.formError, '保存できませんでした。ブラウザの空き容量や保存設定を確認してください。');
         return false;
@@ -5639,9 +5647,9 @@ async function persist(candidateItems) {
     return true;
 }
 
-async function persistPracticeItemsAndProgress(candidateItems, nextProgress) {
+async function persistPracticeItemsAndProgress(candidateItems, nextProgress, writeOptions = {}) {
     const progressChanged = nextProgress !== state.progress;
-    const result = await commitPracticeItemsAndProgress(candidateItems, nextProgress, progressChanged);
+    const result = await commitPracticeItemsAndProgress(candidateItems, nextProgress, progressChanged, undefined, writeOptions);
     if (!result.ok) return false;
     state.items = candidateItems;
     if (progressChanged) state.progress = nextProgress;
@@ -5682,7 +5690,7 @@ async function handleSubmit(event) {
         const nextProgress = !previousItem.hidden && nextItem.hidden && state.progressReady
             ? clearPracticeCurrentCheck(state.progress, state.activeId)
             : state.progress;
-        if ((await persistPracticeItemsAndProgress(updateResult.items, nextProgress))) {
+        if ((await persistPracticeItemsAndProgress(updateResult.items, nextProgress, { accountContext: state.accountContext }))) {
             if (visibilityChanged) {
                 state.listNotice = nextItem.hidden
                     ? '練習メニューを非表示にしました。'
@@ -5708,7 +5716,7 @@ async function handleSubmit(event) {
     if (!guardPracticeCreation()) return;
     const item = createPracticeMenu(formResult.values, state.items);
     const chosenSetIds = readPracticeFormSetIds();
-    if ((await persist([...state.items, item]))) {
+    if ((await persist([...state.items, item], { accountContext: state.accountContext }))) {
         // The menu is saved first, so a set never references a menu that does not exist.
         const setNotice = (await addNewPracticeMenuToSets(item, chosenSetIds));
         if (setNotice) state.listNotice = setNotice;
@@ -5837,7 +5845,7 @@ async function handleDelete() {
     const nextProgress = state.progressReady
         ? removePracticeFromProgress(state.progress, item.id)
         : state.progress;
-    if (!(await persistPracticeItemsAndProgress(deleteResult.items, nextProgress))) {
+    if (!(await persistPracticeItemsAndProgress(deleteResult.items, nextProgress, { accountContext: elements.formView.hidden ? state.detailAccountContext : state.accountContext }))) {
         showNotice(elements.detailError, '削除できませんでした。保存設定を確認してください。');
         return;
     }

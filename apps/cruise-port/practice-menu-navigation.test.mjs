@@ -160,7 +160,7 @@ assert.doesNotMatch(createSubmitSource, /if \(attachmentResult\.ok\)[\s\S]*state
 assert.match(editSubmitSource, /state\.savedNotice = \{ id: state\.activeId, message: '変更を保存しました。' \};[\s\S]*replacePracticeDetailRoute\(state\.activeId\)/);
 assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replacePracticeListRoute\(\)/);
 assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replacePracticeListRoute\(\)/);
-assert.match(appSource, /async function handleDelete\(\)[\s\S]*persistPracticeItemsAndProgress\(deleteResult\.items, nextProgress\)/);
+assert.match(appSource, /async function handleDelete\(\)[\s\S]*persistPracticeItemsAndProgress\(deleteResult\.items, nextProgress, \{ accountContext: elements\.formView\.hidden \? state\.detailAccountContext : state\.accountContext \}\)/);
 assert.match(appSource, /PRACTICE_ROUTE_KIND\.calendar[\s\S]*renderPracticeHistory/);
 assert.match(appSource, /PRACTICE_ROUTE_KIND\.hidden[\s\S]*renderPracticeHiddenList/);
 assert.doesNotMatch(appSource, /decodeURIComponent\((?:editMatch|detailMatch|myAppsEditMatch)/);
