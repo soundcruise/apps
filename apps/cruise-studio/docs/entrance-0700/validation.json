@@ -11,7 +11,10 @@
   ],
   "suites": {
     "studioNode": {
-      "status": "PENDING_CLEAN_COMMIT_RUN"
+      "pass": 1952,
+      "fail": 0,
+      "skip": 2,
+      "skipReason": "dedicated client/owner E2E modes; separate scoped E2E results below"
     },
     "workerAndSharedProNode": {
       "pass": 1058,
@@ -124,7 +127,11 @@
         }
       ],
       "productionRequestsSent": 0,
-      "errors": []
+      "errors": [],
+      "repeatedPassCounts": [
+        24,
+        24
+      ]
     },
     "remainingPortRecovery": {
       "status": "PASS",
@@ -353,5 +360,6 @@
     "apps/fretboard_cruise": "40784f580cb7a108531662cd2e530bcf37fd3e07",
     "apps/rhythm-cruise": "30c988b48e47d18d9aee87071248f304ea90e408",
     "workers": "73a7d8064430564f966faf7109449788844defe7"
-  }
+  },
+  "preservedWorktreeHeads": 97
 }
