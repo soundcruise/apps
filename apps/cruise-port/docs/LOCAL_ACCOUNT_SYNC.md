@@ -1,5 +1,10 @@
 # Local Port Account attribution (candidate 1.26.0)
 
+
+## Native Studio follow-up (#129)
+
+# Local Port Account attribution (candidate 1.27.0)
+
 Port retains one local dataset and the existing `/v1/sync/push` / Asset Sync paths. No SQL Owner route, new Account store or binary engine is enabled.
 
 The existing Sync Center offers three explicit choices after inspecting the selected Account and a digest of current structured values plus existing photo/icon/attachment bytes:

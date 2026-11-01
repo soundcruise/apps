@@ -511,7 +511,7 @@
     const pendingLocal = Boolean(entry?.pending);
     const bindingMatches = Boolean(cloudAsset && entry?.binding?.final?.assetId === cloudAsset.final.assetId &&
       entry.binding.final.hash === cloudAsset.final.hash);
-    return {
+    const restored = {
       ...clone(remoteValue.item),
       [idKey]: pendingLocal && localItem?.[idKey] ? localItem[idKey]
         : bindingMatches ? entry.binding.final.localId : (!cloudAsset && asset.present && localItem?.[idKey] ? localItem[idKey] : null),
@@ -521,6 +521,12 @@
           : (!cloudAsset && asset.present && localItem?.[sourceKey] ? localItem[sourceKey] : null),
       [cropKey]: asset.crop ? clone(asset.crop) : null
     };
+    // Crop belongs to the local binary pair. Remote crop stays in published
+    // metadata until Asset Sync has downloaded and bound the bytes.
+    if (!restored[idKey] || kind === 'gear' && !restored[sourceKey]) {
+      restored[idKey] = null; restored[sourceKey] = null; restored[cropKey] = null;
+    } else if (pendingLocal) restored[cropKey] = localItem?.[cropKey] ? clone(localItem[cropKey]) : null;
+    return restored;
   }
   function write(storage, key, value) { storage.setItem(key, JSON.stringify(value)); }
   async function applyRemoteSnapshot(storage, snapshot, previousRecords = [], expectedSnapshot = null, assertCurrent = () => {}) {

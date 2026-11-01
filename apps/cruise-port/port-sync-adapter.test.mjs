@@ -821,3 +821,15 @@ test('Account switch during asynchronous confirmation leaves attribution and dat
   await assert.rejects(a.chooseLocalAccount({accountId:'A',choice:'current',snapshotId:observed.snapshotId,confirmed:true},()=>{throw Error('account_generation_changed');}), /account_generation_changed/);
   assert.equal(local.getItem(AFFINITY_KEY),null);
 });
+test('remote crop without hydrated bytes stays in Cloud metadata, not invalid local references',async()=>{
+ const target=storage(),api=load(target),asset={...pairAsset('cloud-final','cloud-source'),crop:{x:0.1,y:0.2,size:0.5}};
+ await api.applyRemoteSnapshot(target,fixtureFullSnapshot({schemaVersion:1,records:[remoteRecord('gear_item','crop-gear',{item:{id:'crop-gear',name:'Remote crop',status:'owned',order:0},asset})]}));
+ const item=JSON.parse(target.value('cruisePort.gearList')).items[0],meta=JSON.parse(target.value('cruisePort.syncAssetMetadata'));
+ assert.equal(item.photoId,null);assert.equal(item.photoSourceId,null);assert.equal(item.photoCrop,null);assert.deepEqual(meta.gear['crop-gear'].published.crop,asset.crop);
+});
+test('pending local photo preserves its own crop while remote metadata advances',async()=>{
+ const crop={x:0.3,y:0.4,size:0.6},target=storage({'cruisePort.gearList':JSON.stringify({version:5,items:[{id:'pending-gear',name:'Pending',status:'owned',order:0,photoId:'local-final',photoSourceId:'local-source',photoCrop:crop}]}),'cruisePort.syncAssetMetadata':JSON.stringify({version:4,gear:{'pending-gear':{pending:{operationId:'pending'}}},myApps:{},attachments:{},releaseQueue:[],discardQueue:[]})});
+ const asset={...pairAsset('remote-final','remote-source'),crop:{x:0,y:0,size:1}};
+ await load(target).applyRemoteSnapshot(target,fixtureFullSnapshot({schemaVersion:1,records:[remoteRecord('gear_item','pending-gear',{item:{id:'pending-gear',name:'Remote',status:'owned',order:0},asset})]}));
+ const item=JSON.parse(target.value('cruisePort.gearList')).items[0];assert.equal(item.photoId,'local-final');assert.equal(item.photoSourceId,'local-source');assert.deepEqual(item.photoCrop,crop);
+});

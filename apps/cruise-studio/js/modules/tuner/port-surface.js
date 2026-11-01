@@ -9,7 +9,7 @@
     var status = document.getElementById('port-tuner-status');
     var resume = document.getElementById('port-tuner-resume');
     var stopButton = document.getElementById('shell-audio-stop');
-    var portUrl = new URL('port-tool.html', document.baseURI);
+    var portUrl = new URL('../cruise-port/pro_9a3943176561/#tuner', document.baseURI);
 
     function setPhase(next, message) {
         phase = next;

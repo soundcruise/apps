@@ -1,4 +1,4 @@
-import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.26.0';
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.27.0';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 
 // Practice menu sets are the user-facing "プリセット" of the Practice Menu. They are
