@@ -1,3 +1,4 @@
+import { portSyncStatusDetail } from './port-sync-status.js?v=1.24.26';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.24.25';
@@ -468,7 +469,7 @@ export function shouldShowPortConflictAction(presentation = {}) {
 }
 
 function renderPortStatus(root, presentation) {
-    const status = presentation.portStatus || {
+    const status = shouldShowPortConflictAction(presentation) ? { state: 'attention', label: '確認が必要' } : presentation.portStatus || {
         state: 'attention', label: '確認が必要'
     };
     const chip = root.querySelector('#sync-center-port-status-chip');
@@ -478,7 +479,20 @@ function renderPortStatus(root, presentation) {
         chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${status.state}`;
     }
     const conflictsOpen = root.querySelector('#sync-center-port-conflicts-open');
-    if (conflictsOpen) conflictsOpen.hidden = !shouldShowPortConflictAction(presentation);
+    if (conflictsOpen) {
+        conflictsOpen.hidden = !shouldShowPortConflictAction(presentation);
+        // A Studio read-only projection has no owner state. Preserve the native
+        // explicit activation wording instead of claiming this is a read-only action.
+        if (typeof presentation.portRuntimeActive === 'boolean') {
+            conflictsOpen.textContent = presentation.portRuntimeActive ? '競合を確認する' : '同期を再開して競合を確認する';
+        }
+    }
+    const detail = root.querySelector('#sync-center-port-status-detail');
+    if (detail && ('portStructuredStatus' in presentation || shouldShowPortConflictAction(presentation))) detail.textContent = portSyncStatusDetail({ accountState: presentation.accountState,
+        structured: presentation.portStructuredStatus || { conflictCount: presentation.portConflictCount }, assets: presentation.portAssetStatus,
+        online: presentation.portOnline, status });
+    const activate = root.querySelector('#port-sync-activate');
+    if (activate) activate.hidden = ['unset', 'deleting'].includes(presentation.accountState);
     const legacyRetry = root.querySelector('#sync-center-port-legacy-retry');
     if (legacyRetry) legacyRetry.hidden = !presentation.legacyRetryCount;
 }
@@ -750,8 +764,11 @@ export function bindSyncCenterActions(root, {
     const portConnectStatus = root?.querySelector?.('#sync-center-port-connect-status');
     const portConnectSecret = portConnectInput && globalThis.SoundCruiseSyncAccount?.core
         ?.createSensitiveInputController?.(portConnectInput);
-    root?.querySelector?.('#sync-center-port-conflicts-open')?.addEventListener('click', async () => {
-        await onPortConflictOpen();
+    root?.querySelector?.('#sync-center-port-conflicts-open')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        if (button.disabled) return;
+        button.disabled = true;
+        try { await onPortConflictOpen(); } finally { button.disabled = false; }
     });
     const setPortConnectPhase = (phase) => {
         const inputPhase = phase === 'input';

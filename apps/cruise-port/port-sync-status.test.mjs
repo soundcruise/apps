@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPortSyncStatus } from './port-sync-status.js';
+import { createPortSyncStatus, portSyncStatusDetail, portSyncActionError } from './port-sync-status.js';
 
 const cleanStructured = Object.freeze({
     known: true, connected: true, migrationState: 'complete', datasetState: 'ready',
@@ -62,4 +62,30 @@ test('cached/stale/revoked AppDevice credential cannot be presented as synced',(
  for(const credentialState of ['unknown','stale','revoked','expired']){
   assert.equal(createPortSyncStatus({accountState:'active',structured:{known:true,connected:true,credentialState,runtimeState:'ready',migrationState:'complete',datasetState:'ready',lastSyncAt:1000},assets:{known:true,pendingCount:0},online:true}).state,'attention');
  }
+});
+
+
+test('a retained stale credential is stopped, not a conflict, until the owner is explicitly started', () => {
+    const structured = { ...cleanStructured, credentialExists: true, credentialState: 'stale' };
+    const input = { accountState: 'active', structured, assets: { known: false }, runtimeActive: false };
+    assert.equal(createPortSyncStatus(input).label, '同期は停止中');
+    assert.match(createPortSyncStatus(input).detail, /同期を開始・再開/);
+    assert.equal(createPortSyncStatus({ ...input, runtimeActive: true }).state, 'attention');
+    for (const change of [{ conflictCount: 1 }, { terminalCount: 1 }, { credentialState: 'revoked' }, { runtimeState: 'credential_invalid' }, { runtimeState: 'attention' }]) {
+        assert.equal(createPortSyncStatus({ ...input, structured: { ...structured, ...change } }).state, 'attention');
+    }
+});
+
+test('guidance distinguishes actual conflict, offline, revoked, failed operation and unknown state', () => {
+    for (const [structured, online, expected] of [
+        [{ conflictCount: 2 }, true, /競合が2件/],
+        [{}, false, /オフライン/],
+        [{ credentialState: 'revoked' }, true, /同期資格/],
+        [{ terminalCount: 1 }, true, /送信を完了できない/],
+        [{}, true, /状態を確認できません/]
+    ]) assert.match(portSyncStatusDetail({ accountState: 'active', structured, online, status: { state: 'attention' } }), expected);
+    assert.match(portSyncActionError('offline'), /オフライン/);
+    assert.match(portSyncActionError('pro_required'), /Pro版/);
+    assert.match(portSyncActionError('account_generation_changed'), /Accountの接続が変わりました/);
+    assert.match(portSyncActionError('synthetic_unknown'), /保存内容は保持/);
 });

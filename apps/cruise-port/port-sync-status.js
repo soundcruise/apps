@@ -16,11 +16,20 @@ const PRESENTATIONS = Object.freeze({
     deleting: Object.freeze({ state: 'deleting', label: '削除中' })
 });
 
-export function createPortSyncStatus({ accountState, structured, assets, online = true } = {}) {
+export function createPortSyncStatus({ accountState, structured, assets, online = true, runtimeActive } = {}) {
     if (accountState === 'deleting') return PRESENTATIONS.deleting;
     if (accountState === 'unset') return PRESENTATIONS.detached;
-    if (accountState === 'active' && structured?.known && structured.credentialExists === false &&
-        !structured.conflictCount && !structured.terminalCount) return PRESENTATIONS.unstarted;
+    // Target counts describe membership, not whether this page has started Port Sync.
+    // Retained AppDevice credentials are intentionally stale until explicit activation.
+    if (accountState === 'active' && structured?.known && !structured.conflictCount && !structured.terminalCount &&
+        !assets?.error && !['attention', 'credential_invalid'].includes(structured.runtimeState) &&
+        structured.credentialState !== 'revoked' &&
+        (structured.credentialExists === false || runtimeActive === false)) {
+        return Object.freeze({ ...PRESENTATIONS.unstarted,
+            label: structured.credentialExists ? '同期は停止中' : '同期は未開始',
+            detail: online ? 'Accountは確認済みです。「同期を開始・再開」で、この端末とクラウドのデータを同期します。'
+                : 'オフラインです。オンラインに戻ってから「同期を開始・再開」を押してください。' });
+    }
     if (accountState !== 'active' || !structured?.known || !assets?.known) return PRESENTATIONS.attention;
     if (structured.connected === false && structured.runtimeState === 'not_connected') return PRESENTATIONS.detached;
     if (!structured.connected || (structured.credentialState && structured.credentialState !== 'usable')) return PRESENTATIONS.attention;
@@ -38,3 +47,27 @@ export function createPortSyncStatus({ accountState, structured, assets, online 
 }
 
 export { PRESENTATIONS as PORT_SYNC_STATUS_PRESENTATIONS };
+
+// Display guidance only. This never admits a writer or changes an Outbox item.
+export function portSyncStatusDetail({ accountState, structured, assets, online = true, status } = {}) {
+    if (status?.detail) return status.detail;
+    if (accountState === 'unset') return '既存のAccountへ接続してから同期を開始してください。';
+    if (accountState === 'deleting') return 'Accountの削除処理中です。';
+    if (accountState !== 'active') return 'Accountを再確認してください。データ同期の状態は未確認です。';
+    if (structured?.conflictCount > 0) return `未解決の競合が${structured.conflictCount}件あります。「競合を確認する」で残す内容を選んでください。`;
+    if (!online) return 'オフラインです。保存内容は保持されています。オンラインに戻って同期を再開してください。';
+    if (structured?.credentialState === 'revoked' || structured?.runtimeState === 'credential_invalid') return 'この端末の同期資格を確認できません。Accountの接続・端末状態を確認してください。';
+    if (structured?.terminalCount > 0) return '送信を完了できない操作があります。同期を再開して確認してください。保存内容は保持されています。';
+    if (assets?.error) return '画像・添付の同期を完了できませんでした。接続を確認して同期を再開してください。';
+    if (status?.state === 'attention') return '同期状態を確認できません。「同期を開始・再開」で再確認してください。';
+    return '';
+}
+
+export function portSyncActionError(code) {
+    if (code === 'pro_required') return 'クラウド同期はPro版で利用できます。';
+    if (code === 'offline') return 'オフラインです。オンラインに戻ってから同期を再開してください。';
+    if (code === 'rate_limited') return '確認要求が混み合っています。少し待って同期を再開してください。保存内容は保持されています。';
+    if (['service_unavailable', 'network_error', 'request_failed'].includes(code)) return '通信を完了できませんでした。接続を確認して同期を再開してください。保存内容は保持されています。';
+    if (['account_generation_changed', 'runtime_disposed', 'account_not_configured'].includes(code)) return 'Accountの接続が変わりました。現在のAccountを確認してから同期を再開してください。';
+    return '同期を完了できませんでした。接続とAccount・端末資格を確認して、もう一度お試しください。保存内容は保持されています。';
+}
