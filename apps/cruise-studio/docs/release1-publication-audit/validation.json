@@ -1,0 +1,364 @@
+{
+  "candidateHead": "2a76c8f1e6ca2b1949a87e77c8548a79f471d635",
+  "candidateTree": "404464d60fcc07062c1af6f125f645dd8aef7774",
+  "main": "cb48d8c17b4757a0404d031272a1f36ba92618b5",
+  "pages": {
+    "pages": {
+      "url": "https://api.github.com/repos/soundcruise/apps/pages",
+      "status": "built",
+      "cname": "soundcruise.jp",
+      "html_url": "https://soundcruise.jp/",
+      "build_type": "legacy",
+      "source": {
+        "branch": "main",
+        "path": "/"
+      },
+      "public": true,
+      "https_enforced": true
+    },
+    "builds": [
+      {
+        "url": "https://api.github.com/repos/soundcruise/apps/pages/builds/1331390387",
+        "status": "built",
+        "commit": "cb48d8c17b4757a0404d031272a1f36ba92618b5",
+        "created_at": "2026-11-01T04:06:33Z",
+        "updated_at": "2026-11-01T04:07:13Z",
+        "duration": 40768,
+        "error": {
+          "message": null
+        }
+      },
+      {
+        "url": "https://api.github.com/repos/soundcruise/apps/pages/builds/1331134543",
+        "status": "built",
+        "commit": "bc08aa8d645f75078ec2448c992c34be0fbdfaab",
+        "created_at": "2026-11-01T01:20:05Z",
+        "updated_at": "2026-11-01T01:20:43Z",
+        "duration": 38264,
+        "error": {
+          "message": null
+        }
+      },
+      {
+        "url": "https://api.github.com/repos/soundcruise/apps/pages/builds/1331121899",
+        "status": "built",
+        "commit": "0467af66f5b32748e16c5f36422c975b62024f61",
+        "created_at": "2026-11-01T01:11:45Z",
+        "updated_at": "2026-11-01T01:12:33Z",
+        "duration": 48523,
+        "error": {
+          "message": null
+        }
+      },
+      {
+        "url": "https://api.github.com/repos/soundcruise/apps/pages/builds/1331090690",
+        "status": "built",
+        "commit": "38aaa68d25050775efbb56f63302720b78f0e031",
+        "created_at": "2026-11-01T00:51:43Z",
+        "updated_at": "2026-11-01T00:52:18Z",
+        "duration": 35071,
+        "error": {
+          "message": null
+        }
+      },
+      {
+        "url": "https://api.github.com/repos/soundcruise/apps/pages/builds/1330990504",
+        "status": "built",
+        "commit": "a993ba3eb41297dacadf56ac6714199548333949",
+        "created_at": "2026-10-31T23:47:55Z",
+        "updated_at": "2026-10-31T23:48:31Z",
+        "duration": 36225,
+        "error": {
+          "message": null
+        }
+      }
+    ],
+    "runs": [
+      {
+        "id": 41271772802,
+        "name": "pages build and deployment",
+        "head_sha": "cb48d8c17b4757a0404d031272a1f36ba92618b5",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-11-01T04:06:34Z",
+        "updated_at": "2026-11-01T04:07:19Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41271772802",
+        "path": "dynamic/pages/pages-build-deployment"
+      },
+      {
+        "id": 41260654036,
+        "name": "pages build and deployment",
+        "head_sha": "bc08aa8d645f75078ec2448c992c34be0fbdfaab",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-11-01T01:20:06Z",
+        "updated_at": "2026-11-01T01:20:49Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41260654036",
+        "path": "dynamic/pages/pages-build-deployment"
+      },
+      {
+        "id": 41260045871,
+        "name": "pages build and deployment",
+        "head_sha": "0467af66f5b32748e16c5f36422c975b62024f61",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-11-01T01:11:46Z",
+        "updated_at": "2026-11-01T01:12:39Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41260045871",
+        "path": "dynamic/pages/pages-build-deployment"
+      },
+      {
+        "id": 41258594448,
+        "name": "pages build and deployment",
+        "head_sha": "38aaa68d25050775efbb56f63302720b78f0e031",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-11-01T00:51:44Z",
+        "updated_at": "2026-11-01T00:52:24Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41258594448",
+        "path": "dynamic/pages/pages-build-deployment"
+      },
+      {
+        "id": 41254011363,
+        "name": "pages build and deployment",
+        "head_sha": "a993ba3eb41297dacadf56ac6714199548333949",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-31T23:47:56Z",
+        "updated_at": "2026-10-31T23:48:35Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41254011363",
+        "path": "dynamic/pages/pages-build-deployment"
+      },
+      {
+        "id": 41157280587,
+        "name": "pages build and deployment",
+        "head_sha": "5c07c7b3d05bc99153113f214babd3a161514bf1",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-31T01:51:02Z",
+        "updated_at": "2026-10-31T01:51:55Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41157280587",
+        "path": "dynamic/pages/pages-build-deployment"
+      },
+      {
+        "id": 41003857096,
+        "name": "pages build and deployment",
+        "head_sha": "1cad09b5eccc90c1f1ec265a0bfef40d681a0052",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-30T04:36:43Z",
+        "updated_at": "2026-10-30T04:37:29Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41003857096",
+        "path": "dynamic/pages/pages-build-deployment"
+      },
+      {
+        "id": 41003825887,
+        "name": "pages build and deployment",
+        "head_sha": "605b0644974ad52d86f101025b9f348ebabf8f00",
+        "event": "dynamic",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "created_at": "2026-10-30T04:36:22Z",
+        "updated_at": "2026-10-30T04:36:51Z",
+        "html_url": "https://github.com/soundcruise/apps/actions/runs/41003825887",
+        "path": "dynamic/pages/pages-build-deployment"
+      }
+    ]
+  },
+  "publicStaticReadOnly": [
+    {
+      "path": "apps/cruise-port/app-version.js",
+      "httpStatus": 200,
+      "sha256": "3020b098321dcd435dfa58ab27ddaa5fa95bd72ddd577c5b33db1e9ff5214cca",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-62f\""
+    },
+    {
+      "path": "apps/cruise-port/index.html",
+      "httpStatus": 200,
+      "sha256": "ee58595bf446f4957cab580ad06193a624228932dfed17aec5375adca61459d6",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-1cfcd\""
+    },
+    {
+      "path": "apps/cruise-port/pro_9a3943176561/index.html",
+      "httpStatus": 200,
+      "sha256": "ab7ee27f3a6b60957cf39712e6b5be7f12409220cb8de4b91f88f675cf81e6a3",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-1d1a4\""
+    },
+    {
+      "path": "apps/shared/pro-gate.js",
+      "httpStatus": 200,
+      "sha256": "2a92005f1c0249483e84c02daab8166a22087f297ed98e3238f79fa5425245c0",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-76f2\""
+    },
+    {
+      "path": "apps/shared/pro-device-session.js",
+      "httpStatus": 200,
+      "sha256": "34246b62266152381e2ce131699a9a64c371625ab0c0a2811ffd0198335fc67a",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-5302\""
+    },
+    {
+      "path": "apps/shared/sync-account/multi-app-sync-runtime.js",
+      "httpStatus": 200,
+      "sha256": "2bb86e61f84f76c575abd33b960dfb5270abc515fc42e59d278d97a00c0324d8",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-1edfd\""
+    },
+    {
+      "path": "apps/pitch-cruise/pro_x9v7q2m8/index.html",
+      "httpStatus": 200,
+      "sha256": "8fa801f6b01d66c072c9e052351c51dc3c6dceab704347a0ea0b78378df566f4",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-ee63\""
+    },
+    {
+      "path": "apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html",
+      "httpStatus": 200,
+      "sha256": "e5dc5b56ce64f7cc1c21e2860cb7ba5d6c3974cfbeaa2f205b240bc980b8547f",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT",
+      "etag": "\"6ae6baf1-2173\""
+    },
+    {
+      "path": "apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html",
+      "httpStatus": 200,
+      "sha256": "17fd3288c6e01eb2adecafeb7886f3011a75f35e104d990d2f8386084ac315c0",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT"
+    },
+    {
+      "path": "apps/chord-cruise/pro_k7m4q9v2x8/index.html",
+      "httpStatus": 200,
+      "sha256": "dcce71b5c0120feacc42b1f778df79738cc945e86771c4f8c51f86446d6f7be3",
+      "matchesMain": true,
+      "lastModified": "Sun, 01 Nov 2026 04:07:13 GMT"
+    }
+  ],
+  "localBuild": {
+    "publicStudioHttp200HashMatches": 34,
+    "studioExcludedUrl404": [
+      "development.html",
+      "js/app.js",
+      "js/core/song-model.js",
+      "js/core/project-repository.js",
+      "js/cloud/identity-host.mjs",
+      "js/cloud/studio-sync-client.mjs",
+      "js/modules/pre-dtm-cruise/pre-dtm.js",
+      "js/modules/sheet-cruise/sheet-cruise.js",
+      "js/port-components/access-owner.mjs",
+      "port-tool.html",
+      "docs/ACCOUNT_CONNECT_FIRST_SYNC.md",
+      "tests/fixtures/serve-local-pro.py",
+      "scripts/package-port-pc.mjs"
+    ],
+    "workerUrls404": 3,
+    "fullISCAndMITInPublishedSprite": true,
+    "forbiddenGeneratedPaths": 0,
+    "publicFilesTotal": 815,
+    "nativeBytesMatchInput": 774,
+    "knownInheritedNativeTestExposure": [
+      "apps/cruise-port/asset-main-compat.test.mjs",
+      "apps/cruise-port/port-account-save-guard.test.mjs",
+      "apps/cruise-port/pro-studio-ready.test.mjs"
+    ],
+    "nativeTestsNotProductEntrypoints": true,
+    "projectAndPreDtmSourcePreservedButUnpublished": true
+  },
+  "currentExecution": {
+    "focusedNode": {
+      "pass": 94,
+      "fail": 0,
+      "skipped": 0
+    },
+    "uiBrowser": {
+      "pass": 9,
+      "fail": 0,
+      "themes": 5,
+      "widths": [
+        1440,
+        1024,
+        768,
+        390
+      ]
+    },
+    "themeNodeMain": {
+      "pass": 22,
+      "fail": 4
+    },
+    "themeNodeCandidate": {
+      "pass": 22,
+      "fail": 4
+    },
+    "themeFilesIdenticalToMain": true,
+    "themeFailures": [
+      "NEWS badge general rule old grid expectation (3 assertions)",
+      "old 1.12 Dark CSS hash (1 assertion)"
+    ]
+  },
+  "previousEvidenceNotRerun": {
+    "source": "../account-connect-first-sync/validation.json",
+    "productSuite": {
+      "passPerRun": 30,
+      "completeFinalRuns": 2
+    },
+    "recoveryAssets": {
+      "passPerRun": 12,
+      "completeRuns": 2
+    }
+  },
+  "productionBackendAccess": false,
+  "realAccountOrProUse": false,
+  "pagesPublication": false,
+  "mainMutation": false,
+  "newInfrastructure": false,
+  "secondReviewer": false,
+  "nativeAndWorkerTreeEquality": {
+    "apps/pitch-cruise": {
+      "main": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+      "candidate": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910"
+    },
+    "apps/fretboard_cruise": {
+      "main": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+      "candidate": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6"
+    },
+    "apps/rhythm-cruise": {
+      "main": "c422f78c232d9d374aaec5a47232d069465da8b9",
+      "candidate": "c422f78c232d9d374aaec5a47232d069465da8b9"
+    },
+    "apps/chord-cruise": {
+      "main": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+      "candidate": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e"
+    },
+    "workers": {
+      "main": "585bde6d34ed6627442dc3649d1469651cc1d075",
+      "candidate": "585bde6d34ed6627442dc3649d1469651cc1d075"
+    }
+  },
+  "sharedChangeOnlyOneTestImport": [
+    "apps/shared/sync-account/multi-app-sync-runtime.test.mjs"
+  ],
+  "unchangedThemeSHA256": {
+    "apps/cruise-port/style.css": "2535644a2500878d0543858db3f1005463cbf3a0faf2a51ceff5f3c124673b0b",
+    "apps/cruise-port/theme.test.mjs": "d68af5b69e6d776a5512e4619e498c74d14b5bbe79924f019c2320c1c16c2a34"
+  },
+  "auditDocsChangePublishedBytes": 0,
+  "existingWorktreeHeadsUnchanged": 104
+}
