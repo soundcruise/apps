@@ -45,6 +45,7 @@ Additional HOLDs:
 
 All tests below use the integrated checkout, not results copied from source branches. Browser profiles and native Miniflare state are newly created under temporary directories. SQL fixture initialization touches only those disposable local DBs; network routes serve checkout files and dispatch synthetic requests to local workerd. Other origins are aborted; workerd outbound access throws. No real credentials/data are used.
 
+- Studio Node: **1,938 pass, 0 fail, 2 skip**. Both skips request dedicated Cloud environments; their client/session suites were explicitly run below.
 - Port + shared Account/runtime Node: **2,819 pass, 0 fail, 0 skip**.
 - Studio product Chrome regression: **45 pass, 0 fail, 0 skip**, including local Pro controls/presets, image source/final crop/recrop/delete, practice calendar/timer, dirty/crop leave guards, four-app frame transfer, 5 themes × 1440/1024/768/390, score/Undo/JSON/PDF/MIDI, NEWS and Global Stop.
 - Project client E2E: **32 pass**, including two-device synthetic CAS, ACK loss, UNKNOWN/reconcile, crash/reopen, offline, tombstones, delayed replies, generation/revoke refusal, no credential in Outbox, and Project-only Port write quarantine with draft retained.

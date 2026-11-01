@@ -1,0 +1,43 @@
+{
+  "studioNode": {
+    "pass": 1938,
+    "fail": 0,
+    "skip": 2,
+    "logSha256": "c68ce1bf17189af0234fd04bd0b1b00b637d51969a8e70a2d5a779472aee921d"
+  },
+  "portSharedNode": {
+    "pass": 2819,
+    "fail": 0,
+    "skip": 0,
+    "logSha256": "1ba3b03972be3d530b6d54bb559195c20bf65cbfe90ce8bea66589cddc9520c1"
+  },
+  "studioProductChrome": {
+    "pass": 45,
+    "fail": 0,
+    "skip": 0,
+    "logSha256": "7e178b52cc6d83b8c5004c25eaae053729a37f31816b8878cce63d64d9aebb04"
+  },
+  "workerNode": {
+    "pass": 106,
+    "fail": 0,
+    "skip": 1,
+    "logSha256": "5bffa23b202151789e99a5b31345bf5fb416233cc19fea16d3ef1614b8225a14"
+  },
+  "cloud": {
+    "projectClient": 32,
+    "sessionRecovery": 48,
+    "standaloneIdentityUI": 25,
+    "nativeOwnerBoundary": 28,
+    "nativePortProduct": "HOLD: 3 initial passes then port-owner-admission-required in Studio-B"
+  },
+  "review": {
+    "independentReviewer": false,
+    "method": "single implementer code audit and separate synthetic test suites",
+    "unresolved": [
+      "P2 Port Owner admission",
+      "native midnight legacy Sync enum",
+      "formal entrance entitlement integration",
+      "real Account/Pro and physical two-device acceptance"
+    ]
+  }
+}
