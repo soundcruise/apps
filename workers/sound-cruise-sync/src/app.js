@@ -1220,9 +1220,20 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
       const candidates = await assets.cleanupCandidates(now, graceMs, preparedMs, 100);
       for (const asset of candidates) {
         if (attempted.has(asset.asset_id)) continue;
-        if (!await assets.claimCleanup(asset, now, { graceMs, preparedMs })) continue;
-        const claim = await assets.getCleanupClaim(asset.asset_id);
-        if (claim) await recoverAssetDeletion(assets, env.SYNC_ASSETS, claim, now);
+        // Preserve the known legacy safe action on both schemas: a referenced
+        // object is restored, never sent to physical cleanup.
+        if (asset.state === 'unreferenced' && await assets.isReferenced(asset)) {
+          await assets.restoreReferenced(asset.asset_id, now);
+          continue;
+        }
+        try {
+          if (!await assets.claimCleanup(asset, now, { graceMs, preparedMs })) continue;
+          const claim = await assets.getCleanupClaim(asset.asset_id);
+          if (claim) await recoverAssetDeletion(assets, env.SYNC_ASSETS, claim, now);
+        } catch (error) {
+          if (error?.message !== 'asset_cleanup_requires_review') throw error;
+          assetCleanupHold = true; // Retain this object; still restore later referenced candidates.
+        }
       }
     } catch (error) {
       assetCleanupHold = error?.message === 'asset_cleanup_requires_review';

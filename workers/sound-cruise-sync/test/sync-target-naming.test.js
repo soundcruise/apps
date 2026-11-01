@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { handleRequest } from '../src/app.js';
 import { createAccountCredential, createAccountRecoveryCode, createAppJoinCode } from '../src/account-crypto.js';
@@ -380,8 +381,10 @@ test('rename leaves reports, removal safety, revoke scope, device counts and dat
 
 test('user_label is read only by the device listings and the rename writes', () => {
   const src = path.join(import.meta.dirname, '../src');
-  const readers = fs.readdirSync(src).filter((name) => name.endsWith('.js') &&
-    fs.readFileSync(path.join(src, name), 'utf8').includes('user_label'));
+  const reachable = reachableSources(['index.js','studio-release-entry.js'].map(name=>path.join(src,name)));
+  assert(reachable.has(path.join(src,'account-lifecycle-database.js')), 'the real owner must be reached');
+  assert(!reachable.has(path.join(src,'maintenance-account-device.js')), 'isolated device pinning must not become product code');
+  const readers = labelOwners(reachable);
   assert.deepEqual(readers, ['account-lifecycle-database.js'],
     'join, handoff, Auto Rejoin, auth, reports, cleanup and limits never read or copy user_label');
   const lifecycle = fs.readFileSync(path.join(src, 'account-lifecycle-database.js'), 'utf8');
@@ -410,4 +413,41 @@ test('rename pauses with device management (account_delete gate) and answers COR
     assert.match(response.headers.get('Access-Control-Allow-Methods') || '', /POST/);
   }
   db.close();
+});
+
+
+// Conservative literal import graph: cover both shipping source entries, .js/.mjs,
+// side-effect imports, re-exports and literal dynamic imports. Never import/run code.
+function reachableSources(entries) {
+ const seen=new Set();
+ function visit(file){
+  file=path.resolve(file);if(seen.has(file))return;seen.add(file);
+  const body=fs.readFileSync(file,'utf8');
+  const dynamic=[...body.matchAll(/\bimport\s*\(/g)];
+  const literal=[...body.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)];
+  assert.equal(dynamic.length,literal.length,'computed imports require explicit ownership audit: '+path.basename(file));
+  const patterns=[/\b(?:import|export)\s+[^;]*?\bfrom\s*['"](\.[^'"]+)['"]/g,/\bimport\s*['"](\.[^'"]+)['"]/g,/\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g];
+  for(const regex of patterns)for(const match of body.matchAll(regex))visit(path.resolve(path.dirname(file),match[1].split('?')[0]));
+ }
+ entries.forEach(visit);return seen;
+}
+function labelOwners(files){return [...files].filter(file=>/\buser_label\b/.test(fs.readFileSync(file,'utf8'))).map(file=>path.basename(file)).sort();}
+
+test('label ownership guard detects reachable .mjs/dynamic/re-export readers without treating schema journal names as reads',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'label-entry-'));
+ try{
+  const write=(name,body)=>fs.writeFileSync(path.join(dir,name),body);
+  write('entry.js',"import './journal.js'; export {x} from './bridge.mjs';");
+  write('journal.js',"export const journal=['0031_add_sync_target_user_labels.sql'];");
+  write('bridge.mjs',"export const x=()=>import('./reader.mjs');");
+  write('reader.mjs',"export const sql='SELECT user_label FROM sync_devices';");
+  write('unused.js',"export const sql='SELECT user_label FROM sync_devices';");
+  const files=reachableSources([path.join(dir,'entry.js')]);
+  assert(!files.has(path.join(dir,'unused.js')));assert.deepEqual(labelOwners(files),['reader.mjs']);
+  assert.throws(()=>assert.deepEqual(labelOwners(files),[]),'an unauthorized reachable reader must fail');
+  write('reader.mjs',"export const sql='UPDATE sync_devices SET user_label = ?';");
+  assert.deepEqual(labelOwners(reachableSources([path.join(dir,'entry.js')])),['reader.mjs']);
+  write('reader.mjs',"export const sql=()=>import(computedPath);");
+  assert.throws(()=>reachableSources([path.join(dir,'entry.js')]),/computed imports require explicit ownership audit/);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

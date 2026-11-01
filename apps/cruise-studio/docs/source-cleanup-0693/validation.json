@@ -1,0 +1,356 @@
+{
+  "baseCommit": "7138e8277324bfcb0526aa15012a867e38e1a7b1",
+  "baseTree": "3d858e20513fc47c0c3cb3e3b062705282d83c33",
+  "productionAccess": false,
+  "physicalCleanup0033": "HOLD",
+  "productionV138Equivalence": "NOT_ACCEPTED",
+  "independentReview": "NOT_PERFORMED",
+  "build": {
+    "inputs": 84,
+    "bundledBytes": 1025924,
+    "legacySnapshotReachable": false,
+    "maintenanceAccountDeviceReachable": false
+  },
+  "suites": {
+    "workerJS": {
+      "pass": 947,
+      "fail": 0,
+      "skip": 0
+    },
+    "workerMJS": {
+      "pass": 65,
+      "fail": 0,
+      "skip": 5,
+      "skipReason": "dedicated Owner/RC native fixture modes not invoked"
+    },
+    "schema33ExistingServices": {
+      "pass": 74,
+      "fail": 0,
+      "skip": 0
+    },
+    "portShared": {
+      "pass": 344,
+      "fail": 0,
+      "skip": 0
+    },
+    "uiBrowser": {
+      "pass": 10,
+      "fail": 0,
+      "skip": 0
+    },
+    "studioNode": {
+      "pass": 1938,
+      "fail": 0,
+      "skip": 2,
+      "skipReason": "dedicated client E2E modes; separate source Project browser run has 32 PASS"
+    },
+    "nativePortStudio": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+          "status": "PASS"
+        },
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+          "status": "PASS"
+        },
+        {
+          "name": "real Sync Center attribution and existing runtime bootstrap on both profiles",
+          "status": "PASS"
+        },
+        {
+          "name": "real Port Gear UI save -> Cloud push -> Studio frame pull",
+          "status": "PASS"
+        },
+        {
+          "name": "Studio actual Gear form edits Cloud data and Port receives the edit",
+          "status": "PASS"
+        },
+        {
+          "name": "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+          "status": "PASS"
+        },
+        {
+          "name": "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+          "status": "PASS"
+        },
+        {
+          "name": "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Practice attachment Asset Sync stores and hydrates real binary",
+          "status": "PASS"
+        },
+        {
+          "name": "offline edit is retained and reconciles through existing Sync after reconnect",
+          "status": "PASS"
+        },
+        {
+          "name": "real shared Studio Identity enrolment and Project UNKNOWN survive Account isolation",
+          "status": "PASS"
+        },
+        {
+          "name": "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+          "status": "PASS"
+        },
+        {
+          "name": "Account A to B replacement fences the open Port form and preserves A data/binary/Outbox",
+          "status": "PASS"
+        },
+        {
+          "name": "shared Account change recreates Project client without sending A UNKNOWN under B",
+          "status": "PASS"
+        },
+        {
+          "name": "native Pro revoke-pending disables shared Project writes without discarding UNKNOWN",
+          "status": "PASS"
+        }
+      ],
+      "productionRequestsSent": 0
+    },
+    "remainingRecovery": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+          "status": "PASS"
+        },
+        {
+          "name": "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes",
+          "status": "PASS"
+        },
+        {
+          "name": "pre-commit network keeps UNKNOWN and explicit same-operation recovery resumes real Port Sync",
+          "status": "PASS"
+        },
+        {
+          "name": "pre-commit 503 keeps UNKNOWN and explicit same-operation recovery resumes real Port Sync",
+          "status": "PASS"
+        },
+        {
+          "name": "Port commit ACK loss is durable UNKNOWN without automatic resend or own-echo acceptance",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Sync Center explicit read-only reconcile clears the exact committed operation once",
+          "status": "PASS"
+        },
+        {
+          "name": "Pro generation changes after entry validation but before D1 commit: final SQL rejects, local retained",
+          "status": "PASS"
+        },
+        {
+          "name": "regular Pro reauthentication and explicit retry resumes the same pending Port intent",
+          "status": "PASS"
+        },
+        {
+          "name": "lease expiry after Pro entry validation also fences commit and keeps unsynced local edit",
+          "status": "PASS"
+        },
+        {
+          "name": "Pro already expired before dispatch is a definite rejection, not an unresolvable UNKNOWN",
+          "status": "PASS"
+        },
+        {
+          "name": "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+          "status": "PASS"
+        },
+        {
+          "name": "native image re-edit publishes a new matched source/final generation on both devices",
+          "status": "PASS"
+        },
+        {
+          "name": "explicit photo deletion propagates without treating a missing cache as deletion",
+          "status": "PASS"
+        },
+        {
+          "name": "native My Apps icon source/final binary roundtrip through Studio entry",
+          "status": "PASS"
+        },
+        {
+          "name": "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+          "status": "PASS"
+        },
+        {
+          "name": "practice attachment deletion ACK loss preserves the old intent while a new attachment is retained",
+          "status": "PASS"
+        },
+        {
+          "name": "attachment explicit reconcile and replacement download preserve exact v2 bytes without resurrecting v1",
+          "status": "PASS"
+        },
+        {
+          "name": "actual binary adoption lock cost and writer wait are measured without moving the safety fence",
+          "status": "PASS"
+        },
+        {
+          "name": "Device revoked after HTTP authentication but before SQL commit rejects the old writer without discarding local work",
+          "status": "PASS"
+        }
+      ],
+      "productionRequestsSent": 0
+    },
+    "project": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "normal Studio boot sends no Cloud write and isolated production hostname is rejected",
+          "status": "PASS"
+        },
+        {
+          "name": "Port Owner quarantine preserves a real UNKNOWN Project outbox, revision and form draft",
+          "status": "PASS"
+        },
+        {
+          "name": "Studio Account switch rejects unadmitted Port form and retains draft",
+          "status": "PASS"
+        },
+        {
+          "name": "unadmitted Port save stays rejected after remote Account generation change",
+          "status": "PASS"
+        },
+        {
+          "name": "unadmitted Port save stays rejected after remote Device generation change",
+          "status": "PASS"
+        },
+        {
+          "name": "Device A saves local schema2, stages chunks, commits receipt and verified readback",
+          "status": "PASS"
+        },
+        {
+          "name": "Device B reads and explicitly imports same document; B edit returns to A without silent overwrite",
+          "status": "PASS"
+        },
+        {
+          "name": "offline local edit survives transport failure; explicit reconcile/resume uses same operation",
+          "status": "PASS"
+        },
+        {
+          "name": "commit ACK loss is UNKNOWN; explicit reconcile validates receipt without a second change",
+          "status": "PASS"
+        },
+        {
+          "name": "real profile close/reopen preserves outbox/local and can reconcile historical receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "old receipt reconcile cannot erase newer UNKNOWN active operation",
+          "status": "PASS"
+        },
+        {
+          "name": "local editing during Cloud response remains local and marks LOCAL_CHANGED",
+          "status": "PASS"
+        },
+        {
+          "name": "two independent devices conflict on Cloud CAS and preserve losing local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "two tabs share Web Lock and cannot enqueue duplicate unresolved operation",
+          "status": "PASS"
+        },
+        {
+          "name": "cross-account read is absent, Account switch cannot reuse local A ownership",
+          "status": "PASS"
+        },
+        {
+          "name": "old A delayed response after switch cannot change B Project or publish successful result",
+          "status": "PASS"
+        },
+        {
+          "name": "credential generation change preserves old pending; no automatic new-generation adoption",
+          "status": "PASS"
+        },
+        {
+          "name": "Pro expiry/revoke and Studio device revoke fail closed with outbox and local retained",
+          "status": "PASS"
+        },
+        {
+          "name": "tombstone ACK loss reconciles; remote deletion never deletes local draft or permits resurrection",
+          "status": "PASS"
+        },
+        {
+          "name": "orphan Outbox operation is listed after link failure and recovers past terminal active",
+          "status": "PASS"
+        },
+        {
+          "name": "local CAS conflict clears known-not-applied intent and preserves current draft",
+          "status": "PASS"
+        },
+        {
+          "name": "LocalStorage success / outbox failure survives reopen and explicit local reconcile",
+          "status": "PASS"
+        },
+        {
+          "name": "intent-only interrupted import can clear without overwriting local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "receipt tampering leaves UNKNOWN and current Owner reconcile repairs exact result",
+          "status": "PASS"
+        },
+        {
+          "name": "manifest mismatch is rejected with local and pending retained",
+          "status": "PASS"
+        },
+        {
+          "name": "independent other-Account Browser cannot read known Account A document",
+          "status": "PASS"
+        },
+        {
+          "name": "session expiry refuses access without returning historical receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "missing chunk and invalid full manifest refuse head publication and preserve local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "tab terminates after remote commit before ACK; reopened tab sees COMMITTING and explicitly reconciles",
+          "status": "PASS"
+        },
+        {
+          "name": "explicit local conflict recovery preserves a different current draft",
+          "status": "PASS"
+        },
+        {
+          "name": "guard runs inside existing Project lock before any local write",
+          "status": "PASS"
+        },
+        {
+          "name": "large valid Unicode schema2 traverses localStorage, durable chunks and Cloud readback",
+          "status": "PASS"
+        }
+      ],
+      "productionRequestsSent": 0
+    },
+    "workerCombined": {
+      "pass": 1012,
+      "fail": 0,
+      "skip": 5
+    }
+  },
+  "artifactHashes": {
+    "index.js": "63b452b17b8dd8f294082ed7fac8a7a2096e47c1d42dc57fc3198ff679d26c64",
+    "studio-release-entry.js": "d95c37d84961ddb7864c8bb93b7576f02d270d3f212339701af2bca1837850f8",
+    "studio-legacy-v137.mjs": "94d97e5623c40b09761fb08a3f16691e3f840a6e3ed7521c801661a97ee794cc"
+  },
+  "existingWorktreeHeads": {
+    "checked": 96,
+    "changed": 0
+  },
+  "protectedTrees": {
+    "apps/cruise-port": "422bedad757d870cbda446a4a539ae35bf4a7216",
+    "apps/shared": "37d522f1fa3ab17842aab2914577db0b4d9ac1d5",
+    "apps/chord-cruise": "3e24b57b19d1fdbda8cb3012f1f09364c79b6626",
+    "apps/pitch-cruise": "6bbdbe904afed21fffdc01d98cd2690e821e11f3",
+    "apps/fretboard_cruise": "40784f580cb7a108531662cd2e530bcf37fd3e07",
+    "apps/rhythm-cruise": "30c988b48e47d18d9aee87071248f304ea90e408"
+  }
+}
