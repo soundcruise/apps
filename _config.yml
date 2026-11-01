@@ -10,3 +10,67 @@ exclude:
   - CRUISE-SYNC-INTEGRITY-REPAIR-REPORT.md
   - apps/chord-cruise/tests
   - apps/chord-cruise/ai-handoff
+
+  # Studio release allowlist; verified against an actual Jekyll safe build.
+  - apps/cruise-studio/APP_CONCEPT.md
+  - apps/cruise-studio/DATA_MODEL.md
+  - apps/cruise-studio/ROADMAP.md
+  - apps/cruise-studio/STUDIO_SESSION_RECOVERY.md
+  - apps/cruise-studio/STUDIO_SYNC_CLIENT.md
+  - apps/cruise-studio/_proto
+  - apps/cruise-studio/ai-handoff
+  - apps/cruise-studio/assets/LUCIDE-LICENSE
+  - apps/cruise-studio/chord-form.css
+  - apps/cruise-studio/cloud-panel.css
+  - apps/cruise-studio/development.html
+  - apps/cruise-studio/docs
+  - apps/cruise-studio/js/app.js
+  - apps/cruise-studio/js/cloud
+  - apps/cruise-studio/js/core/active-document.js
+  - apps/cruise-studio/js/core/common-music-model.js
+  - apps/cruise-studio/js/core/component-metadata.mjs
+  - apps/cruise-studio/js/core/editing-session.js
+  - apps/cruise-studio/js/core/feature-registry.mjs
+  - apps/cruise-studio/js/core/melody-commands.js
+  - apps/cruise-studio/js/core/melody-notation.js
+  - apps/cruise-studio/js/core/music-theory.js
+  - apps/cruise-studio/js/core/project-repository.js
+  - apps/cruise-studio/js/core/rhythm-snapshot.js
+  - apps/cruise-studio/js/core/schema2.js
+  - apps/cruise-studio/js/core/song-model.js
+  - apps/cruise-studio/js/core/storage.js
+  - apps/cruise-studio/js/core/structure-conversion.js
+  - apps/cruise-studio/js/core/theme-projection.json
+  - apps/cruise-studio/js/core/version-reader.mjs
+  - apps/cruise-studio/js/modules/chord
+  - apps/cruise-studio/js/modules/library/launch.mjs
+  - apps/cruise-studio/js/modules/library/panel.mjs
+  - apps/cruise-studio/js/modules/library/workspace.js
+  - apps/cruise-studio/js/modules/metronome/isolated-bpm-controller.mjs
+  - apps/cruise-studio/js/modules/metronome/metadata.js
+  - apps/cruise-studio/js/modules/metronome/metronome.js
+  - apps/cruise-studio/js/modules/metronome/port-core.js
+  - apps/cruise-studio/js/modules/metronome/settings-controller.js
+  - apps/cruise-studio/js/modules/metronome/settings-schema.js
+  - apps/cruise-studio/js/modules/metronome/settings-store.js
+  - apps/cruise-studio/js/modules/pc-home-news.mjs
+  - apps/cruise-studio/js/modules/port-pro-components.mjs
+  - apps/cruise-studio/js/modules/practice/workspace.js
+  - apps/cruise-studio/js/modules/pre-dtm-cruise
+  - apps/cruise-studio/js/modules/rhythm
+  - apps/cruise-studio/js/modules/sheet-cruise
+  - apps/cruise-studio/js/modules/tuner/panel.mjs
+  - apps/cruise-studio/js/modules/tuner/quick-panel.mjs
+  - apps/cruise-studio/js/modules/tuner/reference.mjs
+  - apps/cruise-studio/js/modules/tuner/runtime.mjs
+  - apps/cruise-studio/js/modules/tuner/workspace.js
+  - apps/cruise-studio/js/port-components
+  - apps/cruise-studio/js/port-data
+  - apps/cruise-studio/melody-editor.css
+  - apps/cruise-studio/melody-staff.css
+  - apps/cruise-studio/port-tool.html
+  - apps/cruise-studio/print.css
+  - apps/cruise-studio/rhythm-panel.css
+  - apps/cruise-studio/scripts
+  - apps/cruise-studio/tests
+  - apps/cruise-studio/vendor
