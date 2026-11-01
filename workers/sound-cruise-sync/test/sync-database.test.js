@@ -277,3 +277,31 @@ test('Port records use the shared revision-safe data plane with a Port-scoped ma
     await (await import('../src/records.js')).manifestHash(snapshot.records, 1, crypto, 'fretboard'));
   db.close();
 });
+
+test('schema0033 idempotence is scoped to retained history; expired create is not safe to blindly replay', async()=>{
+ const db=createSqliteD1({schemaVersion:33}),identity=seedIdentity(db),repo=createD1SyncRepository(db,()=>100);
+ const op=await operation({id:'c1',chordName:'C'},0);
+ assert.equal((await repo.applyOperation(identity,op)).status,'applied');
+ assert.equal((await repo.applyOperation(identity,op)).status,'duplicate');
+ const deletion=await operation(null,1);assert.equal((await repo.applyOperation(identity,deletion)).status,'applied');
+ // Run the real schema0033 cleanup at both documented retention boundaries.
+ const {createD1CleanupRepository,CLEANUP_RETENTION}=await import('../src/cleanup-database.js');
+ db.raw.prepare("UPDATE sync_users SET state='active',recovery_version=1,recovery_verifier=?").run('f'.repeat(64));db.raw.prepare('UPDATE sync_devices SET paired_at=1').run();
+ const cleanup=createD1CleanupRepository(db);await cleanup.cleanup(CLEANUP_RETENTION.changeMs+99);
+ assert.equal(db.raw.prepare('SELECT count(*) n FROM sync_changes').get().n,2);
+ await cleanup.cleanup(CLEANUP_RETENTION.changeMs+101);
+ assert.equal(db.raw.prepare('SELECT count(*) n FROM sync_changes').get().n,0);
+ assert(db.raw.prepare('SELECT min_change_seq n FROM sync_datasets').get().n>0);
+ assert.equal(db.raw.prepare('SELECT count(*) n FROM sync_records').get().n,1);
+ await cleanup.cleanup(CLEANUP_RETENTION.tombstoneMs+101);
+ assert.equal(db.raw.prepare('SELECT count(*) n FROM sync_records').get().n,0);
+ assert.equal((await repo.applyOperation(identity,op)).status,'applied','proves why cursor-expired clients MUST retain UNKNOWN instead of retrying');db.close();
+});
+
+test('schema0033 source compatibility admission does not require dormant writer schema',async()=>{
+ const {admitWriter}=await import('../src/writer-admission.js');const db=createSqliteD1({schemaVersion:33}),identity=seedIdentity(db);
+ assert.equal(await admitWriter(db,identity,{},null),null);
+ assert((await admitWriter(db,identity,{writerProtocol:1,syncProtocol:1,expectedWriteEpoch:1},null)).error);
+ const {createD1CleanupRepository}=await import('../src/cleanup-database.js');await createD1CleanupRepository(db).cleanup(1000);
+ assert.equal(db.raw.prepare("SELECT count(*) n FROM sqlite_master WHERE name='sync_authority_cutovers'").get().n,0);db.close();
+});

@@ -94,6 +94,7 @@ for (const phase of ['before-push', 'mid-push', 'before-complete', 'complete-res
     const w = portWorld();
     const a = await interrupted(w, phase);
     const before = await recordsOf(a);
+    if ((await a.runtime.store.listOutbox()).some(o=>o.outcome==='UNKNOWN')) await a.runtime.reconcileUnknown();
     const resumed = await a.runtime.initializeDataset();
     assert.equal(resumed.ok, true);
     assert.equal(resumed.recordCount, 23);
@@ -109,6 +110,7 @@ for (const [key, remove] of Object.entries(REMOVALS)) {
     const a = await interrupted(w);
     const original = await a.adapter.serializeRecords(a.adapter.readLocalSnapshot());
     remove(a);
+    if ((await a.runtime.store.listOutbox()).some(o=>o.outcome==='UNKNOWN')) await a.runtime.reconcileUnknown();
     const resumed = await a.runtime.initializeDataset();
     assert.equal(resumed.ok, true, `no manifest mismatch: ${JSON.stringify(resumed)}`);
     assert.equal(datasetState(w, 'port'), 'ready');
@@ -142,6 +144,7 @@ for (const [key, remove] of Object.entries(REMOVALS)) {
     const w = portWorld();
     const a = await interrupted(w);
     journaled(a, remove);
+    if ((await a.runtime.store.listOutbox()).some(o=>o.outcome==='UNKNOWN')) await a.runtime.reconcileUnknown();
     const resumed = await a.runtime.initializeDataset();
     assert.equal(resumed.ok, true, JSON.stringify(resumed));
     assert.notEqual(portRow(w, key).deleted_at, null, 'explicit deletion reaches the cloud');
