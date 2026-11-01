@@ -1,35 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPortProBoundary } from '../js/core/port-pro-boundary.mjs';
+import {createPortProBoundary} from '../js/core/port-pro-boundary.mjs';
 
-test('component boundary remains closed without a shared gate and source', async () => {
-    const boundary = createPortProBoundary();
-    assert.deepEqual(await boundary.authorize(), { ok: false, reason: 'pro-source-unavailable' });
-    boundary.dispose();
-    assert.deepEqual(await boundary.authorize(), { ok: false, reason: 'disposed' });
+test('component stays closed without the formal entrance, regardless of a Pro UI flag',async()=>{
+ const boundary=createPortProBoundary();assert.deepEqual(await boundary.authorize(),{ok:false,reason:'studio-entry-required'});boundary.dispose();assert.equal((await boundary.authorize()).ok,false);
 });
-
-test('even a validated source cannot bypass missing writer admission', async t => {
-    const original = Object.getOwnPropertyDescriptors(globalThis);
-    t.after(() => { for (const key of ['document','__SOUNDCRUISE_PRO_GATE__','__soundCruiseClearGate','SoundCruiseProOperationSource']) {
-        if (original[key]) Object.defineProperty(globalThis, key, original[key]); else delete globalThis[key];
-    }});
-    globalThis.document = { body: { classList: { contains: () => false } }, getElementById: () => null };
-    globalThis.__SOUNDCRUISE_PRO_GATE__ = {};
-    globalThis.__soundCruiseClearGate = () => {};
-    let revision = 'r1', revoked = false, release;
-    const auth = { credential: 'fixture', generation: 1, sessionVersion: 1 };
-    globalThis.SoundCruiseProOperationSource = { read: () => ({ auth, revision, revoked }), validate: async () => ({ ok: true }) };
-    const boundary = createPortProBoundary();
-    assert.deepEqual(await boundary.authorize(), { ok: false, reason: 'writer-admission-unavailable' });
-    revoked = true;
-    assert.deepEqual(await boundary.authorize(), { ok: false, reason: 'pro-source-revoked' });
-    revoked = false;
-    globalThis.SoundCruiseProOperationSource.validate = () => new Promise(resolve => { release = resolve; });
-    const pending = boundary.authorize();
-    revision = 'r2'; release({ ok: true });
-    assert.deepEqual(await pending, { ok: false, reason: 'pro-source-stale' });
-    const pending2 = boundary.authorize();
-    boundary.invalidate(); release({ ok: true });
-    assert.deepEqual(await pending2, { ok: false, reason: 'pro-source-stale' });
+test('failed entrance, disposal and invalidation cannot adopt a pending authorization',async t=>{
+ const original=globalThis.CruiseStudio;t.after(()=>{if(original)globalThis.CruiseStudio=original;else delete globalThis.CruiseStudio;});
+ let release;globalThis.CruiseStudio={entryAuth:{check:()=>new Promise(r=>release=r),isAuthorized:()=>true}};
+ const boundary=createPortProBoundary(),pending=boundary.authorize();boundary.invalidate();release(true);assert.equal((await pending).ok,false);
+ const second=boundary.authorize();boundary.dispose();release(true);assert.equal((await second).ok,false);
+ globalThis.CruiseStudio.entryAuth={check:async()=>false,isAuthorized:()=>true};assert.equal((await createPortProBoundary().authorize()).ok,false);
 });

@@ -70,7 +70,9 @@
         }
         function save(request) {
             var token = request.token || {};
-            return underLock(function () {
+            return underLock(async function () {
+                if(options.authorizeWrite && !await options.authorizeWrite()) return {ok:false,code:'studio-entry-required',error:'認証を確認してください。草稿は保持しています。'};
+                if(options.canWrite && !options.canWrite()) return {ok:false,code:'studio-entry-required'};
                 if(request.precondition && request.precondition()!==true) return {ok:false,code:'precondition-changed'};
                 var marker=Object.getOwnPropertyDescriptor(request.snapshot,'sourceSchemaVersion');
                 if(marker && marker.value===2) return {ok:false,code:'projection-not-persistable',error:'派生表示を保存できません'};
@@ -103,6 +105,7 @@
                     if (!latest.ok) return latest;
                     if (latest.revision !== request.baseRevision) return { ok: false, code: latest.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: read(request.target) };
                     if(request.precondition && request.precondition()!==true) return {ok:false,code:'precondition-changed'};
+                    if(options.canWrite && !options.canWrite()) return {ok:false,code:'studio-entry-required'};
                     var result = writeTransaction([[PROJECT + project.projectId, raw], [INDEX, indexRaw]]);
                     if (!result.ok) { result.current = read(request.target); return result; }
                     notify(request.target, 'same-studio', token);
@@ -113,7 +116,9 @@
             });
         }
         function remove(target, baseRevision) {
-            return underLock(function () {
+            return underLock(async function () {
+                if(options.authorizeWrite && !await options.authorizeWrite()) return {ok:false,code:'studio-entry-required'};
+                if(options.canWrite && !options.canWrite()) return {ok:false,code:'studio-entry-required'};
                 var current = read(target);
                 if (!current.ok) return current;
                 if (current.revision !== baseRevision) return { ok: false, code: 'conflict', error: '削除対象が更新されています。もう一度確認してください。' };
@@ -132,7 +137,7 @@
         }
         return Object.freeze({
             read: read, readRevision: readRevision, save: save, remove: remove,
-            canWrite: function () { return !!(options.storage && options.locks && typeof options.locks.request === 'function'); },
+            canWrite: function () { return (!options.canWrite || options.canWrite()) && !!(options.storage && options.locks && typeof options.locks.request === 'function'); },
             subscribe: function (fn) { listeners.add(fn); return function () { listeners.delete(fn); }; },
             attach: function () { if (!attached && options.events) { options.events.addEventListener('storage', onStorage); attached = true; } },
             dispose: function () { if (attached) options.events.removeEventListener('storage', onStorage); attached = false; listeners.clear(); }

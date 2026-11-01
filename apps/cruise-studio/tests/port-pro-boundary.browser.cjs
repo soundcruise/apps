@@ -18,7 +18,7 @@ test('Studio product boundary denies both components without a source and never 
             const metronome = await CruiseStudio.portProComponents.open('metronome');
             return { tuner, metronome, before, after: Object.fromEntries(Object.entries(localStorage).filter(([k]) => k.startsWith('cruisePort.'))) };
         });
-        assert.deepEqual(result.tuner, { ok: false, reason: 'pro-source-unavailable' });
+        assert.deepEqual(result.tuner, { ok: false, reason: 'studio-entry-required' });
         assert.deepEqual(result.metronome, result.tuner);
         assert.deepEqual(result.before, result.after);
         // Synthetic source exists only in this disposable browser context.
@@ -28,7 +28,7 @@ test('Studio product boundary denies both components without a source and never 
             window.SoundCruiseProOperationSource = { read: () => ({ revoked: false, revision: 'fixture', auth: { credential: 'fixture', generation: 1, sessionVersion: 1 } }), validate: async () => ({ ok: true }) };
             return CruiseStudio.portProComponents.open('tuner');
         });
-        assert.deepEqual(admitted, { ok: false, reason: 'writer-admission-unavailable' });
+        assert.deepEqual(admitted, { ok: false, reason: 'studio-entry-required' });
         assert.deepEqual(errors, []);
     } finally { await context.close(); await browser.close(); }
 });

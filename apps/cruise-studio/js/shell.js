@@ -84,6 +84,7 @@
         function closeToolUnchecked(){if(!dockedTool){toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');return;}var id=dockedTool;dockedTool=null;realTools[id].deactivate();moveNode(main.querySelector('.studio-container'),nodes[id]);nodes[id].hidden=true;nodes[id].inert=true;nodes[id].classList.add('hidden');toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');if(toolTrigger?.isConnected)toolTrigger.focus({preventScroll:true});refreshGeometry();}
         function closeTool(){if(modal.getActive())return false;if(guardTool(closeTool))return false;closeToolUnchecked();return true;}
         function openTool(id, preserveCenter){
+            if(!CS.entryAuth?.isAuthorized())return false;
             if(!toolIds.includes(id)||modal.getActive())return false;
             doc.getElementById('tool-window-status').textContent='';
             if(dockedTool===id){toolSelect.focus();return true;}
@@ -117,7 +118,13 @@
         resizeHandle.addEventListener('pointerup',function(e){if(resizeHandle.hasPointerCapture(e.pointerId))resizeHandle.releasePointerCapture(e.pointerId);});
         resizeHandle.addEventListener('keydown',function(e){if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();setToolWidth(toolWindow.getBoundingClientRect().width+(e.key==='ArrowLeft'?20:-20));}});
         window.addEventListener('beforeunload',function(e){if(hasToolInput()){e.preventDefault();e.returnValue='';}});
-        CS.toolWindow=Object.freeze({open:openTool,close:closeTool,hasUnsaved:hasToolInput,getTool:function(){return dockedTool;}});
+        CS.toolWindow=Object.freeze({open:openTool,close:closeTool,discardLockedFrame:function(frame){
+            var id=toolIds.find(function(key){return nodes[key].contains(frame);});
+            if(!id||!frame.inert||!confirm('この画面の未保存内容を破棄して閉じますか？'))return false;
+            if(dockedTool===id)closeToolUnchecked();
+            else if(host.getActive()===id)host.activate('home');
+            return true;
+        },hasUnsaved:hasToolInput,getTool:function(){return dockedTool;}});
         var focusRouting = CS.focusRouting.createFocusRouting(doc, function () { return nodes[host.getActive()]; }, function () {
             return doc.querySelector('.studio-nav [aria-current="page"]');
         }, function (element) {
@@ -196,6 +203,7 @@
             refreshGeometry();
         }
         function navigate(id) {
+            if(!CS.entryAuth?.isAuthorized())return false;
             if(host.getActive()?.startsWith('app_')&&host.getActive()!==id&&realTools[host.getActive()].requestLeave())return false;
             if(modal.getActive())return false;
             if(dockedTool===id){toolSelect.focus();return true;}
@@ -211,6 +219,7 @@
             return host.activate(id);
         }
         function goBack() {
+            if(!CS.entryAuth?.isAuthorized())return false;
             if(host.getActive()?.startsWith('app_')&&realTools[host.getActive()].requestLeave())return false;
             if(modal.getActive())return false;
             if (modal.getActive()) return false;
@@ -251,11 +260,11 @@
         doc.getElementById('shell-pane-close').addEventListener('click', function () { layout.closeRight(); renderLayout(); });
         doc.getElementById('shell-dock-toggle').addEventListener('click', function () { layout.toggleDock(); renderLayout(); });
         var ime = CS.keyboard.createIMEGuard(window.setTimeout.bind(window), window.clearTimeout.bind(window));
-        var modal = CS.modals.createModalManager({ document: doc, background: shell, focus: focusRouting, canFocus: CS.focusRouting.canFocus, ime: ime });
+        var modal = CS.modals.createModalManager({ document: doc, background: shell, canOpen: function () { return !!CS.entryAuth?.isAuthorized(); }, focus: focusRouting, canFocus: CS.focusRouting.canFocus, ime: ime });
         // Explicit slots stay null until their owner connects them; DOM focus never assigns these targets.
         var targets = { activeDocument: null, selectedObject: null, musicalInputSession: null, editingSession: null, transport: null, audioOwner: null };
         function getCommandContext() {
-            return Object.freeze(Object.assign({}, targets, { activeWorkspaceId: host.getActive(), focusedElement: doc.activeElement,
+            return Object.freeze(Object.assign({}, targets, { authorized: !!CS.entryAuth?.isAuthorized(), activeWorkspaceId: host.getActive(), focusedElement: doc.activeElement,
                 activeModal: modal.getActive(), rightPaneState: layout.get() }));
         }
         var commands = CS.commands.createRouter(getCommandContext);
