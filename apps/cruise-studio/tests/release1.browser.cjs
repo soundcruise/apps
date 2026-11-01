@@ -40,3 +40,26 @@ test('release central/right single-owner UI, central unsaved refresh guard, five
   assert.deepEqual(f.errors,[]);assert.equal(await p.evaluate(()=>localStorage.getItem('cruiseStudio.project.future-song')),'synthetic-keep');
  }finally{await f.browser.close();}
 });
+
+test('canonical five Port Pro tools retain a single ready frame in the right pane and do not save projected themes',async()=>{
+ const f=await fixture(),p=f.page;try{
+  for(const [id,surface,view] of [['tuner','port-tuner-surface','tuner-view'],['metronome','port-metronome-surface','metronome-view'],['portPractice','port-practice-surface','practice-list-view'],['portGear','port-gear-surface','wishlist-view'],['portMyApps','port-my-apps-surface','home-view']]){
+   await p.evaluate(id=>CruiseStudio.shellHost.navigate(id),id);
+   await p.waitForFunction(surface=>document.querySelector('#'+surface+' iframe')?.contentDocument?.body?.dataset.componentState==='ready',surface);
+   const frame=p.frameLocator('#'+surface+' iframe');await frame.locator('#'+view+':not([hidden])').waitFor();
+   await p.evaluate(surface=>window.originalPort=document.querySelector('#'+surface+' iframe'),surface);
+   const settings=await p.evaluate(()=>localStorage.getItem('cruisePort.settings'));
+   await p.locator('#'+({tuner:'screen-tuner',metronome:'screen-metronome',portPractice:'screen-port-practice',portGear:'screen-port-gear',portMyApps:'screen-port-my-apps'}[id])+' [data-open-tool]').click();
+   assert(await p.evaluate(()=>originalPort===document.querySelector('#tool-window-slot iframe')));
+   assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'home');
+   for(const theme of ['dark','midnight','charcoal','gray','light']){
+    await p.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);await frame.locator('html[data-studio-theme='+theme+']').waitFor();
+    assert.equal(await p.evaluate(()=>localStorage.getItem('cruisePort.settings')),settings);
+   }
+   for(const width of [1440,1024,768,390]){await p.setViewportSize({width,height:1000});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert(await p.locator('#studio-tool-toggle').isVisible());}
+   await p.locator('#shell-audio-stop').click();await p.locator('#studio-tool-toggle').click();assert.equal(await p.locator('#'+surface+' iframe').count(),0);
+   await p.setViewportSize({width:1440,height:1000});
+  }
+  assert.deepEqual(f.errors,[]);
+ }finally{await f.browser.close();}
+});

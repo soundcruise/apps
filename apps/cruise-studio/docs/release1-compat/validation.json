@@ -1,0 +1,313 @@
+{
+  "productionAccepted": false,
+  "basePR": 148,
+  "baseHead": "fdb4cf0718dd186940d022e53ba87d85bc6e60ef",
+  "frozenMainAndPagesBuild": "cb48d8c17b4757a0404d031272a1f36ba92618b5",
+  "pages": {
+    "metadataOnly": true,
+    "buildType": "legacy",
+    "source": {
+      "branch": "main",
+      "path": "/"
+    },
+    "noNoJekyll": true,
+    "localEngine": "Jekyll 3.10.0 --safe",
+    "outputStudioFiles": 34,
+    "allowedHttpFileHashesMatched": 34,
+    "forbiddenHttpUrls404": 8,
+    "nativeOutputFilesByteIdentical": 772,
+    "baselineDeferredProjectModulesPublic": true,
+    "candidateDeferredProjectModulesPublic": false
+  },
+  "portPatch": {
+    "branch": "codex/port-studio-ready-20261101",
+    "head": "b2f9cf474a8eb50697c7c1e42895c2a1165811af",
+    "tree": "d05bdb93f96ed7bb68fe33ce8312fe22fa451f57",
+    "base": "cb48d8c17b4757a0404d031272a1f36ba92618b5",
+    "productionFilesChanged": 5,
+    "version": "1.24.21",
+    "storeSchemaAuthSyncChanged": false,
+    "draftPR": "https://github.com/soundcruise/apps/pull/149"
+  },
+  "entry": {
+    "publicVersion": "1.0.1",
+    "qualificationAuthority": "unchanged Pro Device Session",
+    "offlineNewAdmission": false,
+    "offlineMemoryOnlySameVerifiedOwner": true,
+    "persistentNewProofOrCredential": false,
+    "nativeMetronomePlayingThroughOffline": true,
+    "sameIframeRetained": true,
+    "explicitRevocationStops": true
+  },
+  "node": {
+    "studio": {
+      "tests": 1966,
+      "pass": 1964,
+      "fail": 0,
+      "skipped": 2
+    },
+    "worker_and_selected_shared_pro": {
+      "tests": 1052,
+      "pass": 1047,
+      "fail": 0,
+      "skipped": 5
+    },
+    "main_port_complete": {
+      "tests": 2451,
+      "pass": 2447,
+      "fail": 4,
+      "skipped": 0
+    },
+    "main_port_boot_targeted": {
+      "tests": 22,
+      "pass": 22,
+      "fail": 0,
+      "skipped": 0
+    },
+    "main_theme_exact_unmodified_baseline": {
+      "tests": 26,
+      "pass": 22,
+      "fail": 4,
+      "skipped": 0
+    }
+  },
+  "skipNotPass": {
+    "studio": {
+      "count": 2,
+      "reason": "Existing dedicated deferred Project E2E modes"
+    },
+    "worker": {
+      "count": 5,
+      "reason": "Existing dedicated deferred Studio Owner modes"
+    }
+  },
+  "browser": {
+    "main_native_release_ui": {
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "skipped": 0
+    },
+    "preserved_development_song_and_tool_pane": {
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0
+    }
+  },
+  "native": {
+    "main_with_pinned_old_sync_artifact": {
+      "status": "FAIL",
+      "passedCases": 18,
+      "caseNames": [
+        "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+        "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+        "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+        "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+        "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+        "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+        "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+        "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+        "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+        "expired native Pro session requires formal reauthentication and retains the Project draft",
+        "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+        "native Account and device-bound Pro authentication through existing libraries",
+        "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+        "real Sync Center attribution and existing runtime bootstrap on both profiles",
+        "real Port Gear UI save -> Cloud push -> Studio frame pull",
+        "Studio actual Gear form edits Cloud data and Port receives the edit",
+        "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+        "latest UI My Apps focus is preserved with native Port and one Sync runtime"
+      ],
+      "scriptErrors": 0,
+      "projectApiRequests": 0
+    },
+    "main_remaining_full": {
+      "status": "FAIL",
+      "passedCases": 2,
+      "caseNames": [
+        "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+        "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes"
+      ],
+      "scriptErrors": 1,
+      "projectApiRequests": 0
+    },
+    "main_ack_targeted_not_full": {
+      "status": "FAIL",
+      "passedCases": 2,
+      "caseNames": [
+        "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+        "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes"
+      ],
+      "scriptErrors": 1,
+      "scope": "targeted ACK-only; not a full-suite PASS",
+      "projectApiRequests": 0
+    },
+    "main_worker_source_not_deployed_artifact": {
+      "status": "FAIL",
+      "passedCases": 13,
+      "caseNames": [
+        "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+        "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+        "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+        "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+        "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+        "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+        "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+        "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+        "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+        "expired native Pro session requires formal reauthentication and retains the Project draft",
+        "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+        "native Account and device-bound Pro authentication through existing libraries",
+        "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact"
+      ],
+      "scriptErrors": 0,
+      "projectApiRequests": 0
+    },
+    "retained_candidate_dependencies_product": {
+      "status": "PASS",
+      "passedCases": 23,
+      "caseNames": [
+        "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+        "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+        "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+        "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+        "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+        "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+        "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+        "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+        "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+        "expired native Pro session requires formal reauthentication and retains the Project draft",
+        "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+        "native Account and device-bound Pro authentication through existing libraries",
+        "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+        "real Sync Center attribution and existing runtime bootstrap on both profiles",
+        "real Port Gear UI save -> Cloud push -> Studio frame pull",
+        "Studio actual Gear form edits Cloud data and Port receives the edit",
+        "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+        "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+        "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+        "existing Practice attachment Asset Sync stores and hydrates real binary",
+        "offline edit is retained and reconciles through existing Sync after reconnect",
+        "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+        "Account A to B replacement fences the open Port form and preserves A data/binary/Outbox"
+      ],
+      "scriptErrors": 0,
+      "productionRequestsSent": 0,
+      "deferredNotPass": [
+        "real shared Studio Identity enrolment and Project UNKNOWN survive Account isolation",
+        "shared Account change recreates Project client without sending A UNKNOWN under B",
+        "native Pro revoke-pending disables shared Project writes without discarding UNKNOWN"
+      ],
+      "projectApiRequests": 0
+    },
+    "retained_candidate_remaining_full": {
+      "status": "PASS",
+      "passedCases": 19,
+      "caseNames": [
+        "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+        "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes",
+        "pre-commit network keeps UNKNOWN and explicit same-operation recovery resumes real Port Sync",
+        "pre-commit 503 keeps UNKNOWN and explicit same-operation recovery resumes real Port Sync",
+        "Port commit ACK loss is durable UNKNOWN without automatic resend or own-echo acceptance",
+        "existing Sync Center explicit read-only reconcile clears the exact committed operation once",
+        "Pro generation changes after entry validation but before D1 commit: final SQL rejects, local retained",
+        "regular Pro reauthentication and explicit retry resumes the same pending Port intent",
+        "lease expiry after Pro entry validation also fences commit and keeps unsynced local edit",
+        "Pro already expired before dispatch is a definite rejection, not an unresolvable UNKNOWN",
+        "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+        "native image re-edit publishes a new matched source/final generation on both devices",
+        "explicit photo deletion propagates without treating a missing cache as deletion",
+        "native My Apps icon source/final binary roundtrip through Studio entry",
+        "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+        "practice attachment deletion ACK loss preserves the old intent while a new attachment is retained",
+        "attachment explicit reconcile and replacement download preserve exact v2 bytes without resurrecting v1",
+        "actual binary adoption lock cost and writer wait are measured without moving the safety fence",
+        "Device revoked after HTTP authentication but before SQL commit rejects the old writer without discarding local work"
+      ],
+      "scriptErrors": 0,
+      "productionRequestsSent": 0,
+      "projectApiRequests": 0
+    }
+  },
+  "mainUnaccepted": {
+    "productFailure": "Gear source/final pull: port_storage_invalid:cruisePort.gearList surfaced as read-failed",
+    "remainingFailure": "New UNKNOWN assertions fail: main runtime has no UNKNOWN/reconcileUnknown protocol",
+    "mainWorkerSource0033": "bootstrap503, not accepted as deployed v138 mirror",
+    "casesAfterFailure": "not executed / not PASS; no raw-data deletion or validator relaxation"
+  },
+  "workerEvidence": {
+    "exactV138Obtained": false,
+    "productionAccess": false,
+    "originalV137GitArtifactCommit": "a4d85ffa7b6fc23b2845fd21ed7e48af33f6162e",
+    "originalV137Sha256": "9d880d845b22d7905a5fe5be5b453f074ee28956ce2044ac769c9ee726bbe0b5",
+    "similarlyNamedEditedCandidateSha256": "94d97e5623c40b09761fb08a3f16691e3f840a6e3ed7521c801661a97ee794cc",
+    "originalFixtureDispatch": "Sync/Asset from exact original snapshot; Account/Pro from frozen main handlers with test-only antiabuse fixture",
+    "productionRolloutFlagsVerified": false
+  },
+  "protectedTreesAgainstUIBase": {
+    "apps/cruise-port": "422bedad757d870cbda446a4a539ae35bf4a7216",
+    "apps/pitch-cruise": "6bbdbe904afed21fffdc01d98cd2690e821e11f3",
+    "apps/fretboard_cruise": "40784f580cb7a108531662cd2e530bcf37fd3e07",
+    "apps/rhythm-cruise": "30c988b48e47d18d9aee87071248f304ea90e408",
+    "apps/chord-cruise": "3e24b57b19d1fdbda8cb3012f1f09364c79b6626",
+    "apps/shared": "37d522f1fa3ab17842aab2914577db0b4d9ac1d5",
+    "workers": "73a7d8064430564f966faf7109449788844defe7"
+  },
+  "portBranchProtectedTreesAgainstMain": {
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "apps/shared": "3da1344c474ffd37de9649dcd8da88c7bbfda143",
+    "workers": "585bde6d34ed6627442dc3649d1469651cc1d075"
+  },
+  "releaseFileSha256": {
+    "apps/cruise-studio/index.html": "284cf9b79d0061c3aaf73bdef13150ffd2b76eb1deb625c50169bc04f8a4f645",
+    "apps/cruise-studio/entry.css": "fb60a66706aaf7214f48164f4521998e52e56ded28456a4b8118c710b86d4046",
+    "apps/cruise-studio/theme-projection.css": "6c3ac2806eeee58cbad21b38353c89d3627c1e3744f0dc28473ad4da1809c1f9",
+    "apps/cruise-studio/theme.css": "838b0fb3fb226cf69e29f5dfc5220aeee6c1457f6bb16e980b8eb8fcdd646a6a",
+    "apps/cruise-studio/shell.css": "7b974d1cd0e8daeee77f3cd91b7744d8ec8f04eb4f1fec59ebf09c6b2618f601",
+    "apps/cruise-studio/studio-home.css": "1673bcdacfd699397b2a1f13b0a074cf5a3aa8dfc3af6db79838ae46feb3cc49",
+    "apps/cruise-studio/studio-tools.css": "e0c8ee3c532c461786c932dcf7e8a7b657b428882625cd3dcd42868470c64ce7",
+    "apps/cruise-studio/port-tuner-surface.css": "c4b5036117ea7633683b905b013d68ebe89fd7727658771c0dd548e8a9c7ef40",
+    "apps/cruise-studio/port-pc.css": "9b9669be89a7a500c8b9dafe4f2bee3001781d1e711d907069e205342fd35625",
+    "apps/cruise-studio/assets/studio-icons.svg": "74a6c4268ec419a4fd5cfdc6a310a601a5700e345584b5772f34fecb0766fae4",
+    "apps/cruise-studio/js/core/color-theme.js": "1853ea663aadcbcf95a4b16be9ca0ff5b983c96f43e38c29f6f8d24d7d6b4cdd",
+    "apps/cruise-studio/js/core/port-frame-theme.js": "b8a720a4e7f4e4c8ff34aebf304e855a90920a2255a9948248780f7276daee06",
+    "apps/cruise-studio/js/core/command-router.js": "54486a775bac9c7c825554a63bfbdeaeb52d27c0fd195467d50dcceb81a4b85f",
+    "apps/cruise-studio/js/core/focus-routing.js": "62005946937fd230ef10498e06fc1be8619b6026131dcef41a430edb4dbbe098",
+    "apps/cruise-studio/js/core/keyboard-router.js": "8e32ca943951ce81b25fbc2c890b9002669c32f2e55cf66ff2ddafcbd94716e3",
+    "apps/cruise-studio/js/core/modal-manager.js": "8cf61c661150396afd758eebb7595c9add88a65701876fd44bceba3714ec9000",
+    "apps/cruise-studio/js/core/workspace-scroll.js": "e4b7c7b8f6d2440b9e856a4dd5d8f65a3ef531c5a50fec9dc69b6e17aef0a341",
+    "apps/cruise-studio/js/core/app-refresh.js": "0e866b7b4c4d59b502644cf6351f40a463675c433036937a827cc7a68a235e0f",
+    "apps/cruise-studio/js/core/native-port-presentation.js": "f6c7975be8efdc9a05042e6b880c847575f07d984f29f11e5a46ce2e4edc0741",
+    "apps/cruise-studio/js/core/audio-coordinator.js": "1bcfffe5e9e16a0c385a1c23d6918e888254567fc2fd33f11b4fed821c130c77",
+    "apps/cruise-studio/js/core/studio-entry.mjs": "9b69ae77a133f761138d742f07cfda47eae3036a956145a531f793134f914880",
+    "apps/cruise-studio/js/core/port-pro-boundary.mjs": "f3c918c97745f916b404f075fd1c45208581b32e2b1fd6dd0113e6f42b21571b",
+    "apps/cruise-studio/js/shell.js": "624b2043e33136e8da9c5968044e147cda3d068eee999f6d1a96aabb5872d46d",
+    "apps/cruise-studio/js/port-pc.js": "e559671e52ea7edfbc1b319a19b24a6033d856893a200fbcf36b14b5ee138562",
+    "apps/cruise-studio/js/port-sync-status.mjs": "ad5b5051e7a417a0b1b12992cd0464216df19d49084602656abbe6ce0c4d7696",
+    "apps/cruise-studio/js/modules/practice/port-surface.js": "a10938ffc3622fbd09905a3b48b885851c71c5a3ed8e3f81192f529b8b5dda04",
+    "apps/cruise-studio/js/modules/tuner/port-surface.js": "bce3ae94320eb7a94b1dc9a5c132f63d5d82421fa229ca5377acbf40e225eed0",
+    "apps/cruise-studio/js/modules/metronome/port-surface.js": "43352e4d676eeb9586f4bebb62e21d7b6a067cf874439280bc4cd06f0f1e6f76",
+    "apps/cruise-studio/js/modules/library/port-surface.js": "2b9bbfbba115717f7fdf3c31e99bd111f9ce4af26bf9760e70455ef851ec8e23",
+    "apps/cruise-studio/js/modules/series/workspaces.js": "0850711af0921d6bede906f4721781022ff5bcdd36be58948322f9eb3aa9065b",
+    "apps/cruise-studio/js/modules/series/internal-app.mjs": "f840f5849c5806317b0b3e966a972968b8730259ccc1eb709b621bb15a12a483",
+    "apps/cruise-studio/js/modules/series/official-links.mjs": "696da7b258697466a61a28ddce51622a7fe9c4835040913e20a82b9da505323d",
+    "apps/cruise-studio/js/modules/series/presentation.mjs": "821fd0e18d97ee83732207cbefa01ccb6370afef3856fe9d67f5f35c3be2b211",
+    "apps/cruise-studio/js/modules/series/presentation.css": "a87a2f9a75e51847545c6f78033ca761cd96b904db7fdaf30e78f49aa9887315"
+  },
+  "independentReview": "No second reviewer for these corrections",
+  "newOperationalServices": [],
+  "productionOperations": [],
+  "holds": [
+    "Exact deployed v138 artifact/flags and frontend compatibility",
+    "Main image source/final and recovery contract mismatch; no full main suite PASS",
+    "Existing writer/old-client safety acceptance",
+    "Real Account/Pro/recovery UI and two physical devices",
+    "Mac/Safari and real microphone/lifecycle",
+    "schema0033 physical cleanup",
+    "Minimum backup/restore and authorized hosted OFF/Canary"
+  ]
+}

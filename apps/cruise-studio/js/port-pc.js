@@ -2,7 +2,7 @@
 (function(){
     'use strict';
     var CS=window.CruiseStudio;
-    CS.portPC=Object.freeze({version:'1.0.0'});
+    CS.portPC=Object.freeze({version:'1.0.1'});
     CS.shellHost=CS.shell.init(CS);
     CS.audio=CS.audioCoordinator.createCoordinator();
     CS.tuner.attach({audio:CS.audio,shell:CS.shellHost});

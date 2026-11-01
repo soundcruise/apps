@@ -18,7 +18,7 @@ test('public entry and Home/nav contain only the initial Port PC scope',()=>{
 });
 test('release package is an explicit Studio-only artifact without future code or native app releases',t=>{
  const parent=fs.mkdtempSync(path.join(os.tmpdir(),'studio-release1-'));t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));const out=path.join(parent,'artifact'),manifest=packagePortPC(out);
- assert.equal(manifest.version,'1.0.0');assert.equal(manifest.productionReady,false);assert.equal(Object.keys(manifest.files).length,RELEASE_FILES.length);
+ assert.equal(manifest.version,'1.0.1');assert.equal(manifest.productionReady,false);assert.equal(Object.keys(manifest.files).length,RELEASE_FILES.length);
  for(const [name,hash]of Object.entries(manifest.files)){assert(name.startsWith('apps/cruise-studio/'));assert.equal(createHash('sha256').update(fs.readFileSync(path.join(out,name))).digest('hex'),hash);}
  for(const name of ['development.html','js/app.js','js/core/schema2.js','js/core/song-model.js','js/core/project-repository.js','js/core/editing-session.js','js/cloud/identity-host.mjs','js/cloud/studio-sync-client.mjs','js/modules/pre-dtm-cruise/pre-dtm.js'])assert.equal(fs.existsSync(path.join(out,'apps/cruise-studio',name)),false,name);
  assert.equal(fs.existsSync(path.join(out,'workers')),false);assert.equal(fs.existsSync(path.join(out,'apps/shared')),false);
@@ -38,4 +38,11 @@ test('development entry retains the existing editor, Project and Pre-DTM modules
  for(const name of ['js/core/song-model.js','js/core/project-repository.js','js/modules/sheet-cruise/sheet-cruise.js','js/modules/pre-dtm-cruise/pre-dtm.js','js/cloud/cloud-panel.mjs']){assert(html.includes(name),name);assert(fs.existsSync(new URL(name,root)));}
  assert.match(html,/id="screen-sheet-cruise"/);assert.match(html,/id="screen-pre-dtm"/);
  assert.match(read('js/core/project-repository.js'),/cruiseStudio\.project\./);
+});
+
+test('legacy Pages config excludes every current non-release Studio file without excluding any allowlisted file',()=>{
+ const repo=new URL('../../../',import.meta.url),config=fs.readFileSync(new URL('_config.yml',repo),'utf8');
+ const excluded=[...config.matchAll(/^  - (apps\/cruise-studio\/[^\n]+)$/gm)].map(x=>x[1]);
+ const all=fs.readdirSync(root,{recursive:true,withFileTypes:true}).filter(x=>x.isFile()).map(x=>path.relative(root.pathname,path.join(x.parentPath,x.name)).replaceAll(path.sep,'/'));
+ for(const file of all){const full='apps/cruise-studio/'+file,blocked=excluded.some(p=>full.startsWith(p));assert.equal(blocked,!RELEASE_FILES.includes(file),file);}
 });

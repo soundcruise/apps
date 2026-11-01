@@ -3,7 +3,7 @@ import {releaseMode,studioPage,workerWithoutProject,removeProjectFixture,fixture
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import {randomUUID,createHash} from 'node:crypto';
 const require=createRequire(process.env.STUDIO_TEST_RUNTIME),{chromium}=require('playwright'),{Miniflare,convertV4MiniflareOptions}=require('miniflare'),{build}=require('esbuild');
 const W=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..'),OUT=process.env.STUDIO_CLIENT_OUTPUT;assert(OUT);
-const src=W+'/workers/sound-cruise-sync/src',pepper='synthetic-account-key-not-production-key-0000',proPepper='synthetic-pro-key-not-production-key-000000';
+const src=(process.env.STUDIO_WORKER_ROOT||W)+'/workers/sound-cruise-sync/src',pepper='synthetic-account-key-not-production-key-0000',proPepper='synthetic-pro-key-not-production-key-000000';
 const {createAccountCredential,accountCredentialVerifier}=await import(src+'/account-crypto.js');
 const old=fs.readFileSync(W+'/apps/cruise-studio/tests/identity-cloud.browser.mjs','utf8');
 const literal=old.slice(old.indexOf('const entry=`')+'const entry='.length,old.indexOf(';'+String.fromCharCode(10)+'fs.writeFileSync'));
@@ -14,7 +14,7 @@ entry=entry.replace("SYNC_ACCOUNT_PUBLIC_APP_IDS:'chord,pitch,fretboard,rhythm'"
 entry=entry.replace("if(path.startsWith('/v2/accounts/'))","if(path==='/v2/accounts/port-device')return legacy.fetch(request,env,{});if(path.startsWith('/v2/accounts/'))");
 entry=entry.replace('SYNC_DB:env.DB,','SYNC_DB:env.DB,SYNC_ASSETS:env.ASSETS,');
 entry=workerWithoutProject(entry,src);fs.writeFileSync(OUT+'/entry.mjs',entry);await build({entryPoints:[OUT+'/entry.mjs'],bundle:true,format:'esm',platform:'browser',outfile:OUT+'/worker.mjs',logLevel:'silent'});
-const tests=[],network=[],errors=[],contexts=[],navigation=[],faults=new Map();let mf,db,browser;
+const tests=[],network=[],errors=[],contexts=[],navigation=[],faults=new Map(),offlineLabels=new Set();let mf,db,browser;
 async function check(name,fn){if(releaseMode&&['real shared Studio Identity enrolment and Project UNKNOWN survive Account isolation','shared Account change recreates Project client without sending A UNKNOWN under B','native Pro revoke-pending disables shared Project writes without discarding UNKNOWN'].includes(name)){(result.deferredDevelopmentCases??=[]).push(name);return;}let timer;try{await Promise.race([fn(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('check deadline: '+name)),60000);})]);}finally{clearTimeout(timer);}tests.push({name,status:'PASS'});console.log('PASS '+name);}
 const result={production:false,profile:releaseMode?'port-pc-release-artifact-project-backend-absent':'full-development',entry:'actual Studio index and native Port Pro index',tests,errors,network,navigation};
 async function routeContext(context,label){await context.route('**/*',async route=>{
@@ -27,6 +27,7 @@ async function routeContext(context,label){await context.route('**/*',async rout
  if(!['sound-cruise-sync.cruise-port-requests.workers.dev','backend.fixture.invalid'].includes(u.hostname))return route.abort();
  let body;try{body=JSON.parse(q.postData()||'{}');}catch{}
  network.push({label,path:u.pathname,kind:body?.kind,method:q.method()});
+ if(offlineLabels.has(label))return route.abort('internetdisconnected');
  const response=await mf.dispatchFetch('http://native.fixture.invalid'+u.pathname+u.search,{method:q.method(),headers:{...await q.allHeaders(),'CF-Connecting-IP':'192.0.2.4'},...(q.postDataBuffer()?{body:q.postDataBuffer()}: {})});
  const f=faults.get(label);if(f&&u.pathname===f.path&&(!f.kind||f.kind===body?.kind)){faults.delete(label);await response.arrayBuffer();return route.abort('failed');}
  const data=Buffer.from(await response.arrayBuffer());if(response.status>=400){let code;try{code=JSON.parse(data).code;}catch{}console.log('REFUSAL',label,u.pathname,response.status,code);}
@@ -54,13 +55,13 @@ async function createAccount(p){return p.page.evaluate(async()=>{
 async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');return p.page;}
  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
-async function ready(frame){await frame.waitForFunction(()=>document.documentElement.dataset.portWriterReady==='true');}
-async function consent(frame){await frame.evaluate(()=>location.hash='#sync-center');await frame.getByText('同期先と端末データを確認',{exact:true}).click();await frame.locator('[data-port-local-account] input').check();await frame.locator('[data-port-attribution-choice=current]').click();await frame.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}
+async function ready(frame){await frame.waitForFunction(main=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver 1.24.21':document.documentElement.dataset.portWriterReady==='true',!!process.env.STUDIO_NATIVE_ROOT);}
+async function consent(frame){await frame.evaluate(()=>location.hash='#sync-center');if(process.env.STUDIO_NATIVE_ROOT){await frame.locator('#port-sync-activate').click();await frame.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);return frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}await frame.getByText('同期先と端末データを確認',{exact:true}).click();await frame.locator('[data-port-local-account] input').check();await frame.locator('[data-port-attribution-choice=current]').click();await frame.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}
 async function sync(frame){
  const page=frame.page?.()||frame,target=frame.mainFrame?.()||frame,oldUrl=frame.url();let navigated=false;const onNav=f=>{if(f===target)navigated=true;};page.on('framenavigated',onNav);let value;
  try{value=await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}catch(e){if(!/Execution context was destroyed|runtime_disposed/.test(String(e)))throw e;await frame.waitForURL(u=>u.href!==oldUrl,{timeout:10000});navigated=true;}
  await new Promise(r=>setTimeout(r,300));page.off('framenavigated',onNav);
- if(navigated){await ready(frame);await frame.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);}
+ if(navigated){await ready(frame);if(process.env.STUDIO_NATIVE_ROOT){await frame.evaluate(()=>location.hash='#sync-center');await frame.locator('#port-sync-activate').click();}await frame.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);}
  return value;
 }
 try{
@@ -112,6 +113,29 @@ try{
    await E.page.evaluate(()=>{for(const f of document.querySelectorAll('.studio-series-frame'))f.contentWindow.studioAppDirty=false;});
   }
   assert.equal(network.filter(n=>n.label==='Entrance'&&n.path==='/v2/pro-auth/verify').length,before);
+ });
+ await check('native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it',async()=>{
+  await E.page.evaluate(()=>CruiseStudio.shellHost.navigate('metronome'));
+  const metro=await(await E.page.locator('#port-metronome-surface iframe').elementHandle()).contentFrame();
+  await metro.locator('#metronome-view:not([hidden])').waitFor();
+  await metro.locator('#metronome-toggle').click();await metro.locator('#metronome-toggle[aria-pressed=true]').waitFor();
+  await E.page.evaluate(()=>window.offlineFrame=document.querySelector('#port-metronome-surface iframe'));
+  offlineLabels.add('Entrance');await E.context.setOffline(true);
+  assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),true);
+  assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.read().offline),true);
+  assert.equal(await metro.locator('#metronome-toggle').getAttribute('aria-pressed'),'true');
+  assert(await E.page.evaluate(()=>offlineFrame===document.querySelector('#port-metronome-surface iframe')));
+  await E.page.screenshot({path:OUT+'/metronome-offline.png'});
+  offlineLabels.delete('Entrance');await E.context.setOffline(false);
+  assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),true);
+  assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.read().offline),false);
+  assert.equal(await metro.locator('#metronome-toggle').getAttribute('aria-pressed'),'true');
+  await E.page.evaluate(()=>{const auth=JSON.parse(localStorage.getItem('soundCruiseProAuth'));localStorage.setItem('soundCruiseProRevokePending',JSON.stringify([auth.credential]));});
+  assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),false);
+  await metro.locator('#metronome-toggle[aria-pressed=false]').waitFor();
+  assert(await E.page.evaluate(()=>offlineFrame===document.querySelector('#port-metronome-surface iframe')));
+  await E.page.evaluate(()=>__soundCruiseClearGate());await entranceCode('0007');await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
+  result.offlineEntrance={retainedSameOwner:true,playingThroughOutage:true,reconnected:true,explicitRevocationStops:true};
  });
  await check('a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft',async()=>{
   if(!releaseMode){
@@ -197,8 +221,8 @@ try{
   assert(data.practice.includes('Synthetic practice'));assert(data.apps.includes('Synthetic My App'));assert(data.calendar.includes('Synthetic calendar'));assert(data.preset.includes('Synthetic preset'));assert.equal(data.metro.bpm,157);assert.equal(data.tuner.capo,1);
  });
  await check('latest UI My Apps focus is preserved with native Port and one Sync runtime',async()=>{
-  await B.page.locator('[data-workspace=portMyApps]').click();let my=await(await B.page.locator('#port-my-apps-surface iframe').elementHandle()).contentFrame();await ready(my);await my.locator('#my-apps-section').waitFor({state:'visible'});assert.equal(await my.locator('[data-home-section=tools]').isVisible(),false);assert.equal(await my.locator('[data-home-section=cruiseApps]').isVisible(),false);await my.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);assert.equal(await my.evaluate(()=>Object.keys(SoundCruiseMultiAppSync.runtimes).filter(x=>x==='port').length),1);
-  await B.page.locator('[data-workspace=portGear]').click();pb=await(await B.page.locator('#port-gear-surface iframe').elementHandle()).contentFrame();await ready(pb);await pb.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);
+  await B.page.locator('[data-workspace=portMyApps]').click();let my=await(await B.page.locator('#port-my-apps-surface iframe').elementHandle()).contentFrame();await ready(my);await my.locator('#my-apps-section').waitFor({state:'visible'});assert.equal(await my.locator('[data-home-section=tools]').isVisible(),false);assert.equal(await my.locator('[data-home-section=cruiseApps]').isVisible(),false);if(process.env.STUDIO_NATIVE_ROOT){await consent(my);await my.evaluate(()=>location.hash='');}await my.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);assert.equal(await my.evaluate(()=>Object.keys(SoundCruiseMultiAppSync.runtimes).filter(x=>x==='port').length),1);
+  await B.page.locator('[data-workspace=portGear]').click();pb=await(await B.page.locator('#port-gear-surface iframe').elementHandle()).contentFrame();await ready(pb);if(process.env.STUDIO_NATIVE_ROOT){await consent(pb);await pb.evaluate(()=>location.hash='#wishlist');}await pb.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);
  });
  await check('actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync',async()=>{
   await pa.evaluate(()=>location.hash='#wishlist');await pa.locator('.gear-card',{hasText:'Studio edited guitar'}).click();
@@ -208,7 +232,7 @@ try{
   await sync(pa);await sync(pb);await pb.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.gearList')).items.some(i=>i.photoId&&i.photoSourceId),{},{timeout:30000});
   const read=async frame=>frame.evaluate(async()=>{const {createGearPhotoStore}=await import('/apps/cruise-port/gear-photo-store.js?v=1.28.2'),store=createGearPhotoStore(),item=JSON.parse(localStorage.getItem('cruisePort.gearList')).items.find(i=>i.photoId);return Promise.all([item.photoId,item.photoSourceId].map(async id=>{const r=await store.getPhoto(id);if(!r.record)throw Error('binary missing');const b=new Uint8Array(await crypto.subtle.digest('SHA-256',await r.record.blob.arrayBuffer()));return Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');}));});
   assert.deepEqual(await read(pa),await read(pb));
-  result.binaryInspection=await pa.evaluate(async()=>{const start=performance.now();await new SoundCruisePortSync.PortSyncAdapter().inspectLocalAccount();return{milliseconds:performance.now()-start};});
+  result.binaryInspection=await pa.evaluate(async()=>{const start=performance.now();const adapter=new SoundCruisePortSync.PortSyncAdapter();await (typeof adapter.inspectLocalAccount==='function'?adapter.inspectLocalAccount():adapter.readLocalSnapshot());return{milliseconds:performance.now()-start};});
  });
  await check('existing Practice attachment Asset Sync stores and hydrates real binary',async()=>{
   await pa.evaluate(async id=>{const {createPracticeAttachmentStore}=await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.28.2');const r=await createPracticeAttachmentStore().addAttachment(id,new Blob(['synthetic attachment bytes'],{type:'text/plain'}),{fileName:'synthetic.txt'});if(!r.ok)throw Error(r.reason);window.dispatchEvent(new Event('cruise-port-local-data-changed'));},globalThis.practiceId);

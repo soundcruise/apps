@@ -42,3 +42,35 @@ test('an old in-flight validation cannot clear or overwrite a newer Account proo
  let release,count=0;const f=fixture({validatePro:()=>++count===1?new Promise(r=>release=r):Promise.resolve({ok:true,online:true})});
  const old=f.entry.check();await Promise.resolve();f.switchAccount();assert.equal(await f.entry.check(),true);release({ok:true,online:true});assert.equal(await old,false);assert.equal(f.entry.isAuthorized(),true);assert.equal(f.entry.read().accountId,'B');
 });
+
+function offlineFixture(){
+ let online=true,denial=null,clock=0;
+ const f=fixture({now:()=>clock,validatePro:async()=>denial||{ok:true,online,offline:!online,offlineRemainingMs:1000},
+  summary:async()=>{if(!online)throw Object.assign(Error('network'),{status:0,code:'network_error'});return {account:{id:'A'}};}});
+ return {...f,offline(){online=false;},online(){online=true;},deny(result){denial=result;},advance(ms){clock+=ms;}};
+}
+test('only a previously online-admitted live owner retains native Pro grace on network failure and reconnects',async()=>{
+ const f=offlineFixture();assert(await f.entry.check());f.offline();assert(await f.entry.check());assert(f.entry.isAuthorized());assert.equal(f.entry.read().offline,true);f.online();assert(await f.entry.check());assert.equal(f.entry.read().offline,false);
+});
+test('stored Account and valid native offline allowance cannot cold-admit or reenter after explicit invalidation',async()=>{
+ const f=offlineFixture();f.offline();assert.equal(await f.entry.check(),false);f.online();assert(await f.entry.check());f.entry.invalidate('account-changed');f.offline();assert.equal(await f.entry.check(),false);
+});
+test('Account replacement, Pro revision replacement and explicit revoke cannot reuse offline proof',async()=>{
+ for(const change of ['switchAccount','replacePro','revoke']){const f=offlineFixture();assert(await f.entry.check());f[change]();f.offline();assert.equal(await f.entry.check(),false,change);assert.equal(f.entry.isAuthorized(),false);}
+});
+test('native expired, terminal and ambiguous Pro failures never retain an old proof',async()=>{
+ for(const result of [{ok:false,terminal:true},{ok:false,revoked:true},{ok:false,ambiguous:true},{ok:true,offline:true,offlineRemainingMs:0},{ok:true,offline:true}]){const f=offlineFixture();assert(await f.entry.check());f.offline();f.deny(result);assert.equal(await f.entry.check(),false);}
+});
+test('offline UI proof expires on a monotonic deadline, with no persistence or new qualification',async()=>{
+ const f=offlineFixture();assert(await f.entry.check());f.offline();assert(await f.entry.check());f.advance(1000);assert.equal(f.entry.isAuthorized(),false);assert.equal(await f.entry.check(),false);
+});
+test('an explicit Account refusal or invalid response is never a network fallback',async()=>{
+ for(const failure of [undefined,{account:{id:'B'}},Object.assign(Error('revoked'),{status:401,code:'account_device_revoked'}),Object.assign(Error('changed'),{status:0,code:'account_generation_changed'}),Object.assign(Error('invalid'),{status:200,code:'invalid_response'})]){
+  let first=true;const f=fixture({validatePro:async()=>({ok:true,online:true,offlineRemainingMs:1000}),summary:async()=>{if(first){first=false;return {account:{id:'A'}};}if(failure instanceof Error)throw failure;return failure;}});
+  assert(await f.entry.check());assert.equal(await f.entry.check(),false);
+ }
+});
+test('Account mismatch during a transient summary request cannot retain the old owner',async()=>{
+ let release,n=0;const f=fixture({validatePro:async()=>({ok:true,online:true,offlineRemainingMs:1000}),summary:async()=>++n===1?{account:{id:'A'}}:new Promise((_,reject)=>release=reject)});
+ assert(await f.entry.check());const pending=f.entry.check();await Promise.resolve();await Promise.resolve();f.switchAccount();release(Object.assign(Error('network'),{status:0,code:'network_error'}));assert.equal(await pending,false);assert.equal(f.entry.isAuthorized(),false);
+});

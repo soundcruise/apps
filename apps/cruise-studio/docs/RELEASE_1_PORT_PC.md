@@ -1,5 +1,7 @@
 # Studio 1.0 candidate — Port PC edition
 
+Follow-up: [main compatibility, offline correction and verified legacy Pages output](RELEASE1_COMPAT_OFFLINE.md). That report supersedes the initial raw-root publication assumptions below.
+
 Fixed starting point: PR #147 `066780ffce9e09cb97762cd35e1b0bfff9fca9da`, tree `5c4dc192ecc304283035d6647797668cd18a9c78`. Head/tree matched. Independent worktree/branch only. This candidate has not been published or accepted against Production.
 
 ## First-publication scope

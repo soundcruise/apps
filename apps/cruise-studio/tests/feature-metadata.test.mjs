@@ -373,5 +373,14 @@ test('released owner boundaries reject other apps/shared/Workers while NEWS deve
     // The suite protects dependencies, not the operator's exact Studio intent or release cleanliness.
     // This retains the original tracked-dependency guard. Untracked intent/inventory is
     // checked separately by the mandatory development/commit gate, never silently staged.
-    assert.deepEqual(releasedBoundaryViolations(names.split('\0').filter(Boolean).map(path => ({ path }))), []);
+    let paths=names.split('\0').filter(Boolean);
+    if(paths.includes('_config.yml')){
+        // This release explicitly authorizes only additive Studio publication exclusions.
+        const before=execFileSync('git',['show','HEAD:_config.yml'],{cwd:fileURLToPath(root),encoding:'utf8'});
+        const after=readFileSync(new URL('_config.yml',root),'utf8');
+        assert(after.startsWith(before),'existing Pages policy must remain intact');
+        assert(after.slice(before.length).split('\n').every(line=>!line.trim()||line.trim()==='# Studio release allowlist; verified against an actual Jekyll safe build.'||/^  - apps\/cruise-studio\/[a-zA-Z0-9_./-]+$/.test(line)));
+        paths=paths.filter(path=>path!=='_config.yml');
+    }
+    assert.deepEqual(releasedBoundaryViolations(paths.map(path => ({ path }))), []);
 });

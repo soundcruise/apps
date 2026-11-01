@@ -6,32 +6,32 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=1.0.0"></script>
+    <script src="js/core/color-theme.js?v=1.0.1"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <link rel="stylesheet" href="../shared/pro-gate.css?v=10">
-    <link rel="stylesheet" href="entry.css?v=1.0.0">
+    <link rel="stylesheet" href="entry.css?v=1.0.1">
     <script>window.__SOUNDCRUISE_PRO_GATE__={gateVersion:8,appName:'Cruise Studio'};</script>
     <script defer src="../shared/pro-device-session.js?v=7"></script>
     <script defer src="../shared/pro-gate-help.js?v=4"></script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=8"></script>
     <script defer src="../shared/pro-gate.js?v=33"></script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=1.0.0">
+    <link rel="stylesheet" href="theme-projection.css?v=1.0.1">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=1.0.0">
-    <link rel="stylesheet" href="shell.css?v=1.0.0">
-    <link rel="stylesheet" href="studio-home.css?v=1.0.0">
-    <link rel="stylesheet" href="studio-tools.css?v=1.0.0">
-    <link rel="stylesheet" href="port-tuner-surface.css?v=1.0.0">
+    <link rel="stylesheet" href="theme.css?v=1.0.1">
+    <link rel="stylesheet" href="shell.css?v=1.0.1">
+    <link rel="stylesheet" href="studio-home.css?v=1.0.1">
+    <link rel="stylesheet" href="studio-tools.css?v=1.0.1">
+    <link rel="stylesheet" href="port-tuner-surface.css?v=1.0.1">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
     <!-- service-worker / manifest は当面作らない（ADR-002） -->
-    <link rel="stylesheet" href="port-pc.css?v=1.0.0">
+    <link rel="stylesheet" href="port-pc.css?v=1.0.1">
 </head>
 <body>
 <div inert id="studio-shell" data-right-open="false" data-pane-mode="persistent">
@@ -68,7 +68,7 @@
 
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1><p>Cruise PortのPC版</p>
-                <span class="studio-version" id="studio-version">v1.0.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
+                <span class="studio-version" id="studio-version">v1.0.1</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
             </header>
 
             <section class="module-section" data-port-sync-status aria-label="Account・Cruise Sync"></section>
@@ -202,27 +202,27 @@
             <div id="port-sync-surface" class="port-tuner-surface"></div>
         </section>
 </div></main></div>
-    <script src="js/core/port-frame-theme.js?v=1.0.0"></script>
-    <script src="js/core/command-router.js?v=1.0.0"></script>
-    <script src="js/core/focus-routing.js?v=1.0.0"></script>
-    <script src="js/core/keyboard-router.js?v=1.0.0"></script>
-    <script src="js/core/modal-manager.js?v=1.0.0"></script>
-    <script src="js/core/workspace-scroll.js?v=1.0.0"></script>
-    <script src="js/shell.js?v=1.0.0"></script>
-    <script src="js/core/app-refresh.js?v=1.0.0"></script>
-    <script src="js/core/native-port-presentation.js?v=1.0.0"></script>
-    <script src="js/modules/practice/port-surface.js?v=1.0.0"></script>
-    <script src="js/modules/tuner/port-surface.js?v=1.0.0"></script>
-    <script src="js/modules/metronome/port-surface.js?v=1.0.0"></script>
-    <script src="js/modules/library/port-surface.js?v=1.0.0"></script>
-    <script src="js/core/audio-coordinator.js?v=1.0.0"></script>
-    <script src="js/modules/series/workspaces.js?v=1.0.0"></script>
-    <script src="js/port-pc.js?v=1.0.0"></script>
+    <script src="js/core/port-frame-theme.js?v=1.0.1"></script>
+    <script src="js/core/command-router.js?v=1.0.1"></script>
+    <script src="js/core/focus-routing.js?v=1.0.1"></script>
+    <script src="js/core/keyboard-router.js?v=1.0.1"></script>
+    <script src="js/core/modal-manager.js?v=1.0.1"></script>
+    <script src="js/core/workspace-scroll.js?v=1.0.1"></script>
+    <script src="js/shell.js?v=1.0.1"></script>
+    <script src="js/core/app-refresh.js?v=1.0.1"></script>
+    <script src="js/core/native-port-presentation.js?v=1.0.1"></script>
+    <script src="js/modules/practice/port-surface.js?v=1.0.1"></script>
+    <script src="js/modules/tuner/port-surface.js?v=1.0.1"></script>
+    <script src="js/modules/metronome/port-surface.js?v=1.0.1"></script>
+    <script src="js/modules/library/port-surface.js?v=1.0.1"></script>
+    <script src="js/core/audio-coordinator.js?v=1.0.1"></script>
+    <script src="js/modules/series/workspaces.js?v=1.0.1"></script>
+    <script src="js/port-pc.js?v=1.0.1"></script>
     <script src="../shared/sync-account/sync-account-core.js?v=7"></script>
     <script src="../shared/sync-account/sync-account-db.js?v=10"></script>
     <script src="../shared/sync-account/sync-account-client.js?v=17"></script>
-    <script type="module" src="js/modules/series/official-links.mjs?v=1.0.0"></script>
-    <script type="module" src="js/core/studio-entry.mjs?v=1.0.0"></script>
-    <script type="module" src="js/port-sync-status.mjs?v=1.0.0"></script>
+    <script type="module" src="js/modules/series/official-links.mjs?v=1.0.1"></script>
+    <script type="module" src="js/core/studio-entry.mjs?v=1.0.1"></script>
+    <script type="module" src="js/port-sync-status.mjs?v=1.0.1"></script>
 </body>
 </html>

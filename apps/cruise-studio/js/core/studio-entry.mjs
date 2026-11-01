@@ -1,15 +1,15 @@
 /* One Studio entrance. Native Account DB, Pro gate and device session are the owners. */
-export function createStudioEntry({storage, source, validatePro, summary, gateReady, changed=()=>{}, rejectPro=()=>{}}) {
+export function createStudioEntry({storage, source, validatePro, summary, gateReady, changed=()=>{}, rejectPro=()=>{}, now=()=>performance.now()}) {
     let epoch=0, proof=null, pending=null, pendingEpoch=-1, phase='locked';
     const same=(a,b)=>!!a&&!!b&&a.revision===b.revision&&a.revoked===false&&b.revoked===false&&
         a.auth?.credential===b.auth?.credential&&a.auth?.generation===b.auth?.generation&&a.auth?.sessionVersion===b.auth?.sessionVersion;
     function isAuthorized(){return !!proof&&gateReady()&&proof.epoch===epoch&&
-        proof.generation===storage.getGeneration()&&same(proof.pro,source.read());}
+        proof.generation===storage.getGeneration()&&now()<proof.expiresAt&&same(proof.pro,source.read());}
     function invalidate(reason='locked'){epoch++;proof=null;phase=reason;changed(read());}
-    function read(){return {phase:isAuthorized()?'ready':phase==='ready'?'locked':phase,accountId:proof?.account.accountId||null,revision:epoch};}
+    function read(){return {phase:isAuthorized()?'ready':phase==='ready'?'locked':phase,accountId:proof?.account.accountId||null,revision:epoch,offline:!!proof?.offline};}
     async function check(){
         if(pending&&pendingEpoch===epoch)return pending;
-        const turn=epoch;
+        const turn=epoch,previous=isAuthorized()?proof:null;
         let flight;flight=(async()=>{
             try{
                 if(!gateReady())throw Error('pro-required');
@@ -19,12 +19,25 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
                 if(!account?.accountId||!account.accountCredential)throw Error('account-required');
                 const result=await validatePro({...pro.auth,operationRevision:pro.revision});
                 if(result?.terminal===true&&same(pro,source.read()))rejectPro(pro.auth.credential);
-                if(result?.ok!==true||result.online!==true)throw Error('pro-required');
-                const remote=await summary(account.accountCredential),after=await storage.getAccount();
+                const allowance=Number.isFinite(result?.offlineRemainingMs)&&result.offlineRemainingMs>0;
+                const retained=previous&&previous.generation===generation&&same(previous.pro,pro)&&
+                    previous.account.accountId===account.accountId&&previous.account.accountCredential===account.accountCredential;
+                if(result?.ok!==true||(result.online!==true&&!(result.offline===true&&allowance&&retained)))throw Error('pro-required');
+                const expiresAt=allowance?now()+result.offlineRemainingMs:Infinity;
+                let remote,accountUnavailable=false,offline=result.online!==true;
+                try{remote=await summary(account.accountCredential);}
+                catch(error){
+                    // A network failure is not a new Account grant. Only the same
+                    // in-memory, previously verified owner may retain native Pro grace.
+                    const transient=(error.status===0&&['network_error','account_request_timeout'].includes(error.code))||error.status===429||error.status>=500;
+                    if(!retained||!allowance||!transient)throw error;
+                    accountUnavailable=true;offline=true;
+                }
+                const after=await storage.getAccount();
                 if(turn!==epoch||generation!==storage.getGeneration()||!gateReady()||!same(pro,source.read())||
-                    after?.accountId!==account.accountId||after?.accountCredential!==account.accountCredential||remote?.account?.id!==account.accountId)
+                    after?.accountId!==account.accountId||after?.accountCredential!==account.accountCredential||(!accountUnavailable&&remote?.account?.id!==account.accountId)||now()>=expiresAt)
                     throw Error('session-changed');
-                proof={epoch:turn,generation,pro,account};phase='ready';changed(read());return true;
+                proof={epoch:turn,generation,pro,account,offline,expiresAt};phase='ready';changed(read());return true;
             }catch(error){if(turn===epoch)invalidate(error.message||'locked');return false;}
         })().finally(()=>{if(pending===flight)pending=null;});
         pending=flight;pendingEpoch=turn;return flight;
