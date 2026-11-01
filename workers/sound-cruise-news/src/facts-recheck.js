@@ -1,6 +1,7 @@
 import {recordDiscoveryResult,discoveryState} from './discovery-work.js';
 import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement,primaryParserSupports} from './primary-announcement.js';
 import {initialPrimarySource,recoveryBudget} from './recovery-budget.js';
+import {claimPendingSixRetry} from './pending-six-retry.js';
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
 import {morrisEvidenceReceipt,markMorrisEvidenceWait} from './morris-collector.js';
@@ -65,7 +66,7 @@ async function gate(store,source,registry,now,row){
 
 function agmSurface(cached,row){const i=cached.item;return i?{outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:i.sourceUrl,publishedAt:i.publishedAt,eventType:i.eventType,productFacts:i.productFacts}]),proof_json:JSON.stringify(cached.proof)}:{outcome:'facts_not_recovered',items_json:'[]',proof_json:null};}
 
-export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null,dailyOnly=false}={}){
+export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null,dailyOnly=false,approvedRetry=null}={}){
  if(source.id==='morris'){
   await gate(store,source,registry,now,row);const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
   if(!['verified','verified_listing'].includes(receipt?.outcome)||!receipt.facts_json||!await validatedFingerprint(receipt.fingerprint_json,pepper))return {outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
@@ -79,32 +80,33 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
   if(cached.hit)return agmSurface(cached.payload,row);
   if(cached.attempted&&!forceRevalidate)return {outcome:'facts_not_recovered',items_json:'[]',proof_json:null};
  }
- const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair});let previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ const surface=await resolvedRecoverySurface(store,row,source),cacheKey=approvedRetry||recoveryCacheKey(row,source,surface,{serverRepair});let previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  previous??=await retainedPrimaryEvidence(store,row,source,now);
  const work=await store.db.prepare('SELECT * FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(source.id,row.source_url).first();
  if(!previous&&work?.evidence_json){try{const e=JSON.parse(work.evidence_json);previous={checked_at:e.proof.verifiedAt,lease_until:0,outcome:e.outcome,items_json:JSON.stringify(e.items),proof_json:JSON.stringify(e.proof)};}catch{}}
  const evidenceKey=await hash(row.title_fingerprint||'');
  const previousProof=(()=>{try{return JSON.parse(previous?.proof_json||'null');}catch{return null;}})();
- if(await reusablePrimaryEvidence(previous,row,source,now))return previous;
+ if(!approvedRetry&&await reusablePrimaryEvidence(previous,row,source,now))return previous;
  // An unchanged failure is reusable only for the same parser and pipeline. A
  // changed parser still passes the existing daily URL and source budget gates.
  // Missing historical parser metadata remains fail-closed.
- if(initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey&&(!previousProof.parserVersion||!previousProof.extractionMethod||(previousProof.parserVersion===surface?.parser&&previousProof.extractionMethod===surface?.method)))return {...previous,outcome:'facts_primary_evidence_unchanged'};
+ if(!approvedRetry&&initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey&&(!previousProof.parserVersion||!previousProof.extractionMethod||(previousProof.parserVersion===surface?.parser&&previousProof.extractionMethod===surface?.method)))return {...previous,outcome:'facts_primary_evidence_unchanged'};
  const budget=await recoveryBudget(store,source,now),freshSince=initialPrimarySource(source)?budget.since-1:now-DAY;
- if(previous?.checked_at>freshSince){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
- if(dailyOnly&&initialPrimarySource(source)&&work&&previousProof?.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
+ if(!approvedRetry&&previous?.checked_at>freshSince){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
+ if(!approvedRetry&&dailyOnly&&initialPrimarySource(source)&&work&&previousProof?.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
  // Parser-version keys are not permission to fetch the same article twice today.
- if(initialPrimarySource(source)){
+ if(!approvedRetry&&initialPrimarySource(source)){
   const sameUrl=await store.db.prepare("SELECT * FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=? AND (substr(source_id,-?)=? OR json_extract(CASE WHEN json_valid(proof_json) THEN proof_json ELSE '{}' END,'$.sourceUrl')=?) ORDER BY checked_at DESC LIMIT 1").bind(source.id+':',budget.since,row.id.length+1,':'+row.id,row.source_url).first();
   if(sameUrl){if(sameUrl.lease_until>now)throw Error('facts_recheck_busy');return sameUrl.outcome==='verified_surface'?sameUrl:{outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};}
  }
- if(initialPrimarySource(source)&&budget.used>=budget.limit)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
+ if(!approvedRetry&&initialPrimarySource(source)&&budget.used>=budget.limit)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
  const token=crypto.randomUUID();
  const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) SELECT ?,?,?,?,'in_progress' WHERE NOT ? OR (SELECT COUNT(*) FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>=?)<?
  ON CONFLICT(source_id) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,checked_at=excluded.checked_at,outcome='in_progress',items_json=NULL,proof_json=NULL WHERE lease_until<=? AND checked_at<=?`)
- .bind(cacheKey,token,now+60000,now,+initialPrimarySource(source),initialPrimarySource(source)?'':source.id,source.id+':',budget.since,budget.limit,now,freshSince).run();
+ .bind(cacheKey,token,now+60000,now,+(initialPrimarySource(source)&&!approvedRetry),initialPrimarySource(source)?'':source.id,source.id+':',budget.since,budget.limit,now,freshSince).run();
  if(claimed.meta.changes!==1)throw Error('facts_recheck_busy');
  let acquired=false,items=[],proof=null,outcome='facts_unavailable',publisherBackoff=0;
+ const retryRequests={robots:0,article:0};
  try{
   const state=await gate(store,source,registry,now,row);
   acquired=await store.lease(source.id,now,DAY,{requestMode:'operator_validation'});if(!acquired)throw Error('facts_recheck_busy');
@@ -113,6 +115,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    // The server chooses exactly two URLs, never a caller-supplied URL or redirect.
    if(![source.robotsUrl,surface.url].includes(url)||!sourceUrl(url,source)||sourceUrl(url,source)!==url)throw Error('facts_source_invalid');
    await store.publisherAttempt(source.id,now,DAY);
+   if(approvedRetry)retryRequests[url===source.robotsUrl?'robots':'article']++;
    let r;try{r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store',...headers}});}catch(error){if(error.redirectEvidence){await store.recordRedirect(source.id,error.redirectEvidence);publisherBackoff=error.redirectEvidence.retryAfterAt||0;if(publisherBackoff>now)await store.db.prepare('UPDATE source_state SET backoff_until=MAX(backoff_until,?) WHERE source_id=?').bind(publisherBackoff,source.id).run();}throw error;}
    if(r.status===429||r.status>=500)publisherBackoff=retryAt(r.status,r.headers.get('retry-after'),0,now);
    if([401,403,451,429].includes(r.status)||r.status>=500)throw Error('facts_http_'+r.status);
@@ -145,7 +148,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
    else if(surface.method==='explicit_shimamura_product_fields'){
     let parsed;try{parsed=parseShimamuraProductEvidence(response.text,source,row);}catch(error){
-     if(error.message!=='facts_identity_changed')throw error;
+     if(error.message!=='facts_identity_changed'||approvedRetry)throw error;
      const officialIdentity=await recoverOfficialIdentity(store,response.text,row,now,{fetcher,sleep});
      parsed=parseShimamuraProductEvidence(response.text,source,row,{officialIdentity});
     }
@@ -196,6 +199,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if(healthCode)await store.recordHealth({sourceId:source.id,...healthForOutcome(healthCode),checkedAt:now,nextEligibleAt:Math.max(publisherBackoff,now+DAY)});
   }
   await store.db.prepare('UPDATE news_facts_sources SET lease_until=0,outcome=?,items_json=?,proof_json=? WHERE source_id=? AND lease_token=?').bind(outcome,JSON.stringify(items),proof?JSON.stringify(proof):null,cacheKey,token).run();
+  if(approvedRetry)await store.db.prepare('INSERT OR IGNORE INTO news_admin_audit VALUES(?,?,?,?,?)').bind(approvedRetry+':result','bounded-primary-result',row.id,now,JSON.stringify({outcome,requests:retryRequests})).run();
   if(initialPrimarySource(source)&&proof)await discoveryState(store,source.id,row.source_url,now,{state:outcome==='verified_surface'?'evidence_insufficient':'parser_failed',reason:outcome,nextAction:outcome==='verified_surface'?'evaluate':'new_parser_or_evidence',parserVersion:PRIMARY_ANNOUNCEMENT_PARSER,evidenceRef:proof.responseHash,diagnostics:{stage:'facts',missingFields:proof.diagnostics?.missingFields||[]},evidence:{outcome,items,proof}});
  }
  return await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
@@ -216,7 +220,8 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  // Already valid and duplicate candidates need no publisher traffic or rewrite.
  let outcome=before.errors.includes('duplicate')?'facts_duplicate_preserved':before.valid?'facts_already_complete':'facts_not_recovered',patch=null,provenance=[],diagnostics=null;
  if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
-  const surface=await verifiedSurface(store,source,registry,row,now,pepper,options);
+  const approvedRetry=await claimPendingSixRetry(store,row,input,actor,now);
+  const surface=await verifiedSurface(store,source,registry,row,now,pepper,{...options,approvedRetry});
   outcome=surface.outcome;
   if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason){provenance=[{...failure,factField:'_extraction_failure'}];diagnostics=failure.diagnostics||null;}}catch{}}
   if(outcome==='verified_surface'){

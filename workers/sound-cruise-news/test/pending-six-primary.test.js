@@ -130,3 +130,71 @@ test('reject, source block and duplicate guards remain authoritative',async()=>{
  await x.s.db.prepare('UPDATE source_state SET publication_blocked=1 WHERE source_id=?').bind(x.a.id).run();assert((await publicationValidation(x.s,r,at,[x.a],pepper)).errors.includes('operator_source_gate'));
  await x.s.db.prepare("UPDATE candidate_items SET review_status='rejected' WHERE id=?").bind(r.id).run();await assert.rejects(x.recover(),/already_decided/);
 });
+
+import {PENDING_SIX_RETRIES} from '../src/pending-six-retry.js';
+import {recoveryBudget} from '../src/recovery-budget.js';
+function approvedCase(target){const c=cases.find(c=>c.r.source_url===target[2]);return {...c,r:{...c.r,id:target[0]},expectedRevision:target[3]};}
+async function limitedCase(target,db){
+ const c=approvedCase(target),x=await prepare(c,db);
+ await x.s.db.prepare('UPDATE candidate_items SET review_revision=? WHERE id=?').bind(c.expectedRevision,c.r.id).run();
+ const proof=await failedEvidence(x,c,'primary-announcement-3',at-1000);
+ await x.s.db.prepare("INSERT OR REPLACE INTO news_facts_sources(source_id,lease_token,checked_at,outcome,proof_json) VALUES(?,'ordinary',?,'facts_primary_type_unbound',?)").bind(c.r.source_id+':old:'+c.r.id,at-1000,JSON.stringify(proof)).run();
+ return {...x,c};
+}
+for(const target of PENDING_SIX_RETRIES)test(`bounded approved retry bypasses only internal cache/budget, reaches formal READY: ${target[2]}`,async()=>{
+ const x=await limitedCase(target),before=await recoveryBudget(x.s,x.a,at);
+ const result=await x.recover();assert(result.validation.valid,JSON.stringify(result));assert.equal(result.outcome,'facts_recovered');
+ assert.deepEqual(x.calls,[x.a.robotsUrl,x.c.r.source_url]);
+ assert.equal((await recoveryBudget(x.s,x.a,at)).used,before.used,'separate grant must not alter the ordinary source counter');
+ assert.equal((await x.s.db.prepare("SELECT COUNT(*) n FROM news_admin_audit WHERE action='bounded-primary-retry'").first()).n,1);
+ const metered=await x.s.db.prepare("SELECT reason_code FROM news_admin_audit WHERE action='bounded-primary-result'").first();assert.deepEqual(JSON.parse(metered.reason_code),{outcome:'verified_surface',requests:{robots:1,article:1}});
+ assert.equal((await x.s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+ assert.equal((await x.s.db.prepare('SELECT review_status FROM candidate_items WHERE id=?').bind(x.c.r.id).first()).review_status,'pending');
+ await x.recover();assert.equal(x.calls.length,2);
+});
+test('bounded retry: ACK replay and simultaneous requests never issue a second article GET',async()=>{
+ const x=await limitedCase(PENDING_SIX_RETRIES[0]),row=await x.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(x.c.r.id).first();
+ const input={id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId:crypto.randomUUID()},actor={type:'human_operator',id:'access:test'};
+ const result=await Promise.allSettled([input,{...input,requestId:crypto.randomUUID()}].map(i=>recheckFacts(x.s,i,at,[x.a],pepper,actor,x.options)));
+ assert.equal(result.filter(r=>r.status==='fulfilled').length,1,JSON.stringify(result));assert.equal(x.calls.length,2);
+ const saved=await x.s.db.prepare('SELECT request_id FROM news_facts_rechecks WHERE patch_json IS NOT NULL').first();
+ const replay=await recheckFacts(x.s,{...input,requestId:saved.request_id},at,[x.a],pepper,actor,x.options);assert(replay.replayed);assert.equal(x.calls.length,2);
+});
+test('bounded retry is consumed on failed parsing; fresh request ID cannot obtain another attempt',async()=>{
+ const x=await limitedCase(PENDING_SIX_RETRIES[1]);x.options.fetcher=async u=>{x.calls.push(u);return new Response(u===x.a.robotsUrl?robot:'<html>no facts</html>',{headers:{'Content-Type':u===x.a.robotsUrl?'text/plain':'text/html'}});};
+ assert.equal((await x.recover()).recovered,false);assert.equal(x.calls.length,2);await assert.rejects(x.recover(),/facts_limited_retry_consumed/);assert.equal(x.calls.length,2);
+});
+test('bounded retry cannot overwrite a rejection that arrives during the article request',async()=>{
+ const x=await limitedCase(PENDING_SIX_RETRIES[3]),fetcher=x.options.fetcher;
+ x.options.fetcher=async u=>{if(u===x.c.r.source_url)await x.s.db.prepare("UPDATE candidate_items SET review_status='rejected',review_revision=review_revision+1 WHERE id=?").bind(x.c.r.id).run();return fetcher(u);};
+ await assert.rejects(x.recover(),/candidate_changed/);
+ const row=await x.s.db.prepare('SELECT review_status,product_facts FROM candidate_items WHERE id=?').bind(x.c.r.id).first();assert.equal(row.review_status,'rejected');assert.equal(row.product_facts,null);assert.equal(x.calls.length,2);
+});
+test('bounded retry preserves robots hash, source stop, takedown, input CAS and role boundaries',async()=>{
+ for(const scenario of ['robots','disabled','takedown','changed','fixture','expired']){
+  const x=await limitedCase(PENDING_SIX_RETRIES[2]);
+  if(scenario==='robots')x.options.fetcher=async u=>{x.calls.push(u);return new Response('User-agent: *\nDisallow: /',{headers:{'Content-Type':'text/plain'}});};
+  if(scenario==='disabled')await x.s.db.prepare('UPDATE source_state SET disabled=1 WHERE source_id=?').bind(x.a.id).run();
+  if(scenario==='takedown')await x.s.db.prepare('INSERT INTO news_takedowns VALUES(?,?)').bind(x.c.r.id,at+DAY).run();
+  if(scenario==='changed')await x.s.db.prepare('UPDATE candidate_items SET review_revision=9 WHERE id=?').bind(x.c.r.id).run();
+  if(['disabled','takedown'].includes(scenario)){await assert.rejects(x.recover(),/facts_source_gate/);assert.equal(x.calls.length,0);continue;}
+  if(['fixture','expired'].includes(scenario)){
+   const row=await x.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(x.c.r.id).first(),actor={type:scenario==='fixture'?'fixture':'human_operator',id:'test:actor'};
+   const result=await recheckFacts(x.s,{id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId:crypto.randomUUID()},scenario==='expired'?at+DAY:at,[x.a],pepper,actor,x.options);
+   assert.equal((await x.s.db.prepare("SELECT COUNT(*) n FROM news_admin_audit WHERE action='bounded-primary-retry'").first()).n,0);
+   if(scenario==='fixture')assert.equal(x.calls.length,0);continue;
+  }
+  if(scenario==='robots')await assert.rejects(x.recover(),/facts_source_gate/);else await x.recover();assert.equal(x.calls.length,scenario==='robots'?1:0);
+  if(scenario==='robots')assert.equal((await x.s.state(x.a.id)).disabled,true);
+ }
+});
+test('persistent workerd D1: six grants recover on the same day, remain consumed after restart',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'news-six-grants-d1-'));let rt;const copies=[];
+ try{
+  rt=await localDatabase(dir);for(const target of PENDING_SIX_RETRIES){const x=await limitedCase(target,rt.db);const out=await x.recover();assert(out.validation.valid,JSON.stringify(out));assert.equal(x.calls.length,2);copies.push(x.c);}
+  assert.equal((await rt.db.prepare("SELECT COUNT(*) n FROM news_admin_audit WHERE action='bounded-primary-retry'").first()).n,6);
+  await rt.mf.dispose();rt=null;rt=await localDatabase(dir);
+  for(const c of copies){const a={...getSource(c.r.source_id),enabled:true,productionEnabled:true},d=await reviewDetail(rt.store,c.r.id,at,[a],pepper);assert(d.validation.valid,JSON.stringify(d.validation));assert.equal(d.status,'pending');}
+  assert.equal((await rt.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+ }finally{await rt?.mf.dispose();await rm(dir,{recursive:true,force:true});}
+});
