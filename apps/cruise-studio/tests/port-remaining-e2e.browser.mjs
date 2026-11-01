@@ -1,3 +1,4 @@
+import {releaseMode,studioPage,workerWithoutProject,removeProjectFixture,fixtureFile} from './fixtures/port-pc-profile.mjs';
 // Real Port Pro and Studio entry, separate Chrome profiles; local native D1/R2 only.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import {randomUUID,createHash} from 'node:crypto';
 const require=createRequire(process.env.STUDIO_TEST_RUNTIME),{chromium}=require('playwright'),{Miniflare,convertV4MiniflareOptions}=require('miniflare'),{build,stop:stopBuildService}=require('esbuild');
@@ -13,7 +14,7 @@ entry=entry.replace("SYNC_ACCOUNT_PUBLIC_APP_IDS:'chord,pitch,fretboard,rhythm'"
 entry=entry.replace("if(path.startsWith('/v2/accounts/'))","if(path==='/v2/accounts/port-device')return legacy.fetch(request,env,{});if(path.startsWith('/v2/accounts/'))");
 entry=entry.replace('SYNC_DB:env.DB,','SYNC_DB:env.DB,SYNC_ASSETS:env.ASSETS,');
 entry=entry.replace('const path=new URL(request.url).pathname;',`const flip=request.headers.get('X-Fixture-Pro-Flip');if(flip){const real=env.SYNC_DB;const wrap=d=>{let mutation=false;return {prepare(sql){if(sql.includes('INSERT INTO sync_records'))mutation=true;return d.prepare(sql);},getBookmark:()=>d.getBookmark?.(),async batch(ss){if(mutation){mutation=false;if(flip==='device')await real.prepare('UPDATE sync_devices SET revoked_at=1 WHERE id=?').bind(request.headers.get('Authorization').split('.')[1]).run();else if(flip==='generation')await real.prepare('UPDATE pro_auth_state SET generation=generation+1').run();else if(flip==='lease')await real.prepare('UPDATE pro_credentials SET lease_expires_at=1 WHERE id=?').bind(request.headers.get('X-Sound-Cruise-Pro-Authorization').split('.')[1]).run();}return d.batch(ss);}};};env.SYNC_DB={...wrap(real),withSession:b=>wrap(real.withSession(b))};}const path=new URL(request.url).pathname;`);
-fs.writeFileSync(OUT+'/entry.mjs',entry);await build({entryPoints:[OUT+'/entry.mjs'],bundle:true,format:'esm',platform:'browser',outfile:OUT+'/worker.mjs',logLevel:'silent'});
+entry=workerWithoutProject(entry,src);fs.writeFileSync(OUT+'/entry.mjs',entry);await build({entryPoints:[OUT+'/entry.mjs'],bundle:true,format:'esm',platform:'browser',outfile:OUT+'/worker.mjs',logLevel:'silent'});
 const tests=[],network=[],errors=[],contexts=[],navigation=[],faults=new Map(),serverFaults=new Map();let pushBarrier=null;let mf,db,browser;
 async function check(name,fn){let timer;try{await Promise.race([fn(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('check deadline: '+name)),60000);})]);}finally{clearTimeout(timer);}tests.push({name,status:'PASS'});console.log('PASS '+name);}
 const result={production:false,entry:'actual Studio index and native Port Pro index',tests,errors,network,navigation};
@@ -22,7 +23,7 @@ async function routeContext(context,label){await context.route('**/*',async rout
  if(u.origin==='https://studio.fixture.invalid'){
   if(u.pathname==='/bootstrap')return route.fulfill({contentType:'text/html',body:'<!doctype html><script src="/apps/shared/sync-account/sync-account-core.js"></script><script src="/apps/shared/sync-account/sync-account-db.js"></script><script src="/apps/shared/sync-account/sync-account-client.js"></script><script src="/apps/shared/pro-device-session.js"></script>'});
   let file=path.resolve(W,'.'+decodeURIComponent(u.pathname));if(!file.startsWith(W+'/'))return route.abort();if(u.pathname.endsWith('/'))file+='/index.html';
-  try{return route.fulfill({contentType:({'.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.css':'text/css','.html':'text/html','.svg':'image/svg+xml'}[path.extname(file)]||'application/octet-stream'),body:fs.readFileSync(file)});}catch{return route.fulfill({status:404,body:'missing'});}
+  try{return route.fulfill({contentType:({'.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.css':'text/css','.html':'text/html','.svg':'image/svg+xml'}[path.extname(file)]||'application/octet-stream'),body:fixtureFile(W,u.pathname)});}catch{return route.fulfill({status:404,body:'missing'});}
  }
  if(!['sound-cruise-sync.cruise-port-requests.workers.dev','backend.fixture.invalid'].includes(u.hostname))return route.abort();
  let body;try{body=JSON.parse(q.postData()||'{}');}catch{}
@@ -56,7 +57,7 @@ async function createAccount(p){return p.page.evaluate(async()=>{
  await client.summary((await root.storage.getAccount()).accountCredential);return root.storage.getAccount();
  });}
 async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');return p.page;}
- await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/index.html');await p.page.locator('[data-home-workspace="portGear"]').click();
+ await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
 async function ready(frame){await frame.waitForFunction(()=>document.documentElement?.dataset.portWriterReady==='true');}
 // Remote application can intentionally reload the Port document. Re-select only
@@ -81,9 +82,8 @@ async function sync(frame){
  return value;
 }
 try{
- const run=fs.mkdtempSync(OUT+'/native-');const seed=process.env.STUDIO_SCHEMA_SEED;assert(seed&&fs.realpathSync(seed).startsWith('/private/tmp/studio070-remaining-rerun/native-'),'Existing disposable synthetic schema seed required; no DDL');fs.cpSync(seed,run,{recursive:true});mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:fs.readFileSync(OUT+'/worker.mjs','utf8'),compatibilityDate:'2026-09-01',host:'127.0.0.1',port:0,inspectorPort:0,d1Databases:{DB:'product-sync'},r2Buckets:{ASSETS:'product-assets'},bindings:{SYNC_ACCOUNT_CREDENTIAL_PEPPER:pepper,SYNC_ACCOUNT_RECOVERY_PEPPER:pepper,PRO_CREDENTIAL_PEPPER:proPepper,SYNC_CREDENTIAL_PEPPER:'synthetic-device-key-not-production-key-000000'},resourcePersistencePath:run,resourceTmpPath:run+'/tmp',outboundService:()=>{throw Error('Production network forbidden');}}));db=await mf.getD1Database('DB');
- await(await import(src+'/studio-release-schema.js')).inspectStudioRelease(db);
- await db.prepare('UPDATE studio_document_control SET enabled=1').run();
+ const run=fs.mkdtempSync(OUT+'/native-');const seed=process.env.STUDIO_SCHEMA_SEED;assert(seed&&fs.realpathSync(seed).startsWith('/private/tmp/studio070-remaining-rerun/native-'),'Existing disposable synthetic schema seed required; no DDL');fs.cpSync(seed,run,{recursive:true});removeProjectFixture(run);mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:fs.readFileSync(OUT+'/worker.mjs','utf8'),compatibilityDate:'2026-09-01',host:'127.0.0.1',port:0,inspectorPort:0,d1Databases:{DB:'product-sync'},r2Buckets:{ASSETS:'product-assets'},bindings:{SYNC_ACCOUNT_CREDENTIAL_PEPPER:pepper,SYNC_ACCOUNT_RECOVERY_PEPPER:pepper,PRO_CREDENTIAL_PEPPER:proPepper,SYNC_CREDENTIAL_PEPPER:'synthetic-device-key-not-production-key-000000'},resourcePersistencePath:run,resourceTmpPath:run+'/tmp',outboundService:()=>{throw Error('Production network forbidden');}}));db=await mf.getD1Database('DB');
+ if(!releaseMode){await(await import(src+'/studio-release-schema.js')).inspectStudioRelease(db);await db.prepare('UPDATE studio_document_control SET enabled=1').run();}else assert.equal((await db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'studio_%'").all()).results.length,0);
  await db.prepare("INSERT OR REPLACE INTO sync_runtime_control VALUES(1,'open',1,1,1,1,1,1,1)").run();await db.prepare("INSERT OR REPLACE INTO sync_account_runtime_control VALUES(1,'open',1,1,1,1,1,0,1,1)").run();
  await db.prepare("INSERT OR REPLACE INTO pro_auth_state(singleton_id,generation,active_code_slot,legacy_compat_enabled,updated_at,session_lifecycle_started_at,unbound_backend_until) VALUES(1,1,'A',1,?,?,?)").bind(Date.now(),Date.now(),Date.now()+3600000).run();
  browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});

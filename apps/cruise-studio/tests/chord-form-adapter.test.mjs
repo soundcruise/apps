@@ -177,8 +177,8 @@ test('raw project, real Editing Session history/base/draft/undo/redo and schema 
 test('adapter stays pure and the product explicitly connects only owner CAGED plus form UI', () => {
     const source = read('../js/modules/chord/form-adapter.mjs');
     assert.doesNotMatch(source, /\b(?:localStorage|indexedDB|fetch|XMLHttpRequest|navigator|document|window)\b|^import /m);
-    assert.match(read('../index.html'), /caged-forms.js\?v=1.21.0/);
-    assert.match(read('../index.html'), /form-panel.mjs\?v=0.70.0/);
+    assert.match(read('../development.html'), /caged-forms.js\?v=1.21.0/);
+    assert.match(read('../development.html'), /form-panel.mjs\?v=1.0.0/);
     assert.doesNotMatch(read('../js/modules/chord/form-panel.mjs'), /\b(?:localStorage|indexedDB|fetch|saveChord|featureAccess)\b/);
 });
 

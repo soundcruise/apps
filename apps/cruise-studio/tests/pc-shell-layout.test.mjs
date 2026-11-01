@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
-const sheet=read('../js/modules/sheet-cruise/sheet-cruise.js'),css=read('../shell.css'),html=read('../index.html'),shell=read('../js/shell.js');
+const sheet=read('../js/modules/sheet-cruise/sheet-cruise.js'),css=read('../shell.css'),html=read('../development.html'),shell=read('../js/shell.js');
 // Exercise actual private geometry functions, not duplicated test implementations.
 const constants=sheet.match(/^    var LOUPE_[^\n]+/gm).join('\n');
 const fn=name=>sheet.slice(sheet.indexOf('    function '+name+'('),sheet.indexOf('\n    }',sheet.indexOf('    function '+name+'('))+6);
@@ -25,6 +25,6 @@ test('Dock primary BPM/toggle/beats precede optional duplicate actions; status r
 test('Dock collapsed state has no engine side effect and expanded height is bounded',()=>{assert.match(css,/max-height: 24dvh/);assert.match(shell,/dock\.hidden = s\.dockCollapsed; dock\.inert = s\.dockCollapsed/);assert.doesNotMatch(shell,/\.start\(|\.stop\(|\.setBpm\(/);});
 test('Loupe narrow header controls wrap, with readable title and resize handle',()=>{assert.match(css,/slot-overlay--narrow \.slot-overlay-head-actions \{ flex-wrap: wrap/);assert.match(css,/slot-overlay--narrow \.slot-overlay-title \{ font-size: 14px/);assert.match(css,/slot-overlay--narrow \.slot-overlay-resize-handle \{ display: block/);});
 test('polish uses screen media and semantic colors, Print keeps A4 and hides chrome',()=>{const added=css.slice(css.indexOf('/* PC layout polish'));assert.match(added,/@media screen/);assert.doesNotMatch(added,/#(?:[a-f\d]{3}|[a-f\d]{6})\b|rgba?\(|hsla?\(/i);const print=read('../print.css');assert.match(print,/width: 210mm !important/);for(const cls of ['studio-nav','studio-right-pane','studio-dock','slot-overlay'])assert(print.includes('.'+cls));});
-test('focus/IME/Modal ownership and read-only host boundaries remain connected',()=>{assert.match(shell,/if \(modal\.getActive\(\) \|\| !Object\.hasOwn\(WORKSPACES, id\)/);assert.match(shell,/resolveFocus\(saved\.identity\)/);assert.match(shell,/CS\.keyboard\.createIMEGuard/);assert.match(read('../js/port-data/host.mjs'),/canWrite: false/);});
+test('focus/IME/Modal ownership and read-only host boundaries remain connected',()=>{assert.match(shell,/if \(modal\.getActive\(\) \|\| !Object\.hasOwn\(nodes, id\)/);assert.match(shell,/resolveFocus\(saved\.identity\)/);assert.match(shell,/CS\.keyboard\.createIMEGuard/);assert.match(read('../js/port-data/host.mjs'),/canWrite: false/);});
 
 test('window resize uses geometry-only path, preserving Loupe input and IME DOM',()=>{assert.match(sheet,/window\.addEventListener\('resize', function \(\) \{ scheduleOverlayPosition\(false\); \}\)/);});

@@ -88,8 +88,10 @@ test('Studio reuses Port NEWS and launches each official Pro app route', async (
         assert.equal(await page.locator('#port-news-surface iframe').count(), 0);
         await page.locator('#port-news-resume').click();
         await news().locator('#news-view:not([hidden])').waitFor();
-        await page.locator('.studio-nav [data-workspace="series"]').click();
-        assert.equal(await active(), 'series');
+        await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
+        const catalog = await page.evaluate(() => document.documentElement.dataset.studioProduct === 'port-pc' ? 'home' : 'series');
+        await page.locator('.studio-nav [data-workspace="'+catalog+'"]').click();
+        assert.equal(await active(), catalog);
         assert.equal(await page.locator('#port-news-surface iframe').count(), 0);
 
         const expected = {
@@ -99,10 +101,10 @@ test('Studio reuses Port NEWS and launches each official Pro app route', async (
             chord: 'chord-cruise/pro_k7m4q9v2x8/'
         };
         for (const [id, pro] of Object.entries(expected)) {
-            const links = page.locator(`#screen-series [data-studio-cruise-app="${id}"]`);
+            const links = page.locator(`#screen-${catalog} [data-studio-cruise-app="${id}"]`);
             assert.equal(await links.count(), 1);
             for (const [edition, path] of [['pro', pro]]) {
-                const target = page.locator(`#screen-series [data-studio-cruise-app="${id}"][data-studio-edition="${edition}"]`);
+                const target = page.locator(`#screen-${catalog} [data-studio-cruise-app="${id}"][data-studio-edition="${edition}"]`);
                 assert.equal(await target.getAttribute('href'), '#app_'+id);
                 assert.equal(await target.getAttribute('target'), null);
                 assert.match(await target.getAttribute('rel'), /noopener/);
@@ -110,15 +112,17 @@ test('Studio reuses Port NEWS and launches each official Pro app route', async (
                 await target.click();
                 await page.waitForFunction(id=>CruiseStudio.shellHost.getActiveWorkspace()==='app_'+id,id);
                 await page.locator('#series-'+id+'-surface iframe').waitFor();
-                await page.evaluate(()=>CruiseStudio.shellHost.navigate('series'));
+                await page.waitForFunction(({id,path}) => { const base=document.querySelector('#series-'+id+'-surface iframe')?.contentDocument?.baseURI; return base && new URL(base).pathname === '/apps/'+path; }, {id,path});
+                assert.equal(new URL(await page.locator('#series-'+id+'-surface iframe').evaluate(e=>e.contentDocument.baseURI)).pathname, '/apps/'+path);
+                await page.evaluate(id=>CruiseStudio.shellHost.navigate(id),catalog);
             }
             const home = page.locator(`#screen-home [data-studio-cruise-app="${id}"]`);
             assert.equal(await home.getAttribute('href'), '#app_'+id);
         }
         for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) {
             await page.evaluate(theme => CruiseStudio.colorTheme.setColorTheme(theme), theme);
-            assert.equal(await page.locator('#screen-series').isVisible(), true);
-            assert.equal(await page.locator('#screen-series .series-pro-link').count(), 4);
+            assert.equal(await page.locator('#screen-'+catalog).isVisible(), true);
+            assert.equal(await page.locator('#screen-'+catalog+' [data-studio-cruise-app][data-studio-edition=pro]').count(), 4);
         }
         for (const width of [1440, 390]) {
             await page.setViewportSize({ width, height: 900 });

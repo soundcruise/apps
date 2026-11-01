@@ -5,7 +5,7 @@
     else root.CruiseStudio.shell = factory();
 })(typeof globalThis === 'object' ? globalThis : this, function () {
     'use strict';
-    var WORKSPACES = Object.freeze({ app_pitch:'screen-app-pitch',app_fretboard:'screen-app-fretboard',app_rhythm:'screen-app-rhythm',app_chord:'screen-app-chord', home: 'screen-home', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', portPractice: 'screen-port-practice', practice: 'screen-practice', tuner: 'screen-tuner', metronome: 'screen-metronome', portGear: 'screen-port-gear', gear: 'screen-gear', portMyApps: 'screen-port-my-apps', myApps: 'screen-my-apps', portNews: 'screen-port-news', news: 'screen-news' });
+    var WORKSPACES = Object.freeze({ app_pitch:'screen-app-pitch',app_fretboard:'screen-app-fretboard',app_rhythm:'screen-app-rhythm',app_chord:'screen-app-chord', home: 'screen-home', portSync:'screen-port-sync', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', portPractice: 'screen-port-practice', practice: 'screen-practice', tuner: 'screen-tuner', metronome: 'screen-metronome', portGear: 'screen-port-gear', gear: 'screen-gear', portMyApps: 'screen-port-my-apps', myApps: 'screen-my-apps', portNews: 'screen-port-news', news: 'screen-news' });
     var PERSISTENT_MIN = 1280;
 
     function createWorkspaceHost(workspaces, view) {
@@ -65,8 +65,10 @@
         sizeSidebar(sidebarWidth,false);window.addEventListener('resize',function(){sizeSidebar(sidebarWidth,false);});
         var positions = Object.create(null), focus = Object.create(null);
         var visitHistory = [];
-        var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, portPractice: CS.portPractice, practice: CS.practice, tuner: CS.tuner, metronome: CS.portMetronome, portGear: CS.portGear, gear: CS.gear, portMyApps: CS.portMyApps, myApps: CS.myApps, portNews: CS.portNews, news: CS.news };
+        var workspaceIds = Object.keys(WORKSPACES).filter(function(id){return !!doc.getElementById(WORKSPACES[id]);});
+        var adapters = { home: {}, portSync:CS.portSync, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, portPractice: CS.portPractice, practice: CS.practice, tuner: CS.tuner, metronome: CS.portMetronome, portGear: CS.portGear, gear: CS.gear, portMyApps: CS.portMyApps, myApps: CS.myApps, portNews: CS.portNews, news: CS.news };
         ['pitch','fretboard','rhythm','chord'].forEach(function(id){adapters['app_'+id]=CS.seriesApps[id];});
+        Object.keys(adapters).forEach(function(id){if(!workspaceIds.includes(id))delete adapters[id];});
         var nodes = {}, dockedTool = null;
         var toolIds = ['app_pitch','app_fretboard','app_rhythm','app_chord','tuner','metronome','portPractice','portGear','portMyApps'];
         var realTools = {};
@@ -79,7 +81,8 @@
         var placeholder=doc.createElement('option');placeholder.value='';placeholder.textContent='ツールを選択';toolSelect.append(placeholder);
         toolIds.forEach(function(id){var o=doc.createElement('option');o.value=id;o.textContent=toolNames[id];toolSelect.append(o);});
         function moveNode(parent,node){if(parent.moveBefore&&node.isConnected)parent.moveBefore(node,null);else parent.append(node);if(node.id.startsWith('screen-app-'))CS.seriesApps[node.id.slice(11)]?.refreshLayout();}
-        function hasToolInput(){if(dockedTool?.startsWith('app_'))return !!nodes[dockedTool].querySelector('iframe')?.contentWindow?.studioAppDirty;var d=dockedTool&&nodes[dockedTool].querySelector('iframe')?.contentDocument;return !!d&&Array.from(d.querySelectorAll('form,[role=dialog]')).some(function(e){return !e.closest('[hidden]')&&d.defaultView.getComputedStyle(e).display!=='none';});}
+        function toolHasInput(id){if(!id||!nodes[id])return false;if(id.startsWith('app_'))return !!nodes[id].querySelector('iframe')?.contentWindow?.studioAppDirty;var d=nodes[id].querySelector('iframe')?.contentDocument;return !!d&&Array.from(d.querySelectorAll('form,[role=dialog]')).some(function(e){return !e.closest('[hidden]')&&d.defaultView.getComputedStyle(e).display!=='none';});}
+        function hasToolInput(){return toolHasInput(dockedTool);}
         function guardTool(next){if(!dockedTool)return false;if(realTools[dockedTool].requestLeave?.(next))return true;if(hasToolInput()&&!dockedTool.startsWith('app_')){doc.getElementById('tool-window-status').textContent='編集中のフォームを保存またはキャンセルしてから移動してください。';return true;}return false;}
         function closeToolUnchecked(){if(!dockedTool){toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');return;}var id=dockedTool;dockedTool=null;realTools[id].deactivate();moveNode(main.querySelector('.studio-container'),nodes[id]);nodes[id].hidden=true;nodes[id].inert=true;nodes[id].classList.add('hidden');toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');if(toolTrigger?.isConnected)toolTrigger.focus({preventScroll:true});refreshGeometry();}
         function closeTool(){if(modal.getActive())return false;if(guardTool(closeTool))return false;closeToolUnchecked();return true;}
@@ -92,7 +95,7 @@
             var central=host.getActive()===id;
             if(central&&preserveCenter){doc.getElementById('tool-window-status').textContent='このツールは中央で使用中です。別の画面へ移動してから選択してください。';return false;}
             if(central&&realTools[id].requestLeave?.(function(){openTool(id,preserveCenter);}))return false;
-            if(central&&nodes[id].querySelector('iframe')&&!toolSlot.moveBefore){window.alert('このブラウザでは使用中画面の状態を維持して移動できません。保存して譜面へ戻ってから開いてください。');return false;}
+            if(central&&nodes[id].querySelector('iframe')&&!toolSlot.moveBefore){window.alert('このブラウザでは使用中画面の状態を維持して移動できません。保存してホームへ戻ってから開いてください。');return false;}
             closeToolUnchecked();layout.closeRight();renderLayout();toolTrigger=doc.activeElement;dockedTool=id;
             moveNode(toolSlot,nodes[id]);nodes[id].hidden=false;nodes[id].inert=false;nodes[id].classList.remove('hidden');toolSelect.value=id;toolWindow.hidden=false;shell.dataset.toolWindow='open';toolToggle.setAttribute('aria-expanded','true');
             if(central)host.activate('home');else realTools[id].activate();
@@ -124,7 +127,7 @@
             if(dockedTool===id)closeToolUnchecked();
             else if(host.getActive()===id)host.activate('home');
             return true;
-        },hasUnsaved:hasToolInput,getTool:function(){return dockedTool;}});
+        },hasUnsaved:function(){return toolIds.concat(['portSync']).some(toolHasInput);},getTool:function(){return dockedTool;}});
         var focusRouting = CS.focusRouting.createFocusRouting(doc, function () { return nodes[host.getActive()]; }, function () {
             return doc.querySelector('.studio-nav [aria-current="page"]');
         }, function (element) {
@@ -134,7 +137,7 @@
             }
             return element;
         });
-        Object.keys(WORKSPACES).forEach(function (id) {
+        workspaceIds.forEach(function (id) {
             nodes[id] = doc.getElementById(WORKSPACES[id]);
             CS.scroll.setRoot(id, main);
             nodes[id].addEventListener('focusin', function (event) {
@@ -172,19 +175,20 @@
         });
         function safeArea() {
             var box = main.getBoundingClientRect();
-            var toolbar = nodes.sheetCruise.querySelector('.sheet-toolbar');
-            var rect = toolbar.getBoundingClientRect();
+            var toolbar = nodes.sheetCruise?.querySelector('.sheet-toolbar');
+            var rect = toolbar?.getBoundingClientRect();
             var top = box.top + 8;
-            if (!nodes.sheetCruise.hidden && rect.height) top = Math.max(top, rect.bottom + 8);
+            if (nodes.sheetCruise && !nodes.sheetCruise.hidden && rect?.height) top = Math.max(top, rect.bottom + 8);
             top = Math.min(top, Math.max(box.top + 8, box.bottom - 168));
             return { width: main.clientWidth, height: main.clientHeight, left: box.left, right: box.left + main.clientWidth,
                 top: top, bottom: box.bottom, bottomMargin: 8, contain: true };
         }
-        function refreshGeometry() { CS.sheetCruise.setLoupeSafeAreaProvider(safeArea); }
+        function refreshGeometry() { CS.sheetCruise?.setLoupeSafeAreaProvider(safeArea); }
         function restoreHiddenFocus(region, button) {
             if (region.contains(doc.activeElement)) focusRouting.restore(button);
         }
         function renderLayout() {
+            if(!right||!dock){refreshGeometry();return;}
             var s = layout.get();
             if (!s.rightOpen) restoreHiddenFocus(right, doc.getElementById(s.rightType==='inspector'&&host.getActive()==='sheetCruise'?'sc-chord-forms':'shell-'+s.rightType));
             if (s.dockCollapsed) restoreHiddenFocus(dock, doc.getElementById('shell-dock-toggle'));
@@ -207,7 +211,7 @@
             if(host.getActive()?.startsWith('app_')&&host.getActive()!==id&&realTools[host.getActive()].requestLeave())return false;
             if(modal.getActive())return false;
             if(dockedTool===id){toolSelect.focus();return true;}
-            if (modal.getActive() || !Object.hasOwn(WORKSPACES, id) || host.getActive() === id) return false;
+            if (modal.getActive() || !Object.hasOwn(nodes, id) || host.getActive() === id) return false;
             if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(function () { navigate(id); })) return false;
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(function () { navigate(id); })) return false;
             if (host.getActive() === 'portMyApps' && CS.portMyApps.requestLeave(function () { navigate(id); })) return false;
@@ -248,7 +252,7 @@
             header.parentNode.insertBefore(nav, header);
         });
         ['inspector', 'tool'].forEach(function (type) {
-            doc.getElementById('shell-'+type).addEventListener('click', function () {
+            doc.getElementById('shell-'+type)?.addEventListener('click', function () {
                 if(modal.getActive())return;
                 if(dockedTool){if(guardTool(function(){doc.getElementById('shell-'+type).click();}))return;closeToolUnchecked();}
                 var s = layout.get();
@@ -256,9 +260,9 @@
                 renderLayout();
             });
         });
-        doc.getElementById('sc-chord-forms').addEventListener('click',function(){doc.getElementById('shell-inspector').click();});
-        doc.getElementById('shell-pane-close').addEventListener('click', function () { layout.closeRight(); renderLayout(); });
-        doc.getElementById('shell-dock-toggle').addEventListener('click', function () { layout.toggleDock(); renderLayout(); });
+        doc.getElementById('sc-chord-forms')?.addEventListener('click',function(){doc.getElementById('shell-inspector').click();});
+        doc.getElementById('shell-pane-close')?.addEventListener('click', function () { layout.closeRight(); renderLayout(); });
+        doc.getElementById('shell-dock-toggle')?.addEventListener('click', function () { layout.toggleDock(); renderLayout(); });
         var ime = CS.keyboard.createIMEGuard(window.setTimeout.bind(window), window.clearTimeout.bind(window));
         var modal = CS.modals.createModalManager({ document: doc, background: shell, canOpen: function () { return !!CS.entryAuth?.isAuthorized(); }, focus: focusRouting, canFocus: CS.focusRouting.canFocus, ime: ime });
         // Explicit slots stay null until their owner connects them; DOM focus never assigns these targets.
@@ -269,14 +273,14 @@
         }
         var commands = CS.commands.createRouter(getCommandContext);
         var keyboard = CS.keyboard.createKeyboardRouter({ document: doc, getContext: getCommandContext, commands: commands, ime: ime, modal: modal });
-        keyboard.registerEscape({ scope: 'transient', workspaceId: 'sheetCruise', handle: CS.sheetCruise.closeTransient });
+        if(CS.sheetCruise)keyboard.registerEscape({ scope: 'transient', workspaceId: 'sheetCruise', handle: CS.sheetCruise.closeTransient });
         keyboard.registerEscape({ scope: 'pane', handle: function () {
             var s = layout.get();
             if (!s.rightOpen || (s.persistent && !right.contains(doc.activeElement))) return false;
             layout.closeRight(); renderLayout(); return true;
         } });
-        keyboard.registerEscape({ scope: 'workspace', workspaceId: 'sheetCruise', handle: CS.sheetCruise.handleEscape });
-        CS.sheetCruise.setEscapeRouter(keyboard.localEscape);
+        if(CS.sheetCruise)keyboard.registerEscape({ scope: 'workspace', workspaceId: 'sheetCruise', handle: CS.sheetCruise.handleEscape });
+        CS.sheetCruise?.setEscapeRouter(keyboard.localEscape);
         keyboard.attach();
         // Overlay is nonmodal: background clicks still reach their original controls.
         main.addEventListener('click', function () {
