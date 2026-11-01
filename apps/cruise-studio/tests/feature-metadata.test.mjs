@@ -256,7 +256,7 @@ test('critical presentation contracts include selected-bar Chord Inspector and e
 test('storage schema refs are distinct from app versions, cache keys, Sync/API/build versions', () => {
     const model = readSource('apps/cruise-studio/js/core/song-model.js');
     assert.match(model, /var SCHEMA_VERSION = 2;/);
-    assert.match(model, /var APP_VERSION = '0\.69\.0';/);
+    assert.match(model, /var APP_VERSION = '0\.69\.1';/);
     const schema = getFeatureMetadata('studio.structure').schemaRef;
     assert.equal(schema.kind, 'storage-schema');
     assert.equal(schema.symbol, 'SCHEMA_VERSION');
