@@ -183,6 +183,7 @@ test('H/I: return refresh is single-flight, throttled, and only while Sync Cente
   gate.noteRefreshed();
   leaveAndReturn();
   assert.equal(refreshes, 2, 'an explicit open counts as the latest check');
+  gate.dispose();
 });
 
 test('checking state replaces old chips with a neutral label and closes open details', async () => {

@@ -360,6 +360,8 @@ export function createSyncCenterController({
 } = {}) {
     if(isolatedAccountConsumer!==null)return isolatedController(isolatedAccountConsumer,config?.enabled===true);
     let lastPresentation = null;
+    let observation = null;
+    let loadRevision = 0;
     let cachedGeneration = accountRoot?.storage?.getGeneration?.();
     const effectiveConfig = config || readSyncCenterConfig();
     return Object.freeze({
@@ -374,70 +376,94 @@ export function createSyncCenterController({
             if (!account?.accountCredential) return createUnsetPresentation();
             return cachedGeneration === accountRoot?.storage?.getGeneration?.() ? lastPresentation || createUnavailablePresentation('unknown', null) : createUnavailablePresentation('unknown', null);
         },
-        async load() {
+        load({ readOnly = false } = {}) {
             const generation = accountRoot?.storage?.getGeneration?.();
-            if (effectiveConfig.enabled !== true) return Object.freeze({ kind: 'disabled' });
-            const storage = accountRoot?.storage;
-            const Client = accountRoot?.AccountClient;
-            if (!storage?.getAccount || typeof Client !== 'function') {
-                lastPresentation = createUnavailablePresentation('error', lastPresentation);
-                return lastPresentation;
-            }
-            let credential;
-            try { credential = await storage.getAccount(indexedDb); } catch (_) {
-                lastPresentation = createUnavailablePresentation('error', lastPresentation);
-                return lastPresentation;
-            }
-            if (!credential?.accountCredential) {
-                lastPresentation = createUnsetPresentation();
-                return lastPresentation;
-            }
-            if (!online()) {
-                lastPresentation = createUnavailablePresentation('offline', lastPresentation);
-                return lastPresentation;
-            }
-            try {
-                const client = new Client({
-                    endpoint: effectiveConfig.endpoint,
-                    fetchImpl,
-                    storage,
-                    core: accountRoot.core,
-                    admissionMode: effectiveConfig.admissionMode || 'qa'
-                });
-                // The devices list only adds per-target detail. When it alone fails, the app rows
-                // still follow the Account summary instead of turning into 「確認が必要」.
-                const [summary, devices, portCredential] = await Promise.allSettled([
-                    client.summary(credential.accountCredential),
-                    client.devices(credential.accountCredential),
-                    Promise.resolve().then(readPortCredential)
-                ]);
-                if (summary.status === 'rejected') throw summary.reason;
-                if (devices.status === 'rejected' && ACCOUNT_TERMINAL_CODES.has(devices.reason?.code)) {
-                    throw devices.reason;
+            if (readOnly && observation && observation.generation === generation && observation?.revision === loadRevision) return observation.operation;
+            const revision = ++loadRevision;
+            const current = () => revision === loadRevision && generation === accountRoot?.storage?.getGeneration?.();
+            const operation = (async () => {
+                if (effectiveConfig.enabled !== true) return Object.freeze({ kind: 'disabled' });
+                const storage = accountRoot?.storage;
+                const Client = accountRoot?.AccountClient;
+                if (!storage?.getAccount || typeof Client !== 'function') {
+                    lastPresentation = createUnavailablePresentation('error', readOnly ? null : lastPresentation);
+                    return lastPresentation;
                 }
-                if (generation !== storage.getGeneration?.()) return createUnavailablePresentation('unknown', null);
-                cachedGeneration = generation;
-                lastPresentation = normalizeSyncCenterSummary(
-                    summary.value, devices.status === 'fulfilled' ? devices.value : null,
-                    accountRoot.core?.formatAccountDisplayId,
-                    accountRoot.core?.accountDeviceIdFromCredential?.(credential.accountCredential) || null,
-                    portCredential.status === 'rejected' ? false
-                        : portCredential.value == null ? null
-                        : accountRoot.core?.validAppCredential?.(portCredential.value)
-                            ? portCredential.value.split('.')[1] : false
-                );
-            } catch (error) {
-                if (generation !== storage.getGeneration?.()) return createUnavailablePresentation('unknown', null);
-                if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {
-                    try {
-                        await storage.clearAccount(indexedDb);
-                        lastPresentation = createUnsetPresentation();
-                        return lastPresentation;
-                    } catch (_) { /* retain fail-closed unavailable presentation */ }
+                let credential;
+                try { credential = await storage.getAccount(indexedDb); } catch (_) {
+                    if (!current()) return createUnavailablePresentation('unknown', null);
+                    lastPresentation = createUnavailablePresentation('error', readOnly ? null : lastPresentation);
+                    return lastPresentation;
                 }
-                lastPresentation = createUnavailablePresentation('error', lastPresentation);
+                if (!current()) return createUnavailablePresentation('unknown', null);
+                if (!credential?.accountCredential) {
+                    lastPresentation = createUnsetPresentation();
+                    return lastPresentation;
+                }
+                if (!online()) {
+                    lastPresentation = createUnavailablePresentation('offline', readOnly ? null : lastPresentation);
+                    return lastPresentation;
+                }
+                try {
+                    const client = new Client({
+                        endpoint: effectiveConfig.endpoint,
+                        fetchImpl,
+                        storage,
+                        core: accountRoot.core,
+                        admissionMode: effectiveConfig.admissionMode || 'qa'
+                    });
+                    // The devices list only adds per-target detail. When it alone fails, the app rows
+                    // still follow the Account summary instead of turning into 「確認が必要」.
+                    const [summary, devices, portCredential] = await Promise.allSettled([
+                        client.summary(credential.accountCredential),
+                        client.devices(credential.accountCredential),
+                        Promise.resolve().then(readPortCredential)
+                    ]);
+                    if (summary.status === 'rejected') throw summary.reason;
+                    if (devices.status === 'rejected' && ACCOUNT_TERMINAL_CODES.has(devices.reason?.code)) {
+                        throw devices.reason;
+                    }
+                    if (!current()) return createUnavailablePresentation('unknown', null);
+                    if (readOnly) {
+                        const after = await storage.getAccount(indexedDb);
+                        if (!current() ||
+                            after?.accountId !== credential.accountId ||
+                            after?.accountCredential !== credential.accountCredential) {
+                            return createUnavailablePresentation('unknown', null);
+                        }
+                        if (summary.value?.account?.id !== credential.accountId) {
+                            throw new Error('account_summary_mismatch');
+                        }
+                    }
+                    cachedGeneration = generation;
+                    lastPresentation = normalizeSyncCenterSummary(
+                        summary.value, devices.status === 'fulfilled' ? devices.value : null,
+                        accountRoot.core?.formatAccountDisplayId,
+                        accountRoot.core?.accountDeviceIdFromCredential?.(credential.accountCredential) || null,
+                        portCredential.status === 'rejected' ? false
+                            : portCredential.value == null ? null
+                            : accountRoot.core?.validAppCredential?.(portCredential.value)
+                                ? portCredential.value.split('.')[1] : false
+                    );
+                } catch (error) {
+                    if (!current()) return createUnavailablePresentation('unknown', null);
+                    if (!readOnly && ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {
+                        try {
+                            await storage.clearAccount(indexedDb);
+                            lastPresentation = createUnsetPresentation();
+                            return lastPresentation;
+                        } catch (_) { /* retain fail-closed unavailable presentation */ }
+                    }
+                    lastPresentation = createUnavailablePresentation('error', readOnly ? null : lastPresentation);
+                }
+                return lastPresentation;
+            })();
+            if (readOnly) {
+                const pending = { generation, revision, operation };
+                observation = pending;
+                void operation.finally(() => { if (observation === pending) observation = null; }).catch(() => {});
             }
-            return lastPresentation;
+            return operation;
         },
         planFourAppSetup(presentation) {
             if (!presentation || ['error', 'offline'].includes(presentation.kind)) {
