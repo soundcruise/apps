@@ -6,8 +6,8 @@ const assetId = '123e4567-e89b-42d3-a456-426614174000';
 const operationId = '223e4567-e89b-42d3-a456-426614174000';
 const credential = `scd1.323e4567-e89b-42d3-a456-426614174000.${'A'.repeat(43)}`;
 
-function seed() {
-  const db = createSqliteD1();
+function seed(options) {
+  const db = createSqliteD1(options);
   db.raw.prepare(`INSERT INTO sync_accounts
     (id,state,recovery_version,recovery_verifier,generation,created_at,updated_at,recovery_created_at,recovery_rotated_at,admission_provenance)
     VALUES ('account-a','active',1,?,1,1,1,1,1,'production')`).run('1'.repeat(64));
