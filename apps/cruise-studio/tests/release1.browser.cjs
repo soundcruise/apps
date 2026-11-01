@@ -36,7 +36,7 @@ test('release central/right single-owner UI, central unsaved refresh guard, five
   await p.setViewportSize({width:1440,height:1000});const resize=p.locator('#tool-window-resize'),box=await resize.boundingBox();await p.mouse.move(box.x+2,box.y+120);await p.mouse.down();await p.mouse.move(box.x-80,box.y+120);await p.mouse.up();
   assert(await p.evaluate(()=>originalApp===document.querySelector('#tool-window-slot iframe')));
   await p.locator('#studio-tool-toggle').click();assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'home');
-  await p.locator('[data-port-sync-status] button').click();await p.frameLocator('#port-sync-surface iframe').locator('#sync-center-view:not([hidden])').waitFor();
+  await p.locator('[data-port-sync-status] [data-open-sync]').click();await p.frameLocator('#port-sync-surface iframe').locator('#sync-center-view:not([hidden])').waitFor();
   assert.deepEqual(f.errors,[]);assert.equal(await p.evaluate(()=>localStorage.getItem('cruiseStudio.project.future-song')),'synthetic-keep');
  }finally{await f.browser.close();}
 });
