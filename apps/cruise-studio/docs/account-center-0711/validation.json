@@ -1,0 +1,193 @@
+{
+  "production": false,
+  "version": "0.71.1",
+  "portVersion": "1.24.24",
+  "baseMain": "276bf5cd6dde6c4e68b0366633c82e0367c16b44",
+  "branch": "codex/studio-sync-observation-0711-20261101",
+  "productionDelayCause": "unconfirmed; no Production request or qualification used",
+  "confirmedColdCause": "native loadLocal cached unknown survives successful Studio-only observation",
+  "readonlyTraffic": [
+    "GET /v2/accounts/summary",
+    "GET /v2/accounts/devices"
+  ],
+  "automaticSyncActivation": false,
+  "automaticAccountChangeOrAdoption": false,
+  "node": {
+    "studio": 33,
+    "nativePort": 74,
+    "failed": 0,
+    "skipped": 0
+  },
+  "productPageBrowser": {
+    "pass": 17,
+    "failed": 0,
+    "skipped": 0,
+    "accountCasesRepeatedAfterScreenshotRedaction": 8
+  },
+  "nativeProductAndRecovery": [
+    {
+      "suite": "native-product",
+      "status": "PASS",
+      "pass": 30,
+      "errors": 0,
+      "productionRequestsSent": 0,
+      "rawSyntheticEvidenceSha256": "7327b3740aaee3d82af867e9af8942b9c27f64b384f6f1a8a59aaabe1381bcae"
+    },
+    {
+      "suite": "legacy-recovery",
+      "status": "PASS",
+      "pass": 12,
+      "errors": 0,
+      "productionRequestsSent": 0,
+      "rawSyntheticEvidenceSha256": "3e2396e58541d0efcd03d5e81590a3693de196477121889b7d1e33c0cee80d3f"
+    },
+    {
+      "suite": "legacy-recovery",
+      "status": "PASS",
+      "pass": 12,
+      "errors": 0,
+      "productionRequestsSent": 0,
+      "rawSyntheticEvidenceSha256": "8aa1913163edd244927df7a93e33ee047191ad067ba48f2c75f76fd5f0dbbdac"
+    }
+  ],
+  "baseline0710": {
+    "production": false,
+    "nativeAccountState": "unknown",
+    "nativeAccountLabel": "同期情報は未確認",
+    "readOnlyRequests": [
+      {
+        "method": "GET",
+        "path": "/v2/accounts/summary"
+      },
+      {
+        "method": "GET",
+        "path": "/v2/accounts/summary"
+      }
+    ],
+    "timings": {
+      "readMs": 3.4000000059604645,
+      "requestMs": 1.399999976158142,
+      "totalMs": 4.799999982118607
+    }
+  },
+  "finalTiming": {
+    "production": false,
+    "syntheticNativeBootDelayMs": 250,
+    "homeFlashFrames": 0,
+    "state": "connected",
+    "errorCode": null,
+    "timings": {
+      "readMs": 3.600000023841858,
+      "requestMs": 4.5,
+      "totalMs": 8.100000023841858
+    },
+    "requests": {
+      "summaryMs": 3.899999976158142,
+      "devicesMs": 3.899999976158142,
+      "devicesRequested": true
+    },
+    "frames": [
+      {
+        "iframeReadyMs": 357.19999998807907,
+        "nativeFirstStateMs": 67.5,
+        "nativeState": "ready",
+        "syncState": "unstarted"
+      }
+    ]
+  },
+  "screenshots": {
+    "before-0710.png": "04f5da2783d42b8c5bffd4b903b475adb048c11e302371c63fa68137c34b36bd",
+    "after-0711-dark-1440.png": "dd40731bfc38370d2f0fe2f25cb3ce9e7886495a729d4f223377b86c76fa4f1e",
+    "after-0711-light-390.png": "4e41e9abe1e9d47a631cb8017805b241a7e9f7788f33a022e725b23e1305787d"
+  },
+  "themeWidthMatrix": {
+    "charcoal-1024.png": "ff2ffdc11c9407e5d79b95fb5e76713a8c9eb68dec13381c5f1c7971154cc7ca",
+    "charcoal-1440.png": "03f36f0e7a5eba53b9e4a5643d5497be053f6f494e5dba1cf9a7fa0bf9b22167",
+    "charcoal-390.png": "97aec60dededd225fee4e46d58b7bf7b0b7f7d42e04a0e608e604a4e93225061",
+    "charcoal-768.png": "edb4daa0fb84af3031edabf78f7a81428743b8c60da4ce60d705938f88886263",
+    "dark-1024.png": "e7f58538b1b957cbac79bd84ea1d7c25870bd1e16bf8802ea18af1d1fb77cda0",
+    "dark-1440.png": "dd40731bfc38370d2f0fe2f25cb3ce9e7886495a729d4f223377b86c76fa4f1e",
+    "dark-390.png": "b548ccd83e255923e6324c72ebbcecdc0f1cbf8fc21af0d7fd8f2690fd7a6635",
+    "dark-768.png": "b02658b89a79427c9bdc1a2a0b651179a5398b8b5b966b3172b98b31aeba34cb",
+    "gray-1024.png": "59b0e85030753b5c99909516c54aa7d46289e11bdbf52e2985ae3ff6ed5c5a70",
+    "gray-1440.png": "020927e64e0d198de58994af7eb5e924c803b393ffd23d8142eebc954019020e",
+    "gray-390.png": "dffe327aabdfcdb5939c2dc8dd1e8a7a8fdde8b254264a4d257d06acf6d54de8",
+    "gray-768.png": "ca0ffe4b129fc16fb8f14fbd145f683579ed582cdd141191043aefd927e1c248",
+    "light-1024.png": "85f3cfdf55249662f832c9e69c6dcb890ac4d5601e6b662d28ab6228f8e5faaf",
+    "light-1440.png": "e8760e945563eca958dc68baf4b659504804a7f7bfc527124724c48553ddeb24",
+    "light-390.png": "4e41e9abe1e9d47a631cb8017805b241a7e9f7788f33a022e725b23e1305787d",
+    "light-768.png": "bfb485023a6843e2d7d6a97c271cd49a53e7ac582502550b450b5e6941568cfc",
+    "midnight-1024.png": "37c07cbee6eb633d4c479fa693a541510962e352663d101b41214dd56834817d",
+    "midnight-1440.png": "36d076c3f47781edd9ac09dd70a4bc8be1ebd0bde3d044398fb4aec6cb961e99",
+    "midnight-390.png": "8322d6c7c53f3d4332e2f93ca802517b3cfdeafa84ae4c4454ac45367b60e00b",
+    "midnight-768.png": "42d982e4578d05bc00efde57ab92c3e5d0555160759a85ca06d7c5bd026b9e00"
+  },
+  "screenshotsContainOnlySyntheticData": true,
+  "displayIdentifiersRedacted": true,
+  "publicArtifact": {
+    "files": {
+      "apps/cruise-studio/index.html": "21a49a26e62c309192b7422603ad98cef3ac28bf7c28e42fe9a3e67b1a661310",
+      "apps/cruise-studio/entry.css": "fb60a66706aaf7214f48164f4521998e52e56ded28456a4b8118c710b86d4046",
+      "apps/cruise-studio/theme-projection.css": "6c3ac2806eeee58cbad21b38353c89d3627c1e3744f0dc28473ad4da1809c1f9",
+      "apps/cruise-studio/theme.css": "838b0fb3fb226cf69e29f5dfc5220aeee6c1457f6bb16e980b8eb8fcdd646a6a",
+      "apps/cruise-studio/shell.css": "7b974d1cd0e8daeee77f3cd91b7744d8ec8f04eb4f1fec59ebf09c6b2618f601",
+      "apps/cruise-studio/studio-home.css": "1673bcdacfd699397b2a1f13b0a074cf5a3aa8dfc3af6db79838ae46feb3cc49",
+      "apps/cruise-studio/studio-tools.css": "e0c8ee3c532c461786c932dcf7e8a7b657b428882625cd3dcd42868470c64ce7",
+      "apps/cruise-studio/port-tuner-surface.css": "c4b5036117ea7633683b905b013d68ebe89fd7727658771c0dd548e8a9c7ef40",
+      "apps/cruise-studio/port-pc.css": "dfe1181c17b5f0ed1cbc7a9d37e8912e3c96bac34dc1ee343c44e5e12b7adb4a",
+      "apps/cruise-studio/assets/studio-icons.svg": "86a2232039ec1a3bd8442439db1b313a017d1742a01b51331ca430265d11d564",
+      "apps/cruise-studio/js/core/color-theme.js": "1853ea663aadcbcf95a4b16be9ca0ff5b983c96f43e38c29f6f8d24d7d6b4cdd",
+      "apps/cruise-studio/js/core/port-frame-theme.js": "b8a720a4e7f4e4c8ff34aebf304e855a90920a2255a9948248780f7276daee06",
+      "apps/cruise-studio/js/core/command-router.js": "54486a775bac9c7c825554a63bfbdeaeb52d27c0fd195467d50dcceb81a4b85f",
+      "apps/cruise-studio/js/core/focus-routing.js": "62005946937fd230ef10498e06fc1be8619b6026131dcef41a430edb4dbbe098",
+      "apps/cruise-studio/js/core/keyboard-router.js": "8e32ca943951ce81b25fbc2c890b9002669c32f2e55cf66ff2ddafcbd94716e3",
+      "apps/cruise-studio/js/core/modal-manager.js": "8cf61c661150396afd758eebb7595c9add88a65701876fd44bceba3714ec9000",
+      "apps/cruise-studio/js/core/workspace-scroll.js": "e4b7c7b8f6d2440b9e856a4dd5d8f65a3ef531c5a50fec9dc69b6e17aef0a341",
+      "apps/cruise-studio/js/core/app-refresh.js": "0e866b7b4c4d59b502644cf6351f40a463675c433036937a827cc7a68a235e0f",
+      "apps/cruise-studio/js/core/native-port-presentation.js": "c13c2f59067b1679e4c52e63f24373387bbda149d9b59badaf956346872f684e",
+      "apps/cruise-studio/js/core/audio-coordinator.js": "1bcfffe5e9e16a0c385a1c23d6918e888254567fc2fd33f11b4fed821c130c77",
+      "apps/cruise-studio/js/core/studio-entry.mjs": "144dc61d5d1d18a4bc2da74f0f1a7acba2e97cb46c618223cbd943eef893ede8",
+      "apps/cruise-studio/js/core/port-pro-boundary.mjs": "f3c918c97745f916b404f075fd1c45208581b32e2b1fd6dd0113e6f42b21571b",
+      "apps/cruise-studio/js/shell.js": "24e4819faaf803cb12d98447cd9ab122865c2da13b68e6c2b91dbb26fc9877d5",
+      "apps/cruise-studio/js/port-pc.js": "23698f98e4b960655c42db59e9cdba4c8ee60e929ac971616e2fce1feb878855",
+      "apps/cruise-studio/js/port-sync-status.mjs": "73f40f1c1fc76811b187861b8b508c89360bb0cd71cbc6207400b9d7cd71bea7",
+      "apps/cruise-studio/js/modules/practice/port-surface.js": "3d6decff1f4682dec1b2fb4a6794bdd400c6fbc7dcc560dc998164b0bd6794cc",
+      "apps/cruise-studio/js/modules/tuner/port-surface.js": "bce3ae94320eb7a94b1dc9a5c132f63d5d82421fa229ca5377acbf40e225eed0",
+      "apps/cruise-studio/js/modules/metronome/port-surface.js": "43352e4d676eeb9586f4bebb62e21d7b6a067cf874439280bc4cd06f0f1e6f76",
+      "apps/cruise-studio/js/modules/library/port-surface.js": "591ee9ff3e591ba5a8fd52b50204ace7c6b7f0366450d33b6359fafa90de5b5d",
+      "apps/cruise-studio/js/modules/series/workspaces.js": "0850711af0921d6bede906f4721781022ff5bcdd36be58948322f9eb3aa9065b",
+      "apps/cruise-studio/js/modules/series/internal-app.mjs": "f840f5849c5806317b0b3e966a972968b8730259ccc1eb709b621bb15a12a483",
+      "apps/cruise-studio/js/modules/series/official-links.mjs": "696da7b258697466a61a28ddce51622a7fe9c4835040913e20a82b9da505323d",
+      "apps/cruise-studio/js/modules/series/presentation.mjs": "821fd0e18d97ee83732207cbefa01ccb6370afef3856fe9d67f5f35c3be2b211",
+      "apps/cruise-studio/js/modules/series/presentation.css": "a87a2f9a75e51847545c6f78033ca761cd96b904db7fdaf30e78f49aa9887315"
+    },
+    "fileCount": 34,
+    "jekyllSafeBuild": true,
+    "nativeOutputFilesByteIdentical": 774,
+    "futureRoutesExcluded": true
+  },
+  "protectedTrees": {
+    "apps/cruise-port": "84c7dea346259d48b808ca421a5364327f577780",
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "apps/shared": "ed13d8330234d1c7605f38038c0d6d49cca450ad",
+    "workers": "585bde6d34ed6627442dc3649d1469651cc1d075"
+  },
+  "existingWorktreeHeadsUnchanged": 107,
+  "fixtureCorrection": {
+    "initialRecoveryFailure": "11 PASS then Abort during actual native remote-apply cache-bust; no console error",
+    "fix": "accept Abort only with performance.timeOrigin replacement within original 10-second wait budget",
+    "productRuntimeChanged": false,
+    "timeoutsExtended": false
+  },
+  "holds": [
+    "candidate not merged/published",
+    "actual Account/Pro and phone-PC same-Account Sync untested",
+    "actual 3-5-minute delay needs sanitized runtime timing",
+    "Safari and real microphone untested"
+  ],
+  "syntheticPreview": "http://127.0.0.1:52217/apps/cruise-studio/index.html",
+  "previewForRealCredentials": false
+}

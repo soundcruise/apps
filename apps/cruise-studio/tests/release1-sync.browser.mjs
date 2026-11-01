@@ -91,8 +91,18 @@ async function readStable(frame,fn,arg){for(let i=0;i<3;i++){try{return await fr
 async function consent(frame){await nativeRuntime(frame);return {ok:true};}
 async function sync(frame){
  await ready(frame);await nativeRuntime(frame);
- const page=frame.page?.()||frame,target=frame.mainFrame?.()||frame,oldUrl=frame.url();let navigated=false;const onNav=f=>{if(f===target)navigated=true;};page.on('framenavigated',onNav);let value;
- try{value=await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}catch(e){if(!/Execution context was destroyed|runtime_disposed/.test(String(e)))throw e;await frame.waitForURL(u=>u.href!==oldUrl,{timeout:10000});navigated=true;}
+ const page=frame.page?.()||frame,target=frame.mainFrame?.()||frame,oldUrl=frame.url(),documentEpoch=await frame.evaluate(()=>performance.timeOrigin);let navigated=false;const onNav=f=>{if(f===target)navigated=true;};page.on('framenavigated',onNav);let value;
+ try{value=await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}catch(e){
+  if(/AbortError: signal is aborted/.test(String(e))){
+   // Native remote-apply cache-bust destroys the old runtime. Accept that abort
+   // only after a different actual document exists; a live-document abort fails.
+   await frame.waitForFunction(epoch=>performance.timeOrigin!==epoch,documentEpoch,{timeout:10000});
+  }else{
+   if(!/Execution context was destroyed|runtime_disposed/.test(String(e)))throw e;
+   await frame.waitForURL(u=>u.href!==oldUrl,{timeout:10000});
+  }
+  navigated=true;
+ }
  await frame.waitForLoadState('domcontentloaded');page.off('framenavigated',onNav);
  if(navigated){await frame.waitForLoadState('load');await ready(frame);await nativeRuntime(frame);}
  return value;

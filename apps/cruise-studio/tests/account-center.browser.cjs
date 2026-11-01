@@ -1,9 +1,9 @@
 /* Disposable product-page tests; no Production traffic, credentials or account writes. */
 const test=require('node:test'),assert=require('node:assert/strict'),{chromium}=require('playwright'),fs=require('node:fs');
-const url=process.env.STUDIO_URL,origin=new URL(url).origin,shots=process.env.STUDIO_SHOTS||'/tmp/studio071-shots';assert(['127.0.0.1','localhost'].includes(new URL(url).hostname));fs.mkdirSync(shots,{recursive:true});
+const url=process.env.STUDIO_URL,origin=new URL(url).origin,shots=(process.env.STUDIO_SHOTS||'/tmp/studio071-shots')+'/account-center';assert(['127.0.0.1','localhost'].includes(new URL(url).hostname));fs.mkdirSync(shots,{recursive:true});
 const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
 async function fixture(account=A){
- const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),context=await browser.newContext({serviceWorkers:'block',viewport:{width:1440,height:1000}}),page=await context.newPage();page.setDefaultTimeout(15000);const errors=[],calls=[],mode={status:200,delay:0},tokens=new Map();page.on('pageerror',e=>errors.push(e.message));
+ const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),context=await browser.newContext({serviceWorkers:'block',viewport:{width:1440,height:1000}}),page=await context.newPage();page.setDefaultTimeout(15000);const errors=[],calls=[],mode={status:200,deviceStatus:200,delay:0},tokens=new Map();page.on('pageerror',e=>errors.push(e.message));
  await context.route('**/*',async r=>{
   const q=r.request(),u=new URL(q.url());
   if(u.origin===origin){
@@ -14,10 +14,12 @@ async function fixture(account=A){
   }
   if(u.hostname==='sound-cruise-sync.cruise-port-requests.workers.dev'){
    if(q.method()==='OPTIONS')return r.fulfill({status:204,headers:{'access-control-allow-origin':origin,'access-control-allow-methods':'GET','access-control-allow-headers':'authorization'}});
-   calls.push({path:u.pathname,method:q.method()});assert.equal(q.method(),'GET','Account status must not activate Sync or mutate remote data');assert.equal(u.pathname,'/v2/accounts/summary');
+   calls.push({path:u.pathname,method:q.method()});assert.equal(q.method(),'GET','Account status must not activate Sync or mutate remote data');assert(['/v2/accounts/summary','/v2/accounts/devices'].includes(u.pathname),'read-only native Account endpoints only');
    const id=tokens.get(q.headers().authorization?.replace('Bearer ',''));assert(id,'only fixture credentials permitted');
    if(mode.delay)await new Promise(resolve=>setTimeout(resolve,mode.delay));
-   return r.fulfill({status:mode.status,headers:{'access-control-allow-origin':origin},contentType:'application/json',body:JSON.stringify(mode.status===200?{ok:true,account:{id,state:'active'},memberships:[]}:{ok:false,code:mode.status===429?'rate_limited':'service_unavailable'})});
+   const status=u.pathname.endsWith('/devices')?mode.deviceStatus:mode.status;
+   const data=u.pathname.endsWith('/devices')?{ok:true,devices:[],appDevices:[]}:{ok:true,account:{id,state:'active'},memberships:[]};
+   return r.fulfill({status,headers:{'access-control-allow-origin':origin},contentType:'application/json',body:JSON.stringify(status===200?data:{ok:false,code:status===429?'rate_limited':status===410?'account_device_revoked':'service_unavailable'})});
   }
   return r.abort();
  });
@@ -26,12 +28,21 @@ async function fixture(account=A){
  await set(account);await page.goto(url);await page.waitForFunction(()=>!!CruiseStudio.accountStatus);
  return {browser,context,page,errors,calls,mode,set,async close(){assert.deepEqual(errors,[]);await browser.close();}};
 }
-test('old PC Account is explained separately from Pro; no automatic migration; native Sync initially stays unverified',async()=>{
- const f=await fixture();try{await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});assert.match(await f.page.locator('[data-account-origin]').innerText(),/このPCのPort/);assert.match(await f.page.locator('[data-account-status]').innerText(),/Pro認証済み/);await f.page.locator('[data-open-sync]').click();const frame=f.page.frameLocator('#port-sync-surface iframe');await frame.locator('#sync-center-view:not([hidden])').waitFor();await frame.locator('#sync-center-account-status').filter({hasText:'同期情報は未確認'}).waitFor();assert.equal(await frame.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');assert(f.calls.every(x=>x.method==='GET'));assert.equal(await frame.locator('#port-sync-activate').isEnabled(),true);await f.page.screenshot({path:shots+'/account-existing-pc.png'});
+async function screenshot(f,path){
+ // Hide only display identifiers in this disposable test document. Cross-frame
+ // screenshot masks can duplicate sticky chrome in Chrome's compositor.
+ const redact=es=>es.forEach(e=>e.style.setProperty('visibility','hidden','important'));
+ await f.page.locator('[data-account-target]').evaluateAll(redact);
+ await f.page.frameLocator('#port-sync-surface iframe').locator('[data-account-target],#sync-center-account-display-id').evaluateAll(redact);
+ await f.page.screenshot({path});
+}
+
+test('opening native Sync automatically confirms Account and devices without starting data Sync',async()=>{
+ const f=await fixture();try{await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});assert.match(await f.page.locator('[data-account-origin]').innerText(),/このPCのPort/);assert.match(await f.page.locator('[data-account-status]').innerText(),/Pro認証済み/);await f.page.locator('[data-open-sync]').click();const frame=f.page.frameLocator('#port-sync-surface iframe');await frame.locator('#sync-center-view:not([hidden])').waitFor();await frame.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();assert.equal(await frame.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');await frame.locator('#sync-center-port-status-chip').filter({hasText:'データ同期は未開始'}).waitFor();assert(f.calls.some(c=>c.path==='/v2/accounts/devices'));assert.equal(await frame.locator('[data-studio-sync-intent]').count(),1);assert.equal(await frame.locator('[data-sync-app-action]').count(),4);assert.equal(await frame.locator('[data-sync-app-action]').first().isEnabled(),true);assert(f.calls.every(x=>x.method==='GET'));assert.equal(await frame.locator('#port-sync-activate').isEnabled(),true);await screenshot(f,shots+'/account-existing-pc.png');
  }finally{await f.close();}
 });
-test('no Port Home flash while native boot is delayed; native state/Controller stays unchanged',async()=>{
- const f=await fixture();try{await f.page.evaluate(()=>{window.flashSamples=[];let frames=0;const sample=()=>{for(const e of document.querySelectorAll('#port-sync-surface iframe')){const h=e.contentDocument?.getElementById('home-view');if(e.getClientRects().length&&getComputedStyle(e).visibility==='visible'&&h&&!h.hidden)flashSamples.push('home');}if(++frames<120)requestAnimationFrame(sample);};requestAnimationFrame(sample);});await f.page.locator('[data-open-sync]').click();await f.page.waitForFunction(()=>document.querySelector('#port-sync-surface iframe')?.contentDocument?.getElementById('sync-center-view')?.hidden===false&&getComputedStyle(document.querySelector('#port-sync-surface iframe')).visibility==='visible');assert.deepEqual(await f.page.evaluate(()=>flashSamples),[]);await f.page.waitForFunction(()=>CruiseStudio.accountStatus.diagnostics().state!=='checking'&&CruiseStudio.accountStatus.diagnostics().frames[0]?.nativeFirstStateMs!==null);const d=await f.page.evaluate(()=>CruiseStudio.accountStatus.diagnostics());assert(d.frames[0].iframeReadyMs>=0);assert(!JSON.stringify(d).includes(A));fs.writeFileSync(shots+'/account-normal-timings.json',JSON.stringify({production:false,syntheticNativeBootDelayMs:250,homeFlashFrames:await f.page.evaluate(()=>flashSamples.length),...d},null,2));
+test('no Port Home flash while native boot is delayed; private-free phase timings distinguish Account and native ready',async()=>{
+ const f=await fixture();try{await f.page.evaluate(()=>{window.flashSamples=[];let frames=0;const sample=()=>{for(const e of document.querySelectorAll('#port-sync-surface iframe')){const h=e.contentDocument?.getElementById('home-view');if(e.getClientRects().length&&getComputedStyle(e).visibility==='visible'&&h&&!h.hidden)flashSamples.push('home');}if(++frames<120)requestAnimationFrame(sample);};requestAnimationFrame(sample);});await f.page.locator('[data-open-sync]').click();await f.page.waitForFunction(()=>document.querySelector('#port-sync-surface iframe')?.contentDocument?.getElementById('sync-center-view')?.hidden===false&&getComputedStyle(document.querySelector('#port-sync-surface iframe')).visibility==='visible');assert.deepEqual(await f.page.evaluate(()=>flashSamples),[]);await f.page.waitForFunction(()=>CruiseStudio.accountStatus.diagnostics().state!=='checking'&&CruiseStudio.accountStatus.diagnostics().frames[0]?.nativeFirstStateMs!==null);const d=await f.page.evaluate(()=>CruiseStudio.accountStatus.diagnostics());assert(d.frames[0].iframeReadyMs>=0);assert(d.requests.summaryMs>=0);assert(d.requests.devicesMs>=0);assert.equal(d.requests.devicesRequested,true);assert(!JSON.stringify(d).includes(A));fs.writeFileSync(shots+'/account-normal-timings.json',JSON.stringify({production:false,syntheticNativeBootDelayMs:250,homeFlashFrames:await f.page.evaluate(()=>flashSamples.length),...d},null,2));
  }finally{await f.close();}
 });
 test('unconnected, same-page connection, slow checking, 429, 503, offline and reconnection are distinct',async()=>{
@@ -44,10 +55,67 @@ test('unconnected, same-page connection, slow checking, 429, 503, offline and re
 test('A form/data and actual native Outbox remain under B; no push/adoption from the status UI',async()=>{
  const f=await fixture();try{await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});await f.page.evaluate(async A=>{const db=globalThis.SoundCruiseMultiAppSync?.dataStorage;if(!db)await import('/apps/shared/sync-account/multi-app-sync-db.js');window.Apending=SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:A});await Apending.putOutbox({operationId:'synthetic-A-pending',entityId:'A-only',kind:'gear',value:{name:'Synthetic A'},baseRevision:1});},A);
  await f.page.locator('[data-home-workspace=portGear]').click();const fr=await(await f.page.locator('#port-gear-surface iframe').elementHandle()).contentFrame();await fr.locator('#gear-list-title-add').click();await fr.locator('#gear-name').fill('A unsaved');await fr.locator('#gear-category').selectOption('guitar');await fr.locator('#gear-status').selectOption('owned');await fr.evaluate(()=>SoundCruisePortSync.portRepository().captureAccountContext());const before=await f.page.evaluate(async()=>({gear:localStorage.getItem('cruisePort.gearList'),pending:await Apending.listOutbox()}));
- await f.set(B);await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});await fr.locator('#gear-list-form').evaluate(e=>e.requestSubmit());await fr.locator('#gear-form-error:not([hidden])').waitFor();assert.equal(await fr.locator('#gear-name').inputValue(),'A unsaved');assert.deepEqual(await f.page.evaluate(async()=>({gear:localStorage.getItem('cruisePort.gearList'),pending:await Apending.listOutbox()})),before);assert.equal(await f.page.evaluate(async B=>(await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:B}).listOutbox()).length,B),0);assert(f.calls.every(c=>c.path==='/v2/accounts/summary'&&c.method==='GET'));
+ await f.set(B);await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});await fr.locator('#gear-list-form').evaluate(e=>e.requestSubmit());await fr.locator('#gear-form-error:not([hidden])').waitFor();assert.equal(await fr.locator('#gear-name').inputValue(),'A unsaved');assert.deepEqual(await f.page.evaluate(async()=>({gear:localStorage.getItem('cruisePort.gearList'),pending:await Apending.listOutbox()})),before);assert.equal(await f.page.evaluate(async B=>(await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:B}).listOutbox()).length,B),0);assert(f.calls.every(c=>['/v2/accounts/summary','/v2/accounts/devices'].includes(c.path)&&c.method==='GET'));
  }finally{await f.close();}
 });
 test('five themes and four widths keep Account information, guide and Sync frame usable',async()=>{
- const f=await fixture();try{await f.page.locator('[data-open-sync]').click();await f.page.frameLocator('#port-sync-surface iframe').locator('[data-studio-account-summary]').waitFor();for(const theme of ['dark','midnight','charcoal','gray','light']){await f.page.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);for(const width of [1440,1024,768,390]){await f.page.setViewportSize({width,height:1000});assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await f.page.screenshot({path:shots+'/'+theme+'-'+width+'.png'});}}
+ const f=await fixture();try{await f.page.locator('[data-open-sync]').click();await f.page.frameLocator('#port-sync-surface iframe').locator('[data-studio-account-summary]').waitFor();for(const theme of ['dark','midnight','charcoal','gray','light']){await f.page.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);for(const width of [1440,1024,768,390]){await f.page.setViewportSize({width,height:1000});assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await screenshot(f,shots+'/'+theme+'-'+width+'.png');}}
+ }finally{await f.close();}
+});
+
+// Product UI, not an isolated alternate Sync Center. All remote requests are blocked or synthetic.
+test('native Center leaves checking on 429/503, retains Account, and readonly recheck restores the native rows',async()=>{
+ const f=await fixture();try{
+  await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
+  await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  for(const status of [429,503]){
+   f.mode.status=status;const before=f.calls.length;await fr.locator('[data-check-account]').click();
+   await fr.locator('#sync-center-account-status').filter({hasText:'確認失敗'}).waitFor();
+   assert.equal(f.calls.length,before+2);assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
+   assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),A);
+   f.mode.status=200;await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  }
+  f.mode.deviceStatus=503;await fr.locator('[data-check-account]').click();await fr.locator('[data-sync-observation]').filter({hasText:'端末一覧は取得できませんでした'}).waitFor();
+  assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');
+  f.mode.deviceStatus=200;await fr.locator('[data-check-account]').click();await fr.locator('[data-sync-observation]').filter({hasNotText:'端末一覧は取得できませんでした'}).waitFor();
+  assert(f.calls.every(c=>c.method==='GET'));
+ }finally{await f.close();}
+});
+test('slow native confirmation is single flight; refresh/return has no background Sync or late Account adoption',async()=>{
+ const f=await fixture();try{
+  await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});
+  f.mode.delay=450;await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
+  await fr.locator('[data-studio-account-summary]').waitFor();await f.page.evaluate(()=>Promise.all([CruiseStudio.accountStatus.refresh(),CruiseStudio.accountStatus.refresh()]));
+  await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  assert.equal(await fr.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'unstarted');
+  await fr.locator('#sync-center-setup-open').waitFor({state:'hidden'});
+  // User intent has not been given: no provision/bootstrap/pull/push/adoption request is possible.
+  assert(f.calls.every(c=>c.method==='GET'));f.mode.delay=0;
+  await f.page.evaluate(()=>CruiseStudio.shellHost.navigate('home'));await f.page.locator('[data-open-sync]').click();
+  await f.page.frameLocator('#port-sync-surface iframe').locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  await f.page.reload();await f.page.locator('[data-open-sync]').click();await f.page.frameLocator('#port-sync-surface iframe').locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  assert(f.calls.every(c=>c.method==='GET'));
+ }finally{await f.close();}
+});
+
+test('a late A response and an explicit Device refusal never grant or adopt another Account',async()=>{
+ const f=await fixture();try{
+  await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
+  await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  f.mode.delay=450;const before=f.calls.filter(c=>c.path.endsWith('/summary')).length;
+  const started=f.page.waitForRequest(q=>new URL(q.url()).pathname==='/v2/accounts/summary'&&q.method()==='GET');
+  await fr.locator('[data-check-account]').click();await started;
+  await f.page.waitForFunction(()=>CruiseStudio.accountStatus.diagnostics().state==='checking');
+  await f.set(B);await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
+  const expected=await f.page.evaluate(B=>SoundCruiseSyncAccount.core.formatAccountDisplayId(B),B);
+  assert.match(await fr.locator('#sync-center-account-display-id').innerText(),new RegExp(expected));
+  // Native setAccount notifies both before and after its transaction. At most
+  // one read per new generation, plus the explicit in-flight A read, is valid.
+  const reads=f.calls.filter(c=>c.path.endsWith('/summary')).length-before;assert(reads>=2&&reads<=3);f.mode.delay=0;f.mode.deviceStatus=410;
+  await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status').filter({hasText:'確認失敗'}).waitFor();
+  assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
+  assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
+  assert(f.calls.every(c=>c.method==='GET'));
  }finally{await f.close();}
 });

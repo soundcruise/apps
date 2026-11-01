@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAccountObservation} from '../js/port-sync-status.mjs';
+import {createAccountObservation,portObservation} from '../js/port-sync-status.mjs';
 import {createStudioEntry} from '../js/core/studio-entry.mjs';
 function fixture(options={}){
  let account={accountId:'A',accountCredential:'fixture-A'},generation=0,calls=0,clock=0,allowed=true;
@@ -20,3 +20,18 @@ test('late A reply does not overwrite B; A-B-A rechecks without persistent state
 test('credential change during final read never leaves a successful old result',async()=>{let reads=0;const f=fixture({storage:{getGeneration:()=>1,getAccount:async()=>++reads===1?{accountId:'A',accountCredential:'A'}:{accountId:'B',accountCredential:'B'}},summary:async()=>({account:{id:'A',state:'active'}})});assert.equal((await f.o.refresh()).state,'attention');assert.equal(f.o.read().displayId,null);});
 test('storage failure retains input ownership and does not request credentials elsewhere',async()=>{const f=fixture({storage:{getGeneration:()=>0,getAccount:async()=>{throw Object.assign(Error('synthetic'),{code:'account_storage_timeout'});}}});assert.equal((await f.o.refresh()).state,'error');assert.equal(f.calls(),0);});
 test('entry timings distinguish native Pro and Account waiting without recording secrets',async()=>{let clock=0;const e=createStudioEntry({storage:{getGeneration:()=>1,getAccount:async()=>{clock+=5;return {accountId:'A',accountCredential:'secret-A'};}},source:{read:()=>({auth:{credential:'secret-Pro',generation:1},revision:'r',revoked:false})},gateReady:()=>true,now:()=>clock,validatePro:async()=>{clock+=1000;return {ok:true,online:true};},summary:async()=>{clock+=180000;return {account:{id:'A'}};}});assert(await e.check());assert.equal(e.diagnostics().proValidationMs,1000);assert.equal(e.diagnostics().accountSummaryMs,180000);assert(!JSON.stringify(e.diagnostics()).includes('secret'));});
+
+test('confirmed native summary is private, reset on error/change, and cannot outlive a failed recheck',async()=>{
+ let fail=false;const f=fixture({summary:async()=>{if(fail)throw Error('synthetic');return {account:{id:'A',state:'active'},devices:{devices:[],appDevices:[]}};}});
+ await f.o.refresh();assert(f.o.confirmed());assert.equal(f.o.read().devices,undefined);
+ fail=true;await f.o.refresh();assert.equal(f.o.confirmed(),null);f.o.invalidate();assert.equal(f.o.confirmed(),null);
+});
+test('local status does not promote a stored credential or running process to synced',()=>{
+ assert.equal(portObservation(null,false).state,'unknown');
+ assert.equal(portObservation({known:true,credentialExists:false},false).state,'unstarted');
+ assert.equal(portObservation({known:true,credentialExists:true},false).state,'stopped');
+ assert.equal(portObservation({known:true,runtimeState:'paused'},true).state,'stopped');
+ assert.equal(portObservation({known:true,conflictCount:1},true).state,'attention');
+ assert.equal(portObservation({known:true,runtimeState:'ready',lastSyncAt:1234},true).state,'observed');
+ assert.equal(portObservation({known:true},true,false).state,'stopped');
+});
