@@ -181,7 +181,7 @@ test('8/9/10: mismatch retries automatically at most once, then 再確認が必�
   const app = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
   const body = app.slice(app.indexOf('async function renderSyncCenterView'), app.indexOf('function findGearItem'));
   assert.equal((body.match(/syncCenterMismatchRetry\.shouldRetry/g) || []).length, 1);
-  assert.equal((body.match(/syncCenterController\.load\(\)/g) || []).length, 2, 'initial load + at most one retry');
+  assert.equal((body.match(/syncCenterController\.load\(/g) || []).length, 3, 'exclusive explicit/readonly initial load + at most one readonly-aware retry');
   assert.doesNotMatch(body, /while\s*\(|setInterval|setTimeout/, 'no loop or polling');
   assert.match(app, /lastRenderedHash !== SYNC_CENTER_ROUTE\) syncCenterMismatchRetry\.reset\(\)/);
 });

@@ -38,7 +38,7 @@ async function screenshot(f,path){
 }
 
 test('opening native Sync automatically confirms Account and devices without starting data Sync',async()=>{
- const f=await fixture();try{await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});assert.match(await f.page.locator('[data-account-origin]').innerText(),/このPCのPort/);assert.match(await f.page.locator('[data-account-status]').innerText(),/Pro認証済み/);await f.page.locator('[data-open-sync]').click();const frame=f.page.frameLocator('#port-sync-surface iframe');await frame.locator('#sync-center-view:not([hidden])').waitFor();await frame.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();assert.equal(await frame.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');await frame.locator('#sync-center-port-status-chip').filter({hasText:'データ同期は未開始'}).waitFor();assert(f.calls.some(c=>c.path==='/v2/accounts/devices'));assert.equal(await frame.locator('[data-studio-sync-intent]').count(),1);assert.equal(await frame.locator('[data-sync-app-action]').count(),4);assert.equal(await frame.locator('[data-sync-app-action]').first().isEnabled(),true);assert(f.calls.every(x=>x.method==='GET'));assert.equal(await frame.locator('#port-sync-activate').isEnabled(),true);await screenshot(f,shots+'/account-existing-pc.png');
+ const f=await fixture();try{await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});assert.match(await f.page.locator('[data-account-origin]').innerText(),/このPCのPort/);assert.match(await f.page.locator('[data-account-status]').innerText(),/Pro認証済み/);await f.page.locator('[data-open-sync]').click();const frame=f.page.frameLocator('#port-sync-surface iframe');await frame.locator('#sync-center-view:not([hidden])').waitFor();await frame.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();assert.equal(await frame.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');await frame.locator('#sync-center-port-status-chip[data-sync-port-status=unstarted]').filter({hasText:/^(データ)?同期は未開始$/}).waitFor();assert(f.calls.some(c=>c.path==='/v2/accounts/devices'));assert.equal(await frame.locator('[data-studio-sync-intent]').count(),1);assert.equal(await frame.locator('[data-sync-app-action]').count(),4);assert.equal(await frame.locator('[data-sync-app-action]').first().isEnabled(),true);assert(f.calls.every(x=>x.method==='GET'));assert.equal(await frame.locator('#port-sync-activate').isEnabled(),true);await screenshot(f,shots+'/account-existing-pc.png');
  }finally{await f.close();}
 });
 test('no Port Home flash while native boot is delayed; private-free phase timings distinguish Account and native ready',async()=>{
@@ -63,17 +63,19 @@ test('five themes and four widths keep Account information, guide and Sync frame
  }finally{await f.close();}
 });
 
+// Native Port now owns the confirmed/error paint as well as Studio. Accept only
+// the two exact native/Studio labels together with the same required state.
 // Product UI, not an isolated alternate Sync Center. All remote requests are blocked or synthetic.
 test('native Center leaves checking on 429/503, retains Account, and readonly recheck restores the native rows',async()=>{
  const f=await fixture();try{
   await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
-  await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   for(const status of [429,503]){
    f.mode.status=status;const before=f.calls.length;await fr.locator('[data-check-account]').click();
-   await fr.locator('#sync-center-account-status').filter({hasText:'確認失敗'}).waitFor();
+   await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
    assert.equal(f.calls.length,before+2);assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
    assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),A);
-   f.mode.status=200;await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+   f.mode.status=200;await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   }
   f.mode.deviceStatus=503;await fr.locator('[data-check-account]').click();await fr.locator('[data-sync-observation]').filter({hasText:'端末一覧は取得できませんでした'}).waitFor();
   assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');
@@ -86,14 +88,14 @@ test('slow native confirmation is single flight; refresh/return has no backgroun
   await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});
   f.mode.delay=450;await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
   await fr.locator('[data-studio-account-summary]').waitFor();await f.page.evaluate(()=>Promise.all([CruiseStudio.accountStatus.refresh(),CruiseStudio.accountStatus.refresh()]));
-  await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   assert.equal(await fr.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'unstarted');
   await fr.locator('#sync-center-setup-open').waitFor({state:'hidden'});
   // User intent has not been given: no provision/bootstrap/pull/push/adoption request is possible.
   assert(f.calls.every(c=>c.method==='GET'));f.mode.delay=0;
   await f.page.evaluate(()=>CruiseStudio.shellHost.navigate('home'));await f.page.locator('[data-open-sync]').click();
-  await f.page.frameLocator('#port-sync-surface iframe').locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
-  await f.page.reload();await f.page.locator('[data-open-sync]').click();await f.page.frameLocator('#port-sync-surface iframe').locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  await f.page.frameLocator('#port-sync-surface iframe').locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
+  await f.page.reload();await f.page.locator('[data-open-sync]').click();await f.page.frameLocator('#port-sync-surface iframe').locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   assert(f.calls.every(c=>c.method==='GET'));
  }finally{await f.close();}
 });
@@ -101,19 +103,19 @@ test('slow native confirmation is single flight; refresh/return has no backgroun
 test('a late A response and an explicit Device refusal never grant or adopt another Account',async()=>{
  const f=await fixture();try{
   await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
-  await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   f.mode.delay=450;const before=f.calls.filter(c=>c.path.endsWith('/summary')).length;
   const started=f.page.waitForRequest(q=>new URL(q.url()).pathname==='/v2/accounts/summary'&&q.method()==='GET');
   await fr.locator('[data-check-account]').click();await started;
   await f.page.waitForFunction(()=>CruiseStudio.accountStatus.diagnostics().state==='checking');
-  await f.set(B);await fr.locator('#sync-center-account-status').filter({hasText:'Account確認済み'}).waitFor();
+  await f.set(B);await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
   const expected=await f.page.evaluate(B=>SoundCruiseSyncAccount.core.formatAccountDisplayId(B),B);
   assert.match(await fr.locator('#sync-center-account-display-id').innerText(),new RegExp(expected));
   // Native setAccount notifies both before and after its transaction. At most
   // one read per new generation, plus the explicit in-flight A read, is valid.
   const reads=f.calls.filter(c=>c.path.endsWith('/summary')).length-before;assert(reads>=2&&reads<=3);f.mode.delay=0;f.mode.deviceStatus=410;
-  await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status').filter({hasText:'確認失敗'}).waitFor();
+  await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
   assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
   assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
   assert(f.calls.every(c=>c.method==='GET'));

@@ -1,4 +1,5 @@
 const PRESENTATIONS = Object.freeze({
+    unstarted: Object.freeze({ state: 'unstarted', label: '同期は未開始' }),
     synced: Object.freeze({
         state: 'synced',
         label: '✓ 同期済み'
@@ -18,6 +19,8 @@ const PRESENTATIONS = Object.freeze({
 export function createPortSyncStatus({ accountState, structured, assets, online = true } = {}) {
     if (accountState === 'deleting') return PRESENTATIONS.deleting;
     if (accountState === 'unset') return PRESENTATIONS.detached;
+    if (accountState === 'active' && structured?.known && structured.credentialExists === false &&
+        !structured.conflictCount && !structured.terminalCount) return PRESENTATIONS.unstarted;
     if (accountState !== 'active' || !structured?.known || !assets?.known) return PRESENTATIONS.attention;
     if (structured.connected === false && structured.runtimeState === 'not_connected') return PRESENTATIONS.detached;
     if (!structured.connected || (structured.credentialState && structured.credentialState !== 'usable')) return PRESENTATIONS.attention;

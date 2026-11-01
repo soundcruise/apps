@@ -1,0 +1,115 @@
+{
+  "production": false,
+  "baseMain": "7a6663ced0a1529fc71f608b4ce3ae2416449cef",
+  "candidatePort": "1.24.25",
+  "studioProductUnchanged": "0.71.1",
+  "branch": "codex/port-sync-center-regression-20261102",
+  "history": {
+    "old": "65ef058336b02c20d74610ad7f7df8a57369a175",
+    "oldVersion": "1.21.3",
+    "change": "7ebba228646210fbfbc4459d76c4ddd386e78d61",
+    "newPolicyVersion": "1.22.0",
+    "associatedPullRequests": [],
+    "reason": "explicitly documented separation of display from owner activation, including removal of summary network"
+  },
+  "judgment": {
+    "primary": "C: account observation was removed with automatic data Sync activation",
+    "A": "intentional Port runtime policy change, not later Studio UI merge damage",
+    "B": "old Pro startup ensure and screen remote load confirmed",
+    "D": "not PWA-specific; same Chrome product path reproduced; short-return throttle is a secondary issue"
+  },
+  "oldProductValidation": "actual old Account summary/devices and runtime creation; old mutable requests blocked by synthetic fixture, not a full historical Production Sync acceptance",
+  "nodeFocused": {
+    "pass": 167,
+    "fail": 0,
+    "skip": 0
+  },
+  "portAllNode": {
+    "pass": 1191,
+    "fail": 4,
+    "skip": 0
+  },
+  "baselineThemeNode": {
+    "pass": 22,
+    "sameFailures": 4
+  },
+  "portProductBrowser": {
+    "pass": 6,
+    "fail": 0
+  },
+  "studioProductBrowser": {
+    "pass": 17,
+    "fail": 0
+  },
+  "reads": [
+    "GET /v2/accounts/summary",
+    "GET /v2/accounts/devices"
+  ],
+  "automaticEnsureResumeBootstrapPushPullAdoption": false,
+  "accountClearInReadOnlyMode": false,
+  "responseOrderingFenced": true,
+  "retryTimeoutOrRateLimitChanged": false,
+  "quickReturnWake": "one trailing event within existing 3000ms throttle, no self-rescheduling",
+  "protectedTrees": {
+    "apps/shared": "ed13d8330234d1c7605f38038c0d6d49cca450ad",
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "workers": "585bde6d34ed6627442dc3649d1469651cc1d075"
+  },
+  "protectedCssSha256": "2535644a2500878d0543858db3f1005463cbf3a0faf2a51ceff5f3c124673b0b",
+  "existingWorktreeHeadsUnchanged": 108,
+  "screenshots": {
+    "after-12425.png": "bd8cf865f67cb902386034378931e5fe2a6bb102a13d38bc39622f22c1b9c0ab",
+    "before-12424.png": "92fd3c4798118b485a4aa26c7b9052f4944a2c08849d8e052b8f607d7e47e801"
+  },
+  "displayAccountIdentifiersRedacted": true,
+  "initialTestCorrections": [
+    "baseline theme archive needed its existing Worker schema module before comparison",
+    "old static expectations updated to readonly mode/cache keys and native versus Studio success labels, with state checks retained",
+    "frozen-clock unit lifecycle disposes timers; screenshot helper variable scope corrected"
+  ],
+  "iphoneAdditionalInspection": "no reachable iPhone Inspector in current Safari device inventory; no phone/storage/network operation performed",
+  "iphoneKnownObservation": {
+    "port": "1.24.24",
+    "standalone": true,
+    "observedSecondsAtLeast": 720,
+    "accountRequests": 0,
+    "syncRequests": 0,
+    "nativeState": "unknown",
+    "runtime": false,
+    "serviceWorkerControlled": false
+  },
+  "holds": [
+    "no main merge or publication",
+    "candidate not tested on actual iPhone/Account/Pro",
+    "full old automatic data Sync not restored: explicit intent and existing adoption boundaries retained",
+    "previous 5-minute natural recovery not diagnosed",
+    "exact Production backend acceptance not claimed"
+  ],
+  "syntheticSuites": [
+    {
+      "suite": "PRODUCT-E2E-RESULT.json",
+      "status": "PASS",
+      "pass": 30,
+      "errors": 0,
+      "productionRequestsSent": 0,
+      "rawSyntheticEvidenceSha256": "9289b4f2dd7c2b0235056939a11568a4f1ca0102eb4725c91f72e99e935c4a15"
+    },
+    {
+      "suite": "RELEASE1-SYNC-RESULT.json",
+      "status": "PASS",
+      "pass": 12,
+      "errors": 0,
+      "productionRequestsSent": 0,
+      "rawSyntheticEvidenceSha256": "319c9e25eb1093e7d7bb9c469d402c2d732cb14b652c49ff797cc8dbf0a1fd1e"
+    }
+  ],
+  "studioPublic34HashesUnchanged": true,
+  "jekyll": {
+    "studioFiles": 34,
+    "studioHashesUnchanged": true,
+    "nativeEmittedFilesMatchCandidate": 780
+  }
+}

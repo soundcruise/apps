@@ -11,13 +11,23 @@ export function bindSyncCenterReturnRefresh({
 }) {
     let lastRefreshAt = -Infinity;
     let inFlight = null;
+    let returnWake = null;
+    const schedule = windowObject.setTimeout?.bind(windowObject) || globalThis.setTimeout;
+    const cancel = windowObject.clearTimeout?.bind(windowObject) || globalThis.clearTimeout;
     let leftPort = false;
     let disposed = false;
     const removals = [];
     function listen(target, type, listener) { target?.addEventListener?.(type, listener); removals.push(() => target?.removeEventListener?.(type, listener)); }
 
-    function trigger() {
-        if (disposed || inFlight || !isVisible() || now() - lastRefreshAt < minIntervalMs) return false;
+    function trigger(fromWake = false) {
+        if (disposed || inFlight || !isVisible()) return false;
+        const remaining = minIntervalMs - (now() - lastRefreshAt);
+        if (remaining > 0) {
+            // Keep the existing rate limit, but do not drop a quick online/PWA return.
+            if (fromWake !== true && returnWake === null) returnWake = schedule(() => { returnWake = null; trigger(true); }, remaining);
+            return false;
+        }
+        if (returnWake !== null) { cancel(returnWake); returnWake = null; }
         lastRefreshAt = now();
         inFlight = Promise.resolve().then(() => { if (!disposed) return refresh(); }).catch(() => {}).finally(() => { inFlight = null; });
         return true;
@@ -38,7 +48,7 @@ export function bindSyncCenterReturnRefresh({
 
     return Object.freeze({
         trigger,
-        dispose() { if (disposed) return; disposed = true; for (const remove of removals.splice(0)) remove(); },
+        dispose() { if (disposed) return; disposed = true; if (returnWake !== null) cancel(returnWake); returnWake = null; for (const remove of removals.splice(0)) remove(); },
         // An explicit open/recheck counts as the latest check, so returning right after it does not repeat it.
         noteRefreshed() { lastRefreshAt = now(); }
     });

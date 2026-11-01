@@ -438,7 +438,7 @@ test('QA Enrollment and Account start request distinct Turnstile actions', () =>
     assert.match(app, /await syncCenterActions\?\.ensureQaAdmission\?\.\(\)/);
     assert.match(app, /if \(activate && getCapabilities\(\)\.cloudSyncOperations\)/);
     assert.equal(app.includes('syncCenterOrchestrator.resume()'), false);
-    assert.match(app, /activate \? syncCenterController\.load\(\) : syncCenterController\.loadLocal\(\)/);
+    assert.match(app, /syncCenterController\.load\(\{ readOnly: true \}\) : syncCenterController\.loadLocal\(\)/);
     assert.ok(app.indexOf('await syncCenterActions?.ensureQaAdmission?.()') < app.indexOf('syncCenterController.load()'));
 });
 

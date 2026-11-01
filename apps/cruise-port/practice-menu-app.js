@@ -36,18 +36,18 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.24.20';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.24';
-import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.23.1';
+} from './sync-center-controller.js?v=1.24.25';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.25';
+import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
-import { createPortSyncStatus } from './port-sync-status.js?v=1.23.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.24';
+import { createPortSyncStatus } from './port-sync-status.js?v=1.24.25';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.25';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=1.24.20';
+} from './sync-center-navigation.js?v=1.24.25';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.24.24';
+} from './app-version.js?v=1.24.25';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -4323,15 +4323,16 @@ let syncCenterReturnRefresh = null;
 const syncCenterMismatchRetry = createSnapshotMismatchRetry();
 
 function refreshVisibleSyncCenterStatus() {
-    if (location.hash !== SYNC_CENTER_ROUTE || syncCenterStatusRefreshQueued) return;
+    if (location.hash !== SYNC_CENTER_ROUTE || syncCenterStatusRefreshQueued ||
+        elements.syncCenterView.querySelector('#sync-center-apps')?.getAttribute?.('aria-busy') === 'true') return;
     syncCenterStatusRefreshQueued = true;
     queueMicrotask(() => {
         syncCenterStatusRefreshQueued = false;
-        if (location.hash === SYNC_CENTER_ROUTE) void renderSyncCenterView();
+        if (location.hash === SYNC_CENTER_ROUTE) void renderSyncCenterView({ refreshAccount: false });
     });
 }
 
-async function renderSyncCenterView({ activate = false } = {}) {
+async function renderSyncCenterView({ activate = false, refreshAccount = true } = {}) {
     if (!syncCenterController.enabled) {
         replaceHomeRoute();
         return;
@@ -4357,18 +4358,28 @@ async function renderSyncCenterView({ activate = false } = {}) {
         elements.syncCenterView.append(start);
     }
     markAppRowsChecking(elements.syncCenterView);
-    syncCenterReturnRefresh?.noteRefreshed();
+    if (refreshAccount) elements.syncCenterView.querySelector('#sync-center-account-status').textContent = '確認中…';
+    if (refreshAccount) syncCenterReturnRefresh?.noteRefreshed();
     let [presentation, structuredStatus, assetStatus, portOutbox] = await Promise.all([
-        activate ? syncCenterController.load() : syncCenterController.loadLocal(),
+        activate ? syncCenterController.load() : refreshAccount
+            ? syncCenterController.load({ readOnly: true }) : syncCenterController.loadLocal(),
         portSyncController?.status?.() || Promise.resolve({ known: false }),
         portAssetSync.status(),
         portSyncController?.store?.listOutbox?.() || Promise.resolve([])
     ]);
-    if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
+    if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) {
+        // A local runtime notification may render while Account GET is pending.
+        // Its newer paint must still receive the now-complete Account cache.
+        if (refreshAccount && location.hash === SYNC_CENTER_ROUTE) refreshVisibleSyncCenterStatus();
+        return;
+    }
     // The rows are still 「確認中…」, so the one automatic retry of a mismatch shows nothing stale.
-    if (activate && syncCenterMismatchRetry.shouldRetry(presentation)) {
-        presentation = await syncCenterController.load();
-        if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
+    if (refreshAccount && syncCenterMismatchRetry.shouldRetry(presentation)) {
+        presentation = await syncCenterController.load({ readOnly: !activate });
+        if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) {
+            if (location.hash === SYNC_CENTER_ROUTE) refreshVisibleSyncCenterStatus();
+            return;
+        }
     }
     renderSyncCenter(elements.syncCenterView, {
         ...presentation,
@@ -4387,9 +4398,12 @@ async function renderSyncCenterView({ activate = false } = {}) {
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
         onAppAction: syncCenterActions?.onAppAction,
-        onRecheck: () => renderSyncCenterView({ activate: true }),
+        onRecheck: () => renderSyncCenterView(),
         aiSupport: Boolean(aiSupportPanel)
     });
+    // Consume state notifications that arrived during the remote Account read
+    // using local status only, never another summary request.
+    if (refreshAccount) refreshVisibleSyncCenterStatus();
 }
 
 function findGearItem(id) {
