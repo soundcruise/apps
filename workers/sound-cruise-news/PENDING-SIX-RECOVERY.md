@@ -1,5 +1,7 @@
 # Pending six recovery — 2026-11-01
 
+> Historical record. The fixed six-candidate retry mechanism is superseded by [the generic autonomous readiness flow](AUTONOMOUS-READINESS.md). Counts, budgets and deployment status below describe the earlier recovery only.
+
 ## Production type corrections (0.42.3)
 
 The first real pass exposed two differences absent from the minimal projection:

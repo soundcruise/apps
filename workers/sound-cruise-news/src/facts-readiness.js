@@ -29,7 +29,7 @@ export function recoverySurface(row,source,{primaryRecovery=false}={}){
  if(row.origin==='operator_assisted')return null;
  if(source?.id==='morris')return morrisPermissionValid(source)&&row.source_id==='morris'&&morrisArticleUrl(row.source_url)?{url:row.source_url,method:'morris_once_only_article',parser:MORRIS_PARSER}:null;
  const policy=sourcePolicySurface(row,source);if(policy)return policy;
- const exhibition=guitarExhibitionSurface(row,source);if(exhibition)return exhibition;
+ const exhibition=row.event_type==='guitar_event'||row.category==='live_guitar'?guitarExhibitionSurface(row,source):null;if(exhibition)return exhibition;
  const agm=agmRecoverySurface(row,source);if(agm)return agm;
  const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;
@@ -78,6 +78,7 @@ export async function resolvedRecoverySurface(store,row,source){
  // Do not fetch that same listing again before inspecting its primary article.
  const discovery=await store.state(row.source_id),collected=Date.parse(row.collected_at);
  if(!row.product_facts&&Number.isFinite(collected)&&discovery.lastDiscoveryAt>=collected)return primary;
+ if(row.facts_provenance){try{if(JSON.parse(row.facts_provenance).some(p=>p.sourceUrl===row.source_url&&p.pipelineVersion))return primary;}catch{}}
  const prior=await store.db.prepare('SELECT outcome FROM news_facts_rechecks WHERE candidate_id=? ORDER BY checked_at DESC,rowid DESC LIMIT 1').bind(row.id).first();
  return ['facts_not_on_current_surface','facts_not_recovered','facts_unchanged'].includes(prior?.outcome)?primary:ordinary;
 }

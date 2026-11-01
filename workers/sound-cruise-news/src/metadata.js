@@ -331,7 +331,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  }
  // A controlled new-product card with explicit guitar relevance remains visible
  // even when its brand/model grammar is new. It is never formal READY without facts.
- if(source.id==='kikutani'&&entry.listingSection==='official_news'&&entry.listingTags?.includes('新製品情報')&&/ギター|アコギ|エレアコ|フレット|トラスロッド|\bguitars?\b/i.test(entry.title)&&! /旧製品|再入荷|中古|比較|ケース|スタンド|対応|互換|保護|関連|キャンペーン|クーポン|セール/.test(entry.title)){
+ if(source.id==='kikutani'&&entry.listingSection==='official_news'&&entry.listingTags?.includes('新製品情報')&&! /旧製品|再入荷|中古|比較|ケース|スタンド|対応|互換|保護|関連|キャンペーン|クーポン|セール/.test(entry.title)){
   const id=await hash(url);return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,
    category:'media_other',label:'審査待ち（新製品のブランド・機材種別・出来事の確認が必要）',topicKey:id,collectedAt:new Date(now).toISOString(),eventType:'new_product',productFacts:null,titleFingerprint:JSON.stringify(await fingerprint(entry.title,pepper)),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
    publicationDecision:'PUBLISH_REVIEW',decisionReason:'listing_product_evidence_missing',reviewReason:'listing_product_evidence_missing'}};

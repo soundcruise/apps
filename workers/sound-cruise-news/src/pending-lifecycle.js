@@ -1,3 +1,5 @@
+import {SHIMAMURA_PRODUCT_PARSERS,SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
+import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS} from './primary-announcement.js';
 import {recoveryBudget} from './recovery-budget.js';
 import {sourcePolicyReason} from './source-policy-evidence.js';
@@ -8,7 +10,7 @@ import {recoverySurface,recoveryCacheKey,missingFacts,resolvedRecoverySurface} f
 import {candidateSnapshot} from './operator-review.js';
 import {saveShadowEvaluation} from './operator-shadow.js';
 import {preparePendingResolution,applyPendingResolution} from './pending-resolution.js';
-export const RECHECK_POLICY='pending-recheck-1';
+export const RECHECK_POLICY='pending-recheck-2';
 const pending=r=>r&&r.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(r.review_status);
 const history=(s,event)=>JSON.stringify([...JSON.parse(s.history_json),event].slice(-20));
 export const deadline=row=>Math.min(row.expires_at,...[row.sale_ends_at,row.event_ends_at].filter(Number.isSafeInteger));
@@ -28,17 +30,18 @@ export async function initializePending(store,now){
  // Requeue pending records after an actual pipeline upgrade; fetch/cache/day and
  // source-policy gates still decide whether any publisher request is allowed.
  const old=PRIMARY_ANNOUNCEMENT_PARSERS.filter(v=>v!==PRIMARY_ANNOUNCEMENT_PARSER);
+ const shima=SHIMAMURA_PRODUCT_PARSERS.filter(v=>v!==SHIMAMURA_PRODUCT_PARSER),ikebe=Array.from({length:Number(IKEBE_PRODUCT_PARSER.split('-').at(-1))-7},(_,i)=>'ikebe-product-fields-'+(i+7));
  const proof="CASE WHEN json_valid(f.provenance_json) THEN f.provenance_json ELSE '[]' END";
  await store.db.prepare(`UPDATE news_pending_lifecycle SET next_recheck_at=?
- WHERE next_recheck_at IS NULL AND lease_until<=? AND last_recheck_result='facts_primary_evidence_unchanged'
+ WHERE next_recheck_at IS NULL AND lease_until<=? AND last_recheck_result LIKE 'facts_%'
  AND EXISTS(SELECT 1 FROM candidate_items c JOIN news_facts_rechecks f ON f.candidate_id=c.id
  WHERE c.id=news_pending_lifecycle.candidate_id AND c.source_id IN ('ikebe','shimamura')
  AND c.review_status IN ('pending','reopened') AND c.expires_at>?
  AND f.rowid=(SELECT z.rowid FROM news_facts_rechecks z WHERE z.candidate_id=c.id AND z.provenance_json<>'[]' ORDER BY z.checked_at DESC,z.rowid DESC LIMIT 1)
  AND json_extract(${proof},'$[0].sourceId')=c.source_id AND json_extract(${proof},'$[0].sourceUrl')=c.source_url
  AND json_extract(${proof},'$[0].failureReason') IS NOT NULL
- AND json_extract(${proof},'$[0].pipelineVersion') IN (${old.map(()=>'?').join(',')})
- AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND (s.disabled=1 OR s.takedown=1 OR s.publication_blocked=1)))`).bind(now,now,now,...old).run();
+ AND (json_extract(${proof},'$[0].pipelineVersion') IN (${old.map(()=>'?').join(',')}) OR (json_extract(${proof},'$[0].pipelineVersion')=? AND ((json_extract(${proof},'$[0].extractionMethod')='explicit_shimamura_product_fields' AND json_extract(${proof},'$[0].parserVersion') IN (${shima.map(()=>'?').join(',')})) OR (json_extract(${proof},'$[0].extractionMethod')='explicit_ikebe_product_fields' AND json_extract(${proof},'$[0].parserVersion') IN (${ikebe.map(()=>'?').join(',')})))))
+ AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND (s.disabled=1 OR s.takedown=1 OR s.publication_blocked=1)))`).bind(now,now,now,...old,PRIMARY_ANNOUNCEMENT_PARSER,...shima,...ikebe).run();
  await store.db.prepare(`INSERT OR IGNORE INTO news_pending_lifecycle(candidate_id,next_recheck_at,recheck_policy_version)
  SELECT id,?,? FROM candidate_items WHERE review_status IN ('pending','reopened') AND origin<>'legacy_fixture_backfill' AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=candidate_items.source_id AND s.disabled=1)`).bind(now,RECHECK_POLICY).run();
  await store.db.prepare(`UPDATE news_pending_lifecycle SET next_recheck_at=? WHERE recheck_status<>'SOURCE_EXCLUDED' AND lease_until<=? AND assessed_revision>=0 AND assessed_revision<>(SELECT review_revision FROM candidate_items WHERE id=candidate_id)`).bind(now,now).run();
@@ -65,8 +68,9 @@ export async function setPublishInterest(store,input,now,registry,pepper,actor){
  return lifecycleView(store,row,now);
 }
 export function recheckOutcome(result,validation){
- if(validation.valid)return 'RECOVERED_READY';
+ if(validation.valid)return validation.relevance?.status==='REVIEW'?'HUMAN_REVIEW_REQUIRED':'RECOVERED_READY';
  if(result?.recovered)return 'RECOVERED_STILL_BLOCKED';
+ if(['facts_no_supported_surface','facts_date_changed','facts_release_date_conflict','facts_official_identity_conflict'].includes(result?.outcome))return 'HUMAN_REVIEW_REQUIRED';
  if(['facts_http_404','facts_http_410'].includes(result?.outcome))return 'PERMANENT_INVALID';
  if(/http_|timeout|busy|unavailable|parser_failure|transaction_failed|candidate_changed/.test(result?.outcome||''))return 'TEMPORARY_FETCH_FAILURE';
  return 'NO_NEW_EVIDENCE';
@@ -77,7 +81,12 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
  const started=Date.now(),report={due:0,attempted:0,recovered:0,newlyReady:0,autoBlocked:0,noEvidence:0,failure:0,items:[]};
  if(!(await store.controls()).collection_enabled)return {...report,stopped:true,durationMs:0};
  await initializePending(store,now);
- const rows=(await store.db.prepare(`SELECT c.*,l.next_recheck_at,l.user_publish_interest,l.recheck_attempt_count FROM candidate_items c JOIN news_pending_lifecycle l ON c.id=l.candidate_id WHERE c.review_status IN ('pending','reopened') AND c.origin<>'legacy_fixture_backfill' AND l.next_recheck_at<=? AND l.lease_until<=? AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND s.disabled=1)`).bind(now,now).all()).results;
+ // Bound validation work before loading full facts/proofs. A large human-review
+ // queue must not exhaust the cron's D1 budget before any recovery can run.
+ const dueSQL="FROM candidate_items c JOIN news_pending_lifecycle l ON c.id=l.candidate_id WHERE c.review_status IN ('pending','reopened') AND c.origin<>'legacy_fixture_backfill' AND l.next_recheck_at<=? AND l.lease_until<=? AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND s.disabled=1)";
+ report.due=(await store.db.prepare('SELECT COUNT(*) n '+dueSQL).bind(now,now).first()).n;
+ const scanLimit=Math.min(80,limit*4);
+ const rows=(await store.db.prepare(`SELECT c.*,l.next_recheck_at,l.user_publish_interest,l.recheck_attempt_count ${dueSQL} ORDER BY l.user_publish_interest DESC,MIN(c.expires_at,COALESCE(c.sale_ends_at,c.expires_at),COALESCE(c.event_ends_at,c.expires_at)),l.next_recheck_at,c.id LIMIT ?`).bind(now,now,scanLimit).all()).results;
  const prepared=[];for(const joined of rows){const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(joined.id).first();if(!pending(row))continue;const validation=await publicationValidation(store,row,now,registry,pepper);prepared.push({row,validation,joined});}
  prepared.sort((a,b)=>b.joined.user_publish_interest-a.joined.user_publish_interest||deadline(a.row)-deadline(b.row)||missingFacts(a.row,a.validation.facts,a.validation).length-missingFacts(b.row,b.validation.facts,b.validation).length||a.joined.next_recheck_at-b.joined.next_recheck_at);
  // One scarce uncached recovery per source before a second candidate from it.
@@ -85,7 +94,7 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
  const first=[],later=[],seen=new Set();
  for(const item of prepared){const key=item.row.source_id;if(!item.validation.valid&&!objectiveBlock(item.row,item.validation,now)){if(seen.has(key)){later.push(item);continue;}seen.add(key);}first.push(item);}
  const ordered=[...first,...later].sort((a,b)=>b.joined.user_publish_interest-a.joined.user_publish_interest);
- report.due=prepared.length;
+ report.scanned=prepared.length;report.scanLimited=report.due>rows.length;
  for(const {row,validation:before} of ordered.slice(0,limit)){
   const token=crypto.randomUUID(),claim=await store.db.prepare('UPDATE news_pending_lifecycle SET lease_token=?,lease_until=? WHERE candidate_id=? AND next_recheck_at<=? AND lease_until<=? AND NOT EXISTS(SELECT 1 FROM candidate_items c JOIN source_state s ON s.source_id=c.source_id WHERE c.id=candidate_id AND s.disabled=1)').bind(token,now+5*60000,row.id,now,now).run();if(claim.meta.changes!==1)continue;
   let result=null,validation=before,status=objectiveBlock(row,before,now),current=row;
@@ -119,10 +128,12 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   const deferred=result?.outcome==='facts_daily_budget_deferred';
   const budget=deferred?await recoveryBudget(store,registry.find(s=>s.id===current.source_id),now):null;
   const onceOnlyExhausted=current.source_id==='morris'&&result?.outcome==='facts_not_on_current_surface';
-  const next=onceOnlyExhausted||result?.outcome==='facts_primary_evidence_unchanged'?null:status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,budget.nextAt):nextRecheck(current,state.recheck_attempt_count+1,now);
+  const parserFailed=/unbound|identity|scope|parser|evidence_unchanged/.test(result?.outcome||'');
+  if(parserFailed&&status!=='HUMAN_REVIEW_REQUIRED')status=state.recheck_attempt_count+(result?.publisherAttempted===false?0:1)>=3?'HUMAN_REVIEW_REQUIRED':'PARSER_RETRY';
+  const next=onceOnlyExhausted||status==='HUMAN_REVIEW_REQUIRED'?null:parserFailed?Math.max(now+1,result?.nextRetryAt||now+7*DAY):status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,budget.nextAt):nextRecheck(current,state.recheck_attempt_count+1,now);
   const columns=Object.keys(current),saved=await store.db.prepare(`UPDATE news_pending_lifecycle SET last_rechecked_at=?,next_recheck_at=?,assessed_revision=?,recheck_attempt_count=recheck_attempt_count+?,recheck_status=?,unresolved_reason=?,last_recheck_result=?,recheck_policy_version=?,history_json=?,lease_until=0
  WHERE candidate_id=? AND lease_token=? AND history_json=? AND EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')})`)
- .bind(now,next,current.review_revision,deferred?0:1,status,validation.errors.join(','),result?.outcome||status,RECHECK_POLICY,history(state,{at:now,actor:'system_recheck',result:status,outcome:result?.outcome||status,revision:current.review_revision,publicationPolicy:DECISION_POLICY_VERSION}),row.id,token,state.history_json,...columns.map(k=>current[k])).run();
+ .bind(now,next,current.review_revision,!result||deferred||result?.publisherAttempted===false?0:1,status,validation.errors.join(','),result?.outcome||status,RECHECK_POLICY,history(state,{at:now,actor:'system_recheck',result:status,outcome:result?.outcome||status,revision:current.review_revision,publicationPolicy:DECISION_POLICY_VERSION}),row.id,token,state.history_json,...columns.map(k=>current[k])).run();
   if(saved.meta.changes!==1){await store.db.prepare('UPDATE news_pending_lifecycle SET lease_until=0 WHERE candidate_id=? AND lease_token=?').bind(row.id,token).run();report.failure++;continue;}
   report.recovered+=result?.recovered?1:0;report.newlyReady+=ready&&!before.valid?1:0;report.autoBlocked+=blocked?1:0;report.noEvidence+=status==='NO_NEW_EVIDENCE'?1:0;report.failure+=status==='TEMPORARY_FETCH_FAILURE'?1:0;
   report.items.push({id:row.id,result:status,nextRecheckAt:next});
