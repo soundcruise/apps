@@ -1,7 +1,7 @@
+import {sealPrimaryProof,primaryContractValid} from './primary-provenance.js';
 import {recordDiscoveryResult,discoveryState} from './discovery-work.js';
 import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement,primaryParserSupports} from './primary-announcement.js';
 import {initialPrimarySource,recoveryBudget} from './recovery-budget.js';
-import {claimPendingSixRetry,pendingSixTypeCorrection} from './pending-six-retry.js';
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
 import {morrisEvidenceReceipt,markMorrisEvidenceWait} from './morris-collector.js';
@@ -19,7 +19,7 @@ import {AGM_SECTIONS,agmArticleUrl} from './agm-sections.js';
 import {parseAgmArticleEvidence,agmEvidenceMetadata} from './agm-article-evidence.js';
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
 import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
-import {parseIkebeProductEvidence,ikebeIdentityRefinement,IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
+import {parseIkebeProductEvidence,ikebeIdentityRefinement,IKEBE_PRODUCT_PARSER,validatedIkebeProductFacts} from './ikebe-product-evidence.js';
 import {healthForOutcome} from './source-health.js';
 import {legalGate} from './registry.js';
 import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY,robotsEvidence,retryAt} from './policy.js';
@@ -37,8 +37,10 @@ import {recoverySurface,recoveryCacheKey,resolvedRecoverySurface} from './facts-
 export async function reusablePrimaryEvidence(previous,row,source,now){
  if(!initialPrimarySource(source)||previous?.outcome!=='verified_surface'||previous.lease_until>now)return false;
  try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json),f=items[0]?.productFacts;
- const typed=p.extractionMethod==='explicit_primary_announcement_fields'&&primaryParserSupports(f,p.parserVersion)&&validPrimaryAnnouncement(f)||p.extractionMethod==='explicit_shimamura_product_fields'&&source.id==='shimamura'&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&validatedShimamuraProductFacts(f);
- return !!typed&&p.sourceId===source.id&&p.sourceUrl===row.source_url&&p.publishedAt===row.published_at&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.pipelineVersion)&&p.evidenceKey===await hash(row.title_fingerprint||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at;
+ const stable=p.contract&&await primaryContractValid({...row,event_type:items[0]?.eventType},f,Object.keys(f||{}).concat('event_type').map(factField=>({...p,factField})),now);
+ if(p.contract&&!stable)return false;
+ const typed=stable||p.extractionMethod==='explicit_ikebe_product_fields'&&source.id==='ikebe'&&[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-12','ikebe-product-fields-11','ikebe-product-fields-10','ikebe-product-fields-9','ikebe-product-fields-8','ikebe-product-fields-7'].includes(p.parserVersion)&&validatedIkebeProductFacts(f)||p.extractionMethod==='explicit_primary_announcement_fields'&&primaryParserSupports(f,p.parserVersion)&&validPrimaryAnnouncement(f)||p.extractionMethod==='explicit_shimamura_product_fields'&&source.id==='shimamura'&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&validatedShimamuraProductFacts(f);
+ return !!typed&&p.sourceId===source.id&&p.sourceUrl===row.source_url&&(!p.pipelineVersion||p.publishedAt===row.published_at&&(stable||PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.pipelineVersion))&&p.evidenceKey===await hash(row.title_fingerprint||''))&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at;
  }catch{return false;}
 }
 // Recheck receipts retain facts/proofs for the existing 90-day lifetime even
@@ -46,15 +48,19 @@ export async function reusablePrimaryEvidence(previous,row,source,now){
 export async function retainedPrimaryEvidence(store,row,source,now){
  if(!initialPrimarySource(source))return null;
  const receipt=await store.db.prepare("SELECT * FROM news_facts_rechecks WHERE candidate_id=? AND provenance_json<>'[]' ORDER BY checked_at DESC,rowid DESC LIMIT 1").bind(row.id).first();
- try{const fields=JSON.parse(receipt?.provenance_json||'[]'),proof=fields[0],patch=JSON.parse(receipt?.patch_json||'null');
-  if(!proof||proof.sourceId!==source.id||proof.sourceUrl!==row.source_url||proof.publishedAt!==row.published_at||!PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)||proof.evidenceKey!==await hash(row.title_fingerprint||'')||!/^[a-f0-9]{64}$/.test(proof.responseHash||'')||!Number.isSafeInteger(proof.verifiedAt)||proof.verifiedAt>now)return null;
-  const base={checked_at:receipt.checked_at,lease_until:0,proof_json:JSON.stringify(proof)};
-  if(proof.failureReason)return {...base,outcome:'facts_primary_evidence_unchanged',items_json:'[]'};
-  const facts=JSON.parse(patch?.product_facts||'null');if(!(validPrimaryAnnouncement(facts)||validatedShimamuraProductFacts(facts))||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&(PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'||SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'))))return null;
+ try{
+  const fields=JSON.parse(receipt?.provenance_json||'[]'),proof=fields[0],patch=JSON.parse(receipt?.patch_json||'null');
+  if(!Array.isArray(fields)||!proof||proof.sourceId!==source.id||proof.sourceUrl!==row.source_url||proof.publishedAt!==row.published_at||proof.evidenceKey!==await hash(row.title_fingerprint||'')||!/^[a-f0-9]{64}$/.test(proof.responseHash||'')||!Number.isSafeInteger(proof.verifiedAt)||proof.verifiedAt>now)return null;
+  const base={checked_at:proof.verifiedAt,lease_until:0,proof_json:JSON.stringify(proof)};
+  if(proof.failureReason)return PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)?{...base,outcome:'facts_primary_evidence_unchanged',items_json:'[]'}:null;
+  const facts=JSON.parse(patch?.product_facts||'null');
+  const stable=await primaryContractValid({...row,event_type:patch?.event_type},facts,fields,now);
+  if(!stable&&(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)||!(validPrimaryAnnouncement(facts)||validatedShimamuraProductFacts(facts)||validatedIkebeProductFacts(facts))||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&(PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'||SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'||[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-12','ikebe-product-fields-11'].includes(p.parserVersion)&&p.extractionMethod==='explicit_ikebe_product_fields')))))return null;
   const candidate={...base,outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:patch.event_type,productFacts:facts}])};
   return await reusablePrimaryEvidence(candidate,row,source,now)?candidate:null;
  }catch{return null;}
 }
+
 const canonical=v=>JSON.stringify(v,(_,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.entries(x).sort(([a],[b])=>a.localeCompare(b))):x);
 
 async function gate(store,source,registry,now,row){
@@ -66,7 +72,7 @@ async function gate(store,source,registry,now,row){
 
 function agmSurface(cached,row){const i=cached.item;return i?{outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:i.sourceUrl,publishedAt:i.publishedAt,eventType:i.eventType,productFacts:i.productFacts}]),proof_json:JSON.stringify(cached.proof)}:{outcome:'facts_not_recovered',items_json:'[]',proof_json:null};}
 
-export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null,dailyOnly=false,approvedRetry=null}={}){
+export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null,dailyOnly=false}={}){
  if(source.id==='morris'){
   await gate(store,source,registry,now,row);const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
   if(!['verified','verified_listing'].includes(receipt?.outcome)||!receipt.facts_json||!await validatedFingerprint(receipt.fingerprint_json,pepper))return {outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
@@ -80,35 +86,39 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
   if(cached.hit)return agmSurface(cached.payload,row);
   if(cached.attempted&&!forceRevalidate)return {outcome:'facts_not_recovered',items_json:'[]',proof_json:null};
  }
- const surface=approvedRetry?recoverySurface(row,source,{primaryRecovery:true}):await resolvedRecoverySurface(store,row,source);
- if(approvedRetry&&surface?.url!==row.source_url)throw Error('facts_source_invalid');
- const cacheKey=approvedRetry||recoveryCacheKey(row,source,surface,{serverRepair});let previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ const surface=await resolvedRecoverySurface(store,row,source),baseKey=recoveryCacheKey(row,source,surface,{serverRepair});
+ const primary=initialPrimarySource(source),budget=await recoveryBudget(store,source,now);
+ // Immutable attempt records count failed GETs and parser-upgrade retries too.
+ // Never update yesterday's slot in place and under-count today's requests.
+ let previous=primary?await store.db.prepare("SELECT * FROM news_facts_sources WHERE instr(source_id,?)=1 AND (source_id=? OR instr(source_id,?)=1 OR substr(source_id,-?)=? OR instr(source_id,?)>0 OR json_extract(CASE WHEN json_valid(proof_json) THEN proof_json ELSE '{}' END,'$.sourceUrl')=?) ORDER BY checked_at DESC LIMIT 1").bind(source.id+':',baseKey,baseKey+':attempt:',row.id.length+1,':'+row.id,':'+row.id+':',row.source_url).first():await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(baseKey).first();
  previous??=await retainedPrimaryEvidence(store,row,source,now);
  const work=await store.db.prepare('SELECT * FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(source.id,row.source_url).first();
  if(!previous&&work?.evidence_json){try{const e=JSON.parse(work.evidence_json);previous={checked_at:e.proof.verifiedAt,lease_until:0,outcome:e.outcome,items_json:JSON.stringify(e.items),proof_json:JSON.stringify(e.proof)};}catch{}}
  const evidenceKey=await hash(row.title_fingerprint||'');
  const previousProof=(()=>{try{return JSON.parse(previous?.proof_json||'null');}catch{return null;}})();
- if(!approvedRetry&&await reusablePrimaryEvidence(previous,row,source,now))return previous;
- // An unchanged failure is reusable only for the same parser and pipeline. A
- // changed parser still passes the existing daily URL and source budget gates.
- // Missing historical parser metadata remains fail-closed.
- if(!approvedRetry&&initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey&&(!previousProof.parserVersion||!previousProof.extractionMethod||(previousProof.parserVersion===surface?.parser&&previousProof.extractionMethod===surface?.method)))return {...previous,outcome:'facts_primary_evidence_unchanged'};
- const budget=await recoveryBudget(store,source,now),freshSince=initialPrimarySource(source)?budget.since-1:now-DAY;
- if(!approvedRetry&&previous?.checked_at>freshSince){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
- if(!approvedRetry&&dailyOnly&&initialPrimarySource(source)&&work&&previousProof?.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
- // Parser-version keys are not permission to fetch the same article twice today.
- if(!approvedRetry&&initialPrimarySource(source)){
-  const sameUrl=await store.db.prepare("SELECT * FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=? AND (substr(source_id,-?)=? OR json_extract(CASE WHEN json_valid(proof_json) THEN proof_json ELSE '{}' END,'$.sourceUrl')=?) ORDER BY checked_at DESC LIMIT 1").bind(source.id+':',budget.since,row.id.length+1,':'+row.id,row.source_url).first();
-  if(sameUrl){if(sameUrl.lease_until>now)throw Error('facts_recheck_busy');return sameUrl.outcome==='verified_surface'?sameUrl:{outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};}
+ if(await reusablePrimaryEvidence(previous,row,source,now))return previous;
+ const retained=await retainedPrimaryEvidence(store,row,source,now);if(await reusablePrimaryEvidence(retained,row,source,now))return retained;
+ const parserChanged=previousProof?.extractionMethod===surface.method&&previousProof?.parserVersion&&previousProof.parserVersion!==surface.parser;
+ const currentFailure=primary&&previousProof?.sourceId===source.id&&previousProof.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey&&!parserChanged;
+ const nextRetryAt=currentFailure?previousProof.verifiedAt+7*DAY:previous?.checked_at+6*3600000;
+ if(previous?.lease_until>now)throw Error('facts_recheck_busy');
+ if(previous?.outcome==='verified_surface'&&surface.method==='existing_listing_parser'&&previous.checked_at>=budget.since)return previous;
+ if(currentFailure&&now<nextRetryAt)return {...previous,outcome:'facts_primary_evidence_unchanged',nextRetryAt};
+ const upgraded=primary&&previousProof?.failureReason&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(previousProof.pipelineVersion)&&(previousProof.pipelineVersion!==PRIMARY_ANNOUNCEMENT_PARSER||parserChanged);
+ const transient=primary&&/facts_(?:http_5|http_429|timeout|parser_failure|source_unavailable)/.test(previous?.outcome||'');
+ if(primary&&previous?.checked_at>=budget.since){
+  const alreadyUpgraded=await store.db.prepare("SELECT 1 FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=?").bind(source.id+':upgrade:'+row.id+':',budget.since).first();
+  if(!(upgraded&&!alreadyUpgraded)&&!(transient&&now>=nextRetryAt))return {...previous,outcome:currentFailure?'facts_primary_evidence_unchanged':'facts_daily_budget_deferred'};
  }
- if(!approvedRetry&&initialPrimarySource(source)&&budget.used>=budget.limit)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
- const token=crypto.randomUUID();
- const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) SELECT ?,?,?,?,'in_progress' WHERE NOT ? OR (SELECT COUNT(*) FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>=?)<?
+ if(!primary&&previous?.checked_at>now-DAY)return previous;
+ if(primary&&budget.used>=budget.limit)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
+ const token=crypto.randomUUID(),cacheKey=primary?(upgraded?source.id+':upgrade:'+row.id+':':baseKey+':attempt:')+token:baseKey;
+ const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) SELECT ?,?,?,?,'in_progress' WHERE NOT ? OR ((SELECT COUNT(*) FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=?)<? AND NOT EXISTS(SELECT 1 FROM news_facts_sources WHERE instr(source_id,?)=1 AND lease_until>?))
  ON CONFLICT(source_id) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,checked_at=excluded.checked_at,outcome='in_progress',items_json=NULL,proof_json=NULL WHERE lease_until<=? AND checked_at<=?`)
- .bind(cacheKey,token,now+60000,now,+(initialPrimarySource(source)&&!approvedRetry),initialPrimarySource(source)?'':source.id,source.id+':',budget.since,budget.limit,now,freshSince).run();
- if(claimed.meta.changes!==1)throw Error('facts_recheck_busy');
+ .bind(cacheKey,token,now+60000,now,+primary,source.id+':',budget.since,budget.limit,source.id+':',now,now,now-DAY).run();
+ if(claimed.meta.changes!==1)return {outcome:primary&&(await recoveryBudget(store,source,now)).used>=budget.limit?'facts_daily_budget_deferred':'facts_recheck_busy',items_json:'[]',proof_json:null};
  let acquired=false,items=[],proof=null,outcome='facts_unavailable',publisherBackoff=0;
- const retryRequests={robots:0,article:0};
+ const requestCounts={robots:0,surface:0};
  try{
   const state=await gate(store,source,registry,now,row);
   acquired=await store.lease(source.id,now,DAY,{requestMode:'operator_validation'});if(!acquired)throw Error('facts_recheck_busy');
@@ -117,7 +127,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    // The server chooses exactly two URLs, never a caller-supplied URL or redirect.
    if(![source.robotsUrl,surface.url].includes(url)||!sourceUrl(url,source)||sourceUrl(url,source)!==url)throw Error('facts_source_invalid');
    await store.publisherAttempt(source.id,now,DAY);
-   if(approvedRetry)retryRequests[url===source.robotsUrl?'robots':'article']++;
+   requestCounts[url===source.robotsUrl?'robots':'surface']++;
    let r;try{r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store',...headers}});}catch(error){if(error.redirectEvidence){await store.recordRedirect(source.id,error.redirectEvidence);publisherBackoff=error.redirectEvidence.retryAfterAt||0;if(publisherBackoff>now)await store.db.prepare('UPDATE source_state SET backoff_until=MAX(backoff_until,?) WHERE source_id=?').bind(publisherBackoff,source.id).run();}throw error;}
    if(r.status===429||r.status>=500)publisherBackoff=retryAt(r.status,r.headers.get('retry-after'),0,now);
    if([401,403,451,429].includes(r.status)||r.status>=500)throw Error('facts_http_'+r.status);
@@ -150,7 +160,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
    else if(surface.method==='explicit_shimamura_product_fields'){
     let parsed;try{parsed=parseShimamuraProductEvidence(response.text,source,row);}catch(error){
-     if(error.message!=='facts_identity_changed'||approvedRetry)throw error;
+     if(error.message!=='facts_identity_changed')throw error;
      const officialIdentity=await recoverOfficialIdentity(store,response.text,row,now,{fetcher,sleep});
      parsed=parseShimamuraProductEvidence(response.text,source,row,{officialIdentity});
     }
@@ -186,6 +196,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    let parsed;try{parsed=parseProductFamilyEvidence(response.text,source,row);proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;}catch(familyError){proof.parserFailures.push({parser:PRODUCT_FAMILY_PARSER,reason:/^facts_[a-z_]+$/.test(familyError.message)?familyError.message:'facts_parser_failure'});parsed=parsePrimaryAnnouncement(response.text,source,row);proof.extractionMethod='explicit_primary_announcement_fields';proof.parserVersion=PRIMARY_ANNOUNCEMENT_PARSER;}
    items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
   }finally{response.text='';response=null;}
+  if(initialPrimarySource(source)&&items.length===1)proof=await sealPrimaryProof(proof,items[0],row);
   outcome='verified_surface';
  }catch(error){
   outcome=/^facts_/.test(error.message)?error.message:['redirect_blocked','response_too_large','listing_optout','listing_structure_changed','robots_unavailable','robots_unparseable'].includes(error.message)?'facts_'+error.message:error.name==='AbortError'||error.name==='TimeoutError'?'facts_timeout':'facts_parser_failure';
@@ -201,10 +212,11 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if(healthCode)await store.recordHealth({sourceId:source.id,...healthForOutcome(healthCode),checkedAt:now,nextEligibleAt:Math.max(publisherBackoff,now+DAY)});
   }
   await store.db.prepare('UPDATE news_facts_sources SET lease_until=0,outcome=?,items_json=?,proof_json=? WHERE source_id=? AND lease_token=?').bind(outcome,JSON.stringify(items),proof?JSON.stringify(proof):null,cacheKey,token).run();
-  if(approvedRetry)await store.db.prepare('INSERT OR IGNORE INTO news_admin_audit VALUES(?,?,?,?,?)').bind(approvedRetry+':result','bounded-primary-result',row.id,now,JSON.stringify({outcome,requests:retryRequests})).run();
   if(initialPrimarySource(source)&&proof)await discoveryState(store,source.id,row.source_url,now,{state:outcome==='verified_surface'?'evidence_insufficient':'parser_failed',reason:outcome,nextAction:outcome==='verified_surface'?'evaluate':'new_parser_or_evidence',parserVersion:PRIMARY_ANNOUNCEMENT_PARSER,evidenceRef:proof.responseHash,diagnostics:{stage:'facts',missingFields:proof.diagnostics?.missingFields||[]},evidence:{outcome,items,proof}});
  }
- return await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ const saved=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ if(primary)console.info(JSON.stringify({event:'news_primary_acquisition',sourceId:source.id,candidateId:row.id,at:now,method:surface.method,outcome,requestCounts}));
+ return {...saved,publisherAttempted:requestCounts.robots+requestCounts.surface>0};
 }
 
 export async function recheckFacts(store,input,now,registry,pepper,actor,options={}){
@@ -220,11 +232,11 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  const source=registry.find(s=>s.id===row.source_id);await gate(store,source,registry,now,row);
  const before=await publicationValidation(store,row,now,registry,pepper);
  // Already valid and duplicate candidates need no publisher traffic or rewrite.
+ let publisherAttempted=false,nextRetryAt=null;
  let outcome=before.errors.includes('duplicate')?'facts_duplicate_preserved':before.valid?'facts_already_complete':'facts_not_recovered',patch=null,provenance=[],diagnostics=null;
- if((!before.valid||pendingSixTypeCorrection(row,actor,now)||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
-  const approvedRetry=await claimPendingSixRetry(store,row,input,actor,now);
-  const surface=await verifiedSurface(store,source,registry,row,now,pepper,{...options,approvedRetry});
-  outcome=surface.outcome;
+ if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
+  const surface=await verifiedSurface(store,source,registry,row,now,pepper,options);
+  outcome=surface.outcome;publisherAttempted=initialPrimarySource(source)?surface.publisherAttempted===true:undefined;nextRetryAt=surface.nextRetryAt||null;
   if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason){provenance=[{...failure,factField:'_extraction_failure'}];diagnostics=failure.diagnostics||null;}}catch{}}
   if(outcome==='verified_surface'){
    const item=JSON.parse(surface.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url),proof=JSON.parse(surface.proof_json||'null');
@@ -262,7 +274,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  if(!await store.db.prepare('SELECT request_id FROM news_facts_rechecks WHERE request_id=? AND request_payload_hash=?').bind(input.requestId,payloadHash).first())throw Error('candidate_changed');
  const detail=await reviewDetail(store,row.id,now,registry,pepper);
  await recordDiscoveryResult(store,source,{url:row.source_url},now,{row:await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first(),validation:detail.validation,result:{outcome,diagnostics}});
- return {id:row.id,outcome,recovered:!!patch,validation:detail.validation,...(diagnostics?{diagnostics}:{})};
+ return {id:row.id,outcome,recovered:!!patch,publisherAttempted,nextRetryAt,validation:detail.validation,...(diagnostics?{diagnostics}:{})};
 }
 
 // Reuse the receipt-only Morris branch and the normal publication validator.

@@ -65,10 +65,10 @@ test('unchanged parser failure remains cached without publisher requests',async(
  const c=await prepare(fulltone,172778);await failedReceipt(c,IKEBE_PRODUCT_PARSER);const r=await recover(c);
  assert.equal(r.outcome,'facts_primary_evidence_unchanged');assert.equal(c.calls(),0);assert.equal(r.validation.valid,false);
 });
-test('parser upgrade does not bypass the same-day source budget or URL restriction',async()=>{
+test('a verified parser upgrade may retry once within the ordinary source budget',async()=>{
  const c=await prepare(fulltone,172779);const p=await failedReceipt(c,'ikebe-product-fields-12',now-1000);
  await c.s.db.prepare("INSERT INTO news_facts_sources(source_id,lease_token,checked_at,outcome,proof_json) VALUES(?,'old',?,'facts_primary_type_unbound',?)").bind('ikebe:ikebe-product-fields-12:'+c.item.id,now-1000,JSON.stringify(p)).run();
- const r=await recover(c);assert.equal(r.recovered,false);assert.equal(c.calls(),0);assert.equal(r.validation.valid,false);
+ const r=await recover(c);assert.equal(r.recovered,true);assert.equal(c.calls(),2);assert.equal(r.validation.valid,true);const n=c.calls();await recover(c);assert.equal(c.calls(),n);
 });
 test('changed candidate revision prevents recovery before any HTTP',async()=>{
  const c=await prepare(fulltone,172780),input=await decisionInput(c.s,{id:c.item.id});

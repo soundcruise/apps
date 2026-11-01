@@ -1,5 +1,4 @@
 import {recordDiscoveryResult} from './discovery-work.js';
-import {hash} from './policy.js';
 import {PRIMARY_ANNOUNCEMENT_PARSER} from './primary-announcement.js';
 import {publicationValidation} from './decision-policy.js';
 import {recheckFacts} from './facts-recheck.js';
@@ -15,15 +14,13 @@ export async function prepareInitialFacts(store,report,now,registry,pepper,optio
  const m=report.initialRecovery={evaluated:0,attempted:0,recovered:0,ready:0,deferred:0,failed:0,unchangedEvidence:0,cacheHits:0,detailSuccess:0,detailFailure:0,outcomes:{},missingFields:{},items:[]};
  for(const row of rows){
   // Include previously budget-deferred pending work, never a published/human verdict.
-  const work=await store.db.prepare('SELECT * FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(source.id,row.source_url).first();
-  if(work?.processing_state==='parser_failed'&&work.parser_version===PRIMARY_ANNOUNCEMENT_PARSER){let p;try{p=JSON.parse(work.evidence_json)?.proof;}catch{}if(p?.failureReason&&p.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&p.evidenceKey===await hash(row.title_fingerprint||'')){m.unchangedEvidence++;continue;}}
   const before=await publicationValidation(store,row,now,registry,pepper);
   if(before.valid||before.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e))){await recordDiscoveryResult(store,source,{url:row.source_url},now,{row,validation:before});continue;}
   m.evaluated++;const started=report.requestCounts.article||0;
   let result;
   try{result=await recheckFacts(store,{id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId:'initial-'+crypto.randomUUID()},now,registry,pepper,{type:'system_recheck',id:'initial-facts'},options);}
   catch(error){result={outcome:/^[a-z_0-9]+$/.test(error.message)?error.message:'initial_facts_failed'};}
-  const fetched=(report.requestCounts.article||0)>started,deferred=result.outcome==='facts_daily_budget_deferred',valid=!!result.validation?.valid;
+  const fetched=(report.requestCounts.article||0)>started,deferred=result.outcome==='facts_daily_budget_deferred',valid=!!result.validation?.valid&&result.validation?.relevance?.status!=='REVIEW';
   m.attempted+=+!deferred;m.recovered+=+!!result.recovered;m.ready+=+valid;m.deferred+=+deferred;m.failed+=+(!valid&&!deferred);m.cacheHits+=+(!fetched&&!deferred);
   m.detailSuccess+=+(fetched&&!!result.recovered);m.detailFailure+=+(fetched&&!result.recovered);
   m.outcomes[result.outcome]=(m.outcomes[result.outcome]||0)+1;

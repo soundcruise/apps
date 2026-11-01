@@ -65,7 +65,7 @@ export const SOURCES = Object.freeze(entries.map(([id,name,baseUrl,sourceKind,fe
  ...(RECOVERY_EVIDENCE[id]||{}),
  ...(HIGH_VALUE_EVIDENCE[id]||{}),
  ...(id==='morris'?MORRIS_EVIDENCE:{}),
- ...(id==='ikebe'?{dailyPrimaryArticleLimit:6}:{}),
+ ...(['ikebe','shimamura'].includes(id)?{dailyPrimaryArticleLimit:6}:{}),
  ...(id==='agm'?{agmSections:true,permissionRef:AGM_PERMISSION_REF,explicitAutomationPermission:true,automationPolicy:'publisher_permission',permissionDate:'2026-10-08',name:'ACOUSTIC GUITAR MAGAZINE WEB',reviewedAt:'2026-10-08',robotsReviewedAt:'2026-10-08',discoveryReviewedAt:'2026-10-08',policySummary:'Publisher reply of 2026-10-08 grants the use described in the actual inquiry: selected useful public articles, objective facts, independent short labels, exact WEB attribution and direct article links. Six fixed sections, daily bounded discovery. No original headline/body/image reuse, logos or implied endorsement. Material changes require consultation. See NEWS-SOURCE-DECISION-REGISTER.md.',artistOnly:false,allowedPaths:['/'],deniedPaths:['/wp-admin/','/wp-json/','/author/','/tag/','/page/'],articlePathPattern:'^/(?:interview/[^/]+|(?:beginners/|lesson/|gears/|column/)?20[0-9]{2}[-_][a-zA-Z0-9_-]+)/$'}:{})
 })));
 export function getSource(id) { return SOURCES.find(s=>s.id===id); }

@@ -32,6 +32,7 @@ export async function recordDiscoveryResult(store,source,entry,now,{row=null,rea
  let state=row?'evidence_insufficient':rejectedDiscoveryState(reason),nextAt=null,nextAction='none',diagnostics={stage:row?'validation':'selection',validationErrors:validation?.errors||[],missingFields:result?.diagnostics?.missingFields||[]};
  if(!row&&reason==='agm_detail_budget_deferred'){state='awaiting_fetch_budget';nextAt=nextDailyCollectionAt(now);nextAction='daily_recovery';}
  if(!row&&Number.isFinite(Date.parse(entry.publishedAt||entry.date))&&(now-Date.parse(entry.publishedAt||entry.date)>=90*DAY||Date.parse(entry.publishedAt||entry.date)>now)){state='outside_date_window';reason='date_outside_window';}
+ if(!row&&/insufficient|unparsed/.test(reason)){state='evidence_insufficient';nextAction='human_listing_review';}
  if(!row&&reason==='receipt_evaluation'&&state!=='outside_date_window'){state='evidence_insufficient';nextAction='permitted_saved_evidence';}
  if(row){
   if(['approved','rejected','system_excluded'].includes(row.review_status)){state='known';reason='human_or_system_decision_preserved';}
@@ -40,7 +41,7 @@ export async function recordDiscoveryResult(store,source,entry,now,{row=null,rea
   else if(validation?.valid){state='validated_ready';reason='formal_validation_passed';}
   else if(result?.outcome==='facts_daily_budget_deferred'){state='awaiting_fetch_budget';reason=result.outcome;nextAt=nextDailyCollectionAt(now);nextAction='daily_recovery';}
   else if(/^facts_(?:http_|timeout|recheck_busy|source_gate)/.test(result?.outcome||'')){state='awaiting_allowed_retry';reason=result.outcome;nextAt=nextDailyCollectionAt(now);nextAction='daily_recovery';}
-  else if(result?.outcome&&/invalid|parser|identity|scope|unbound|evidence_unchanged/.test(result.outcome)){state='parser_failed';reason=result.outcome;nextAction='new_parser_or_evidence';diagnostics.stage='facts';}
+  else if(result?.outcome&&/invalid|parser|identity|scope|unbound|evidence_unchanged/.test(result.outcome)){state='parser_failed';reason=result.outcome;nextAt=result.nextRetryAt||now+7*DAY;nextAction='bounded_parser_retry';diagnostics.stage='facts';}
   else if(!result){const previous=await store.db.prepare('SELECT processing_state FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(source.id,row.source_url).first();if(previous&&['parser_failed','awaiting_fetch_budget','awaiting_allowed_retry'].includes(previous.processing_state))return;reason='facts_or_provenance_missing';nextAt=now;nextAction='daily_recovery';}
   else{reason=result.outcome||'facts_or_provenance_missing';nextAt=nextDailyCollectionAt(now);nextAction='daily_recovery';}
  }

@@ -32,7 +32,7 @@ export async function recordPreparationMetrics(store,report,now,registry,pepper)
   if(row&&['pending','reopened'].includes(row.review_status)&&m.validationEvaluated<100){
    const f=parse(row.product_facts);if(f&&factualLabel(f,row.event_type)&&!f.scopeUncertain)m.factsComplete++;
    const v=await publicationValidation(store,row,now,registry,pepper);validation=v;m.validationEvaluated++;
-   if(v.valid){m.validationPassed++;m.ready++;m.readyNew+=+o.created;status='ready_for_human_decision';}
+   if(v.valid){m.validationPassed++;if(v.relevance?.status==='REVIEW')status='human_relevance_review';else{m.ready++;m.readyNew+=+o.created;status='ready_for_human_decision';}}
    else{for(const error of v.errors)add(m.validationFailures,code(error));if(v.errors.includes('duplicate')){m.duplicateExcluded++;status='duplicate_blocked';}else status='needs_evidence_or_policy';}
   }else if(row&&['pending','reopened'].includes(row.review_status)){m.validationNotMeasured++;status='validation_not_measured';}
   await recordDiscoveryResult(store,source,{url:o.url,publishedAt:o.publishedAt},now,{row,reason:o.reason,validation,result:report.initialRecovery?.items?.find(i=>i.id===row?.id)});

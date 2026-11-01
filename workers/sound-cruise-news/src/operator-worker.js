@@ -1,3 +1,4 @@
+import {restoreSystemResolution} from './pending-resolution.js';
 import {listWebHints,runWebDiscovery} from './web-discovery.js';
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
 import {parseAssistedPaste,YAMAHA_TOPICS_START} from './assisted-paste.js';
@@ -46,7 +47,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   }
   if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,now));
   if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,now,options.webDiscoveryDependencies||{},true));}
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.42.3'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.43.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -76,6 +77,9 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='POST'&&url.pathname==='/api/category'){await verifyCsrf(request,identity,env,now);return json(await saveCategory(store,await inputJSON(request),now,identity.actor));}
   if(request.method==='GET'&&url.pathname==='/api/published')return json(await publishedPresentation(store,env,now,registry));
   if(request.method==='POST'&&url.pathname==='/api/presentation'){await verifyCsrf(request,identity,env,now);return json(await savePresentation(store,await inputJSON(request),env,now,registry,identity.actor));}
+  if(request.method==='GET'&&url.pathname==='/api/system-exclusions')return json({items:(await store.db.prepare("SELECT id,source_url,label,review_reason,review_revision FROM candidate_items WHERE review_status='rejected' AND reviewed_by IN ('system_policy','source_policy') ORDER BY reviewed_at DESC LIMIT 100").all()).results});
+  if(request.method==='POST'&&url.pathname==='/api/system-restore'){await verifyCsrf(request,identity,env,now);return json(await restoreSystemResolution(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));}
+  if(request.method==='GET'&&url.pathname==='/api/discovery-exceptions')return json({items:(await store.db.prepare("SELECT source_id,normalized_url,reason_code,processing_state,next_action,first_seen_at,updated_at FROM news_discovery_work WHERE candidate_id IS NULL AND processing_state IN ('evidence_insufficient','parser_failed') ORDER BY first_seen_at LIMIT 100").all()).results});
   if(request.method==='GET'&&url.pathname==='/api/pending')return json({items:await reviewQueue(store,{now,registry,pepper:env.NEWS_HEADLINE_PEPPER})});
   if(request.method==='GET'&&/^\/api\/candidates\/[a-zA-Z0-9_-]{1,128}$/.test(url.pathname))return json(await reviewDetail(store,url.pathname.split('/').at(-1),now,registry,env.NEWS_HEADLINE_PEPPER));
   if(request.method==='POST'&&url.pathname==='/api/publish-interest'){

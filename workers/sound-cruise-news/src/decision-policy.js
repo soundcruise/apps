@@ -1,3 +1,5 @@
+import {primaryContractValid} from './primary-provenance.js';
+import {publicationHealthAllowed} from './source-health.js';
 import {withLegacyDuplicates,duplicateFenceValid} from './legacy-duplicate-compat.js';
 import {ASSISTED_ORIGIN,assistedProof,assistedLabel} from './assisted-facts.js';
 import {validPrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,primaryParserSupports} from './primary-announcement.js';
@@ -19,7 +21,7 @@ import {DAY,sourceUrl,hash} from './policy.js';
 import {saleEndsAt,saleAuthorized,isSaleRecord} from './sale.js';
 import {eventEndsAt} from './event.js';
 import {independentTopicUrls,labelInformationScore} from './label-quality.js';
-export const DECISION_POLICY_VERSION='operator-publication-1';
+export const DECISION_POLICY_VERSION='operator-publication-2';
 export const REASONS=Object.freeze({approve:['useful_product','operator_review'],reject:['facts_identifier_missing','date_uncertain','category_uncertain','not_relevant','duplicate','policy_concern','minor_update','operator_review']});
 export const CHECKS=Object.freeze(['factsChecked','relevanceChecked','duplicateChecked','independentLabelChecked']);
 export const parseFacts=row=>{try{return JSON.parse(row.product_facts);}catch{return null;}};
@@ -121,8 +123,8 @@ export async function publicationValidation(store,row,now,registry,pepper){
  const assisted=row.origin===ASSISTED_ORIGIN,verifiedAssisted=assisted&&await assistedProof(store,row,now);
  const errors=[],source=registry.find(s=>s.id===row.source_id),facts=parseFacts(row),label=verifiedAssisted?row.label:factualLabel(facts,row.event_type),controls=await store.controls(),state=await store.state(row.source_id),health=(await store.sourceHealth()).find(h=>h.source_id===row.source_id);
  if(row.publication_decision==='REJECT')errors.push('publication_policy_rejected');
- const sourceGate=legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0},now,'production',registry);
- if(!controls.publication_enabled||state.publicationBlocked||(assisted?!verifiedAssisted:sourceGate||!source?.discoveryValid||health?.status!=='healthy'||!Number.isSafeInteger(health?.last_successful_run_at)||health.last_successful_run_at>now))errors.push('operator_source_gate');
+ const sourceGate=legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0,backoffUntil:0,failures:0},now,'production',registry);
+ if(!controls.publication_enabled||state.publicationBlocked||(assisted?!verifiedAssisted:sourceGate||!source?.discoveryValid||!publicationHealthAllowed(health,now)))errors.push('operator_source_gate');
  if(!source||!sourceUrl(row.source_url,source)||(!assisted&&!allowedArticlePath(row.source_url,source)))errors.push('source_url_invalid');
  if(facts?.kind==='assisted_notice'&&(!verifiedAssisted||!assistedLabel(facts)))errors.push('facts_provenance_invalid');
  if(!facts||!label||facts.scopeUncertain||row.event_type==='other'||!validLabel(label)||facts.category!==row.category||!CATEGORIES.includes(row.category))errors.push('facts_incomplete');
@@ -135,7 +137,9 @@ export async function publicationValidation(store,row,now,registry,pepper){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!validAgmPerformance(facts)||!Array.isArray(proof)||!['eventName','eventDate','performer','venues','performanceEvidence'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&[AGM_ARTICLE_PARSER,'agm-article-5','agm-article-4'].includes(p.parserVersion)&&p.extractionMethod==='explicit_agm_article_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
- if(facts?.kind==='primary_product_notice'){
+ let stablePrimary=false;try{stablePrimary=!!facts&&await primaryContractValid(row,facts,JSON.parse(row.facts_provenance||'[]'),now);}catch{}
+ if(facts?.kind==='primary_product_notice'&&(!validPrimaryAnnouncement(facts)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||row.event_type!==(['release','scheduled_release','release_notice'].includes(facts.announcement?.action)?'release':'new_product')))errors.push('facts_provenance_invalid');
+ if(facts?.kind==='primary_product_notice'&&!stablePrimary){
   const evidenceKey=await hash(row.title_fingerprint||'');let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!validPrimaryAnnouncement(facts)||row.event_type!==(['release','scheduled_release','release_notice'].includes(facts.announcement?.action)?'release':'new_product')||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||!Array.isArray(proof)||![...Object.keys(facts),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.evidenceKey===evidenceKey&&p.publishedAt===row.published_at&&primaryParserSupports(facts,p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
@@ -159,17 +163,19 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(facts?.kind!=='primary_product_notice'&&(facts?.editionEvidence||facts?.subjectEvidence||facts?.productType==='contact_cleaner')){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!Array.isArray(proof)||!['brand','models','productType','event_type',...(facts.editionEvidence?['editionEvidence','productEvent']:[]),...(facts.articleIdentity?['articleIdentity']:[]),...(facts.subjectEvidence?['subjectEvidence']:[]),...(facts.referencedModels?['referencedModels']:[])].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&(facts.subjectEvidence?[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-12','ikebe-product-fields-11',...(['synthesizer','room_correction'].includes(facts.productType)?['ikebe-product-fields-10']:[])]:[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-12','ikebe-product-fields-11','ikebe-product-fields-10','ikebe-product-fields-9','ikebe-product-fields-8','ikebe-product-fields-7']).includes(p.parserVersion)&&p.extractionMethod==='explicit_ikebe_product_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
- if(facts?.productType==='software_instrument'&&facts.identifierBasis==='explicit_shimamura_product_fields'){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+ if(!stablePrimary&&facts?.productType==='software_instrument'&&facts.identifierBasis==='explicit_shimamura_product_fields'){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!Array.isArray(proof)||!['brand','models','productType','event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId==='shimamura'&&p.sourceUrl===row.source_url&&['shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11','shimamura-product-fields-12'].includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(facts?.identifierBasis==='explicit_shimamura_product_fields'&&(row.source_id!=='shimamura'||facts.articleUrl!==row.source_url)||facts?.evidence==='explicit_named_workshop_v1'&&(row.source_id!=='ikebe-event'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
- if(facts?.appearanceEvidence){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+ if(facts?.appearanceEvidence&&row.event_type!=='new_product')errors.push('facts_provenance_invalid');
+ if(!stablePrimary&&facts?.appearanceEvidence){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(row.event_type!=='new_product'||!Array.isArray(proof)||!proof.some(p=>p.factField==='appearanceEvidence'&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&(row.source_id==='shimamura'&&facts.identifierBasis==='explicit_shimamura_product_fields'&&['shimamura-product-fields-10','shimamura-product-fields-11','shimamura-product-fields-12'].includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'||row.source_id==='ikebe'&&facts.identifierBasis==='explicit_article_product_fields'&&p.parserVersion===IKEBE_PRODUCT_PARSER&&p.extractionMethod==='explicit_ikebe_product_fields')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||'')))errors.push('facts_provenance_invalid');
  }
  if(facts?.officialIdentity){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
-  if(!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)||facts.officialIdentity.verifiedAt>now||!Array.isArray(proof)||!proof.some(p=>p.factField==='officialIdentity'&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'&&p.verifiedAt>=facts.officialIdentity.verifiedAt&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||'')))errors.push('facts_provenance_invalid');
+  if(!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)||facts.officialIdentity.verifiedAt>now||!Array.isArray(proof)||!proof.some(p=>p.factField==='officialIdentity'&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&(stablePrimary||SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion))&&p.extractionMethod==='explicit_shimamura_product_fields'&&p.verifiedAt>=facts.officialIdentity.verifiedAt&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||'')))errors.push('facts_provenance_invalid');
  }
+ try{const proof=JSON.parse(row.facts_provenance||'[]');if(Array.isArray(proof)&&proof.some(p=>p?.contract==='primary-fields-1')&&!stablePrimary)errors.push('facts_provenance_invalid');}catch{if(row.facts_provenance)errors.push('facts_provenance_invalid');}
  if(!await validatedFingerprint(row.title_fingerprint,pepper))errors.push('label_provenance_invalid');
  const stamp=Date.parse(row.published_at);
  if(!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY||!Number.isSafeInteger(row.expires_at)||row.expires_at<=now)errors.push('expired_candidate');
@@ -182,5 +188,6 @@ export async function publicationValidation(store,row,now,registry,pepper){
  const duplicates=(await store.db.prepare(`SELECT d.id,d.label,d.source_name,d.source_url,d.topic_key FROM candidate_items d WHERE ${predicate.sql} ORDER BY d.id LIMIT 20`).bind(...predicate.args).all()).results;
  if(duplicates.length)errors.push('duplicate');
  if(await store.db.prepare('SELECT item_id FROM news_takedowns WHERE item_id=?').bind(row.id).first())errors.push('candidate_takedown');
- return {valid:!errors.length,errors:[...new Set(errors)],publishableLabel:label||null,facts,duplicates,quality:{labelInformationScore:labelInformationScore(label||row.label)},policyVersion:DECISION_POLICY_VERSION,healthSuccessfulAt:health?.last_successful_run_at??null};
+ const relevance={status:row.event_type==='firmware'||facts?.category==='media_other'||row.decision_reason==='relevance_uncertain'&&!['verified_primary_announcement','explicit_shimamura_product_fields','explicit_article_product_fields'].includes(facts?.identifierBasis)?'REVIEW':'PASS',basis:'existing_source_and_facts_scope'};
+ return {relevance,valid:!errors.length,errors:[...new Set(errors)],publishableLabel:label||null,facts,duplicates,quality:{labelInformationScore:labelInformationScore(label||row.label)},policyVersion:DECISION_POLICY_VERSION,healthSuccessfulAt:health?.last_successful_run_at??null};
 }
