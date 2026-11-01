@@ -94,14 +94,15 @@ function assertThemeStructure(source) {
         }
     }
     assert.deepEqual(radii, [{ selector: ':root:is([data-theme="gray"], [data-theme="light"]) #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon', value: '23%' }], 'only the themed tool icon tile may set border-radius');
+    // NEWS uses the released flex-card layout (already present before this integration).
     // Every general rule in this section is accounted for; none is silently
     // discarded to make the theme constraints pass.
     assert.deepEqual(regions.general.map(rule => rule.selector), ['.news-hot'], 'general CSS after the theme marker is the NEWS badge');
     assert.deepEqual(Object.fromEntries(themeDeclarations(regions.general[0].body)), {
-        display: 'inline-flex', 'align-items': 'center', 'justify-self': 'start', gap: '4px',
+        display: 'inline-flex', 'align-items': 'center', 'align-self': 'flex-end', flex: 'none', 'white-space': 'nowrap', gap: '4px',
         'font-size': '12px', 'font-weight': '500', color: 'var(--accent,#d8bc76)',
         border: '1px solid color-mix(in srgb,var(--accent,#d8bc76) 45%,transparent)',
-        'border-radius': '5px', padding: '1px 6px', 'line-height': '1.5', 'grid-column': '1/-1'
+        'border-radius': '5px', padding: '1px 6px', 'line-height': '1.5'
     }, 'NEWS remains a complete general badge rule, independently of theme overrides');
     return regions;
 }
@@ -320,14 +321,16 @@ const ruleBody = (selector) => {
 };
 const declarations = (body) => Object.fromEntries([...body.matchAll(/([a-z-]+|--port-[a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
 
-test('Dark CSS is byte-identical to the 1.12.0 production Dark apart from explicit theme-button and NEWS-label rules', () => {
+test('Dark CSS matches the fixed pre-integration Port baseline apart from explicit theme-button and NEWS-label rules', () => {
     const dark = css.slice(0, css.indexOf(THEME_SECTION_MARKER));
     const rule = /\/\* カラーテーマ: four labels[\s\S]*?\n\}\n\n/;
     const added = dark.match(rule)[0];
     assert.match(added, /^\/\*[^\n]*\*\/\n\.settings-choices\[aria-label="カラーテーマ"\] \.settings-choice \{\n    font-size: calc\(0\.8rem \* var\(--font-scale\)\);\n    letter-spacing: 0;\n    white-space: nowrap;\n\}\n\n$/, 'only the new theme buttons get a one-line label');
     const newsLabelRules = '.news-heading { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }\n.news-heading .view-title { flex: none; white-space: nowrap; }\n.news-test-label { flex: none; color: rgb(var(--port-accent-rgb)); font-size: calc(0.8125rem * var(--font-scale)); font-weight: 500; line-height: 1.5; white-space: nowrap; padding: 2px 7px; border: 1px solid rgba(var(--port-accent-line-rgb), 0.45); border-radius: 4px; background: transparent; box-shadow: none; }\n';
     assert.ok(dark.includes(newsLabelRules));
-    assert.equal(createHash('sha256').update(dark.replace(rule, '').replace(newsLabelRules, '')).digest('hex'), '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360');
+    // Pinned UI #137 (c1ee3b207d896409b11a076c99d1e1fb5784ef1a) has this exact
+    // released Port stylesheet; no product CSS changes are made by this integration.
+    assert.equal(createHash('sha256').update(dark.replace(rule, '').replace(newsLabelRules, '')).digest('hex'), 'b516f7ce6f1df74b93b834439c17447b3bafe993145ea33dadfd660e2ae107fd');
 });
 
 test('Gray/Light rules only change colors: no sizing, spacing or layout property is themed', () => {
@@ -352,7 +355,7 @@ for (const [name, source, reason] of [
     ['extra themed radius', css + '\n:root[data-theme="light"] .probe { border-radius: 5px; }', /themed tool icon/],
     ['unaccounted general layout rule', css + '\n.probe { width: 1px; }', /general CSS/],
     ['missing general NEWS rule', css.replace(/\.news-hot\{[^}]+\}/, ''), /general CSS/],
-    ['changed NEWS layout', css.replace('justify-self:start;gap:4px;', 'justify-self:start;gap:40px;'), /NEWS remains/]
+    ['changed NEWS layout', css.replace('align-self:flex-end;flex:none;white-space:nowrap;gap:4px;', 'align-self:flex-end;flex:none;white-space:nowrap;gap:40px;'), /NEWS remains/]
 ]) test(`theme structural guard rejects ${name}`, () => {
     assert.throws(() => assertThemeStructure(source), reason);
 });

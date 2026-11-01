@@ -4,7 +4,7 @@ import {isIsolatedPortDatasetAdmission,createDatasetOwnerCommitGuard} from './po
 import {authorityProEnvironment, authorityUsesIndexedDB, openIDBAuthorityStore} from './port-indexeddb-authority-store.mjs';
 import {openIsolatedIDBRepositoryBackend} from './port-indexeddb-repository-backend.mjs';
 import {registerIsolatedRepositoryBackend} from './port-repository-backend.mjs?v=1.23.1';
-import {PortDatasetRepository, PORT_DATASET_KEYS} from './port-dataset-repository.js?v=1.26.0';
+import {PortDatasetRepository, PORT_DATASET_KEYS} from './port-dataset-repository.js?v=1.27.0';
 import {digest,equal,frozen,fail} from './port-idb-authority-contract.mjs';
 export async function openIsolatedPortOwnerRepository({scope,indexedDB,generation,source,provider,proAdapter,finalAdmission,checkpoint=async()=>{}}={}) {
  const env=authorityProEnvironment(scope);env.assertLive();

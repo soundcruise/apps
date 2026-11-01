@@ -27,14 +27,11 @@ export function createPortWriterContext({ root = globalThis, storage } = {}) {
     function assertCurrent() {
         if ((root.SoundCruiseSyncAccount?.storage ?? null) !== (account ?? null)) fail('port-account-source-changed');
         if (!ready || blocked || getGeneration() !== generation) fail('port-account-context-changed');
-        // A Project session is not Port authorization. Native Port may use
-        // its existing Account DB and Pro contract inside Studio; Project-only
-        // contexts without that shared source remain rejected. Publication
-        // still reads the exact Account row in the existing IDB transaction.
+        // Studio Project credentials are not a Port Owner admission. The
+        // conditional Account-DB relaxation from #129 remains HOLD until the
+        // shared Owner contract is accepted; retain the #124 fail-closed fence.
         try {
-            const studio = root[slot]?.hasIdentity() || root.parent !== root && root.parent?.[slot]?.hasIdentity();
-            if (studio && (!account?.DATABASE_NAME || typeof account.getAccount !== 'function' || !root.indexedDB?.open))
-                fail('port-owner-admission-required');
+            if (root[slot]?.hasIdentity() || root.parent !== root && root.parent?.[slot]?.hasIdentity()) fail('port-owner-admission-required');
         } catch (e) { fail(e.code || 'port-parent-context-unavailable'); }
         if (pro() !== initialPro) fail('port-pro-context-changed');
         const proSource = root.SoundCruiseProOperationSource;

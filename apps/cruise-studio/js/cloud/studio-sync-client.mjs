@@ -1,4 +1,4 @@
-import { registerStudioPortContext } from '../../../cruise-port/port-writer-context.mjs?v=1.24.24';
+import { registerStudioPortContext } from '../../../cruise-port/port-writer-context.mjs?v=1.27.0';
 import {createStudioTransport,isStudioTransport} from './studio-transport.mjs';
 /* Opt-in Client v1; default boot stays disconnected. Project remains localStorage-owned. */
 import {studioCanonical as canonical,studioDigest as digest,studioDocumentUpload} from './document-codec.mjs';

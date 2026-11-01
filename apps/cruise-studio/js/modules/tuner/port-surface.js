@@ -21,7 +21,7 @@
         if (!frame) return;
         var old = frame;
         frame = null;
-        try { void old.contentWindow?.CruiseStudioPortTool?.stop(); } catch (_) { /* Navigated documents own their cleanup. */ }
+        try { void CS.stopNativePort(old); } catch (_) { /* Navigated documents own their cleanup. */ }
         old.onload = null;
         old.onerror = null;
         old.remove(); // A Port pagehide stops its microphone and preview audio.
@@ -62,15 +62,23 @@
             if (!active || disposed || current !== generation || frame !== next) return;
             try {
                 var child = next.contentWindow;
+                CS.presentNativePort(next);
                 if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname)
                     throw new Error('unexpected-port-document');
                 child.addEventListener('hashchange', function () {
-                    if (!active || frame !== next) return;
+                    if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
                     if (child.location.hash === '#tuner') setPhase('running', '');
                     else shell.navigate('home');
                 });
                 // Port intentionally normalizes initial deep links; route only after its module boot.
-                child.location.hash = '#tuner';
+                function ready() {
+                    if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
+                    CS.presentNativePort(next);
+                    child.location.hash = '#tuner';
+                    setPhase('running', '');
+                }
+                child.addEventListener('studio-port-ready', ready);
+                ready();
             } catch (_) {
                 void stop('load-failed', 'Port チューナーを開けませんでした。別タブで開いてください。');
                 setPhase('failed', status.textContent);

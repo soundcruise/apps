@@ -162,4 +162,16 @@ try{
   const start=network.length;await B.page.evaluate(()=>{const auth=JSON.parse(localStorage.getItem('soundCruiseProAuth'));localStorage.setItem('soundCruiseProRevokePending',JSON.stringify([auth.credential]));});await B.page.waitForFunction(()=>document.querySelector('[data-cloud-action=save]').disabled);assert.equal(network.slice(start).some(x=>x.path==='/v2/studio/document'&&['begin','upload','commit'].includes(x.kind)),false);assert(await B.page.evaluate(id=>CruiseStudio.repository.read({type:'project',projectId:id}).exists,result.projectUnknown.projectId));
  });
  assert.equal(errors.length,0);result.productionRequestsSent=0;
-}catch(e){result.status='FAIL';result.failure=String(e);throw e;}finally{result.status||='PASS';fs.writeFileSync(OUT+'/PRODUCT-E2E-RESULT.json',JSON.stringify(result,null,2));for(const c of contexts)await Promise.race([c.close(),new Promise(r=>setTimeout(r,3000))]);await browser?.close();await mf?.dispose();}
+}catch(e){
+ result.status='FAIL';result.failure=String(e);
+ result.failureDiagnostics=[];
+ for(const context of contexts)for(const page of context.pages())for(const frame of page.frames()){
+  if(!frame.url().includes('/apps/cruise-port/pro_'))continue;
+  try{result.failureDiagnostics.push(await frame.evaluate(async()=>{
+   const {createPortWriterContext}=await import('/apps/cruise-port/port-writer-context.mjs?v=1.27.0');
+   const c=createPortWriterContext({root:window,storage:localStorage});await c.initialized;let admission='accepted';try{c.assertCurrent();}catch(error){admission=error.code||error.message;}
+   return {route:location.hash,admission,ready:document.documentElement.dataset.portWriterReady,sharedAccountPresent:!!SoundCruiseSyncAccount?.storage,status:document.querySelector('[data-port-local-account] [role=status]')?.textContent};
+  }));}catch{}
+ }
+ throw e;
+}finally{result.status||='PASS';fs.writeFileSync(OUT+'/PRODUCT-E2E-RESULT.json',JSON.stringify(result,null,2));for(const c of contexts)await Promise.race([c.close(),new Promise(r=>setTimeout(r,3000))]);await browser?.close();await mf?.dispose();}

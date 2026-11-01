@@ -34,3 +34,10 @@ test('first and repeated store saves retain the validated read admission',async(
  for(let n=0;n<3;n++) {const result=await writePortStore(storage,[key],draft=>{draft.setItem(key,JSON.stringify({version:5,items:[{id:'item',name:'edit-'+n}]}));return{ok:true};});assert.equal(result.ok,true,result.reason);}
  assert.equal(JSON.parse(storage.getItem(key)).items[0].name,'edit-2');
 });
+
+test('Project-only identity remains quarantined even with a valid shared Account database',async()=>{
+ const s=values(),account={DATABASE_NAME:'synthetic-account-db',getGeneration:()=>1,getAccount:async()=>({accountId:'A'}),subscribeAccount:()=>{}};
+ const r={...root(),indexedDB:{open(){assert.fail('Owner-less Project must not open a publication transaction');}},SoundCruiseSyncAccount:{storage:account},parent:{[Symbol.for('sound-cruise.port-writer-context.v1')]:{hasIdentity:()=>true}}};
+ const c=createPortWriterContext({root:r,storage:s});await c.initialized;
+ const result=await write(repo(c,s));assert.equal(result.reason,'port-owner-admission-required');assert.equal(s.m.size,0);
+});

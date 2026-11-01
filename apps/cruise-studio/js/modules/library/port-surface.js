@@ -35,7 +35,7 @@
             if (!frame) return;
             var old = frame;
             frame = null;
-            try { void old.contentWindow?.CruiseStudioPortTool?.stop(); } catch (_) {}
+            try { void CS.stopNativePort(old); } catch (_) {}
             old.onload = null;
             old.onerror = null;
             old.remove();
@@ -105,11 +105,7 @@
                 if (!active || disposed || current !== generation || frame !== next) return;
                 try {
                     var child = next.contentWindow;
-                    if (config.kind === 'myApps') {
-                        var focusStyle = child.document.createElement('style');
-                        focusStyle.textContent = '#home-view > :not(#my-apps-section){display:none!important}';
-                        child.document.head.append(focusStyle);
-                    }
+                    CS.presentNativePort(next);
                     if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname) throw new Error('unexpected-port-document');
                     child.addEventListener('studio-port-ready', function () { checkRoute(child, next); });
                     child.addEventListener('studio-port-account-changed', function () { if(frame===next)setPhase('account-changed','Accountが更新されました。未保存入力は保持しています。編集を終えてから再開してください。'); });

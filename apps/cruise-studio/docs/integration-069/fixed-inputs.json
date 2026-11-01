@@ -1,0 +1,111 @@
+{
+  "candidateVersion": "0.69.0",
+  "uiBase": "c1ee3b207d896409b11a076c99d1e1fb5784ef1a",
+  "inputs": [
+    {
+      "baseRefName": "codex/studio-midnight-cleanup-20261101",
+      "baseRefOid": "d18a9548ebe70ae90a70626b4887d3fc0394d8cb",
+      "headRefName": "codex/studio-ui-regressions-20261101",
+      "headRefOid": "c1ee3b207d896409b11a076c99d1e1fb5784ef1a",
+      "isDraft": true,
+      "number": 137,
+      "state": "OPEN",
+      "title": "Studio 0.68: fix board alignment, narrow controls and NEWS",
+      "url": "https://github.com/soundcruise/apps/pull/137",
+      "expected": "c1ee3b207d896409b11a076c99d1e1fb5784ef1a",
+      "matches": true,
+      "tree": "aabd5301983fee5cebad1a214e0ee5e595b8fd1c"
+    },
+    {
+      "baseRefName": "codex/studio-review-ui-20261031",
+      "baseRefOid": "cb68742de16762f9cffc18f62fcce3ee785d6f32",
+      "headRefName": "codex/studio-port-sync-ui127-e2e-20261031",
+      "headRefOid": "ed9dfc00fca8b59a4c99b2e62699fd03974ba7da",
+      "isDraft": true,
+      "number": 129,
+      "state": "OPEN",
+      "title": "Studio 0.62: connect native Port entry to existing Account and Sync",
+      "url": "https://github.com/soundcruise/apps/pull/129",
+      "expected": "ed9dfc00fca8b59a4c99b2e62699fd03974ba7da",
+      "matches": true,
+      "tree": "c17151e5505eb5c1160832847008ed850781d335"
+    },
+    {
+      "baseRefName": "codex/studio-cloud-contract-check-20261031",
+      "baseRefOid": "00a022ca65402888553e580d3f9d10fb754ae89e",
+      "headRefName": "codex/studio-port-writer-review-20261031",
+      "headRefOid": "f9cdc72b903087c8bf11bba074e0e3228e5cfcae",
+      "isDraft": true,
+      "number": 107,
+      "state": "OPEN",
+      "title": "Document Port writer admission HOLD and add synthetic coexistence tests",
+      "url": "https://github.com/soundcruise/apps/pull/107",
+      "expected": "f9cdc72b903087c8bf11bba074e0e3228e5cfcae",
+      "matches": true,
+      "tree": "c15762e169524edb601c2077ff494fc70bf765f5"
+    },
+    {
+      "baseRefName": "codex/studio-port-writer-review-20261031",
+      "baseRefOid": "f9cdc72b903087c8bf11bba074e0e3228e5cfcae",
+      "headRefName": "codex/port-writer-generation-fence-20261031",
+      "headRefOid": "d32179c874a0a1ef99ad850ef19ebefe5e21cd0c",
+      "isDraft": true,
+      "number": 114,
+      "state": "OPEN",
+      "title": "Fence Port local commits and quarantine unadmitted Studio writers (integration HOLD)",
+      "url": "https://github.com/soundcruise/apps/pull/114",
+      "expected": "d32179c874a0a1ef99ad850ef19ebefe5e21cd0c",
+      "matches": true,
+      "tree": "2b0efe2754a42466b9a2a1db9bc1bd74e4900a59"
+    },
+    {
+      "baseRefName": "codex/port-writer-generation-fence-20261031",
+      "baseRefOid": "d32179c874a0a1ef99ad850ef19ebefe5e21cd0c",
+      "headRefName": "codex/port-owner-adoption-20261031",
+      "headRefOid": "3770098d3544cc1bcb8b0fe1f0b406b2b89f100b",
+      "isDraft": true,
+      "number": 119,
+      "state": "OPEN",
+      "title": "Connect isolated Port Owner dataset admission and authenticated Sync roundtrip (adoption HOLD)",
+      "url": "https://github.com/soundcruise/apps/pull/119",
+      "expected": "3770098d3544cc1bcb8b0fe1f0b406b2b89f100b",
+      "matches": true,
+      "tree": "926ba2edf805a264205c27f2b701577a7b8113b9"
+    },
+    {
+      "baseRefName": "codex/port-owner-adoption-20261031",
+      "baseRefOid": "3770098d3544cc1bcb8b0fe1f0b406b2b89f100b",
+      "headRefName": "codex/port-sync-attribution-ack-20261031",
+      "headRefOid": "27303ede522ec4be8d04e0d0699e7ae40b9c3f92",
+      "isDraft": true,
+      "number": 124,
+      "state": "OPEN",
+      "title": "Port 1.26: confirm local Account attribution in existing Sync (integration HOLD)",
+      "url": "https://github.com/soundcruise/apps/pull/124",
+      "expected": "27303ede522ec4be8d04e0d0699e7ae40b9c3f92",
+      "matches": true,
+      "tree": "25280f072e3e9162d15adc37cfe7b949febf2daf"
+    }
+  ],
+  "integrationOrder": [
+    "UI #137",
+    "writer #124 including #107/#114/#119",
+    "native Account UI #129",
+    "integration corrections"
+  ],
+  "localMergeCommits": [
+    "2724aa69edb46b87e32a679e8b6a9d5b345dee56",
+    "1499cfa0ac00700872e4697851d0361d0e49748b"
+  ],
+  "deferredHunks": [
+    {
+      "path": "apps/cruise-port/port-writer-context.mjs",
+      "source": "#129",
+      "reason": "Account DB presence does not establish Port Owner admission; retain stricter #124 rejection of Studio Project contexts."
+    }
+  ],
+  "excluded": [
+    "#93 CURRENT-clock/operations needs its own dependency review",
+    "#58/#61/#63/#66/#67/#79 production/backup/freeze operations"
+  ]
+}

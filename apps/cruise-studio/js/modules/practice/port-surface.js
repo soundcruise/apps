@@ -25,7 +25,7 @@
         if (!frame) return;
         var old = frame;
         frame = null;
-        try { void old.contentWindow?.CruiseStudioPortTool?.stop(); } catch (_) {}
+        try { void CS.stopNativePort(old); } catch (_) {}
         old.onload = null;
         old.onerror = null;
         old.remove(); // Port owns timer persistence and pagehide cleanup.
@@ -115,6 +115,7 @@
             if (!active || disposed || current !== generation || frame !== next) return;
             try {
                 var child = next.contentWindow;
+                CS.presentNativePort(next);
                 if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname)
                     throw new Error('unexpected-port-document');
                 function checkRoute() {
