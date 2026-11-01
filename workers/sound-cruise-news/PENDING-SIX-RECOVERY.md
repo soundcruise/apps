@@ -1,5 +1,26 @@
 # Pending six recovery — 2026-11-01
 
+## Approved immediate recovery (0.42.2)
+
+The operator has explicitly approved a bounded internal acquisition exception for
+the six existing candidate IDs/URLs and their current revisions (0, or 1 for
+Aguilar/Native Instruments). Until 2026-11-02 00:00 JST, the existing authenticated
+individual facts-recheck action may consume one additional article attempt per
+candidate. Scheduled/fixture actors and all other candidates retain normal limits.
+An atomic, unique `bounded-primary-retry` audit entry binds the request, actor,
+snapshot and revision; failures also consume the grant. Replays use the normal
+facts receipt. Its separate transport cache does not spend other candidates'
+ordinary daily slots. No migration or direct database repair is used.
+
+Only retained parsing failures, same-day URL caching and the internal article
+budget are bypassed. Source permission, source stop/backoff/lease, robots hash and
+path checks, opt-out, canonical URL/date, formal parsers/provenance, final CAS,
+duplicate/reject/takedown and human publication gates remain unchanged. Additional
+official-identity network lookup is disabled on this bounded path. Each attempt
+can fetch robots and the one registered article URL, without redirects or retries.
+No publication operation is part of this recovery. Grants expire automatically;
+cache/receipt retention and ordinary deletion remain unchanged.
+
 Base: main `a993ba3eb41297dacadf56ac6714199548333949` (PR #130 merged).
 Scope: existing Shimamura/Ikebe primary-facts recovery, version 0.42.1. No migration, new source permission, publication route, Web-discovery change or production deployment.
 
