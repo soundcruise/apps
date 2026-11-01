@@ -1,12 +1,14 @@
 // Dormant IDB policy. No credential lookup, storage, network or product activation.
 import { equal, fail, frozen } from './port-idb-authority-contract.mjs';
+import { PORT_DATASET_KEYS, assertPortForwardCompatible } from './port-dataset-repository.js?v=1.26.0';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.26.0';
 import { METRONOME_DEFAULTS, normalizeMetronomeSettings } from './metronome-store.js';
 import { normalizeMetronomePreset, settingsFromMetronomePreset } from './metronome-presets-store.js';
 export const AUTHORITY_ACTION_POLICY_VERSION = 1;
 export const METRONOME_KEY = 'cruisePort.metronome';
 export const PRESETS_KEY = 'cruisePort.metronomePresets';
 export const AUTHORITY_ACTIONS = frozen({saveBpm:'standard',saveAdvanced:'pro',listPresets:'read-only',
-    applyPresetStandard:'standard',applyPresetAdvanced:'pro',createPreset:'pro',deletePreset:'standard',ackDelete:'system'});
+    applyPresetStandard:'standard',applyPresetAdvanced:'pro',createPreset:'pro',deletePreset:'standard',ackDelete:'system',savePortDataset:'pro'});
 // Inventory only; these names do not grant a product permission.
 export const UNIMPLEMENTED_AUTHORITY_ACTIONS = Object.freeze(['saveSettings','saveTuner','savePracticeMenus','savePracticeProgress',
     'savePracticeHistory','savePracticeCalendar','savePracticeMenuSets','saveGearList','saveGearCategories','saveMyApps',
@@ -27,6 +29,16 @@ export function assertActionSemantics(p, before, capability) {
     if(p.policy==='read-only')throw fail('read-only-action');
     if(p.policy==='isolated-fixture') { require(capability?.fixture===true,'fixture-capability-required');return; }
     const keys=Object.keys(p.changes);
+    if(p.action==='savePortDataset') {
+        require(p.policy==='pro' && p.acknowledgements.length===0 && p.operationData===null);
+        require(keys.length>0 && keys.every(k=>PORT_DATASET_KEYS.includes(k) && k!=='cruisePort.schemaVersion' && k!=='cruisePort.syncDeletionIntent.v1'),'action-target-invalid');
+        // All dependent collections are pinned so image/menu/order changes cannot
+        // silently race another writer. Existing domain validators remain authoritative.
+        require(PORT_DATASET_KEYS.every(k=>p.dependencyKeys.includes(k)),'dataset-dependencies-required');
+        const values={...before,...p.changes};assertPortForwardCompatible(values);
+        try { validatePortLocalCollections({getItem:k=>values[k]??null}); } catch { throw fail('domain-invalid'); }
+        return;
+    }
     if(p.action==='ackDelete') {
         require(capability?.ack===true,'system-capability-required');
         require(keys.length===0 && p.acknowledgements.length>0 && p.operationData===null,'system-mutation-invalid');

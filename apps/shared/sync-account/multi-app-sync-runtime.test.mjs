@@ -1,7 +1,7 @@
 import { createWriterWireContext, AUTHORITY_ERROR_CODES } from './writer-authority.mjs';
 import { createFixtureLocks as fixtureLocks } from './test-fixtures/web-locks.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.23.1';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.26.0';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -3535,6 +3535,7 @@ test('coordinated Port repository survives actual runtime delete response loss a
   assert.equal((await deleteMetronomePreset({ presets: loaded.presets, id: preset.id, storage: fixture.storage })).ok, true);
   const journalKey = 'cruisePort.syncDeletionIntent.v1';
   const generation = JSON.parse(fixture.storage.getItem(journalKey))['metronome_preset/preset-core'].generation;
+  assert.equal(typeof generation, 'string', 'fixture must use the same coordinated module as production writers');
   fixture.server.responseLossAfterApply = true;
   await assert.rejects(fixture.runtime.sync('delete-core'), error => error.code === 'network_error');
   assert.equal(JSON.parse(fixture.storage.getItem(journalKey))['metronome_preset/preset-core'].generation, generation);

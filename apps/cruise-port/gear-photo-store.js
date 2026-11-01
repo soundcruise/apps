@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.23.1';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.26.0';
 
 export const GEAR_PHOTO_DB_NAME = 'cruisePortGear';
 export const GEAR_PHOTO_DB_VERSION = 1;
@@ -106,7 +106,7 @@ export function createGearPhotoStore({ indexedDBObject, canWrite = () => getCapa
             try {
                 const database = await getDatabase();
                 if (!canWrite()) return { ok: false, reason: 'pro-required' };
-                await runTransaction(database, 'readwrite', (store) => store.add(record));
+                await coordinatedBinaryWrite(() => runTransaction(database, 'readwrite', (store) => store.add(record)));
                 return { ok: true, record: { ...record } };
             } catch (_) {
                 return { ok: false, reason: 'write-failed' };
@@ -121,7 +121,7 @@ export function createGearPhotoStore({ indexedDBObject, canWrite = () => getCapa
             if (!isValidRecord(record)) return { ok: false, reason: 'invalid-record' };
             try {
                 const database = await getDatabase();
-                await runTransaction(database, 'readwrite', (store) => store.put(record));
+                await coordinatedBinaryWrite(() => runTransaction(database, 'readwrite', (store) => store.put(record)));
                 return { ok: true, record: { ...record } };
             } catch (_) {
                 return { ok: false, reason: 'write-failed' };
@@ -148,11 +148,18 @@ export function createGearPhotoStore({ indexedDBObject, canWrite = () => getCapa
             if (typeof id !== 'string' || !id) return { ok: false, reason: 'invalid-id' };
             try {
                 const database = await getDatabase();
-                await runTransaction(database, 'readwrite', (store) => store.delete(id));
+                await coordinatedBinaryWrite(() => runTransaction(database, 'readwrite', (store) => store.delete(id)));
                 return { ok: true };
             } catch (_) {
                 return { ok: false, reason: 'delete-failed' };
             }
         }
     });
+}
+
+function coordinatedBinaryWrite(work) {
+    const run = globalThis.SoundCruisePortSync?.withPortBinaryWrite;
+    if (run) return run(work);
+    if (globalThis.document) throw new Error('port_binary_coordinator_unavailable');
+    return work(); // Isolated non-browser store fixtures.
 }

@@ -5,6 +5,8 @@
   const APP_ID = 'port';
   const SCHEMA_VERSION = 1;
   const ASSET_METADATA_KEY = 'cruisePort.syncAssetMetadata';
+  // Device-local provenance only: never serialized, synced, cleared or rebound by Sync.
+  const LOCAL_ACCOUNT_KEY = 'cruisePort.syncLocalAccount.v1';
   const DELETION_INTENT_KEY = 'cruisePort.syncDeletionIntent.v1';
   const MANAGED_KEYS = Object.freeze([
     'cruisePort.settings', 'cruisePort.metronome', 'cruisePort.metronomePresets',
@@ -673,6 +675,52 @@
     }] };
   }
 
+  // Existing binary stores join the same dataset lock; no new storage engine.
+  async function withPortBinaryWrite(work) {
+    const repo = root.portRepository?.(global.localStorage);
+    if (!repo?.locks?.request) throw new Error('port_binary_locks_unavailable');
+    await repo.localWriterContext?.initialized;
+    return repo.locks.request(repo.lockName, { mode: 'exclusive' }, async () => {
+      let pending;
+      const begin = () => {
+        repo.localWriterContext?.assertLocalAccount?.();
+        pending = Promise.resolve(work()); pending.catch(() => {});
+      };
+      if (repo.localWriterContext) await repo.localWriterContext.commit(begin);
+      else begin();
+      return pending;
+    });
+  }
+  async function localBinarySnapshot() {
+    if (!global.indexedDB) return []; // Non-browser fixture with no binary stores.
+    if (typeof global.indexedDB.databases !== 'function') throw new Error('port_binary_inspection_unavailable');
+    const names = new Set((await global.indexedDB.databases()).map(db => db.name)), result = [];
+    for (const [name, store] of [['cruisePortGear','photos'],['cruisePortMyApps','icons'],['cruisePortPractice','attachments']]) {
+      if (!names.has(name)) continue;
+      const db = await new Promise((resolve,reject) => {
+        const request=global.indexedDB.open(name);
+        request.onupgradeneeded=()=>request.transaction.abort();
+        request.onerror=()=>reject(new Error('port_binary_read_failed'));
+        request.onsuccess=()=>resolve(request.result);
+      });
+      let records;
+      try {
+        records=await new Promise((resolve,reject)=>{
+          const tx=db.transaction(store,'readonly'), read=tx.objectStore(store).getAll();let values;
+          read.onsuccess=()=>{values=read.result;}; tx.oncomplete=()=>resolve(values);
+          tx.onerror=tx.onabort=()=>reject(new Error('port_binary_read_failed'));
+        });
+      } finally { db.close(); }
+      for (const record of records.sort((a,b)=>String(a.id).localeCompare(String(b.id)))) {
+        const {blob,...metadata}=record;
+        if (!blob?.arrayBuffer) throw new Error('port_binary_invalid');
+        const hash=await global.crypto.subtle.digest('SHA-256',await blob.arrayBuffer());
+        result.push([name,metadata,Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('')]);
+      }
+    }
+    return result;
+  }
+
   class PortSyncAdapter {
     constructor(options = {}) {
       this.storage = options.storage || global.localStorage;
@@ -681,6 +729,70 @@
       this.remoteApplyChanged = false;
       this.remoteReferenceRecords = [];
       this.syncCapabilities = SYNC_CAPABILITIES;
+    }
+    localAccountBinding() {
+      const raw = this.storage.getItem(LOCAL_ACCOUNT_KEY);
+      if (raw === null) return null;
+      let value;
+      try { value = JSON.parse(raw); } catch (_) {}
+      if (!plain(value) || value.version !== 1 ||
+          !(value.accountId === null || typeof value.accountId === 'string' && value.accountId) ||
+          ![undefined, 'sync', 'local-only'].includes(value.mode)) {
+        throw Object.assign(new Error('port_local_account_invalid'), { code: 'port_local_account_invalid' });
+      }
+      return value;
+    }
+    localAccountSnapshot() {
+      return canonical([LOCAL_ACCOUNT_KEY, ...MANAGED_KEYS, DELETION_INTENT_KEY]
+        .map(key => [key, this.storage.getItem(key)]));
+    }
+    async inspectLocalAccount() {
+      return this.withLocalAccountLock(async () => {
+        const raw = this.localAccountSnapshot();
+        const snapshotId = await sha256(canonical([raw, await localBinarySnapshot()]), this.cryptoImpl);
+        if (raw !== this.localAccountSnapshot()) throw new Error('port_local_account_changed');
+        return Object.freeze({ binding: this.localAccountBinding(), snapshotId });
+      });
+    }
+    assertLocalAccount(accountId) {
+      const binding = this.localAccountBinding();
+      const code = binding?.mode === 'local-only' ? 'port_local_only'
+        : !binding || binding.accountId !== accountId ? 'port_local_account_unconfirmed' : null;
+      if (code) throw Object.assign(new Error(code), { code });
+    }
+    async withLocalAccountLock(work) {
+      const repo = root.usesPortRepository?.(this.storage) ? root.portRepository(this.storage) : null;
+      const locks = repo?.locks || global.navigator?.locks;
+      if (!locks?.request) throw new Error('port_local_account_locks_unavailable');
+      return locks.request(repo?.lockName || 'sound-cruise:port:dataset:v1', { mode: 'exclusive' }, () => work(repo));
+    }
+    async ensureLocalAccount(accountId, assertCurrent) {
+      return this.withLocalAccountLock(() => { assertCurrent(); this.assertLocalAccount(accountId); });
+    }
+    async chooseLocalAccount({ accountId, choice, snapshotId, confirmed = false }, assertCurrent) {
+      if (typeof accountId !== 'string' || !accountId || !['current', 'previous', 'device'].includes(choice) ||
+          typeof snapshotId !== 'string' || choice === 'current' && confirmed !== true) {
+        throw new Error('port_local_account_confirmation_required');
+      }
+      return this.withLocalAccountLock(async repo => {
+        const raw = this.localAccountSnapshot();
+        if (await sha256(canonical([raw, await localBinarySnapshot()]), this.cryptoImpl) !== snapshotId) throw new Error('port_local_account_changed');
+        await assertCurrent();
+        const binding = this.localAccountBinding();
+        if (choice === 'current' && binding?.accountId && binding.accountId !== accountId) {
+          throw new Error('port_local_account_mismatch');
+        }
+        const next = { version: 1, accountId: choice === 'current' ? accountId : binding?.accountId || null,
+          mode: choice === 'current' ? 'sync' : 'local-only', retainedAs: choice };
+        const commit = () => {
+          // Existing Account readonly transaction (when available) serializes
+          // this synchronous local publication with Account changes.
+          if (raw !== this.localAccountSnapshot()) throw new Error('port_local_account_changed');
+          this.storage.setItem(LOCAL_ACCOUNT_KEY, JSON.stringify(next));
+          return Object.freeze({ ...next });
+        };
+        return repo?.localWriterContext ? repo.localWriterContext.commit(commit) : commit();
+      });
     }
     get ownsRollback() { return root.usesPortRepository?.(this.storage) === true; }
     readLocalSnapshot() { return readLocalSnapshot(this.storage); }
@@ -729,7 +841,7 @@
   }
 
   Object.assign(root, {
-    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, SYNC_CAPABILITIES, PortSyncAdapter, fullSnapshot, assertFullSnapshot,
+    withPortBinaryWrite, APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, SYNC_CAPABILITIES, PortSyncAdapter, fullSnapshot, assertFullSnapshot,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeSnapshot, serializeRecords,
     deserializeRecords, mergeSnapshots, applyRemoteSnapshot, computeManifest,
     assertDataPlaneContext, getConflictPresentation, reconcileRemoteAssetReferences,
