@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.23.1';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.23';
 
 async function deleteReferences(photoStore, references) {
     const ids = [references?.photoId, references?.photoSourceId].filter(Boolean);
