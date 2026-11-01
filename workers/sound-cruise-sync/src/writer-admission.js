@@ -9,6 +9,12 @@ export async function admitWriter(db, identity, input, authority, options = {}) 
   if (!parsed.ok) return { error: parsed.code, status: parsed.status };
   if (!identity?.deviceId || !identity?.userId || !identity?.appId)
     return { error: 'invalid_credential', status: 401 };
+  const schema = await db.prepare("SELECT count(*) n FROM sqlite_master WHERE type='table' AND name IN ('sync_authority_cutovers','sync_writer_fence_assertion')").first();
+  if (Number(schema?.n) === 0) {
+    if (Object.keys(parsed.value).length || options.policy) return {error:'writer_protocol_unsupported',status:409};
+    return null; // schema0033: existing Account/device/Pro admission and SQL CAS only.
+  }
+  if (Number(schema?.n) !== 2) return {error:'dataset_authority_unavailable',status:503};
   // Existing standalone apps retain their existing admission contract.
   let metadata = null;
   if (authority) {

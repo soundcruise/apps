@@ -6,14 +6,14 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.28.1';
+import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.28.2';
 import './feature-help.js?v=1.21.2';
-import { bindSyncProLock } from './sync-pro-lock.js?v=1.28.1';
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.28.2';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.28.1';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.28.1';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.28.1';
-import { requestToolPro } from './tool-capabilities.js?v=1.28.1';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.28.2';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.28.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.28.2';
+import { requestToolPro } from './tool-capabilities.js?v=1.28.2';
 import {
     LIMITS,
     createPracticeMenu,
@@ -23,7 +23,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=1.28.1';
+} from './practice-menu-store.js?v=1.28.2';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
@@ -37,12 +37,12 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=1.24.23';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.28.1';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.28.2';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.23.1';
-import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.28.1';
-import { createAiSupportPanel } from './ai-support-ui.js?v=1.28.1';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.28.2';
+import { createAiSupportPanel } from './ai-support-ui.js?v=1.28.2';
 import { createPortSyncStatus } from './port-sync-status.js?v=1.23.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.28.1';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.28.2';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
@@ -61,7 +61,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=1.28.1';
+} from './practice-menu-progress-store.js?v=1.28.2';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -81,7 +81,7 @@ import {
     savePracticeHistory,
     toLocalDateKey,
     updatePracticeHistoryRecord
-} from './practice-menu-history-store.js?v=1.28.1';
+} from './practice-menu-history-store.js?v=1.28.2';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -96,7 +96,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=1.28.1';
+} from './practice-menu-calendar-store.js?v=1.28.2';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -113,12 +113,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=1.28.1';
+} from './practice-menu-attachment-store.js?v=1.28.2';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=1.28.1';
+} from './practice-menu-pending-attachments.js?v=1.28.2';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -129,7 +129,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.28.1';
+} from './practice-menu-app-resolver.js?v=1.28.2';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -144,7 +144,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=1.28.1';
+} from './my-apps-store.js?v=1.28.2';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -165,7 +165,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.28.1';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.28.2';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -183,22 +183,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=1.28.1';
+} from './my-apps-icon-workflow.js?v=1.28.2';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=1.28.1';
+import { initMetronome } from './metronome-app.js?v=1.28.2';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.28.1';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.28.1';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.28.1';
-import { initTuner } from './tuner-app.js?v=1.28.1';
+} from './app-version.js?v=1.28.2';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.28.2';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.28.2';
+import { initTuner } from './tuner-app.js?v=1.28.2';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -216,7 +216,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=1.28.1';
+} from './gear-list-store.js?v=1.28.2';
 import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.59.3';
 import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.59.3';
 import { createGearListPng } from './gear-list-image-export.js?v=0.59.3';
@@ -228,10 +228,10 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=1.28.1';
-import { createGearPhotoStore } from './gear-photo-store.js?v=1.28.1';
-import { PortAssetSync } from './port-asset-sync.js?v=1.28.1';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.28.1';
+} from './gear-category-store.js?v=1.28.2';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.28.2';
+import { PortAssetSync } from './port-asset-sync.js?v=1.28.2';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.28.2';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
     addPracticeMenuToSets,
@@ -246,7 +246,7 @@ import {
     reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.28.1';
+} from './practice-menu-sets-store.js?v=1.28.2';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -255,7 +255,7 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=1.28.1';
+} from './gear-photo-workflow.js?v=1.28.2';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -264,7 +264,7 @@ import {
 
 import { initializeProAuthSettings } from './pro-auth-settings.js?v=0.27.0';
 import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=1.23.1';
-import { initializePortWriterContext } from './port-dataset-storage.js?v=1.28.1';
+import { initializePortWriterContext } from './port-dataset-storage.js?v=1.28.2';
 
 const syncCenterConfig = readSyncCenterConfig();
 const initialSyncCenterRequested = location.hash === SYNC_CENTER_ROUTE;
@@ -6436,7 +6436,7 @@ if (syncCenterController.enabled) {
     elements.syncCenterHelpOpen.addEventListener('click', openPortSyncHelp);
     elements.syncCenterView.querySelector('#sync-center-port-reconcile')?.addEventListener('click', async () => {
         let message;
-        try { const r = await portSyncController?.reconcileUnknown?.(); message = r?.ok ? '保存結果を照合しました。' : '結果未確定の項目は保持しています。再送していません。'; }
+        try { const r = await portSyncController?.reconcileUnknown?.(); message = r?.ok ? '未確定の保存を復旧しました。' : '復旧を確認できない項目は保持しています。データは破棄していません。'; }
         catch (_) { message = '結果を照合できません。未確定データは保持しています。'; }
         await renderSyncCenterView(); showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), message);
     });

@@ -226,7 +226,7 @@ async function pushOperation(overrides = {}) {
 function authDependencies(repository, authenticate = async (_db, _authorization, appId) => ({
   userId: USER_ID, deviceId: DEVICE_ID, appId, userState: 'provisioning'
 })) {
-  return { readRuntimeControl: async () => OPEN_CONTROL, authenticateDevice: authenticate, createRepository: () => repository };
+  return { readRuntimeControl: async () => OPEN_CONTROL, authenticateDevice: authenticate, createRepository: () => repository, admitWriter: async()=>null };
 }
 
 function authRequest(path, options = {}) {

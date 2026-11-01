@@ -7,7 +7,7 @@ const {createAccountCredential,accountCredentialVerifier}=await import(src+'/acc
 const old=fs.readFileSync(W+'/apps/cruise-studio/tests/identity-cloud.browser.mjs','utf8');
 const literal=old.slice(old.indexOf('const entry=`')+'const entry='.length,old.indexOf(';'+String.fromCharCode(10)+'fs.writeFileSync'));
 let entry=Function('src','W','return '+literal)(src,W);
-entry="import legacy from '"+src+"/studio-legacy-v137.mjs';"+entry;
+entry="import legacy from '"+src+"/index.js';"+entry;
 entry=entry.replace("legacy:{fetch:()=>new Response(null,{status:404}),scheduled:()=>null}","legacy");
 entry=entry.replace("SYNC_ACCOUNT_PUBLIC_APP_IDS:'chord,pitch,fretboard,rhythm'", "SYNC_ACCOUNT_PUBLIC_APP_IDS:'chord,pitch,fretboard,rhythm,port',SYNC_ALLOWED_APP_IDS:'chord,pitch,fretboard,rhythm,port',SYNC_ASSET_WRITE_ENABLED:'true',SYNC_ASSET_DOWNLOAD_ENABLED:'true',ACCOUNT_START_RATE_LIMITER:{limit:async()=>({success:true})},ACCOUNT_API_RATE_LIMITER:{limit:async()=>({success:true})}");
 entry=entry.replace("if(path.startsWith('/v2/accounts/'))","if(path==='/v2/accounts/port-device')return legacy.fetch(request,env,{});if(path.startsWith('/v2/accounts/'))");
@@ -33,7 +33,7 @@ async function routeContext(context,label){await context.route('**/*',async rout
  });}
 async function profile(label,cloud=true){const context=await chromium.launchPersistentContext(fs.mkdtempSync(OUT+'/profile-'+label+'-'),{headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',serviceWorkers:'block'});contexts.push(context);await routeContext(context,label);
  if(cloud)await context.addInitScript(()=>{globalThis.__SOUND_CRUISE_STUDIO_CLOUD__={endpoint:'https://backend.fixture.invalid/v2/studio/document',turnstile:async()=> 'synthetic'};});
- const page=await context.newPage();page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push({label,message:e.message}));page.on('framenavigated',f=>navigation.push({label,phase:tests.length,url:f.url()}));page.on('framedetached',f=>navigation.push({label,phase:tests.length,detached:f.url()}));await page.goto('https://studio.fixture.invalid/bootstrap');return{context,page,label};}
+ const page=await context.newPage();page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push({label,message:e.message,stack:e.stack,phase:tests.length}));page.on('framenavigated',f=>navigation.push({label,phase:tests.length,url:f.url()}));page.on('framedetached',f=>navigation.push({label,phase:tests.length,detached:f.url()}));await page.goto('https://studio.fixture.invalid/bootstrap');return{context,page,label};}
 async function bootstrapPro(p){await p.page.evaluate(async()=>{
  const base='https://sound-cruise-sync.cruise-port-requests.workers.dev/v2/pro-auth';
  const request=async(path,options={})=>{const r=await fetch(base+path,options);return{status:r.status,body:await r.json()};};
@@ -91,7 +91,7 @@ try{
   await pa.evaluate(()=>location.hash='#tuner');await pa.locator('#tuner-capo-up').click();
   await pa.evaluate(()=>location.hash='#metronome');await pa.locator('#metronome-bpm').fill('157');await pa.locator('#metronome-bpm').press('Tab');
   const values=await pa.evaluate(async()=>{
-   const menu=await import('/apps/cruise-port/practice-menu-store.js?v=1.28.1'),apps=await import('/apps/cruise-port/my-apps-store.js?v=1.28.1'),cal=await import('/apps/cruise-port/practice-menu-calendar-store.js?v=1.28.1'),presets=await import('/apps/cruise-port/metronome-presets-store.js?v=1.28.1'),metro=await import('/apps/cruise-port/metronome-store.js?v=1.28.1');
+   const menu=await import('/apps/cruise-port/practice-menu-store.js?v=1.28.2'),apps=await import('/apps/cruise-port/my-apps-store.js?v=1.28.2'),cal=await import('/apps/cruise-port/practice-menu-calendar-store.js?v=1.28.2'),presets=await import('/apps/cruise-port/metronome-presets-store.js?v=1.28.2'),metro=await import('/apps/cruise-port/metronome-store.js?v=1.28.2');
    const old=menu.loadPracticeMenus(),item=menu.createPracticeMenu({name:'Synthetic practice',durationMinutes:5,appId:null,memo:'fixture'},old.items);const m=await menu.savePracticeMenus([...old.items,item]);
    const a=apps.loadMyApps(),created=apps.createMyApp({name:'Synthetic My App',url:'https://example.invalid/'},a.items);if(!created.ok)throw Error(created.reason);const ar=await apps.saveMyApps([...a.items,created.item]);
    const c=cal.loadPracticeCalendar(),note=cal.createPracticeCalendarNote(c.calendar,{localDate:'2026-10-31',text:'Synthetic calendar'});if(!note.ok)throw Error(note.reason);const cr=await cal.savePracticeCalendar(note.calendar);
@@ -111,17 +111,17 @@ try{
   await pa.locator('#gear-photo-crop-dialog').waitFor({state:'visible'});await pa.locator('#gear-photo-crop-confirm').click();await pa.locator('#gear-photo-crop-dialog').waitFor({state:'hidden'});await pa.locator('#gear-list-form button[type=submit]').click();
   await pa.waitForFunction(()=>{const m=JSON.parse(localStorage.getItem('cruisePort.syncAssetMetadata')||'{}');return Object.values(m.gear||{}).some(e=>e.published?.final?.assetId&&e.published?.source?.assetId);},{},{timeout:30000});
   await sync(pa);await sync(pb);await pb.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.gearList')).items.some(i=>i.photoId&&i.photoSourceId),{},{timeout:30000});
-  const read=async frame=>frame.evaluate(async()=>{const {createGearPhotoStore}=await import('/apps/cruise-port/gear-photo-store.js?v=1.28.1'),store=createGearPhotoStore(),item=JSON.parse(localStorage.getItem('cruisePort.gearList')).items.find(i=>i.photoId);return Promise.all([item.photoId,item.photoSourceId].map(async id=>{const r=await store.getPhoto(id);if(!r.record)throw Error('binary missing');const b=new Uint8Array(await crypto.subtle.digest('SHA-256',await r.record.blob.arrayBuffer()));return Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');}));});
+  const read=async frame=>frame.evaluate(async()=>{const {createGearPhotoStore}=await import('/apps/cruise-port/gear-photo-store.js?v=1.28.2'),store=createGearPhotoStore(),item=JSON.parse(localStorage.getItem('cruisePort.gearList')).items.find(i=>i.photoId);return Promise.all([item.photoId,item.photoSourceId].map(async id=>{const r=await store.getPhoto(id);if(!r.record)throw Error('binary missing');const b=new Uint8Array(await crypto.subtle.digest('SHA-256',await r.record.blob.arrayBuffer()));return Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');}));});
   assert.deepEqual(await read(pa),await read(pb));
   result.binaryInspection=await pa.evaluate(async()=>{const start=performance.now();await new SoundCruisePortSync.PortSyncAdapter().inspectLocalAccount();return{milliseconds:performance.now()-start};});
  });
  await check('existing Practice attachment Asset Sync stores and hydrates real binary',async()=>{
-  await pa.evaluate(async id=>{const {createPracticeAttachmentStore}=await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.28.1');const r=await createPracticeAttachmentStore().addAttachment(id,new Blob(['synthetic attachment bytes'],{type:'text/plain'}),{fileName:'synthetic.txt'});if(!r.ok)throw Error(r.reason);window.dispatchEvent(new Event('cruise-port-local-data-changed'));},globalThis.practiceId);
+  await pa.evaluate(async id=>{const {createPracticeAttachmentStore}=await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.28.2');const r=await createPracticeAttachmentStore().addAttachment(id,new Blob(['synthetic attachment bytes'],{type:'text/plain'}),{fileName:'synthetic.txt'});if(!r.ok)throw Error(r.reason);window.dispatchEvent(new Event('cruise-port-local-data-changed'));},globalThis.practiceId);
   await pa.waitForFunction(()=>Object.values(JSON.parse(localStorage.getItem('cruisePort.syncAssetMetadata')||'{}').attachments||{}).some(e=>e.published?.asset?.assetId),{},{timeout:30000});await sync(pa);await sync(pb);
   const remote=await pb.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.syncAssetMetadata')).attachments);assert(Object.values(remote).some(e=>e.published?.asset?.hash));
   await B.page.locator('[data-workspace=portPractice]').click();pb=await (await B.page.locator('#port-practice-surface iframe').elementHandle()).contentFrame();await ready(pb);await pb.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);await pb.locator('[data-practice-id="'+globalThis.practiceId+'"] .practice-card-link').click();await pb.locator('[data-attachment-action=open]').click();
   await pb.waitForFunction(()=>Object.values(JSON.parse(localStorage.getItem('cruisePort.syncAssetMetadata')).attachments).some(e=>e.binding?.localId));
-  const bytes=await pb.evaluate(async()=>{const {createPracticeAttachmentStore}=await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.28.1');const r=await createPracticeAttachmentStore().getAllAttachments();return Promise.all(r.records.map(x=>x.blob.text()));});assert(bytes.includes('synthetic attachment bytes'));
+  const bytes=await pb.evaluate(async()=>{const {createPracticeAttachmentStore}=await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.28.2');const r=await createPracticeAttachmentStore().getAllAttachments();return Promise.all(r.records.map(x=>x.blob.text()));});assert(bytes.includes('synthetic attachment bytes'));
 
  });
  await check('offline edit is retained and reconciles through existing Sync after reconnect',async()=>{
@@ -166,7 +166,7 @@ try{
  for(const context of contexts)for(const page of context.pages())for(const frame of page.frames()){
   if(!frame.url().includes('/apps/cruise-port/pro_'))continue;
   try{result.failureDiagnostics.push(await frame.evaluate(async()=>{
-   const {createPortWriterContext}=await import('/apps/cruise-port/port-writer-context.mjs?v=1.28.1');
+   const {createPortWriterContext}=await import('/apps/cruise-port/port-writer-context.mjs?v=1.28.2');
    const c=createPortWriterContext({root:window,storage:localStorage});await c.initialized;let admission='accepted';try{c.assertCurrent();}catch(error){admission=error.code||error.message;}
    return {route:location.hash,admission,ready:document.documentElement.dataset.portWriterReady,sharedAccountPresent:!!SoundCruiseSyncAccount?.storage,status:document.querySelector('[data-port-local-account] [role=status]')?.textContent};
   }));}catch{}

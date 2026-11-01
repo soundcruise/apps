@@ -431,7 +431,7 @@
       return payload;
     }
 
-    async pushRequest(body) {
+    async pushRequest(body, { reconcile = false } = {}) {
       this.assertActive();
       body = this.writerEnvelope(body);
       const bytes = operations => new TextEncoder().encode(JSON.stringify({ ...body, operations })).byteLength;
@@ -448,7 +448,12 @@
       for (const operations of chunks) {
         const prior = this.appId === 'port' ? await this.wait(() => this.store.listOutbox()) : [];
         const previous = new Map(prior.map(o => [o.operationId, o]));
-        if (this.appId === 'port' && prior.some(o => o.outcome === 'UNKNOWN')) throw new MultiAppSyncError('push_outcome_unknown');
+        if (this.appId === 'port' && prior.some(o => o.outcome === 'UNKNOWN') && !reconcile) throw new MultiAppSyncError('push_outcome_unknown');
+        if (reconcile && operations.some(op => {
+          const saved = previous.get(op.operationId);
+          const wire = value => Object.fromEntries(['operationId','recordType','recordId','schemaVersion','baseRevision','payload','payloadHash','deleted'].map(k=>[k,value[k]]));
+          return !saved || saved.outcome !== 'UNKNOWN' || canonicalJson(saved.writerAuthority||null)!==canonicalJson(this.writerWireContext?.fields||null) || canonicalJson(saved.authorityContext||null)!==canonicalJson(this.writerWireContext?.context||null) || canonicalJson(wire(saved)) !== canonicalJson(wire(op));
+        })) throw new MultiAppSyncError('operation_id_reused');
         const readbackCursor = this.appId === 'port' ? await this.wait(() => this.store.readMeta('cursor')) : null;
         const dispatched = new Map();
         if (this.appId === 'port') for (const operation of operations) {
@@ -474,6 +479,15 @@
               response.results.some(item => !ids.has(item.operationId) || !['applied','duplicate','conflict','invalid','forbidden'].includes(item.status))) throw new MultiAppSyncError('invalid_response');
         } catch (error) {
           if (this.appId !== 'port') throw error;
+          if ((error.status === 400 && ['invalid_request','invalid_json','invalid_bookmark'].includes(error.code)) ||
+              (error.status === 429 && error.code === 'rate_limited')) {
+            for (const op of operations) await this.wait(() => this.store.putOutbox({
+              ...dispatched.get(op.operationId), outcome: undefined,
+              terminalError: error.status === 429 ? 'push_failed' : error.code,
+              ...(error.status === 429 ? {failureKind:'network',nextRetryAt:this.now()+60000} : {})
+            }));
+            throw error;
+          }
           if (authorityBlocked(error.code)) {
             for (const operation of operations) await this.wait(() => this.store.putOutbox({
               ...dispatched.get(operation.operationId), outcome: 'UNKNOWN', terminalError: error.code, authorityStatus: error.code === 'dataset_epoch_stale' ? 'stale-epoch' : /(?:required|outdated|unsupported)$/.test(error.code) ? 'needs-upgrade' : 'blocked-authority', nextRetryAt: 0
@@ -1787,6 +1801,7 @@
       const local = await this.wait(async () => (this.localRecords()));
       await this.wait(async () => (this.bootstrap(local)));
       const rawRemote = await this.wait(async () => (this.serverSnapshot()));
+      if (this.appId === 'port' && rawRemote.cursor) await this.wait(() => this.store.setMeta('cursor',rawRemote.cursor));
       const partitioned = this.partitionRemote(rawRemote);
       const remote = partitioned.remote;
       await this.wait(async () => (this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues)));
@@ -1953,7 +1968,7 @@
       await this.wait(() => this.assertCurrentAsync());
       const snapshot = await this.wait(() => this.serverSnapshot());
       const remote = mapRecords(snapshot.records || []), pending = (await this.wait(() => this.store.listOutbox())).filter(x => x.outcome === 'UNKNOWN');
-      const history = new Map(); let pages = 0, resolved = 0, historical = 0;
+      const history = new Map(), covered = new Set(); let pages = 0, resolved = 0, historical = 0, replayed = 0;
       // Existing change history is a bounded readback of the old operation,
       // even when another device has advanced the current head.
       for (const start of new Set(pending.filter(item => remote.get(keyOf(item))?.operationId !== item.operationId).map(item => item.readbackCursor || ''))) {
@@ -1963,12 +1978,26 @@
           try { page = await this.wait(() => this.request('GET', `/v1/sync/changes?appId=port${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}${capabilities.length ? `&capabilities=${encodeURIComponent(capabilities.join(','))}` : ''}`)); }
           catch (error) { if (error.code === 'cursor_expired' || error.code === 'dataset_not_ready') break; throw error; }
           for (const change of page.changes || []) history.set(change.operationId, change);
-          if (!page.hasMore || !page.nextCursor || page.nextCursor === cursor) { pages++; break; }
+          if (page.hasMore === false && Array.isArray(page.changes)) { covered.add(start); pages++; break; }
+          if (!page.nextCursor || page.nextCursor === cursor) break;
           cursor = page.nextCursor;
         }
       }
       for (const item of pending) {
         const head = remote.get(keyOf(item)), record = head?.operationId === item.operationId ? head : history.get(item.operationId);
+        if (!record && typeof item.readbackCursor === 'string' && item.readbackCursor && covered.has(item.readbackCursor) && Number.isSafeInteger(item.schemaVersion) && Number.isSafeInteger(item.baseRevision) && typeof item.payloadHash === 'string' && item.payloadHash) {
+          // Complete retained history proves this exact operation was not applied.
+          // Existing operation-id deduplication + baseRevision CAS are the only replay path.
+          const operation = Object.fromEntries(['operationId','recordType','recordId','schemaVersion','baseRevision','payload','payloadHash','deleted'].map(k=>[k,item[k]]));
+          replayed++;
+          const response = await this.wait(() => this.pushRequest(this.withSyncCapabilities({appId:'port',mode:item.migration?'migration':'sync',operations:[operation]}),{reconcile:true}));
+          const result = response.results[0];
+          if (result.status === 'conflict') {
+            await this.wait(() => this.recordConflict('push',keyOf(item),{localRecord:item,remoteRecord:result.record,shadowRecord:null}));
+            await this.wait(() => this.store.putOutbox({...item,outcome:undefined,conflict:true}));
+          } else if (!['applied','duplicate'].includes(result.status)) await this.wait(() => this.store.putOutbox({...item,outcome:undefined,terminalError:result.code||result.status}));
+          resolved++; continue;
+        }
         if (!record || keyOf(record) !== keyOf(item) || record.operationId !== item.operationId || Boolean(isDeleted(record)) !== Boolean(item.deleted) || record.payloadHash !== item.payloadHash) continue;
         if (item.deleted) await this.wait(() => this.adapter.acknowledgeDelete?.(keyOf(item), item.deleteIntentGeneration));
         else await this.wait(() => this.acknowledgeOwnRecord(item, record));
@@ -1976,7 +2005,7 @@
       }
       const remaining = (await this.wait(() => this.store.listOutbox())).filter(x => x.outcome === 'UNKNOWN').length;
       this.setState('attention', { reason: remaining ? 'push_outcome_unknown' : 'reconciled' });
-      return Object.freeze({ ok: remaining === 0, resolved, historical, unknown: remaining });
+      return Object.freeze({ ok: remaining === 0, resolved, historical, replayed, unknown: remaining });
     }
 
     async performSync(reason) {

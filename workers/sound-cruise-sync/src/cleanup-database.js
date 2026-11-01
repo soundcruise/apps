@@ -291,9 +291,10 @@ export function createD1CleanupRepository(db, clock = Date.now) {
       // when migration 0010 has not been applied yet.
       results.chordAccountBridges = 0;
     }
+    const hasAuthority = Boolean(await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_authority_cutovers'").first());
     const oldChanges = await db.prepare(`
       SELECT change_seq, user_id, app_id FROM sync_changes
-      WHERE changed_at <= ? AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_changes.user_id AND c.app_id=sync_changes.app_id) ORDER BY change_seq ASC LIMIT ${limit}
+      WHERE changed_at <= ? ${hasAuthority ? 'AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_changes.user_id AND c.app_id=sync_changes.app_id)' : ''} ORDER BY change_seq ASC LIMIT ${limit}
     `).bind(now - CLEANUP_RETENTION.changeMs).all();
     const changeRows = oldChanges.results || [];
     if (changeRows.length) {
@@ -306,14 +307,14 @@ export function createD1CleanupRepository(db, clock = Date.now) {
       watermarkByDataset.forEach((entry) => {
         statements.push(db.prepare(`
           UPDATE sync_datasets SET min_change_seq = MAX(min_change_seq, ?)
-          WHERE user_id = ? AND app_id = ? AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_datasets.user_id AND c.app_id=sync_datasets.app_id)
+          WHERE user_id = ? AND app_id = ? ${hasAuthority ? 'AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_datasets.user_id AND c.app_id=sync_datasets.app_id)' : ''}
         `).bind(entry.sequence, entry.userId, entry.appId));
       });
-      changeRows.forEach((row) => statements.push(db.prepare('DELETE FROM sync_changes WHERE change_seq = ? AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_changes.user_id AND c.app_id=sync_changes.app_id)').bind(row.change_seq)));
+      changeRows.forEach((row) => statements.push(db.prepare(`DELETE FROM sync_changes WHERE change_seq = ? ${hasAuthority ? 'AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_changes.user_id AND c.app_id=sync_changes.app_id)' : ''}`).bind(row.change_seq)));
       const changeResults = await db.batch(statements);
       results.changes = changeResults.filter((result) => result?.success !== false).length - watermarkByDataset.size;
     } else results.changes = 0;
-    results.tombstones = await deleteLimited(db, `SELECT rowid AS id FROM sync_records WHERE deleted_at IS NOT NULL AND deleted_at <= ? AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_records.user_id AND c.app_id=sync_records.app_id) LIMIT ${limit}`, 'DELETE FROM sync_records WHERE rowid = ? AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_records.user_id AND c.app_id=sync_records.app_id)', [now - CLEANUP_RETENTION.tombstoneMs]);
+    results.tombstones = await deleteLimited(db, `SELECT rowid AS id FROM sync_records WHERE deleted_at IS NOT NULL AND deleted_at <= ? ${hasAuthority ? 'AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_records.user_id AND c.app_id=sync_records.app_id)' : ''} LIMIT ${limit}`, `DELETE FROM sync_records WHERE rowid = ? ${hasAuthority ? 'AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.sync_user_id=sync_records.user_id AND c.app_id=sync_records.app_id)' : ''}`, [now - CLEANUP_RETENTION.tombstoneMs]);
     results.deletedUsers = await deleteLimited(db, `SELECT id FROM sync_users u WHERE state = 'deleting' AND purge_after IS NOT NULL AND purge_after <= ? AND NOT EXISTS (SELECT 1 FROM sync_account_memberships m WHERE m.sync_user_id = u.id) LIMIT ${limit}`, 'DELETE FROM sync_users WHERE id = ? AND state = \'deleting\'', [now]);
     return results;
   }

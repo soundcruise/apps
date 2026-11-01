@@ -1,7 +1,7 @@
 import { createWriterWireContext, AUTHORITY_ERROR_CODES } from './writer-authority.mjs';
 import { createFixtureLocks as fixtureLocks } from './test-fixtures/web-locks.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.28.1';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.28.2';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -3811,4 +3811,17 @@ test('direct Port delete normal ACK uses the same captured intent generation as 
 
 test('save error after qualification invalidation does not publish through a retired runtime or leave an unhandled rejection',async()=>{
  const f=runtimeFixture([],'port','production');let current=true,states=0;f.runtime.assertCurrent=()=>{if(!current)throw Error('pro_required');};f.runtime.sync=async()=>{current=false;throw Error('pro_required');};f.runtime.setState=()=>{states++;throw Error('must not publish after invalidation');};f.runtime.notifyLocalSave();await new Promise(r=>setImmediate(r));assert.equal(states,0);f.runtime.dispose();
+});
+
+test('Port explicit recovery replays an absent operation with identical ID/payload after complete retained history',async()=>{
+ const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');await f.store.setMeta('cursor','c0');
+ const op=await f.runtime.operationFor(record('absent-retry'),0);let pushes=[];
+ f.runtime.fetchImpl=async(url,options)=>{if(new URL(url).pathname==='/v1/sync/push'){const b=JSON.parse(options.body);pushes.push(b.operations[0]);if(pushes.length===1)throw Error('not dispatched');return Response.json({ok:true,results:[{operationId:op.operationId,status:'applied',record:{...op,revision:1}}]});}return Response.json({ok:true,changes:[],hasMore:false,nextCursor:'c0'});};
+ await assert.rejects(f.runtime.pushRequest({appId:'port',mode:'sync',operations:[Object.fromEntries(['operationId','recordType','recordId','schemaVersion','baseRevision','payload','payloadHash','deleted'].map(k=>[k,op[k]]))]}),e=>e.code==='push_outcome_unknown');
+ f.runtime.serverSnapshot=async()=>({records:[],cursor:'c0'});const r=await f.runtime.reconcileUnknown();assert.equal(r.unknown,0);assert.equal(r.resolved,1);assert.deepEqual(pushes[0],pushes[1]);assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
+});
+for(const [status,code,unknown] of [[400,'invalid_request',false],[429,'rate_limited',false],[503,'server_error',true]])test(`Port ${status} ${code} preserves payload with appropriate certainty`,async()=>{
+ const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');const op=await f.runtime.operationFor(record('rejected'),0);
+ f.runtime.fetchImpl=async()=>Response.json({ok:false,code},{status});await assert.rejects(f.runtime.pushRequest({appId:'port',mode:'sync',operations:[op]}));
+ const saved=(await f.store.listOutbox())[0];assert.equal(saved.outcome==='UNKNOWN',unknown);assert.equal(saved.operationId,op.operationId);assert.deepEqual(saved.payload,op.payload);f.runtime.dispose();
 });

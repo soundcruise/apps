@@ -1,5 +1,5 @@
 /* Shared Port component owner; production is deliberately closed until writer admission exists. */
-import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.69.2';
+import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.69.3';
 
 const boundary = createPortProBoundary();
 const allowed = new Set(['tuner', 'metronome']);

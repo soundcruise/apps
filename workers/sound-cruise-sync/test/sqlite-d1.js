@@ -51,7 +51,7 @@ function statementWrapper(database, sql, values = []) {
   };
 }
 
-export function createSqliteD1() {
+export function createSqliteD1({ schemaVersion = 37 } = {}) {
   const database = new DatabaseSync(':memory:');
   database.exec(migration1);
   database.exec(migration2);
@@ -86,10 +86,10 @@ export function createSqliteD1() {
   database.exec(migration31);
   database.exec(migration32);
   database.exec(migration33);
-  database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0034_add_writer_authority.sql'), 'utf8'));
-  database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0035_add_transaction_fence.sql'), 'utf8'));
-  database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0036_add_asset_deletion_reservations.sql'), 'utf8'));
-  database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0037_bind_cutover_generations.sql'), 'utf8'));
+  if (schemaVersion >= 34) database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0034_add_writer_authority.sql'), 'utf8'));
+  if (schemaVersion >= 35) database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0035_add_transaction_fence.sql'), 'utf8'));
+  if (schemaVersion >= 36) database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0036_add_asset_deletion_reservations.sql'), 'utf8'));
+  if (schemaVersion >= 37) database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0037_bind_cutover_generations.sql'), 'utf8'));
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },

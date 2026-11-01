@@ -18,7 +18,7 @@ async function profile(studio=false){
 }
 async function setup(target, account='A') {return target.evaluate(async account=>{
  const shared=SoundCruiseSyncAccount.storage;if(account)await shared.setAccount({accountId:account,accountCredential:'sca1.'+account+'.synthetic'});
- const mod=await import('/apps/cruise-port/port-dataset-storage.js?v=1.28.1');await mod.initializePortWriterContext();
+ const mod=await import('/apps/cruise-port/port-dataset-storage.js?v=1.28.2');await mod.initializePortWriterContext();
  const repo=mod.portRepository(localStorage);globalThis.localRepo=repo;globalThis.storeModule=mod;
  SoundCruiseSyncAccount.core={validAccountCredential:v=>v?.startsWith('sca1.'),validAppCredential:v=>v?.startsWith('scd1.'),createOperationId:()=>crypto.randomUUID(),createAppCredential:()=>({appDeviceCredential:'scd1.port.synthetic'})};
  globalThis.calls=0;
@@ -27,8 +27,8 @@ async function setup(target, account='A') {return target.evaluate(async account=
  const dataStorage={createStore(_app,{accountId='legacy'}={}){if(!map.has(accountId)){const meta=new Map();map.set(accountId,{accountId,meta,async readMeta(k){return meta.get(k)??null;},async setMeta(k,v){meta.set(k,v);},async removeMeta(k){meta.delete(k);},async listOutbox(){return[];},async listShadow(){return[];},async listConflicts(){return[];}});}return map.get(accountId);}};
  class Runtime extends EventTarget{constructor(o){super();Object.assign(this,o);}runExclusive(fn){return fn(this);}async initializeDataset(){await this.assertCurrentAsync();globalThis.bootstrapped=JSON.parse(localStorage.getItem('cruisePort.gearList')||'{}');return{ok:true};}async sync(){await this.assertCurrentAsync();return{ok:true};}dispose(){}listConflictPresentations(){return[];}}
  SoundCruiseMultiAppSync={dataStorage,MultiAppSyncRuntime:Runtime};globalThis.ctrl=SoundCruisePortSync.createPortSyncController({config:{enabled:true,environment:'production',endpoint:'https://port.fixture.invalid'},canSync:()=>true});
- globalThis.attachment=(await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.28.1')).createPracticeAttachmentStore({canWrite:()=>true});
- globalThis.photos=(await import('/apps/cruise-port/gear-photo-store.js?v=1.28.1')).createGearPhotoStore({canWrite:()=>true});
+ globalThis.attachment=(await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.28.2')).createPracticeAttachmentStore({canWrite:()=>true});
+ globalThis.photos=(await import('/apps/cruise-port/gear-photo-store.js?v=1.28.2')).createGearPhotoStore({canWrite:()=>true});
  return true;
  },account);}
 async function choose(target,choice='current'){return target.evaluate(async choice=>{const s=await ctrl.inspectLocalAccount();return ctrl.chooseLocalAccount({choice,snapshotId:s.snapshotId,confirmed:true});},choice);}
@@ -50,7 +50,7 @@ try{
  });
  await check('Chrome real Sync Center: consent required and three visible choices; no deletion',async()=>{
   const {target}=await profile();await setup(target);
-  await target.evaluate(async()=>{const {mountPortLocalAccountChoices}=await import('/apps/cruise-port/sync-center-ui.js?v=1.28.1');mountPortLocalAccountChoices(document.querySelector('#sync'),{orchestrator:{inspectPortLocalAccount:()=>ctrl.inspectLocalAccount(),choosePortLocalAccount:v=>ctrl.chooseLocalAccount(v)}});});
+  await target.evaluate(async()=>{const {mountPortLocalAccountChoices}=await import('/apps/cruise-port/sync-center-ui.js?v=1.28.2');mountPortLocalAccountChoices(document.querySelector('#sync'),{orchestrator:{inspectPortLocalAccount:()=>ctrl.inspectLocalAccount(),choosePortLocalAccount:v=>ctrl.chooseLocalAccount(v)}});});
   await target.getByText('同期先と端末データを確認',{exact:true}).click();const adopt=target.locator('[data-port-attribution-choice="current"]');await target.waitForFunction(()=>!document.querySelector('[data-port-attribution-choice]').parentElement.hidden);
   assert.equal(await adopt.isDisabled(),true);await target.locator('[data-port-local-account] input').check();await adopt.click();
   await target.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.syncLocalAccount.v1')||'null')?.accountId==='A');

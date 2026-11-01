@@ -996,7 +996,7 @@ async function handleChanges(request, env, origin, route, dependencies, url) {
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   let dataset;
   try { dataset = await context.repository.getDataset(context.identity.userId, context.identity.appId); } catch { return errorResponse(503, 'server_error', origin, route); }
-  if (!dataset || dataset.state !== 'ready') return errorResponse(409, 'dataset_not_ready', origin, route);
+  if (!dataset || (dataset.state !== 'ready' && !(context.identity.appId === 'port' && dataset.state === 'initializing'))) return errorResponse(409, 'dataset_not_ready', origin, route);
   if (sequence < dataset.min_change_seq) return errorResponse(409, 'cursor_expired', origin, route);
   let page;
   try { page = await context.repository.listChanges(context.identity, sequence, 100); } catch { return errorResponse(503, 'server_error', origin, route); }
@@ -1204,6 +1204,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
 
 export async function handleScheduled(_event, env = {}, dependencies = {}) {
   if (!env.SYNC_DB || typeof env.SYNC_DB.prepare !== 'function') return;
+  let assetCleanupHold = false;
   if (assetFeatureEnabled(env, 'SYNC_ASSET_CLEANUP_ENABLED') && env.SYNC_ASSETS?.delete) {
     try {
       const assets = (dependencies.createAssetRepository || createD1AssetRepository)(env.SYNC_DB);
@@ -1223,7 +1224,8 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
         const claim = await assets.getCleanupClaim(asset.asset_id);
         if (claim) await recoverAssetDeletion(assets, env.SYNC_ASSETS, claim, now);
       }
-    } catch {
+    } catch (error) {
+      assetCleanupHold = error?.message === 'asset_cleanup_requires_review';
       // Asset cleanup is eventual and must never interrupt established D1 cleanup.
     }
   }
@@ -1231,6 +1233,7 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
   await repository.cleanup(Date.now());
   try { await cleanupProLockouts(env.SYNC_DB, Date.now()); }
   catch { /* Lockout retention must not interrupt established sync cleanup. */ }
+  if (assetCleanupHold) return { status: 'HOLD_SCHEMA0033_ASSET_CLEANUP' };
 }
 
 function mutationErrorResponse(error, origin, route) {
