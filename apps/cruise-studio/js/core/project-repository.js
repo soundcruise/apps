@@ -98,6 +98,7 @@
                     list.unshift({ projectId: project.projectId, title: project.songInfo.title || '無題', artist: project.songInfo.artist || '', updatedAt: project.updatedAt });
                     var raw = JSON.stringify(project), indexRaw = JSON.stringify(list);
                     // Recheck exact raw after preparing both payloads, immediately before any write.
+                    var publish = function () {
                     var latest = readRevision(request.target);
                     if (!latest.ok) return latest;
                     if (latest.revision !== request.baseRevision) return { ok: false, code: latest.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: read(request.target) };
@@ -106,6 +107,8 @@
                     if (!result.ok) { result.current = read(request.target); return result; }
                     notify(request.target, 'same-studio', token);
                     return Object.assign({ ok: true, snapshot: options.snapshot(project), revision: raw }, token);
+                    };
+                    return request.commitCurrent ? request.commitCurrent(publish) : publish();
                 } catch (error) { return { ok: false, error: '保存に失敗しました: ' + error.message }; }
             });
         }

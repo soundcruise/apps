@@ -1,0 +1,1232 @@
+[
+  {
+    "path": "apps/cruise-port/ai-support-client.js",
+    "hunks": [
+      {
+        "uiSha256": "b52fce9799ec173d6b3de18d5ed4c0b20d17e287881926ffc36cdcaf09e2bb5b",
+        "syncSha256": "eaed93193805e54648fd065d9baf95496717dcf110f95ea4f228f5a678835a0d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/ai-support-ui.js",
+    "hunks": [
+      {
+        "uiSha256": "65f61bc8c8393dc51a18746159805d2b34625860716087ad11b134380318cfc8",
+        "syncSha256": "b04671c4a3b0a03b84e511f5dc209a0ffb78670e63178f857df322eb0799d2e2",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/app-version.js",
+    "hunks": [
+      {
+        "uiSha256": "30c27c5f23b11f836642569c66f892da7419a95adfdb8904be58d8b29e9500ea",
+        "syncSha256": "ca6acc4eb9ffcf4bcfffed3345da05637ba6610db09b9d8a53beeeca3eff1fd4",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/app-version.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "fae80b2283fce558df835ba3de46d589da317596d023141a8b01293e6d4db1c7",
+        "syncSha256": "1a873f3258e2b8190b54dd0bd097051b029339451126474680b3d90778600036",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "841e03efd2cd48e1773cda7d156c5bb39702c0e9b5fa20b08e84c58001108316",
+        "syncSha256": "b9d76dfeee7ea8e0e2f7ea0a791525f935d0ae88b958e95221ce8bdcf7c6ee0e",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/cruise-port-capabilities.js",
+    "hunks": [
+      {
+        "uiSha256": "dd5fb6ab0a7863f164793206687f9b8ff568a315511f29c513b470a78c58b490",
+        "syncSha256": "8093ec774cf662be835b6baa621c11bb373328a659305230be1f8c5418b50337",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/docs/LOCAL_ACCOUNT_SYNC.md",
+    "hunks": [
+      {
+        "uiSha256": "0332038204a9fa7c82bf66ef9d44bd52a9669bce7b9a866e14f021538df79138",
+        "syncSha256": "75fb270cb4f05fd9f91db8fbe55c1c099b4963d61fe3350a4fd1c9a7ce3ef03a",
+        "resolution": "preserve both candidate documents"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/gear-category-store.js",
+    "hunks": [
+      {
+        "uiSha256": "9d57b9b8f4d84fc811868001356b2b932c48cca74acab7f80417f4f604630ad5",
+        "syncSha256": "710ef90993931088d29d6a4f03adaea149abcbf7c921bbbf5bfa77af936ea796",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/gear-list-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/gear-photo-store.js",
+    "hunks": [
+      {
+        "uiSha256": "b52fce9799ec173d6b3de18d5ed4c0b20d17e287881926ffc36cdcaf09e2bb5b",
+        "syncSha256": "eaed93193805e54648fd065d9baf95496717dcf110f95ea4f228f5a678835a0d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/gear-photo-workflow.js",
+    "hunks": [
+      {
+        "uiSha256": "b52fce9799ec173d6b3de18d5ed4c0b20d17e287881926ffc36cdcaf09e2bb5b",
+        "syncSha256": "eaed93193805e54648fd065d9baf95496717dcf110f95ea4f228f5a678835a0d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/home-display.js",
+    "hunks": [
+      {
+        "uiSha256": "21a34f795194d3de85921fabc66ef6832379ad90dd4c0f98eaf8573e5d664c31",
+        "syncSha256": "8f6985d3d17021d54c1ea777e4afd985bc43344b210c1254c5476f5faf022300",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/index.html",
+    "hunks": [
+      {
+        "uiSha256": "29493032011594c48a17c83597b09ec6628dc588537ac737b6b4ab11378e38eb",
+        "syncSha256": "7f45a598de5eeaa6a099463ca36e644395844b50c4038f63e0c39d6650c64eea",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/metronome-app.js",
+    "hunks": [
+      {
+        "uiSha256": "28aa06db6311431166cb6d4636972cd7ae1e032d81d12d29007ff8fdb4070751",
+        "syncSha256": "6b3f2ee985e88f8b4de5e2efe4fe584c0f542291aaf10255b30ed7cac078d862",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "173cc47b42e715f645bc25c1bd306cce0d9e4ea3333a1fff035421fabab9e67b",
+        "syncSha256": "b0b507f65714801acb4b5ca6a7f22380796c1c8c94505b43033d306e2b6a9d65",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "1cc4a5825e2485182306693edd489bfd807a466b61a9825e15a00f42fc037b12",
+        "syncSha256": "6077384a801a3b47463a53545c657027c5f1fcd0689f9eec047e49363e7f82c9",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "cd164ad0599d2b0386ed9a4e04d44a68e1db2e5912715619423b97c91cdd0775",
+        "syncSha256": "79491f47e82e03f4ac6b654f51137708b5cc21692d29adf47de2d6b217ee3c35",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/metronome-presets-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "28aa06db6311431166cb6d4636972cd7ae1e032d81d12d29007ff8fdb4070751",
+        "syncSha256": "6b3f2ee985e88f8b4de5e2efe4fe584c0f542291aaf10255b30ed7cac078d862",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/metronome-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/metronome-timing.js",
+    "hunks": [
+      {
+        "uiSha256": "28aa06db6311431166cb6d4636972cd7ae1e032d81d12d29007ff8fdb4070751",
+        "syncSha256": "6b3f2ee985e88f8b4de5e2efe4fe584c0f542291aaf10255b30ed7cac078d862",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/module-cache-keys.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "0c4505e02cbfc77b93a5b8d38c325dee2031be3ccebaad94eb98d2781b1cb430",
+        "syncSha256": "69e5a6af6a05ee22cba3540cc468d3badf6cb75a23210ef7fe9503a72b67843e",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "5e559e382f6cb6474f4642a8c33ca57d2a72b9cedfaa60bc16eada50689258ea",
+        "syncSha256": "56aa5e1611b94d7e8587bd12382efa22799056cdbb2dbc1d56208cfbaa0c6c1c",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/my-apps-capabilities.js",
+    "hunks": [
+      {
+        "uiSha256": "c87d233f65339be4f1de054b8ce6078d55007ce94fcd53450b063163a8554ecb",
+        "syncSha256": "941c22ae6c14036e1a23550d00c03dfe62fa911585de9f5dd697568442c21041",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/my-apps-capabilities.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "7a2b2ea18020aa966d6b9cbd2bda241959ea4340fefc7434735a1a45671ee9b0",
+        "syncSha256": "c7760b815f4662fe472b941f1e51ddc46b3d3c3228ec7c83d56971fd9ae09b80",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/my-apps-icon-store.js",
+    "hunks": [
+      {
+        "uiSha256": "9b3833d2663fcbca5ccb1717aceaef5510ba487f378d08b8b77483bded9d6cb8",
+        "syncSha256": "48b968853802340fa06ba21c248aeced46ff3420975db03cd1cda76927977928",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/my-apps-icon-workflow.js",
+    "hunks": [
+      {
+        "uiSha256": "299ef89d9449c003e3cdd51df442cee02f2e37af06a47611ac3ac90316564ee7",
+        "syncSha256": "c1f6626974061c3bc1f7bb8969ea06770c3b243cbca3f3695cce786d08fba301",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/my-apps-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-account-join.js",
+    "hunks": [
+      {
+        "uiSha256": "b52fce9799ec173d6b3de18d5ed4c0b20d17e287881926ffc36cdcaf09e2bb5b",
+        "syncSha256": "eaed93193805e54648fd065d9baf95496717dcf110f95ea4f228f5a678835a0d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-asset-sync.js",
+    "hunks": [
+      {
+        "uiSha256": "a9c7a68881729f9eb440946172fce3201be5d37ebf812c792aa02c09c0d13cb7",
+        "syncSha256": "36fcb7de631436ac2e0da26e54b88eddf3e88f54513c26a6a22caccb6d801bbf",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-dataset-repository.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "1e30bb85427c1fca1e978004e04337a18a793e4ecca77d9f6253cd9771a2963a",
+        "syncSha256": "a5bf78949c410efb8383f15055967961823678cbc3c4bd7cfdb663f0b7780ed8",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-dataset-storage.js",
+    "hunks": [
+      {
+        "uiSha256": "8a596ba041319a1a2bf4433b6b61b0ad10388c05978ef3e0fae0bfd6445df184",
+        "syncSha256": "698e1e100fcd0360d05ffbb38dc29d94e762e8535d44454263f685b64d435342",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-indexeddb-repository-backend.mjs",
+    "hunks": [
+      {
+        "uiSha256": "981fde2d47c2cacfc6f42f90e1886c1a2c2ce01d51971f9f633d7b998ac84621",
+        "syncSha256": "0b86d7b5ee01034b5a28acd6f04c3587d020f860748cbbac61a41daa178a0b70",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-local-authority.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "d511957e7c31aa898f248e768353d1d56a76ed7dd89a839cbcb3187d1fbca9f2",
+        "syncSha256": "d2022397ece01219a9de19aaa9fecd7fa48244a6306db7c8c0403b8e56990640",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-metronome-authorization.mjs",
+    "hunks": [
+      {
+        "uiSha256": "90939c0a068e77a7ae7ba70ac0f508c39522fe87cfd601d07299e04148e99328",
+        "syncSha256": "ff9495b08d88d1ab3895505ebb85d3e59e6d55685abc98ad4789578d1df2768e",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-sync-adapter.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "syncSha256": "bd13753d93c66e847c099bb469c62c94036d131126ce7487957c20782a4dfbec",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-sync-local-validation.js",
+    "hunks": [
+      {
+        "uiSha256": "2a7d26e654c7b7aaa17b95f6969ff578f2e0392e936c7cde7fed04e026900a0b",
+        "syncSha256": "e91a1d8a09295c4fc71ee883397bd4357a0b299ce60fa26f9af73201b6c1b8b3",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-writer-context.mjs",
+    "hunks": [
+      {
+        "uiSha256": "598ea1fbd00273be39b19a844e151447c9a05f4c8b717364aff6af450f10dac6",
+        "syncSha256": "0907cfd37e2b9759b7a3f0ab6291389f5ba73c55cbda0774dd6f15014c56eecc",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/port-writer-context.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "d92f7496ce884fb6647faadfc502c45f83fd7548b28e65521a851b5e46828419",
+        "syncSha256": "f0e9a2800226c457b03ca29379bf49a310def328038959aed92b1ffe8c645a2d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-capabilities.js",
+    "hunks": [
+      {
+        "uiSha256": "e98984124d8126cb6e50a58ccf8ac72ecebedfed14ba7eef6193a9607134fa2b",
+        "syncSha256": "3a7dd10fc97dc17c5def7022f3aaae3d627b88a952a8f0a3bd97c9e2e029dde2",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-capabilities.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "faa3b08bf819b8ace1304666e226fcc74856cc98701726c9fbfffcb93bab6b97",
+        "syncSha256": "3c0fe56b4b0a112f1557914c474d56f8900c01602550df665f432d6d90ec3c4d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-dataset-writes.js",
+    "hunks": [
+      {
+        "uiSha256": "4fd825d1b9caf8509aa298f2edcf2d125e2e9ec30a92fc63f09d59f6c79c289f",
+        "syncSha256": "41039f47498e6824a46fe32e21897eab95955c41cd592d45e85d6dd866de53d7",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-app-resolver.js",
+    "hunks": [
+      {
+        "uiSha256": "97b68c5c022f56ff5937e7f254dc5416e7af455f59ad555907b91054994a57e9",
+        "syncSha256": "44cf1f02cd2d51dac7921c90545c2d7e586d897708928cf296803d70b5012fba",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-app.js",
+    "hunks": [
+      {
+        "uiSha256": "46e32d1609c90b82b098954144c3262108c37edf5238c5ea234241226469fe00",
+        "syncSha256": "c81140853c37640a326fd3188998f28b1e11aaf16580f47c8136083f591440c6",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "f3f85e1362bcaca8fed6f8847a506b058f85b29589dd1a14735f6a6657c4a12f",
+        "syncSha256": "bdebfec9609dac8887a515a6152a29657729ec9112f9c9d2fa84c6978628bc90",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "d29da037bc856e16d9089bce4f1af677b3b3ef2dff41ab72276b5ae5292b7bdd",
+        "syncSha256": "a06018d6b05295d8906f30f9568f8da415c43f106be8a119dcbc7f5487acaee4",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "f2cb480613708f05729dd7122e973d564912ad5c086618a201506da7a512762e",
+        "syncSha256": "fce70431d63ffb9b0a72a1a7eb6cde8c42c3eeb88c90f3a1264a74c26c01a29e",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "7c08983f1e55bb0149cfbfda95a24f2431117a24ec6c454a0f22274edea0947a",
+        "syncSha256": "1eef524cbe851672d0e8bab7904a0c62175b2bc4aba665934c14e12f10cc2d25",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "5eb327015c02352b759bdb8055bcb1fc08cc583452d912e65332b6fe1a4e7f64",
+        "syncSha256": "1c73d37b7ed0d19cc199d6ac1853cab4617924aedf274f793e0c7aac9d5ed034",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "d446462b1bc03550cc3ce833db95d545975df956c60997fbef52b04f208322cd",
+        "syncSha256": "eb9e48165dc65f57ffdcd269d278576f4ccf878ac51e2fab663a82cb3c666720",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "bf3dd58983ce806bfec8ab65b11de0e69cfeafe1fab9227955d4826e12ac0960",
+        "syncSha256": "3c6b1407860006dafc39db97fa546d62f1188e32877d88c2dfaf98f73c552bcb",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "99cb659a52c4fc5a0e11080655304246c0868b92052c239f5258b6c3ca9f5287",
+        "syncSha256": "49e01380ac9206645fb7c88665ec85519fac7a4446d9f0248592a9d17c9a64ab",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "1cb94bfd7174ee875baee69bee8d29cfc4e4cf5bce276e1874ffdd4eea7aa68f",
+        "syncSha256": "5fbcbed825d4a110944c8aeef206d3f087c3daee823c04efd62826e77a26983f",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "58937c7474b98c2cf71262283863c7b582d969164168f2380d9225bb8d33dd18",
+        "syncSha256": "076c59218ea9a72a78346715fcd088c8b12ac83d648ce31bb544c4e8a5d12f28",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "425084d40fb0409c7326376aef58688aeaf2687e45306a538c1dd6f453675a24",
+        "syncSha256": "87cc0226c34374d7fc1e751a95d82cc8b0b4d9b32fb64e736b344af49bbfac74",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "9e03ef7a56f9daabf87b3871d55885763746dbb6e35147b88f211a19ff7b29db",
+        "syncSha256": "6ab3e6e9f0138d11deb42e68535bc07682e05809a44a588a13133b58e0643f49",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "949d34c6022dbec6321f8b84243814a777c3b3fc62e236cfa7d94569b93156f2",
+        "syncSha256": "0d934625edeb17583625c4106bc9111ae9a4e1ddb9df06a23cf37b0dc0a36916",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "70438c307b5f8137d95b29e8d9949913825342b457ab87f3a4ed80a7d7bda4ca",
+        "syncSha256": "d13e60739786191468f67f34d0b12d8cea50840ca8ec855771a1f2fe49e336c4",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "ff5386fb1a32d02e1de16bf5bb07439099fb072fb09678d6442bf2e1f36fbdeb",
+        "syncSha256": "19d831310b6a2898bd3d6f8398abb6837dfc6d65847d8cddfecb4d207cc8b8f2",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "2227c0c2c7769b3746ba8a9723d3b2dd809666721cbca93982eda107c95424d8",
+        "syncSha256": "a85039b51bb0cddcafeb3f3f059495877f264199feadc37ab3ab316ebc7ee336",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "d7a777dec8b39574b52016f0fced87cd78e96ddd22868a244f2edf9638065c72",
+        "syncSha256": "5d269b2f8575e89f0ac7dbfb8a8a76aba0bce71d36b6be077d92533aa1a28000",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "bf101e7dfc8886fd80aa07cc34a244fc2185ae7f02dbee5c99068894ef996592",
+        "syncSha256": "7b13338ae9bab0524de0edd6ae63f185e587239295194b9ea1f66d58b034055f",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-attachment-store.js",
+    "hunks": [
+      {
+        "uiSha256": "b52fce9799ec173d6b3de18d5ed4c0b20d17e287881926ffc36cdcaf09e2bb5b",
+        "syncSha256": "eaed93193805e54648fd065d9baf95496717dcf110f95ea4f228f5a678835a0d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-calendar-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-history-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-pending-attachments.js",
+    "hunks": [
+      {
+        "uiSha256": "d446462b1bc03550cc3ce833db95d545975df956c60997fbef52b04f208322cd",
+        "syncSha256": "eb9e48165dc65f57ffdcd269d278576f4ccf878ac51e2fab663a82cb3c666720",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-progress-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-sets-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-menu-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/practice-unsaved-edit.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "1e30bb85427c1fca1e978004e04337a18a793e4ecca77d9f6253cd9771a2963a",
+        "syncSha256": "a5bf78949c410efb8383f15055967961823678cbc3c4bd7cfdb663f0b7780ed8",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/pro-app-boot.js",
+    "hunks": [
+      {
+        "uiSha256": "ec5ef9958e8b9fe421c46c8f426588b1f75ae16ab0d4f5ef5e32a9d9ee39122d",
+        "syncSha256": "64ac573b0bd6d82bf1f8dce13fbf5a6ccb3eb10ae60f4c6d3f30c05a7b74455b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "1a0cd9f4695db0ec2f5dec01280cf5359f81a82c2867b892cd85b35d19d250a9",
+        "syncSha256": "0a51069451e17b0e08351ce5ec11548d1e1f4bbee27257ff9693e256938af2cd",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/pro_9a3943176561/index.html",
+    "hunks": [
+      {
+        "uiSha256": "b5e4d29dbfc33a54fb03e6409222b91fe6bb1e6636ef3b8920077ae5d8557e93",
+        "syncSha256": "09743034c4684392eae91b35ba3e42a1799759dfc5683b40071907b52df6dd8b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/settings-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/sync-center-orchestrator.js",
+    "hunks": [
+      {
+        "uiSha256": "c9bbcc303a5de14fae3032afd9aafc705c4b5564c4f64a5c55540d59e125da56",
+        "syncSha256": "9cf8fd1284e53912dcf633f38f659fe672b410af7b507d4f9aa97446c114f7da",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/sync-center-ui.js",
+    "hunks": [
+      {
+        "uiSha256": "b52fce9799ec173d6b3de18d5ed4c0b20d17e287881926ffc36cdcaf09e2bb5b",
+        "syncSha256": "eaed93193805e54648fd065d9baf95496717dcf110f95ea4f228f5a678835a0d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/sync-pro-lock.js",
+    "hunks": [
+      {
+        "uiSha256": "b52fce9799ec173d6b3de18d5ed4c0b20d17e287881926ffc36cdcaf09e2bb5b",
+        "syncSha256": "eaed93193805e54648fd065d9baf95496717dcf110f95ea4f228f5a678835a0d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/tests/account-consumer-fixture.html",
+    "hunks": [
+      {
+        "uiSha256": "9ee520cc9440affc0a5210ace5ea1fa59a06b3e5598371816f040be4ab1fefb0",
+        "syncSha256": "503d247ebae676caf55d9c72d62b7728c221c0fbb5d9921620bb8d4c96a4e3ff",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/tests/idb-repository-backend.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "f9c5962db75e78b3b7550353b83de9eb99494f020a59efa39e4e2e1b56be02c9",
+        "syncSha256": "1175e7b70e0d8eb2b348c35407e328c09dad279ca23d5443482d224df74a77d3",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/tests/local-writer-fence.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "bfa3540fc4e8b56cd166333fd594bd5c98475452ab9d05367816d695ea2dfe23",
+        "syncSha256": "47a922f8de0d0797944332f677e4778a569783403380ab5e92df18e3b3d8d613",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/tests/sync-attribution-native.mjs",
+    "hunks": [
+      {
+        "uiSha256": "ca30903b3378f6af4a29cead3a384d1f7a261a30e0e1f3c4be4f23baa61459a9",
+        "syncSha256": "b62ff66b4ce645457add4a01e6d51ff764cb8644d70cf630538b783aef3d9c2d",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "6668fd3242357fee8bd46f0aac9d437bacced3f18201978fdb26dff3acfa41cd",
+        "syncSha256": "1d3d1d88779576ee983690164fb3c70502d950c45a6fe1dc94e8931a9c63a2d3",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "13a2bd4493838f676fa246a5f08aaf2127b12a78f8cc2fad7c55b77a8c1f5983",
+        "syncSha256": "ad5ba04911410e9ff03aca4b7bbfc927087c86946aad0d7ff9f060384ad44d3e",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/tool-capabilities.js",
+    "hunks": [
+      {
+        "uiSha256": "59b2a7f97e2fb5d0d79186ba0b1ef6bcefbe02c51018d760c140471d8143841d",
+        "syncSha256": "44207c1059e9eae2fd39c7bab20c4a7e20d43e1e7e6dcb875d3eedc362dc9c63",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/tuner-app.js",
+    "hunks": [
+      {
+        "uiSha256": "aeeb9e45c7ac1fc23a4e58ef4d4350e33fd4779559a6862e8a74c483c102a6b4",
+        "syncSha256": "78ed96722b36e3938b746a00ee053895ea0995b7ce41d029f974f7199c917c8b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      },
+      {
+        "uiSha256": "6668de107711df03323e928e1a300f5f9b41c97367e3d39f45070cca16a824ea",
+        "syncSha256": "1dd1008a30cae298e519f019af91406cdd5e019dfe20b333bf8ecb5168fb039f",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-port/tuner-store.js",
+    "hunks": [
+      {
+        "uiSha256": "326a212036504a670626a99defbede6eea385ecddd0d8264c4cfc175b9ed6929",
+        "syncSha256": "faf97d4142c8e8f6c2bbc1638a70e47d3959260960a9f9513fb690b6a261378b",
+        "resolution": "fixed #129 Port implementation/cache/native readiness"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/index.html",
+    "hunks": [
+      {
+        "uiSha256": "6d0fc3a97b7266c8096364d56a71b9b5ad5f8fdc604cfa5824998c499b8087a7",
+        "syncSha256": "2ef0709d7075de59be3cbb9b1463c4d819f096abbf8ad9b6a8913ad40b4605f0",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "c9a67c56b44731f9ee40fc6ca5260c36fe0526c5c647bf88115fde9cae8cc4fb",
+        "syncSha256": "b3991d332d93e4ab228e9cc76b8ca78d28d996427c79fcb7b7f43a9d47427779",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "0f850b231d79f0f4fa17654ec58eefd348fa89fdced26993fff9db72f493badc",
+        "syncSha256": "ade6cccf33e86e20f74abde969fb75d5b0b0b30f79ef7b57710e26cc60029143",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "0c59a6e8f09db03018170d0718bed26357879865aeb49142e27748949ece95b8",
+        "syncSha256": "fb9135b7bcbee3faa17c92ab07fc35b1517dc809ab8e96f76acb973ec8a6b5fa",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "9a504131e9675b5605805854f789175dd6874606c6723a7f1d5e43c64a72f97f",
+        "syncSha256": "6c383a9519704adf683fc80a4cf5917b773c305ce8bd236baddcb71bd5b1843c",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/core/component-metadata.mjs",
+    "hunks": [
+      {
+        "uiSha256": "df8c86126316c6e27dd561cf2bfeb76f84a5c3bb7e9796e84114fa0dfb710f3f",
+        "syncSha256": "4ef68a06fb5c10725634e0bd3ed09c85c106056d0a5770c0e1041ccee07cd537",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "1ba3790baa4a6531a196c49f031807bcc0d203ec05e988b0ddb7cf7f1d81a7a8",
+        "syncSha256": "e39afa3d315955dca542010fd0850fac34425d9066f6caa09914629f7b38f77e",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/core/feature-registry.mjs",
+    "hunks": [
+      {
+        "uiSha256": "524fc12b1b5647f2f7a176dba021f31ff7efe771c1ed038d880279f35645df25",
+        "syncSha256": "3efdbad949df5e8777a28a5e9c03cf1cad30963150d61e4ad2d731bbd0fa0c37",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/core/song-model.js",
+    "hunks": [
+      {
+        "uiSha256": "d517b792a11234854eeea4a2bcf654d812967b48244a76c8e4a5c4792dd34703",
+        "syncSha256": "72ffd54d8bf2934e1e6069852bbea7fead1b5298d1648c12bb7d05ac0c753db0",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/chord/form-panel.mjs",
+    "hunks": [
+      {
+        "uiSha256": "2981d6c5ab4348a621c7ddd713f8ff7b1bd77b2a3f0a2b6b5e94a8060fb630ff",
+        "syncSha256": "245e62ef4d79403c6a19680c2158466aeb76b0be8afba2f55ebd93b85216c3b2",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/library/panel.mjs",
+    "hunks": [
+      {
+        "uiSha256": "4b421bfafcff43943bd873b7441a8af004b8c75d144be35f3191f1c3f0cccbb9",
+        "syncSha256": "82331fe13fd127881e3195f30b98501b20cff7f003714240b6eb23c842cc9fa1",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/port-pro-components.mjs",
+    "hunks": [
+      {
+        "uiSha256": "bbab8796a94940964ee97e824e3a208e771d64a13c1633b31f879f6f14f7ff00",
+        "syncSha256": "0a2962c95382132543137fd0eb6faa410ac8fdfe1f72ac89643e21f659e75e7e",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/rhythm/owner-loader.mjs",
+    "hunks": [
+      {
+        "uiSha256": "f73cee30887444aab026f7a3bf16cee4e9a66ca58c36d4b308d97c2e9d539cce",
+        "syncSha256": "1f72353fe2b70596fe93d13f32a0e7812381deec5609020a362502ab44ef8af3",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/rhythm/panel-controller.mjs",
+    "hunks": [
+      {
+        "uiSha256": "37353f48823aee09ed0bf289ab09046515f4d7f954ecb44460dd3590018326d8",
+        "syncSha256": "d83376dc1d94b7ac03b9de84a88a3db0666ecbf12fff65cff98682f75060045e",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/rhythm/panel.mjs",
+    "hunks": [
+      {
+        "uiSha256": "17b27b9eded344f79b6a126872f4d95fab2d6972a42313955740e24349c416b8",
+        "syncSha256": "b05fd24dc30722ab6f74cf6fa06e7ad9e4ddf5ec06cb6220429868c428bb43b5",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/series/official-links.mjs",
+    "hunks": [
+      {
+        "uiSha256": "2d480022ee8510b2c1ce2b4d0b1b252167393c5a07a529682d83ee50bdb09c11",
+        "syncSha256": "a41dbd36d848a67994577d6e86f194d90cf38c4847f43c21e3c528605e1b79b3",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/tuner/panel.mjs",
+    "hunks": [
+      {
+        "uiSha256": "2b3faf766bfa597ad91535452abf00358745e5757f726cb9040e8267c0c1fb04",
+        "syncSha256": "4185a33968050f4e11c4fc5b0bc70d3611f58edd1e3e348f5e67d66eb3d379dd",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/port-components/tool-document.mjs",
+    "hunks": [
+      {
+        "uiSha256": "bbab8796a94940964ee97e824e3a208e771d64a13c1633b31f879f6f14f7ff00",
+        "syncSha256": "0a2962c95382132543137fd0eb6faa410ac8fdfe1f72ac89643e21f659e75e7e",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/connection.mjs",
+    "hunks": [
+      {
+        "uiSha256": "ab5a5eeaae439aa179cf9509c4402b93139fcbe6bad7c9fdedf635dd0db3684c",
+        "syncSha256": "7d239a10d1a33719d7183617d24c67abca78204c18eb089bd9b1d3980529ac6d",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/host.mjs",
+    "hunks": [
+      {
+        "uiSha256": "a8314adcef7623f33381fe53e8ba8e5a609b3bb327fcb83e35e26808b1a57980",
+        "syncSha256": "e7764447f6c84168f440082be860df919a8108182aacb274d94826c1ac470dd3",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/library-projection.mjs",
+    "hunks": [
+      {
+        "uiSha256": "2b580afa2c3af85732de0234d4554d66844f04c76d3173bfafa6a8e241c23ca2",
+        "syncSha256": "f3d335cbb26c795bd03b08272ee4aae758632baee03594b8c155ceebf10963ae",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/metronome-facade.mjs",
+    "hunks": [
+      {
+        "uiSha256": "5cae445388e46ac4cb797b342f20b23d5da450501db86a5885265473a62a6355",
+        "syncSha256": "d7b2e19d0b5f6cdb1badd4eceea56681535ad53add30bd768947d139f5f109ca",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/panel.mjs",
+    "hunks": [
+      {
+        "uiSha256": "7059b75ab30250747c9ab1b1fd941a98d1acb131c512ef4e6b974fb4774199c4",
+        "syncSha256": "07649129aee7010c8115ec8801bbc6baf78281e2345de681c0b5e0d80523dbd2",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/port-tool.html",
+    "hunks": [
+      {
+        "uiSha256": "bc58beff709016a3f937b9f1a16a58d8bfff3fcd2549eb365045ea15c6ef0a6d",
+        "syncSha256": "08bc2675b75281d72b624e8623479c0805af9eafa454c7a7652b20fd7bf17251",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/active-document.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "410fa27f5cac557daa3f2d803a551ba7657b30b66f75fa4bb67f51ad7eae0149",
+        "syncSha256": "4d842b3efcfd14a9dfc1adf84dcedce51a76a07f708a1250504eb2c21825b3ed",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/chord-form-adapter.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "825f3ab2fa53fa7c4f4ca6ce34118302638e6ed987869ee323b5ecf67630d9e4",
+        "syncSha256": "9d9ab802d9ee3e4ce2d250cafbec7056124d9dbc4899db8632c256164cce9354",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/chord-form-adapter.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "96b2be0778fd25c49ca5d179328249f19fde5af824e5283f479169e9044096a4",
+        "syncSha256": "b344b50bc3e989b2cb5f17f2ab7aa537da7a8c861456233a8d16ee52dead5062",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/chord-form-adoption.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "be309115f23c68726923707ab3de2989bc3cd0ce899611dab9afa5cc2d7a96f6",
+        "syncSha256": "d6707d16a69b1f61db605230e757dd95c7d8f51d9fddb8293a603bd1a050f651",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/chord-form-ui.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "cb01bdfe2693feeed6c8af54ac1bf0920ba368750354c545bd76e3857b211a07",
+        "syncSha256": "2728b44e5e5d67222d99696a16e54ed17b2e866ad50b66b2f291b55f3010341b",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/chord-presentation.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "0f1e746efc23b7f5a7a8faea6a4e10dc6b94690f670e6b57dfbe83e914597db4",
+        "syncSha256": "1cd6d24e94a665aa865d257077aadb51bb72278ceae6ccd994cccf00a4623914",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/color-theme.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "63a4d058ceec6fb95287255b653bea5a5a7ec4b413431d7d1c8ebd40da9dbe07",
+        "syncSha256": "bb52e16d6252785611e834fc9f533ef2cb31686e3dfc50884b3c61382a93df8f",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "66b1ef619ceddcd12aa4c06ad7db86b77a3e0a4226a666450a62d2715c703110",
+        "syncSha256": "384c5378b686f417e3d577117b43bd53a46ffa18105092792d669a34dee84ecd",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/component-version-cache.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "825f3ab2fa53fa7c4f4ca6ce34118302638e6ed987869ee323b5ecf67630d9e4",
+        "syncSha256": "9d9ab802d9ee3e4ce2d250cafbec7056124d9dbc4899db8632c256164cce9354",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "e20936cb8ee032da7b92fc6c1b5ebd09915a3eb03885388625866bc2db4c9f1c",
+        "syncSha256": "bc8ae288abb4bc68ccdeff3f82fb2ff136c84c510eaf7872e0c6334c6ff29b4a",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "92f9db3cd6337d357fb9a95dccc70b1802598c9edebb3210a224938bd98d8ac8",
+        "syncSha256": "5ea7fa546fc791f2a94f9e3e09bab3df0e19b62674e9090f4fb6659a2739779e",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "532e328b65b02692da32299b9f46cba86a426fc74c9c01b99bf2f8d61e52a39d",
+        "syncSha256": "4990626b6a7ffd2ae4b2496673bec5e23e697ea72cdec144e2998ac7f0d29657",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/component-version-cache.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "a2537392dc689e538117bf2fe38d801ee3a70dd8d41ffa6406cb844e8557b6e3",
+        "syncSha256": "d059a663b2ad294cd217ba5b3173cfb4a7fd5c4b935c474c6ec823955ee0e0c3",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/domain-undo-ui.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "4a60127e894e8457570012f9a7ee2ae482a3aeafb3439120d05d61f973c820d3",
+        "syncSha256": "ed2eb7e0fcca60d64d18203ef40330943eaf88a068a71edd0c57e19bc4a8b31a",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/feature-metadata.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "85851a24c796d51a3bb36d03b113292644b4bcad043a9c14e5a6fb5cb8a4e2c9",
+        "syncSha256": "9552ea347c79402d0384fd701154d11ccaa2d36c9450dcd57d38a8db48212e96",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "ace8cb508ac2b1feed07a0b3afc6a81bb53069b8a2b28f1b247a74e0d2c104cf",
+        "syncSha256": "32f07ae192facd8a58576ca84fc90a8c0cfab871a2c277b9536d92bb640d0604",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "0ef84eeb1580375d5cec7f3bb5927b5a1ec20f8118f321542a7405a4aabb68dc",
+        "syncSha256": "8e3ced46ea933a112c1f721fc4c4940f235252f737e55edf3d7715610c68a8fc",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "5c37194b8670744aaf1202e6cdbd8e1f1dca8159a703f38256d44bd469d6ee83",
+        "syncSha256": "3a77905ab03ea35e0594a194cb0018c86db59012b40ebe581d2264c149425cbf",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/library.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "f2e8935da11fb36ab9bde3ecb04799350e947749b824b8c605eb0317fc83ef5a",
+        "syncSha256": "7e0eac88c85d1e2cb4c6deeb7bdf1100ed41d3c151ca7489468f5060319c2a26",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "ee5a90f0d9f148905a1657e2bf7c55408cc6ffd38e856e9e7be845a598e7d8ac",
+        "syncSha256": "a035b74075c4311e45d900f6a10885a3dc8c9b4d9181606681019058412933cd",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/melody-staff.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "ab52d9fec91f223ce22d52e156b4e790e565b1d1479696114d1c07eca2bb69f1",
+        "syncSha256": "0f890fac0ca997fd36d2a08a3eae44cd580110225d387c7768e8a8282229ab3d",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/metronome-presentation.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "727b324b7fe11db7bd74d98f8eb765da44252964b35b884d57169c9776e1fd52",
+        "syncSha256": "7b64189173ee38e1a1473a3fa06e4fac77f19547b83a7af42f426166a23ce9d5",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/pc-shell-layout.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "bb846145102eb26552c94c56cc0861b040db49a36628c0e3100f076a979d2fd9",
+        "syncSha256": "f8e562b613064c8a6546269f42d7bda117a24519f00738c26d6bb28ccf0eab83",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/practice-presentation.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "c5d438f6e1ba65c10ef535fc7f875dcadd88cbccc59f5ad4e08c68845a4d5807",
+        "syncSha256": "faf309e14a42f85f4019862360b3f0b69ab70dc39ddb59ed93050f599ae8351d",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/project-save-budget.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "5a566b98fc179741c3964f224d5e22a61ce786e07056a413bf42f3ea27e24a22",
+        "syncSha256": "06b427c02dc3fa01a564063f9ee6673b03f10ec70cf6bd4cb5e671e48c46e0ce",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/review-ui.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "1e89692b0ec7fbacaa7b2b87e0ddee31647f1864b47060617340c1878ad166e4",
+        "syncSha256": "05d380e60045e1bee015ca28d7cb1cb8eec5574c845a0b735f1d74d7c35abbfe",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/rhythm-official-adapter.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "0deaa76af736e7e3f4d78dfe27cc1253edca181459e196eb1f7b947ab7c682dd",
+        "syncSha256": "902216ded5c6826b198b8b007b26932b0541cb99e666fd6d7750c4f846f5800f",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/schema2.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "108387f6bc5ba0ec99ff557afa72bd4927912deb8190dcf14dc012926f8814ef",
+        "syncSha256": "fa5042c8e64c29fe6759da8bcbba68646f8287ba35e97883eed6e3ccaad55676",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/structure-conversion.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "2c5f982543b8c63b04e643097ecba8045b510a2a6f93fa8aebb2e3548001dc9f",
+        "syncSha256": "e61e055f667956c34611f65d82d630ca300dc777ca9326ef35785fde3975c4a0",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/structure-operation.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "f11707f4eb234aa855613352a8498ee402981c1106daa297f3873a47562895ec",
+        "syncSha256": "f1bf9568de8d440ce40605d0e4f213306ad8f92512d9c689f334ffcf3ae5262f",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/cruise-studio/tests/workspace-focus.browser.cjs",
+    "hunks": [
+      {
+        "uiSha256": "b88343be720bbca27c5292ea20675a6d6d3d246eca170f38a2f331cba3e62443",
+        "syncSha256": "0276afffe371dbcf169debf71b5f52f512aa7a621d7e185eb6f7ea731dc58027",
+        "resolution": "current UI/version"
+      }
+    ]
+  },
+  {
+    "path": "apps/shared/sync-account/multi-app-sync-runtime.test.mjs",
+    "hunks": [
+      {
+        "uiSha256": "d08ba7c8a394ef81f6cd39d660c1071e67016d5b9560367210f8acb3f1d4e882",
+        "syncSha256": "f775e8b828685769cf1852252e04823351672fc3f1e7aecb47298b62b965c6a8",
+        "resolution": "current UI/version"
+      },
+      {
+        "uiSha256": "97bd47f68bdcacfad601c665e70746da86d206363be3d81e0746854d8718207a",
+        "syncSha256": "e2cd7b1ece6132c3dc748f74fe2950b4fa876c0bb226b6cb72cfd03dc57bcb15",
+        "resolution": "current UI/version"
+      }
+    ]
+  }
+]

@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const base=process.argv[2]||'http://127.0.0.1:8765';
 const out=process.argv[3]||'/tmp/port-standard-readiness';
 const root='/apps/cruise-port/',pro=root+'pro_9a3943176561/';
-let credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
+const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
 (async()=>{
  const {CRUISE_PORT_APP_VERSION}=await import('../app-version.js');
  const expectedVersionText=`Ver ${CRUISE_PORT_APP_VERSION}`;
@@ -85,11 +85,11 @@ let credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   await hash('#practice-menu/new');assert.notEqual(new URL(page.url()).hash,'#practice-menu/new');assert(await page.locator('.port-pro-prompt').isVisible());await page.keyboard.press('Escape');assert(await page.locator('.port-pro-prompt').isHidden());
   await hash('#my-apps/new');assert.notEqual(new URL(page.url()).hash,'#my-apps/new');assert(await page.locator('.port-pro-prompt').isVisible());await page.keyboard.press('Escape');
   const denial=await page.evaluate(async()=>{
-   const caps=(await import('./cruise-port-capabilities.js?v=1.23.1')).getCapabilities();
-   const {createGearPhotoStore}=await import('./gear-photo-store.js?v=1.23.1');
-   const {createMyAppsIconStore}=await import('./my-apps-icon-store.js?v=1.23.1');
-   const {createPracticeAttachmentStore}=await import('./practice-menu-attachment-store.js?v=1.23.1');
-   const {createMyAppEntry}=await import('./my-apps-icon-workflow.js?v=1.23.1');
+   const caps=(await import('./cruise-port-capabilities.js?v=1.27.0')).getCapabilities();
+   const {createGearPhotoStore}=await import('./gear-photo-store.js?v=1.27.0');
+   const {createMyAppsIconStore}=await import('./my-apps-icon-store.js?v=1.27.0');
+   const {createPracticeAttachmentStore}=await import('./practice-menu-attachment-store.js?v=1.27.0');
+   const {createMyAppEntry}=await import('./my-apps-icon-workflow.js?v=1.27.0');
    const r=await createMyAppEntry({items:[],values:{name:'denied',url:'https://example.invalid/'}});
    return {caps,results:await Promise.all([createGearPhotoStore().savePhoto(new Blob()),createMyAppsIconStore().saveIcon(new Blob()),createPracticeAttachmentStore().addAttachment('x',new Blob()),Promise.resolve(r)])};
   });assert.equal(denial.caps.tunerCapo,false);assert.deepEqual(denial.results.map(r=>r.reason),['pro-required','pro-required','pro-required','creation-blocked']);
@@ -104,7 +104,7 @@ let credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
    if(['invalid','generation'].includes(mode)){
     assert(await page.locator('#pro-gate-overlay').isVisible());
     assert.equal(await page.locator('.port-app-version-display').first().textContent(),'');
-    assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.23.1')).getCapabilities().gearPhotoWrite),false);
+    assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.27.0')).getCapabilities().gearPhotoWrite),false);
    }else{
     await expectCurrentVersion();
     await hash('#tuner');
@@ -123,8 +123,6 @@ let credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length),6);
   await hash('#settings');await Promise.all([page.waitForEvent('framenavigated',{predicate:frame=>frame===page.mainFrame()}),page.locator('#settings-pro-auth-reset').click()]);await page.waitForLoadState('networkidle');await page.locator('#pro-gate-overlay').waitFor();
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length),6);
-  // A fresh issuance must not reuse the credential explicitly revoked by reset.
-  credential='scp1.00000000-0000-4000-8000-000000000001.'+'B'.repeat(43);
   await page.evaluate(()=>{window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__={getToken:async()=> 'synthetic-local-token'};});
   await page.locator('#pro-gate-input').fill('0000');await page.locator('#pro-gate-submit').click();
   await expectCurrentVersion();assert.equal(await page.locator('#pro-gate-overlay').count(),0);

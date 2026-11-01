@@ -2,11 +2,11 @@
 import {controlReadiness} from './port-authority-control.mjs';
 import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.23.1';
 import { openIDBAuthorityStore } from './port-indexeddb-authority-store.mjs';
-import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.23.1';
+import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.27.0';
 import { frozen, fail, identifier, validateDataset } from './port-idb-authority-contract.mjs';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.23.1';
-import { loadMetronomeSettings } from './metronome-store.js?v=1.23.1';
-import { loadTunerSettings } from './tuner-store.js?v=1.23.1';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.27.0';
+import { loadMetronomeSettings } from './metronome-store.js?v=1.27.0';
+import { loadTunerSettings } from './tuner-store.js?v=1.27.0';
 const rejected = e => ({ ok: false, status: 'rejected', reason: e.code || 'read-failed' });
 function validateDomainValues(values) {
     validateDataset(values);
@@ -100,11 +100,11 @@ export async function openIsolatedIDBRepositoryBackend({ scope, generation, toke
         prepared.get(handle).writerResult = result;
         return handle;
     }
-    async function commitPreparedWrite(opaque, { commitGuard } = {}, notify = () => {}) {
+    async function commitPreparedWrite(opaque, { commitGuard, ownerCommitGuard } = {}, notify = () => {}) {
         if (opaque?.rejected) return opaque.rejected;
         const p = prepared.get(opaque);
         if (!p) return rejected(fail('prepared-handle-invalid'));
-        const fact = await store.commit(p.handle, { commitGuard });
+        const fact = await store.commit(p.handle, { commitGuard, ownerCommitGuard });
         if (!fact.ok) {
             await hydrate().catch(() => {});
             return fact;

@@ -20,8 +20,8 @@ function storage(values = {}) {
   };
 }
 
-function load(targetStorage) {
-  const context = { crypto: webcrypto, TextEncoder, structuredClone, URL, localStorage: targetStorage };
+function load(targetStorage, locks) {
+  const context = { crypto: webcrypto, TextEncoder, structuredClone, URL, localStorage: targetStorage, navigator: { locks } };
   context.globalThis = context;
   vm.runInNewContext(source, context);
   return context.SoundCruisePortSync;
@@ -725,4 +725,111 @@ test('Port adapter round-trips every structured record family and preserves orde
   assert.deepEqual(JSON.parse(empty.value('cruisePort.gearCategories')).categories.map((item) => item.id), ['category-b', 'category-a']);
   assert.deepEqual(JSON.parse(empty.value('cruisePort.myApps')).items.map((item) => item.id), ['app-b', 'app-a']);
   assert.equal(JSON.parse(empty.value('cruisePort.practiceTimer')).sessionId, 'local');
+});
+
+const AFFINITY_KEY = 'cruisePort.syncLocalAccount.v1';
+function affinityLocks() {
+  let tail = Promise.resolve();
+  return { request(name, options, work) {
+    assert.equal(name, 'sound-cruise:port:dataset:v1');
+    assert.equal(options.mode, 'exclusive');
+    const next = tail.then(work); tail = next.catch(() => {}); return next;
+  } };
+}
+test('confirmed local affinity resumes the same Account without syncing the marker', async () => {
+  const local = storage({[AFFINITY_KEY]:JSON.stringify({version:1,accountId:'A'})}), api = load(local, affinityLocks());
+  const adapter = new api.PortSyncAdapter({storage:local});
+  await adapter.ensureLocalAccount('A', () => {});
+  assert.equal(JSON.parse(local.getItem(AFFINITY_KEY)).accountId, 'A');
+  assert.equal(api.MANAGED_KEYS.includes(AFFINITY_KEY), false);
+  assert.equal(JSON.stringify(adapter.readLocalSnapshot()).includes('syncLocalAccount'), false);
+});
+test('A local data and unknown legacy data cannot be claimed by B', async () => {
+  for (const marker of [null, JSON.stringify({version:1,accountId:'A'}), '{bad', JSON.stringify({version:2,accountId:'B'})]) {
+    const values = {'cruisePort.gearList':JSON.stringify({version:5,items:[]})};
+    if(marker!==null) values[AFFINITY_KEY]=marker;
+    const local=storage(values), api=load(local,affinityLocks()), adapter=new api.PortSyncAdapter({storage:local});
+    await assert.rejects(adapter.ensureLocalAccount('B',()=>{}), marker === null || marker.includes('accountId\":\"A') ? /port_local_account_unconfirmed/ : /port_local_account_invalid/);
+    assert.equal(local.getItem('cruisePort.gearList'), values['cruisePort.gearList']);
+    assert.equal(local.getItem(AFFINITY_KEY),marker);
+  }
+});
+test('asset-only and deletion-intent-only legacy state remains unclaimed', async () => {
+  for(const key of ['cruisePort.syncAssetMetadata','cruisePort.syncDeletionIntent.v1']) {
+    const local=storage({[key]:'{}'}), api=load(local,affinityLocks());
+    await assert.rejects(new api.PortSyncAdapter({storage:local}).ensureLocalAccount('B',()=>{}), /port_local_account_unconfirmed/);
+    assert.equal(local.getItem(key),'{}'); assert.equal(local.getItem(AFFINITY_KEY),null);
+  }
+});
+test('apparently empty storage is not automatically claimed, including concurrent Accounts', async () => {
+  const local=storage(), api=load(local,affinityLocks());
+  const results=await Promise.allSettled(['A','B'].map(id=>new api.PortSyncAdapter({storage:local}).ensureLocalAccount(id,()=>{})));
+  assert.deepEqual(results.map(r=>r.status),['rejected','rejected']);
+  assert.equal(local.getItem(AFFINITY_KEY),null);
+});
+test('generation change while waiting for claim and absent Web Locks never bind', async () => {
+  for(const locks of [undefined,affinityLocks()]) {
+    const local=storage(), api=load(local,locks);
+    await assert.rejects(new api.PortSyncAdapter({storage:local}).ensureLocalAccount('B',()=>{throw Error('account_generation_changed');}));
+    assert.equal(local.getItem(AFFINITY_KEY),null);
+  }
+});
+test('anonymous/offline local storage stays writable without claiming a Cloud Account', () => {
+  const local=storage(), api=load(local);
+  local.setItem('cruisePort.gearList',JSON.stringify({version:5,items:[]}));
+  assert.equal(new api.PortSyncAdapter({storage:local}).readLocalSnapshot().schemaVersion,1);
+  assert.equal(local.getItem(AFFINITY_KEY),null);
+});
+
+test('explicit current adoption binds all local data without changing records, binaries or other app keys', async () => {
+  const original=JSON.stringify({version:5,items:[]}), local=storage({'cruisePort.gearList':original,'project-outbox':'UNKNOWN'});
+  const api=load(local,affinityLocks()), adapter=new api.PortSyncAdapter({storage:local});
+  const observed=await adapter.inspectLocalAccount();
+  await assert.rejects(adapter.chooseLocalAccount({accountId:'A',choice:'current',snapshotId:observed.snapshotId},()=>{}), /confirmation_required/);
+  await adapter.chooseLocalAccount({accountId:'A',choice:'current',snapshotId:observed.snapshotId,confirmed:true},()=>{});
+  adapter.assertLocalAccount('A');
+  assert.equal(local.getItem('cruisePort.gearList'),original);assert.equal(local.getItem('project-outbox'),'UNKNOWN');
+  const next=await adapter.inspectLocalAccount();
+  await assert.rejects(adapter.chooseLocalAccount({accountId:'B',choice:'current',snapshotId:next.snapshotId,confirmed:true},()=>{}), /account_mismatch/);
+  assert.throws(()=>adapter.assertLocalAccount('B'), /account_unconfirmed/);
+});
+test('previous/device choices retain unknown or known owner and never delete payloads', async () => {
+  for(const choice of ['previous','device']) {
+    const local=storage({'cruisePort.syncAssetMetadata':'asset-queue'}),api=load(local,affinityLocks()),adapter=new api.PortSyncAdapter({storage:local});
+    let observed=await adapter.inspectLocalAccount();
+    await adapter.chooseLocalAccount({accountId:'B',choice,snapshotId:observed.snapshotId},()=>{});
+    assert.throws(()=>adapter.assertLocalAccount('B'),/port_local_only/);
+    assert.equal(local.getItem('cruisePort.syncAssetMetadata'),'asset-queue');
+    assert.equal(JSON.parse(local.getItem(AFFINITY_KEY)).accountId,null);
+    observed=await adapter.inspectLocalAccount();
+    await adapter.chooseLocalAccount({accountId:'A',choice:'current',snapshotId:observed.snapshotId,confirmed:true},()=>{});
+    observed=await adapter.inspectLocalAccount();
+    await adapter.chooseLocalAccount({accountId:'B',choice,snapshotId:observed.snapshotId},()=>{});
+    assert.equal(JSON.parse(local.getItem(AFFINITY_KEY)).accountId,'A');
+  }
+});
+test('stale two-tab confirmation and local edit during confirmation cannot rebind', async () => {
+  const local=storage(),api=load(local,affinityLocks()),a=new api.PortSyncAdapter({storage:local}),b=new api.PortSyncAdapter({storage:local});
+  const observed=await a.inspectLocalAccount();
+  await a.chooseLocalAccount({accountId:'A',choice:'current',snapshotId:observed.snapshotId,confirmed:true},()=>{});
+  await assert.rejects(b.chooseLocalAccount({accountId:'B',choice:'current',snapshotId:observed.snapshotId,confirmed:true},()=>{}), /account_changed/);
+  const fresh=await a.inspectLocalAccount();local.setItem('cruisePort.syncDeletionIntent.v1','{}');
+  await assert.rejects(a.chooseLocalAccount({accountId:'A',choice:'device',snapshotId:fresh.snapshotId},()=>{}), /account_changed/);
+});
+test('Account switch during asynchronous confirmation leaves attribution and data untouched', async () => {
+  const local=storage(),api=load(local,affinityLocks()),a=new api.PortSyncAdapter({storage:local});const observed=await a.inspectLocalAccount();
+  await assert.rejects(a.chooseLocalAccount({accountId:'A',choice:'current',snapshotId:observed.snapshotId,confirmed:true},()=>{throw Error('account_generation_changed');}), /account_generation_changed/);
+  assert.equal(local.getItem(AFFINITY_KEY),null);
+});
+test('remote crop without hydrated bytes stays in Cloud metadata, not invalid local references',async()=>{
+ const target=storage(),api=load(target),asset={...pairAsset('cloud-final','cloud-source'),crop:{x:0.1,y:0.2,size:0.5}};
+ await api.applyRemoteSnapshot(target,fixtureFullSnapshot({schemaVersion:1,records:[remoteRecord('gear_item','crop-gear',{item:{id:'crop-gear',name:'Remote crop',status:'owned',order:0},asset})]}));
+ const item=JSON.parse(target.value('cruisePort.gearList')).items[0],meta=JSON.parse(target.value('cruisePort.syncAssetMetadata'));
+ assert.equal(item.photoId,null);assert.equal(item.photoSourceId,null);assert.equal(item.photoCrop,null);assert.deepEqual(meta.gear['crop-gear'].published.crop,asset.crop);
+});
+test('pending local photo preserves its own crop while remote metadata advances',async()=>{
+ const crop={x:0.3,y:0.4,size:0.6},target=storage({'cruisePort.gearList':JSON.stringify({version:5,items:[{id:'pending-gear',name:'Pending',status:'owned',order:0,photoId:'local-final',photoSourceId:'local-source',photoCrop:crop}]}),'cruisePort.syncAssetMetadata':JSON.stringify({version:4,gear:{'pending-gear':{pending:{operationId:'pending'}}},myApps:{},attachments:{},releaseQueue:[],discardQueue:[]})});
+ const asset={...pairAsset('remote-final','remote-source'),crop:{x:0,y:0,size:1}};
+ await load(target).applyRemoteSnapshot(target,fixtureFullSnapshot({schemaVersion:1,records:[remoteRecord('gear_item','pending-gear',{item:{id:'pending-gear',name:'Remote',status:'owned',order:0},asset})]}));
+ const item=JSON.parse(target.value('cruisePort.gearList')).items[0];assert.equal(item.photoId,'local-final');assert.equal(item.photoSourceId,'local-source');assert.deepEqual(item.photoCrop,crop);
 });

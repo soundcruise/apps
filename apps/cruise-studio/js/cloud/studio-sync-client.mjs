@@ -1,5 +1,6 @@
+import { registerStudioPortContext } from '../../../cruise-port/port-writer-context.mjs?v=1.27.0';
 import {createStudioTransport,isStudioTransport} from './studio-transport.mjs';
-/* Isolated Client v1. Not imported by normal Studio boot. Project remains localStorage-owned. */
+/* Opt-in Client v1; default boot stays disconnected. Project remains localStorage-owned. */
 import {studioCanonical as canonical,studioDigest as digest,studioDocumentUpload} from './document-codec.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const fail=code=>{throw Object.assign(new Error(code),{code});};
@@ -21,16 +22,18 @@ function createOutbox(indexedDB,name){
  return{read,write,keys,async close(){if(opened)(await opened).close();opened=null;}};
 }
 
-export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl=globalThis.fetch,indexedDB=globalThis.indexedDB,locks=globalThis.navigator?.locks,repository,model,readSession,databaseName='cruiseStudio.isolatedCloud.v1',timeoutMs=15000,uploadBatchSize=4,transport=null}={}){
+export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl=globalThis.fetch,indexedDB=globalThis.indexedDB,locks=globalThis.navigator?.locks,repository,model,readSession,assertSessionCurrent=async()=>{},commitSessionCurrent=(_c,publish)=>publish(),databaseName='cruiseStudio.isolatedCloud.v1',timeoutMs=15000,uploadBatchSize=4,transport=null}={}){
  if(!repository?.read||!repository?.save||typeof model?.validateProject!=='function'||typeof readSession!=='function')fail('client-dependencies');
  transport ||= createStudioTransport({endpoint:endpoint||'https://disabled.invalid/isolated/studio/document',fetchImpl});if(!isStudioTransport(transport))fail('untrusted-transport');fetchImpl=transport.fetch;const url=new URL(transport.endpoint);
  if(!Number.isSafeInteger(uploadBatchSize)||uploadBatchSize<1||uploadBatchSize>4)fail('upload-batch-config');
  if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>60000)fail('timeout-config');
+ if(enabled===true && globalThis.document)registerStudioPortContext();
  const box=createOutbox(indexedDB,databaseName);
  let disposed=false;
  function session(){if(enabled!==true||disposed)fail('client-off');const s=readSession();if(!s||typeof s.then==='function'||!validBinding(s.binding)||typeof s.sessionId!=='string'||!s.sessionId||typeof s.credential!=='string'||typeof s.proCredential!=='string'||!Number.isFinite(s.validUntil)||s.validUntil<=Date.now())fail('session-required');return{...s,binding:clone(s.binding),token:canonical({binding:s.binding,sessionId:s.sessionId,credential:s.credential,proCredential:s.proCredential})};}
  function current(c){try{return session().token===c.token;}catch{return false;}}
  const assertCurrent=c=>{if(!current(c))fail('session-changed');};
+ async function capture(){const c=session();await assertSessionCurrent(c);assertCurrent(c);return c;}
  const target=id=>({type:'project',projectId:id});
  function local(id){const r=repository.read(target(id));if(!r.ok)fail('local-read');return r;}
  function validate(p,id){if(p?.schemaVersion!==2||p.projectId!==id||model.validateProject(p)?.ok!==true)fail('project-invalid');}
@@ -41,7 +44,7 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
  async function op(c,id){if(!UUID.test(id))fail('operation-id');const o=await box.read(opKey(id));if(!o||o.binding.accountId!==c.binding.accountId)fail('operation-owner');await verify(o);return o;}
  async function verify(o){if(!validBinding(o.binding)||o.request.operationId!==o.operationId||o.request.documentId!==o.documentId||o.requestDigest!==await digest(canonical({binding:o.binding,...o.request})))fail('operation-corrupt');const m=o.request.manifest;if(o.parts.length!==m.chunks.length)fail('operation-corrupt');for(let i=0;i<o.parts.length;i++){if(new TextEncoder().encode(o.parts[i]).length!==m.chunks[i].bytes||await digest(o.parts[i])!==m.chunks[i].digest)fail('operation-corrupt');}if(await digest(o.parts.join(''))!==m.digest)fail('operation-corrupt');}
  async function update(o,patch){return box.write(opKey(o.operationId),{...o,...patch},o.version);}
- async function call(c,kind,payload){assertCurrent(c);const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);try{const response=await fetchImpl(url.href,{method:'POST',credentials:'omit',redirect:'error',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.credential,'X-Sound-Cruise-Pro-Authorization':'Bearer '+c.proCredential},body:JSON.stringify({kind,payload})});assertCurrent(c);const body=await response.json();assertCurrent(c);if(response.status!==200)throw Object.assign(Error(body.code||'owner-hold'),{code:body.code||'owner-hold',ownerHold:true});return body;}finally{clearTimeout(timer);}}
+ async function call(c,kind,payload){await assertSessionCurrent(c);assertCurrent(c);const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);try{const response=await fetchImpl(url.href,{method:'POST',credentials:'omit',redirect:'error',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.credential,'X-Sound-Cruise-Pro-Authorization':'Bearer '+c.proCredential},body:JSON.stringify({kind,payload})});await assertSessionCurrent(c);assertCurrent(c);const body=await response.json();await assertSessionCurrent(c);assertCurrent(c);if(response.status!==200)throw Object.assign(Error(body.code||'owner-hold'),{code:body.code||'owner-hold',ownerHold:true});return body;}finally{clearTimeout(timer);}}
  function receipt(o,r){const expected={type:'studio-document-commit-v1',accountId:o.binding.accountId,deviceId:o.binding.deviceId,epoch:o.binding.epoch,generation:o.binding.generation,documentId:o.documentId,operationId:o.operationId,requestDigest:o.requestDigest,documentDigest:o.request.manifest.digest,revision:o.request.expectedRevision+1,deleted:o.request.manifest.deleted};const copy=clone(r);delete copy.historical;delete copy.authorizesNewOperation;if(canonical(copy)!==canonical(expected)||r.historical!==true||r.authorizesNewOperation!==false)fail('receipt-mismatch');return expected;}
  async function linkAfterCommit(c,o,r){
   const head=await call(c,'snapshot',{documentId:o.documentId});assertCurrent(c);
@@ -59,8 +62,8 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   const latest=await box.read(opKey(o.operationId));if(latest&&latest.version===o.version)await update(o,{state,error:typeof error.code==='string'?error.code:'transport-unknown'});
   throw Object.assign(Error(error.code||'transport-unknown'),{code:error.code||'transport-unknown',operationId:o.operationId,state});
  }
- async function enqueue(documentId,{deleted=false}={}){const c=session();return lock(documentId,async()=>{
-  assertCurrent(c);await bindAffinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(l?.intent)fail('local-apply-unknown');if(l?.deleted)fail('document-deleted');
+ async function enqueue(documentId,{deleted=false}={}){const c=await capture();return lock(documentId,async()=>{
+  await assertSessionCurrent(c);assertCurrent(c);await bindAffinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(l?.intent)fail('local-apply-unknown');if(l?.deleted)fail('document-deleted');
   if(l?.active){const prior=await op(c,l.active);if(!terminal.has(prior.state))fail('operation-unresolved');}
   const here=local(documentId);if(!here.exists)fail('local-missing');validate(here.snapshot,documentId);const operationId=operationIdFor(c.binding),cloudRevision=l?.cloudRevision??0;
   const u=deleted?{request:{operationId,documentId,expectedRevision:cloudRevision,manifest:{digest:await digest(''),bytes:0,chunks:[],deleted:true}},parts:[]}:await studioDocumentUpload(here.snapshot,cloudRevision,operationId);
@@ -68,8 +71,8 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   // If the next write fails, the sealed operation still exists, but is not sent. Explicit recoverIndex can attach it.
   try{await box.write(linkKey(c,documentId),{...(l||{}),accountId:c.binding.accountId,documentId,cloudRevision,active:operationId},l?.version??0);}catch(e){throw Object.assign(e,{operationId,state:'INDEX_UNCONFIRMED'});}return clone(o);
  });}
- async function send(operationId){const c=session(),initial=await op(c,operationId);return lock(initial.documentId,async()=>{
-  let o=await op(c,operationId);assertCurrent(c);await affinity(c,o.documentId);const l=await box.read(linkKey(c,o.documentId));if(l?.active!==operationId)fail('operation-index-unconfirmed');
+ async function send(operationId){const c=await capture(),initial=await op(c,operationId);return lock(initial.documentId,async()=>{
+  await assertSessionCurrent(c);assertCurrent(c);let o=await op(c,operationId);assertCurrent(c);await affinity(c,o.documentId);const l=await box.read(linkKey(c,o.documentId));if(l?.active!==operationId)fail('operation-index-unconfirmed');
   if(canonical(o.binding)!==canonical(c.binding)||o.sessionId!==c.sessionId)fail('pending-recovery-required');if(!['QUEUED','UPLOADING'].includes(o.state))fail('explicit-reconcile-required');
   try{
    o=await update(o,{state:'UPLOADING',phase:'enroll'});await call(c,'enroll',{});
@@ -87,8 +90,8 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
    receipt(o,r);o=await update(o,{state:'RECEIPTED',receipt:r,phase:'readback'});return await linkAfterCommit(c,o,r);
   }catch(e){return uncertain(c,o,e);}
  });}
- async function reconcile(operationId){const c=session(),first=await op(c,operationId);if(first.discardRequest)return discardConflict(operationId,{confirm:true});return lock(first.documentId,async()=>{
-  let o=await op(c,operationId);assertCurrent(c);try{
+ async function reconcile(operationId){const c=await capture(),first=await op(c,operationId);if(first.discardRequest)return discardConflict(operationId,{confirm:true});return lock(first.documentId,async()=>{
+  await assertSessionCurrent(c);assertCurrent(c);let o=await op(c,operationId);assertCurrent(c);try{
    const r=await call(c,'reconcile',{operationId,requestDigest:o.requestDigest});
    if(r.status==='absent'){if(r.requestDigest!==o.requestDigest||r.operationId!==o.operationId||r.accountId!==c.binding.accountId||!['enroll','begin','queued'].includes(o.phase)||canonical(o.binding)!==canonical(c.binding)||o.sessionId!==c.sessionId)fail('missing-pending-unknown');return update(o,{state:'QUEUED',phase:'queued'});}
    if(r.status==='history-retired'){if(r.operationId!==o.operationId||r.authorizesNewOperation!==false)fail('retired-mismatch');return update(o,{state:'HISTORY_RETIRED',previousOutcome:'UNPROVEN',localPreserved:true});}
@@ -98,7 +101,7 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   }catch(e){return uncertain(c,o,e);}
  });}
 
- async function adoptOperation(sourceId,{proofOperationId=null}={}){const c=session(),first=await op(c,sourceId);if(first.discardRequest)fail('discard-result-unresolved');return lock(first.documentId,async()=>{
+ async function adoptOperation(sourceId,{proofOperationId=null}={}){const c=await capture(),first=await op(c,sourceId);if(first.discardRequest)fail('discard-result-unresolved');return lock(first.documentId,async()=>{
   let old=await op(c,sourceId);assertCurrent(c);await affinity(c,old.documentId);const link=await box.read(linkKey(c,old.documentId));if(link?.intent||link?.active&&link.active!==sourceId&&link.active!==old.adoptionRequest?.operationId&&!terminal.has((await op(c,link.active)).state))fail('adoption-active-conflict');
   const input=old.adoptionRequest||{operationId:operationIdFor(c.binding),sourceOperationId:sourceId,sourceDigest:old.requestDigest,documentId:old.documentId,proofOperationId};
   if(old.adoptionBinding&&canonical(old.adoptionBinding)!==canonical(c.binding))fail('adoption-generation-changed');if(input.proofOperationId!==proofOperationId)fail('adoption-proof-changed');
@@ -113,36 +116,36 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   }catch(e){throw Object.assign(Error(e.code||'adoption-unknown'),{code:e.code||'adoption-unknown',operationId:input.operationId,sourceOperationId:sourceId,state:'ADOPTION_UNKNOWN'});}
  });}
 
- async function recoverAdoption(sourceId){const c=session(),first=await op(c,sourceId);return lock(first.documentId,async()=>{let old=await op(c,sourceId);if(!old.adoptionRequest)fail('no-adoption-intent');const r=await call(c,'adoption-history',{operationId:old.adoptionRequest.operationId}),a=r.receipt;
+ async function recoverAdoption(sourceId){const c=await capture(),first=await op(c,sourceId);return lock(first.documentId,async()=>{let old=await op(c,sourceId);if(!old.adoptionRequest)fail('no-adoption-intent');const r=await call(c,'adoption-history',{operationId:old.adoptionRequest.operationId}),a=r.receipt;
   if(r.status!=='historical-adoption'||r.authorizesNewOperation!==false||a?.historical!==true||a.type!=='studio-pending-adoption-v1'||a.accountId!==c.binding.accountId||a.operationId!==old.adoptionRequest.operationId||a.sourceOperationId!==sourceId||a.sourceDigest!==old.requestDigest||a.proofOperationId!==old.adoptionRequest.proofOperationId||a.documentId!==old.documentId||!validBinding(a.binding)||a.binding.accountId!==c.binding.accountId||canonical(a.request)!==canonical({...old.request,operationId:a.operationId})||a.requestDigest!==await digest(canonical({binding:a.binding,...a.request})))fail('adoption-history-mismatch');
   const link=await box.read(linkKey(c,old.documentId));if(link?.intent||link?.active&&![sourceId,a.operationId].includes(link.active)&&!terminal.has((await op(c,link.active)).state))fail('adoption-active-conflict');
   let next=await box.read(opKey(a.operationId));if(!next)next=await box.write(opKey(a.operationId),{...old,operationId:a.operationId,binding:a.binding,request:a.request,requestDigest:a.requestDigest,state:'PENDING_RECOVERY',sessionId:'historical-adoption-only',phase:'begin',nextChunk:0,receipt:null,adoptionRequest:null,adoptionBinding:null,adoptedFrom:sourceId},0);else{await verify(next);if(next.requestDigest!==a.requestDigest)fail('adoption-history-mismatch');}
   assertCurrent(c);await box.write(linkKey(c,old.documentId),{...(link||{}),accountId:c.binding.accountId,documentId:old.documentId,cloudRevision:link?.cloudRevision??a.request.expectedRevision,active:a.operationId},link?.version??0);old=await update(old,{state:'ADOPTED',adoptionReceipt:a});return{state:'PENDING_RECOVERY',operationId:a.operationId,historical:true,authorizesNewOperation:false};
  });}
- async function observe(documentId){const c=session();return lock(documentId,async()=>{await affinity(c,documentId);const head=await call(c,'snapshot',{documentId});assertCurrent(c);if(head.status==='ready'){validate(head.project,documentId);return{state:'REMOTE_AVAILABLE',head};}if(head.status==='deleted')return{state:'REMOTE_DELETED',localPreserved:true,head};if(head.status==='absent')return{state:'REMOTE_ABSENT',head};fail('snapshot-invalid');});}
- async function applyRemote(documentId,expectedLocalRevision){const c=session();return lock(documentId,async()=>{
-  assertCurrent(c);await bindAffinity(c,documentId);let l=await box.read(linkKey(c,documentId));if(l?.intent)fail('local-apply-unknown');if(l?.active&&!terminal.has((await op(c,l.active)).state))fail('operation-unresolved');
+ async function observe(documentId){const c=await capture();return lock(documentId,async()=>{await assertSessionCurrent(c);assertCurrent(c);await affinity(c,documentId);const head=await call(c,'snapshot',{documentId});assertCurrent(c);if(head.status==='ready'){validate(head.project,documentId);return{state:'REMOTE_AVAILABLE',head};}if(head.status==='deleted')return{state:'REMOTE_DELETED',localPreserved:true,head};if(head.status==='absent')return{state:'REMOTE_ABSENT',head};fail('snapshot-invalid');});}
+ async function applyRemote(documentId,expectedLocalRevision){const c=await capture();return lock(documentId,async()=>{
+  await assertSessionCurrent(c);assertCurrent(c);await bindAffinity(c,documentId);let l=await box.read(linkKey(c,documentId));if(l?.intent)fail('local-apply-unknown');if(l?.active&&!terminal.has((await op(c,l.active)).state))fail('operation-unresolved');
   if(local(documentId).revision!==expectedLocalRevision)fail('local-conflict');const head=await call(c,'snapshot',{documentId});assertCurrent(c);
   if(head.status==='deleted'){await box.write(linkKey(c,documentId),{...(l||{}),accountId:c.binding.accountId,documentId,cloudRevision:head.revision,deleted:true},l?.version??0);return{state:'REMOTE_DELETED',localPreserved:true};}
   if(head.status!=='ready')fail('remote-not-ready');validate(head.project,documentId);
   l=await box.write(linkKey(c,documentId),{...(l||{}),accountId:c.binding.accountId,documentId,intent:{headRevision:head.revision,cloudDigest:await digest(canonical(head.project)),materialDigest:await material(head.project),expectedLocalRevision}},l?.version??0);
-  assertCurrent(c);const saved=await repository.save({target:target(documentId),baseRevision:expectedLocalRevision,snapshot:head.project,precondition:()=>current(c)});
+  assertCurrent(c);const saved=await repository.save({target:target(documentId),baseRevision:expectedLocalRevision,snapshot:head.project,precondition:()=>current(c),commitCurrent:publish=>commitSessionCurrent(c,publish)});
   if(!saved.ok){if(saved.code!=='result-unknown')await box.write(linkKey(c,documentId),{...l,intent:null,lastLocalFailure:saved.code||'local-save'},l.version);fail(saved.code||'local-save');}assertCurrent(c);
   await box.write(linkKey(c,documentId),{accountId:c.binding.accountId,documentId,cloudRevision:head.revision,cloudDigest:l.intent.cloudDigest,lastLocalRevision:saved.revision,deleted:false,intent:null},l.version);return{state:'LOCAL_SAVED_FROM_CLOUD',cloudRevision:head.revision};
  });}
- async function recoverLocal(documentId){const c=session();return lock(documentId,async()=>{
+ async function recoverLocal(documentId){const c=await capture();return lock(documentId,async()=>{
   await affinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(!l?.intent)fail('no-local-intent');const here=local(documentId);if(here.revision===l.intent.expectedLocalRevision){await call(c,'snapshot',{documentId});assertCurrent(c);await box.write(linkKey(c,documentId),{...l,intent:null,lastLocalFailure:'not-applied'},l.version);return{state:'LOCAL_NOT_APPLIED',localPreserved:true};}if(!here.exists||await material(here.snapshot)!==l.intent.materialDigest)fail('local-recovery-conflict');
   // Recheck currently authorized backend head; never treat local material as a current credential.
   const head=await call(c,'snapshot',{documentId});if(head.status!=='ready'||head.revision!==l.intent.headRevision||await digest(canonical(head.project))!==l.intent.cloudDigest)fail('remote-recovery-conflict');assertCurrent(c);
   await box.write(linkKey(c,documentId),{accountId:c.binding.accountId,documentId,cloudRevision:head.revision,cloudDigest:l.intent.cloudDigest,lastLocalRevision:here.revision,deleted:false,intent:null},l.version);return{state:'LOCAL_RECONCILED'};
  });}
- async function preserveLocal(documentId,expectedLocalRevision){const c=session();return lock(documentId,async()=>{await affinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(!l?.intent)fail('no-local-intent');if(local(documentId).revision!==expectedLocalRevision)fail('local-conflict');await call(c,'snapshot',{documentId});assertCurrent(c);await box.write(linkKey(c,documentId),{...l,intent:null,lastLocalFailure:'explicit-local-conflict-preserved'},l.version);return{state:'LOCAL_CONFLICT_PRESERVED'};});}
+ async function preserveLocal(documentId,expectedLocalRevision){const c=await capture();return lock(documentId,async()=>{await assertSessionCurrent(c);assertCurrent(c);await affinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(!l?.intent)fail('no-local-intent');if(local(documentId).revision!==expectedLocalRevision)fail('local-conflict');await call(c,'snapshot',{documentId});assertCurrent(c);await box.write(linkKey(c,documentId),{...l,intent:null,lastLocalFailure:'explicit-local-conflict-preserved'},l.version);return{state:'LOCAL_CONFLICT_PRESERVED'};});}
  // Explicit local-only escape from an obsolete epoch. Does not declare the old save failed.
  function checkDiscard(o,c,out){
   if(out.type!=='studio-discard-v2'||out.accountId!==c.binding.accountId||out.targetOperationId!==o.operationId||out.operationId!==o.discardRequest.operationId||out.requestDigest!==o.requestDigest||out.proofOperationId!==null||out.authorizesNewOperation!==false||typeof out.historical!=='boolean'||!Number.isSafeInteger(out.removedBytes)||out.removedBytes<0||Object.keys(out).sort().join('|')!==['type','accountId','operationId','targetOperationId','requestDigest','proofOperationId','removedBytes','historical','authorizesNewOperation'].sort().join('|'))fail('discard-receipt-mismatch');
  }
  async function discardConflict(operationId,{confirm=false}={}){
-  if(confirm!==true)fail('discard-confirmation-required');const c=session(),initial=await op(c,operationId);
+  if(confirm!==true)fail('discard-confirmation-required');const c=await capture(),initial=await op(c,operationId);
   return lock(initial.documentId,async()=>{
    let o=await op(c,operationId);if(!['CONFLICT','DISCARD_UNKNOWN','DISCARDED_LOCAL_RETAINED'].includes(o.state))fail('discard-conflict-only');
    const r=await call(c,'reconcile',{operationId,requestDigest:o.requestDigest});
@@ -156,7 +159,7 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
    try{return await finish(await call(c,'discard',o.discardRequest));}catch(e){throw Object.assign(Error('discard-result-unknown'),{code:'discard-result-unknown'});}
   });
  }
- async function retainRetiredDraft(operationId,{confirm=false}={}){if(confirm!==true)fail('retired-confirmation-required');const c=session(),first=await op(c,operationId);return lock(first.documentId,async()=>{const o=await op(c,operationId),r=await call(c,'reconcile',{operationId,requestDigest:o.requestDigest});if(r.status!=='history-retired'||r.operationId!==operationId||r.authorizesNewOperation!==false||!Number.isSafeInteger(o.binding.operationEpoch)||c.binding.operationEpoch<=o.binding.operationEpoch)fail('history-not-retired');const l=await box.read(linkKey(c,o.documentId));if(l?.intent||l?.active!==operationId)fail('retired-link-conflict');assertCurrent(c);await update(o,{state:'ARCHIVED_UNKNOWN',previousOutcome:'UNPROVEN',localPreserved:true});await box.write(linkKey(c,o.documentId),{...l,active:null},l.version);return{state:'LOCAL_RETAINED',previousOutcome:'UNPROVEN',cloudRevisionUnchanged:true};});}
- async function recoverIndex(operationId){const c=session(),o=await op(c,operationId);return lock(o.documentId,async()=>{assertCurrent(c);await affinity(c,o.documentId);const l=await box.read(linkKey(c,o.documentId));if(l?.active&&l.active!==operationId&&!terminal.has((await op(c,l.active)).state))fail('operation-index-conflict');if(l?.intent)fail('local-apply-unknown');if(canonical(o.binding)!==canonical(c.binding))fail('pending-recovery-required');await box.write(linkKey(c,o.documentId),{...(l||{}),accountId:c.binding.accountId,documentId:o.documentId,cloudRevision:l?.cloudRevision??o.request.expectedRevision,active:operationId},l?.version??0);return{state:'INDEX_RECONCILED'};});}
- return Object.freeze({discardConflict,retainRetiredDraft,enqueue,send,reconcile,adoptOperation,recoverAdoption,observe,applyRemote,recoverLocal,preserveLocal,recoverIndex,async inspect(operationId){const c=session();const o=await op(c,operationId);assertCurrent(c);return clone(o);},async list(documentId){const c=session(),items=[];for(const k of await box.keys()){if(k.startsWith('op:')){const o=await box.read(k);if(o.binding?.accountId===c.binding.accountId&&(!documentId||o.documentId===documentId)){await verify(o);items.push(clone(o));}}}assertCurrent(c);return items;},async dispose(){disposed=true;await box.close();}});
+ async function retainRetiredDraft(operationId,{confirm=false}={}){if(confirm!==true)fail('retired-confirmation-required');const c=await capture(),first=await op(c,operationId);return lock(first.documentId,async()=>{const o=await op(c,operationId),r=await call(c,'reconcile',{operationId,requestDigest:o.requestDigest});if(r.status!=='history-retired'||r.operationId!==operationId||r.authorizesNewOperation!==false||!Number.isSafeInteger(o.binding.operationEpoch)||c.binding.operationEpoch<=o.binding.operationEpoch)fail('history-not-retired');const l=await box.read(linkKey(c,o.documentId));if(l?.intent||l?.active!==operationId)fail('retired-link-conflict');assertCurrent(c);await update(o,{state:'ARCHIVED_UNKNOWN',previousOutcome:'UNPROVEN',localPreserved:true});await box.write(linkKey(c,o.documentId),{...l,active:null},l.version);return{state:'LOCAL_RETAINED',previousOutcome:'UNPROVEN',cloudRevisionUnchanged:true};});}
+ async function recoverIndex(operationId){const c=await capture(),o=await op(c,operationId);return lock(o.documentId,async()=>{assertCurrent(c);await affinity(c,o.documentId);const l=await box.read(linkKey(c,o.documentId));if(l?.active&&l.active!==operationId&&!terminal.has((await op(c,l.active)).state))fail('operation-index-conflict');if(l?.intent)fail('local-apply-unknown');if(canonical(o.binding)!==canonical(c.binding))fail('pending-recovery-required');await box.write(linkKey(c,o.documentId),{...(l||{}),accountId:c.binding.accountId,documentId:o.documentId,cloudRevision:l?.cloudRevision??o.request.expectedRevision,active:operationId},l?.version??0);return{state:'INDEX_RECONCILED'};});}
+ return Object.freeze({discardConflict,retainRetiredDraft,enqueue,send,reconcile,adoptOperation,recoverAdoption,observe,applyRemote,recoverLocal,preserveLocal,recoverIndex,async inspect(operationId){const c=await capture();const o=await op(c,operationId);assertCurrent(c);return clone(o);},async list(documentId){const c=await capture(),items=[];for(const k of await box.keys()){if(k.startsWith('op:')){const o=await box.read(k);if(o.binding?.accountId===c.binding.accountId&&(!documentId||o.documentId===documentId)){await verify(o);items.push(clone(o));}}}assertCurrent(c);return items;},async dispose(){disposed=true;await box.close();}});
 }

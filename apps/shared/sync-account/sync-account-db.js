@@ -305,8 +305,25 @@
     } finally { unwatch(); }
   }
 
+  // Same existing Account DB; readonly final publication fence, no new state.
+  async function commitIfAccountCurrent(expected, publish, indexedDb) {
+    if (!expected?.accountId || !expected?.accountCredential || typeof publish !== 'function') throw new Error('account_identity_invalid');
+    const epoch=generation, db=await open(indexedDb);
+    if(epoch!==generation)throw new Error('account_generation_changed');
+    return new Promise((resolve,reject)=>{
+      const tx=transaction(db,'readonly'), read=tx.objectStore(STORE_NAME).get('account');let result,published=false;
+      read.onsuccess=()=>{try{
+        const actual=read.result;
+        if(epoch!==generation||actual?.accountId!==expected.accountId||actual?.accountCredential!==expected.accountCredential)throw new Error('account_identity_changed');
+        result=publish();if(result?.then)throw new Error('account_publication_must_be_synchronous');published=true;
+      }catch(e){reject(e);tx.abort();}};
+      tx.oncomplete=()=>resolve(result);
+      tx.onabort=tx.onerror=()=>{if(published)resolve(result);else reject(new Error('account_publication_unknown'));};
+    });
+  }
+
   root.storage = Object.freeze({
-    DATABASE_NAME,
+    DATABASE_NAME, commitIfAccountCurrent,
     getGeneration: () => generation,
     subscribeAccount: listener => { accountListeners.add(listener); return () => accountListeners.delete(listener); },
     getAccount: (indexedDb) => get('account', indexedDb),

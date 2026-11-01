@@ -211,6 +211,7 @@ test('Studio Pro allows a sixth My App through the original form', async () => {
         await page.goto(process.env.STUDIO_URL);
         await page.locator('[data-home-workspace="portMyApps"]').click();
         const apps=page.frameLocator('#port-my-apps-surface iframe');
+        await (await (await page.locator('#port-my-apps-surface iframe').elementHandle()).contentFrame()).waitForFunction(()=>document.body.dataset.componentState==='ready');
         for(let i=0;i<6;i++) {
             await apps.locator('#my-apps-add').click();await apps.locator('#my-apps-name').fill('Pro App '+i);
             await apps.locator('#my-apps-other-urls summary').click();await apps.locator('#my-apps-web-url').fill('https://example.invalid/'+i);

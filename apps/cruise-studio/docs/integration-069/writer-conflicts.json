@@ -1,0 +1,107 @@
+[
+  {
+    "path": "apps/cruise-studio/index.html",
+    "hunks": 5,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/core/component-metadata.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/core/feature-registry.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/core/song-model.js",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/chord/form-panel.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/library/panel.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/rhythm/owner-loader.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/rhythm/panel-controller.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/rhythm/panel.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/modules/tuner/panel.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/connection.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/host.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/library-projection.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/js/port-data/panel.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/tests/chord-form-adapter.test.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/tests/color-theme.test.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/tests/component-version-cache.browser.cjs",
+    "hunks": 3,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/tests/component-version-cache.test.mjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/tests/feature-metadata.test.mjs",
+    "hunks": 4,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/tests/library.browser.cjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  },
+  {
+    "path": "apps/cruise-studio/tests/port-library-surface.browser.cjs",
+    "hunks": 1,
+    "resolution": "UI current version/entry preserved; nonconflicting Sync hunks retained; Pro native test retained instead of old Standard prompt test"
+  }
+]

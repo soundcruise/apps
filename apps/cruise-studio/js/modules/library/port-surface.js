@@ -7,7 +7,8 @@
 
     function createSurface(config) {
         var component = config.kind !== 'news';
-        var portUrl = new URL(component ? 'port-tool.html?tool=' + config.kind : '../cruise-port/', document.baseURI);
+        var portUrl = new URL(component ? '../cruise-port/pro_9a3943176561/' : '../cruise-port/', document.baseURI);
+        portUrl.hash = config.hash || '';
         var node = document.getElementById(config.screen);
         var surface = document.getElementById(config.surface);
         var status = document.getElementById(config.status);
@@ -34,7 +35,7 @@
             if (!frame) return;
             var old = frame;
             frame = null;
-            try { void old.contentWindow?.CruiseStudioPortTool?.stop(); } catch (_) {}
+            try { void CS.stopNativePort(old); } catch (_) {}
             old.onload = null;
             old.onerror = null;
             old.remove();
@@ -104,15 +105,16 @@
                 if (!active || disposed || current !== generation || frame !== next) return;
                 try {
                     var child = next.contentWindow;
+                    CS.presentNativePort(next);
                     if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname) throw new Error('unexpected-port-document');
                     child.addEventListener('studio-port-ready', function () { checkRoute(child, next); });
+                    child.addEventListener('studio-port-account-changed', function () { if(frame===next)setPhase('account-changed','Accountが更新されました。未保存入力は保持しています。編集を終えてから再開してください。'); });
                     child.addEventListener('hashchange', function () { checkRoute(child, next); });
                     child.addEventListener('popstate', function () { checkRoute(child, next); });
                     child.document.addEventListener('click', function (event) { onChildClick(child, next, event); }, true);
                     var home = child.document.getElementById('home-view');
                     if (home) new child.MutationObserver(function () { checkRoute(child, next); }).observe(home, { attributes: true, attributeFilter: ['hidden'] });
-                    if (config.hash) child.location.hash = config.hash;
-                    else checkRoute(child, next);
+                    checkRoute(child, next); // Native entry restores the exact requested route after boot.
                 } catch (_) {
                     stop('Port画面を開けませんでした。別タブで開いてください。');
                     setPhase('failed', status.textContent);
@@ -205,7 +207,7 @@
             if (shell.getCommandContext().activeModal || shell.keyboard.isIMEBlocked({})) return;
             if (active && !preserveEditor()) stop('Port画面を閉じました。再開してください。');
         }
-        function onResume() { if (active && phase !== 'loading' && phase !== 'ready') start(); }
+        function onResume() { if (active && phase !== 'loading' && phase !== 'ready' && !requestLeave(start)) start(); }
         function onOverview() { shell.navigate(config.overviewWorkspace); }
         function onSettings() {
             if (frame) frame.contentWindow.location.hash = '#settings';

@@ -1,0 +1,605 @@
+[
+  {
+    "status": "PASS",
+    "pass": 32,
+    "tests": [
+      {
+        "name": "normal Studio boot sends no Cloud write and isolated production hostname is rejected",
+        "status": "PASS"
+      },
+      {
+        "name": "Port Owner quarantine preserves a real UNKNOWN Project outbox, revision and form draft",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio Account switch rejects unadmitted Port form and retains draft",
+        "status": "PASS"
+      },
+      {
+        "name": "unadmitted Port save stays rejected after remote Account generation change",
+        "status": "PASS"
+      },
+      {
+        "name": "unadmitted Port save stays rejected after remote Device generation change",
+        "status": "PASS"
+      },
+      {
+        "name": "Device A saves local schema2, stages chunks, commits receipt and verified readback",
+        "status": "PASS"
+      },
+      {
+        "name": "Device B reads and explicitly imports same document; B edit returns to A without silent overwrite",
+        "status": "PASS"
+      },
+      {
+        "name": "offline local edit survives transport failure; explicit reconcile/resume uses same operation",
+        "status": "PASS"
+      },
+      {
+        "name": "commit ACK loss is UNKNOWN; explicit reconcile validates receipt without a second change",
+        "status": "PASS"
+      },
+      {
+        "name": "real profile close/reopen preserves outbox/local and can reconcile historical receipt",
+        "status": "PASS"
+      },
+      {
+        "name": "old receipt reconcile cannot erase newer UNKNOWN active operation",
+        "status": "PASS"
+      },
+      {
+        "name": "local editing during Cloud response remains local and marks LOCAL_CHANGED",
+        "status": "PASS"
+      },
+      {
+        "name": "two independent devices conflict on Cloud CAS and preserve losing local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "two tabs share Web Lock and cannot enqueue duplicate unresolved operation",
+        "status": "PASS"
+      },
+      {
+        "name": "cross-account read is absent, Account switch cannot reuse local A ownership",
+        "status": "PASS"
+      },
+      {
+        "name": "old A delayed response after switch cannot change B Project or publish successful result",
+        "status": "PASS"
+      },
+      {
+        "name": "credential generation change preserves old pending; no automatic new-generation adoption",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro expiry/revoke and Studio device revoke fail closed with outbox and local retained",
+        "status": "PASS"
+      },
+      {
+        "name": "tombstone ACK loss reconciles; remote deletion never deletes local draft or permits resurrection",
+        "status": "PASS"
+      },
+      {
+        "name": "orphan Outbox operation is listed after link failure and recovers past terminal active",
+        "status": "PASS"
+      },
+      {
+        "name": "local CAS conflict clears known-not-applied intent and preserves current draft",
+        "status": "PASS"
+      },
+      {
+        "name": "LocalStorage success / outbox failure survives reopen and explicit local reconcile",
+        "status": "PASS"
+      },
+      {
+        "name": "intent-only interrupted import can clear without overwriting local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "receipt tampering leaves UNKNOWN and current Owner reconcile repairs exact result",
+        "status": "PASS"
+      },
+      {
+        "name": "manifest mismatch is rejected with local and pending retained",
+        "status": "PASS"
+      },
+      {
+        "name": "independent other-Account Browser cannot read known Account A document",
+        "status": "PASS"
+      },
+      {
+        "name": "session expiry refuses access without returning historical receipt",
+        "status": "PASS"
+      },
+      {
+        "name": "missing chunk and invalid full manifest refuse head publication and preserve local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "tab terminates after remote commit before ACK; reopened tab sees COMMITTING and explicitly reconciles",
+        "status": "PASS"
+      },
+      {
+        "name": "explicit local conflict recovery preserves a different current draft",
+        "status": "PASS"
+      },
+      {
+        "name": "guard runs inside existing Project lock before any local write",
+        "status": "PASS"
+      },
+      {
+        "name": "large valid Unicode schema2 traverses localStorage, durable chunks and Cloud readback",
+        "status": "PASS"
+      }
+    ],
+    "productionRequestsSent": 0,
+    "scope": "disposable Chrome profiles against native workerd; synthetic Account/Pro/anti-abuse",
+    "suite": "project-client"
+  },
+  {
+    "status": "PASS",
+    "pass": 48,
+    "tests": [
+      {
+        "name": "normal Studio boot sends no Cloud write and isolated production hostname is rejected",
+        "status": "PASS"
+      },
+      {
+        "name": "Device A saves local schema2, stages chunks, commits receipt and verified readback",
+        "status": "PASS"
+      },
+      {
+        "name": "Device B reads and explicitly imports same document; B edit returns to A without silent overwrite",
+        "status": "PASS"
+      },
+      {
+        "name": "offline local edit survives transport failure; explicit reconcile/resume uses same operation",
+        "status": "PASS"
+      },
+      {
+        "name": "commit ACK loss is UNKNOWN; explicit reconcile validates receipt without a second change",
+        "status": "PASS"
+      },
+      {
+        "name": "real profile close/reopen preserves outbox/local and can reconcile historical receipt",
+        "status": "PASS"
+      },
+      {
+        "name": "old receipt reconcile cannot erase newer UNKNOWN active operation",
+        "status": "PASS"
+      },
+      {
+        "name": "local editing during Cloud response remains local and marks LOCAL_CHANGED",
+        "status": "PASS"
+      },
+      {
+        "name": "two independent devices conflict on Cloud CAS and preserve losing local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "two tabs share Web Lock and cannot enqueue duplicate unresolved operation",
+        "status": "PASS"
+      },
+      {
+        "name": "cross-account read is absent, Account switch cannot reuse local A ownership",
+        "status": "PASS"
+      },
+      {
+        "name": "old A delayed response after switch cannot change B Project or publish successful result",
+        "status": "PASS"
+      },
+      {
+        "name": "credential generation change preserves old pending; no automatic new-generation adoption",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro expiry/revoke and Studio device revoke fail closed with outbox and local retained",
+        "status": "PASS"
+      },
+      {
+        "name": "tombstone ACK loss reconciles; remote deletion never deletes local draft or permits resurrection",
+        "status": "PASS"
+      },
+      {
+        "name": "orphan Outbox operation is listed after link failure and recovers past terminal active",
+        "status": "PASS"
+      },
+      {
+        "name": "local CAS conflict clears known-not-applied intent and preserves current draft",
+        "status": "PASS"
+      },
+      {
+        "name": "LocalStorage success / outbox failure survives reopen and explicit local reconcile",
+        "status": "PASS"
+      },
+      {
+        "name": "intent-only interrupted import can clear without overwriting local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "receipt tampering leaves UNKNOWN and current Owner reconcile repairs exact result",
+        "status": "PASS"
+      },
+      {
+        "name": "manifest mismatch is rejected with local and pending retained",
+        "status": "PASS"
+      },
+      {
+        "name": "independent other-Account Browser cannot read known Account A document",
+        "status": "PASS"
+      },
+      {
+        "name": "session expiry refuses access without returning historical receipt",
+        "status": "PASS"
+      },
+      {
+        "name": "missing chunk and invalid full manifest refuse head publication and preserve local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "tab terminates after remote commit before ACK; reopened tab sees COMMITTING and explicitly reconciles",
+        "status": "PASS"
+      },
+      {
+        "name": "explicit local conflict recovery preserves a different current draft",
+        "status": "PASS"
+      },
+      {
+        "name": "guard runs inside existing Project lock before any local write",
+        "status": "PASS"
+      },
+      {
+        "name": "large valid Unicode schema2 traverses localStorage, durable chunks and Cloud readback",
+        "status": "PASS"
+      },
+      {
+        "name": "native signed Pro session plus Studio-only registration produces server-derived binding",
+        "status": "PASS"
+      },
+      {
+        "name": "formal Session adapter feeds existing Outbox without client-chosen Account binding",
+        "status": "PASS"
+      },
+      {
+        "name": "Device-bound Pro renewal reuses native key and does not revive revoked qualification",
+        "status": "PASS"
+      },
+      {
+        "name": "registration history after Pro credential rotation confirms identity without reviving old permission",
+        "status": "PASS"
+      },
+      {
+        "name": "lost Pro device key cannot bind the existing token to a replacement key",
+        "status": "PASS"
+      },
+      {
+        "name": "pending under old Owner is retained when native Account recovery rotates generation",
+        "status": "PASS"
+      },
+      {
+        "name": "native recovery proof permits explicit adoption; original immutable pending survives",
+        "status": "PASS"
+      },
+      {
+        "name": "duplicate adoption with changed target or digest is rejected, normal B survives",
+        "status": "PASS"
+      },
+      {
+        "name": "adoption ACK loss reuses exact operation after client reopen without double adoption",
+        "status": "PASS"
+      },
+      {
+        "name": "committed source ACK loss reconciles as historical success, never creates adoption copy",
+        "status": "PASS"
+      },
+      {
+        "name": "retention reports counts only, physical purge stays HOLD without approved policy",
+        "status": "PASS"
+      },
+      {
+        "name": "Account recovery commit ACK loss is resolved with the same native operation",
+        "status": "PASS"
+      },
+      {
+        "name": "adoption marks a same-device original operation fenced against late commit",
+        "status": "PASS"
+      },
+      {
+        "name": "quota exhaustion rolls back new pending, while rate refusal performs no storage writes",
+        "status": "PASS"
+      },
+      {
+        "name": "formal Session adapter connects a second device and preserves unrelated shared credential on Studio revoke",
+        "status": "PASS"
+      },
+      {
+        "name": "native concurrent original commit and adoption publish at most one document head",
+        "status": "PASS"
+      },
+      {
+        "name": "Account deletion preserves orphan pending/receipts and removes current session authority",
+        "status": "PASS"
+      },
+      {
+        "name": "RC3 batch ACK loss persists UNKNOWN; reopened client explicitly reconciles without double save",
+        "status": "PASS"
+      },
+      {
+        "name": "RC3 wrong batch ACK owner operation and ordinals do not advance durable cursor",
+        "status": "PASS"
+      },
+      {
+        "name": "RC3 escaped JSON batch remains within HTTP limit and preserves exact document",
+        "status": "PASS"
+      }
+    ],
+    "productionRequestsSent": 0,
+    "scope": "disposable Chrome profiles against native workerd; synthetic Account/Pro/anti-abuse",
+    "suite": "session"
+  },
+  {
+    "status": "PASS",
+    "pass": 25,
+    "tests": [
+      {
+        "name": "normal Studio boot exposes no active Identity or Cloud network",
+        "status": "PASS"
+      },
+      {
+        "name": "UI rejects wrong Pro and establishes native P256 Pro on correct passcode",
+        "status": "PASS"
+      },
+      {
+        "name": "UI prepares kit then registers Studio-only Account with no unrelated membership",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio UI creates a schema2 Project; Cloud UI saves actual local canonical",
+        "status": "PASS"
+      },
+      {
+        "name": "UI adds Device B; B authenticates Pro and imports shared document",
+        "status": "PASS"
+      },
+      {
+        "name": "Device B edit resync and Device A explicit readback",
+        "status": "PASS"
+      },
+      {
+        "name": "Offline preserves local draft and reconnect explicitly saves",
+        "status": "PASS"
+      },
+      {
+        "name": "2 Device CAS conflict preserves local draft; explicit fork then readback",
+        "status": "PASS"
+      },
+      {
+        "name": "UI native renewal and ACK loss reconcile preserve single commit",
+        "status": "PASS"
+      },
+      {
+        "name": "UI budget and explicit epoch compaction retain current head",
+        "status": "PASS"
+      },
+      {
+        "name": "UI creates UNKNOWN and compaction refuses to erase unresolved evidence",
+        "status": "PASS"
+      },
+      {
+        "name": "UI Studio device revoke blocks B and leaves native shared Device intact",
+        "status": "PASS"
+      },
+      {
+        "name": "UI Account recovery with native lost ACK uses same commit reconcile",
+        "status": "PASS"
+      },
+      {
+        "name": "UI reconciles old pending then explicitly adopts and saves recovered operation",
+        "status": "PASS"
+      },
+      {
+        "name": "UI Cloud OFF retains local and pending; ON reauthenticates",
+        "status": "PASS"
+      },
+      {
+        "name": "UI delete requires confirmation and keeps local canonical",
+        "status": "PASS"
+      },
+      {
+        "name": "Production candidate transport rejects without sending; unknown destinations fail",
+        "status": "PASS"
+      },
+      {
+        "name": "server OFF rejects the same current Owner; reactivation is explicit",
+        "status": "PASS"
+      },
+      {
+        "name": "no credentials or private keys in durable Outbox and no Production network",
+        "status": "PASS"
+      },
+      {
+        "name": "Account switch clears old budget approval and normal independent Account remains usable",
+        "status": "PASS"
+      },
+      {
+        "name": "tampered discard receipt is UNKNOWN and native readonly resolution survives Pro renewal",
+        "status": "PASS"
+      },
+      {
+        "name": "discard ACK loss followed by peer epoch compact is history-retired; draft stays UNPROVEN",
+        "status": "PASS"
+      },
+      {
+        "name": "dispose during Turnstile wait sends no late authentication request",
+        "status": "PASS"
+      },
+      {
+        "name": "late Project A outbox response cannot replace the selected Project B operation",
+        "status": "PASS"
+      },
+      {
+        "name": "lost P256 key recovers through a fresh Browser UI with new Pro and Account generation",
+        "status": "PASS"
+      }
+    ],
+    "scope": "Identity/Cloud UI; real native Account/Pro endpoints with synthetic passcode/Turnstile; no production network",
+    "suite": "standalone-identity-host"
+  },
+  {
+    "status": "FAIL",
+    "tests": [
+      {
+        "name": "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+        "status": "PASS"
+      },
+      {
+        "name": "native Account and device-bound Pro authentication through existing libraries",
+        "status": "PASS"
+      },
+      {
+        "name": "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+        "status": "PASS"
+      }
+    ],
+    "entry": "actual Studio index and native Port Pro index",
+    "failure": "TimeoutError: frame.waitForFunction: Timeout 20000ms exceeded.",
+    "failureDiagnostics": [
+      {
+        "route": "#sync-center",
+        "admission": "accepted",
+        "ready": "true",
+        "sharedAccountPresent": true,
+        "status": "帰属を確認しました。同期結果はSync Centerの状態表示を確認してください。"
+      },
+      {
+        "route": "#sync-center",
+        "admission": "port-owner-admission-required",
+        "ready": "true",
+        "sharedAccountPresent": true,
+        "status": "Accountまたは端末データが変わったか、処理を確認できません。削除・再送せず、Accountを変更した場合はページを再読み込みしてから確認してください。"
+      }
+    ],
+    "suite": "native-port-product"
+  },
+  {
+    "status": "DIRECT_BOUNDARY_PASS",
+    "pass": 28,
+    "tests": [
+      {
+        "name": "default OFF refuses all document access",
+        "result": "PASS"
+      },
+      {
+        "name": "Studio-only Account backbone creates no unrelated membership",
+        "result": "PASS"
+      },
+      {
+        "name": "existing Account enrollment and Studio-specific device revocation",
+        "result": "PASS"
+      },
+      {
+        "name": "staged document is not current; commit publishes typed receipt and exact Project",
+        "result": "PASS"
+      },
+      {
+        "name": "cross-account snapshot/reconcile and client identity injection rejected",
+        "result": "PASS"
+      },
+      {
+        "name": "missing chunk and wrong digest reject with pending preserved",
+        "result": "PASS"
+      },
+      {
+        "name": "valid large Project over row limit saves using immutable chunks",
+        "result": "PASS"
+      },
+      {
+        "name": "two devices CAS loser retains pending",
+        "result": "PASS"
+      },
+      {
+        "name": "duplicate requires current Account authorization",
+        "result": "PASS"
+      },
+      {
+        "name": "Pro expiry refuses reads and pending remains",
+        "result": "PASS"
+      },
+      {
+        "name": "deterministic stale CAS gives conflict and preserves pending",
+        "result": "PASS"
+      },
+      {
+        "name": "receipt tampering and pending mutation are rejected",
+        "result": "PASS"
+      },
+      {
+        "name": "credential version change allows historical reconcile but not old pending commit",
+        "result": "PASS"
+      },
+      {
+        "name": "tombstone cannot be resurrected by later stale or current write",
+        "result": "PASS"
+      },
+      {
+        "name": "ACK discarded after successful commit is resolved explicitly without duplicate write",
+        "result": "PASS"
+      },
+      {
+        "name": "shared Account admission pause prevents Studio backbone registration",
+        "result": "PASS"
+      },
+      {
+        "name": "account purge cannot cascade pending; old credential cannot read orphan",
+        "result": "PASS"
+      },
+      {
+        "name": "device management pause rejects Studio revocation without changing enrollment",
+        "result": "PASS"
+      },
+      {
+        "name": "same operation with different document or digest cannot overwrite pending",
+        "result": "PASS"
+      },
+      {
+        "name": "chunk order and manifest digest mismatch never publish head",
+        "result": "PASS"
+      },
+      {
+        "name": "Pro revocation and generation rotation reject current writes but retain pending",
+        "result": "PASS"
+      },
+      {
+        "name": "durable native process reopen preserves committed receipt and pending; B continues saving",
+        "result": "PASS"
+      },
+      {
+        "name": "final native SQL fence rejects Account revocation race",
+        "result": "PASS"
+      },
+      {
+        "name": "final native SQL fence rejects device generation race",
+        "result": "PASS"
+      },
+      {
+        "name": "final native SQL fence rejects Pro expiry race",
+        "result": "PASS"
+      },
+      {
+        "name": "final native SQL fence rejects Owner epoch race",
+        "result": "PASS"
+      },
+      {
+        "name": "final native SQL fence rejects schema drift race",
+        "result": "PASS"
+      },
+      {
+        "name": "final native SQL fence rejects Account purge race",
+        "result": "PASS"
+      }
+    ],
+    "production": false,
+    "productAcceptance": false,
+    "suite": "native-owner-boundary"
+  }
+]

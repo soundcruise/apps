@@ -51,8 +51,10 @@
       unsubscribeAccount = accountRoot.storage.subscribeAccount?.(stop);
     }
     let generation = ++sequence;
-    let runtime = null, adapter = null, store = null, identity = null, ensuring = null;
+    let runtime = null, adapter = null, store = null, identity = null, ensuring = null, attributionInspection = null;
     let active = false, disposed = false, poll = null, refs = 0, owners = 0;
+    const affinityChanged = event => { if (event.key === null || event.key === 'cruisePort.syncLocalAccount.v1') stop(); };
+    global.addEventListener?.('storage', affinityChanged);
     let lifetime = new AbortController();
     let cached = Object.freeze({ known: false, state: 'unknown', connected: false, credentialState: 'unknown' });
     const subscriptions = new Set(), lifecycle = [];
@@ -65,6 +67,7 @@
     }
     function stop() {
       generation = ++sequence;
+      attributionInspection = null;
       active = false;
       lifetime.abort();
       runtime?.dispose?.();
@@ -122,12 +125,17 @@
       const accountGuard = async () => {
         guard(); const latest = await accountRoot.storage.getAccount(); guard();
         if (latest?.accountCredential !== account.accountCredential) { stop(); throw new Error('account_generation_changed'); }
+        adapter?.assertLocalAccount(accountId);
       };
       if (identity && identity !== accountId) { stop(); return activate(); }
       if (!runtime) {
         identity = accountId;
         store = syncRoot.dataStorage.createStore('port', { accountId, assertCurrent: guard, signal: lifetime.signal });
         adapter = new namespace.PortSyncAdapter({ assertCurrent: accountGuard });
+        // Before provisioning, legacy adoption, bootstrap or asset operations.
+        // Do not infer ownership from a fresh Account-scoped Outbox.
+        await adapter.ensureLocalAccount(accountId, guard);
+        await accountGuard();
         const client = new accountRoot.AccountClient({ endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage,
           core: accountRoot.core, admissionMode, qaScope: 'port', assertCurrent: guard, signal: lifetime.signal });
         runtime = new syncRoot.MultiAppSyncRuntime({ appId: 'port', endpoint: config.endpoint, adapter, store,
@@ -212,6 +220,29 @@
       bindPolicy(epoch, accountGeneration);
       return Object.freeze({ ok: result?.ok !== false, result });
     }
+    async function attribution(choice = null) {
+      const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
+      const current = await accountRoot.storage.getAccount(); check(epoch, accountGeneration);
+      if (!accountRoot.core.validAccountCredential(current?.accountCredential)) throw new Error('account_not_configured');
+      const accountId = current.accountId || current.accountCredential.split('.')[1];
+      const local = new namespace.PortSyncAdapter();
+      if (choice === null) {
+        const observed = await local.inspectLocalAccount(); check(epoch, accountGeneration);
+        attributionInspection = { snapshotId: observed.snapshotId, credential: current.accountCredential, epoch, accountGeneration };
+        return { ...observed, accountId };
+      }
+      const observed = attributionInspection;
+      if (!observed || observed.snapshotId !== choice.snapshotId || observed.credential !== current.accountCredential ||
+          observed.epoch !== epoch || observed.accountGeneration !== accountGeneration) throw new Error('port_local_account_changed');
+      if (!canSync()) throw new Error('pro_required');
+      const assertCurrent = async () => {
+        check(epoch, accountGeneration); const latest = await accountRoot.storage.getAccount(); check(epoch, accountGeneration);
+        if (latest?.accountCredential !== current.accountCredential) throw new Error('account_generation_changed');
+      };
+      const result = await local.chooseLocalAccount({ ...choice, accountId }, assertCurrent);
+      stop(); // Retire this document's old runtime; never move its Account Outbox.
+      return result;
+    }
     function ensure() {
       if (disposed) return Promise.reject(new Error('runtime_disposed'));
       if (!canSync()) return Promise.resolve({ ok: false, code: 'pro_required' });
@@ -272,7 +303,7 @@
         for (const listener of ownSubscriptions) subscriptions.delete(listener);
         ownSubscriptions.clear();
         if (!readOnly && --owners === 0) stop();
-        if (--refs === 0) { stop(); disposed = true; unsubscribeAccount?.(); subscriptions.clear(); onDispose(); }
+        if (--refs === 0) { stop(); disposed = true; unsubscribeAccount?.(); global.removeEventListener?.('storage', affinityChanged); subscriptions.clear(); onDispose(); }
       };
       const requireConsumer = fn => (...args) => released ? Promise.reject(new Error('consumer_released')) : fn(...args);
       const reader = Object.freeze({ enabled: true, get identity() { return runtime?.identity || null; },
@@ -286,6 +317,7 @@
         getCachedStatus: () => released ? unknown() : cachedStatus(), status: requireConsumer(readLocalStatus), readLocalStatus: requireConsumer(readLocalStatus), ensure: requireConsumer(ensure),
         subscribe(listener) { if (released) return () => {}; ownSubscriptions.add(listener); subscriptions.add(listener);
           return () => { ownSubscriptions.delete(listener); subscriptions.delete(listener); }; },
+        inspectLocalAccount: requireConsumer(() => attribution()), chooseLocalAccount: requireConsumer(value => attribution(value)),
         sync: requireConsumer((reason = 'manual') => run('sync', reason)), resume: requireConsumer(() => run('sync', 'resume')),
         retryLegacyFailures: requireConsumer(() => run('retryLegacyFailures')),
         listConflicts: requireConsumer(() => runtime?.listConflictPresentations() || []),
