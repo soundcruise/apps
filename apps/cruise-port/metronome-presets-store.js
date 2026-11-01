@@ -1,11 +1,11 @@
-import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.27.0';
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.28.0';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 import {
     METRONOME_RETIRED_SOUNDS,
     METRONOME_SCHEMA_VERSION,
     migrateMetronomeSound,
     normalizeMetronomeSettings
-} from './metronome-store.js?v=1.27.0';
+} from './metronome-store.js?v=1.28.0';
 
 export const METRONOME_PRESETS_STORAGE_KEY = 'cruisePort.metronomePresets';
 export const METRONOME_PRESETS_SCHEMA_VERSION = 1;

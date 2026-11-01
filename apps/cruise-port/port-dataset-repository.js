@@ -270,6 +270,29 @@ export class PortDatasetRepository {
                 else if (oldItems.some(v => v.status === status)) intents[`gear_order/${status}`] = { generation };
             }
         }
+        // Explicit local visual removal must retire its Cloud binding in the
+        // same publication. An async hydrator must never resurrect that image.
+        const visualMetadata = JSON.parse(after['cruisePort.syncAssetMetadata'] || 'null');
+        if (visualMetadata) {
+            let retired = false;
+            for (const [key, bucket, finalKey, sourceKey] of [
+                ['cruisePort.gearList', 'gear', 'photoId', 'photoSourceId'],
+                ['cruisePort.myApps', 'myApps', 'iconId', 'iconSourceId']
+            ]) {
+                if (before[key] === after[key]) continue;
+                const old = JSON.parse(before[key] || 'null')?.items || [], next = JSON.parse(after[key] || 'null')?.items || [];
+                for (const item of old) {
+                    const current = next.find(v => v.id === item.id), entry = visualMetadata[bucket]?.[item.id];
+                    if (!entry || current && (!(item[finalKey] || item[sourceKey]) || current[finalKey] || current[sourceKey])) continue;
+                    if (entry.published) {
+                        visualMetadata.releaseQueue = [...new Set([...(visualMetadata.releaseQueue || []), entry.published.final?.assetId, entry.published.source?.assetId].filter(Boolean))];
+                    }
+                    visualMetadata[bucket][item.id] = { ...entry, published: null, binding: null, pending: null };
+                    visualMetadata.referencePending = true; retired = true;
+                }
+            }
+            if (retired) after['cruisePort.syncAssetMetadata'] = JSON.stringify(visualMetadata);
+        }
         const assetKey = 'cruisePort.syncAssetMetadata';
         if (before[assetKey] !== after[assetKey]) {
             const old = JSON.parse(before[assetKey] || 'null')?.attachments || {};

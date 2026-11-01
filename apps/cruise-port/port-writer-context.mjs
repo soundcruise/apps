@@ -21,18 +21,34 @@ export function createPortWriterContext({ root = globalThis, storage } = {}) {
         if (getGeneration() !== generation) blocked = true;
     }, () => { blocked = true; }) : Promise.resolve();
     account?.subscribeAccount?.(() => { blocked = true; });
-    const pro = () => JSON.stringify([storage?.getItem('soundCruiseProAuth'),
-        storage?.getItem('soundCruiseProOperationEpoch'), storage?.getItem('soundCruiseProRevokePending')]);
+    const pro = () => {
+        const raw = storage?.getItem('soundCruiseProAuth'); let identity = raw;
+        try { const auth = JSON.parse(raw || 'null'); if (auth) identity = [auth.credential, auth.generation, auth.sessionVersion, auth.operationRevision]; } catch (_) {}
+        // Validation timestamps are cache metadata, not a change of writer authority.
+        return JSON.stringify([identity, storage?.getItem('soundCruiseProOperationEpoch'), storage?.getItem('soundCruiseProRevokePending')]);
+    };
     const initialPro = pro();
+    function studioIdentity() {
+        try { return !!(root[slot]?.hasIdentity() || root.parent !== root && root.parent?.[slot]?.hasIdentity()); }
+        catch { fail('port-parent-context-unavailable'); }
+    }
     function assertCurrent() {
         if ((root.SoundCruiseSyncAccount?.storage ?? null) !== (account ?? null)) fail('port-account-source-changed');
         if (!ready || blocked || getGeneration() !== generation) fail('port-account-context-changed');
-        // Studio Project credentials are not a Port Owner admission. The
-        // conditional Account-DB relaxation from #129 remains HOLD until the
-        // shared Owner contract is accepted; retain the #124 fail-closed fence.
-        try {
-            if (root[slot]?.hasIdentity() || root.parent !== root && root.parent?.[slot]?.hasIdentity()) fail('port-owner-admission-required');
-        } catch (e) { fail(e.code || 'port-parent-context-unavailable'); }
+        // Project presence is not authorization. Native Account credentials and
+        // live matching Pro source permit attribution; dataset writes separately
+        // require the existing explicit local Account binding below.
+        if (studioIdentity()) {
+            const selected = JSON.parse(accountIdentity || 'null');
+            let auth; try { auth = JSON.parse(storage?.getItem('soundCruiseProAuth') || 'null'); } catch {}
+            const source = root.SoundCruiseProOperationSource?.read?.();
+            if (!account?.DATABASE_NAME || !root.indexedDB?.open || !selected?.accountId ||
+                !/^sca1\.[^.]+\.[^.]+$/.test(selected.accountCredential || '') ||
+                (selected.accountDeviceId && selected.accountDeviceId !== selected.accountCredential.split('.')[1]) ||
+                !auth?.credential || source?.revoked !== false || source?.auth?.credential !== auth.credential ||
+                source.auth.generation !== auth.generation || source.auth.sessionVersion !== auth.sessionVersion ||
+                source.auth.operationRevision !== auth.operationRevision) fail('port-owner-admission-required');
+        }
         if (pro() !== initialPro) fail('port-pro-context-changed');
         const proSource = root.SoundCruiseProOperationSource;
         if (proSource && typeof proSource.read !== 'function') fail('port-pro-source-unavailable');
@@ -51,6 +67,7 @@ export function createPortWriterContext({ root = globalThis, storage } = {}) {
         try { binding = JSON.parse(storage?.getItem('cruisePort.syncLocalAccount.v1') || 'null'); selected = JSON.parse(accountIdentity || 'null'); }
         catch { fail('port-local-account-invalid'); }
         const selectedId = selected?.accountId || selected?.accountCredential?.split('.')[1];
+        if (studioIdentity() && (!binding || binding.mode !== 'sync' || binding.accountId !== selectedId)) fail('port-owner-admission-required');
         if (binding?.accountId && selectedId && binding.accountId !== selectedId) fail('port-local-account-mismatch');
     }
     const reads = new WeakSet();

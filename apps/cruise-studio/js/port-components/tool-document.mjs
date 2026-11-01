@@ -1,5 +1,5 @@
 /* Port owns markup, styling, controller and local stores; Studio owns this document lifetime. */
-import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.69.0';
+import { createPortProBoundary } from '../core/port-pro-boundary.mjs?v=0.69.1';
 const boundary = createPortProBoundary();
 let controller, epoch = 0, stopped = false, fullApplication = false, policy;
 function pause() { const button = document.getElementById('practice-timer-toggle'); if (button?.getAttribute('aria-label') === '練習を一時停止する') button.click(); }
@@ -53,7 +53,7 @@ async function mount() {
         }
         document.body.replaceChildren(...Array.from(root.childNodes, node => document.importNode(node, true)));
         fullApplication = true;
-        await import('/apps/cruise-port/practice-menu-app.js?v=1.27.0');
+        await import('/apps/cruise-port/practice-menu-app.js?v=1.28.0');
         if (token !== epoch) return;
         const hash = { practice: '#practice-menu', gear: '#wishlist', myApps: '' }[tool];
         // Port boot renders Home; select its own route once initialization completes.

@@ -1,7 +1,7 @@
 // Dormant IDB policy. No credential lookup, storage, network or product activation.
 import { equal, fail, frozen } from './port-idb-authority-contract.mjs';
-import { PORT_DATASET_KEYS, assertPortForwardCompatible } from './port-dataset-repository.js?v=1.27.0';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.27.0';
+import { PORT_DATASET_KEYS, assertPortForwardCompatible } from './port-dataset-repository.js?v=1.28.0';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.28.0';
 import { METRONOME_DEFAULTS, normalizeMetronomeSettings } from './metronome-store.js';
 import { normalizeMetronomePreset, settingsFromMetronomePreset } from './metronome-presets-store.js';
 export const AUTHORITY_ACTION_POLICY_VERSION = 1;

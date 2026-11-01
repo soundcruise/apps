@@ -1,0 +1,59 @@
+{
+  "PortSharedNode": {
+    "pass": 2828,
+    "fail": 0,
+    "skip": 0,
+    "sha256": "536867d870977e8e8a3e5004bfa7a0b3542ce800b40ad11e17b93c4ce3823cd7"
+  },
+  "StudioNode": {
+    "pass": 1938,
+    "fail": 0,
+    "skip": 2,
+    "sha256": "788240a1b8924bd8ce9bb276d961f43a9fac9d7ea969284b2f8702b8fd7ef859"
+  },
+  "focusedNode": {
+    "pass": 209,
+    "fail": 0,
+    "skip": 0,
+    "sha256": "cbd44e2e076e71d2f3b7d05f6520f061bddaece90a88a3ac89fe1ce38d49ee3b"
+  },
+  "ownerUnit": {
+    "pass": 15,
+    "fail": 0,
+    "skip": 0,
+    "sha256": "bfe2554c1c09b056ba7f85733dd03cbf435df46192f08399cc6f04262ca722d4"
+  },
+  "uiChrome": {
+    "pass": 10,
+    "fail": 0,
+    "skip": 0,
+    "sha256": "11471ad36a5148d2ec5085e6bba9cc8f501402294bc9d420a13dfe42d2a4b915"
+  },
+  "workerNode": {
+    "pass": 20,
+    "fail": 0,
+    "skip": 0,
+    "sha256": "9610724ccdf51f1c022f38a51768554a0bf7525284db39723f30c4d7232112e3"
+  },
+  "adoptedFunctionalPaths": [
+    "apps/cruise-port/index.html",
+    "apps/cruise-port/port-dataset-repository.js",
+    "apps/cruise-port/port-dataset-repository.test.mjs",
+    "apps/cruise-port/port-sync-controller.js",
+    "apps/cruise-port/practice-menu-app.js",
+    "apps/cruise-port/pro_9a3943176561/index.html",
+    "apps/cruise-port/sync-center-ui.js",
+    "apps/cruise-studio/tests/port-remaining-e2e.browser.mjs",
+    "apps/shared/sync-account/multi-app-sync-runtime.js",
+    "workers/sound-cruise-sync/src/app.js",
+    "workers/sound-cruise-sync/src/pro-auth-app.js",
+    "workers/sound-cruise-sync/src/studio-legacy-v137.mjs",
+    "workers/sound-cruise-sync/src/sync-database.js"
+  ],
+  "HOLD": [
+    "ACK-loss runtime resume intermittent failure",
+    "image conflict resolution remains attention/failure",
+    "independent review not performed",
+    "real Account/Pro/physical two-device, formal entrance auth and midnight Sync enum"
+  ]
+}

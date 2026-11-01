@@ -1016,7 +1016,7 @@ test('unhydrated remote image is not a local deletion when another local field i
  local.setItem('cruisePort.gearList',JSON.stringify({version:5,items:[]}));await sync.markLocalRemovals();const removed=JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));assert.equal(removed.gear.g.published,null);assert(removed.releaseQueue.includes('cloud-final'));
 });
 test('hydrated binary binding and owner references publish atomically under existing dataset lock',async()=>{
- const {PortDatasetRepository}=await import('./port-dataset-repository.js?v=1.27.0'),{registerPortRepository}=await import('./port-dataset-storage.js?v=1.27.0');
+ const {PortDatasetRepository}=await import('./port-dataset-repository.js?v=1.28.0'),{registerPortRepository}=await import('./port-dataset-storage.js?v=1.28.0');
  const published={availability:'available',final:{assetId:'cloud-final'},source:{assetId:'cloud-source'},crop:{x:0,y:0,size:1}},before={published,binding:null,pending:null};
  const local=storage({'cruisePort.gearList':JSON.stringify({version:5,items:[{id:'g',photoId:null,photoSourceId:null,photoCrop:null}]}),'cruisePort.syncAssetMetadata':JSON.stringify({version:4,gear:{g:before},myApps:{},attachments:{},releaseQueue:[],discardQueue:[]})}),observed=[];
  const repo=new PortDatasetRepository({storage:local,locks:{request:async(_n,_o,fn)=>fn()},notify:event=>observed.push({source:event.source,item:JSON.parse(local.getItem('cruisePort.gearList')).items[0],entry:JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).gear.g})});registerPortRepository(local,repo);

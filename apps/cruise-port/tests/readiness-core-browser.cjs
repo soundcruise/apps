@@ -64,7 +64,7 @@ const output = process.argv[3] || '/private/tmp/port-readiness-core-browser.json
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.myApps')||'{}').items?.some(i=>i.name==='Core My App'));
   result.cases.push({width,case:'My Apps save',pass:true});
   const binary = await page.evaluate(async menuId=>{
-   const [G,I,A,L,M]=await Promise.all([import('../gear-photo-store.js?v=1.27.0'),import('../my-apps-icon-store.js?v=1.27.0'),import('../practice-menu-attachment-store.js?v=1.27.0'),import('../gear-list-store.js?v=1.27.0'),import('../my-apps-store.js?v=1.27.0')]);
+   const [G,I,A,L,M]=await Promise.all([import('../gear-photo-store.js?v=1.28.0'),import('../my-apps-icon-store.js?v=1.28.0'),import('../practice-menu-attachment-store.js?v=1.28.0'),import('../gear-list-store.js?v=1.28.0'),import('../my-apps-store.js?v=1.28.0')]);
    const canvas=document.createElement('canvas');canvas.width=canvas.height=2;canvas.getContext('2d').fillRect(0,0,2,2);
    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
    const g=await G.createGearPhotoStore({canWrite:()=>true}).savePhoto(blob,{kind:'final',width:2,height:2});
@@ -88,7 +88,7 @@ const output = process.argv[3] || '/private/tmp/port-readiness-core-browser.json
   await go('#practice-menu/'+menuId,'#practice-detail-view');
   await page.locator('#practice-attachments-list').getByText('lifecycle.txt',{exact:true}).waitFor();
   const preserved=await page.evaluate(async ids=>{
-   const [G,I,A]=await Promise.all([import('../gear-photo-store.js?v=1.27.0'),import('../my-apps-icon-store.js?v=1.27.0'),import('../practice-menu-attachment-store.js?v=1.27.0')]);
+   const [G,I,A]=await Promise.all([import('../gear-photo-store.js?v=1.28.0'),import('../my-apps-icon-store.js?v=1.28.0'),import('../practice-menu-attachment-store.js?v=1.28.0')]);
    const g=await G.createGearPhotoStore().getPhoto(ids.gear),i=await I.createMyAppsIconStore().getIcon(ids.icon),a=await A.createPracticeAttachmentStore().getAttachment(ids.attachment);
    return {gear:Array.from(new Uint8Array(await g.record.blob.arrayBuffer())),icon:Array.from(new Uint8Array(await i.record.blob.arrayBuffer())),attachment:await a.record.blob.text()};
   },binary);
