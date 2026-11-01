@@ -4,8 +4,8 @@ import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {releaseDateFields} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-4';
-export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3',PRIMARY_ANNOUNCEMENT_PARSER]);
+export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-5';
+export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4',PRIMARY_ANNOUNCEMENT_PARSER]);
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -106,7 +106,10 @@ export function parsePrimaryAnnouncement(html,source,row){
   const groupCount=/オーバードライブ([2-4])機種/.exec(title);
   const groupedPedals=source.id==='ikebe'&&groupCount&&modelMention(title,brand)&&Number(groupCount[1])===models.length&&own.every((ps,i)=>ps.some(p=>bound(p,models[i])&&/数量限定での発売/.test(p)))&&own.every(ps=>ps.some(p=>/クリッピング|歪み|オーバードライブ/.test(p)));
   const family=models[0],variants=models.slice(1).map(m=>m.startsWith(family+' ')?m.slice(family.length+1):null);
-  const familyAmp=source.id==='ikebe'&&models.length>=2&&variants.every(v=>v&&identity(v))&&bound(title,family)&&variants.every(v=>quotedModel(title,v))&&own.slice(1).every((ps,i)=>ps.some(p=>new RegExp('ヘッドアンプ'+escapeModel(family)).test(p.normalize('NFKC'))&&quotedModel(p,variants[i])&&/オリジナル|カラー/.test(p)))&&own.every(ps=>ps.some(p=>bound(p,family)&&/出力|パワーアンプ/.test(p)));
+  // The explicit variant definition stays in the first six own paragraphs.
+  // Power corroboration may occur later in that same bounded (16 paragraph)
+  // product section, never across the following product heading/related links.
+  const familyAmp=source.id==='ikebe'&&models.length>=2&&variants.every(v=>v&&identity(v))&&bound(title,family)&&variants.every(v=>quotedModel(title,v))&&own.slice(1).every((ps,i)=>ps.some(p=>new RegExp('ヘッドアンプ'+escapeModel(family)).test(p.normalize('NFKC'))&&quotedModel(p,variants[i])&&/オリジナル|カラー/.test(p)))&&definitions.every(ps=>ps.some(p=>bound(p,family)&&/出力|パワーアンプ/.test(p)));
   if(softwareDefinition)productType='software_instrument';else if(tunerDefinition)productType='clip_tuner';else if(shortHeadphone)productType='headphone';else if(groupedPedals)productType='effect_pedal';else if(familyAmp)productType='head_amp';else throw Error('facts_primary_type_unbound');
   typeBasis=groupedPedals?'bound_group_definition':familyAmp?'bound_family_definition':'bound_section_definition';
  }
@@ -143,6 +146,6 @@ function shortHeadphoneDefinition(title,sections,models,brand){return models.len
 
 export function primaryParserSupports(facts,parser){
  if(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(parser))return false;
- if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return parser===PRIMARY_ANNOUNCEMENT_PARSER;
+ if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
  return facts?.announcement?.action!=='release_notice'||parser!=='primary-announcement-1';
 }

@@ -1,5 +1,24 @@
 # Pending six recovery — 2026-11-01
 
+## Production type corrections (0.42.3)
+
+The first real pass exposed two differences absent from the minimal projection:
+the tuner description also lists guitar/bass tuning modes, and the amp variant's
+own power definition occurs after paragraph six. The Shimamura parser now defers
+clip-tuner subjects to the bounded, corroborated primary parser rather than taking
+an instrument from the mode list. Amp family power evidence may use the same
+already-bounded 16-paragraph product section; the explicit variant definition must
+still be in its first six paragraphs. Unrelated/hidden/other-model text is rejected.
+Parser versions are Shimamura 12 / primary 5, with prior successful proof formats
+preserved. No old facts are silently rewritten.
+
+Only Louis (revision 1 with the old guitar/type proof) and Aguilar (revision 1,
+facts still absent), after their first recorded attempt, can consume one separate
+corrective grant before the same expiry. This is at most two formal extra article
+GETs per affected article, not an automatic retry loop. A fresh authenticated
+recheck must fetch and prove the replacement facts; no direct DB correction or
+publication is allowed. The other four grants are unchanged.
+
 ## Approved immediate recovery (0.42.2)
 
 The operator has explicitly approved a bounded internal acquisition exception for

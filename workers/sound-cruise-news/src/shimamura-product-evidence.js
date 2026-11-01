@@ -5,8 +5,8 @@ import {validOfficialIdentity,sourceIdentityContext,resolveOfficialIdentity} fro
 import {validHeadlineEvidence,enrichHeadlineFacts,releaseDateFields} from './headline-evidence.js';
 import {explicitProductAction,validatedProductEvent,productActionSuffix} from './product-event.js';
 import {subjectProductTypes,isProductSubjectMention,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
-export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-11';
-export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10',SHIMAMURA_PRODUCT_PARSER]);
+export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-12';
+export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11',SHIMAMURA_PRODUCT_PARSER]);
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const plain=n=>(hidden(n)?'':DomUtils.textContent(n)).replace(/[®™]/g,'').replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim();
@@ -31,6 +31,9 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
   if(canon.length!==1||canon[0].attribs.href!==row.source_url||roots.length!==1||heads.length!==1||dates.length!==1)throw Error('facts_parser_failure');
   const day=new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10);if(dates[0].attribs.datetime!==day)throw Error('facts_date_changed');
   const title=plain(heads[0]),root=roots[0];if(denied.test(title)||/ケース|スタンド|交換用|ケーブル|記事広告|PR記事/.test(title))throw Error('facts_scope_uncertain');
+  // A tuning mode for guitar/bass is not an instrument definition. The bounded
+  // primary-announcement parser owns clip-tuner identity/type corroboration.
+  if(/クリップチューナー/.test(title))throw Error('facts_scope_uncertain');
   const intro=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>p!=='目次に戻る').slice(0,2).join(' ');
   const statements=intro.split(/[。!?！？]/).filter(s=>!denied.test(s)&&/(?:発表され|登場(?:しました|します|いたします)|ラインナップに加わ(?:ります|りました)|発売)/.test(s));if(!statements.length)throw Error('facts_event_missing');
   const launch=statements[0].split(/新シリーズとして/).at(-1);
