@@ -532,3 +532,8 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 @media(max-width:1100px){#studio-shell[data-tool-window="open"] #studio-tool-toggle{top:88px}}
 
 #shell-audio-stop{height:44px;box-sizing:border-box;line-height:1.1;padding:4px}
+
+/* Controls must wrap rather than disappearing inside a horizontal scroller. */
+.studio-main .sheet-toolbar-actions{flex-wrap:wrap;overflow-x:visible}
+.studio-main .sheet-toolbar-actions > *{max-width:100%}
+.studio-main .pd-table-wrap{max-width:100%;min-width:0}

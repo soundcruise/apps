@@ -7,30 +7,30 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.67.0"></script>
+    <script src="js/core/color-theme.js?v=0.68.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.67.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.68.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.67.0">
-    <link rel="stylesheet" href="melody-staff.css?v=0.67.0">
-    <link rel="stylesheet" href="melody-editor.css?v=0.67.0">
-    <link rel="stylesheet" href="shell.css?v=0.67.0">
-    <link rel="stylesheet" href="studio-home.css?v=0.67.0">
-    <link rel="stylesheet" href="studio-tools.css?v=0.67.0">
-    <link rel="stylesheet" href="port-tuner-surface.css?v=0.67.0">
-    <link rel="stylesheet" href="chord-form.css?v=0.67.0">
+    <link rel="stylesheet" href="theme.css?v=0.68.0">
+    <link rel="stylesheet" href="melody-staff.css?v=0.68.0">
+    <link rel="stylesheet" href="melody-editor.css?v=0.68.0">
+    <link rel="stylesheet" href="shell.css?v=0.68.0">
+    <link rel="stylesheet" href="studio-home.css?v=0.68.0">
+    <link rel="stylesheet" href="studio-tools.css?v=0.68.0">
+    <link rel="stylesheet" href="port-tuner-surface.css?v=0.68.0">
+    <link rel="stylesheet" href="chord-form.css?v=0.68.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.67.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.68.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
     <!-- service-worker / manifest は当面作らない（ADR-002） -->
-    <link rel="stylesheet" href="rhythm-panel.css?v=0.67.0">
-    <link rel="stylesheet" href="cloud-panel.css?v=0.67.0">
+    <link rel="stylesheet" href="rhythm-panel.css?v=0.68.0">
+    <link rel="stylesheet" href="cloud-panel.css?v=0.68.0">
 </head>
 
 <body>
@@ -78,7 +78,7 @@
 
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
-                <span class="studio-version" id="studio-version">v0.67.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
+                <span class="studio-version" id="studio-version">v0.68.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
             </header>
 
             <section class="module-section studio-cloud-panel" data-studio-cloud-panel aria-label="Cloud Sync"></section>
@@ -116,6 +116,7 @@
                     <button type="button" data-home-workspace="portGear" aria-label="機材リスト：機材を追加・編集"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/gear-list.png" alt=""><strong>機材リスト</strong><span class="home-tool-tip">機材を追加・編集する</span></button>
                     <button type="button" data-home-workspace="portMyApps" aria-label="My Apps：登録アプリを管理"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/note.png" alt=""><strong>My Apps</strong><span class="home-tool-tip">アプリを登録・起動する</span></button>
 
+                    <button type="button" data-home-workspace="portNews" aria-label="ニュース：音楽のニュースを読む"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt=""><strong>ニュース</strong><span class="home-tool-tip">音楽のニュースを読む</span></button>
                 </div>
                 <details class="home-options" data-studio-dev-only hidden inert><summary>表示設定・データの状態</summary><div class="home-options-actions"><button type="button" data-home-action="settings">表示テーマを選ぶ</button><button type="button" data-home-action="port">Portデータを確認</button></div><p data-home-port-status role="status">Port保存値：未確認。</p></details>
             </section>
@@ -151,7 +152,7 @@
                 </div>
             </section>
 
-            <section class="module-section home-other"><div class="home-section-heading"><h2 class="section-label">その他</h2></div><div class="pc-home-grid">                    <button type="button" data-home-workspace="portNews" aria-label="ニュース：音楽のニュースを読む"><img class="home-port-icon" src="../cruise-port/assets/my-app-icons/audio-file.png" alt=""><strong>ニュース</strong><span class="home-tool-tip">音楽のニュースを読む</span></button></div></section>
+
             <!-- 開発用: 保存基盤の動作確認（Phase 1）。主UIより目立たせない -->
             <details class="dev-panel" data-studio-dev-only hidden inert>
                 <summary>開発用: 曲データ保存基盤の動作確認</summary>
@@ -426,7 +427,7 @@
                 <div class="editor-card">
                     <h3 class="editor-card-title">生成プレビュー（小節ごとの伴奏イベント）</h3>
                     <p class="editor-card-note">音はまだ鳴りません。DAWに入れる前の伴奏の設計図として、小節ごとの生成内容を確認できます。コードが（　）の小節は直前のコードを継続しています。ストローク表記: D=ダウン / U=アップ / x=ミュート / ・=休み / >=アクセント（8分刻み）。</p>
-                    <div class="pd-table-wrap">
+                    <div class="pd-table-wrap" tabindex="0" role="region" aria-label="伴奏イベント一覧、横スクロールできます">
                         <table class="pd-table">
                             <thead>
                                 <tr>
@@ -672,68 +673,68 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/port-frame-theme.js?v=0.67.0"></script>
-    <script src="js/core/music-theory.js?v=0.67.0"></script>
+    <script src="js/core/port-frame-theme.js?v=0.68.0"></script>
+    <script src="js/core/music-theory.js?v=0.68.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.21.0"></script>
     <script src="../chord-cruise/js/core/caged-forms.js?v=1.21.0"></script>
-    <script src="js/modules/chord/read-model.js?v=0.67.0"></script>
-    <script src="js/modules/chord/inspector.js?v=0.67.0"></script>
-    <script src="js/core/rhythm-snapshot.js?v=0.67.0"></script>
-    <script src="js/core/schema2.js?v=0.67.0"></script>
-    <script src="js/core/melody-commands.js?v=0.67.0"></script>
-    <script src="js/core/song-model.js?v=0.67.0"></script>
-    <script src="js/core/storage.js?v=0.67.0"></script>
-    <script src="js/core/editing-session.js?v=0.67.0"></script>
-    <script src="js/core/project-repository.js?v=0.67.0"></script>
-    <script src="js/core/active-document.js?v=0.67.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.67.0"></script>
-    <script src="js/modules/sheet-cruise/history-commands.js?v=0.67.0"></script>
-    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.67.0"></script>
-    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.67.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.67.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.67.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.67.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.67.0"></script>
-    <script src="js/core/command-router.js?v=0.67.0"></script>
-    <script src="js/core/focus-routing.js?v=0.67.0"></script>
-    <script src="js/core/keyboard-router.js?v=0.67.0"></script>
-    <script src="js/core/modal-manager.js?v=0.67.0"></script>
-    <script src="js/shell.js?v=0.67.0"></script>
-    <script src="js/core/app-refresh.js?v=0.67.0"></script>
-    <script src="js/modules/practice/workspace.js?v=0.67.0"></script>
-    <script src="js/modules/practice/port-surface.js?v=0.67.0"></script>
-    <script src="js/modules/tuner/port-surface.js?v=0.67.0"></script>
-    <script src="js/modules/metronome/port-surface.js?v=0.67.0"></script>
-    <script src="js/modules/library/workspace.js?v=0.67.0"></script>
-    <script src="js/modules/library/port-surface.js?v=0.67.0"></script>
-    <script src="js/core/audio-coordinator.js?v=0.67.0"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.67.0"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.67.0"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.67.0"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.67.0"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.67.0"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.67.0"></script>
-    <script src="js/core/common-music-model.js?v=0.67.0"></script>
-    <script src="js/core/structure-conversion.js?v=0.67.0"></script>
+    <script src="js/modules/chord/read-model.js?v=0.68.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.68.0"></script>
+    <script src="js/core/rhythm-snapshot.js?v=0.68.0"></script>
+    <script src="js/core/schema2.js?v=0.68.0"></script>
+    <script src="js/core/melody-commands.js?v=0.68.0"></script>
+    <script src="js/core/song-model.js?v=0.68.0"></script>
+    <script src="js/core/storage.js?v=0.68.0"></script>
+    <script src="js/core/editing-session.js?v=0.68.0"></script>
+    <script src="js/core/project-repository.js?v=0.68.0"></script>
+    <script src="js/core/active-document.js?v=0.68.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.68.0"></script>
+    <script src="js/modules/sheet-cruise/history-commands.js?v=0.68.0"></script>
+    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.68.0"></script>
+    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.68.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.68.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.68.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.68.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.68.0"></script>
+    <script src="js/core/command-router.js?v=0.68.0"></script>
+    <script src="js/core/focus-routing.js?v=0.68.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.68.0"></script>
+    <script src="js/core/modal-manager.js?v=0.68.0"></script>
+    <script src="js/shell.js?v=0.68.0"></script>
+    <script src="js/core/app-refresh.js?v=0.68.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.68.0"></script>
+    <script src="js/modules/practice/port-surface.js?v=0.68.0"></script>
+    <script src="js/modules/tuner/port-surface.js?v=0.68.0"></script>
+    <script src="js/modules/metronome/port-surface.js?v=0.68.0"></script>
+    <script src="js/modules/library/workspace.js?v=0.68.0"></script>
+    <script src="js/modules/library/port-surface.js?v=0.68.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.68.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.68.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.68.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.68.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.68.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.68.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.68.0"></script>
+    <script src="js/core/common-music-model.js?v=0.68.0"></script>
+    <script src="js/core/structure-conversion.js?v=0.68.0"></script>
     <script src="vendor/vexflow.js?v=4.2.3"></script>
-    <script src="js/core/melody-notation.js?v=0.67.0"></script>
-    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.67.0"></script>
-    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.67.0"></script>
-    <script src="js/modules/series/workspaces.js?v=0.67.0"></script>
-    <script src="js/app.js?v=0.67.0"></script>
-    <script type="module" src="js/modules/port-pro-components.mjs?v=0.67.0"></script>
-    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.67.0"></script>
-    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.67.0"></script>
-    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.67.0"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.67.0"></script>
-    <script type="module" src="js/modules/tuner/panel.mjs?v=0.67.0"></script>
-    <script type="module" src="js/modules/library/panel.mjs?v=0.67.0"></script>
-    <script type="module" src="js/modules/pc-home-news.mjs?v=0.67.0"></script>
-    <script type="module" src="js/modules/series/official-links.mjs?v=0.67.0"></script>
-    <script src="../shared/sync-account/sync-account-core.js?v=0.67.0"></script>
-    <script src="../shared/pro-device-session.js?v=0.67.0"></script>
-    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.67.0"></script>
+    <script src="js/core/melody-notation.js?v=0.68.0"></script>
+    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.68.0"></script>
+    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.68.0"></script>
+    <script src="js/modules/series/workspaces.js?v=0.68.0"></script>
+    <script src="js/app.js?v=0.68.0"></script>
+    <script type="module" src="js/modules/port-pro-components.mjs?v=0.68.0"></script>
+    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.68.0"></script>
+    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.68.0"></script>
+    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.68.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.68.0"></script>
+    <script type="module" src="js/modules/tuner/panel.mjs?v=0.68.0"></script>
+    <script type="module" src="js/modules/library/panel.mjs?v=0.68.0"></script>
+    <script type="module" src="js/modules/pc-home-news.mjs?v=0.68.0"></script>
+    <script type="module" src="js/modules/series/official-links.mjs?v=0.68.0"></script>
+    <script src="../shared/sync-account/sync-account-core.js?v=0.68.0"></script>
+    <script src="../shared/pro-device-session.js?v=0.68.0"></script>
+    <script type="module" src="js/cloud/cloud-panel.mjs?v=0.68.0"></script>
 </body>
 
 </html>
