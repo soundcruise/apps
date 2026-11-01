@@ -833,3 +833,12 @@ test('pending local photo preserves its own crop while remote metadata advances'
  await load(target).applyRemoteSnapshot(target,fixtureFullSnapshot({schemaVersion:1,records:[remoteRecord('gear_item','pending-gear',{item:{id:'pending-gear',name:'Remote',status:'owned',order:0},asset})]}));
  const item=JSON.parse(target.value('cruisePort.gearList')).items[0];assert.equal(item.photoId,'local-final');assert.equal(item.photoSourceId,'local-source');assert.deepEqual(item.photoCrop,crop);
 });
+
+test('explicit remote image removal retires only selected pending metadata; ordinary pull protects it',async()=>{
+ const crop={x:0.3,y:0.4,size:0.6};
+ const make=()=>storage({'cruisePort.gearList':JSON.stringify({version:5,items:[{id:'pending-gear',name:'Pending',status:'owned',order:0,photoId:'local-final',photoSourceId:'local-source',photoCrop:crop}]}),'cruisePort.syncAssetMetadata':JSON.stringify({version:4,gear:{'pending-gear':{pending:{operationId:'pending'}},'other':{pending:{operationId:'keep'}}},myApps:{},attachments:{},releaseQueue:[],discardQueue:[]})});
+ const snapshot=fixtureFullSnapshot({schemaVersion:1,records:[remoteRecord('gear_item','pending-gear',{item:{id:'pending-gear',name:'Remote',status:'owned',order:0},asset:{version:1,present:false}})]});
+ const ordinary=make();await load(ordinary).applyRemoteSnapshot(ordinary,snapshot);assert.equal(JSON.parse(ordinary.getItem('cruisePort.gearList')).items[0].photoId,'local-final');
+ const chosen=make();await load(chosen).applyRemoteSnapshot(chosen,snapshot,[],null,()=>{},'gear_item/pending-gear');const item=JSON.parse(chosen.getItem('cruisePort.gearList')).items[0];assert.equal(item.photoId,null);assert.equal(item.photoSourceId,null);
+ const meta=JSON.parse(chosen.getItem('cruisePort.syncAssetMetadata'));assert.equal(meta.gear['pending-gear'].pending,null);assert.equal(meta.gear.other.pending.operationId,'keep');
+});
