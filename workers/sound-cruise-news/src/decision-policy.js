@@ -1,6 +1,6 @@
 import {withLegacyDuplicates,duplicateFenceValid} from './legacy-duplicate-compat.js';
 import {ASSISTED_ORIGIN,assistedProof,assistedLabel} from './assisted-facts.js';
-import {validPrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS} from './primary-announcement.js';
+import {validPrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,primaryParserSupports} from './primary-announcement.js';
 import {productBrandVariants,limitedEditionBrandVariants} from './product-brand-identity.js';
 import {validKikutaniListingFacts,KIKUTANI_LISTING_PARSER,KIKUTANI_LISTING_PARSERS} from './kikutani-listing-evidence.js';
 import {PRODUCT_FAMILY_PARSER,validProductFamily} from './product-family-evidence.js';
@@ -137,7 +137,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  }
  if(facts?.kind==='primary_product_notice'){
   const evidenceKey=await hash(row.title_fingerprint||'');let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
-  if(!validPrimaryAnnouncement(facts)||row.event_type!==(['release','scheduled_release','release_notice'].includes(facts.announcement?.action)?'release':'new_product')||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||!Array.isArray(proof)||![...Object.keys(facts),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.evidenceKey===evidenceKey&&p.publishedAt===row.published_at&&(facts.announcement.action==='release_notice'?['primary-announcement-2',PRIMARY_ANNOUNCEMENT_PARSER]:PRIMARY_ANNOUNCEMENT_PARSERS).includes(p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+  if(!validPrimaryAnnouncement(facts)||row.event_type!==(['release','scheduled_release','release_notice'].includes(facts.announcement?.action)?'release':'new_product')||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||!Array.isArray(proof)||![...Object.keys(facts),'event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.evidenceKey===evidenceKey&&p.publishedAt===row.published_at&&primaryParserSupports(facts,p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
  }
  if(facts?.kind==='product_family'){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}

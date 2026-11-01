@@ -1,3 +1,4 @@
+import {PRIMARY_ANNOUNCEMENT_PARSER} from '../src/primary-announcement.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {parseIkebeProductEvidence,ikebeProductSurface,IKEBE_PRODUCT_PARSER} from '../src/ikebe-product-evidence.js';
 import {getSource} from '../src/registry.js';import {factualLabel,productFacts} from '../src/metadata.js';
@@ -47,7 +48,7 @@ async function recover(c){const {requestId,snapshot,revision}=await decisionInpu
 async function failedReceipt(c,parser,checked=now-2*86400000){
  await c.s.db.prepare("UPDATE candidate_items SET event_type='new_product' WHERE id=?").bind(c.item.id).run();
  c.before=await c.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.item.id).first();
- const p={sourceId:'ikebe',sourceUrl:c.before.source_url,publishedAt:c.before.published_at,verifiedAt:checked,extractionMethod:'explicit_ikebe_product_fields',parserVersion:parser,pipelineVersion:'primary-announcement-3',evidenceKey:await hash(c.before.title_fingerprint),responseHash:'a'.repeat(64),failureReason:'facts_primary_type_unbound',factField:'_extraction_failure'};
+ const p={sourceId:'ikebe',sourceUrl:c.before.source_url,publishedAt:c.before.published_at,verifiedAt:checked,extractionMethod:'explicit_ikebe_product_fields',parserVersion:parser,pipelineVersion:PRIMARY_ANNOUNCEMENT_PARSER,evidenceKey:await hash(c.before.title_fingerprint),responseHash:'a'.repeat(64),failureReason:'facts_primary_type_unbound',factField:'_extraction_failure'};
  await c.s.db.prepare('INSERT INTO news_facts_rechecks(request_id,request_payload_hash,candidate_id,checked_at,outcome,provenance_json) VALUES(?,?,?,?,?,?)').bind('old-failure-fixture','old-hash',c.item.id,checked,p.failureReason,JSON.stringify([p])).run();return p;
 }
 test('old parser failure does not suppress later permitted new parser recovery',async()=>{

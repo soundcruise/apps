@@ -1,5 +1,5 @@
 import {recordDiscoveryResult,discoveryState} from './discovery-work.js';
-import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement} from './primary-announcement.js';
+import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement,primaryParserSupports} from './primary-announcement.js';
 import {initialPrimarySource,recoveryBudget} from './recovery-budget.js';
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
@@ -36,7 +36,7 @@ import {recoverySurface,recoveryCacheKey,resolvedRecoverySurface} from './facts-
 export async function reusablePrimaryEvidence(previous,row,source,now){
  if(!initialPrimarySource(source)||previous?.outcome!=='verified_surface'||previous.lease_until>now)return false;
  try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json),f=items[0]?.productFacts;
- const typed=p.extractionMethod==='explicit_primary_announcement_fields'&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&validPrimaryAnnouncement(f)&&(f.announcement.action!=='release_notice'||p.parserVersion!=='primary-announcement-1')||p.extractionMethod==='explicit_shimamura_product_fields'&&source.id==='shimamura'&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&validatedShimamuraProductFacts(f);
+ const typed=p.extractionMethod==='explicit_primary_announcement_fields'&&primaryParserSupports(f,p.parserVersion)&&validPrimaryAnnouncement(f)||p.extractionMethod==='explicit_shimamura_product_fields'&&source.id==='shimamura'&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&validatedShimamuraProductFacts(f);
  return !!typed&&p.sourceId===source.id&&p.sourceUrl===row.source_url&&p.publishedAt===row.published_at&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.pipelineVersion)&&p.evidenceKey===await hash(row.title_fingerprint||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at;
  }catch{return false;}
 }
@@ -92,7 +92,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
  if(initialPrimarySource(source)&&previousProof?.sourceId===source.id&&previousProof?.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof?.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey&&(!previousProof.parserVersion||!previousProof.extractionMethod||(previousProof.parserVersion===surface?.parser&&previousProof.extractionMethod===surface?.method)))return {...previous,outcome:'facts_primary_evidence_unchanged'};
  const budget=await recoveryBudget(store,source,now),freshSince=initialPrimarySource(source)?budget.since-1:now-DAY;
  if(previous?.checked_at>freshSince){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
- if(dailyOnly&&initialPrimarySource(source)&&work)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
+ if(dailyOnly&&initialPrimarySource(source)&&work&&previousProof?.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER)return {outcome:'facts_daily_budget_deferred',items_json:'[]',proof_json:null};
  // Parser-version keys are not permission to fetch the same article twice today.
  if(initialPrimarySource(source)){
   const sameUrl=await store.db.prepare("SELECT * FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=? AND (substr(source_id,-?)=? OR json_extract(CASE WHEN json_valid(proof_json) THEN proof_json ELSE '{}' END,'$.sourceUrl')=?) ORDER BY checked_at DESC LIMIT 1").bind(source.id+':',budget.since,row.id.length+1,':'+row.id,row.source_url).first();
@@ -176,7 +176,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
     finally{for(const e of entries){e.title='';e.eventTitle='';}entries.length=0;}
    }
   }catch(error){
-   if(!['facts_scope_uncertain','facts_identity_changed','facts_event_missing','facts_parser_failure','facts_date_changed'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
+   if(!['facts_scope_uncertain','facts_identity_changed','facts_event_missing','facts_parser_failure','facts_date_changed','facts_release_date_conflict'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
    proof.parserFailures=[{parser:surface.parser,reason:error.message}];
    let parsed;try{parsed=parseProductFamilyEvidence(response.text,source,row);proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;}catch(familyError){proof.parserFailures.push({parser:PRODUCT_FAMILY_PARSER,reason:/^facts_[a-z_]+$/.test(familyError.message)?familyError.message:'facts_parser_failure'});parsed=parsePrimaryAnnouncement(response.text,source,row);proof.extractionMethod='explicit_primary_announcement_fields';proof.parserVersion=PRIMARY_ANNOUNCEMENT_PARSER;}
    items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
