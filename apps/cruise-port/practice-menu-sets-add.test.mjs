@@ -120,7 +120,7 @@ test('＋ プリセットを作成 reuses the preset dialog and returns to the a
 
 test('the menu is saved before any set changes; failures never mutate sets', () => {
     const create = app.slice(app.indexOf('if (!guardPracticeCreation()) return;'), app.indexOf('\nfunction cancelForm'));
-    assert.match(create, /const chosenSetIds = readPracticeFormSetIds\(\);\s*if \(\(await persist\(\[\.\.\.state\.items, item\]\)\)\) \{\s*\/\/[^\n]*\n\s*const setNotice = \(await addNewPracticeMenuToSets\(item, chosenSetIds\)\);/);
+    assert.match(create, /const chosenSetIds = readPracticeFormSetIds\(\);\s*if \(\(await persist\(\[\.\.\.state\.items, item\], \{ accountContext: state\.accountContext \}\)\)\) \{\s*\/\/[^\n]*\n\s*const setNotice = \(await addNewPracticeMenuToSets\(item, chosenSetIds\)\);/);
     const add = body('addNewPracticeMenuToSets');
     assert.match(add, /addPracticeMenuToSets\(state\.practiceSets, setIds, item\.id\)/);
     assert.match(add, /result\.changed && !\(await persistPracticeSets\(result\.items\)\)/, 'one batch write, failure detected');

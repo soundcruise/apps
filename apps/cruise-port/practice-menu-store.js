@@ -1,4 +1,4 @@
-import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.23.1';
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.24.24';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 import { APP_DEFINITIONS } from './cruise-app-links.js?v=0.60.0';
 const SCHEMA_VERSION = 3;
@@ -132,8 +132,8 @@ export function loadPracticeMenus(storage) {
     }
 }
 
-export function savePracticeMenus(items, storage) {
-    if (usesPortRepository(storage)) return writePortStore(storage, [STORAGE_KEYS.schemaVersion, STORAGE_KEYS.practiceMenus], tx => savePracticeMenus(items, tx));
+export function savePracticeMenus(items, storage, writeOptions = {}) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [STORAGE_KEYS.schemaVersion, STORAGE_KEYS.practiceMenus], tx => savePracticeMenus(items, tx), writeOptions);
     if (!Array.isArray(items) || !items.every((item) => isValidItem(item)) || !hasUniqueIds(items)) {
         return { ok: false, reason: 'invalid-data' };
     }

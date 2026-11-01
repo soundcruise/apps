@@ -1,0 +1,257 @@
+{
+  "baseCommit": "4f20ea642da8656ab1bc7849a9acea27f7707679",
+  "baseTree": "d37b2448068d5d4388324fd3ca2468f86e5bceda",
+  "productionAccess": false,
+  "realCredentials": false,
+  "newInfrastructure": false,
+  "runs": [
+    {
+      "run": 1,
+      "status": "FAIL",
+      "completedCases": 2,
+      "browserErrors": 0,
+      "fixtureCorrection": "Native receive navigated/reloaded standalone document; observe the actual navigation instead of hidden Sync action."
+    },
+    {
+      "run": 2,
+      "status": "FAIL",
+      "completedCases": 29,
+      "browserErrors": 0,
+      "fixtureCorrection": "Wait for actual form Account capture before artificial Account replacement."
+    },
+    {
+      "run": 3,
+      "status": "PASS",
+      "completedCases": 30,
+      "browserErrors": 0
+    },
+    {
+      "run": 4,
+      "status": "PASS",
+      "completedCases": 30,
+      "browserErrors": 0
+    },
+    {
+      "run": 5,
+      "status": "FAIL",
+      "completedCases": 12,
+      "browserErrors": 0,
+      "fixtureCorrection": "Native gate input cleared between separate commands during terminal revocation; submit through unchanged native handler in one browser task."
+    },
+    {
+      "run": 6,
+      "status": "PASS",
+      "completedCases": 30,
+      "browserErrors": 0
+    },
+    {
+      "run": 7,
+      "status": "PASS",
+      "completedCases": 30,
+      "browserErrors": 0
+    }
+  ],
+  "node": {
+    "portTopLevel": {
+      "pass": 1177,
+      "fail": 4,
+      "skipped": 0,
+      "failures": "four unchanged exact-main theme assertions"
+    },
+    "portNested": {
+      "pass": 1304,
+      "fail": 0,
+      "skipped": 0
+    },
+    "sharedRuntimeAndEntryAndLicense": {
+      "pass": 200,
+      "fail": 0,
+      "skipped": 0
+    }
+  },
+  "uiBrowser": {
+    "pass": 9,
+    "fail": 0,
+    "themes": 5,
+    "widths": [
+      1440,
+      1024,
+      768,
+      390
+    ]
+  },
+  "jekyll": {
+    "studioFiles": 34,
+    "nativeEmittedBytesEqualSourceFiles": 774,
+    "http": {
+      "public200WithMatchingHash": 34,
+      "deferredDevelopment404": 8,
+      "completeISCAndMITInPublishedSprite": true,
+      "unchangedSymbols": 9
+    }
+  },
+  "finalProductCases": [
+    {
+      "name": "Standard cold Port connects Account and saves/disconnects without manual reload",
+      "status": "PASS"
+    },
+    {
+      "name": "Pro cold Port connects Account and saves/disconnects without manual reload",
+      "status": "PASS"
+    },
+    {
+      "name": "native Port invitation join and first Cloud receive in standalone Pro",
+      "status": "PASS"
+    },
+    {
+      "name": "native Port invitation join and first Cloud receive in Studio iframe",
+      "status": "PASS"
+    },
+    {
+      "name": "Pro detach keeps the local dataset writable on the same document",
+      "status": "PASS"
+    },
+    {
+      "name": "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+      "status": "PASS"
+    },
+    {
+      "name": "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+      "status": "PASS"
+    },
+    {
+      "name": "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+      "status": "PASS"
+    },
+    {
+      "name": "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+      "status": "PASS"
+    },
+    {
+      "name": "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+      "status": "PASS"
+    },
+    {
+      "name": "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+      "status": "PASS"
+    },
+    {
+      "name": "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+      "status": "PASS"
+    },
+    {
+      "name": "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+      "status": "PASS"
+    },
+    {
+      "name": "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+      "status": "PASS"
+    },
+    {
+      "name": "expired native Pro session requires formal reauthentication and retains the Project draft",
+      "status": "PASS"
+    },
+    {
+      "name": "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+      "status": "PASS"
+    },
+    {
+      "name": "native Account and device-bound Pro authentication through existing libraries",
+      "status": "PASS"
+    },
+    {
+      "name": "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+      "status": "PASS"
+    },
+    {
+      "name": "real Sync Center attribution and existing runtime bootstrap on both profiles",
+      "status": "PASS"
+    },
+    {
+      "name": "real Port Gear UI save -> Cloud push -> Studio frame pull",
+      "status": "PASS"
+    },
+    {
+      "name": "Studio actual Gear form edits Cloud data and Port receives the edit",
+      "status": "PASS"
+    },
+    {
+      "name": "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+      "status": "PASS"
+    },
+    {
+      "name": "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+      "status": "PASS"
+    },
+    {
+      "name": "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+      "status": "PASS"
+    },
+    {
+      "name": "existing Practice attachment Asset Sync stores and hydrates real binary",
+      "status": "PASS"
+    },
+    {
+      "name": "offline edit is retained and reconciles through existing Sync after reconnect",
+      "status": "PASS"
+    },
+    {
+      "name": "Account A-B-A rejects the old standalone form, keeps A pending/images/attachments and resumes A",
+      "status": "PASS"
+    },
+    {
+      "name": "Studio retained Port form independently rejects another Account and resumes the original Device",
+      "status": "PASS"
+    },
+    {
+      "name": "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+      "status": "PASS"
+    },
+    {
+      "name": "a fresh B document permits normal B editing without inheriting the old A runtime or Outbox",
+      "status": "PASS"
+    }
+  ],
+  "recoveryRuns": [
+    {
+      "run": 1,
+      "status": "PASS",
+      "completedCases": 12
+    },
+    {
+      "run": 2,
+      "status": "PASS",
+      "completedCases": 12
+    }
+  ],
+  "sourceSHA256": {
+    "apps/cruise-port/port-dataset-repository.js": "ac6af5763b9ea1f7419ca0ee1f4e41dd4fb49d563e88c8227f3fffd8fba30934",
+    "apps/cruise-port/practice-menu-app.js": "2057ad6318b8f7edcb8115d8df476439b9c329935628d24741b7b2660b55caff",
+    "apps/cruise-studio/tests/port-product-sync.browser.mjs": "2d248b8d62ea033816076523555e95fdd5e43ac78d3b44cd7eda6e66ad96b810",
+    "apps/cruise-studio/tests/release1-sync.browser.mjs": "e8952de652ea0dc66e26c86d11715ef1c5144d84bc548aca97ccacdb65f038ac",
+    "apps/cruise-studio/assets/studio-icons.svg": "86a2232039ec1a3bd8442439db1b313a017d1742a01b51331ca430265d11d564"
+  },
+  "unchangedProductTrees": {
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "workers": "585bde6d34ed6627442dc3649d1469651cc1d075"
+  },
+  "sharedProductUnchangedExceptOneTestCacheURL": true,
+  "existingWorktreeHeadsUnchanged": 103,
+  "finalGuardAndLicenseNode": {
+    "pass": 23,
+    "fail": 0,
+    "skipped": 0
+  },
+  "preview": {
+    "port": 18829,
+    "mode": "localhost-only synthetic development server; public34 plus current native root",
+    "http200": [
+      "/apps/cruise-studio/index.html",
+      "/apps/cruise-studio/assets/studio-icons.svg",
+      "/apps/cruise-port/pro_9a3943176561/"
+    ]
+  }
+}

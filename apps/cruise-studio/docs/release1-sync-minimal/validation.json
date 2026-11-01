@@ -1,0 +1,338 @@
+{
+  "productionAccepted": false,
+  "status": "DRAFT_RELEASE_HOLD",
+  "fixed": {
+    "main": "cb48d8c17b4757a0404d031272a1f36ba92618b5",
+    "port149": "b2f9cf474a8eb50697c7c1e42895c2a1165811af",
+    "studio150": "7542a19659fd672a7e40eadd36e32914b98c585c",
+    "technical145": "70cd871a09c36e3394f112f84c37df6555f0a136"
+  },
+  "portCorrectionCommit": "09c6f676537797584a4ff429b6f7fc031f40e635",
+  "node": {
+    "targeted": {
+      "pass": 103,
+      "fail": 0,
+      "skip": 0
+    },
+    "topLevelPort": {
+      "pass": 1155,
+      "fail": 4,
+      "skip": 0,
+      "failures": "same exact-main theme assertions"
+    },
+    "sharedRuntime": {
+      "pass": 182,
+      "fail": 0,
+      "skip": 0
+    },
+    "exactMainThemeBaseline": {
+      "pass": 22,
+      "fail": 4
+    }
+  },
+  "uiBrowser": {
+    "pass": 9,
+    "fail": 0,
+    "skip": 0,
+    "themes": 5,
+    "widths": [
+      1440,
+      1024,
+      768,
+      390
+    ]
+  },
+  "publication": {
+    "realJekyllSafe": true,
+    "studioFiles": 34,
+    "HTTP200HashMatch": 34,
+    "deferredHTTP404": 8,
+    "nativeEmittedFilesMatchInput": 773
+  },
+  "workerFixture": {
+    "ordinarySyncAssets": "preserved original v137; NOT v138 certification",
+    "sha256": "9d880d845b22d7905a5fe5be5b453f074ee28956ce2044ac769c9ee726bbe0b5",
+    "accountPro": "fixed-main handlers, native crypto, synthetic anti-abuse input",
+    "outbound": "disabled"
+  },
+  "hold": [
+    "standalone Port local dataset Account-affinity / writer P2",
+    "exact deployed v138 artifact/config/flags",
+    "expired/incomplete operation history",
+    "schema0033 physical Asset cleanup",
+    "old-client/writer coexistence",
+    "real Account/Pro/two-device/Safari/microphone",
+    "operational backup/restore/OFF/Canary"
+  ],
+  "independentReview": false,
+  "nativeProduct": {
+    "status": "FAIL",
+    "pass": 22,
+    "browserErrors": 0,
+    "cases": [
+      {
+        "name": "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+        "status": "PASS"
+      },
+      {
+        "name": "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+        "status": "PASS"
+      },
+      {
+        "name": "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+        "status": "PASS"
+      },
+      {
+        "name": "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+        "status": "PASS"
+      },
+      {
+        "name": "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+        "status": "PASS"
+      },
+      {
+        "name": "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+        "status": "PASS"
+      },
+      {
+        "name": "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+        "status": "PASS"
+      },
+      {
+        "name": "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+        "status": "PASS"
+      },
+      {
+        "name": "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+        "status": "PASS"
+      },
+      {
+        "name": "expired native Pro session requires formal reauthentication and retains the Project draft",
+        "status": "PASS"
+      },
+      {
+        "name": "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+        "status": "PASS"
+      },
+      {
+        "name": "native Account and device-bound Pro authentication through existing libraries",
+        "status": "PASS"
+      },
+      {
+        "name": "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+        "status": "PASS"
+      },
+      {
+        "name": "real Sync Center attribution and existing runtime bootstrap on both profiles",
+        "status": "PASS"
+      },
+      {
+        "name": "real Port Gear UI save -> Cloud push -> Studio frame pull",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio actual Gear form edits Cloud data and Port receives the edit",
+        "status": "PASS"
+      },
+      {
+        "name": "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+        "status": "PASS"
+      },
+      {
+        "name": "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+        "status": "PASS"
+      },
+      {
+        "name": "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+        "status": "PASS"
+      },
+      {
+        "name": "existing Practice attachment Asset Sync stores and hydrates real binary",
+        "status": "PASS"
+      },
+      {
+        "name": "offline edit is retained and reconciles through existing Sync after reconnect",
+        "status": "PASS"
+      },
+      {
+        "name": "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+        "status": "PASS"
+      }
+    ],
+    "failure": "Account A to B old standalone Gear form writes local data; full suite NOT PASS"
+  },
+  "legacyRecoveryRun1": {
+    "status": "PASS",
+    "pass": 12,
+    "browserErrors": 0,
+    "cases": [
+      {
+        "name": "legacy network retains exact pending operation and reconnects without replacement",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy 503 retains exact pending operation and reconnects without replacement",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy committed ACK loss survives reload; same-operation retry or exact own echo makes one commit",
+        "status": "PASS"
+      },
+      {
+        "name": "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+        "status": "PASS"
+      },
+      {
+        "name": "native image re-edit publishes a new matched source/final generation on both devices",
+        "status": "PASS"
+      },
+      {
+        "name": "explicit photo deletion propagates without treating a missing cache as deletion",
+        "status": "PASS"
+      },
+      {
+        "name": "native My Apps icon source/final binary roundtrip through Studio entry",
+        "status": "PASS"
+      },
+      {
+        "name": "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy attachment deletion ACK loss preserves pending data while a new attachment is retained",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy attachment pending retry and replacement download preserve v2 without resurrecting v1",
+        "status": "PASS"
+      },
+      {
+        "name": "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+        "status": "PASS"
+      },
+      {
+        "name": "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes",
+        "status": "PASS"
+      }
+    ]
+  },
+  "legacyRecoveryRun2": {
+    "status": "PASS",
+    "pass": 12,
+    "browserErrors": 0,
+    "cases": [
+      {
+        "name": "legacy network retains exact pending operation and reconnects without replacement",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy 503 retains exact pending operation and reconnects without replacement",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy committed ACK loss survives reload; same-operation retry or exact own echo makes one commit",
+        "status": "PASS"
+      },
+      {
+        "name": "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+        "status": "PASS"
+      },
+      {
+        "name": "native image re-edit publishes a new matched source/final generation on both devices",
+        "status": "PASS"
+      },
+      {
+        "name": "explicit photo deletion propagates without treating a missing cache as deletion",
+        "status": "PASS"
+      },
+      {
+        "name": "native My Apps icon source/final binary roundtrip through Studio entry",
+        "status": "PASS"
+      },
+      {
+        "name": "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy attachment deletion ACK loss preserves pending data while a new attachment is retained",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy attachment pending retry and replacement download preserve v2 without resurrecting v1",
+        "status": "PASS"
+      },
+      {
+        "name": "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+        "status": "PASS"
+      },
+      {
+        "name": "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes",
+        "status": "PASS"
+      }
+    ]
+  },
+  "legacyRecoveryStrictWire": {
+    "status": "PASS",
+    "pass": 12,
+    "browserErrors": 0,
+    "cases": [
+      {
+        "name": "legacy network retains exact pending operation and reconnects without replacement",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy 503 retains exact pending operation and reconnects without replacement",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy committed ACK loss survives reload; same-operation retry or exact own echo makes one commit",
+        "status": "PASS"
+      },
+      {
+        "name": "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+        "status": "PASS"
+      },
+      {
+        "name": "native image re-edit publishes a new matched source/final generation on both devices",
+        "status": "PASS"
+      },
+      {
+        "name": "explicit photo deletion propagates without treating a missing cache as deletion",
+        "status": "PASS"
+      },
+      {
+        "name": "native My Apps icon source/final binary roundtrip through Studio entry",
+        "status": "PASS"
+      },
+      {
+        "name": "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy attachment deletion ACK loss preserves pending data while a new attachment is retained",
+        "status": "PASS"
+      },
+      {
+        "name": "legacy attachment pending retry and replacement download preserve v2 without resurrecting v1",
+        "status": "PASS"
+      },
+      {
+        "name": "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+        "status": "PASS"
+      },
+      {
+        "name": "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes",
+        "status": "PASS"
+      }
+    ]
+  },
+  "protectedMainTrees": {
+    "apps/shared": "3da1344c474ffd37de9649dcd8da88c7bbfda143",
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "workers": "585bde6d34ed6627442dc3649d1469651cc1d075"
+  },
+  "existingRegisteredWorktreeHeadsUnchanged": 101
+}

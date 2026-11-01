@@ -19,6 +19,7 @@
                 var command = commands.get(id);
                 if (!command || (event && event.defaultPrevented)) return { consumed: false };
                 var context = Object.freeze(Object.assign({}, getContext()));
+                if (context.authorized === false) return { consumed: false };
                 // Fix the target once before capability checks; focus does not infer it.
                 context = Object.freeze(Object.assign({}, context, { target: command.target(context) }));
                 if (context.target == null || !command.canExecute(context)) return { consumed: false };

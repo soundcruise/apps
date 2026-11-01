@@ -26,8 +26,11 @@
                 .filter(function (element) { return element.tabIndex >= 0 && options.canFocus(element); });
         }
         return Object.freeze({
-            getActive: function () { return active ? active.element : null; },
+            getActive: function () { return active && !active.suspended ? active.element : null; },
+            suspend: function () { if (!active || active.suspended) return; active.suspended = true; active.ignoreClose = true; active.element.close(); },
+            resume: function () { if (!active || !active.suspended) return; active.suspended = false; active.element.showModal(); options.background.inert = true; },
             open: function (config) {
+                if (options.canOpen && !options.canOpen()) return null;
                 if (active) throw new Error('A modal is already active');
                 if (!config.title || !config.content || config.content.isConnected) throw new TypeError('Modal requires a name and detached content');
                 var dialog = doc.createElement('dialog');
@@ -37,7 +40,7 @@
                 var record = { element: dialog, trigger: doc.activeElement, onClose: config.onClose,
                     backgroundInert: options.background.inert, backgroundAria: options.background.getAttribute('aria-hidden') };
                 record.cancel = function (event) { event.preventDefault(); if (!options.ime.blocked(event)) close('escape'); };
-                record.closed = function () { if (active === record) close('native-close'); };
+                record.closed = function () { if (record.ignoreClose) { record.ignoreClose = false; return; } if (active === record) close('native-close'); };
                 dialog.addEventListener('cancel', record.cancel); dialog.addEventListener('close', record.closed);
                 doc.body.appendChild(dialog); active = record;
                 try { dialog.showModal(); } catch (error) { active = null; dialog.remove(); throw error; }
@@ -49,7 +52,7 @@
             },
             close: close,
             capture: function (event) {
-                if (!active || event.defaultPrevented) return;
+                if (!active || active.suspended || event.defaultPrevented) return;
                 // Browser-owned chords (including Ctrl+Tab and developer tools) stay native.
                 if (event.metaKey || event.ctrlKey || event.altKey || /^F\d+$/.test(event.key)) {
                     if (!active.element.contains(event.target)) event.stopImmediatePropagation();
