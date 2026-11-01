@@ -22,7 +22,7 @@ This is intentionally online admission/refresh: failure to establish the existin
 
 - Five tools keep their canonical Port Pro documents/controllers, native gates, settings, image stores and Sync runtime. Their native gates validate the same origin's existing qualification/Device Session and require no additional number entry. They keep their own writer admission.
 - Four apps keep their existing Studio component DOM/CSS/controllers and local data formats. The existing component boundary now consults the formal entrance instead of the obsolete permanently closed boundary. Components delegate the Pro operation source to the native owner only while their admitted Account is current. They mint no credential or policy. No Standard policy is mistaken for the native Port Pro policy on the Studio pathname.
-- Project schema2/local storage/CAS/Outbox stay unchanged. The existing Project repository gains entrance callbacks around writes, without replacing its lock, revision comparison, validation or rollback. Project Cloud activation/transport is unchanged.
+- Project schema2/local storage/CAS/Outbox stay unchanged. The existing Project repository gains entrance callbacks around writes, without replacing its lock, revision comparison, validation or rollback. Project Cloud activation/transport is unchanged. Home distinguishes authenticated Studio access from a still-disconnected Project Sync Session; it no longer falsely asks an admitted user to log in again.
 - Native app files, Port files, shared files, Worker code/configuration and migrations are byte-identical to the base. All changes are under `apps/cruise-studio/`.
 
 ## Retention and lifecycle

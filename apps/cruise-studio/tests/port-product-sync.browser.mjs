@@ -89,7 +89,7 @@ try{
   await E.page.evaluate(()=>document.querySelector('[data-entry-account-frame] iframe').contentWindow.location.hash='#wishlist');
   await E.page.waitForFunction(()=>document.querySelector('[data-entry-account-frame] iframe').contentWindow.location.hash==='#sync-center');
   entranceAccount=await createAccount(E);await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
-  assert.equal(await E.page.locator('#pro-gate-overlay').count(),0);assert.equal(await E.page.locator('#studio-shell').evaluate(e=>e.inert),false);await E.page.screenshot({path:OUT+'/entrance-ready.png'});
+  assert.equal(await E.page.locator('#pro-gate-overlay').count(),0);assert.equal(await E.page.locator('#studio-shell').evaluate(e=>e.inert),false);await E.page.locator('[data-studio-cloud-panel]').getByText('Studio Pro認証済み',{exact:true}).waitFor();await E.page.screenshot({path:OUT+'/entrance-ready.png'});
  });
  await check('one native entrance qualification admits all five actual Port Pro tools without another passcode',async()=>{
   const before=network.filter(n=>n.label==='Entrance'&&n.path==='/v2/pro-auth/verify').length;

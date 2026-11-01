@@ -17,7 +17,7 @@ export function mountStudioCloudPanel({element,session=null,client=null,reposito
  function currentProject(){const p=getProject?.();if(!p||typeof p.projectId!=='string'||p.dirty===true)throw Object.assign(Error('先に編集内容をローカル保存してください'),{code:'local-draft-unsaved'});return p.projectId;}
  function authenticated(){try{return session?.readSession();}catch{return null;}}
  const online=()=>globalThis.navigator?.onLine!==false;
- function render(){const s=authenticated();account.textContent=s?'Account接続済み / Device '+s.binding.deviceId.slice(0,8):'Account未接続';pro.textContent=s?'Pro認証済み / '+new Date(s.validUntil).toLocaleString()+'まで':'Pro再認証が必要です';state.textContent=online()?status:'Offline：未送信データは端末に保持されています';
+ function render(){const s=authenticated(),admitted=globalThis.CruiseStudio?.entryAuth?.isAuthorized()===true;account.textContent=s?'Account接続済み / Device '+s.binding.deviceId.slice(0,8):admitted?'Account接続済み / Project Sync未接続':'Account未接続';pro.textContent=s?'Pro認証済み / '+new Date(s.validUntil).toLocaleString()+'まで':admitted?'Studio Pro認証済み':'Pro認証を確認してください';state.textContent=online()?status:'Offline：未送信データは端末に保持されています';
   for(const [name,b] of buttons){b.disabled=busy||!online()||!session||(!['connect','refresh','register','device','recover'].includes(name)&&!s);}
   const op=operations.find(x=>x.operationId===activeId);for(const name of ['send','reconcile','adopt'])if(buttons.has(name))buttons.get(name).disabled ||= !op;
   if(buttons.has('send'))buttons.get('send').disabled ||= !['QUEUED','UPLOADING'].includes(op?.state);
@@ -30,7 +30,7 @@ export function mountStudioCloudPanel({element,session=null,client=null,reposito
  async function run(fn){if(busy||disposed)return;busy=true;status='処理中…';const captured=generation;render();try{const r=await fn();if(captured!==generation||disposed)return;status=labels[r?.state]||r?.message||'確認が完了しました';await refreshList();}catch(e){if(captured===generation){try{await refreshList();}catch{} }if(captured===generation)status=e.code==='local-draft-unsaved'?e.message:'操作を停止しました：'+(e.code||e.message)+ '。ローカルと未確定データは保持しています。';}finally{busy=false;render();}}
  function button(name,text,fn){const b=doc.createElement('button');b.type='button';b.textContent=text;b.dataset.cloudAction=name;b.addEventListener('click',()=>run(fn));panel.append(b);buttons.set(name,b);}
  if(session&&client&&repository&&getProject){
-  button('connect','このAccountで接続',()=>session.enroll());button('refresh','Account・Proを再認証',()=>session.refresh());
+  button('connect','このAccountで接続',()=>session.enroll());button('refresh','Account・Pro資格を確認',()=>session.refresh());
   for(const [name,text]of [['register','Account新規登録'],['device','このDeviceを登録'],['recover','Accountを復旧']])if(typeof identityActions[name]==='function')button(name,text,()=>identityActions[name](session));
   button('save','現在のProjectをCloudへ保存',async()=>{const o=await client.enqueue(currentProject());activeId=o.operationId;status=labels.UPLOADING;render();return client.send(o.operationId);});
   button('observe','Cloudの状態を確認',async()=>{const r=await client.observe(currentProject());return{...r,message:r.state==='REMOTE_AVAILABLE'?'Cloud文書あり / revision '+r.head.revision:r.state==='REMOTE_ABSENT'?'Cloudに文書はありません':labels[r.state]};});
