@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.24.21';
+} from './app-version.js?v=1.24.22';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.23.1';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.23.1';
 import { initTuner } from './tuner-app.js?v=1.23.1';
@@ -230,7 +230,7 @@ import {
     saveGearCategories
 } from './gear-category-store.js?v=1.23.1';
 import { createGearPhotoStore } from './gear-photo-store.js?v=1.23.1';
-import { PortAssetSync } from './port-asset-sync.js?v=1.23.1';
+import { PortAssetSync } from './port-asset-sync.js?v=1.24.22';
 import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.23.1';
 import {
     ALL_PRACTICE_MENUS_SET_ID,

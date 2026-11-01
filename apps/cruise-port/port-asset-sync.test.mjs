@@ -1009,3 +1009,20 @@ for (const code of ['writer_protocol_outdated','dataset_epoch_stale','dataset_au
   assert.equal(calls,1);assert.equal(local.getItem('cruisePort.syncAssetMetadata'),before);assert.equal(pending.operationId,'pending-operation');assert.equal(pending.writerAuthority.expectedWriteEpoch,7);
  });
 }
+
+test('unhydrated remote image is not a local deletion when another local field is saved',async()=>{
+ const image={availability:'available',final:{assetId:'cloud-final'},source:{assetId:'cloud-source'},crop:{x:0,y:0,size:1}};
+ const local=storage({'cruisePort.gearList':JSON.stringify({version:5,items:[{id:'g',photoId:null,photoSourceId:null,photoCrop:null}]}),'cruisePort.myApps':JSON.stringify({version:7,items:[{id:'a',iconId:null,iconSourceId:null,iconCrop:null,iconPresetKey:null}]}),'cruisePort.syncAssetMetadata':JSON.stringify({version:4,gear:{g:{published:image,binding:null}},myApps:{a:{published:image,binding:null}},attachments:{},releaseQueue:[],discardQueue:[]})});
+ const sync=new PortAssetSync({canSync:()=>true,controller:controller(),storage:local});await sync.markLocalRemovals();const meta=JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));assert.deepEqual(meta.gear.g.published,image);assert.deepEqual(meta.myApps.a.published,image);assert.deepEqual(meta.releaseQueue,[]);
+ local.setItem('cruisePort.gearList',JSON.stringify({version:5,items:[]}));await sync.markLocalRemovals();const removed=JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));assert.equal(removed.gear.g.published,null);assert(removed.releaseQueue.includes('cloud-final'));
+});
+test('hydrated binary binding and owner references publish atomically under existing dataset lock',async()=>{
+ const {PortDatasetRepository}=await import('./port-dataset-repository.js?v=1.23.1'),{registerPortRepository}=await import('./port-dataset-storage.js?v=1.23.1');
+ const published={availability:'available',final:{assetId:'cloud-final'},source:{assetId:'cloud-source'},crop:{x:0,y:0,size:1}},before={published,binding:null,pending:null};
+ const local=storage({'cruisePort.gearList':JSON.stringify({version:5,items:[{id:'g',photoId:null,photoSourceId:null,photoCrop:null}]}),'cruisePort.syncAssetMetadata':JSON.stringify({version:4,gear:{g:before},myApps:{},attachments:{},releaseQueue:[],discardQueue:[]})}),observed=[];
+ const repo=new PortDatasetRepository({storage:local,locks:{request:async(_n,_o,fn)=>fn()},notify:event=>observed.push({source:event.source,item:JSON.parse(local.getItem('cruisePort.gearList')).items[0],entry:JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).gear.g})});registerPortRepository(local,repo);
+ const sync=new PortAssetSync({canSync:()=>true,controller:controller(),storage:local}),entry={...before,binding:{final:{localId:'cached-final',assetId:'cloud-final'},source:{localId:'cached-source',assetId:'cloud-source'}}};
+ assert.equal(await sync.commitHydratedPair('gear','g',before,entry,{finalId:null,sourceId:null,crop:null},{finalId:'cached-final',sourceId:'cached-source',crop:published.crop}),true);
+ assert.equal(observed.length,1);assert.equal(observed[0].source,'sync');assert.equal(observed[0].item.photoId,observed[0].entry.binding.final.localId);await sync.markLocalRemovals();assert.deepEqual(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).releaseQueue,[]);
+ assert.equal(await sync.commitHydratedPair('gear','g',entry,entry,{finalId:null,sourceId:null,crop:null},{finalId:'stale',sourceId:'stale',crop:null}),false);assert.equal(JSON.parse(local.getItem('cruisePort.gearList')).items[0].photoId,'cached-final');
+});
