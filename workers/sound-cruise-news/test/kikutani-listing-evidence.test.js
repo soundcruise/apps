@@ -25,3 +25,10 @@ test('initial listing → facts → label → formal validation → READY, no ap
 test('guitar accessories and generic deburring tools cannot become complete guitars/fret tools',()=>{
  for(const t of ['エレアコ用ケース「Example Guitars AC500」','Craft Toolsからバリ取りに役立つ工具「AB-500 – Industrial Tool」が登場'])assert.equal(kikutaniListingFacts(entry(t),source),null);
 });
+
+test('new-product tag alone does not create facts-missing candidates for unrelated instruments',async()=>{
+ for(const title of ['新たなスネア「ZZ-100」登場','お求めやすい「PX」シリーズ・スネアドラム','88鍵盤 折りたたみ式電子ピアノ「KEY-88」登場']){
+  const r=await candidateFrom(entry(title),source,{isAllowed:()=>true},now,pepper);assert.equal(r.item,undefined);assert.equal(r.reason,'listing_evidence_insufficient');
+ }
+ const guitar=await candidateFrom(entry('新工房のアコギ「未知シリーズ」が登場'),source,{isAllowed:()=>true},now,pepper);assert(guitar.item);assert.equal(guitar.item.productFacts,null);
+});

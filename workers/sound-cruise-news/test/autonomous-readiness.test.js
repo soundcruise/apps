@@ -143,9 +143,9 @@ test('objective duplicate cleanup has a protected, authenticated return-to-revie
  await assert.rejects(restoreSystemResolution(s,{...input,requestId:crypto.randomUUID(),snapshot:await candidateSnapshot(await row(s,id))},now,[source],pepper,human),/not_system/);
 });
 test('Kikutani official new-product card survives unsupported brand/type grammar without fabricated facts or new HTTP surfaces',async()=>{
- const a={...getSource('kikutani'),enabled:true,productionEnabled:true},entry={title:'新興工房の「Studio Frame」の取扱いが始まります',url:a.discoveryUrl+'new-workshop-recorder/',date:'2026-10-01T00:00:00+09:00',listingSection:'official_news',listingTags:['新製品情報']};
+ const a={...getSource('kikutani'),enabled:true,productionEnabled:true},entry={title:'新興工房のアコギ「Studio Frame」の取扱いが始まります',url:a.discoveryUrl+'new-workshop-recorder/',date:'2026-10-01T00:00:00+09:00',listingSection:'official_news',listingTags:['新製品情報']};
  const {item}=await candidateFrom(entry,a,{isAllowed:()=>true},now,pepper);assert(item);assert.equal(item.productFacts,null);assert.equal(item.publicationDecision,'PUBLISH_REVIEW');
- assert.equal((await candidateFrom({...entry,listingTags:[]},a,{isAllowed:()=>true},now,pepper)).item,undefined);
+ const untagged=await candidateFrom({...entry,listingTags:[]},a,{isAllowed:()=>true},now,pepper);assert.notEqual(untagged.item?.eventType,'new_product');assert.equal(untagged.item?.productFacts??null,null);
  const s=await setup();await s.recordHealth({sourceId:a.id,status:'healthy',reasonCode:'ok',checkedAt:now,successfulAt:now});assert(await s.put(item));
  await runPendingRechecks(s,now,[a],pepper,{fetcher:()=>{throw Error('unapproved_detail_fetch');}});
  const detail=await reviewDetail(s,item.id,now,[a],pepper);assert.equal(detail.preparationState,'HUMAN_REVIEW');assert.equal(detail.lifecycle.next_recheck_at,null);

@@ -1,4 +1,4 @@
-import {recordListingUrls,recordDiscovered} from './discovery-work.js';
+import {recordListingUrls,recordDiscovered,recordDiscoveryResult} from './discovery-work.js';
 import {morrisNoticeLabel,MORRIS_FACT_CHECKS} from './morris-editorial-policy.js';
 import {observePreparation} from './preparation-metrics.js';
 import {legalGate} from './registry.js';
@@ -142,6 +142,11 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    report.candidates++;
    observePreparation(report,entry,{reason:'receipt_evaluation'});
    const articleKey='article:'+await hash(entry.url),stamp=Date.parse(entry.publishedAt),historical=stamp<=now&&now-stamp>MORRIS_FRESH_MS;
+   // Every evidence path (including a cached verified article) shares the same window.
+   if(!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY){
+    report.baseline++;report.rejected++;observePreparation(report,entry,{reason:'date_outside_window'});
+    await recordDiscoveryResult(store,source,entry,now,{reason:'date_outside_window'});continue;
+   }
    let receipt=await morrisEvidenceReceipt(store,entry.url,now),failure=null;
    // Never revive old/ended articles, change their publication day, or fetch a
    // detail merely to backfill. Non-event reading value is assessed separately.
