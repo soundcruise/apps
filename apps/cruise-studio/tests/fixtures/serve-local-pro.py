@@ -24,6 +24,7 @@ document.documentElement.dataset.studioEntry='ready';document.getElementById('st
 class Handler(SimpleHTTPRequestHandler):
     synthetic = True
     release_root = None
+    native_root = None
     def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(ROOT),**kwargs)
     def end_headers(self):
         self.send_header('Content-Security-Policy', "connect-src 'self'; form-action 'self'; object-src 'none'")
@@ -37,16 +38,21 @@ class Handler(SimpleHTTPRequestHandler):
             # Synthetic substitutions are fixture-only; missing artifact paths stay 404.
             if not (self.synthetic and relative.endswith(('js/core/studio-entry.mjs', 'js/core/port-pro-boundary.mjs'))):
                 self.send_response(200); self.send_header('Content-Type',self.guess_type(str(target))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(target.read_bytes()); return
-        if not self.synthetic:
+        if not self.synthetic and not self.native_root:
             super().do_GET(); return
-        if self.path.split('?')[0] == '/apps/cruise-studio/js/core/studio-entry.mjs':
+        if self.synthetic and self.path.split('?')[0] == '/apps/cruise-studio/js/core/studio-entry.mjs':
             self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(ENTRY); return
-        if self.path.split('?')[0] == '/apps/shared/pro-gate.js':
+        if self.synthetic and self.path.split('?')[0] == '/apps/shared/pro-gate.js':
             self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(GATE); return
-        if self.path.split('?')[0] == '/apps/cruise-studio/js/core/port-pro-boundary.mjs':
+        if self.synthetic and self.path.split('?')[0] == '/apps/cruise-studio/js/core/port-pro-boundary.mjs':
             self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(BOUNDARY); return
+        if self.native_root and self.path.split('?')[0].startswith(tuple('/apps/'+name+'/' for name in ['cruise-port','pitch-cruise','fretboard_cruise','rhythm-cruise','chord-cruise','shared'])):
+            target = (self.native_root / self.path.split('?')[0].lstrip('/')).resolve()
+            if target.is_dir(): target = target / 'index.html'
+            if self.native_root not in target.parents or not target.is_file(): self.send_error(404); return
+            self.send_response(200); self.send_header('Content-Type',self.guess_type(str(target))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(target.read_bytes()); return
         super().do_GET()
 if __name__ == '__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18781);parser.add_argument('--native-entry',action='store_true');parser.add_argument('--release-root',type=Path);args=parser.parse_args();Handler.synthetic=not args.native_entry;Handler.release_root=args.release_root.resolve() if args.release_root else None
+    parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18781);parser.add_argument('--native-entry',action='store_true');parser.add_argument('--release-root',type=Path);parser.add_argument('--native-root',type=Path);args=parser.parse_args();Handler.synthetic=not args.native_entry;Handler.release_root=args.release_root.resolve() if args.release_root else None;Handler.native_root=args.native_root.resolve() if args.native_root else None
     print('SYNTHETIC TEST ENVIRONMENT ONLY. Do not enter real Account or Pro credentials.',flush=True)
     ThreadingHTTPServer(('127.0.0.1',args.port),Handler).serve_forever()
