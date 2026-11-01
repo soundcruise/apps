@@ -100,11 +100,6 @@ export class PortDatasetRepository {
     constructor({ storage, authorityProvider, backend, accountStorage = null, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
         if (backend !== undefined && (!isIsolatedRepositoryBackend(backend) || authorityProvider)) throw error('isolated-backend-required');
         this.accountStorage = accountStorage;
-        const initialGeneration = accountStorage?.getGeneration();
-        this.accountBaseline = accountStorage ? Promise.resolve().then(() => accountStorage.getAccount()).then(account => {
-            if (initialGeneration !== accountStorage.getGeneration()) throw error('account-context-unavailable');
-            return { identity: accountIdentity(account) };
-        }).catch(() => ({ unavailable: true })) : null;
         this.backend = backend;
         this.storage = authorityProvider?.storage || storage;
         this.authorityProvider = authorityProvider;
@@ -114,6 +109,14 @@ export class PortDatasetRepository {
         this.notify = notify;
         this.listeners = new Set();
         this.degraded = false;
+    }
+    captureAccountContext() {
+        if (!this.accountStorage) return Promise.resolve(null);
+        const generation = this.accountStorage.getGeneration();
+        return Promise.resolve().then(() => this.accountStorage.getAccount()).then(account => {
+            if (generation !== this.accountStorage.getGeneration()) throw error('account-context-unavailable');
+            return { identity: accountIdentity(account) };
+        }).catch(() => ({ unavailable: true }));
     }
     get sharedWriteCapable() { return this.backend ? this.backend.sharedWriteCapable : typeof this.locks?.request === 'function' && !this.degraded; }
     subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -137,7 +140,7 @@ export class PortDatasetRepository {
         if (!this.sharedWriteCapable) return this.inspect();
         return this.locks.request(this.lockName, { mode: 'shared' }, () => this.inspect());
     }
-    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId, commitGuard, authorizationContext, dependencyKeys = [], acknowledgements = [], operationData = null } = {}, writer) {
+    async runWrite({ accountContext, expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId, commitGuard, authorizationContext, dependencyKeys = [], acknowledgements = [], operationData = null } = {}, writer) {
         if (this.backend) return this.backend.runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source,
             preserveUnknown, assertCurrent, operationId, commitGuard, authorizationContext, dependencyKeys, acknowledgements, operationData }, writer, event => {
             for (const listener of this.listeners) { try { listener(event); } catch {} }
@@ -147,17 +150,22 @@ export class PortDatasetRepository {
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
             // Reuse the repository's existing final synchronous commit/rollback guard.
-            // Returning to the same Account/Device is allowed; a generation change
-            // during this particular save still rejects it, including A -> B -> A.
+            // Form contexts are retained across Account changes. Native Sync uses its
+            // existing runtime assertCurrent plus the operation-time DB context;
+            // the source label never bypasses the same generation/commit checks.
             if (this.accountStorage) {
-                const generation = this.accountStorage.getGeneration(), baseline = await this.accountBaseline;
+                const generation = this.accountStorage.getGeneration(), baseline = await (accountContext ?? this.captureAccountContext());
                 const assertAccountCurrent = () => {
                     if (baseline.unavailable) throw error('account-context-unavailable');
                     if (generation !== this.accountStorage.getGeneration()) throw error('account-changed');
                 };
                 const validateAccount = async () => {
                     assertAccountCurrent();
-                    if (accountIdentity(await this.accountStorage.getAccount()) !== baseline.identity) throw error('account-changed');
+                    const current = accountIdentity(await this.accountStorage.getAccount());
+                    // Disconnect stays local-only. An anonymous form can join its first
+                    // Account, but must remember that context for later A -> B refusal.
+                    if (current !== null && baseline.identity !== null && current !== baseline.identity) throw error('account-changed');
+                    if (baseline.identity === null && current !== null) baseline.identity = current;
                     assertAccountCurrent();
                 };
                 if (authorizationContext !== undefined && typeof commitGuard !== 'function') throw error('operation-commit-guard-required');

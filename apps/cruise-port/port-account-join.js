@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.23';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 
 export function createPortAccountJoin({
     client,

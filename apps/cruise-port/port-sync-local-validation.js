@@ -1,11 +1,11 @@
-import { loadMyApps } from './my-apps-store.js?v=1.24.23';
-import { loadGearList } from './gear-list-store.js?v=1.24.23';
-import { loadGearCategories } from './gear-category-store.js?v=1.24.23';
-import { loadPracticeMenus } from './practice-menu-store.js?v=1.24.23';
-import { loadPracticeHistory } from './practice-menu-history-store.js?v=1.24.23';
-import { loadPracticeCalendar } from './practice-menu-calendar-store.js?v=1.24.23';
-import { loadMetronomePresets } from './metronome-presets-store.js?v=1.24.23';
-import { loadPracticeMenuSets } from './practice-menu-sets-store.js?v=1.24.23';
+import { loadMyApps } from './my-apps-store.js?v=1.24.24';
+import { loadGearList } from './gear-list-store.js?v=1.24.24';
+import { loadGearCategories } from './gear-category-store.js?v=1.24.24';
+import { loadPracticeMenus } from './practice-menu-store.js?v=1.24.24';
+import { loadPracticeHistory } from './practice-menu-history-store.js?v=1.24.24';
+import { loadPracticeCalendar } from './practice-menu-calendar-store.js?v=1.24.24';
+import { loadMetronomePresets } from './metronome-presets-store.js?v=1.24.24';
+import { loadPracticeMenuSets } from './practice-menu-sets-store.js?v=1.24.24';
 
 // Legacy loaders may migrate on read. Give them a private copy so validation
 // follows the exact store rules without rewriting the user's original bytes.
