@@ -7,9 +7,9 @@ import { verifyComponentVersion } from '../js/core/version-reader.mjs';
 
 const studio = new URL('../', import.meta.url), root = new URL('../../../', import.meta.url);
 const read = url => readFileSync(url, 'utf8');
-const html = read(new URL('index.html', studio));
-const assetRefs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => new URL(m[1], new URL('index.html', studio)));
-const scriptRefs = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(m => new URL(m[1], new URL('index.html', studio)));
+const html = read(new URL('development.html', studio));
+const assetRefs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => new URL(m[1], new URL('development.html', studio)));
+const scriptRefs = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(m => new URL(m[1], new URL('development.html', studio)));
 
 test('F3: all six metadata values agree with independent owner source declarations', () => {
     assert.equal(listComponents().length, 6);
@@ -61,13 +61,13 @@ test('F3: versioned internal ESM dependencies use the same Studio cache identity
 
 // Fixed patch-release expectation plus traversal of the actual HTML module entries.
 // Owner versions are still checked against their independent source declarations above.
-test('0.70.0 release identity and recursively reachable Studio module cache paths', () => {
-    assert.equal(getAppVersion('cruise-studio'), '0.70.0');
-    assert.match(html, /id="studio-version">v0\.70\.0<\/span>/);
+test('1.0.0 release identity and recursively reachable Studio module cache paths', () => {
+    assert.equal(getAppVersion('cruise-studio'), '1.0.0');
+    assert.match(html, /id="studio-version">v1\.0\.0<\/span>/);
     const visited = new Set();
     function visit(url) {
         if (!url.pathname.startsWith(studio.pathname) || !url.pathname.endsWith('.mjs')) return;
-        if (url.search) assert.equal(url.search, '?v=0.70.0', url.href);
+        if (url.search) assert.equal(url.search, '?v=1.0.0', url.href);
         if (visited.has(url.pathname)) return;
         visited.add(url.pathname);
         const content = read(new URL(url.pathname, 'file://'));

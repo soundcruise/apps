@@ -7,8 +7,8 @@ import { releasedBoundaryViolations } from '../scripts/git-safety.mjs';
 import {
     getComponentMetadata, getAppVersion, listComponents,
     getFeatureMetadata, listFeatures
-} from '../js/core/feature-registry.mjs?v=0.70.0';
-import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=0.70.0';
+} from '../js/core/feature-registry.mjs?v=1.0.0';
+import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=1.0.0';
 
 const root = new URL('../../../', import.meta.url);
 const readSource = path => readFileSync(new URL(path, root), 'utf8');
@@ -92,7 +92,7 @@ test('all version projections and the imported Port value equal current source t
         });
     }
     assert.equal(getComponentMetadata('cruise-port').versionSource.type, 'esm-import');
-    assert.equal(getAppVersion('cruise-studio'), '0.70.0');
+    assert.equal(getAppVersion('cruise-studio'), '1.0.0');
 });
 
 test('Studio Port version import uses the current owner cache key without deriving appVersion from it', () => {
@@ -256,7 +256,7 @@ test('critical presentation contracts include selected-bar Chord Inspector and e
 test('storage schema refs are distinct from app versions, cache keys, Sync/API/build versions', () => {
     const model = readSource('apps/cruise-studio/js/core/song-model.js');
     assert.match(model, /var SCHEMA_VERSION = 2;/);
-    assert.match(model, /var APP_VERSION = '0\.70\.0';/);
+    assert.match(model, /var APP_VERSION = '1\.0\.0';/);
     const schema = getFeatureMetadata('studio.structure').schemaRef;
     assert.equal(schema.kind, 'storage-schema');
     assert.equal(schema.symbol, 'SCHEMA_VERSION');
@@ -349,8 +349,8 @@ test('unknown and prototype-like IDs are safe and return null', () => {
 });
 
 test('fresh import uses no DOM, storage, permission, audio, network or timers; adds no globals', () => {
-    const url = new URL('../js/core/feature-registry.mjs?v=0.70.0', import.meta.url).href;
-    const reader = new URL('../js/core/version-reader.mjs?v=0.70.0', import.meta.url).href;
+    const url = new URL('../js/core/feature-registry.mjs?v=1.0.0', import.meta.url).href;
+    const reader = new URL('../js/core/version-reader.mjs?v=1.0.0', import.meta.url).href;
     execFileSync(process.execPath, ['--input-type=module', '-e', `
         import assert from 'node:assert/strict';
         for (const key of ['window', 'document', 'localStorage', 'sessionStorage', 'navigator',

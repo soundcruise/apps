@@ -1,7 +1,7 @@
 /* Chord Standard Inspector: normal UI, disposable Chrome, no security probes. */
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {chromium}=require('playwright');
-const url=process.env.STUDIO_URL||'http://127.0.0.1:8766/apps/cruise-studio/index.html',origin=new URL(url).origin;
+const url=process.env.STUDIO_URL||'http://127.0.0.1:8766/apps/cruise-studio/development.html',origin=new URL(url).origin;
 test('Chord Standard PC Inspector real Chrome',async t=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),context=await browser.newContext({viewport:{width:1440,height:900}});
  const errors=[],missing=[],network=[],report={version:null,cases:[],screenshots:[],noWrite:null};
@@ -25,7 +25,7 @@ test('Chord Standard PC Inspector real Chrome',async t=>{
  const state=()=>p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
  try{
  await p.goto(url,{waitUntil:'networkidle'});await p.waitForFunction(()=>!!CruiseStudio.chordInspector);
- await step('formal version 0.70.0 and only pure owner APIs on cold boot',async()=>{report.version=await p.locator('#studio-version').innerText();assert.equal(report.version,'v0.70.0');assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.70.0');assert.equal(await p.evaluate(()=>!!ChordCruise.theory&&!!ChordCruise.chordModel),true);for(const key of ['storage','featureAccess','app','ui'])assert.equal(await p.evaluate(key=>key in ChordCruise,key),false);assert.deepEqual(await p.evaluate(()=>indexedDB.databases()),[]);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);});
+ await step('formal version 1.0.0 and only pure owner APIs on cold boot',async()=>{report.version=await p.locator('#studio-version').innerText();assert.equal(report.version,'v1.0.0');assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'1.0.0');assert.equal(await p.evaluate(()=>!!ChordCruise.theory&&!!ChordCruise.chordModel),true);for(const key of ['storage','featureAccess','app','ui'])assert.equal(await p.evaluate(key=>key in ChordCruise,key),false);assert.deepEqual(await p.evaluate(()=>indexedDB.databases()),[]);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);});
  await p.evaluate(async()=>{const CS=CruiseStudio,project=CS.model.createSampleProject();CS.model.setBarChord(project,1,'C');CS.model.setBarChord(project,2,'G7');window.__chordProjectId=project.projectId;const r=await CS.repository.save({target:{type:'project',projectId:project.projectId},snapshot:project,baseRevision:null});if(!r.ok)throw Error(r.error);CS.storage.setCurrentProjectId(project.projectId);CS.sheetCruise.load(project.projectId);CS.shellHost.navigate('sheetCruise');});
  projectId=await p.evaluate(()=>__chordProjectId);await open();
  await step('unselected Inspector never dirties or writes the Studio project',async()=>{const before=await state(),writes=await p.evaluate(()=>__chordQA.projectWrites.length);assert.equal(await status(),'unselected');await p.click('#shell-pane-close');await open();assert.deepEqual(await state(),before);assert.equal(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty),false);assert.equal(await p.evaluate(()=>__chordQA.projectWrites.length),writes);});

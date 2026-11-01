@@ -1,7 +1,7 @@
 /* Actual Structure operations in a disposable Chrome context; no security probes. */
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {chromium}=require('playwright');
-const url=process.env.STUDIO_URL||'http://127.0.0.1:8767/apps/cruise-studio/index.html',origin=new URL(url).origin;
+const url=process.env.STUDIO_URL||'http://127.0.0.1:8767/apps/cruise-studio/development.html',origin=new URL(url).origin;
 test('Structure Text History and native IME real Chrome',async t=>{
  const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
  const errors=[],missing=[],network=[];

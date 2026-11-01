@@ -23,11 +23,20 @@ document.documentElement.dataset.studioEntry='ready';document.getElementById('st
 """
 class Handler(SimpleHTTPRequestHandler):
     synthetic = True
+    release_root = None
     def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(ROOT),**kwargs)
     def end_headers(self):
         self.send_header('Content-Security-Policy', "connect-src 'self'; form-action 'self'; object-src 'none'")
         super().end_headers()
     def do_GET(self):
+        if self.release_root and self.path.split('?')[0].startswith('/apps/cruise-studio/'):
+            relative = self.path.split('?')[0].lstrip('/')
+            target = (self.release_root / relative).resolve()
+            if self.release_root not in target.parents or not target.is_file():
+                self.send_error(404); return
+            # Synthetic substitutions are fixture-only; missing artifact paths stay 404.
+            if not (self.synthetic and relative.endswith(('js/core/studio-entry.mjs', 'js/core/port-pro-boundary.mjs'))):
+                self.send_response(200); self.send_header('Content-Type',self.guess_type(str(target))); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(target.read_bytes()); return
         if not self.synthetic:
             super().do_GET(); return
         if self.path.split('?')[0] == '/apps/cruise-studio/js/core/studio-entry.mjs':
@@ -38,6 +47,6 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_response(200); self.send_header('Content-Type','text/javascript'); self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(BOUNDARY); return
         super().do_GET()
 if __name__ == '__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18781);parser.add_argument('--native-entry',action='store_true');args=parser.parse_args();Handler.synthetic=not args.native_entry
+    parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=18781);parser.add_argument('--native-entry',action='store_true');parser.add_argument('--release-root',type=Path);args=parser.parse_args();Handler.synthetic=not args.native_entry;Handler.release_root=args.release_root.resolve() if args.release_root else None
     print('SYNTHETIC TEST ENVIRONMENT ONLY. Do not enter real Account or Pro credentials.',flush=True)
     ThreadingHTTPServer(('127.0.0.1',args.port),Handler).serve_forever()

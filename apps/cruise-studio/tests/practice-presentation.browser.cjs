@@ -1,7 +1,7 @@
 /* Normal readonly UI/read-model regression. Disposable Chrome; no security probes. */
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
 const { chromium } = require('playwright');
-const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/index.html', origin = new URL(url).origin;
+const url = process.env.STUDIO_URL || 'http://127.0.0.1:8766/apps/cruise-studio/development.html', origin = new URL(url).origin;
 test('Practice readonly PC workspace real Chrome', async t => {
     const { practiceFixture, serializeFixture } = await import('./practice-fixture.mjs');
     const fixture = practiceFixture(); delete fixture['cruisePort.syncAssetMetadata'].attachments.broken;
@@ -32,8 +32,8 @@ test('Practice readonly PC workspace real Chrome', async t => {
     let writer;
     try {
         await p.goto(url, { waitUntil: 'networkidle' }); await p.waitForFunction(() => !!CruiseStudio.portDataHost && !!CruiseStudio.practiceView);
-        await step('formal 0.70.0 and cold navigation do not read Port/create DB', async () => { assert.equal(await p.locator('#studio-version').innerText(), 'v0.70.0'); assert.equal(await p.evaluate(() => CruiseStudio.model.APP_VERSION), '0.70.0'); await nav(); assert.equal(await state(), 'unknown'); assert.equal(await p.evaluate(() => __practiceQA.reads.length), 0); assert.deepEqual(await p.evaluate(() => indexedDB.databases()), []); assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false); });
-        writer = await context.newPage(); await writer.goto(origin + '/apps/cruise-studio/index.html');
+        await step('formal 1.0.0 and cold navigation do not read Port/create DB', async () => { assert.equal(await p.locator('#studio-version').innerText(), 'v1.0.0'); assert.equal(await p.evaluate(() => CruiseStudio.model.APP_VERSION), '1.0.0'); await nav(); assert.equal(await state(), 'unknown'); assert.equal(await p.evaluate(() => __practiceQA.reads.length), 0); assert.deepEqual(await p.evaluate(() => indexedDB.databases()), []); assert.equal(await p.evaluate(() => CruiseStudio.portDataHost.canWrite), false); });
+        writer = await context.newPage(); await writer.goto(origin + '/apps/cruise-studio/development.html');
         // Only the fixture/writer page mutates Port storage. The measured reader never does.
         await writer.evaluate(values => { for (const [key, value] of Object.entries(values)) localStorage.setItem(key, value); }, serializeFixture(fixture));
         await step('explicit read: loading then menus/progress/history/Calendar/metadata', async () => {

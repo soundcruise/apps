@@ -1,3 +1,4 @@
+import {releaseMode,studioPage,workerWithoutProject,removeProjectFixture,fixtureFile} from './fixtures/port-pc-profile.mjs';
 // Real Port Pro and Studio entry, separate Chrome profiles; local native D1/R2 only.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import {randomUUID,createHash} from 'node:crypto';
 const require=createRequire(process.env.STUDIO_TEST_RUNTIME),{chromium}=require('playwright'),{Miniflare,convertV4MiniflareOptions}=require('miniflare'),{build}=require('esbuild');
@@ -12,16 +13,16 @@ entry=entry.replace("legacy:{fetch:()=>new Response(null,{status:404}),scheduled
 entry=entry.replace("SYNC_ACCOUNT_PUBLIC_APP_IDS:'chord,pitch,fretboard,rhythm'", "SYNC_ACCOUNT_PUBLIC_APP_IDS:'chord,pitch,fretboard,rhythm,port',SYNC_ALLOWED_APP_IDS:'chord,pitch,fretboard,rhythm,port',SYNC_ASSET_WRITE_ENABLED:'true',SYNC_ASSET_DOWNLOAD_ENABLED:'true',ACCOUNT_START_RATE_LIMITER:{limit:async()=>({success:true})},ACCOUNT_API_RATE_LIMITER:{limit:async()=>({success:true})}");
 entry=entry.replace("if(path.startsWith('/v2/accounts/'))","if(path==='/v2/accounts/port-device')return legacy.fetch(request,env,{});if(path.startsWith('/v2/accounts/'))");
 entry=entry.replace('SYNC_DB:env.DB,','SYNC_DB:env.DB,SYNC_ASSETS:env.ASSETS,');
-fs.writeFileSync(OUT+'/entry.mjs',entry);await build({entryPoints:[OUT+'/entry.mjs'],bundle:true,format:'esm',platform:'browser',outfile:OUT+'/worker.mjs',logLevel:'silent'});
+entry=workerWithoutProject(entry,src);fs.writeFileSync(OUT+'/entry.mjs',entry);await build({entryPoints:[OUT+'/entry.mjs'],bundle:true,format:'esm',platform:'browser',outfile:OUT+'/worker.mjs',logLevel:'silent'});
 const tests=[],network=[],errors=[],contexts=[],navigation=[],faults=new Map();let mf,db,browser;
-async function check(name,fn){let timer;try{await Promise.race([fn(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('check deadline: '+name)),60000);})]);}finally{clearTimeout(timer);}tests.push({name,status:'PASS'});console.log('PASS '+name);}
-const result={production:false,entry:'actual Studio index and native Port Pro index',tests,errors,network,navigation};
+async function check(name,fn){if(releaseMode&&['real shared Studio Identity enrolment and Project UNKNOWN survive Account isolation','shared Account change recreates Project client without sending A UNKNOWN under B','native Pro revoke-pending disables shared Project writes without discarding UNKNOWN'].includes(name)){(result.deferredDevelopmentCases??=[]).push(name);return;}let timer;try{await Promise.race([fn(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('check deadline: '+name)),60000);})]);}finally{clearTimeout(timer);}tests.push({name,status:'PASS'});console.log('PASS '+name);}
+const result={production:false,profile:releaseMode?'port-pc-release-artifact-project-backend-absent':'full-development',entry:'actual Studio index and native Port Pro index',tests,errors,network,navigation};
 async function routeContext(context,label){await context.route('**/*',async route=>{
  const q=route.request(),u=new URL(q.url());
  if(u.origin==='https://studio.fixture.invalid'){
   if(u.pathname==='/bootstrap')return route.fulfill({contentType:'text/html',body:'<!doctype html><script src="/apps/shared/sync-account/sync-account-core.js"></script><script src="/apps/shared/sync-account/sync-account-db.js"></script><script src="/apps/shared/sync-account/sync-account-client.js"></script><script src="/apps/shared/pro-device-session.js"></script>'});
   let file=path.resolve(W,'.'+decodeURIComponent(u.pathname));if(!file.startsWith(W+'/'))return route.abort();if(u.pathname.endsWith('/'))file+='/index.html';
-  try{return route.fulfill({contentType:({'.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.css':'text/css','.html':'text/html','.svg':'image/svg+xml'}[path.extname(file)]||'application/octet-stream'),body:fs.readFileSync(file)});}catch{return route.fulfill({status:404,body:'missing'});}
+  try{return route.fulfill({contentType:({'.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.css':'text/css','.html':'text/html','.svg':'image/svg+xml'}[path.extname(file)]||'application/octet-stream'),body:fixtureFile(W,u.pathname)});}catch{return route.fulfill({status:404,body:'missing'});}
  }
  if(!['sound-cruise-sync.cruise-port-requests.workers.dev','backend.fixture.invalid'].includes(u.hostname))return route.abort();
  let body;try{body=JSON.parse(q.postData()||'{}');}catch{}
@@ -51,7 +52,7 @@ async function createAccount(p){return p.page.evaluate(async()=>{
  await client.summary((await root.storage.getAccount()).accountCredential);return root.storage.getAccount();
  });}
 async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');return p.page;}
- await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/index.html');await p.page.locator('[data-home-workspace="portGear"]').click();
+ await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
 async function ready(frame){await frame.waitForFunction(()=>document.documentElement.dataset.portWriterReady==='true');}
 async function consent(frame){await frame.evaluate(()=>location.hash='#sync-center');await frame.getByText('同期先と端末データを確認',{exact:true}).click();await frame.locator('[data-port-local-account] input').check();await frame.locator('[data-port-attribution-choice=current]').click();await frame.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port);await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.sync('explicit-test'));}
@@ -63,14 +64,13 @@ async function sync(frame){
  return value;
 }
 try{
- const run=fs.mkdtempSync(OUT+'/native-');const seed=process.env.STUDIO_SCHEMA_SEED;assert(seed&&fs.realpathSync(seed).startsWith('/private/tmp/studio070-remaining-rerun/native-'),'Existing disposable synthetic schema required');fs.cpSync(seed,run,{recursive:true});mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:fs.readFileSync(OUT+'/worker.mjs','utf8'),compatibilityDate:'2026-09-01',host:'127.0.0.1',port:0,inspectorPort:0,d1Databases:{DB:'product-sync'},r2Buckets:{ASSETS:'product-assets'},bindings:{SYNC_ACCOUNT_CREDENTIAL_PEPPER:pepper,SYNC_ACCOUNT_RECOVERY_PEPPER:pepper,PRO_CREDENTIAL_PEPPER:proPepper,SYNC_CREDENTIAL_PEPPER:'synthetic-device-key-not-production-key-000000'},resourcePersistencePath:run,resourceTmpPath:run+'/tmp',outboundService:()=>{throw Error('Production network forbidden');}}));db=await mf.getD1Database('DB');
- await(await import(src+'/studio-release-schema.js')).inspectStudioRelease(db);
- await db.prepare('UPDATE studio_document_control SET enabled=1').run();
+ const run=fs.mkdtempSync(OUT+'/native-');const seed=process.env.STUDIO_SCHEMA_SEED;assert(seed&&fs.realpathSync(seed).startsWith('/private/tmp/studio070-remaining-rerun/native-'),'Existing disposable synthetic schema required');fs.cpSync(seed,run,{recursive:true});removeProjectFixture(run);mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:fs.readFileSync(OUT+'/worker.mjs','utf8'),compatibilityDate:'2026-09-01',host:'127.0.0.1',port:0,inspectorPort:0,d1Databases:{DB:'product-sync'},r2Buckets:{ASSETS:'product-assets'},bindings:{SYNC_ACCOUNT_CREDENTIAL_PEPPER:pepper,SYNC_ACCOUNT_RECOVERY_PEPPER:pepper,PRO_CREDENTIAL_PEPPER:proPepper,SYNC_CREDENTIAL_PEPPER:'synthetic-device-key-not-production-key-000000'},resourcePersistencePath:run,resourceTmpPath:run+'/tmp',outboundService:()=>{throw Error('Production network forbidden');}}));db=await mf.getD1Database('DB');
+ if(!releaseMode){await(await import(src+'/studio-release-schema.js')).inspectStudioRelease(db);await db.prepare('UPDATE studio_document_control SET enabled=1').run();}else assert.equal((await db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'studio_%'").all()).results.length,0);
  await db.prepare("INSERT OR REPLACE INTO sync_runtime_control VALUES(1,'open',1,1,1,1,1,1,1)").run();await db.prepare("INSERT OR REPLACE INTO sync_account_runtime_control VALUES(1,'open',1,1,1,1,1,0,1,1)").run();
  await db.prepare("INSERT OR REPLACE INTO pro_auth_state(singleton_id,generation,active_code_slot,legacy_compat_enabled,updated_at,session_lifecycle_started_at,unbound_backend_until) VALUES(1,1,'A',1,?,?,?)").bind(Date.now(),Date.now(),Date.now()+3600000).run();
  browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  await check('normal actual Studio boot stays Cloud-disconnected and performs no local writes',async()=>{
-  const N=await profile('Normal',false);await N.context.addInitScript(()=>{globalThis.normalWrites=[];const set=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){normalWrites.push({kind:'storage',key:k});return set.call(this,k,v);};for(const method of ['put','add','delete','clear']){const old=IDBObjectStore.prototype[method];IDBObjectStore.prototype[method]=function(...args){normalWrites.push({kind:'idb',method});return old.apply(this,args);};}});await N.page.goto('https://studio.fixture.invalid/apps/cruise-studio/index.html');await N.page.waitForFunction(()=>!!CruiseStudio.repository);await N.page.waitForTimeout(150);await N.page.waitForFunction(()=>!!CruiseStudio.entryAuth);assert.deepEqual(await N.page.evaluate(()=>normalWrites.filter(x=>x.kind==='idb'||!['soundCruiseProLegacyRetired'].includes(x.key))),[]);assert.equal(await N.page.evaluate(()=>document.getElementById('studio-shell').inert),true);assert.equal(await N.page.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);assert.equal(await N.page.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);assert.equal(network.some(x=>x.label==='Normal'),false);await N.context.close();
+  const N=await profile('Normal',false);await N.context.addInitScript(()=>{globalThis.normalWrites=[];const set=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){normalWrites.push({kind:'storage',key:k});return set.call(this,k,v);};for(const method of ['put','add','delete','clear']){const old=IDBObjectStore.prototype[method];IDBObjectStore.prototype[method]=function(...args){normalWrites.push({kind:'idb',method});return old.apply(this,args);};}});await N.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await N.page.waitForFunction(()=>!!CruiseStudio.shellHost);await N.page.waitForTimeout(150);await N.page.waitForFunction(()=>!!CruiseStudio.entryAuth);assert.deepEqual(await N.page.evaluate(()=>normalWrites.filter(x=>x.kind==='idb'||!['soundCruiseProLegacyRetired'].includes(x.key))),[]);assert.equal(await N.page.evaluate(()=>document.getElementById('studio-shell').inert),true);assert.equal(await N.page.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);assert.equal(await N.page.evaluate(()=>CruiseStudio.portDataHost?.canWrite??false),false);assert.equal(network.some(x=>x.label==='Normal'),false);await N.context.close();
  });
 
  const E=await profile('Entrance',false);let entranceAccount,heldFrame,heldDraft;
@@ -79,7 +79,7 @@ try{
   await E.page.locator('#pro-gate-input').fill(code);await E.page.locator('#pro-gate-submit').click();
  }
  await check('formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro',async()=>{
-  await E.page.goto('https://studio.fixture.invalid/apps/cruise-studio/index.html?syntheticPro=1');
+  await E.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage+'?syntheticPro=1');
   await E.page.locator('#pro-gate-input').waitFor();await E.page.screenshot({path:OUT+'/entrance-locked.png'});assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);
   await entranceCode('0008');await E.page.locator('#pro-gate-error').filter({hasText:'番号が違います'}).waitFor();
   await entranceCode('0007');await E.page.locator('#studio-entry-account').waitFor();
@@ -89,7 +89,7 @@ try{
   await E.page.evaluate(()=>document.querySelector('[data-entry-account-frame] iframe').contentWindow.location.hash='#wishlist');
   await E.page.waitForFunction(()=>document.querySelector('[data-entry-account-frame] iframe').contentWindow.location.hash==='#sync-center');
   entranceAccount=await createAccount(E);await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
-  assert.equal(await E.page.locator('#pro-gate-overlay').count(),0);assert.equal(await E.page.locator('#studio-shell').evaluate(e=>e.inert),false);await E.page.locator('[data-studio-cloud-panel]').getByText('Studio Pro認証済み',{exact:true}).waitFor();await E.page.screenshot({path:OUT+'/entrance-ready.png'});
+  assert.equal(await E.page.locator('#pro-gate-overlay').count(),0);assert.equal(await E.page.locator('#studio-shell').evaluate(e=>e.inert),false);if(releaseMode)await E.page.locator('[data-account-status]').filter({hasText:'Pro認証済み'}).waitFor();else await E.page.locator('[data-studio-cloud-panel]').getByText('Studio Pro認証済み',{exact:true}).waitFor();await E.page.screenshot({path:OUT+'/entrance-ready.png'});
  });
  await check('one native entrance qualification admits all five actual Port Pro tools without another passcode',async()=>{
   const before=network.filter(n=>n.label==='Entrance'&&n.path==='/v2/pro-auth/verify').length;
@@ -114,9 +114,11 @@ try{
   assert.equal(network.filter(n=>n.label==='Entrance'&&n.path==='/v2/pro-auth/verify').length,before);
  });
  await check('a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft',async()=>{
+  if(!releaseMode){
   await E.page.evaluate(()=>CruiseStudio.shellHost.navigate('sheetCruise'));await E.page.locator('#sc-new-project').click();
   await E.page.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await E.page.locator('#sc-title').fill('未保存の入口テスト曲');await E.page.locator('#sc-title').press('Tab');
-  heldDraft=await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()));
+  heldDraft=await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode);
+  }else {await E.page.evaluate(()=>localStorage.setItem('cruiseStudio.project.release-sentinel','preserved'));heldDraft='preserved';}
   await E.page.evaluate(()=>CruiseStudio.shellHost.navigate('portGear'));heldFrame=await(await E.page.locator('#port-gear-surface iframe').elementHandle()).contentFrame();await ready(heldFrame);
   await heldFrame.locator('#gear-list-title-add').click();await heldFrame.locator('#gear-name').fill('入口失効時の未保存ギター');
   await E.page.evaluate(()=>window.heldGear=document.querySelector('#port-gear-surface iframe'));
@@ -124,15 +126,15 @@ try{
   assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),false);
   assert.equal(await E.page.locator('#studio-shell').evaluate(e=>e.inert),true);
   assert.equal(await heldFrame.locator('#gear-name').inputValue(),'入口失効時の未保存ギター');
-  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
-  const denied=await E.page.evaluate(()=>CruiseStudio.repository.save({target:{type:'project',projectId:'denied-entry'},snapshot:{},baseRevision:null}));assert.equal(denied.code,'studio-entry-required');
+  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
+  if(!releaseMode){const denied=await E.page.evaluate(()=>CruiseStudio.repository.save({target:{type:'project',projectId:'denied-entry'},snapshot:{},baseRevision:null}));assert.equal(denied.code,'studio-entry-required');}else assert.equal(await E.page.evaluate(()=>typeof CruiseStudio.repository),'undefined');
  });
  await check('Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it',async()=>{
   entranceAccount=await createAccount(E);await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
   assert.equal(await E.page.evaluate(()=>window.heldGear===document.querySelector('#port-gear-surface iframe')),true);
   assert.equal(await E.page.evaluate(()=>window.heldGear.inert),true);
   assert.equal(await heldFrame.locator('#gear-name').inputValue(),'入口失効時の未保存ギター');
-  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
+  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
  });
  await check('terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form',async()=>{
   await E.page.evaluate(()=>{const input=document.createElement('input');input.id='entrance-modal-draft';input.value='保持するダイアログ入力';window.entryDialog=CruiseStudio.shellHost.modal.open({title:'合成の編集',content:input});});
@@ -141,7 +143,7 @@ try{
   assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),false);await E.page.locator('#pro-gate-input').waitFor();
   assert.equal(await heldFrame.locator('#gear-name').inputValue(),'入口失効時の未保存ギター');
   await entranceCode('0007');await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
-  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
+  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
   assert.equal(await E.page.evaluate(()=>window.heldGear.inert),true);await E.page.screenshot({path:OUT+'/entrance-resumed-modal.png'});
   assert.equal(await E.page.locator('#entrance-modal-draft').inputValue(),'保持するダイアログ入力');
   assert.equal(await E.page.evaluate(()=>window.entryDialog.matches(':modal')),true);await E.page.evaluate(()=>CruiseStudio.shellHost.modal.close('test-complete'));
@@ -149,14 +151,21 @@ try{
  await check('discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft',async()=>{
   E.page.once('dialog',d=>d.dismiss());await E.page.locator('[data-entry-owner-hold] button').click();assert.equal(await E.page.evaluate(()=>window.heldGear.isConnected),true);
   E.page.once('dialog',d=>d.accept());await E.page.locator('[data-entry-owner-hold] button').click();await E.page.waitForFunction(()=>!window.heldGear.isConnected);
-  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
+  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
  });
  await check('expired native Pro session requires formal reauthentication and retains the Project draft',async()=>{
   const id=await E.page.evaluate(()=>JSON.parse(localStorage.getItem('soundCruiseProAuth')).credential.split('.')[1]);
   await db.prepare('UPDATE pro_credentials SET last_validated_at=?,lease_expires_at=? WHERE id=?').bind(Date.now()-91*86400000,Date.now()-1,id).run();
   assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),false);await E.page.locator('#pro-gate-input').waitFor();
-  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
+  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
   await entranceCode('0007');await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
+ });
+ if(releaseMode)await check('public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend',async()=>{
+  for(const id of ['sheetCruise','preDtm','practice','gear','news'])assert.equal(await E.page.evaluate(id=>CruiseStudio.shellHost.navigate(id),id),false);
+  assert.deepEqual(await E.page.evaluate(()=>['model','repository','sessions','documents','identityHost','preDtm'].filter(k=>CruiseStudio[k])),[]);
+  for(const path of ['development.html','js/app.js','js/core/song-model.js','js/core/project-repository.js','js/cloud/identity-host.mjs','js/cloud/studio-sync-client.mjs','js/modules/pre-dtm-cruise/pre-dtm.js'])assert.equal(await E.page.evaluate(path=>fetch('/apps/cruise-studio/'+path).then(r=>r.status),path),404,path);
+  assert.equal(await E.page.evaluate(()=>localStorage.getItem('cruiseStudio.project.release-sentinel')),'preserved');
+  assert.equal((await db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'studio_%'").all()).results.length,0);
  });
  const A=await profile('Port-A');await bootstrapPro(A);let account;
  await check('native Account and device-bound Pro authentication through existing libraries',async()=>{account=await createAccount(A);assert(account.accountId);});

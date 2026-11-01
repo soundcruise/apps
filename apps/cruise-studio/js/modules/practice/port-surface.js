@@ -175,7 +175,7 @@
             window.addEventListener('pagehide', onPagehide);
             stopButton.addEventListener('click', onGlobalStop);
             resume.addEventListener('click', onResume);
-            overview.addEventListener('click', onOverview);
+            overview?.addEventListener('click', onOverview);
             if (active) void start();
         },
         activate: function () { active = true; if (handle) void start(); },
@@ -191,7 +191,7 @@
             window.removeEventListener('pagehide', onPagehide);
             stopButton.removeEventListener('click', onGlobalStop);
             resume.removeEventListener('click', onResume);
-            overview.removeEventListener('click', onOverview);
+            overview?.removeEventListener('click', onOverview);
             disposed = true;
             return handle ? audio.disposeSession(handle) : { ok: true };
         }

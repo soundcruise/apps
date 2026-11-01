@@ -47,6 +47,7 @@
         }
         function isAllowed(hash) {
             if (hash === '#settings' || hash === '#pro-access' || hash === '#sync-center') return true;
+            if (config.kind === 'sync') return hash === '#sync-center';
             if (config.kind === 'gear') return hash === '#wishlist' || hash.startsWith('#wishlist/');
             if (config.kind === 'news') return hash === '#news' || hash.startsWith('#news/');
             return hash === '' || hash === '#my-apps/manage' || hash === '#my-apps/new' || /^#my-apps\/[^/]+\/edit$/.test(hash);
@@ -221,8 +222,8 @@
                 window.addEventListener('pagehide', onPagehide);
                 stopButton.addEventListener('click', onGlobalStop);
                 resume.addEventListener('click', onResume);
-                overview.addEventListener('click', onOverview);
-                settings.addEventListener('click', onSettings);
+                overview?.addEventListener('click', onOverview);
+                settings?.addEventListener('click', onSettings);
                 if (active) start();
             },
             activate: function () { active = true; if (shell) start(); },
@@ -236,12 +237,13 @@
                 window.removeEventListener('pagehide', onPagehide);
                 stopButton.removeEventListener('click', onGlobalStop);
                 resume.removeEventListener('click', onResume);
-                overview.removeEventListener('click', onOverview);
-                settings.removeEventListener('click', onSettings);
+                overview?.removeEventListener('click', onOverview);
+                settings?.removeEventListener('click', onSettings);
                 disposed = true;
             }
         });
     }
+    if(document.getElementById('screen-port-sync'))CS.portSync=createSurface({kind:'sync',screen:'screen-port-sync',surface:'port-sync-surface',status:'port-sync-status',resume:'port-sync-resume',title:'Account・Cruise Sync',hash:'#sync-center'});
     CS.portGear = createSurface({ kind: 'gear', screen: 'screen-port-gear', surface: 'port-gear-surface', status: 'port-gear-status', resume: 'port-gear-resume', overview: 'port-gear-overview', settings: 'port-gear-settings', overviewWorkspace: 'gear', title: 'Cruise Port 機材リスト', hash: '#wishlist' });
     CS.portMyApps = createSurface({ kind: 'myApps', screen: 'screen-port-my-apps', surface: 'port-my-apps-surface', status: 'port-my-apps-status', resume: 'port-my-apps-resume', overview: 'port-my-apps-overview', settings: 'port-my-apps-settings', overviewWorkspace: 'myApps', title: 'Cruise Port My Apps', hash: '' });
     CS.portNews = createSurface({ kind: 'news', screen: 'screen-port-news', surface: 'port-news-surface', status: 'port-news-status', resume: 'port-news-resume', overview: 'port-news-overview', settings: 'port-news-settings', overviewWorkspace: 'news', title: 'Cruise Port NEWS', hash: '#news' });

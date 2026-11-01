@@ -10,7 +10,7 @@ test('Studio product boundary denies both components without a source and never 
     try {
         const page = await context.newPage(), errors = [];
         page.on('pageerror', e => errors.push(e.message));
-        await page.goto(new URL('/apps/cruise-studio/index.html', origin).href);
+        await page.goto(new URL('/apps/cruise-studio/development.html', origin).href);
         await page.waitForFunction(() => !!window.CruiseStudio?.portProComponents);
         const result = await page.evaluate(async () => {
             const before = Object.fromEntries(Object.entries(localStorage).filter(([k]) => k.startsWith('cruisePort.')));

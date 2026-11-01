@@ -51,9 +51,9 @@ test('failed context close retains lease until explicit retry; Global Stop close
 });
 test('Port tuner surface and memory-only score reference keep their separate owners', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.match(read('../index.html'), /class="metronome-advanced" disabled/);
-    assert.match(read('../index.html'), /id="port-tuner-surface"/);
-    assert.doesNotMatch(read('../index.html'), /id="tuner-apply"|id="tuner-cancel"/);
+    assert.match(read('../development.html'), /class="metronome-advanced" disabled/);
+    assert.match(read('../development.html'), /id="port-tuner-surface"/);
+    assert.doesNotMatch(read('../development.html'), /id="tuner-apply"|id="tuner-cancel"/);
     assert.match(read('../js/modules/tuner/port-surface.js'), /cruise-port\/pro_9a3943176561/);
     assert.match(read('../js/port-components/tool-document.mjs'), /module\.initTuner/);
     const source = read('../js/modules/tuner/reference.mjs'); assert.match(source, /synthesizeReferencePluck/);
