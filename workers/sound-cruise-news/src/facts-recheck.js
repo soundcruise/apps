@@ -1,7 +1,7 @@
 import {recordDiscoveryResult,discoveryState} from './discovery-work.js';
 import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement,primaryParserSupports} from './primary-announcement.js';
 import {initialPrimarySource,recoveryBudget} from './recovery-budget.js';
-import {claimPendingSixRetry} from './pending-six-retry.js';
+import {claimPendingSixRetry,pendingSixTypeCorrection} from './pending-six-retry.js';
 import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
 import {morrisEvidenceReceipt,markMorrisEvidenceWait} from './morris-collector.js';
@@ -80,7 +80,9 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
   if(cached.hit)return agmSurface(cached.payload,row);
   if(cached.attempted&&!forceRevalidate)return {outcome:'facts_not_recovered',items_json:'[]',proof_json:null};
  }
- const surface=await resolvedRecoverySurface(store,row,source),cacheKey=approvedRetry||recoveryCacheKey(row,source,surface,{serverRepair});let previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ const surface=approvedRetry?recoverySurface(row,source,{primaryRecovery:true}):await resolvedRecoverySurface(store,row,source);
+ if(approvedRetry&&surface?.url!==row.source_url)throw Error('facts_source_invalid');
+ const cacheKey=approvedRetry||recoveryCacheKey(row,source,surface,{serverRepair});let previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  previous??=await retainedPrimaryEvidence(store,row,source,now);
  const work=await store.db.prepare('SELECT * FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(source.id,row.source_url).first();
  if(!previous&&work?.evidence_json){try{const e=JSON.parse(work.evidence_json);previous={checked_at:e.proof.verifiedAt,lease_until:0,outcome:e.outcome,items_json:JSON.stringify(e.items),proof_json:JSON.stringify(e.proof)};}catch{}}
@@ -219,7 +221,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  const before=await publicationValidation(store,row,now,registry,pepper);
  // Already valid and duplicate candidates need no publisher traffic or rewrite.
  let outcome=before.errors.includes('duplicate')?'facts_duplicate_preserved':before.valid?'facts_already_complete':'facts_not_recovered',patch=null,provenance=[],diagnostics=null;
- if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
+ if((!before.valid||pendingSixTypeCorrection(row,actor,now)||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
   const approvedRetry=await claimPendingSixRetry(store,row,input,actor,now);
   const surface=await verifiedSurface(store,source,registry,row,now,pepper,{...options,approvedRetry});
   outcome=surface.outcome;

@@ -9,11 +9,26 @@ export const PENDING_SIX_RETRIES=Object.freeze([
  ['faa8f7e85e816f8a4d4a7cbdce167009f7b700a54f7ab5fd0cb9665e45abc367','ikebe','https://www.ikebe-gakki-pb.com/new_product/173801/',1],
  ['bed7cc84e90641f454f504bc54dbc0f09ab9c649c4be6f488eadaa37e8197519','shimamura','https://www.shimamura.co.jp/update/dtm-recording/2026/10/102807/',1]
 ].map(Object.freeze));
+// Two concrete production parser defects discovered in the first attempt:
+// tuning-mode text was accepted as a guitar definition; amp corroboration was
+// beyond paragraph six. Only those unchanged snapshots get one corrective GET.
+export function pendingSixTypeCorrection(row,actor,now){
+ if(actor.type!=='human_operator'||now<starts||now>=ends||row.review_revision!==1)return false;
+ const target=PENDING_SIX_RETRIES.find(t=>t[0]===row.id&&t[1]===row.source_id&&t[2]===row.source_url);
+ if(!target)return false;
+ if(row.id===PENDING_SIX_RETRIES[4][0])return row.product_facts===null;
+ if(row.id!==PENDING_SIX_RETRIES[2][0])return false;
+ try{const f=JSON.parse(row.product_facts),p=JSON.parse(row.facts_provenance);return f.identifierBasis==='explicit_shimamura_product_fields'&&f.productType==='guitar'&&p[0]?.parserVersion==='shimamura-product-fields-11';}catch{return false;}
+}
 export async function claimPendingSixRetry(store,row,input,actor,now){
  if(actor.type!=='human_operator'||now<starts||now>=ends)return null;
  const target=PENDING_SIX_RETRIES.find(([id,source,url,revision])=>row.id===id&&row.source_id===source&&row.source_url===url&&row.review_revision===revision);
- if(!target||row.expires_at<=now)return null;
- const key='pending-six-20261101:'+row.id,columns=Object.keys(row);
+ const correction=pendingSixTypeCorrection(row,actor,now);
+ if((!target&&!correction)||row.expires_at<=now)return null;
+ const original='pending-six-20261101:'+row.id;
+ const used=await store.db.prepare("SELECT id FROM news_admin_audit WHERE id=? AND action='bounded-primary-retry' AND target=?").bind(original,row.id).first();
+ if(!target&&!used)return null;
+ const key=used&&correction?'pending-six-correction-20261101:'+row.id:original,columns=Object.keys(row);
  // A unique audit ID survives cache cleanup and atomically consumes the grant.
  // Network/SQL failure consumes it too: no automatic paid/publisher retry.
  const claimed=await store.db.prepare(`INSERT OR IGNORE INTO news_admin_audit(id,action,target,occurred_at,reason_code)

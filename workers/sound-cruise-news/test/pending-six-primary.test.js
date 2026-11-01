@@ -198,3 +198,40 @@ test('persistent workerd D1: six grants recover on the same day, remain consumed
   assert.equal((await rt.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
  }finally{await rt?.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });
+
+import {parseShimamuraProductEvidence} from '../src/shimamura-product-evidence.js';
+test('a clip tuner with guitar/bass tuning modes cannot become a guitar',()=>{
+ const c=cases.find(c=>c.name==='Louis'),h=c.h.replace('大画面のクリップチューナーです。','大画面のクリップチューナーです。ギター・ベース・ウクレレのモードを搭載。');
+ assert.throws(()=>parseShimamuraProductEvidence(h,getSource('shimamura'),c.r),/facts_scope_uncertain/);
+ assert.equal(parsePrimaryAnnouncement(h,getSource('shimamura'),c.r).productFacts.productType,'clip_tuner');
+});
+test('amp variant corroboration may be in its seventh own paragraph, never a following/related product',()=>{
+ const c=cases.find(c=>c.name==='Aguilar'),power=p('DB700は700Wの出力を持ち、パワーアンプ部を搭載します。');
+ const padded=c.h.replaceAll(power,Array.from({length:6},(_,i)=>p('製品の補足仕様 '+i)).join('')+power);
+ assert.equal(parsePrimaryAnnouncement(padded,getSource('ikebe'),c.r).productFacts.productType,'head_amp');
+ const different=padded.replaceAll(power,p('DB900は700Wの出力を持ち、パワーアンプ部を搭載します。'));
+ assert.throws(()=>parsePrimaryAnnouncement(different,getSource('ikebe'),c.r),/facts_primary_type_unbound/);
+ assert.throws(()=>parsePrimaryAnnouncement(padded.replaceAll(power,'')+'<aside>'+power+'</aside>',getSource('ikebe'),c.r),/facts_primary_type_unbound/);
+});
+test('persistent D1: an erroneous old guitar proof is revalidated, not directly patched or published',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'news-six-type-d1-'));let rt;
+ try{
+  rt=await localDatabase(dir);const x=await limitedCase(PENDING_SIX_RETRIES[2],rt.db),row=await rt.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(x.c.r.id).first();
+  const old={brand:'Louis',product:'LCT-TUNE',models:['LCT-TUNE'],version:null,category:'electric_guitar_bass',productType:'guitar',identifierBasis:'explicit_shimamura_product_fields',listingSource:'shimamura',articleUrl:row.source_url};
+  const proof=[...Object.keys(old),'event_type'].map(field=>({sourceId:'shimamura',sourceUrl:row.source_url,verifiedAt:at-1000,extractionMethod:'explicit_shimamura_product_fields',parserVersion:'shimamura-product-fields-11',pipelineVersion:'primary-announcement-4',responseHash:'b'.repeat(64),evidenceKey:'synthetic-old-proof',publishedAt:row.published_at,factField:field}));
+  await rt.db.prepare("UPDATE candidate_items SET product_facts=?,facts_provenance=?,category='electric_guitar_bass',review_revision=1 WHERE id=?").bind(JSON.stringify(old),JSON.stringify(proof),row.id).run();
+  await rt.db.prepare("INSERT INTO news_admin_audit VALUES(?,'bounded-primary-retry',?,?,'synthetic prior attempt')").bind('pending-six-20261101:'+row.id,row.id,at-1000).run();
+  const out=await x.recover();assert(out.validation.valid,JSON.stringify(out));assert.equal(x.calls.length,2);
+  let corrected=await rt.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first();assert.equal(JSON.parse(corrected.product_facts).productType,'clip_tuner');assert.equal(corrected.review_revision,2);
+  assert(await rt.db.prepare('SELECT 1 FROM news_admin_audit WHERE id=?').bind('pending-six-correction-20261101:'+row.id).first());
+  await rt.mf.dispose();rt=null;rt=await localDatabase(dir);corrected=await rt.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first();assert.equal(JSON.parse(corrected.product_facts).productType,'clip_tuner');assert.equal(corrected.review_status,'pending');assert.equal((await rt.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+ }finally{await rt?.mf.dispose();await rm(dir,{recursive:true,force:true});}
+});
+for(const good of [true,false])test(`amp corrective grant is finite and preserves formal parsing (${good?'recovered':'still insufficient'})`,async()=>{
+ const x=await limitedCase(PENDING_SIX_RETRIES[4]),fetcher=x.options.fetcher;
+ const bad=async u=>{x.calls.push(u);return new Response(u===x.a.robotsUrl?robot:'<html>no facts</html>',{headers:{'Content-Type':u===x.a.robotsUrl?'text/plain':'text/html'}});};
+ x.options.fetcher=bad;assert.equal((await x.recover()).recovered,false);
+ x.options.fetcher=good?fetcher:bad;const second=await x.recover();assert.equal(second.recovered,good);assert.equal(x.calls.filter(u=>u===x.c.r.source_url).length,2);
+ if(good)assert.equal((await x.recover()).outcome,'facts_already_complete');else await assert.rejects(x.recover(),/facts_limited_retry_consumed/);
+ assert.equal(x.calls.filter(u=>u===x.c.r.source_url).length,2);
+});
