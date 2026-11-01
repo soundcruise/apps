@@ -102,7 +102,7 @@
             if (!active || disposed || !shell) return;
             var current = ++generation;
             removeFrame();
-            setPhase('loading', 'Cruise Port を開いています…');
+            setPhase('loading', config.kind==='sync'?'Cruise Syncを開いています':'Cruise Port を開いています…');
             var next = document.createElement('iframe');
             next.title = config.title;
             next.style.visibility = 'hidden'; next.setAttribute('aria-busy', 'true'); next.studioStartedAt = performance.now();
