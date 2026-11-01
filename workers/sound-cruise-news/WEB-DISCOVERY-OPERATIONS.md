@@ -77,3 +77,29 @@ The run is claimed in the D1 daily row before requests. The 15-minute lock preve
 Read-only account observation on 2026-11-01 JST: Workers Paid; AI Gateway `default` standard Workers AI billing, Exa usage visible against gateway credits ($9.96 displayed), no saved Exa BYOK shown; auto top-up OFF. `AI.run` is direct Workers AI standard billing, distinct from Web Search via gateway; the exact invoice and free-neuron allocation depend on aggregate account usage and must be verified immediately before/after acceptance. No plan or billing setting was changed.
 
 Proposed ordered acceptance after explicit approval: (1) verify current main, PR head, both deployment versions, schema/migration history, D1 bookmark, current account balance/permissions and deny hosts; stop on mismatch; (2) merge PR and apply 0025 only after recoverability and D1 restore decision authority are confirmed; (3) deploy NEWS and Operator with AI binding, `NEWS_WEB_ENABLED` and `NEWS_WEB_MANUAL_ENABLED` unset/off, preserve all existing secrets and cron; verify Access, NEWS review/publication display and deletion controls without writing judgments or deleting; (4) use reviewed configurations to turn Web on for both Workers and manual on only for Operator, outside cron execution; verify prior daily searches=0, ai_calls=0, no active run; (5) human Access login and use the single confirmation button; max three rotating searches in one run, max three model batches, max five total each/day; inspect D1 `news_web_runs` and `news_web_hints` and Operator unverified labels, monitor costs and errors; (6) after run settles, disable manual and Web on Operator and NEWS, verify off; (7) if normal NEWS fails, rollback each Worker separately to the versions captured immediately before deployment and verify them. Do not automatically restore the D1 database; 0025 is additive and D1 time-travel restores all tables, including unrelated subsequent user changes. Any D1 data recovery requires separate judgment. Stop if permissions, billing, monitoring, D1 bookmark, deployment or rollback do not verify, if cost exceeds approved bound, or if unexpected access/errors occur. The count cap is not a bill cap.
+
+## 2026-11-02 初回運用障害の修正（0.43.1、配備承認待ち）
+
+本番D1のUTC日次キー2026-11-01はJST11月2日06時の探索に対応する。
+3検索・1AI・processed=0・errors=1、当日保存15件のうち6件がclassification_failed、
+9件がjapanese_article_unconfirmed。朝の生応答は残っておらず、厳密な失敗原因は復元不能。
+保存済みの失敗6タイトルを旧adapterで1回再現するとcompletion_tokens=1500、
+finish_reason=length、未終端JSONで失敗した。3件単位・同じ1500上限・短い理由説明へ修正。
+修正adapterは実モデル1回で3件すべてschema検証成功（834出力トークン、5.18秒）。
+旧版再現は7.845秒。2回合計推定$0.0008436317。実課金額は未確認。
+価格参照: https://developers.cloudflare.com/workers-ai/models/qwen3-30b-a3b-fp8/
+
+検索は従来どおり3回、検索・AIとも既存日次最大5回を維持。AIバッチは最大3件、
+失敗後は次の定期枠へ延期し最大3試行。transport/truncation/JSON/count/schema/storageを
+区別し、固定コード・日次キー・件数だけをログへ出す。本文・モデル生応答は記録しない。
+現在の15ヒントは本番未変更。既存6件のretry_atは11月3日06:00:28.270 JSTであり、
+その時刻以降の通常処理で再分類可能。古い保存値の前倒しや手動実行ONは別途承認対象。
+新しく発生する失敗は次の6時に揃う。追加検索なしの保存ヒント再分類は隔離D1で検証済み。
+
+実モデルは理由でURLの日付を「未来」と誤る例があった。schema成功は事実確認の成功ではない。
+日本語ページ・公開日・価値は未検証の推定であり、正式NEWSへ接続しない。
+
+関連する通常NEWSの修正はAUTONOMOUS-READINESS.md参照。新migrationなし。
+本番反映には、この修正PRのmain統合・両Worker配備の明示承認が必要。
+配備時は現在のWeb探索ON/手動OFF/日次上限/cron/停止予約を保存し、
+過去の固定OFF版へ戻す操作で新しいNEWS修正を失わないこと。

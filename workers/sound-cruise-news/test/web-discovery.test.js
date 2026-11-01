@@ -48,3 +48,11 @@ test('default rotation favors Japanese while preserving English discovery',async
  for(let day=0;day<8;day++){const q=rotatedQueries(DEFAULT_QUERIES,start+day*86400000);assert(q.filter(hasJapaneseTitle).length>=2);english ||= q.some(x=>!hasJapaneseTitle(x));}
  assert(english);assert.equal(hasJapaneseTitle('Emerald X20'),false);assert.equal(hasJapaneseTitle('新製品 Headway'),true);
 });
+
+test('truncation, transport and malformed JSON have safe distinct diagnostics',async()=>{
+ const {llmAdapter}=await import('../src/web-discovery.js');
+ for(const [out,code] of [[{response:'[',choices:[{finish_reason:'length'}]},'model_output_truncated'],[{response:'['},'model_json_invalid'],[{},'model_output_invalid']]){
+  await assert.rejects(llmAdapter({run:async()=>out},'@cf/test')([]),{message:code});
+ }
+ await assert.rejects(llmAdapter({run:async()=>{throw Error('secret response');}},'@cf/test')([]),{message:'model_request_failed'});
+});
