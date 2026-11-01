@@ -61,7 +61,7 @@ async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixt
  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
 async function committed(operations){const until=Date.now()+20000;while(Date.now()<until){const rows=await Promise.all(operations.map(o=>db.prepare("SELECT count(*) n FROM sync_changes WHERE app_id='port' AND operation_id=?").bind(o.operationId).first()));if(rows.every(row=>row.n===1))return;await new Promise(r=>setTimeout(r,50));}throw Error('original operations did not commit within existing 20s budget');}
-async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version:document.documentElement?.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.25'});}
+async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version:document.documentElement?.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.26'});}
 async function nativeRuntime(frame){
  for(let activation=0;activation<2;activation++){
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
@@ -69,7 +69,7 @@ async function nativeRuntime(frame){
   if(frame.parentFrame?.())await frame.page().locator('.studio-nav [data-workspace=portSync]').click();else await frame.evaluate(()=>location.hash='#sync-center');
   const activationUrl=frame.url();
   await frame.locator('#port-sync-activate').click();
-  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.25'});
+  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.26'});
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
   if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port))return;
   if(frame.url()===activationUrl)throw Error('native activation ended without runtime or reload');
@@ -206,7 +206,30 @@ try{
   globalThis.loser=conflicts[0].length?pa:pb;globalThis.winner=conflicts[0].length?pb:pa;globalThis.conflictId=(conflicts[0].length?conflicts[0]:conflicts[1]).find(x=>x.recordType==='gear_item').id;
  });
  await check('actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes',async()=>{
-  await go(loser,'#sync-center');await loser.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
+  // The same retained conflict must also be reachable from a cold standalone tab.
+  const cold=await loser.page().context().newPage(),coldErrors=[];
+  cold.on('pageerror',e=>coldErrors.push(e.message));
+  try{
+   await cold.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');await ready(cold);
+   await cold.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
+   assert.equal(await cold.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);
+   await cold.locator('#sync-center-port-conflicts-open').click();await cold.locator('[data-sync-conflict-resolution][open]').waitFor();
+   assert(await cold.evaluate(async()=>(await SoundCruiseMultiAppSync.runtimes.port.store.listConflicts()).some(c=>c.recordType==='gear_item')));
+   assert.deepEqual(coldErrors,[]);
+  }finally{await cold.close();}
+  // Reproduce a real next-session recovery: conflicts survive, the runtime/UI do not.
+  const coldUrl=new URL(loser.url());coldUrl.searchParams.set('coldRecovery','1');coldUrl.hash='sync-center';
+  await loser.goto(coldUrl.href);await ready(loser);
+  await loser.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
+  assert.equal(await loser.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);
+  assert.equal(await loser.locator('[data-sync-conflict-resolution][open]').count(),0);
+  assert.match(await loser.locator('#sync-center-port-conflicts-open').innerText(),/同期を再開して競合を確認する/);
+  assert.equal(await loser.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'attention');
+  await loser.locator('#sync-center-port-conflicts-open').click();
+  await loser.locator('[data-sync-conflict-resolution][open]').waitFor();
+  await loser.locator('#sync-center-account-display-id').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));
+  await loser.page().locator('[data-account-target]').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));
+  await loser.page().screenshot({path:OUT+'/cold-conflict-resolution.png'});
   await loser.getByRole('button',{name:'クラウドの内容でこの端末を更新',exact:true}).click();await loser.waitForFunction(async()=>!(await SoundCruiseMultiAppSync.runtimes.port.store.listConflicts()).some(c=>c.recordType==='gear_item'));await loser.locator('[data-sync-conflict-resolution]').waitFor({state:'hidden'});await sync(loser);
   await edit(loser,'CAS resolved');await sync(loser);await sync(winner);await winner.waitForFunction(()=>localStorage.getItem('cruisePort.gearList')?.includes('CAS resolved'));
  });

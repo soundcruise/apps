@@ -1,7 +1,7 @@
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 
 export const SYNC_OPERATION_SELECTOR = [
-    '#sync-center-port-connect-open', '#sync-center-port-connect-confirm',
+    '#port-sync-activate', '#sync-center-port-connect-open', '#sync-center-port-connect-confirm',
     '#sync-center-port-conflicts-open', '#sync-center-port-legacy-retry',
     '[data-sync-app-action]', '[data-sync-app-add-environment]',
     '[data-sync-port-add-environment]', '[data-sync-app-delete]'

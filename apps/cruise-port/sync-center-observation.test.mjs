@@ -44,9 +44,9 @@ test('confirmed Account with no Port credential is unstarted, never synced',()=>
 // Execute the actual historical route function with the same dependencies. Do not
 // emulate its choice between load/loadLocal/ensure or alter historical source.
 const historical=ref=>execFileSync('git',['show',ref+':apps/cruise-port/practice-menu-app.js'],{encoding:'utf8'});
-async function route(source,activate=false){
+async function route(source,activate=false,{discardedStore=false}={}){
  const begin=source.indexOf('async function renderSyncCenterView'),end=source.indexOf('\nfunction findGearItem',begin),fn=source.slice(begin,end),calls=[];
- const ctx={syncCenterController:{enabled:true,load:async o=>{calls.push(o?.readOnly?'readonly':'remote');return {accountState:'active',apps:[]};},loadLocal:async()=>{calls.push('local');return {accountState:'unknown',apps:[]};},planFourAppSetup:()=>({})},syncCenterOrchestrator:{enabled:true,hasConfiguredAccount:async()=>true,resume:async()=>calls.push('resume')},syncCenterActions:{ensureQaAdmission:async()=>calls.push('admission')},portSyncController:{ensure:async()=>calls.push('ensure'),status:async()=>({}),store:{listOutbox:async()=>[]}},portAssetSync:{status:async()=>({})},syncCenterRenderSequence:0,syncCenterResumeChecked:false,syncCenterReturnRefresh:{noteRefreshed(){}},syncCenterMismatchRetry:{shouldRetry:()=>false},elements:{syncCenterTitle:{focus(){}},syncCenterView:{querySelector:()=>({}),append(){}}},SYNC_CENTER_ROUTE:'#sync-center',location:{hash:'#sync-center'},getCapabilities:()=>({cloudSyncOperations:true}),showView(){},refreshVisibleSyncCenterStatus(){},markAppRowsChecking(){},renderSyncCenter(){},createPortSyncStatus:()=>({}),aiSupportPanel:null,navigator:{onLine:true},document:{documentElement:{dataset:{edition:'pro'}}}};
+ const ctx={syncCenterController:{enabled:true,load:async o=>{calls.push(o?.readOnly?'readonly':'remote');return {accountState:'active',apps:[]};},loadLocal:async()=>{calls.push('local');return {accountState:'unknown',apps:[]};},planFourAppSetup:()=>({})},syncCenterOrchestrator:{enabled:true,hasConfiguredAccount:async()=>true,resume:async()=>calls.push('resume')},syncCenterActions:{ensureQaAdmission:async()=>calls.push('admission')},portSyncController:{ensure:async()=>calls.push('ensure'),status:async()=>({}),store:{listOutbox:async()=>{if(discardedStore)throw Error('account_generation_changed');return [];}}},portAssetSync:{status:async()=>({})},syncCenterRenderSequence:0,syncCenterResumeChecked:false,syncCenterReturnRefresh:{noteRefreshed(){}},syncCenterMismatchRetry:{shouldRetry:()=>false},elements:{syncCenterTitle:{focus(){}},syncCenterView:{querySelector:()=>({dataset:{bound:true}}),append(){}}},SYNC_CENTER_ROUTE:'#sync-center',location:{hash:'#sync-center'},getCapabilities:()=>({cloudSyncOperations:true}),showView(){},refreshVisibleSyncCenterStatus(){},markAppRowsChecking(){},renderSyncCenter(){},createPortSyncStatus:()=>({}),aiSupportPanel:null,navigator:{onLine:true},document:{documentElement:{dataset:{edition:'pro'}}}};
  const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
  await new AsyncFunction('ctx','activate',`const {${Object.keys(ctx).filter(k=>k!=='syncCenterRenderSequence'&&k!=='syncCenterResumeChecked').join(',')}}=ctx;let syncCenterRenderSequence=0,syncCenterResumeChecked=false;${fn};return renderSyncCenterView({activate});`)(ctx,activate);return calls;
 }
@@ -71,4 +71,9 @@ test('an older readonly reply cannot replace a newer explicit same-Account resul
  const c=createSyncCenterController({config:{enabled:true,endpoint},accountRoot:{storage:{getGeneration:()=>1,getAccount:async()=>account},AccountClient:Client,core:{}},online:()=>true,readPortCredential:()=>null});
  const old=c.load({readOnly:true});await Promise.resolve();await Promise.resolve();await c.load();finish({account:{id:'A',state:'active'},memberships:[]});await old;
  assert.equal(c.getCachedPresentation().apps.find(a=>a.id==='chord').status,'synced');
+});
+
+test('a discarded read-only Outbox handle cannot strand the product status paint',async()=>{
+ const source=readFileSync(new URL('./practice-menu-app.js',import.meta.url),'utf8');
+ assert.deepEqual(await route(source,false,{discardedStore:true}),['readonly']);
 });

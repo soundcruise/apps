@@ -1,11 +1,11 @@
 // Disposable loopback product pages only; no real Account, qualification or remote request.
 const test=require('node:test'),assert=require('node:assert/strict'),{chromium}=require('playwright'),fs=require('node:fs');
-const fixed=process.env.PORT_FIXED_URL,baseline=process.env.PORT_BASELINE_URL,old=process.env.PORT_OLD_URL;
-for(const u of [fixed,baseline,old])assert(['127.0.0.1','localhost'].includes(new URL(u).hostname));
+const fixed=process.env.PORT_FIXED_URL,baseline=process.env.PORT_BASELINE_URL,old=process.env.PORT_OLD_URL,previous=process.env.PORT_PREVIOUS_URL;
+for(const u of [fixed,baseline,old,previous])assert(['127.0.0.1','localhost'].includes(new URL(u).hostname));
 const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
 async function fixture(origin,edition='pro',account=A){
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),context=await browser.newContext({serviceWorkers:'block',viewport:{width:390,height:844}}),page=await context.newPage(),calls=[],errors=[],mode={status:200,delay:0},tokens=new Map();page.setDefaultTimeout(12000);
- await context.addInitScript(()=>Object.defineProperty(navigator,'standalone',{get:()=>true}));page.on('pageerror',e=>errors.push(e.message));
+ await context.addInitScript(()=>Object.defineProperty(navigator,'standalone',{get:()=>true}));page.on('pageerror',e=>errors.push(e.stack||e.message));
  await context.route('**/*',async route=>{
   const q=route.request(),u=new URL(q.url());
   if(u.origin===origin){
@@ -24,7 +24,7 @@ async function fixture(origin,edition='pro',account=A){
  await page.goto(origin+'/__seed');
  async function choose(id){const material=await page.evaluate(async id=>{if(!id){await SoundCruiseSyncAccount.storage.clearAccount();return null;}const m=SoundCruiseSyncAccount.core.createAccountCredential();await SoundCruiseSyncAccount.storage.setAccount({accountId:id,...m});return m.accountCredential;},id);if(material)tokens.set(material,id);}
  await choose(account);const url=origin+'/apps/cruise-port/'+(edition==='pro'?'pro_9a3943176561/':'')+'#sync-center';await page.goto(url);await page.locator('#sync-center-view:not([hidden])').waitFor();
- return {browser,context,page,calls,errors,mode,choose,url,async close(){assert.deepEqual(errors,[]);await browser.close();}};
+ return {browser,context,page,calls,errors,mode,choose,url,async close(){await browser.close();assert.deepEqual(errors,[]);}};
 }
 async function snapshot(f,name){
  const dir=process.env.PORT_SHOTS;if(!dir)return;fs.mkdirSync(dir,{recursive:true});
@@ -62,4 +62,24 @@ test('unconnected has no API and A-B-A readonly return never moves local data or
  for(const id of [B,A]){await f.choose(id);await f.page.evaluate(()=>location.hash='');await f.page.locator('#home-view:not([hidden])').waitFor();await f.page.evaluate(()=>location.hash='#sync-center');await confirmed(f);assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),id);}
  assert.deepEqual(await f.page.evaluate(async()=>({pending:await keepA.listOutbox(),local:localStorage.getItem('synthetic-original-data')})),before);assert.equal(await f.page.evaluate(async B=>(await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:B}).listOutbox()).length,B),0);readonly(f);
  }finally{await f.close();}
+});
+
+for(const edition of ['standard','pro'])test(edition+' product shows retained inactive credential as stopped and exposes explicit guarded action',async()=>{
+ const f=await fixture(fixed,edition);try{await confirmed(f);
+ await retainCredential(f);
+ await f.page.evaluate(()=>location.hash='');await f.page.locator('#home-view:not([hidden])').waitFor();await f.page.evaluate(()=>location.hash='#sync-center');await confirmed(f);
+ await f.page.locator('#sync-center-port-status-chip').filter({hasText:'同期は停止中'}).waitFor();await f.page.locator('#sync-center-port-status-detail').filter({hasText:'Accountは確認済み'}).waitFor();
+ readonly(f);assert.equal(await f.page.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);
+ for(const width of [390,1280]){await f.page.setViewportSize({width,height:900});assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await snapshot(f,'stopped-'+edition+'-'+width+'-12426');}
+ await f.page.locator('#port-sync-activate').click({force:true});
+ if(edition==='standard'){await f.page.locator('.sync-pro-feedback').filter({hasText:'Pro版'}).waitFor();readonly(f);}
+ else {await f.page.locator('#sync-center-alert:not([hidden])').filter({hasText:'保存内容は保持'}).waitFor();assert(f.calls.some(c=>!['/v2/accounts/summary','/v2/accounts/devices'].includes(c.path)));}
+ await f.page.locator('#sync-center-apps:not([aria-busy])').waitFor();
+ await snapshot(f,'retained-'+edition+'-12426');
+ }finally{await f.close();}
+});
+
+async function retainCredential(f){await f.page.evaluate(async A=>{const s=SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:A});const c=SoundCruiseSyncAccount.core.createAppCredential();await s.setMeta('credential',c.appDeviceCredential);await s.setMeta('membership',{state:'active'});await s.setMeta('runtimeState','ready');await s.setMeta('migrationState','complete');await s.setMeta('datasetState','ready');await s.setMeta('lastSyncAt',1);},A);}
+test('published 1.24.25 same retained-credential scenario reproduces non-actionable attention',async()=>{
+ const f=await fixture(previous);try{await confirmed(f);await retainCredential(f);await f.page.evaluate(()=>location.hash='');await f.page.locator('#home-view:not([hidden])').waitFor();await f.page.evaluate(()=>location.hash='#sync-center');await confirmed(f);await f.page.locator('#sync-center-port-status-chip[data-sync-port-status=attention]').waitFor();assert.equal(await f.page.locator('#sync-center-port-status-chip').evaluate(e=>e.tagName),'SPAN');readonly(f);await snapshot(f,'before-12425-retained');}finally{await f.close();}
 });

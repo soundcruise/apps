@@ -198,7 +198,8 @@ test('Account section renders Cruise Port as a compact card with the shared stat
     assert.match(ui, /dataset\.syncPortStatus = status\.state/);
     assert.match(ui, /conflictsOpen\.hidden = !shouldShowPortConflictAction\(presentation\)/);
     assert.match(ui, /onPortConflictOpen = async \(\) => \{\}/);
-    assert.match(app, /onPortConflictOpen: async \(\) => portConflictResolutionController\?\.refresh\?\.\(\)/);
+    assert.match(app, /if \(!portSyncController\?\.runtime\) await renderSyncCenterView\(\{ activate: true \}\)/);
+    assert.match(app, /await portConflictResolutionController\.refresh\(\)/);
     assert.match(styles, /\.sync-center-port-card/);
     assert.doesNotMatch(root, /Cruise PortをHome画面から削除/);
 });

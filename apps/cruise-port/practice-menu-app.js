@@ -8,7 +8,7 @@
  */
 import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.24.24';
 import './feature-help.js?v=1.21.2';
-import { bindSyncProLock } from './sync-pro-lock.js?v=1.24.24';
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.24.26';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
 import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.24.24';
 import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.24.24';
@@ -37,11 +37,11 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=1.24.25';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.25';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.26';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
-import { createPortSyncStatus } from './port-sync-status.js?v=1.24.25';
+import { createPortSyncStatus, portSyncActionError } from './port-sync-status.js?v=1.24.26';
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.25';
 import {
     openSyncCenter,
@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.24.25';
+} from './app-version.js?v=1.24.26';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -307,6 +307,7 @@ if (globalThis.SoundCruisePortSync) {
 const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncController?.({ config: syncCenterConfig });
 let portConflictResolutionController = null;
 let portConflictRuntime = null;
+let portSyncActionFailure = ''; // UI feedback only; no sync or authorization state.
 portSyncController?.subscribe?.(() => {
     const runtime = portSyncController.runtime;
     if (runtime === portConflictRuntime) return;
@@ -4338,24 +4339,31 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
         return;
     }
     const sequence = ++syncCenterRenderSequence;
+    if (refreshAccount) portSyncActionFailure = '';
     showView(elements.syncCenterView);
     elements.syncCenterTitle.focus({ preventScroll: true });
     if (activate && getCapabilities().cloudSyncOperations) {
         await syncCenterActions?.ensureQaAdmission?.();
-        await portSyncController?.ensure?.();
+        const activation = await portSyncController?.ensure?.();
+        // A resolved failure is not a successful start (offline, revoked or conflict).
+        // Conflicts still expose the existing resolution UI below.
+        if (activation?.ok === false && !(await portSyncController?.status?.())?.conflictCount) {
+            throw Object.assign(new Error('port_sync_start_failed'), { code: activation.code || activation.result?.code });
+        }
     }
     // Show a neutral "確認中…" instead of the previous result while the latest state loads.
-    let start = elements.syncCenterView.querySelector('#port-sync-activate');
-    if (!start) {
-        start = document.createElement('button'); start.id = 'port-sync-activate';
-        start.type = 'button'; start.textContent = '同期を開始・最新状態を確認';
+    const start = elements.syncCenterView.querySelector('#port-sync-activate');
+    if (start && !start.dataset.bound) {
+        start.dataset.bound = 'true';
         start.addEventListener('click', async () => {
             start.disabled = true;
             try { await renderSyncCenterView({ activate: true }); }
-            catch (_) { showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), '同期を開始できませんでした。接続と資格を確認してください。'); }
+            catch (error) {
+                portSyncActionFailure = portSyncActionError(error?.code);
+                showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), portSyncActionFailure);
+            }
             finally { start.disabled = false; }
         });
-        elements.syncCenterView.append(start);
     }
     markAppRowsChecking(elements.syncCenterView);
     if (refreshAccount) elements.syncCenterView.querySelector('#sync-center-account-status').textContent = '確認中…';
@@ -4365,7 +4373,9 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
             ? syncCenterController.load({ readOnly: true }) : syncCenterController.loadLocal(),
         portSyncController?.status?.() || Promise.resolve({ known: false }),
         portAssetSync.status(),
-        portSyncController?.store?.listOutbox?.() || Promise.resolve([])
+        // A failed activation or Account change can dispose this read-only store
+        // while the status paint is pending. Do not leave the UI render rejected.
+        portSyncController?.store?.listOutbox?.().catch(() => []) || Promise.resolve([])
     ]);
     if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) {
         // A local runtime notification may render while Account GET is pending.
@@ -4387,8 +4397,13 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
             accountState: presentation.accountState,
             structured: structuredStatus,
             assets: assetStatus,
-            online: navigator.onLine !== false
+            online: navigator.onLine !== false,
+            runtimeActive: Boolean(portSyncController?.runtime)
         }),
+        portRuntimeActive: Boolean(portSyncController?.runtime),
+        portStructuredStatus: structuredStatus,
+        portAssetStatus: assetStatus,
+        portOnline: navigator.onLine !== false,
         portConflictCount: Number.isFinite(Number(structuredStatus?.conflictCount))
             ? Math.max(0, Number(structuredStatus.conflictCount)) : 0,
         legacyRetryCount: portOutbox.filter((item) => item.terminalError === 'push_failed'
@@ -4401,6 +4416,7 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
         onRecheck: () => renderSyncCenterView(),
         aiSupport: Boolean(aiSupportPanel)
     });
+    if (portSyncActionFailure) showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), portSyncActionFailure);
     // Consume state notifications that arrived during the remote Account read
     // using local status only, never another summary request.
     if (refreshAccount) refreshVisibleSyncCenterStatus();
@@ -6444,7 +6460,22 @@ if (syncCenterController.enabled) {
         orchestrator: syncCenterOrchestrator,
         edition: document.documentElement.dataset.edition,
         refresh: () => renderSyncCenterView({ activate: true }),
-        onPortConflictOpen: async () => portConflictResolutionController?.refresh?.(),
+        onPortConflictOpen: async () => {
+            portSyncActionFailure = '';
+            try {
+                if (!getCapabilities().cloudSyncOperations) throw Object.assign(new Error(), { code: 'pro_required' });
+                // Explicitly labelled start/resume is the only way to create an owner.
+                // A stored conflict count alone cannot authorize a runtime.
+                if (!portSyncController?.runtime) await renderSyncCenterView({ activate: true });
+                if (!portConflictResolutionController) throw new Error('conflict_runtime_unavailable');
+                const result = await portConflictResolutionController.refresh();
+                if (!result?.ok && result?.code !== 'resolution_busy') throw new Error('conflict_load_failed');
+                if (result.ok && !result.count) showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), '競合は解決済みです。');
+            } catch (error) {
+                portSyncActionFailure = portSyncActionError(error?.code);
+                showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), portSyncActionFailure);
+            }
+        },
         tokenProvider: async (action, options = {}) => {
             const provider = globalThis.__SOUND_CRUISE_ACCOUNT_TURNSTILE__;
             if (typeof provider?.getToken !== 'function') return null;
