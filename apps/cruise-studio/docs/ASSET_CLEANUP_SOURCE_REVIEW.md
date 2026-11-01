@@ -41,7 +41,9 @@ See `source-cleanup-0693/validation.json` for scoped results and unchanged artif
 - Actual Studio/native Port source product E2E: 16 PASS. Remaining recovery product E2E: 19 PASS. Project E2E: 32 PASS. Each records zero Production requests. These native suites use baseline0033 with the existing synthetic Project extension, not deployed Project activation.
 - UI Browser: 10 PASS, zero failures/skips: song editing/save/JSON/print/Pre-DTM, five themes, four embedded apps, right pane, NEWS and responsive1440/1024/768/390. NEWS external distribution is not verified; external requests are aborted. Synthetic audio lifecycle does not certify a real microphone.
 - Single-source build: 84 inputs, 1,025,924 bytes; neither preserved legacy bundle nor maintenance Account/Device candidate is bundled.
-- Studio Node full result is recorded after the isolated code commit, so the existing protected-dirty-file guard is also evaluated in its intended clean state.
+- Studio Node full suite: 1,938 PASS, zero failures, two dedicated E2E modes skipped. The separate source Project browser run above has32 PASS; it is not a claim that the skipped modes ran. The protected-dirty-file guard also passed after the isolated code commit.
+- Combined Worker `.test.js` plus `.test.mjs`: 1,012 PASS, zero failures, five skips; the earlier two Worker rows are subsets, not additional tests.
+- Existing96 worktree HEADs unchanged. Port, four apps and shared Git trees match the fixed base exactly (hashes in the evidence file). Existing PR/main heads were not updated.
 
 Reproduce Node suites using the repository's standard `node --test` globs. The dedicated runtime must provide Miniflare/esbuild/Playwright/fake-indexeddb; keep all output and DB state outside the repository. Product commands remain the existing `port-product-sync.browser.mjs`, `port-remaining-e2e.browser.mjs`, and `studio-sync-client.test.mjs`, with `STUDIO_TEST_RUNTIME`, external `STUDIO_CLIENT_OUTPUT` and the respective disposable `STUDIO_SCHEMA_SEED` / `STUDIO_CLIENT_SCHEMA_SEED`. Never point the seeds at a real or shared DB.
 

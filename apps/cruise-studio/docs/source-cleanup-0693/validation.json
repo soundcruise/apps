@@ -39,7 +39,10 @@
       "skip": 0
     },
     "studioNode": {
-      "status": "PENDING"
+      "pass": 1938,
+      "fail": 0,
+      "skip": 2,
+      "skipReason": "dedicated client E2E modes; separate source Project browser run has 32 PASS"
     },
     "nativePortStudio": {
       "status": "PASS",
@@ -326,11 +329,28 @@
         }
       ],
       "productionRequestsSent": 0
+    },
+    "workerCombined": {
+      "pass": 1012,
+      "fail": 0,
+      "skip": 5
     }
   },
   "artifactHashes": {
     "index.js": "63b452b17b8dd8f294082ed7fac8a7a2096e47c1d42dc57fc3198ff679d26c64",
     "studio-release-entry.js": "d95c37d84961ddb7864c8bb93b7576f02d270d3f212339701af2bca1837850f8",
     "studio-legacy-v137.mjs": "94d97e5623c40b09761fb08a3f16691e3f840a6e3ed7521c801661a97ee794cc"
+  },
+  "existingWorktreeHeads": {
+    "checked": 96,
+    "changed": 0
+  },
+  "protectedTrees": {
+    "apps/cruise-port": "422bedad757d870cbda446a4a539ae35bf4a7216",
+    "apps/shared": "37d522f1fa3ab17842aab2914577db0b4d9ac1d5",
+    "apps/chord-cruise": "3e24b57b19d1fdbda8cb3012f1f09364c79b6626",
+    "apps/pitch-cruise": "6bbdbe904afed21fffdc01d98cd2690e821e11f3",
+    "apps/fretboard_cruise": "40784f580cb7a108531662cd2e530bcf37fd3e07",
+    "apps/rhythm-cruise": "30c988b48e47d18d9aee87071248f304ea90e408"
   }
 }
