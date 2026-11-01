@@ -96,7 +96,7 @@ export class PortAssetSync {
 
         const repo = portRepository(this.storage);
         const base = await this.wait(async () => (repo.readDatasetState()), runtimeOwner);
-        const result = await this.wait(async () => (repo.runWrite({ expectedRevision: base.revision, expectedValues, assertCurrent: async () => {
+        const result = await this.wait(async () => (repo.runWrite({ expectedRevision: base.revision, expectedValues, ...(method === 'commitHydratedPair' ? { source: 'sync' } : {}), assertCurrent: async () => {
             if (this.controller?.runtime !== runtimeOwner || runtimeOwner?.disposed) throw new Error('account_generation_changed');
             await runtimeOwner?.assertCurrentAsync?.();
             if (this.controller?.runtime !== runtimeOwner || runtimeOwner?.disposed) throw new Error('account_generation_changed');
@@ -121,6 +121,20 @@ export class PortAssetSync {
         latest.releaseQueue = [...new Set([...latest.releaseQueue, ...releaseIds].filter(Boolean))];
         latest.referencePending ||= referencePending;
         (await this.writeMetadata(latest));
+        return true;
+    }
+
+    async commitHydratedPair(bucket, id, expected, entry, before, after) {
+        if (usesPortRepository(this.storage)) return this.coordinated('commitHydratedPair', [bucket, id, expected, entry, before, after]);
+        const metadata = this.readMetadata(), key = bucket === 'gear' ? GEAR_KEY : MY_APPS_KEY;
+        if (JSON.stringify(metadata[bucket][id] ?? null) !== JSON.stringify(expected ?? null)) return false;
+        const data = parse(this.storage, key, { items: [] }), item = data.items.find(value => value.id === id);
+        const finalKey = bucket === 'gear' ? 'photoId' : 'iconId', sourceKey = bucket === 'gear' ? 'photoSourceId' : 'iconSourceId', cropKey = bucket === 'gear' ? 'photoCrop' : 'iconCrop';
+        if (!item || (item[finalKey] || null) !== (before.finalId || null) || (item[sourceKey] || null) !== (before.sourceId || null) || JSON.stringify(item[cropKey] || null) !== JSON.stringify(before.crop || null)) return false;
+        item[finalKey] = after.finalId; item[sourceKey] = after.sourceId; item[cropKey] = clone(after.crop);
+        metadata[bucket][id] = clone(entry);
+        this.storage.setItem(key, JSON.stringify(data));
+        await this.writeMetadata(metadata);
         return true;
     }
 
@@ -160,7 +174,7 @@ export class PortAssetSync {
         let changed = false;
         for (const [id, entry] of Object.entries(metadata.gear)) {
             const item = gear.get(id);
-            if ((!item || (!item.photoId && !item.photoSourceId)) && entry.published) {
+            if ((!item || (!item.photoId && !item.photoSourceId && entry.binding?.final?.localId)) && entry.published) {
                 metadata.releaseQueue.push(...assetIds(entry.published));
                 metadata.gear[id] = { ...entry, published: null, binding: null, pending: null };
                 changed = true;
@@ -168,7 +182,7 @@ export class PortAssetSync {
         }
         for (const [id, entry] of Object.entries(metadata.myApps)) {
             const item = apps.get(id);
-            if ((!item || (!item.iconId && !item.iconSourceId) || item.iconPresetKey) && entry.published) {
+            if ((!item || (!item.iconId && !item.iconSourceId && entry.binding?.final?.localId) || item.iconPresetKey) && entry.published) {
                 metadata.releaseQueue.push(...assetIds(entry.published));
                 metadata.myApps[id] = { ...entry, published: null, binding: null, pending: null };
                 changed = true;
@@ -188,9 +202,9 @@ export class PortAssetSync {
         });
         if (unsubscribe) this.listeners.push(unsubscribe);
         const listen = (name, callback) => { globalThis.addEventListener(name, callback); this.listeners.push(() => globalThis.removeEventListener(name, callback)); };
-        listen('cruise-port-local-data-changed', async () => {
+        listen('cruise-port-local-data-changed', async (event) => {
             try {
-                await this.markLocalRemovals();
+                if (event.detail?.source !== 'sync' && (!event.detail?.keys || event.detail.keys.some(key => key === GEAR_KEY || key === MY_APPS_KEY))) await this.markLocalRemovals();
                 this.schedule('local-save');
             } catch (error) {
                 this.lastErrorCode = error.code || 'write-failed';
@@ -604,7 +618,7 @@ export class PortAssetSync {
         const appData = parse(this.storage, MY_APPS_KEY, { version: 6, items: [] });
         let publishedChanged = false;
         let hydrated = false;
-        const hydratedPatches = { gear: new Map(), myApps: new Map() };
+        const hydratedKeys = new Set();
         let processed = 0;
         if (metadata.discardQueue.length && this.practiceAttachmentStore) {
             for (const localId of metadata.discardQueue) await this.wait(async () => (this.practiceAttachmentStore.deleteAttachment(localId)), runtimeOwner);
@@ -641,14 +655,11 @@ export class PortAssetSync {
                     publishedChanged = true;
                 } else if ((missingCache || !finalId) && entry.published?.final) {
                     processed += 1;
-                    const visualBefore = { finalId, sourceId };
+                    const visualBefore = { finalId, sourceId, crop: clone(item[kind === 'gear' ? 'photoCrop' : 'iconCrop'] || null) };
                     if (await this.wait(async () => (this.hydratePair(item, entry, kind)), runtimeOwner)) {
-                        if (!(await this.wait(async () => (this.patchMetadataEntry(bucketName, item.id, before, entry)), runtimeOwner))) continue;
-                        hydratedPatches[bucketName].set(item.id, {
-                            before: visualBefore, finalId: item[kind === 'gear' ? 'photoId' : 'iconId'],
-                            sourceId: item[kind === 'gear' ? 'photoSourceId' : 'iconSourceId'],
-                            crop: clone(item[kind === 'gear' ? 'photoCrop' : 'iconCrop'])
-                        });
+                        const after = { finalId: item[kind === 'gear' ? 'photoId' : 'iconId'], sourceId: item[kind === 'gear' ? 'photoSourceId' : 'iconSourceId'], crop: clone(item[kind === 'gear' ? 'photoCrop' : 'iconCrop']) };
+                        if (!(await this.wait(() => this.commitHydratedPair(bucketName, item.id, before, entry, visualBefore, after), runtimeOwner))) continue;
+                        hydratedKeys.add(kind === 'gear' ? GEAR_KEY : MY_APPS_KEY);
                         hydrated = true;
                     }
                 }
@@ -718,38 +729,7 @@ export class PortAssetSync {
             }
         }
         if (hydrated) {
-            const changedKeys = [];
-            for (const [kind, key] of [['gear', GEAR_KEY], ['myApps', MY_APPS_KEY]]) {
-                const patches = hydratedPatches[kind];
-                if (!patches.size) continue;
-                const ownerRaw = this.storage.getItem(key);
-                const latest = parse(this.storage, key, { version: kind === 'gear' ? 5 : 7, items: [] });
-                const finalKey = kind === 'gear' ? 'photoId' : 'iconId';
-                const sourceKey = kind === 'gear' ? 'photoSourceId' : 'iconSourceId';
-                const cropKey = kind === 'gear' ? 'photoCrop' : 'iconCrop';
-                let changed = false;
-                for (const item of latest.items || []) {
-                    const patch = patches.get(item.id);
-                    if (!patch || (item[finalKey] || null) !== (patch.before.finalId || null) ||
-                        (item[sourceKey] || null) !== (patch.before.sourceId || null)) continue;
-                    item[finalKey] = patch.finalId;
-                    item[sourceKey] = patch.sourceId;
-                    item[cropKey] = patch.crop;
-                    changed = true;
-                }
-                if (changed) {
-                    if (usesPortRepository(this.storage)) {
-                        const repo = portRepository(this.storage);
-                        const base = await this.wait(async () => (repo.readDatasetState()), runtimeOwner);
-                        const saved = await this.wait(async () => (repo.runWrite({ expectedRevision: base.revision, expectedValues: { [key]: ownerRaw } }, tx => {
-                            tx.setItem(key, JSON.stringify(latest)); return { ok: true };
-                        })), runtimeOwner);
-                        if (!saved.ok) throw new Error(saved.reason);
-                    } else this.storage.setItem(key, JSON.stringify(latest));
-                    changedKeys.push(key);
-                }
-            }
-            if (changedKeys.length) globalThis.SoundCruisePortSync?.acceptRemoteStorageValues?.(this.storage, changedKeys);
+            globalThis.SoundCruisePortSync?.acceptRemoteStorageValues?.(this.storage, [...hydratedKeys]);
             globalThis.dispatchEvent?.(new CustomEvent('cruise-port-assets-applied'));
         }
         const referenceBefore = this.readMetadata();
