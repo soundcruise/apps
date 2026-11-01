@@ -529,14 +529,14 @@
     return restored;
   }
   function write(storage, key, value) { storage.setItem(key, JSON.stringify(value)); }
-  async function applyRemoteSnapshot(storage, snapshot, previousRecords = [], expectedSnapshot = null, assertCurrent = () => {}) {
+  async function applyRemoteSnapshot(storage, snapshot, previousRecords = [], expectedSnapshot = null, assertCurrent = () => {}, remoteChoiceKey = null) {
     assertFullSnapshot(snapshot);
     assertForwardStorage(storage);
     if (root.usesPortRepository?.(storage)) {
       const repo = root.portRepository(storage);
       const before = await repo.readDatasetState();
       const result = await repo.runWrite({ expectedRevision: before.revision, source: 'sync', assertCurrent },
-        tx => applyRemoteSnapshot(tx, snapshot, previousRecords, expectedSnapshot));
+        tx => applyRemoteSnapshot(tx, snapshot, previousRecords, expectedSnapshot, assertCurrent, remoteChoiceKey));
       if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason, repositoryHandled: true });
       root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);
       return result;
@@ -608,7 +608,11 @@
     write(storage, 'cruisePort.gearList', { version: 5, items: byType(normalized, 'gear_item').map((entry) => {
       const local = currentGear.find((item) => item.id === entry.recordId);
       const metadataEntry = currentAssets.gear[entry.recordId] || {};
-      const repair = repairs.gear.has(entry.recordId);
+      // Only an explicit conflict choice may retire this item's pending edit.
+      // Binary bodies remain in their existing stores; unrelated pending edits survive.
+      const chosen = remoteChoiceKey === 'gear_item/' + entry.recordId;
+      if (chosen) metadataEntry.pending = null;
+      const repair = !chosen && repairs.gear.has(entry.recordId);
       metadataEntry.published = entry.payload.value.asset?.availability === 'available'
         ? clone(entry.payload.value.asset) : repair ? metadataEntry.published : null;
       if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
@@ -620,7 +624,11 @@
     write(storage, 'cruisePort.myApps', { version: 7, items: ordered(normalized, 'my_app', 'my_app_order').map((entry) => {
       const local = currentApps.find((item) => item.id === entry.recordId);
       const metadataEntry = currentAssets.myApps[entry.recordId] || {};
-      const repair = repairs.myApps.has(entry.recordId);
+      // Only an explicit conflict choice may retire this item's pending edit.
+      // Binary bodies remain in their existing stores; unrelated pending edits survive.
+      const chosen = remoteChoiceKey === 'my_app/' + entry.recordId;
+      if (chosen) metadataEntry.pending = null;
+      const repair = !chosen && repairs.myApps.has(entry.recordId);
       metadataEntry.published = entry.payload.value.asset?.availability === 'available'
         ? clone(entry.payload.value.asset) : repair ? metadataEntry.published : null;
       if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
@@ -831,7 +839,7 @@
       return repaired;
     }
     async applyRemoteSnapshot(value, options = {}) {
-      const result = await applyRemoteSnapshot(this.storage, value, this.remoteReferenceRecords, options?.expectedSnapshot, options?.assertCurrent || this.assertCurrent);
+      const result = await applyRemoteSnapshot(this.storage, value, this.remoteReferenceRecords, options?.expectedSnapshot, options?.assertCurrent || this.assertCurrent, options?.remoteChoiceKey);
       this.remoteApplyChanged = this.remoteApplyChanged || result.changed;
       return result;
     }

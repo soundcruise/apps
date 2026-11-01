@@ -212,7 +212,14 @@
       syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
       syncRoot.runtimes.port = runtime;
       const migration = await wait(() => store.readMeta('migrationState'));
-      const result = await wait(() => migration === 'complete' ? runtime.sync('startup') : runtime.initializeDataset());
+      let result;
+      try { result = await wait(() => migration === 'complete' ? runtime.sync('startup') : runtime.initializeDataset()); }
+      catch (error) {
+        // UNKNOWN is a live recovery state, not failed owner activation. Keep
+        // this guarded runtime so the existing explicit reconcile can run.
+        if (error.code !== 'push_outcome_unknown') throw error;
+        guard(); result = { ok: false, code: error.code };
+      }
       const verified = result?.ok === true && global.navigator?.onLine !== false;
       await readLocalStatus();
       guard();

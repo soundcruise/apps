@@ -686,13 +686,13 @@
       }
     }
 
-    async applyWithBackup(nextSnapshot, previousSnapshot, { checkCurrent = false } = {}) {
+    async applyWithBackup(nextSnapshot, previousSnapshot, { checkCurrent = false, remoteChoiceKey = null } = {}) {
       await this.wait(async () => (this.backupSnapshot(previousSnapshot)));
       if (checkCurrent && canonicalJson((await this.wait(async () => (this.localRecords()))).snapshot) !== canonicalJson(previousSnapshot)) {
         throw new MultiAppSyncError('local_changed_during_apply');
       }
       try {
-        await this.wait(async () => (this.adapter.applyRemoteSnapshot(nextSnapshot, { ...(checkCurrent ? { expectedSnapshot: previousSnapshot } : {}), assertCurrent: async () => { this.assertActive(); await this.assertCurrentAsync(); this.assertActive(); } })));
+        await this.wait(async () => (this.adapter.applyRemoteSnapshot(nextSnapshot, { ...(checkCurrent ? { expectedSnapshot: previousSnapshot } : {}), ...(remoteChoiceKey ? { remoteChoiceKey } : {}), assertCurrent: async () => { this.assertActive(); await this.assertCurrentAsync(); this.assertActive(); } })));
       } catch (error) {
         if (error?.code === 'local_changed_during_apply' || this.adapter.ownsRollback === true) throw error;
         try { await this.wait(async () => (this.adapter.applyRemoteSnapshot(previousSnapshot))); } catch (_) { /* preserve original failure */ }
@@ -1223,7 +1223,7 @@
         const expectedRecords = await this.wait(async () => (this.adapter.serializeRecords(nextSnapshot)));
         const expectedRecord = mapRecords(expectedRecords).get(conflict.recordKey) || null;
         const expectedManifest = await this.wait(async () => (this.adapter.computeManifest(nextSnapshot)));
-        await this.wait(async () => (this.applyWithBackup(nextSnapshot, context.local.snapshot)));
+        await this.wait(async () => (this.applyWithBackup(nextSnapshot, context.local.snapshot, { checkCurrent: true, remoteChoiceKey: conflict.recordKey })));
         resolution = { ...resolution, expectedLocalRecord: recordAnchor(expectedRecord), expectedLocalManifest: expectedManifest };
       }
       if (!resolution.expectedLocalRecord || !resolution.expectedLocalManifest) {

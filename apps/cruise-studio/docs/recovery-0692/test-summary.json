@@ -1,0 +1,22 @@
+{
+  "Studio Node": {
+    "pass": 1938,
+    "fail": 0,
+    "skip": 2,
+    "logSha256": "6a9fb932405798579cb702a03c6e518d476776c283f15250843c524e5a3ad7e2"
+  },
+  "Port Shared Worker Node": {
+    "pass": 323,
+    "fail": 0,
+    "skip": 0,
+    "logSha256": "5cfda22701a73797215b88df4c630547d32b2c132010da09cc50ef68a66c7509"
+  },
+  "Product UI": {
+    "pass": 21,
+    "fail": 0,
+    "skip": 0,
+    "logSha256": "165647a9838580808aba46f61bd8db8c6f9627b2fb583f3ef60c3be1d33899f8"
+  },
+  "DDL_exception": "Excluded first-run asset-policy helper: 4 tests initialized fresh in-memory SQLite; never Production/shared, not rerun.",
+  "independentReview": false
+}

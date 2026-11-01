@@ -189,3 +189,14 @@ test('consent observed under A cannot be reinterpreted under B after Account cha
  await assert.rejects(h.controller.chooseLocalAccount({choice:'current',snapshotId:observed.snapshotId,confirmed:true}),/account_changed/);
  assert.equal(h.context.localStorage.getItem('cruisePort.syncLocalAccount.v1'),null);assert.equal(h.network.length,0);h.controller.dispose();
 });
+
+
+test('UNKNOWN startup retains the guarded native runtime for explicit reconciliation; Account switch retires it',async()=>{
+ const h=harness();await h.controller.ensure();
+ const original=h.context.SoundCruiseMultiAppSync.MultiAppSyncRuntime.prototype.sync;
+ h.context.SoundCruiseMultiAppSync.MultiAppSyncRuntime.prototype.sync=async function(){this.assertCurrent();throw Object.assign(Error('push_outcome_unknown'),{code:'push_outcome_unknown'});};
+ h.changeAccount('B');await h.createStore('port',{accountId:'B'}).setMeta('migrationState','complete');const r=await h.controller.ensure();assert.equal(r.code,undefined);assert.equal(r.result.code,'push_outcome_unknown');
+ const live=h.controller.runtime;assert(live&&!live.disposed);assert.equal(h.context.SoundCruiseMultiAppSync.runtimes.port,live);
+ h.changeAccount('C');assert(live.disposed);assert.equal(h.context.SoundCruiseMultiAppSync.runtimes.port?.disposed,true);
+ h.context.SoundCruiseMultiAppSync.MultiAppSyncRuntime.prototype.sync=original;h.controller.dispose();
+});
