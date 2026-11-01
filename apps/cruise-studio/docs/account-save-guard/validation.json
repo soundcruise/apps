@@ -1,0 +1,201 @@
+{
+  "baseline": {
+    "pr": 151,
+    "head": "0497fa029456a108defc0d82d983d43150fd5186",
+    "tree": "41574e5b2061d051eba13c26457b69eec324c476",
+    "main": "cb48d8c17b4757a0404d031272a1f36ba92618b5"
+  },
+  "productionAccepted": false,
+  "version": {
+    "port": "1.24.23",
+    "studio": "1.0.2; product bytes unchanged"
+  },
+  "node": {
+    "newAccountGuard": {
+      "pass": 20,
+      "fail": 0
+    },
+    "topLevelPort": {
+      "pass": 1175,
+      "fail": 4,
+      "skip": 0,
+      "failures": "unchanged exact-main theme assertions"
+    },
+    "nestedPort": {
+      "pass": 1304,
+      "fail": 0,
+      "skip": 0
+    },
+    "sharedRuntimeAndStudioEntrance": {
+      "pass": 199,
+      "fail": 0,
+      "skip": 0
+    }
+  },
+  "uiBrowser": {
+    "pass": 9,
+    "fail": 0,
+    "skip": 0,
+    "themes": 5,
+    "widths": [
+      1440,
+      1024,
+      768,
+      390
+    ]
+  },
+  "publication": {
+    "realJekyllSafe": true,
+    "studioFiles": 34,
+    "nativeEmittedBytesMatchInput": 774
+  },
+  "independentSecondReviewer": false,
+  "scope": "Existing repository rejects stale document Account/Device; no persistent dataset Owner/adoption/partition is introduced",
+  "holds": [
+    "Exact deployed v138 artifact/configuration",
+    "real Account/Pro/two-device/Safari/microphone",
+    "schema0033 physical Asset cleanup",
+    "expired operation history",
+    "explicit cross-Account dataset adoption, old-client/writer coexistence and concurrent cross-context binary commit acceptance",
+    "operational backup/restore/OFF/Canary"
+  ],
+  "productRun1": {
+    "status": "PASS",
+    "pass": 25,
+    "browserErrors": 0,
+    "productionRequestsSent": 0
+  },
+  "productRun2": {
+    "status": "PASS",
+    "pass": 25,
+    "browserErrors": 0,
+    "productionRequestsSent": 0
+  },
+  "productRun3": {
+    "status": "PASS",
+    "pass": 25,
+    "browserErrors": 0,
+    "productionRequestsSent": 0
+  },
+  "recoveryRun1": {
+    "status": "PASS",
+    "pass": 12,
+    "browserErrors": 0,
+    "productionRequestsSent": 0
+  },
+  "recoveryRun2": {
+    "status": "PASS",
+    "pass": 12,
+    "browserErrors": 0,
+    "productionRequestsSent": 0
+  },
+  "beforeFix": {
+    "pass": 22,
+    "status": "FAIL",
+    "failure": "Original Account A form writes after selecting B; exact baseline native root"
+  },
+  "sharedProductionUnchanged": true,
+  "sharedTestOnlyCacheURL": [
+    "apps/shared/sync-account/multi-app-sync-runtime.test.mjs"
+  ],
+  "protectedProductSHA256": {
+    "apps/shared/pro-gate.js": "2a92005f1c0249483e84c02daab8166a22087f297ed98e3238f79fa5425245c0",
+    "apps/shared/pro-device-session.js": "34246b62266152381e2ce131699a9a64c371625ab0c0a2811ffd0198335fc67a",
+    "apps/shared/sync-account/sync-account-db.js": "9079e1e9112979fb3c8d4f8cd2dd8f6356524f772e1f8eaf56babe2208cbea94",
+    "apps/shared/sync-account/multi-app-sync-runtime.js": "2bb86e61f84f76c575abd33b960dfb5270abc515fc42e59d278d97a00c0324d8",
+    "apps/cruise-port/port-sync-controller.js": "cd4b8134a93dd0c6f58d8ea544ad025946175c3eac827334836030bb41e58916"
+  },
+  "protectedTrees": {
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "workers": "585bde6d34ed6627442dc3649d1469651cc1d075"
+  },
+  "public34Unchanged": true,
+  "existingWorktreeHeadsUnchanged": 102,
+  "cacheGraphModules": [
+    "ai-support-client.js",
+    "ai-support-ui.js",
+    "app-version.js",
+    "cruise-port-capabilities.js",
+    "gear-category-store.js",
+    "gear-list-store.js",
+    "gear-photo-store.js",
+    "gear-photo-workflow.js",
+    "home-display.js",
+    "metronome-app.js",
+    "metronome-presets-store.js",
+    "metronome-store.js",
+    "metronome-timing.js",
+    "my-apps-capabilities.js",
+    "my-apps-icon-store.js",
+    "my-apps-icon-workflow.js",
+    "my-apps-store.js",
+    "port-account-join.js",
+    "port-asset-sync.js",
+    "port-dataset-repository.js",
+    "port-dataset-storage.js",
+    "port-sync-local-validation.js",
+    "practice-capabilities.js",
+    "practice-dataset-writes.js",
+    "practice-menu-app-resolver.js",
+    "practice-menu-app.js",
+    "practice-menu-attachment-store.js",
+    "practice-menu-calendar-store.js",
+    "practice-menu-history-store.js",
+    "practice-menu-pending-attachments.js",
+    "practice-menu-progress-store.js",
+    "practice-menu-sets-store.js",
+    "practice-menu-store.js",
+    "pro-app-boot.js",
+    "settings-store.js",
+    "sync-center-orchestrator.js",
+    "sync-center-ui.js",
+    "sync-pro-lock.js",
+    "tool-capabilities.js",
+    "tuner-app.js",
+    "tuner-store.js"
+  ],
+  "productCases": [
+    "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+    "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+    "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+    "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+    "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+    "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+    "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+    "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+    "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+    "expired native Pro session requires formal reauthentication and retains the Project draft",
+    "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+    "native Account and device-bound Pro authentication through existing libraries",
+    "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+    "real Sync Center attribution and existing runtime bootstrap on both profiles",
+    "real Port Gear UI save -> Cloud push -> Studio frame pull",
+    "Studio actual Gear form edits Cloud data and Port receives the edit",
+    "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+    "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+    "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+    "existing Practice attachment Asset Sync stores and hydrates real binary",
+    "offline edit is retained and reconciles through existing Sync after reconnect",
+    "Account A-B-A rejects the old standalone form, keeps A pending/images/attachments and resumes A",
+    "Studio retained Port form independently rejects another Account and resumes the original Device",
+    "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+    "a fresh B document permits normal B editing without inheriting the old A runtime or Outbox"
+  ],
+  "recoveryCases": [
+    "legacy network retains exact pending operation and reconnects without replacement",
+    "legacy 503 retains exact pending operation and reconnects without replacement",
+    "legacy committed ACK loss survives reload; same-operation retry or exact own echo makes one commit",
+    "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+    "native image re-edit publishes a new matched source/final generation on both devices",
+    "explicit photo deletion propagates without treating a missing cache as deletion",
+    "native My Apps icon source/final binary roundtrip through Studio entry",
+    "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+    "legacy attachment deletion ACK loss preserves pending data while a new attachment is retained",
+    "legacy attachment pending retry and replacement download preserve v2 without resurrecting v1",
+    "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+    "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes"
+  ]
+}
