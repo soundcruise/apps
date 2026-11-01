@@ -1,0 +1,45 @@
+{
+  "studio": {
+    "pass": 1938,
+    "fail": 0,
+    "skip": 2,
+    "logSha256": "60128e8ebf8b3ff0888c4c58991bc067a564e189c141fabf6fac8f4969acf15b"
+  },
+  "targetedNode": {
+    "pass": 271,
+    "fail": 0,
+    "skip": 0,
+    "logSha256": "d1ff76c68800af8ac0cd71bbcdc5982aa7cdc6561b0f9f3b32ee2ace85657fe6"
+  },
+  "workerAll": {
+    "pass": 941,
+    "fail": 1,
+    "skip": 0,
+    "logSha256": "7adf5550aac747b2b52c16dd007afbf6b9029ab0feb76cbd465114dd6b28c480"
+  },
+  "ui": {
+    "pass": 10,
+    "fail": 0,
+    "skip": 0,
+    "logSha256": "28fc19b81c664eac35a3a2ddfaef709d5710d9b83640f97336617a013fe3a343"
+  },
+  "retention": {
+    "pass": 13,
+    "fail": 0,
+    "skip": 0,
+    "logSha256": "f776906e367dff5d4b91e3d7c9965e6186a97a705ecb2fa19c57b6faf5b55224"
+  },
+  "preexistingFailure": {
+    "name": "user_label is read only by device listings and rename writes",
+    "baselineMatchingModules": [
+      "account-lifecycle-database.js",
+      "maintenance-account-device.js",
+      "maintenance-v2-profiles.js"
+    ],
+    "testUnchanged": true
+  },
+  "sourceBuild": {
+    "legacySnapshotInGraph": false,
+    "moduleCount": 84
+  }
+}
