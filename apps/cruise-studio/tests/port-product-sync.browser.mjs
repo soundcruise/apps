@@ -57,7 +57,7 @@ async function createAccount(p){return p.page.evaluate(async()=>{
 async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');return p.page;}
  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
-async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.2'});}
+async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.3'});}
 async function nativeRuntime(frame){
  for(let activation=0;activation<2;activation++){
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
@@ -73,7 +73,7 @@ async function nativeRuntime(frame){
   dialogPage.once('dialog',onDialog);let action;
   try { action=await frame.evaluate(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;if(r&&!r.disposed)return 'active';const b=document.getElementById('port-sync-activate');if(!b||b.hidden||b.disabled)throw Error('native_start_not_ready');b.click();return 'clicked';}); } finally { dialogPage.off('dialog',onDialog); }
   if(action==='active')return;
-  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.2'});
+  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.3'});
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
   if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port&&!SoundCruiseMultiAppSync.runtimes.port.disposed))return;
   if(frame.url()===activationUrl)throw Error('native activation ended without runtime or reload');
@@ -196,6 +196,42 @@ try{
   const explicit=p.page.waitForRequest(q=>new URL(q.url()).pathname==='/v1/sync/bootstrap'&&q.frame()===frame);
   (frame.page?.()||frame).once('dialog',d=>d.accept());await frame.locator('#port-sync-activate').click();await explicit;
   await disposable.context.close();await p.context.close();
+ });
+ await check('already joined Studio revisit retains old Account records, Outbox, image bytes and delete intent without silently receiving or sending',async()=>{
+  const p=await profile('Existing-Mac-retained',false);await bootstrapPro(p);await createAccount(p);await port(p,false);await ready(p.page);await normalGear(p.page,'Retained A guitar');
+  const retained=await p.page.evaluate(async()=>{
+   const root=SoundCruiseSyncAccount,a=await root.storage.getAccount();
+   const {createGearPhotoStore}=await import('/apps/cruise-port/gear-photo-store.js?v=1.24.24'),photos=createGearPhotoStore();
+   const canvas=document.createElement('canvas');canvas.width=canvas.height=20;canvas.getContext('2d').fillRect(0,0,20,20);const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
+   const ids=[];for(const kind of ['source','final']){const saved=await photos.savePhoto(blob,{kind,width:20,height:20});if(!saved.ok)throw Error(saved.reason);ids.push(saved.record.id);}
+   const gear=JSON.parse(localStorage.getItem('cruisePort.gearList'));Object.assign(gear.items[0],{photoSourceId:ids[0],photoId:ids[1],photoCrop:{x:0,y:0,size:1}});localStorage.setItem('cruisePort.gearList',JSON.stringify(gear));
+   const {createPracticeAttachmentStore}=await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.24.24');const attachment=await createPracticeAttachmentStore().addAttachment('retained-practice',new Blob(['Retained A attachment'],{type:'text/plain'}),{fileName:'retained.txt'});if(!attachment.ok)throw Error(attachment.reason);
+   const adapter=new SoundCruisePortSync.PortSyncAdapter(),record=(await adapter.serializeRecords(adapter.readLocalSnapshot())).find(r=>r.recordType==='gear_item');
+   await root.storage.clearAccount();const store=SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a.accountId});await store.putOutbox({...record,operationId:crypto.randomUUID(),baseRevision:0});
+   localStorage.setItem('cruisePort.syncDeletionIntent.v1',JSON.stringify({'gear_item/retained-delete':{generation:'retained-delete-generation'}}));
+   return {accountId:a.accountId,ids};
+  });
+  const audit=frame=>frame.evaluate(async r=>{
+   const {createGearPhotoStore}=await import('/apps/cruise-port/gear-photo-store.js?v=1.24.24'),photos=createGearPhotoStore();
+   const digest=async b=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await b.arrayBuffer())),x=>x.toString(16).padStart(2,'0')).join('');
+   const imageHashes=[];for(const id of r.ids){const found=await photos.getPhoto(id);if(!found.record)throw Error('retained image lost');imageHashes.push(await digest(found.record.blob));}
+   const {createPracticeAttachmentStore}=await import('/apps/cruise-port/practice-menu-attachment-store.js?v=1.24.24');const files=await createPracticeAttachmentStore().getAllAttachments();if(!files.ok)throw Error('retained attachment unreadable');
+   return {gear:localStorage.getItem('cruisePort.gearList'),intent:localStorage.getItem('cruisePort.syncDeletionIntent.v1'),assets:localStorage.getItem('cruisePort.syncAssetMetadata'),outbox:await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:r.accountId}).listOutbox(),imageHashes,attachments:await Promise.all(files.records.map(x=>digest(x.blob)))};
+  },retained);
+  const saved=await audit(p.page),mark=network.length;
+  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('#studio-entry-account:not([hidden])').waitFor();
+  const code=await nativeClient(coldIssuer.page,'issue');await p.page.locator('[data-entry-connect]').click();let frame=await(await p.page.locator('[data-entry-account-frame] iframe').elementHandle()).contentFrame();await ready(frame);
+  await frame.locator('#sync-center-port-connect-open').click();await frame.locator('#sync-center-port-connect-input').fill(code.displayJoinCode);await frame.locator('#sync-center-port-connect-confirm').click();await frame.locator('#sync-center-port-connect[data-sync-phase=complete]').waitFor();await p.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
+  await p.page.reload();await p.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized()&&!document.getElementById('studio-shell').inert);
+  assert.equal(await p.page.evaluate(()=>CruiseStudio.shellHost.getCommandContext().activeWorkspaceId),'home');
+  await p.page.locator('[data-open-sync]').click();frame=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();await ready(frame);
+  await frame.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();await frame.locator('#sync-center-port-status-chip[data-sync-port-status=unstarted]').waitFor();assert((await frame.locator('.sync-center-environment-current').filter({hasText:'この端末'}).count())>0);
+  assert.deepEqual(await audit(frame),saved);assert(!network.slice(mark).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')));
+  let dialogText;p.page.once('dialog',async d=>{dialogText=d.message();await d.dismiss();});await frame.locator('#port-sync-activate').click();await frame.waitForFunction(()=>!document.querySelector('#port-sync-activate').disabled);
+  assert.match(dialogText,/現在のAccountへ送信/);assert.match(dialogText,/受信するだけの操作ではありません/);assert.deepEqual(await audit(frame),saved);
+  assert(!network.slice(mark).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'a cloud-only intention must not be treated as consent to send retained A data');
+  assert.equal(await frame.evaluate(async()=>{const a=await SoundCruiseSyncAccount.storage.getAccount();return (await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a.accountId}).listOutbox()).length;}),0,'retained A operations are not adopted into B Outbox');
+  await p.page.screenshot({path:OUT+'/existing-mac-retained-data.png'});await p.context.close();
  });
  await check('old joined empty Port initializes automatically on revisit using its authenticated Port Account Device',async()=>{
   const p=await profile('Old-joined-empty',false);await bootstrapPro(p);await port(p,false);await ready(p.page);
