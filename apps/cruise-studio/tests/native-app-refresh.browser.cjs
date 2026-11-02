@@ -16,7 +16,7 @@ test('native app refresh rebuilds the Studio host for all four apps', async () =
   if(url.pathname==='/test')return route.fulfill({contentType:'text/html',body:`<!doctype html><html><body>
    <div id="studio-shell"></div><button id="studio-refresh"></button><span id="studio-refresh-status"></span><button id="shell-audio-stop"></button>
    ${['pitch','fretboard','rhythm','chord'].map(id=>`<div id="series-${id}-surface"></div><p data-series-sync-status="${id}"></p>`).join('')}
-   <script>window.CruiseStudio={entryAuth:{read:()=>({accountId:'A'}),isAuthorized:()=>true},audio:{cleanup:()=>Promise.resolve()},colorTheme:{getColorTheme:()=>"dark",subscribeColorTheme:()=>()=>{}}};
+   <script>window.CruiseStudio={entryAuth:{read:()=>({accountId:'A'}),isAuthorized:()=>true},audio:{sessions:new Map(),register(x){if(this.sessions.has(x.sessionId))throw Error('Duplicate audio session');this.sessions.set(x.sessionId,x);return x;},request:()=>({}),grant:()=>true,async cleanup(h){await Promise.resolve();h?.cleanup();}},colorTheme:{getColorTheme:()=>"dark",subscribeColorTheme:()=>()=>{}}};
    window.SoundCruiseSyncAccount={storage:{getGeneration:()=>0,getAccount:async()=>({accountId:'A',accountCredential:'synthetic'}),subscribeAccount:()=>()=>{}},AccountClient:class{},core:{}};</script>
    <script src="/apps/cruise-studio/js/modules/series/workspaces.js"></script></body></html>`});
   if(url.pathname.endsWith('/port-pro-boundary.mjs'))return route.fulfill({contentType:'text/javascript',body:'export function createPortProBoundary(){return {authorize:async()=>({ok:true}),dispose(){}}}'});
@@ -36,11 +36,13 @@ test('native app refresh rebuilds the Studio host for all four apps', async () =
    await page.evaluate(id=>CruiseStudio.seriesApps[id].activate(),id);
    try{await page.waitForFunction(id=>{const f=document.querySelector('#series-'+id+'-surface iframe');return f?.contentWindow?.SoundCruiseNativeSyncHost;},id,{timeout:5000});}
    catch(error){throw new Error(JSON.stringify({id,errors,host:await page.locator('#series-'+id+'-surface').textContent(),html:await page.locator('#series-'+id+'-surface').innerHTML()}));}
+   assert.equal(await page.evaluate(id=>CruiseStudio.seriesApps[id].claimAudio(),id),true);
    const before=await page.evaluate(id=>{const f=document.querySelector('#series-'+id+'-surface iframe');window.oldHost=f.contentWindow.SoundCruiseNativeSyncHost;window.oldFrame=f.contentWindow;return nativeStartup;},id);
    const child=page.frameLocator('#series-'+id+'-surface iframe');
    await child.locator(id==='chord'?'.cc-refresh-app':'.js-reload-app').click();
    await page.waitForFunction(({id,before})=>{const f=document.querySelector('#series-'+id+'-surface iframe');return f?.contentWindow!==window.oldFrame&&nativeStartup===before+1;},{id,before});
    assert.equal(await page.evaluate(id=>{const f=document.querySelector('#series-'+id+'-surface iframe');return window.oldHost.storeOptions.signal.aborted&&f.contentWindow.SoundCruiseNativeSyncHost!==window.oldHost&&!f.contentWindow.SoundCruiseNativeSyncHost.storeOptions.signal.aborted;},id),true);
+   assert.equal(await page.evaluate(id=>CruiseStudio.seriesApps[id].claimAudio(),id),true);
    await page.evaluate(id=>CruiseStudio.seriesApps[id].deactivate(),id);
   }
   assert.deepEqual(bad,[]);
