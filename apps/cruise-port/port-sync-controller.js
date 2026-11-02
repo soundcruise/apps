@@ -51,8 +51,10 @@
       unsubscribeAccount = accountRoot.storage.subscribeAccount?.(stop);
     }
     let generation = ++sequence;
-    let runtime = null, adapter = null, store = null, identity = null, ensuring = null;
+    let runtime = null, adapter = null, store = null, identity = null, ensuring = null, ensuringResumeOnly = false;
     let active = false, disposed = false, poll = null, refs = 0, owners = 0;
+    let autoGeneration = null, autoResumeCode = null, autoAssets = null;
+    const autoLifecycle = [];
     let lifetime = new AbortController();
     let cached = Object.freeze({ known: false, state: 'unknown', connected: false, credentialState: 'unknown' });
     const subscriptions = new Set(), lifecycle = [];
@@ -82,9 +84,9 @@
       }
       if (!canSync()) { const error = new Error('pro_required'); error.code = 'pro_required'; throw error; }
     }
-    function listen(target, type, callback) {
+    function listen(target, type, callback, removers = lifecycle) {
       target?.addEventListener?.(type, callback);
-      lifecycle.push(() => target?.removeEventListener?.(type, callback));
+      removers.push(() => target?.removeEventListener?.(type, callback));
     }
     function bindPolicy(epoch, accountGeneration) {
       if (lifecycle.length || disposed) return;
@@ -100,11 +102,11 @@
         if (global.document?.visibilityState === 'hidden') runtime?.clearTimer?.(runtime.retryTimer);
         else resume('resume');
       });
-      // pagehide tears down the owner. A persisted page needs a fresh explicit activation.
+      // pagehide tears down the owner; pageshow may resume only a proven connection.
       listen(global, 'pagehide', stop);
       poll = global.setInterval?.(() => resume('poll'), 60_000) ?? null;
     }
-    async function activate() {
+    async function activate({ resumeOnly = false } = {}) {
       const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
       if (!global.navigator?.locks?.request) throw new Error('sync_locks_unavailable');
       const guard = () => check(epoch, accountGeneration);
@@ -123,7 +125,51 @@
         guard(); const latest = await accountRoot.storage.getAccount(); guard();
         if (latest?.accountCredential !== account.accountCredential) { stop(); throw new Error('account_generation_changed'); }
       };
-      if (identity && identity !== accountId) { stop(); return activate(); }
+      if (resumeOnly) {
+        // Existing account-scoped completion, not Account confirmation or a Pro flag.
+        // Never inspect/adopt the appId-only legacy DB on an automatic path.
+        const pendingAccount = await wait(() => Promise.all(['getPendingStart', 'getPendingConsume', 'getPendingBridge',
+          'getPendingRecovery', 'getPendingDetach', 'getPendingDelete', 'getPendingEnvironmentDetach'].map(k => accountRoot.storage[k]?.())));
+        if (pendingAccount.some(Boolean)) return { ok: false, code: 'activation_required' };
+        const candidate = syncRoot.dataStorage.createStore('port', { accountId, assertCurrent: guard, signal: lifetime.signal });
+        const [credential, membership, migration, dataset, lastSync, inspected, pendingProvision, state] = await wait(() => Promise.all(
+          ['credential', 'membership', 'migrationState', 'datasetState', 'lastSyncAt', 'legacyInspected', 'pendingProvision', 'runtimeState'].map(k => candidate.readMeta(k))));
+        if (!accountRoot.core.validAppCredential(credential) || membership?.state !== 'active' ||
+            migration !== 'complete' || dataset !== 'ready' || !Number.isFinite(lastSync) || lastSync <= 0 ||
+            inspected !== true || pendingProvision || state === 'credential_invalid') return { ok: false, code: 'activation_required' };
+        // Port localStorage is shared across Accounts. Historical completion alone
+        // cannot attribute new local edits after an Account switch/reload.
+        const probe = new namespace.PortSyncAdapter({ assertCurrent: accountGuard });
+        const [local, shadow, outbox, conflicts] = await wait(() => Promise.all([
+          probe.serializeRecords(probe.normalizeLocalSnapshot(probe.readLocalSnapshot())),
+          candidate.listShadow(), candidate.listOutbox(), candidate.listConflicts()]));
+        const key = r => `${r.recordType}/${r.recordId}`, deleted = r => r == null || r.deleted === true || r.deletedAt != null;
+        const intents = JSON.parse(probe.storage?.getItem('cruisePort.syncDeletionIntent.v1') || '{}');
+        if (Object.entries(intents).some(([k, intent]) => !outbox.some(r => key(r) === k && deleted(r) &&
+            typeof intent?.generation === 'string' && r.deleteIntentGeneration === intent.generation))) {
+          autoResumeCode = 'local_data_unconfirmed'; await wait(() => readLocalStatus());
+          return { ok: false, code: autoResumeCode };
+        }
+        const localMap = new Map(local.map(r => [key(r), r])), candidates = new Map();
+        for (const r of [...shadow, ...outbox, ...conflicts.map(c => c.localRecord).filter(Boolean)]) {
+          const k = key(r); if (!candidates.has(k)) candidates.set(k, []); candidates.get(k).push(r);
+        }
+        for (const k of new Set([...localMap.keys(), ...shadow.map(key)])) {
+          const current = localMap.get(k);
+          if (!(candidates.get(k) || []).some(r => deleted(current) ? deleted(r) : !deleted(r) && current.payloadHash === r.payloadHash)) {
+            autoResumeCode = 'local_data_unconfirmed';
+            await wait(() => readLocalStatus());
+            return { ok: false, code: autoResumeCode };
+          }
+        }
+        const client = new accountRoot.AccountClient({ endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage,
+          core: accountRoot.core, admissionMode, qaScope: 'port', assertCurrent: guard, signal: lifetime.signal });
+        const devices = await wait(() => client.devices(account.accountCredential));
+        if (!(devices.devices || devices.accountDevices || []).some(row => row.revokedAt == null &&
+            row.portAppDeviceIds?.includes(credential.split('.')[1]))) return { ok: false, code: 'activation_required' };
+        await accountGuard();
+      }
+      if (identity && identity !== accountId) { stop(); return resumeOnly ? { ok: false, code: 'activation_required' } : activate(); }
       if (!runtime) {
         identity = accountId;
         store = syncRoot.dataStorage.createStore('port', { accountId, assertCurrent: guard, signal: lifetime.signal });
@@ -157,7 +203,7 @@
         };
         runtime.addEventListener('statechange', stateListener);
         lifetime.signal.addEventListener('abort', () => currentRuntime.removeEventListener('statechange', stateListener), { once: true });
-        await runtime.runExclusive(async () => {
+        if (!resumeOnly) await runtime.runExclusive(async () => {
         // A pre-host database may contain pending operations. Adopt only after the
         // authenticated Account devices response proves ownership of its AppDevice.
         const legacy = syncRoot.dataStorage.createStore('port');
@@ -183,6 +229,7 @@
       await runtime.runExclusive(async () => {
       let credential = await wait(() => store.readMeta('credential'));
       if (!accountRoot.core.validAppCredential(credential)) {
+        if (resumeOnly) throw new Error('activation_required');
         let pending = await wait(() => store.readMeta('pendingProvision'));
         if (!pending) {
           pending = { operationId: accountRoot.core.createOperationId(), appDeviceCredential: accountRoot.core.createAppCredential().appDeviceCredential };
@@ -204,28 +251,35 @@
       syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
       syncRoot.runtimes.port = runtime;
       const migration = await wait(() => store.readMeta('migrationState'));
-      const result = await wait(() => migration === 'complete' ? runtime.sync('startup') : runtime.initializeDataset());
+      if (resumeOnly && migration !== 'complete') throw new Error('activation_required');
+      const result = await wait(() => migration === 'complete' ? runtime.sync(resumeOnly ? 'auto-resume' : 'startup') : runtime.initializeDataset());
       const verified = result?.ok === true && global.navigator?.onLine !== false;
+      if (!resumeOnly && verified && autoGeneration !== null) autoGeneration = accountGeneration;
       await readLocalStatus();
       guard();
       publish({ ...cached, credentialState: verified ? 'usable' : 'stale', verifiedAt: verified ? Date.now() : null });
       bindPolicy(epoch, accountGeneration);
       return Object.freeze({ ok: result?.ok !== false, result });
     }
-    function ensure() {
+    function ensure({ resumeOnly = false } = {}) {
       if (disposed) return Promise.reject(new Error('runtime_disposed'));
       if (!canSync()) return Promise.resolve({ ok: false, code: 'pro_required' });
-      if (ensuring) return ensuring;
+      if (ensuring) {
+        if (resumeOnly || !ensuringResumeOnly) return ensuring;
+        const pending = ensuring;
+        return pending.catch(() => {}).then(() => { if (ensuring === pending) ensuring = null; return ensure(); });
+      }
+      if (!resumeOnly) autoResumeCode = null;
       const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
       const operation = async () => {
         check(epoch, accountGeneration);
         const account = await accountRoot.storage.getAccount(); check(epoch, accountGeneration);
         const id = account?.accountId || account?.accountCredential?.split('.')[1] || 'unconfigured';
         return global.navigator?.locks?.request
-          ? global.navigator.locks.request(`sound-cruise:port:activation:${id}`, { signal: lifetime.signal }, () => activate())
-          : activate();
+          ? global.navigator.locks.request(`sound-cruise:port:activation:${id}`, { signal: lifetime.signal }, () => activate({ resumeOnly }))
+          : activate({ resumeOnly });
       };
-      const task = operation(); ensuring = task;
+      const task = operation(); ensuring = task; ensuringResumeOnly = resumeOnly;
       task.catch(error => {
         if (!disposed && generation === epoch) {
           const credentialState = cached.credentialState; stop();
@@ -233,6 +287,34 @@
         }
       }).finally(() => { if (ensuring === task) ensuring = null; }).catch(() => {});
       return task;
+    }
+    async function resumeConnected() {
+      if (disposed || !canSync()) return { ok: false, code: 'pro_required' };
+      if (active) return { ok: true, code: 'already_active' };
+      if (autoGeneration === null || autoGeneration !== accountRoot.storage.getGeneration?.()) return { ok: false, code: 'activation_required' };
+      if (global.navigator?.onLine === false || global.document?.visibilityState === 'hidden') return { ok: false, code: 'offline' };
+      // Reuse native binary/reference readiness; projected record hashes alone
+      // cannot attribute pending photos, attachments or release intents.
+      const assets = await autoAssets?.status?.();
+      if (!assets?.known || assets.pendingCount || assets.error) {
+        autoResumeCode = 'local_data_unconfirmed'; await readLocalStatus();
+        return { ok: false, code: autoResumeCode };
+      }
+      // The Account may have changed while reading IndexedDB attachment status.
+      if (autoGeneration !== accountRoot.storage.getGeneration?.()) return { ok: false, code: 'activation_required' };
+      if (active) return { ok: true, code: 'already_active' };
+      return ensure({ resumeOnly: true });
+    }
+    function bindAutoResume({ assets } = {}) {
+      if (autoLifecycle.length || disposed) return;
+      autoGeneration = accountRoot.storage.getGeneration?.();
+      autoAssets = assets;
+      const resume = () => { void resumeConnected().catch(() => {}); };
+      listen(global, 'focus', resume, autoLifecycle);
+      listen(global, 'online', resume, autoLifecycle);
+      listen(global, 'pageshow', resume, autoLifecycle);
+      listen(global.document, 'visibilitychange', resume, autoLifecycle);
+      resume();
     }
     async function readLocalStatus() {
       const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
@@ -248,7 +330,7 @@
         const exists = accountRoot.core.validAppCredential(credential);
         const connected = exists && membership?.state === 'active';
         const value = { known: true, state: runtimeState || 'local-only', connected,
-          credentialExists: exists, membershipKnown: !!membership, credentialState: membership?.state === 'revoked' ? 'revoked' : exists && connected && active && cached.credentialState === 'usable' && Date.now() - cached.verifiedAt <= 60_000 ? 'usable' : exists ? 'stale' : 'unknown',
+          autoResumeCode, credentialExists: exists, membershipKnown: !!membership, credentialState: membership?.state === 'revoked' ? 'revoked' : exists && connected && active && cached.credentialState === 'usable' && Date.now() - cached.verifiedAt <= 60_000 ? 'usable' : exists ? 'stale' : 'unknown',
           verifiedAt: cached.verifiedAt || null,
           migrationState: migrationState || 'unknown', datasetState: datasetState || 'unknown', runtimeState: runtimeState || 'unknown', lastSyncAt,
           pendingCount: outbox.length, terminalCount: outbox.filter(op => op.terminalError || op.conflict).length, conflictCount: conflicts.length };
@@ -271,7 +353,7 @@
         if (released) return; released = true;
         for (const listener of ownSubscriptions) subscriptions.delete(listener);
         ownSubscriptions.clear();
-        if (!readOnly && --owners === 0) stop();
+        if (!readOnly && --owners === 0) { stop(); for (const remove of autoLifecycle.splice(0)) remove(); }
         if (--refs === 0) { stop(); disposed = true; unsubscribeAccount?.(); subscriptions.clear(); onDispose(); }
       };
       const requireConsumer = fn => (...args) => released ? Promise.reject(new Error('consumer_released')) : fn(...args);
@@ -283,7 +365,7 @@
       return Object.freeze({ enabled: true, get restricted() { return !canSync(); },
         get runtime() { return released ? null : runtime; }, get store() { return released ? null : store; },
         get identity() { return runtime?.identity || null; },
-        getCachedStatus: () => released ? unknown() : cachedStatus(), status: requireConsumer(readLocalStatus), readLocalStatus: requireConsumer(readLocalStatus), ensure: requireConsumer(ensure),
+        getCachedStatus: () => released ? unknown() : cachedStatus(), status: requireConsumer(readLocalStatus), readLocalStatus: requireConsumer(readLocalStatus), ensure: requireConsumer(() => ensure()), bindAutoResume: requireConsumer(bindAutoResume),
         subscribe(listener) { if (released) return () => {}; ownSubscriptions.add(listener); subscriptions.add(listener);
           return () => { ownSubscriptions.delete(listener); subscriptions.delete(listener); }; },
         sync: requireConsumer((reason = 'manual') => run('sync', reason)), resume: requireConsumer(() => run('sync', 'resume')),

@@ -1,4 +1,4 @@
-import { portSyncStatusDetail } from './port-sync-status.js?v=1.24.26';
+import { portSyncStatusDetail } from './port-sync-status.js?v=1.24.27';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.24.25';
@@ -492,7 +492,7 @@ function renderPortStatus(root, presentation) {
         structured: presentation.portStructuredStatus || { conflictCount: presentation.portConflictCount }, assets: presentation.portAssetStatus,
         online: presentation.portOnline, status });
     const activate = root.querySelector('#port-sync-activate');
-    if (activate) activate.hidden = ['unset', 'deleting'].includes(presentation.accountState);
+    if (activate) activate.hidden = ['unset', 'deleting'].includes(presentation.accountState) || status.state === 'synced';
     const legacyRetry = root.querySelector('#sync-center-port-legacy-retry');
     if (legacyRetry) legacyRetry.hidden = !presentation.legacyRetryCount;
 }

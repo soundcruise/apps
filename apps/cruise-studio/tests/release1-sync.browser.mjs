@@ -61,17 +61,23 @@ async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixt
  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
 async function committed(operations){const until=Date.now()+20000;while(Date.now()<until){const rows=await Promise.all(operations.map(o=>db.prepare("SELECT count(*) n FROM sync_changes WHERE app_id='port' AND operation_id=?").bind(o.operationId).first()));if(rows.every(row=>row.n===1))return;await new Promise(r=>setTimeout(r,50));}throw Error('original operations did not commit within existing 20s budget');}
-async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version:document.documentElement?.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.26'});}
+async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement?.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.27'});}
 async function nativeRuntime(frame){
  for(let activation=0;activation<2;activation++){
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
-  if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port))return;
-  if(frame.parentFrame?.())await frame.page().locator('.studio-nav [data-workspace=portSync]').click();else await frame.evaluate(()=>location.hash='#sync-center');
+  if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port&&!SoundCruiseMultiAppSync.runtimes.port.disposed))return;
+  // Exercise the native entry on this owner. Parent navigation may legitimately
+  // replace a loading iframe after a remote-apply reload; its UI is tested separately.
+  await readStable(frame,()=>document.getElementById('settings-sync-center-open').click());
   const activationUrl=frame.url();
-  await frame.locator('#port-sync-activate').click();
-  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.26'});
+  await frame.waitForFunction(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port,b=document.getElementById('port-sync-activate');return r&&!r.disposed||b&&!b.hidden&&!b.disabled;});
+  // Auto resume can finish between observation and click. Keep this check and
+  // the native button event in one task, instead of clicking a now-hidden start.
+  const action=await frame.evaluate(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;if(r&&!r.disposed)return 'active';const b=document.getElementById('port-sync-activate');if(!b||b.hidden||b.disabled)throw Error('native_start_not_ready');b.click();return 'clicked';});
+  if(action==='active')return;
+  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.27'});
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
-  if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port))return;
+  if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port&&!SoundCruiseMultiAppSync.runtimes.port.disposed))return;
   if(frame.url()===activationUrl)throw Error('native activation ended without runtime or reload');
   // Main intentionally tears down Sync after applying a remote snapshot/reload.
   // Drive its existing explicit control once in the new document, not an auto-retry.
@@ -177,6 +183,7 @@ try{
   const hashes=async frame=>readStable(frame,async()=>{const {createMyAppsIconStore}=await import('/apps/cruise-port/my-apps-icon-store.js?v=1.24.24'),store=createMyAppsIconStore(),item=JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.name==='Native icon');return Promise.all([item.iconId,item.iconSourceId].map(async id=>{const r=await store.getIcon(id);return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await r.record.blob.arrayBuffer())),x=>x.toString(16).padStart(2,'0')).join('');}));});assert.deepEqual(await hashes(pa),await hashes(pb));
  });
  await check('two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations',async()=>{
+  await sync(pa);await sync(pb);
   const id=await readStable(pa,()=>JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.name==='Native icon').id);await B.context.setOffline(true);await go(pb,'#my-apps/'+id+'/edit');await pb.locator('#my-apps-form-view').waitFor({state:'visible'});await imageInput(pb,'my-apps-icon-input',1);await pb.locator('#my-apps-crop-dialog').waitFor({state:'visible'});await pb.locator('#my-apps-crop-confirm').click();await pb.locator('#my-apps-submit').click();await pb.waitForFunction(()=>!document.querySelector('#my-apps-form-view').offsetParent);
   const retained=await pb.evaluate(id=>{const i=JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.id===id);return{final:i.iconId,source:i.iconSourceId};},id);assert(retained.final&&retained.source);
   await pa.evaluate(id=>location.hash='#my-apps/'+id+'/edit',id);await pa.locator('#my-apps-icon-remove').click();await pa.locator('#my-apps-submit').click();await pa.waitForFunction(id=>!JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.id===id).iconId,id);await sync(pa);
@@ -207,12 +214,12 @@ try{
  });
  await check('actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes',async()=>{
   // The same retained conflict must also be reachable from a cold standalone tab.
-  const cold=await loser.page().context().newPage(),coldErrors=[];
+  const loserPage=loser.page?.()||loser,cold=await loserPage.context().newPage(),coldErrors=[];
   cold.on('pageerror',e=>coldErrors.push(e.message));
   try{
    await cold.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');await ready(cold);
    await cold.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
-   assert.equal(await cold.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);
+   await cold.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='attention';});
    await cold.locator('#sync-center-port-conflicts-open').click();await cold.locator('[data-sync-conflict-resolution][open]').waitFor();
    assert(await cold.evaluate(async()=>(await SoundCruiseMultiAppSync.runtimes.port.store.listConflicts()).some(c=>c.recordType==='gear_item')));
    assert.deepEqual(coldErrors,[]);
@@ -221,15 +228,15 @@ try{
   const coldUrl=new URL(loser.url());coldUrl.searchParams.set('coldRecovery','1');coldUrl.hash='sync-center';
   await loser.goto(coldUrl.href);await ready(loser);
   await loser.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
-  assert.equal(await loser.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);
+  await loser.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='attention';});
   assert.equal(await loser.locator('[data-sync-conflict-resolution][open]').count(),0);
-  assert.match(await loser.locator('#sync-center-port-conflicts-open').innerText(),/同期を再開して競合を確認する/);
+  assert.match(await loser.locator('#sync-center-port-conflicts-open').innerText(),/競合を確認する/);
   assert.equal(await loser.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'attention');
   await loser.locator('#sync-center-port-conflicts-open').click();
   await loser.locator('[data-sync-conflict-resolution][open]').waitFor();
   await loser.locator('#sync-center-account-display-id').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));
-  await loser.page().locator('[data-account-target]').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));
-  await loser.page().screenshot({path:OUT+'/cold-conflict-resolution.png'});
+  await loserPage.locator('[data-account-target]').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));
+  await loserPage.screenshot({path:OUT+'/cold-conflict-resolution.png'});
   await loser.getByRole('button',{name:'クラウドの内容でこの端末を更新',exact:true}).click();await loser.waitForFunction(async()=>!(await SoundCruiseMultiAppSync.runtimes.port.store.listConflicts()).some(c=>c.recordType==='gear_item'));await loser.locator('[data-sync-conflict-resolution]').waitFor({state:'hidden'});await sync(loser);
   await edit(loser,'CAS resolved');await sync(loser);await sync(winner);await winner.waitForFunction(()=>localStorage.getItem('cruisePort.gearList')?.includes('CAS resolved'));
  });
