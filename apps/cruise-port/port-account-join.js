@@ -1,3 +1,4 @@
+import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 
 export function createPortAccountJoin({
@@ -83,7 +84,9 @@ export function createPortAccountJoin({
                 method: 'POST', accountCredential, body: { invitationId }
             });
         },
-        async consume(joinCode) {
+        async consume(joinCode, label = deviceLabel()) {
+            const name = normalizeUserLabel(label);
+            if (!name.ok || !name.value) throw new Error('sync_target_name_invalid');
             if (!canSync()) throw new Error('pro_required');
             const saved = await storage.getAccount();
             if (saved?.accountCredential) throw new Error('account_already_configured');
@@ -101,7 +104,7 @@ export function createPortAccountJoin({
                 accountDeviceId: account.accountDeviceId,
                 accountCredential: account.accountCredential,
                 ...(qa ? { qaSessionId: qa.qaSessionId, qaCredential: qa.qaCredential } : {}),
-                deviceLabel: deviceLabel()
+                deviceLabel: name.value
             };
             await storage.setPendingConsume(pending);
             try {

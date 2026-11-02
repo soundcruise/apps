@@ -77,11 +77,11 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
         validatePro:auth=>device.validate(auth,{force:true}),summary:credential=>accountClient.summary(credential),
         rejectPro:credential=>window.__soundCruiseRejectProBackendAuth(credential),
         changed(state){
-            const ready=state.phase==='ready';document.documentElement.dataset.studioEntry=ready?'ready':'locked';root.inert=!ready||!!CS.shellHost?.modal.getActive();
+            const ready=state.phase==='ready';const visiblePhase=ready&&!accountFrame?'ready':'locked';if(document.documentElement.dataset.studioEntry!==visiblePhase)document.documentElement.dataset.studioEntry=visiblePhase;root.inert=!ready||!!accountFrame||!!CS.shellHost?.modal.getActive();
             CS.sheetCruise?.refreshAuthorization?.();
-            panel.hidden=ready||!gateReady();
+            panel.hidden=(ready&&!accountFrame)||!gateReady();
             panel.querySelector('[data-entry-pro]').hidden=state.phase!=='pro-required';
-            panel.querySelector('p').textContent=state.phase==='account-required'?'既存のAccountを接続してください。':'認証を確認できません。編集中の内容は保持しています。';
+            panel.querySelector('p').textContent=ready&&accountFrame?'Accountを確認しました。Cruise Syncの初回同期を確認しています…':state.phase==='account-required'?'既存のAccountを接続してください。':'認証を確認できません。編集中の内容は保持しています。';
             if(!ready)stop();
             if(state.phase==='session-changed'&&gateReady()){
                 const revision=source.read().revision;
@@ -91,7 +91,7 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
                 if(modalOwner===state.accountId){CS.shellHost?.modal.resume();modalOwner=null;}
                 lastReadyOwner=state.accountId;
                 if(!CS.shellHost?.modal.getActive())root.removeAttribute('aria-hidden');
-                accountFrame?.remove();accountFrame=null;
+                finishAccountConnection();
                 for(const frame of root.querySelectorAll('iframe'))bindFrame(frame);
             }
         }
@@ -118,13 +118,30 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
     frames.observe(root,{childList:true,subtree:true});
     panel.querySelector('[data-entry-retry]').onclick=()=>void entry.check();
     panel.querySelector('[data-entry-pro]').onclick=()=>{entry.invalidate('pro-required');void window.__soundCruiseClearGate();};
+    function finishAccountConnection(){
+        if(!accountFrame||!entry.isAuthorized())return;
+        const child=accountFrame.contentWindow,doc=child?.document;
+        const phase=doc?.querySelector('#sync-center-port-connect')?.dataset.syncPhase;
+        const syncState=doc?.querySelector('#sync-center-port-status-chip')?.dataset.syncPortStatus;
+        if(phase!=='working'&&['unstarted','attention','detached'].includes(syncState))panel.querySelector('p').textContent='Accountは確認済みです。下のCruise Sync画面で、同期に必要な操作を確認してください。';
+        const runtime=child?.SoundCruiseMultiAppSync?.runtimes?.port;
+        // Keep the native form and owner alive through consume, qualification,
+        // bootstrap and asset hydration. Account success alone is not Sync success.
+        const joining=phase==='working'||phase==='complete'||doc?.querySelector('#sync-center-port-connect')?.open;
+        if(joining&&(phase==='working'||syncState!=='synced'||
+            !runtime||runtime.disposed||runtime.identity?.accountId!==entry.read().accountId))return;
+        const completed=accountFrame;accountFrame=null;completed.studioJoinObserver?.disconnect();completed.remove();
+        document.documentElement.dataset.studioEntry='ready';
+        panel.hidden=true;root.inert=!!CS.shellHost?.modal.getActive();
+        CS.shellHost?.navigate('home');
+    }
     panel.querySelector('[data-entry-connect]').onclick=()=>{
         if(accountFrame)return;accountFrame=document.createElement('iframe');accountFrame.title='既存Accountの接続';accountFrame.style.visibility='hidden';
         accountFrame.onload=()=>{
             const child=accountFrame?.contentWindow;if(!child||child.location.origin!==location.origin)return;
             const style=child.document.createElement('style');style.textContent='.port-view:not(#sync-center-view){display:none!important} #sync-center-view>[data-action=home]{display:none!important}';child.document.head.append(style);
-            const center=()=>{if(child.location.hash!=='#sync-center')child.location.hash='#sync-center';const view=child.document.getElementById('sync-center-view');if(view&&!view.hidden&&child.document.body.dataset.componentState==='ready')accountFrame.style.visibility='';};
-            const viewObserver=new child.MutationObserver(center);viewObserver.observe(child.document.body,{subtree:true,attributes:true,attributeFilter:['hidden','data-component-state']});child.addEventListener('pagehide',()=>viewObserver.disconnect(),{once:true});
+            const center=()=>{if(!accountFrame||accountFrame.contentWindow!==child)return;if(child.location.hash!=='#sync-center')child.location.hash='#sync-center';const view=child.document.getElementById('sync-center-view');if(view&&!view.hidden&&child.document.body.dataset.componentState==='ready')accountFrame.style.visibility='';finishAccountConnection();};
+            const viewObserver=new child.MutationObserver(center);accountFrame.studioJoinObserver=viewObserver;viewObserver.observe(child.document.body,{subtree:true,attributes:true,attributeFilter:['hidden','data-component-state','data-sync-phase','data-sync-port-status']});child.addEventListener('pagehide',()=>viewObserver.disconnect(),{once:true});
             child.addEventListener('studio-port-ready',center);child.addEventListener('hashchange',center);center();
         };
         accountFrame.src='../cruise-port/pro_9a3943176561/#sync-center';panel.querySelector('[data-entry-account-frame]').append(accountFrame);

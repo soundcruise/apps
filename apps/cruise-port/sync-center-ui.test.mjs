@@ -409,7 +409,7 @@ test('Section 2 is initial-only and Section 3 keeps Port primary with app destin
     assert.match(ui, /portList\.replaceChildren\(rows\[0\]\)/);
     assert.match(ui, /appList\.replaceChildren\(\.\.\.rows\.slice\(1\)\)/);
     assert.match(ui, /orchestrator\.issuePortAddition\(\)/);
-    assert.match(ui, /orchestrator\.connectExistingAccount\(joinCode\)/);
+    assert.match(ui, /orchestrator\.connectExistingAccount\(joinCode, portConnectName\?\.value\)/);
 });
 
 test('Existing-account join dialog presents only the success acknowledgement after connecting', () => {
@@ -426,8 +426,8 @@ test('Existing-account join dialog presents only the success acknowledgement aft
     assert.match(ui, /portConnectCancel\.hidden = !inputPhase/);
     assert.match(ui, /portConnectClose\.hidden = !successPhase/);
     assert.match(ui, /setPortConnectPhase\('working'\)/);
-    assert.match(ui, /setPortConnectPhase\('complete'\)[\s\S]*portConnectStatus\.textContent = '接続しました。'/);
-    assert.match(ui, /try \{ await refresh\(\); \} catch \(_\) \{ \/\* committed Join remains successful \*\//);
+    assert.match(ui, /setPortConnectPhase\('complete'\)[\s\S]*portConnectStatus\.textContent = result\.portSyncState/);
+    assert.match(ui, /try \{ await refresh\(\{ activate: false \}\); \} catch \(_\) \{ \/\* committed Join remains successful \*\//);
     assert.match(ui, /portConnectClose\?\.addEventListener\('click', \(\) => \{[\s\S]*portConnectDialog\?\.close\(\)/);
     assert.match(ui, /catch \(error\) \{[\s\S]*setPortConnectPhase\('input'\)/);
 });

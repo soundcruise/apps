@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js';
 
-function fixture({ portSync = null, canSync = () => true } = {}) {
+function fixture({ portSync = null, canSync = () => true, canInitializeJoined = async () => true } = {}) {
     const calls = [];
     let savedAccount = { accountCredential: 'sca1.account' };
     let pendingConsume = null;
@@ -111,7 +111,7 @@ function fixture({ portSync = null, canSync = () => true } = {}) {
         canSync,
         config: { enabled: true, endpoint: 'https://sync.example' },
         accountRoot,
-        portSync,
+        portSync, canInitializeJoined,
         navigate: (url) => navigations.push(url),
         appUrl: (appId) => `https://apps.example/${appId}/pro/`
     });
@@ -367,4 +367,9 @@ test('Standard keeps Account creation and readonly summary without automatic dat
  assert(calls.some(c=>c[0]==='start'));
  const before=calls.length;await orchestrator.resume();
  assert(calls.slice(before).every(c=>c[0]==='summary'));
+});
+
+test('joined Account with unconfirmed local data keeps successful membership but never ensures Sync',async()=>{
+ let writes=0;const f=fixture({canInitializeJoined:async()=>false,portSync:{ensure:async()=>{writes++;}}});f.setSavedAccount(null);
+ const result=await f.orchestrator.connectExistingAccount('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE','My PC');assert.equal(result.accountId,'account-1');assert.equal(result.portSyncState.code,'local_data_unconfirmed');assert.equal(writes,0);
 });
