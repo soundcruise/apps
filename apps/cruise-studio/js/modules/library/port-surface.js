@@ -82,7 +82,7 @@
                 var url = new URL(href, child.location.href);
                 if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('unsafe-link');
                 child.open(url.href, '_blank', 'noopener,noreferrer');
-            } catch (_) { status.textContent = 'リンクを開けませんでした。Portから確認してください。'; }
+            } catch (_) { status.textContent = 'リンクを開けませんでした。別タブで確認してください。'; }
         }
         function onChildClick(child, currentFrame, event) {
             if (!active || frame !== currentFrame) return;
@@ -102,7 +102,7 @@
             if (!active || disposed || !shell) return;
             var current = ++generation;
             removeFrame();
-            setPhase('loading', config.kind==='sync'?'Cruise Syncを開いています':'Cruise Port を開いています…');
+            setPhase('loading', 'CRUISE STUDIO · 読み込み中…');
             var next = document.createElement('iframe');
             next.title = config.title;
             next.style.visibility = 'hidden'; next.setAttribute('aria-busy', 'true'); next.studioStartedAt = performance.now();
@@ -125,11 +125,11 @@
                     if (home) new child.MutationObserver(function () { checkRoute(child, next); }).observe(child.document.querySelector('.port-shell'), { subtree: true, attributes: true, attributeFilter: ['hidden'] });
                     checkRoute(child, next); // Native entry restores the exact requested route after boot.
                 } catch (_) {
-                    stop('Port画面を開けませんでした。別タブで開いてください。');
+                    stop('画面を開けませんでした。再試行してください。');
                     setPhase('failed', status.textContent);
                 }
             };
-            next.onerror = function () { if (frame === next) { stop('Port画面を開けませんでした。別タブで開いてください。'); setPhase('failed', status.textContent); } };
+            next.onerror = function () { if (frame === next) { stop('画面を開けませんでした。再試行してください。'); setPhase('failed', status.textContent); } };
             frame = next;
             next.src = portUrl.href;
             surface.append(next);
@@ -210,11 +210,11 @@
             if (editing) { frame.contentWindow.CruiseStudioPortTool?.pause(); return true; }
             return false;
         }
-        function onVisibility() { if (document.hidden && active && !preserveEditor()) stop('Port画面を閉じました。再開してください。'); }
+        function onVisibility() { if (document.hidden && active && !preserveEditor()) stop('画面を閉じました。再開してください。'); }
         function onPagehide() { if (active) stop(); }
         function onGlobalStop() {
             if (shell.getCommandContext().activeModal || shell.keyboard.isIMEBlocked({})) return;
-            if (active && !preserveEditor()) stop('Port画面を閉じました。再開してください。');
+            if (active && !preserveEditor()) stop('画面を閉じました。再開してください。');
         }
         function onResume() { if (active && phase !== 'loading' && phase !== 'ready' && !requestLeave(start)) start(); }
         function onOverview() { shell.navigate(config.overviewWorkspace); }
@@ -252,7 +252,7 @@
         });
     }
     if(document.getElementById('screen-port-sync'))CS.portSync=createSurface({kind:'sync',screen:'screen-port-sync',surface:'port-sync-surface',status:'port-sync-status',resume:'port-sync-resume',title:'Account・Cruise Sync',hash:'#sync-center'});
-    CS.portGear = createSurface({ kind: 'gear', screen: 'screen-port-gear', surface: 'port-gear-surface', status: 'port-gear-status', resume: 'port-gear-resume', overview: 'port-gear-overview', settings: 'port-gear-settings', overviewWorkspace: 'gear', title: 'Cruise Port 機材リスト', hash: '#wishlist' });
-    CS.portMyApps = createSurface({ kind: 'myApps', screen: 'screen-port-my-apps', surface: 'port-my-apps-surface', status: 'port-my-apps-status', resume: 'port-my-apps-resume', overview: 'port-my-apps-overview', settings: 'port-my-apps-settings', overviewWorkspace: 'myApps', title: 'Cruise Port My Apps', hash: '' });
-    CS.portNews = createSurface({ kind: 'news', screen: 'screen-port-news', surface: 'port-news-surface', status: 'port-news-status', resume: 'port-news-resume', overview: 'port-news-overview', settings: 'port-news-settings', overviewWorkspace: 'news', title: 'Cruise Port NEWS', hash: '#news' });
+    CS.portGear = createSurface({ kind: 'gear', screen: 'screen-port-gear', surface: 'port-gear-surface', status: 'port-gear-status', resume: 'port-gear-resume', overview: 'port-gear-overview', settings: 'port-gear-settings', overviewWorkspace: 'gear', title: 'Studio 機材リスト', hash: '#wishlist' });
+    CS.portMyApps = createSurface({ kind: 'myApps', screen: 'screen-port-my-apps', surface: 'port-my-apps-surface', status: 'port-my-apps-status', resume: 'port-my-apps-resume', overview: 'port-my-apps-overview', settings: 'port-my-apps-settings', overviewWorkspace: 'myApps', title: 'Studio My Apps', hash: '' });
+    CS.portNews = createSurface({ kind: 'news', screen: 'screen-port-news', surface: 'port-news-surface', status: 'port-news-status', resume: 'port-news-resume', overview: 'port-news-overview', settings: 'port-news-settings', overviewWorkspace: 'news', title: 'Studio NEWS', hash: '#news' });
 })(typeof window !== 'undefined' ? window : globalThis);

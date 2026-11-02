@@ -11,6 +11,14 @@
 #port-tuner-status:empty { display: none; }
 #port-tuner-status { margin: 0; color: var(--studio-text-muted); }
 .port-tuner-surface { width: 100%; min-width: 0; }
+.port-tuner-workspace:is([data-port-tuner-phase="loading"], [data-port-metronome-phase="loading"], [data-port-practice-phase="loading"], [data-port-library-phase="loading"]) .port-tuner-surface {
+    background: #090909;
+}
+.port-tuner-workspace:is([data-port-tuner-phase="loading"], [data-port-metronome-phase="loading"], [data-port-practice-phase="loading"], [data-port-library-phase="loading"]) [id^="port-"][id$="-status"] {
+    background: #090909; color: #e9dfce; border-radius: 12px;
+    text-align: center; letter-spacing: .12em; padding: 20px;
+}
+.port-tuner-workspace [id^="port-"][id$="-status"]:not(:empty) { padding: 12px 0; }
 .port-tuner-frame {
     display: block; width: 100%; height: max(680px, calc(100dvh - 180px));
     border: 1px solid var(--studio-border-default); border-radius: 12px;

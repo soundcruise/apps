@@ -36,7 +36,7 @@
     async function start() {
         if (!active || disposed || !audio || !shell) return false;
         var current = ++generation;
-        setPhase('loading', 'Cruise Port チューナーを開いています…');
+        setPhase('loading', 'CRUISE STUDIO · 読み込み中…');
         // The score-side quick tuner is another view of this tool; close it first.
         if (CS.tunerRuntime) await CS.tunerRuntime.stop('port-tuner-open');
         if (CS.portMetronome?.whenStopped) await CS.portMetronome.whenStopped();
@@ -54,10 +54,11 @@
             return false;
         }
         var next = document.createElement('iframe');
-        next.title = 'Cruise Port チューナー';
+        next.title = 'Studio チューナー';
         next.allow = 'microphone';
         next.referrerPolicy = 'same-origin';
         next.className = 'port-tuner-frame';
+        next.style.visibility = 'hidden';
         next.onload = function () {
             if (!active || disposed || current !== generation || frame !== next) return;
             try {
@@ -67,7 +68,7 @@
                     throw new Error('unexpected-port-document');
                 child.addEventListener('hashchange', function () {
                     if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
-                    if (child.location.hash === '#tuner') setPhase('running', '');
+                    if (child.location.hash === '#tuner') { next.style.visibility = ''; setPhase('running', ''); }
                     else shell.navigate('home');
                 });
                 // Port intentionally normalizes initial deep links; route only after its module boot.
@@ -75,18 +76,18 @@
                     if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
                     CS.presentNativePort(next);
                     child.location.hash = '#tuner';
-                    setPhase('running', '');
+                    next.style.visibility = ''; setPhase('running', '');
                 }
                 child.addEventListener('studio-port-ready', ready);
                 ready();
             } catch (_) {
-                void stop('load-failed', 'Port チューナーを開けませんでした。別タブで開いてください。');
+                void stop('load-failed', 'チューナーを開けませんでした。再試行してください。');
                 setPhase('failed', status.textContent);
             }
         };
         next.onerror = function () {
             if (frame !== next) return;
-            void stop('load-failed', 'Port チューナーを開けませんでした。別タブで開いてください。');
+            void stop('load-failed', 'チューナーを開けませんでした。再試行してください。');
             setPhase('failed', status.textContent);
         };
         frame = next;
