@@ -454,7 +454,8 @@ export function createSyncCenterController({
                             return lastPresentation;
                         } catch (_) { /* retain fail-closed unavailable presentation */ }
                     }
-                    lastPresentation = createUnavailablePresentation('error', readOnly ? null : lastPresentation);
+                    lastPresentation = Object.freeze({ ...createUnavailablePresentation('error', readOnly ? null : lastPresentation),
+                        errorCode: error?.code || 'request_failed' });
                 }
                 return lastPresentation;
             })();

@@ -1,7 +1,7 @@
-import { portSyncStatusDetail } from './port-sync-status.js?v=1.24.27';
+import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.24.29';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.24.25';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.24.29';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
@@ -192,6 +192,11 @@ export function describeLifecycleAction(kind, { appName = 'このアプリ', las
 }
 
 export function markAppRowsChecking(root) {
+    renderPortStatus(root, { accountState: 'unknown', portStatus: PORT_SYNC_STATUS_PRESENTATIONS.checking, portStructuredStatus: { checking: true } });
+    const alert = root?.querySelector?.('#sync-center-alert');
+    if (alert) alert.hidden = true;
+    const recheck = root?.querySelector?.('#sync-center-account-recheck');
+    if (recheck) recheck.disabled = true;
     const list = root?.querySelector?.('#sync-center-apps');
     if (!list) return;
     list.setAttribute('aria-busy', 'true');
@@ -468,8 +473,9 @@ export function shouldShowPortConflictAction(presentation = {}) {
     return Number(presentation.portConflictCount) > 0;
 }
 
-function renderPortStatus(root, presentation) {
-    const status = shouldShowPortConflictAction(presentation) ? { state: 'attention', label: '確認が必要' } : presentation.portStatus || {
+export function renderPortStatus(root, presentation) {
+    const checking = presentation.portStatus?.state === 'checking';
+    const status = !checking && shouldShowPortConflictAction(presentation) ? { state: 'attention', label: '確認が必要' } : presentation.portStatus || {
         state: 'attention', label: '確認が必要'
     };
     const chip = root.querySelector('#sync-center-port-status-chip');
@@ -480,7 +486,7 @@ function renderPortStatus(root, presentation) {
     }
     const conflictsOpen = root.querySelector('#sync-center-port-conflicts-open');
     if (conflictsOpen) {
-        conflictsOpen.hidden = !shouldShowPortConflictAction(presentation);
+        conflictsOpen.hidden = checking || !shouldShowPortConflictAction(presentation);
         // A Studio read-only projection has no owner state. Preserve the native
         // explicit activation wording instead of claiming this is a read-only action.
         if (typeof presentation.portRuntimeActive === 'boolean') {
@@ -492,9 +498,9 @@ function renderPortStatus(root, presentation) {
         structured: presentation.portStructuredStatus || { conflictCount: presentation.portConflictCount }, assets: presentation.portAssetStatus,
         online: presentation.portOnline, status });
     const activate = root.querySelector('#port-sync-activate');
-    if (activate) activate.hidden = ['unset', 'deleting'].includes(presentation.accountState) || status.state === 'synced';
+    if (activate) activate.hidden = ['unset', 'deleting'].includes(presentation.accountState) || ['checking', 'syncing', 'synced'].includes(status.state) || shouldShowPortConflictAction(presentation);
     const legacyRetry = root.querySelector('#sync-center-port-legacy-retry');
-    if (legacyRetry) legacyRetry.hidden = !presentation.legacyRetryCount;
+    if (legacyRetry) legacyRetry.hidden = checking || !presentation.legacyRetryCount;
 }
 
 function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {
@@ -656,6 +662,8 @@ export function renderSyncCenter(root, presentation, {
     const recoveryHelp = root.querySelector('#sync-center-recovery-help');
     const accountActionRow = root.querySelector('.sync-center-account-action-row');
     const accountState = presentation.accountState;
+    const recheck = root.querySelector('#sync-center-account-recheck');
+    if (recheck) { recheck.disabled = false; recheck.hidden = accountState === 'unset'; recheck.onclick = () => onRecheck?.(); }
     if (accountActionRow) accountActionRow.dataset.syncAccountState = accountState || 'unknown';
     const accountDisplayId = root.querySelector('#sync-center-account-display-id');
     if (accountStatus) {

@@ -515,7 +515,7 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .tool-window-bar{gap:var(--studio-space-2);padding:var(--studio-space-3);padding-right:76px}
 #tool-window-select{padding:var(--studio-space-3) var(--studio-space-4);min-width:0;border-radius:8px;font:inherit}
 #tool-window-center{min-width:40px;min-height:44px;border-radius:8px;padding:var(--studio-space-2)}
-#studio-tool-window:not(:has(.studio-series-frame)) #tool-window-center{display:none}
+#studio-tool-window:not(:has(.studio-series-frame, #screen-port-sync)) #tool-window-center{display:none}
 #tool-window-slot{padding:var(--studio-space-2)}
 #tool-window-slot .studio-series-frame{height:calc(100dvh - 150px)}
 

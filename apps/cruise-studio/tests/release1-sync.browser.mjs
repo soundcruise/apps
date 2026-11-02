@@ -61,7 +61,7 @@ async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixt
  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
 async function committed(operations){const until=Date.now()+20000;while(Date.now()<until){const rows=await Promise.all(operations.map(o=>db.prepare("SELECT count(*) n FROM sync_changes WHERE app_id='port' AND operation_id=?").bind(o.operationId).first()));if(rows.every(row=>row.n===1))return;await new Promise(r=>setTimeout(r,50));}throw Error('original operations did not commit within existing 20s budget');}
-async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement?.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.28'});}
+async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement?.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.29'});}
 async function nativeRuntime(frame){
  for(let activation=0;activation<2;activation++){
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
@@ -75,7 +75,7 @@ async function nativeRuntime(frame){
   // the native button event in one task, instead of clicking a now-hidden start.
   const action=await frame.evaluate(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;if(r&&!r.disposed)return 'active';const b=document.getElementById('port-sync-activate');if(!b||b.hidden||b.disabled)throw Error('native_start_not_ready');b.click();return 'clicked';});
   if(action==='active')return;
-  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.28'});
+  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.29'});
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
   if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port&&!SoundCruiseMultiAppSync.runtimes.port.disposed))return;
   if(frame.url()===activationUrl)throw Error('native activation ended without runtime or reload');
