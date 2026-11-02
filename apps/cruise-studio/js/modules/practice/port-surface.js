@@ -13,6 +13,7 @@
     var stopButton = document.getElementById('shell-audio-stop');
     var portUrl = new URL('../cruise-port/pro_9a3943176561/#practice-menu', document.baseURI);
 
+    var requestedRoute = '#practice-menu';
     function isPracticeRoute(hash) { return hash === '#sync-center' || hash === '#practice-menu' || hash.startsWith('#practice-menu/'); }
     function setPhase(next, message) {
         phase = next;
@@ -38,6 +39,12 @@
     }
     function requestLeave(next) {
         if (!frame || !active) return false;
+        var calendarForm = frame.contentDocument?.getElementById('practice-calendar-note-form');
+        if (calendarForm && !calendarForm.hidden) {
+            if (!window.confirm('カレンダーの入力が未保存です。保存せず画面を移動しますか？')) return true;
+            frame.contentDocument.getElementById('practice-calendar-note-cancel').click();
+            return false;
+        }
         var child, form, dialog, cancel, error;
         try {
             child = frame.contentWindow;
@@ -118,8 +125,10 @@
                 CS.presentNativePort(next);
                 if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname)
                     throw new Error('unexpected-port-document');
+                var selectInitialRoute = requestedRoute === '#practice-menu/calendar';
                 function checkRoute() {
                     if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
+                    if(selectInitialRoute){selectInitialRoute=false;child.location.hash=requestedRoute;}
                     if (isPracticeRoute(child.location.hash)) setPhase('ready', '');
                     else shell.navigate('home');
                 }
@@ -129,8 +138,10 @@
                 // Port's Home and Calendar controls also use history.pushState,
                 // which emits neither hashchange nor popstate in the same document.
                 child.document.addEventListener('click', function () { child.setTimeout(checkRoute, 0); });
-                // Port boot normalizes its initial hash; select the real route afterwards.
+                // Keep the existing native practice/Sync boot order. Only the new
+                // direct Calendar entry needs selection after Port normalizes its hash.
                 child.location.hash = '#practice-menu';
+                checkRoute();
             } catch (_) {
                 void stop('load-failed', 'Port 練習メニューを開けませんでした。別タブで開いてください。');
                 setPhase('failed', status.textContent);
@@ -149,7 +160,8 @@
     function preserveEditor() {
         var form = frame?.contentDocument?.getElementById('practice-form-view');
         var preset = frame?.contentDocument?.getElementById('practice-set-dialog');
-        if ((form && !form.hidden) || (preset && !preset.hidden)) { frame.contentWindow.CruiseStudioPortTool?.pause(); return true; }
+        var calendarForm=frame?.contentDocument?.getElementById('practice-calendar-note-form');
+        if ((calendarForm && !calendarForm.hidden) || (form && !form.hidden) || (preset && !preset.hidden)) { frame.contentWindow.CruiseStudioPortTool?.pause(); return true; }
         return false;
     }
     function onVisibility() {
@@ -164,11 +176,25 @@
     function onOverview() { shell.navigate('practice'); }
     CS.portPractice = Object.freeze({
         load: function () {},
+        openCalendar: function () {
+            if(frame&&active){
+                if(frame.contentWindow.location.hash==='#practice-menu/calendar')return;
+                if(requestLeave(function(){CS.portPractice.openCalendar();}))return;
+                frame.contentWindow.location.hash='#practice-menu/calendar';return;
+            }
+            requestedRoute='#practice-menu/calendar';shell.navigate('portPractice');
+        },
         attach: function (options) {
             if (handle || disposed) return;
             audio = options.audio; shell = options.shell;
             handle = audio.register({ sessionId: 'studio.port.practice.surface', ownerFeatureId: 'port.practice',
-                cleanup: function () {
+                cleanup: function (reason) {
+                    // stopAll reaches this callback before the button's local
+                    // handler. Pause the native timer without destroying drafts.
+                    if (reason === 'global-stop' && preserveEditor()) {
+                        frame.contentWindow.studioEntryStopMedia?.();
+                        return;
+                    }
                     if (frame) { generation++; removeFrame(); if (active) setPhase('idle', 'Port画面を閉じました。再開するには練習メニューを開いてください。'); }
                 } });
             document.addEventListener('visibilitychange', onVisibility);
@@ -179,7 +205,7 @@
             if (active) void start();
         },
         activate: function () { active = true; if (handle) void start(); },
-        deactivate: function () { active = false; resume.hidden = true; return stop('workspace-left'); },
+        deactivate: function () { requestedRoute = '#practice-menu'; active = false; resume.hidden = true; return stop('workspace-left'); },
         requestLeave: requestLeave,
         getState: function () { return Object.freeze({ active: active, phase: phase, hasFrame: !!frame }); },
         whenStopped: function () { return stopPromise; },

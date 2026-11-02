@@ -1,0 +1,58 @@
+{
+  "base": "17f29d54f9c8f74657f2b0d74a8492f80caede10",
+  "candidateStudio": "0.72.0",
+  "Port": "1.25.3",
+  "scope": "Calendar complete; embedded four-app Sync NOT implemented/accepted",
+  "product": {
+    "status": "PASS",
+    "cases": 41,
+    "pageErrors": 0,
+    "productionRequestsSent": 0
+  },
+  "recovery": {
+    "status": "PASS",
+    "cases": 12,
+    "pageErrors": 0
+  },
+  "node": {
+    "studio": 36,
+    "portCalendarAdapter": 87,
+    "failures": 0
+  },
+  "browser": {
+    "internalAppsAndCalendar": 5,
+    "accountCenterAndNews": 11,
+    "fourAppCloudDataEquivalence": "NOT ACCEPTED",
+    "calendarGlobalStopDraftRetainedAndLeaseReleased": true
+  },
+  "jekyll": {
+    "studioFiles": 34,
+    "releaseBytesMatch": true,
+    "unchangedNativeOutputFiles": 811
+  },
+  "unchangedNativeBaseTrees": {
+    "apps/cruise-port": "39604f03f097fa8f9b25b4df0f91f691b66b0bbd",
+    "apps/pitch-cruise": "8f1d3d357a5554642c6dcd2a8bfd1c897c557910",
+    "apps/fretboard_cruise": "719cef1db70b0b946e6ea3b472ca4f04cfc5dbc6",
+    "apps/rhythm-cruise": "c422f78c232d9d374aaec5a47232d069465da8b9",
+    "apps/chord-cruise": "5f34da74fd318c5abc1ee8044660c82f6cf8ff6e",
+    "apps/shared": "ed13d8330234d1c7605f38038c0d6d49cca450ad",
+    "workers": "4bebc1f110c32bc7d5ae927501cfbf43f23ad46e"
+  },
+  "realBrowserInspection": {
+    "readOnly": true,
+    "liveApplicationFramesObserved": 0,
+    "pitchSyncDatabasePresent": false,
+    "fretboardSyncDatabasePresent": false,
+    "rhythmSyncDatabasePresent": false,
+    "chordSyncDatabasePresent": true,
+    "chordObjectStoreCount": 0,
+    "realDataOrCredentialsExported": false,
+    "iPhoneDataInspected": false
+  },
+  "testNotes": [
+    "An intermediate default-route regression was fixed; unchanged recovery suite then passed 12/12.",
+    "A synthetic old-A Outbox seeding race was fixed by completing the real A save and disposing its runtime before manual pending seeding; exact equality assertions retained.",
+    "One concurrent product/recovery run timed out at Pro detach after 8 cases; its cause is not established. Final unchanged product suite passed 41/41 serially. This does not prove repeated real-device acceptance."
+  ]
+}

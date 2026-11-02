@@ -2,7 +2,7 @@
 (function(){
     'use strict';
     var CS=window.CruiseStudio;
-    CS.portPC=Object.freeze({version:'0.71.3'});
+    CS.portPC=Object.freeze({version:'0.72.0'});
     CS.shellHost=CS.shell.init(CS);
     CS.audio=CS.audioCoordinator.createCoordinator();
     CS.tuner.attach({audio:CS.audio,shell:CS.shellHost});
@@ -13,6 +13,7 @@
     document.querySelectorAll('[data-home-workspace]').forEach(function(button){
         button.addEventListener('click',function(){CS.shellHost.navigate(button.dataset.homeWorkspace);});
     });
+    document.querySelectorAll('[data-open-calendar]').forEach(function(button){button.addEventListener('click',function(){CS.portPractice.openCalendar();});});
     // Only the registered Port workspaces are navigable. Unknown/future hashes
     // remain Home, rather than loading modules or interpreting Project data.
     function route(){var id=location.hash.slice(1);if(id)CS.shellHost.navigate(id);}

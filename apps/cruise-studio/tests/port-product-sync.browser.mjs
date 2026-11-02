@@ -150,6 +150,9 @@ try{
  });
  await check('locked entrance with retained old Account data keeps the native review frame and performs no automatic adoption',async()=>{
   const p=await profile('Entrance-old-data',false);await bootstrapPro(p);await createAccount(p);await port(p,false);await ready(p.page);await normalGear(p.page,'Keep old Account data');
+  // Finish the genuine A save before seeding a retained pending operation.
+  // Otherwise its delayed gear_order capture races the fixture's Outbox snapshot.
+  await sync(p.page);await p.page.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.dispose());
   const retained=await p.page.evaluate(async()=>{
    const a=await SoundCruiseSyncAccount.storage.getAccount(),store=SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a.accountId});
    const adapter=new SoundCruisePortSync.PortSyncAdapter(),record=(await adapter.serializeRecords(adapter.readLocalSnapshot())).find(r=>r.recordType==='gear_item');
@@ -478,6 +481,14 @@ try{
   });assert.deepEqual(values.ok,[true,true,true,true]);globalThis.practiceId=values.practiceId;
   await sync(pa);await sync(pb);const data=await readStable(pb,()=>({practice:localStorage.getItem('cruisePort.practiceMenus'),apps:localStorage.getItem('cruisePort.myApps'),calendar:localStorage.getItem('cruisePort.practiceCalendar'),preset:localStorage.getItem('cruisePort.metronomePresets'),tuner:JSON.parse(localStorage.getItem('cruisePort.tuner')),metro:JSON.parse(localStorage.getItem('cruisePort.metronome'))}));
   assert(data.practice.includes('Synthetic practice'));assert(data.apps.includes('Synthetic My App'));assert(data.calendar.includes('Synthetic calendar'));assert(data.preset.includes('Synthetic preset'));assert.equal(data.metro.bpm,157);assert.equal(data.tuner.capo,1);
+ });
+ await check('Studio product calendar entry edits native Port notes and syncs the same calendar dataset to standalone Port',async()=>{
+  await B.page.evaluate(()=>CruiseStudio.shellHost.navigate('home'));await B.page.locator('#screen-home [data-open-calendar]').click();
+  const cal=await(await B.page.locator('#port-practice-surface iframe').elementHandle()).contentFrame();await ready(cal);
+  await cal.locator('#practice-calendar-note-add').click();await cal.locator('#practice-calendar-note-text').fill('Studio calendar Cloud acceptance');await cal.locator('#practice-calendar-note-form button[type=submit]').click();
+  await cal.waitForFunction(()=>localStorage.getItem('cruisePort.practiceCalendar')?.includes('Studio calendar Cloud acceptance'));
+  await sync(cal);await sync(pa);await go(pa,'#practice-menu/calendar');await pa.locator('#practice-calendar-notes-list').filter({hasText:'Studio calendar Cloud acceptance'}).waitFor();
+  await B.page.evaluate(()=>CruiseStudio.shellHost.navigate('home'));
  });
  await check('latest UI My Apps focus is preserved with native Port and one Sync runtime',async()=>{
   await B.page.locator('[data-workspace=portMyApps]').click();let my=await(await B.page.locator('#port-my-apps-surface iframe').elementHandle()).contentFrame();await ready(my);await my.locator('#my-apps-section').waitFor({state:'visible'});assert.equal(await my.locator('[data-home-section=tools]').isVisible(),false);assert.equal(await my.locator('[data-home-section=cruiseApps]').isVisible(),false);if(process.env.STUDIO_NATIVE_ROOT){await consent(my);await my.evaluate(()=>location.hash='');}await my.waitForFunction(()=>!!SoundCruiseMultiAppSync?.runtimes?.port&&!SoundCruiseMultiAppSync.runtimes.port.disposed);assert.equal(await my.evaluate(()=>Object.keys(SoundCruiseMultiAppSync.runtimes).filter(x=>x==='port').length),1);
