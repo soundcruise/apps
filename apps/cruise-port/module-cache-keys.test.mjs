@@ -53,8 +53,8 @@ const UNCHANGED_KEYS = Object.freeze(Object.fromEntries(Object.entries({
 ,...Object.fromEntries(['port-asset-sync.js'].map(name=>[name,'1.24.27']))
 }).filter(([name]) => !RELEASE_MODULES.includes(name))));
 
-test('the Account-scoped Port status patch release is 1.25.2', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.25.2');
+test('the Account-scoped Port status patch release is 1.25.3', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.25.3');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -84,7 +84,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.25.2');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.25.3');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.24.24');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');

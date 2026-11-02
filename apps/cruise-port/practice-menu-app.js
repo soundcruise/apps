@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.25.2';
+} from './app-version.js?v=1.25.3';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -4363,7 +4363,7 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
             const accountGeneration = globalThis.SoundCruiseSyncAccount.storage.getGeneration();
             const needsReview = !portSyncController?.runtime && !await canInitializeEmptyPort();
             if (accountGeneration !== globalThis.SoundCruiseSyncAccount.storage.getGeneration()) throw Object.assign(new Error('account_generation_changed'), { code: 'account_generation_changed' });
-            if (needsReview && !window.confirm('この端末に残るデータを、現在のAccountと同期します。別Accountのデータが含まれる場合や判断できない場合はキャンセルしてください。内容を確認し、同期を続けますか？')) {
+            if (needsReview && !window.confirm('この端末のデータを現在のAccountへ送信し、クラウドのデータと統合します。旧Accountのデータが残っている場合も送信対象です。\n\nクラウドから受信するだけの操作ではありません。送信したくないデータがある場合や判断できない場合はキャンセルしてください。\n\n送信・統合を許可しますか？')) {
                 activate = false;
             }
             if (activate) {
