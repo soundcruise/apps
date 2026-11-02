@@ -59,7 +59,7 @@ test('Studio reuses Port NEWS and launches each official Pro app route', async (
         await popup.close();
         await news().locator('#news-category').selectOption('');
         await news().locator('.news-card[href="#news/cruise-apps/theme-colors"]').click();
-        await news().locator('#news-article-view:not([hidden]) #news-article-title').waitFor();
+        await news().locator('#news-article-view:not([hidden]) #news-article-title').filter({hasText:'4つのカラーテーマ'}).waitFor();
         assert.match(await news().locator('#news-article-title').textContent(), /4つのカラーテーマ/);
         assert.match(await news().locator('#news-article-content').textContent(), /使い方/);
         await news().locator('#news-article-view > .view-panel > .view-back').click();

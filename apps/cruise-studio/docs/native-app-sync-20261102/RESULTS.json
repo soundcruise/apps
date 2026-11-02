@@ -1,0 +1,379 @@
+{
+  "basePR": 172,
+  "baseHead": "ce2af39dddd8ad36b8fab0fd54f4e9f1d63e71ef",
+  "mainObserved": "17f29d54f9c8f74657f2b0d74a8492f80caede10",
+  "studio": "0.72.0",
+  "Port": "1.25.3",
+  "Chord": "1.21.1",
+  "production": false,
+  "realAccountOperations": 0,
+  "product": {
+    "status": "PASS",
+    "cases": 50,
+    "pageErrors": 0,
+    "productionRequestsSent": 0,
+    "cleanup": {
+      "browsersClosed": true,
+      "workerDisposed": true,
+      "bundlerStopped": true
+    },
+    "entry": "actual Studio index and native Port Pro index",
+    "apps": {
+      "pitch": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      },
+      "fretboard": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      },
+      "rhythm": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      },
+      "chord": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      }
+    },
+    "casesPassed": [
+      {
+        "name": "Standard cold Port connects Account and saves/disconnects without manual reload",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro cold Port connects Account and saves/disconnects without manual reload",
+        "status": "PASS"
+      },
+      {
+        "name": "native Port invitation join and first Cloud receive in standalone Pro",
+        "status": "PASS"
+      },
+      {
+        "name": "native Port invitation join and first Cloud receive in Studio iframe",
+        "status": "PASS"
+      },
+      {
+        "name": "formal locked Studio entrance joins the phone Account, receives first Cloud data and enters Home without another Sync click",
+        "status": "PASS"
+      },
+      {
+        "name": "locked entrance with retained old Account data keeps the native review frame and performs no automatic adoption",
+        "status": "PASS"
+      },
+      {
+        "name": "already joined Studio revisit retains old Account records, Outbox, image bytes and delete intent without silently receiving or sending",
+        "status": "PASS"
+      },
+      {
+        "name": "old joined empty Port initializes automatically on revisit using its authenticated Port Account Device",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro detach keeps the local dataset writable on the same document",
+        "status": "PASS"
+      },
+      {
+        "name": "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+        "status": "PASS"
+      },
+      {
+        "name": "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+        "status": "PASS"
+      },
+      {
+        "name": "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+        "status": "PASS"
+      },
+      {
+        "name": "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+        "status": "PASS"
+      },
+      {
+        "name": "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+        "status": "PASS"
+      },
+      {
+        "name": "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+        "status": "PASS"
+      },
+      {
+        "name": "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+        "status": "PASS"
+      },
+      {
+        "name": "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+        "status": "PASS"
+      },
+      {
+        "name": "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+        "status": "PASS"
+      },
+      {
+        "name": "expired native Pro session requires formal reauthentication and retains the Project draft",
+        "status": "PASS"
+      },
+      {
+        "name": "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+        "status": "PASS"
+      },
+      {
+        "name": "native Account and device-bound Pro authentication through existing libraries",
+        "status": "PASS"
+      },
+      {
+        "name": "native pitch first connection receives and edits Cloud data through actual Studio entrance",
+        "status": "PASS"
+      },
+      {
+        "name": "native fretboard first connection receives and edits Cloud data through actual Studio entrance",
+        "status": "PASS"
+      },
+      {
+        "name": "native rhythm first connection receives and edits Cloud data through actual Studio entrance",
+        "status": "PASS"
+      },
+      {
+        "name": "native chord first connection receives and edits Cloud data through actual Studio entrance",
+        "status": "PASS"
+      },
+      {
+        "name": "native pitch local-only data requires explicit review; save and online cannot silently adopt it",
+        "status": "PASS"
+      },
+      {
+        "name": "native fretboard local-only data requires explicit review; save and online cannot silently adopt it",
+        "status": "PASS"
+      },
+      {
+        "name": "native rhythm local-only data requires explicit review; save and online cannot silently adopt it",
+        "status": "PASS"
+      },
+      {
+        "name": "native chord local-only data requires explicit review; save and online cannot silently adopt it",
+        "status": "PASS"
+      },
+      {
+        "name": "native app owners leave through Studio Home with saved data retained before profile teardown",
+        "status": "PASS"
+      },
+      {
+        "name": "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+        "status": "PASS"
+      },
+      {
+        "name": "real Sync Center attribution and existing runtime bootstrap on both profiles",
+        "status": "PASS"
+      },
+      {
+        "name": "real Port Gear UI save -> Cloud push -> Studio frame pull",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio actual Gear form edits Cloud data and Port receives the edit",
+        "status": "PASS"
+      },
+      {
+        "name": "completed standalone Pro connection auto resumes on cold product boot without bootstrap or button",
+        "status": "PASS"
+      },
+      {
+        "name": "completed Studio iframe connection auto resumes on cold product boot without bootstrap or button",
+        "status": "PASS"
+      },
+      {
+        "name": "native automatic Device confirmation exits checking on HTTP 429 and recovers without bootstrap",
+        "status": "PASS"
+      },
+      {
+        "name": "native automatic Device confirmation exits checking on HTTP 503 and recovers without bootstrap",
+        "status": "PASS"
+      },
+      {
+        "name": "PWA-style pagehide/pageshow and offline-online automatically resume the established native owner",
+        "status": "PASS"
+      },
+      {
+        "name": "a previously completed B connection cannot auto adopt A local edits after Account switch and reload",
+        "status": "PASS"
+      },
+      {
+        "name": "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio product calendar entry edits native Port notes and syncs the same calendar dataset to standalone Port",
+        "status": "PASS"
+      },
+      {
+        "name": "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+        "status": "PASS"
+      },
+      {
+        "name": "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+        "status": "PASS"
+      },
+      {
+        "name": "existing Practice attachment Asset Sync stores and hydrates real binary",
+        "status": "PASS"
+      },
+      {
+        "name": "offline edit is retained and reconciles through existing Sync after reconnect",
+        "status": "PASS"
+      },
+      {
+        "name": "Account A-B-A rejects the old standalone form, keeps A pending/images/attachments and resumes A",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio retained Port form independently rejects another Account and resumes the original Device",
+        "status": "PASS"
+      },
+      {
+        "name": "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+        "status": "PASS"
+      },
+      {
+        "name": "a fresh B document permits normal B editing without inheriting the old A runtime or Outbox",
+        "status": "PASS"
+      }
+    ]
+  },
+  "repeatedAssertionRuns": [
+    {
+      "run": "complete",
+      "status": "PASS",
+      "cases": 50,
+      "pageErrors": 0
+    },
+    {
+      "run": "repeat",
+      "status": "PASS",
+      "cases": 50,
+      "pageErrors": 0
+    },
+    {
+      "run": "sealed",
+      "status": "PASS",
+      "cases": 50,
+      "pageErrors": 0
+    }
+  ],
+  "node": {
+    "cases": 400,
+    "passed": 400,
+    "failed": 0,
+    "skipped": 0
+  },
+  "browser": {
+    "cases": 16,
+    "passed": 16,
+    "failed": 0,
+    "skipped": 0,
+    "themes": 5,
+    "widths": [
+      1440,
+      1024,
+      768,
+      390
+    ]
+  },
+  "PortImageAttachmentRecovery": {
+    "status": "PASS",
+    "cases": 12,
+    "pageErrors": 0
+  },
+  "jekyll": {
+    "production": false,
+    "studioFiles": 34,
+    "releaseBytesMatch": true,
+    "nativeOutputFilesByteIdentical": 811
+  },
+  "unchangedContracts": {
+    "apps/shared/pro-gate.js": "5ba306c05a266ed90ba5a4fa68f5cf0a47ca129f",
+    "apps/shared/pro-device-session.js": "92fcb8e8bb9ecdc2ad5ad51998632be4dbc205f0",
+    "apps/shared/pro-backend-entitlement.js": "0af67a364d6e392662d564633f25fcc3748c3889",
+    "apps/shared/sync-account/sync-account-core.js": "340497f91951660e6f340014084fa9d81d9a3fd6",
+    "apps/shared/sync-account/sync-account-db.js": "a1258ee93b51853d3363d404cdf7f7032db671cb",
+    "apps/shared/sync-account/sync-account-client.js": "14a0a14443816005fbe49473a936d0c0c85b5817",
+    "apps/shared/sync-account/multi-app-sync-db.js": "eb547b72b87e15929acd0dedc0d4fba084e66c4c",
+    "apps/cruise-port/practice-menu-app.js": "93aada68e68907572ab0d7b7b8c367b7a296c0ea",
+    "apps/cruise-port/port-dataset-repository.js": "a7ab8e7ed1b88877d362277f099ebc3b95e79718",
+    "apps/cruise-port/port-sync-adapter.js": "320ca1e8f558943fb44cf8c95c386b3c18f52861",
+    "apps/cruise-port/port-account-join.js": "12dac61f67e559ffd108918240a5047c5fcb67d6",
+    "apps/pitch-cruise/script.js": "5cbd85ade211bc69e3889b180da3e1f81d627142",
+    "apps/fretboard_cruise/script.js": "5a8772e53b904d7bfd15f87d766c1d33dbeeb414",
+    "apps/rhythm-cruise/script.js": "64c34c0809718d8525a5d0b719dff63780b7729a",
+    "apps/chord-cruise/js/core/storage.js": "a87277da0d1af18a3c68239f268e303cd2bfbf9d",
+    "apps/chord-cruise/js/sync/sync-core.js": "8a31a27efd99de034a14ce589d109d20d7740491",
+    "apps/chord-cruise/js/sync/sync-merge.js": "0171356cacbbfe646dcb3904ece2523564642f42",
+    "apps/cruise-studio/js/core/studio-entry.mjs": "49fe6d65bd9298ea5634fcdda6a74378224f742b"
+  },
+  "testedProductionSourceSha256": {
+    "apps/chord-cruise/info.html": "39a936f6dfd5907b9d57bece95ba4cab1b9448df8508a0c0b256ca3dbbf6932d",
+    "apps/chord-cruise/js/app.js": "d2d235750eb4b28477d474e6d604533b23e3ff7d648fed116718c2cff6b030c6",
+    "apps/chord-cruise/js/sync/sync-account-orchestration.js": "b0f9e012a110e448c3061833cd5efe355f35d3ff43de4ed029a15da048d50bbe",
+    "apps/chord-cruise/js/sync/sync-bootstrap.js": "735d63836e0e76ebfae1d09f20ce584d98c28e1aeafd8065506d9743c955fad9",
+    "apps/chord-cruise/js/sync/sync-client.js": "a632d3308226677f28fa35a612daf99cbe205fc65d8bc4ee449bdeab7bf24ea7",
+    "apps/chord-cruise/js/sync/sync-db.js": "baa4e84c31f1ea571e8d6c84865c0629a64fa8a5343e32b918f3a0c380fffefa",
+    "apps/chord-cruise/js/ui/settings.js": "0a58606fc9b4cc8cdd3f83838f9b5c868806e6ecd93825e0c80de6a05c20fedd",
+    "apps/chord-cruise/privacy.html": "2240f9a3a0d14091742f4dacc724a86d77305e07254422b3a83b4dd63ba63c5e",
+    "apps/chord-cruise/pro_k7m4q9v2x8/index.html": "2ec64b6c5f5aaf1c70856e054a53a280bd57c0486ebccac8a8ccb4c46a14a3e9",
+    "apps/chord-cruise/pro_k7m4q9v2x8/sync-cohort.html": "512e5dfbabae73791d2f1b49940e203cf9ec84479304a90caeeaa62d84a419ba",
+    "apps/chord-cruise/standard/index.html": "97dd2ea668d554dc4e98a636f4670446e60a08b1db5996725e3c9a5cba8f076d",
+    "apps/chord-cruise/terms.html": "c6f32089ae7de4502ade27f2bdba00c855fa1626b7b8be40f15a47449984808a",
+    "apps/chord-cruise/usage.html": "cea70df83c8573586222fbc5c4f55941ab0a2a94fdb4da5d081371d097f30071",
+    "apps/cruise-port/index.html": "4e41d384c77c347e4a7a4f6c5788c9158b5e861335e91d0085a9f088fc839e92",
+    "apps/cruise-port/pro_9a3943176561/index.html": "8967337b4bc640fb34d2f0bd81cdae151b9a026736ab8db0180351907426d14c",
+    "apps/cruise-studio/index.html": "4d72ef80804554e13765da7015f899374fba86567caeece0472db2d87c17da72",
+    "apps/cruise-studio/js/modules/series/internal-app.mjs": "c7deed09eb74fa5354ed79e39cc47849762396c76046a5cb789753a69865cc70",
+    "apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html": "6f4c734a303dc65210c4e1d4fda6958c120ee5dbd2761e7293cf042f09c98e41",
+    "apps/pitch-cruise/pro_x9v7q2m8/index.html": "5fa843c16296c00f3a1654835dac6505895267087df6d510dade438a65fd7745",
+    "apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html": "84b22e505c106811c182f64115c3501a3c3f777eaeb089836d1636d1af2097d2",
+    "apps/shared/sync-account/multi-app-sync-bootstrap.js": "ff6cbbfc829f508f603d5c7ad5bf254287811f3180def3133607546868753da3",
+    "apps/shared/sync-account/multi-app-sync-runtime.js": "a381d034d508a557b24dc85be5c6c86c40e915aaf687b335b3fafc87c99244d7",
+    "apps/shared/sync-account/multi-app-sync-wiring.test.mjs": "15f4e4162ec34b6c588886bb7587c59dc6ce13eaea8a1be90562b1d1ffbcd7c7",
+    "apps/shared/sync-account/sync-ui-components.test.mjs": "8868e3a6cb0ce5fc58a02007d31ad249719c5e966a38dec3a7049d0b4247cd61"
+  },
+  "workerTreeUnchanged": "4bebc1f110c32bc7d5ae927501cfbf43f23ad46e",
+  "noNewSchemaOrApi": true,
+  "realAcceptance": "NOT RUN",
+  "holds": [
+    "Operator real Account/Pro and real phone/Mac equality, Safari/PWA/microphone not accepted by synthetic runs.",
+    "Prior PR172 observation: real Mac Chord DB v2 had no stores; not changed/rechecked here. Safe error, no automatic deletion or schema repair.",
+    "Existing Worker artifact equivalence and Asset cleanup HOLDs unchanged."
+  ],
+  "testNotes": [
+    "Initial 49-case assertion run passed. Lifecycle closure case added; final 50 cases repeated. Sealed runner completed browser/Worker/bundler teardown and exited 0.",
+    "Early fixtures observed placeholders/collapsed actions before native completion. Exact final expected states, existing deadlines and API-count assertions retained; no skip.",
+    "After successful native cleanup, dependency handles kept the standalone Node runner alive. CLI now exits only after all assertions, zero browser errors, page closure and awaited local Worker disposal."
+  ]
+}

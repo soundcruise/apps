@@ -23,3 +23,32 @@ test('app audio lease, global stop and dirty input protection work in the produc
 test('formal entrance without native qualification fails closed for every internal app',async()=>{
  const fs=require('node:fs'),path=require('node:path');const b=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),p=await b.newPage();p.setDefaultTimeout(10000);await p.route('**/*',r=>new URL(r.request().url()).origin===new URL(url).origin?r.continue():r.abort());await p.route('**/js/core/studio-entry.mjs*',r=>r.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.join(__dirname,'../js/core/studio-entry.mjs'),'utf8')}));await p.route('**/shared/pro-gate.js*',r=>r.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.join(__dirname,'../../shared/pro-gate.js'),'utf8')}));await p.route('**/js/core/port-pro-boundary.mjs*',r=>r.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.join(__dirname,'../js/core/port-pro-boundary.mjs'),'utf8')}));try{await p.goto(url);await p.waitForFunction(()=>!!CruiseStudio.entryAuth);assert.equal(await p.locator('#studio-shell').evaluate(e=>e.inert),true);assert.equal(await p.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);await p.locator('#pro-gate-overlay').waitFor();for(const id of ['pitch','fretboard','rhythm','chord']){await p.evaluate(id=>CruiseStudio.shellHost.navigate('app_'+id),id);assert.equal(await p.locator('#series-'+id+'-surface iframe').count(),0);}}finally{await b.close();}
 });
+
+test('Studio calendar entry reuses native Port, saves notes and protects unsaved calendar input',async()=>{
+ const fs=require('node:fs'),shots=process.env.STUDIO_SHOTS;
+ if(shots)fs.mkdirSync(shots,{recursive:true});
+ const b=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH}),p=await b.newPage({viewport:{width:1440,height:1000}});p.setDefaultTimeout(15000);
+ await p.route('**/*',r=>new URL(r.request().url()).origin===new URL(url).origin?r.continue():r.abort());
+ try{
+  await p.goto(url);await p.locator('#screen-home [data-open-calendar]').click();const f=p.frameLocator('#port-practice-surface iframe');
+  await f.locator('#practice-calendar-note-add').click();await f.locator('#practice-calendar-note-text').fill('合成カレンダー受入');await f.locator('#practice-calendar-note-form button[type=submit]').click();
+  await f.locator('#practice-calendar-notes-list').filter({hasText:'合成カレンダー受入'}).waitFor();
+  await f.locator('.practice-calendar-note').filter({hasText:'合成カレンダー受入'}).locator('[data-calendar-note-action=edit]').click();await f.locator('#practice-calendar-note-text').fill('合成カレンダー受入・編集済み');await f.locator('#practice-calendar-note-form button[type=submit]').click();await f.locator('.practice-calendar-note').filter({hasText:'合成カレンダー受入・編集済み'}).waitFor();
+  await f.locator('#practice-calendar-note-add').click();await f.locator('#practice-calendar-note-text').fill('削除受入');await f.locator('#practice-calendar-note-form button[type=submit]').click();
+  p.once('dialog',d=>d.accept());await f.locator('.practice-calendar-note').filter({hasText:'削除受入'}).locator('[data-calendar-note-action=delete]').click();await f.locator('.practice-calendar-note').filter({hasText:'削除受入'}).waitFor({state:'detached'});
+  await p.evaluate(()=>window.retainedCalendarFrame=document.querySelector('#port-practice-surface iframe').contentWindow);
+  await f.locator('#practice-calendar-note-add').click();await f.locator('#practice-calendar-note-text').fill('未保存メモ');
+  p.once('dialog',d=>d.dismiss());await p.evaluate(()=>CruiseStudio.shellHost.navigate('home'));assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portPractice');assert.equal(await f.locator('#practice-calendar-note-text').inputValue(),'未保存メモ');
+  await p.locator('#shell-audio-stop').click();await p.waitForFunction(()=>CruiseStudio.audio.getConflictingLeases('audio-output/session').length===0);assert.equal(await f.locator('#practice-calendar-note-text').inputValue(),'未保存メモ');assert(await p.evaluate(()=>retainedCalendarFrame===document.querySelector('#port-practice-surface iframe').contentWindow));
+  await f.locator('#practice-calendar-note-form button[type=submit]').click();await p.locator('[data-open-tool=portPractice]').click();
+  if(shots)await p.screenshot({path:shots+'/calendar-right.png'});
+  assert(await p.evaluate(()=>retainedCalendarFrame===document.querySelector('#tool-window-slot iframe').contentWindow));
+  await f.locator('#practice-calendar-note-add').click();await f.locator('#practice-calendar-note-text').fill('右ペインの未保存メモ');p.once('dialog',d=>d.dismiss());await p.locator('#studio-tool-toggle').click();assert.equal(await f.locator('#practice-calendar-note-text').inputValue(),'右ペインの未保存メモ');assert.equal(await p.locator('#studio-tool-toggle').getAttribute('aria-expanded'),'true');
+  p.once('dialog',d=>d.accept());await p.locator('#studio-tool-toggle').click();assert.equal(await p.locator('#studio-tool-toggle').getAttribute('aria-expanded'),'false');
+  await p.reload();await p.locator('#screen-home [data-open-calendar]').click();await p.frameLocator('#port-practice-surface iframe').locator('#practice-calendar-notes-list').filter({hasText:'合成カレンダー受入'}).waitFor();
+  for(const theme of ['dark','midnight','charcoal','gray','light']){
+   await p.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);
+   for(const width of [1440,1024,768,390]){await p.setViewportSize({width,height:1000});assert(await p.frameLocator('#port-practice-surface iframe').locator('#practice-calendar-note-add').isVisible());assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));if(shots)await p.screenshot({path:shots+'/calendar-'+theme+'-'+width+'.png'});}
+  }
+ }finally{await b.close();}
+});

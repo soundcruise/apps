@@ -215,7 +215,7 @@ async function pairedClient(localSeed, cloudSeed, options) {
     await store.setMeta('syncState', 'paired_pending');
     var client = sync.client.createClient({
         enabled: true, localStorage: storage, crypto: webcrypto,
-        endpoint: 'http://127.0.0.1:8787', fetch: server.fetch, now: function () { return 1000; }
+        endpoint: 'http://127.0.0.1:8787', fetch: server.fetch, signal: config.hosted ? new AbortController().signal : undefined, now: function () { return 1000; }
     });
     await client.initialize();
     return { store: store, sync: sync, storage: storage, server: server, client: client };
@@ -386,6 +386,27 @@ async function pairedClient(localSeed, cloudSeed, options) {
     assert.strictEqual((await ongoing.server.snapshotBody()).records.find(function (item) {
         return item.recordType === 'chord' && item.recordId === 'chord-ongoing';
     }).payload.chordName, 'LOCAL EDIT');
+
+    var hosted = await pairedClient(chordSeed('hosted'), chordSeed('cloud'), {hosted:true});
+    var initialHosted = await hosted.client.preparePairingMerge();
+    assert.strictEqual((await hosted.client.applyPairingMerge(initialHosted.sessionId, {})).ok, true);
+    var hostedEdited = JSON.parse(hosted.storage.getItem('chordCruise.chord.chord-hosted'));
+    hostedEdited.chordName = 'REVIEWED OFFLINE EDIT';
+    hosted.storage.setItem('chordCruise.chord.chord-hosted', JSON.stringify(hostedEdited));
+    await hosted.server.editCloudChord('chord-hosted', 'CHOSEN CLOUD EDIT');
+    var reviewedRecord = (await hosted.client.captureSnapshot()).records.find(function (r) { return r.recordKey === 'chord/chord-hosted'; });
+    var nativePending = Object.assign({}, reviewedRecord, {operationId:'reviewed-offline-operation',localCommitted:true,createdAt:999});
+    await hosted.store.putOutbox(nativePending);
+    await hosted.store.putConflict({conflictId:'pull/hosted',recordKey:'chord/chord-hosted',state:'pending',source:'pull'});
+    var hostedPreview = await hosted.client.preparePairingMerge();
+    var hostedChoice = {};hostedChoice[hostedPreview.plan.conflicts[0].conflictId] = 'cloud';
+    await hosted.store.putOutbox(Object.assign({},nativePending,{operationId:'later-unreviewed-operation',createdAt:2000,conflict:true}));
+    var hostedApplied = await hosted.client.applyPairingMerge(hostedPreview.sessionId,hostedChoice);
+    assert.strictEqual(hostedApplied.ok,true,JSON.stringify({code:hostedApplied.code}));
+    assert.strictEqual(await hosted.store.getOutbox('reviewed-offline-operation'),undefined,'explicit verified Cloud choice retires the exact reviewed offline operation');
+    assert(await hosted.store.getOutbox('later-unreviewed-operation'),'an operation newer than the review is preserved');
+    assert.strictEqual((await hosted.store.listConflicts()).length,0);
+    assert.strictEqual(JSON.parse(hosted.storage.getItem('chordCruise.chord.chord-hosted')).chordName,'CHOSEN CLOUD EDIT');
 
     var recoveryStore = createStore(); var recoverySync = loadClient(recoveryStore);
     var recoveryStorage = createStorage(chordSeed('before-crash'));

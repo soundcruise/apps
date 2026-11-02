@@ -46,6 +46,7 @@
     }
 
     function isEnabled() {
+        if (global.SoundCruiseNativeSyncHost) return isProEdition();
         if (isProductionHost()) return productionSyncEnabled();
         if (!isLocalQaHost()) return false;
         return global.__SOUND_CRUISE_SYNC_PILOT__ === true || sessionFlagEnabled() || DEFAULT_ENABLED;
@@ -75,17 +76,26 @@
 
     var activeClient = null;
     var managementUiPromise = null;
+    function installManagementUi() {
+        global.ChordCruiseSync.pairingUi.install(activeClient);
+        if (global.SoundCruiseNativeSyncHost) {
+            // Keep the native merge screen alive when its summary card redraws.
+            // Move the same DOM/controller; do not duplicate its renderer.
+            var section = global.document.getElementById('cc-sync-pairing-section');
+            var anchor = global.document.querySelector('[data-sync-join-entry-host]');
+            if (section && anchor) { anchor.after(section); section.querySelector('[data-sync-open]').hidden = true; }
+        }
+        return true;
+    }
     function ensureManagementUi() {
         if (!activeClient) return Promise.resolve(false);
         if (global.ChordCruiseSync && global.ChordCruiseSync.pairingUi) {
-            global.ChordCruiseSync.pairingUi.install(activeClient);
-            return Promise.resolve(true);
+            return Promise.resolve(installManagementUi());
         }
         if (!managementUiPromise) {
             managementUiPromise = loadScript('sync-pairing-ui.js?v=1.15.7').then(function () {
                 if (!global.ChordCruiseSync || !global.ChordCruiseSync.pairingUi) return false;
-                global.ChordCruiseSync.pairingUi.install(activeClient);
-                return true;
+                return installManagementUi();
             }).catch(function () {
                 managementUiPromise = null;
                 return false;
@@ -97,26 +107,31 @@
     var ready = Promise.resolve({ enabled: false });
     if (isEnabled() && global.document && baseUrl) {
         ready = loadScript('sync-core.js')
-            .then(function () { return loadScript('sync-db.js'); })
+            .then(function () { return loadScript('sync-db.js?v=1.21.1'); })
             .then(function () { return loadScript('sync-merge.js?v=1.15.7'); })
-            .then(function () { return loadScript('sync-client.js?v=1.15.7'); })
+            .then(function () { return loadScript('sync-client.js?v=1.21.1'); })
             .then(function () {
-                var production = isProductionHost();
+                var production = isProductionHost() || Boolean(global.SoundCruiseNativeSyncHost);
                 var endpoint = production
                     ? PRODUCTION_ROLLOUT.endpoint
                     : global.__SOUND_CRUISE_SYNC_PILOT_ENDPOINT__ || 'http://127.0.0.1:8787';
                 if (production) {
                     global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ = PRODUCTION_ROLLOUT.enrollmentRequired;
                 }
-                var client = global.ChordCruiseSync.client.createClient({ enabled: true, endpoint: endpoint });
+                var host = global.SoundCruiseNativeSyncHost;
+                var client = global.ChordCruiseSync.client.createClient({ enabled: true, endpoint: endpoint, ...(host?.chordOptions || {}) });
+                host?.own(client);
                 activeClient = client;
                 global.ChordCruiseSync.pilotClient = client;
-                return client.initialize().then(async function (result) {
+                return Promise.resolve(host?.prepare({ appId: 'chord', client })).then(function (session) {
+                    if (host) host.chordSession = session;
+                    return session?.review ? {enabled: true, deferred: true} : client.initialize();
+                }).then(async function (result) {
                     client.watchLocalMutations(global.ChordCruise && global.ChordCruise.storage);
                     var store = await client.openStore();
                     var credential = await store.getMeta('deviceCredential');
                     var accountManagedSetup = await store.getMeta('accountManagedSetup');
-                    if (await store.getMeta('datasetState') === 'ready') client.startBackgroundSync();
+                    if (!host?.chordSession?.review && await store.getMeta('datasetState') === 'ready') client.startBackgroundSync();
                     if (production && !PRODUCTION_ROLLOUT.legacyNewAdmissionEnabled &&
                         !(credential && credential.credential)) {
                         return result;
@@ -130,7 +145,8 @@
                     });
                 });
             })
-            .catch(function () {
+            .catch(function (error) {
+                if (global.SoundCruiseNativeSyncHost) global.SoundCruiseNativeSyncHost.failure = error;
                 return { enabled: true, ready: false, code: 'pilot_initialization_failed' };
             });
     }

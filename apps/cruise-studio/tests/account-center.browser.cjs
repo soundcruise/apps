@@ -29,6 +29,9 @@ async function fixture(account=A){
  return {browser,context,page,errors,calls,mode,set,async close(){assert.deepEqual(errors,[]);await browser.close();}};
 }
 async function nativeRecheck(f,fr){
+ // A status row paints before the native return-refresh promise settles.
+ // Complete that paint turn before simulating a new user return.
+ await fr.locator('body').evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  const started=f.page.waitForRequest(q=>q.method()==='GET'&&q.frame().url().includes('/cruise-port/')&&new URL(q.url()).pathname==='/v2/accounts/summary');
  if(await fr.locator('#sync-center-account-recheck').isVisible())await fr.locator('#sync-center-account-recheck').click();
  else await fr.locator('body').evaluate(()=>{dispatchEvent(new Event('blur'));dispatchEvent(new Event('focus'));});
