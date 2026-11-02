@@ -70,6 +70,7 @@ test('a retained stale credential is stopped, not a conflict, until the owner is
     const structured = { ...cleanStructured, credentialExists: true, credentialState: 'stale' };
     const input = { accountState: 'active', structured, assets: { known: false }, runtimeActive: false };
     assert.equal(createPortSyncStatus(input).label, '同期は停止中');
+    assert.match(createPortSyncStatus(input).detail, /自動再開できる状態を確認できません/);
     assert.match(createPortSyncStatus(input).detail, /同期を開始・再開/);
     assert.equal(createPortSyncStatus({ ...input, runtimeActive: true }).state, 'attention');
     for (const change of [{ conflictCount: 1 }, { terminalCount: 1 }, { credentialState: 'revoked' }, { runtimeState: 'credential_invalid' }, { runtimeState: 'attention' }]) {
