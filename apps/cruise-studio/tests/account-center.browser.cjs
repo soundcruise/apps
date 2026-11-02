@@ -79,7 +79,10 @@ test('native Center leaves checking on 429/503, retains Account, and readonly re
   for(const status of [429,503]){
    f.mode.status=status;const before=f.calls.length;await nativeRecheck(f,fr);
    await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
-   assert.equal(f.calls.length,before+2);assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
+   const checked=f.calls.slice(before);
+   assert.equal(checked.filter(c=>c.path.endsWith('/summary')).length,1);
+   assert.equal(checked.filter(c=>c.path.endsWith('/devices')).length,2,'native readonly refresh and empty-join eligibility each verify devices; neither starts Sync');
+   assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
    assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),A);
    f.mode.status=200;await nativeRecheck(f,fr);await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   }

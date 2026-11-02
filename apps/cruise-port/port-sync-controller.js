@@ -53,7 +53,7 @@
     let generation = ++sequence;
     let runtime = null, adapter = null, store = null, identity = null, ensuring = null, ensuringResumeOnly = false, resuming = null;
     let active = false, disposed = false, poll = null, refs = 0, owners = 0;
-    let autoGeneration = null, autoResumeCode = null, autoAssets = null;
+    let autoGeneration = null, autoResumeCode = null, autoAssets = null, autoInitialize = null;
     const autoLifecycle = [];
     let lifetime = new AbortController();
     let cached = Object.freeze({ known: false, state: 'unknown', connected: false, credentialState: 'unknown' });
@@ -128,16 +128,27 @@
       };
       if (resumeOnly) {
         // Existing account-scoped completion, not Account confirmation or a Pro flag.
-        // Never inspect/adopt the appId-only legacy DB on an automatic path.
+        // Completed resumes never adopt legacy state; incomplete joins require the existing empty-Port proof.
         const pendingAccount = await wait(() => Promise.all(['getPendingStart', 'getPendingConsume', 'getPendingBridge',
           'getPendingRecovery', 'getPendingDetach', 'getPendingDelete', 'getPendingEnvironmentDetach'].map(k => accountRoot.storage[k]?.())));
         if (pendingAccount.some(Boolean)) return { ok: false, code: 'activation_required' };
         const candidate = syncRoot.dataStorage.createStore('port', { accountId, assertCurrent: guard, signal: lifetime.signal });
         const [credential, membership, migration, dataset, lastSync, inspected, pendingProvision, state] = await wait(() => Promise.all(
           ['credential', 'membership', 'migrationState', 'datasetState', 'lastSyncAt', 'legacyInspected', 'pendingProvision', 'runtimeState'].map(k => candidate.readMeta(k))));
+        if (state === 'credential_invalid' || membership?.state === 'revoked') return { ok: false, code: 'activation_required' };
         if (!accountRoot.core.validAppCredential(credential) || membership?.state !== 'active' ||
             migration !== 'complete' || dataset !== 'ready' || !Number.isFinite(lastSync) || lastSync <= 0 ||
-            inspected !== true || pendingProvision || state === 'credential_invalid') return { ok: false, code: 'activation_required' };
+            inspected !== true || pendingProvision) {
+          if (!autoInitialize || !await wait(() => autoInitialize())) return { ok: false, code: 'activation_required' };
+          const client = new accountRoot.AccountClient({ endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage,
+            core: accountRoot.core, admissionMode, qaScope: 'port', assertCurrent: guard, signal: lifetime.signal });
+          const devices = await wait(() => client.devices(account.accountCredential));
+          const currentId = accountRoot.core.accountDeviceIdFromCredential?.(account.accountCredential);
+          const own = (devices.devices || []).filter(d => d.id === currentId && d.revokedAt == null && d.isPortEnvironment === true);
+          if (!currentId || own.length !== 1 || !await wait(() => autoInitialize())) return { ok: false, code: 'activation_required' };
+          await accountGuard();
+          return activate(); // Existing first-Sync path, after authenticated empty-Port proof.
+        }
         // Port localStorage is shared across Accounts. Historical completion alone
         // cannot attribute new local edits after an Account switch/reload.
         const probe = new namespace.PortSyncAdapter({ assertCurrent: accountGuard });
@@ -156,8 +167,23 @@
           autoResumeCode = 'local_data_unconfirmed'; await wait(() => readLocalStatus());
           return { ok: false, code: autoResumeCode };
         }
+        // Native applyRemoteSnapshot materializes gear_order as zero-based item
+        // ranks (and defaults an absent manufacturer). Compare that exact local
+        // representation too; do not ignore order/content or mutate the shadow.
+        const restoredGear = [];
+        if (typeof probe.deserializeRecords === 'function') for (const r of shadow) {
+          if (r.recordType !== 'gear_item' || deleted(r)) continue;
+          const item = r.payload?.value?.item;
+          const order = shadow.find(o => !deleted(o) && o.recordType === 'gear_order' && o.recordId === item?.status);
+          const rank = order?.payload?.value?.indexOf(r.recordId) ?? -1;
+          if (rank < 0) continue;
+          const snapshot = probe.deserializeRecords([r]);
+          const restored = snapshot.records[0].payload.value.item;
+          restored.order = rank; restored.manufacturer ??= '';
+          restoredGear.push(...await wait(() => probe.serializeRecords(snapshot)));
+        }
         const candidates = new Map();
-        for (const r of [...shadow, ...outbox, ...conflicts.map(c => c.localRecord).filter(Boolean)]) {
+        for (const r of [...shadow, ...restoredGear, ...outbox, ...conflicts.map(c => c.localRecord).filter(Boolean)]) {
           const k = key(r); if (!candidates.has(k)) candidates.set(k, []); candidates.get(k).push(r);
         }
         for (const k of new Set([...localMap.keys(), ...shadow.map(key)])) {
@@ -324,10 +350,11 @@
         .finally(() => { if (resuming === task) { resuming = null; publish({ ...cached, autoResumeCode, checking: Boolean(ensuring) }); } }).catch(() => {});
       return task;
     }
-    function bindAutoResume({ assets } = {}) {
+    function bindAutoResume({ assets, canInitialize } = {}) {
       if (autoLifecycle.length || disposed) return;
       autoGeneration = accountRoot.storage.getGeneration?.();
       autoAssets = assets;
+      autoInitialize = canInitialize;
       const resume = () => { void Promise.resolve(resumeConnected()).catch(() => {}); };
       listen(global, 'focus', resume, autoLifecycle);
       listen(global, 'online', resume, autoLifecycle);
