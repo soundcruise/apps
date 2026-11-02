@@ -55,7 +55,7 @@ async function createAccount(p){return p.page.evaluate(async()=>{
 async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');return p.page;}
  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
-async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.27'});}
+async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.28'});}
 async function nativeRuntime(frame){
  for(let activation=0;activation<2;activation++){
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
@@ -69,7 +69,7 @@ async function nativeRuntime(frame){
   // the native button event in one task, instead of clicking a now-hidden start.
   const action=await frame.evaluate(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;if(r&&!r.disposed)return 'active';const b=document.getElementById('port-sync-activate');if(!b||b.hidden||b.disabled)throw Error('native_start_not_ready');b.click();return 'clicked';});
   if(action==='active')return;
-  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.27'});
+  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.24.28'});
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
   if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port&&!SoundCruiseMultiAppSync.runtimes.port.disposed))return;
   if(frame.url()===activationUrl)throw Error('native activation ended without runtime or reload');
@@ -264,13 +264,19 @@ try{
  for(const [label,frame] of [['standalone Pro',pa],['Studio iframe',pb]])await check('completed '+label+' connection auto resumes on cold product boot without bootstrap or button',async()=>{
   const productPage=frame.page?.()||frame;
   await productPage.setViewportSize({width:label==='standalone Pro'?390:1280,height:900});
-  await sync(frame);const credential=await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.store.readMeta('credential')),before=network.length;
+  await sync(frame);
+  // Reproduce the phone: six old history intents, no corresponding live record,
+  // no pending operation, then an ordinary successful manual Sync.
+  const retainedIntents=await frame.evaluate(()=>{const k='cruisePort.syncDeletionIntent.v1',j=JSON.parse(localStorage.getItem(k)||'{}');for(let i=0;i<6;i++)j['practice_history_event/inert-never-sent-'+i]={generation:'synthetic-old-delete'};const raw=JSON.stringify(j);localStorage.setItem(k,raw);return raw;});
+  await sync(frame);assert.equal(await readStable(frame,()=>localStorage.getItem('cruisePort.syncDeletionIntent.v1')),retainedIntents);
+  const credential=await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.store.readMeta('credential')),before=network.length;
   const u=new URL(frame.url());u.searchParams.set('autoResume','1');u.hash='sync-center';await frame.goto(u.href);await ready(frame);
   try{await frame.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='ready';});}catch(error){
    result.autoResumeProof=await frame.evaluate(async()=>{const a=await SoundCruiseSyncAccount.storage.getAccount(),store=SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a.accountId});const meta=Object.fromEntries(await Promise.all(['membership','migrationState','datasetState','lastSyncAt','legacyInspected','pendingProvision','runtimeState'].map(async k=>[k,await store.readMeta(k)])));meta.membership=meta.membership?.state;meta.pendingProvision=!!meta.pendingProvision;const local=await new SoundCruisePortSync.PortSyncAdapter().serializeRecords(new SoundCruisePortSync.PortSyncAdapter().readLocalSnapshot()),shadow=await store.listShadow(),outbox=await store.listOutbox();return{meta,localCount:local.length,shadowCount:shadow.length,outboxCount:outbox.length,mismatchedTypes:local.filter(r=>![...shadow,...outbox].some(s=>s.recordType===r.recordType&&s.recordId===r.recordId&&s.payloadHash===r.payloadHash)).map(r=>r.recordType),runtime:!!SoundCruiseMultiAppSync.runtimes?.port};});throw error;
   }
   await frame.locator('#sync-center-port-status-chip[data-sync-port-status=synced]').waitFor();
   assert.equal(await frame.locator('#port-sync-activate').isHidden(),true);
+  assert.equal(await readStable(frame,()=>localStorage.getItem('cruisePort.syncDeletionIntent.v1')),retainedIntents);
   assert.equal(await frame.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.store.readMeta('credential')),credential);
   assert(!network.slice(before).some(q=>q.path==='/v1/sync/bootstrap'||q.path==='/v2/accounts/port-device'));
   await frame.locator('#sync-center-account-display-id').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));

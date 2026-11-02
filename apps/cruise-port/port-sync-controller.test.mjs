@@ -8,7 +8,7 @@ function harness({canSync = () => true, readerFirst = false} = {}) {
   let account = {accountId:'A',accountCredential:'sca1.A.secret'}, generation = 0;
   const listeners = new Set(), databases = new Map(), events=[], network=[], runtimes=[], deviceReads=[];
   const window = new EventTarget(), document = new EventTarget(); document.visibilityState='visible';
-  const intervals = new Set(), policyListeners = new Set(); let dbReads=0, provisionGate=null, bootstrapGate=null, failFirst=false, localRecords=[], deviceRefused=false;
+  const intervals = new Set(), policyListeners = new Set(); let dbReads=0, provisionGate=null, bootstrapGate=null, failFirst=false, localRecords=[], deviceRefused=false, intents={};
   function createStore(appId, options={}) {
     const id=options.accountId || 'legacy'; if(!databases.has(id)) databases.set(id,{meta:new Map(),outbox:[],shadow:[],conflicts:[]});
     const data=databases.get(id);
@@ -40,14 +40,14 @@ function harness({canSync = () => true, readerFirst = false} = {}) {
   const context={EventTarget,CustomEvent,AbortController,structuredClone,Date,
     addEventListener(type,fn){policyListeners.add(fn);window.addEventListener(type,fn);},removeEventListener(type,fn){policyListeners.delete(fn);window.removeEventListener(type,fn);},dispatchEvent:e=>events.push(e),document,
     navigator:{onLine:true,locks:{request:async (_name,_options,work)=>work()}},setInterval(fn){intervals.add(fn);return fn;},clearInterval:id=>intervals.delete(id),
-    SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;}readLocalSnapshot(){return localRecords;}normalizeLocalSnapshot(x){return x;}async serializeRecords(x){return x;}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
+    SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;this.storage={getItem:k=>k==='cruisePort.syncDeletionIntent.v1'?JSON.stringify(intents):null};}readLocalSnapshot(){return localRecords;}normalizeLocalSnapshot(x){return x;}async serializeRecords(x){return x;}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
     SoundCruiseSyncAccount:{AccountClient:Client,storage:{getAccount:async()=>account,getGeneration:()=>generation,subscribeAccount:fn=>{listeners.add(fn);return ()=>listeners.delete(fn);},getQaAdmission:async()=>null},
       core:{validAccountCredential:x=>x?.startsWith('sca1.'),validAppCredential:x=>x?.startsWith('scd1.'),createAppCredential:()=>({appDeviceCredential:'scd1.port.secret'}),createOperationId:()=> 'stable-id'}},
     SoundCruiseMultiAppSync:{dataStorage:{createStore},MultiAppSyncRuntime:Runtime}};
   vm.runInNewContext(source,context);
   const config={enabled:true,environment:'production',endpoint:'https://sync.example'};
   const create=(readOnly=false)=>context.SoundCruisePortSync.createPortSyncController({config,canSync,readOnly}); const controller=create(readerFirst);
-  return {controller,create,acquire: options => context.SoundCruisePortSync.createPortSyncController({config,canSync,...options}), config, databases,network,runtimes,events,context,intervals,listeners,policyListeners,deviceReads,window,setLocal:rows=>localRecords=rows,refuseDevice:()=>deviceRefused=true,get dbReads(){return dbReads;},
+  return {controller,create,acquire: options => context.SoundCruisePortSync.createPortSyncController({config,canSync,...options}), config, databases,network,runtimes,events,context,intervals,listeners,policyListeners,deviceReads,window,setIntents:value=>intents=value,getIntents:()=>structuredClone(intents),setLocal:rows=>localRecords=rows,refuseDevice:()=>deviceRefused=true,get dbReads(){return dbReads;},
     gateProvision(){return provisionGate=deferred();},gateBootstrap(){return bootstrapGate=deferred();},failProvision(){failFirst=true;},
     changeAccount(id){generation++;account={accountId:id,accountCredential:'sca1.'+id+'.secret'};for(const fn of listeners)fn();},createStore};
 }
@@ -202,4 +202,23 @@ test('an explicit first-start click is not swallowed by an in-flight automatic e
 
 test('public ensure keeps its original explicit-start contract; internal resume mode is not a public option',async()=>{
  const h=harness();await h.controller.ensure({resumeOnly:true});assert.equal(h.runtimes.length,1);assert.equal(h.runtimes[0].initialized,1);h.controller.dispose();
+});
+
+
+for(const kind of ['orphan','already-deleted','live-and-identical'])test('inert deletion intent '+kind+' cannot block an otherwise proven completed connection',async()=>{
+ const h=harness(),s=await connected(h),k='gear_item/one',journal={[k]:{generation:'old-local-intent'}};h.setIntents(journal);
+ if(kind==='already-deleted')s.data.shadow.push({...row,deleted:true,deletedAt:1});
+ if(kind==='live-and-identical'){s.data.shadow.push(row);h.setLocal([row]);}
+ await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();
+ assert.equal(h.runtimes.length,1);assert.equal(h.network.length,0);assert.equal(h.runtimes[0].initialized,0);assert.deepEqual(h.getIntents(),journal);assert.equal(s.data.outbox.length,0);h.controller.dispose();
+});
+for(const match of ['none','wrong-generation','same-generation'])test('a fresh deletion against a live Account shadow still requires its pending generation: '+match,async()=>{
+ const h=harness(),s=await connected(h);s.data.shadow.push(row);h.setIntents({'gear_item/one':{generation:'new-delete'}});
+ if(match!=='none')s.data.outbox.push({...row,operationId:'keep-operation',deleted:true,deleteIntentGeneration:match==='same-generation'?'new-delete':'old-delete'});
+ const before=structuredClone(s.data.outbox);await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();assert.equal(h.runtimes.length,match==='same-generation'?1:0);assert.deepEqual(s.data.outbox,before);h.controller.dispose();
+});
+test('real incremental runtime cannot generate a delete for a remote-only record absent from local and shadow',async()=>{
+ const h=harness();vm.runInNewContext(fs.readFileSync(new URL('../shared/sync-account/multi-app-sync-runtime.js',import.meta.url),'utf8'),h.context);
+ const store=h.createStore('port',{accountId:'A'}),runtime=new h.context.SoundCruiseMultiAppSync.MultiAppSyncRuntime({appId:'port',endpoint:'https://sync.example',store,adapter:{canDeleteRecord:()=>true},accountClient:{admissionMode:'production'},accountCore:h.context.SoundCruiseSyncAccount.core,fetchImpl:async()=>{throw Error('network forbidden');}});
+ await runtime.queueDiff([], [{...row,revision:1,deleted:false}], []);assert.equal(store.data.outbox.length,0);runtime.dispose();h.controller.dispose();
 });

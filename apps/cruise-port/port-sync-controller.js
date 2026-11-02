@@ -144,13 +144,18 @@
           probe.serializeRecords(probe.normalizeLocalSnapshot(probe.readLocalSnapshot())),
           candidate.listShadow(), candidate.listOutbox(), candidate.listConflicts()]));
         const key = r => `${r.recordType}/${r.recordId}`, deleted = r => r == null || r.deleted === true || r.deletedAt != null;
+        const localMap = new Map(local.map(r => [key(r), r])), shadowMap = new Map(shadow.map(r => [key(r), r]));
         const intents = JSON.parse(probe.storage?.getItem('cruisePort.syncDeletionIntent.v1') || '{}');
-        if (Object.entries(intents).some(([k, intent]) => !outbox.some(r => key(r) === k && deleted(r) &&
-            typeof intent?.generation === 'string' && r.deleteIntentGeneration === intent.generation))) {
+        // Incremental queueDiff can delete only a missing local record against a
+        // live shadow. Orphan/already-deleted intents do not generate operations;
+        // retain them, but do not require an Outbox operation that cannot exist.
+        if (Object.entries(intents).some(([k, intent]) => deleted(localMap.get(k)) && !deleted(shadowMap.get(k)) &&
+            !outbox.some(r => key(r) === k && deleted(r) &&
+              typeof intent?.generation === 'string' && r.deleteIntentGeneration === intent.generation))) {
           autoResumeCode = 'local_data_unconfirmed'; await wait(() => readLocalStatus());
           return { ok: false, code: autoResumeCode };
         }
-        const localMap = new Map(local.map(r => [key(r), r])), candidates = new Map();
+        const candidates = new Map();
         for (const r of [...shadow, ...outbox, ...conflicts.map(c => c.localRecord).filter(Boolean)]) {
           const k = key(r); if (!candidates.has(k)) candidates.set(k, []); candidates.get(k).push(r);
         }
