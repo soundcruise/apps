@@ -35,6 +35,7 @@
             var style = doc.createElement('style');
             style.id = 'studio-native-port-chrome';
             style.textContent = `
+                .view-kicker { display: none !important; }
                 #tuner-view > .view-back[data-action=home],
                 #metronome-view > .view-back[data-action=home],
                 #practice-list-view > .view-back[data-action=home],
