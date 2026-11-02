@@ -437,6 +437,21 @@ try{
   const originalAccount=await B.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount());
   await B.page.evaluate(()=>{for(const f of document.querySelectorAll('.studio-series-frame'))f.contentWindow.studioAppDirty=false;});await B.page.reload();
   let currentApp=await openNativeApp(B.page,id);assert.equal(await appValue(currentApp,id),secondValue);result.appSync[id].reloadResume=true;
+  await editApp(source,id);await cloudAppValue(id,firstValue);await syncApp(source,id);
+  const refreshedReads=[];const observe=q=>{if(q.method()==='GET'&&new URL(q.url()).pathname.startsWith('/v1/sync/'))refreshedReads.push(q.frame());};B.page.on('request',observe);
+  const refreshCredential=await currentApp.evaluate(async id=>id==='chord'?(await(await ChordCruiseSync.pilotClient.openStore()).getMeta('deviceCredential')).credential:await SoundCruiseMultiAppSync.runtimes[id].store.readMeta('credential'),id);
+  const refreshBefore=network.length;await B.page.evaluate(id=>{window.refreshOld=document.querySelector('#series-'+id+'-surface iframe');window.refreshOldHost=refreshOld.contentWindow.SoundCruiseNativeSyncHost;refreshOld.contentWindow.studioAppDirty=false;},id);
+  await B.page.locator('[data-refresh-series-app='+id+']').click();
+  await B.page.waitForFunction(id=>document.querySelector('#series-'+id+'-surface iframe')!==refreshOld,id);
+  currentApp=await(await B.page.locator('#series-'+id+'-surface iframe').elementHandle()).contentFrame();
+  if(id!=='fretboard'||!await currentApp.locator('#tempo-slider').isVisible())await currentApp.locator({pitch:'#home-settings-btn',fretboard:'#btn-settings-home',rhythm:'#settings-btn',chord:'#cc-settings-btn'}[id]).click();
+  await currentApp.locator('[data-sync-join-entry-host] [data-sync-settings-state=ready]').waitFor({state:'attached'});
+  assert.equal(await appValue(currentApp,id),firstValue);
+  const afterCredential=await currentApp.evaluate(async id=>id==='chord'?(await(await ChordCruiseSync.pilotClient.openStore()).getMeta('deviceCredential')).credential:await SoundCruiseMultiAppSync.runtimes[id].store.readMeta('credential'),id);
+  assert.equal(afterCredential,refreshCredential);assert(refreshedReads.includes(B.page.mainFrame()),'the new native host must perform Cloud reads through its parent fetch boundary');assert(await B.page.evaluate(id=>refreshOldHost.storeOptions.signal.aborted&&refreshOldHost!==document.querySelector('#series-'+id+'-surface iframe').contentWindow.SoundCruiseNativeSyncHost,id));B.page.off('request',observe);
+  assert(!network.slice(refreshBefore).some(n=>n.label===B.label&&['/v1/sync/bootstrap','/v2/accounts/handoff/consume','/v2/accounts/app-join-invitations/consume','/v2/pro-auth/verify'].includes(n.path)));
+  result.appSync[id].actualRefreshCloudReceive=true;result.appSync[id].credentialReused=true;
+  await editApp(currentApp,id,true);await cloudAppValue(id,secondValue);await syncApp(currentApp,id);await syncApp(source,id);
   const frameWindow=await B.page.evaluate(id=>{window.appRetained=document.querySelector('#series-'+id+'-surface iframe').contentWindow;window.appControllerRetained=id==='chord'?appRetained.ChordCruiseSync.pilotClient:appRetained.SoundCruiseMultiAppSync.runtimes[id];return !!appControllerRetained;},id);assert(frameWindow);
   B.page.once('dialog',d=>d.accept());await B.page.locator('#screen-app-'+id+' [data-open-tool]').click();assert(await B.page.evaluate(()=>appRetained===document.querySelector('#tool-window-slot iframe').contentWindow));await B.page.screenshot({path:OUT+'/'+id+'-cloud-right.png'});await B.page.locator('#tool-window-center').click();assert(await B.page.evaluate(id=>appRetained===document.querySelector('#series-'+id+'-surface iframe').contentWindow,id));assert(await B.page.evaluate(id=>appControllerRetained===(id==='chord'?appRetained.ChordCruiseSync.pilotClient:appRetained.SoundCruiseMultiAppSync.runtimes[id]),id));
   // Drop only the ACK after the native Worker committed. Recovery must keep

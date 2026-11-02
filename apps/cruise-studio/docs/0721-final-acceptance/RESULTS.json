@@ -1,0 +1,163 @@
+{
+  "basePR": 174,
+  "fixedBaseHead": "8f59e680387b3b1dc771518e1f240568f14bd14b",
+  "studio": "0.72.1",
+  "productionOperations": 0,
+  "environment503": {
+    "cause": "Previous runner omitted STUDIO_PINNED_WORKER and bundled current source against the legacy schema0033 fixture. Source writer admission queries minimum_writer_protocol/write_epoch/authority_state/authority_updated_at and sync_writer_fence_assertion, absent in that fixture.",
+    "fix": "Use the existing hash-validated /private/tmp/studio-compat-pinned-v137.mjs via existing STUDIO_PINNED_WORKER. No Worker or schema edits.",
+    "productionEquivalence": "Not newly established; this is isolated synthetic acceptance."
+  },
+  "productFixes": [
+    "Studio presentation CSS intentionally hides native refresh controls; expose a text refresh button in each central app header using the existing owner.refresh method. Native smartphone UI unchanged.",
+    "Await existing audio cleanup before remount. Retain/reuse the registered audio session handle; do not register duplicate sessions. Existing epoch/admission guards and dirty confirmation remain."
+  ],
+  "product": {
+    "passed": 50,
+    "pageErrors": 0,
+    "apps": {
+      "pitch": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "actualRefreshCloudReceive": true,
+        "credentialReused": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      },
+      "fretboard": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "actualRefreshCloudReceive": true,
+        "credentialReused": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      },
+      "rhythm": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "actualRefreshCloudReceive": true,
+        "credentialReused": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      },
+      "chord": {
+        "firstSource": true,
+        "firstReceive": true,
+        "reloadResume": true,
+        "actualRefreshCloudReceive": true,
+        "credentialReused": true,
+        "ackLossRecovered": true,
+        "nativeConflictResolved": true,
+        "foreignAccountPreserved": true,
+        "offlineAndOriginalAccountResume": true,
+        "revokedDevicePreservesPending": true,
+        "nativeUntrackedReview": true
+      }
+    },
+    "cleanup": {
+      "browsersClosed": true,
+      "workerDisposed": true,
+      "bundlerStopped": true
+    }
+  },
+  "targeted": {
+    "hostNode": 9,
+    "audioNode": 21,
+    "refreshBrowser": 1,
+    "transitionScreens": {
+      "synthetic": true,
+      "tools": [
+        {
+          "id": "tuner",
+          "flashSamples": 0
+        },
+        {
+          "id": "metronome",
+          "flashSamples": 0
+        },
+        {
+          "id": "portPractice",
+          "flashSamples": 0
+        },
+        {
+          "id": "portGear",
+          "flashSamples": 0
+        },
+        {
+          "id": "portMyApps",
+          "flashSamples": 0
+        },
+        {
+          "id": "portNews",
+          "flashSamples": 0
+        },
+        {
+          "id": "portSync",
+          "flashSamples": 0
+        }
+      ],
+      "status": "PASS"
+    },
+    "ChordDB": {
+      "production": false,
+      "realCredentials": false,
+      "externalRequests": 0,
+      "cases": [
+        {
+          "name": "hosted malformed v2 refuses before writes/network and keeps local data",
+          "status": "PASS",
+          "code": "sync_storage_schema_invalid",
+          "version": 2,
+          "storeCount": 0,
+          "localUnchanged": true,
+          "networkCalls": 0
+        },
+        {
+          "name": "hostless standalone retains normal native DB writes",
+          "status": "PASS",
+          "hosted": false,
+          "version": 2,
+          "appId": "chord",
+          "outboxPreserved": true,
+          "writeBlocked": false,
+          "marker": "after-abort",
+          "networkCalls": 0
+        },
+        {
+          "name": "hosted existing transaction guard stops writes after abort",
+          "status": "PASS",
+          "hosted": true,
+          "version": 2,
+          "appId": "chord",
+          "outboxPreserved": true,
+          "writeBlocked": true,
+          "marker": null,
+          "networkCalls": 0
+        }
+      ]
+    }
+  },
+  "jekyll": {
+    "production": false,
+    "studioFiles": 34,
+    "releaseBytesMatch": true,
+    "nativeOutputFilesByteIdentical": 811
+  },
+  "realAcceptance": "No real Account/Sync or DB operation. Prior known Mac malformed Chord DB remains a HOLD; no delete/init/repair.",
+  "release": "Await separate publication approval. Use this cumulative PR only; do not publish intermediate PR174 separately."
+}

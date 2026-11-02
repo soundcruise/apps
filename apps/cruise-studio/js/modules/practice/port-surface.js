@@ -96,7 +96,7 @@
     async function start() {
         if (!active || disposed || !audio || !shell) return false;
         var current = ++generation;
-        setPhase('loading', 'Cruise Port 練習メニューを開いています…');
+        setPhase('loading', 'CRUISE STUDIO · 読み込み中…');
         await audio.cleanup(handle, 'before-open');
         if (CS.tuner?.whenStopped) await CS.tuner.whenStopped();
         if (CS.portMetronome?.whenStopped) await CS.portMetronome.whenStopped();
@@ -114,10 +114,11 @@
             return false;
         }
         var next = document.createElement('iframe');
-        next.title = 'Cruise Port 練習メニューと音楽カレンダー';
+        next.title = 'Studio 練習メニューと音楽カレンダー';
         next.allow = 'microphone';
         next.referrerPolicy = 'same-origin';
         next.className = 'port-tuner-frame port-practice-frame';
+        next.style.visibility = 'hidden';
         next.onload = function () {
             if (!active || disposed || current !== generation || frame !== next) return;
             try {
@@ -129,7 +130,7 @@
                 function checkRoute() {
                     if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
                     if(selectInitialRoute){selectInitialRoute=false;child.location.hash=requestedRoute;}
-                    if (isPracticeRoute(child.location.hash)) setPhase('ready', '');
+                    if (isPracticeRoute(child.location.hash)) { next.style.visibility = ''; setPhase('ready', ''); }
                     else shell.navigate('home');
                 }
                 child.addEventListener('studio-port-ready', checkRoute);
@@ -143,13 +144,13 @@
                 child.location.hash = '#practice-menu';
                 checkRoute();
             } catch (_) {
-                void stop('load-failed', 'Port 練習メニューを開けませんでした。別タブで開いてください。');
+                void stop('load-failed', '練習メニューを開けませんでした。再試行してください。');
                 setPhase('failed', status.textContent);
             }
         };
         next.onerror = function () {
             if (frame !== next) return;
-            void stop('load-failed', 'Port 練習メニューを開けませんでした。別タブで開いてください。');
+            void stop('load-failed', '練習メニューを開けませんでした。再試行してください。');
             setPhase('failed', status.textContent);
         };
         frame = next;
@@ -165,12 +166,12 @@
         return false;
     }
     function onVisibility() {
-        if (document.hidden && active && !preserveEditor()) void stop('page-hidden', 'Port画面を閉じました。再開するには練習メニューを開いてください。');
+        if (document.hidden && active && !preserveEditor()) void stop('page-hidden', '画面を閉じました。再開するには練習メニューを開いてください。');
     }
     function onPagehide() { if (active) void stop('pagehide'); }
     function onGlobalStop() {
         if (shell.getCommandContext().activeModal || shell.keyboard.isIMEBlocked({})) return;
-        if (active && !preserveEditor()) void stop('global-stop', 'Port画面を閉じました。再開するには練習メニューを開いてください。');
+        if (active && !preserveEditor()) void stop('global-stop', '画面を閉じました。再開するには練習メニューを開いてください。');
     }
     function onResume() { if (active && phase !== 'loading' && phase !== 'ready') void start(); }
     function onOverview() { shell.navigate('practice'); }
@@ -195,7 +196,7 @@
                         frame.contentWindow.studioEntryStopMedia?.();
                         return;
                     }
-                    if (frame) { generation++; removeFrame(); if (active) setPhase('idle', 'Port画面を閉じました。再開するには練習メニューを開いてください。'); }
+                    if (frame) { generation++; removeFrame(); if (active) setPhase('idle', '画面を閉じました。再開するには練習メニューを開いてください。'); }
                 } });
             document.addEventListener('visibilitychange', onVisibility);
             window.addEventListener('pagehide', onPagehide);

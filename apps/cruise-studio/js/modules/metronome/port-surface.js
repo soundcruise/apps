@@ -36,7 +36,7 @@
     async function start() {
         if (!active || disposed || !audio || !shell) return false;
         var current = ++generation;
-        setPhase('loading', 'Cruise Port メトロノームを開いています…');
+        setPhase('loading', 'CRUISE STUDIO · 読み込み中…');
         await audio.cleanup(handle, 'before-open');
         if (CS.tuner?.whenStopped) await CS.tuner.whenStopped();
         if (CS.portPractice?.whenStopped) await CS.portPractice.whenStopped();
@@ -53,9 +53,10 @@
             return false;
         }
         var next = document.createElement('iframe');
-        next.title = 'Cruise Port メトロノーム';
+        next.title = 'Studio メトロノーム';
         next.referrerPolicy = 'same-origin';
         next.className = 'port-tuner-frame';
+        next.style.visibility = 'hidden';
         next.onload = function () {
             if (!active || disposed || current !== generation || frame !== next) return;
             try {
@@ -65,7 +66,7 @@
                     throw new Error('unexpected-port-document');
                 child.addEventListener('hashchange', function () {
                     if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
-                    if (child.location.hash === '#metronome') setPhase('ready', '');
+                    if (child.location.hash === '#metronome') { next.style.visibility = ''; setPhase('ready', ''); }
                     else shell.navigate('home');
                 });
                 // Port normalizes the initial deep link during boot.
@@ -73,18 +74,18 @@
                     if (!active || frame !== next || child.document.body.dataset.componentState !== 'ready') return;
                     CS.presentNativePort(next);
                     child.location.hash = '#metronome';
-                    setPhase('ready', '');
+                    next.style.visibility = ''; setPhase('ready', '');
                 }
                 child.addEventListener('studio-port-ready', ready);
                 ready();
             } catch (_) {
-                void stop('load-failed', 'Port メトロノームを開けませんでした。別タブで開いてください。');
+                void stop('load-failed', 'メトロノームを開けませんでした。再試行してください。');
                 setPhase('failed', status.textContent);
             }
         };
         next.onerror = function () {
             if (frame !== next) return;
-            void stop('load-failed', 'Port メトロノームを開けませんでした。別タブで開いてください。');
+            void stop('load-failed', 'メトロノームを開けませんでした。再試行してください。');
             setPhase('failed', status.textContent);
         };
         frame = next;
