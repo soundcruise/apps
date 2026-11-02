@@ -14,7 +14,7 @@ async function fixture(account=A){
   }
   if(u.hostname==='sound-cruise-sync.cruise-port-requests.workers.dev'){
    if(q.method()==='OPTIONS')return r.fulfill({status:204,headers:{'access-control-allow-origin':origin,'access-control-allow-methods':'GET','access-control-allow-headers':'authorization'}});
-   calls.push({path:u.pathname,method:q.method()});assert.equal(q.method(),'GET','Account status must not activate Sync or mutate remote data');assert(['/v2/accounts/summary','/v2/accounts/devices'].includes(u.pathname),'read-only native Account endpoints only');
+   calls.push({path:u.pathname,method:q.method(),native:q.frame().url().includes('/cruise-port/')});assert.equal(q.method(),'GET','Account status must not activate Sync or mutate remote data');assert(['/v2/accounts/summary','/v2/accounts/devices'].includes(u.pathname),'read-only native Account endpoints only');
    const id=tokens.get(q.headers().authorization?.replace('Bearer ',''));assert(id,'only fixture credentials permitted');
    if(mode.delay)await new Promise(resolve=>setTimeout(resolve,mode.delay));
    const status=u.pathname.endsWith('/devices')?mode.deviceStatus:mode.status;
@@ -38,11 +38,11 @@ async function screenshot(f,path){
 }
 
 test('opening native Sync automatically confirms Account and devices without starting data Sync',async()=>{
- const f=await fixture();try{await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});assert.match(await f.page.locator('[data-account-origin]').innerText(),/このPCのPort/);assert.match(await f.page.locator('[data-account-status]').innerText(),/Pro認証済み/);await f.page.locator('[data-open-sync]').click();const frame=f.page.frameLocator('#port-sync-surface iframe');await frame.locator('#sync-center-view:not([hidden])').waitFor();await frame.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();assert.equal(await frame.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');await frame.locator('#sync-center-port-status-chip[data-sync-port-status=unstarted]').filter({hasText:/^(データ)?同期は未開始$/}).waitFor();assert(f.calls.some(c=>c.path==='/v2/accounts/devices'));assert.equal(await frame.locator('[data-studio-sync-intent]').count(),1);assert.equal(await frame.locator('[data-sync-app-action]').count(),4);assert.equal(await frame.locator('[data-sync-app-action]').first().isEnabled(),true);assert(f.calls.every(x=>x.method==='GET'));assert.equal(await frame.locator('#port-sync-activate').isEnabled(),true);await screenshot(f,shots+'/account-existing-pc.png');
+ const f=await fixture();try{await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});assert.match(await f.page.locator('[data-account-origin]').innerText(),/このPCのPort/);assert.match(await f.page.locator('[data-account-status]').innerText(),/Pro認証済み/);await f.page.locator('[data-open-sync]').click();const frame=f.page.frameLocator('#port-sync-surface iframe');await frame.locator('#sync-center-view:not([hidden])').waitFor();await frame.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();assert.equal(await frame.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');await frame.locator('#sync-center-port-status-chip[data-sync-port-status=unstarted]').filter({hasText:/^(データ)?同期は未開始$/}).waitFor();assert(f.calls.some(c=>c.path==='/v2/accounts/devices'));assert.equal(await frame.locator('[data-studio-sync-intent],[data-studio-account-summary]').count(),0);assert.equal(await frame.locator('[data-sync-app-action]').count(),4);assert.equal(await frame.locator('[data-sync-app-action]').first().isEnabled(),true);assert(f.calls.every(x=>x.method==='GET'));assert.equal(await frame.locator('#port-sync-activate').isEnabled(),true);await screenshot(f,shots+'/account-existing-pc.png');
  }finally{await f.close();}
 });
 test('no Port Home flash while native boot is delayed; private-free phase timings distinguish Account and native ready',async()=>{
- const f=await fixture();try{await f.page.evaluate(()=>{window.flashSamples=[];let frames=0;const sample=()=>{for(const e of document.querySelectorAll('#port-sync-surface iframe')){const h=e.contentDocument?.getElementById('home-view');if(e.getClientRects().length&&getComputedStyle(e).visibility==='visible'&&h&&!h.hidden)flashSamples.push('home');}if(++frames<120)requestAnimationFrame(sample);};requestAnimationFrame(sample);});await f.page.locator('[data-open-sync]').click();await f.page.waitForFunction(()=>document.querySelector('#port-sync-surface iframe')?.contentDocument?.getElementById('sync-center-view')?.hidden===false&&getComputedStyle(document.querySelector('#port-sync-surface iframe')).visibility==='visible');assert.deepEqual(await f.page.evaluate(()=>flashSamples),[]);await f.page.waitForFunction(()=>CruiseStudio.accountStatus.diagnostics().state!=='checking'&&CruiseStudio.accountStatus.diagnostics().frames[0]?.nativeFirstStateMs!==null);const d=await f.page.evaluate(()=>CruiseStudio.accountStatus.diagnostics());assert(d.frames[0].iframeReadyMs>=0);assert(d.requests.summaryMs>=0);assert(d.requests.devicesMs>=0);assert.equal(d.requests.devicesRequested,true);assert(!JSON.stringify(d).includes(A));fs.writeFileSync(shots+'/account-normal-timings.json',JSON.stringify({production:false,syntheticNativeBootDelayMs:250,homeFlashFrames:await f.page.evaluate(()=>flashSamples.length),...d},null,2));
+ const f=await fixture();try{await f.page.evaluate(()=>{window.flashSamples=[];let frames=0;const sample=()=>{for(const e of document.querySelectorAll('#port-sync-surface iframe')){const h=e.contentDocument?.getElementById('home-view');if(e.getClientRects().length&&getComputedStyle(e).visibility==='visible'&&h&&!h.hidden)flashSamples.push('home');}if(++frames<120)requestAnimationFrame(sample);};requestAnimationFrame(sample);});await f.page.locator('[data-open-sync]').click();await f.page.waitForFunction(()=>document.querySelector('#port-sync-surface iframe')?.contentDocument?.getElementById('sync-center-view')?.hidden===false&&getComputedStyle(document.querySelector('#port-sync-surface iframe')).visibility==='visible');assert.deepEqual(await f.page.evaluate(()=>flashSamples),[]);await f.page.waitForFunction(()=>CruiseStudio.accountStatus.diagnostics().state!=='checking'&&CruiseStudio.accountStatus.diagnostics().frames[0]?.nativeFirstStateMs!==null);const d=await f.page.evaluate(()=>CruiseStudio.accountStatus.diagnostics());assert(d.frames[0].iframeReadyMs>=0);assert(d.requests.summaryMs>=0);assert.equal(d.requests.devicesRequested,false);assert(f.calls.some(c=>c.path==='/v2/accounts/devices'));assert(!JSON.stringify(d).includes(A));fs.writeFileSync(shots+'/account-normal-timings.json',JSON.stringify({production:false,syntheticNativeBootDelayMs:250,homeFlashFrames:await f.page.evaluate(()=>flashSamples.length),...d},null,2));
  }finally{await f.close();}
 });
 test('unconnected, same-page connection, slow checking, 429, 503, offline and reconnection are distinct',async()=>{
@@ -59,7 +59,7 @@ test('A form/data and actual native Outbox remain under B; no push/adoption from
  }finally{await f.close();}
 });
 test('five themes and four widths keep Account information, guide and Sync frame usable',async()=>{
- const f=await fixture();try{await f.page.locator('[data-open-sync]').click();await f.page.frameLocator('#port-sync-surface iframe').locator('[data-studio-account-summary]').waitFor();for(const theme of ['dark','midnight','charcoal','gray','light']){await f.page.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);for(const width of [1440,1024,768,390]){await f.page.setViewportSize({width,height:1000});assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await screenshot(f,shots+'/'+theme+'-'+width+'.png');}}
+ const f=await fixture();try{await f.page.locator('[data-open-sync]').click();await f.page.frameLocator('#port-sync-surface iframe').locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();for(const theme of ['dark','midnight','charcoal','gray','light']){await f.page.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);for(const width of [1440,1024,768,390]){await f.page.setViewportSize({width,height:1000});assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await screenshot(f,shots+'/'+theme+'-'+width+'.png');}}
  }finally{await f.close();}
 });
 
@@ -71,15 +71,15 @@ test('native Center leaves checking on 429/503, retains Account, and readonly re
   await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
   await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   for(const status of [429,503]){
-   f.mode.status=status;const before=f.calls.length;await fr.locator('[data-check-account]').click();
+   f.mode.status=status;const before=f.calls.length;await fr.locator('#sync-center-account-recheck').click();
    await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
    assert.equal(f.calls.length,before+2);assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
    assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),A);
-   f.mode.status=200;await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
+   f.mode.status=200;await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   }
-  f.mode.deviceStatus=503;await fr.locator('[data-check-account]').click();await fr.locator('[data-sync-observation]').filter({hasText:'端末一覧は取得できませんでした'}).waitFor();
+  f.mode.deviceStatus=503;await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();assert.equal(await fr.locator('[data-studio-account-summary]').count(),0);
   assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');
-  f.mode.deviceStatus=200;await fr.locator('[data-check-account]').click();await fr.locator('[data-sync-observation]').filter({hasNotText:'端末一覧は取得できませんでした'}).waitFor();
+  f.mode.deviceStatus=200;await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();
   assert(f.calls.every(c=>c.method==='GET'));
  }finally{await f.close();}
 });
@@ -87,7 +87,7 @@ test('slow native confirmation is single flight; refresh/return has no backgroun
  const f=await fixture();try{
   await f.page.locator('[data-port-sync-status][data-studio-account-state=connected]').waitFor({state:'attached'});
   f.mode.delay=450;await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
-  await fr.locator('[data-studio-account-summary]').waitFor();await f.page.evaluate(()=>Promise.all([CruiseStudio.accountStatus.refresh(),CruiseStudio.accountStatus.refresh()]));
+  await fr.locator('#sync-center-view:not([hidden])').waitFor();await f.page.evaluate(()=>Promise.all([CruiseStudio.accountStatus.refresh(),CruiseStudio.accountStatus.refresh()]));
   await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   assert.equal(await fr.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'unstarted');
   await fr.locator('#sync-center-setup-open').waitFor({state:'hidden'});
@@ -104,20 +104,40 @@ test('a late A response and an explicit Device refusal never grant or adopt anot
  const f=await fixture();try{
   await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
   await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
-  f.mode.delay=450;const before=f.calls.filter(c=>c.path.endsWith('/summary')).length;
+  f.mode.delay=450;const before=f.calls.filter(c=>c.native&&c.path.endsWith('/summary')).length;
   const started=f.page.waitForRequest(q=>new URL(q.url()).pathname==='/v2/accounts/summary'&&q.method()==='GET');
-  await fr.locator('[data-check-account]').click();await started;
-  await f.page.waitForFunction(()=>CruiseStudio.accountStatus.diagnostics().state==='checking');
-  await f.set(B);await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
+  await fr.locator('#sync-center-account-recheck').click();await started;
+  await fr.locator('#sync-center-account-status').filter({hasText:'確認中…'}).waitFor();
+  await f.set(B);await f.page.waitForFunction(B=>document.querySelector('#port-sync-surface iframe').contentDocument.querySelector('#sync-center-account-display-id')?.textContent.includes(SoundCruiseSyncAccount.core.formatAccountDisplayId(B)),B);
   assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
   const expected=await f.page.evaluate(B=>SoundCruiseSyncAccount.core.formatAccountDisplayId(B),B);
   assert.match(await fr.locator('#sync-center-account-display-id').innerText(),new RegExp(expected));
   // Native setAccount notifies both before and after its transaction. At most
   // one read per new generation, plus the explicit in-flight A read, is valid.
-  const reads=f.calls.filter(c=>c.path.endsWith('/summary')).length-before;assert(reads>=2&&reads<=3);f.mode.delay=0;f.mode.deviceStatus=410;
-  await fr.locator('[data-check-account]').click();await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
+  const reads=f.calls.filter(c=>c.native&&c.path.endsWith('/summary')).length-before;assert(reads>=2&&reads<=3);f.mode.delay=0;f.mode.deviceStatus=410;
+  await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
   assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
   assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
+  assert(f.calls.every(c=>c.method==='GET'));
+ }finally{await f.close();}
+});
+
+test('native Sync moves between center and right pane with one frame/controller and no second state UI',async()=>{
+ const f=await fixture();try{
+  await f.page.locator('[data-open-sync]').click();const frame=f.page.frameLocator('#port-sync-surface iframe');
+  await frame.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();
+  await f.page.evaluate(()=>window.originalSyncFrame=document.querySelector('#port-sync-surface iframe'));
+  assert.equal(await f.page.evaluate(()=>CruiseStudio.toolWindow.open('portSync')),true);
+  await f.page.locator('#studio-tool-window #port-sync-surface iframe').waitFor();
+  assert.equal(await frame.locator('[data-studio-account-summary],[data-studio-sync-intent]').count(),0);
+  assert.equal(await f.page.evaluate(()=>originalSyncFrame===document.querySelector('#port-sync-surface iframe')),true);
+  for(const width of [1440,1024,768,390]){
+   await f.page.setViewportSize({width,height:1000});assert(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+   await screenshot(f,shots+'/right-sync-'+width+'.png');
+  }
+  await f.page.locator('#tool-window-center').click();
+  assert.equal(await f.page.evaluate(()=>CruiseStudio.shellHost.getCommandContext().activeWorkspaceId),'portSync');
+  assert.equal(await f.page.evaluate(()=>originalSyncFrame===document.querySelector('#port-sync-surface iframe')),true);
   assert(f.calls.every(c=>c.method==='GET'));
  }finally{await f.close();}
 });

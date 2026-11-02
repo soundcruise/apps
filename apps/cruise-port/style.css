@@ -2537,10 +2537,12 @@ textarea:focus-visible {
 }
 .sync-center-account-status-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     min-width: 0;
 }
+#sync-center-account-recheck { flex: 0 0 auto; white-space: nowrap; }
 .sync-center-account-action-row {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);

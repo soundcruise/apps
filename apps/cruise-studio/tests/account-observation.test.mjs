@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAccountObservation,portObservation} from '../js/port-sync-status.mjs';
+import {createAccountObservation} from '../js/port-sync-status.mjs';
 import {createStudioEntry} from '../js/core/studio-entry.mjs';
 function fixture(options={}){
  let account={accountId:'A',accountCredential:'fixture-A'},generation=0,calls=0,clock=0,allowed=true;
@@ -26,12 +26,7 @@ test('confirmed native summary is private, reset on error/change, and cannot out
  await f.o.refresh();assert(f.o.confirmed());assert.equal(f.o.read().devices,undefined);
  fail=true;await f.o.refresh();assert.equal(f.o.confirmed(),null);f.o.invalidate();assert.equal(f.o.confirmed(),null);
 });
-test('local status does not promote a stored credential or running process to synced',()=>{
- assert.equal(portObservation(null,false).state,'unknown');
- assert.equal(portObservation({known:true,credentialExists:false},false).state,'unstarted');
- assert.equal(portObservation({known:true,credentialExists:true},false).state,'stopped');
- assert.equal(portObservation({known:true,runtimeState:'paused'},true).state,'stopped');
- assert.equal(portObservation({known:true,conflictCount:1},true).state,'attention');
- assert.equal(portObservation({known:true,runtimeState:'ready',lastSyncAt:1234},true).state,'observed');
- assert.equal(portObservation({known:true},true,false).state,'stopped');
+test('Studio never renders a second Sync state or injects duplicate controls into native Port',async()=>{
+ const {readFile}=await import('node:fs/promises');const source=await readFile(new URL('../js/port-sync-status.mjs',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/renderSyncCenter|portObservation|applyNativeState|createPortSyncReader|data-studio-account-summary|data-sync-observation|data-studio-sync-intent/);
 });
