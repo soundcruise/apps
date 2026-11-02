@@ -147,3 +147,10 @@ test('native Sync moves between center and right pane with one frame/controller 
   assert(f.calls.every(c=>c.method==='GET'));
  }finally{await f.close();}
 });
+
+test('Studio native join dialog prefills an editable display-only device name',async()=>{
+ const f=await fixture(null);try{
+  await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');await fr.locator('#sync-center-port-connect-open').click();
+  assert.equal(await fr.locator('#sync-center-port-connect-name').inputValue(),'Cruise Studio');await fr.locator('#sync-center-port-connect-name').fill('My PC');await fr.locator('#sync-center-port-connect-cancel').click();assert(f.calls.every(c=>c.method==='GET'));
+ }finally{await f.close();}
+});

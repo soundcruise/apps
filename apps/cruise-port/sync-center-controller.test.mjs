@@ -418,3 +418,12 @@ test('controller reads the local Port credential without changing shared Account
     assert.deepEqual(result.environments.filter((row) => row.isCurrentPortEnvironment).map((row) => row.id), ['a']);
     assert.equal(result.environments[0].isCurrent, false);
 });
+
+test('stopped runtime resolves current Port using its Account-scoped persisted AppDevice credential',async()=>{
+ const previous=globalThis.SoundCruiseMultiAppSync;let scoped;
+ globalThis.SoundCruiseMultiAppSync={dataStorage:{createStore(_app,options){scoped=options.accountId;return {readMeta:async()=> 'scd1.port-local.secret'};}}};
+ try{
+  const c=createSyncCenterController({config:{enabled:true,endpoint,admissionMode:'production'},accountRoot:{storage:{getAccount:async()=>({accountId:'account-1',accountCredential:'account-b',accountDeviceId:'stale'})},core:{accountDeviceIdFromCredential:()=> 'b',validAppCredential:()=>true},AccountClient:class{async summary(){return activeSummary;}async devices(){return {devices:[{id:'a',isPortEnvironment:true,portAppDeviceIds:['port-local']},{id:'b',isCurrent:true,isPortEnvironment:false}],appDevices:[]};}}}});
+  const p=await c.load();assert.equal(scoped,'account-1');assert.deepEqual(p.environments.filter(r=>r.isCurrentPortEnvironment).map(r=>r.id),['a']);
+ }finally{globalThis.SoundCruiseMultiAppSync=previous;}
+});

@@ -51,7 +51,7 @@
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=16"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="../pro-app-boot.js?v=1.24.30"></script>
+    <script type="module" src="../pro-app-boot.js?v=1.25.0"></script>
     <link rel="stylesheet" href="../news-article.css?v=1.16.0">
     <link rel="stylesheet" href="../pro-access.css?v=1.19.2">
     <link rel="stylesheet" href="../sync-pro-lock.css?v=1.19.2">
@@ -370,6 +370,7 @@
             <dialog id="sync-center-port-connect" class="sync-center-help-dialog" aria-labelledby="sync-center-port-connect-title">
                 <h2 id="sync-center-port-connect-title">既存のアカウントに接続</h2>
                 <p id="sync-center-port-connect-description">別のCruise Portに表示された追加コードを入力してください。</p>
+                <label>この端末の名前<input id="sync-center-port-connect-name" type="text" autocomplete="off" maxlength="80"></label>
                 <label id="sync-center-port-connect-label" for="sync-center-port-connect-input">追加コード</label>
                 <input id="sync-center-port-connect-input" data-sensitive="port-addition-code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text">
                 <p id="sync-center-port-connect-status" role="alert" aria-live="polite"></p>

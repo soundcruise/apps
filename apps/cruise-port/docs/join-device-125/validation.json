@@ -1,0 +1,192 @@
+{
+  "base": "4a0dc37910f8e520fcb7d4d0af780f1752e16460",
+  "candidatePort": "1.25.0",
+  "studio": "0.71.2",
+  "productionChanged": false,
+  "realQualificationUsed": false,
+  "protectedPathsUnchanged": [
+    "apps/pitch-cruise",
+    "apps/fretboard_cruise",
+    "apps/rhythm-cruise",
+    "apps/chord-cruise",
+    "apps/shared",
+    "workers"
+  ],
+  "nodeFocused": {
+    "pass": 100,
+    "fail": 0
+  },
+  "nodePort": {
+    "pass": 1221,
+    "fail": 4,
+    "knownBaseThemeFailures": true
+  },
+  "accountBrowser": {
+    "pass": 10,
+    "fail": 0
+  },
+  "newsAndAppsBrowser": {
+    "pass": 5,
+    "fail": 0
+  },
+  "productE2E": {
+    "pass": 36,
+    "fail": 0,
+    "cases": [
+      {
+        "name": "Standard cold Port connects Account and saves/disconnects without manual reload",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro cold Port connects Account and saves/disconnects without manual reload",
+        "status": "PASS"
+      },
+      {
+        "name": "native Port invitation join and first Cloud receive in standalone Pro",
+        "status": "PASS"
+      },
+      {
+        "name": "native Port invitation join and first Cloud receive in Studio iframe",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro detach keeps the local dataset writable on the same document",
+        "status": "PASS"
+      },
+      {
+        "name": "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+        "status": "PASS"
+      },
+      {
+        "name": "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+        "status": "PASS"
+      },
+      {
+        "name": "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+        "status": "PASS"
+      },
+      {
+        "name": "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+        "status": "PASS"
+      },
+      {
+        "name": "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+        "status": "PASS"
+      },
+      {
+        "name": "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+        "status": "PASS"
+      },
+      {
+        "name": "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+        "status": "PASS"
+      },
+      {
+        "name": "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+        "status": "PASS"
+      },
+      {
+        "name": "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+        "status": "PASS"
+      },
+      {
+        "name": "expired native Pro session requires formal reauthentication and retains the Project draft",
+        "status": "PASS"
+      },
+      {
+        "name": "public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend",
+        "status": "PASS"
+      },
+      {
+        "name": "native Account and device-bound Pro authentication through existing libraries",
+        "status": "PASS"
+      },
+      {
+        "name": "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+        "status": "PASS"
+      },
+      {
+        "name": "real Sync Center attribution and existing runtime bootstrap on both profiles",
+        "status": "PASS"
+      },
+      {
+        "name": "real Port Gear UI save -> Cloud push -> Studio frame pull",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio actual Gear form edits Cloud data and Port receives the edit",
+        "status": "PASS"
+      },
+      {
+        "name": "completed standalone Pro connection auto resumes on cold product boot without bootstrap or button",
+        "status": "PASS"
+      },
+      {
+        "name": "completed Studio iframe connection auto resumes on cold product boot without bootstrap or button",
+        "status": "PASS"
+      },
+      {
+        "name": "native automatic Device confirmation exits checking on HTTP 429 and recovers without bootstrap",
+        "status": "PASS"
+      },
+      {
+        "name": "native automatic Device confirmation exits checking on HTTP 503 and recovers without bootstrap",
+        "status": "PASS"
+      },
+      {
+        "name": "PWA-style pagehide/pageshow and offline-online automatically resume the established native owner",
+        "status": "PASS"
+      },
+      {
+        "name": "a previously completed B connection cannot auto adopt A local edits after Account switch and reload",
+        "status": "PASS"
+      },
+      {
+        "name": "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+        "status": "PASS"
+      },
+      {
+        "name": "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+        "status": "PASS"
+      },
+      {
+        "name": "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+        "status": "PASS"
+      },
+      {
+        "name": "existing Practice attachment Asset Sync stores and hydrates real binary",
+        "status": "PASS"
+      },
+      {
+        "name": "offline edit is retained and reconciles through existing Sync after reconnect",
+        "status": "PASS"
+      },
+      {
+        "name": "Account A-B-A rejects the old standalone form, keeps A pending/images/attachments and resumes A",
+        "status": "PASS"
+      },
+      {
+        "name": "Studio retained Port form independently rejects another Account and resumes the original Device",
+        "status": "PASS"
+      },
+      {
+        "name": "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+        "status": "PASS"
+      },
+      {
+        "name": "a fresh B document permits normal B editing without inheriting the old A runtime or Outbox",
+        "status": "PASS"
+      }
+    ]
+  },
+  "recoveryE2E": {
+    "pass": 12,
+    "fail": 0
+  },
+  "studioReleaseFiles": 34,
+  "holds": [
+    "formal locked Studio entrance join/qualification retry not accepted",
+    "nonempty or unreadable local data requires explicit review",
+    "real Account, iPhone/Safari, real two-device Sync not accepted"
+  ]
+}

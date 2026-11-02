@@ -353,7 +353,12 @@ export function createSyncCenterController({
     config,
     isolatedAccountConsumer = null,
     accountRoot = globalThis.SoundCruiseSyncAccount,
-    readPortCredential = () => globalThis.SoundCruiseMultiAppSync?.runtimes?.port?.store?.readMeta('credential'),
+    readPortCredential = async () => {
+        const root = accountRoot, sync = globalThis.SoundCruiseMultiAppSync;
+        const account = await root?.storage?.getAccount();
+        if (!account?.accountId || !sync?.dataStorage) return null;
+        return sync.dataStorage.createStore('port', { accountId: account.accountId }).readMeta('credential');
+    },
     indexedDb = globalThis.indexedDB,
     online = () => globalThis.navigator?.onLine !== false,
     fetchImpl = globalThis.fetch?.bind(globalThis)

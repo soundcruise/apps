@@ -36,18 +36,18 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.24.29';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.24.30';
+} from './sync-center-controller.js?v=1.25.0';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.25.0';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
 import { createPortSyncStatus, portSyncActionError } from './port-sync-status.js?v=1.24.29';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.24.29';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.25.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=1.24.29';
+} from './sync-center-navigation.js?v=1.25.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.24.30';
+} from './app-version.js?v=1.25.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -304,7 +304,10 @@ if (globalThis.SoundCruisePortSync) {
     globalThis.SoundCruisePortSync.validateLocalStorage = validatePortLocalCollections;
     globalThis.SoundCruisePortSync.canSync = () => getCapabilities().cloudSyncOperations;
 }
-const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncController?.({ config: syncCenterConfig });
+function portDeviceLabel() {
+    try { return parent !== window && parent.CruiseStudio ? 'Cruise Studio' : 'Cruise Port'; } catch (_) { return 'Cruise Port'; }
+}
+const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncController?.({ config: syncCenterConfig, deviceLabel: portDeviceLabel });
 let portConflictResolutionController = null;
 let portConflictRuntime = null;
 let portSyncActionFailure = ''; // UI feedback only; no sync or authorization state.
@@ -316,7 +319,18 @@ portSyncController?.subscribe?.(() => {
     portConflictResolutionController = runtime
         ? globalThis.SoundCruiseMultiAppSync?.installConflictResolutionUi?.(runtime, document) : null;
 });
-const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController });
+const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController, deviceLabel: portDeviceLabel,
+    canInitializeJoined: async () => {
+        const adapter = new globalThis.SoundCruisePortSync.PortSyncAdapter();
+        if (adapter.isMeaningfulLocalData() || Object.keys(JSON.parse(localStorage.getItem('cruisePort.syncDeletionIntent.v1') || '{}')).length) return false;
+        const assets = await portAssetSync.status();
+        if (!assets.known || assets.pendingCount || assets.error || assets.running) return false;
+        const root = globalThis.SoundCruiseSyncAccount, account = await root.storage.getAccount();
+        const stores = [globalThis.SoundCruiseMultiAppSync.dataStorage.createStore('port'), globalThis.SoundCruiseMultiAppSync.dataStorage.createStore('port', { accountId: account.accountId })];
+        for (const store of stores) if ((await store.listOutbox()).length || (await store.listConflicts()).length) return false;
+        return !adapter.isMeaningfulLocalData();
+    }
+});
 bindHomeCruiseLaunch(syncCenterOrchestrator);
 const PORT_SYNC_HELP_SUMMARY = 'Sound Cruise SyncアカウントでCruise PortとCruiseアプリの保存データを同期します。通常はインターネット接続時に自動で同期されます。';
 const PORT_SYNC_HELP_SECTIONS = Object.freeze([
@@ -6466,7 +6480,7 @@ if (syncCenterController.enabled) {
     syncCenterActions = bindSyncCenterActions(elements.syncCenterView, {
         orchestrator: syncCenterOrchestrator,
         edition: document.documentElement.dataset.edition,
-        refresh: () => renderSyncCenterView({ activate: true }),
+        refresh: (options = { activate: true }) => renderSyncCenterView(options),
         onPortConflictOpen: async () => {
             portSyncActionFailure = '';
             try {

@@ -1,7 +1,7 @@
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.24.29';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.24.29';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.25.0';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
@@ -774,6 +774,7 @@ export function bindSyncCenterActions(root, {
     const portConnectDialog = root?.querySelector?.('#sync-center-port-connect');
     const portConnectDescription = root?.querySelector?.('#sync-center-port-connect-description');
     const portConnectLabel = root?.querySelector?.('#sync-center-port-connect-label');
+    const portConnectName = root?.querySelector?.('#sync-center-port-connect-name');
     const portConnectInput = root?.querySelector?.('#sync-center-port-connect-input');
     const portConnectConfirm = root?.querySelector?.('#sync-center-port-connect-confirm');
     const portConnectCancel = root?.querySelector?.('#sync-center-port-connect-cancel');
@@ -794,6 +795,7 @@ export function bindSyncCenterActions(root, {
         if (portConnectDescription) portConnectDescription.hidden = !inputPhase;
         if (portConnectLabel) portConnectLabel.hidden = !inputPhase;
         if (portConnectInput) portConnectInput.hidden = !inputPhase;
+        if (portConnectName) portConnectName.parentElement.hidden = !inputPhase;
         if (portConnectConfirm) portConnectConfirm.hidden = !inputPhase;
         if (portConnectCancel) portConnectCancel.hidden = !inputPhase;
         if (portConnectClose) portConnectClose.hidden = !successPhase;
@@ -897,6 +899,7 @@ export function bindSyncCenterActions(root, {
         portConnectSecret?.resolve();
         setPortConnectPhase('input');
         if (portConnectStatus) portConnectStatus.textContent = '';
+        if (portConnectName) portConnectName.value = orchestrator.defaultDeviceLabel?.() || 'Cruise Port';
         portConnectDialog?.showModal();
         portConnectInput?.focus();
     });
@@ -917,11 +920,12 @@ export function bindSyncCenterActions(root, {
             if (!joinCode) throw new Error('port_join_code_required');
             setPortConnectPhase('working');
             if (portConnectStatus) portConnectStatus.textContent = '既存のアカウントに接続しています…';
-            await orchestrator.connectExistingAccount(joinCode);
+            const result = await orchestrator.connectExistingAccount(joinCode, portConnectName?.value);
             portConnectSecret.resolve();
             setPortConnectPhase('complete');
-            if (portConnectStatus) portConnectStatus.textContent = '接続しました。';
-            try { await refresh(); } catch (_) { /* committed Join remains successful */ }
+            if (portConnectStatus) portConnectStatus.textContent = result.portSyncState?.ok === false || result.portSyncState?.locked
+                ? 'Accountに接続しました。同期の確認が必要です。接続先と端末内の内容を確認し、画面の案内に沿って続けてください。' : 'Accountに接続し、初回同期を確認しました。';
+            try { await refresh({ activate: false }); } catch (_) { /* committed Join remains successful */ }
         } catch (error) {
             portConnectSecret?.reject(error);
             setPortConnectPhase('input');

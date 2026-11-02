@@ -1,7 +1,7 @@
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.24.29';
-import { createPortAccountJoin } from './port-account-join.js?v=1.24.24';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.25.0';
+import { createPortAccountJoin } from './port-account-join.js?v=1.25.0';
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 
 export function createSyncCenterOrchestrator({
@@ -16,6 +16,7 @@ export function createSyncCenterOrchestrator({
     },
     deviceLabel = () => 'Cruise Port',
     portSync = null,
+    canInitializeJoined = async () => false,
     canSync = () => getCapabilities().cloudSyncOperations
 } = {}) {
     if (!config?.enabled || !accountRoot?.AccountClient || !accountRoot?.core || !accountRoot?.storage) {
@@ -29,7 +30,7 @@ export function createSyncCenterOrchestrator({
         client, canSync,
         accountRoot,
         admissionMode: config.admissionMode || 'qa',
-        deviceLabel: () => `${deviceLabel()}（追加した環境）`
+        deviceLabel
     });
     let accountMaterial = null;
     let accountStartPromise = null;
@@ -44,7 +45,14 @@ export function createSyncCenterOrchestrator({
         return saved.accountCredential;
     }
     async function summary() { return client.summary(await credential()); }
-    async function settlePortSync() {
+    async function settlePortSync({ joined = false, expectedAccountId = null } = {}) {
+        if (joined) {
+            try {
+                const before = await account();
+                if (before?.accountId !== expectedAccountId || !await canInitializeJoined()) return Object.freeze({ ok: false, code: 'local_data_unconfirmed' });
+                if ((await account())?.accountCredential !== before.accountCredential) return Object.freeze({ ok: false, code: 'account_generation_changed' });
+            } catch (_) { return Object.freeze({ ok: false, code: 'local_data_unconfirmed' }); }
+        }
         if (!canSync()) return Object.freeze({ ok: true, locked: true });
         if (typeof portSync?.ensure !== 'function') return Object.freeze({ ok: true });
         try {
@@ -108,7 +116,7 @@ export function createSyncCenterOrchestrator({
             if (!canSync()) return summary();
             const joinedPort = canSync() ? await portJoin.resume() : { status: 'none' };
             if (joinedPort.status === 'committed') {
-                await settlePortSync();
+                await settlePortSync({ joined: true, expectedAccountId: joinedPort.result.accountId });
                 return joinedPort.summary;
             }
             const recovered = await client.resumePendingRecovery?.();
@@ -354,9 +362,10 @@ export function createSyncCenterOrchestrator({
             if (typeof invitationId !== 'string' || !invitationId) throw new Error('port_join_invalid');
             return portJoin.cancel(await credential(), invitationId);
         },
-        async connectExistingAccount(joinCode) {
-            const result = await portJoin.consume(joinCode);
-            const portSyncState = await settlePortSync();
+        defaultDeviceLabel: deviceLabel,
+        async connectExistingAccount(joinCode, label) {
+            const result = await portJoin.consume(joinCode, label);
+            const portSyncState = await settlePortSync({ joined: true, expectedAccountId: result.accountId });
             return Object.freeze({ ...result, portSyncState });
         },
         async launchSameContainer(appId) {

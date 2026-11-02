@@ -155,3 +155,9 @@ test('Port addition default API is blocked in Standard before request or storage
  await assert.rejects(join.issue('saved'),/pro_required/);await assert.rejects(join.consume('saved'),/pro_required/);await assert.rejects(join.resume(),/pro_required/);
  assert.equal(reads,0);assert.equal(sends,0);
 });
+
+test('optional registered label uses existing normalization and pending retry payload',async()=>{
+ let body;const f=fixture({consume:async value=>{body=value;return {accountId:'account-1'};}});
+ await f.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE','  My PC  ');assert.equal(body.deviceLabel,'My PC');
+ const invalid=fixture();await assert.rejects(invalid.join.consume('code','x'.repeat(41)),/sync_target_name_invalid/);assert.equal(invalid.writes.length,0);
+});
