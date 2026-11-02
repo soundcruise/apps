@@ -53,7 +53,7 @@
         }
     }
 
-    function openDatabase(indexedDbFactory) {
+    function openDatabase(indexedDbFactory, lifetime) {
         var factory = indexedDbFactory || global.indexedDB;
         if (!factory || typeof factory.open !== 'function') {
             return Promise.reject(new Error('IndexedDB is unavailable'));
@@ -67,16 +67,40 @@
                 return;
             }
             request.onupgradeneeded = function () { ensureSchema(request.result); };
-            request.onsuccess = function () { resolve(createStore(request.result)); };
+            request.onsuccess = function () {
+                // Do not recreate or clear an existing incomplete database. A
+                // hosted client must stop before writes and explain the fault.
+                if (lifetime?.signal && Object.values(STORE_NAMES).some(function (name) { return !request.result.objectStoreNames.contains(name); })) {
+                    request.result.close();
+                    var error = new Error('sync_storage_schema_invalid');
+                    error.code = 'sync_storage_schema_invalid';
+                    reject(error);
+                    return;
+                }
+                resolve(createStore(request.result, lifetime));
+            };
             request.onerror = function () { reject(request.error || new Error('IndexedDB open failed')); };
             request.onblocked = function () { reject(new Error('IndexedDB upgrade is blocked')); };
         });
     }
 
-    function createStore(database) {
+    function createStore(database, lifetime = {}) {
+        function check() {
+            lifetime.assertCurrent?.();
+            if (lifetime.signal?.aborted) throw new Error('runtime_disposed');
+        }
+        async function finish(transaction) {
+            const abort = () => { try { transaction.abort(); } catch (_) {} };
+            const done = transactionDone(transaction);
+            lifetime.signal?.addEventListener('abort', abort, { once: true });
+            try { check(); await done; check(); }
+            catch (error) { abort(); await done.catch(() => {}); throw error; }
+            finally { lifetime.signal?.removeEventListener('abort', abort); }
+        }
         function run(storeName, mode, action) {
             var transaction;
             try {
+                check();
                 transaction = database.transaction(storeName, mode);
             } catch (error) {
                 return Promise.reject(error);
@@ -89,7 +113,7 @@
                 try { transaction.abort(); } catch (abortError) {}
                 return Promise.reject(error);
             }
-            return Promise.all([Promise.resolve(resultPromise), transactionDone(transaction)])
+            return Promise.all([Promise.resolve(resultPromise), finish(transaction)])
                 .then(function (results) { return results[0]; });
         }
 
@@ -221,7 +245,7 @@
             clearCloudState: function () {
                 var names = [STORE_NAMES.meta, STORE_NAMES.outbox, STORE_NAMES.shadow, STORE_NAMES.conflicts, STORE_NAMES.mergeSessions];
                 var transaction;
-                try { transaction = database.transaction(names, 'readwrite'); } catch (error) { return Promise.reject(error); }
+                try { check(); transaction = database.transaction(names, 'readwrite'); } catch (error) { return Promise.reject(error); }
                 try {
                     transaction.objectStore(STORE_NAMES.outbox).clear();
                     transaction.objectStore(STORE_NAMES.shadow).clear();
@@ -237,7 +261,7 @@
                     try { transaction.abort(); } catch (abortError) {}
                     return Promise.reject(error);
                 }
-                return transactionDone(transaction);
+                return finish(transaction);
             }
         });
     }

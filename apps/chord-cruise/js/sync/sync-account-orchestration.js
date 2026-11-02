@@ -52,9 +52,15 @@
     if (!settings || !accountRoot?.AccountClient || !accountRoot?.ChordAccountBridgeClient) return;
     const ready = await global.ChordCruiseSyncPilot?.ready;
     const chordClient = global.ChordCruiseSync?.pilotClient;
+    const host = global.SoundCruiseNativeSyncHost;
+    if (host && (!ready?.enabled || ready.ready === false)) {
+      syncUi?.renderCard(document.querySelector('[data-sync-join-entry-host]'), { state: 'attention', statusLabel: '確認が必要', description: host.message(host.failure), primaryAction: {label: 'もう一度確認', run: () => host.retry()} });
+      return;
+    }
     if (!ready?.enabled || !chordClient) return;
     const accountClient = new accountRoot.AccountClient({
-      endpoint: settings.endpoint, storage: accountRoot.storage, core: accountRoot.core,
+      endpoint: settings.endpoint, storage: host?.chordSession?.accountStorage || accountRoot.storage, core: accountRoot.core,
+      ...(host?.chordSession?.accountOptions || {}),
       admissionMode: settings.admissionMode, qaScope: 'app', qaAppId: 'chord'
     });
     async function finishExistingBridge(existing, consumed) {
@@ -104,6 +110,7 @@
     }
 
     function renderJoinSettings(options) {
+      global.SoundCruiseNativeSyncHost?.present({state: options.state, status: options.status});
       var host = document.querySelector('[data-sync-join-entry-host]');
       if (!host) return false;
       if (syncUi?.renderCard) {
@@ -495,15 +502,47 @@
       showTerminalReconnect();
     });
     global.addEventListener?.('soundcruise:sync-status', function (event) {
-      if (event.detail?.appId !== 'chord') return;
+      if (event.detail?.appId !== 'chord' || host?.chordSession?.review) return;
       if (event.detail.state === 'attention' && event.detail.count > 0) {
         showAttentionSettings(null, null, event.detail.count);
       } else if (event.detail.state === 'clean') {
         showConnectedJoinSettings();
       } else if (event.detail.state === 'pending') {
         renderJoinSettings({ state: 'syncing', status: '同期中', action: null });
+      } else if (host && event.detail.state === 'syncing') {
+        renderJoinSettings({ state: 'syncing', status: '同期中', action: null });
+      } else if (host && event.detail.state === 'attention') {
+        showAttentionSettings();
+      } else if (host && ['error', 'offline'].includes(event.detail.state)) {
+        renderJoinSettings({ state: event.detail.state === 'offline' ? 'offline' : 'attention',
+          status: event.detail.state === 'offline' ? 'オフライン' : '通信を確認してください',
+          description: '保存内容は保持しています。接続後に再開します。', action: uiAction('もう一度確認', () => chordClient.syncNow()) });
       }
     });
+    if (host?.chordSession && !handoffToken) {
+      const connectHosted = async () => host.chordSession.connect(async () => {
+        const grant = await host.chordSession.grant();
+        const options = {...grant, appId: 'chord', deviceLabel: 'Cruise Studio', consumeMode: 'new_app', preservePending: true};
+        const consumed = grant.joinCode ? await accountClient.consumeJoinInvitation(options) : await accountClient.consumeHandoff(options);
+        const setup = await promoteNewAppConsume(consumed);
+        if (setup?.requiresConfirmation) showAttentionSettings(); else showConnectedJoinSettings();
+      });
+      if (host.chordSession.review) {
+        showAttentionSettings('この端末の保存内容を現在のAccountへ同期します。別Accountの内容でないことを確認してください。',
+          uiAction('同期する内容を確認', async () => {
+            if (!global.confirm('この端末のコードクルーズ保存内容を現在のAccountへ同期しますか？')) return;
+            host.chordSession.approveReview();
+            if (host.chordSession.connected) { await chordClient.syncNow(); chordClient.startBackgroundSync(); }
+            else { await chordClient.initialize(); await connectHosted(); }
+          }));
+        return;
+      }
+      if (!host.chordSession.connected) {
+        try { await connectHosted(); }
+        catch (error) { showAttentionSettings(host.message(error), uiAction('もう一度確認', () => host.retry())); return; }
+        return;
+      }
+    }
     if (handoffToken) {
       const launchStore = await chordClient.openStore();
       const launchCredential = await launchStore.getMeta('deviceCredential');
@@ -554,7 +593,7 @@
           showAttentionSettings('同期状態を確認できませんでした。データは削除していません。',
             uiAction('もう一度確認', function () { return global.location.reload(); }));
         } else if (syncState === 'paired_pending') showAttentionSettings();
-        else showConnectedJoinSettings();
+        else { if (host) await chordClient.syncNow(); else showConnectedJoinSettings(); }
         return;
       }
       if (accountManagedSetup === true && migrationState !== 'complete' && existing?.credential) {

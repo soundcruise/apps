@@ -733,6 +733,7 @@
     window.ChordCruise.ui = window.ChordCruise.ui || {};
     window.ChordCruise.ui.settings = {
         init: init,
+        refresh: function () { updateControls(); renderPreview(); },
         applyTheme: applyTheme,
         resolveTheme: resolveTheme,
         setTheme: setTheme,

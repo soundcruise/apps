@@ -227,10 +227,14 @@
         var adapter = storage ? createLocalAdapter(storage, cryptoImpl) : null;
 
         async function proFetch(url, options) {
+            config.assertCurrent?.();
             var proEntitlement = global.SoundCruiseProBackendEntitlement;
             var headers = Object.assign({}, options.headers,
                 await proEntitlement?.proAuthorizationHeaders?.(storage));
-            var response = await fetchImpl(url, Object.assign({}, options, { headers: headers }));
+            config.assertCurrent?.();
+            const signal = config.signal ? (options.signal ? AbortSignal.any([config.signal, options.signal]) : config.signal) : options.signal;
+            var response = await fetchImpl(url, Object.assign({}, options, { headers: headers, ...(signal ? {signal} : {}) }));
+            config.assertCurrent?.();
             if (response.status === 403 && typeof response.clone === 'function') {
                 var denial = await response.clone().json().catch(function () { return null; });
                 proEntitlement?.rejectProAuthorization?.(denial?.code, headers);
@@ -319,6 +323,7 @@
             setJsonIfChanged('chordCruise.chords.index', byType.chord.map(function (record) {
                 return indexEntryOf(record.payload);
             }));
+            config.onRemoteApplied?.();
         }
 
         function verifyLocalGraph(finalSnapshot) {
@@ -366,7 +371,8 @@
 
         function openStore() {
             if (!enabled) return Promise.reject(new Error('Sound Cruise Sync Pilot is disabled'));
-            if (!dbPromise) dbPromise = database.open(config.indexedDB || global.indexedDB);
+            config.assertCurrent?.();
+            if (!dbPromise) dbPromise = database.open(config.indexedDB || global.indexedDB, config);
             return dbPromise;
         }
 
@@ -722,7 +728,7 @@
 
         async function detachTerminalAccountManagedIdentity(store, code) {
             if (await store.getMeta('accountManagedSetup') !== true || typeof store.clearCloudState !== 'function') return false;
-            await store.clearCloudState();
+            if (!config.retainTerminalIdentity) await store.clearCloudState();
             if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') {
                 global.dispatchEvent(new global.CustomEvent('soundcruise:sync-terminal', { detail: { code: code } }));
             }
@@ -1390,6 +1396,7 @@
             }
             if (stateMatchesShadow(localState, shadow)) {
                 adapter.applyServerRecord(serverRecord);
+                config.onRemoteApplied?.();
                 await saveShadow([serverRecord]);
                 return { status: 'applied' };
             }
@@ -1811,10 +1818,18 @@
                     return session.conflictIds.indexOf(item.conflictId) !== -1;
                 }).map(function (item) { return item.recordKey; });
                 for (var outboxIndex = 0; outboxIndex < staleOutbox.length; outboxIndex += 1) {
-                    if (staleOutbox[outboxIndex].conflict === true &&
-                        resolvedKeys.indexOf(core.recordKey(staleOutbox[outboxIndex].recordType,
-                            staleOutbox[outboxIndex].recordId)) !== -1) {
-                        await store.deleteOutbox(staleOutbox[outboxIndex].operationId);
+                    var oldOperation = staleOutbox[outboxIndex];
+                    var oldKey = core.recordKey(oldOperation.recordType, oldOperation.recordId);
+                    var reviewed = session.localSnapshot.records.find(function (record) { return record.recordKey === oldKey; });
+                    // A pull conflict can be reviewed before an offline operation
+                    // has reached push (and acquired its conflict flag). Retire
+                    // only that exact reviewed local version after verified merge;
+                    // later edits and unrelated pending operations stay intact.
+                    var reviewedPending = config.signal && oldOperation.localCommitted &&
+                        Number.isFinite(oldOperation.createdAt) && oldOperation.createdAt <= session.createdAt &&
+                        (oldOperation.deleted ? !reviewed : reviewed?.payloadHash === oldOperation.payloadHash);
+                    if (resolvedKeys.indexOf(oldKey) !== -1 && (config.signal ? reviewedPending : oldOperation.conflict === true)) {
+                        await store.deleteOutbox(oldOperation.operationId);
                     }
                 }
             }
@@ -2016,7 +2031,33 @@
             } catch (error) { /* Port remains fail-closed when reporting is unavailable. */ }
         }
 
-        async function syncNow() {
+        var syncFlight = null;
+        function syncNow() {
+            if (!config.signal) return performSyncNow();
+            if (!syncFlight) syncFlight = Promise.resolve().then(function () {
+                config.assertCurrent?.();config.beforeSync?.();
+                global.dispatchEvent?.(new CustomEvent('soundcruise:sync-status', {detail: {appId: core.APP_ID, state: 'syncing'}}));
+                return performSyncNow();
+            }).then(async function (result) {
+                // Resume the native persisted retry deadline after reload. A hosted
+                // frame may have closed while offline; the one-shot startup timer
+                // alone otherwise leaves its preserved Outbox pending forever.
+                if (!config.signal.aborted && global.navigator?.onLine !== false) {
+                    var retryStore = await openStore();
+                    var retryAt = (await retryStore.listOutbox()).filter(function (o) {
+                        return o.localCommitted && !o.conflict && !o.terminalError && o.nextRetryAt > now();
+                    }).map(function (o) { return o.nextRetryAt; });
+                    if (retryAt.length) scheduleSync(Math.max(0, Math.min.apply(Math, retryAt) - now()));
+                }
+                if (result?.ok === false) global.dispatchEvent?.(new CustomEvent('soundcruise:sync-status', {detail: {appId: core.APP_ID, state: global.navigator?.onLine === false ? 'offline' : result.code === 'merge_in_progress' ? 'attention' : 'error'}}));
+                return result;
+            }).catch(function (error) {
+                if (!config.signal.aborted) global.dispatchEvent?.(new CustomEvent('soundcruise:sync-status', {detail: {appId: core.APP_ID, state: global.navigator?.onLine === false ? 'offline' : 'error'}}));
+                throw error;
+            }).finally(function () { syncFlight = null; });
+            return syncFlight;
+        }
+        async function performSyncNow() {
             if (!enabled) return { enabled: false };
             var mergeStore = await openStore();
             var activeMergeId = await mergeStore.getMeta('activeMergeSessionId');
@@ -2055,7 +2096,7 @@
         var backgroundTimer = null;
         var backgroundRunning = false;
         function scheduleSync(delay) {
-            if (!enabled || !backgroundRunning || backgroundTimer !== null) return;
+            if (!enabled || config.signal?.aborted || !backgroundRunning || backgroundTimer !== null) return;
             backgroundTimer = global.setTimeout(function () {
                 backgroundTimer = null;
                 syncNow().catch(function () {});
@@ -2098,6 +2139,7 @@
         }
 
         return Object.freeze({
+            dispose: function () { backgroundRunning = false; if (backgroundTimer !== null) global.clearTimeout(backgroundTimer); backgroundTimer = null; },
             enabled: enabled,
             initialize: initialize,
             openStore: openStore,

@@ -147,6 +147,8 @@
       this.assertCurrent = options.assertCurrent || (() => {});
       this.assertCurrentAsync = options.assertCurrentAsync || (() => {});
       this.hostLifecycle = options.hostLifecycle === true;
+      this.retainTerminalIdentity = options.retainTerminalIdentity === true;
+      this.captureOfflineSaves = options.captureOfflineSaves === true;
       this.lifetime = new AbortController();
       this.timers = new Set();
       this.listeners = [];
@@ -261,7 +263,7 @@
     async detachTerminalIdentity(code) {
       if (!TERMINAL_CODES.has(code)) return false;
       if (typeof this.store.clearCloudState !== 'function') throw new MultiAppSyncError('sync_detach_unavailable');
-      await this.wait(async () => (this.store.clearCloudState()));
+      if (!this.retainTerminalIdentity) await this.wait(async () => (this.store.clearCloudState()));
       this.setState('credential_invalid', { reason: code, terminal: true });
       return true;
     }
@@ -1897,6 +1899,11 @@
       if (this.authorityFailure) throw new MultiAppSyncError(this.authorityFailure);
       if (await this.wait(async () => (this.store.readMeta('migrationState'))) !== 'complete') return { ok: false, code: 'migration_required' };
       if (global.navigator?.onLine === false) {
+        if (this.captureOfflineSaves) {
+          const local = await this.wait(() => this.localRecords());
+          const shadow = await this.wait(() => this.store.listShadow());
+          await this.wait(() => this.queueDiff(local.records, shadow, shadow));
+        }
         this.setState('offline');
         return { ok: false, code: 'offline' };
       }
@@ -2057,8 +2064,9 @@
     notifyLocalSave() {
       if (this.disposed) return;
       void this.reportRemovalSafety('pending').catch(() => {});
-      queueMicrotask(() => { if (this.disposed) return; this.sync('save').catch((error) => {
+      queueMicrotask(() => { if (this.disposed) return; Promise.resolve().then(() => this.sync('save')).catch((error) => {
         if (this.disposed) return;
+        try { this.assertActive(); } catch (_) { return; }
         void this.reportRemovalSafety('error').catch(() => {});
         this.setState(error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code) ? 'paused' :
           authorityBlocked(error.code) ? 'blocked' : retryableError(error) ? 'retrying' : 'attention');
@@ -2069,11 +2077,11 @@
       if (this.disposed || this.hostLifecycle || this.lifecycleBound || !global.addEventListener) return;
       this.lifecycleBound = true;
       this.scheduleRetryWake().catch(() => {});
-      this.listen(global, 'focus', () => this.sync('focus').catch(() => {}));
+      this.listen(global, 'focus', () => Promise.resolve().then(() => this.sync('focus')).catch(() => {}));
       this.listen(global, 'online', () => this.resumeConflictResolutions()
         .then(() => this.sync('online')).catch(() => {}));
       this.listen(global.document, 'visibilitychange', () => {
-        if (global.document.visibilityState === 'visible') this.sync('resume').catch(() => {});
+        if (global.document.visibilityState === 'visible') Promise.resolve().then(() => this.sync('resume')).catch(() => {});
       });
     }
   }

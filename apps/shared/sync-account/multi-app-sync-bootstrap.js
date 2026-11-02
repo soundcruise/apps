@@ -16,6 +16,7 @@
   let connectedAccountDisplayId = null;
   let activeRuntime = null;
   let activeConfig = null;
+  let hostSession = null;
   let attentionRevision = 0;
 
   let handoffToken = null;
@@ -132,6 +133,7 @@
 
   function setSettingsPresentation(presentation) {
     settingsPresentation = presentation;
+    global.SoundCruiseNativeSyncHost?.present({state: presentation.state, status: presentation.status});
     settingsRevision += 1;
     renderSettingsPresentation();
     if (!settingsObserver && typeof MutationObserver === 'function' && document.body) {
@@ -172,11 +174,17 @@
       ...presentation, detach: openCurrentEnvironmentDetach, accountDisplayId: connectedAccountDisplayId
     });
     const show = (state, detail = {}) => {
+      if (hostSession?.review) return;
       const revision = ++attentionRevision;
       if (state === 'ready') return showConnectedSettings();
       if (state === 'syncing') return setSettingsPresentation(connectedPresentation({ state: 'syncing', status: '同期中' }));
       if (state === 'paused') return setSettingsPresentation(connectedPresentation({ state: 'paused', status: '一時停止中' }));
       if (state === 'offline') return setSettingsPresentation(connectedPresentation({ state: 'offline', status: 'オフライン' }));
+      if (hostSession && (state === 'retrying' || state === 'pending')) return setSettingsPresentation(connectedPresentation({
+        state: 'attention', status: state === 'pending' ? '未送信の変更があります' : '通信を確認してください',
+        description: '保存内容は保持しています。接続後に再開します。',
+        action: { label: 'もう一度確認', run: () => runtime.sync('manual-retry') }
+      }));
       if (state === 'credential_invalid') return setSettingsPresentation({
         state: 'reconnect', status: '再接続が必要',
         description: '以前のクラウド同期は利用できません。Cruise Portから接続し直してください。',
@@ -210,10 +218,13 @@
       }
     };
     runtime.addEventListener('statechange', (event) => show(event.detail?.state, event.detail));
-    global.addEventListener?.('offline', () => setSettingsPresentation(connectedPresentation({ state: 'offline', status: 'オフライン' })));
+    global.addEventListener?.('offline', () => { if (!hostSession?.review) setSettingsPresentation(connectedPresentation({ state: 'offline', status: 'オフライン' })); });
     global.addEventListener?.('online', () => {
+      if (hostSession?.review) return;
       setSettingsPresentation(connectedPresentation({ state: 'checking', status: '同期を確認中' }));
-      runtime.sync('online').catch(() => {});
+      Promise.resolve().then(() => runtime.sync('online')).catch(() => {
+        if (hostSession) setSettingsPresentation({ state: 'paused', status: '同期を停止しています', description: 'Accountと資格を確認してください。保存内容は保持しています。', action: null });
+      });
     });
   }
 
@@ -251,9 +262,16 @@
       });
       error.hidden = true;
       try {
-        const result = mode === 'join'
-          ? await runtime.consumeInvitation(code, `${config.appId} app`)
-          : await runtime.consumeHandoff(handoffToken, `${config.appId} app`);
+        hostSession?.approveReview();
+        const connect = async () => {
+          if (mode === 'review') { const result = await runtime.sync('confirmed-local-review'); runtime.bindLifecycle(); return result; }
+          if (mode === 'join') return runtime.consumeInvitation(code, hostSession ? 'Cruise Studio' : `${config.appId} app`);
+          if (hostSession) { const grant = await hostSession.grant(); return grant.joinCode
+            ? runtime.consumeInvitation(grant.joinCode, hostSession ? 'Cruise Studio' : `${config.appId} app`)
+            : runtime.consumeHandoff(grant.handoffToken, hostSession ? 'Cruise Studio' : `${config.appId} app`); }
+          return runtime.consumeHandoff(handoffToken, hostSession ? 'Cruise Studio' : `${config.appId} app`);
+        };
+        const result = hostSession ? await hostSession.connect(connect) : await connect();
         handoffToken = null;
         if (!result.ok) throw new Error(result.code || 'setup_failed');
         joinSecret?.resolve();
@@ -293,7 +311,13 @@
     const token = handoffToken;
     handoffToken = null;
     try {
-      const result = await runtime.consumeHandoff(token, `${config.appId} app`);
+      const connect = async () => {
+        if (hostSession) { const grant = await hostSession.grant(); return grant.joinCode
+          ? runtime.consumeInvitation(grant.joinCode, hostSession ? 'Cruise Studio' : `${config.appId} app`)
+          : runtime.consumeHandoff(grant.handoffToken, hostSession ? 'Cruise Studio' : `${config.appId} app`); }
+        return runtime.consumeHandoff(token, hostSession ? 'Cruise Studio' : `${config.appId} app`);
+      };
+      const result = hostSession ? await hostSession.connect(connect) : await connect();
       if (!result?.ok) throw new Error(result?.code || 'setup_failed');
       showConnectedSettings(result.accountId);
       // Dataset hydration makes the environment usable, but removal safety is
@@ -314,7 +338,10 @@
         });
         return false;
       }
-      installJoinEntry(config, runtime);
+      if (hostSession) setSettingsPresentation({ state: 'attention', status: '接続を確認できません',
+        description: global.SoundCruiseNativeSyncHost.message(reason),
+        action: { label: 'もう一度確認', run: () => global.SoundCruiseNativeSyncHost.retry() } });
+      else installJoinEntry(config, runtime);
       return false;
     }
   }
@@ -374,22 +401,43 @@
     const [namespace, Adapter] = APP_ROOTS[config.appId];
     const AdapterClass = global[namespace]?.[Adapter];
     if (typeof AdapterClass !== 'function') return;
-    const store = syncRoot.dataStorage.createStore(config.appId);
+    const host = global.SoundCruiseNativeSyncHost;
+    const store = syncRoot.dataStorage.createStore(config.appId, host?.storeOptions);
+    const adapter = new AdapterClass();
+    try { hostSession = host ? await host.prepare({ appId: config.appId, adapter, store }) : null; }
+    catch (error) {
+      setSettingsPresentation({ state: 'attention', status: '確認が必要', description: host?.message(error),
+        action: { label: 'もう一度確認', run: () => host?.retry() } });
+      return;
+    }
     const accountClient = new accountRoot.AccountClient({
-      endpoint: config.endpoint, storage: accountRoot.storage, core: accountRoot.core,
+      endpoint: config.endpoint, storage: hostSession?.accountStorage || accountRoot.storage, core: accountRoot.core,
+      ...(hostSession?.accountOptions || {}),
       admissionMode: config.admissionMode, qaScope: 'app', qaAppId: config.appId
     });
     const runtime = new syncRoot.MultiAppSyncRuntime({
       appId: config.appId, endpoint: config.endpoint,
-      adapter: new AdapterClass(), store, accountClient, accountCore: accountRoot.core,
+      adapter, store, accountClient, accountCore: accountRoot.core,
+      ...(hostSession?.runtimeOptions || {}),
       admissionMode: config.admissionMode
     });
+    host?.own(runtime);
     activeRuntime = runtime;
     activeConfig = config;
     const conflictController = syncRoot.installConflictResolutionUi?.(runtime, document);
     bindSettingsRuntime(runtime, conflictController, config);
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes[config.appId] = runtime;
+    if (hostSession?.review) {
+      setSettingsPresentation({ state: 'attention', status: '内容の確認が必要',
+        description: '最後の同期・未送信操作と一致しない端末内データがあります。別Accountの内容でないことを確認してください。',
+        action: { label: '同期する内容を確認', run: () => {
+          const dialog = createLanding(config.appId, config.portUrl, 'handoff');
+          dialog.querySelector('[data-sync-summary]').textContent = 'この端末の保存内容を現在のAccountへ同期します。内容を確認して続行してください。';
+          bindLanding(dialog, config, runtime, hostSession.connected ? 'review' : 'handoff'); dialog.showModal();
+        } } });
+      return;
+    }
     try {
       const resumedDetach = await runtime.resumeCurrentEnvironmentDetach();
       if (resumedDetach?.status === 'committed') {
@@ -413,7 +461,8 @@
       // A URL handoff is transient. A durable, active app connection wins so a
       // stale launch URL cannot reopen setup over a connected container.
       handoffToken = null;
-      showConnectedSettings();
+      if (!host) showConnectedSettings();
+      else setSettingsPresentation({ state: 'checking', status: '同期を確認中…', action: null });
       runtime.bindLifecycle();
       runtime.resumeConflictResolutions().then(() => runtime.sync('startup')).catch(() => {});
       return;
@@ -428,6 +477,10 @@
     }
     if (restored.state === 'restore_error') {
       installRestoreAttention();
+      return;
+    }
+    if (hostSession && !handoffToken) {
+      await consumeAutoRejoin(config, runtime);
       return;
     }
     if (!handoffToken) {
