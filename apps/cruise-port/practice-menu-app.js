@@ -6480,7 +6480,7 @@ if (syncCenterController.enabled) {
     syncCenterActions = bindSyncCenterActions(elements.syncCenterView, {
         orchestrator: syncCenterOrchestrator,
         edition: document.documentElement.dataset.edition,
-        refresh: (options = { activate: true }) => renderSyncCenterView(options),
+        refresh: () => renderSyncCenterView(),
         onPortConflictOpen: async () => {
             portSyncActionFailure = '';
             try {
