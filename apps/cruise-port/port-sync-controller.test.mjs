@@ -6,9 +6,9 @@ const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.
 const deferred = () => { let resolve; const promise = new Promise(r => {resolve = r;}); return {promise,resolve}; };
 function harness({canSync = () => true, readerFirst = false} = {}) {
   let account = {accountId:'A',accountCredential:'sca1.A.secret'}, generation = 0;
-  const listeners = new Set(), databases = new Map(), events=[], network=[], runtimes=[];
+  const listeners = new Set(), databases = new Map(), events=[], network=[], runtimes=[], deviceReads=[];
   const window = new EventTarget(), document = new EventTarget(); document.visibilityState='visible';
-  const intervals = new Set(), policyListeners = new Set(); let dbReads=0, provisionGate=null, bootstrapGate=null, failFirst=false;
+  const intervals = new Set(), policyListeners = new Set(); let dbReads=0, provisionGate=null, bootstrapGate=null, failFirst=false, localRecords=[], deviceRefused=false;
   function createStore(appId, options={}) {
     const id=options.accountId || 'legacy'; if(!databases.has(id)) databases.set(id,{meta:new Map(),outbox:[],shadow:[],conflicts:[]});
     const data=databases.get(id);
@@ -25,7 +25,7 @@ function harness({canSync = () => true, readerFirst = false} = {}) {
   class Client {
     constructor(options){Object.assign(this,options);}
     async provisionPortDevice(value){network.push(value); if(provisionGate) await provisionGate.promise;if(failFirst){failFirst=false;throw Error('network_error');}return {membershipId:'membership-'+value.accountCredential.split('.')[1]};}
-    async devices(){return {devices:[{portAppDeviceIds:['port'],revokedAt:null}]};}
+    async devices(){deviceReads.push(true);if(deviceRefused)throw Object.assign(Error('account_device_revoked'),{code:'account_device_revoked'});return {devices:[{portAppDeviceIds:['port'],revokedAt:null}]};}
   }
   class Runtime extends EventTarget {
     constructor(options){super();Object.assign(this,options);this.initialized=0;this.synced=0;this.disposed=false;runtimes.push(this);}
@@ -40,14 +40,14 @@ function harness({canSync = () => true, readerFirst = false} = {}) {
   const context={EventTarget,CustomEvent,AbortController,structuredClone,Date,
     addEventListener(type,fn){policyListeners.add(fn);window.addEventListener(type,fn);},removeEventListener(type,fn){policyListeners.delete(fn);window.removeEventListener(type,fn);},dispatchEvent:e=>events.push(e),document,
     navigator:{onLine:true,locks:{request:async (_name,_options,work)=>work()}},setInterval(fn){intervals.add(fn);return fn;},clearInterval:id=>intervals.delete(id),
-    SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
+    SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;}readLocalSnapshot(){return localRecords;}normalizeLocalSnapshot(x){return x;}async serializeRecords(x){return x;}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
     SoundCruiseSyncAccount:{AccountClient:Client,storage:{getAccount:async()=>account,getGeneration:()=>generation,subscribeAccount:fn=>{listeners.add(fn);return ()=>listeners.delete(fn);},getQaAdmission:async()=>null},
       core:{validAccountCredential:x=>x?.startsWith('sca1.'),validAppCredential:x=>x?.startsWith('scd1.'),createAppCredential:()=>({appDeviceCredential:'scd1.port.secret'}),createOperationId:()=> 'stable-id'}},
     SoundCruiseMultiAppSync:{dataStorage:{createStore},MultiAppSyncRuntime:Runtime}};
   vm.runInNewContext(source,context);
   const config={enabled:true,environment:'production',endpoint:'https://sync.example'};
   const create=(readOnly=false)=>context.SoundCruisePortSync.createPortSyncController({config,canSync,readOnly}); const controller=create(readerFirst);
-  return {controller,create,acquire: options => context.SoundCruisePortSync.createPortSyncController({config,canSync,...options}), config, databases,network,runtimes,events,context,intervals,listeners,policyListeners,get dbReads(){return dbReads;},
+  return {controller,create,acquire: options => context.SoundCruisePortSync.createPortSyncController({config,canSync,...options}), config, databases,network,runtimes,events,context,intervals,listeners,policyListeners,deviceReads,window,setLocal:rows=>localRecords=rows,refuseDevice:()=>deviceRefused=true,get dbReads(){return dbReads;},
     gateProvision(){return provisionGate=deferred();},gateBootstrap(){return bootstrapGate=deferred();},failProvision(){failFirst=true;},
     changeAccount(id){generation++;account={accountId:id,accountCredential:'sca1.'+id+'.secret'};for(const fn of listeners)fn();},createStore};
 }
@@ -144,4 +144,62 @@ test('owner mismatch fails explicitly without replacing active runtime', async (
 test('no Web Locks rejects activation before provision while local status remains readable', async () => {
  const h=harness();delete h.context.navigator.locks;await assert.rejects(h.controller.ensure(),/sync_locks_unavailable/);
  assert.equal(h.network.length,0);assert.equal(h.runtimes.length,0);await h.controller.readLocalStatus();h.controller.release();
+});
+
+
+async function connected(h,id='A') {
+ const store=h.createStore('port',{accountId:id});
+ for(const [key,value] of Object.entries({credential:'scd1.port.secret',membership:{state:'active'},migrationState:'complete',datasetState:'ready',lastSyncAt:1,legacyInspected:true,runtimeState:'ready'}))await store.setMeta(key,value);
+ return store;
+}
+async function settled(){for(let i=0;i<80;i++)await Promise.resolve();}
+const row={recordType:'gear_item',recordId:'one',payloadHash:'same',payload:{name:'synthetic'}};
+test('product opt-in resumes a proven Account without provision, legacy adoption or bootstrap',async()=>{
+ const h=harness();const s=await connected(h);s.data.shadow.push(row);h.setLocal([row]);
+ await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();assert.equal(h.runtimes.length,1);assert.equal(h.runtimes[0].initialized,0);assert.equal(h.runtimes[0].synced,1);assert.equal(h.network.length,0);assert.equal(h.deviceReads.length,1);
+ h.window.dispatchEvent(new Event('pagehide'));assert.equal(h.controller.runtime,null);h.window.dispatchEvent(new Event('pageshow'));await settled();assert.equal(h.runtimes.length,2);assert.equal(h.runtimes[1].initialized,0);
+ h.controller.dispose();assert.equal(h.policyListeners.size,0);
+});
+test('Account confirmation, legacy-only data and partial completion never authorize automatic activation',async()=>{
+ for(const missing of ['credential','membership','migrationState','datasetState','lastSyncAt','legacyInspected']){
+  const h=harness();const s=await connected(h);s.data.meta.delete(missing);await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();assert.equal(h.runtimes.length,0,missing);assert.equal(h.network.length,0);assert.equal(h.deviceReads.length,0);h.controller.dispose();
+ }
+ const h=harness();await h.createStore('port').setMeta('credential','scd1.port.secret');await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);h.controller.dispose();
+});
+test('local edits not attributable to the Account shadow or pending data keep explicit adoption',async()=>{
+ const h=harness();const s=await connected(h);s.data.shadow.push(row);h.setLocal([{...row,payloadHash:'other-Account'}]);await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();
+ assert.equal(h.runtimes.length,0);assert.equal(h.deviceReads.length,0);assert.equal((await h.controller.status()).autoResumeCode,'local_data_unconfirmed');h.controller.dispose();
+});
+test('matching Account-scoped pending and local conflict candidates resume without changing pending operations',async()=>{
+ for(const kind of ['outbox','conflicts']){
+  const h=harness();const s=await connected(h);h.setLocal([row]);s.data[kind].push(kind==='outbox'?{...row,operationId:'fixed'}:{id:'conflict',localRecord:row});const before=structuredClone(s.data[kind]);
+  await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();assert.equal(h.runtimes.length,1);assert.deepEqual(s.data[kind],before);assert.equal(h.runtimes[0].initialized,0);h.controller.dispose();
+ }
+});
+test('A-B-A changes invalidate cold auto resume even if both Account databases completed in the past',async()=>{
+ const h=harness();await connected(h);await connected(h,'B');h.context.navigator.onLine=false;await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});h.changeAccount('B');h.context.navigator.onLine=true;h.window.dispatchEvent(new Event('online'));await settled();assert.equal(h.runtimes.length,0);h.changeAccount('A');h.window.dispatchEvent(new Event('pageshow'));await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);
+ await h.controller.ensure();assert.equal(h.runtimes.length,1);h.window.dispatchEvent(new Event('pagehide'));h.window.dispatchEvent(new Event('pageshow'));await settled();assert.equal(h.runtimes.length,2);h.controller.dispose();
+});
+test('offline, Pro refusal and server Device refusal never automatically bootstrap or provision',async()=>{
+ for(const mode of ['offline','pro','device']){
+  const h=harness({canSync:()=>mode!=='pro'});await connected(h);if(mode==='offline')h.context.navigator.onLine=false;if(mode==='device')h.refuseDevice();await h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0,error:false})}});await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);
+  if(mode==='offline'){h.context.navigator.onLine=true;h.window.dispatchEvent(new Event('online'));await settled();assert.equal(h.runtimes.length,1);}
+  h.controller.dispose();
+ }
+});
+
+
+test('pending native Account operations or unattributed binary work leave the existing explicit action',async()=>{
+ for(const mode of ['pendingAccount','pendingAsset','unknownAssets']){
+  const h=harness();await connected(h);if(mode==='pendingAccount')h.context.SoundCruiseSyncAccount.storage.getPendingConsume=async()=>({phase:'prepared'});
+  await h.controller.bindAutoResume({assets:{status:async()=>({known:mode!=='unknownAssets',pendingCount:mode==='pendingAsset'?1:0})}});await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);h.controller.dispose();
+ }
+});
+test('an explicit first-start click is not swallowed by an in-flight automatic eligibility check',async()=>{
+ const h=harness();h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});await h.controller.ensure();assert.equal(h.runtimes.length,1);assert.equal(h.runtimes[0].initialized,1);assert.equal(h.network.length,1);h.controller.dispose();
+});
+
+
+test('public ensure keeps its original explicit-start contract; internal resume mode is not a public option',async()=>{
+ const h=harness();await h.controller.ensure({resumeOnly:true});assert.equal(h.runtimes.length,1);assert.equal(h.runtimes[0].initialized,1);h.controller.dispose();
 });

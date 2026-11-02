@@ -27,7 +27,9 @@ export function createPortSyncStatus({ accountState, structured, assets, online 
         (structured.credentialExists === false || runtimeActive === false)) {
         return Object.freeze({ ...PRESENTATIONS.unstarted,
             label: structured.credentialExists ? '同期は停止中' : '同期は未開始',
-            detail: online ? 'Accountは確認済みです。「同期を開始・再開」で、この端末とクラウドのデータを同期します。'
+            detail: structured.autoResumeCode === 'local_data_unconfirmed'
+                ? '未同期変更のAccount帰属を自動確認できません。内容と接続先を確認して「同期を開始・再開」を押してください。'
+                : online ? 'Accountは確認済みです。「同期を開始・再開」で、この端末とクラウドのデータを同期します。'
                 : 'オフラインです。オンラインに戻ってから「同期を開始・再開」を押してください。' });
     }
     if (accountState !== 'active' || !structured?.known || !assets?.known) return PRESENTATIONS.attention;

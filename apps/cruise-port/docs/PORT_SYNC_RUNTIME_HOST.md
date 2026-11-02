@@ -1,5 +1,7 @@
 # Port Runtime & Integration Safety v1
 
+2026-11-02追記（Port 1.24.27候補）：初回接続・採用の明示操作を維持し、既存Account別DBとローカル整合・正式資格を確認できる接続だけ自動再開する。[条件・比較試験](SYNC_AUTOMATIC_RESUME.md)を参照。以下の無条件の「明示開始のみ」は1.22.0導入時の履歴である。
+
 2026-11-02追記（Port 1.24.25候補）：Account表示用の読取り確認だけを自動復元し、データSyncの明示開始は維持する。後段の「表示用summary network除去」は1.22.0導入時の履歴である。変更根拠と受入範囲は [自動確認の回帰調査](SYNC_CENTER_AUTO_CHECK_REGRESSION.md) を参照。
 
 ## B1-2 / B1-3（2026-10-12・現行）

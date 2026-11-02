@@ -1026,3 +1026,12 @@ test('hydrated binary binding and owner references publish atomically under exis
  assert.equal(observed.length,1);assert.equal(observed[0].source,'sync');assert.equal(observed[0].item.photoId,observed[0].entry.binding.final.localId);await sync.markLocalRemovals();assert.deepEqual(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).releaseQueue,[]);
  assert.equal(await sync.commitHydratedPair('gear','g',entry,entry,{finalId:null,sourceId:null,crop:null},{finalId:'stale',sourceId:'stale',crop:null}),false);assert.equal(JSON.parse(local.getItem('cruisePort.gearList')).items[0].photoId,'cached-final');
 });
+
+
+test('stale persisted ready does not race binary work ahead of native structured owner verification',async()=>{
+ const syncController=controller();let calls=0;
+ syncController.getCachedStatus=()=>({credentialState:'stale'});
+ const sync=new PortAssetSync({controller:syncController,canSync:()=>true});sync.reconcile=async()=>{calls++;return {ok:true};};
+ assert.equal((await sync.schedule('ready')).code,'activation_required');assert.equal(calls,0);
+ syncController.getCachedStatus=()=>({credentialState:'usable'});assert.equal((await sync.schedule('ready')).ok,true);assert.equal(calls,1);sync.dispose();
+});

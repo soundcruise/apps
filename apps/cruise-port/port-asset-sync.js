@@ -225,6 +225,10 @@ export class PortAssetSync {
             return Promise.resolve({ ok: false, code: this.blockedAuthority.code });
         if (!this.canSync()) return Promise.resolve({ ok: false, code: 'pro_required' });
         if (this.disposed || !this.controller?.runtime) return Promise.resolve({ ok: false, code: 'activation_required' });
+        // A persisted ready marker is not a live, verified owner. Startup/reconnect
+        // must finish structured verification before binary/reference work resumes.
+        if (this.controller.getCachedStatus && this.controller.getCachedStatus().credentialState !== 'usable')
+            return Promise.resolve({ ok: false, code: 'activation_required' });
 
         if (this.running) { this.pendingAgain = true; return this.running; }
         const owner = this.controller.runtime;
