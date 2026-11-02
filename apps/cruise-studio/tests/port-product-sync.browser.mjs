@@ -127,6 +127,36 @@ try{
   if(studio){await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());await p.page.locator('[data-home-workspace=portGear]').click();frame=await(await p.page.locator('#port-gear-surface iframe').elementHandle()).contentFrame();await ready(frame);}
   await frame.waitForFunction(()=>localStorage.getItem('cruisePort.gearList')?.includes('After connection true'));await ready(frame);await go(frame,'#sync-center');await frame.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();assert((await frame.locator('.sync-center-environment-current').filter({hasText:'この端末'}).count())>0);assert((await frame.locator('#sync-center-view').textContent()).includes(studio?'Synthetic PC':'Synthetic phone'));await normalGear(frame,'Joined '+studio);await sync(frame);await sync(coldIssuer.page);await coldIssuer.page.waitForFunction(name=>localStorage.getItem('cruisePort.gearList')?.includes(name),'Joined '+studio);await p.context.close();
  });
+ await check('formal locked Studio entrance joins the phone Account, receives first Cloud data and enters Home without another Sync click',async()=>{
+  const p=await profile('Formal-entrance-join',false);await bootstrapPro(p);await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);
+  await p.page.locator('#studio-entry-account:not([hidden])').waitFor();assert.equal(await p.page.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);
+  const issued=await nativeClient(coldIssuer.page,'issue');await p.page.locator('[data-entry-connect]').click();
+  const frame=await(await p.page.locator('[data-entry-account-frame] iframe').elementHandle()).contentFrame();await ready(frame);
+  await frame.locator('#sync-center-port-connect-open').click();assert.equal(await frame.locator('#sync-center-port-connect-name').inputValue(),'Cruise Studio');
+  await frame.locator('#sync-center-port-connect-name').fill('Entrance PC');await frame.locator('#sync-center-port-connect-input').fill(issued.displayJoinCode);
+  faults.set(p.label,{path:'/v2/accounts/port-join-invitations/consume'});
+  const verifies=network.filter(n=>n.label===p.label&&n.path==='/v2/pro-auth/verify').length;
+  await frame.locator('#sync-center-port-connect-confirm').click();
+  await p.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized()&&document.getElementById('studio-entry-account').hidden);
+  assert.equal(await p.page.evaluate(()=>CruiseStudio.shellHost.getCommandContext().activeWorkspaceId),'home');
+  assert(await p.page.evaluate(()=>localStorage.getItem('cruisePort.gearList')?.includes('After connection true')));
+  await p.page.locator('[data-open-sync]').click();const syncFrame=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();await ready(syncFrame);
+  await syncFrame.locator('#sync-center-port-status-chip[data-sync-port-status=synced]').waitFor();
+  assert.equal(network.filter(n=>n.label===p.label&&n.path==='/v2/pro-auth/verify').length,verifies,'same valid Pro Session requires no second passcode');
+  assert((await syncFrame.locator('#sync-center-view').textContent()).includes('Entrance PC'));assert((await syncFrame.locator('.sync-center-environment-current').filter({hasText:'この端末'}).count())>0);
+  await p.context.close();
+ });
+ await check('locked entrance with retained old Account data keeps the native review frame and performs no automatic adoption',async()=>{
+  const p=await profile('Entrance-old-data',false);await bootstrapPro(p);await createAccount(p);await port(p,false);await ready(p.page);await normalGear(p.page,'Keep old Account data');
+  await p.page.evaluate(()=>SoundCruiseSyncAccount.storage.clearAccount());const local=await p.page.evaluate(()=>localStorage.getItem('cruisePort.gearList'));
+  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('#studio-entry-account:not([hidden])').waitFor();
+  const issued=await nativeClient(coldIssuer.page,'issue');await p.page.locator('[data-entry-connect]').click();const frame=await(await p.page.locator('[data-entry-account-frame] iframe').elementHandle()).contentFrame();await ready(frame);
+  await frame.locator('#sync-center-port-connect-open').click();await frame.locator('#sync-center-port-connect-input').fill(issued.displayJoinCode);const before=network.length;await frame.locator('#sync-center-port-connect-confirm').click();
+  await frame.locator('#sync-center-port-connect[data-sync-phase=complete]').waitFor();await p.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
+  assert.equal(await p.page.locator('#studio-shell').evaluate(e=>e.inert),true);assert.equal(await p.page.locator('[data-entry-account-frame] iframe').count(),1);
+  assert.equal(await p.page.evaluate(()=>localStorage.getItem('cruisePort.gearList')),local);
+  assert(!network.slice(before).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'retained old data is not adopted or transmitted');await p.context.close();
+ });
  await check('Pro detach keeps the local dataset writable on the same document',async()=>{const p=coldIssuer;await go(p.page,'#wishlist');const origin=await p.page.evaluate(()=>performance.timeOrigin);await nativeClient(p.page,'detach');await normalGear(p.page,'After detach Pro');assert.equal(await p.page.evaluate(()=>performance.timeOrigin),origin);assert.equal(await p.page.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);await p.context.close();});
  await check('normal actual Studio boot stays Cloud-disconnected and performs no local writes',async()=>{
   const N=await profile('Normal',false);await N.context.addInitScript(()=>{globalThis.normalWrites=[];const set=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){normalWrites.push({kind:'storage',key:k});return set.call(this,k,v);};for(const method of ['put','add','delete','clear']){const old=IDBObjectStore.prototype[method];IDBObjectStore.prototype[method]=function(...args){normalWrites.push({kind:'idb',method});return old.apply(this,args);};}});await N.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await N.page.waitForFunction(()=>!!CruiseStudio.shellHost);await N.page.waitForTimeout(150);await N.page.waitForFunction(()=>!!CruiseStudio.entryAuth);assert.deepEqual(await N.page.evaluate(()=>normalWrites.filter(x=>x.kind==='idb'||!['soundCruiseProLegacyRetired'].includes(x.key))),[]);assert.equal(await N.page.evaluate(()=>document.getElementById('studio-shell').inert),true);assert.equal(await N.page.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);assert.equal(await N.page.evaluate(()=>CruiseStudio.portDataHost?.canWrite??false),false);assert.equal(network.some(x=>x.label==='Normal'),false);await N.context.close();
