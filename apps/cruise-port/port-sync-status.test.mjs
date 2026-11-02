@@ -32,7 +32,8 @@ test('Port status fails closed for errors, unknown state and offline state', () 
         { accountState: 'active', structured: cleanStructured, assets: cleanAssets, online: false },
         { accountState: 'active', structured: { ...cleanStructured, lastSyncAt: null }, assets: cleanAssets }
     ]) {
-        assert.equal(createPortSyncStatus(input).label, '確認が必要');
+        assert.equal(createPortSyncStatus(input).state, 'attention');
+        if (input.online === false) assert.equal(createPortSyncStatus(input).label, 'オフライン');
     }
 });
 
@@ -88,4 +89,15 @@ test('guidance distinguishes actual conflict, offline, revoked, failed operation
     assert.match(portSyncActionError('pro_required'), /Pro版/);
     assert.match(portSyncActionError('account_generation_changed'), /Accountの接続が変わりました/);
     assert.match(portSyncActionError('synthetic_unknown'), /保存内容は保持/);
+});
+
+test('an actual activation flight is neutral, never an unstarted/error warning; completion uses native evidence',()=>{
+ const input={accountState:'active',structured:{...cleanStructured,checking:true,credentialState:'stale'},assets:cleanAssets,runtimeActive:false};
+ const status=createPortSyncStatus(input);assert.equal(status.state,'checking');assert.equal(status.label,'確認中…');assert.equal(portSyncStatusDetail({...input,status}),'');
+ assert.equal(createPortSyncStatus({...input,structured:{...cleanStructured,checking:false,credentialState:'usable'},runtimeActive:true}).state,'synced');
+ for(const code of ['rate_limited','service_unavailable','account_device_revoked','pro_required']){
+  const failed=createPortSyncStatus({...input,structured:{...input.structured,checking:false,autoResumeCode:code}});
+  assert.equal(failed.state,'attention');assert.notEqual(failed.label,'確認中…');assert(failed.detail.length>0);
+ }
+ assert.equal(createPortSyncStatus({...input,structured:{...input.structured,checking:false,autoResumeCode:'local_data_unconfirmed'}}).state,'unstarted');
 });

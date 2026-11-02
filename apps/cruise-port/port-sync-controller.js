@@ -51,7 +51,7 @@
       unsubscribeAccount = accountRoot.storage.subscribeAccount?.(stop);
     }
     let generation = ++sequence;
-    let runtime = null, adapter = null, store = null, identity = null, ensuring = null, ensuringResumeOnly = false;
+    let runtime = null, adapter = null, store = null, identity = null, ensuring = null, ensuringResumeOnly = false, resuming = null;
     let active = false, disposed = false, poll = null, refs = 0, owners = 0;
     let autoGeneration = null, autoResumeCode = null, autoAssets = null;
     const autoLifecycle = [];
@@ -68,9 +68,10 @@
     function stop() {
       generation = ++sequence;
       active = false;
+      autoResumeCode = null;
       lifetime.abort();
       runtime?.dispose?.();
-      runtime = null; adapter = null; store = null; identity = null; ensuring = null;
+      runtime = null; adapter = null; store = null; identity = null; ensuring = null; resuming = null;
       if (poll !== null) global.clearInterval(poll);
       poll = null;
       for (const remove of lifecycle.splice(0)) remove();
@@ -285,36 +286,49 @@
           : activate({ resumeOnly });
       };
       const task = operation(); ensuring = task; ensuringResumeOnly = resumeOnly;
+      publish({ ...cached, checking: true });
       task.catch(error => {
         if (!disposed && generation === epoch) {
+          const failureCode = error.code || error.message || 'request_failed';
           const credentialState = cached.credentialState; stop();
+          autoResumeCode = failureCode;
           publish({ known: false, state: 'error', credentialState, reason: error.code || error.message, connected: false });
         }
-      }).finally(() => { if (ensuring === task) ensuring = null; }).catch(() => {});
+      }).finally(() => { if (ensuring === task) { ensuring = null; publish({ ...cached, checking: Boolean(resuming) }); } }).catch(() => {});
       return task;
     }
-    async function resumeConnected() {
+    function resumeConnected() {
+      if (resuming) return resuming;
       if (disposed || !canSync()) return { ok: false, code: 'pro_required' };
       if (active) return { ok: true, code: 'already_active' };
       if (autoGeneration === null || autoGeneration !== accountRoot.storage.getGeneration?.()) return { ok: false, code: 'activation_required' };
       if (global.navigator?.onLine === false || global.document?.visibilityState === 'hidden') return { ok: false, code: 'offline' };
-      // Reuse native binary/reference readiness; projected record hashes alone
-      // cannot attribute pending photos, attachments or release intents.
-      const assets = await autoAssets?.status?.();
-      if (!assets?.known || assets.pendingCount || assets.error) {
-        autoResumeCode = 'local_data_unconfirmed'; await readLocalStatus();
-        return { ok: false, code: autoResumeCode };
-      }
-      // The Account may have changed while reading IndexedDB attachment status.
-      if (autoGeneration !== accountRoot.storage.getGeneration?.()) return { ok: false, code: 'activation_required' };
-      if (active) return { ok: true, code: 'already_active' };
-      return ensure({ resumeOnly: true });
+      const epoch = generation;
+      autoResumeCode = null;
+      const task = Promise.resolve().then(async () => {
+        // Reuse native binary/reference readiness; projected record hashes alone
+        // cannot attribute pending photos, attachments or release intents.
+        const assets = await autoAssets?.status?.();
+        if (disposed || epoch !== generation) return { ok: false, code: 'account_generation_changed' };
+        if (!assets?.known || assets.pendingCount || assets.error) {
+          autoResumeCode = 'local_data_unconfirmed'; await readLocalStatus();
+          return { ok: false, code: autoResumeCode };
+        }
+        // The Account may have changed while reading IndexedDB attachment status.
+        if (autoGeneration !== accountRoot.storage.getGeneration?.()) return { ok: false, code: 'activation_required' };
+        if (active) return { ok: true, code: 'already_active' };
+        return ensure({ resumeOnly: true });
+      });
+      resuming = task; publish({ ...cached, checking: true });
+      task.catch(error => { if (!disposed && epoch === generation) autoResumeCode = error.code || 'request_failed'; })
+        .finally(() => { if (resuming === task) { resuming = null; publish({ ...cached, autoResumeCode, checking: Boolean(ensuring) }); } }).catch(() => {});
+      return task;
     }
     function bindAutoResume({ assets } = {}) {
       if (autoLifecycle.length || disposed) return;
       autoGeneration = accountRoot.storage.getGeneration?.();
       autoAssets = assets;
-      const resume = () => { void resumeConnected().catch(() => {}); };
+      const resume = () => { void Promise.resolve(resumeConnected()).catch(() => {}); };
       listen(global, 'focus', resume, autoLifecycle);
       listen(global, 'online', resume, autoLifecycle);
       listen(global, 'pageshow', resume, autoLifecycle);
@@ -335,7 +349,7 @@
         const exists = accountRoot.core.validAppCredential(credential);
         const connected = exists && membership?.state === 'active';
         const value = { known: true, state: runtimeState || 'local-only', connected,
-          autoResumeCode, credentialExists: exists, membershipKnown: !!membership, credentialState: membership?.state === 'revoked' ? 'revoked' : exists && connected && active && cached.credentialState === 'usable' && Date.now() - cached.verifiedAt <= 60_000 ? 'usable' : exists ? 'stale' : 'unknown',
+          autoResumeCode, checking: Boolean(ensuring || resuming), credentialExists: exists, membershipKnown: !!membership, credentialState: membership?.state === 'revoked' ? 'revoked' : exists && connected && active && cached.credentialState === 'usable' && Date.now() - cached.verifiedAt <= 60_000 ? 'usable' : exists ? 'stale' : 'unknown',
           verifiedAt: cached.verifiedAt || null,
           migrationState: migrationState || 'unknown', datasetState: datasetState || 'unknown', runtimeState: runtimeState || 'unknown', lastSyncAt,
           pendingCount: outbox.length, terminalCount: outbox.filter(op => op.terminalError || op.conflict).length, conflictCount: conflicts.length };

@@ -222,3 +222,28 @@ test('real incremental runtime cannot generate a delete for a remote-only record
  const store=h.createStore('port',{accountId:'A'}),runtime=new h.context.SoundCruiseMultiAppSync.MultiAppSyncRuntime({appId:'port',endpoint:'https://sync.example',store,adapter:{canDeleteRecord:()=>true},accountClient:{admissionMode:'production'},accountCore:h.context.SoundCruiseSyncAccount.core,fetchImpl:async()=>{throw Error('network forbidden');}});
  await runtime.queueDiff([], [{...row,revision:1,deleted:false}], []);assert.equal(store.data.outbox.length,0);runtime.dispose();h.controller.dispose();
 });
+
+test('automatic eligibility publishes checking for the actual asset/device/sync flight and coalesces return events',async()=>{
+ const h=harness(),s=await connected(h),gate=deferred();let reads=0;const seen=[];h.controller.subscribe(s=>seen.push(s.checking));
+ h.controller.bindAutoResume({assets:{status:async()=>{reads++;await gate.promise;return {known:true,pendingCount:0};}}});
+ assert.equal(h.controller.getCachedStatus().checking,true);assert.equal((await h.controller.status()).checking,true);
+ for(const name of ['focus','pageshow','online'])h.window.dispatchEvent(new Event(name));await settled();assert.equal(reads,1);
+ gate.resolve();await settled();assert.equal(h.runtimes.length,1);assert.equal(h.controller.getCachedStatus().checking,false);assert(seen.includes(true));assert.equal(seen.at(-1),false);h.controller.dispose();
+});
+test('eligibility rejection and Device error always leave checking and retain the exact cause',async()=>{
+ for(const mode of ['local','device']){
+  const h=harness(),s=await connected(h);if(mode==='local')h.setLocal([row]);else h.refuseDevice();
+  h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});await settled();
+  const status=await h.controller.status();assert.equal(status.checking,false);assert.equal(status.autoResumeCode,mode==='local'?'local_data_unconfirmed':'account_device_revoked');assert.equal(h.runtimes.length,0);h.controller.dispose();
+ }
+});
+test('Account change while automatic asset check is pending cancels checking and cannot resurrect the old flight',async()=>{
+ const h=harness(),s=await connected(h),gate=deferred();
+ h.controller.bindAutoResume({assets:{status:async()=>{await gate.promise;return {known:true,pendingCount:0};}}});assert.equal(h.controller.getCachedStatus().checking,true);
+ h.changeAccount('B');assert.notEqual(h.controller.getCachedStatus().checking,true);gate.resolve();await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);assert.notEqual(h.controller.getCachedStatus().checking,true);h.controller.dispose();
+});
+
+test('a previous Account automatic refusal cannot be shown as the next Account failure',async()=>{
+ const h=harness();await connected(h);h.setLocal([row]);h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});await settled();assert.equal((await h.controller.status()).autoResumeCode,'local_data_unconfirmed');
+ h.changeAccount('B');assert.equal((await h.controller.status()).autoResumeCode,null);h.controller.dispose();
+});

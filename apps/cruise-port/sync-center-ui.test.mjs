@@ -196,7 +196,7 @@ test('Account section renders Cruise Port as a compact card with the shared stat
     }
     assert.match(ui, /function renderPortStatus/);
     assert.match(ui, /dataset\.syncPortStatus = status\.state/);
-    assert.match(ui, /conflictsOpen\.hidden = !shouldShowPortConflictAction\(presentation\)/);
+    assert.match(ui, /conflictsOpen\.hidden = checking \|\| !shouldShowPortConflictAction\(presentation\)/);
     assert.match(ui, /onPortConflictOpen = async \(\) => \{\}/);
     assert.match(app, /if \(!portSyncController\?\.runtime\) await renderSyncCenterView\(\{ activate: true \}\)/);
     assert.match(app, /await portConflictResolutionController\.refresh\(\)/);
@@ -740,4 +740,16 @@ test('Standard Account setup completes without preparing memberships or locking 
  await view.click();assert.equal(starts,1);assert.equal(preparations,0);
  assert.equal(view.setup.dataset.syncPhase,'complete');assert.equal(view.confirm.disabled,false);
  assert.match(view.summary.textContent,/アカウントを作成しました/);assert.match(view.summary.textContent,/Pro版/);
+});
+
+test('the same native renderer hides start/retry/conflict warnings during checking and restores only required actions',async()=>{
+ const {renderPortStatus,markAppRowsChecking}=await import('./sync-center-ui.js');
+ const make=()=>({dataset:{},hidden:false,disabled:false,textContent:'old warning',setAttribute(){},querySelectorAll(){return [];}});
+ const nodes=new Map(['#sync-center-port-status-chip','#sync-center-port-status-detail','#port-sync-activate','#sync-center-port-conflicts-open','#sync-center-port-legacy-retry','#sync-center-alert','#sync-center-account-recheck','#sync-center-apps'].map(k=>[k,make()]));
+ const root={querySelector:k=>nodes.get(k)};markAppRowsChecking(root);
+ assert.equal(nodes.get('#sync-center-port-status-chip').textContent,'確認中…');assert.equal(nodes.get('#sync-center-port-status-detail').textContent,'');
+ for(const id of ['#port-sync-activate','#sync-center-port-conflicts-open','#sync-center-port-legacy-retry','#sync-center-alert'])assert.equal(nodes.get(id).hidden,true,id);
+ for(const state of ['syncing','synced']){renderPortStatus(root,{accountState:'active',portStatus:{state,label:state},portStructuredStatus:{}});assert.equal(nodes.get('#port-sync-activate').hidden,true);}
+ renderPortStatus(root,{accountState:'active',portStatus:{state:'unstarted',label:'同期は未開始'},portStructuredStatus:{}});assert.equal(nodes.get('#port-sync-activate').hidden,false);
+ renderPortStatus(root,{accountState:'active',portStatus:{state:'attention',label:'確認が必要'},portStructuredStatus:{conflictCount:1},portConflictCount:1,portRuntimeActive:true});assert.equal(nodes.get('#sync-center-port-conflicts-open').hidden,false);assert.equal(nodes.get('#port-sync-activate').hidden,true);
 });
