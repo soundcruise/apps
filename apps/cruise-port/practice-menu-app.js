@@ -36,18 +36,18 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.25.0';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.25.0';
+} from './sync-center-controller.js?v=1.25.1';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.25.1';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
-import { createPortSyncStatus, portSyncActionError } from './port-sync-status.js?v=1.24.29';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.25.0';
+import { createPortSyncStatus, portSyncActionError } from './port-sync-status.js?v=1.25.1';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.25.1';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=1.25.0';
+} from './sync-center-navigation.js?v=1.25.1';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.25.0';
+} from './app-version.js?v=1.25.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -292,11 +292,9 @@ applyEditionDisplay();
 initializeProAuthSettings();
 applyProLinks();
 applyHomeCruiseLinks();
-const syncCenterController = createSyncCenterController({
-    config: syncCenterConfig,
-    // Standard keeps device identity read-only without constructing an active sync runtime.
-    readPortCredential: () => globalThis.SoundCruiseMultiAppSync?.dataStorage?.createStore('port')?.readMeta('credential')
-});
+// The controller reads the Port credential from the current Account's store.
+// The legacy unscoped store may still contain a previous Account's device.
+const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
 // AI support: Pro edition only (Standard never shows it); the Worker gate (off / beta / pro) decides.
 const aiSupportConfig = readAiSupportConfig({ edition: document.documentElement.dataset.edition, syncConfig: syncCenterConfig });
 let aiSupportPanel = null;
