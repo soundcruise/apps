@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.25.1';
+} from './app-version.js?v=1.25.2';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -317,18 +317,18 @@ portSyncController?.subscribe?.(() => {
     portConflictResolutionController = runtime
         ? globalThis.SoundCruiseMultiAppSync?.installConflictResolutionUi?.(runtime, document) : null;
 });
-const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController, deviceLabel: portDeviceLabel,
-    canInitializeJoined: async () => {
-        const adapter = new globalThis.SoundCruisePortSync.PortSyncAdapter();
-        if (adapter.isMeaningfulLocalData() || Object.keys(JSON.parse(localStorage.getItem('cruisePort.syncDeletionIntent.v1') || '{}')).length) return false;
-        const assets = await portAssetSync.status();
-        if (!assets.known || assets.pendingCount || assets.error || assets.running) return false;
-        const root = globalThis.SoundCruiseSyncAccount, account = await root.storage.getAccount();
-        const stores = [globalThis.SoundCruiseMultiAppSync.dataStorage.createStore('port'), globalThis.SoundCruiseMultiAppSync.dataStorage.createStore('port', { accountId: account.accountId })];
-        for (const store of stores) if ((await store.listOutbox()).length || (await store.listConflicts()).length) return false;
-        return !adapter.isMeaningfulLocalData();
-    }
-});
+async function canInitializeEmptyPort() {
+    const adapter = new globalThis.SoundCruisePortSync.PortSyncAdapter();
+    if (adapter.isMeaningfulLocalData() || Object.keys(JSON.parse(localStorage.getItem('cruisePort.syncDeletionIntent.v1') || '{}')).length) return false;
+    const assets = await portAssetSync.status();
+    if (!assets.known || assets.pendingCount || assets.error || assets.running) return false;
+    const root = globalThis.SoundCruiseSyncAccount, account = await root.storage.getAccount();
+    if (!account?.accountId) return false;
+    const stores = [globalThis.SoundCruiseMultiAppSync.dataStorage.createStore('port'), globalThis.SoundCruiseMultiAppSync.dataStorage.createStore('port', { accountId: account.accountId })];
+    for (const store of stores) if ((await store.listOutbox()).length || (await store.listConflicts()).length) return false;
+    return !adapter.isMeaningfulLocalData();
+}
+const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController, deviceLabel: portDeviceLabel, canInitializeJoined: canInitializeEmptyPort });
 bindHomeCruiseLaunch(syncCenterOrchestrator);
 const PORT_SYNC_HELP_SUMMARY = 'Sound Cruise SyncアカウントでCruise PortとCruiseアプリの保存データを同期します。通常はインターネット接続時に自動で同期されます。';
 const PORT_SYNC_HELP_SECTIONS = Object.freeze([
@@ -4360,12 +4360,21 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
     let activationFailed = false;
     if (activate && getCapabilities().cloudSyncOperations) {
         try {
-            await syncCenterActions?.ensureQaAdmission?.();
-            const activation = await portSyncController?.ensure?.();
-            // A resolved failure is not a successful start (offline, revoked or conflict).
-            // Conflicts still expose the existing resolution UI below.
-            if (activation?.ok === false && !(await portSyncController?.status?.())?.conflictCount) {
-                throw Object.assign(new Error('port_sync_start_failed'), { code: activation.code || activation.result?.code });
+            const accountGeneration = globalThis.SoundCruiseSyncAccount.storage.getGeneration();
+            const needsReview = !portSyncController?.runtime && !await canInitializeEmptyPort();
+            if (accountGeneration !== globalThis.SoundCruiseSyncAccount.storage.getGeneration()) throw Object.assign(new Error('account_generation_changed'), { code: 'account_generation_changed' });
+            if (needsReview && !window.confirm('この端末に残るデータを、現在のAccountと同期します。別Accountのデータが含まれる場合や判断できない場合はキャンセルしてください。内容を確認し、同期を続けますか？')) {
+                activate = false;
+            }
+            if (activate) {
+                await syncCenterActions?.ensureQaAdmission?.();
+                if (accountGeneration !== globalThis.SoundCruiseSyncAccount.storage.getGeneration()) throw Object.assign(new Error('account_generation_changed'), { code: 'account_generation_changed' });
+                const activation = await portSyncController?.ensure?.();
+                // A resolved failure is not a successful start (offline, revoked or conflict).
+                // Conflicts still expose the existing resolution UI below.
+                if (activation?.ok === false && !(await portSyncController?.status?.())?.conflictCount) {
+                    throw Object.assign(new Error('port_sync_start_failed'), { code: activation.code || activation.result?.code });
+                }
             }
         } catch (error) { activationFailed = true; portSyncActionFailure = portSyncActionError(error?.code); }
     }
@@ -6763,5 +6772,5 @@ elements.tunerCard.addEventListener('click', (event) => {
 ensurePracticeTimerTicking();
 renderRoute();
 void refreshPracticeAttachmentCounts();
-// First connection/adoption remains explicit; only proven existing connections resume.
-portSyncController?.bindAutoResume?.({ assets: portAssetSync });
+// Explicit join and verified empty joined devices may initialize; existing connections resume only with attribution proof.
+portSyncController?.bindAutoResume?.({ assets: portAssetSync, canInitialize: canInitializeEmptyPort });

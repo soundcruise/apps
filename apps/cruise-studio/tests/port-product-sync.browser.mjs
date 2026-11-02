@@ -57,7 +57,7 @@ async function createAccount(p){return p.page.evaluate(async()=>{
 async function port(p,studio){if(!studio){await p.page.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');return p.page;}
  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('[data-home-workspace="portGear"]').click();
  const frame=await p.page.locator('#port-gear-surface iframe').elementHandle();const child=await frame.contentFrame();return child;}
-async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.0'});}
+async function ready(frame){await frame.waitForFunction(({main,version})=>main?document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&(window.parent===window||document.body?.dataset.componentState==='ready'):document.documentElement.dataset.portWriterReady==='true',{main:!!process.env.STUDIO_NATIVE_ROOT,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.2'});}
 async function nativeRuntime(frame){
  for(let activation=0;activation<2;activation++){
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
@@ -69,9 +69,11 @@ async function nativeRuntime(frame){
   await frame.waitForFunction(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port,b=document.getElementById('port-sync-activate');return r&&!r.disposed||b&&!b.hidden&&!b.disabled;});
   // Auto resume can finish between observation and click. Keep this check and
   // the native button event in one task, instead of clicking a now-hidden start.
-  const action=await frame.evaluate(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;if(r&&!r.disposed)return 'active';const b=document.getElementById('port-sync-activate');if(!b||b.hidden||b.disabled)throw Error('native_start_not_ready');b.click();return 'clicked';});
+  const dialogPage=frame.page?.()||frame,onDialog=d=>d.accept();
+  dialogPage.once('dialog',onDialog);let action;
+  try { action=await frame.evaluate(()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;if(r&&!r.disposed)return 'active';const b=document.getElementById('port-sync-activate');if(!b||b.hidden||b.disabled)throw Error('native_start_not_ready');b.click();return 'clicked';}); } finally { dialogPage.off('dialog',onDialog); }
   if(action==='active')return;
-  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.0'});
+  await frame.waitForFunction(({url,version})=>location.href!==url||(document.querySelector('.port-app-version-display')?.textContent==='Ver '+version&&document.querySelector('#port-sync-activate')?.disabled===false),{url:activationUrl,version:process.env.STUDIO_EXPECTED_PORT_VERSION||'1.25.2'});
   await frame.waitForLoadState('domcontentloaded');await ready(frame);
   if(await readStable(frame,()=>!!SoundCruiseMultiAppSync?.runtimes?.port&&!SoundCruiseMultiAppSync.runtimes.port.disposed))return;
   if(frame.url()===activationUrl)throw Error('native activation ended without runtime or reload');
@@ -186,9 +188,26 @@ try{
   assert(!network.slice(before).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'invite close and target revoke do not start held Sync');
   const after=await frame.evaluate(async a=>({outbox:await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a}).listOutbox(),intent:localStorage.getItem('cruisePort.syncDeletionIntent.v1'),gear:localStorage.getItem('cruisePort.gearList')}),retained.accountId);
   assert.deepEqual(after.outbox,retained.outbox);assert.equal(after.intent,retained.intent);assert.equal(after.gear,local);
+  // Declining attribution must preserve all native local data and pending work.
+  p.page.once('dialog',d=>d.dismiss());await frame.locator('#port-sync-activate').click();await refreshFinished();
+  assert.equal(await frame.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);
+  assert.equal(await p.page.evaluate(()=>localStorage.getItem('cruisePort.gearList')),local);
+  assert(!network.slice(before).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'cancelled review must not start Sync');
   const explicit=p.page.waitForRequest(q=>new URL(q.url()).pathname==='/v1/sync/bootstrap'&&q.frame()===frame);
-  await frame.locator('#port-sync-activate').click();await explicit;
+  (frame.page?.()||frame).once('dialog',d=>d.accept());await frame.locator('#port-sync-activate').click();await explicit;
   await disposable.context.close();await p.context.close();
+ });
+ await check('old joined empty Port initializes automatically on revisit using its authenticated Port Account Device',async()=>{
+  const p=await profile('Old-joined-empty',false);await bootstrapPro(p);await port(p,false);await ready(p.page);
+  const code=await nativeClient(coldIssuer.page,'issue');await nativeClient(p.page,'consume',code.displayJoinCode);
+  await p.page.reload();await ready(p.page);
+  // Remote apply intentionally reloads standalone Port; wait for that real
+  // lifecycle boundary before asserting the reopened Sync Center UI.
+  await p.page.waitForURL(u=>u.searchParams.has('_r'));await ready(p.page);
+  await p.page.waitForFunction(()=>localStorage.getItem('cruisePort.gearList')?.includes('After connection true'));
+  await go(p.page,'#sync-center');
+  await p.page.locator('#sync-center-port-status-chip[data-sync-port-status=synced]').waitFor();
+  await p.context.close();
  });
  await check('Pro detach keeps the local dataset writable on the same document',async()=>{const p=coldIssuer;await go(p.page,'#wishlist');const origin=await p.page.evaluate(()=>performance.timeOrigin);await nativeClient(p.page,'detach');await normalGear(p.page,'After detach Pro');assert.equal(await p.page.evaluate(()=>performance.timeOrigin),origin);assert.equal(await p.page.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);await p.context.close();});
  await check('normal actual Studio boot stays Cloud-disconnected and performs no local writes',async()=>{

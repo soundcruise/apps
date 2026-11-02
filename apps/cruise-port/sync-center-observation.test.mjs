@@ -44,9 +44,9 @@ test('confirmed Account with no Port credential is unstarted, never synced',()=>
 // Execute the actual historical route function with the same dependencies. Do not
 // emulate its choice between load/loadLocal/ensure or alter historical source.
 const historical=ref=>execFileSync('git',['show',ref+':apps/cruise-port/practice-menu-app.js'],{encoding:'utf8'});
-async function route(source,activate=false,{discardedStore=false}={}){
+async function route(source,activate=false,{discardedStore=false,empty=true,confirm=true}={}){
  const begin=source.indexOf('async function renderSyncCenterView'),end=source.indexOf('\nfunction findGearItem',begin),fn=source.slice(begin,end),calls=[];
- const ctx={syncCenterController:{enabled:true,load:async o=>{calls.push(o?.readOnly?'readonly':'remote');return {accountState:'active',apps:[]};},loadLocal:async()=>{calls.push('local');return {accountState:'unknown',apps:[]};},planFourAppSetup:()=>({})},syncCenterOrchestrator:{enabled:true,hasConfiguredAccount:async()=>true,resume:async()=>calls.push('resume')},syncCenterActions:{ensureQaAdmission:async()=>calls.push('admission')},portSyncController:{ensure:async()=>calls.push('ensure'),status:async()=>({}),store:{listOutbox:async()=>{if(discardedStore)throw Error('account_generation_changed');return [];}}},portAssetSync:{status:async()=>({})},syncCenterRenderSequence:0,syncCenterResumeChecked:false,syncCenterReturnRefresh:{noteRefreshed(){}},syncCenterMismatchRetry:{shouldRetry:()=>false},elements:{syncCenterTitle:{focus(){}},syncCenterView:{querySelector:()=>({dataset:{bound:true}}),append(){}}},SYNC_CENTER_ROUTE:'#sync-center',location:{hash:'#sync-center'},getCapabilities:()=>({cloudSyncOperations:true}),showView(){},refreshVisibleSyncCenterStatus(){},markAppRowsChecking(){},renderSyncCenter(){},createPortSyncStatus:()=>({}),aiSupportPanel:null,navigator:{onLine:true},document:{documentElement:{dataset:{edition:'pro'}}}};
+ const ctx={globalThis:{SoundCruiseSyncAccount:{storage:{getGeneration:()=>0}}},canInitializeEmptyPort:async()=>empty,window:{confirm:()=>{calls.push('confirm');return confirm;}},syncCenterController:{enabled:true,load:async o=>{calls.push(o?.readOnly?'readonly':'remote');return {accountState:'active',apps:[]};},loadLocal:async()=>{calls.push('local');return {accountState:'unknown',apps:[]};},planFourAppSetup:()=>({})},syncCenterOrchestrator:{enabled:true,hasConfiguredAccount:async()=>true,resume:async()=>calls.push('resume')},syncCenterActions:{ensureQaAdmission:async()=>calls.push('admission')},portSyncController:{ensure:async()=>calls.push('ensure'),status:async()=>({}),store:{listOutbox:async()=>{if(discardedStore)throw Error('account_generation_changed');return [];}}},portAssetSync:{status:async()=>({})},syncCenterRenderSequence:0,syncCenterResumeChecked:false,syncCenterReturnRefresh:{noteRefreshed(){}},syncCenterMismatchRetry:{shouldRetry:()=>false},elements:{syncCenterTitle:{focus(){}},syncCenterView:{querySelector:()=>({dataset:{bound:true}}),append(){}}},SYNC_CENTER_ROUTE:'#sync-center',location:{hash:'#sync-center'},getCapabilities:()=>({cloudSyncOperations:true}),showView(){},refreshVisibleSyncCenterStatus(){},markAppRowsChecking(){},renderSyncCenter(){},createPortSyncStatus:()=>({}),aiSupportPanel:null,navigator:{onLine:true},document:{documentElement:{dataset:{edition:'pro'}}}};
  const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
  await new AsyncFunction('ctx','activate',`const {${Object.keys(ctx).filter(k=>k!=='syncCenterRenderSequence'&&k!=='syncCenterResumeChecked').join(',')}}=ctx;let syncCenterRenderSequence=0,syncCenterResumeChecked=false;${fn};return renderSyncCenterView({activate});`)(ctx,activate);return calls;
 }
@@ -55,6 +55,12 @@ test('historical route comparison: 1.21.3 auto remote/resume, 1.22.0 and 1.24.24
  assert.deepEqual(await route(old),['resume','admission','remote']);assert.match(old,/portSyncController\?\.ensure\?\.\(\)\.catch/);
  for(const source of [changed,base]){assert.deepEqual(await route(source),['local']);assert.doesNotMatch(source,/portSyncController\?\.ensure\?\.\(\)\.catch/);}
  assert.deepEqual(await route(fixed),['readonly']);assert.deepEqual(await route(fixed,true),['admission','ensure','remote']);
+});
+
+test('unknown local data requires consent once; cancellation cannot activate Sync',async()=>{
+ const current=readFileSync(new URL('./practice-menu-app.js',import.meta.url),'utf8');
+ assert.deepEqual(await route(current,true,{empty:false,confirm:false}),['confirm','readonly']);
+ assert.deepEqual(await route(current,true,{empty:false,confirm:true}),['confirm','admission','ensure','remote']);
 });
 
 test('a quick online return is retained once within the original three-second throttle and disposed cleanly',async()=>{

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
 const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.url), 'utf8');
 const deferred = () => { let resolve; const promise = new Promise(r => {resolve = r;}); return {promise,resolve}; };
 function harness({canSync = () => true, readerFirst = false} = {}) {
@@ -246,4 +247,64 @@ test('Account change while automatic asset check is pending cancels checking and
 test('a previous Account automatic refusal cannot be shown as the next Account failure',async()=>{
  const h=harness();await connected(h);h.setLocal([row]);h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});await settled();assert.equal((await h.controller.status()).autoResumeCode,'local_data_unconfirmed');
  h.changeAccount('B');assert.equal((await h.controller.status()).autoResumeCode,null);h.controller.dispose();
+});
+
+function allowEmptyJoin(h, rows=[{id:'A',isPortEnvironment:true,revokedAt:null}]) {
+ h.context.SoundCruiseSyncAccount.core.accountDeviceIdFromCredential=c=>c.split('.')[1];
+ h.context.SoundCruiseSyncAccount.AccountClient.prototype.devices=async function(){h.deviceReads.push(true);return {devices:rows};};
+ return {assets:{status:async()=>({known:true,pendingCount:0})},canInitialize:async()=>true};
+}
+test('an old joined empty Port initializes through the existing path after authenticated current Device proof',async()=>{
+ const h=harness();await h.controller.bindAutoResume(allowEmptyJoin(h));await new Promise(setImmediate);
+ assert.equal(h.runtimes.length,1);assert.equal(h.runtimes[0].initialized,1);assert.equal(h.network.length,1);assert.equal(h.deviceReads.length,1);h.controller.dispose();
+});
+test('incomplete join with retained local work cannot provision or adopt on auto resume',async()=>{
+ const h=harness(),options=allowEmptyJoin(h);options.canInitialize=async()=>false;h.setLocal([row]);
+ const a=h.createStore('port',{accountId:'old-A'});a.data.outbox.push({...row,operationId:'unchanged-A'});const before=structuredClone(a.data.outbox);
+ await h.controller.bindAutoResume(options);await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);assert.equal(h.deviceReads.length,0);assert.deepEqual(a.data.outbox,before);h.controller.dispose();
+});
+test('empty join cannot use another Account Device, non-Port Device, or revoked Device',async()=>{
+ for(const rows of [[{id:'B',isPortEnvironment:true,revokedAt:null}],[{id:'A',isPortEnvironment:false,revokedAt:null}],[{id:'A',isPortEnvironment:true,revokedAt:1}]]){
+  const h=harness();await h.controller.bindAutoResume(allowEmptyJoin(h,rows));await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);h.controller.dispose();
+ }
+});
+test('previously invalid Port credentials are not automatically initialized even on an empty device',async()=>{
+ const h=harness(),s=await connected(h);await s.setMeta('runtimeState','credential_invalid');
+ await h.controller.bindAutoResume(allowEmptyJoin(h));await settled();assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);h.controller.dispose();
+});
+test('Account change during empty-Port eligibility cannot initialize either Account',async()=>{
+ const h=harness(),gate=deferred(),options=allowEmptyJoin(h);options.canInitialize=async()=>{await gate.promise;return true;};
+ await h.controller.bindAutoResume(options);await settled();h.changeAccount('B');gate.resolve();await settled();
+ assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);h.controller.dispose();
+});
+
+
+async function materializedGear(h) {
+ const values=new Map();const storage={getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,String(v)),removeItem:k=>values.delete(k)};
+ Object.assign(h.context,{crypto:webcrypto,TextEncoder,URL,localStorage:storage});
+ vm.runInNewContext(fs.readFileSync(new URL('./port-sync-adapter.js',import.meta.url),'utf8'),h.context);
+ const adapter=new h.context.SoundCruisePortSync.PortSyncAdapter();
+ storage.setItem('cruisePort.gearList',JSON.stringify({version:5,items:[{id:'gear-one',name:'Synthetic',status:'owned',order:-1}]}));
+ const records=await adapter.serializeRecords(adapter.readLocalSnapshot());
+ const s=await connected(h);s.data.shadow.push(...records);
+ await adapter.applyRemoteSnapshot(adapter.deserializeRecords(records));
+ return {storage,values,records};
+}
+async function autoFlight(h) {
+ const done=new Promise(resolve=>{let started=false;const unsubscribe=h.controller.subscribe(s=>{if(s.checking)started=true;else if(started){unsubscribe();resolve();}});});
+ h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});await done;
+}
+test('native applied Gear order ranks are proven by own shadow without writes or ignoring content',async()=>{
+ const h=harness(),g=await materializedGear(h),before=JSON.stringify([...g.values]),shadow=JSON.stringify(h.databases.get('A').shadow);
+ const applied=JSON.parse(g.storage.getItem('cruisePort.gearList')).items[0];assert.equal(applied.order,0);assert.equal(applied.manufacturer,'');
+ await autoFlight(h);
+ assert.equal(h.runtimes.length,1);assert.equal(h.runtimes[0].initialized,0);assert.equal(h.network.length,0);
+ assert.equal(JSON.stringify([...g.values]),before);assert.equal(JSON.stringify(h.databases.get('A').shadow),shadow);h.controller.dispose();
+});
+test('Gear content, order and image edits outside the Account baseline remain blocked',async()=>{
+ for(const change of [{name:'Different Account edit'},{order:42},{photoId:'unconfirmed-image'}]){
+  const h=harness(),g=await materializedGear(h),gear=JSON.parse(g.storage.getItem('cruisePort.gearList'));Object.assign(gear.items[0],change);g.storage.setItem('cruisePort.gearList',JSON.stringify(gear));
+  await autoFlight(h);
+  assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);assert.equal((await h.controller.status()).autoResumeCode,'local_data_unconfirmed');h.controller.dispose();
+ }
 });
