@@ -28,6 +28,12 @@ async function fixture(account=A){
  await set(account);await page.goto(url);await page.waitForFunction(()=>!!CruiseStudio.accountStatus);
  return {browser,context,page,errors,calls,mode,set,async close(){assert.deepEqual(errors,[]);await browser.close();}};
 }
+async function nativeRecheck(f,fr){
+ const started=f.page.waitForRequest(q=>q.method()==='GET'&&q.frame().url().includes('/cruise-port/')&&new URL(q.url()).pathname==='/v2/accounts/summary');
+ if(await fr.locator('#sync-center-account-recheck').isVisible())await fr.locator('#sync-center-account-recheck').click();
+ else await fr.locator('body').evaluate(()=>{dispatchEvent(new Event('blur'));dispatchEvent(new Event('focus'));});
+ await started;
+}
 async function screenshot(f,path){
  // Hide only display identifiers in this disposable test document. Cross-frame
  // screenshot masks can duplicate sticky chrome in Chrome's compositor.
@@ -71,15 +77,15 @@ test('native Center leaves checking on 429/503, retains Account, and readonly re
   await f.page.locator('[data-open-sync]').click();const fr=f.page.frameLocator('#port-sync-surface iframe');
   await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   for(const status of [429,503]){
-   f.mode.status=status;const before=f.calls.length;await fr.locator('#sync-center-account-recheck').click();
+   f.mode.status=status;const before=f.calls.length;await nativeRecheck(f,fr);
    await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
    assert.equal(f.calls.length,before+2);assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
    assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),A);
-   f.mode.status=200;await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
+   f.mode.status=200;await nativeRecheck(f,fr);await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   }
-  f.mode.deviceStatus=503;await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();assert.equal(await fr.locator('[data-studio-account-summary]').count(),0);
+  f.mode.deviceStatus=503;await nativeRecheck(f,fr);await fr.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();assert.equal(await fr.locator('[data-studio-account-summary]').count(),0);
   assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'active');
-  f.mode.deviceStatus=200;await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();
+  f.mode.deviceStatus=200;await nativeRecheck(f,fr);await fr.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();
   assert(f.calls.every(c=>c.method==='GET'));
  }finally{await f.close();}
 });
@@ -106,7 +112,7 @@ test('a late A response and an explicit Device refusal never grant or adopt anot
   await fr.locator('#sync-center-account-status[data-sync-account-state=active]').filter({hasText:/^(Account確認済み|作成済み)$/}).waitFor();
   f.mode.delay=450;const before=f.calls.filter(c=>c.native&&c.path.endsWith('/summary')).length;
   const started=f.page.waitForRequest(q=>new URL(q.url()).pathname==='/v2/accounts/summary'&&q.method()==='GET');
-  await fr.locator('#sync-center-account-recheck').click();await started;
+  await nativeRecheck(f,fr);await started;
   await fr.locator('#sync-center-account-status').filter({hasText:'確認中…'}).waitFor();
   await f.set(B);await f.page.waitForFunction(B=>document.querySelector('#port-sync-surface iframe').contentDocument.querySelector('#sync-center-account-display-id')?.textContent.includes(SoundCruiseSyncAccount.core.formatAccountDisplayId(B)),B);
   assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
@@ -115,7 +121,7 @@ test('a late A response and an explicit Device refusal never grant or adopt anot
   // Native setAccount notifies both before and after its transaction. At most
   // one read per new generation, plus the explicit in-flight A read, is valid.
   const reads=f.calls.filter(c=>c.native&&c.path.endsWith('/summary')).length-before;assert(reads>=2&&reads<=3);f.mode.delay=0;f.mode.deviceStatus=410;
-  await fr.locator('#sync-center-account-recheck').click();await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
+  await nativeRecheck(f,fr);await fr.locator('#sync-center-account-status[data-sync-account-state=unknown]').filter({hasText:/確認失敗|確認が必要/}).waitFor();
   assert.equal(await fr.locator('#sync-center-account-status').getAttribute('data-sync-account-state'),'unknown');
   assert.equal(await f.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountId)),B);
   assert(f.calls.every(c=>c.method==='GET'));
