@@ -473,13 +473,21 @@ export function shouldShowPortConflictAction(presentation = {}) {
     return Number(presentation.portConflictCount) > 0;
 }
 
-export function renderPortStatus(root, presentation) {
+export function renderPortStatus(root, presentation, onRecheck = null) {
     const checking = presentation.portStatus?.state === 'checking';
     const status = !checking && shouldShowPortConflictAction(presentation) ? { state: 'attention', label: '確認が必要' } : presentation.portStatus || {
         state: 'attention', label: '確認が必要'
     };
     const chip = root.querySelector('#sync-center-port-status-chip');
     if (chip) {
+        const actionable = status.state === 'synced' && typeof onRecheck === 'function';
+        chip.setAttribute('role', actionable ? 'button' : 'status');
+        chip.setAttribute('tabindex', actionable ? '0' : '-1');
+        chip.setAttribute('aria-disabled', String(!actionable));
+        chip.setAttribute('aria-label', actionable ? '同期済み。Account・端末の接続状態を確認。データ同期は開始しません。' : status.label);
+        chip.setAttribute('title', actionable ? 'Account・端末の接続状態を確認（データ同期は開始しません）' : '');
+        chip.onclick = actionable ? () => { chip.onclick = null; chip.onkeydown = null; chip.setAttribute('aria-disabled', 'true'); return onRecheck(); } : null;
+        chip.onkeydown = actionable ? event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); chip.onclick?.(); } } : null;
         chip.textContent = status.label;
         chip.dataset.syncPortStatus = status.state;
         chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${status.state}`;
@@ -663,7 +671,8 @@ export function renderSyncCenter(root, presentation, {
     const accountActionRow = root.querySelector('.sync-center-account-action-row');
     const accountState = presentation.accountState;
     const recheck = root.querySelector('#sync-center-account-recheck');
-    if (recheck) { recheck.disabled = false; recheck.hidden = accountState === 'unset'; recheck.onclick = () => onRecheck?.(); }
+    if (recheck) { recheck.disabled = false; recheck.hidden = ['unset', 'deleting'].includes(accountState) || (accountState === 'active' && presentation.kind === 'ready' &&
+        !(presentation.portStatus?.state === 'attention' && !shouldShowPortConflictAction(presentation))); recheck.onclick = () => onRecheck?.(); }
     if (accountActionRow) accountActionRow.dataset.syncAccountState = accountState || 'unknown';
     const accountDisplayId = root.querySelector('#sync-center-account-display-id');
     if (accountStatus) {
@@ -699,7 +708,7 @@ export function renderSyncCenter(root, presentation, {
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
     renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onRecheck, aiSupport });
-    renderPortStatus(root, presentation);
+    renderPortStatus(root, presentation, onRecheck);
     renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
     renderDangerActions(root, presentation);
 }

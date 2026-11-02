@@ -753,3 +753,12 @@ test('the same native renderer hides start/retry/conflict warnings during checki
  renderPortStatus(root,{accountState:'active',portStatus:{state:'unstarted',label:'同期は未開始'},portStructuredStatus:{}});assert.equal(nodes.get('#port-sync-activate').hidden,false);
  renderPortStatus(root,{accountState:'active',portStatus:{state:'attention',label:'確認が必要'},portStructuredStatus:{conflictCount:1},portConflictCount:1,portRuntimeActive:true});assert.equal(nodes.get('#sync-center-port-conflicts-open').hidden,false);assert.equal(nodes.get('#port-sync-activate').hidden,true);
 });
+
+test('synced badge provides keyboard readonly recheck once and checking removes the action',async()=>{
+ const {renderPortStatus}=await import('./sync-center-ui.js');const attrs={};let calls=0;
+ const chip={dataset:{},setAttribute:(k,v)=>attrs[k]=v};const root={querySelector:k=>k==='#sync-center-port-status-chip'?chip:null};
+ const presentation={accountState:'active',portStatus:{state:'synced',label:'✓ 同期済み'}};
+ renderPortStatus(root,presentation,()=>calls++);assert.equal(attrs.role,'button');assert.equal(attrs.tabindex,'0');assert.match(attrs.title,/データ同期は開始しません/);
+ let prevented=0;chip.onkeydown({key:' ',preventDefault:()=>prevented++});chip.onclick?.();assert.equal(calls,1);assert.equal(prevented,1);
+ renderPortStatus(root,{...presentation,portStatus:{state:'checking',label:'確認中…'}},()=>calls++);assert.equal(chip.onclick,null);assert.equal(chip.onkeydown,null);assert.equal(attrs.role,'status');assert.equal(attrs.tabindex,'-1');
+});

@@ -2542,6 +2542,8 @@ textarea:focus-visible {
     gap: 12px;
     min-width: 0;
 }
+#sync-center-port-status-chip[role="button"] { cursor: pointer; }
+#sync-center-port-status-chip[role="button"]:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 #sync-center-account-recheck { flex: 0 0 auto; white-space: nowrap; }
 .sync-center-account-action-row {
     display: grid;

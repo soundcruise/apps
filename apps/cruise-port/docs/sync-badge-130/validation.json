@@ -1,0 +1,42 @@
+{
+  "base": "56f982759d6d6f0a48fc20e4f0eb0aec87005ed1",
+  "port": "1.24.30",
+  "studio": "0.71.2",
+  "productionChanged": false,
+  "protectedPathsUnchanged": [
+    "apps/pitch-cruise",
+    "apps/fretboard_cruise",
+    "apps/rhythm-cruise",
+    "apps/chord-cruise",
+    "apps/shared",
+    "workers",
+    "apps/cruise-port/port-sync-controller.js",
+    "apps/cruise-port/port-sync-status.js",
+    "apps/cruise-port/port-dataset-repository.js"
+  ],
+  "focusedNode": {
+    "pass": 57,
+    "fail": 0
+  },
+  "portNode": {
+    "pass": 1218,
+    "fail": 4,
+    "knownBaseThemeFailures": true
+  },
+  "accountBrowser": {
+    "pass": 9,
+    "fail": 0
+  },
+  "productE2E": {
+    "pass": 36,
+    "fail": 0
+  },
+  "recoveryE2E": {
+    "pass": 12,
+    "fail": 0
+  },
+  "jekyll": {
+    "studioFiles": 34,
+    "releaseBytesMatch": true
+  }
+}
