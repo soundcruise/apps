@@ -148,6 +148,13 @@ try{
  });
  await check('locked entrance with retained old Account data keeps the native review frame and performs no automatic adoption',async()=>{
   const p=await profile('Entrance-old-data',false);await bootstrapPro(p);await createAccount(p);await port(p,false);await ready(p.page);await normalGear(p.page,'Keep old Account data');
+  const retained=await p.page.evaluate(async()=>{
+   const a=await SoundCruiseSyncAccount.storage.getAccount(),store=SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a.accountId});
+   const adapter=new SoundCruisePortSync.PortSyncAdapter(),record=(await adapter.serializeRecords(adapter.readLocalSnapshot())).find(r=>r.recordType==='gear_item');
+   await store.putOutbox({...record,operationId:crypto.randomUUID(),baseRevision:0});
+   localStorage.setItem('cruisePort.syncDeletionIntent.v1',JSON.stringify({'practice_history_event/retained-A-delete':{generation:'synthetic-A-generation'}}));
+   return {accountId:a.accountId,outbox:await store.listOutbox(),intent:localStorage.getItem('cruisePort.syncDeletionIntent.v1')};
+  });
   await p.page.evaluate(()=>SoundCruiseSyncAccount.storage.clearAccount());const local=await p.page.evaluate(()=>localStorage.getItem('cruisePort.gearList'));
   await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await p.page.locator('#studio-entry-account:not([hidden])').waitFor();
   const issued=await nativeClient(coldIssuer.page,'issue');await p.page.locator('[data-entry-connect]').click();const frame=await(await p.page.locator('[data-entry-account-frame] iframe').elementHandle()).contentFrame();await ready(frame);
@@ -155,7 +162,33 @@ try{
   await frame.locator('#sync-center-port-connect[data-sync-phase=complete]').waitFor();await p.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
   assert.equal(await p.page.locator('#studio-shell').evaluate(e=>e.inert),true);assert.equal(await p.page.locator('[data-entry-account-frame] iframe').count(),1);
   assert.equal(await p.page.evaluate(()=>localStorage.getItem('cruisePort.gearList')),local);
-  assert(!network.slice(before).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'retained old data is not adopted or transmitted');await p.context.close();
+  assert(!network.slice(before).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'retained old data is not adopted or transmitted');
+  const disposable=await profile('Revocable-extra-device',false);await bootstrapPro(disposable);await port(disposable,false);await ready(disposable.page);
+  const extraCode=await nativeClient(coldIssuer.page,'issue');await nativeClient(disposable.page,'consume',extraCode.displayJoinCode);
+  const extraDevice=await disposable.page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount().then(a=>a.accountDeviceId));
+  await frame.locator('#sync-center-port-connect-close').click();
+  await frame.locator('[data-sync-environment-toggle=port-account]').click();
+  await frame.locator('[data-sync-environment-details=port-account] [data-sync-target-rename]').first().click();
+  await frame.locator('.sync-center-rename-dialog input').fill('Renamed without Sync');
+  await frame.locator('.sync-center-rename-dialog button[type=submit]').click();
+  await frame.locator('.sync-center-rename-dialog').waitFor({state:'detached'});
+  await frame.locator('.sync-center-environment-name').filter({hasText:'Renamed without Sync'}).first().waitFor({state:'attached'});
+  await frame.locator('#sync-center-account-status[data-sync-account-state=active]').waitFor();
+  assert(!network.slice(before).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'rename/close/repaint must not activate a held Account');
+  assert.equal(await p.page.evaluate(()=>localStorage.getItem('cruisePort.gearList')),local);
+  assert.equal(await frame.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);
+  const refreshFinished=()=>frame.waitForFunction(()=>document.querySelector('#sync-center-apps').getAttribute('aria-busy')!=='true');
+  let observed=p.page.waitForResponse(r=>new URL(r.url()).pathname==='/v2/accounts/summary'&&r.request().frame()===frame);
+  await frame.locator('[data-sync-port-add-environment]').click();await frame.locator('dialog[data-sync-join-invitation] button').filter({hasText:'閉じる'}).click();await observed;await refreshFinished();
+  const toggle=frame.locator('[data-sync-environment-toggle=port-account]');if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();
+  observed=p.page.waitForResponse(r=>new URL(r.url()).pathname==='/v2/accounts/summary'&&r.request().frame()===frame);
+  await frame.locator('[data-sync-environment-details=port-account] [data-sync-environment-revoke="'+extraDevice+'"]').click();await frame.locator('#sync-center-lifecycle-submit').click();await observed;await refreshFinished();
+  assert(!network.slice(before).some(n=>n.label===p.label&&n.path.startsWith('/v1/sync/')),'invite close and target revoke do not start held Sync');
+  const after=await frame.evaluate(async a=>({outbox:await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a}).listOutbox(),intent:localStorage.getItem('cruisePort.syncDeletionIntent.v1'),gear:localStorage.getItem('cruisePort.gearList')}),retained.accountId);
+  assert.deepEqual(after.outbox,retained.outbox);assert.equal(after.intent,retained.intent);assert.equal(after.gear,local);
+  const explicit=p.page.waitForRequest(q=>new URL(q.url()).pathname==='/v1/sync/bootstrap'&&q.frame()===frame);
+  await frame.locator('#port-sync-activate').click();await explicit;
+  await disposable.context.close();await p.context.close();
  });
  await check('Pro detach keeps the local dataset writable on the same document',async()=>{const p=coldIssuer;await go(p.page,'#wishlist');const origin=await p.page.evaluate(()=>performance.timeOrigin);await nativeClient(p.page,'detach');await normalGear(p.page,'After detach Pro');assert.equal(await p.page.evaluate(()=>performance.timeOrigin),origin);assert.equal(await p.page.evaluate(()=>!!SoundCruiseMultiAppSync.runtimes?.port),false);await p.context.close();});
  await check('normal actual Studio boot stays Cloud-disconnected and performs no local writes',async()=>{
