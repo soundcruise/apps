@@ -118,3 +118,35 @@ readyNew、期限切れ再生成、facts不足の理由、手動再確認数を�
 
 本番反映はmain統合・両Worker配備の別途承認後。保存済みヒント、公開行、Ledger、takedown、
 既存候補は今回未変更。PJBの正式再確認とD'Addarioの非掲載も実行前の承認対象とする。
+
+## 0.43.3：PJB失敗の実比較と修正（本番未反映）
+
+11月4日のSELECT結果は旧product_facts=NULL、facts_provenance=NULL、revision=0。
+parser14の失敗証拠は_extraction_failure、parserFailures=[ikebe-product-fields-14:
+ facts_identity_changed, product-family-fields-1: facts_scope_uncertain]、patch_json=NULLだった。
+したがって新factsは生成されておらず、facts-recheck.jsのchangedIdentityはold=NULLにより偽。
+旧製品と新製品の差を無視する変更は不要で、誤った修正になる。
+
+実記事の見出しはPJB（Phil Jones Bass）/NANOBASS X4C、タグの文字列も同じブランド。
+ブランドの正規化結果はPJB(Phil Jones Bass)。しかし実タグURLは
+https://www.ikebe-gakki-pb.com/new_product/tag/pjb%EF%BC%88phil-jones-bass%EF%BC%89/
+であり、既存[a-z0-9-]+判定はfalse。ブランド照合に使えるタグが0件となる。
+根拠: https://www.ikebe-gakki-pb.com/new_product/173894/
+https://www.ikebe-gakki-pb.com/new_product/tag/pjb%EF%BC%88phil-jones-bass%EF%BC%89/
+
+共通ikebeTagUrlで同一HTTPS originの単一tagセグメントを認識し、一度だけdecodeする。
+不正encoding、slash/backslash、制御文字、別origin、credentials、query/hashは拒否。
+このURLは取得せず、記事header内の既存ブランド文字列照合だけに利用する。
+5つの関連抽出処理の同じ制約を統合した。記事ID・日付・特定ブランド辞書による例外はない。
+parser15は旧失敗cacheを正規の予算内で再評価可能。既存14/13の有効なprovenanceを保持する。
+CAS・同一記事/公開日・型番更新guard・重複・takedownの条件は維持。
+
+記事構造相当fixtureはPJB/Phil Jones Bass、NANOBASS X4C、ベースアンプ、限定カラーを使用。
+日付は既存試験時計に合わせた架空値で、本番の11月2日付を変更する根拠ではない。
+NULL旧factsと14失敗cacheから15抽出、正式provenance、READYまで成功。pendingのままで公開なし。
+異なる旧型番MICROBASS X5をX5Cへ変える試験はfacts_identity_changedで拒否・旧値維持。
+本番候補は未変更であり、実parser15の本番再確認は配備承認後に1回実施する必要がある。
+
+NEWS/Operator1593 PASS、Port NEWS50 PASS、両Worker dry-run PASS。
+本番反映の承認対象は修正PR統合・両Worker配備・PJBの正式facts再確認のみ。migration不要。
+Web探索・Exa・Qwen・予約・公開操作への変更なし。

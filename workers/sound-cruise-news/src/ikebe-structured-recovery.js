@@ -1,3 +1,4 @@
+import {ikebeTagUrl} from './ikebe-tag-url.js';
 // Supplemental, primary-section evidence. No model/brand-specific exceptions.
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
@@ -24,9 +25,9 @@ export function structuredIkebeEvidence(html,row){
  if(!title||title.length>250||denied.test(title)||!heads.length||heads.length>4||find(body,n=>/^h[1-3]$/.test(n.name)&&cls(n,'wp-block-heading')).length!==heads.length)throw Error('facts_scope_uncertain');
  const fields=heads.map(h=>text(h).replace(/[’‘]/g,"'").trim().split(/\n/).map(v=>v.replace(/\s+/g,' ').trim()).filter(Boolean));
  const headBrand=fields[0]?.[0];
- const tagBrands=find(headers[0],n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).map(plain);
+ const tagBrands=find(headers[0],n=>n.name==='a'&&ikebeTagUrl(n.attribs.href)).map(plain);
  const brand=tagBrands.find(v=>v.toLowerCase()===String(headBrand).toLowerCase())||headBrand;
- if(!name(brand)||fields.some(f=>f.length!==2||f[0].toLowerCase()!==brand.toLowerCase())||!find(headers[0],n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).some(n=>plain(n).toLowerCase()===brand.toLowerCase()))throw Error('facts_identity_changed');
+ if(!name(brand)||fields.some(f=>f.length!==2||f[0].toLowerCase()!==brand.toLowerCase())||!find(headers[0],n=>n.name==='a'&&ikebeTagUrl(n.attribs.href)).some(n=>plain(n).toLowerCase()===brand.toLowerCase()))throw Error('facts_identity_changed');
  const sections=heads.map((h,i)=>{const p=[];for(let n=h.next;n&&n!==heads[i+1];n=n.next)if(n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n))p.push(plain(n));return p;});
  const first=sections[0].slice(0,8).join(' ');
  // Explicit playback-only outdoor/party purpose, not a studio monitor or PA.

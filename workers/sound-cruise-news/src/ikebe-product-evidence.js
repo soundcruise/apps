@@ -1,3 +1,4 @@
+import {ikebeTagUrl} from './ikebe-tag-url.js';
 // Existing Ikebe pending articles only: explicit editorial fields, never related cards.
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
@@ -5,7 +6,7 @@ import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-14';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-15';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -101,7 +102,7 @@ export function parseIkebeProductEvidence(html,source,row){
   }
   const brand=products[0][0],models=products.map(p=>p[1]);if(products.some(p=>p[0]!==brand)||new Set(models).size!==models.length)throw Error('facts_identity_changed');
   // Manufacturer tag corroborates every product heading, including incomplete component facts.
-  if(!find(header,n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).some(n=>plain(n).toLowerCase()===brand.toLowerCase()))throw Error('facts_identity_changed');
+  if(!find(header,n=>n.name==='a'&&ikebeTagUrl(n.attribs.href)).some(n=>plain(n).toLowerCase()===brand.toLowerCase()))throw Error('facts_identity_changed');
   // A drum pedal is not a guitar effect pedal. Require the article's own
   // percussion category AND a role explicitly bound to every product heading.
   // A related drum mention/category alone can never exclude a guitar product.

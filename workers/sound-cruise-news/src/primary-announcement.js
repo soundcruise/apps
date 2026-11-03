@@ -1,3 +1,4 @@
+import {ikebeTagUrl} from './ikebe-tag-url.js';
 // Source-bound primary product definitions. Publisher expressions are transient.
 // Product identity, component mentions and announcement actor are separate facts.
 import {parseDocument,DomUtils as D} from 'htmlparser2';
@@ -68,7 +69,7 @@ export function parsePrimaryAnnouncement(html,source,row){
   if(heads.length!==productHeads.length)throw Error('facts_identity_changed');
   if(!heads.length||heads.length>4)throw Error('facts_identity_changed');
   const fields=heads.map(n=>text(n).trim().split('\n').map(v=>v.replace(/\s+/g,' ').trim()).filter(Boolean));brand=fields[0][0];models=fields.map(v=>v[1].replace(/\s*\[(?:[A-Z][A-Z0-9 -]{1,30} ORIGINAL MODEL|Limited Model)\]$/,'').replace(/\s+\([A-Za-z]+(?: [A-Za-z]+){0,3}\)$/,''));
-  const tags=find(header,n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).map(plain);
+  const tags=find(header,n=>n.name==='a'&&ikebeTagUrl(n.attribs.href)).map(plain);
   if(fields.some(v=>v[0]!==brand)||!tags.some(v=>norm(v)===norm(brand)))throw Error('facts_identity_changed');
   sections=heads.map((h,i)=>{const ps=[];for(let n=h.next;n&&n!==heads[i+1];n=n.next)if(n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)){const p=plain(n);if(p&&!purchase.test(p))ps.push(p);}return ps.slice(0,16);});
  }else{

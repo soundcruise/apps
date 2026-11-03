@@ -1,3 +1,4 @@
+import {ikebeTagUrl} from './ikebe-tag-url.js';
 import {validatedShimamuraReview,shimamuraReviewSurface} from './shimamura-review-evidence.js';
 // Non-event editorial evidence. No release inference, model catalogue or product-specific rules.
 import {parseDocument,DomUtils} from 'htmlparser2';
@@ -55,7 +56,7 @@ export function parseIkebeInformationalEvidence(html,source,row){
   const fields=heads.map(n=>{const p=text(n).trim().split(/\n/).map(s=>s.replace(/\s+/g,' ').trim()).filter(Boolean);if(p.length!==2||!names(p[0]))throw Error('facts_identity_changed');
    if(!models(p[1])){const match=/^[^/]{1,20} \/ ([A-Z]{2,}-[0-9]{1,5}[A-Z]{0,3}) [^<>\r\n]{1,40}$/.exec(p[1]);if(!match)throw Error('facts_identity_changed');p[1]=match[1];}return p;});
   const brand=fields[0][0],modelNames=fields.map(f=>f[1]);
-  if(fields.some(f=>f[0]!==brand)||new Set(modelNames).size!==modelNames.length||!find(header,n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).some(n=>plain(n)===brand))throw Error('facts_identity_changed');
+  if(fields.some(f=>f[0]!==brand)||new Set(modelNames).size!==modelNames.length||!find(header,n=>n.name==='a'&&ikebeTagUrl(n.attribs.href)).some(n=>plain(n)===brand))throw Error('facts_identity_changed');
   const sections=heads.map((h,i)=>{const p=[];for(let n=h.next;n&&n!==heads[i+1];n=n.next)if(n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)){const s=plain(n);if(s&&!boilerplate.test(s))p.push(s);}return p;});
   // Require substantive editorial descriptions in the primary section. Related lists and
   // accessories cannot supply the main product's utility or create an unsupported alias.
