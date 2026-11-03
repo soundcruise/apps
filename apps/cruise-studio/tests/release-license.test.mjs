@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import {RELEASE_FILES} from '../scripts/package-port-pc.mjs';
-test('the actual 34-file sprite contains the complete original Lucide notice and Feather permission, not an excluded filename',()=>{
- assert.equal(RELEASE_FILES.length,34);assert(RELEASE_FILES.includes('assets/studio-icons.svg'));
+test('the actual published sprite contains the complete original Lucide notice and Feather permission, not an excluded filename',()=>{
+ assert.equal(RELEASE_FILES.length,81);for(const license of ['LICENSE-vexflow.txt','LICENSE-bravura-OFL.txt','LICENSE-leland-OFL.txt','LICENSE-petaluma-OFL.txt'])assert(RELEASE_FILES.includes('vendor/'+license));assert(RELEASE_FILES.includes('assets/studio-icons.svg'));
  const svg=fs.readFileSync(new URL('../assets/studio-icons.svg',import.meta.url),'utf8');
  const metadata=svg.match(/<metadata id="lucide-license"><!\[CDATA\[([\s\S]*?)\]\]><\/metadata>/)?.[1];assert(metadata);
  const original=metadata.slice(metadata.indexOf('ISC License'),metadata.indexOf('Feather-derived portions')).trim()+'\n';

@@ -111,6 +111,12 @@ try{
  await db.prepare("INSERT OR REPLACE INTO sync_runtime_control VALUES(1,'open',1,1,1,1,1,1,1)").run();await db.prepare("INSERT OR REPLACE INTO sync_account_runtime_control VALUES(1,'open',1,1,1,1,1,0,1,1)").run();
  await db.prepare("INSERT OR REPLACE INTO pro_auth_state(singleton_id,generation,active_code_slot,legacy_compat_enabled,updated_at,session_lifecycle_started_at,unbound_backend_until) VALUES(1,1,'A',1,?,?,?)").bind(Date.now(),Date.now(),Date.now()+3600000).run();
  browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ await check('public Studio restores schema2 score creation, persisted Projects and PreDTM JSON/MIDI/PDF without Project backend',async()=>{
+  const p=await profile('Local-Creation',false);await bootstrapPro(p);await createAccount(p);
+  await p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/index.html');await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());
+  result.localCreation=await(await import('./score-return.acceptance.mjs')).acceptLocalCreation(p.page,OUT);
+  assert(!network.some(n=>n.label==='Local-Creation'&&n.path.startsWith('/v2/studio/')));await p.context.close();
+ });
  // New public normal-operation acceptance, separate from the existing25 cases.
  for(const pro of [false,true])await check((pro?'Pro':'Standard')+' cold Port connects Account and saves/disconnects without manual reload',async()=>{
   const p=await profile(pro?'Cold-Pro':'Cold-Standard',false);if(pro)await bootstrapPro(p);await p.page.goto('https://studio.fixture.invalid/apps/cruise-port/'+(pro?'pro_9a3943176561/':'')+'#wishlist');await ready(p.page);const origin=await p.page.evaluate(()=>performance.timeOrigin);await normalGear(p.page,'Before connection '+pro);await createAccount(p);await normalGear(p.page,'After connection '+pro);assert.equal(await p.page.evaluate(()=>performance.timeOrigin),origin);
@@ -323,11 +329,9 @@ try{
   result.offlineEntrance={retainedSameOwner:true,playingThroughOutage:true,reconnected:true,explicitRevocationStops:true};
  });
  await check('a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft',async()=>{
-  if(!releaseMode){
   await E.page.evaluate(()=>CruiseStudio.shellHost.navigate('sheetCruise'));await E.page.locator('#sc-new-project').click();
   await E.page.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await E.page.locator('#sc-title').fill('未保存の入口テスト曲');await E.page.locator('#sc-title').press('Tab');
-  heldDraft=await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode);
-  }else {await E.page.evaluate(()=>localStorage.setItem('cruiseStudio.project.release-sentinel','preserved'));heldDraft='preserved';}
+  heldDraft=await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()));
   await E.page.evaluate(()=>CruiseStudio.shellHost.navigate('portGear'));heldFrame=await(await E.page.locator('#port-gear-surface iframe').elementHandle()).contentFrame();await ready(heldFrame);
   await heldFrame.locator('#gear-list-title-add').click();await heldFrame.locator('#gear-name').fill('入口失効時の未保存ギター');
   await E.page.evaluate(()=>window.heldGear=document.querySelector('#port-gear-surface iframe'));
@@ -335,15 +339,15 @@ try{
   assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),false);
   assert.equal(await E.page.locator('#studio-shell').evaluate(e=>e.inert),true);
   assert.equal(await heldFrame.locator('#gear-name').inputValue(),'入口失効時の未保存ギター');
-  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
-  if(!releaseMode){const denied=await E.page.evaluate(()=>CruiseStudio.repository.save({target:{type:'project',projectId:'denied-entry'},snapshot:{},baseRevision:null}));assert.equal(denied.code,'studio-entry-required');}else assert.equal(await E.page.evaluate(()=>typeof CruiseStudio.repository),'undefined');
+  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
+  {const denied=await E.page.evaluate(()=>CruiseStudio.repository.save({target:{type:'project',projectId:'denied-entry'},snapshot:{},baseRevision:null}));assert.equal(denied.code,'studio-entry-required');}
  });
  await check('Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it',async()=>{
   entranceAccount=await createAccount(E);await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
   assert.equal(await E.page.evaluate(()=>window.heldGear===document.querySelector('#port-gear-surface iframe')),true);
   assert.equal(await E.page.evaluate(()=>window.heldGear.inert),true);
   assert.equal(await heldFrame.locator('#gear-name').inputValue(),'入口失効時の未保存ギター');
-  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
+  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
  });
  await check('terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form',async()=>{
   await E.page.evaluate(()=>{const input=document.createElement('input');input.id='entrance-modal-draft';input.value='保持するダイアログ入力';window.entryDialog=CruiseStudio.shellHost.modal.open({title:'合成の編集',content:input});});
@@ -352,7 +356,7 @@ try{
   assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),false);await E.page.locator('#pro-gate-input').waitFor();
   assert.equal(await heldFrame.locator('#gear-name').inputValue(),'入口失効時の未保存ギター');
   await entranceCode('0007');await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
-  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
+  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
   assert.equal(await E.page.evaluate(()=>window.heldGear.inert),true);await E.page.screenshot({path:OUT+'/entrance-resumed-modal.png'});
   assert.equal(await E.page.locator('#entrance-modal-draft').inputValue(),'保持するダイアログ入力');
   assert.equal(await E.page.evaluate(()=>window.entryDialog.matches(':modal')),true);await E.page.evaluate(()=>CruiseStudio.shellHost.modal.close('test-complete'));
@@ -360,21 +364,19 @@ try{
  await check('discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft',async()=>{
   E.page.once('dialog',d=>d.dismiss());await E.page.locator('[data-entry-owner-hold] button').click();assert.equal(await E.page.evaluate(()=>window.heldGear.isConnected),true);
   E.page.once('dialog',d=>d.accept());await E.page.locator('[data-entry-owner-hold] button').click();await E.page.waitForFunction(()=>!window.heldGear.isConnected);
-  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
+  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
  });
  await check('expired native Pro session requires formal reauthentication and retains the Project draft',async()=>{
   const id=await E.page.evaluate(()=>JSON.parse(localStorage.getItem('soundCruiseProAuth')).credential.split('.')[1]);
   await db.prepare('UPDATE pro_credentials SET last_validated_at=?,lease_expires_at=? WHERE id=?').bind(Date.now()-91*86400000,Date.now()-1,id).run();
   assert.equal(await E.page.evaluate(()=>CruiseStudio.entryAuth.check()),false);await E.page.locator('#pro-gate-input').waitFor();
-  assert.equal(await E.page.evaluate(release=>release?localStorage.getItem('cruiseStudio.project.release-sentinel'):JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()),releaseMode),heldDraft);
+  assert.equal(await E.page.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),heldDraft);
   await entranceCode('0007');await E.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
  });
- if(releaseMode)await check('public artifact rejects future routes/modules/APIs and preserves previous Project bytes with no Project backend',async()=>{
-  for(const id of ['sheetCruise','preDtm','practice','gear','news'])assert.equal(await E.page.evaluate(id=>CruiseStudio.shellHost.navigate(id),id),false);
-  assert.deepEqual(await E.page.evaluate(()=>['model','repository','sessions','documents','identityHost','preDtm'].filter(k=>CruiseStudio[k])),[]);
-  for(const path of ['development.html','js/app.js','js/core/song-model.js','js/core/project-repository.js','js/cloud/identity-host.mjs','js/cloud/studio-sync-client.mjs','js/modules/pre-dtm-cruise/pre-dtm.js'])assert.equal(await E.page.evaluate(path=>fetch('/apps/cruise-studio/'+path).then(r=>r.status),path),404,path);
-  assert.equal(await E.page.evaluate(()=>localStorage.getItem('cruiseStudio.project.release-sentinel')),'preserved');
-  assert.equal((await db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'studio_%'").all()).results.length,0);
+ if(releaseMode)await check('public artifact restores local creation but excludes Project Cloud and developer APIs',async()=>{
+  for(const path of ['development.html','js/app.js','js/cloud/identity-host.mjs','js/cloud/studio-sync-client.mjs'])assert.equal(await E.page.evaluate(path=>fetch('/apps/cruise-studio/'+path).then(r=>r.status),path),404,path);
+  for(const path of ['js/core/song-model.js','js/core/project-repository.js','js/modules/pre-dtm-cruise/pre-dtm.js'])assert.equal(await E.page.evaluate(path=>fetch('/apps/cruise-studio/'+path).then(r=>r.status),path),200,path);
+  assert(!network.some(n=>n.path.startsWith('/v2/studio/')));
  });
  const A=await profile('Port-A');await bootstrapPro(A);let account;
  await check('native Account and device-bound Pro authentication through existing libraries',async()=>{account=await createAccount(A);assert(account.accountId);});

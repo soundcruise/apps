@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { listComponents, getAppVersion } from '../js/core/component-metadata.mjs';
 import { verifyComponentVersion } from '../js/core/version-reader.mjs';
+import { RELEASE_FILES } from '../scripts/package-port-pc.mjs';
 
 const studio = new URL('../', import.meta.url), root = new URL('../../../', import.meta.url);
 const read = url => readFileSync(url, 'utf8');
@@ -43,31 +44,31 @@ test('F3: every Studio HTML product asset has the current Studio cache key', () 
     for (const ref of refs) assert.equal(ref.search, '?v=' + getAppVersion('cruise-studio'), ref.href);
 });
 
-test('F3: versioned internal ESM dependencies use the same Studio cache identity', () => {
-    function visit(url) {
-        return readdirSync(url, { withFileTypes: true }).flatMap(e => e.isDirectory() ? visit(new URL(e.name + '/', url)) : e.name.endsWith('.mjs') ? [new URL(e.name, url)] : []);
-    }
-    let count = 0;
-    for (const file of visit(new URL('js/', studio))) {
-        for (const match of read(file).matchAll(/['"]([.][^'"\s]*\?v=[^'"\s]+)['"]/g)) {
-            const ref = new URL(match[1], file);
-            if (!ref.pathname.startsWith(studio.pathname)) continue;
-            assert.equal(ref.search, '?v=' + getAppVersion('cruise-studio'), fileURLToPath(file) + ': ' + match[1]);
-            count++;
+test('F3: published internal ESM dependencies resolve inside the release and share the current Studio cache identity', () => {
+    const refs=[];
+    for (const name of RELEASE_FILES.filter(n=>n.endsWith('.mjs'))) {
+        const file=new URL(name,studio);
+        for (const match of read(file).matchAll(/(?:from\s*|import\s*\()\s*['"]([.][^'"\s]+)['"]/g)) {
+            const ref=new URL(match[1],file);
+            if(!ref.pathname.startsWith(studio.pathname))continue;
+            assert(RELEASE_FILES.includes(ref.pathname.slice(studio.pathname.length)),name+': missing release dependency '+match[1]);
+            if(ref.search)assert.equal(ref.search,'?v='+getAppVersion('cruise-studio'),name+': '+match[1]);
+            refs.push(ref);
         }
     }
-    assert.ok(count >= 10);
+    assert(refs.some(u=>u.pathname.endsWith('/form-adapter.mjs')));
+    assert(refs.some(u=>u.pathname.endsWith('/pattern-adoption.mjs')));
 });
 
 // Fixed patch-release expectation plus traversal of the actual HTML module entries.
 // Owner versions are still checked against their independent source declarations above.
-test('0.47.17 release identity and recursively reachable Studio module cache paths', () => {
-    assert.equal(getAppVersion('cruise-studio'), '0.47.17');
-    assert.match(html, /id="studio-version">v0\.47\.17<\/span>/);
+test('0.73.0 release identity and recursively reachable Studio module cache paths', () => {
+    assert.equal(getAppVersion('cruise-studio'), '0.73.0');
+    assert.match(html, /id="studio-version">v0\.73\.0<\/span>/);
     const visited = new Set();
     function visit(url) {
         if (!url.pathname.startsWith(studio.pathname) || !url.pathname.endsWith('.mjs')) return;
-        if (url.search) assert.equal(url.search, '?v=0.47.17', url.href);
+        if (url.search) assert.equal(url.search, '?v=0.73.0', url.href);
         if (visited.has(url.pathname)) return;
         visited.add(url.pathname);
         const content = read(new URL(url.pathname, 'file://'));
