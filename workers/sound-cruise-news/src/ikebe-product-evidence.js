@@ -5,11 +5,11 @@ import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-13';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-14';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
-const plain=n=>text(n).replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim();
+const plain=n=>text(n).normalize('NFKC').replace(/[’‘ʼ]/g,"'").replace(/\s+/g,' ').trim();
 const find=(n,test)=>DomUtils.findAll(x=>!!x.name&&!hidden(x)&&test(x),n.children||[]);
 const urlOK=u=>typeof u==='string'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/[1-9][0-9]*\/$/.test(u);
 export function ikebeProductSurface(row,source){
@@ -32,6 +32,7 @@ const types=[
  ['multi_effect_processor','amps_effects','effector',/マルチ[・ ]?エフェクト[・ ]?(?:プラットフォーム|プロセッサー)|マルチエフェクター/i],
  ['hardware_compressor','recording_audio','recording-pa',/バスコンプ(?:レッサー)?|ハードウェア[・ ]?コンプレッサー/],
  ['effect_pedal','amps_effects','effector',/エフェクター|ペダル|ファズ|オーバードライブ|\b(?:effects? pedal|overdrive|distortion pedal)\b/i],
+ ['bass_amp','amps_effects','amplifier',/ベースアンプ|ベース用アンプ|\bbass amplifier\b/i],
  ['guitar_amp','amps_effects','amplifier',/ギターアンプ|ギター用アンプ|\bguitar amplifier\b/i],
  ['acoustic_guitar','acoustic_guitar','acoustic-guitar',/アコースティックギター|\bacoustic guitar\b/i],
  ['electric_guitar','electric_guitar_bass','guitar',/エレキギター|\belectric guitar\b/i],
@@ -82,7 +83,7 @@ export function parseIkebeProductEvidence(html,source,row){
   if(!heads.length||heads.length>4||find(body,n=>/^h[1-3]$/.test(n.name)&&cls(n,'wp-block-heading')).length!==heads.length)throw Error('facts_identity_changed');
   let blocks=heads.map((head,index)=>{const nodes=[];for(let n=head.next;n&&n!==heads[index+1];n=n.next)if(n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n))nodes.push(plain(n));return nodes.slice(0,12).join(' ');});
   const productField=raw=>{const s=raw.replace(/\s*\[[A-Za-z0-9 .&+()'/-]{2,70}\]$/,'').replace(/\s+\((?:[A-Za-z]+(?: [A-Za-z]+){0,3})\)$/,'').trim();const m=/^(.{2,70}) [–−-] ([a-z0-9-]+)$/.exec(s);return m&&m[1].toLowerCase().replace(/[^a-z0-9]/g,'')===m[2].replace(/-/g,'')?m[1]:s;};
-  let fields=heads.map(n=>text(n).replace(/[’‘]/g,"'").trim().split(/\n/).map(p=>p.replace(/\s+/g,' ').trim()).filter(Boolean));
+  let fields=heads.map(n=>text(n).normalize('NFKC').replace(/[’‘ʼ]/g,"'").trim().split(/\n/).map(p=>p.replace(/\s+/g,' ').trim()).filter(Boolean));
   if(fields.some(p=>p.length!==2))throw Error('facts_identity_changed');
   if(fields.length>1&&modelOK(fields[0][1])){
    const [mainBrand,mainModel]=fields[0];

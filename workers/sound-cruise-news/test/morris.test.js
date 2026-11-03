@@ -47,3 +47,12 @@ test('cached verified article cannot recreate an expired candidate on the next c
  assert.equal(report.outcome,'collected');assert.equal(report.pending,0);assert.equal((await s.candidates()).length,0);assert(!calls.includes(url));
  const state=await s.db.prepare('SELECT processing_state FROM news_discovery_work WHERE normalized_url=?').bind(url).first();assert.equal(state.processing_state,'outside_date_window');
 });
+test('one card with URL/date mismatch is quarantined without losing valid cards or inferring a corrected URL',async()=>{
+ const bad='https://www.morris-guitar.com/information/2026/0012_01.html';
+ const entries=await parseMorrisListing(listing([[url,'2026.10.14','通常カード'],[bad,'2026.10.14','不整合カード']]),pepper);
+ assert.equal(entries.length,1);assert.equal(entries[0].url,url);assert.deepEqual(entries.issues,[{url:bad,publishedAt:'2026-10-13T15:00:00.000Z',reason:'listing_card_date_url_mismatch'}]);
+ await assert.rejects(parseMorrisListing(listing([[bad,'2026.10.14','不整合のみ']]),pepper),/structure/);
+ const s=await setup();const report=await collectSource('morris',s,opts({fetcher:async(u)=>u.endsWith('/robots.txt')?fetched('',404):u===MORRIS_LISTING?fetched(listing([[url,'2026.10.14','通常カード'],[bad,'2026.10.14','不整合カード']])):fetched(article())}));
+ assert.equal(report.outcome,'collected');assert.equal(report.listingIssues,1);assert((await s.candidates()).some(r=>r.source_url===url));
+ const work=await s.db.prepare('SELECT * FROM news_discovery_work WHERE normalized_url=?').bind(bad).first();assert.equal(work.processing_state,'parser_failed');assert.equal(work.next_action,'human_listing_review');
+});

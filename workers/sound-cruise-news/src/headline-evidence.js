@@ -28,6 +28,7 @@ const types=[
  ['octave_pedal','オクターブペダル',/オクターブ[・ ]?ペダル|オクターバー/],
  ['power_distribution','電源タップ',POWER_DISTRIBUTION_PATTERN],
  ['effect_pedal','エフェクター',/エフェクター|エフェクトペダル/],
+ ['bass_amp','ベースアンプ',/ベースアンプ/],
  ['guitar_amp','ギターアンプ',/ギターアンプ/],
  ['acoustic_guitar','アコースティックギター',/アコースティックギター/],
  ['electric_guitar','エレキギター',/エレキギター/],
