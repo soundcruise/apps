@@ -212,7 +212,13 @@
         "name": "a fresh B document permits normal B editing without inheriting the old A runtime or Outbox",
         "status": "PASS"
       }
-    ]
+    ],
+    "passCount": 51,
+    "cleanup": {
+      "browsersClosed": true,
+      "workerDisposed": true,
+      "bundlerStopped": true
+    }
   },
   "relatedNode": {
     "pass": 930,
@@ -221,6 +227,8 @@
   },
   "localCreation": {
     "formQualifiedGuitar": true,
+    "formSaveReload": true,
+    "guitarMIDI": true,
     "legacyReadPreserved": true,
     "explicitLegacySave": true,
     "schema": 2,
@@ -239,10 +247,7 @@
       768,
       390
     ],
-    "projectCloud": false,
-    "formSaveReload": true,
-    "guitarMIDI": true,
-    "parallelNativeMetronome": true
+    "projectCloud": false
   },
   "jekyll": {
     "files": 81,
@@ -251,5 +256,20 @@
     "projectCloudExcluded": true
   },
   "realAccount": "NOT RUN",
-  "productionPublication": "NOT RUN"
+  "productionPublication": "NOT RUN",
+  "wholeStudioNode": {
+    "candidate": {
+      "pass": 1947,
+      "fail": 20,
+      "skip": 0
+    },
+    "unchangedBase": {
+      "pass": 1935,
+      "fail": 32,
+      "skip": 0
+    },
+    "newFailureTitles": [],
+    "note": "20 remaining failures are also present on unchanged base; full-suite PASS is not claimed."
+  },
+  "testedProductCommit": "c6d0018b3c23bad4bdeafe42f905b0e076eac8d8"
 }
