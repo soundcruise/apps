@@ -67,11 +67,12 @@ export async function parseMorrisListing(html,pepper,evidence=null){
  const titles=find(root,n=>n.name==='h3'&&cls(n,'h5')&&cls(n,'serif'));if(!titles.length||titles.length>100)throw Error('listing_structure_changed');
  const responseHash=evidence?await hash(html):null;
  if(evidence&&(!Number.isSafeInteger(evidence.verifiedAt)||evidence.verifiedAt<0))throw Error('listing_evidence_invalid');
- const entries=[],seen=new Set();for(const title of titles){let card=title.parent;while(card&&!cls(card,'col-9'))card=card.parent;if(!card)throw Error('listing_structure_changed');
+ const entries=[],issues=[],seen=new Set();for(const title of titles){let card=title.parent;while(card&&!cls(card,'col-9'))card=card.parent;if(!card)throw Error('listing_structure_changed');
   const links=find(card,n=>n.name==='a'&&n.attribs.href),times=find(card,n=>n.name==='time');
   const urls=[...new Set(links.map(n=>{try{return morrisArticleUrl(new URL(n.attribs.href,MORRIS_LISTING).href);}catch{return null;}}).filter(Boolean))];
   if(urls.length!==1||times.length!==1)throw Error('listing_structure_changed');const url=urls[0],publishedAt=morrisDate(plain(times[0]));
-  if(!publishedAt||morrisUrlDate(url)!==publishedAt||seen.has(url))throw Error('listing_structure_changed');seen.add(url);
+  if(!publishedAt||seen.has(url))throw Error('listing_structure_changed');seen.add(url);
+  if(morrisUrlDate(url)!==publishedAt){issues.push({url,publishedAt,reason:'listing_card_date_url_mismatch'});continue;}
   const entry={url,publishedAt,fingerprint:await fingerprint(plain(title),pepper)};
   if(evidence){
    const paragraphs=find(card,n=>n.name==='p'),selected=paragraphs.filter(n=>!find(n,x=>/^h[1-6]$/.test(x.name)||x.name==='time').length&&plain(n)!==plain(title)&&!/^(?:20\d{2}[.\/-]\d{2}[.\/-]\d{2}|more|詳しくはこちら|詳細はこちら)$/i.test(plain(n))).slice(0,3),fieldNodes=find(card,n=>['li','dt','dd'].includes(n.name)),paras=selected.map(plain),fields=fieldTexts(card),trace={};
@@ -85,7 +86,7 @@ export async function parseMorrisListing(html,pepper,evidence=null){
    entry.diagnostics=morrisCardDiagnostics(descriptionStructure(card,title,paragraphs,selected,fieldNodes,root),trace,recovered);
   }
   entries.push(entry);
- }return entries;
+ }if(!entries.length)throw Error('listing_structure_changed');Object.defineProperty(entries,'issues',{value:issues});return entries;
 }
 export function morrisLabel(f,eventType){
  if(f?.kind==='morris_notice')return morrisNoticeLabel(f,eventType);

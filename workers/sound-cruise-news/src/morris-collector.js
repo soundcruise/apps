@@ -1,4 +1,4 @@
-import {recordListingUrls,recordDiscovered,recordDiscoveryResult} from './discovery-work.js';
+import {recordListingUrls,recordDiscovered,recordDiscoveryResult,discoveryState} from './discovery-work.js';
 import {morrisNoticeLabel,MORRIS_FACT_CHECKS} from './morris-editorial-policy.js';
 import {observePreparation} from './preparation-metrics.js';
 import {legalGate} from './registry.js';
@@ -131,6 +131,7 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    await sleep(1000);let listing=await request(MORRIS_LISTING,key,'listing');
    if(listing.status!==200||!/text\/html/i.test(listing.headers.get('content-type')||''))throw Error('discovery_unavailable');
    await recordListingUrls(store,source,listing.text,now);const responseHash=await hash(listing.text);try{entries=await parseMorrisListing(listing.text,pepper,{verifiedAt:now});}finally{listing.text='';listing=null;}
+   for(const issue of entries.issues||[]){await recordDiscovered(store,source,[issue],now);await discoveryState(store,source.id,issue.url,now,{state:'parser_failed',reason:issue.reason,nextAction:'human_listing_review',diagnostics:{stage:'listing',missingFields:['date_url_consistency']}});}report.listingIssues=(entries.issues||[]).length;
    const listingProof={sourceId:'morris',sourceUrl:MORRIS_LISTING,verifiedAt:now,responseHash,parserVersion:MORRIS_LISTING_PARSER,permissionRef:MORRIS_PERMISSION,canonicalBasis:'canonical',entryCount:entries.length};
    listingProof.diagnostics=summarizeMorrisDiagnostics(entries,listingProof);report.parserDiagnostics=listingProof.diagnostics;
    await store.db.prepare("UPDATE news_morris_acquisition SET outcome='verified',response_hash=?,entries_json=?,proof_json=? WHERE request_key=? AND outcome='reserved' AND actual_requests=2 AND attempted_at=? AND permission_ref=?").bind(responseHash,JSON.stringify(entries),JSON.stringify(listingProof),key,now,MORRIS_PERMISSION).run();

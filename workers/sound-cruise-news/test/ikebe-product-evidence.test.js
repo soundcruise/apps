@@ -97,3 +97,13 @@ test('primary headphone release remains bound when later specs list accessories 
  const f=parse(o,h);assert.equal(f.productFacts.product,'HP 240');assert.equal(f.productFacts.productType,'headphone');assert.equal(f.eventType,'release');assert.match(factualLabel(f.productFacts,f.eventType),/ヘッドフォン「HP 240」を発売$/);
  for(const type of ['他社のHP 240はヘッドホンです。','関連商品のHP 240はヘッドホンです。','仕様のみ。'])assert.throws(()=>parse(o,html({...o,type}).replace('</div><aside>','<p class="wp-block-paragraph">付属品のHP 240はヘッドホンです。</p></div><aside>')),/facts_scope_uncertain/);
 });
+test('printed parenthesized maker alias and bass amplifier limited colour remain bound',()=>{
+ const o={brand:'Craft（Craft Audio）',models:['MICROBASS X5C'],tag:'amplifier',title:'Craft（Craft Audio）のベースアンプMICROBASS X5Cに冬季限定カラーが登場！',lead:'数量限定の冬季限定カラーモデルが登場！',type:'MICROBASS X5Cはベースアンプです。'};
+ const f=parse(o,html(o).replace(/tag\/[^"]+\//,'tag/craft/'));assert.equal(f.productFacts.productType,'bass_amp');assert.equal(f.productFacts.brand,'Craft(Craft Audio)');assert.equal(f.productFacts.productEvent.action,'limited_edition');assert.match(factualLabel(f.productFacts,f.eventType),/限定/);
+});
+test('new bass-amp parser upgrades a cached old failure and reaches formal READY without approval',async()=>{
+ const o={brand:'Craft（Craft Audio）',models:['MICROBASS X5C'],tag:'amplifier',title:'Craft（Craft Audio）のベースアンプMICROBASS X5Cに冬季限定カラーが登場！',lead:'数量限定の冬季限定カラーモデルが登場！',type:'MICROBASS X5Cはベースアンプです。'};
+ const c=await prepare(o,172778);c.options.fetcher=async u=>new Response(u===c.a.robotsUrl?robot:html(o,172778).replace(/tag\/[^\"]+\//,'tag/craft/'),{headers:{'Content-Type':'text/html'}});
+ await failedReceipt(c,'ikebe-product-fields-13');const r=await recover(c);assert(r.recovered);assert.deepEqual(r.validation.errors,[]);assert.equal((await reviewDetail(c.s,c.item.id,now,[c.a],pepper)).preparationState,'READY');
+ const row=await c.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.item.id).first();assert.equal(row.review_status,'pending');assert(row.facts_provenance.includes(IKEBE_PRODUCT_PARSER));
+});

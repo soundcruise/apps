@@ -103,3 +103,28 @@ finish_reason=length、未終端JSONで失敗した。3件単位・同じ1500上
 本番反映には、この修正PRのmain統合・両Worker配備の明示承認が必要。
 配備時は現在のWeb探索ON/手動OFF/日次上限/cron/停止予約を保存し、
 過去の固定OFF版へ戻す操作で新しいNEWS修正を失わないこと。
+
+## 0.43.2：推論・構造化出力と旧失敗の回復
+
+Qwenの既定thinkingを有効のまま1500トークンに制限すると、推論と回答の合計が上限に達する。
+PR159の小型化だけでは本番でfinish_reason=lengthが再発した。
+モデル公式の /no_think ソフトスイッチとWorkers AI response_format/json_schemaを併用し、
+9項目の閉じたschemaをitems配列に要求する。上限1500・3件バッチ・日次AI最大5回は維持。
+reasonは短文とし、ローカルでもschema・件数・finish_reasonを検証する。
+推論抑制はプロンプト機能であり強制保証とはしない。失敗時のHOLDを維持する。
+日付を入力していないため、保存時のpriorityは最大mediumへ制限する。
+旧失敗理由で上限に達したレコードは新版で1回救済可能。新版の失敗理由にversionを付け、
+上限到達後の無限再試行を防ぐ。英語・言語未確認はこの救済対象ではない。
+
+11月4日：保存済みの旧失敗3件と既処理3件をそれぞれ1回、実モデルで検証。
+両方HTTP200・finish=stop・schema成功。入力988/出力440トークン、応答2.166秒/1.991秒。
+推定合計$0.0001976892（$0.0509/M入力、$0.335/M出力、実請求未確認）。
+reasoning_tokensはAPIから返らず、ゼロだったとは断定しない。生推論・生応答のログ保存なし。
+AIはブランド・優先度等を誤る場合があり、正式factsではない。追加Exa検索0回。
+
+出典: https://huggingface.co/Qwen/Qwen3-30B-A3B
+https://developers.cloudflare.com/workers-ai/features/json-mode/
+
+本番反映待ち。新migration不要。配備後は既存ヒントを削除・作り直さず、保存済みURL/タイトルを
+既存上限内で再分類する。既存retry_atの前倒しや手動再実行は別途承認が必要。
+6時cron・日次上限・7:30記録・11月8日9:10停止予約・自動公開禁止は維持する。

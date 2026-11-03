@@ -94,3 +94,27 @@ verified_listingには期限guardがあったが、既存verified記事証拠の
 本番新規3件中READY0という観測は改善の実証にならない。修正後は出典別candidateCreated、
 readyNew、期限切れ再生成、facts不足の理由、手動再確認数を通常の保存指標で継続確認する。
 現在の保存済み候補の整理・正式な人間判断・公開は今回のローカル修正に含まれない。
+
+## 0.43.2：11月4日確認の出典parser対応
+
+- 池部：NFKCと限定したアポストロフィ正規化を製品欄・タグ・見出しに共通適用。
+  記事に印字されたPJB（Phil Jones Bass）のような括弧付き表記を維持し、外部aliasを推測しない。
+  amplifierカテゴリと本文に明記されたベースアンプをbass_ampとして扱う。
+  parser14への変更は旧失敗キャッシュの再確認対象となる。13の有効な既存provenanceは維持する。
+  同構造の架空ブランドfixtureで旧13失敗→14抽出→正式provenance→READYを確認。
+  本番PJBは未変更。配備後、既存Operatorのfacts再確認で重複・期限・takedownも再評価する。
+- D'Addario PW-BLEBC-01はメーカー公式でElectric Bass Case、対象はベース。
+  本文のguitarはシリーズ総称と解釈でき、製品欄との不一致だけで永久保留にする必要はない。
+  6月11日発表のメーカーpress releaseと6月12日記事があり、10月31日の池部記事に
+  独立した新仕様・限定版・国内発売日などの新しい出来事は確認できなかった。
+  判断案は非掲載（既存Operatorのoperator_review理由）。本番判断は別途承認待ち。
+  10月31日を初発表とするfactsは生成しない。この記事専用parserや自動却下規則は追加しない。
+  メーカー: https://www.daddario.com/en-nl/collections/backline-musician-gear-bags/products/backline-electric-bass-case
+  press release: https://www.premierguitar.com/news/daddario-new-backline-cases
+- Morris：11月3日の一覧には表示日2026.11.02に対して/2026/0012_01.htmlという不整合カードがある。
+  存在しそうなURLへの置換や日付の推測は禁止。不整合カードをparser_failedとして追跡し、
+  正常カードは収集できるようカード単位で隔離する。全件不整合、構造・canonical異常は従来どおり停止。
+  隔離カードの個別本文は取得しない。robotsと日次2リクエストの一覧予算は変更しない。
+
+本番反映はmain統合・両Worker配備の別途承認後。保存済みヒント、公開行、Ledger、takedown、
+既存候補は今回未変更。PJBの正式再確認とD'Addarioの非掲載も実行前の承認対象とする。
