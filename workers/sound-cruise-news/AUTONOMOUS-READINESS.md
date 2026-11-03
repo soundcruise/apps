@@ -150,3 +150,37 @@ NULL旧factsと14失敗cacheから15抽出、正式provenance、READYまで成�
 NEWS/Operator1593 PASS、Port NEWS50 PASS、両Worker dry-run PASS。
 本番反映の承認対象は修正PR統合・両Worker配備・PJBの正式facts再確認のみ。migration不要。
 Web探索・Exa・Qwen・予約・公開操作への変更なし。
+
+## Parser更新と承認済みの限定復旧（0.43.4）
+
+旧parserの失敗は新parserの結果ではない。parser別・共通pipeline別の同日upgrade予約を
+原子的に確保し、別parserのupgrade履歴で新parserを止めない。fallbackの最終parserだけでなく
+最初に失敗したparserも照合する。旧失敗の7日backoffがある場合も、通常予算が残れば次の
+定期再確認へ戻す。予算済みなら翌JST日次枠へ送る。成功済みの検証可能なfactsは従来どおり再利用する。
+
+追加取得に運営者の明示承認がある場合のみ、運用CLI `scripts/recover-facts-server.mjs` を使用できる。
+WorkerのHTTP入力には予算overrideを追加しない。既存Wrangler OAuthと既存の秘密情報ファイルを使う
+正式なrecheckFacts経路であり、DBの手修正・公開判断・新しい配備やmigrationは行わない。
+`NEWS_RECOVERY_SECRETS_FILE` は既存秘密情報ファイルのパスのみ。値を表示・Git保存しない。
+
+承認ファイルはid（16〜64文字）、candidateId、sourceId、sourceUrl、snapshot、revision、
+parserVersion、pipelineVersion、issuedAt、expiresAt（最大1時間）、maxArticleRequests:1、reasonを保持する。
+CLIは承認を自動生成せず、操作直前のsnapshot・parser等と照合する。
+`node scripts/recover-facts-server.mjs APPROVAL_FILE --check` は読取りのみ。
+明示承認後の `--execute` は既存の出典・robots・backoff・lease・CAS・identity検証を通す。
+通常予算と復旧枠は別集計（recoveryBudget.recoveryUsed）。source内の同時取得は共通leaseで排他し、
+復旧予約は決定的キーで一度だけ消費する。失敗・ACK喪失・再起動で追加取得を許さない。
+本文最大1回、必要ならrobots確認1回。二次的な公式identityページ取得は復旧経路では行わない。
+本文は保存せず既存のfacts/proof/receiptに承認範囲・操作主体を記録する。成功でもreview_statusはpendingのまま。
+
+### 2026-11-04のPJB実行
+
+利用者が承認した1候補のみ、運用CLIから1回復旧を実行した。本文1回、robots1回。
+parser15が同一responseHashの本文を正常解析し、formal recheck trigger/CASでrevision 0→1、
+publicationValidation.valid=true、preparationState=READY。実AccessのOperatorで掲載可1・追加確認0を確認。
+NEWS公開181、人間判断履歴170、takedown3を維持。公開・Worker配備・migration・Web探索変更はなし。
+この個別実行は共通改修の本番定期処理への反映を意味しない。共通改修の統合・配備は別途承認が必要。
+
+共通修正の最終検証：NEWS/Operator1615 PASS（追加の復旧・parser更新22件を含む）、
+Port NEWS60 PASS、両Worker dry-run、syntax、diff check、秘密情報パターン検査PASS。
+永続workerd D1で予算超過時の復旧→READY、並行実行、ACK replay、再起動を確認。

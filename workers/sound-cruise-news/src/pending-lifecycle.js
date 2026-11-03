@@ -1,6 +1,7 @@
 import {SHIMAMURA_PRODUCT_PARSERS,SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
 import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS} from './primary-announcement.js';
+import {getSource} from './registry.js';
 import {recoveryBudget} from './recovery-budget.js';
 import {sourcePolicyReason} from './source-policy-evidence.js';
 import {DAY} from './policy.js';
@@ -32,16 +33,26 @@ export async function initializePending(store,now){
  const old=PRIMARY_ANNOUNCEMENT_PARSERS.filter(v=>v!==PRIMARY_ANNOUNCEMENT_PARSER);
  const shima=SHIMAMURA_PRODUCT_PARSERS.filter(v=>v!==SHIMAMURA_PRODUCT_PARSER),ikebe=Array.from({length:Number(IKEBE_PRODUCT_PARSER.split('-').at(-1))-7},(_,i)=>'ikebe-product-fields-'+(i+7));
  const proof="CASE WHEN json_valid(f.provenance_json) THEN f.provenance_json ELSE '[]' END";
- await store.db.prepare(`UPDATE news_pending_lifecycle SET next_recheck_at=?
- WHERE next_recheck_at IS NULL AND lease_until<=? AND last_recheck_result LIKE 'facts_%'
+ const upgrades=(await store.db.prepare(`SELECT candidate_id,next_recheck_at,(SELECT source_id FROM candidate_items WHERE id=candidate_id) AS source_id FROM news_pending_lifecycle
+ WHERE lease_until<=? AND last_recheck_result LIKE 'facts_%'
  AND EXISTS(SELECT 1 FROM candidate_items c JOIN news_facts_rechecks f ON f.candidate_id=c.id
  WHERE c.id=news_pending_lifecycle.candidate_id AND c.source_id IN ('ikebe','shimamura')
  AND c.review_status IN ('pending','reopened') AND c.expires_at>?
  AND f.rowid=(SELECT z.rowid FROM news_facts_rechecks z WHERE z.candidate_id=c.id AND z.provenance_json<>'[]' ORDER BY z.checked_at DESC,z.rowid DESC LIMIT 1)
  AND json_extract(${proof},'$[0].sourceId')=c.source_id AND json_extract(${proof},'$[0].sourceUrl')=c.source_url
  AND json_extract(${proof},'$[0].failureReason') IS NOT NULL
- AND (json_extract(${proof},'$[0].pipelineVersion') IN (${old.map(()=>'?').join(',')}) OR (json_extract(${proof},'$[0].pipelineVersion')=? AND ((json_extract(${proof},'$[0].extractionMethod')='explicit_shimamura_product_fields' AND json_extract(${proof},'$[0].parserVersion') IN (${shima.map(()=>'?').join(',')})) OR (json_extract(${proof},'$[0].extractionMethod')='explicit_ikebe_product_fields' AND json_extract(${proof},'$[0].parserVersion') IN (${ikebe.map(()=>'?').join(',')})))))
- AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND (s.disabled=1 OR s.takedown=1 OR s.publication_blocked=1)))`).bind(now,now,now,...old,PRIMARY_ANNOUNCEMENT_PARSER,...shima,...ikebe).run();
+ AND (json_extract(${proof},'$[0].pipelineVersion') IN (${old.map(()=>'?').join(',')}) OR (json_extract(${proof},'$[0].pipelineVersion')=? AND ((json_extract(${proof},'$[0].extractionMethod')='explicit_shimamura_product_fields' AND json_extract(${proof},'$[0].parserVersion') IN (${shima.map(()=>'?').join(',')})) OR (json_extract(${proof},'$[0].extractionMethod')='explicit_ikebe_product_fields' AND json_extract(${proof},'$[0].parserVersion') IN (${ikebe.map(()=>'?').join(',')})) OR json_extract(${proof},'$[0].parserFailures[0].parser') IN (${[...shima,...ikebe].map(()=>'?').join(',')}))))
+ AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND (s.disabled=1 OR s.takedown=1 OR s.publication_blocked=1)))`).bind(now,now,...old,PRIMARY_ANNOUNCEMENT_PARSER,...shima,...ikebe,...shima,...ikebe).all()).results;
+ const budgets=new Map();
+ for(const pending of upgrades){
+  if(!budgets.has(pending.source_id))budgets.set(pending.source_id,await recoveryBudget(store,getSource(pending.source_id),now));
+  const budget=budgets.get(pending.source_id),next=budget.used>=budget.limit?budget.nextAt:now;
+  // A future parser-failure backoff is not evidence about the replacement parser.
+  // Leave an earlier due time intact, and never alter an active worker's lease.
+  await store.db.prepare(`UPDATE news_pending_lifecycle SET next_recheck_at=? WHERE candidate_id=? AND next_recheck_at IS ? AND lease_until<=? AND EXISTS(SELECT 1 FROM candidate_items WHERE id=candidate_id AND review_status IN ('pending','reopened'))`)
+   .bind(Math.min(pending.next_recheck_at??next,next),pending.candidate_id,pending.next_recheck_at,now).run();
+ }
+
  await store.db.prepare(`INSERT OR IGNORE INTO news_pending_lifecycle(candidate_id,next_recheck_at,recheck_policy_version)
  SELECT id,?,? FROM candidate_items WHERE review_status IN ('pending','reopened') AND origin<>'legacy_fixture_backfill' AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=candidate_items.source_id AND s.disabled=1)`).bind(now,RECHECK_POLICY).run();
  await store.db.prepare(`UPDATE news_pending_lifecycle SET next_recheck_at=? WHERE recheck_status<>'SOURCE_EXCLUDED' AND lease_until<=? AND assessed_revision>=0 AND assessed_revision<>(SELECT review_revision FROM candidate_items WHERE id=candidate_id)`).bind(now,now).run();
