@@ -107,3 +107,21 @@ test('new bass-amp parser upgrades a cached old failure and reaches formal READY
  await failedReceipt(c,'ikebe-product-fields-13');const r=await recover(c);assert(r.recovered);assert.deepEqual(r.validation.errors,[]);assert.equal((await reviewDetail(c.s,c.item.id,now,[c.a],pepper)).preparationState,'READY');
  const row=await c.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.item.id).first();assert.equal(row.review_status,'pending');assert(row.facts_provenance.includes(IKEBE_PRODUCT_PARSER));
 });
+test('real PJB printed identity and encoded publisher tag recover NULL old facts safely',async()=>{
+ const o={brand:'PJB（Phil Jones Bass）',models:['NANOBASS X4C'],tag:'amplifier',title:'PJB（Phil Jones Bass）のベースアンプNanobass X4Cに冬期限定カラーが登場！',lead:'数量限定の冬季限定カラーモデルが登場！',type:'大人気超コンパクトベースアンプNANOBASS X4のバッテリー駆動対応モデル「NANOBASS X4C」！'};
+ const encoded='https://www.ikebe-gakki-pb.com/new_product/tag/pjb%EF%BC%88phil-jones-bass%EF%BC%89/';
+ const document=id=>html(o,id).replace(/tag\/[^\"]+\//,encoded.split('/new_product/')[1]);
+ const parsed=parse(o,document(172640));assert.equal(parsed.productFacts.product,'NANOBASS X4C');assert.equal(parsed.productFacts.brand,'PJB(Phil Jones Bass)');assert.equal(parsed.productFacts.productType,'bass_amp');
+ const c=await prepare(o,173894);c.options.fetcher=async u=>new Response(u===c.a.robotsUrl?robot:document(173894),{headers:{'Content-Type':'text/html'}});
+ await failedReceipt(c,'ikebe-product-fields-14');assert.equal(c.before.product_facts,null);
+ const r=await recover(c);assert(r.recovered);assert.deepEqual(r.validation.errors,[]);const detail=await reviewDetail(c.s,c.item.id,now,[c.a],pepper);assert.equal(detail.preparationState,'READY');assert.match(detail.label,/限定/);
+ const updated=await c.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.item.id).first();assert.equal(updated.review_status,'pending');assert(updated.facts_provenance.includes(IKEBE_PRODUCT_PARSER));
+ const bad=document(172640).replace('>PJB（Phil Jones Bass）</a>','>Other Maker</a>');assert.throws(()=>parse(o,bad),/identity/);
+});
+test('encoded tag recognition never authorizes replacing a different saved model',async()=>{
+ const o={brand:'Craft（Craft Audio）',models:['MICROBASS X5C'],tag:'amplifier',title:'Craft（Craft Audio）のベースアンプMICROBASS X5Cに冬季限定カラーが登場！',lead:'数量限定の冬季限定カラーモデルが登場！',type:'MICROBASS X5Cはベースアンプです。'};
+ const c=await prepare(o,173896);c.options.fetcher=async u=>new Response(u===c.a.robotsUrl?robot:html(o,173896).replace(/tag\/[^\"]+\//,'tag/craft%EF%BC%88craft-audio%EF%BC%89/'),{headers:{'Content-Type':'text/html'}});
+ const old={brand:'Craft(Craft Audio)',product:'MICROBASS X5',category:'amps_effects',version:null,identifierBasis:'explicit_model_code'};
+ await c.s.db.prepare('UPDATE candidate_items SET product_facts=? WHERE id=?').bind(JSON.stringify(old),c.item.id).run();
+ const r=await recover(c);assert.equal(r.outcome,'facts_identity_changed');assert.equal(r.recovered,false);assert.equal((await c.s.db.prepare('SELECT product_facts FROM candidate_items WHERE id=?').bind(c.item.id).first()).product_facts,JSON.stringify(old));
+});

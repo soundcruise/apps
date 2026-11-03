@@ -1,3 +1,4 @@
+import {ikebeTagUrl} from './ikebe-tag-url.js';
 // Bounded series announcements: retain every explicit model, never truncate to four.
 // No brand/model catalogue, release-date inference or classification from category labels.
 import {parseDocument,DomUtils as D} from 'htmlparser2';
@@ -40,7 +41,7 @@ export function parseProductFamilyEvidence(html,source,row){
   const fields=heads.map(n=>text(n).trim().split('\n').map(v=>v.replace(/\s+/g,' ').trim()).filter(Boolean));
   if(fields.some(f=>f.length!==2||!name(f[0])||!name(f[1])))throw Error('facts_identity_changed');
   const printedBrand=fields[0][0];if(fields.some(f=>f[0]!==printedBrand))throw Error('facts_identity_changed');
-  const tags=find(headers[0],n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).map(plain);
+  const tags=find(headers[0],n=>n.name==='a'&&ikebeTagUrl(n.attribs.href)).map(plain);
   if(!tags.includes(printedBrand))throw Error('facts_identity_changed');
   // A separately printed parent tag may corroborate a regional manufacturer label.
   brand=tags.find(v=>name(v)&&new RegExp('^'+v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+' (?:USA|UK|Japan)$').test(printedBrand))||printedBrand;
