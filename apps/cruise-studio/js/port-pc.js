@@ -1,9 +1,11 @@
-/* Release 1.0 bootstrap. No Project repository, model, editor or Cloud client. */
+/* Studio bootstrap: Port services and preserved local creation workspaces. */
 (function(){
     'use strict';
     var CS=window.CruiseStudio;
-    CS.portPC=Object.freeze({version:'0.72.1'});
+    CS.portPC=Object.freeze({version:'0.73.0'});
+    CS.scoreWorkspace.prepare();
     CS.shellHost=CS.shell.init(CS);
+    CS.scoreWorkspace.attach();
     CS.audio=CS.audioCoordinator.createCoordinator();
     CS.tuner.attach({audio:CS.audio,shell:CS.shellHost});
     CS.portMetronome.attach({audio:CS.audio,shell:CS.shellHost});
@@ -14,8 +16,7 @@
         button.addEventListener('click',function(){CS.shellHost.navigate(button.dataset.homeWorkspace);});
     });
     document.querySelectorAll('[data-open-calendar]').forEach(function(button){button.addEventListener('click',function(){CS.portPractice.openCalendar();});});
-    // Only the registered Port workspaces are navigable. Unknown/future hashes
-    // remain Home, rather than loading modules or interpreting Project data.
+    // Only registered workspaces are navigable; Project Cloud Sync is not loaded.
     function route(){var id=location.hash.slice(1);if(id)CS.shellHost.navigate(id);}
     window.addEventListener('hashchange',route);
     var initialRoute=false,entryObserver=new MutationObserver(function(){if(!initialRoute&&CS.entryAuth?.isAuthorized()){initialRoute=true;route();}});

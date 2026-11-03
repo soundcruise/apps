@@ -1,4 +1,4 @@
-/* Static release artifact. Never publish the repository/development tree as 1.0. */
+/* Explicit Studio release artifact. Project Cloud and developer entries stay excluded. */
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -7,6 +7,53 @@ import {execFileSync} from 'node:child_process';
 const studio=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const RELEASE_FILES=Object.freeze([
  'index.html','entry.css','theme-projection.css','theme.css','shell.css','studio-home.css','studio-tools.css','port-tuner-surface.css','port-pc.css','assets/studio-icons.svg',
+ 'js/score-workspace.js',
+ 'melody-staff.css',
+ 'melody-editor.css',
+ 'chord-form.css',
+ 'rhythm-panel.css',
+ 'print.css',
+ 'vendor/vexflow.js',
+ 'vendor/LICENSE-vexflow.txt',
+ 'vendor/LICENSE-bravura-OFL.txt',
+ 'vendor/LICENSE-leland-OFL.txt',
+ 'vendor/LICENSE-petaluma-OFL.txt',
+ 'vendor/NOTICE.md',
+ 'js/core/music-theory.js',
+ 'js/core/rhythm-snapshot.js',
+ 'js/core/schema2.js',
+ 'js/core/melody-commands.js',
+ 'js/core/song-model.js',
+ 'js/core/storage.js',
+ 'js/core/editing-session.js',
+ 'js/core/project-repository.js',
+ 'js/core/active-document.js',
+ 'js/core/common-music-model.js',
+ 'js/core/structure-conversion.js',
+ 'js/core/melody-notation.js',
+ 'js/core/component-metadata.mjs',
+ 'js/modules/sheet-cruise/history-commands.js',
+ 'js/modules/sheet-cruise/melody-editor.js',
+ 'js/modules/sheet-cruise/melody-staff.js',
+ 'js/modules/sheet-cruise/operation-adapter.js',
+ 'js/modules/sheet-cruise/sheet-cruise.js',
+ 'js/modules/sheet-cruise/sheet-renderer.js',
+ 'js/modules/sheet-cruise/text-adapter.js',
+ 'js/modules/pre-dtm-cruise/arrangement-engine.js',
+ 'js/modules/pre-dtm-cruise/guitar-voicing.mjs',
+ 'js/modules/pre-dtm-cruise/midi-export.js',
+ 'js/modules/pre-dtm-cruise/pre-dtm.js',
+ 'js/modules/chord/form-adapter.mjs',
+ 'js/modules/chord/form-adoption.mjs',
+ 'js/modules/chord/form-panel.mjs',
+ 'js/modules/chord/form-snapshot.mjs',
+ 'js/modules/chord/inspector.js',
+ 'js/modules/chord/read-model.js',
+ 'js/modules/rhythm/official-pattern-adapter.mjs',
+ 'js/modules/rhythm/owner-loader.mjs',
+ 'js/modules/rhythm/panel-controller.mjs',
+ 'js/modules/rhythm/panel.mjs',
+ 'js/modules/rhythm/pattern-adoption.mjs',
  'js/core/color-theme.js','js/core/port-frame-theme.js','js/core/command-router.js','js/core/focus-routing.js','js/core/keyboard-router.js','js/core/modal-manager.js','js/core/workspace-scroll.js','js/core/app-refresh.js','js/core/native-port-presentation.js','js/core/audio-coordinator.js','js/core/studio-entry.mjs','js/core/port-pro-boundary.mjs',
  'js/shell.js','js/port-pc.js','js/port-sync-status.mjs','js/modules/practice/port-surface.js','js/modules/tuner/port-surface.js','js/modules/metronome/port-surface.js','js/modules/library/port-surface.js',
  'js/modules/series/workspaces.js','js/modules/series/internal-app.mjs','js/modules/series/official-links.mjs','js/modules/series/presentation.mjs','js/modules/series/presentation.css'
@@ -21,9 +68,9 @@ export function packagePortPC(output){
  }
  const version=fs.readFileSync(path.join(studio,'js/port-pc.js'),'utf8').match(/CS\.portPC=Object\.freeze\(\{version:'([^']+)'\}\)/)?.[1];
  if(!version)throw Error('studio-release-version-missing');
- const manifest={product:'Cruise Studio Port PC',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
+ const manifest={product:'Cruise Studio',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
   existingDeploymentDependencies:['apps/cruise-port/','apps/pitch-cruise/','apps/fretboard_cruise/','apps/rhythm-cruise/','apps/chord-cruise/','apps/shared/'],
-  excluded:['development.html','Project model/repository/editor','Pre-DTM','Project Sync and Cloud clients','Worker and migrations','native app releases/themes'],
+  excluded:['development.html','legacy app.js and developer UI','Project Sync and Cloud clients','Worker and migrations','native app releases/themes'],
   productionReady:false};
  fs.writeFileSync(path.join(out,'RELEASE-MANIFEST.json'),JSON.stringify(manifest,null,2)+'\n');return manifest;
 }

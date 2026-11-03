@@ -35,7 +35,7 @@
     function readProjectSource() {
         var res = projectSourceProvider ? projectSourceProvider() : { ok: false, error: '対象の曲を確認できません。' };
         if (!res.ok) return res;
-        try {return Object.assign({},res,{ok:true,project:freezeSnapshot(JSON.parse(JSON.stringify(res.project.schemaVersion===2?CS().model.schema2.readArrangementProjection(res.project):res.project)))});}
+        try {return Object.assign({},res,{ok:true,canonicalProject:res.project,project:freezeSnapshot(JSON.parse(JSON.stringify(res.project.schemaVersion===2?CS().model.schema2.readArrangementProjection(res.project):res.project)))});}
         catch(error){return {ok:false,code:'unsupported-legacy-rhythm',error:'採用リズムのPre-DTM出力は未対応です。Structureの内容は保持されています。'};}
     }
 
@@ -175,7 +175,7 @@
     }
 
     function regenerate() {
-        state.arrangement = CS().arrangement.generateArrangement(state.project, state.settings);
+        state.arrangement = CS().arrangement.generateArrangement(state.source?.canonicalProject || state.project, state.settings);
         if(!state.arrangement.ok){showEmptyState(state.arrangement.warnings.join(' / '));return;}
         renderAll();
     }
@@ -265,7 +265,7 @@
                 icon: '🎸', name: 'アコギ', on: s.parts.guitar, count: t.guitar,
                 desc: patternName(arr.GUITAR_PATTERNS, s.guitar.pattern) +
                     ' / アクセント: ' + patternName(arr.GUITAR_ACCENTS, s.guitar.accent),
-                midi: 'MIDI対象外（ボイシング対応後）'
+                midi: '確認済みフォームのみMIDI対象（ch2）'
             },
             {
                 icon: '🎚️', name: 'ベース', on: s.parts.bass, count: t.bass,
@@ -438,11 +438,12 @@
             settings: arr.settings,
             midiExportTargets: arr.meta.midiExportTargets,
             parts: {
-                guitar: { enabled: arr.settings.parts.guitar, events: arr.totals.guitar, midiExport: false },
+                guitar: { enabled: arr.settings.parts.guitar, events: arr.totals.guitar, midiExport: arr.meta.midiExportTargets.includes('guitar') },
                 bass: { enabled: arr.settings.parts.bass, events: arr.totals.bass, midiExport: true },
                 drums: { enabled: arr.settings.parts.drums, events: arr.totals.drums, midiExport: true }
             },
             generatedEvents: flat,
+            generatedGuitarNotes: arr.bars.flatMap(function(b){return b.guitarNotes || [];}),
             warnings: arr.warnings,
             generatedAt: arr.meta.generatedAt
         };

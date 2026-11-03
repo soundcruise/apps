@@ -267,7 +267,7 @@
                 renderLayout();
             });
         });
-        doc.getElementById('sc-chord-forms')?.addEventListener('click',function(){doc.getElementById('shell-inspector').click();});
+        doc.getElementById('sc-chord-forms')?.addEventListener('click',function(){var forms=doc.getElementById('score-form-inspector');forms.open=!forms.open;this.setAttribute('aria-expanded',String(forms.open));if(forms.open)forms.scrollIntoView({block:'nearest'});});
         doc.getElementById('shell-pane-close')?.addEventListener('click', function () { layout.closeRight(); renderLayout(); });
         doc.getElementById('shell-dock-toggle')?.addEventListener('click', function () { layout.toggleDock(); renderLayout(); });
         var ime = CS.keyboard.createIMEGuard(window.setTimeout.bind(window), window.clearTimeout.bind(window));

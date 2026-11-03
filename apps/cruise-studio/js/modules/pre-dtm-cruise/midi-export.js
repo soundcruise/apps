@@ -6,7 +6,7 @@
      Track 0: メタ（トラック名 / テンポ / 拍子）
      Track 1: ベース（ch1 / Electric Bass (finger)）
      Track 2: ドラム（ch10 / GMドラムマップ）
-   アコギはボイシング展開（コード→実音ノート）が未実装のため書き出し対象外。
+   Track 3 (optional): 確認済みフォームのギター（ch2）。
 
    inspectSmf() は生成バイト列の簡易パーサ（自己検証用）。
    グローバル名前空間 CruiseStudio.midi に登録する。 */
@@ -131,7 +131,7 @@
 
     /**
      * 伴奏生成結果（generateArrangementの戻り値）からSMF Type 1のバイト列を作る。
-     * 書き出し対象: ベース / ドラム（meta.midiExportTargets）。
+     * 書き出し対象: ベース / ドラム / 確認済みフォームのギター（meta.midiExportTargets）。
      * @returns {{ok: boolean, bytes: Uint8Array|null, stats: object, error: string|null}}
      */
     function buildMidiFile(arrangement) {
@@ -141,8 +141,9 @@
         var flat = CS_arrangementFlatten(arrangement);
         var bassNotes = flat.bass.filter(function (ev) { return typeof ev.midi === 'number'; });
         var drumNotes = flat.drums.filter(function (ev) { return typeof ev.midi === 'number'; });
-        if (bassNotes.length === 0 && drumNotes.length === 0) {
-            return { ok: false, bytes: null, stats: {}, error: 'MIDI書き出し対象（ベース/ドラム）のイベントがありません。パートON/OFFとコード入力を確認してください' };
+        var guitarNotes = (arrangement.bars || []).flatMap(function(b){return b.guitarNotes || [];});
+        if (bassNotes.length === 0 && drumNotes.length === 0 && guitarNotes.length === 0) {
+            return { ok: false, bytes: null, stats: {}, error: 'MIDI書き出し対象のイベントがありません。ギターは確認済みフォームが必要です。パートON/OFFとコード入力を確認してください' };
         }
 
         var division = (arrangement.meta && arrangement.meta.ticksPerBeat) || 480;
@@ -150,6 +151,7 @@
         if (bassNotes.length > 0) tracks.push(buildNoteTrack('Bass', BASS_CHANNEL, BASS_PROGRAM, bassNotes));
         if (drumNotes.length > 0) tracks.push(buildNoteTrack('Drums', DRUM_CHANNEL, null, drumNotes));
 
+        if (guitarNotes.length) tracks.push(buildNoteTrack('Guitar', 1, 24, guitarNotes));
         var bytes = [];
         pushStr(bytes, 'MThd');
         pushUint32(bytes, 6);
@@ -165,6 +167,7 @@
                 format: 1,
                 tracks: tracks.length,
                 division: division,
+                guitarNotes: guitarNotes.length,
                 bassNotes: bassNotes.length,
                 drumNotes: drumNotes.length,
                 byteLength: bytes.length
