@@ -1,0 +1,212 @@
+{
+  "old": {
+    "errors": [],
+    "widths": {
+      "390": {
+        "width": 351,
+        "height": 320,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "19px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      },
+      "768": {
+        "width": 271.015625,
+        "height": 320,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "19px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      },
+      "1024": {
+        "width": 380.5,
+        "height": 320,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "20.48px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      },
+      "1440": {
+        "width": 588.5,
+        "height": 390,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "25px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      }
+    },
+    "hover": {
+      "title": "hidden",
+      "description": "1"
+    },
+    "touchOpensSheet": true
+  },
+  "before": {
+    "errors": [],
+    "widths": {
+      "390": {
+        "width": 351,
+        "height": 150,
+        "border": "18px",
+        "padding": "24px",
+        "background": "rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(207, 189, 148, 0.16)",
+        "shadow": "none",
+        "textColor": "rgb(230, 210, 155)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "20px",
+        "weight": "700",
+        "art": false,
+        "overflow": false
+      },
+      "768": {
+        "width": 271.015625,
+        "height": 150,
+        "border": "18px",
+        "padding": "24px",
+        "background": "rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(207, 189, 148, 0.16)",
+        "shadow": "none",
+        "textColor": "rgb(230, 210, 155)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "20px",
+        "weight": "700",
+        "art": false,
+        "overflow": false
+      },
+      "1024": {
+        "width": 383.5,
+        "height": 150,
+        "border": "18px",
+        "padding": "24px",
+        "background": "rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(207, 189, 148, 0.16)",
+        "shadow": "none",
+        "textColor": "rgb(230, 210, 155)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "20px",
+        "weight": "700",
+        "art": false,
+        "overflow": false
+      },
+      "1440": {
+        "width": 591.5,
+        "height": 150,
+        "border": "18px",
+        "padding": "24px",
+        "background": "rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(207, 189, 148, 0.16)",
+        "shadow": "none",
+        "textColor": "rgb(230, 210, 155)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "20px",
+        "weight": "700",
+        "art": false,
+        "overflow": false
+      }
+    },
+    "hover": {
+      "title": "visible",
+      "description": "1"
+    },
+    "touchOpensSheet": true
+  },
+  "restored": {
+    "errors": [],
+    "widths": {
+      "390": {
+        "width": 351,
+        "height": 320,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "19px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      },
+      "768": {
+        "width": 271.015625,
+        "height": 320,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "19px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      },
+      "1024": {
+        "width": 380.5,
+        "height": 320,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "20.48px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      },
+      "1440": {
+        "width": 588.5,
+        "height": 390,
+        "border": "20px",
+        "padding": "0px",
+        "background": "linear-gradient(145deg, color(srgb 0.933333 0.917647 0.886275 / 0.02), rgba(0, 0, 0, 0) 70%) repeat scroll 0% 0% / auto padding-box border-box, rgb(29, 38, 49) none repeat scroll 0% 0% / auto padding-box border-box",
+        "borderColor": "rgba(255, 255, 255, 0.19)",
+        "shadow": "rgba(0, 0, 0, 0.25) 0px 18px 35px 0px",
+        "textColor": "rgb(238, 234, 226)",
+        "font": "Outfit, \"Hiragino Kaku Gothic ProN\", \"Hiragino Sans\", \"Yu Gothic\", sans-serif",
+        "size": "25px",
+        "weight": "500",
+        "art": true,
+        "overflow": false
+      }
+    },
+    "hover": {
+      "title": "hidden",
+      "description": "1"
+    },
+    "touchOpensSheet": true
+  }
+}
