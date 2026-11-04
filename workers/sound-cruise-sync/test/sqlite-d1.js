@@ -51,8 +51,12 @@ function statementWrapper(database, sql, values = []) {
   };
 }
 
-export function createSqliteD1() {
+export function createSqliteD1({ schemaMetadata = null } = {}) {
   const database = new DatabaseSync(':memory:');
+  if(schemaMetadata){
+    for(const type of ['table','view','index','trigger'])for(const row of schemaMetadata.schema.filter(r=>r.type===type))database.exec(row.sql);
+    for(const row of schemaMetadata.journal)database.prepare('INSERT INTO d1_migrations(id,name) VALUES(?,?)').run(row.id,row.name);
+  }else{
   database.exec(migration1);
   database.exec(migration2);
   database.exec(migration3);
@@ -90,6 +94,7 @@ export function createSqliteD1() {
   database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0035_add_transaction_fence.sql'), 'utf8'));
   database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0036_add_asset_deletion_reservations.sql'), 'utf8'));
   database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0037_bind_cutover_generations.sql'), 'utf8'));
+  }
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },

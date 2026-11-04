@@ -1,0 +1,10 @@
+import './studio-release-model-host.js';
+import '../../../apps/cruise-studio/js/core/music-theory.js';
+import '../../../apps/cruise-studio/js/core/song-model.js';
+import '../../../apps/chord-cruise/js/core/music-theory.js';
+import rhythmSnapshots from '../../../apps/cruise-studio/js/core/rhythm-snapshot.js';
+import schema2 from '../../../apps/cruise-studio/js/core/schema2.js';
+globalThis.window.CruiseStudio.rhythmSnapshots=rhythmSnapshots;
+const model=globalThis.window.CruiseStudio.model;
+globalThis.window.CruiseStudio.schema2=schema2;model.configureSchema2();
+export const validateStudioProject=project=>model.validateProject(project);

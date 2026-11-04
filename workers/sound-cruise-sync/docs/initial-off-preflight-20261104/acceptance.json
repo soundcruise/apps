@@ -1,0 +1,131 @@
+{
+  "scope": "read-only Production preflight and synthetic regular Account-change Asset reproduction",
+  "productionChanged": false,
+  "remoteDDL": false,
+  "realAccountActions": false,
+  "base189": {
+    "head": "2991992c3fae92f817e402a95b5ecf7736d21481",
+    "tree": "9cd2ea9880bbca98990547c055f3e2a8df09ba9d"
+  },
+  "main": "c862e590ead36f41e39574997bf34517120e51dd",
+  "portClientFixCommit": "f118eb91",
+  "versions": {
+    "publicPort": "1.26.1",
+    "publicStudio": "0.74.1",
+    "candidatePort": "1.26.2",
+    "candidateStudio": "0.76.0"
+  },
+  "production": {
+    "version": 138,
+    "versionId": "fb755ee6-e9dd-41f1-8e6e-e71b6b7ee054",
+    "deploymentId": "b17366fa-0ac6-4589-9d49-4c9563ecbcac",
+    "deployedAt": "2026-10-30T06:00:19.87217Z",
+    "weight": 100,
+    "artifact": {
+      "productionChanged": false,
+      "sourceCommit": "21d76600c5abcfd752a1564f7e8262815086c443",
+      "entry": "workers/sound-cruise-sync/src/studio-production-entry.js",
+      "bundleSha256": "de6b6fbd2f759fdc55a32662e10d224e11d876672405b604944270387cc19b15",
+      "rebuiltSha256": "90018b4fda57aeb2ec9e736bcf1a87f8eaf33d639b63bba631f7ac1eb949f3f9",
+      "byteIdenticalExceptSourceMapComment": true,
+      "sourceMapReference": "studio-production-entry.js.map"
+    },
+    "schema": {
+      "fingerprint": "fac6295ff89f2f6a2a754329baba3f1c2264b48670249def9d0ac7b8886843d1",
+      "tables": 43,
+      "indices": 59,
+      "journal": 33,
+      "rowsWritten": 0
+    },
+    "assetCounts": {
+      "total": 39,
+      "agedUnreferenced30days": 0,
+      "agedIncomplete24hours": 0,
+      "accountAbsent": 0
+    },
+    "cron": [
+      "15 3 * * *"
+    ],
+    "knownVarsEqual": true,
+    "liveOnlyVars": {
+      "STUDIO_RELEASE_ROUTE_ENABLED": "false"
+    },
+    "bindingsEqual": true,
+    "rateLimitersEqual": true,
+    "compatibilityDate": "2026-09-01",
+    "compatibilityFlags": [],
+    "usageModel": "standard",
+    "projectReadOnlySmoke": {
+      "http": 423,
+      "code": "studio_off"
+    },
+    "health": {
+      "http": 200,
+      "ok": true
+    },
+    "timeTravelBookmarkAvailable": true,
+    "backupContentsRead": false
+  },
+  "assetReproduction": {
+    "baselineFailure": "503 dataset_authority_unavailable",
+    "regularDetachJoin": true,
+    "automaticBPush": false,
+    "oldMetadataRetainedUntilExplicitConsent": true,
+    "explicitNativeConsent": true,
+    "afterFix": "synced",
+    "foreignAssetReferencesAccepted": false,
+    "oldAccountAssetsPreserved": 2,
+    "oldAccountOutboxPreserved": true,
+    "scope": "representative Gear source/final; same image-pair path covered for My Apps by Node; attachment cross-Account migration not newly implemented"
+  },
+  "tests": {
+    "product": {
+      "status": "PASS",
+      "pass": 52,
+      "pageErrors": 0
+    },
+    "recovery": {
+      "status": "PASS",
+      "pass": 12
+    },
+    "focusedNode": {
+      "pass": 107,
+      "fail": 0
+    },
+    "portAllNodeBeforeTwoFinalControllerTests": {
+      "pass": 1248,
+      "fail": 5,
+      "tests": 1253,
+      "sameFiveFailOnMain": true
+    },
+    "mainComparison": {
+      "pass": 27,
+      "fail": 5,
+      "tests": 32
+    },
+    "jekyll": {
+      "files": 81,
+      "releaseHashesEqual": true,
+      "nativeOutputFiles": 813,
+      "nativeBytesEqual": true
+    },
+    "wranglerOffDryRun": {
+      "pass": true,
+      "remoteOperations": 0,
+      "artifacts": [
+        {
+          "file": "studio-release-entry.js",
+          "sha256": "71240401121933ca04dd995e2b073199c3dd205ff5660c80101fb16e10eda4e3",
+          "bytes": 913666
+        }
+      ]
+    }
+  },
+  "initialOffDecision": "conditional: use this fixed candidate, release and verify Port 1.26.2 client patch before the stricter Worker; no deploy authorized/executed",
+  "holds": [
+    "schema0033 physical Asset cleanup remains HOLD",
+    "no Project DDL applied; Project Owner remains OFF",
+    "real Account acceptance not performed",
+    "missing local binary or unresolved old pending operation is preserved and requires review, never silently copied/replaced"
+  ]
+}

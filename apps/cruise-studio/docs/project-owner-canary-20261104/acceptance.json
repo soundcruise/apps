@@ -1,0 +1,150 @@
+{
+  "scope": "synthetic operator-only canary preparation",
+  "productionChanged": false,
+  "productionRequests": 0,
+  "realCredentialsUsed": false,
+  "main": "210c2ff08a80402d03811656697c1b7b6f51d1ff",
+  "base190": "2cfce456722c5f7c6a873ca10d67ec089b240821",
+  "studioCandidate": "0.76.1",
+  "entry": "src/studio-canary-entry.js",
+  "serverScope": "audited exact Account / Account Device / Project UUID targets; canary mode only",
+  "product": {
+    "pass": 23,
+    "fail": 0,
+    "exactProduction102ObjectsAnd33Journal": true,
+    "legacyArtifact": false,
+    "tests": [
+      {
+        "name": "normal Account detach/join retains A assets without automatic B send; explicit review uses native path",
+        "status": "PASS"
+      },
+      {
+        "name": "formal entry stays 423 OFF before trusted activation; ordinary Studio has no Cloud loader",
+        "status": "PASS"
+      },
+      {
+        "name": "current native Pro and Account entrance, without a second identity host",
+        "status": "PASS"
+      },
+      {
+        "name": "new schema2 from score UI stays local until first explicit Cloud save",
+        "status": "PASS"
+      },
+      {
+        "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+        "status": "PASS"
+      },
+      {
+        "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+        "status": "PASS"
+      },
+      {
+        "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+        "status": "PASS"
+      },
+      {
+        "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+        "status": "PASS"
+      },
+      {
+        "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "real CAS conflict uses explicit existing resolution, retaining local export and Outbox; UNKNOWN cannot be discarded",
+        "status": "PASS"
+      },
+      {
+        "name": "Cloud deletion retains local Project and original immutable operation receipt",
+        "status": "PASS"
+      },
+      {
+        "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+        "status": "PASS"
+      },
+      {
+        "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+        "status": "PASS"
+      },
+      {
+        "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+        "status": "PASS"
+      },
+      {
+        "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+        "status": "PASS"
+      },
+      {
+        "name": "isolated Project panel keeps five themes and four viewport widths",
+        "status": "PASS"
+      },
+      {
+        "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+        "status": "PASS"
+      },
+      {
+        "name": "canary score and PreDTM share unchanged local schema2 with JSON and MIDI exports",
+        "status": "PASS"
+      },
+      {
+        "name": "separate canary path retains all four native app Account/Pro hosts and page refresh",
+        "status": "PASS"
+      },
+      {
+        "name": "formal Session grant contains only approved dataset IDs; foreign Project read/write and catalogue leakage denied",
+        "status": "PASS"
+      },
+      {
+        "name": "Account erasure request remains a canary maintenance HOLD without changing local or Cloud documents",
+        "status": "PASS"
+      },
+      {
+        "name": "valid but unselected Account/Device and revoked Account/Device/Pro cannot use the canary",
+        "status": "PASS"
+      },
+      {
+        "name": "canary OFF denies subsequent Project writes and leaves immutable operations and local drafts intact",
+        "status": "PASS"
+      }
+    ],
+    "pageErrors": []
+  },
+  "node": {
+    "uniqueExecutedPass": 402,
+    "newFailures": 0,
+    "inheritedMainThemeFailures": [
+      "CSS artifact is exactly the verified projection, without Port variables",
+      "actual entry bootstrap runs before stylesheets with exactly the runtime resolver",
+      "four IDs, Dark default, frozen metadata agree with Port settings",
+      "theme-color agrees with Port runtime and both first-paint bootstraps"
+    ],
+    "conditionalNotExecuted": 4
+  },
+  "wrangler": {
+    "version": "4.131.1",
+    "dryRun": true,
+    "deployed": false,
+    "bundleSha256": "18fadb8216389acd4ff79ff2024e0a469c4c20405bf22e68748d1132d42941fb"
+  },
+  "distribution": {
+    "normalJekyllFiles": 81,
+    "separateCanaryFiles": 90,
+    "publicRootOverwritten": false,
+    "developmentExcluded": true
+  },
+  "unchanged": {
+    "mainNativePortAndFourAppsAndShared": true,
+    "RC4DDL": true,
+    "projectCodecBinding": true,
+    "projectSchema2": true,
+    "defaultOFFEntry": true,
+    "wranglerConfig": true
+  },
+  "holds": [
+    "real operator target IDs not selected",
+    "Production canary deployment / activation / frontend publication not approved or executed",
+    "v139 Scheduled Nov 5 2026 12:15 JST not yet accepted",
+    "native Account deletion leaving Project bodies is a general-release blocker; Owner erase held",
+    "Asset physical cleanup held"
+  ]
+}

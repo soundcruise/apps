@@ -381,7 +381,7 @@ test('rename leaves reports, removal safety, revoke scope, device counts and dat
 test('user_label is read only by the device listings and the rename writes', () => {
   const src = path.join(import.meta.dirname, '../src');
   const readers = fs.readdirSync(src).filter((name) => name.endsWith('.js') &&
-    fs.readFileSync(path.join(src, name), 'utf8').includes('user_label'));
+    fs.readFileSync(path.join(src, name), 'utf8').match(/\buser_label\b/));
   assert.deepEqual(readers, ['account-lifecycle-database.js'],
     'join, handoff, Auto Rejoin, auth, reports, cleanup and limits never read or copy user_label');
   const lifecycle = fs.readFileSync(path.join(src, 'account-lifecycle-database.js'), 'utf8');

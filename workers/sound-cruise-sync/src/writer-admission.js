@@ -9,6 +9,18 @@ export async function admitWriter(db, identity, input, authority, options = {}) 
   if (!parsed.ok) return { error: parsed.code, status: parsed.status };
   if (!identity?.deviceId || !identity?.userId || !identity?.appId)
     return { error: 'invalid_credential', status: 401 };
+  // #145's schema0033 compatibility branch, retaining the existing final fence.
+  // No synthetic NULL authority fields and no permission inferred from schema alone.
+  const schema = await db.prepare("SELECT count(*) n FROM sqlite_master WHERE type='table' AND name IN ('sync_authority_cutovers','sync_writer_fence_assertion')").first();
+  if (Number(schema?.n) === 0) {
+    if (Object.keys(parsed.value).length || options.policy) return {error:'writer_protocol_unsupported',status:409};
+    const admission = Object.freeze({ schema33:true, fields:parsed.value, identity:Object.freeze({...identity}),
+      authority:authority&&Object.freeze({...authority}), deviceVerifier:options.deviceVerifier,
+      proCredentialId:options.proCredentialId, proVerifier:options.proVerifier, proGeneration:options.proGeneration });
+    if (!options.defer) await checkFence(db,admission);
+    return admission;
+  }
+  if (Number(schema?.n) !== 2) return {error:'dataset_authority_unavailable',status:503};
   // Existing standalone apps retain their existing admission contract.
   let metadata = null;
   if (authority) {
@@ -48,6 +60,12 @@ export function writerMutationDatabase(db, admission, constraints = {}) {
   if (!admission) return db;
   const batch = async statements => {
     const port = admission.identity.appId === 'port';
+    if (admission.schema33) {
+      const q=fenceQuery(admission,constraints);
+      const guard=()=>db.prepare(`SELECT CASE WHEN (SELECT code FROM (${q.sql}))='ok' THEN 1 ELSE json_extract('credential_changed','$.abort') END`).bind(...q.values);
+      try {const results=await db.batch([guard(),...statements,guard()]);return results.slice(1,-1);}
+      catch(error){await checkFence(db,admission,constraints);throw error;}
+    }
     const q = port && fenceQuery(admission, constraints);
     const guard = port ? db.prepare(`INSERT INTO sync_writer_fence_assertion(code) ${q.sql}`).bind(...q.values)
       : writerObservation(db, admission);

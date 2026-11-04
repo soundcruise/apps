@@ -1,0 +1,11 @@
+{
+  "type": "studio-release-offline-plan-v1",
+  "migrationId": "studio_0001_rc4",
+  "ddlHash": "9fe8c42228f08df58c165d616780a252b45d7b58590ead1c70e394f6f3de00a9",
+  "baseFingerprint": "fac6295ff89f2f6a2a754329baba3f1c2264b48670249def9d0ac7b8886843d1",
+  "sqlSha256": "2f65ddf9a5b6a564049d7370b4162e3d61b659e90720cc3aa4e30ed87da50017",
+  "statements": 88,
+  "initialEnabled": 0,
+  "sharedJournalChanged": false,
+  "remoteOperations": 0
+}

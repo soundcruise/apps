@@ -1,0 +1,166 @@
+{
+  "scope": "final canary integration only; no Production changes",
+  "studioCandidate": "0.76.1",
+  "workerPackage": "0.1.1",
+  "productionModified": false,
+  "realCredentialsUsed": false,
+  "product": {
+    "pass": 25,
+    "fail": 0,
+    "exactCapturedProduction102StructuresAndJournal33": true,
+    "actualCanaryEntryScheduled": true,
+    "pageErrors": [],
+    "tests": [
+      {
+        "name": "normal Account detach/join retains A assets without automatic B send; explicit review uses native path",
+        "status": "PASS"
+      },
+      {
+        "name": "formal entry stays 423 OFF before trusted activation; ordinary Studio has no Cloud loader",
+        "status": "PASS"
+      },
+      {
+        "name": "current native Pro and Account entrance, without a second identity host",
+        "status": "PASS"
+      },
+      {
+        "name": "new schema2 from score UI stays local until first explicit Cloud save",
+        "status": "PASS"
+      },
+      {
+        "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+        "status": "PASS"
+      },
+      {
+        "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+        "status": "PASS"
+      },
+      {
+        "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+        "status": "PASS"
+      },
+      {
+        "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+        "status": "PASS"
+      },
+      {
+        "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+        "status": "PASS"
+      },
+      {
+        "name": "real CAS conflict uses explicit existing resolution, retaining local export and Outbox; UNKNOWN cannot be discarded",
+        "status": "PASS"
+      },
+      {
+        "name": "Cloud deletion retains local Project and original immutable operation receipt",
+        "status": "PASS"
+      },
+      {
+        "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+        "status": "PASS"
+      },
+      {
+        "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+        "status": "PASS"
+      },
+      {
+        "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+        "status": "PASS"
+      },
+      {
+        "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+        "status": "PASS"
+      },
+      {
+        "name": "isolated Project panel keeps five themes and four viewport widths",
+        "status": "PASS"
+      },
+      {
+        "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+        "status": "PASS"
+      },
+      {
+        "name": "canary score and PreDTM share unchanged local schema2 with JSON and MIDI exports",
+        "status": "PASS"
+      },
+      {
+        "name": "separate canary path retains all four native app Account/Pro hosts and page refresh",
+        "status": "PASS"
+      },
+      {
+        "name": "formal Session grant contains only approved dataset IDs; foreign Project read/write and catalogue leakage denied",
+        "status": "PASS"
+      },
+      {
+        "name": "Account erasure request remains a canary maintenance HOLD without changing local or Cloud documents",
+        "status": "PASS"
+      },
+      {
+        "name": "valid but unselected Account/Device and revoked Account/Device/Pro cannot use the canary",
+        "status": "PASS"
+      },
+      {
+        "name": "canary OFF denies subsequent Project writes and leaves immutable operations and local drafts intact",
+        "status": "PASS"
+      },
+      {
+        "name": "integrated canary grace and native cancellation retain Project payload and local Outbox; native deleting Account cannot write",
+        "status": "PASS"
+      },
+      {
+        "name": "actual activated entry Scheduled purges the mature Account and its Project payload atomically, retaining peer/shared data and local evidence",
+        "status": "PASS"
+      }
+    ]
+  },
+  "node": {
+    "uniquePass": 72,
+    "workerPass": 43,
+    "studioPass": 29,
+    "conditionalNotRun": 4,
+    "newFailures": 0,
+    "priorMainTheme4FailuresEvidenceReused": true
+  },
+  "distribution": {
+    "candidateNormalFiles": 81,
+    "nativeOutput813ByteIdentical": true,
+    "canaryFiles": 90,
+    "canaryHashesExactly192": true,
+    "publicMain0741PlusCanaryOnlyRehearsal": {
+      "normalStudioVersion": "0.74.1",
+      "canaryVersion": "0.76.1",
+      "canaryHashCount": 90,
+      "checks": {
+        "/apps/cruise-studio/": 200,
+        "/apps/cruise-studio-canary/project-canary.html": 200,
+        "/apps/cruise-studio-canary/js/cloud/canary-entry.mjs": 200,
+        "/apps/cruise-studio/js/cloud/canary-entry.mjs": 404,
+        "/apps/cruise-studio/development.html": 404,
+        "/apps/cruise-studio/js/app.js": 404,
+        "/apps/cruise-studio/port-tool.html": 404,
+        "/apps/cruise-studio-canary/development.html": 404,
+        "/workers/sound-cruise-sync/src/studio-canary-entry.js": 404
+      }
+    }
+  },
+  "workerDryRun": {
+    "entry": "src/studio-canary-entry.js",
+    "keepVars": true,
+    "deployed": false,
+    "bundleSha256": "47d558eba4b3f786185a724a4ae9e2cc122b0eaea9505bb62697c18cf51261c9"
+  },
+  "scheduledProduction": {
+    "scheduledAtJST": "2026-11-05 12:15",
+    "observedAtJST": "2026-11-05 06:50",
+    "state": "NOT_YET_SCHEDULED_NOT_ACCEPTED",
+    "productionInvokedByThisWork": false
+  },
+  "remainingAcceptance": [
+    "operator target IDs selection",
+    "separate approval for Worker deploy / activation / canary frontend publication",
+    "real operator two-device Project acceptance",
+    "Production Scheduled result",
+    "Asset physical cleanup HOLD unchanged"
+  ],
+  "featureDevelopment": "complete for canary; no new feature work proposed"
+}

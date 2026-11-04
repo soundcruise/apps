@@ -1,0 +1,36 @@
+{
+  "fixed192": {
+    "head": "fe8fae374e819048ec224f866da150fb0d920809",
+    "tree": "c4d7337ea23d8728422e26d3b0b1f0f898deb09a"
+  },
+  "fixed193": {
+    "head": "e22b96be5ff27617ce731a3ff384993eab6511da",
+    "tree": "74ec4dd239fd84524580d830335e678dac91e70c"
+  },
+  "main": "210c2ff08a80402d03811656697c1b7b6f51d1ff",
+  "bothFixedCommitsAndMainAncestors": true,
+  "canaryProductFilesExactly192": [
+    "workers/sound-cruise-sync/src/studio-canary-entry.js",
+    "workers/sound-cruise-sync/src/studio-release-worker.js",
+    "workers/sound-cruise-sync/src/studio-activation.js",
+    "workers/sound-cruise-sync/src/studio-owner-document.js",
+    "apps/cruise-studio/js/cloud/studio-session-adapter.mjs",
+    "apps/cruise-studio/js/cloud/studio-sync-client.mjs",
+    "apps/cruise-studio/js/cloud/document-codec.mjs",
+    "apps/cruise-studio/js/cloud/project-sync-host.mjs",
+    "apps/cruise-studio/js/core/schema2.js",
+    "apps/cruise-studio/js/core/project-repository.js"
+  ],
+  "retentionOwnerMethodsExactly192": true,
+  "purgeHelperAndIntentCompletionExactly193": true,
+  "scheduledAndPackageExactly193": true,
+  "nativeTreesExactlyPublicMain": {
+    "cruise-port": "76ad721ecbe5d35657ec63ea4f773dc61c154178",
+    "pitch-cruise": "e9589ab770185d4178683a34cf7f2e7728d115d6",
+    "fretboard_cruise": "f8f6601ef29c77b2b5b44fdebd7acc5b7ca0b646",
+    "rhythm-cruise": "3316bfc887948caea89b535761f7679adca34ade",
+    "chord-cruise": "27e2da25bbc54941bb8e22d1bd0ed372eb9acb4e",
+    "shared": "594e74d2e3b44b2dcc5beb654039290045662bb2"
+  },
+  "extraProductCodeChangesAfterMerge": 0
+}

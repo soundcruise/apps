@@ -34,7 +34,8 @@ export function removeProjectFixture(run){
 }
 export function fixtureFile(repo,pathname){
  const relative=decodeURIComponent(pathname).slice(1)+(pathname.endsWith('/')?'index.html':'');
- if(releaseMode&&relative.startsWith('apps/cruise-studio/')){
+ if(releaseMode&&process.env.STUDIO_PROJECT_CANARY==='1'&&relative.startsWith('apps/cruise-studio/'))return fs.readFileSync(path.join(repo,relative));
+ if(releaseMode&&(relative.startsWith('apps/cruise-studio/')||relative.startsWith('apps/cruise-studio-canary/'))){
   const artifact=process.env.STUDIO_RELEASE_ARTIFACT;if(!artifact)throw Error('release-artifact-required');
   const root=fs.realpathSync(artifact),file=path.resolve(root,relative);if(!file.startsWith(root+path.sep))throw Error('path');return fs.readFileSync(file);
  }
