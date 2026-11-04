@@ -4,6 +4,41 @@
   const accountRoot = global.SoundCruiseSyncAccount;
   const syncUi = global.SoundCruiseSyncUI;
   const RETIRED_LEGACY_BRIDGE_META = 'retiredLegacyAccountBridge';
+  let attentionRevision=0,attentionModule;
+  const attentionUI=()=>attentionModule||(attentionModule=import('../../../cruise-port/sync-attention-ui.mjs?v=1.26.0'));
+  let attentionOpenFlight=null;
+  function openNativeAttention(){if(!attentionOpenFlight)attentionOpenFlight=performAttentionOpen().finally(()=>{attentionOpenFlight=null;});return attentionOpenFlight;}
+  async function performAttentionOpen(){
+    const ui=await attentionUI(),host=global.SoundCruiseNativeSyncHost;
+    if(host?.storeOptions?.signal.aborted)return ui.managementOpen(global,'chord');
+    const shown=document.querySelector('[data-sync-merge-preview]');if(shown?.getClientRects().length){shown.querySelector('input,button')?.focus();return true;}
+    if(global.SoundCruiseNativeSyncHost?.failure||document.querySelector('[data-sync-settings-state=unconnected]'))return ui.managementOpen(global,'chord');
+    const client=global.ChordCruiseSync?.pilotClient;
+    if(client)try{const store=await client.openStore(),conflicts=await store.listConflicts(),state=await store.getMeta('syncState');
+      if(await store.getMeta('pendingRecovery')||await store.getMeta('pendingAccountDelete'))return ui.managementOpen(global,'chord');
+      const sessionId=await store.getMeta('activeMergeSessionId'),session=sessionId?await store.getMergeSession(sessionId):null;
+      // A native merge already applying the user's choice must finish unchanged.
+      if(['applying_local','pushing','verifying'].includes(session?.stage))return false;
+      if(conflicts.length||state==='paired_pending'){ui.managementOpen(global,'chord');await global.ChordCruiseSyncPilot.ensureManagementUi();return global.ChordCruiseSync.pairingUi.openAttention();}
+    }catch(_){}
+    return ui.managementOpen(global,'chord');
+  }
+  global.SoundCruiseSyncAttention={open:openNativeAttention};
+  async function attentionPresentation(options,revision){
+    const ui=await attentionUI();if(revision!==attentionRevision)return;
+    const requested=ui.takeAttentionRequest(global)||global.parent?.CruiseStudio?.seriesApps?.chord?.reviewRequested;
+    if(global.parent?.CruiseStudio?.seriesApps?.chord)global.parent.CruiseStudio.seriesApps.chord.reviewRequested=false;
+    global.SoundCruiseSyncAttention={open:openNativeAttention};
+    if(options.state!=='attention'&&!options.resolutionKind){if(requested)await openNativeAttention();return;}
+    const client=global.ChordCruiseSync?.pilotClient;let conflicts=[],session=null,pending=false;
+    try{const s=await client.openStore();conflicts=await s.listConflicts();const id=await s.getMeta('activeMergeSessionId');session=id?await s.getMergeSession(id):null;pending=!!(await s.getMeta('pendingRecovery'))||!!(await s.getMeta('pendingAccountDelete'));}catch(_){}
+    const a=await accountRoot.storage.getAccount();if(revision!==attentionRevision)return;
+    ui.bindNativeAttention(global,document.querySelector('[data-sync-join-entry-host]'),{appId:'chord',
+      key:ui.attentionKey(a?.accountId,'chord',conflicts.length?'conflict':session?.stage==='awaiting_confirmation'?'merge':options.resolutionKind||global.SoundCruiseNativeSyncHost?.failure?.code||options.status,conflicts,session),open:openNativeAttention,
+      automatic:!['applying_local','pushing','verifying'].includes(session?.stage)&&(conflicts.length>0||session?.stage==='awaiting_confirmation'||pending||!!options.resolutionKind||!!global.SoundCruiseNativeSyncHost?.failure),
+      current:()=>revision===attentionRevision});
+    if(requested)await openNativeAttention();
+  }
   let handoffToken = null;
   try { handoffToken = accountRoot?.core?.takeHandoffFromLocation() || null; }
   catch (_) { handoffToken = null; }
@@ -54,7 +89,8 @@
     const chordClient = global.ChordCruiseSync?.pilotClient;
     const host = global.SoundCruiseNativeSyncHost;
     if (host && (!ready?.enabled || ready.ready === false)) {
-      syncUi?.renderCard(document.querySelector('[data-sync-join-entry-host]'), { state: 'attention', statusLabel: '確認が必要', description: host.message(host.failure), primaryAction: {label: 'もう一度確認', run: () => host.retry()} });
+      const action=document.createElement('button');action.textContent='もう一度確認';action.onclick=()=>host.retry();
+      renderJoinSettings({state:'attention',status:'確認が必要',description:host.message(host.failure),action});
       return;
     }
     if (!ready?.enabled || !chordClient) return;
@@ -110,6 +146,8 @@
     }
 
     function renderJoinSettings(options) {
+      const revision=++attentionRevision;
+      Promise.resolve().then(()=>attentionPresentation(options,revision)).catch(()=>{});
       global.SoundCruiseNativeSyncHost?.present({state: options.state, status: options.status});
       var host = document.querySelector('[data-sync-join-entry-host]');
       if (!host) return false;
@@ -488,6 +526,7 @@
       });
       renderJoinSettings({
         state: 'unconnected',
+        resolutionKind:options?.terminal===true?'credential':null,
         status: '未接続',
         description: options?.terminal === true
           ? '以前のクラウド同期は利用できません。Cruise Portから接続し直してください。'

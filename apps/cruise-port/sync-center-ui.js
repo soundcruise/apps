@@ -1,3 +1,4 @@
+import { getAttentionGuide } from './sync-attention-ui.mjs?v=1.26.0';
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
@@ -215,7 +216,7 @@ export function markAppRowsChecking(root) {
 }
 
 export function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction = null,
-    { onRecheck = null, aiSupport = false } = {}) {
+    { onRecheck = null, aiSupport = false, onResolveApp = null } = {}) {
     const list = root.querySelector('#sync-center-apps');
     if (!list) return;
     list.removeAttribute('aria-busy');
@@ -307,12 +308,40 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
             action.removeAttribute('href');
             action.setAttribute('aria-disabled', 'true');
         }
+        if (presentationStatus.state === 'attention' || presentationStatus.state === 'recheck') {
+            const review = document.createElement('button');review.type='button';review.className='sync-center-app-action secondary';
+            review.textContent='解決方法を確認';review.dataset.syncResolveApp=app.id;review.dataset.syncAriaBase=app.name+'の解決方法を確認';review.setAttribute('aria-label',review.dataset.syncAriaBase+'（'+visibleStatus+'）');
+            review.addEventListener('click',()=>{void onResolveApp?.(app);});actions.append(review);
+        }
         actions.append(action);
         row.append(image, copy, actions);
         if (infoPanel) row.append(infoPanel);
         return row;
     });
     list.replaceChildren(...rows);
+}
+
+
+// Count each app's authoritative summary once; device reports describe the same items.
+export function syncAttentionItems(presentation) {
+    if(presentation.kind!=='ready'||presentation.accountState!=='active')return [];
+    const apps=(presentation.apps||[]).filter(a=>appSyncStatusPresentation(a).state==='attention').map(a=>({id:a.id,
+        count:Math.max(1,a.attentionCount||0),key:JSON.stringify([a.id,a.status,a.removalSafety,a.attentionCount,
+            (a.environments||[]).filter(e=>['attention','error'].includes(e.lastReport?.state)).map(e=>[e.id,e.lastReport.state,e.lastReport.attentionCount])]),app:a}));
+    if(presentation.portStatus?.state==='attention')apps.unshift({id:'port',count:Math.max(1,presentation.portConflictCount||0),
+        key:JSON.stringify(['port',presentation.portStatus.state,presentation.portConflictCount,presentation.portStatus.detail]),port:true});
+    return apps;
+}
+function renderAttentionGuidance(root,presentation,{onResolveApp,onResolvePort}) {
+    let overall=root.querySelector('#sync-center-overall-status');
+    if(!overall){overall=document.createElement('span');overall.id='sync-center-overall-status';overall.className='sync-center-app-status-chip';overall.setAttribute('role','status');
+        root.querySelector('.sync-center-account-status-row')?.append(overall);}
+    const issues=syncAttentionItems(presentation),count=issues.reduce((n,i)=>n+i.count,0);
+    if(overall){overall.hidden=presentation.kind!=='ready';overall.textContent=count?'要確認'+count+'件':'同期の確認事項なし';overall.dataset.syncOverallCount=String(count);}
+    const guide=getAttentionGuide();
+    for(const i of issues){const open=i.port?()=>onResolvePort?.({automatic:true,runtimeActive:presentation.portRuntimeActive}):typeof onResolveApp==='function'?()=>onResolveApp(i.app):null;if(typeof open!=='function')continue;
+        void guide.open({key:JSON.stringify([presentation.accountDisplayId||presentation.accountState,i.key]),open,
+            canOpen:()=>!root.closest('[hidden]')&&!document.querySelector('dialog[open]')},true).catch(()=>{});}
 }
 
 // 「Pixel」（コードクルーズ・EDAE） / 登録名「Chord Cruise」（コードクルーズ・B91C） / 同期先 B91C（コードクルーズ）
@@ -658,7 +687,7 @@ function confirmDeleteCancellation(root, appName) {
 }
 
 export function renderSyncCenter(root, presentation, {
-    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false
+    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false, onResolveApp = null, onResolvePort = null
 } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
@@ -707,10 +736,11 @@ export function renderSyncCenter(root, presentation, {
             ? 'オフラインのため同期情報を更新できません。各アプリとCruise Portはそのまま利用できます。'
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
-    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onRecheck, aiSupport });
+    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onRecheck, aiSupport, onResolveApp });
     renderPortStatus(root, presentation, onRecheck);
     renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
     renderDangerActions(root, presentation);
+    renderAttentionGuidance(root, presentation, {onResolveApp,onResolvePort});
 }
 
 function bindSectionHelp(root) {
@@ -1433,7 +1463,19 @@ export function bindSyncCenterActions(root, {
             lifecycleConfirm.disabled = false;
         }
     });
-    return Object.freeze({ ensureQaAdmission, onAppAction: issueAppJoin });
+    async function resolveApp(app) {
+        // Summary reports are not live local conflicts. The native app checks its
+        // own store before opening merge UI; otherwise it opens existing management.
+        if(globalThis.CruisePortSyncAttentionHost?.open)return globalThis.CruisePortSyncAttentionHost.open(app.id);
+        const url=new URL(resolveCruiseAppHref(app.id,'pro'),location.origin);url.searchParams.set('sync-review','1');
+        if(orchestrator?.qaAdmissionRequired)url.searchParams.set('sound-cruise-qa','1');
+        location.assign(url.href);
+    }
+    return Object.freeze({ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp, resolvePort: ({automatic=false,runtimeActive=false} = {}) => {
+        const conflict=root.querySelector('#sync-center-port-conflicts-open');
+        if(conflict&&!conflict.hidden&&(!automatic||runtimeActive))return onPortConflictOpen();
+        root.querySelector('#port-sync-activate:not([hidden]), #sync-center-account-recheck:not([hidden])')?.focus();
+    } });
 }
 
 export const bindSyncCenterUnavailableActions = bindSyncCenterActions;

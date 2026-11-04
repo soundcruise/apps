@@ -446,7 +446,7 @@ try{
   await B.page.locator('[data-refresh-series-app='+id+']').click();
   await B.page.waitForFunction(id=>document.querySelector('#series-'+id+'-surface iframe')!==refreshOld,id);
   currentApp=await(await B.page.locator('#series-'+id+'-surface iframe').elementHandle()).contentFrame();
-  if(id!=='fretboard'||!await currentApp.locator('#tempo-slider').isVisible())await currentApp.locator({pitch:'#home-settings-btn',fretboard:'#btn-settings-home',rhythm:'#settings-btn',chord:'#cc-settings-btn'}[id]).click();
+  if(id!=='fretboard'||!await currentApp.locator('#tempo-slider').isVisible())if(!await currentApp.locator('[data-sync-settings-state]').isVisible())await currentApp.locator({pitch:'#home-settings-btn',fretboard:'#btn-settings-home',rhythm:'#settings-btn',chord:'#cc-settings-btn'}[id]).evaluate(e=>e.click());
   await currentApp.locator('[data-sync-join-entry-host] [data-sync-settings-state=ready]').waitFor({state:'attached'});
   assert.equal(await appValue(currentApp,id),firstValue);
   const afterCredential=await currentApp.evaluate(async id=>id==='chord'?(await(await ChordCruiseSync.pilotClient.openStore()).getMeta('deviceCredential')).credential:await SoundCruiseMultiAppSync.runtimes[id].store.readMeta('credential'),id);
@@ -468,9 +468,12 @@ try{
   await syncApp(source,id);offlineLabels.add(A.label);await A.context.setOffline(true);await editApp(source,id,true);await syncApp(source,id).catch(()=>{});
   await editApp(currentApp,id,2);const thirdValue=await appValue(currentApp,id);await cloudAppValue(id,thirdValue);await syncApp(currentApp,id);
   offlineLabels.delete(A.label);await A.context.setOffline(false);await syncApp(source,id).catch(()=>{});
+  result.appSync[id].attentionUI=await(await import('./sync-attention.acceptance.mjs')).acceptNativeAttention({source,id,page:appSource,output:OUT});
   if(id==='chord'){
+   if(!await source.locator('[data-sync-merge-preview]').isVisible()){
    if(!await source.getByRole('button',{name:'内容を確認',exact:true}).isVisible())await source.locator('[data-sync-join-entry-host] .sound-cruise-sync-settings-chevron').click();
    await source.getByRole('button',{name:'内容を確認',exact:true}).click();
+   }
    await source.locator('input[type=radio][value=remote]').first().waitFor();
    for(const radio of await source.locator('input[type=radio][value=remote]').all())await radio.check();
    await appSource.screenshot({path:OUT+'/'+id+'-native-conflict.png'});await source.getByRole('button',{name:'選択内容で統合',exact:true}).click();
@@ -488,6 +491,16 @@ try{
   }
   await source.waitForFunction(id=>id==='chord'?JSON.parse(localStorage.getItem('chordCruise.settings')).fretboardDisplayMode==='finger':id==='pitch'?JSON.parse(localStorage.getItem('pitchTrainerSettings')).instrument==='electric_guitar':id==='fretboard'?JSON.parse(localStorage.getItem('fretboard_cruise_state')).settings.tempo===169:JSON.parse(localStorage.getItem('rhythmCruiseSettings')).judgePreset==='veryStrict',id);
   await syncApp(source,id);assert.equal((await appStoreState(source,id)).conflicts.length,0);await syncApp(currentApp,id);result.appSync[id].nativeConflictResolved=true;
+  if(id==='chord'){
+   // A genuinely new conflict on this same native owner must notify again,
+   // even though the previous issue had the same count and was dismissed.
+   offlineLabels.add(A.label);await A.context.setOffline(true);await editApp(source,id,false);await syncApp(source,id).catch(()=>{});
+   await editApp(currentApp,id,true);await syncApp(currentApp,id);offlineLabels.delete(A.label);await A.context.setOffline(false);await syncApp(source,id).catch(()=>{});
+   result.appSync[id].newAttentionUI=await(await import('./sync-attention.acceptance.mjs')).acceptNativeAttention({source,id,page:appSource,output:OUT});
+   for(const radio of await source.locator('[data-sync-merge-preview] input[value=remote]').all())await radio.check();await source.getByRole('button',{name:'選択内容で統合',exact:true}).click();
+   await source.getByText('この端末とクラウドのデータ統合が完了しました。',{exact:true}).waitFor();await syncApp(source,id);assert.equal((await appStoreState(source,id)).conflicts.length,0);await syncApp(currentApp,id);
+  }
+
   // The actual native offline save must create its own pending operation; no
   // invented Owner key or manually relabelled operation is used in this fixture.
   offlineLabels.add(B.label);await B.context.setOffline(true);
@@ -497,15 +510,16 @@ try{
   await B.page.evaluate(()=>{for(const f of document.querySelectorAll('.studio-series-frame'))f.contentWindow.studioAppDirty=false;});await B.page.reload();
   await B.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());await B.page.locator('#screen-home [data-studio-cruise-app='+id+']').click();
   currentApp=await(await B.page.locator('#series-'+id+'-surface iframe').elementHandle()).contentFrame();
-  await currentApp.locator({pitch:'#home-settings-btn',fretboard:'#btn-settings-home',rhythm:'#settings-btn',chord:'#cc-settings-btn'}[id]).click();
+  if(!await currentApp.locator('[data-sync-settings-state]').isVisible())await currentApp.locator({pitch:'#home-settings-btn',fretboard:'#btn-settings-home',rhythm:'#settings-btn',chord:'#cc-settings-btn'}[id]).evaluate(e=>e.click());
   await currentApp.locator('[data-sync-join-entry-host]').filter({hasText:'別Account'}).waitFor({state:'attached'});
+  await currentApp.locator('[data-sync-attention-open]').waitFor({state:'attached'});assert.equal(await currentApp.locator(id==='chord'?'[data-sync-merge-preview]':'[data-sync-conflict-resolution]').isVisible(),false,'qualification failure opens native management, never a merge decision');
   assert.equal(await appValue(currentApp,id),retainedValue);assert.deepEqual(await appStoreState(currentApp,id),retained);
   assert(!network.slice(mark).some(n=>n.label===B.label&&n.path.startsWith('/v1/sync/')),'old app operations must not be sent under the new Account');result.appSync[id].foreignAccountPreserved=true;
   await B.page.evaluate(a=>SoundCruiseSyncAccount.storage.setAccount(a),originalAccount);await B.page.evaluate(()=>{for(const f of document.querySelectorAll('.studio-series-frame'))f.contentWindow.studioAppDirty=false;});await B.page.reload();
   currentApp=await openNativeApp(B.page,id);await cloudAppValue(id,retainedValue);await syncApp(currentApp,id);assert.equal((await appStoreState(currentApp,id)).outbox.length,0);result.appSync[id].offlineAndOriginalAccountResume=true;
   // Revoke the native AppDevice in the disposable Worker. Preserve its local
   // edit and native pending operation even when the real backend rejects it.
-  offlineLabels.add(A.label);await A.context.setOffline(true);await editApp(source,id,true);await syncApp(source,id).catch(()=>{});
+  offlineLabels.add(A.label);await A.context.setOffline(true);await editApp(source,id,id==='chord'?2:true);await syncApp(source,id).catch(()=>{});
   const pendingBefore=await appStoreState(source,id),sourceValue=await appValue(source,id);assert(pendingBefore.outbox.length);
   const credential=await source.evaluate(async id=>id==='chord'?(await(await ChordCruiseSync.pilotClient.openStore()).getMeta('deviceCredential')).credential:await SoundCruiseMultiAppSync.runtimes[id].store.readMeta('credential'),id);
   await db.prepare('UPDATE sync_devices SET revoked_at=? WHERE id=?').bind(Date.now(),credential.split('.')[1]).run();
@@ -520,12 +534,12 @@ try{
   await foreignAppProfile.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage);await foreignAppProfile.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
   const mark=network.length;await foreignAppProfile.page.locator('#screen-home [data-studio-cruise-app='+id+']').click();
   const child=await(await foreignAppProfile.page.locator('#series-'+id+'-surface iframe').elementHandle()).contentFrame();
-  if(id!=='fretboard'||!await child.locator('#tempo-slider').isVisible())await child.locator({pitch:'#home-settings-btn',fretboard:'#btn-settings-home',rhythm:'#settings-btn',chord:'#cc-settings-btn'}[id]).click();
+  if(!await child.locator('[data-sync-settings-state]').isVisible())await child.locator({pitch:'#home-settings-btn',fretboard:'#btn-settings-home',rhythm:'#settings-btn',chord:'#cc-settings-btn'}[id]).evaluate(e=>e.click());
   const review=child.getByRole('button',{name:'同期する内容を確認',exact:true,includeHidden:true});
   await review.waitFor({state:'attached'});
   await editApp(child,id,2);await syncApp(child,id).catch(()=>{});await child.evaluate(()=>window.dispatchEvent(new Event('online')));
   assert(!network.slice(mark).some(n=>n.label===foreignAppProfile.label&&n.path.startsWith('/v1/sync/')),'local save and online must not bypass native review');
-  if(id==='fretboard'&&!await child.locator('#tempo-slider').isVisible())await child.locator('#btn-settings-home').click();
+  if(id==='fretboard'&&!await child.locator('#tempo-slider').isVisible())await child.evaluate(()=>SoundCruiseSyncAttention.open());
   if(!await review.isVisible())await child.locator('[data-sync-join-entry-host] .sound-cruise-sync-settings-chevron').click();
   if(id==='chord'){
    foreignAppProfile.page.once('dialog',d=>d.dismiss());await review.click();assert(!network.slice(mark).some(n=>n.label===foreignAppProfile.label&&n.path.startsWith('/v1/sync/')));

@@ -53,8 +53,8 @@ const UNCHANGED_KEYS = Object.freeze(Object.fromEntries(Object.entries({
 ,...Object.fromEntries(['port-asset-sync.js'].map(name=>[name,'1.24.27']))
 }).filter(([name]) => !RELEASE_MODULES.includes(name))));
 
-test('the Account-scoped Port status patch release is 1.25.3', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.25.3');
+test('the Account-scoped Port status patch release is 1.26.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.26.0');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -84,7 +84,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.25.3');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.26.0');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.24.24');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
@@ -94,7 +94,7 @@ test('the exact release edges: entry → app → UI, unchanged modules keep thei
   assert.equal(key('practice-menu-app.js', 'practice-menu-sets-store.js'), '1.24.24');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-sets-store.js'), '1.24.24');
   assert.equal(key('practice-menu-app.js', 'practice-menu-presets.js'), '1.2.0', 'name suggestions are a separate module');
-  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.25.1');
+  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.26.0');
   assert.equal(key('practice-menu-app.js', 'sync-center-controller.js'), '1.25.1');
   assert.equal(key('practice-menu-app.js', 'sync-center-orchestrator.js'), '1.25.1');
   for (const name of ['sync-center-navigation.js']) {
@@ -104,7 +104,8 @@ test('the exact release edges: entry → app → UI, unchanged modules keep thei
   assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '1.24.24');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-history-store.js'), '1.24.24');
   assert.equal(key('practice-menu-app.js', 'port-sync-local-validation.js'), '1.24.24');
-  for (const [name, expected] of Object.entries(UNCHANGED_KEYS)) {
+  for (const [name, previous] of Object.entries(UNCHANGED_KEYS)) {
+    const expected=name==='sync-center-ui.js'?'1.26.0':previous;
     const incoming = edges.filter((edge) => edge.name === name);
     assert.ok(incoming.length > 0, `${name} is imported`);
     assert.ok(incoming.every((edge) => edge.key === expected), `${name} stays at ${expected}`);

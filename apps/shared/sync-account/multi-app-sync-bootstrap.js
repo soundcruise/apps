@@ -10,6 +10,27 @@
     fretboard: ['SoundCruiseFretboardSync', 'FretboardSyncAdapter']
   });
   const JOIN_HOST_SELECTOR = '[data-sync-join-entry-host]';
+  let attentionRuntime=null,attentionController=null,attentionAppId=null,attentionModule;
+  const attentionUI=()=>attentionModule||(attentionModule=import('../../cruise-port/sync-attention-ui.mjs?v=1.26.0'));
+  async function openNativeAttention(){
+    const ui=await attentionUI();if(global.SoundCruiseNativeSyncHost?.storeOptions?.signal.aborted)return ui.managementOpen(global,attentionAppId||document.documentElement.dataset.studioApp);
+    if(attentionRuntime&&attentionController)try{const a=await attentionRuntime.attentionSummary();if((a.kind==='conflict'||a.kind==='data_repair'&&a.reviewable))return attentionController.refresh();}catch(_){}
+    return ui.managementOpen(global,attentionAppId||document.documentElement.dataset.studioApp);
+  }
+  global.SoundCruiseSyncAttention={open:openNativeAttention};
+  async function attentionPresentation(p,revision){
+    const ui=await attentionUI();if(revision!==settingsRevision)return;
+    const id=attentionAppId||document.documentElement.dataset.studioApp;
+    const requested=ui.takeAttentionRequest(global)||global.parent?.CruiseStudio?.seriesApps?.[id]?.reviewRequested;
+    if(global.parent?.CruiseStudio?.seriesApps?.[id])global.parent.CruiseStudio.seriesApps[id].reviewRequested=false;
+    global.SoundCruiseSyncAttention={open:openNativeAttention};
+    if(!['attention','reconnect'].includes(p.state)){if(requested)await openNativeAttention();return;}
+    let conflicts=[];try{conflicts=await attentionRuntime?.store?.listConflicts?.()||[];}catch(_){}
+    const a=await accountRoot.storage.getAccount().catch(()=>null);if(revision!==settingsRevision)return;
+    ui.bindNativeAttention(global,document.querySelector(JOIN_HOST_SELECTOR),{appId:id,key:ui.attentionKey(a?.accountId,id,p.resolutionKind||p.state,conflicts),
+      open:openNativeAttention,automatic:!!p.resolutionKind||p.state==='reconnect',current:()=>revision===settingsRevision});
+    if(requested)await openNativeAttention();
+  }
   let settingsPresentation = null;
   let settingsObserver = null;
   let settingsRevision = 0;
@@ -85,7 +106,7 @@
         privacyHref: '../privacy.html?edition=pro',
         onStatusClick: settingsPresentation.state === 'attention' ? settingsPresentation.action?.run : null,
         primaryAction: settingsPresentation.action ? {
-          label: settingsPresentation.action.label,
+          label: settingsPresentation.resolutionKind==='conflict'||settingsPresentation.resolutionKind==='data_repair'?'解決方法を確認':settingsPresentation.action.label,
           kind: 'primary',
           run: settingsPresentation.action.run
         } : null,
@@ -94,8 +115,10 @@
           run: settingsPresentation.detach
         } : null
       });
+      if(settingsPresentation.resolutionKind==='conflict'||settingsPresentation.resolutionKind==='data_repair'){const b=host.querySelector('.sound-cruise-sync-button--primary');if(b)b.dataset.syncAttentionOpen=attentionAppId;}
       host.dataset.syncJoinUiAction = settingsPresentation.action?.label || '';
       host.dataset.syncJoinUiRevision = String(settingsRevision);
+      void attentionPresentation(settingsPresentation,settingsRevision).catch(()=>{});
       return true;
     }
     host.textContent = '';
@@ -136,6 +159,7 @@
     global.SoundCruiseNativeSyncHost?.present({state: presentation.state, status: presentation.status});
     settingsRevision += 1;
     renderSettingsPresentation();
+    if(!document.querySelector(JOIN_HOST_SELECTOR))void attentionPresentation(presentation,settingsRevision).catch(()=>{});
     if (!settingsObserver && typeof MutationObserver === 'function' && document.body) {
       settingsObserver = new MutationObserver(renderSettingsPresentation);
       settingsObserver.observe(document.body, { childList: true, subtree: true });
@@ -170,6 +194,7 @@
   }
 
   function bindSettingsRuntime(runtime, conflictController, config) {
+    attentionRuntime=runtime;attentionController=conflictController;attentionAppId=config.appId;
     const connectedPresentation = (presentation) => ({
       ...presentation, detach: openCurrentEnvironmentDetach, accountDisplayId: connectedAccountDisplayId
     });
@@ -198,7 +223,7 @@
         runtime.attentionSummary().then((attention) => {
           if (revision !== attentionRevision) return;
           setSettingsPresentation(connectedPresentation({
-            state: 'attention', status: attention.status, description: attention.description,
+            state: 'attention', status: attention.status, description: attention.description, resolutionKind:attention.kind,
             action: attention.kind === 'data_repair' && attention.reviewable && conflictController
               ? { label: '問題のデータを確認', run: () => conflictController.refresh() }
               : attention.kind === 'conflict' && conflictController
@@ -332,13 +357,13 @@
       // local/cloud data intact and returns to the existing manual Join entry.
       if (reason?.code === 'app_environment_limit') {
         setSettingsPresentation({
-          state: 'attention', status: '環境の上限です',
+          state: 'attention', status: '環境の上限です', resolutionKind:'environment_limit',
           description: 'Cruise Portで使っていない環境の同期を解除してから、もう一度お試しください。',
           action: { label: 'Cruise Portで環境を管理', run: () => global.location.assign(config.portUrl) }
         });
         return false;
       }
-      if (hostSession) setSettingsPresentation({ state: 'attention', status: '接続を確認できません',
+      if (hostSession) setSettingsPresentation({ state: 'attention', status: '接続を確認できません', resolutionKind:'connection',
         description: global.SoundCruiseNativeSyncHost.message(reason),
         action: { label: 'もう一度確認', run: () => global.SoundCruiseNativeSyncHost.retry() } });
       else installJoinEntry(config, runtime);
@@ -406,7 +431,7 @@
     const adapter = new AdapterClass();
     try { hostSession = host ? await host.prepare({ appId: config.appId, adapter, store }) : null; }
     catch (error) {
-      setSettingsPresentation({ state: 'attention', status: '確認が必要', description: host?.message(error),
+      setSettingsPresentation({ state: 'attention', status: '確認が必要', resolutionKind:'qualification', description: host?.message(error),
         action: { label: 'もう一度確認', run: () => host?.retry() } });
       return;
     }
@@ -429,7 +454,7 @@
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes[config.appId] = runtime;
     if (hostSession?.review) {
-      setSettingsPresentation({ state: 'attention', status: '内容の確認が必要',
+      setSettingsPresentation({ state: 'attention', status: '内容の確認が必要', resolutionKind:'local_review',
         description: '最後の同期・未送信操作と一致しない端末内データがあります。別Accountの内容でないことを確認してください。',
         action: { label: '同期する内容を確認', run: () => {
           const dialog = createLanding(config.appId, config.portUrl, 'handoff');
