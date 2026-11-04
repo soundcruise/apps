@@ -8,20 +8,25 @@
   const attentionUI=()=>attentionModule||(attentionModule=import('../../../cruise-port/sync-attention-ui.mjs?v=1.26.0'));
   let attentionOpenFlight=null;
   function openNativeAttention(){if(!attentionOpenFlight)attentionOpenFlight=performAttentionOpen().finally(()=>{attentionOpenFlight=null;});return attentionOpenFlight;}
+  function openSyncManagement(ui){
+    const opened=ui.managementOpen(global,'chord');
+    document.querySelector('[data-sync-join-entry-host]')?.scrollIntoView({block:'nearest'});
+    return opened;
+  }
   async function performAttentionOpen(){
     const ui=await attentionUI(),host=global.SoundCruiseNativeSyncHost;
-    if(host?.storeOptions?.signal.aborted)return ui.managementOpen(global,'chord');
+    if(host?.storeOptions?.signal.aborted)return openSyncManagement(ui);
     const shown=document.querySelector('[data-sync-merge-preview]');if(shown?.getClientRects().length){shown.querySelector('input,button')?.focus();return true;}
-    if(global.SoundCruiseNativeSyncHost?.failure||document.querySelector('[data-sync-settings-state=unconnected]'))return ui.managementOpen(global,'chord');
+    if(global.SoundCruiseNativeSyncHost?.failure||document.querySelector('[data-sync-settings-state=unconnected]'))return openSyncManagement(ui);
     const client=global.ChordCruiseSync?.pilotClient;
     if(client)try{const store=await client.openStore(),conflicts=await store.listConflicts(),state=await store.getMeta('syncState');
-      if(await store.getMeta('pendingRecovery')||await store.getMeta('pendingAccountDelete'))return ui.managementOpen(global,'chord');
+      if(await store.getMeta('pendingRecovery')||await store.getMeta('pendingAccountDelete'))return openSyncManagement(ui);
       const sessionId=await store.getMeta('activeMergeSessionId'),session=sessionId?await store.getMergeSession(sessionId):null;
       // A native merge already applying the user's choice must finish unchanged.
       if(['applying_local','pushing','verifying'].includes(session?.stage))return false;
-      if(conflicts.length||state==='paired_pending'){ui.managementOpen(global,'chord');await global.ChordCruiseSyncPilot.ensureManagementUi();return global.ChordCruiseSync.pairingUi.openAttention();}
+      if(conflicts.length||state==='paired_pending'){openSyncManagement(ui);await global.ChordCruiseSyncPilot.ensureManagementUi();return global.ChordCruiseSync.pairingUi.openAttention();}
     }catch(_){}
-    return ui.managementOpen(global,'chord');
+    return openSyncManagement(ui);
   }
   global.SoundCruiseSyncAttention={open:openNativeAttention};
   async function attentionPresentation(options,revision){
@@ -539,6 +544,19 @@
     }
     global.addEventListener?.('soundcruise:sync-terminal', function () {
       showTerminalReconnect();
+    });
+    global.addEventListener?.('soundcruise:sync-report', function (event) {
+      const report=event.detail;
+      if(report?.appId!=='chord'||host?.storeOptions?.signal.aborted)return;
+      if(report.ok){host?.reportUpdated?.();return;}
+      // Credential/real-conflict flows retain their own existing decision UI.
+      if(report.terminal||report.state!=='clean')return;
+      const reason=global.navigator?.onLine===false?'オフラインです。':
+        report.status===429?'報告先が混み合っています。少し待って再確認してください。':
+        report.status>=500||report.code==='sync_safety_unavailable'?'報告先が一時的に利用できません。':'端末報告を送信できませんでした。';
+      renderJoinSettings({state:'attention',status:'端末報告の更新が必要',resolutionKind:'report',
+        description:reason+' 保存内容の同期とは別に、Cruise Portに前回の報告が残っています。「同期して再確認」はデータ同期と報告更新を再試行します。',
+        action:uiAction('同期して再確認',()=>chordClient.syncNow())});
     });
     global.addEventListener?.('soundcruise:sync-status', function (event) {
       if (event.detail?.appId !== 'chord' || host?.chordSession?.review) return;

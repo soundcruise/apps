@@ -45,6 +45,7 @@ export function createNativeSyncHost(id, current, entry, root, url) {
    onRemoteApplied(){assertCurrent();const child=globalThis.CruiseStudio.seriesApps[id].nativeWindow,app=child.ChordCruise;app.state.settings=app.storage.loadSettings();app.ui.settings.refresh();},
    localStorage:host.guardedStorage(globalThis.CruiseStudio.seriesApps[id].nativeWindow.localStorage)};},
   own(value){owned=value;},
+  reportUpdated(){assertCurrent();globalThis.dispatchEvent(new CustomEvent('soundcruise:sync-report',{detail:{appId:id,ok:true}}));},
   present({state,status}){if(life.signal.aborted||!current())return;const node=document.querySelector('[data-series-sync-status="'+id+'"]');if(node){node.textContent=status;node.dataset.nativeSyncState=state;}},
   async prepare({appId,adapter,store,client:chord}){
    try{

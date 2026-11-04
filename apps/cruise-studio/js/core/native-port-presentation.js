@@ -2,6 +2,14 @@
 (function (root) {
     'use strict';
     var CS = root.CruiseStudio;
+    root.addEventListener?.('soundcruise:sync-report',function(event){
+        if(!event.detail?.ok)return;
+        root.document.querySelectorAll('iframe').forEach(function(frame){try{
+            var child=frame.contentWindow;
+            if(frame.getClientRects().length&&child?.CruisePortSyncAttentionHost?.owner===root)
+                child.dispatchEvent(new child.CustomEvent('cruise-port-app-report-updated'));
+        }catch(_){} });
+    });
     CS.stopNativePort = function (frame) {
         frame.contentWindow?.studioEntryStopMedia?.();
         var tool = frame.contentWindow?.CruiseStudioPortTool;
