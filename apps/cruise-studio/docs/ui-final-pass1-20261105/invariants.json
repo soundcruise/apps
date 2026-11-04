@@ -1,0 +1,61 @@
+{
+  "productionAccess": false,
+  "basePR194": "cf58b47f50f92c8e4521a35c104f335da4d59a0c",
+  "publicMain": "9eb876c64b1c2b07a18e90d608cd660392a7b229",
+  "unchangedTrees": {
+    "workers/sound-cruise-sync": {
+      "reference": "cf58b47f50f92c8e4521a35c104f335da4d59a0c",
+      "tree": "44827c8b205b8f80fba071818ba8cacbf848b41b"
+    },
+    "apps/cruise-port": {
+      "reference": "9eb876c64b1c2b07a18e90d608cd660392a7b229",
+      "tree": "76ad721ecbe5d35657ec63ea4f773dc61c154178"
+    },
+    "apps/pitch-cruise": {
+      "reference": "9eb876c64b1c2b07a18e90d608cd660392a7b229",
+      "tree": "e9589ab770185d4178683a34cf7f2e7728d115d6"
+    },
+    "apps/fretboard_cruise": {
+      "reference": "9eb876c64b1c2b07a18e90d608cd660392a7b229",
+      "tree": "f8f6601ef29c77b2b5b44fdebd7acc5b7ca0b646"
+    },
+    "apps/rhythm-cruise": {
+      "reference": "9eb876c64b1c2b07a18e90d608cd660392a7b229",
+      "tree": "3316bfc887948caea89b535761f7679adca34ade"
+    },
+    "apps/chord-cruise": {
+      "reference": "9eb876c64b1c2b07a18e90d608cd660392a7b229",
+      "tree": "27e2da25bbc54941bb8e22d1bd0ed372eb9acb4e"
+    },
+    "apps/shared": {
+      "reference": "9eb876c64b1c2b07a18e90d608cd660392a7b229",
+      "tree": "594e74d2e3b44b2dcc5beb654039290045662bb2"
+    }
+  },
+  "authControllerAndObservationUnchanged": true,
+  "protectedProjectModules": [
+    "js/cloud/studio-sync-client.mjs",
+    "js/cloud/project-sync-host.mjs",
+    "js/cloud/studio-session-adapter.mjs",
+    "js/cloud/studio-transport.mjs",
+    "js/cloud/document-codec.mjs",
+    "js/cloud/cloud-panel.mjs",
+    "js/core/schema2.js"
+  ],
+  "distribution": {
+    "normal": 81,
+    "canary": 90,
+    "canaryAllHashesMatch": true,
+    "nativeByteIdentical": 813
+  },
+  "localJekyllHTTP": {
+    "/apps/cruise-studio/": 200,
+    "/apps/cruise-studio-canary/project-canary.html": 200,
+    "/apps/cruise-studio/js/cloud/canary-entry.mjs": 404,
+    "/apps/cruise-studio/development.html": 404,
+    "/apps/cruise-studio/identity-host.html": 404,
+    "/apps/cruise-studio-canary/development.html": 404,
+    "/apps/cruise-studio-canary/project-sync.html": 404,
+    "/workers/sound-cruise-sync/src/studio-canary-entry.js": 404
+  }
+}

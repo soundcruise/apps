@@ -1,0 +1,35 @@
+{
+  "engine": "chrome",
+  "baseline": true,
+  "measurements": [
+    {
+      "label": "before-cloud-390",
+      "width": 390,
+      "height": 844,
+      "cloud": {
+        "x": 12,
+        "y": 109.90625,
+        "width": 351,
+        "height": 1729.40625,
+        "bottom": 1839.3125
+      },
+      "toolbar": {
+        "x": 12,
+        "y": 110.1875,
+        "width": 351,
+        "height": 299.390625,
+        "bottom": 409.578125
+      },
+      "main": {
+        "x": 0,
+        "y": 110.1875,
+        "width": 390,
+        "height": 733.8125,
+        "bottom": 844
+      },
+      "summaryClickable": false,
+      "horizontalOverflow": false,
+      "safeBottom": "auto"
+    }
+  ]
+}
