@@ -43,7 +43,8 @@ export function createStudioRetentionOwner({db,release,policy:input,authorize,re
   return{...result,historical:false,authorizesNewOperation:false};
  }
  async function discard(headers,input){required();if(!policy)fail('retention-policy-unapproved');if(!exact(input,['operationId','targetOperationId','requestDigest','proofOperationId'])||!uuid.test(input.operationId)||!uuid.test(input.targetOperationId))fail('discard-request');
-  const c=await authorize(headers,{securityDelete:true});if(c.activationMode==='canary')fail('canary-account-maintenance-hold');operation(c,input.operationId);const rd=await digest(canonical({kind:'discard',input,account:c.binding.accountId,policy})),old=await prior(c,input.operationId,rd);if(old)return old;
+  // Explicit rejected-operation cleanup stays Project-scoped; Account-wide collection/erase remains held in canary.
+  const c=await authorize(headers,{securityDelete:true});operation(c,input.operationId);const rd=await digest(canonical({kind:'discard',input,account:c.binding.accountId,policy})),old=await prior(c,input.operationId,rd);if(old)return old;
   const x=await inspect(c,input.targetOperationId);if(x.head?.last_operation_id===x.p.operation_id||x.p.request_digest!==input.requestDigest||x.terminal||await receipt(c,x.p))fail('discard-not-uncommitted');
   if((await read(c,'SELECT operation_id FROM studio_document_owner_events WHERE account_id=? AND (source_operation_id=? OR operation_id=?)',c.binding.accountId,x.p.operation_id,x.p.operation_id)).length)fail('discard-adoption-dependency');
   const b=JSON.parse(x.p.binding_json),same=['accountId','deviceId','generation','recoveryVersion','credentialVersion'].every(k=>b[k]===c.binding[k]);const proof=same&&input.proofOperationId===null?null:await recoveryProof(c,input.proofOperationId);

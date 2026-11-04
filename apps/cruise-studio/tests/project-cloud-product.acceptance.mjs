@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import {createRequire} from 'node:module';
-export async function acceptProjectCloud({profile,bootstrapPro,createAccount,createAccountCredential,accountCredentialVerifier,pepper,db,check,result,network,faults,OUT,port,nativeRuntime,normalGear,sync,go,ready}){
+export async function acceptProjectCloud({profile,bootstrapPro,createAccount,createAccountCredential,accountCredentialVerifier,pepper,db,check,result,network,faults,OUT,port,nativeRuntime,normalGear,sync,go,ready,canary=null}){
  const A=await profile('Project-A');await bootstrapPro(A);let account,id;
  await check('current native Pro and Account entrance, without a second identity host',async()=>{
-  account=await createAccount(A);await A.page.goto('https://studio.fixture.invalid/apps/cruise-studio/');
+  account=await createAccount(A);await canary?.identity({A,account});await A.page.goto('https://studio.fixture.invalid/apps/cruise-studio/');
   await A.page.waitForFunction(()=>{try{return CruiseStudio.entryAuth?.isAuthorized()&&!!CruiseStudio.projectCloud?.session.readSession();}catch{return false;}});
  });
  const B=await profile('Project-B');await bootstrapPro(B);
  const second=createAccountCredential(),row=await db.prepare('SELECT * FROM sync_account_devices WHERE id=?').bind(account.accountDeviceId).first(),newRow={...row,id:second.deviceId,credential_verifier:await accountCredentialVerifier(second.credential,pepper)},keys=Object.keys(newRow);
  await db.prepare(`INSERT INTO sync_account_devices (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).bind(...Object.values(newRow)).run();
  await B.page.evaluate(value=>SoundCruiseSyncAccount.storage.setAccount(value),{...account,accountDeviceId:second.deviceId,accountCredential:second.credential});
- await B.page.goto('https://studio.fixture.invalid/apps/cruise-studio/');await B.page.waitForFunction(()=>{try{return CruiseStudio.entryAuth?.isAuthorized()&&!!CruiseStudio.projectCloud?.session.readSession();}catch{return false;}});
+ await canary?.peer({A,B,account,second});await B.page.goto('https://studio.fixture.invalid/apps/cruise-studio/');await B.page.waitForFunction(()=>{try{return CruiseStudio.entryAuth?.isAuthorized()&&!!CruiseStudio.projectCloud?.session.readSession();}catch{return false;}});
  // Installed browser runtime resolves async false predicates immediately. Observe
  // only (never retry operations), with the same existing 20s deadline.
  async function waitUntil(p,predicate,arg){const deadline=Date.now()+20000;do{if(await p.evaluate(predicate,arg))return;await p.waitForTimeout(50);}while(Date.now()<deadline);throw Error('Project state did not satisfy predicate within existing 20s deadline');}
@@ -18,7 +18,7 @@ export async function acceptProjectCloud({profile,bootstrapPro,createAccount,cre
  async function edit(p,title){await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-title').fill(title);await p.locator('#sc-title').press('Tab');await p.locator('#sc-save').click();await p.waitForFunction(title=>{const f=CruiseStudio.documents.capture(),r=f.ok&&CruiseStudio.repository.read({type:'project',projectId:f.project.projectId});return r?.snapshot?.songInfo.title===title&&!CruiseStudio.documents.getSession().dirty&&!CruiseStudio.documents.getSession().commitInFlight;},title);}
  async function synced(p,expectedTitle){await waitUntil(p,async expectedTitle=>{try{const c=CruiseStudio.projectCloud,f=CruiseStudio.documents.capture();if(!f.ok)return false;const l=await c.client.tracking(f.project.projectId),r=CruiseStudio.repository.read({type:'project',projectId:f.project.projectId});return l&&l.lastLocalRevision===r.revision&&(await c.client.inspect(l.lastOperation)).state==='SYNCED'&&(!expectedTitle||(await c.client.observe(f.project.projectId)).head.project.songInfo.title===expectedTitle);}catch{return false;}},expectedTitle);}
  await check('new schema2 from score UI stays local until first explicit Cloud save',async()=>{
-  await A.page.locator('#open-sheet-cruise').click();await A.page.locator('#sc-new-project').click();await edit(A.page,'Project A original');id=(await project(A.page)).projectId;
+  await A.page.locator('#open-sheet-cruise').click();await A.page.locator('#sc-new-project').click();await edit(A.page,'Project A original');id=(await project(A.page)).projectId;await canary?.project({A,B,account,second,id});
   assert.equal((await db.prepare('SELECT count(*) n FROM studio_document_records WHERE record_id=?').bind(id).first()).n,0);
   await click(A.page,'save');await synced(A.page);
  });
@@ -41,7 +41,7 @@ export async function acceptProjectCloud({profile,bootstrapPro,createAccount,cre
   faults.set('Project-A',{path:'/v2/studio/document',kind:'commit'});await edit(A.page,'Project ACK loss');
   await waitUntil(A.page,async id=>{try{const c=CruiseStudio.projectCloud.client,l=await c.tracking(id);return !!l?.active&&(await c.inspect(l.active)).state==='UNKNOWN';}catch{return false;}},id);
   const count=(await db.prepare('SELECT count(*) n FROM studio_document_changes WHERE record_id=?').bind(id).first()).n;
-  await click(A.page,'reconcile');await synced(A.page);
+  await canary?.unknown({A,id});await click(A.page,'reconcile');await synced(A.page);
   assert.equal((await db.prepare('SELECT count(*) n FROM studio_document_changes WHERE record_id=?').bind(id).first()).n,count);
  });
  await check('Offline edit survives; reconnect retains revision and uses same Account tracked flow',async()=>{
@@ -54,6 +54,7 @@ export async function acceptProjectCloud({profile,bootstrapPro,createAccount,cre
   assert.equal((await project(B.page)).songInfo.title,'Peer conflicting local');
   const remote=await A.page.evaluate(id=>CruiseStudio.projectCloud.client.observe(id),id);assert.equal(remote.head.project.songInfo.title,'Winning Cloud');
  });
+ await canary?.conflict({A,B,id});
  await check('Cloud deletion retains local Project and original immutable operation receipt',async()=>{
   await A.page.locator('#studio-cloud-delete-confirm').check();await click(A.page,'delete');await waitUntil(A.page,async id=>{try{const c=CruiseStudio.projectCloud.client,l=await c.tracking(id);return !!l?.lastOperation&&(await c.inspect(l.lastOperation)).receipt?.deleted===true;}catch{return false;}},id);
   assert.equal((await project(A.page)).songInfo.title,'Winning Cloud');await A.page.locator('[data-project-sync-status]').filter({hasText:'Cloudは削除済み'}).waitFor();
@@ -108,6 +109,7 @@ export async function acceptProjectCloud({profile,bootstrapPro,createAccount,cre
   assert.equal(await B.page.evaluate(id=>localStorage.getItem('cruiseStudio.project.'+id),id),before);
   assert.equal(network.slice(marker).filter(x=>x.label==='Project-B'&&x.path==='/v2/studio/document'&&['begin','upload','commit'].includes(x.kind)).length,0);
  });
+ await canary?.finish({A,B,account,second,id});
  await A.page.screenshot({path:OUT+'/project-cloud-current-entry.png',fullPage:false});
  result.projectBackend='retained isolated candidate only';result.productionProjectEnabled=false;result.knownProjectIdRequired=false;
 }

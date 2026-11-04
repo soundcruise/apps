@@ -1,6 +1,6 @@
 /* Connection glue for the retained Project protocol, not a second Sync engine.
- * Only isolated development origins/endpoints. Production transport stays refused. */
-import {createStudioTransport} from './studio-transport.mjs';
+ * Development transport or the separately packaged, server-authorized canary. */
+import {createStudioTransport,isStudioTransport} from './studio-transport.mjs';
 import {createStudioSessionAdapter} from './studio-session-adapter.mjs';
 import {createIsolatedStudioSyncClient} from './studio-sync-client.mjs';
 import {mountStudioCloudPanel} from './cloud-panel.mjs';
@@ -33,10 +33,10 @@ export async function resumeTrackedProject({client,repository,projectId,dirty=fa
  if(localChanged){const operation=await client.enqueue(projectId);return client.send(operation.operationId);}
  return {state:'SYNCED'};
 }
-export function mountProjectSyncHost({C=globalThis.CruiseStudio,endpoint,element,location=globalThis.location,storage=globalThis.SoundCruiseSyncAccount?.storage}={}){
- if(!isolatedProjectOrigin(location))fail('project-production-disabled');
- const transport=createStudioTransport({endpoint});
- if(transport.mode!=='isolated')fail('project-production-disabled');
+export function mountProjectSyncHost({C=globalThis.CruiseStudio,endpoint,element,location=globalThis.location,storage=globalThis.SoundCruiseSyncAccount?.storage,transport=null,onAdmission=()=>{}}={}){
+ transport ||= createStudioTransport({endpoint});
+ const canary=isStudioTransport(transport)&&transport.mode==='production-canary'&&location?.origin==='https://soundcruise.jp';
+ if(!canary&&(!isolatedProjectOrigin(location)||transport.mode!=='isolated'))fail('project-production-disabled');
  if(!C?.repository||!storage||!element)fail('project-host-dependencies');
  let epoch=0,disposed=false,pending=null,selectedId=null,again=false;
  let session,client,panel,catalogueOwner=null,catalogueSerial=0,catalogueBusy=false,catalogueRows=[],nextCursor=null;
@@ -111,8 +111,10 @@ export function mountProjectSyncHost({C=globalThis.CruiseStudio,endpoint,element
  async function run(){
   const turn=epoch;assertEntry();
   status.textContent='Project Syncを確認しています…';
-  try{session.readSession();await session.assertCurrent();}catch{await session.enroll();}
-  if(turn!==epoch||disposed)fail('session-changed');assertEntry();
+  let refreshed=false;
+  try{session.readSession();await session.assertCurrent();}catch{await session.enroll();refreshed=true;}
+  if(canary&&!refreshed)await session.refresh(); // Recheck server grant on resume, including OFF/target changes.
+  if(turn!==epoch||disposed)fail('session-changed');assertEntry();onAdmission(true);
   if(catalogueOwner!==session.readSession().binding.accountId)await refreshCatalogue();
   if(turn!==epoch||disposed)fail('session-changed');
   const p=current();if(!p){show({message:'Projectを開くか、Cloudの一覧から選択してください。'});return;}
@@ -123,9 +125,9 @@ export function mountProjectSyncHost({C=globalThis.CruiseStudio,endpoint,element
   if(disposed)return Promise.resolve();
   if(pending){again=true;return pending;}
   const turn=epoch;
-  let task;task=run().catch(e=>{if(turn===epoch&&!disposed)show({message:navigator.onLine===false?'Offline：ローカル保存・未送信データを保持しています。':'Project Syncを停止：'+(/^[a-z0-9_-]{1,64}$/i.test(e.code||e.message)?e.code||e.message:'通信失敗')+'。接続を再確認してください。'});}).finally(()=>{if(pending===task){pending=null;if(again){again=false;void connect();}}});pending=task;return task;
+  let task;task=run().catch(e=>{if(turn===epoch&&!disposed){onAdmission(false,e);show({message:navigator.onLine===false?'Offline：ローカル保存・未送信データを保持しています。':'Project Syncを停止：'+(/^[a-z0-9_-]{1,64}$/i.test(e.code||e.message)?e.code||e.message:'通信失敗')+'。接続を再確認してください。'});}}).finally(()=>{if(pending===task){pending=null;if(again){again=false;void connect();}}});pending=task;return task;
  }
- function changed(){epoch++;catalogueSerial++;catalogueRows=[];nextCursor=null;catalogueOwner=null;catalogueBusy=false;drawCatalogue();pending=null;again=false;session.invalidate();rebuild();void connect();}
+ function changed(){onAdmission(false);epoch++;catalogueSerial++;catalogueRows=[];nextCursor=null;catalogueOwner=null;catalogueBusy=false;drawCatalogue();pending=null;again=false;session.invalidate();rebuild();void connect();}
  idInput.addEventListener('change',()=>{selectedId=idInput.value.trim()||null;drawCatalogue();void connect();});
  const retry=doc.createElement('button');retry.type='button';retry.textContent='Project接続を再確認';retry.addEventListener('click',()=>{session.invalidate();void connect();});element.insertBefore(retry,body);
  const offAccount=storage.subscribeAccount?.(changed);
@@ -137,7 +139,7 @@ export function mountProjectSyncHost({C=globalThis.CruiseStudio,endpoint,element
   activeId=id;selectedId=null;idInput.value='';void connect();
  });
  const onOnline=()=>void connect();globalThis.addEventListener('online',onOnline);globalThis.addEventListener('focus',onOnline);
- const observer=new MutationObserver(()=>{if(!C.entryAuth?.isAuthorized()){epoch++;session.invalidate();status.textContent='Studio認証待ち：ローカルProject・未送信データを保持しています。';}else void connect();});
+ const observer=new MutationObserver(()=>{if(!C.entryAuth?.isAuthorized()){onAdmission(false);epoch++;session.invalidate();status.textContent='Studio認証待ち：ローカルProject・未送信データを保持しています。';}else void connect();});
  observer.observe(doc.documentElement,{attributes:true,attributeFilter:['data-studio-entry']});
  rebuild();void connect();
  return Object.freeze({refresh:connect,get client(){return client;},get session(){return session;},dispose(){disposed=true;epoch++;observer.disconnect();offAccount?.();offSaved();offDocument?.();session.dispose();panel.dispose();void client.dispose();globalThis.removeEventListener('online',onOnline);globalThis.removeEventListener('focus',onOnline);element.replaceChildren();}});

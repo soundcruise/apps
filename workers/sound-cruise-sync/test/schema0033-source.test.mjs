@@ -1,6 +1,6 @@
 // Actual source entry, native SQLite with captured Production DDL, synthetic data only.
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import worker from '../src/index.js';import offWorker from '../src/studio-release-entry.js';
+import worker from '../src/index.js';import offWorker from '../src/studio-release-entry.js';import canaryWorker from '../src/studio-canary-entry.js';
 import {createSqliteD1,seedIdentity} from './sqlite-d1.js';
 import {admitWriter,writerMutationDatabase} from '../src/writer-admission.js';
 import {createD1SyncRepository} from '../src/sync-database.js';
@@ -37,6 +37,7 @@ test('actual index boots and Port native HTTP Sync works with Project OFF and no
  const f=await fixture();try{assert.equal((await f.call('/health')).status,200);assert.equal((await f.call('/v2/studio/document',{})).status,404);assert.equal((await f.call('/v2/studio/document',{},'port',offWorker)).status,423);
  const op=await operation();const p=await f.call('/v1/sync/push',{appId:'port',mode:'sync',operations:[op]});const b=await p.json();assert.equal(p.status,200,JSON.stringify(b));assert.equal(b.results[0].status,'applied');
  const r=await f.call('/v1/sync/snapshot?appId=port');assert.equal(r.status,200);assert.equal((await r.json()).records.length,1);
+ for(const target of [offWorker,canaryWorker]){assert.equal((await f.call('/health',undefined,'port',target)).status,200);assert.equal((await f.call('/v1/sync/snapshot?appId=port',undefined,'port',target)).status,200);}
  const duplicate=await(await f.call('/v1/sync/push',{appId:'port',mode:'sync',operations:[op]})).json();assert.equal(duplicate.results[0].status,'duplicate');
  assert.equal(f.db.raw.prepare("SELECT count(*) n FROM sqlite_schema WHERE name GLOB 'studio_document_*' OR name GLOB 'sync_authority_*' OR name='sync_writer_fence_assertion'").get().n,0);
  }finally{f.db.close();}
@@ -51,7 +52,7 @@ for(const [name,sql]of [
  }finally{f.db.close();}
 });
 test('all four apps retain native source snapshots/mutation CAS with the same Account',async()=>{
- const f=await fixture();try{for(const app of ['pitch','fretboard','rhythm','chord']){const a=await admitWriter(f.db,f.ids[app],{},f.authority(app),f.options(app)),r=createD1SyncRepository(writerMutationDatabase(f.db,a));const op=await operation(app);assert.equal((await r.applyOperation(f.ids[app],op)).status,'applied');assert.equal((await f.call('/v1/sync/snapshot?appId='+app,undefined,app)).status,200);assert.equal((await r.applyOperation(f.ids[app],await operation(app))).status,'conflict');}}finally{f.db.close();}
+ const f=await fixture();try{for(const app of ['pitch','fretboard','rhythm','chord']){const a=await admitWriter(f.db,f.ids[app],{},f.authority(app),f.options(app)),r=createD1SyncRepository(writerMutationDatabase(f.db,a));const op=await operation(app);assert.equal((await r.applyOperation(f.ids[app],op)).status,'applied');for(const target of [worker,offWorker,canaryWorker])assert.equal((await f.call('/v1/sync/snapshot?appId='+app,undefined,app,target)).status,200);assert.equal((await r.applyOperation(f.ids[app],await operation(app))).status,'conflict');}}finally{f.db.close();}
 });
 test('unsupported authority protocol is refused on 0033 and partial candidate schema fails closed',async()=>{
  const f=await fixture();try{assert.equal((await admitWriter(f.db,f.ids.port,{writerProtocol:2},f.authority('port'),f.options('port'))).error,'writer_protocol_unsupported');f.db.raw.exec('CREATE TABLE sync_authority_cutovers(id TEXT)');assert.equal((await admitWriter(f.db,f.ids.port,{},f.authority('port'),f.options('port'))).error,'dataset_authority_unavailable');}finally{f.db.close();}
