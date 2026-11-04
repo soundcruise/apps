@@ -100,6 +100,37 @@ function cloudOf(local, cursor) {
     assert.strictEqual(hydrate.conflicts.length, 0, 'empty device safely hydrates without false default conflicts');
     assert(hydrate.finalSnapshot.records.some(function (item) { return item.recordId === 'cloud-c'; }));
 
+    var initialCloudBase = await snapshot(sync, [
+        record('folder', 'folder_uncategorized', { id: 'folder_uncategorized', name: '未分類', builtin: false,
+            order: 0, createdAt: 'cloud', updatedAt: 'cloud' }),
+        chord('cloud-ref', 'folder_uncategorized', 'Cloud C'),
+        order(['folder_uncategorized'], { folder_uncategorized: ['cloud-ref'] })
+    ]);
+    var initialCloud = await sync.merge.validateCloudSnapshot(cloudOf(initialCloudBase), webcrypto);
+    var initialLocal = await snapshot(sync, [
+        record('folder', 'folder_uncategorized', { id: 'folder_uncategorized', name: '未分類', builtin: false,
+            colorKey: 'black-leather', order: 0, createdAt: 'local', updatedAt: 'local' }),
+        chord('cloud-ref', 'folder_uncategorized', 'Cloud C'),
+        order(['folder_uncategorized'], { folder_uncategorized: ['cloud-ref'] })
+    ]);
+    var initialPlan = await sync.merge.planMerge({ local: initialLocal, cloud: initialCloud,
+        shadow: [], sessionId: 'initial-folder' }, webcrypto);
+    assert.strictEqual(initialPlan.conflicts.length, 0, 'default folder representation creates no direct or cascading conflict');
+    assert.strictEqual(initialPlan.finalSnapshot.manifestHash, initialCloud.manifestHash);
+    assert.strictEqual(initialPlan.remoteChanges.length, 0, 'canonical Cloud folder is preserved');
+    assert.strictEqual(initialPlan.localWrites.map(function (item) { return item.recordKey; }).join(','),
+        'folder/folder_uncategorized');
+    var recolored = await snapshot(sync, [
+        record('folder', 'folder_uncategorized', { id: 'folder_uncategorized', name: '未分類', builtin: false,
+            colorKey: 'blue', order: 0, createdAt: 'local', updatedAt: 'local' }),
+        chord('cloud-ref', 'folder_uncategorized', 'Cloud C'),
+        order(['folder_uncategorized'], { folder_uncategorized: ['cloud-ref'] })
+    ]);
+    var trueConflict = await sync.merge.planMerge({ local: recolored, cloud: initialCloud,
+        shadow: [], sessionId: 'real-folder-edit' }, webcrypto);
+    assert(trueConflict.conflicts.some(function (item) { return item.recordKey === 'folder/folder_uncategorized'; }),
+        'an edited folder still requires a choice');
+
     var localIndependent = await snapshot(sync, [
         folder('folder-local', 'Local'), chord('local-c', 'folder-local', 'Local C'),
         order(['folder-local'], { 'folder-local': ['local-c'] })

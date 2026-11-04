@@ -425,6 +425,103 @@ var seed = {
     assert.deepStrictEqual(meaningfulLocal.snapshot(), meaningfulBefore, 'meaningful local data is never silently overwritten');
     assert.strictEqual(meaningfulRequests.some(function (url) { return url.indexOf('/v1/sync/push') !== -1; }), false);
 
+    var trackedStore = createMemoryStore();
+    var trackedSync = loadClient(trackedStore);
+    var trackedLocal = createStorage(cloudSeed);
+    var trackedRequests = [];
+    var trackedClient = trackedSync.client.createClient({
+        enabled: true, localStorage: trackedLocal, crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787', now: function () { return 5500; },
+        fetch: async function (url) {
+            trackedRequests.push(url);
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) return jsonResponse(200,
+                { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            if (url.indexOf('/v1/sync/snapshot') !== -1) return jsonResponse(200, existingCloud);
+            throw new Error('tracked Cloud hydrate must not push');
+        }
+    });
+    await trackedClient.initialize();
+    for (var trackedRecord of existingCloud.records) await trackedStore.putShadow(Object.assign({}, trackedRecord, {
+        recordKey: trackedRecord.recordType + '/' + trackedRecord.recordId
+    }));
+    assert.strictEqual((await trackedClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId, deviceCredential: promotionCredential
+    })).ok, true);
+    var trackedHydrate = await trackedClient.resumeAccountManagedHydrate();
+    assert.strictEqual(trackedHydrate.ok, true, 'fully tracked matching local records hydrate automatically');
+    assert.strictEqual(trackedHydrate.automaticHydrate, true);
+    assert.strictEqual((await trackedStore.listOutbox()).length, 0);
+    assert.strictEqual(trackedRequests.some(function (url) { return url.indexOf('/v1/sync/push') !== -1; }), false);
+
+    var cloudFolder = { id: 'folder_uncategorized', name: '未分類', builtin: false,
+        order: 0, createdAt: '2026-08-21T23:26:31.611Z', updatedAt: '2026-08-21T23:26:31.611Z' };
+    var localFolder = Object.assign({}, cloudFolder, { colorKey: 'black-leather',
+        createdAt: '2026-11-02T09:25:50.888Z', updatedAt: '2026-11-02T09:25:50.888Z' });
+    var canonicalSeed = {
+        'chordCruise.schemaVersion': JSON.stringify('1'),
+        'chordCruise.folders': JSON.stringify([cloudFolder]),
+        'chordCruise.chord.c1': JSON.stringify({ id: 'c1', folderId: 'folder_uncategorized', chordName: 'C', notes: [] }),
+        'chordCruise.libraryOrder': JSON.stringify({ version: 1, folderIds: ['folder_uncategorized'],
+            entryIdsByFolder: { folder_uncategorized: ['c1'] } })
+    };
+    var canonicalSource = loadClient(createMemoryStore()).client.createClient({ enabled: true,
+        localStorage: createStorage(canonicalSeed), crypto: webcrypto });
+    var canonicalSnapshot = await canonicalSource.captureSnapshot();
+    var canonicalCloud = Object.assign({}, existingCloud, {
+        recordCount: canonicalSnapshot.counts.total, manifestHash: canonicalSnapshot.manifestHash,
+        records: canonicalSnapshot.records.map(function (record, index) {
+            return Object.assign({}, record, { revision: index + 1, deletedAt: null, changeSeq: index + 1 });
+        })
+    });
+    var partialStore = createMemoryStore();
+    var partialSync = loadClient(partialStore);
+    var partialLocal = createStorage(Object.assign({}, canonicalSeed, {
+        'chordCruise.folders': JSON.stringify([localFolder])
+    }));
+    var partialRequests = [];
+    var partialClient = partialSync.client.createClient({ enabled: true,
+        localStorage: partialLocal, crypto: webcrypto, endpoint: 'http://127.0.0.1:8787',
+        fetch: async function (url) {
+            partialRequests.push(url);
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) return jsonResponse(200,
+                { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            if (url.indexOf('/v1/sync/snapshot') !== -1) return jsonResponse(200, canonicalCloud);
+            throw new Error('default-folder hydrate must not push');
+        }
+    });
+    await partialClient.initialize();
+    for (var partialRecord of canonicalCloud.records) if (partialRecord.recordType !== 'folder') {
+        await partialStore.putShadow(Object.assign({}, partialRecord, {
+            recordKey: partialRecord.recordType + '/' + partialRecord.recordId
+        }));
+    }
+    assert.strictEqual((await partialClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId, deviceCredential: promotionCredential
+    })).ok, true);
+    var defaultHydrate = await partialClient.resumeAccountManagedHydrate();
+    assert.strictEqual(defaultHydrate.ok, true, 'partial Cloud receipt with only the default folder difference auto-recovers');
+    assert.strictEqual(defaultHydrate.automaticHydrate, true);
+    assert.strictEqual((await partialClient.captureSnapshot()).manifestHash, canonicalCloud.manifestHash);
+    assert.strictEqual((await partialStore.listOutbox()).length, 0);
+    assert.strictEqual(partialRequests.some(function (url) { return url.indexOf('/v1/sync/push') !== -1; }), false);
+    var pullStore = createMemoryStore();
+    var pullSync = loadClient(pullStore);
+    var pullLocal = createStorage(Object.assign({}, canonicalSeed, {
+        'chordCruise.folders': JSON.stringify([localFolder])
+    }));
+    var pullClient = pullSync.client.createClient({ enabled: true, localStorage: pullLocal, crypto: webcrypto });
+    await pullClient.initialize();
+    await pullStore.setMeta('accountManagedSetup', true);
+    await pullStore.setMeta('migrationState', 'pair_pending');
+    var cloudFolderRecord = canonicalCloud.records.find(function (record) { return record.recordType === 'folder'; });
+    assert.strictEqual((await pullClient.applyPulledRecord(cloudFolderRecord)).status, 'applied',
+        'initial default folder is received without a pull conflict');
+    assert.strictEqual((await pullStore.listConflicts()).length, 0);
+    assert.strictEqual(JSON.parse(pullLocal.getItem('chordCruise.folders'))[0].colorKey, undefined);
+    pullLocal.setItem('chordCruise.folders', JSON.stringify([Object.assign({}, localFolder, { colorKey: 'blue' })]));
+    assert.strictEqual((await pullClient.applyPulledRecord(cloudFolderRecord)).status, 'conflict',
+        'a real folder recolor still requires review');
+
     var retiredStore = createMemoryStore();
     var retiredSync = loadClient(retiredStore);
     var retiredLocal = createStorage(seed);

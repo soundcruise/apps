@@ -1394,6 +1394,16 @@
                 await saveShadow([serverRecord]);
                 return { status: 'unchanged' };
             }
+            if (!shadow && localState.valid && localState.record &&
+                await store.getMeta('accountManagedSetup') === true &&
+                await store.getMeta('migrationState') === 'pair_pending' &&
+                mergeApi().isEquivalentInitialFolder(localState.record, serverRecord) &&
+                !(await store.listOutbox()).some(function (operation) { return operation.recordKey === recordKey; })) {
+                adapter.applyServerRecord(serverRecord);
+                config.onRemoteApplied?.();
+                await saveShadow([serverRecord]);
+                return { status: 'applied' };
+            }
             if (stateMatchesShadow(localState, shadow)) {
                 adapter.applyServerRecord(serverRecord);
                 config.onRemoteApplied?.();
@@ -1945,6 +1955,28 @@
             return { enabled: true, ok: false, code: 'merge_not_resumable', stage: session.stage };
         }
 
+        async function canAutoHydrateTrackedCloud(plan, local, cloud, store) {
+            if (!plan || !plan.finalSnapshot || plan.conflicts.length || plan.idRemaps.length ||
+                plan.remoteChanges.length || plan.finalSnapshot.manifestHash !== cloud.manifestHash ||
+                !local || (local.errors && local.errors.length)) return false;
+            if ((await store.listOutbox()).length || (await store.listConflicts()).length) return false;
+            var cloudByKey = Object.create(null);
+            cloud.records.forEach(function (record) {
+                if (record.deletedAt == null) cloudByKey[core.recordKey(record.recordType, record.recordId)] = record;
+            });
+            var shadowByKey = Object.create(null);
+            (await store.listShadow()).forEach(function (record) { shadowByKey[record.recordKey] = record; });
+            return local.records.every(function (record) {
+                var key = record.recordKey || core.recordKey(record.recordType, record.recordId);
+                var remote = cloudByKey[key];
+                var base = shadowByKey[key];
+                if (!remote) return false;
+                if (base && base.deletedAt == null && base.payloadHash === remote.payloadHash &&
+                    record.payloadHash === remote.payloadHash) return true;
+                return !base && mergeApi().isEquivalentInitialFolder(record, remote);
+            });
+        }
+
         async function resumeAccountManagedHydrate() {
             if (!enabled) return { enabled: false };
             var store = await openStore();
@@ -1971,7 +2003,8 @@
                 return Object.assign({}, resumed, { completed: resumed.ok === true, resumed: true });
             }
             if (active && active.stage === 'awaiting_confirmation') {
-                if (active.localState !== 'empty') {
+                if (active.localState !== 'empty' && !(await canAutoHydrateTrackedCloud(active.plan, active.localSnapshot,
+                    active.cloudSnapshot, store))) {
                     return { enabled: true, ok: true, completed: false, requiresConfirmation: true,
                         sessionId: active.sessionId, localState: active.localState };
                 }
@@ -1981,7 +2014,9 @@
 
             var prepared = await preparePairingMerge();
             if (!prepared.ok) return prepared;
-            if (prepared.localState !== 'empty') {
+            var preparedSession = await store.getMergeSession(prepared.sessionId);
+            if (prepared.localState !== 'empty' && !(await canAutoHydrateTrackedCloud(prepared.plan,
+                preparedSession.localSnapshot, preparedSession.cloudSnapshot, store))) {
                 return { enabled: true, ok: true, completed: false, requiresConfirmation: true,
                     sessionId: prepared.sessionId, localState: prepared.localState, plan: prepared.plan };
             }

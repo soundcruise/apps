@@ -66,12 +66,14 @@ export function createNativeSyncHost(id, current, entry, root, url) {
     // local difference. Untracked legacy/local-only edits need explicit review.
     let untracked=false;
     if(credential){
+     const initialChordJoin=!adapter&&await nativeStore.getMeta('accountManagedSetup')===true&&await nativeStore.getMeta('migrationState')==='pair_pending';
      const local=adapter?await adapter.serializeRecords(adapter.readLocalSnapshot()):(await chord.captureSnapshot()).records;
      const key=r=>r.recordType+'/'+r.recordId,live=r=>r&&!r.deleted&&r.deletedAt==null;
      const map=new Map(local.map(r=>[key(r),r])),base=new Map(shadow.map(r=>[key(r),r]));
      for(const k of new Set([...map.keys(),...base.keys()])){
       const l=map.get(k),s=base.get(k);
       if((!l&&!live(s))||(l&&live(s)&&(l.payloadHash===s.payloadHash||adapter?.sameRecordForSync?.(l,s))))continue;
+      if(initialChordJoin&&l&&!s&&l.recordType==='folder'&&globalThis.CruiseStudio.seriesApps[id].nativeWindow.ChordCruiseSync.merge.isInitialFolder(l.payload))continue;
       if(!pending.some(o=>key(o)===k&&(l?o.payloadHash===l.payloadHash&&!o.deleted:o.deleted===true)))untracked=true;
      }
     }
