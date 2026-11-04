@@ -30,4 +30,24 @@ if(process.env.STUDIO_PROJECT_ACTIVATED_REHEARSAL==='1'){
  const before=entry;entry=entry.replace(/return createIsolatedStudioDocumentOwner\\((\\{[\\s\\S]+?\\})\\)\\.fetch\\((new Request\\([\\s\\S]+?\\))\\);/,(_,configuration,request)=>"return createStudioActivatedWorker({legacy:{fetch(){return new Response(null,{status:404});},scheduled(){}},configuration:{...("+configuration+"),routeEnabled:true,evidencePolicy:{maxRows:4096,maxBytes:16777216},rate:{requests:600,windowMs:60000}}}).fetch("+request+",env,{});");assert.notEqual(entry,before,'activated fixture route installed');fs.writeFileSync(OUT+'/entry.mjs',entry);`);
  run=run.replace("await db.prepare('UPDATE studio_document_control SET enabled=1').run();","await db.prepare('UPDATE studio_document_control SET enabled=1').run();await (await import(src+'/studio-activation.js')).changeStudioActivation(db,{expectedRevision:0,operationId:randomUUID(),mode:'general',targets:[],reason:'synthetic deployment rehearsal only'});");
 }
+if(process.env.STUDIO_PROJECT_CANARY==='1'){
+ assert.equal(process.env.STUDIO_PROJECT_RELEASE_PROFILE,'1');assert.notEqual(process.env.STUDIO_PROJECT_ACTIVATED_REHEARSAL,'1');
+ // Existing harness, native credentials and route interception. This formal entry
+ // is bundled unchanged; no localhost injection or synthetic Project Owner.
+ run=run.replace("entry=workerWithoutProject(entry,src);", "entry=workerWithoutProject(entry,src);");
+ const begin=run.indexOf('const init=entry.slice('),end=run.indexOf("fs.writeFileSync(OUT+'/entry.mjs',entry);",begin);
+ assert(begin>0&&end>begin);run=run.slice(0,begin)+"entry=workerWithoutProject(entry,src);entry=\"import canary from '\"+src+\"/studio-canary-entry.js';\"+entry.replace('return legacy.fetch(request,env,{});},scheduled:legacy.scheduled','return canary.fetch(request,env,{});},scheduled:canary.scheduled');entry=entry.replaceAll('studio.fixture.invalid','soundcruise.jp');"+run.slice(end);
+ run=run.replace("await db.prepare('UPDATE studio_document_control SET enabled=1').run();",'');
+ run=run.replace("if(cloud)await context.addInitScript(()=>{globalThis.__SOUND_CRUISE_STUDIO_CLOUD__={endpoint:'https://backend.fixture.invalid/v2/studio/document',turnstile:async()=> 'synthetic'};});",'');
+ run=run.replace('normalGear,sync,go,ready});',"normalGear,sync,go,ready,canary:(await import("+JSON.stringify(path.join(here,'project-canary.acceptance.mjs'))+")).canaryAcceptance({db,mf,src,check,network,OUT})});");
+ // Reused product acceptance gets its own opt-in entry; normal index remains
+ // available for the no-loader assertion. Every browser request is intercepted.
+ const acceptance=fs.readFileSync(path.join(here,'project-cloud-product.acceptance.mjs'),'utf8').replaceAll('https://studio.fixture.invalid/apps/cruise-studio/','https://soundcruise.jp/apps/cruise-studio-canary/project-canary.html');
+ const acceptanceFile=path.join(out,'canary-product.acceptance.mjs');fs.writeFileSync(acceptanceFile,acceptance);
+ run=run.replace(JSON.stringify(path.join(here,'project-cloud-product.acceptance.mjs')),JSON.stringify(acceptanceFile));
+ run=run.replace("p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage)", "p.page.goto('https://studio.fixture.invalid/apps/cruise-studio-canary/project-canary.html')");
+ run=run.replaceAll('https://studio.fixture.invalid','https://soundcruise.jp');
+ run=run.replace("entry:'workers/sound-cruise-sync/src/index.js'","entry:'workers/sound-cruise-sync/src/studio-canary-entry.js',delegate:'workers/sound-cruise-sync/src/index.js'");
+ run=run.replace("p.includes('/workers/sound-cruise-sync/')","p.includes('workers/sound-cruise-sync/')").replace('const inputs=Object.keys(built.metafile.inputs);',"const inputs=Object.keys(built.metafile.inputs);assert(inputs.some(p=>p.endsWith('/src/studio-canary-entry.js')));");
+}
 const file=path.join(out,'project-product-run.mjs');fs.writeFileSync(file,run);execFileSync(process.execPath,[file],{stdio:'inherit',env:process.env});

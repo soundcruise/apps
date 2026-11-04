@@ -19,6 +19,7 @@ export function mountStudioCloudPanel({element,session=null,client=null,reposito
  const online=()=>globalThis.navigator?.onLine!==false;
  function render(){const s=authenticated(),admitted=globalThis.CruiseStudio?.entryAuth?.isAuthorized()===true;account.textContent=s?'Account接続済み / Device '+s.binding.deviceId.slice(0,8):admitted?'Account接続済み / Project Sync未接続':'Account未接続';pro.textContent=s?'Pro認証済み / '+new Date(s.validUntil).toLocaleString()+'まで':admitted?'Studio Pro認証済み':'Pro認証を確認してください';state.textContent=online()?status:'Offline：未送信データは端末に保持されています';
   for(const [name,b] of buttons){b.disabled=busy||!online()||!session||(!['connect','refresh','register','device','recover'].includes(name)&&!s);}
+  if(s?.activation?.mode==='canary'){const allowed=s.activation.datasetIds.includes(getProject?.()?.projectId);note.textContent=allowed?'運営者限定canary：このProjectを同期できます。初回Cloud保存と競合解決は明示操作です。':'運営者限定canary：承認済みProjectだけ同期できます。対象外のProjectはローカル保存を続けられます。';for(const name of ['save','delete','observe','load'])if(buttons.has(name))buttons.get(name).disabled ||= !allowed;}
   if(buttons.has('connect'))buttons.get('connect').hidden=!!s;
   const op=operations.find(x=>x.operationId===activeId);for(const name of ['send','reconcile','adopt'])if(buttons.has(name))buttons.get(name).disabled ||= !op;
   if(buttons.has('send'))buttons.get('send').disabled ||= !['QUEUED','UPLOADING'].includes(op?.state);

@@ -149,7 +149,9 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
    await assertSessionCurrent(c);assertCurrent(c);if(!await affinity(c,documentId))fail('restore-local-untracked');
    const here=local(documentId);if(!here.exists||here.revision!==expectedLocalRevision)fail('local-conflict');validate(here.snapshot,documentId);
    const head=await call(c,'snapshot',{documentId});if(head.status!=='deleted'||head.revision!==expectedCloudRevision)fail('restore-source-changed');
-   const project=clone(here.snapshot);project.projectId=crypto.randomUUID();validate(project,project.projectId);await bindAffinity(c,project.projectId);assertCurrent(c);
+   let copyId=crypto.randomUUID();
+   if(c.activation?.mode==='canary'){copyId=null;for(const id of c.activation.datasetIds){if(id===documentId||local(id).exists)continue;const head=await call(c,'snapshot',{documentId:id});if(head.status==='absent'){copyId=id;break;}}if(!copyId)fail('canary-copy-target-required');}
+   const project=clone(here.snapshot);project.projectId=copyId;validate(project,project.projectId);await bindAffinity(c,project.projectId);assertCurrent(c);
    const saved=await repository.save({target:target(project.projectId),baseRevision:null,snapshot:project,
     precondition:()=>current(c)&&local(documentId).revision===expectedLocalRevision,commitCurrent:publish=>commitSessionCurrent(c,publish)});
    if(!saved.ok)fail(saved.code||'local-copy-save');copied={projectId:project.projectId,revision:saved.revision};

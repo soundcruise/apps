@@ -11,7 +11,13 @@ export function workerWithoutProject(entry,src){
  const a=entry.indexOf('env={'),b=entry.indexOf('const path=',a),c=entry.indexOf('return createStudioActivatedWorker(',b);
  if(a<0||b<0||c<0)throw Error('native-fixture-shape-changed');
  const pinned=process.env.STUDIO_PINNED_WORKER;
- if(pinned&&createHash('sha256').update(fs.readFileSync(pinned)).digest('hex')!=='9d880d845b22d7905a5fe5be5b453f074ee28956ce2044ac769c9ee726bbe0b5')throw Error('pinned-worker-artifact-mismatch');
+ // Preserved v137 fixture and read-only captured Production v138. Never accept
+ // an arbitrary local bundle as evidence for the deployed API contract.
+ const pinnedHashes=new Set([
+  '9d880d845b22d7905a5fe5be5b453f074ee28956ce2044ac769c9ee726bbe0b5',
+  'de6b6fbd2f759fdc55a32662e10d224e11d876672405b604944270387cc19b15'
+ ]);
+ if(pinned&&!pinnedHashes.has(createHash('sha256').update(fs.readFileSync(pinned)).digest('hex')))throw Error('pinned-worker-artifact-mismatch');
  return `import legacy from ${JSON.stringify(pinned||src+'/index.js')};import {handleAccountApiRequest} from '${src}/account-app.js';import {handleProAuthRequest} from '${src}/pro-auth-app.js';export default {fetch(request,env){${entry.slice(a,b)}${entry.slice(b,c)}return legacy.fetch(request,env,{});},scheduled:legacy.scheduled};`;
 }
 export function removeProjectFixture(run){
@@ -28,7 +34,8 @@ export function removeProjectFixture(run){
 }
 export function fixtureFile(repo,pathname){
  const relative=decodeURIComponent(pathname).slice(1)+(pathname.endsWith('/')?'index.html':'');
- if(releaseMode&&relative.startsWith('apps/cruise-studio/')){
+ if(releaseMode&&process.env.STUDIO_PROJECT_CANARY==='1'&&relative.startsWith('apps/cruise-studio/'))return fs.readFileSync(path.join(repo,relative));
+ if(releaseMode&&(relative.startsWith('apps/cruise-studio/')||relative.startsWith('apps/cruise-studio-canary/'))){
   const artifact=process.env.STUDIO_RELEASE_ARTIFACT;if(!artifact)throw Error('release-artifact-required');
   const root=fs.realpathSync(artifact),file=path.resolve(root,relative);if(!file.startsWith(root+path.sep))throw Error('path');return fs.readFileSync(file);
  }
