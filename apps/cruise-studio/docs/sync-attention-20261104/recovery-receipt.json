@@ -1,0 +1,53 @@
+{
+  "status": "PASS",
+  "tests": [
+    {
+      "name": "legacy network retains exact pending operation and reconnects without replacement",
+      "status": "PASS"
+    },
+    {
+      "name": "legacy 503 retains exact pending operation and reconnects without replacement",
+      "status": "PASS"
+    },
+    {
+      "name": "legacy committed ACK loss survives reload; same-operation retry or exact own echo makes one commit",
+      "status": "PASS"
+    },
+    {
+      "name": "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+      "status": "PASS"
+    },
+    {
+      "name": "native image re-edit publishes a new matched source/final generation on both devices",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit photo deletion propagates without treating a missing cache as deletion",
+      "status": "PASS"
+    },
+    {
+      "name": "native My Apps icon source/final binary roundtrip through Studio entry",
+      "status": "PASS"
+    },
+    {
+      "name": "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+      "status": "PASS"
+    },
+    {
+      "name": "legacy attachment deletion ACK loss preserves pending data while a new attachment is retained",
+      "status": "PASS"
+    },
+    {
+      "name": "legacy attachment pending retry and replacement download preserve v2 without resurrecting v1",
+      "status": "PASS"
+    },
+    {
+      "name": "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+      "status": "PASS"
+    },
+    {
+      "name": "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes",
+      "status": "PASS"
+    }
+  ]
+}

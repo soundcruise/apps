@@ -237,6 +237,8 @@
     if (existing?.__soundCruiseConflictController) return existing.__soundCruiseConflictController;
     if (!document?.createElement || !document?.body) throw new Error('conflict_ui_document_missing');
 
+    let disposed=false;
+    const current=()=>!disposed&&!global.SoundCruiseNativeSyncHost?.storeOptions?.signal.aborted;
     const dialog = document.createElement('dialog');
     dialog.className = 'sound-cruise-sync-conflict';
     dialog.dataset.syncConflictResolution = '';
@@ -558,15 +560,22 @@
     });
     applyButton.addEventListener('click', () => controller.apply('individual'));
     laterButton.addEventListener('click', () => controller.later());
+    dialog.addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.isComposing)e.stopPropagation();});
     dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
       controller.later();
     });
     const stateListener = (event) => {
-      if (event.detail?.state === 'attention' && event.detail?.reason === 'conflict') controller.refresh();
+      if (event.detail?.state === 'attention' && event.detail?.reason === 'conflict') {
+        void import('../../cruise-port/sync-attention-ui.mjs?v=1.26.0').then(async ui=>{
+          const conflicts=await runtime.store.listConflicts(),account=await global.SoundCruiseSyncAccount?.storage?.getAccount?.();
+          return ui.getAttentionGuide(global).open({key:ui.attentionKey(account?.accountId,runtime.appId,'conflict',conflicts),
+            canOpen:()=>current()&&!document.hidden&&!dialog.open&&!document.querySelector('dialog[open]'),open:()=>current()&&controller.refresh()},true);
+        }).catch(()=>{});
+      }
     };
     runtime.addEventListener('statechange', stateListener);
-    return Object.freeze({ ...controller, dispose() { runtime.removeEventListener('statechange', stateListener); dialog.remove(); } });
+    return Object.freeze({ ...controller, dispose() { disposed=true;runtime.removeEventListener('statechange', stateListener); dialog.remove(); } });
   }
 
   Object.assign(root, {

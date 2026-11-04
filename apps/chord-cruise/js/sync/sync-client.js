@@ -2047,8 +2047,11 @@
             }
         }
 
+        var reportRevision = 0;
         async function reportRemovalSafety(state) {
             if (!enabled || ['clean', 'pending', 'attention', 'error'].indexOf(state) === -1) return;
+            var revision = ++reportRevision;
+            var generation = global.SoundCruiseSyncAccount?.storage?.getGeneration?.();
             try {
                 var store = await openStore();
                 var conflicts = state === 'attention' && typeof store.listConflicts === 'function'
@@ -2060,9 +2063,19 @@
                     attentionCount = session && session.stage === 'awaiting_confirmation' &&
                         Array.isArray(session.plan?.conflicts) ? session.plan.conflicts.length : 0;
                 }
-                await authenticatedRequest('POST', '/v1/sync/removal-safety', {
+                var reported = await authenticatedRequest('POST', '/v1/sync/removal-safety', {
                     appId: core.APP_ID, state: state, attentionCount: attentionCount
                 });
+                if (revision !== reportRevision || config.signal?.aborted ||
+                    generation !== global.SoundCruiseSyncAccount?.storage?.getGeneration?.()) return;
+                config.assertCurrent?.();
+                // Completion of the existing report, not a new Sync state or a
+                // claim that the Account-wide report is clean before its ACK.
+                if (global.dispatchEvent && typeof global.CustomEvent === 'function') global.dispatchEvent(new global.CustomEvent('soundcruise:sync-report', {
+                    detail: {appId: core.APP_ID, ok: reported.ok === true, state: state, code: reported.code, status: reported.status,
+                        terminal: isTerminalAccountManagedCode(reported.code)}
+                }));
+                return reported;
             } catch (error) { /* Port remains fail-closed when reporting is unavailable. */ }
         }
 

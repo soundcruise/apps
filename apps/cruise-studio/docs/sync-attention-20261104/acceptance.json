@@ -1,0 +1,131 @@
+{
+  "date": "2026-11-04",
+  "baseCommit": "1453c94430c95febdc02fc7055e95d79e603bc4e",
+  "branch": "codex/sync-attention-guidance",
+  "versions": {
+    "port": "1.26.0",
+    "studio": "0.74.0",
+    "chord": "1.22.0",
+    "pitch": "2.31.0",
+    "fretboard": "2.26.0",
+    "rhythm": "1.22.0"
+  },
+  "realMacReadOnly": {
+    "productionModified": false,
+    "resolutionConfirmed": false,
+    "dbVersion": 2,
+    "requiredStoresPresent": 6,
+    "shadowCount": 30,
+    "outboxCount": 0,
+    "conflictCount": 0,
+    "activeUnresolvedMerge": false,
+    "nativeSyncState": "pilot_ready",
+    "pendingRecovery": false,
+    "pendingAccountDelete": false,
+    "accountMembership": "active",
+    "serverRemovalSafety": "attention",
+    "reportedAttentionCount": 1,
+    "onlyCurrentAppDeviceReportedAttention": true,
+    "otherActiveAppDevicesClean": 5,
+    "lastReportAgeSecondsAtObservation": 8456,
+    "finding": "Server last-report attention is not a live local conflict. The historical reason for the retained report is unconfirmed. No report was cleared, and no production Sync/resolution was run."
+  },
+  "implementation": {
+    "portOwnsSummaryAndGuidance": true,
+    "nativeConflictAndManagementControllersReused": true,
+    "cancel": "Same unresolved fingerprint is suppressed in the owning window/history entry; manual review reopens. A changed conflict ID/hash or Account is a new issue.",
+    "noNewStorageKeyOrSyncState": true,
+    "noAutomaticConflictChoice": true,
+    "noOutboxDeletionAdded": true,
+    "uiOnlyHistoryField": "cruiseSyncAttentionSeen",
+    "newWorkerOrDatabase": false,
+    "authAndStorageContractsChanged": false
+  },
+  "syntheticAcceptance": {
+    "product": {
+      "status": "PASS",
+      "passed": 51
+    },
+    "recovery": {
+      "status": "PASS",
+      "passed": 12
+    },
+    "attention": {
+      "status": "PASS",
+      "passed": 7
+    }
+  },
+  "node": {
+    "related": {
+      "passed": 625,
+      "failed": 0
+    },
+    "portAll": {
+      "passed": 1240,
+      "failed": 5,
+      "baselineMainSameFailures": true,
+      "failures": [
+        "SP2 shell equivalence",
+        "Dark attribute-free default",
+        "Dark 1.12.0 byte projection",
+        "Gray/Light tokens only",
+        "NEWS badge/general rule"
+      ]
+    },
+    "studioAll": {
+      "passed": 1947,
+      "failed": 21,
+      "tests": 1968,
+      "newFailuresComparedWithMain": [],
+      "sameFailureNamesAsMain": true
+    }
+  },
+  "pages": {
+    "jekyllSafeBuild": true,
+    "studioReleaseFiles": 81,
+    "byteIdenticalToCandidate": true,
+    "nativeOutputFilesByteIdenticalToCandidate": 813,
+    "projectCloudStillExcluded": true,
+    "httpStatusFromLocalJekyllBuild": {
+      "/apps/cruise-studio/": 200,
+      "/apps/cruise-studio/development.html": 404,
+      "/apps/cruise-studio/js/cloud/http-client.mjs": 404,
+      "/apps/cruise-studio/tests/sync-attention.browser.mjs": 404,
+      "/apps/cruise-studio/docs/sync-attention-20261104/acceptance.json": 404
+    }
+  },
+  "unchangedContractBlobs": {
+    "apps/shared/sync-account/multi-app-sync-runtime.js": "3060e5e06b5524d90ee01990aa8067355391c2e4",
+    "apps/shared/sync-account/sync-account-client.js": "14a0a14443816005fbe49473a936d0c0c85b5817",
+    "apps/shared/sync-account/sync-account-db.js": "a1258ee93b51853d3363d404cdf7f7032db671cb",
+    "apps/shared/pro-device-session.js": "92fcb8e8bb9ecdc2ad5ad51998632be4dbc205f0",
+    "apps/chord-cruise/js/sync/sync-client.js": "e50897aebf4f25799a87a457175296baaea9a5d4",
+    "apps/chord-cruise/js/sync/sync-db.js": "9ce07fd3f353a34acb15d08f9797a5b9c8cb57b0"
+  },
+  "workerTree": "12eebafbc6b5fe0f1f70ed5cc0b6af61dc90544a",
+  "screenshotsSyntheticOnly": {
+    "phone-port-attention.png": "68e178e076cf04f8860bf4dc51e9a647f36c293dd141c4b99305cc1f1ffd0efb",
+    "phone-native-auto-resolution.png": "d0ebdd7721aee026f2c7e87bef195fafa1890d588df6b09c0bb67146d7223063",
+    "studio-cancel-retains.png": "f079d9fc90e0316bb814adeeed3ffe64c37a8508c93e726020efcf1f8f60a3e3",
+    "right-pane-dark.png": "26a482c1f564cfac5d2f681676d91b4d37bf90bebbb703854e3b3a22d18d6c98",
+    "right-pane-midnight.png": "fc4b18548a1756a2f0584265537bcfa4aed8d38e720d55f0f2e372059725c6f2",
+    "right-pane-charcoal.png": "303594a6fd913c33188dfd0c5b4a28713b492b96a9397b1e2072a5aca5f9caf9",
+    "right-pane-gray.png": "d79cd51e32348d3db8025768d32c8343de53dab315c08e91a6ee29f091543534",
+    "right-pane-light.png": "f55876e0ff0e847d3104353776dc27667d08670f06e520d27c847d245412f9a3",
+    "review-layout-1440.png": "d8dfbf98f684384b5bd75e04142f39eacb52bcc25a3201ddaf8a89b8ecc01e03",
+    "review-layout-1024.png": "5c30cfd7c8a8465b8c7392fcf360604b4d4b13d9b410ae00352825d71618f4f6",
+    "review-layout-768.png": "5adc87a75fad7f971ce1c368f4bab6f3a87a349a7f4aad937a442367bc664466",
+    "review-layout-390.png": "bb923fdbdcfc9df0119c25fae4a46763f54ee227682aa3d307bf7ff57db1ac00"
+  },
+  "notAccepted": [
+    "iPhone PWA on this candidate",
+    "Production v138 exact artifact equivalence",
+    "Real Account issue resolution and two-device candidate acceptance"
+  ],
+  "boundaries": {
+    "mainMerged": false,
+    "pagesPublished": false,
+    "realAccountSyncStarted": false,
+    "productionBackendChanged": false
+  }
+}

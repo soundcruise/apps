@@ -128,10 +128,13 @@
             if (entryStatus) entryStatus.textContent = label;
         }
 
+        var attentionReturnFocus=null;
         function showScreen() {
+            if(screen.hidden)attentionReturnFocus=document.activeElement;
             if (entry) entry.hidden = true;
             if (screen !== section) screen.hidden = false;
             if (typeof screen.scrollIntoView === 'function') screen.scrollIntoView({ block: 'start' });
+            closeButton?.focus({preventScroll:true});
             return render();
         }
 
@@ -141,7 +144,7 @@
             if (screen !== section) screen.hidden = true;
             if (entry) entry.hidden = false;
             setRecoveryPhase(null);
-            if (entry && typeof entry.focus === 'function') entry.focus();
+            if(attentionReturnFocus?.isConnected)attentionReturnFocus.focus({preventScroll:true});else (host?.querySelector('[data-sync-attention-open]')||entry)?.focus();
         }
 
         function setButtonBusy(element, label, isBusy) {
@@ -820,6 +823,7 @@
         if (entry) entry.addEventListener('click', showScreen);
         var closeButton = section.querySelector('[data-sync-close]');
         if (closeButton) closeButton.addEventListener('click', closeScreen);
+        section.addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.isComposing){e.preventDefault();e.stopPropagation();closeScreen();}});
         var helpButton = section.querySelector('[data-sync-help]');
         if (helpButton) helpButton.addEventListener('click', showHelp);
 

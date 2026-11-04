@@ -222,7 +222,7 @@ try{
    await cold.goto('https://studio.fixture.invalid/apps/cruise-port/pro_9a3943176561/#sync-center');await ready(cold);
    await cold.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
    await cold.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='attention';});
-   await cold.locator('#sync-center-port-conflicts-open').click();await cold.locator('[data-sync-conflict-resolution][open]').waitFor();
+   if(!await cold.locator('[data-sync-conflict-resolution][open]').isVisible())await cold.locator('#sync-center-port-conflicts-open').click();await cold.locator('[data-sync-conflict-resolution][open]').waitFor();
    assert(await cold.evaluate(async()=>(await SoundCruiseMultiAppSync.runtimes.port.store.listConflicts()).some(c=>c.recordType==='gear_item')));
    assert.deepEqual(coldErrors,[]);
   }finally{await cold.close();}
@@ -231,15 +231,20 @@ try{
   await loser.goto(coldUrl.href);await ready(loser);
   await loser.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
   await loser.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='attention';});
-  assert.equal(await loser.locator('[data-sync-conflict-resolution][open]').count(),0);
+  await loser.locator('[data-sync-conflict-resolution][open]').waitFor();assert.equal(await loser.locator('[data-sync-conflict-resolution][open]').count(),1);
   assert.match(await loser.locator('#sync-center-port-conflicts-open').innerText(),/競合を確認する/);
   assert.equal(await loser.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'attention');
-  await loser.locator('#sync-center-port-conflicts-open').click();
+  if(!await loser.locator('[data-sync-conflict-resolution][open]').isVisible())await loser.locator('#sync-center-port-conflicts-open').click();
   await loser.locator('[data-sync-conflict-resolution][open]').waitFor();
   await loser.locator('#sync-center-account-display-id').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));
   await loserPage.locator('[data-account-target]').evaluateAll(es=>es.forEach(e=>e.style.visibility='hidden'));
   await loserPage.screenshot({path:OUT+'/cold-conflict-resolution.png'});
-  await loser.getByRole('button',{name:'クラウドの内容でこの端末を更新',exact:true}).click();await loser.waitForFunction(async()=>!(await SoundCruiseMultiAppSync.runtimes.port.store.listConflicts()).some(c=>c.recordType==='gear_item'));await loser.locator('[data-sync-conflict-resolution]').waitFor({state:'hidden'});await sync(loser);
+  const resolution=loser.locator('[data-sync-conflict-resolution]');const remote=resolution.getByRole('button',{name:'クラウドの内容でこの端末を更新',exact:true});
+  if(await remote.isVisible())await remote.click();else{
+   const individual=resolution.getByRole('button',{name:'個別に選択する',exact:true});if(await individual.getAttribute('aria-expanded')==='false')await individual.click();
+   await resolution.locator('input[type=radio][value=remote]').first().waitFor();for(const radio of await resolution.locator('input[type=radio][value=remote]').all())await radio.check();await resolution.getByRole('button',{name:'選んだ内容を反映',exact:true}).click();
+  }
+  await loser.waitForFunction(async()=>!(await SoundCruiseMultiAppSync.runtimes.port.store.listConflicts()).some(c=>c.recordType==='gear_item'));await loser.locator('[data-sync-conflict-resolution]').waitFor({state:'hidden'});await sync(loser);
   await edit(loser,'CAS resolved');await sync(loser);await sync(winner);await winner.waitForFunction(()=>localStorage.getItem('cruisePort.gearList')?.includes('CAS resolved'));
  });
  assert.equal(errors.length,0);result.productionRequestsSent=0;

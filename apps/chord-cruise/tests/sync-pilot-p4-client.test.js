@@ -72,15 +72,18 @@ function createStore(options) {
     };
 }
 
-function loadClient(store) {
+function loadClient(store, options) {
+    var config=options||{};
     var window = {
         crypto: webcrypto,
         setTimeout: function () { return 1; },
         addEventListener: function () {},
         document: { addEventListener: function () {}, visibilityState: 'visible' }
     };
+    if(config.events){window.CustomEvent=function(type,init){this.type=type;this.detail=init?.detail;};window.dispatchEvent=e=>config.events.push(e);}
+    if(config.generation)window.SoundCruiseSyncAccount={storage:{getGeneration:()=>config.generation.value}};
     var context = {
-        window: window, crypto: webcrypto, TextEncoder: TextEncoder, URL: URL,
+        CustomEvent:window.CustomEvent, window: window, crypto: webcrypto, TextEncoder: TextEncoder, URL: URL,
         JSON: JSON, Object: Object, Number: Number, Uint8Array: Uint8Array,
         Date: Date, Promise: Promise, setTimeout: window.setTimeout, encodeURIComponent: encodeURIComponent
     };
@@ -208,14 +211,14 @@ async function makeServer(sync, seedStorage) {
 
 async function pairedClient(localSeed, cloudSeed, options) {
     var config = options || {};
-    var store = createStore(config.store); var sync = loadClient(store);
+    var store = createStore(config.store); var sync = loadClient(store,config);
     var storage = createStorage(localSeed, config.failKey, config.corruptOnceKey);
     var server = await makeServer(sync, cloudSeed);
     await store.setMeta('deviceCredential', { deviceId: DEVICE_ID, credential: CREDENTIAL, credentialVersion: 1 });
     await store.setMeta('syncState', 'paired_pending');
     var client = sync.client.createClient({
         enabled: true, localStorage: storage, crypto: webcrypto,
-        endpoint: 'http://127.0.0.1:8787', fetch: server.fetch, signal: config.hosted ? new AbortController().signal : undefined, now: function () { return 1000; }
+        endpoint: 'http://127.0.0.1:8787', fetch: config.reportRequests ? async function(url,opts){if(url.includes('/v1/sync/removal-safety'))return new Promise(resolve=>{config.reportRequests.push(resolve);config.reportEntered?.();});if(url.includes('/v1/sync/changes'))return response(200,{ok:true,changes:[],nextCursor:'scc1.MA',hasMore:false});return server.fetch(url,opts);} : server.fetch, signal: config.signal || (config.hosted ? new AbortController().signal : undefined), now: function () { return 1000; }
     });
     await client.initialize();
     return { store: store, sync: sync, storage: storage, server: server, client: client };
@@ -421,6 +424,32 @@ async function pairedClient(localSeed, cloudSeed, options) {
     await recoveryClient.initialize();
     assert.deepStrictEqual(recoveryStorage.snapshot(), original, 'reload during local apply restores the exact scoped backup');
     assert.strictEqual((await recoveryStore.getMergeSession('session-crash')).stage, 'rolled_back');
+
+    // The existing client reports its ACK without changing Sync/Outbox semantics.
+    async function reportFixture(){
+        var events=[],reports=[],generation={value:1},options={events:events,reportRequests:reports,generation:generation};
+        var flow=await pairedClient(chordSeed('report'),chordSeed('report'),options);
+        var prepared=await flow.client.preparePairingMerge();assert.strictEqual((await flow.client.applyPairingMerge(prepared.sessionId,{})).ok,true);
+        return {flow:flow,events:events,reports:reports,generation:generation,options:options};
+    }
+    var reporting=await reportFixture();
+    async function enterReport(fixture){var entered;var wait=new Promise(resolve=>entered=resolve);fixture.options.reportEntered=entered;await fixture.flow.client.syncNow();await wait;}
+    await enterReport(reporting);await enterReport(reporting);
+    reporting.reports[1](response(200,{ok:true}));await new Promise(setImmediate);
+    reporting.reports[0](response(503,{ok:false,code:'sync_safety_unavailable'}));await new Promise(setImmediate);
+    var notices=reporting.events.filter(e=>e.type==='soundcruise:sync-report');
+    assert.strictEqual(notices.length,1,'late failure must not replace the newer report ACK');assert.strictEqual(notices[0].detail.ok,true);
+    await enterReport(reporting);reporting.reports[2](response(503,{ok:false,code:'sync_safety_unavailable'}));await new Promise(setImmediate);
+    notices=reporting.events.filter(e=>e.type==='soundcruise:sync-report');assert.strictEqual(notices.length,2);assert.strictEqual(notices[1].detail.ok,false);assert.strictEqual(notices[1].detail.status,503);
+    await enterReport(reporting);reporting.generation.value++;reporting.reports[3](response(200,{ok:true}));await new Promise(setImmediate);
+    assert.strictEqual(reporting.events.filter(e=>e.type==='soundcruise:sync-report').length,2,'previous Account generation cannot notify the current UI');
+    assert.strictEqual((await reporting.flow.store.listOutbox()).length,0);assert.strictEqual((await reporting.flow.store.listConflicts()).length,0);
+
+    var realConflict=await reportFixture();await realConflict.flow.store.putConflict({conflictId:'retained-conflict',recordKey:'settings/default',state:'pending'});
+    await enterReport(realConflict);realConflict.reports[0](response(200,{ok:true}));await new Promise(setImmediate);
+    var conflictNotice=realConflict.events.find(e=>e.type==='soundcruise:sync-report');assert.strictEqual(conflictNotice.detail.state,'attention');assert.strictEqual((await realConflict.flow.store.listConflicts()).length,1,'report ACK cannot resolve a real conflict');
+    var terminalReport=await reportFixture();await enterReport(terminalReport);terminalReport.reports[0](response(410,{ok:false,code:'app_device_revoked'}));await new Promise(setImmediate);
+    var terminalNotice=terminalReport.events.find(e=>e.type==='soundcruise:sync-report');assert.strictEqual(terminalNotice.detail.ok,false);assert.strictEqual(terminalNotice.detail.terminal,true,'native credential UI must retain priority over report retry');
 
     console.log('sync-pilot-p4-client: preview, stale guard, backup, local verify, response-loss resume, and crash rollback passed');
 }()).catch(function (error) {

@@ -1,0 +1,33 @@
+{
+  "status": "PASS",
+  "tests": [
+    {
+      "name": "native Account and device-bound Pro authentication through existing libraries",
+      "status": "PASS"
+    },
+    {
+      "name": "normal Port and all four apps are synced; overall attention is zero",
+      "status": "PASS"
+    },
+    {
+      "name": "a genuine Chord issue opens the existing merge screen automatically and Escape preserves it",
+      "status": "PASS"
+    },
+    {
+      "name": "repaint and tab return do not reopen; keyboard review opens the same native merge without choosing data",
+      "status": "PASS"
+    },
+    {
+      "name": "Port aggregates one Chord issue once, keeps Port synced, and opens standalone native resolution automatically",
+      "status": "PASS"
+    },
+    {
+      "name": "an explicit native Cloud choice resolves the issue and the Port total returns to zero",
+      "status": "PASS"
+    },
+    {
+      "name": "same native iframe and Controller move to the right pane, retaining review in five themes and four widths",
+      "status": "PASS"
+    }
+  ]
+}

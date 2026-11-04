@@ -42,7 +42,7 @@ function render(presentation) {
   const root = { querySelector: (selector) => (selector === '#sync-center-apps' ? list : null) };
   renderAppRows(root, presentation, 'pro', true, null, { onRecheck: () => {} });
   const row = list.children.find((item) => item.children[1].children[0].textContent === 'コードクルーズ');
-  return { root, chip: row.children[1].children[1].children[0], action: row.children[2].children[0] };
+  return { root, chip: row.children[1].children[1].children[0], action: row.children[2].children.at(-1), review: row.children[2].children.find(b=>b.dataset.syncResolveApp) };
 }
 
 const CASES = [
@@ -76,3 +76,5 @@ test('while rows are checking the aria-label says 確認中… too', () => {
   assert.equal(chip.textContent, '確認中…');
   assert.equal(action.getAttribute('aria-label'), 'コードクルーズで同期を解除（確認中…）');
 });
+
+test('review control is present only when needed and announces its actual status',()=>{const {review}=render(ready([target(ID,{state:'attention',reportedAt:1,attentionCount:1})],{removalSafety:'attention',attentionConflictCount:1}));assert.equal(review.textContent,'解決方法を確認');assert.equal(review.getAttribute('aria-label'),'コードクルーズの解決方法を確認（確認が必要 1件）');assert.equal(render(ready([target(ID,{state:'clean',reportedAt:1,attentionCount:0})])).review,undefined);});

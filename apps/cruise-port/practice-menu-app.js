@@ -37,7 +37,7 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=1.25.1';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.25.1';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.26.1';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.25.3';
+} from './app-version.js?v=1.26.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -4441,6 +4441,7 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
         onAppAction: syncCenterActions?.onAppAction,
+        onResolveApp: syncCenterActions?.resolveApp, onResolvePort: syncCenterActions?.resolvePort,
         onRecheck: () => renderSyncCenterView(),
         aiSupport: Boolean(aiSupportPanel)
     });
@@ -6714,6 +6715,10 @@ const stopSyncCenterAccountWatch = globalThis.SoundCruiseSyncAccount?.storage?.s
     if (location.hash === SYNC_CENTER_ROUTE) void renderSyncCenterView();
 });
 window.addEventListener('pagehide', event => { if (!event.persisted) stopSyncCenterAccountWatch?.(); });
+// Reuse the bounded, read-only Account refresh; never activate Sync for a report ACK.
+window.addEventListener('cruise-port-app-report-updated', () => {
+    if(location.hash===SYNC_CENTER_ROUTE)syncCenterReturnRefresh?.trigger();
+});
 window.addEventListener('cruise-port-sync-state', refreshVisibleSyncCenterStatus);
 window.addEventListener('cruise-port-asset-sync-state', refreshVisibleSyncCenterStatus);
 window.addEventListener('cruise-port-asset-sync-error', (event) => {

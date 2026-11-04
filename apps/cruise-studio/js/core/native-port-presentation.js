@@ -2,6 +2,14 @@
 (function (root) {
     'use strict';
     var CS = root.CruiseStudio;
+    root.addEventListener?.('soundcruise:sync-report',function(event){
+        if(!event.detail?.ok)return;
+        root.document.querySelectorAll('iframe').forEach(function(frame){try{
+            var child=frame.contentWindow;
+            if(frame.getClientRects().length&&child?.CruisePortSyncAttentionHost?.owner===root)
+                child.dispatchEvent(new child.CustomEvent('cruise-port-app-report-updated'));
+        }catch(_){} });
+    });
     CS.stopNativePort = function (frame) {
         frame.contentWindow?.studioEntryStopMedia?.();
         var tool = frame.contentWindow?.CruiseStudioPortTool;
@@ -15,6 +23,14 @@
         if (child.location.origin !== location.origin || !child.document.head) return;
         var doc = child.document;
         CS.attachAccountFrame?.(frame);
+        child.CruisePortSyncAttentionHost={owner:root,open:async function(id){
+            if(!['pitch','fretboard','rhythm','chord'].includes(id)||!CS.entryAuth?.isAuthorized())return false;
+            const visible=CS.seriesApps[id]?.nativeWindow;if(visible?.frameElement?.getClientRects().length&&visible.SoundCruiseSyncAttention)return visible.SoundCruiseSyncAttention.open();
+            if(CS.shellHost.getActiveWorkspace()!=='app_'+id&&CS.shellHost.navigate('app_'+id)===false)return false;
+            const app=CS.seriesApps[id];app.reviewRequested=true;
+            if(app.nativeWindow?.SoundCruiseSyncAttention){app.reviewRequested=false;return app.nativeWindow.SoundCruiseSyncAttention.open();}
+            return true;
+        }};
         // A permission prompt may finish after the entrance has locked. Retain
         // the form/document, but never let that old microphone request revive.
         if (!child.studioEntryStopMedia && child.navigator.mediaDevices?.getUserMedia) {

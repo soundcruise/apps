@@ -34,6 +34,7 @@ export function createNativeSyncHost(id, current, entry, root, url) {
  }
  const messages={sync_storage_schema_invalid:'このアプリの同期DBの構成を確認できません。保存内容は削除していません。データを消去せず、端末の状態を確認してください。',studio_app_account_mismatch:'このアプリには別Accountまたは失効した端末の接続情報があります。保存内容と未送信操作は保持し、同期を停止しています。',studio_account_changed:'Accountまたは資格が変更されました。入力は保持しています。現在の接続先を確認してから開き直してください。',app_connection_pending:'前のアプリ接続を復旧してから、もう一度確認してください。'};
  const host={
+  attentionWindow:globalThis,
   get failure(){return failure;},
   set failure(error){failure=error;},
   message(error){const code=error?.code||error?.message;return messages[code]||'接続を確認できません。保存内容は保持しています。通信・Account・Pro資格を確認してください。';},
@@ -44,6 +45,7 @@ export function createNativeSyncHost(id, current, entry, root, url) {
    onRemoteApplied(){assertCurrent();const child=globalThis.CruiseStudio.seriesApps[id].nativeWindow,app=child.ChordCruise;app.state.settings=app.storage.loadSettings();app.ui.settings.refresh();},
    localStorage:host.guardedStorage(globalThis.CruiseStudio.seriesApps[id].nativeWindow.localStorage)};},
   own(value){owned=value;},
+  reportUpdated(){assertCurrent();globalThis.dispatchEvent(new CustomEvent('soundcruise:sync-report',{detail:{appId:id,ok:true}}));},
   present({state,status}){if(life.signal.aborted||!current())return;const node=document.querySelector('[data-series-sync-status="'+id+'"]');if(node){node.textContent=status;node.dataset.nativeSyncState=state;}},
   async prepare({appId,adapter,store,client:chord}){
    try{
