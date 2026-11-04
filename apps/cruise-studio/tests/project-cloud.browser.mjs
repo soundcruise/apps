@@ -48,6 +48,7 @@ if(process.env.STUDIO_PROJECT_CANARY==='1'){
  run=run.replace("p.page.goto('https://studio.fixture.invalid/apps/cruise-studio/'+studioPage)", "p.page.goto('https://studio.fixture.invalid/apps/cruise-studio-canary/project-canary.html')");
  run=run.replaceAll('https://studio.fixture.invalid','https://soundcruise.jp');
  run=run.replace("entry:'workers/sound-cruise-sync/src/index.js'","entry:'workers/sound-cruise-sync/src/studio-canary-entry.js',delegate:'workers/sound-cruise-sync/src/index.js'");
+ if(process.env.STUDIO_PROJECT_FINAL_ACCEPTANCE==='1')run=run.replace('scheduled:canary.scheduled','scheduled(event,env,ctx){return canary.scheduled(event,{...env,SYNC_DB:env.DB,SYNC_ASSETS:env.ASSETS,SYNC_ASSET_CLEANUP_ENABLED:\"true\"},ctx);}');
  run=run.replace("p.includes('/workers/sound-cruise-sync/')","p.includes('workers/sound-cruise-sync/')").replace('const inputs=Object.keys(built.metafile.inputs);',"const inputs=Object.keys(built.metafile.inputs);assert(inputs.some(p=>p.endsWith('/src/studio-canary-entry.js')));");
 }
 const file=path.join(out,'project-product-run.mjs');fs.writeFileSync(file,run);execFileSync(process.execPath,[file],{stdio:'inherit',env:process.env});

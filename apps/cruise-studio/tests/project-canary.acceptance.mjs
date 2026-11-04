@@ -86,6 +86,7 @@ export function canaryAcceptance({db,mf,src,check,network,OUT}){
    assert.deepEqual((await db.prepare('SELECT * FROM studio_document_records ORDER BY user_id,record_id').all()).results,before);
    assert.equal((await db.prepare('SELECT count(*) n FROM d1_migrations').first()).n,33);
   });
+  if(process.env.STUDIO_PROJECT_FINAL_ACCEPTANCE==='1')await(await import('./project-final-erasure.acceptance.mjs')).acceptFinalErasure({A,B,account,projectId,db,mf,check,activate,request});
  }
  };
 }

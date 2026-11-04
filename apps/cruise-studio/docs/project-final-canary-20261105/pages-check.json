@@ -1,0 +1,16 @@
+{
+  "normalStudioVersion": "0.74.1",
+  "canaryVersion": "0.76.1",
+  "canaryHashCount": 90,
+  "checks": {
+    "/apps/cruise-studio/": 200,
+    "/apps/cruise-studio-canary/project-canary.html": 200,
+    "/apps/cruise-studio-canary/js/cloud/canary-entry.mjs": 200,
+    "/apps/cruise-studio/js/cloud/canary-entry.mjs": 404,
+    "/apps/cruise-studio/development.html": 404,
+    "/apps/cruise-studio/js/app.js": 404,
+    "/apps/cruise-studio/port-tool.html": 404,
+    "/apps/cruise-studio-canary/development.html": 404,
+    "/workers/sound-cruise-sync/src/studio-canary-entry.js": 404
+  }
+}
