@@ -64,8 +64,19 @@ export async function acceptLocalCreation(page, output) {
    if(width===1440||width===390)await page.screenshot({path:output+'/score-'+theme+'-'+width+'.png'});
   }
  }
- await page.setViewportSize({width:1440,height:1000});await page.emulateMedia({media:'print'});await page.pdf({path:output+'/original-score.pdf',format:'A4',printBackground:true});await page.emulateMedia({media:'screen'});
- assert(fs.statSync(output+'/original-score.pdf').size>1000);
+ for(const width of [1440,390]){
+ await page.setViewportSize({width,height:1000});await page.emulateMedia({media:'print'});
+ // Screen navigation must neither print nor shift the full A4 paper onto a blank second page.
+ for(const selector of ['#screen-sheet-cruise .workspace-local-nav','.studio-nav','#studio-tool-toggle','#studio-right-pane'])
+  assert.equal(await page.locator(selector).evaluate(e=>getComputedStyle(e).display),'none',selector+' is screen-only');
+ const paper=await page.locator('.sheet-page').boundingBox();assert(Math.abs(paper.y)<1,'A4 paper starts at the page origin');
+ assert(Math.abs(paper.width-210*96/25.4)<1,'A4 paper width');
+ const pdf=await page.pdf({path:output+(width===1440?'/original-score.pdf':'/original-score-narrow.pdf'),preferCSSPageSize:true,printBackground:true});
+ assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,1,'one-page score must not emit a blank continuation');
+ await page.emulateMedia({media:'screen'});
+ assert(await page.locator('#screen-sheet-cruise .workspace-local-nav').isVisible(),'screen navigation returns after print');
+ }
+ await page.setViewportSize({width:1440,height:1000});
  // Read a genuine legacy schema1 Project without overwriting its persisted bytes.
  const legacy=await page.evaluate(()=>{
   const C=CruiseStudio,p=C.model.createLegacySampleProject();p.projectId='legacy-return-fixture';p.songInfo.title='Legacy preserved';
