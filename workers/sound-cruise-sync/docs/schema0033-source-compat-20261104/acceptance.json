@@ -1,0 +1,533 @@
+{
+  "scope": "actual source Worker on captured Production schema0033; synthetic credentials/data only",
+  "base188": "ec172595d81dff693d8f969cdad98a40ffb8b6da",
+  "baseTree188": "6700841dd2a1aac884a3adbc9a1b289ee63fc028",
+  "main": "c862e590ead36f41e39574997bf34517120e51dd",
+  "productionChanged": false,
+  "legacyArtifactSubstituted": false,
+  "workerNode": {
+    "pass": 940,
+    "fail": 0,
+    "skip": 0
+  },
+  "focusedNode": {
+    "pass": 20,
+    "fail": 0,
+    "skip": 0
+  },
+  "releaseDdl": {
+    "pass": 1,
+    "changed": false,
+    "createStatements": 83,
+    "planStatements": 88,
+    "plan": {
+      "type": "studio-release-offline-plan-v1",
+      "migrationId": "studio_0001_rc4",
+      "ddlHash": "9fe8c42228f08df58c165d616780a252b45d7b58590ead1c70e394f6f3de00a9",
+      "baseFingerprint": "fac6295ff89f2f6a2a754329baba3f1c2264b48670249def9d0ac7b8886843d1",
+      "sqlSha256": "2f65ddf9a5b6a564049d7370b4162e3d61b659e90720cc3aa4e30ed87da50017",
+      "statements": 88,
+      "initialEnabled": 0,
+      "sharedJournalChanged": false,
+      "remoteOperations": 0
+    }
+  },
+  "dryRun": {
+    "index": true,
+    "offEntry": true
+  },
+  "pages": {
+    "studioFiles": 81,
+    "hashMatch": true,
+    "nativeFilesByteIdentical": 813
+  },
+  "assetCleanup": "HOLD_SCHEMA0033_ASSET_CLEANUP: no physical deletion; referenced object restored",
+  "sources": [
+    "257fadbd3c1dee9d9d644af8cbb7104ee733ce52",
+    "c701dd74",
+    "70cd871a09c36e3394f112f84c37df6555f0a136"
+  ],
+  "suites": {
+    "sourceProduct": {
+      "status": "PASS",
+      "count": 51,
+      "tests": [
+        {
+          "name": "public Studio restores schema2 score creation, persisted Projects and PreDTM JSON/MIDI/PDF without Project backend",
+          "status": "PASS"
+        },
+        {
+          "name": "Standard cold Port connects Account and saves/disconnects without manual reload",
+          "status": "PASS"
+        },
+        {
+          "name": "Pro cold Port connects Account and saves/disconnects without manual reload",
+          "status": "PASS"
+        },
+        {
+          "name": "native Port invitation join and first Cloud receive in standalone Pro",
+          "status": "PASS"
+        },
+        {
+          "name": "native Port invitation join and first Cloud receive in Studio iframe",
+          "status": "PASS"
+        },
+        {
+          "name": "formal locked Studio entrance joins the phone Account, receives first Cloud data and enters Home without another Sync click",
+          "status": "PASS"
+        },
+        {
+          "name": "locked entrance with retained old Account data keeps the native review frame and performs no automatic adoption",
+          "status": "PASS"
+        },
+        {
+          "name": "already joined Studio revisit retains old Account records, Outbox, image bytes and delete intent without silently receiving or sending",
+          "status": "PASS"
+        },
+        {
+          "name": "old joined empty Port initializes automatically on revisit using its authenticated Port Account Device",
+          "status": "PASS"
+        },
+        {
+          "name": "Pro detach keeps the local dataset writable on the same document",
+          "status": "PASS"
+        },
+        {
+          "name": "normal actual Studio boot stays Cloud-disconnected and performs no local writes",
+          "status": "PASS"
+        },
+        {
+          "name": "formal Studio entrance rejects wrong Pro and requires native Account in addition to Pro",
+          "status": "PASS"
+        },
+        {
+          "name": "one native entrance qualification admits all five actual Port Pro tools without another passcode",
+          "status": "PASS"
+        },
+        {
+          "name": "four original app controllers receive the trusted native source, preserving five themes without further Pro login",
+          "status": "PASS"
+        },
+        {
+          "name": "native Pro offline grace retains the same playing metronome, reconnects, and explicit revocation stops it",
+          "status": "PASS"
+        },
+        {
+          "name": "a revoked Account Device locks the entrance and refuses new Project save while keeping the actual Gear form and Project draft",
+          "status": "PASS"
+        },
+        {
+          "name": "Account replacement revalidates the native session and keeps the old Account form inert instead of silently adopting it",
+          "status": "PASS"
+        },
+        {
+          "name": "terminal Pro revocation and formal reauthentication reuse native APIs without dropping the preserved draft or old form",
+          "status": "PASS"
+        },
+        {
+          "name": "discarding a retained previous-Account form requires explicit confirmation; cancel preserves both form and draft",
+          "status": "PASS"
+        },
+        {
+          "name": "expired native Pro session requires formal reauthentication and retains the Project draft",
+          "status": "PASS"
+        },
+        {
+          "name": "public artifact restores local creation but excludes Project Cloud and developer APIs",
+          "status": "PASS"
+        },
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "native pitch first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native fretboard first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native rhythm first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native chord first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native pitch local-only data requires explicit review; save and online cannot silently adopt it",
+          "status": "PASS"
+        },
+        {
+          "name": "native fretboard local-only data requires explicit review; save and online cannot silently adopt it",
+          "status": "PASS"
+        },
+        {
+          "name": "native rhythm local-only data requires explicit review; save and online cannot silently adopt it",
+          "status": "PASS"
+        },
+        {
+          "name": "native chord local-only data requires explicit review; save and online cannot silently adopt it",
+          "status": "PASS"
+        },
+        {
+          "name": "native app owners leave through Studio Home with saved data retained before profile teardown",
+          "status": "PASS"
+        },
+        {
+          "name": "real Port Pro boot and real Studio to canonical Port Pro boot with native gates intact",
+          "status": "PASS"
+        },
+        {
+          "name": "real Sync Center attribution and existing runtime bootstrap on both profiles",
+          "status": "PASS"
+        },
+        {
+          "name": "real Port Gear UI save -> Cloud push -> Studio frame pull",
+          "status": "PASS"
+        },
+        {
+          "name": "Studio actual Gear form edits Cloud data and Port receives the edit",
+          "status": "PASS"
+        },
+        {
+          "name": "completed standalone Pro connection auto resumes on cold product boot without bootstrap or button",
+          "status": "PASS"
+        },
+        {
+          "name": "completed Studio iframe connection auto resumes on cold product boot without bootstrap or button",
+          "status": "PASS"
+        },
+        {
+          "name": "native automatic Device confirmation exits checking on HTTP 429 and recovers without bootstrap",
+          "status": "PASS"
+        },
+        {
+          "name": "native automatic Device confirmation exits checking on HTTP 503 and recovers without bootstrap",
+          "status": "PASS"
+        },
+        {
+          "name": "PWA-style pagehide/pageshow and offline-online automatically resume the established native owner",
+          "status": "PASS"
+        },
+        {
+          "name": "a previously completed B connection cannot auto adopt A local edits after Account switch and reload",
+          "status": "PASS"
+        },
+        {
+          "name": "real tuner/metronome UI and existing presets/practice/calendar/My Apps stores roundtrip",
+          "status": "PASS"
+        },
+        {
+          "name": "Studio product calendar entry edits native Port notes and syncs the same calendar dataset to standalone Port",
+          "status": "PASS"
+        },
+        {
+          "name": "latest UI My Apps focus is preserved with native Port and one Sync runtime",
+          "status": "PASS"
+        },
+        {
+          "name": "actual Gear photo workflow uploads source/final and Studio hydrates bytes through Asset Sync",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Practice attachment Asset Sync stores and hydrates real binary",
+          "status": "PASS"
+        },
+        {
+          "name": "offline edit is retained and reconciles through existing Sync after reconnect",
+          "status": "PASS"
+        },
+        {
+          "name": "Account A-B-A rejects the old standalone form, keeps A pending/images/attachments and resumes A",
+          "status": "PASS"
+        },
+        {
+          "name": "Studio retained Port form independently rejects another Account and resumes the original Device",
+          "status": "PASS"
+        },
+        {
+          "name": "native Port App Device revocation rejects subsequent Sync and retains local bytes",
+          "status": "PASS"
+        },
+        {
+          "name": "a fresh B document permits normal B editing without inheriting the old A runtime or Outbox",
+          "status": "PASS"
+        }
+      ],
+      "pageErrors": [],
+      "sourceBuild": {
+        "entry": "workers/sound-cruise-sync/src/index.js",
+        "legacyArtifact": false,
+        "bundleSha256": "d28655e10cc60ef82afdd4b1abc8c845b82d5d057d3cc58b657f0513f1d1a3ca",
+        "workerInputs": []
+      }
+    },
+    "activatedProject": {
+      "status": "PASS",
+      "count": 14,
+      "tests": [
+        {
+          "name": "current native Pro and Account entrance, without a second identity host",
+          "status": "PASS"
+        },
+        {
+          "name": "new schema2 from score UI stays local until first explicit Cloud save",
+          "status": "PASS"
+        },
+        {
+          "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+          "status": "PASS"
+        },
+        {
+          "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+          "status": "PASS"
+        },
+        {
+          "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+          "status": "PASS"
+        },
+        {
+          "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud deletion retains local Project and original immutable operation receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+          "status": "PASS"
+        },
+        {
+          "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+          "status": "PASS"
+        },
+        {
+          "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+          "status": "PASS"
+        },
+        {
+          "name": "isolated Project panel keeps five themes and four viewport widths",
+          "status": "PASS"
+        },
+        {
+          "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+          "status": "PASS"
+        }
+      ],
+      "pageErrors": [],
+      "sourceBuild": {
+        "entry": "workers/sound-cruise-sync/src/index.js",
+        "legacyArtifact": false,
+        "bundleSha256": "3ae405cfba6a44ef719c41f2eb71d3bdb4c1f837d41048177fb8386781799c37",
+        "workerInputs": []
+      }
+    },
+    "recovery": {
+      "status": "PASS",
+      "count": 12,
+      "tests": [
+        {
+          "name": "legacy network retains exact pending operation and reconnects without replacement",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy 503 retains exact pending operation and reconnects without replacement",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy committed ACK loss survives reload; same-operation retry or exact own echo makes one commit",
+          "status": "PASS"
+        },
+        {
+          "name": "near-limit real Gear input, upload commit ACK loss and safe same-operation recovery",
+          "status": "PASS"
+        },
+        {
+          "name": "native image re-edit publishes a new matched source/final generation on both devices",
+          "status": "PASS"
+        },
+        {
+          "name": "explicit photo deletion propagates without treating a missing cache as deletion",
+          "status": "PASS"
+        },
+        {
+          "name": "native My Apps icon source/final binary roundtrip through Studio entry",
+          "status": "PASS"
+        },
+        {
+          "name": "two-device icon re-edit versus removal retains local bytes or explicit conflict, without mixed generations",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy attachment deletion ACK loss preserves pending data while a new attachment is retained",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy attachment pending retry and replacement download preserve v2 without resurrecting v1",
+          "status": "PASS"
+        },
+        {
+          "name": "two actual profiles submit the same Port baseRevision; one applies and one conflicts",
+          "status": "PASS"
+        },
+        {
+          "name": "actual conflict UI is visible; explicit remote choice preserves winner then normal save resumes",
+          "status": "PASS"
+        }
+      ],
+      "pageErrors": [],
+      "entryContainsCurrentIndex": true
+    },
+    "ownerBoundary": {
+      "status": "DIRECT_BOUNDARY_PASS",
+      "count": 33,
+      "tests": [
+        {
+          "name": "default OFF refuses all document access",
+          "result": "PASS"
+        },
+        {
+          "name": "Studio-only Account backbone creates no unrelated membership",
+          "result": "PASS"
+        },
+        {
+          "name": "existing Account enrollment and Studio-specific device revocation",
+          "result": "PASS"
+        },
+        {
+          "name": "staged document is not current; commit publishes typed receipt and exact Project",
+          "result": "PASS"
+        },
+        {
+          "name": "cross-account snapshot/reconcile and client identity injection rejected",
+          "result": "PASS"
+        },
+        {
+          "name": "missing chunk and wrong digest reject with pending preserved",
+          "result": "PASS"
+        },
+        {
+          "name": "valid large Project over row limit saves using immutable chunks",
+          "result": "PASS"
+        },
+        {
+          "name": "two devices CAS loser retains pending",
+          "result": "PASS"
+        },
+        {
+          "name": "duplicate requires current Account authorization",
+          "result": "PASS"
+        },
+        {
+          "name": "Pro expiry refuses reads and pending remains",
+          "result": "PASS"
+        },
+        {
+          "name": "deterministic stale CAS gives conflict and preserves pending",
+          "result": "PASS"
+        },
+        {
+          "name": "receipt tampering and pending mutation are rejected",
+          "result": "PASS"
+        },
+        {
+          "name": "credential version change allows historical reconcile but not old pending commit",
+          "result": "PASS"
+        },
+        {
+          "name": "tombstone cannot be resurrected by later stale or current write",
+          "result": "PASS"
+        },
+        {
+          "name": "ACK discarded after successful commit is resolved explicitly without duplicate write",
+          "result": "PASS"
+        },
+        {
+          "name": "shared Account admission pause prevents Studio backbone registration",
+          "result": "PASS"
+        },
+        {
+          "name": "account purge cannot cascade pending; old credential cannot read orphan",
+          "result": "PASS"
+        },
+        {
+          "name": "device management pause rejects Studio revocation without changing enrollment",
+          "result": "PASS"
+        },
+        {
+          "name": "same operation with different document or digest cannot overwrite pending",
+          "result": "PASS"
+        },
+        {
+          "name": "chunk order and manifest digest mismatch never publish head",
+          "result": "PASS"
+        },
+        {
+          "name": "Pro revocation and generation rotation reject current writes but retain pending",
+          "result": "PASS"
+        },
+        {
+          "name": "durable native process reopen preserves committed receipt and pending; B continues saving",
+          "result": "PASS"
+        },
+        {
+          "name": "catalogue is Account scoped, paged, metadata-only and read-only including activity",
+          "result": "PASS"
+        },
+        {
+          "name": "catalogue rejects unrecognized pagination and expired credentials",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Account revocation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects device generation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Pro expiry race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Pro revocation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Pro generation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Device revocation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Owner epoch race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects schema drift race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Account purge race",
+          "result": "PASS"
+        }
+      ],
+      "pageErrors": []
+    }
+  }
+}

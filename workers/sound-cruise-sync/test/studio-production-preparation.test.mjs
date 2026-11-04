@@ -32,9 +32,9 @@ test('alternate entry defaults OFF without accessing DB; existing requests are p
  const off=await worker.fetch(new Request('https://worker.invalid/v2/studio/document',{method:'POST'}),env,{});assert.equal(off.status,423);assert.equal((await off.json()).code,'studio_off');
  for(const url of ['/v1/sync/snapshot','/v2/accounts/summary','/v2/pro-auth/session','/news'])assert.equal((await worker.fetch(new Request('https://worker.invalid'+url),env,{})).status,202);assert.equal(calls,4);assert.equal(scheduled,0);
 });
-test('record existing main Worker schema0033 blocker rather than claiming compatibility',async()=>{
+test('schema0033 compatibility requires real qualification rather than missing authority columns',async()=>{
  const db=native();try{
-  await assert.rejects(admitWriter(binding(db),{deviceId:'synthetic-device',userId:'synthetic-user',appId:'port'},{},{membershipId:'synthetic-membership',accountId:'synthetic-account'}),/no such column: minimum_writer_protocol/);
+  await assert.rejects(admitWriter(binding(db),{deviceId:'synthetic-device',userId:'synthetic-user',appId:'port'},{},{membershipId:'synthetic-membership',accountId:'synthetic-account'}),/invalid_credential/);
   assert.equal(db.prepare("SELECT count(*) n FROM sqlite_schema WHERE name IN('sync_writer_fence_assertion','sync_authority_cutovers','sync_asset_deletions')").get().n,0);
  }finally{db.close();}
 });

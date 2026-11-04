@@ -1,5 +1,7 @@
 # Studio Project Cloud — 本番導入準備（2026-11-04）
 
+後続の[0033 source互換受入](../schema0033-source-compat-20261104/README.md)で、ここに記録したsource阻害点を限定修正した。本書は導入前調査の証跡として保持する。
+
 候補Studio 0.76.0。#186 → #187の累積成果を保持する。
 固定headはそれぞれ c9b742912430b3fad4eec22fb19faa23b35330e9 / 695d533241ee6552484d653143dff14feb79d4da。
 #187 tree: 845ed65617f4ef5286ff6655d14bba840a7eee5e。
