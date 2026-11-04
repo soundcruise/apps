@@ -10,7 +10,7 @@ const source=fs.readFileSync(path.join(here,'port-product-sync.browser.mjs'),'ut
 const start=source.indexOf(" await check('public Studio restores"),helpers=source.indexOf(" const A=await profile('Port-A');"),end=source.indexOf(" for(const id of ['pitch','fretboard','rhythm','chord'])await check('native '+id+' first connection",helpers);
 assert(start>0&&helpers>start&&end>helpers,'existing product fixture shape changed');
 let run=source.slice(0,start)+source.slice(helpers,end)+`
- await(await import(${JSON.stringify(path.join(here,'sync-attention-product.acceptance.mjs'))})).acceptSyncAttentionProduct({A,B,appSource,port,nativeRuntime,openNativeApp,editApp,syncApp,go,ready,offlineLabels,result,OUT,check});
+ await(await import(${JSON.stringify(path.join(here,process.env.STUDIO_ATTENTION_SCENARIO==='stale-report'?'stale-report-product.acceptance.mjs':'sync-attention-product.acceptance.mjs'))})).acceptSyncAttentionProduct({A,B,appSource,port,nativeRuntime,openNativeApp,editApp,syncApp,go,ready,offlineLabels,result,OUT,check,db,network});
  assert.deepEqual(errors,[]);result.status='PASS';result.realCredentialsUsed=false;
 }catch(error){result.status='FAIL';result.error=String(error.stack||error);console.error(result.error);process.exitCode=1;}
 finally{fs.writeFileSync(OUT+'/ATTENTION-PRODUCT.json',JSON.stringify(result,null,2));for(const context of contexts)await context.close();await browser?.close();await mf?.dispose();stopBuildService();}

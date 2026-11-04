@@ -1,4 +1,4 @@
-import { getAttentionGuide } from './sync-attention-ui.mjs?v=1.26.0';
+import { getAttentionGuide } from './sync-attention-ui.mjs?v=1.26.1';
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';

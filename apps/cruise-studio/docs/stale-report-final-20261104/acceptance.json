@@ -1,0 +1,200 @@
+{
+  "date": "2026-11-04",
+  "basePr": 183,
+  "baseHead": "5efdcca327e077416caae40af68af23c332fdde6",
+  "baseTree": "cf7d2cf16457f9ebad8b4a87b80d0e01f19a0740",
+  "versions": {
+    "port": "1.26.1",
+    "studio": "0.74.1",
+    "chord": "1.22.1"
+  },
+  "existingAcceptanceRetained": {
+    "product": 51,
+    "attentionUi": 7
+  },
+  "confirmedDefectsIn183": [
+    "HTTP 503 from the existing removal-safety report is ignored; native card remains synced without a report-specific retry explanation.",
+    "A successful report in an already visible Studio right pane does not refresh the visible central Port Account summary."
+  ],
+  "realMacScope": "The previous read-only observation is reused. Its historical failing request is unknown; no real Account Sync or resolution was performed for this task.",
+  "resolutionRoute": "Existing native Chord settings when local conflicts/Outbox/unfinished merge are absent; never a fabricated merge decision.",
+  "normalRecovery": "Existing native Sync sends the existing clean report. Only an accepted report triggers the existing bounded read-only Port summary refresh. An already running right-pane app can use its existing page-update control.",
+  "failureRecovery": "Keep server attention and show the existing native card with the actual report failure. Explicit Sync-and-recheck retries data Sync plus the existing report; it is not advertised as read-only.",
+  "notificationSafety": "An in-memory request revision and existing Account generation/lifecycle guard suppress obsolete report completion events. No persistent key, Sync state, schema or API payload was added.",
+  "noAutomaticChoiceOrDeletion": true,
+  "noCloudDataPushForStaleReport": true,
+  "cases": {
+    "final-port-success": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "prepare healthy native Chord with no local conflict, Outbox or unfinished merge",
+          "status": "PASS"
+        },
+        {
+          "name": "old report alone opens native management and never invents a merge choice",
+          "status": "PASS"
+        },
+        {
+          "name": "normal runtime posts clean and Port total returns to zero",
+          "status": "PASS"
+        }
+      ],
+      "retryRecovered": null,
+      "noManualPortRecheck": null,
+      "screenshots": [
+        {
+          "file": "final-port-success-old-report-management.png",
+          "sha256": "0a5b4bbfab020704b498a55012c6e28ba82b0b02b3e9d101f283e08eeaae1983"
+        }
+      ]
+    },
+    "final-port-failure": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "prepare healthy native Chord with no local conflict, Outbox or unfinished merge",
+          "status": "PASS"
+        },
+        {
+          "name": "old report alone opens native management and never invents a merge choice",
+          "status": "PASS"
+        },
+        {
+          "name": "failed report stays unresolved and offers an accurate retry",
+          "status": "PASS"
+        }
+      ],
+      "retryRecovered": true,
+      "noManualPortRecheck": null,
+      "screenshots": [
+        {
+          "file": "final-port-failure-old-report-management.png",
+          "sha256": "0a5b4bbfab020704b498a55012c6e28ba82b0b02b3e9d101f283e08eeaae1983"
+        }
+      ]
+    },
+    "final-studio-success": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "Studio right-pane Chord and central Port are healthy before fixture-only old report",
+          "status": "PASS"
+        },
+        {
+          "name": "old report opens existing right-pane management without moving central Sync Center or requiring a merge",
+          "status": "PASS"
+        },
+        {
+          "name": "normal native report completion refreshes visible central Port to zero without another recheck",
+          "status": "PASS"
+        }
+      ],
+      "retryRecovered": null,
+      "noManualPortRecheck": true,
+      "screenshots": [
+        {
+          "file": "final-studio-success-studio-old-report.png",
+          "sha256": "99819bf6c19b5e9162952a461cd38fd6a6baad3306a0d527199c9b27203b4b47"
+        },
+        {
+          "file": "final-studio-success-studio-normal-report.png",
+          "sha256": "ac8e7b4838f46db8ff30bdf4de485dea270a685b1ab2192e9f80d435eccb0f42"
+        }
+      ]
+    },
+    "final-studio-failure": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "Studio right-pane Chord and central Port are healthy before fixture-only old report",
+          "status": "PASS"
+        },
+        {
+          "name": "old report opens existing right-pane management without moving central Sync Center or requiring a merge",
+          "status": "PASS"
+        },
+        {
+          "name": "503 retains attention, then explicit existing Sync retry reports clean and refreshes visible Port",
+          "status": "PASS"
+        }
+      ],
+      "retryRecovered": null,
+      "noManualPortRecheck": true,
+      "screenshots": [
+        {
+          "file": "final-studio-failure-studio-old-report.png",
+          "sha256": "998e38630924f83a32a286f40af2ffc35fe78479547d6131571c6e389638f452"
+        },
+        {
+          "file": "final-studio-failure-studio-normal-report.png",
+          "sha256": "a3fd2d2b20cadc422b4870afb1d97510bf85e6b5d7c4d36ccda91db525d42ca5"
+        },
+        {
+          "file": "final-studio-failure-studio-report-error.png",
+          "sha256": "d473c6ff68ed330084d3861b7f332396aba0edcb9d8e4c61740371217a6dff54"
+        }
+      ]
+    }
+  },
+  "relatedNode": {
+    "tests": 124,
+    "passed": 124,
+    "failed": 0,
+    "additionalAssertions": [
+      "new report ACK precedes late failure",
+      "failed 503 result is observable",
+      "Account generation change suppresses old completion",
+      "report ACK does not clear real conflict",
+      "terminal credential response keeps native credential UI priority"
+    ]
+  },
+  "pages": {
+    "jekyllSafeBuild": true,
+    "studioReleaseFiles": 81,
+    "nativeFilesByteIdenticalToCandidate": 813
+  },
+  "untouchedTrees": {
+    "workers": "12eebafbc6b5fe0f1f70ed5cc0b6af61dc90544a",
+    "apps/shared": "594e74d2e3b44b2dcc5beb654039290045662bb2",
+    "apps/pitch-cruise": "e9589ab770185d4178683a34cf7f2e7728d115d6",
+    "apps/fretboard_cruise": "f8f6601ef29c77b2b5b44fdebd7acc5b7ca0b646",
+    "apps/rhythm-cruise": "3316bfc887948caea89b535761f7679adca34ade"
+  },
+  "productionModified": false,
+  "mainMerged": false,
+  "pagesPublished": false,
+  "phoneErrorScreenshot": {
+    "file": "phone-report-error.png",
+    "sha256": "286d7b2a2d0b4663874099a5088cb370ce299823615186d1e46627c67b8435a7"
+  },
+  "baselineStudioFailureEvidence": "Fixed #183 accepted clean report on the server, but visible central Port stayed at attention 1; the bounded UI wait failed. The patched callback triggers only the existing read-only summary refresh.",
+  "clientOutsidePrivateReportFunctionByteIdenticalTo183": true,
+  "managementPresentation": "Reveal the existing native Sync section with nearest scrolling; no replacement management screen or dialog.",
+  "visualFollowup": {
+    "visible-phone-error": {
+      "status": "PASS",
+      "tests": 4
+    },
+    "review-studio-error": {
+      "status": "PASS",
+      "tests": 4
+    }
+  }
+}
