@@ -231,6 +231,9 @@ try{
   await loser.goto(coldUrl.href);await ready(loser);
   await loser.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
   await loser.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='attention';});
+  // The same issue may already have been auto-opened in this history entry.
+  // Exercise its retained manual route before waiting for the resolution UI.
+  if(!await loser.locator('[data-sync-conflict-resolution][open]').isVisible())await loser.locator('#sync-center-port-conflicts-open').click();
   await loser.locator('[data-sync-conflict-resolution][open]').waitFor();assert.equal(await loser.locator('[data-sync-conflict-resolution][open]').count(),1);
   assert.match(await loser.locator('#sync-center-port-conflicts-open').innerText(),/競合を確認する/);
   assert.equal(await loser.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'attention');
