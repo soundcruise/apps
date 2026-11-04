@@ -1,4 +1,4 @@
-// RC2 candidate. Trusted policy injection only; no Production router imports this module.
+// Studio retention. Operation-level maintenance requires an injected trusted policy.
 import {inspectStudioRelease,STUDIO_SCHEMA_SQL,STUDIO_JOURNAL_SQL,releaseAssertion,studioReleaseHash} from './studio-release-schema.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const exact=(x,ks)=>x&&Object.getPrototypeOf(x)===Object.prototype&&Object.keys(x).sort().join('|')===ks.slice().sort().join('|');
@@ -67,8 +67,28 @@ export function createStudioRetentionOwner({db,release,policy:input,authorize,re
  return Object.freeze({plan,collect,discard,requestAccountErase,cancelAccountErase,eraseStatus});
 
 }
-// Internal job only, no HTTP path. Authority is the immutable intent captured while the
-// Account was active, exact unchanged scope, approved injected policy and Account absence.
+// The native Account purge is the final deletion authority after its own grace
+// period. Run these statements immediately after that DELETE in the SAME batch:
+// changes() observes that DELETE, not a stale JS preflight or an expired UI intent.
+// A cancellation/recovery that wins first makes the native DELETE affect zero rows.
+export function studioAccountPurgeStatements(db,accountId,cutoff,canonical){
+ if(typeof accountId!=='string'||!accountId||!Number.isSafeInteger(cutoff)||cutoff<0)throw Error('account-purge-scope-invalid');
+ const result={type:'studio-account-erasure-v2',accountId,operationId:accountId,authority:'native-account-purge-v1',purgeCutoff:cutoff,payloadErased:true,metadataRetained:true};
+ return [db.prepare(`INSERT OR IGNORE INTO studio_document_erased_accounts(account_id,operation_id,receipt_json)
+   SELECT ?,?,? WHERE changes()=1 AND NOT EXISTS(SELECT 1 FROM sync_accounts WHERE id=?)`)
+   .bind(accountId,accountId,canonical(result),accountId),...accountPayloadEraseStatements(db,accountId,true)];
+}
+function accountPayloadEraseStatements(db,accountId,native=false){
+ const gate=native?' AND NOT EXISTS(SELECT 1 FROM sync_accounts WHERE id=?) AND EXISTS(SELECT 1 FROM studio_document_erased_accounts WHERE account_id=?)':'';
+ const values=native?[accountId,accountId,accountId]:[accountId];
+ return [db.prepare('DELETE FROM studio_document_chunks WHERE account_id=?'+gate).bind(...values),
+  db.prepare('DELETE FROM studio_document_records WHERE user_id=?'+gate).bind(...values),
+  db.prepare('UPDATE studio_document_changes SET payload_json=NULL WHERE user_id=?'+gate).bind(...values),
+  db.prepare('UPDATE studio_document_enrollments SET revoked=1 WHERE account_id=?'+gate).bind(...values)];
+}
+// Separate intent-based internal job. Its short-lived authority is not extended
+// to seven days or reused by Scheduled; native Account purge above has its own
+// durable lifecycle deadline. This path still requires the original exact scope.
 export async function completeStudioAccountErase({db,policy:input,accountId,operationId,canonical,digest}){
  const policy=retentionPolicy(input);if(!policy||!uuid.test(accountId)||!uuid.test(operationId))throw Error('erase-capability-required');
  await inspectStudioRelease(db);const pd=await digest(canonical(policy)),p=await db.prepare('SELECT * FROM studio_document_erase_intents WHERE account_id=? AND operation_id=?').bind(accountId,operationId).first();if(!p||p.policy_digest!==pd||p.scope_digest!==await digest(p.scope_json)||JSON.parse(p.binding_json).accountId!==accountId)throw Error('erase-authority-missing');
@@ -81,8 +101,6 @@ export async function completeStudioAccountErase({db,policy:input,accountId,oper
  const finalAuthority=()=>db.prepare(`SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM sync_accounts WHERE id=?) AND EXISTS(SELECT 1 FROM studio_document_control WHERE id=1 AND enabled=1 AND epoch=?) AND EXISTS(SELECT 1 FROM studio_document_erase_intents WHERE account_id=? AND operation_id=? AND binding_json=? AND policy_digest=? AND expires_at>unixepoch('subsec')*1000) THEN 1 ELSE json_extract('erase_authority_changed','$.abort') END`).bind(accountId,binding.epoch,accountId,operationId,p.binding_json,pd);
  const statements=[releaseAssertion(db,hash),finalAuthority(),guard,
  db.prepare('INSERT INTO studio_document_erased_accounts VALUES(?,?,?)').bind(accountId,operationId,canonical(result)),
- db.prepare('DELETE FROM studio_document_chunks WHERE account_id=?').bind(accountId),db.prepare('DELETE FROM studio_document_records WHERE user_id=?').bind(accountId),
- db.prepare('UPDATE studio_document_changes SET payload_json=NULL WHERE user_id=?').bind(accountId),
- db.prepare('UPDATE studio_document_enrollments SET revoked=1 WHERE account_id=?').bind(accountId),finalAuthority(),releaseAssertion(db,hash)];
+ ...accountPayloadEraseStatements(db,accountId),finalAuthority(),releaseAssertion(db,hash)];
  await db.batch(statements);return{...result,historical:false};
 }
