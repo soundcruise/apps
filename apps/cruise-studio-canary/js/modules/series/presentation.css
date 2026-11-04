@@ -1,0 +1,39 @@
+/* Loaded only into Studio-owned application documents. Native state/accent colors survive. */
+:root[data-studio-theme]{
+ --bg-color:var(--studio-app-bg);--surface-color:var(--studio-surface);--surface-raised:var(--studio-panel);
+ --text-color:var(--studio-text-primary);--muted-color:var(--studio-text-muted);
+ --tl-bg:var(--studio-app-bg);--tl-surface:var(--studio-surface);--tl-raised:var(--studio-panel);--tl-text:var(--studio-text-primary);--tl-muted:var(--studio-text-muted);
+ --cc-bg:var(--studio-app-bg);--cc-surface:var(--studio-surface);--cc-surface-raised:var(--studio-panel);--cc-text:var(--studio-text-primary);--cc-text-muted:var(--studio-text-muted);--cc-border:var(--studio-border-default);
+ color-scheme:var(--studio-color-scheme);background:var(--studio-app-bg);color:var(--studio-text-primary);
+}
+html[data-studio-theme] body{background:var(--studio-app-bg);color:var(--studio-text-primary);min-width:0}
+/* Hide only duplicate refresh/theme controls, never the underlying feature controls. */
+.js-reload-app,.cc-refresh-app,.in-game-refresh-bar,.cc-global-refresh-bar,.cc-settings-refresh-bar,
+.setting-item--theme,.settings-theme-buttons,#settings-theme-title,#rc-theme-card,
+.cc-settings-card[aria-labelledby="cc-settings-appearance-title"],.settings-card-section--theme,
+[data-theme-choice]{display:none!important}
+:root[data-studio-theme] :is(input:not([type=range]):not([type=checkbox]):not([type=radio]),select,textarea){background-color:var(--studio-field);color:var(--studio-text-primary);border-color:var(--studio-border-default)}
+:root[data-studio-theme] :is(button,input,select,textarea):focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
+:root[data-studio-theme] :is(.modal-content,.pro-settings-modal,.settings-card,.cc-settings-panel,.cc-settings-card){background-color:var(--studio-surface);color:var(--studio-text-primary)}
+/* The pane retains its 0.65.0 layout; the center uses the original app layout. */
+:root[data-studio-layout=pane] :is(.app-container,.cc-app){max-width:600px!important;margin-inline:auto}
+
+
+:root[data-studio-theme]{--in-game-refresh-stack-height:var(--studio-space-4)}
+/* Neutral navigation must remain legible on both light and dark projections. */
+:root[data-studio-theme] .modal{background-color:var(--studio-surface);color:var(--studio-text-primary)}
+:root[data-studio-theme] :is(.btn-back,.cc-nav-btn,.icon-btn){color:var(--studio-text-primary);background-color:var(--studio-control);border-color:var(--studio-border-default)}
+:root[data-studio-theme] :is(.btn-back,.cc-nav-btn,.icon-btn):hover{background-color:var(--studio-control-hover)}
+
+@media(min-width:700px){
+ :root[data-studio-layout=center][data-studio-app=rhythm] #screen-home{max-width:660px;margin-inline:auto}
+ :root[data-studio-layout=center][data-studio-app=rhythm] #screen-home>.home-view{gap:20px}
+ :root[data-studio-layout=center][data-studio-app=chord] .cc-app:has(#cc-screen-explore:not(.cc-screen--hidden)){max-width:1100px}
+ :root[data-studio-layout=center][data-studio-app=chord] .cc-explore-content>.cc-card:not(:has(#cc-fretboard-host)){max-width:560px;width:100%;margin-inline:auto}
+ :root[data-studio-layout=center][data-studio-app=chord] #cc-explore-home-btn{max-width:560px;margin-inline:auto}
+ :root[data-studio-layout=center][data-studio-app=chord] .cc-save-section{max-width:560px;margin-inline:auto;width:100%}
+}
+
+@media(min-width:700px){
+ :root[data-studio-layout=center][data-studio-app=chord] #cc-fretboard-host .cc-fb-stage{margin-inline:auto}
+}

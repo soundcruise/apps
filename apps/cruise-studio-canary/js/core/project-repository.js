@@ -1,0 +1,147 @@
+/* Studio projects only. Exact payload revisions; one lock protects project + collection index. */
+(function (root, factory) {
+    'use strict';
+    if (typeof module === 'object' && module.exports) module.exports = factory();
+    else root.CruiseStudio.projectRepository = factory();
+})(typeof globalThis === 'object' ? globalThis : this, function () {
+    'use strict';
+    var PROJECT = 'cruiseStudio.project.', INDEX = 'cruiseStudio.projects.index', LOCK = 'cruiseStudio.projects.write';
+    // Only called on validated JSON data. Object order is not material content;
+    // array order and every own field remain significant. Raw revisions stay exact strings.
+    function sameMaterial(a, b) {
+        if (a === b) return true;
+        if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+        var ak = Object.keys(a), bk = Object.keys(b);
+        return ak.length === bk.length && ak.every(function (key) { return Object.hasOwn(b, key) && sameMaterial(a[key], b[key]); });
+    }
+    function createRepository(options) {
+        var listeners = new Set(), attached = false;
+        function targetValid(target) { return target && target.type === 'project' && typeof target.projectId === 'string' && !!target.projectId; }
+        // Revision-only read lets bounded consumers reject changed/oversized external JSON
+        // without parsing it, adopting it, notifying listeners or invoking any write path.
+        function readRevision(target) {
+            if (!targetValid(target)) return { ok: false, error: '不正なproject参照です' };
+            try {
+                var raw = options.storage.getItem(PROJECT + target.projectId);
+                return { ok: true, exists: raw !== null, revision: raw };
+            } catch (error) { return { ok: false, error: error.message }; }
+        }
+        function read(target) {
+            if (!targetValid(target)) return { ok: false, error: '不正なproject参照です' };
+            try {
+                var raw = options.storage.getItem(PROJECT + target.projectId);
+                if (raw === null) return { ok: true, exists: false, revision: null, snapshot: null };
+                var result = options.model.migrateProject(JSON.parse(raw), raw);
+                if (!result.ok || result.project.projectId !== target.projectId) return { ok: false, error: result.error || 'projectIdが一致しません' };
+                var check = options.model.validateProject(result.project);
+                if (!check.ok) return { ok: false, error: check.errors.join(' / ') };
+                return { ok: true, exists: true, revision: raw, snapshot: options.snapshot(result.project) };
+            } catch (error) { return { ok: false, error: '読込に失敗しました: ' + error.message }; }
+        }
+        function notify(target, source, token) {
+            var latest = read(target); if (!latest.ok) return;
+            var update = Object.assign({}, latest, token || {}, { target: target, source: source, deleted: !latest.exists });
+            listeners.forEach(function (fn) { try { fn(update); } catch (_) { /* preserve committed writes */ } });
+        }
+        function underLock(action) {
+            if (!options.storage) return Promise.resolve({ ok: false, code: 'storage-unavailable', error: '保存領域へアクセスできません。draftを保持しています。' });
+            if (!options.locks || typeof options.locks.request !== 'function') return Promise.resolve({ ok: false, code: 'locks-unavailable', error: 'この環境では安全な保存に必要なWeb Locksが利用できません。対応ブラウザで開いてください。' });
+            return Promise.resolve().then(function () { return options.locks.request(LOCK, { mode: 'exclusive' }, action); })
+                .catch(function (error) { return { ok: false, error: error.message }; });
+        }
+        function writeTransaction(entries) {
+            var before = entries.map(function (entry) { return [entry[0], options.storage.getItem(entry[0])]; });
+            try {
+                entries.forEach(function (entry) { if (entry[1] === null) options.storage.removeItem(entry[0]); else options.storage.setItem(entry[0], entry[1]); });
+                return { ok: true };
+            } catch (error) {
+                var restored = true;
+                // Revert only keys this transaction touched; no automatic successful-write cancellation.
+                before.forEach(function (entry) { try { if (entry[1] === null) options.storage.removeItem(entry[0]); else options.storage.setItem(entry[0], entry[1]); } catch (_) { restored = false; } });
+                return { ok: false, code: restored ? 'storage-failure' : 'result-unknown', error: '保存に失敗しました' + (restored ? ': ' : '（復旧結果の確認が必要です）: ') + error.message };
+            }
+        }
+        function index() {
+            var raw = options.storage.getItem(INDEX);
+            if (raw === null) return [];
+            var value = JSON.parse(raw);
+            if (!Array.isArray(value)) throw new Error('保存一覧が破損しています');
+            return value;
+        }
+        function save(request) {
+            var token = request.token || {};
+            return underLock(async function () {
+                if(options.authorizeWrite && !await options.authorizeWrite()) return {ok:false,code:'studio-entry-required',error:'認証を確認してください。草稿は保持しています。'};
+                if(options.canWrite && !options.canWrite()) return {ok:false,code:'studio-entry-required'};
+                if(request.precondition && request.precondition()!==true) return {ok:false,code:'precondition-changed'};
+                var marker=Object.getOwnPropertyDescriptor(request.snapshot,'sourceSchemaVersion');
+                if(marker && marker.value===2) return {ok:false,code:'projection-not-persistable',error:'派生表示を保存できません'};
+                if(options.model.schema2){try{options.model.schema2.assertJson(request.snapshot);}catch(e){return {ok:false,code:'validation',error:e.message};}}
+                // Validate the original memory value before any lossy JSON clone (schema 1 keeps its legacy path).
+                if(request.snapshot.schemaVersion!==1){
+                    var originalCheck=options.model.validateProject(request.snapshot);
+                    if(!originalCheck.ok)return {ok:false,code:'validation',error:originalCheck.errors.join(' / ')};
+                }
+                var project = JSON.parse(JSON.stringify(request.snapshot));
+                // Apply every persisted field before the same validator used by read().
+                project.updatedAt = options.now(); project.appVersion = options.model.APP_VERSION;
+                var check = options.model.validateProject(project);
+                if (!check.ok) return { ok: false, code: 'validation', error: check.errors.join(' / ') };
+                var current = read(request.target);
+                if (!current.ok) return current;
+                if (current.revision !== request.baseRevision) return { ok: false, code: current.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: current };
+                if(current.snapshot && current.snapshot.schemaVersion===2 && project.schemaVersion!==2) return {ok:false,code:'schema-downgrade',error:'schema 2を旧形式で上書きできません'};
+                if(current.snapshot && current.snapshot.schemaVersion===2 && JSON.stringify(current.snapshot.provenance.legacySource)!==JSON.stringify(project.provenance && project.provenance.legacySource)) return {ok:false,code:'protected-legacy-source',error:'復元用原文を変更できません'};
+                if(current.snapshot && current.snapshot.schemaVersion===2 && current.snapshot.materials.rhythms.some(function(m){var next=project.materials.rhythms.find(function(n){return n.id===m.id;});return next&&(m.encoding==='rhythm-owner-cells-v1'||next.encoding==='rhythm-owner-cells-v1')&&!sameMaterial(next,m);})) return {ok:false,code:'protected-rhythm-material',error:'採用素材は新しいIDで差し替えてください'};
+                if(current.snapshot && current.snapshot.schemaVersion===2 && current.snapshot.materials.forms.some(function(m){var next=project.materials.forms.find(function(n){return n.id===m.id;});return next&&!sameMaterial(next,m);})) return {ok:false,code:'protected-form-material',error:'採用素材は新しいIDで差し替えてください'};
+                if (project.projectId !== request.target.projectId) return { ok: false, error: '保存対象のprojectIdが一致しません' };
+                try {
+                    var list = index().filter(function (entry) { return entry && entry.projectId !== project.projectId; });
+                    list.unshift({ projectId: project.projectId, title: project.songInfo.title || '無題', artist: project.songInfo.artist || '', updatedAt: project.updatedAt });
+                    var raw = JSON.stringify(project), indexRaw = JSON.stringify(list);
+                    // Recheck exact raw after preparing both payloads, immediately before any write.
+                    var publish = function () {
+                    var latest = readRevision(request.target);
+                    if (!latest.ok) return latest;
+                    if (latest.revision !== request.baseRevision) return { ok: false, code: latest.exists ? 'conflict' : 'deleted', error: '保存済みprojectが更新または削除されています。draftを保持しました。', current: read(request.target) };
+                    if(request.precondition && request.precondition()!==true) return {ok:false,code:'precondition-changed'};
+                    if(options.canWrite && !options.canWrite()) return {ok:false,code:'studio-entry-required'};
+                    var result = writeTransaction([[PROJECT + project.projectId, raw], [INDEX, indexRaw]]);
+                    if (!result.ok) { result.current = read(request.target); return result; }
+                    notify(request.target, 'same-studio', token);
+                    return Object.assign({ ok: true, snapshot: options.snapshot(project), revision: raw }, token);
+                    };
+                    return request.commitCurrent ? request.commitCurrent(publish) : publish();
+                } catch (error) { return { ok: false, error: '保存に失敗しました: ' + error.message }; }
+            });
+        }
+        function remove(target, baseRevision) {
+            return underLock(async function () {
+                if(options.authorizeWrite && !await options.authorizeWrite()) return {ok:false,code:'studio-entry-required'};
+                if(options.canWrite && !options.canWrite()) return {ok:false,code:'studio-entry-required'};
+                var current = read(target);
+                if (!current.ok) return current;
+                if (current.revision !== baseRevision) return { ok: false, code: 'conflict', error: '削除対象が更新されています。もう一度確認してください。' };
+                try {
+                    var list = index().filter(function (entry) { return entry && entry.projectId !== target.projectId; });
+                    var result = writeTransaction([[PROJECT + target.projectId, null], [INDEX, JSON.stringify(list)]]);
+                    if (result.ok) notify(target, 'same-studio'); return result;
+                } catch (error) { return { ok: false, error: error.message }; }
+            });
+        }
+        function onStorage(event) {
+            // Read current state, never trust a possibly delayed event.newValue as the latest revision.
+            if (event.storageArea !== options.storage) return;
+            if (event.key && event.key.startsWith(PROJECT)) notify({ type: 'project', projectId: event.key.slice(PROJECT.length) }, 'other-tab');
+            else if (event.key === null && options.knownTargets) options.knownTargets().forEach(function (target) { notify(target, 'other-tab'); });
+        }
+        return Object.freeze({
+            read: read, readRevision: readRevision, save: save, remove: remove,
+            canWrite: function () { return (!options.canWrite || options.canWrite()) && !!(options.storage && options.locks && typeof options.locks.request === 'function'); },
+            subscribe: function (fn) { listeners.add(fn); return function () { listeners.delete(fn); }; },
+            attach: function () { if (!attached && options.events) { options.events.addEventListener('storage', onStorage); attached = true; } },
+            dispose: function () { if (attached) options.events.removeEventListener('storage', onStorage); attached = false; listeners.clear(); }
+        });
+    }
+    return Object.freeze({ createRepository: createRepository, LOCK: LOCK });
+});
