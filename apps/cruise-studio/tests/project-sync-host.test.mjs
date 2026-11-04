@@ -1,0 +1,17 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {isolatedProjectOrigin,resumeTrackedProject} from '../js/cloud/project-sync-host.mjs';
+function fixture({link={lastLocalRevision:'raw-1',cloudRevision:1},raw='raw-1',remote=1,ops=[]}={}){
+ const calls=[];const client={tracking:async()=>link,list:async()=>ops,observe:async()=>({state:'REMOTE_AVAILABLE',head:{revision:remote}}),send:async id=>{calls.push(['send',id]);return{state:'SYNCED'};},enqueue:async id=>{calls.push(['enqueue',id]);return{operationId:'original-operation'};},applyRemote:async(id,revision)=>{calls.push(['apply',id,revision]);return{state:'LOCAL_SAVED_FROM_CLOUD'};}};
+ return{client,repository:{read:()=>({ok:true,exists:true,revision:raw})},projectId:'project',calls};
+}
+test('isolated origin only; production and arbitrary http origins are excluded',()=>{assert(isolatedProjectOrigin(new URL('http://localhost:8080')));assert(isolatedProjectOrigin(new URL('https://studio.fixture.invalid')));for(const u of ['https://soundcruise.jp','http://evil.example','https://localhost'])assert(!isolatedProjectOrigin(new URL(u)));});
+test('untracked legacy Project never gets adopted automatically',async()=>{const f=fixture({link:null});assert.equal((await resumeTrackedProject(f)).state,'LOCAL_UNTRACKED');assert.deepEqual(f.calls,[]);});
+test('dirty editor cannot be overwritten or sent',async()=>{const f=fixture({remote:2});assert.equal((await resumeTrackedProject({...f,dirty:true})).state,'LOCAL_DRAFT_UNSAVED');assert.deepEqual(f.calls,[]);});
+test('tracked unchanged local accepts remote through exact raw CAS',async()=>{const f=fixture({remote:2});assert.equal((await resumeTrackedProject(f)).state,'LOCAL_SAVED_FROM_CLOUD');assert.deepEqual(f.calls,[['apply','project','raw-1']]);});
+test('tracked local change with unchanged remote uses existing enqueue/send',async()=>{const f=fixture({raw:'raw-2'});assert.equal((await resumeTrackedProject(f)).state,'SYNCED');assert.deepEqual(f.calls,[['enqueue','project'],['send','original-operation']]);});
+test('both changed preserve local and remote without choosing a winner',async()=>{const f=fixture({raw:'raw-2',remote:2});assert.equal((await resumeTrackedProject(f)).state,'CONFLICT');assert.deepEqual(f.calls,[]);});
+test('UNKNOWN and rejected conflict never automatically reconcile or resend',async()=>{for(const state of ['UNKNOWN','COMMITTING','CONFLICT','PENDING_RECOVERY']){const f=fixture({ops:[{state,operationId:'held'}]});assert.equal((await resumeTrackedProject(f)).state,state);assert.deepEqual(f.calls,[]);}});
+test('queued immutable operation resumes with same operation ID',async()=>{const f=fixture({ops:[{state:'QUEUED',operationId:'same'}]});await resumeTrackedProject(f);assert.deepEqual(f.calls,[['send','same']]);});
+test('local apply intent requires existing explicit recovery',async()=>{const f=fixture({link:{intent:{}}});assert.equal((await resumeTrackedProject(f)).state,'LOCAL_APPLY_UNKNOWN');assert.deepEqual(f.calls,[]);});
+test('Account mismatch from existing affinity check prevents all requests',async()=>{const f=fixture();f.client.tracking=async()=>{throw Error('local-account-conflict');};await assert.rejects(resumeTrackedProject(f),/local-account-conflict/);assert.deepEqual(f.calls,[]);});
+test('remote deletion retains local Project',async()=>{const f=fixture();f.client.observe=async()=>({state:'REMOTE_DELETED',localPreserved:true});assert.equal((await resumeTrackedProject(f)).state,'REMOTE_DELETED');assert.deepEqual(f.calls,[]);});
