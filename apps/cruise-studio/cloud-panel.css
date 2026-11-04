@@ -15,3 +15,13 @@
 .studio-cloud-panel textarea { display: block; min-height: 100px; overflow-wrap: anywhere; }
 .studio-cloud-panel > button { margin: 6px; }
 @media (max-width: 600px) { .studio-cloud-panel { padding: 16px; } .studio-cloud-actions button { flex: 1 1 100%; } }
+
+/* The sticky score toolbar ends with the score, before Project Cloud controls. */
+.studio-score-content { display: flex; flex-direction: column; gap: inherit; min-width: 0; }
+[data-project-canary] { scroll-margin-block-start: 16px; }
+[data-project-canary] > summary { cursor: pointer; padding-block: 10px; }
+[data-project-canary] > summary:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+[data-project-canary-home] { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+[data-project-home-status] { flex: 1 1 240px; }
+[data-open-project-cloud] { min-height: 44px; padding: 8px 12px; }
+@media print { [data-project-canary] { display: none !important; } .studio-score-content { display: block !important; } }

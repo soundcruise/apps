@@ -51,7 +51,7 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
     const source=window.SoundCruiseProOperationSource;
     const root=document.getElementById('studio-shell');
     const panel=document.createElement('section');panel.id='studio-entry-account';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');
-    panel.innerHTML='<div><h1>Cruise Studio</h1><p role="status"></p><button type="button" data-entry-connect>Accountを接続</button> <button type="button" data-entry-retry>確認する</button> <button type="button" data-entry-pro hidden>Pro認証をやり直す</button><div data-entry-account-frame></div></div>';
+    panel.innerHTML='<div><h1>Cruise Studio</h1><p role="status"></p><p data-entry-browser-note hidden>iPhoneのPort（ホーム画面）とSafariは、接続情報が別になる場合があります。いつものPortで追加コードを発行し、「Accountを接続」から「既存のアカウントに接続」を選んでください。新規作成は不要です。</p><button type="button" data-entry-connect>Accountを接続</button> <button type="button" data-entry-retry>確認する</button> <button type="button" data-entry-pro hidden>Pro認証をやり直す</button><div data-entry-account-frame></div></div>';
     document.body.append(panel);
     const owners=new WeakMap();let accountFrame=null,retriedRevision=null,modalOwner=null,lastReadyOwner=null;
     function stop(){
@@ -81,6 +81,7 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
             CS.sheetCruise?.refreshAuthorization?.();
             panel.hidden=(ready&&!accountFrame)||!gateReady();
             panel.querySelector('[data-entry-pro]').hidden=state.phase!=='pro-required';
+            panel.querySelector('[data-entry-browser-note]').hidden=state.phase!=='account-required';
             panel.querySelector('p').textContent=ready&&accountFrame?'Accountを確認しました。Cruise Syncの初回同期を確認しています…':state.phase==='account-required'?'既存のAccountを接続してください。':'認証を確認できません。編集中の内容は保持しています。';
             if(!ready)stop();
             if(state.phase==='session-changed'&&gateReady()){

@@ -1,6 +1,6 @@
 // Additional activation boundary checks around the existing product acceptance.
 import fs from 'node:fs';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';
-export function canaryAcceptance({db,mf,src,check,network,OUT}){
+export function canaryAcceptance({db,mf,src,check,network,OUT,profile,bootstrapPro}){
  let revision=0,targets=[],devices=[],account,projectId;const reserve=[randomUUID(),randomUUID()];
  async function activate(mode='canary'){
   const {changeStudioActivation}=await import(src+'/studio-activation.js');
@@ -32,6 +32,7 @@ export function canaryAcceptance({db,mf,src,check,network,OUT}){
   await B.page.locator('[data-cloud-action=load]').click();await B.page.waitForFunction(id=>CruiseStudio.repository.read({type:'project',projectId:id}).snapshot.songInfo.title==='Winning Cloud',id);await B.page.evaluate(id=>CruiseStudio.documents.select(id),id);
  });},
  async finish({A,B}){
+  if(process.env.STUDIO_UI_ACCEPTANCE==='1')await(await import('./ui-final-pass1.acceptance.mjs')).acceptUI({A,projectId,check,OUT,network,profile,bootstrapPro});
   // B was intentionally changed to a foreign Account by the reused regression.
   await check('canary score and PreDTM share unchanged local schema2 with JSON and MIDI exports',async()=>{
    await A.page.evaluate(id=>CruiseStudio.documents.select(id),projectId);await A.page.locator('button[data-workspace=sheetCruise]').click();

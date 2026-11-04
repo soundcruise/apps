@@ -39,7 +39,7 @@ if(process.env.STUDIO_PROJECT_CANARY==='1'){
  assert(begin>0&&end>begin);run=run.slice(0,begin)+"entry=workerWithoutProject(entry,src);entry=\"import canary from '\"+src+\"/studio-canary-entry.js';\"+entry.replace('return legacy.fetch(request,env,{});},scheduled:legacy.scheduled','return canary.fetch(request,env,{});},scheduled:canary.scheduled');entry=entry.replaceAll('studio.fixture.invalid','soundcruise.jp');"+run.slice(end);
  run=run.replace("await db.prepare('UPDATE studio_document_control SET enabled=1').run();",'');
  run=run.replace("if(cloud)await context.addInitScript(()=>{globalThis.__SOUND_CRUISE_STUDIO_CLOUD__={endpoint:'https://backend.fixture.invalid/v2/studio/document',turnstile:async()=> 'synthetic'};});",'');
- run=run.replace('normalGear,sync,go,ready});',"normalGear,sync,go,ready,canary:(await import("+JSON.stringify(path.join(here,'project-canary.acceptance.mjs'))+")).canaryAcceptance({db,mf,src,check,network,OUT})});");
+ run=run.replace('normalGear,sync,go,ready});',"normalGear,sync,go,ready,canary:(await import("+JSON.stringify(path.join(here,'project-canary.acceptance.mjs'))+")).canaryAcceptance({db,mf,src,check,network,OUT,profile,bootstrapPro})});");
  // Reused product acceptance gets its own opt-in entry; normal index remains
  // available for the no-loader assertion. Every browser request is intercepted.
  const acceptance=fs.readFileSync(path.join(here,'project-cloud-product.acceptance.mjs'),'utf8').replaceAll('https://studio.fixture.invalid/apps/cruise-studio/','https://soundcruise.jp/apps/cruise-studio-canary/project-canary.html');
@@ -50,5 +50,18 @@ if(process.env.STUDIO_PROJECT_CANARY==='1'){
  run=run.replace("entry:'workers/sound-cruise-sync/src/index.js'","entry:'workers/sound-cruise-sync/src/studio-canary-entry.js',delegate:'workers/sound-cruise-sync/src/index.js'");
  if(process.env.STUDIO_PROJECT_FINAL_ACCEPTANCE==='1')run=run.replace('scheduled:canary.scheduled','scheduled(event,env,ctx){return canary.scheduled(event,{...env,SYNC_DB:env.DB,SYNC_ASSETS:env.ASSETS,SYNC_ASSET_CLEANUP_ENABLED:\"true\"},ctx);}');
  run=run.replace("p.includes('/workers/sound-cruise-sync/')","p.includes('workers/sound-cruise-sync/')").replace('const inputs=Object.keys(built.metafile.inputs);',"const inputs=Object.keys(built.metafile.inputs);assert(inputs.some(p=>p.endsWith('/src/studio-canary-entry.js')));");
+}
+if(process.env.STUDIO_UI_BROWSER==='webkit'){
+ run=run.replace("{chromium}=require('playwright')","{webkit:chromium}=require('playwright')");
+ run=run.replaceAll("executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',",'').replaceAll("executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'",'');
+ // WebKit's routed request inspection can omit or UTF-8-reencode binary bodies. Carry
+ // original synthetic asset bytes through the existing local fixture binding;
+ // the Worker still receives the original API, headers, hash and byte stream.
+ run=run.replace('const tests=[],network=[]', 'const binaryBodies=new Map();const tests=[],network=[]');
+ run=run.replace('await routeContext(context,label);', `await routeContext(context,label);
+ await context.exposeBinding('__studioFixtureBinary',(_source,url,encoded)=>{binaryBodies.set(label+'|'+url,Buffer.from(encoded,'base64'));});
+ await context.addInitScript(()=>{const native=globalThis.fetch;globalThis.fetch=async(input,options={})=>{const url=new URL(input instanceof Request?input.url:String(input),location.href).href,body=options.body;if(url.includes('/v1/sync/assets/')&&body instanceof Blob){const bytes=new Uint8Array(await body.arrayBuffer());let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));await globalThis.__studioFixtureBinary(url,btoa(text));}return native(input,options);};});`);
+ run=run.replace("const response=await mf.dispatchFetch(", "const original=binaryBodies.get(label+'|'+q.url());if(original){(result.webkitBinaryFixture??=[]).push({originalBytes:original.length,interceptedBytes:q.postDataBuffer()?.length});binaryBodies.delete(label+'|'+q.url());}const response=await mf.dispatchFetch(");
+ run=run.replace('...(q.postDataBuffer()?', '...(original||q.postDataBuffer()?').replace('body:q.postDataBuffer()', 'body:original||q.postDataBuffer()');
 }
 const file=path.join(out,'project-product-run.mjs');fs.writeFileSync(file,run);execFileSync(process.execPath,[file],{stdio:'inherit',env:process.env});

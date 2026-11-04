@@ -1,0 +1,2505 @@
+/* クルーズスタジオ theme.css — v0.22.4
+   リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
+   PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
+   class名・DOMはクルーズスタジオ用に新規設計している。 */
+
+:root {
+    /* 基本カラー（DESIGN_SYSTEM.md 8章のトークンを継承） */
+    --bg-color: var(--studio-app-bg);
+    --surface-color: var(--studio-surface);
+    --surface-raised: var(--studio-elevated);
+    --primary-color: var(--studio-accent-text);
+    --secondary-color: var(--studio-accent-bright);
+    --accent-cool: #4d96ff;
+    --text-color: var(--studio-text-primary);
+    --muted-color: var(--studio-text-muted);
+    --error-color: var(--studio-danger);
+
+    /* クルーズスタジオ固有 */
+    --studio-max-width: 1200px;   /* PCファースト。600pxのスマホ上限は採用しない */
+    --card-radius: 18px;
+    --card-border: var(--studio-border-default);
+    --card-shadow: var(--studio-shadow-low);
+
+    /* ══════════ ペーパートークン（F1: 小節ルーペが紙面と同じ視覚言語を使うための共有変数。
+       docs/DECISIONS.md ADR-027） ══════════
+       値は既存の .sheet-page 系ルールの実値と同じ（見た目は変えない。共有するだけ）。 */
+    --paper-bg: #fdfbf5;
+    --paper-ink: #2a2620;
+    --paper-muted: #6a645c;
+    --paper-faint: #9a948c;
+    --paper-chord: #c0392b;
+    --paper-lyrics: #1e1a16;
+    --paper-doremi: #4a6fa5;
+    --paper-doremi-high: #d97706;
+    --paper-doremi-low: #8a94a6;
+    --paper-strum: #754a14;
+    --paper-strum-stroke: #6f3e08;
+    --paper-strum-mute: #8c2f1a;
+    --paper-strum-rest: rgba(122, 116, 108, 0.34);
+    --paper-strum-sustain: rgba(117, 74, 20, 0.62);
+    --paper-line-beat: rgba(122, 116, 108, 0.40);
+    --paper-line-eighth: rgba(122, 116, 108, 0.20);
+    --paper-line-sixteenth: rgba(122, 116, 108, 0.11);
+    --paper-border: #7a746c;
+    --paper-border-soft: rgba(122, 116, 108, 0.25);
+    /* Screen editing decoration stays in the paper domain; all themes keep these exact values. */
+    --paper-selection-bg: rgba(255, 159, 28, 0.08);
+    --paper-selection-border: rgba(255, 159, 28, 0.72);
+    --paper-selection-shadow-edge: rgba(255, 255, 255, 0.25);
+    --paper-selection-number: #8a4a0a;
+    --paper-focus: rgba(77, 150, 255, 0.65);
+    --paper-font: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', 'Outfit', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    min-height: 100%;
+    font-family: 'Outfit', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+    background-color: var(--bg-color);
+    background-image:
+        radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 159, 28, 0.15), transparent 60%),
+        radial-gradient(ellipse 80% 50% at 90% 110%, rgba(77, 150, 255, 0.045), transparent 65%);
+    background-repeat: no-repeat;
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+.studio-container {
+    max-width: var(--studio-max-width);
+    margin: 0 auto;
+    padding: 48px 40px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+}
+
+/* ══════════ ヘッダー ══════════ */
+
+.studio-header {
+    text-align: center;
+    padding: 24px 0 4px;
+}
+
+.studio-header h1 {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    background: linear-gradient(120deg, var(--secondary-color), var(--primary-color));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: var(--secondary-color); /* フォールバック */
+}
+
+.studio-subcopy {
+    margin-top: 10px;
+    font-size: 17px;
+    color: var(--muted-color);
+    letter-spacing: 0.08em;
+}
+
+.studio-version {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 3px 12px;
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--muted-color);
+}
+
+/* ══════════ セクション・カードグリッド ══════════ */
+
+.section-label {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--muted-color);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+}
+
+.module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 18px;
+}
+
+.module-grid--series {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+/* TOPの大きな導線カード（.rc-category-card の考え方を新規設計で継承） */
+.module-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 24px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+    text-align: left;
+    min-height: 150px;
+}
+
+.module-card[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.92;
+}
+
+/* クリック可能なモジュールカード（button要素として置く） */
+.module-card--clickable {
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.module-card--clickable:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 159, 28, 0.7);
+}
+
+.module-card--clickable:active {
+    transform: translateY(0);
+}
+
+.module-card--featured {
+    border-color: rgba(255, 159, 28, 0.45);
+    background:
+        linear-gradient(180deg, rgba(255, 159, 28, 0.08), transparent 55%),
+        linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+}
+
+.module-card-icon {
+    font-size: 28px;
+    line-height: 1;
+}
+
+.module-card-label {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--secondary-color);
+    letter-spacing: 0.03em;
+}
+
+.module-card-sub {
+    font-size: 13.5px;
+    color: var(--muted-color);
+}
+
+.module-card-status {
+    margin-top: auto;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--secondary-color);
+    background: rgba(255, 209, 102, 0.10);
+    border: 1px solid rgba(255, 209, 102, 0.28);
+}
+
+.module-card--series .module-card-icon {
+    font-size: 22px;
+}
+
+.module-card--series .module-card-label {
+    font-size: 17px;
+    color: var(--text-color);
+}
+
+.module-card--series {
+    min-height: 120px;
+}
+
+/* ══════════ ボタン（DESIGN_SYSTEM.md 6章の役割分担を継承） ══════════ */
+
+.btn-primary {
+    padding: 11px 22px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary-color), #ff7a00);
+    color: #1a1206;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(255, 159, 28, 0.25);
+}
+
+.btn-primary:hover {
+    filter: brightness(1.08);
+}
+
+.btn-ghost {
+    padding: 11px 20px;
+    border: 1px solid rgba(253, 246, 238, 0.25);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted-color);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.btn-ghost:hover {
+    border-color: var(--studio-text-muted);
+    color: var(--text-color);
+}
+
+.btn-mini {
+    padding: 5px 12px;
+    border: 1px solid rgba(253, 246, 238, 0.2);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted-color);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.btn-mini:hover {
+    color: var(--text-color);
+    border-color: rgba(253, 246, 238, 0.4);
+}
+
+.btn-mini.btn-danger {
+    border-color: rgba(255, 79, 110, 0.4);
+    color: var(--error-color);
+}
+
+/* ══════════ 開発用パネル（開発情報は畳む: DESIGN_SYSTEM.md 3章） ══════════ */
+
+.dev-panel {
+    border: 1px solid rgba(253, 246, 238, 0.1);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.dev-panel summary {
+    padding: 16px 24px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--muted-color);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+}
+
+.dev-panel[open] summary {
+    border-bottom: 1px solid rgba(253, 246, 238, 0.08);
+}
+
+.dev-panel-body {
+    padding: 20px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.dev-note {
+    font-size: 12.5px;
+    color: var(--muted-color);
+}
+
+.dev-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.dev-import-label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.dev-import-label input[type="file"] {
+    display: none;
+}
+
+.dev-status {
+    min-height: 1.4em;
+    font-size: 13px;
+    color: var(--secondary-color);
+}
+
+.dev-status.is-error {
+    color: var(--error-color);
+}
+
+.dev-project-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dev-project-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid rgba(253, 246, 238, 0.08);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 13px;
+}
+
+.dev-project-title {
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.dev-project-meta {
+    color: var(--muted-color);
+    font-size: 12px;
+    flex: 1;
+}
+
+.dev-project-list .dev-project-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* ══════════ 画面切替・共通ナビ（DESIGN_SYSTEM.md 5章の考え方を継承） ══════════ */
+
+.hidden {
+    display: none !important;
+}
+
+.screen {
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+}
+
+.app-nav {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 20;
+    display: flex;
+    gap: 8px;
+}
+
+.nav-btn {
+    padding: 8px 16px;
+    border: 1px solid rgba(255, 209, 102, 0.35);
+    border-radius: 999px;
+    background: rgba(18, 15, 12, 0.85);
+    color: var(--secondary-color);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+}
+
+.nav-btn:hover {
+    border-color: rgba(255, 209, 102, 0.7);
+    background: rgba(37, 31, 24, 0.9);
+}
+
+/* ══════════ 譜面クルーズ画面 ══════════ */
+
+.screen-header {
+    text-align: center;
+    padding: 40px 0 0;
+}
+
+.screen-title {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--secondary-color);
+}
+
+.screen-subcopy {
+    margin-top: 8px;
+    font-size: 15px;
+    color: var(--muted-color);
+    letter-spacing: 0.06em;
+}
+
+/* ツールバー: プロジェクト選択と主要操作。スクロールしても上部に残す */
+.sheet-toolbar {
+    position: sticky;
+    top: 14px;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 18px;
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(37, 31, 24, 0.94), rgba(29, 24, 19, 0.94));
+    backdrop-filter: blur(8px);
+    box-shadow: var(--card-shadow);
+}
+
+.sheet-toolbar-project {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 1 340px;
+    min-width: 240px;
+}
+
+.sheet-toolbar-project select {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 13.5px;
+}
+
+.sheet-toolbar-project select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+.sheet-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sheet-toolbar .save-status {
+    flex: 1;
+    min-width: 180px;
+    text-align: right;
+    font-size: 12.5px;
+}
+
+.btn-compact {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+.file-label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.file-label input[type="file"] {
+    display: none;
+}
+
+/* 譜面を主役にする1カラム構成（UI再編D1。docs/DECISIONS.md ADR-025）。
+   曲情報・セクション・表示設定・小節グリッド（旧一覧編集）は上部の
+   折りたたみドロワーへ、A4紙面プレビューは常にその下でフル幅表示する。 */
+.sheet-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 曲情報・セクション・表示設定・小節グリッドをまとめるドロワー。
+   既定で閉じており、必要なときだけ開く（初期状態は譜面が主役）。
+   開閉状態はUI一時状態のため保存しない。print.cssで丸ごと非表示にする。 */
+.sheet-editor-drawer {
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.sheet-editor-drawer > summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 22px;
+    cursor: pointer;
+    list-style-position: inside;
+}
+
+.sheet-editor-drawer[open] > summary {
+    border-bottom: 1px solid rgba(253, 246, 238, 0.08);
+}
+
+.sheet-editor-drawer-icon {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.sheet-editor-drawer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sheet-editor-drawer-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--secondary-color);
+    letter-spacing: 0.03em;
+}
+
+.sheet-editor-drawer-hint {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--muted-color);
+}
+
+.sheet-editor {
+    padding: 20px 22px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* 小節グリッド（一覧編集）は旧UI。紙面クリック+ミニoverlayが主導線のため
+   D1では常設表示から外し、既定で折りたたむ（機能・データは維持）。 */
+.bar-grid-drawer > summary {
+    cursor: pointer;
+    list-style-position: inside;
+}
+
+/* 設定カードの考え方（DESIGN_SYSTEM.md 10章）を編集パネルに適用 */
+.editor-card {
+    padding: 22px 24px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.editor-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--secondary-color);
+    margin-bottom: 16px;
+}
+
+/* フォーム */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-field--wide {
+    grid-column: 1 / -1;
+}
+
+.form-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted-color);
+}
+
+.form-note {
+    font-size: 11px;
+    color: var(--muted-color);
+}
+
+.form-grid input,
+.form-grid select {
+    padding: 9px 12px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.form-grid input:focus,
+.form-grid select:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+}
+
+/* 基本ストローク入力の警告表示（解釈できない文字など。保存は妨げない） */
+.form-grid input.is-invalid {
+    border-color: rgba(255, 209, 102, 0.65);
+    background: rgba(255, 209, 102, 0.08);
+}
+
+.form-grid select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+/* キー関係チェック */
+.key-check {
+    margin-top: 16px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 1.5em;
+}
+
+.key-check.is-ok {
+    color: #2ecc71;
+    background: rgba(46, 204, 113, 0.08);
+    border: 1px solid rgba(46, 204, 113, 0.25);
+}
+
+.key-check.is-warning {
+    color: var(--secondary-color);
+    background: rgba(255, 209, 102, 0.07);
+    border: 1px solid rgba(255, 209, 102, 0.3);
+}
+
+.editor-actions {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.save-status {
+    font-size: 13px;
+    color: var(--secondary-color);
+}
+
+.save-status.is-error {
+    color: var(--error-color);
+}
+
+.editor-card-note {
+    font-size: 12px;
+    color: var(--muted-color);
+    margin: -6px 0 14px;
+    line-height: 1.7;
+}
+
+/* ══════════ セクション管理 ══════════ */
+
+.section-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.section-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-name-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.section-name-input:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+}
+
+.section-bar-count-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted-color);
+    white-space: nowrap;
+}
+
+.section-bar-count {
+    width: 62px;
+    padding: 8px 8px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.section-bar-count:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+}
+
+/* ══════════ 小節グリッド ══════════ */
+
+.bar-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.bar-grid-section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.bar-grid-section-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--secondary-color);
+    letter-spacing: 0.04em;
+}
+
+.bar-grid-section-range {
+    font-size: 11.5px;
+    color: var(--muted-color);
+}
+
+.bar-grid-cells {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    gap: 8px;
+}
+
+/* 将来 歌詞・ドレミ行を足して縦に拡張するため flex column にしておく（Phase 2C以降） */
+.bar-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    border: 1px solid rgba(253, 246, 238, 0.1);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.bar-cell-num {
+    font-size: 10.5px;
+    color: var(--muted-color);
+}
+
+.bar-chord-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--secondary-color);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.bar-chord-input:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+}
+
+.bar-chord-input.is-invalid {
+    border-color: rgba(255, 209, 102, 0.65);
+    background: rgba(255, 209, 102, 0.08);
+    color: var(--secondary-color);
+}
+
+/* 歌詞・ドレミ入力（コードの下に2行） */
+.bar-lyrics-input,
+.bar-doremi-input {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.26);
+    font-family: inherit;
+    text-align: center;
+}
+
+.bar-lyrics-input {
+    font-size: 12.5px;
+    color: var(--text-color);
+}
+
+/* F2a: 歌詞は小節ルーペのセル編集へ移行したため、旧グリッドのこの欄は表示専用にする */
+.bar-lyrics-input[readonly] {
+    cursor: pointer;
+    opacity: 0.75;
+}
+
+.bar-doremi-input {
+    font-size: 12px;
+    color: #8ab2f5;
+}
+
+.bar-doremi-input.is-invalid {
+    border-color: rgba(255, 209, 102, 0.65);
+    background: rgba(255, 209, 102, 0.08);
+}
+
+.bar-lyrics-input:focus,
+.bar-doremi-input:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+}
+
+/* ══════════ A4固定紙面プレビュー（ADR-016） ══════════
+   画面: 794×1123px（A4@96dpi）を transform:scale でペイン幅にフィット。
+   印刷: print.css が 210mm/297mm のmm指定へ寄せる（同比率なのでズレ最小）。 */
+
+.sheet-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+/* スケール表示のビューポート。高さはJSが scale後の実寸を設定する。
+   紙面の自然サイズ（794px）を上限にして中央寄せする（D1: 画面幅いっぱいに近い状態で主役表示）。
+   scaleは既存JS（updateSheetScale）がmin(1, 利用幅/794)で計算するため、
+   ここで幅上限を紙面幅に合わせておくと常に等倍〜中央表示になる。 */
+.sheet-preview-viewport {
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+    width: 100%;
+    max-width: 794px;
+    margin: 0 auto;
+}
+
+.sheet-scale-box {
+    width: 794px;
+    transform-origin: top left;
+}
+
+/* A4ページ（1ページ=1要素。将来の複数ページはこの要素を並べる） */
+.sheet-page {
+    width: 794px;              /* 210mm @96dpi */
+    min-height: 1123px;        /* 297mm @96dpi */
+    padding: 53px 57px;        /* ≒ 14mm 15mm */
+    background: var(--paper-bg);
+    color: var(--paper-ink);
+    border-radius: 4px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+    font-family: var(--paper-font);
+}
+
+.sheet-page + .sheet-page {
+    margin-top: 24px;
+}
+
+/* 紙面ヘッダー */
+.sheet-header {
+    border-bottom: 2px solid var(--paper-ink);
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+}
+
+.sheet-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sheet-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.sheet-artist {
+    font-size: 14px;
+    font-weight: 600;
+    color: #55504a;
+}
+
+.sheet-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.sheet-meta-label {
+    font-weight: 700;
+    color: var(--paper-muted);
+}
+
+.sheet-meta-value {
+    font-weight: 700;
+    color: var(--paper-ink);
+}
+
+/* セクション見出し */
+.sheet-section-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--paper-ink);
+    border-left: 4px solid #c05621;
+    padding-left: 8px;
+    margin: 16px 0 6px;
+}
+
+/* 譜面行（1行=barsPerLine小節。印刷時は行の途中で改ページしない） */
+.sheet-line {
+    display: grid;
+    gap: 0;
+    border-left: 1.5px solid var(--paper-border);
+    margin-bottom: 2px;
+}
+
+/* 小節セル
+   z-index: 0 でスタッキングコンテキストを作り、タイミンググリッド（z-index:-1）を
+   文字（コード・歌詞・ドレミ）より確実に背面へ敷く */
+.sheet-bar {
+    position: relative;
+    z-index: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 86px;
+    /* v0.22.3: 横paddingを変数化し、.sheet-bar-lyrics--timedの負marginと共有する
+       （罫線グリッド.sheet-bar-gridはposition:absolute; inset:0;でボーダーボックス
+       全幅を等分するのに対し、歌詞グリッドは通常のflex子要素としてこのpaddingを
+       除いたコンテンツ幅を等分していたため、両者の母数が異なり小節後半ほど
+       歌詞が左へ線形にずれていた。詳細はROADMAP.md v0.22.3を参照）。 */
+    --sheet-bar-pad-x: 8px;
+    padding: 4px var(--sheet-bar-pad-x) 8px;
+    border-right: 1.5px solid var(--paper-border);
+    border-bottom: 1px solid var(--paper-border-soft);
+    cursor: pointer;
+    transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.sheet-bar:focus-visible {
+    outline: 2px solid var(--paper-focus);
+    outline-offset: -3px;
+}
+
+.sheet-bar.is-selected {
+    background: var(--paper-selection-bg);
+    box-shadow:
+        inset 0 0 0 2px var(--paper-selection-border),
+        0 0 0 1px var(--paper-selection-shadow-edge);
+}
+
+.sheet-bar.is-selected .sheet-bar-num {
+    color: var(--paper-selection-number);
+    font-weight: 800;
+}
+
+/* タイミンググリッド（S1a）: 小節セル背面の拍・8分・16分の縦線。
+   紙面DOMの一部なので印刷にもそのまま出る（ONのときだけ生成される）。
+   濃淡: 小節線（セル枠 #7a746c）＞ 拍線 ＞ 8分線 ＞ 16分線 */
+.sheet-bar-grid {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    display: grid;
+    pointer-events: none;
+}
+
+.sheet-bar-grid > span {
+    border-right: 1px solid transparent;
+}
+
+.sheet-bar-grid > span.is-beat {
+    border-right-color: var(--paper-line-beat);
+}
+
+.sheet-bar-grid > span.is-8th {
+    border-right-color: var(--paper-line-eighth);
+}
+
+.sheet-bar-grid > span.is-16th {
+    border-right-color: var(--paper-line-sixteenth);
+}
+
+/* 段区切り横線: コード/ストローク/歌詞/ドレミの各段（.sheet-bar-row）の間に薄い横線を引く。
+   「段の次に段が来たとき」だけ線が付くので、表示トグルで段が消えても自然に詰まる。
+   濃さはグリッドの8分線と同程度（可読性優先で控えめ） */
+.sheet-bar-row + .sheet-bar-row {
+    border-top: 1px solid rgba(122, 116, 108, 0.18);
+    padding-top: 3px;
+}
+
+/* ストローク段（R1）: コード段の直下。↓↑x・〜の文字表示（記譜化はVexFlow導入時）。
+   マスはグリッドと同じ等分割で、拍位置が縦に揃う */
+.sheet-bar-strum {
+    display: grid;
+    align-items: center;
+    column-gap: 1px;
+    margin: 1px 0 0;
+    padding: 2px 3px;
+    border-radius: 3px;
+    background: rgba(255, 248, 235, 0.72);
+    box-shadow: inset 0 0 0 1px rgba(122, 116, 108, 0.10);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--paper-strum);
+    line-height: 1.25;
+    min-height: 22px;
+    font-variant-numeric: tabular-nums;
+}
+
+.sheet-bar-strum > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-width: 0;
+    min-height: 18px;
+    border-radius: 2px;
+}
+
+.sheet-bar-strum--16 {
+    padding-left: 2px;
+    padding-right: 2px;
+    font-size: 10.5px;
+    letter-spacing: 0;
+}
+
+.sheet-bar-strum > span.is-stroke,
+.sheet-bar-strum > span.is-mute {
+    background: rgba(255, 255, 255, 0.58);
+    color: var(--paper-strum-stroke);
+    box-shadow: inset 0 -1px 0 rgba(122, 116, 108, 0.12);
+}
+
+/* 休符マス（・）は控えめにして、実際に弾く記号を目立たせる */
+.sheet-bar-strum > span.is-rest {
+    color: var(--paper-strum-rest);
+}
+
+.sheet-bar-strum > span.is-sustain {
+    color: var(--paper-strum-sustain);
+}
+
+.sheet-bar-strum > span.is-mute {
+    color: var(--paper-strum-mute);
+}
+
+.sheet-line--compact .sheet-bar {
+    min-height: 58px;
+}
+
+.sheet-bar--empty {
+    background: repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(122, 116, 108, 0.06) 6px, rgba(122, 116, 108, 0.06) 7px);
+    cursor: default;
+}
+
+.sheet-bar-num {
+    font-size: 9px;
+    color: var(--paper-faint);
+}
+
+/* コードは教材コード譜らしく赤系で表示（参考PDFの紙面構造を踏襲） */
+.sheet-bar-chord {
+    font-size: 17.5px;
+    font-weight: 800;
+    color: var(--paper-chord);
+    line-height: 1.18;
+    min-height: 1.25em;
+    padding-bottom: 1px;
+}
+
+/* 歌詞: 中段。太めで読みやすく */
+.sheet-bar-lyrics {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--paper-lyrics);
+    line-height: 1.5;
+    min-height: 1.5em;
+    letter-spacing: 0.04em;
+}
+
+/* 歌詞: tick配置表示（F2a / ADR-028）。8/16分割のグリッドへ各セルのテキストを置く。
+   長い文字は自セルの幅を超えても隣の空セルへ自然に見えるよう overflow は隠さない */
+.sheet-bar-lyrics--timed {
+    display: grid;
+    align-items: baseline;
+    /* v0.22.3: .sheet-barの横paddingを打ち消し、.sheet-bar-gridと同じボーダーボックス
+       全幅を等分する（--sheet-bar-pad-xを共有。.sheet-bar側のコメント参照）。
+       column-gapも0にする（.sheet-bar-gridはcolumn-gapを使わずborder-rightで線を
+       引いているため、gap分だけ歌詞側のセル幅が狭くならないようにする）。 */
+    margin-left: calc(-1 * var(--sheet-bar-pad-x));
+    margin-right: calc(-1 * var(--sheet-bar-pad-x));
+    column-gap: 0;
+}
+
+.sheet-bar-lyrics--timed > span {
+    position: relative;
+    white-space: nowrap;
+    overflow: visible;
+    text-align: center;
+    /* v0.22.3: min-width:0がないと、grid item化されたspan（white-space:nowrap＋
+       overflow:visible）の自動最小サイズがテキスト全文の幅になり、そのセルの
+       repeat(N, 1fr)トラック自体が広がって以降のセルまで罫線グリッドとズレる
+       （CSS Gridのtrack sizingがitemの自動最小サイズを考慮するため）。実測で
+       確認済み（1〜4文字程度の短い歌詞では表面化しないが、小節の主要セルに
+       長い歌詞が入ると発生する）。overflow:visibleは維持し、はみ出し表示自体は
+       変えない。 */
+    min-width: 0;
+}
+
+/* ドレミ: 下段。オクターブで色分け（中央=青 / 高い=オレンジ / 低い=グレー） */
+.sheet-bar-doremi {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1px 5px;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.5;
+    min-height: 1.5em;
+    letter-spacing: 0.02em;
+}
+
+.sheet-doremi-note {
+    color: var(--paper-doremi);
+}
+
+.sheet-doremi-note.is-high {
+    color: var(--paper-doremi-high);
+}
+
+.sheet-doremi-note.is-low {
+    color: var(--paper-doremi-low);
+}
+
+/* 表示トグル（紙面に表示する段の選択） */
+.sheet-display-toggles {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+/* グリッド解像度（8分/16分）の小型セレクト */
+.grid-res-select {
+    padding: 6px 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.grid-res-select:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+    box-shadow: 0 0 0 3px rgba(255, 159, 28, 0.12);
+}
+
+.grid-res-select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+.preview-note {
+    font-size: 11.5px;
+    color: var(--studio-text-muted);
+    text-align: center;
+}
+
+/* ══════════ F1: フローティング小節ルーペ（旧D3aタイムグリッド・ドックを紙面デザイン化。
+   docs/DECISIONS.md ADR-025 / ADR-026 / ADR-027） ══════════
+   「選択小節そのものを拡大した、紙面の上に浮かぶもう一枚の紙」。
+   D3aのタイムグリッド編集（拍ルーラー・8分/16分・ストロークセル編集）はそのまま流用し、
+   表示方式だけを bottom固定の黒いドックから、x/y自由配置＋比例リサイズ可能な
+   紙面配色のフローティングパネルへ変更する。位置・幅はUI状態としてのみ扱い、
+   cruiseStudio.appSettings の barLoupe キーへ保存する（projectデータ・schemaVersionは無変更）。
+   印刷では従来どおり非表示（print.css）。 */
+.slot-overlay {
+    /* v0.22.4: フローター専用のデザイントークン（Codex GPT-5.6 Sol設計。A案
+       「ニュートラル・ミニマル」＋B案のスレートfocusを統合）。:root/紙面共通の
+       --primary-color・--paper-*は変更せず、フローター配下のこのブロックだけで
+       ローカルに再定義したトークンへ置き換える。高彩度オレンジは通常状態から外し、
+       ブロンズ（選択・固定専用）とスレート（focus専用）だけに用途を限定する。 */
+    --slot-surface: #f4f5f4;
+    /* v0.22.4後修正: 実機評価で「内部が見づらくなった」との指摘があり、
+       Fable計測で外側(#f4f5f4)と入力面(#fbfcfb)のコントラスト比が約1.06:1
+       （ほぼ無地）だったことを確認。外側の色は変えず、入力面だけ純白へ寄せて
+       区別をわずかに強めた（境界線・内側影と合わせて「一段」感を出す）。 */
+    --slot-input-surface: #ffffff;
+    --slot-text: #25292b;
+    --slot-muted: #62686b;
+    --slot-subtle: #687074;
+    --slot-border: #848c91;
+    --slot-divider: rgba(80, 88, 92, 0.22);
+    --slot-focus: rgba(74, 101, 126, 0.78);
+    --slot-active: #d5b06f;
+    --slot-fixed: #d9bf8b;
+    --slot-fixed-border: #9a754d;
+    --slot-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 40;
+    width: 960px;
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 20px 16px;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-surface);
+    box-shadow: var(--slot-shadow);
+    color: var(--slot-text);
+    font-family: var(--paper-font);
+    pointer-events: auto;
+}
+
+/* ドラッグ・リサイズ中はテキスト選択を止め、カーソルを固定する */
+body.loupe-dragging {
+    user-select: none;
+    cursor: grabbing !important;
+}
+
+body.loupe-resizing {
+    user-select: none;
+    cursor: nwse-resize !important;
+}
+
+/* タイトルバー（ドラッグ領域）: 必ず1行に収める。button/input/select/textarea/a上では
+   ドラッグを開始しない（onLoupeHeaderPointerDownがイベント委譲元で判定する） */
+.slot-overlay-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: calc(34px * var(--bar-loupe-scale, 1));
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--slot-divider);
+    overflow-x: auto;
+    overflow-y: hidden;
+    cursor: grab;
+}
+
+.slot-overlay-head-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.slot-overlay-title {
+    font-size: calc(15px * var(--bar-loupe-scale, 1));
+    font-weight: 800;
+    color: var(--slot-text);
+    letter-spacing: 0.02em;
+}
+
+.slot-overlay-section {
+    padding: 2px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    /* v0.22.4後修正: Fable計測で背景(--slot-divider合成後)に対しコントラスト比
+       約3.33:1しかなかったため、--slot-textへ変更して読みやすくした。 */
+    color: var(--slot-text);
+    background: var(--slot-divider);
+    border: 1px solid var(--slot-border);
+    white-space: nowrap;
+}
+
+.slot-overlay-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* 「基本に戻す」出現時に横幅超過→Safariの横スクロールバー出現→overflow-y:hiddenで
+       操作列が縦クリップされる不具合の対策。flex:0 0 autoのままだと自身の内容幅を
+       常に確保して.slot-overlay-headごとはみ出すため、1 1 autoで.slot-overlay-head内の
+       残り幅までは縮められるようにする。実際の縮小先は下のhintだけに集中させる
+       （他のボタン群にはflex-shrink:0を個別指定して主要操作は縮ませない）。 */
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.slot-overlay-nav {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* ボタン群: 紙面上に置かれた薄枠＋墨文字のボタンに見えること（ダークツールバー風にしない） */
+.slot-overlay-nav-btn {
+    min-width: 56px;
+    padding: 5px 10px;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+    cursor: pointer;
+}
+
+.slot-overlay-nav-btn:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.slot-overlay-nav-btn:not(:disabled):hover {
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
+}
+
+/* 8分/16分の解像度セグメント切替。選択中だけブロンズで強調（v0.22.4: 通常状態から
+   オレンジを外し、選択専用アクセントのvar(--slot-active)へ限定） */
+.slot-overlay-res-toggle {
+    display: flex;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.slot-overlay-res-btn {
+    padding: 5px 10px;
+    border: none;
+    border-right: 1px solid var(--slot-divider);
+    background: var(--slot-input-surface);
+    color: var(--slot-muted);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.slot-overlay-res-btn:last-child {
+    border-right: none;
+}
+
+.slot-overlay-res-btn.is-active {
+    color: #2a1f0d;
+    background: var(--slot-active);
+}
+
+.slot-overlay-res-btn:disabled {
+    cursor: default;
+    opacity: 0.35;
+}
+
+.slot-overlay-reset-btn {
+    padding: 5px 10px;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.slot-overlay-reset-btn:hover {
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
+}
+
+.slot-overlay-bulk-toggle {
+    padding: 5px 10px;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.slot-overlay-bulk-toggle:hover,
+.slot-overlay-bulk-toggle[aria-expanded="true"] {
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
+}
+
+.slot-overlay-hint {
+    font-size: 10.5px;
+    color: var(--slot-subtle);
+    white-space: nowrap;
+    /* head-actions内で唯一縮小・省略を許す要素。「基本に戻す」出現時などに幅が
+       足りなくなった場合、主要な操作ボタン群を保ったままこの補助文言だけが
+       先に詰まる（ellipsis）ことで、.slot-overlay-headの横超過を防ぐ */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.slot-overlay-close {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-input-surface);
+    color: var(--slot-muted);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.slot-overlay-close:hover {
+    color: var(--error-color);
+    border-color: var(--error-color);
+    background: rgba(255, 79, 110, 0.08);
+}
+
+/* 拍ルーラー: 行ラベル列幅のスペーサー＋時間軸トラック（ストローク行と列幅を揃える） */
+.slot-overlay-ruler {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    min-height: 16px;
+}
+
+.slot-overlay-ruler-label {
+    flex: 0 0 62px;
+}
+
+.slot-overlay-ruler-track {
+    flex: 1;
+    min-width: 0;
+    /* dock-strum-grid/dock-lyrics-grid/timeline-bgと同じ1px枠を透明で持たせ、
+       border分だけ内側が狭くなる量を揃える（G1: 拍・8分・16分の線を全行で
+       ピクセル単位で一致させるため）。 */
+    border: 1px solid transparent;
+    box-sizing: border-box;
+}
+
+/* G1（docs/DECISIONS.md ADR-029）: 拍グループ入れ子DOMの共通基盤。
+   拍ルーラー・ストローク・歌詞セル・コード/ドレミ背面線のすべてがこの2クラスだけを
+   経由することで、拍・8分・16分の境界線のx座標が行をまたいで完全に一致する。
+   .beat-groups＝拍の数だけ均等幅（flex:1）に分けるコンテナ、
+   .beat-group＝1拍分を解像度なりのスロット数へ均等分割するグリッド。 */
+.beat-groups {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+}
+
+.beat-group {
+    display: grid;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.slot-overlay-ruler-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-left: 2px;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: var(--slot-subtle);
+    border-right: 1px solid transparent;
+}
+
+.slot-overlay-ruler-cell.is-beat-head {
+    color: var(--slot-text);
+}
+
+.slot-overlay-ruler-cell.is-offbeat-dot::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--slot-subtle);
+    transform: translateY(-50%);
+}
+
+/* 境界線の強弱: 小節端 ＞ 拍頭 ＞ 8分位置 ＞ 16分位置（紙面のタイミンググリッドと同じ階層・トークン）
+   G1修正: .dock-lyrics-cell がこのリストに含まれておらず、歌詞行だけ縦線が
+   transparentのまま表示されない不具合があったため追加した（歌詞セルはstrumセルと同じ
+   独立した罫線ボックス構造のため、is-barendの色もstrumと同じ扱いにする）。 */
+.slot-overlay-ruler-cell.is-beat,
+.dock-strum-cell.is-beat,
+.dock-lyrics-cell.is-beat {
+    border-right-color: var(--paper-line-beat);
+}
+
+.slot-overlay-ruler-cell.is-8th,
+.dock-strum-cell.is-8th,
+.dock-lyrics-cell.is-8th {
+    border-right-color: var(--paper-line-eighth);
+}
+
+.slot-overlay-ruler-cell.is-16th,
+.dock-strum-cell.is-16th,
+.dock-lyrics-cell.is-16th {
+    border-right-color: var(--paper-line-sixteenth);
+}
+
+.slot-overlay-ruler-cell.is-barend,
+.dock-strum-cell.is-barend,
+.dock-lyrics-cell.is-barend {
+    /* v0.22.4: 小節端境界も通常状態のオレンジを外し、境界の強弱階層
+       （小節端＞拍頭＞8分＞16分）はそのままに、最も濃いニュートラルグレーで表す */
+    border-right-color: rgba(37, 41, 43, 0.55);
+}
+
+/* タイムグリッド本文: コード/ストローク/歌詞/ドレミの4段 */
+.slot-overlay-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    overflow-x: auto;
+}
+
+.slot-overlay-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.slot-overlay-row-label {
+    flex: 0 0 62px;
+    display: flex;
+    align-items: center;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    /* v0.22.4後修正: コード/ストローク/歌詞/ドレミの見出し文字を、実機評価
+       「見やすさが落ちた」を受けてやや濃くした（--slot-subtle→--slot-muted）。 */
+    color: var(--slot-muted);
+    text-transform: uppercase;
+}
+
+.slot-overlay-row-body {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    border-radius: 6px;
+    border: 1px solid var(--slot-border);
+    background: var(--slot-input-surface);
+    /* v0.22.4後修正: 外側面とほぼ同色になっていた入力面に、ごく薄い内側影で
+       「一段くぼんでいる」認識を足す（色相・彩度は変えず明度のみの調整）。 */
+    box-shadow: inset 0 1px 2px rgba(37, 41, 43, 0.06);
+    display: flex;
+    align-items: center;
+}
+
+.slot-overlay-row--chord .slot-overlay-row-body,
+.slot-overlay-row--strum .slot-overlay-row-body {
+    min-height: max(26px, calc(30px * var(--bar-loupe-scale, 1)));
+}
+.slot-overlay-row--lyrics .slot-overlay-row-body,
+.slot-overlay-row--doremi .slot-overlay-row-body {
+    min-height: max(28px, calc(34px * var(--bar-loupe-scale, 1)));
+}
+
+.slot-overlay-input {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-width: 0;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--slot-text);
+    font-family: inherit;
+    font-size: max(12px, calc(15px * var(--bar-loupe-scale, 1)));
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.slot-overlay-row--chord .slot-overlay-input {
+    color: var(--paper-chord);
+    font-weight: 800;
+}
+
+.slot-overlay-row--lyrics .slot-overlay-input {
+    color: var(--paper-lyrics);
+}
+
+.slot-overlay-row--doremi .slot-overlay-input {
+    color: var(--paper-doremi);
+}
+
+.slot-overlay-input::placeholder {
+    color: var(--slot-subtle);
+    font-weight: 500;
+}
+
+.slot-overlay-input:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--slot-focus);
+}
+
+.slot-overlay-input.is-invalid {
+    background: rgba(255, 79, 110, 0.08);
+    box-shadow: inset 0 0 0 2px rgba(255, 79, 110, 0.5);
+}
+
+.slot-overlay-row-note {
+    position: relative;
+    z-index: 1;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--slot-muted);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    padding: 0 10px 0 0;
+}
+
+.slot-overlay-row-note--info { color: var(--slot-fixed-border); }
+.slot-overlay-row-note--inherit { color: var(--slot-muted); }
+.slot-overlay-row-note--muted { color: var(--slot-subtle); }
+.slot-overlay-row-note--warning { color: var(--error-color); }
+
+/* コード/ドレミ行の背面線（G1 / ADR-029）。小節1入力のまま、拍/8分/16分の位置だけを
+   装飾として見せる。クリック・キャレット操作を妨げないよう入力欄の背面に敷く
+   （.slot-overlay-input側にz-index:1を設定して前面に出す）。 */
+.slot-overlay-timeline-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.slot-overlay-timeline-slot {
+    display: block;
+    min-width: 0;
+    border-right: 1px solid transparent;
+}
+
+.slot-overlay-timeline-slot.is-beat {
+    border-right-color: var(--paper-line-beat);
+}
+
+.slot-overlay-timeline-slot.is-8th {
+    border-right-color: var(--paper-line-eighth);
+}
+
+.slot-overlay-timeline-slot.is-16th {
+    border-right-color: var(--paper-line-sixteenth);
+}
+
+.slot-overlay-timeline-slot.is-barend {
+    border-right-color: transparent;
+}
+
+/* ストローク行: 本格セル編集（D3a由来）。基本ストローク継承中はゴースト表示にする */
+.slot-overlay-row-body--strum {
+    flex-direction: column;
+    align-items: stretch;
+    background: transparent;
+    border: none;
+    gap: 2px;
+}
+
+.dock-strum-grid {
+    min-width: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--slot-border);
+    background: var(--slot-input-surface);
+    box-shadow: inset 0 1px 2px rgba(37, 41, 43, 0.06);
+}
+
+.dock-strum-grid.is-inherited {
+    opacity: 0.55;
+    border-style: dashed;
+}
+
+.dock-strum-cell {
+    min-width: max(18px, calc(24px * var(--bar-loupe-scale, 1)));
+    min-height: max(26px, calc(30px * var(--bar-loupe-scale, 1)));
+    padding: 0;
+    border: none;
+    border-right: 1px solid transparent;
+    background: transparent;
+    color: var(--paper-strum);
+    font-family: inherit;
+    font-size: max(12px, calc(16px * var(--bar-loupe-scale, 1)));
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.dock-strum-cell:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--slot-focus);
+    position: relative;
+    z-index: 1;
+}
+
+.dock-strum-cell:hover {
+    background: var(--slot-divider);
+}
+
+.dock-strum-cell.is-rest {
+    color: var(--paper-strum-rest);
+    font-weight: 600;
+}
+
+.dock-strum-cell.is-sustain {
+    color: var(--paper-strum-sustain);
+    font-weight: 600;
+}
+
+.dock-strum-cell.is-down,
+.dock-strum-cell.is-up {
+    color: var(--paper-strum-stroke);
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.dock-strum-cell.is-mute {
+    color: var(--paper-strum-mute);
+    background: rgba(255, 255, 255, 0.6);
+}
+
+/* 歌詞行: セル編集（F2a由来。docs/DECISIONS.md ADR-028）。1セル=1 bar.lyrics イベント。
+   空セルは透明にして「白紙の五線譜」らしさを保ち、内容ありセルだけ淡い紙色で見せる。 */
+.slot-overlay-row-body--lyrics {
+    background: transparent;
+    border: none;
+}
+
+.dock-lyrics-grid {
+    min-width: 0;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--slot-border);
+    background: transparent;
+}
+
+.dock-lyrics-cell {
+    min-width: max(18px, calc(24px * var(--bar-loupe-scale, 1)));
+    min-height: max(28px, calc(34px * var(--bar-loupe-scale, 1)));
+    padding: 0 3px;
+    border: none;
+    border-right: 1px solid transparent;
+    background: transparent;
+    color: var(--paper-lyrics);
+    font-family: var(--paper-font);
+    font-size: max(11px, calc(13px * var(--bar-loupe-scale, 1)));
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dock-lyrics-cell.has-content {
+    background: var(--slot-divider);
+}
+
+.dock-lyrics-cell.is-multi {
+    /* v0.22.4: 集約セルの下線マーカーは選択・固定用ブロンズと混同しないよう
+       ニュートラルな濃淡（--slot-mutedベース）で表す */
+    box-shadow: inset 0 -2px 0 rgba(98, 104, 107, 0.55);
+}
+
+.dock-lyrics-cell:hover {
+    /* v0.22.4後修正: has-content（内容ありセル）と同じ--slot-dividerのままだと
+       hoverしても変化が見えなかった（Fable指摘）ため、hover専用に一段濃い値へ。 */
+    background: rgba(80, 88, 92, 0.34);
+}
+
+.dock-lyrics-cell.is-composing {
+    /* v0.22.4後修正: alpha 0.12は背景との区別がほぼつかなかった（Fableコントラスト
+       計測1.18）ため0.30へ強め、IME変換中であることを視認しやすくした。 */
+    background: rgba(74, 101, 126, 0.30);
+}
+
+.dock-lyrics-cell:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--slot-focus);
+    position: relative;
+    z-index: 1;
+    background: var(--slot-input-surface);
+}
+
+/* G2b: 歌詞の拍別ローカル解像度（docs/DECISIONS.md ADR-030）。
+   .dock-lyrics-beat-group（拍グループ本体。G1のbeat-groupを拡張）は position:relative にし、
+   セル群（.dock-lyrics-beat-cells。拍ごとに列数が変わりうる）と、右下に重ねて表示する
+   切替ボタンの2つを子に持つ。ボタンはposition:absoluteで通常のグリッド配置から外れるため、
+   拍ごとにセル列数（8分=2列 / 16分=4列）が違っても他行の拍境界とはズレない。 */
+.dock-lyrics-beat-group {
+    position: relative;
+}
+
+.dock-lyrics-beat-cells {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+}
+
+.dock-lyrics-beat-res-btn {
+    /* 実機確認後修正: 歌詞セルへの重なりを減らすため、見た目・実クリック領域とも
+       明確に縮小した（transform:scale等でhit areaだけ元のまま残す手法は使わず、
+       box-modelそのものを縮めているので見た目とクリック領域は常に一致する）。
+       v0.22.3後修正: 表示テキストを「自8/自16/固8/固16」から「8/16」＋固定状態だけの
+       鍵アイコンへ変更するため、中身をinline-flexで中央配置する。
+       v0.22.4後修正: ユーザー実機評価で鍵が小さすぎたため、Codex GPT-5.6 Sol設計に
+       従いアイコン6.5px・gap1.5pxへ拡大し、widthも19pxへ広げた（min-widthではなく
+       固定widthのため、4状態（自動8/自動16/固定8/固定16）のいずれでもボタン幅は
+       変化しない）。自動状態のopacity減光（0.65）も廃止し、色・背景の差だけで
+       自動/固定を表現する（自動拍ボタンの視認性低下を解消）。高さ（11px）・
+       right/bottom/z-index・border-radiusは不変。 */
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5px;
+    width: 19px;
+    min-height: 11px;
+    padding: 0;
+    border: 1px solid var(--slot-border);
+    border-radius: 3px;
+    background: var(--slot-input-surface);
+    color: var(--slot-muted);
+    font-family: inherit;
+    font-size: 6.5px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    cursor: pointer;
+}
+
+.dock-lyrics-beat-res-btn.is-local {
+    border-color: var(--slot-fixed-border);
+    background: var(--slot-fixed);
+    color: #2a1f0d;
+}
+
+/* v0.22.3後修正: 固定状態（is-local）だけに表示する、細いモノクロ線画の南京錠アイコン。
+   Unicode絵文字は使わず、currentColorで塗るCSS mask（SVGデータURI）で描画するため、
+   OS/ブラウザ間の見た目差やカラー絵文字化を避けられる。自動状態（is-auto）には
+   このルールが適用されないため、鍵は固定状態のときだけ表示される。
+   v0.22.4後修正: サイズを4.5px→6.5pxへ拡大し、stroke-widthも2.4→2.8へ微増して
+   縮小表示でも南京錠と認識しやすくした。 */
+.dock-lyrics-beat-res-btn.is-local::before {
+    content: "";
+    display: inline-block;
+    width: 6.5px;
+    height: 6.5px;
+    flex: 0 0 auto;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.dock-lyrics-beat-res-btn:hover {
+    border-color: var(--slot-focus);
+}
+
+.dock-lyrics-beat-res-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--slot-focus);
+}
+
+/* 右下ハンドル: 幅ドラッグで全体を比例拡大縮小する（--bar-loupe-scale をJSが更新） */
+.slot-overlay-resize-handle {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 0 0 7px 0;
+    cursor: nwse-resize;
+    background:
+        linear-gradient(135deg, transparent 0 40%, var(--paper-border) 40% 46%, transparent 46% 60%,
+            var(--paper-border) 60% 66%, transparent 66% 80%, var(--paper-border) 80% 86%, transparent 86%);
+    opacity: 0.7;
+}
+
+.slot-overlay-resize-handle:hover {
+    opacity: 1;
+}
+
+@media (max-width: 679px) {
+    .slot-overlay-resize-handle {
+        display: none;
+    }
+}
+
+/* JS（applyLoupeGeometry）が isNarrowViewport() のときに付けるクラス。
+   media queryと同じ条件の保険（幅を強制した直後の1フレームでも確実に隠す） */
+.slot-overlay--narrow .slot-overlay-resize-handle {
+    display: none;
+}
+
+/* まとめて入力ポップオーバー: ルーペ上側にフロート表示。通常のルーペ高さ・幅を消費しない。
+   is-flip-down / is-flip-left はJS（positionBulkPopover）が画面外はみ出し時に付与する */
+.slot-overlay-bulk-popover {
+    position: absolute;
+    right: 20px;
+    bottom: calc(100% + 8px);
+    width: 400px;
+    max-width: calc(100vw - 56px);
+    padding: 14px 16px;
+    border: 1px solid var(--slot-border);
+    border-radius: 10px;
+    background: var(--slot-surface);
+    color: var(--slot-text);
+    box-shadow: var(--slot-shadow);
+}
+
+.slot-overlay-bulk-popover.is-flip-down {
+    bottom: auto;
+    top: calc(100% + 8px);
+}
+
+.slot-overlay-bulk-popover.is-flip-left {
+    right: auto;
+    left: 20px;
+}
+
+.slot-overlay-bulk-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.slot-overlay-bulk-kind,
+.slot-overlay-bulk-text {
+    min-width: 0;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.slot-overlay-bulk-kind {
+    padding: 8px 10px;
+    align-self: flex-start;
+}
+
+.slot-overlay-bulk-kind option {
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
+}
+
+.slot-overlay-bulk-text {
+    min-height: 96px;
+    padding: 10px 12px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.slot-overlay-bulk-text:disabled,
+.slot-overlay-bulk-apply:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* F2a〜F4暫定: まとめて入力で「歌詞」を選んだ場合の案内（ADR-028） */
+.slot-overlay-bulk-lyrics-notice {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--slot-divider);
+    /* v0.22.4後修正: Fable計測でコントラスト比約3.73:1だったため--slot-textへ変更 */
+    color: var(--slot-text);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.slot-overlay-bulk-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.slot-overlay-bulk-apply,
+.slot-overlay-bulk-close {
+    padding: 8px 16px;
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.slot-overlay-bulk-apply:hover,
+.slot-overlay-bulk-close:hover {
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
+}
+
+.slot-overlay-bulk-message {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.slot-overlay-bulk-message.is-ok {
+    background: rgba(46, 204, 113, 0.14);
+    color: #1f6941;
+}
+
+.slot-overlay-bulk-message.is-warning {
+    background: rgba(154, 117, 77, 0.16);
+    color: var(--slot-fixed-border);
+}
+
+/* ══════════ フッター ══════════ */
+
+.studio-footer {
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: var(--studio-text-muted);
+    padding: 12px 0 4px;
+}
+
+/* ══════════ プレDTMクルーズ ══════════ */
+
+#pd-content {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* プロジェクトなしの案内 */
+.pd-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 56px 32px;
+    border: 1px dashed rgba(253, 246, 238, 0.2);
+    border-radius: var(--card-radius);
+    background: rgba(0, 0, 0, 0.15);
+    text-align: center;
+}
+
+.pd-empty-icon {
+    font-size: 36px;
+}
+
+.pd-empty-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--secondary-color);
+}
+
+.pd-empty-note {
+    font-size: 13px;
+    color: var(--muted-color);
+    line-height: 1.9;
+}
+
+/* 曲情報 */
+.pd-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 20px;
+}
+
+.pd-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pd-info-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+}
+
+.pd-info-value {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+/* 伴奏設定 */
+.pd-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px 24px;
+}
+
+.pd-setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pd-setting-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+}
+
+.pd-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.pd-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+.pd-setting-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pd-setting-field > span {
+    font-size: 11.5px;
+    color: var(--muted-color);
+}
+
+.pd-setting-field select {
+    padding: 8px 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.pd-setting-field select:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+    box-shadow: 0 0 0 3px rgba(255, 159, 28, 0.12);
+}
+
+.pd-setting-field select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+.pd-midi-note {
+    margin-top: 16px;
+    padding: 10px 14px;
+    border: 1px solid var(--studio-border-default);
+    border-radius: 10px;
+    background: var(--studio-control);
+    font-size: 12px;
+    color: var(--muted-color);
+    line-height: 1.7;
+}
+
+.pd-midi-note strong {
+    color: var(--secondary-color);
+}
+
+.pd-part-midi {
+    font-size: 11px;
+    color: var(--studio-text-muted);
+}
+
+/* パート一覧 */
+.pd-parts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.pd-part-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 18px 20px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.pd-part-card.is-off {
+    opacity: 0.5;
+}
+
+.pd-part-icon {
+    font-size: 22px;
+}
+
+.pd-part-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--secondary-color);
+}
+
+.pd-part-desc {
+    font-size: 12px;
+    color: var(--muted-color);
+}
+
+.pd-part-count {
+    margin-top: 6px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+/* 生成時の注意 */
+.pd-warnings {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 209, 102, 0.3);
+    border-radius: 12px;
+    background: rgba(255, 209, 102, 0.06);
+    font-size: 12.5px;
+    color: var(--secondary-color);
+}
+
+/* 生成プレビュー表 */
+.pd-table-wrap {
+    overflow-x: auto;
+}
+
+.pd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pd-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted-color);
+    border-bottom: 1px solid rgba(253, 246, 238, 0.15);
+    white-space: nowrap;
+}
+
+.pd-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(253, 246, 238, 0.06);
+    vertical-align: top;
+}
+
+.pd-section-row td {
+    padding: 14px 12px 6px;
+    font-size: 12.5px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--secondary-color);
+    border-bottom: 1px solid rgba(255, 209, 102, 0.25);
+}
+
+.pd-cell-num {
+    color: var(--muted-color);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.pd-cell-chord {
+    font-weight: 800;
+    color: var(--primary-color);
+    white-space: nowrap;
+}
+
+.pd-cell-chord.is-carried {
+    color: rgba(255, 159, 28, 0.55);
+    font-weight: 600;
+}
+
+.pd-cell-pattern {
+    font-family: 'Outfit', monospace;
+    letter-spacing: 0.06em;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.pd-cell-bass,
+.pd-cell-drums {
+    color: var(--muted-color);
+    white-space: nowrap;
+}
+
+/* ══════════ Sound Cruise シリーズ（既存アプリランチャー） ══════════ */
+
+.series-note {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 20px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 13px;
+    color: var(--muted-color);
+    line-height: 1.9;
+}
+
+.series-note strong {
+    color: var(--secondary-color);
+}
+
+.series-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+}
+
+.series-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.series-card-icon {
+    font-size: 28px;
+}
+
+.series-card-name {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--secondary-color);
+    letter-spacing: 0.03em;
+}
+
+.series-card-desc {
+    font-size: 13px;
+    color: var(--text-color);
+    line-height: 1.8;
+    flex: 1;
+}
+
+.series-card-note {
+    font-size: 11.5px;
+    color: var(--muted-color);
+    line-height: 1.7;
+}
+
+.series-open-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    align-self: flex-start;
+}
+
+.series-launch-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.series-pro-link {
+    display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+    border: 1px solid var(--card-border); border-radius: 9px;
+    background: var(--surface-raised); color: var(--text-color);
+}
+.series-pro-link img { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; }
+.series-pro-link:hover, .series-pro-link:focus-visible { border-color: var(--secondary-color); }
+
+/* ══════════ フォーカスリングの統一（高級感のあるアンバーの淡いグロー） ══════════ */
+
+.form-grid input:focus,
+.form-grid select:focus,
+.sheet-toolbar-project select:focus,
+.section-name-input:focus,
+.section-bar-count:focus,
+.bar-chord-input:focus,
+.bar-lyrics-input:focus,
+.bar-doremi-input:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+    box-shadow: 0 0 0 3px rgba(255, 159, 28, 0.12);
+}
+
+/* ══════════ 最低限のレスポンシブ（スマホ編集最適化はしない: ADR-005） ══════════ */
+
+@media (max-width: 720px) {
+    .studio-container {
+        padding: 28px 18px 24px;
+        gap: 26px;
+    }
+
+    .studio-header h1 {
+        font-size: 32px;
+    }
+
+    .module-grid,
+    .module-grid--series {
+        grid-template-columns: 1fr;
+    }
+
+    .screen-header {
+        padding-top: 56px; /* 固定ナビと重ならないように */
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.sheet-bar-actions { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.sheet-bar-actions button, #sc-transpose-up, #sc-transpose-down { min-width: 36px; min-height: 36px; border: 1px solid var(--studio-border-default); border-radius: 6px; background: var(--studio-control); color: var(--studio-text-primary); cursor: pointer; }
+.sheet-bar-actions button:focus-visible, #sc-transpose-up:focus-visible, #sc-transpose-down:focus-visible { outline: 2px solid var(--studio-focus); }

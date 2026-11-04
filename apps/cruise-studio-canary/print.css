@@ -1,0 +1,183 @@
+/* クルーズスタジオ print.css — v0.20.0
+   ブラウザ印刷（PDF保存）用。A4紙面（.sheet-page）だけを印刷対象にし、
+   編集UI・ナビ・ツールバーは印刷しない（ADR-010 / ADR-016）。
+   画面は 794×1123px（A4@96dpi）、印刷はここで 210mm/297mm のmm指定へ寄せる。
+   紙面の余白は @page ではなく .sheet-page の padding で持つ
+   （@page margin 0 にしないと width:210mm がはみ出すため）。
+   タイミンググリッド（.sheet-bar-grid）は紙面DOMの一部なので、
+   ONのときは印刷にも出る（OFFなら要素自体が存在しない）。
+   index.html から media="print" で読み込まれる。 */
+
+@page {
+    size: A4 portrait;
+    margin: 0;
+}
+
+/* 画面UIは印刷しない */
+.studio-nav,
+.studio-right-pane,
+.studio-dock,
+.app-nav,
+.workspace-local-nav,
+.studio-header,
+.screen-header,
+.sheet-toolbar,
+.sheet-editor-drawer,
+.sheet-editor,
+.dev-panel,
+.module-section,
+.studio-footer,
+.preview-note,
+#screen-home,
+#screen-news,
+#screen-pre-dtm,
+#screen-series {
+    display: none !important;
+}
+
+/* Practice is a screen-only local-data viewer; existing A4 score print stays scoped. */
+#screen-practice { display: none !important; }
+#screen-port-practice { display: none !important; }
+#screen-tuner { display: none !important; }
+#screen-metronome { display: none !important; }
+#screen-gear, #screen-my-apps { display: none !important; }
+#screen-port-gear, #screen-port-my-apps, #screen-port-news { display: none !important; }
+
+/* 画面専用の編集オーバーレイ類は印刷に絶対に出さない。
+   S1bの編集レイヤー（.slot-overlay。F1で紙面デザインのフローティング小節ルーペ化）と、
+   紙面上の画面専用装飾（.sheet-bar の選択ハイライト等）をここでまとめて除外する */
+.slot-overlay,
+.slot-overlay-bulk-popover,
+.slot-overlay-resize-handle,
+.sheet-edit-overlay {
+    display: none !important;
+}
+
+.sheet-bar.is-selected {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* タイミンググリッドの線色（印刷用の微調整はここで行う。
+   現状は画面と同じ濃さ。印刷で薄すぎ/濃すぎとなった場合はこの3行を調整する） */
+.sheet-bar-grid > span.is-beat {
+    border-right-color: rgba(122, 116, 108, 0.40) !important;
+}
+
+.sheet-bar-grid > span.is-8th {
+    border-right-color: rgba(122, 116, 108, 0.20) !important;
+}
+
+.sheet-bar-grid > span.is-16th {
+    border-right-color: rgba(122, 116, 108, 0.11) !important;
+}
+
+/* 段区切り横線（コード/歌詞/ドレミ段の間）の印刷用微調整もここで行う */
+.sheet-bar-row + .sheet-bar-row {
+    border-top-color: rgba(122, 116, 108, 0.18) !important;
+}
+
+.sheet-bar-strum {
+    background: #fff8eb !important;
+    box-shadow: inset 0 0 0 0.18mm rgba(122, 116, 108, 0.14) !important;
+    color: #70440f !important;
+    font-size: 9pt !important;
+    min-height: 4.8mm !important;
+    padding-top: 0.7mm !important;
+    padding-bottom: 0.7mm !important;
+}
+
+.sheet-bar-strum--16 {
+    font-size: 7.5pt !important;
+}
+
+.sheet-bar-strum > span.is-stroke,
+.sheet-bar-strum > span.is-mute {
+    background: #ffffff !important;
+    box-shadow: inset 0 -0.15mm 0 rgba(122, 116, 108, 0.14) !important;
+}
+
+.sheet-bar-strum > span.is-rest {
+    color: rgba(122, 116, 108, 0.36) !important;
+}
+
+.sheet-bar-strum > span.is-sustain {
+    color: rgba(112, 68, 15, 0.64) !important;
+}
+
+/* レイアウトの入れ子を解除して紙面だけを流す */
+body {
+    background: #ffffff !important;
+}
+
+#studio-shell,
+.studio-main,
+.studio-container,
+.screen,
+.sheet-layout,
+.sheet-preview,
+.sheet-preview-viewport {
+    display: block !important;
+    max-width: none !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+    overflow: visible !important;
+}
+
+/* 画面用のスケールを解除する */
+.sheet-scale-box {
+    transform: none !important;
+    width: auto !important;
+}
+
+/* A4ページ: mm指定へ寄せ、画面用の影・角丸を落とす */
+.sheet-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    padding: 14mm 15mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    /* コードの赤・ドレミの色・セクションバー・小節線を印刷にも出す */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    /* ページ単位で改ページ（複数ページ対応の土台） */
+    break-after: page;
+    page-break-after: always;
+}
+
+.sheet-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+}
+
+/* 改ページ制御: 譜面行・小節・ヘッダーの途中で切らない。
+   セクション見出しの直後では改ページしない */
+.sheet-header,
+.sheet-line,
+.sheet-bar {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.sheet-section-label {
+    break-inside: avoid;
+    break-after: avoid;
+    page-break-after: avoid;
+}
+
+/* Release the Shell viewport and its screen palette for paged output. */
+html, body, #studio-shell, .studio-main {
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+    background: none !important;
+    color-scheme: light;
+}
+
+/* Modal host is UI only, including native dialog's top-layer backdrop. */
+.studio-modal, .studio-modal::backdrop { display: none !important; }
