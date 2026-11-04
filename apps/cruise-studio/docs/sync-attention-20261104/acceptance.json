@@ -71,6 +71,13 @@
         "Gray/Light tokens only",
         "NEWS badge/general rule"
       ]
+    },
+    "studioAll": {
+      "passed": 1947,
+      "failed": 21,
+      "tests": 1968,
+      "newFailuresComparedWithMain": [],
+      "sameFailureNamesAsMain": true
     }
   },
   "pages": {
@@ -78,7 +85,14 @@
     "studioReleaseFiles": 81,
     "byteIdenticalToCandidate": true,
     "nativeOutputFilesByteIdenticalToCandidate": 813,
-    "projectCloudStillExcluded": true
+    "projectCloudStillExcluded": true,
+    "httpStatusFromLocalJekyllBuild": {
+      "/apps/cruise-studio/": 200,
+      "/apps/cruise-studio/development.html": 404,
+      "/apps/cruise-studio/js/cloud/http-client.mjs": 404,
+      "/apps/cruise-studio/tests/sync-attention.browser.mjs": 404,
+      "/apps/cruise-studio/docs/sync-attention-20261104/acceptance.json": 404
+    }
   },
   "unchangedContractBlobs": {
     "apps/shared/sync-account/multi-app-sync-runtime.js": "3060e5e06b5524d90ee01990aa8067355391c2e4",
