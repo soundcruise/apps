@@ -308,3 +308,24 @@ test('Gear content, order and image edits outside the Account baseline remain bl
   assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);assert.equal((await h.controller.status()).autoResumeCode,'local_data_unconfirmed');h.controller.dispose();
  }
 });
+
+test('initial asset reference preparation follows authenticated provisioning and precedes bootstrap, never normal resume', async () => {
+  const h=harness();let prepared=0;
+  h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0}),prepareInitialAccountReferences:async()=>{
+    prepared++;const runtime=h.controller.runtime;
+    assert.equal(runtime.initialized,0);
+    assert.equal(h.databases.get('A').meta.get('membership').state,'active');
+    assert.ok(h.databases.get('A').meta.get('credential'));
+  }},canInitialize:()=>false});
+  await h.controller.ensure();assert.equal(prepared,1);assert.equal(h.controller.runtime.initialized,1);
+  await h.controller.ensure();assert.equal(prepared,1);
+  h.controller.dispose();
+});
+test('failed initial asset preparation prevents bootstrap and retains Account-scoped pending records', async () => {
+  const h=harness();const store=h.createStore('port',{accountId:'A'});await store.putOutbox({operationId:'retained'});
+  h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0}),prepareInitialAccountReferences:async()=>{throw Error('asset_local_missing');}},canInitialize:()=>false});
+  await assert.rejects(h.controller.ensure(),/asset_local_missing/);
+  assert.equal(h.runtimes[0].initialized,0);assert.equal(h.runtimes[0].disposed,true);
+  assert.equal(h.databases.get('A').outbox[0].operationId,'retained');
+  h.controller.dispose();
+});
