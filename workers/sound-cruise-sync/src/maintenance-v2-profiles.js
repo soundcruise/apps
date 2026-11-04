@@ -1,4 +1,5 @@
-// Structural fingerprints from verified schema0033 metadata and exact repository migrations. No user data.
+// Exact structural profiles. 33 is the retained Miniflare profile (includes _cf_METADATA).
+// 33-production was observed read-only on 2026-11-04; the application DDL and journal match.
 export const MAINTENANCE_V2_PROFILES = {
   "33": {
     "stage": 33,
@@ -203,6 +204,45 @@ export const MAINTENANCE_V2_PROFILES = {
       "0035_add_transaction_fence.sql",
       "0036_add_asset_deletion_reservations.sql",
       "0037_bind_cutover_generations.sql"
+    ]
+  },
+  "33-production": {
+    "stage": 33,
+    "fingerprint": "fac6295ff89f2f6a2a754329baba3f1c2264b48670249def9d0ac7b8886843d1",
+    "journal": [
+      "0001_create_sync_foundation.sql",
+      "0002_add_sync_revision_metadata.sql",
+      "0003_add_pairing_device_lifecycle.sql",
+      "0004_add_pairing_attempt_limiter.sql",
+      "0005_add_recovery_lifecycle.sql",
+      "0006_add_device_management_and_account_deletion.sql",
+      "0007_add_production_rollout_control.sql",
+      "0008_add_multi_app_account_backbone.sql",
+      "0009_add_account_api_handoff_state.sql",
+      "0010_add_chord_account_bridge.sql",
+      "0011_add_pitch_record_types.sql",
+      "0012_add_rhythm_record_types.sql",
+      "0013_add_fretboard_record_types.sql",
+      "0014_add_handoff_consume_mode.sql",
+      "0015_add_account_qa_admission.sql",
+      "0016_add_app_join_invitations.sql",
+      "0017_add_account_lifecycle.sql",
+      "0018_add_account_admission_provenance.sql",
+      "0019_add_authenticated_recovery_rotation.sql",
+      "0020_add_port_join_invitations.sql",
+      "0021_add_port_data_plane.sql",
+      "0022_add_binary_assets.sql",
+      "0023_add_asset_quota_and_account_activity.sql",
+      "0024_add_auto_rejoin_handoffs.sql",
+      "0025_add_app_sync_safety.sql",
+      "0026_add_practice_attachment_assets.sql",
+      "0027_add_practice_attachment_record_types.sql",
+      "0028_add_app_attention_count.sql",
+      "0029_add_pro_auth.sql",
+      "0030_add_pro_auth_lockout.sql",
+      "0031_add_sync_target_user_labels.sql",
+      "0032_add_practice_menu_set_record_type.sql",
+      "0033_add_pro_device_sessions.sql"
     ]
   }
 };

@@ -41,7 +41,7 @@ export const STUDIO_SCHEMA_SQL="SELECT json_group_array(json_array(type,name,sql
 export const STUDIO_JOURNAL_SQL='SELECT json_group_array(json_array(id,name)) encoded FROM (SELECT id,name FROM d1_migrations ORDER BY id)';
 const fail=code=>{throw Object.assign(Error(code),{code});};
 export async function studioReleaseHash(){return maintenanceDigest({id:STUDIO_RELEASE_ID,ddl:STUDIO_RELEASE_DDL});}
-export function releaseAssertion(db,hash){return db.prepare(`SELECT CASE WHEN (SELECT count(*) FROM studio_document_migrations)=1 AND EXISTS(SELECT 1 FROM studio_document_migrations j JOIN studio_document_schema_marker m ON m.id=1 WHERE j.sequence=1 AND j.migration_id=? AND j.ddl_hash=? AND j.base_fingerprint=? AND m.migration_id=j.migration_id AND m.ddl_hash=j.ddl_hash) THEN 1 ELSE json_extract('release_marker','$.abort') END`).bind(STUDIO_RELEASE_ID,hash,Object.values(MAINTENANCE_V2_PROFILES).find(p=>p.stage===33).fingerprint);}
+export function releaseAssertion(db,hash,baseFingerprint=null){const bases=Object.values(MAINTENANCE_V2_PROFILES).filter(p=>p.stage===33&&(baseFingerprint===null||p.fingerprint===baseFingerprint)).map(p=>p.fingerprint);if(!bases.length)fail('studio_release_base_unknown');return db.prepare(`SELECT CASE WHEN (SELECT count(*) FROM studio_document_migrations)=1 AND EXISTS(SELECT 1 FROM studio_document_migrations j JOIN studio_document_schema_marker m ON m.id=1 WHERE j.sequence=1 AND j.migration_id=? AND j.ddl_hash=? AND j.base_fingerprint IN (${bases.map(()=>'?').join(',')}) AND m.migration_id=j.migration_id AND m.ddl_hash=j.ddl_hash) THEN 1 ELSE json_extract('release_marker','$.abort') END`).bind(STUDIO_RELEASE_ID,hash,...bases);}
 export async function inspectStudioRelease(db){
  const hash=await studioReleaseHash();await releaseAssertion(db,hash).all();
  const base=(await db.prepare(STUDIO_SCHEMA_SQL).first()).encoded;
@@ -49,6 +49,7 @@ export async function inspectStudioRelease(db){
  const actual=JSON.parse(base).filter(r=>r[1].startsWith('studio_document_'));
  if(maintenanceCanonical(actual.sort((a,b)=>a[1].localeCompare(b[1])))!==maintenanceCanonical(expected.sort((a,b)=>a[1].localeCompare(b[1]))))fail('studio_release_schema_unknown');
  const original=JSON.parse(base).filter(r=>!r[1].startsWith('studio_document_')).map(([type,name,sql])=>({type,name,sql:sql.trim().replace(/;$/,'')}));const fp=await maintenanceDigest(original),journal=JSON.parse((await db.prepare(STUDIO_JOURNAL_SQL).first()).encoded),profile=Object.values(MAINTENANCE_V2_PROFILES).find(p=>p.stage===33&&p.fingerprint===fp&&maintenanceCanonical(p.journal)===maintenanceCanonical(journal.map(r=>r[1])));if(!profile||journal.some((r,i)=>r[0]!==i+1))fail('studio_release_base_unknown');
+ if((await db.prepare('SELECT base_fingerprint FROM studio_document_migrations WHERE sequence=1').first())?.base_fingerprint!==fp)fail('studio_release_base_marker_mismatch');
  return {migrationId:STUDIO_RELEASE_ID,ddlHash:hash};
 }
 export async function studioReleasePlan(db){
@@ -63,6 +64,6 @@ export async function studioReleasePlan(db){
  ...STUDIO_RELEASE_DDL.map(sql=>db.prepare(sql)),
  db.prepare('INSERT INTO studio_document_migrations VALUES(1,?,?,?)').bind(STUDIO_RELEASE_ID,hash,fingerprint),
  db.prepare('INSERT INTO studio_document_schema_marker VALUES(1,?,?)').bind(STUDIO_RELEASE_ID,hash),
- db.prepare('INSERT INTO studio_document_control VALUES(1,1,0,1)'),releaseAssertion(db,hash)]};
+ db.prepare('INSERT INTO studio_document_control VALUES(1,1,0,1)'),releaseAssertion(db,hash,fingerprint)]};
 }
 export async function installStudioRelease(db){const p=await studioReleasePlan(db);await db.batch(p.statements);return inspectStudioRelease(db);}
