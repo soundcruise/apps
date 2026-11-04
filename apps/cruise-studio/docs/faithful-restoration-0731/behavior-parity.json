@@ -1,0 +1,174 @@
+{
+  "sameOperationSequence": true,
+  "equalNormalizedOutputs": true,
+  "profiles": {
+    "old": {
+      "pageErrors": [],
+      "barCount": 33,
+      "title": "Faithful original",
+      "bpm": 112,
+      "lyrics": [
+        "夜"
+      ],
+      "melody": [
+        {
+          "kind": "note",
+          "onsetTick": 0,
+          "durationTicks": 240,
+          "pitch": {
+            "step": "C",
+            "alter": 0,
+            "octave": 4
+          },
+          "provenance": {
+            "timing": {
+              "onset": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              },
+              "duration": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              }
+            }
+          }
+        },
+        {
+          "kind": "note",
+          "onsetTick": 240,
+          "durationTicks": 240,
+          "pitch": {
+            "step": "D",
+            "alter": 0,
+            "octave": 4
+          },
+          "provenance": {
+            "timing": {
+              "onset": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              },
+              "duration": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              }
+            }
+          }
+        },
+        {
+          "kind": "note",
+          "onsetTick": 480,
+          "durationTicks": 240,
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          },
+          "provenance": {
+            "timing": {
+              "onset": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              },
+              "duration": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              }
+            }
+          }
+        }
+      ],
+      "midi": "e27f645bd43464f3a4e354508374ef57b6ff9be69bcc602865d0fa1cb6729621",
+      "normalizedArrangementSHA256": "b3a22e0f926a50d1c5c6c2a6fe9648958d7023e72e1d0aac58dc57df6fe68266",
+      "generatedEventCounts": {
+        "guitar": 188,
+        "bass": 132,
+        "drums": 396
+      }
+    },
+    "restored": {
+      "pageErrors": [],
+      "barCount": 33,
+      "title": "Faithful original",
+      "bpm": 112,
+      "lyrics": [
+        "夜"
+      ],
+      "melody": [
+        {
+          "kind": "note",
+          "onsetTick": 0,
+          "durationTicks": 240,
+          "pitch": {
+            "step": "C",
+            "alter": 0,
+            "octave": 4
+          },
+          "provenance": {
+            "timing": {
+              "onset": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              },
+              "duration": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              }
+            }
+          }
+        },
+        {
+          "kind": "note",
+          "onsetTick": 240,
+          "durationTicks": 240,
+          "pitch": {
+            "step": "D",
+            "alter": 0,
+            "octave": 4
+          },
+          "provenance": {
+            "timing": {
+              "onset": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              },
+              "duration": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              }
+            }
+          }
+        },
+        {
+          "kind": "note",
+          "onsetTick": 480,
+          "durationTicks": 240,
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          },
+          "provenance": {
+            "timing": {
+              "onset": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              },
+              "duration": {
+                "origin": "auto-assigned",
+                "confirmed": false
+              }
+            }
+          }
+        }
+      ],
+      "midi": "e27f645bd43464f3a4e354508374ef57b6ff9be69bcc602865d0fa1cb6729621",
+      "normalizedArrangementSHA256": "b3a22e0f926a50d1c5c6c2a6fe9648958d7023e72e1d0aac58dc57df6fe68266",
+      "generatedEventCounts": {
+        "guitar": 188,
+        "bass": 132,
+        "drums": 396
+      }
+    }
+  }
+}

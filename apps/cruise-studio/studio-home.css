@@ -209,9 +209,4 @@
 #studio-refresh:focus-visible { outline: 2px solid var(--studio-focus); }
 #studio-refresh-status { color: var(--studio-text-muted); font-size: 12px; }
 
-/* Local music creation sits beside the existing Port services. */
-.home-creation .module-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
-.home-creation-note{font-size:.8rem;color:var(--text-muted);margin-top:12px;}
-#score-form-inspector{max-width:100%;margin-top:20px;}
-#score-form-inspector>summary{cursor:pointer;padding:12px;font-weight:600;}
-@media(max-width:600px){.home-creation .module-grid{grid-template-columns:1fr;}}
+.home-project-storage-note{font-size:.8rem;color:var(--studio-text-muted);}

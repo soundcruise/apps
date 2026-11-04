@@ -188,22 +188,22 @@
             if (region.contains(doc.activeElement)) focusRouting.restore(button);
         }
         function renderLayout() {
-            if(!right||!dock){refreshGeometry();return;}
+            if(!right){refreshGeometry();return;}
             var s = layout.get();
             if (!s.rightOpen) restoreHiddenFocus(right, doc.getElementById(s.rightType==='inspector'&&host.getActive()==='sheetCruise'?'sc-chord-forms':'shell-'+s.rightType));
-            if (s.dockCollapsed) restoreHiddenFocus(dock, doc.getElementById('shell-dock-toggle'));
+            if (dock && s.dockCollapsed) restoreHiddenFocus(dock, doc.getElementById('shell-dock-toggle'));
             right.hidden = !s.rightOpen; right.inert = !s.rightOpen;
-            dock.hidden = s.dockCollapsed; dock.inert = s.dockCollapsed;
+            if(dock){dock.hidden = s.dockCollapsed; dock.inert = s.dockCollapsed;}
             shell.dataset.rightOpen = String(s.rightOpen);
             shell.dataset.paneMode = s.persistent ? 'persistent' : 'overlay';
         ['inspector', 'tool'].forEach(function (type) {
                 var panel = doc.getElementById('shell-'+type+'-content');
-                panel.hidden = type !== s.rightType; panel.inert = type !== s.rightType;
-                doc.getElementById('shell-'+type).setAttribute('aria-expanded', String(s.rightOpen && s.rightType === type));
+                if(panel){panel.hidden = type !== s.rightType; panel.inert = type !== s.rightType;}
+                doc.getElementById('shell-'+type)?.setAttribute('aria-expanded', String(s.rightOpen && s.rightType === type));
             });
             doc.getElementById('sc-chord-forms').setAttribute('aria-expanded',String(s.rightOpen&&s.rightType==='inspector'));
             doc.getElementById('shell-pane-title').textContent = s.rightType === 'inspector' ? '押さえ方' : 'Tools';
-            doc.getElementById('shell-dock-toggle').setAttribute('aria-expanded', String(!s.dockCollapsed));
+            doc.getElementById('shell-dock-toggle')?.setAttribute('aria-expanded', String(!s.dockCollapsed));
             refreshGeometry();
         }
         function navigate(id) {
@@ -267,7 +267,7 @@
                 renderLayout();
             });
         });
-        doc.getElementById('sc-chord-forms')?.addEventListener('click',function(){var forms=doc.getElementById('score-form-inspector');forms.open=!forms.open;this.setAttribute('aria-expanded',String(forms.open));if(forms.open)forms.scrollIntoView({block:'nearest'});});
+        doc.getElementById('sc-chord-forms')?.addEventListener('click',function(){doc.getElementById('shell-inspector').click();});
         doc.getElementById('shell-pane-close')?.addEventListener('click', function () { layout.closeRight(); renderLayout(); });
         doc.getElementById('shell-dock-toggle')?.addEventListener('click', function () { layout.toggleDock(); renderLayout(); });
         var ime = CS.keyboard.createIMEGuard(window.setTimeout.bind(window), window.clearTimeout.bind(window));

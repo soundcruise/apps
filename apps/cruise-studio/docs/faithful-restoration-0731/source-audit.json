@@ -1,0 +1,212 @@
+[
+  {
+    "path": "js/core/schema2.js",
+    "oldSHA256": "0930a026dfbb772165fc8cc0346b9c49f796e83acd5f2ece185ffa6dbe89cb91",
+    "currentSHA256": "0930a026dfbb772165fc8cc0346b9c49f796e83acd5f2ece185ffa6dbe89cb91",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/core/project-repository.js",
+    "oldSHA256": "12ca2d0e01d5e8167b07a0a6b054bb2331922c901bdd4bb68c149f4388211ff5",
+    "currentSHA256": "12ca2d0e01d5e8167b07a0a6b054bb2331922c901bdd4bb68c149f4388211ff5",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/core/editing-session.js",
+    "oldSHA256": "728154086932e4c3db356737e219f5eda563c3c835e207a0d1e29c7bec8f0b02",
+    "currentSHA256": "728154086932e4c3db356737e219f5eda563c3c835e207a0d1e29c7bec8f0b02",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/core/storage.js",
+    "oldSHA256": "e2e7e649c84880143c85772aa2aab9446b2e54c0deacc38817d9258e02c76895",
+    "currentSHA256": "e2e7e649c84880143c85772aa2aab9446b2e54c0deacc38817d9258e02c76895",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/core/active-document.js",
+    "oldSHA256": "c2c058216edf8aaa489905ccf60c444436339a3e4507170439cb8867ea3340b3",
+    "currentSHA256": "c2c058216edf8aaa489905ccf60c444436339a3e4507170439cb8867ea3340b3",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/core/music-theory.js",
+    "oldSHA256": "2962d155c3fee4f607de740bf810b80fa03f16bb1a7e10ce7b1f4244ce613275",
+    "currentSHA256": "2962d155c3fee4f607de740bf810b80fa03f16bb1a7e10ce7b1f4244ce613275",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/core/common-music-model.js",
+    "oldSHA256": "ef18bca27d331a568f478ca12bd3250725bed12c2810736bbfb82c58f5a86415",
+    "currentSHA256": "ef18bca27d331a568f478ca12bd3250725bed12c2810736bbfb82c58f5a86415",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/core/structure-conversion.js",
+    "oldSHA256": "e63804b650e2ac32e38324f0387fefbc3f1efb913db57c68baf3cffc706b7400",
+    "currentSHA256": "e63804b650e2ac32e38324f0387fefbc3f1efb913db57c68baf3cffc706b7400",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/sheet-cruise/history-commands.js",
+    "oldSHA256": "1d308fc1be11a3acee79b05133f1b2d7f267d74f268924b1c96a9e9a97d7a0ae",
+    "currentSHA256": "1d308fc1be11a3acee79b05133f1b2d7f267d74f268924b1c96a9e9a97d7a0ae",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/sheet-cruise/melody-editor.js",
+    "oldSHA256": "1bee26cae1b91bff9a2ec7b1a4b7c341000aa05c7d59b2f4ca89360b9d51447b",
+    "currentSHA256": "1bee26cae1b91bff9a2ec7b1a4b7c341000aa05c7d59b2f4ca89360b9d51447b",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/sheet-cruise/melody-staff.js",
+    "oldSHA256": "d3080765814ebe8fe526c16a929c295ceb7774ce85fd6e880413f5d8abbc8c27",
+    "currentSHA256": "d3080765814ebe8fe526c16a929c295ceb7774ce85fd6e880413f5d8abbc8c27",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/sheet-cruise/operation-adapter.js",
+    "oldSHA256": "1e25e2828447fd9f1bfe75beb421123a9927f2b804bf690de8721ae31bcbedf1",
+    "currentSHA256": "1e25e2828447fd9f1bfe75beb421123a9927f2b804bf690de8721ae31bcbedf1",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/sheet-cruise/sheet-cruise.js",
+    "oldSHA256": "a01501093ad6b437fe6b3c85eed779624a3d83c1f3b683b4f5c6b88b788674a0",
+    "currentSHA256": "a01501093ad6b437fe6b3c85eed779624a3d83c1f3b683b4f5c6b88b788674a0",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/sheet-cruise/sheet-renderer.js",
+    "oldSHA256": "26bdea78949e777e4a25cd4d1654bc260a9286804f243b11f35658c247776ca8",
+    "currentSHA256": "26bdea78949e777e4a25cd4d1654bc260a9286804f243b11f35658c247776ca8",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/sheet-cruise/text-adapter.js",
+    "oldSHA256": "ea2f728078cee905d16f09e2706df424364519878832e37b9748f82cfedad7ee",
+    "currentSHA256": "ea2f728078cee905d16f09e2706df424364519878832e37b9748f82cfedad7ee",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/pre-dtm-cruise/arrangement-engine.js",
+    "oldSHA256": "f373c0ddf70f7088ab0fd6dd858e63303956e6021f70d257d6c9c5e37247731c",
+    "currentSHA256": "f373c0ddf70f7088ab0fd6dd858e63303956e6021f70d257d6c9c5e37247731c",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/pre-dtm-cruise/guitar-voicing.mjs",
+    "oldSHA256": "73b2671ac475809f693e2f7f969ae96480412ff9a759a83584fa7b04041762d4",
+    "currentSHA256": "73b2671ac475809f693e2f7f969ae96480412ff9a759a83584fa7b04041762d4",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/pre-dtm-cruise/midi-export.js",
+    "oldSHA256": "88e96322f288fe8a6bd4ce2a80759a47fa3bb5eba6bfdb089bcb15d52cd2fa67",
+    "currentSHA256": "88e96322f288fe8a6bd4ce2a80759a47fa3bb5eba6bfdb089bcb15d52cd2fa67",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/pre-dtm-cruise/pre-dtm.js",
+    "oldSHA256": "f7806c972ac6dbc2b0aa0afdf60d6abe9155d6262699507975eb24562e0ece2d",
+    "currentSHA256": "f7806c972ac6dbc2b0aa0afdf60d6abe9155d6262699507975eb24562e0ece2d",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/chord/form-adapter.mjs",
+    "oldSHA256": "a02dab2b81ee966b468dcf3d9b5a882863cb57512b04ca34c8f75914d74291ec",
+    "currentSHA256": "a02dab2b81ee966b468dcf3d9b5a882863cb57512b04ca34c8f75914d74291ec",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/chord/form-adoption.mjs",
+    "oldSHA256": "6975e44251c53c54c805315d4914113d498b855e82ede2d3004a9442e77710ad",
+    "currentSHA256": "6975e44251c53c54c805315d4914113d498b855e82ede2d3004a9442e77710ad",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/chord/form-panel.mjs",
+    "oldSHA256": "b513cc62288a378acad9c319f3b14b9bc977af0ea7817762b32c703c9c5218e4",
+    "currentSHA256": "a7c3143dd9e3bb6be488d3bacfe2e2797ad0483589e454829d1d13c88fbbb1f9",
+    "byteEqual": false,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/chord/form-snapshot.mjs",
+    "oldSHA256": "ab29a5052bd421bb06a75e91cf5d8f7d297696a019473023cf26f4900119dfa1",
+    "currentSHA256": "ab29a5052bd421bb06a75e91cf5d8f7d297696a019473023cf26f4900119dfa1",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/chord/inspector.js",
+    "oldSHA256": "8f8af500977a662bde8716e27af427463c4eadc4daaefcbced92370b81131faf",
+    "currentSHA256": "8f8af500977a662bde8716e27af427463c4eadc4daaefcbced92370b81131faf",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/chord/read-model.js",
+    "oldSHA256": "bca71ce230f5f014209a85d346b30983f99befa2936feba07da364b013e5da03",
+    "currentSHA256": "bca71ce230f5f014209a85d346b30983f99befa2936feba07da364b013e5da03",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/rhythm/official-pattern-adapter.mjs",
+    "oldSHA256": "5753615c2333652f2599b752b3f3137ccd611b4afe09f52afd64acc2bc7eefc0",
+    "currentSHA256": "5753615c2333652f2599b752b3f3137ccd611b4afe09f52afd64acc2bc7eefc0",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/rhythm/owner-loader.mjs",
+    "oldSHA256": "0caa6ec6834784eb0dafecc1db276cc142d5e96cd35ccbad7fd733ace1f6fade",
+    "currentSHA256": "5637d37a291f88c6f04d71649dea20d0492381a2205e4fb1026478a84097277d",
+    "byteEqual": false,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/rhythm/panel-controller.mjs",
+    "oldSHA256": "6d9611520ca94507e51c7b5eef49898161d74d2e1c559be4469be67a84613daa",
+    "currentSHA256": "57e717db5ea65d85503b5d56581b4f1665357b8840b47e74dd3ef0cb9578e736",
+    "byteEqual": false,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/rhythm/panel.mjs",
+    "oldSHA256": "1c7e1851acddf5022fb78a7fbb90f4297468daa3367543e1afc795e495c9170d",
+    "currentSHA256": "5703cfc915106dabca51f8ee1c722408422ae2c1b9b183416af21480443e55c0",
+    "byteEqual": false,
+    "equalExceptStudioVersionAndCache": true
+  },
+  {
+    "path": "js/modules/rhythm/pattern-adoption.mjs",
+    "oldSHA256": "a23ead3703af5a9a93289d2df2ab8ef11f47ddabfeecd79d75a180195d94d591",
+    "currentSHA256": "a23ead3703af5a9a93289d2df2ab8ef11f47ddabfeecd79d75a180195d94d591",
+    "byteEqual": true,
+    "equalExceptStudioVersionAndCache": true
+  }
+]
