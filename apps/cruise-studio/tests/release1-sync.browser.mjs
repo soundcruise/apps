@@ -231,6 +231,10 @@ try{
   await loser.goto(coldUrl.href);await ready(loser);
   await loser.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
   await loser.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='attention';});
+  // Studio retains the attention coordinator across an iframe reload. The same
+  // unresolved issue may already have been presented; use its existing manual
+  // entry before waiting, just as the standalone cold-tab check above does.
+  if(!await loser.locator('[data-sync-conflict-resolution][open]').isVisible())await loser.locator('#sync-center-port-conflicts-open').click();
   await loser.locator('[data-sync-conflict-resolution][open]').waitFor();assert.equal(await loser.locator('[data-sync-conflict-resolution][open]').count(),1);
   assert.match(await loser.locator('#sync-center-port-conflicts-open').innerText(),/競合を確認する/);
   assert.equal(await loser.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'attention');

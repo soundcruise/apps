@@ -1,0 +1,85 @@
+{
+  "scope": "Port 1.26.2 frontend-only release candidate on current main",
+  "productionOperations": false,
+  "mainMerge": false,
+  "pagesDeploy": false,
+  "main": "c862e590ead36f41e39574997bf34517120e51dd",
+  "sourcePR": 190,
+  "sourceHead": "2cfce456722c5f7c6a873ca10d67ec089b240821",
+  "sourceClientCommit": "f118eb91fb1ef2e1c742075562705c9cf201d224",
+  "extractedCommit": "eb78bb85f357f087c5cedd63f5bc8a5ebec0dca0",
+  "exactInitialExtractionPatchId": "b5b7c82bc45694fb6efb64b35f1a562d9f91c54b",
+  "versions": {
+    "port": "1.26.2",
+    "studio": "0.74.1"
+  },
+  "workerFixture": {
+    "kind": "previously captured Production v138, executed only inside local Miniflare",
+    "sha256": "de6b6fbd2f759fdc55a32662e10d224e11d876672405b604944270387cc19b15",
+    "sourceCommit": "21d76600c5abcfd752a1564f7e8262815086c443",
+    "accountProFixtures": "existing synthetic Account/Pro enrollment helpers; not real credentials or full live Production acceptance",
+    "projectSchemaPresent": false
+  },
+  "protectedTrees": {
+    "workers": "12eebafbc6b5fe0f1f70ed5cc0b6af61dc90544a",
+    "apps/shared": "594e74d2e3b44b2dcc5beb654039290045662bb2",
+    "apps/pitch-cruise": "e9589ab770185d4178683a34cf7f2e7728d115d6",
+    "apps/fretboard_cruise": "f8f6601ef29c77b2b5b44fdebd7acc5b7ca0b646",
+    "apps/rhythm-cruise": "3316bfc887948caea89b535761f7679adca34ade",
+    "apps/chord-cruise": "27e2da25bbc54941bb8e22d1bd0ed372eb9acb4e"
+  },
+  "tests": {
+    "product": {
+      "status": "PASS",
+      "count": 52,
+      "pageErrors": 0,
+      "projectApiRequests": 0
+    },
+    "strengthenedRepresentative": {
+      "status": "PASS",
+      "count": 1,
+      "result": {
+        "regularDetachJoin": true,
+        "oldMetadataRetained": true,
+        "oldAccountOutboxPreserved": true,
+        "automaticBPush": false,
+        "explicitConsent": 1,
+        "retainedAOutboxCount": 1,
+        "label": "synced",
+        "bRecords": 1,
+        "foreignAssetReferences": false,
+        "aAssetCount": 2,
+        "oldAssetBinaryHashesUnchanged": true,
+        "approvedLocalCopiesMatch": true
+      }
+    },
+    "recovery": {
+      "status": "PASS",
+      "count": 12
+    },
+    "portNode": {
+      "count": 1255,
+      "pass": 1250,
+      "fail": 5,
+      "sameFiveFailOnMain": true
+    },
+    "focusedNode": {
+      "count": 125,
+      "pass": 125,
+      "fail": 0
+    },
+    "jekyll": {
+      "studioFiles": 81,
+      "studioVersion": "0.74.1",
+      "releaseHashesMatch": true,
+      "nativeOutputFiles": 813,
+      "nativeBytesMatchCheckout": true
+    }
+  },
+  "limits": [
+    "synthetic acceptance is not real Account acceptance",
+    "same-Account attachment/edit/recovery covered; this patch does not create a new cross-Account attachment migration feature",
+    "missing local binaries or unrelated pending upload stop without replacing metadata",
+    "merge/Pages require separate explicit authorization"
+  ]
+}
