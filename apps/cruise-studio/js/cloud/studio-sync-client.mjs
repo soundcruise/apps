@@ -60,10 +60,10 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   const latest=await box.read(opKey(o.operationId));if(latest&&latest.version===o.version)await update(o,{state,error:typeof error.code==='string'?error.code:'transport-unknown'});
   throw Object.assign(Error(error.code||'transport-unknown'),{code:error.code||'transport-unknown',operationId:o.operationId,state});
  }
- async function enqueue(documentId,{deleted=false}={}){const c=await capture();return lock(documentId,async()=>{
+ async function enqueue(documentId,{deleted=false,expectedLocalRevision=undefined}={}){const c=await capture();return lock(documentId,async()=>{
   await assertSessionCurrent(c);assertCurrent(c);await bindAffinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(l?.intent)fail('local-apply-unknown');if(l?.deleted)fail('document-deleted');
   if(l?.active){const prior=await op(c,l.active);if(!terminal.has(prior.state))fail('operation-unresolved');}
-  const here=local(documentId);if(!here.exists)fail('local-missing');validate(here.snapshot,documentId);const operationId=operationIdFor(c.binding),cloudRevision=l?.cloudRevision??0;
+  const here=local(documentId);if(!here.exists)fail('local-missing');if(expectedLocalRevision!==undefined&&here.revision!==expectedLocalRevision)fail('local-conflict');validate(here.snapshot,documentId);const operationId=operationIdFor(c.binding),cloudRevision=l?.cloudRevision??0;
   const u=deleted?{request:{operationId,documentId,expectedRevision:cloudRevision,manifest:{digest:await digest(''),bytes:0,chunks:[],deleted:true}},parts:[]}:await studioDocumentUpload(here.snapshot,cloudRevision,operationId);
   assertCurrent(c);const o=await box.write(opKey(operationId),{operationId,documentId,binding:c.binding,sessionId:c.sessionId,localRevision:here.revision,localDigest:await digest(here.revision),request:u.request,requestDigest:await digest(canonical({binding:c.binding,...u.request})),parts:u.parts,nextChunk:0,phase:'queued',state:'QUEUED',receipt:null},0);
   // If the next write fails, the sealed operation still exists, but is not sent. Explicit recoverIndex can attach it.
@@ -131,6 +131,32 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
   if(!saved.ok){if(saved.code!=='result-unknown')await box.write(linkKey(c,documentId),{...l,intent:null,lastLocalFailure:saved.code||'local-save'},l.version);fail(saved.code||'local-save');}assertCurrent(c);
   await box.write(linkKey(c,documentId),{accountId:c.binding.accountId,documentId,cloudRevision:head.revision,cloudDigest:l.intent.cloudDigest,lastLocalRevision:saved.revision,deleted:false,intent:null},l.version);return{state:'LOCAL_SAVED_FROM_CLOUD',cloudRevision:head.revision};
  });}
+ // Additive readonly metadata API; never binds local affinity or stages an op.
+ async function catalogue({limit=20,cursor=null}={}){
+  if(!Number.isSafeInteger(limit)||limit<1||limit>25||(cursor!==null&&!UUID.test(cursor)))fail('catalogue-input');
+  const c=await capture(),r=await call(c,'catalogue',{limit,cursor});assertCurrent(c);
+  if(r.type!=='studio-project-catalogue-v1'||!Array.isArray(r.items)||r.items.length>limit||(r.nextCursor!==null&&r.nextCursor!==r.items.at(-1)?.projectId)||Object.keys(r).sort().join('|')!=='items|nextCursor|type')fail('catalogue-response');
+  let last=cursor||'';
+  for(const item of r.items){if(Object.keys(item).sort().join('|')!=='deleted|projectId|revision|title'||!UUID.test(item.projectId)||item.projectId<=last||!Number.isSafeInteger(item.revision)||item.revision<1||typeof item.deleted!=='boolean'||(item.deleted?item.title!==null:typeof item.title!=='string'||item.title.length>256))fail('catalogue-response');last=item.projectId;}
+  return clone(r);
+ }
+ // Explicit new-ID restoration preserves the original tombstone, raw local data
+ // and every original Outbox operation. Existing repository/CAS/client do the work.
+ async function restoreCopy(documentId,expectedLocalRevision,expectedCloudRevision){
+  if(!UUID.test(documentId)||typeof expectedLocalRevision!=='string'||!Number.isSafeInteger(expectedCloudRevision)||expectedCloudRevision<1)fail('restore-input');
+  const c=await capture();let copied;
+  await lock(documentId,async()=>{
+   await assertSessionCurrent(c);assertCurrent(c);if(!await affinity(c,documentId))fail('restore-local-untracked');
+   const here=local(documentId);if(!here.exists||here.revision!==expectedLocalRevision)fail('local-conflict');validate(here.snapshot,documentId);
+   const head=await call(c,'snapshot',{documentId});if(head.status!=='deleted'||head.revision!==expectedCloudRevision)fail('restore-source-changed');
+   const project=clone(here.snapshot);project.projectId=crypto.randomUUID();validate(project,project.projectId);await bindAffinity(c,project.projectId);assertCurrent(c);
+   const saved=await repository.save({target:target(project.projectId),baseRevision:null,snapshot:project,
+    precondition:()=>current(c)&&local(documentId).revision===expectedLocalRevision,commitCurrent:publish=>commitSessionCurrent(c,publish)});
+   if(!saved.ok)fail(saved.code||'local-copy-save');copied={projectId:project.projectId,revision:saved.revision};
+  });
+  try{assertCurrent(c);const operation=await enqueue(copied.projectId,{expectedLocalRevision:copied.revision});const result=await send(operation.operationId);return{...result,restoredProjectId:copied.projectId,sourceProjectId:documentId};}
+  catch(error){throw Object.assign(error,{restoredProjectId:copied.projectId,localPreserved:true});}
+ }
  async function recoverLocal(documentId){const c=await capture();return lock(documentId,async()=>{
   await affinity(c,documentId);const l=await box.read(linkKey(c,documentId));if(!l?.intent)fail('no-local-intent');const here=local(documentId);if(here.revision===l.intent.expectedLocalRevision){await call(c,'snapshot',{documentId});assertCurrent(c);await box.write(linkKey(c,documentId),{...l,intent:null,lastLocalFailure:'not-applied'},l.version);return{state:'LOCAL_NOT_APPLIED',localPreserved:true};}if(!here.exists||await material(here.snapshot)!==l.intent.materialDigest)fail('local-recovery-conflict');
   // Recheck currently authorized backend head; never treat local material as a current credential.
@@ -159,5 +185,5 @@ export function createIsolatedStudioSyncClient({enabled=false,endpoint,fetchImpl
  }
  async function retainRetiredDraft(operationId,{confirm=false}={}){if(confirm!==true)fail('retired-confirmation-required');const c=await capture(),first=await op(c,operationId);return lock(first.documentId,async()=>{const o=await op(c,operationId),r=await call(c,'reconcile',{operationId,requestDigest:o.requestDigest});if(r.status!=='history-retired'||r.operationId!==operationId||r.authorizesNewOperation!==false||!Number.isSafeInteger(o.binding.operationEpoch)||c.binding.operationEpoch<=o.binding.operationEpoch)fail('history-not-retired');const l=await box.read(linkKey(c,o.documentId));if(l?.intent||l?.active!==operationId)fail('retired-link-conflict');assertCurrent(c);await update(o,{state:'ARCHIVED_UNKNOWN',previousOutcome:'UNPROVEN',localPreserved:true});await box.write(linkKey(c,o.documentId),{...l,active:null},l.version);return{state:'LOCAL_RETAINED',previousOutcome:'UNPROVEN',cloudRevisionUnchanged:true};});}
  async function recoverIndex(operationId){const c=await capture(),o=await op(c,operationId);return lock(o.documentId,async()=>{assertCurrent(c);await affinity(c,o.documentId);const l=await box.read(linkKey(c,o.documentId));if(l?.active&&l.active!==operationId&&!terminal.has((await op(c,l.active)).state))fail('operation-index-conflict');if(l?.intent)fail('local-apply-unknown');if(canonical(o.binding)!==canonical(c.binding))fail('pending-recovery-required');await box.write(linkKey(c,o.documentId),{...(l||{}),accountId:c.binding.accountId,documentId:o.documentId,cloudRevision:l?.cloudRevision??o.request.expectedRevision,active:operationId},l?.version??0);return{state:'INDEX_RECONCILED'};});}
- return Object.freeze({async tracking(documentId){const c=await capture();await affinity(c,documentId);const l=await box.read(linkKey(c,documentId));assertCurrent(c);return l?clone(l):null;},discardConflict,retainRetiredDraft,enqueue,send,reconcile,adoptOperation,recoverAdoption,observe,applyRemote,recoverLocal,preserveLocal,recoverIndex,async inspect(operationId){const c=await capture();const o=await op(c,operationId);assertCurrent(c);return clone(o);},async list(documentId){const c=await capture(),items=[];for(const k of await box.keys()){if(k.startsWith('op:')){const o=await box.read(k);if(o.binding?.accountId===c.binding.accountId&&(!documentId||o.documentId===documentId)){await verify(o);items.push(clone(o));}}}assertCurrent(c);return items;},async dispose(){disposed=true;await box.close();}});
+ return Object.freeze({catalogue,restoreCopy,async tracking(documentId){const c=await capture();await affinity(c,documentId);const l=await box.read(linkKey(c,documentId));assertCurrent(c);return l?clone(l):null;},discardConflict,retainRetiredDraft,enqueue,send,reconcile,adoptOperation,recoverAdoption,observe,applyRemote,recoverLocal,preserveLocal,recoverIndex,async inspect(operationId){const c=await capture();const o=await op(c,operationId);assertCurrent(c);return clone(o);},async list(documentId){const c=await capture(),items=[];for(const k of await box.keys()){if(k.startsWith('op:')){const o=await box.read(k);if(o.binding?.accountId===c.binding.accountId&&(!documentId||o.documentId===documentId)){await verify(o);items.push(clone(o));}}}assertCurrent(c);return items;},async dispose(){disposed=true;await box.close();}});
 }
