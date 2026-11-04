@@ -1,0 +1,288 @@
+{
+  "date": "2026-11-04",
+  "baseMain": "c862e590ead36f41e39574997bf34517120e51dd",
+  "base186": "c9b742912430b3fad4eec22fb19faa23b35330e9",
+  "base187": "695d533241ee6552484d653143dff14feb79d4da",
+  "baseTree187": "845ed65617f4ef5286ff6655d14bba840a7eee5e",
+  "candidateStudio": "0.76.0",
+  "productionSchema": {
+    "readOnly": true,
+    "rowsWritten": 0,
+    "journalRowsWritten": 0,
+    "objects": 102,
+    "counts": {
+      "index": 59,
+      "table": 43
+    },
+    "fingerprint": "fac6295ff89f2f6a2a754329baba3f1c2264b48670249def9d0ac7b8886843d1",
+    "journalMatch": true,
+    "journalSequential": true,
+    "projectObjects": 0,
+    "historicalMiniflareFingerprint": "a449ac771ca574ad622226e7eea68e9da33afb74d34dd8963e33f1528b750075",
+    "applicationObjectsMatchRetainedFixture": true,
+    "difference": "Only Miniflare adds _cf_METADATA; exact Production profile is now accepted. No wildcard schema acceptance.",
+    "productionProfileAccepted": true
+  },
+  "latestObservedDeployment": {
+    "id": "b17366fa-0ac6-4589-9d49-4c9563ecbcac",
+    "created_on": "2026-10-30T06:00:19.87217Z",
+    "strategy": "percentage",
+    "versions": [
+      {
+        "version_id": "fb755ee6-e9dd-41f1-8e6e-e71b6b7ee054",
+        "percentage": 100
+      }
+    ]
+  },
+  "productionChanges": false,
+  "productionUserRowsRead": false,
+  "projectProductionEnabled": false,
+  "ddlPlan": {
+    "type": "studio-release-offline-plan-v1",
+    "migrationId": "studio_0001_rc4",
+    "ddlHash": "9fe8c42228f08df58c165d616780a252b45d7b58590ead1c70e394f6f3de00a9",
+    "baseFingerprint": "fac6295ff89f2f6a2a754329baba3f1c2264b48670249def9d0ac7b8886843d1",
+    "sqlSha256": "2f65ddf9a5b6a564049d7370b4162e3d61b659e90720cc3aa4e30ed87da50017",
+    "statements": 88,
+    "initialEnabled": 0,
+    "sharedJournalChanged": false,
+    "remoteOperations": 0
+  },
+  "rehearsal": {
+    "structuralAndOffBoundaryNode": {
+      "pass": 4,
+      "skip": 0
+    },
+    "miniflareDdl": {
+      "pass": 1,
+      "skip": 0
+    },
+    "currentHelperNode": {
+      "pass": 29,
+      "skip": 0
+    },
+    "dryRun": true,
+    "activatedProduct": {
+      "status": "PASS",
+      "pass": 14,
+      "tests": [
+        {
+          "name": "current native Pro and Account entrance, without a second identity host",
+          "status": "PASS"
+        },
+        {
+          "name": "new schema2 from score UI stays local until first explicit Cloud save",
+          "status": "PASS"
+        },
+        {
+          "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+          "status": "PASS"
+        },
+        {
+          "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+          "status": "PASS"
+        },
+        {
+          "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+          "status": "PASS"
+        },
+        {
+          "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud deletion retains local Project and original immutable operation receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+          "status": "PASS"
+        },
+        {
+          "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+          "status": "PASS"
+        },
+        {
+          "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+          "status": "PASS"
+        },
+        {
+          "name": "isolated Project panel keeps five themes and four viewport widths",
+          "status": "PASS"
+        },
+        {
+          "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+          "status": "PASS"
+        }
+      ]
+    },
+    "ownerBoundary": {
+      "status": "DIRECT_BOUNDARY_PASS",
+      "pass": 33,
+      "tests": [
+        {
+          "name": "default OFF refuses all document access",
+          "result": "PASS"
+        },
+        {
+          "name": "Studio-only Account backbone creates no unrelated membership",
+          "result": "PASS"
+        },
+        {
+          "name": "existing Account enrollment and Studio-specific device revocation",
+          "result": "PASS"
+        },
+        {
+          "name": "staged document is not current; commit publishes typed receipt and exact Project",
+          "result": "PASS"
+        },
+        {
+          "name": "cross-account snapshot/reconcile and client identity injection rejected",
+          "result": "PASS"
+        },
+        {
+          "name": "missing chunk and wrong digest reject with pending preserved",
+          "result": "PASS"
+        },
+        {
+          "name": "valid large Project over row limit saves using immutable chunks",
+          "result": "PASS"
+        },
+        {
+          "name": "two devices CAS loser retains pending",
+          "result": "PASS"
+        },
+        {
+          "name": "duplicate requires current Account authorization",
+          "result": "PASS"
+        },
+        {
+          "name": "Pro expiry refuses reads and pending remains",
+          "result": "PASS"
+        },
+        {
+          "name": "deterministic stale CAS gives conflict and preserves pending",
+          "result": "PASS"
+        },
+        {
+          "name": "receipt tampering and pending mutation are rejected",
+          "result": "PASS"
+        },
+        {
+          "name": "credential version change allows historical reconcile but not old pending commit",
+          "result": "PASS"
+        },
+        {
+          "name": "tombstone cannot be resurrected by later stale or current write",
+          "result": "PASS"
+        },
+        {
+          "name": "ACK discarded after successful commit is resolved explicitly without duplicate write",
+          "result": "PASS"
+        },
+        {
+          "name": "shared Account admission pause prevents Studio backbone registration",
+          "result": "PASS"
+        },
+        {
+          "name": "account purge cannot cascade pending; old credential cannot read orphan",
+          "result": "PASS"
+        },
+        {
+          "name": "device management pause rejects Studio revocation without changing enrollment",
+          "result": "PASS"
+        },
+        {
+          "name": "same operation with different document or digest cannot overwrite pending",
+          "result": "PASS"
+        },
+        {
+          "name": "chunk order and manifest digest mismatch never publish head",
+          "result": "PASS"
+        },
+        {
+          "name": "Pro revocation and generation rotation reject current writes but retain pending",
+          "result": "PASS"
+        },
+        {
+          "name": "durable native process reopen preserves committed receipt and pending; B continues saving",
+          "result": "PASS"
+        },
+        {
+          "name": "catalogue is Account scoped, paged, metadata-only and read-only including activity",
+          "result": "PASS"
+        },
+        {
+          "name": "catalogue rejects unrecognized pagination and expired credentials",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Account revocation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects device generation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Pro expiry race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Pro revocation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Pro generation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Device revocation race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Owner epoch race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects schema drift race",
+          "result": "PASS"
+        },
+        {
+          "name": "final native SQL fence rejects Account purge race",
+          "result": "PASS"
+        }
+      ]
+    },
+    "jekyll": {
+      "studioFiles": 81,
+      "hashMatch": true,
+      "nativeFilesByteIdentical": 813
+    }
+  },
+  "inheritedEvidence": {
+    "pr187StudioNode": 336,
+    "pr187WorkerNode": 46,
+    "pr187Protocol": 48,
+    "pr187PortAppsCreationProduct": 51,
+    "pr187ImageAttachmentRecovery": 12,
+    "rerunAllInheritedSuites": false
+  },
+  "blockingSourceContract": {
+    "observedMissingColumn": "minimum_writer_protocol",
+    "function": "admitWriter",
+    "file": "src/writer-admission.js",
+    "productionSchema": 33,
+    "publicProductionFailureClaimed": false,
+    "reproducedLocally": true
+  },
+  "defaultEntryAndConfigChanged": false
+}

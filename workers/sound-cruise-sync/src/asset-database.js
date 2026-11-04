@@ -31,7 +31,10 @@ function globalStorageGuard(totalBytes) {
 export function createD1AssetRepository(db) {
   if (!db?.prepare || !db?.batch) throw new Error('D1 asset session is unavailable');
 
+  const authoritySchema = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_authority_cutovers'").first().then(Boolean);
   async function assertAssetMutable(assetId) {
+    if (!await authoritySchema) return; // Baseline schema0033 has no cutover/reservation subsystem.
+
     const blocked = await db.prepare(`SELECT 1 AS blocked FROM sync_assets a WHERE a.asset_id=? AND
       (a.state='deleted' OR EXISTS (SELECT 1 FROM sync_authority_cleanup_claims c WHERE c.asset_id=a.asset_id)
         OR EXISTS (SELECT 1 FROM sync_asset_deletions d WHERE d.asset_id=a.asset_id))`).bind(assetId).first();
@@ -39,14 +42,16 @@ export function createD1AssetRepository(db) {
   }
 
   async function operation(operationId) {
+    const fenced = await authoritySchema;
     return db.prepare(`
       SELECT o.operation_id, o.request_fingerprint, o.account_id, o.sync_user_id,
-             o.app_device_id, o.writer_protocol, o.sync_protocol, o.expected_write_epoch, o.admitted_write_epoch, a.* FROM sync_asset_operations o
+             o.app_device_id, ${fenced ? 'o.writer_protocol, o.sync_protocol, o.expected_write_epoch, o.admitted_write_epoch,' : ''} a.* FROM sync_asset_operations o
       JOIN sync_assets a ON a.asset_id = o.asset_id WHERE o.operation_id = ?
     `).bind(operationId).first();
   }
 
   async function prepare(identity, authority, input) {
+    const fenced = await authoritySchema;
     const previous = await operation(input.operationId);
     if (previous) {
       await db.assertWriter?.({ operationId: input.operationId });
@@ -158,12 +163,12 @@ export function createD1AssetRepository(db) {
         THEN updated_at ELSE created_at - 1 END WHERE id = ?`).bind(authority.accountId),
       db.prepare(`INSERT INTO sync_asset_operations (
         operation_id, asset_id, account_id, sync_user_id, app_device_id,
-        request_fingerprint, created_at, updated_at, writer_protocol, sync_protocol, expected_write_epoch, admitted_write_epoch
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        request_fingerprint, created_at, updated_at${fenced ? ', writer_protocol, sync_protocol, expected_write_epoch, admitted_write_epoch' : ''}
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?${fenced ? ', ?, ?, ?, ?' : ''})`)
         .bind(input.operationId, input.assetId, authority.accountId, identity.userId,
-          identity.deviceId, input.fingerprint, now, now, input.writerAdmission?.fields.writerProtocol ?? null,
+          identity.deviceId, input.fingerprint, now, now, ...(fenced ? [input.writerAdmission?.fields.writerProtocol ?? null,
           input.writerAdmission?.fields.syncProtocol ?? null, input.writerAdmission?.fields.expectedWriteEpoch ?? null,
-          input.writerAdmission?.metadata?.write_epoch ?? null)
+          input.writerAdmission?.metadata?.write_epoch ?? null] : []))
     ];
     try {
       const results = await db.batch(statements);
@@ -242,12 +247,13 @@ export function createD1AssetRepository(db) {
   }
 
   async function cleanupCandidates(now, graceMs, preparedMs, limit) {
+    const fenced = await authoritySchema;
     return (await db.prepare(`SELECT a.* FROM sync_assets a
       WHERE ((a.state = 'unreferenced' AND a.unreferenced_at <= ?)
          OR (a.state IN ('prepared', 'uploaded') AND a.updated_at <= ?)
          OR (a.state <> 'deleted' AND NOT EXISTS (SELECT 1 FROM sync_accounts x WHERE x.id = a.account_id)))
-        AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.account_id=a.account_id)
-        AND NOT EXISTS (SELECT 1 FROM sync_authority_cleanup_claims c WHERE c.account_id=a.account_id)
+        ${fenced ? `AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.account_id=a.account_id)
+        AND NOT EXISTS (SELECT 1 FROM sync_authority_cleanup_claims c WHERE c.account_id=a.account_id)` : ''}
       ORDER BY a.updated_at ASC LIMIT ${Number(limit)}`)
       .bind(now - graceMs, now - preparedMs).all()).results || [];
   }
@@ -271,8 +277,11 @@ export function createD1AssetRepository(db) {
       WHERE asset_id = ? AND state <> 'deleted'`).bind(now, now, assetId).run();
   }
 
+  const deletion = createAssetDeletionRepository(db);
   return Object.freeze({ prepare, uploadTarget, markUploaded, commit, available, unreference,
-    cleanupCandidates, isReferenced, restoreReferenced, markDeleted, ...createAssetDeletionRepository(db) });
+    cleanupCandidates, isReferenced, restoreReferenced, markDeleted, ...deletion,
+    async cleanupReservations(limit) { return await authoritySchema ? deletion.cleanupReservations(limit) : []; },
+    async claimCleanup(...args) { if (!await authoritySchema) throw new Error('asset_cleanup_requires_review'); return deletion.claimCleanup(...args); } });
 }
 
 export { publicAsset, dayKey, globalStorageGuard };

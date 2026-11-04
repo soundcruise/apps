@@ -14,7 +14,12 @@ const OPEN_CONTROL = Object.freeze({
 });
 
 function dbBinding() {
-  return { prepare() {}, batch() {} };
+  return { prepare(sql) {
+    // Dispatch-only fixture models the existing authority-capable profile.
+    // Source/schema0033 admission is exercised with real SQLite separately.
+    if(sql.includes("name IN ('sync_authority_cutovers','sync_writer_fence_assertion')")) return {first:async()=>({n:2})};
+    throw Error('Unexpected dispatch-fixture SQL: '+sql);
+  }, batch() {} };
 }
 
 function env(overrides = {}) {
