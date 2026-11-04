@@ -29,6 +29,41 @@ export function clearAssertions(db) { return db.prepare('DELETE FROM sync_writer
 // Its reads execute INSIDE the mutation batch. D1 serializes the batch as one transaction.
 export function fenceQuery(admission, { operationId = null, payload = null } = {}) {
   const a = admission, i = a.identity, auth = a.authority;
+  // The same admission + transactional mutation boundary on the published 0033
+  // contract. Authority epoch/cutover tables do not exist in this profile.
+  if(a.schema33){
+    const values=[auth?.accountId??null,auth?.membershipId??null,i.userId,i.deviceId,i.appId,
+      a.deviceVerifier??null,a.proCredentialId??null,a.proVerifier??null,a.proGeneration??null,
+      auth?.accountGeneration??null,auth?.membershipGeneration??null,payload==null?null:JSON.stringify(payload)];
+    const sql=`WITH x AS (SELECT ? account_id,? membership_id,? user_id,? device_id,? app_id,
+      ? device_verifier,? pro_id,? pro_verifier,? pro_generation,? account_generation,? membership_generation,? payload),
+      now AS (SELECT CAST((julianday('now')-2440587.5)*86400000 AS INTEGER) ms)
+      SELECT CASE
+      WHEN NOT EXISTS(SELECT 1 FROM sync_devices d JOIN sync_users u ON u.id=d.user_id
+        WHERE d.id=x.device_id AND d.user_id=x.user_id AND d.app_id=x.app_id
+        AND d.credential_verifier=x.device_verifier AND d.revoked_at IS NULL AND u.state IN('active','provisioning')) THEN 'invalid_credential'
+      WHEN (x.app_id='port' AND x.account_id IS NULL) OR (x.account_id IS NOT NULL AND NOT EXISTS(
+        SELECT 1 FROM sync_account_managed_users am JOIN sync_accounts ac ON ac.id=am.account_id
+        JOIN sync_account_memberships m ON m.id=am.membership_id
+        WHERE am.account_id=x.account_id AND am.membership_id=x.membership_id AND am.sync_user_id=x.user_id
+        AND am.app_id=x.app_id AND m.account_id=ac.id AND m.app_id=x.app_id AND m.sync_user_id=x.user_id
+        AND ac.state='active' AND m.state='active' AND ac.generation=x.account_generation
+        AND m.generation=x.membership_generation)) THEN 'account_membership_required'
+      WHEN EXISTS(SELECT 1 FROM sync_membership_device_links l LEFT JOIN sync_account_devices d ON d.id=l.account_device_id
+        WHERE l.app_device_id=x.device_id AND l.account_device_id IS NOT NULL
+        AND (d.id IS NULL OR d.revoked_at IS NOT NULL OR d.account_id IS NOT x.account_id
+          OR l.account_id IS NOT x.account_id OR l.membership_id IS NOT x.membership_id)) THEN 'invalid_credential'
+      WHEN NOT EXISTS(SELECT 1 FROM pro_credentials p JOIN pro_auth_state ps ON ps.singleton_id=1
+        WHERE p.id=x.pro_id AND p.verifier=x.pro_verifier AND p.generation=x.pro_generation
+        AND p.generation=ps.generation AND p.scope='global_pro' AND p.revoked_at IS NULL
+        AND now.ms < CASE WHEN p.device_public_key IS NOT NULL THEN p.last_validated_at ELSE MAX(p.created_at,ps.session_lifecycle_started_at) END + ${PRO_SESSION_IDLE_MS}
+        AND now.ms < CASE WHEN p.device_public_key IS NOT NULL THEN p.lease_expires_at ELSE ps.unbound_backend_until END) THEN 'pro_reauth_required'
+      WHEN x.app_id='port' AND x.payload IS NOT NULL AND EXISTS(SELECT 1 FROM json_tree(x.payload) j WHERE j.key='assetId'
+        AND NOT EXISTS(SELECT 1 FROM sync_assets s WHERE s.asset_id=j.value AND s.account_id=x.account_id
+          AND s.membership_id=x.membership_id AND s.sync_user_id=x.user_id AND s.state IN('available','unreferenced'))) THEN 'dataset_authority_unavailable'
+      ELSE 'ok' END code FROM x CROSS JOIN now`;
+    return {sql,values};
+  }
   const values = [auth?.accountId || '', auth?.membershipId || '', i.userId, i.deviceId,
     Number(policyAllows(a.policy, auth?.accountId)), a.fields.writerProtocol ?? null,
     a.fields.syncProtocol ?? null, a.fields.expectedWriteEpoch ?? null, a.metadata?.write_epoch ?? null,
@@ -85,7 +120,7 @@ export function fenceQuery(admission, { operationId = null, payload = null } = {
   return { sql, values };
 }
 export async function checkFence(db, admission, constraints) {
-  if (admission.identity.appId !== 'port') return;
+  if (!admission.schema33 && admission.identity.appId !== 'port') return;
   const q = fenceQuery(admission, constraints);
   const row = await db.prepare(q.sql).bind(...q.values).first();
   if (row?.code !== 'ok') throw new WriterFenceError(row?.code || 'dataset_authority_unavailable');

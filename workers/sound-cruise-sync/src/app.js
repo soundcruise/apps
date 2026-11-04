@@ -228,7 +228,7 @@ async function authenticatedContext(request, env, appId, dependencies, writerInp
   const accountManagedApp = qaApps.has(appId) || productionAccountAppAllowed(env, appId);
   const managed = accountManagedApp ? await session.prepare(`
       SELECT am.account_id, am.membership_id, a.admission_provenance,
-             a.state AS account_state, m.state AS membership_state,
+             a.state AS account_state, a.generation AS account_generation, m.generation AS membership_generation, m.state AS membership_state,
              d.state AS dataset_state
       FROM sync_account_managed_users am
       JOIN sync_accounts a ON a.id = am.account_id
@@ -272,10 +272,10 @@ async function authenticatedContext(request, env, appId, dependencies, writerInp
   }
   const authority = managed ? Object.freeze({
     accountId: managed.account_id, membershipId: managed.membership_id,
-    accountState: managed.account_state, membershipState: managed.membership_state,
+    accountState: managed.account_state, accountGeneration: managed.account_generation, membershipGeneration: managed.membership_generation, membershipState: managed.membership_state,
     datasetState: managed.dataset_state
   }) : null;
-  const writerAdmission = writerInput === null ? null : await admitWriter(session, identity, writerInput, authority, { policy: dependencies.writerPolicy, proCredentialId: dependencies.verifiedProId, proVerifier: dependencies.verifiedProVerifier, deviceVerifier, defer: new URL(request.url).pathname === '/v1/sync/bootstrap' });
+  const writerAdmission = writerInput === null ? null : await admitWriter(session, identity, writerInput, authority, { policy: dependencies.writerPolicy, proCredentialId: dependencies.verifiedProId, proVerifier: dependencies.verifiedProVerifier, proGeneration: dependencies.verifiedProProof?.generation, deviceVerifier, defer: new URL(request.url).pathname === '/v1/sync/bootstrap' });
   if (writerAdmission?.error) return writerAdmission;
   const mutationSession = writerMutationDatabase(session, writerAdmission);
   const createRepository = dependencies.createRepository || createD1SyncRepository;
@@ -991,7 +991,7 @@ async function handleChanges(request, env, origin, route, dependencies, url) {
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   let dataset;
   try { dataset = await context.repository.getDataset(context.identity.userId, context.identity.appId); } catch { return errorResponse(503, 'server_error', origin, route); }
-  if (!dataset || dataset.state !== 'ready') return errorResponse(409, 'dataset_not_ready', origin, route);
+  if (!dataset || (dataset.state !== 'ready' && !(context.identity.appId === 'port' && dataset.state === 'initializing'))) return errorResponse(409, 'dataset_not_ready', origin, route);
   if (sequence < dataset.min_change_seq) return errorResponse(409, 'cursor_expired', origin, route);
   let page;
   try { page = await context.repository.listChanges(context.identity, sequence, 100); } catch { return errorResponse(503, 'server_error', origin, route); }
@@ -1164,7 +1164,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
       return errorResponse(403, entitlement?.code || 'pro_required', origin, route);
     }
     // Extract only AFTER the existing verifier/scope/generation/session check succeeded.
-    dependencies = { ...dependencies, verifiedProId: entitlement.writerProof?.id || request.headers.get(PRO_HEADER)?.match(/^Bearer scp1\.([^.]+)\./)?.[1] || null, verifiedProVerifier: entitlement.writerProof?.verifier };
+    dependencies = { ...dependencies, verifiedProId: entitlement.writerProof?.id || request.headers.get(PRO_HEADER)?.match(/^Bearer scp1\.([^.]+)\./)?.[1] || null, verifiedProVerifier: entitlement.writerProof?.verifier, verifiedProProof: entitlement.writerProof };
   }
   if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies, runtimeControl);
   if (url.pathname === '/v1/sync/bootstrap') return handleBootstrap(request, env, origin, route, dependencies);
@@ -1195,6 +1195,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
 
 export async function handleScheduled(_event, env = {}, dependencies = {}) {
   if (!env.SYNC_DB || typeof env.SYNC_DB.prepare !== 'function') return;
+  let assetCleanupHold = false;
   if (assetFeatureEnabled(env, 'SYNC_ASSET_CLEANUP_ENABLED') && env.SYNC_ASSETS?.delete) {
     try {
       const assets = (dependencies.createAssetRepository || createD1AssetRepository)(env.SYNC_DB);
@@ -1210,11 +1211,23 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
       const candidates = await assets.cleanupCandidates(now, graceMs, preparedMs, 100);
       for (const asset of candidates) {
         if (attempted.has(asset.asset_id)) continue;
-        if (!await assets.claimCleanup(asset, now, { graceMs, preparedMs })) continue;
-        const claim = await assets.getCleanupClaim(asset.asset_id);
-        if (claim) await recoverAssetDeletion(assets, env.SYNC_ASSETS, claim, now);
+        // Preserve the known legacy safe action on both schemas: a referenced
+        // object is restored, never sent to physical cleanup.
+        if (asset.state === 'unreferenced' && await assets.isReferenced(asset)) {
+          await assets.restoreReferenced(asset.asset_id, now);
+          continue;
+        }
+        try {
+          if (!await assets.claimCleanup(asset, now, { graceMs, preparedMs })) continue;
+          const claim = await assets.getCleanupClaim(asset.asset_id);
+          if (claim) await recoverAssetDeletion(assets, env.SYNC_ASSETS, claim, now);
+        } catch (error) {
+          if (error?.message !== 'asset_cleanup_requires_review') throw error;
+          assetCleanupHold = true; // Retain this object; still restore later referenced candidates.
+        }
       }
-    } catch {
+    } catch (error) {
+      assetCleanupHold = error?.message === 'asset_cleanup_requires_review';
       // Asset cleanup is eventual and must never interrupt established D1 cleanup.
     }
   }
@@ -1222,6 +1235,7 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
   await repository.cleanup(Date.now());
   try { await cleanupProLockouts(env.SYNC_DB, Date.now()); }
   catch { /* Lockout retention must not interrupt established sync cleanup. */ }
+  if (assetCleanupHold) return { status: 'HOLD_SCHEMA0033_ASSET_CLEANUP' };
 }
 
 function mutationErrorResponse(error, origin, route) {
