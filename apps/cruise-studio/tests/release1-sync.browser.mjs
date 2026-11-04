@@ -190,7 +190,7 @@ try{
   const retained=await pb.evaluate(id=>{const i=JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.id===id);return{final:i.iconId,source:i.iconSourceId};},id);assert(retained.final&&retained.source);
   await pa.evaluate(id=>location.hash='#my-apps/'+id+'/edit',id);await pa.locator('#my-apps-icon-remove').click();await pa.locator('#my-apps-submit').click();await pa.waitForFunction(id=>!JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.id===id).iconId,id);await sync(pa);
   await B.context.setOffline(false);await sync(pb).catch(()=>{});const current=await pb.evaluate(id=>JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.id===id),id);assert.equal(current.iconId,retained.final);assert.equal(current.iconSourceId,retained.source);const conflicts=await pb.evaluate(()=>SoundCruiseMultiAppSync.runtimes.port.store.listConflicts());assert(conflicts.some(c=>c.recordType==='my_app'));
-  await go(pb,'#sync-center');await pb.getByRole('button',{name:'クラウドの内容でこの端末を更新',exact:true}).click();await pb.locator('[data-sync-conflict-resolution]').waitFor({state:'hidden'});await sync(pb);await nativeRuntime(pb);await pb.waitForFunction(id=>!JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.id===id).iconId,id);
+  await go(pb,'#sync-center');await pb.waitForFunction(()=>{if(document.querySelector('[data-sync-conflict-resolution][open]'))return true;const b=document.getElementById('sync-center-port-conflicts-open');if(!b||b.hidden||b.disabled)return false;b.click();return true;});await pb.locator('[data-sync-conflict-resolution][open]').waitFor();await pb.getByRole('button',{name:'クラウドの内容でこの端末を更新',exact:true}).click();await pb.locator('[data-sync-conflict-resolution]').waitFor({state:'hidden'});await sync(pb);await nativeRuntime(pb);await pb.waitForFunction(id=>!JSON.parse(localStorage.getItem('cruisePort.myApps')).items.find(i=>i.id===id).iconId,id);
  });
  await check('legacy attachment deletion ACK loss preserves pending data while a new attachment is retained',async()=>{
   await go(pa,'#practice-menu');await pa.locator('#practice-menu-add').click();await pa.locator('#practice-name-preset').selectOption('custom');await pa.locator('#practice-name').fill('Native attachment race');await pa.locator('#practice-duration').fill('5');await pa.locator('#practice-menu-form button[type=submit]').click();await pa.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')||'{"items":[]}').items.some(i=>i.name==='Native attachment race'));globalThis.practiceId=await readStable(pa,()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')||'{"items":[]}').items.find(i=>i.name==='Native attachment race').id);await sync(pa);await sync(pb);
@@ -231,6 +231,9 @@ try{
   await loser.goto(coldUrl.href);await ready(loser);
   await loser.locator('#sync-center-port-conflicts-open').waitFor({state:'visible'});
   await loser.waitForFunction(async()=>{const r=SoundCruiseMultiAppSync?.runtimes?.port;return r&&!r.disposed&&await r.store.readMeta('runtimeState')==='attention';});
+  // The same issue may already have been auto-opened in this history entry.
+  // Exercise its retained manual route before waiting for the resolution UI.
+  if(!await loser.locator('[data-sync-conflict-resolution][open]').isVisible())await loser.locator('#sync-center-port-conflicts-open').click();
   await loser.locator('[data-sync-conflict-resolution][open]').waitFor();assert.equal(await loser.locator('[data-sync-conflict-resolution][open]').count(),1);
   assert.match(await loser.locator('#sync-center-port-conflicts-open').innerText(),/競合を確認する/);
   assert.equal(await loser.locator('#sync-center-port-status-chip').getAttribute('data-sync-port-status'),'attention');

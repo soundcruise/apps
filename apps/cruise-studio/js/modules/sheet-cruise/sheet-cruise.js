@@ -3345,6 +3345,7 @@
         subscribeSelection: function (fn) { selectionListeners.add(fn); return function () { selectionListeners.delete(fn); }; },
         getStaffMetrics: function () { return staffView ? staffView.metrics() : null; },
         commitSession: commitSession,
+        refreshProjects: refreshProjectSelect,
         canLeave: canLeave
     };
 })();
