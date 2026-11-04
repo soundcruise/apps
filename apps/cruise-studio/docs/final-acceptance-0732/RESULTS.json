@@ -1,0 +1,271 @@
+{
+  "production": false,
+  "baseMain": "b26e63a7e59d8777659151089e450cc6ff5271bf",
+  "baseVersion": "0.73.1",
+  "candidateVersion": "0.73.2",
+  "scope": "Final acceptance, one screen-navigation print exclusion, patch/cache identity and regression assertions. No new application features.",
+  "additionalProductAcceptance": {
+    "baseVersionCases": [
+      {
+        "name": "formal public entry: project creation, section controls, chord/lyric/melody/stroke and IME guard",
+        "status": "PASS"
+      },
+      {
+        "name": "bar add/copy independent edit/move/delete, range/drag and whole-operation Undo/Redo",
+        "status": "PASS"
+      },
+      {
+        "name": "transposition and unsupported meter/invalid JSON reject without truncating the draft",
+        "status": "PASS"
+      },
+      {
+        "name": "right Inspector form selection/adoption/removal and qualified MIDI voicing",
+        "status": "PASS"
+      },
+      {
+        "name": "PreDTM JSON and independent SMF decoder agree on every note/time/pitch/channel/velocity",
+        "status": "PASS"
+      },
+      {
+        "name": "working chord change reaches PreDTM, invalid fixed voicing is omitted, Undo restores identical MIDI",
+        "status": "PASS"
+      },
+      {
+        "name": "saved Project and accompaniment settings reproduce the same output after reload",
+        "status": "PASS"
+      },
+      {
+        "name": "Project list A/B/A retains unsaved sessions; browser leave asks before discarding; saved A survives",
+        "status": "PASS"
+      },
+      {
+        "name": "two actual tabs contend on Web Locks: one wins and the stale dirty draft is preserved",
+        "status": "PASS"
+      },
+      {
+        "name": "raw revision CAS rejects a stale writer; concurrent different Projects keep both index entries",
+        "status": "PASS"
+      },
+      {
+        "name": "save failure rolls back raw/index, preserves draft/history, then normal retry succeeds",
+        "status": "PASS"
+      },
+      {
+        "name": "native rhythm adoption saves/reloads without loss; unsupported PreDTM path is explicitly stopped",
+        "status": "PASS"
+      }
+    ],
+    "basePassed": 12,
+    "execution": "Split runs, not a claim that the first scratch runner completed. Its ninth scenario auto-dismissed the required discard confirmation; a corrected disposable fixture explicitly tested cancel and accept and completed the remaining cases.",
+    "candidateCases": [
+      {
+        "name": "public score print contains only A4 score paper",
+        "status": "PASS"
+      }
+    ],
+    "candidatePassed": 1,
+    "testInfrastructure": "Existing formal Account/Pro product fixture, disposable Chrome, synthetic Miniflare/D1/R2, Project backend absent. Instrumented scratch runners are local diagnostic artifacts, not a new product sync path."
+  },
+  "outputChecks": [
+    {
+      "label": "baseline",
+      "bars": 8,
+      "tracks": 4,
+      "bassNotes": 32,
+      "drumNotes": 112,
+      "guitarNotes": 20,
+      "noteEventsCompared": 328,
+      "midiSHA256": "2195804fd7f6616ffdcfeeafc286d90521b66ad84022dee5d234e1b3dfe00008"
+    },
+    {
+      "label": "root8",
+      "bars": 8,
+      "tracks": 4,
+      "bassNotes": 64,
+      "drumNotes": 112,
+      "guitarNotes": 20,
+      "noteEventsCompared": 392,
+      "midiSHA256": "b81770b0c3211b9f5ab32575b5cf3bf5d3b4f903cbeb163481effba964fc37b6"
+    },
+    {
+      "label": "unsaved G",
+      "bars": 8,
+      "tracks": 3,
+      "bassNotes": 32,
+      "drumNotes": 112,
+      "guitarNotes": 0,
+      "noteEventsCompared": 288,
+      "midiSHA256": "94e1eed78ae1f79a6c0d47f4e8f396137b2da7b3bdf3a3b04dd9ddf9e4bc71b0"
+    },
+    {
+      "label": "undo C",
+      "bars": 8,
+      "tracks": 4,
+      "bassNotes": 32,
+      "drumNotes": 112,
+      "guitarNotes": 20,
+      "noteEventsCompared": 328,
+      "midiSHA256": "2195804fd7f6616ffdcfeeafc286d90521b66ad84022dee5d234e1b3dfe00008"
+    },
+    {
+      "label": "reload",
+      "bars": 8,
+      "tracks": 4,
+      "bassNotes": 32,
+      "drumNotes": 112,
+      "guitarNotes": 20,
+      "noteEventsCompared": 328,
+      "midiSHA256": "2195804fd7f6616ffdcfeeafc286d90521b66ad84022dee5d234e1b3dfe00008"
+    }
+  ],
+  "concurrency": {
+    "realTabs": 2,
+    "webLocksQueueCount": 2,
+    "rawRevisionStaleWriterRejected": true,
+    "differentProjectConcurrentIndexWritesPreserved": true,
+    "dirtyDraftPreserved": true,
+    "adoptCancelThenAccept": true,
+    "quotaFailureRollsBackRawAndIndex": true,
+    "explicitRetrySucceeded": true
+  },
+  "printRegression": {
+    "rootCause": "workspace-local-nav was missing from print.css screen-only exclusions; its flow height moved the A4 paper down and emitted a blank continuation.",
+    "baseline": "New product assertion fails with flex instead of none. PDF: 2 pages, second empty; Back/Home visible on first page.",
+    "fix": "One selector in the existing print-only stylesheet. Screen navigation is unchanged.",
+    "candidate": {
+      "production": false,
+      "pdf": [
+        {
+          "file": "original-score.pdf",
+          "pages": 1,
+          "mediaBoxPts": [
+            0.0,
+            0.0,
+            594.95996,
+            841.91998
+          ],
+          "titleChordLyricMelodyLastBarPresent": true
+        },
+        {
+          "file": "original-score-narrow.pdf",
+          "pages": 1,
+          "mediaBoxPts": [
+            0.0,
+            0.0,
+            594.95996,
+            841.91998
+          ],
+          "titleChordLyricMelodyLastBarPresent": true
+        }
+      ],
+      "sameScoreTextAt1440And390": true,
+      "sameRenderedPaperAt1440And390": true
+    },
+    "beforeImage": "print-before.png",
+    "afterImage": "print-after.png"
+  },
+  "nativeRhythm": {
+    "scoreAdoptionSaveReload": "PASS",
+    "PreDTMExport": "EXISTING UNSUPPORTED HOLD",
+    "guard": "Effective rhythm-owner-cells-v1 is rejected without mutation; JSON/MIDI disabled, clear unsupported message, repeated reload keeps stored bytes. No guessed conversion.",
+    "reference": [
+      "docs/RHYTHM_SNAPSHOT.md",
+      "js/core/schema2.js: readArrangementProjection"
+    ]
+  },
+  "reusedSameTreeEvidence": {
+    "publicMainTree": "1d9353955eabb0a99f024f747313f68ada0bcab1",
+    "productE2E": {
+      "pass": 51,
+      "fail": 0,
+      "scope": "Same public tree, preceding publication acceptance; reused, not newly re-executed."
+    },
+    "relatedNode": {
+      "pass": 930,
+      "fail": 0,
+      "reused": true
+    },
+    "legacyParity": {
+      "reference": "066780ffce9e09cb97762cd35e1b0bfff9fca9da",
+      "sameMIDIHash": true,
+      "source": "docs/faithful-restoration-0731/RESULTS.json"
+    }
+  },
+  "candidateNode": {
+    "candidate": {
+      "tests": 1967,
+      "pass": 1947,
+      "fail": 20,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "baseline": {
+      "tests": 1967,
+      "pass": 1947,
+      "fail": 20,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "baselineMain": "b26e63a7e59d8777659151089e450cc6ff5271bf",
+    "newFailureTitles": [],
+    "existingFailureTitles": [
+      "CSS artifact is exactly the verified projection, without Port variables",
+      "Dock primary BPM/toggle/beats precede optional duplicate actions; status remains outside details",
+      "Dock toggles independently of workspace/pane and has no audio effects",
+      "HTML imports only owner pure modules; no Chord UI/storage/feature or Pro gate import",
+      "Metronome entry controls same Dock, not workspace or second runtime",
+      "NEWS and Home markup owns no save/Account mutation and prints no new screen",
+      "Navigation IDs resolve to real workspaces including retained Home/Apps",
+      "UI keeps advanced metronome disabled, explicit drafts and owner code without persistence imports",
+      "W1 worktree contracts: real isolated main/topic checkout, policy counterexamples and integration evidence",
+      "actual Git reader keeps NEWS hashes and detects rename/index changes in a disposable fixture",
+      "actual entry bootstrap runs before stylesheets with exactly the runtime resolver",
+      "actual feature-metadata boundary runs against linked topic Git directory",
+      "all version projections and the imported Port value equal current source text",
+      "focus/IME/Modal ownership and read-only host boundaries remain connected",
+      "four IDs, Dark default, frozen metadata agree with Port settings",
+      "four Shell regions and two logical Dock slots exist once",
+      "four themes use the existing runtime, save failure is visible",
+      "real navigation/4-theme styling and print exclusion retain existing workspaces",
+      "semantic four-theme styling, print exclusion and native readonly controls",
+      "theme-color agrees with Port runtime and both first-paint bootstraps"
+    ]
+  },
+  "focusedCacheAndFormNode": {
+    "tests": 109,
+    "pass": 109,
+    "fail": 0,
+    "skip": 0
+  },
+  "deploymentArtifact": {
+    "localJekyllBuild": true,
+    "files": 81,
+    "releaseBytesMatch": true,
+    "protectedNativeOutputFilesByteIdentical": 811,
+    "ProjectCloudExcluded": true
+  },
+  "unchangedContracts": [
+    "schema2",
+    "480 PPQ and 1920 ticks/bar",
+    "Web Locks",
+    "raw revision CAS",
+    "Account/Pro admission",
+    "Port and app Sync hosts",
+    "Outbox/account ownership",
+    "no Project Cloud activation"
+  ],
+  "notAcceptedBySyntheticTests": [
+    "real Account and two physical devices",
+    "Safari printing",
+    "physical printer",
+    "native macOS Japanese IME candidate UI",
+    "known real Mac Chord IndexedDB defect (untouched)"
+  ],
+  "notImplemented": [
+    "non-4/4 meter",
+    "native adopted rhythm to PreDTM export",
+    "Transport/playback/synth",
+    "Project Cloud Sync"
+  ],
+  "noProductionActions": true
+}
