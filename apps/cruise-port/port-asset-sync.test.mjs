@@ -1035,3 +1035,68 @@ test('stale persisted ready does not race binary work ahead of native structured
  assert.equal((await sync.schedule('ready')).code,'activation_required');assert.equal(calls,0);
  syncController.getCachedStatus=()=>({credentialState:'usable'});assert.equal((await sync.schedule('ready')).ok,true);assert.equal(calls,1);sync.dispose();
 });
+
+// Native initial-import consent precedes this preflight. Exercise actual upload
+// and metadata CAS; the Worker still rejects every foreign reference.
+for (const [bucket, key, finalKey, sourceKey, storeName, getter] of [
+    ['gear', 'cruisePort.gearList', 'photoId', 'photoSourceId', 'gearPhotoStore', 'getPhoto'],
+    ['myApps', 'cruisePort.myApps', 'iconId', 'iconSourceId', 'myAppsIconStore', 'getIcon']
+]) {
+    test(`${bucket}: explicitly approved initial import allocates current-Account assets without releasing old ones`, async () => {
+        const item = { id: 'retained', [finalKey]: 'final-local', [sourceKey]: 'source-local' };
+        const bytes = blob(), hash = await hashBlob(bytes);
+        const old = { published: { availability: 'available', final: { assetId: 'old-final', hash }, source: { assetId: 'old-source', hash } }, binding: null, pending: null };
+        const initialMetadata = { version: 4, gear: {}, myApps: {}, [bucket]: { retained: old }, attachments: {}, releaseQueue: ['retained-release'], discardQueue: [] };
+        const local = storage({ [key]: JSON.stringify({ items: [item] }), 'cruisePort.syncAssetMetadata': JSON.stringify(initialMetadata) });
+        const c = controller(), backups = [], api = assetApi();
+        c.runtime.adapter = { readLocalSnapshot: async () => ({ assetMetadata: local.getItem('cruisePort.syncAssetMetadata') }) };
+        c.runtime.backupSnapshot = async value => backups.push(value);
+        const sync = new PortAssetSync({ canSync: () => true, controller: c, storage: local,
+            [storeName]: { [getter]: async id => ({ record: { id, blob: bytes, width: 512, height: 512 } }) },
+            fetchImpl: (url, options) => /\/old-(source|final)$/.test(new URL(url).pathname)
+                ? Response.json({ code: 'asset_not_found' }, { status: 404 }) : api.fetch(url, options) });
+        await sync.prepareInitialAccountReferences();
+        const after = sync.readMetadata(), next = after[bucket].retained;
+        assert.notEqual(next.published.final.assetId, 'old-final');
+        assert.notEqual(next.published.source.assetId, 'old-source');
+        assert.equal(next.published.final.hash, hash);
+        assert.equal(next.published.source.hash, hash);
+        assert.equal(next.binding.final.localId, item[finalKey]);
+        assert.equal(next.binding.source.localId, item[sourceKey]);
+        assert.equal(next.pending, null);
+        assert.deepEqual(after.releaseQueue, ['retained-release']);
+        assert.equal(after.referencePending, true);
+        assert.deepEqual(JSON.parse(local.getItem(key)).items, [item]);
+        assert.deepEqual(JSON.parse(backups[0].assetMetadata), initialMetadata);
+        assert.equal(backups.length, 1);
+        assert.equal(api.requests.filter(r => r.path.endsWith('/prepare')).length, 2);
+        assert.equal(api.requests.some(r => r.path.endsWith('/unreference')), false);
+        const beforeRepeat = local.getItem('cruisePort.syncAssetMetadata');
+        await sync.prepareInitialAccountReferences();
+        assert.equal(local.getItem('cruisePort.syncAssetMetadata'), beforeRepeat);
+        assert.equal(api.requests.filter(r => r.path.endsWith('/prepare')).length, 2, 'accessible current-Account IDs are reused');
+    });
+}
+
+for (const mode of ['offline', '503', 'missing-local', 'different-pending', 'backup-failed', 'account-changed']) {
+    test(`initial asset preflight preserves metadata and pending evidence on ${mode}`, async () => {
+        const entry = { published: { availability: 'available', final: { assetId: 'old-final' } },
+            ...(mode === 'different-pending' ? { pending: { final: { localId: 'other-edit', operationId: 'uncertain' } } } : {}) };
+        const raw = JSON.stringify({ version: 4, gear: { retained: entry }, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [] });
+        const local = storage({ 'cruisePort.gearList': JSON.stringify({ items: [{ id: 'retained', photoId: 'local' }] }), 'cruisePort.syncAssetMetadata': raw });
+        const c = controller(); let writes = 0;
+        c.runtime.adapter = { readLocalSnapshot: async () => ({}) };
+        c.runtime.backupSnapshot = async () => { throw Error('backup_failed'); };
+        const sync = new PortAssetSync({ canSync: () => true, controller: c, storage: local,
+            gearPhotoStore: { getPhoto: async () => ({ record: mode === 'missing-local' ? null : { blob: blob() } }) },
+            fetchImpl: async (_url, options) => {
+                if (options.method !== 'GET') writes++;
+                if (mode === 'offline') throw new TypeError('network_failed');
+                if (mode === 'account-changed') c.runtime = null;
+                return Response.json({ code: mode === '503' ? 'service_unavailable' : 'asset_not_found' }, { status: mode === '503' ? 503 : 404 });
+            } });
+        await assert.rejects(sync.prepareInitialAccountReferences(), new RegExp({ offline: 'network_failed', '503': 'service_unavailable', 'missing-local': 'asset_local_missing', 'different-pending': 'asset_pending_account_review', 'backup-failed': 'backup_failed', 'account-changed': 'account_generation_changed' }[mode]));
+        assert.equal(local.getItem('cruisePort.syncAssetMetadata'), raw);
+        assert.equal(writes, 0);
+    });
+}

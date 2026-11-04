@@ -472,6 +472,43 @@ export class PortAssetSync {
         };
     }
 
+    // Initial Account import only, after the native nonempty-device consent and
+    // authenticated AppDevice provisioning. Never reuse another Account's IDs.
+    async prepareInitialAccountReferences() {
+        const owner = this.controller?.runtime;
+        let backedUp = false;
+        for (const [bucket, kind, key] of [['gear', 'gear', GEAR_KEY], ['myApps', 'app', MY_APPS_KEY]]) {
+            for (const item of (parse(this.storage, key, { items: [] }).items || [])) {
+                const before = clone(this.readMetadata()[bucket][item.id]);
+                if (before?.published?.availability !== 'available' || !before.published.final) continue;
+                let unavailable = false;
+                for (const asset of [before.published.final, before.published.source].filter(Boolean)) {
+                    try { await this.wait(() => this.download(asset), owner); }
+                    catch (error) { if (error.message !== 'asset_not_found') throw error; unavailable = true; }
+                }
+                if (!unavailable) continue;
+                const finalId = item[kind === 'gear' ? 'photoId' : 'iconId'];
+                const sourceId = item[kind === 'gear' ? 'photoSourceId' : 'iconSourceId'];
+                const get = id => kind === 'gear' ? this.gearPhotoStore.getPhoto(id) : this.myAppsIconStore.getIcon(id);
+                if (!finalId || !(await this.wait(() => get(finalId), owner))?.record?.blob ||
+                    before.published.source && (!sourceId || !(await this.wait(() => get(sourceId), owner))?.record?.blob)) throw new Error('asset_local_missing');
+                // An unrelated pending operation must not be replaced to create a copy.
+                if (before.pending && (before.pending.final?.localId !== finalId ||
+                    (before.pending.source?.localId || null) !== (sourceId || null))) throw new Error('asset_pending_account_review');
+                if (!backedUp) {
+                    await this.wait(async () => owner.backupSnapshot(await owner.adapter.readLocalSnapshot()), owner);
+                    backedUp = true;
+                }
+                const pending = clone(before);
+                const uploaded = await this.wait(() => this.uploadPair(item, pending, kind, before), owner);
+                if (!uploaded || !this.currentVisualItem(kind, item) ||
+                    !await this.wait(() => this.patchMetadataEntry(bucket, item.id, pending,
+                        { ...pending, ...uploaded, pending: null }, { referencePending: true }), owner)) throw new Error('asset_local_changed');
+                // No releaseIds: old Account objects and pending evidence stay intact.
+            }
+        }
+    }
+
     async hydratePair(item, entry, kind) {
         const published = entry?.published;
         if (!published?.final || published.availability !== 'available') return false;

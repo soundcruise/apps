@@ -284,6 +284,9 @@
       syncRoot.runtimes.port = runtime;
       const migration = await wait(() => store.readMeta('migrationState'));
       if (resumeOnly && migration !== 'complete') throw new Error('activation_required');
+      if (migration !== 'complete' && autoAssets?.prepareInitialAccountReferences) {
+        await wait(() => autoAssets.prepareInitialAccountReferences());
+      }
       const result = await wait(() => migration === 'complete' ? runtime.sync(resumeOnly ? 'auto-resume' : 'startup') : runtime.initializeDataset());
       const verified = result?.ok === true && global.navigator?.onLine !== false;
       if (!resumeOnly && verified && autoGeneration !== null) autoGeneration = accountGeneration;
