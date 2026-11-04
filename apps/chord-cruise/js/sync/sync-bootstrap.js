@@ -107,9 +107,9 @@
     var ready = Promise.resolve({ enabled: false });
     if (isEnabled() && global.document && baseUrl) {
         ready = loadScript('sync-core.js')
-            .then(function () { return loadScript('sync-db.js?v=1.21.1'); })
-            .then(function () { return loadScript('sync-merge.js?v=1.15.7'); })
-            .then(function () { return loadScript('sync-client.js?v=1.21.1'); })
+            .then(function () { return loadScript('sync-db.js?v=1.21.2'); })
+            .then(function () { return loadScript('sync-merge.js?v=1.21.2'); })
+            .then(function () { return loadScript('sync-client.js?v=1.21.2'); })
             .then(function () {
                 var production = isProductionHost() || Boolean(global.SoundCruiseNativeSyncHost);
                 var endpoint = production

@@ -76,3 +76,31 @@ test('a connected untracked edit cannot sync from save/online/refresh before the
  await assert.rejects(s.runtimeOptions.assertCurrentAsync(),/studio_app_review_required/);
  s.approveReview();assert.doesNotThrow(s.runtimeOptions.assertCurrent);f.host.dispose();
 });
+
+test('Chord first join treats only the untouched default folder as local bootstrap state',async()=>{
+ const original=globalThis.CruiseStudio;
+ const folder=color=>({recordType:'folder',recordId:'folder_uncategorized',payloadHash:color,
+  payload:{id:'folder_uncategorized',name:'未分類',builtin:false,colorKey:color,order:0}});
+ const cloudRecord={recordType:'chord',recordId:'c1',payloadHash:'cloud',payload:{id:'c1'}};
+ const root={storage:{getGeneration:()=>0,getAccount:async()=>({accountId:'A',accountCredential:'account'}),subscribeAccount:()=>()=>{},getPendingConsume:async()=>null},
+  core:{validAccountCredential:x=>x==='account'},AccountClient:class{
+   async summary(){return{account:{id:'A',state:'active'},memberships:[{appId:'chord',state:'active'}]};}
+   async devices(){return{appDevices:[{id:'device-A',appId:'chord',revokedAt:null}]};}
+  }};
+ const store={getMeta:async key=>({deviceCredential:{credential:'scd1.device-A.secret'},accountManagedSetup:true,
+  migrationState:'pair_pending'})[key],listOutbox:async()=>[],listConflicts:async()=>[],
+  listShadow:async()=>[{...cloudRecord,recordKey:'chord/c1'}]};
+ let records=[folder('black-leather'),cloudRecord];
+ globalThis.CruiseStudio={seriesApps:{chord:{nativeWindow:{ChordCruiseSync:{merge:{
+  hasMeaningfulLocalData:()=>true,isInitialFolder:p=>p.id==='folder_uncategorized'&&p.name==='未分類'&&p.colorKey==='black-leather'
+ }}}}}};
+ try{
+  const host=createNativeSyncHost('chord',()=>true,{read:()=>({accountId:'A'}),isAuthorized:()=>true},root,
+   new URL('https://fixture.invalid/apps/chord-cruise/pro/'));
+  const chord={openStore:async()=>store,captureSnapshot:async()=>({records})};
+  assert.equal((await host.prepare({appId:'chord',client:chord})).review,false);
+  records=[folder('blue'),cloudRecord];
+  assert.equal((await host.prepare({appId:'chord',client:chord})).review,true);
+  host.dispose();
+ }finally{globalThis.CruiseStudio=original;}
+});

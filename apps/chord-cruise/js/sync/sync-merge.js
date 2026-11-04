@@ -84,6 +84,18 @@
             (!own(semantic, 'order') || semantic.order === 0);
     }
 
+    function isEquivalentInitialFolder(local, cloud) {
+        if (!live(local) || !live(cloud) || local.recordType !== 'folder' ||
+            cloud.recordType !== 'folder' || local.recordId !== 'folder_uncategorized' ||
+            cloud.recordId !== local.recordId || !isInitialFolder(local.payload) ||
+            !isInitialFolder(cloud.payload)) return false;
+        var localValue = semanticPayload(local.payload);
+        var cloudValue = semanticPayload(cloud.payload);
+        if (localValue.colorKey === 'black-leather') delete localValue.colorKey;
+        if (cloudValue.colorKey === 'black-leather') delete cloudValue.colorKey;
+        return same(localValue, cloudValue);
+    }
+
     function isEmptyOrder(payload) {
         if (!payload || typeof payload !== 'object') return false;
         var folderIds = Array.isArray(payload.folderIds) ? payload.folderIds : [];
@@ -370,6 +382,9 @@
             if (localLive && cloudLive && local.payloadHash && local.payloadHash === cloud.payloadHash) {
                 finalMap[key] = cloneRecord(cloud); operations.push({ recordKey: key, action: 'identical' }); return;
             }
+            if (localLive && cloudLive && !base && isEquivalentInitialFolder(local, cloud)) {
+                finalMap[key] = cloneRecord(cloud); operations.push({ recordKey: key, action: 'identical' }); return;
+            }
             if (localLive && cloudLive) {
                 var fieldChoices = choices['record/' + key];
                 var merged = mergeObject(local.recordType, local, cloud, base,
@@ -554,6 +569,8 @@
         DEFAULT_SETTINGS: core.cloneJson(DEFAULT_SETTINGS),
         CHORD_ATOMIC_FIELDS: CHORD_ATOMIC_FIELDS.slice(),
         hasMeaningfulLocalData: hasMeaningfulLocalData,
+        isInitialFolder: isInitialFolder,
+        isEquivalentInitialFolder: isEquivalentInitialFolder,
         buildSnapshot: buildSnapshot,
         validateCloudSnapshot: validateCloudSnapshot,
         planMerge: planMerge,
