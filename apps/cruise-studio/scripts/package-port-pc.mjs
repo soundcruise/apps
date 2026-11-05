@@ -4,10 +4,11 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
+import {PRO_DIRECTORY,renderProEntry} from './edition-layout.mjs';
 const studio=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const RELEASE_FILES=Object.freeze([
  'cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
- 'index.html','entry.css','theme-projection.css','theme.css','shell.css','studio-home.css','studio-tools.css','port-tuner-surface.css','port-pc.css','assets/studio-icons.svg','assets/tool-calendar.svg','assets/tool-sync.svg',
+ PRO_DIRECTORY+'/index.html','entry.css','theme-projection.css','theme.css','shell.css','studio-home.css','studio-tools.css','port-tuner-surface.css','port-pc.css','assets/studio-icons.svg','assets/tool-calendar.svg','assets/tool-sync.svg',
  'js/core/studio-icon-theme.js',
  'assets/tool-sheet.svg','assets/tool-sheet-light.svg','assets/tool-predtm.svg','assets/tool-predtm-light.svg','assets/tool-home.svg','assets/tool-home-light.svg','assets/tool-myapps.svg','assets/tool-myapps-light.svg','assets/tool-calendar-light.svg','assets/tool-sync-light.svg',
  'js/score-workspace.js',
@@ -62,6 +63,7 @@ export const RELEASE_FILES=Object.freeze([
  'js/modules/series/workspaces.js','js/modules/series/internal-app.mjs','js/modules/series/official-links.mjs','js/modules/series/presentation.mjs','js/modules/series/presentation.css'
 ]);
 export function packagePortPC(output){
+ const generated=fs.readFileSync(path.join(studio,PRO_DIRECTORY,'index.html'),'utf8');if(generated!==renderProEntry(fs.readFileSync(path.join(studio,'index.html'),'utf8')))throw Error('pro-entry-out-of-date');
  const repo=path.resolve(studio,'../..'),out=path.resolve(output),parent=fs.realpathSync(path.dirname(out));
  if(parent===repo||parent.startsWith(repo+path.sep)||fs.existsSync(out))throw Error('new-external-output-directory-required');
  const destination=path.join(out,'apps/cruise-studio'),files={};
@@ -77,7 +79,7 @@ export function packagePortPC(output){
  const manifest={product:'Cruise Studio',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
   existingDeploymentDependencies:['apps/cruise-port/','apps/pitch-cruise/','apps/fretboard_cruise/','apps/rhythm-cruise/','apps/chord-cruise/','apps/shared/'],
   excluded:['development.html','legacy app.js and developer UI','Worker and migrations','native app releases/themes'],
-  channel:'single-studio-operator-owner',productionReady:false};
+  channel:'single-studio-operator-owner',edition:'pro',entry:'apps/cruise-studio/'+PRO_DIRECTORY+'/',standardPublished:false,productionReady:false};
  fs.writeFileSync(path.join(out,'RELEASE-MANIFEST.json'),JSON.stringify(manifest,null,2)+'\n');return manifest;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

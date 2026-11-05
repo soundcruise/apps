@@ -1,0 +1,125 @@
+{
+  "ownerfinal-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Standard absent; Pro requires existing Pro authentication",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro-only Home; 5 themes \u00d7 4 widths; original icons and Port badge",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro-relative embedded tool and four-app entry paths",
+        "status": "PASS"
+      },
+      {
+        "name": "Same-origin saved Project/Account/UNKNOWN and old-tab draft survive new Pro entry",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro URL retains operator Owner admission and rejects other Account",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro entrance preserves existing local score/PreDTM JSON MIDI PDF acceptance",
+        "status": "PASS"
+      }
+    ],
+    "capturedPageErrors": 0,
+    "syntheticOnly": true
+  },
+  "ownerfinal-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Standard absent; Pro requires existing Pro authentication",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro-only Home; 5 themes \u00d7 4 widths; original icons and Port badge",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro-relative embedded tool and four-app entry paths",
+        "status": "PASS"
+      },
+      {
+        "name": "Same-origin saved Project/Account/UNKNOWN and old-tab draft survive new Pro entry",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro URL retains operator Owner admission and rejects other Account",
+        "status": "PASS"
+      },
+      {
+        "name": "Pro entrance preserves existing local score/PreDTM JSON MIDI PDF acceptance",
+        "status": "PASS"
+      }
+    ],
+    "capturedPageErrors": 0,
+    "syntheticOnly": true
+  },
+  "finalguards-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Studio Pro-only Home admission without Account",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: offline",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: active",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: generation",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: cas",
+        "status": "PASS"
+      }
+    ],
+    "capturedPageErrors": 0,
+    "syntheticOnly": true
+  },
+  "finalguards-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Studio Pro-only Home admission without Account",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: offline",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: active",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: generation",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: cas",
+        "status": "PASS"
+      }
+    ],
+    "capturedPageErrors": 0,
+    "syntheticOnly": true
+  },
+  "node": {
+    "related": 249,
+    "accountSessionGuards": 77,
+    "fail": 0
+  },
+  "realSafari": false,
+  "productionDataModified": false
+}

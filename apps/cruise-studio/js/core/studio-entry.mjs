@@ -136,7 +136,7 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
             const viewObserver=new child.MutationObserver(center);accountFrame.studioJoinObserver=viewObserver;viewObserver.observe(child.document.body,{subtree:true,attributes:true,attributeFilter:['hidden','data-component-state','data-sync-phase','data-sync-port-status']});child.addEventListener('pagehide',()=>viewObserver.disconnect(),{once:true});
             child.addEventListener('studio-port-ready',center);child.addEventListener('hashchange',center);center();
         };
-        accountFrame.src='../cruise-port/pro_9a3943176561/#sync-center';panel.querySelector('[data-entry-account-frame]').append(accountFrame);
+        accountFrame.src='/apps/cruise-port/pro_9a3943176561/#sync-center';panel.querySelector('[data-entry-account-frame]').append(accountFrame);
     };
     window.addEventListener('storage',event=>{if(['soundCruiseProAuth','soundCruiseProRevokePending','soundCruiseProOperationEpoch',null].includes(event.key)&&!entry.isAuthorized()){entry.invalidate('pro-changed');void entry.check();}});
     for(const event of ['focus','online'])window.addEventListener(event,()=>void entry.check());

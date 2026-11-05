@@ -1,8 +1,10 @@
+import {PRO_DIRECTORY} from '../scripts/edition-layout.mjs';
+const studioEntry=process.env.STUDIO_PRO_EDITION==='1'?'https://soundcruise.jp/apps/cruise-studio/'+PRO_DIRECTORY+'/index.html':'https://soundcruise.jp/apps/cruise-studio/index.html';
 import assert from 'node:assert/strict';import fs from 'node:fs';
 export async function acceptDeletedRestart({profile,bootstrapPro,createAccount,check,db,nativeClient,normalGear,OUT}){
  if(process.env.STUDIO_LOCAL_CREATION_ONLY==='1')return check('isolated existing score/PreDTM save reload JSON MIDI PDF acceptance',async()=>{
   const p=await profile('local-creation',false);await bootstrapPro(p);
-  await p.page.goto('https://soundcruise.jp/apps/cruise-studio/index.html');await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());
+  await p.page.goto(studioEntry);await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());
   const receipt=await(await import('./score-return.acceptance.mjs')).acceptLocalCreation(p.page,OUT);
   fs.writeFileSync(OUT+'/local-creation.json',JSON.stringify(receipt,null,2));
  });
@@ -16,7 +18,7 @@ export async function acceptDeletedRestart({profile,bootstrapPro,createAccount,c
   let f=p.page;
   const evidence=[];p.page.on('response',async response=>{const u=new URL(response.url());if(!/^\/v2\/(accounts\/(summary|devices)|pro-auth\/device-session\/(challenge|renew))$/.test(u.pathname))return;let code=null;if(u.pathname.startsWith('/v2/accounts/'))try{const body=await response.json();code=/^[a-z][a-z0-9_-]{0,63}$/.test(body.code||'')?body.code:null;}catch{}evidence.push({path:u.pathname,status:response.status(),code});});
 
-  if(surface==='studio'){await p.page.goto('https://soundcruise.jp/apps/cruise-studio/index.html');await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());await p.page.locator('#home-cruise-sync').click();f=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();}
+  if(surface==='studio'){await p.page.goto(studioEntry);await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());await p.page.locator('#home-cruise-sync').click();f=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();}
   else{await p.page.goto('https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/#sync-center');}
   let project=null;if(surface==='studio')project=await p.page.evaluate(async()=>{const C=CruiseStudio,p=C.model.createSampleProject();await C.repository.save({target:{type:'project',projectId:p.projectId},snapshot:p,baseRevision:null});return{id:p.projectId,bytes:localStorage.getItem('cruiseStudio.project.'+p.projectId)};});
   // Follow the current surface document rather than a Frame captured during startup.
@@ -105,7 +107,7 @@ console.log('SETUP_GEOMETRY',surface,await f.locator('#sync-center-setup-confirm
 async function acceptInvitationVisibility({profile,bootstrapPro,createAccount,check,OUT}) {
  await check('Studio retains native addition code across browser visibility change',async()=>{
   const p=await profile('invitation-visibility',false);await bootstrapPro(p);await createAccount(p);
-  await p.page.goto('https://soundcruise.jp/apps/cruise-studio/index.html');
+  await p.page.goto(studioEntry);
   await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());await p.page.locator('#home-cruise-sync').click();
   const f=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();
   await f.locator('[data-sync-port-add-environment]').click();
@@ -141,7 +143,7 @@ async function acceptInvitationVisibility({profile,bootstrapPro,createAccount,ch
 async function acceptReleaseGuards({profile,bootstrapPro,createAccount,check,db,normalGear,OUT}) {
  await check('Studio Pro-only Home admission without Account',async()=>{
   const p=await profile('release-pro-only',false);await bootstrapPro(p);
-  await p.page.goto('https://soundcruise.jp/apps/cruise-studio/index.html');
+  await p.page.goto(studioEntry);
   await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());
   assert.equal(await p.page.evaluate(async()=>await SoundCruiseSyncAccount.storage.getAccount()),null);
   assert(await p.page.locator('#screen-home').isVisible());
