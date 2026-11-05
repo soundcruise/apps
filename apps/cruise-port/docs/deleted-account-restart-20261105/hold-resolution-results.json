@@ -1,0 +1,133 @@
+{
+  "focus": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "final-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "final-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "decision": "WebKit HOLD released after bounded investigation; exact historical startup delay is not proven",
+  "productChanges": false
+}

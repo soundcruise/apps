@@ -1,6 +1,6 @@
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.25.1';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.27.0';
 import { createPortAccountJoin } from './port-account-join.js?v=1.25.1';
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 
@@ -105,7 +105,7 @@ export function createSyncCenterOrchestrator({
                     material: accountMaterial, recoverySaved: true
                 });
                 accountMaterial = null;
-                const portSyncState = await settlePortSync();
+                const portSyncState = await settlePortSync({joined:canSync(),expectedAccountId:result.accountId});
                 return Object.freeze({ ...result, portSyncState });
             })();
             try { return await accountStartPromise; }

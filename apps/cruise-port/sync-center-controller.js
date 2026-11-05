@@ -366,6 +366,7 @@ export function createSyncCenterController({
     if(isolatedAccountConsumer!==null)return isolatedController(isolatedAccountConsumer,config?.enabled===true);
     let lastPresentation = null;
     let observation = null;
+    let deletedBinding = null;
     let loadRevision = 0;
     let cachedGeneration = accountRoot?.storage?.getGeneration?.();
     const effectiveConfig = config || readSyncCenterConfig();
@@ -380,6 +381,19 @@ export function createSyncCenterController({
             if (generation !== accountRoot?.storage?.getGeneration?.()) return createUnavailablePresentation('unknown', null);
             if (!account?.accountCredential) return createUnsetPresentation();
             return cachedGeneration === accountRoot?.storage?.getGeneration?.() ? lastPresentation || createUnavailablePresentation('unknown', null) : createUnavailablePresentation('unknown', null);
+        },
+        async releaseDeletedAccount() {
+            const binding=deletedBinding;
+            if(!binding||binding.generation!==accountRoot.storage.getGeneration())throw new Error('account_generation_changed');
+            // Re-read server authority before an explicit, local-only detach. A network
+            // failure or a recovered Account must never be treated as deletion.
+            const client=new accountRoot.AccountClient({endpoint:effectiveConfig.endpoint,fetchImpl,storage:accountRoot.storage,core:accountRoot.core,admissionMode:effectiveConfig.admissionMode||'qa'});
+            let confirmed=false;
+            try{await client.summary(binding.account.accountCredential);}catch(e){confirmed=['account_deleting','account_deleted'].includes(e?.code)||(e?.status===401&&e?.code==='invalid_account_credential');}
+            if(!confirmed||deletedBinding!==binding||binding.generation!==accountRoot.storage.getGeneration())throw new Error('account_deletion_unconfirmed');
+            await accountRoot.storage.changeAccountIfCurrent(binding.account,null,indexedDb);
+            deletedBinding=null;cachedGeneration=accountRoot.storage.getGeneration();
+            lastPresentation=createUnsetPresentation();return lastPresentation;
         },
         load({ readOnly = false } = {}) {
             const generation = accountRoot?.storage?.getGeneration?.();
@@ -440,7 +454,7 @@ export function createSyncCenterController({
                             throw new Error('account_summary_mismatch');
                         }
                     }
-                    cachedGeneration = generation;
+                    deletedBinding=null;cachedGeneration = generation;
                     lastPresentation = normalizeSyncCenterSummary(
                         summary.value, devices.status === 'fulfilled' ? devices.value : null,
                         accountRoot.core?.formatAccountDisplayId,
@@ -452,6 +466,14 @@ export function createSyncCenterController({
                     );
                 } catch (error) {
                     if (!current()) return createUnavailablePresentation('unknown', null);
+                    if(['account_deleting','account_deleted'].includes(error?.code)||(error?.status===401&&error?.code==='invalid_account_credential')){
+                        const after=await storage.getAccount(indexedDb);
+                        if(!current()||after?.accountId!==credential.accountId||after?.accountCredential!==credential.accountCredential)return createUnavailablePresentation('unknown',null);
+                        deletedBinding={account:credential,generation};cachedGeneration=generation;
+                        lastPresentation=Object.freeze({...createUnavailablePresentation('error',null),accountState:['account_deleting','account_deleted'].includes(error.code)?'deleting':'unknown',restartAccount:true,deletedAccount:['account_deleting','account_deleted'].includes(error.code),errorCode:error.code});
+                        return lastPresentation;
+                    }
+                    deletedBinding=null;
                     if (!readOnly && ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {
                         try {
                             await storage.clearAccount(indexedDb);

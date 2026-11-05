@@ -1,0 +1,161 @@
+{
+  "restart-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "restart-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "regression-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "shared footer, official information links and guarded refresh across widths",
+        "status": "PASS"
+      },
+      {
+        "name": "no Account: existing native addition-code dialog; Project hidden",
+        "status": "PASS"
+      },
+      {
+        "name": "normal Account; Project permission separate; communication failure and recovery retain storage",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "regression-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "shared footer, official information links and guarded refresh across widths",
+        "status": "PASS"
+      },
+      {
+        "name": "no Account: existing native addition-code dialog; Project hidden",
+        "status": "PASS"
+      },
+      {
+        "name": "normal Account; Project permission separate; communication failure and recovery retain storage",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "priorWebKitFailure": {
+    "case": "studio deleted restart connect",
+    "reason": "restart panel visibility wait timed out once; same product bytes passed subsequent full run",
+    "resolved": false
+  },
+  "safariLive": {
+    "version": "0.83.0",
+    "state": "attention",
+    "errorCode": "account_deleting",
+    "credentialReleasePerformed": false
+  }
+}

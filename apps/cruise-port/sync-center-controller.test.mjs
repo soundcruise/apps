@@ -282,7 +282,7 @@ test('offline state does not call API and does not masquerade as an unset accoun
     assert.equal(model.accountState, 'unknown');
 });
 
-test('only explicit Account terminal errors clear the stale Port binding', async () => {
+test('Account deletion is presented without implicit credential removal', async () => {
     const cleared = [];
     class TerminalClient {
         async summary() { throw Object.assign(new Error('terminal'), { code: 'account_deleting' }); }
@@ -296,8 +296,8 @@ test('only explicit Account terminal errors clear the stale Port binding', async
         config: { enabled: true, endpoint, admissionMode: 'production' },
         accountRoot: { storage, AccountClient: TerminalClient, core: {} }, online: () => true
     });
-    assert.equal((await terminal.load()).kind, 'unset');
-    assert.deepEqual(cleared, ['account']);
+    assert.equal((await terminal.load()).deletedAccount, true);
+    assert.deepEqual(cleared, []);
 
     class GenericClient {
         async summary() { throw Object.assign(new Error('generic'), { code: 'account_runtime_unavailable' }); }
@@ -308,7 +308,7 @@ test('only explicit Account terminal errors clear the stale Port binding', async
         accountRoot: { storage, AccountClient: GenericClient, core: {} }, online: () => true
     });
     assert.equal((await generic.load()).kind, 'error');
-    assert.deepEqual(cleared, ['account'], 'generic errors retain the Account identity');
+    assert.deepEqual(cleared, [], 'generic errors retain the Account identity');
 });
 
 test('Home-screen removal safety is fail-closed unless the server reports a clean active membership', () => {

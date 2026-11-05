@@ -6,7 +6,7 @@ import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js';
 
 function fixture({ portSync = null, canSync = () => true, canInitializeJoined = async () => true } = {}) {
     const calls = [];
-    let savedAccount = { accountCredential: 'sca1.account' };
+    let savedAccount = { accountId:'account-1',accountCredential: 'sca1.account' };
     let pendingConsume = null;
     let qaAdmission = null;
     let failPitch = true;
@@ -34,7 +34,7 @@ function fixture({ portSync = null, canSync = () => true, canInitializeJoined = 
             }
             throw new Error('unexpected_request');
         }
-        async startAccount(input) { calls.push(['start', input]); return { ok: true }; }
+        async startAccount(input) { calls.push(['start', input]); return { ok: true,accountId:'account-1' }; }
         async prepareAccountRecovery() {
             calls.push(['prepare-recovery']);
             return { summary: { memberships: [], activeDeviceCount: 0 } };
@@ -373,3 +373,5 @@ test('joined Account with unconfirmed local data keeps successful membership but
  let writes=0;const f=fixture({canInitializeJoined:async()=>false,portSync:{ensure:async()=>{writes++;}}});f.setSavedAccount(null);
  const result=await f.orchestrator.connectExistingAccount('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE','My PC');assert.equal(result.accountId,'account-1');assert.equal(result.portSyncState.code,'local_data_unconfirmed');assert.equal(writes,0);
 });
+
+test('new Account with old local data never auto-starts Port sync',async()=>{let ensureCalls=0;const f=fixture({canInitializeJoined:async()=>false,portSync:{ensure:async()=>{ensureCalls++;}}});f.orchestrator.createAccountCandidate();const r=await f.orchestrator.completeAccountSetup({recoverySaved:true,turnstileToken:'synthetic'});assert.equal(r.ok,true);assert.equal(r.portSyncState.code,'local_data_unconfirmed');assert.equal(ensureCalls,0);});
