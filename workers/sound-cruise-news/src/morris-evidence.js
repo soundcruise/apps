@@ -1,3 +1,5 @@
+import {validateMorrisArticleDates} from './morris-article-dates.js';
+import {safeFactDiagnostics} from './facts-failure.js';
 import {morrisNoticeLabel} from './morris-editorial-policy.js';
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {analyzeMorrisAutomaticFacts} from './morris-recovery.js';
@@ -110,10 +112,10 @@ export async function parseMorrisArticle(html,entry,verifiedAt,pepper){
  const responseHash=await hash(html),{doc,root}=document(html),canonicalBasis=identity(doc,entry.url),titles=find(root,n=>n.name==='h2'&&cls(n,'serif'));
  if(titles.length!==1)throw Error('listing_structure_changed');const title=plain(titles[0]),paras=primaryBlocks(root,titles[0]);
  // Publication day is the explicitly dated listing; URL day agrees. Optional article date must agree too.
- const dates=find(root,n=>n.name==='time');if(dates.some(n=>morrisDate(plain(n))!==entry.publishedAt))throw Error('facts_date_changed');
+ let dateEvidence;try{dateEvidence=validateMorrisArticleDates(find(root,n=>n.name==='time'),entry.publishedAt);}catch(error){error.evidenceProof={sourceId:'morris',sourceUrl:entry.url,publishedAt:entry.publishedAt,verifiedAt,extractionMethod:'morris_once_only_article',parserVersion:MORRIS_PARSER,responseHash,canonicalBasis,permissionRef:MORRIS_PERMISSION,failureReason:error.message,diagnostics:safeFactDiagnostics(error.factDiagnostics)};throw error;}
  const titleFingerprint=await fingerprint(title,pepper),proof={sourceId:'morris',sourceUrl:entry.url,publishedAt:entry.publishedAt,verifiedAt,extractionMethod:'morris_once_only_article',parserVersion:MORRIS_PARSER,responseHash,canonicalBasis,permissionRef:MORRIS_PERMISSION};
  const fields=fieldTexts(root,titles[0]),{facts,eventType,analysis}=extractFacts(title,paras,fields,entry.url);
- proof.recoveryAnalysis=analysis;
+ proof.recoveryAnalysis=analysis;proof.dateEvidence=dateEvidence;
  return {facts,eventType:facts?eventType:'other',proof,fingerprint:titleFingerprint,analysis};
 }
 

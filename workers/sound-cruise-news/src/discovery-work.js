@@ -1,3 +1,4 @@
+import {factFailureKind,safeFactDiagnostics} from './facts-failure.js';
 // Durable operational states, never human verdicts, publisher prose or a new fetch surface.
 import {sourceUrl,DAY} from './policy.js';
 import {nextDailyCollectionAt} from './collection-clock.js';
@@ -20,7 +21,7 @@ export async function discoveryState(store,sourceId,url,now,{state,reason='unkno
  if(!DISCOVERY_STATES.includes(state))throw Error('discovery_state_invalid');
  const previous=await store.db.prepare('SELECT * FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(sourceId,url).first();
  if(!previous)return; // Legacy pending records have their existing lifecycle, not invented discovery history.
- const safe={stage:code(diagnostics.stage||'evaluation'),missingFields:(diagnostics.missingFields||[]).filter(x=>typeof x==='string'&&/^[A-Za-z_]{1,60}$/.test(x)).slice(0,24),validationErrors:(diagnostics.validationErrors||[]).map(code).slice(0,24),retryEligible:nextAt!==null};
+ const safe={...safeFactDiagnostics(diagnostics),stage:code(diagnostics.stage||'evaluation'),missingFields:(diagnostics.missingFields||[]).filter(x=>typeof x==='string'&&/^[A-Za-z_]{1,60}$/.test(x)).slice(0,24),validationErrors:(diagnostics.validationErrors||[]).map(code).slice(0,24),retryEligible:nextAt!==null};
  const history=Array.isArray(parse(previous.history_json))?parse(previous.history_json):[];
  if(previous.processing_state!==state||previous.reason_code!==reason)history.push({at:now,state,reason:code(reason)});
  const payload=evidence?JSON.stringify(evidence):null;if(payload?.length>30000)throw Error('discovery_evidence_too_large');
@@ -41,6 +42,7 @@ export async function recordDiscoveryResult(store,source,entry,now,{row=null,rea
   else if(validation?.valid){state='validated_ready';reason='formal_validation_passed';}
   else if(result?.outcome==='facts_daily_budget_deferred'){state='awaiting_fetch_budget';reason=result.outcome;nextAt=nextDailyCollectionAt(now);nextAction='daily_recovery';}
   else if(/^facts_(?:http_|timeout|recheck_busy|source_gate)/.test(result?.outcome||'')){state='awaiting_allowed_retry';reason=result.outcome;nextAt=nextDailyCollectionAt(now);nextAction='daily_recovery';}
+  else if(factFailureKind(result?.outcome)==='extraction'){state='parser_failed';reason=result.outcome;nextAt=null;nextAction='new_parser_or_evidence';diagnostics={...diagnostics,...(result.diagnostics||{}),stage:result.diagnostics?.stage||'facts'};}
   else if(result?.outcome&&/invalid|parser|identity|scope|unbound|evidence_unchanged/.test(result.outcome)){state='parser_failed';reason=result.outcome;nextAt=result.nextRetryAt||now+7*DAY;nextAction='bounded_parser_retry';diagnostics.stage='facts';}
   else if(!result){const previous=await store.db.prepare('SELECT processing_state FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(source.id,row.source_url).first();if(previous&&['parser_failed','awaiting_fetch_budget','awaiting_allowed_retry'].includes(previous.processing_state))return;reason='facts_or_provenance_missing';nextAt=now;nextAction='daily_recovery';}
   else{reason=result.outcome||'facts_or_provenance_missing';nextAt=nextDailyCollectionAt(now);nextAction='daily_recovery';}

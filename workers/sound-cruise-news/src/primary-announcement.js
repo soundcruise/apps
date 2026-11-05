@@ -1,3 +1,4 @@
+import {factFailure,sourceIdentityConflict} from './facts-failure.js';
 import {ikebeTagUrl} from './ikebe-tag-url.js';
 // Source-bound primary product definitions. Publisher expressions are transient.
 // Product identity, component mentions and announcement actor are separate facts.
@@ -5,8 +6,8 @@ import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {releaseDateFields} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-5';
-export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4',PRIMARY_ANNOUNCEMENT_PARSER]);
+export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-6';
+export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4','primary-announcement-5',PRIMARY_ANNOUNCEMENT_PARSER]);
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -80,7 +81,9 @@ export function parsePrimaryAnnouncement(html,source,row){
   const quotedTitle=[...title.matchAll(/「([^」]{2,100})」/g)].map(m=>m[1]);const tableRows=find(root,n=>n.name==='tr'&&/JANコード/.test(plain(n))).map(plain);productTable=tableRows;
   if(!models.length){const m=/^(?:[A-Za-z][A-Za-z0-9 .&'-]{1,60}?)(?:より|から)([A-Za-z0-9][A-Za-z0-9 .&+()'/-]{1,70})が登場/.exec(lead||'');if(m&&norm(title).includes(norm(m[1]))&&tableRows.some(t=>norm(t).startsWith(norm(m[1]))))models=[m[1].trim()];}
   if(models.length===1&&quotedTitle.length===1&&identity(quotedTitle[0])){const base=quotedTitle[0],full=models[0];const suffix=full.startsWith(base+' ')?full.slice(base.length+1):'';tableBound=!!suffix&&/^[A-Z0-9]{2,6}$/.test(suffix)&&tableRows.length>=1&&tableRows.length<=8&&tableRows.every(t=>t.startsWith(base+',')||t.startsWith(base+'JANコード'));if(tableBound)models=[base];}
-  if(!brand||!models.length||!models.every(m=>norm(title).includes(norm(m)))||!norm(title).includes(norm(brand.split(' ')[0])))throw Error('facts_identity_changed');sections=models.map(()=>root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>!purchase.test(p)&&p!=='目次に戻る').slice(0,4));
+  if(!brand||!models.length)throw factFailure('facts_extraction_incomplete',{stage:'subject_identity',missingFields:[...(!brand?['brand']:[]),...(!models.length?['models']:[])],checks:{brandPresent:!!brand,modelsCount:models.length}});
+  const sourceConflicts=sourceIdentityConflict(title,brand,models);if(sourceConflicts.length)throw factFailure('facts_identity_conflict',{stage:'source_identity_binding',conflictingFields:sourceConflicts,checks:{brandPresent:true,modelsCount:models.length}});
+  if(!models.every(m=>norm(title).includes(norm(m)))||!norm(title).includes(norm(brand.split(' ')[0])))throw factFailure('facts_identity_unconfirmed',{stage:'title_identity_binding',missingFields:['title_subject_binding'],checks:{brandPresent:true,modelsCount:models.length,modelsTitleBound:models.every(m=>norm(title).includes(norm(m))),brandTitleBound:norm(title).includes(norm(brand.split(' ')[0]))}});sections=models.map(()=>root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>!purchase.test(p)&&p!=='目次に戻る').slice(0,4));
  }
  if(!identity(brand)||!models.every(identity)||new Set(models).size!==models.length||models.join(' / ').length>110||unsafe.test(title)||/セール|特価|PR記事/.test(title))throw Error('facts_scope_uncertain');
  if(models.some(m=>/\b(?:case|stand|replacement|accessory|cable)\b/i.test(m)))throw Error('facts_primary_type_unbound');
@@ -147,6 +150,6 @@ function shortHeadphoneDefinition(title,sections,models,brand){return models.len
 
 export function primaryParserSupports(facts,parser){
  if(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(parser))return false;
- if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
+ if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4','primary-announcement-5',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
  return facts?.announcement?.action!=='release_notice'||parser!=='primary-announcement-1';
 }

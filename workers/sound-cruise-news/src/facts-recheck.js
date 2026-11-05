@@ -1,3 +1,4 @@
+import {factFailureKind,safeFactDiagnostics} from './facts-failure.js';
 import {sealPrimaryProof,primaryContractValid} from './primary-provenance.js';
 import {recordDiscoveryResult,discoveryState} from './discovery-work.js';
 import {parsePrimaryAnnouncement,PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS,validPrimaryAnnouncement,primaryParserSupports} from './primary-announcement.js';
@@ -104,7 +105,10 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
  const nextRetryAt=currentFailure?previousProof.verifiedAt+7*DAY:previous?.checked_at+6*3600000;
  if(previous?.lease_until>now)throw Error('facts_recheck_busy');
  if(previous?.outcome==='verified_surface'&&surface.method==='existing_listing_parser'&&previous.checked_at>=budget.since)return previous;
- if(!approvedRecovery&&currentFailure&&now<nextRetryAt)return {...previous,outcome:'facts_primary_evidence_unchanged',nextRetryAt};
+ const priorKind=previousProof?.failureKind||factFailureKind(previousProof?.failureReason),missingOldIdentity=!row.product_facts&&previousProof?.failureReason==='facts_identity_changed';
+ if(!approvedRecovery&&currentFailure&&(priorKind==='extraction'||missingOldIdentity))return {...previous,outcome:missingOldIdentity?'facts_identity_unconfirmed':previousProof.failureReason,publisherAttempted:false,nextRetryAt:null,awaitingParserUpdate:true};
+ if(!approvedRecovery&&currentFailure&&['conflict','uncertainty'].includes(priorKind))return {...previous,outcome:previousProof.failureReason,publisherAttempted:false,nextRetryAt:null};
+ if(!approvedRecovery&&currentFailure&&now<nextRetryAt)return {...previous,outcome:'facts_primary_evidence_unchanged',publisherAttempted:false,nextRetryAt};
  const upgraded=primary&&previousProof?.failureReason&&PRIMARY_ANNOUNCEMENT_PARSERS.includes(previousProof.pipelineVersion)&&(previousProof.pipelineVersion!==PRIMARY_ANNOUNCEMENT_PARSER||parserChanged);
  const upgradePrefix=source.id+':upgrade:'+row.id+':'+surface.parser+':'+PRIMARY_ANNOUNCEMENT_PARSER+':';
  const transient=primary&&/facts_(?:http_5|http_429|timeout|parser_failure|source_unavailable)/.test(previous?.outcome||'');
@@ -174,7 +178,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
    else if(surface.method==='explicit_shimamura_product_fields'){
     let parsed;try{parsed=parseShimamuraProductEvidence(response.text,source,row);}catch(error){
-     if(error.message!=='facts_identity_changed'||approvedRecovery)throw error;
+     if(!['facts_identity_changed','facts_identity_unconfirmed','facts_identity_conflict'].includes(error.message)||approvedRecovery)throw error;
      const officialIdentity=await recoverOfficialIdentity(store,response.text,row,now,{fetcher,sleep});
      parsed=parseShimamuraProductEvidence(response.text,source,row,{officialIdentity});
     }
@@ -205,9 +209,9 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
     finally{for(const e of entries){e.title='';e.eventTitle='';}entries.length=0;}
    }
   }catch(error){
-   if(!['facts_scope_uncertain','facts_identity_changed','facts_event_missing','facts_parser_failure','facts_date_changed','facts_release_date_conflict'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
-   proof.parserFailures=[{parser:surface.parser,reason:error.message}];
-   let parsed;try{parsed=parseProductFamilyEvidence(response.text,source,row);proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;}catch(familyError){proof.parserFailures.push({parser:PRODUCT_FAMILY_PARSER,reason:/^facts_[a-z_]+$/.test(familyError.message)?familyError.message:'facts_parser_failure'});parsed=parsePrimaryAnnouncement(response.text,source,row);proof.extractionMethod='explicit_primary_announcement_fields';proof.parserVersion=PRIMARY_ANNOUNCEMENT_PARSER;}
+   if(!['facts_scope_uncertain','facts_identity_changed','facts_identity_unconfirmed','facts_extraction_incomplete','facts_event_missing','facts_parser_failure','facts_date_changed','facts_release_date_conflict'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
+   proof.parserFailures=[{parser:surface.parser,reason:error.message,...(error.factDiagnostics?{diagnostics:safeFactDiagnostics(error.factDiagnostics)}:{})}];
+   let parsed;try{parsed=parseProductFamilyEvidence(response.text,source,row);proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;}catch(familyError){proof.parserFailures.push({parser:PRODUCT_FAMILY_PARSER,reason:/^facts_[a-z_]+$/.test(familyError.message)?familyError.message:'facts_parser_failure',...(familyError.factDiagnostics?{diagnostics:safeFactDiagnostics(familyError.factDiagnostics)}:{})});parsed=parsePrimaryAnnouncement(response.text,source,row);proof.extractionMethod='explicit_primary_announcement_fields';proof.parserVersion=PRIMARY_ANNOUNCEMENT_PARSER;}
    items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
   }finally{response.text='';response=null;}
   if(approvedRecovery)proof={...proof,recoveryApproval:approvedRecovery};
@@ -215,7 +219,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
   outcome='verified_surface';
  }catch(error){
   outcome=/^facts_/.test(error.message)?error.message:['redirect_blocked','response_too_large','listing_optout','listing_structure_changed','robots_unavailable','robots_unparseable'].includes(error.message)?'facts_'+error.message:error.name==='AbortError'||error.name==='TimeoutError'?'facts_timeout':'facts_parser_failure';
-  items=[];if(proof){const d=error.primaryDiagnostics,fields=d?.stage==='facts_schema'&&Array.isArray(d.missingFields)?d.missingFields.filter(v=>typeof v==='string'&&/^[A-Za-z_]{1,60}$/.test(v)).slice(0,24):[];proof={...proof,failureReason:outcome,...(fields.length?{diagnostics:{stage:'facts_schema',missingFields:fields}}:{})};}
+  items=[];if(proof){const d=error.primaryDiagnostics,fields=d?.stage==='facts_schema'&&Array.isArray(d.missingFields)?d.missingFields.filter(v=>typeof v==='string'&&/^[A-Za-z_]{1,60}$/.test(v)).slice(0,24):[];proof={...proof,failureReason:outcome,failureKind:factFailureKind(outcome),...(error.factDiagnostics?{diagnostics:safeFactDiagnostics(error.factDiagnostics)}:fields.length?{diagnostics:safeFactDiagnostics({stage:'facts_schema',missingFields:fields})}:{})};}
  }finally{
   if(acquired){
    // Match the collector's fail-closed stop/backoff boundary, without claiming a new
@@ -248,11 +252,11 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  const approvedRecovery=await validateRecoveryApproval(options.recoveryApproval,input,row,source,{...await resolvedRecoverySurface(store,row,source),pipeline:PRIMARY_ANNOUNCEMENT_PARSER},actor,now,await candidateSnapshot(row));
  const before=await publicationValidation(store,row,now,registry,pepper);
  // Already valid and duplicate candidates need no publisher traffic or rewrite.
- let publisherAttempted=false,nextRetryAt=null;
+ let publisherAttempted=false,nextRetryAt=null,awaitingParserUpdate=false;
  let outcome=before.errors.includes('duplicate')?'facts_duplicate_preserved':before.valid?'facts_already_complete':'facts_not_recovered',patch=null,provenance=[],diagnostics=null;
  if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
   const surface=await verifiedSurface(store,source,registry,row,now,pepper,{...options,approvedRecovery});
-  outcome=surface.outcome;publisherAttempted=initialPrimarySource(source)?surface.publisherAttempted===true:undefined;nextRetryAt=surface.nextRetryAt||null;
+  outcome=surface.outcome;publisherAttempted=initialPrimarySource(source)?surface.publisherAttempted===true:undefined;nextRetryAt=surface.nextRetryAt||null;awaitingParserUpdate=surface.awaitingParserUpdate===true;
   if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason){provenance=[{...failure,factField:'_extraction_failure'}];diagnostics=failure.diagnostics||null;}}catch{}}
   if(outcome==='verified_surface'){
    const item=JSON.parse(surface.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url),proof=JSON.parse(surface.proof_json||'null');
@@ -262,7 +266,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
    else{
     const facts=item.productFacts,old=before.facts;
     const changedIdentity=old&&['brand','product','artist','performer','person'].some(k=>old[k]&&facts[k]!==old[k]);
-    if(changedIdentity&&!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof)&&!productArticleIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
+    if(changedIdentity&&!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof)&&!productArticleIdentityRefinement(row,old,facts,proof)){outcome='facts_identity_changed';diagnostics=safeFactDiagnostics({stage:'stored_identity',conflictingFields:['brand','product','artist','performer','person'].filter(k=>old[k]&&facts[k]!==old[k])});}
     else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});
      if(before.errors.includes('facts_provenance_invalid')){patch={product_facts:JSON.stringify(facts),category:facts.category,event_type:item.eventType,label:factualLabel(facts,item.eventType)||row.label,topic_key:row.topic_key,event_ends_at:eventEndsAt(facts)};outcome='facts_provenance_recovered';}}
 
@@ -290,7 +294,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  if(!await store.db.prepare('SELECT request_id FROM news_facts_rechecks WHERE request_id=? AND request_payload_hash=?').bind(input.requestId,payloadHash).first())throw Error('candidate_changed');
  const detail=await reviewDetail(store,row.id,now,registry,pepper);
  await recordDiscoveryResult(store,source,{url:row.source_url},now,{row:await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first(),validation:detail.validation,result:{outcome,diagnostics}});
- return {id:row.id,outcome,recovered:!!patch,publisherAttempted,nextRetryAt,validation:detail.validation,...(diagnostics?{diagnostics}:{})};
+ return {id:row.id,outcome,recovered:!!patch,publisherAttempted,nextRetryAt,awaitingParserUpdate,failureKind:factFailureKind(outcome),validation:detail.validation,...(diagnostics?{diagnostics}:{})};
 }
 
 // Reuse the receipt-only Morris branch and the normal publication validator.

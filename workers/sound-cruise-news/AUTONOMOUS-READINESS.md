@@ -184,3 +184,37 @@ NEWS公開181、人間判断履歴170、takedown3を維持。公開・Worker配�
 共通修正の最終検証：NEWS/Operator1615 PASS（追加の復旧・parser更新22件を含む）、
 Port NEWS60 PASS、両Worker dry-run、syntax、diff check、秘密情報パターン検査PASS。
 永続workerd D1で予算超過時の復旧→READY、並行実行、ACK replay、再起動を確認。
+
+## 0.43.5: 抽出待ち・identity矛盾・Morris記事失敗の分離
+
+島村製品parser13 / primary-announcement6は、未抽出フィールドと未確認の照合を
+`facts_extraction_incomplete` / `facts_identity_unconfirmed`、明示された同一主題の矛盾を
+`facts_identity_conflict` と区別する。既存factsとの差分保護 `facts_identity_changed` は維持する。
+公式情報を使う既存の補完経路は維持し、未確認値を正式factsへ昇格させない。
+診断はstage、フィールド名、存在/一致の真偽・件数・正規化日付のみ。原文・タイトルは保存しない。
+
+同じparserの同じ抽出失敗は、7日おきにGETする代わりにPARSER_RETRY（解析更新待ち、次回日時なし）にする。
+parser/pipeline更新では既存の通常予算内で自動再評価する。成功証拠・旧版の有効なprovenanceは再利用する。
+明確な矛盾・公式根拠不足は人間確認、HTTP一時障害は既存backoff/予算内の再試行、出典禁止は停止を維持する。
+公開HTTP入力へoverrideや新しい権限は追加しない。通常の取得上限は変更しない。
+
+Morris parser5は明示された公開日だけを一覧/URL公開日と比較し、更新日・開催日・発売日は別の役割として扱う。
+ラベルが不明な異なる日付や形式不正は `facts_date_unconfirmed`、明示公開日の矛盾は `facts_date_changed` で止める。
+datetimeと表示日の矛盾、実在しない日付は通さない。日付役割だけでイベント/製品factsを生成しない。
+記事単位のparser失敗はその候補を保留し、同じ一覧の他の記事を継続する。記事失敗の安全な診断と応答hashを
+既存receiptに残す。出典停止・robots変更・opt-out・401/403/451・redirectは引き続き停止する。
+通信/5xx/429はRetry-After/backoffを尊重し恒久停止と区別するが、Morrisの詳細URL一生1回は失敗時も消費済みのまま。
+過去の失敗receiptや候補を改変・再取得して修復したことにはしない。新migrationなし。
+
+### 11月5日の実記事に関する保証の限界
+
+本番証拠は読取り済みだが、島村の失敗時比較値とMorrisの問題のtime文字列・元HTMLは残っていない。
+従って具体的な実記事の表記を断定せず、実データのブランド/製品/日時や掲載価値を推測で補わない。
+本PRは構造同等の架空入力で分類・再評価・継続・安全境界を検証し、本番候補2件のREADYを主張しない。
+島村は新parserによる許可済み再検証でfactsが成立した場合だけREADY。Morrisは保存済み一覧に十分なfactsがなく、
+使用済み詳細を再取得できないため、許可済みの新しい証拠または人間による独立した確認が必要。
+本番配備・保存済み候補変更・公開は別途承認。Web探索、課金API、cron、予約は変更しない。
+
+最終検証：NEWS/Operator1635 PASS、Port NEWS60 PASS、両Worker dry-run、syntax、diff check PASS。
+新しい境界試験は20件。永続workerd D1で失敗記事と正常記事の混在・再起動・詳細一回性を確認。
+既存のCAS・人間判断・robots・許諾・重複・takedown・公式identity補完の回帰を含む。

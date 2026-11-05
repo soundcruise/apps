@@ -1,3 +1,4 @@
+import {factFailureKind} from './facts-failure.js';
 import {SHIMAMURA_PRODUCT_PARSERS,SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
 import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {PRIMARY_ANNOUNCEMENT_PARSER,PRIMARY_ANNOUNCEMENT_PARSERS} from './primary-announcement.js';
@@ -11,7 +12,7 @@ import {recoverySurface,recoveryCacheKey,missingFacts,resolvedRecoverySurface} f
 import {candidateSnapshot} from './operator-review.js';
 import {saveShadowEvaluation} from './operator-shadow.js';
 import {preparePendingResolution,applyPendingResolution} from './pending-resolution.js';
-export const RECHECK_POLICY='pending-recheck-2';
+export const RECHECK_POLICY='pending-recheck-3';
 const pending=r=>r&&r.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(r.review_status);
 const history=(s,event)=>JSON.stringify([...JSON.parse(s.history_json),event].slice(-20));
 export const deadline=row=>Math.min(row.expires_at,...[row.sale_ends_at,row.event_ends_at].filter(Number.isSafeInteger));
@@ -81,6 +82,9 @@ export async function setPublishInterest(store,input,now,registry,pepper,actor){
 export function recheckOutcome(result,validation){
  if(validation.valid)return validation.relevance?.status==='REVIEW'?'HUMAN_REVIEW_REQUIRED':'RECOVERED_READY';
  if(result?.recovered)return 'RECOVERED_STILL_BLOCKED';
+ if(['conflict','uncertainty'].includes(factFailureKind(result?.outcome)))return 'HUMAN_REVIEW_REQUIRED';
+ if(factFailureKind(result?.outcome)==='extraction')return 'PARSER_RETRY';
+ if(['facts_identity_changed','facts_identity_conflict','facts_date_unconfirmed'].includes(result?.outcome))return 'HUMAN_REVIEW_REQUIRED';
  if(['facts_no_supported_surface','facts_date_changed','facts_release_date_conflict','facts_official_identity_conflict'].includes(result?.outcome))return 'HUMAN_REVIEW_REQUIRED';
  if(['facts_http_404','facts_http_410'].includes(result?.outcome))return 'PERMANENT_INVALID';
  if(/http_|timeout|busy|unavailable|parser_failure|transaction_failed|candidate_changed/.test(result?.outcome||''))return 'TEMPORARY_FETCH_FAILURE';
@@ -139,9 +143,10 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   const deferred=result?.outcome==='facts_daily_budget_deferred';
   const budget=deferred?await recoveryBudget(store,registry.find(s=>s.id===current.source_id),now):null;
   const onceOnlyExhausted=current.source_id==='morris'&&result?.outcome==='facts_not_on_current_surface';
-  const parserFailed=/unbound|identity|scope|parser|evidence_unchanged/.test(result?.outcome||'');
+  const parserWaiting=factFailureKind(result?.outcome)==='extraction'||result?.awaitingParserUpdate===true;
+  const parserFailed=!parserWaiting&&/unbound|identity|scope|parser|evidence_unchanged/.test(result?.outcome||'');
   if(parserFailed&&status!=='HUMAN_REVIEW_REQUIRED')status=state.recheck_attempt_count+(result?.publisherAttempted===false?0:1)>=3?'HUMAN_REVIEW_REQUIRED':'PARSER_RETRY';
-  const next=onceOnlyExhausted||status==='HUMAN_REVIEW_REQUIRED'?null:parserFailed?Math.max(now+1,result?.nextRetryAt||now+7*DAY):status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,budget.nextAt):nextRecheck(current,state.recheck_attempt_count+1,now);
+  const next=onceOnlyExhausted||parserWaiting||status==='HUMAN_REVIEW_REQUIRED'?null:parserFailed?Math.max(now+1,result?.nextRetryAt||now+7*DAY):status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,budget.nextAt):nextRecheck(current,state.recheck_attempt_count+1,now);
   const columns=Object.keys(current),saved=await store.db.prepare(`UPDATE news_pending_lifecycle SET last_rechecked_at=?,next_recheck_at=?,assessed_revision=?,recheck_attempt_count=recheck_attempt_count+?,recheck_status=?,unresolved_reason=?,last_recheck_result=?,recheck_policy_version=?,history_json=?,lease_until=0
  WHERE candidate_id=? AND lease_token=? AND history_json=? AND EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')})`)
  .bind(now,next,current.review_revision,!result||deferred||result?.publisherAttempted===false?0:1,status,validation.errors.join(','),result?.outcome||status,RECHECK_POLICY,history(state,{at:now,actor:'system_recheck',result:status,outcome:result?.outcome||status,revision:current.review_revision,publicationPolicy:DECISION_POLICY_VERSION}),row.id,token,state.history_json,...columns.map(k=>current[k])).run();

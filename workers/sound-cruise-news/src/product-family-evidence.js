@@ -1,3 +1,4 @@
+import {factFailure} from './facts-failure.js';
 import {ikebeTagUrl} from './ikebe-tag-url.js';
 // Bounded series announcements: retain every explicit model, never truncate to four.
 // No brand/model catalogue, release-date inference or classification from category labels.
@@ -57,7 +58,7 @@ export function parseProductFamilyEvidence(html,source,row){
   corroborated=models;
   descriptions=[intro,...find(root,n=>n.name==='p'&&cls(n,'wp-block-paragraph')||/^h[23]$/.test(n.name)).map(plain)];
  }
- if(!name(brand)||models.length<2||models.length>24||models.some(m=>!name(m)))throw Error('facts_identity_changed');
+ if(!name(brand)||models.length<2||models.length>24||models.some(m=>!name(m)))throw factFailure('facts_extraction_incomplete',{stage:'product_family_identity',missingFields:[...(!name(brand)?['brand']:[]),...(models.length<2||models.some(m=>!name(m))?['models']:[])],checks:{modelsCount:models.length}});
  if(models.some(m=>/\b(?:case|stand|pickup|cable|replacement|accessory|pedal)\b/i.test(m)))throw Error('facts_scope_uncertain');
  // Explicit instrument construction, rather than a category or a bare brand tag.
  const instrumentText=descriptions.join(' '),signals=[/ネック/,/指板/,/フレット/,/ピックアップ/,/ブリッジ/].filter(re=>re.test(instrumentText));
