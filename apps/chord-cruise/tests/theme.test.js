@@ -56,7 +56,7 @@ function v3(extra) {
 // ── Storage ───────────────────────────────────────────────────────────────────────────
 (function storageNormalizesThemeWithoutWritingOnLoad() {
     var empty = loadStorage();
-    assert.deepStrictEqual(Array.from(empty.storage.VALID_THEMES), ['dark', 'charcoal', 'gray', 'light']);
+    assert.deepStrictEqual(Array.from(empty.storage.VALID_THEMES), ['dark', 'midnight', 'charcoal', 'gray', 'light']);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(empty.storage.getSettingsDefaults(), 'theme'), false,
         'defaults never inject a theme');
     assert.strictEqual(Object.prototype.hasOwnProperty.call(empty.storage.loadSettings(), 'theme'), false, 'missing stays missing');
@@ -67,7 +67,7 @@ function v3(extra) {
         assert.strictEqual(Object.prototype.hasOwnProperty.call(env.storage.loadSettings(), 'theme'), false, 'invalid ' + value);
         assert.deepStrictEqual(env.store.writes, [], 'invalid value is not rewritten on load');
     });
-    ['dark', 'charcoal', 'gray', 'light'].forEach(function (theme) {
+    ['dark', 'midnight', 'charcoal', 'gray', 'light'].forEach(function (theme) {
         var env = loadStorage({ 'chordCruise.settings': v3({ theme: theme }) });
         assert.strictEqual(env.storage.loadSettings().theme, theme);
     });
@@ -76,7 +76,7 @@ function v3(extra) {
     old.storage.saveSettings({ chordNameSize: 'small' });
     assert.strictEqual(Object.prototype.hasOwnProperty.call(JSON.parse(old.store.values[KEY]), 'theme'), false,
         'saving another setting never adds a theme');
-    ['dark', 'charcoal', 'gray', 'light'].forEach(function (theme) {
+    ['dark', 'midnight', 'charcoal', 'gray', 'light'].forEach(function (theme) {
         var env = loadStorage({ 'chordCruise.settings': v3() });
         assert.strictEqual(env.storage.saveSettings({ theme: theme }), true);
         var saved = JSON.parse(env.store.values[KEY]);
@@ -101,7 +101,7 @@ function fakeButton(attribute, value) {
 
 function loadSettingsUi(seed) {
     var env = loadStorage(seed);
-    var buttons = ['dark', 'charcoal', 'gray', 'light'].map(function (value) { return fakeButton('data-theme-choice', value); });
+    var buttons = ['dark', 'midnight', 'charcoal', 'gray', 'light'].map(function (value) { return fakeButton('data-theme-choice', value); });
     var htmlAttrs = {};
     var head = { children: [], appendChild: function (node) { this.children.push(node); node.parent = this; } };
     var clickHandler = null;
@@ -149,21 +149,21 @@ function loadSettingsUi(seed) {
     var ui = loadSettingsUi({ 'chordCruise.settings': v3() });
     assert.strictEqual(ui.htmlAttrs['data-theme'], 'dark', 'missing theme renders Dark');
     assert.strictEqual(ui.meta(), null, 'Dark adds no theme-color meta (unchanged page)');
-    assert.deepStrictEqual(ui.pressed(), ['true', 'false', 'false', 'false']);
+    assert.deepStrictEqual(ui.pressed(), ['true', 'false', 'false', 'false', 'false']);
     assert.deepStrictEqual(ui.env.store.writes, [], 'opening the app and settings never writes the theme');
 
     ui.tap('light');
     assert.strictEqual(ui.htmlAttrs['data-theme'], 'light', 'applies without reload');
     assert.strictEqual(ui.meta(), '#f7f5ef');
     assert.strictEqual(JSON.parse(ui.env.store.values[KEY]).theme, 'light');
-    assert.deepStrictEqual(ui.pressed(), ['false', 'false', 'false', 'true']);
-    assert(ui.buttons[3].classes.has('cc-settings-choice--active'));
+    assert.deepStrictEqual(ui.pressed(), ['false', 'false', 'false', 'false', 'true']);
+    assert(ui.buttons[4].classes.has('cc-settings-choice--active'));
 
     ui.tap('charcoal');
     assert.strictEqual(ui.htmlAttrs['data-theme'], 'charcoal');
     assert.strictEqual(ui.meta(), '#424346');
     assert.strictEqual(JSON.parse(ui.env.store.values[KEY]).theme, 'charcoal');
-    assert.deepStrictEqual(ui.pressed(), ['false', 'true', 'false', 'false']);
+    assert.deepStrictEqual(ui.pressed(), ['false', 'false', 'true', 'false', 'false']);
 
     ui.tap('gray');
     assert.strictEqual(ui.htmlAttrs['data-theme'], 'gray');
@@ -233,7 +233,7 @@ entries.forEach(function (entry) {
     assert(section.includes('class="cc-settings-choices cc-settings-choices--four" role="group" aria-label="カラーテーマ"'));
     var buttons = Array.from(section.matchAll(/<button type="button" class="cc-settings-choice" data-theme-choice="([a-z]+)" aria-pressed="(true|false)">([^<]+)<\/button>/g));
     assert.deepStrictEqual(buttons.map(function (m) { return [m[1], m[2], m[3]]; }),
-        [['dark', 'true', 'ダーク'], ['charcoal', 'false', 'チャコール'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']], name + ': four theme choices');
+        [['dark', 'true', 'ダーク'], ['midnight', 'false', 'ミッドナイト'], ['charcoal', 'false', 'チャコール'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']], name + ': four theme choices');
 });
 assert.strictEqual(entries[0][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/)[0],
     entries[1][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/)[0], 'Standard and Pro share one bootstrap');
@@ -296,7 +296,7 @@ assert(!BOOTSTRAP_RE.test(read('pro-access.html')), 'the PRO access page keeps t
         list.forEach(function (selector) {
             selector = selector.trim();
             if (!selector) return;
-            assert(/^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\((?:\[data-theme="charcoal"\], )?\[data-theme="gray"\], \[data-theme="light"\]\))/.test(selector), selector);
+            assert(selector === ':root:is([data-midnight="true"], [data-studio-theme="midnight"])' || /^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\((?:\[data-theme="charcoal"\], )?\[data-theme="gray"\], \[data-theme="light"\]\))/.test(selector), selector);
         });
     });
     // Information pages: only colors and shadows are themed; the gold PRO button and badges keep their gold.

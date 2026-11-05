@@ -40,6 +40,10 @@
     /* Gold used as text, focus ring or thin line. Dark keeps --cc-gold-bright. */
     --cc-accent-text: var(--cc-gold-bright);
 }
+/* Five theme choices remain readable on narrow screens. */
+.theme-choice-group,.settings-theme-buttons,#rc-theme-seg,.cc-settings-choices[aria-label="カラーテーマ"] { display:grid!important; grid-template-columns:repeat(auto-fit,minmax(86px,1fr))!important; gap:6px; }
+.theme-choice-group>button,.settings-theme-buttons>button,#rc-theme-seg>button,.cc-settings-choices[aria-label="カラーテーマ"]>button { width:auto!important; min-width:0!important; max-width:none; min-height:36px; white-space:normal; }
+
 
 html[data-cc-fret-number-size="xsmall"] { --cc-fret-number-size: 12px; }
 html[data-cc-fret-number-size="small"] { --cc-fret-number-size: 14px; }
@@ -4618,3 +4622,27 @@ body.cc-settings-open {
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-fb-host:not(.cc-fb-host--monochrome) .cc-fb-mute::before,
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-fb-host:not(.cc-fb-host--monochrome) .cc-fb-mute::after { box-shadow: 0 0 0 1px rgba(28, 27, 24, 0.7); }
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-folder-shelf-board { color: var(--cc-text); }
+
+/* Midnight shares the existing theme layer and stored theme field. */
+:root:is([data-midnight="true"], [data-studio-theme="midnight"]) {
+    color-scheme: dark;
+    --cc-bg: #10151c;
+    --cc-surface: #1d2631;
+    --cc-surface-raised: #1d2631;
+    --cc-border: rgba(228, 198, 124, 0.22);
+    --cc-border-strong: rgba(228, 198, 124, 0.4);
+    --cc-text: #f2f1ed;
+    --cc-text-muted: #d2cec5;
+    --cc-text-faint: #c6c2b9;
+    --cc-ink-rgb: 242, 241, 237;
+    --cc-neutral-rgb: 205, 200, 188;
+    --cc-well-rgb: 40, 41, 44;
+    --cc-chrome-rgb: 72, 73, 77;
+    --cc-overlay-bg-rgb: 66, 67, 70;
+    --cc-sheet-top: #1d2631;
+    --cc-sheet-bottom: #1d2631;
+    --cc-card-top: #1d2631;
+    --cc-card-bottom: #1d2631;
+    --cc-overlay: rgba(15, 15, 16, 0.55);
+    --cc-shadow-alpha: 0.3;
+}

@@ -53,8 +53,8 @@ test('head bootstrap runs before every stylesheet and resolves only the four the
 });
 
 test('settings expose カラーテーマ with four choices, previewed and reverted on cancel', () => {
-  assert.match(script, /const FRETBOARD_THEMES = \['dark', 'charcoal', 'gray', 'light'\];/);
-  assert.match(script, /\{ dark: 'ダーク', charcoal: 'チャコール', gray: 'グレー', light: 'ライト' \}/);
+  assert.match(script, /const FRETBOARD_THEMES = \['dark', 'midnight', 'charcoal', 'gray', 'light'\];/);
+  assert.match(script, /\{ dark: 'ダーク', midnight: 'ミッドナイト', charcoal: 'チャコール', gray: 'グレー', light: 'ライト' \}/);
   assert.match(script, /id="settings-theme-title">カラーテーマ</);
   // Theme selection is allowed in Standard (no guardStandardSettingsMutation in its handler).
   const handler = script.slice(script.indexOf("document.querySelectorAll('.settings-theme-buttons .mode-btn')"));
@@ -110,7 +110,7 @@ test('generated layer only applies under Charcoal / Gray / Light and keeps objec
       if (depth === 0 || !sel.startsWith('@')) {
         if (!/^@(media|supports|keyframes)/.test(sel) && !/^((from|to|\d+(\.\d+)?%)\s*,?\s*)+$/.test(sel)) {
           for (const part of sel.split(/,\s*(?![^()]*\))/)) {
-            assert(part.trim().startsWith(scope) || /^:root(\[data-theme="(charcoal|gray|light)"\]|:is\((\[data-theme="(charcoal|gray|light)"\](, )?)+\))/.test(part.trim()),
+            assert(part.trim() === ':root:is([data-midnight="true"], [data-studio-theme="midnight"])' || part.trim().startsWith(scope) || /^:root(\[data-theme="(charcoal|gray|light)"\]|:is\((\[data-theme="(charcoal|gray|light)"\](, )?)+\))/.test(part.trim()),
               `layer selector is theme-scoped: ${part.trim().slice(0, 120)}`);
           }
         }
@@ -164,7 +164,7 @@ test('theme writer: an explicit theme is sent, an unset one never is, a reader-f
   assert.equal(sent({ theme: 'sepia', tempo: 96 }).theme, undefined, 'invalid values are never sent');
   assert.deepEqual({ ...sent({ theme: 'gray' }) }, { theme: 'gray' }, 'a theme-only settings record');
   assert.equal(sent({}), undefined, 'nothing to send: no settings record');
-  for (const theme of ['dark', 'charcoal', 'gray', 'light']) api.validateSnapshot(remoteSettings({ tempo: 90, theme }));
+  for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) api.validateSnapshot(remoteSettings({ tempo: 90, theme }));
   assert.throws(() => api.validateSnapshot(remoteSettings({ tempo: 90, theme: 'sepia' })));
 });
 
@@ -230,7 +230,7 @@ test('information pages follow the theme with the app bootstrap; content is unch
       assert.deepEqual(runBootstrap(html, value), { theme, meta }, `${file} ${value}`);
     }
     assert.equal(runBootstrap(html, null, true).theme, 'dark', `${file}: storage error is Dark`);
-    const original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '');
+    const original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '').replace(/(?<!pro-)(theme\.css\?v=)[\d.]+/g, '$1407'); // Normalize only the app stylesheet cache key for the content hash.
     assert.equal(await sha256(original), originalHash, `${file}: text, links and navigation unchanged`);
     const css = read(layerHref.slice(2, -3));
     assert.doesNotMatch(css, /\.neck-|\.note-marker|\.fret-wire|\.string-line/, `${layerHref}: no fretboard object rules`);
