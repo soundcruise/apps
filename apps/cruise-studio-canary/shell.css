@@ -537,3 +537,11 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .studio-main .sheet-toolbar-actions{flex-wrap:wrap;overflow-x:visible}
 .studio-main .sheet-toolbar-actions > *{max-width:100%}
 .studio-main .pd-table-wrap{max-width:100%;min-width:0}
+
+/* Keep the last action above the iPhone home indicator and optional bottom Dock. */
+:root { --studio-safe-bottom: env(safe-area-inset-bottom, 0px); }
+@media screen and (max-width: 600px) {
+    .studio-main { scroll-padding-block: 12px calc(16px + var(--studio-safe-bottom)); }
+    .studio-main .studio-container { padding-bottom: calc(12px + var(--studio-safe-bottom)); }
+    .studio-dock { padding-bottom: calc(6px + var(--studio-safe-bottom)); }
+}
