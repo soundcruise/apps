@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';
 export async function acceptDeletedRestart({profile,bootstrapPro,createAccount,check,db,nativeClient,normalGear,OUT}){
+ if(process.env.STUDIO_LOCAL_CREATION_ONLY==='1')return check('isolated existing score/PreDTM save reload JSON MIDI PDF acceptance',async()=>{
+  const p=await profile('local-creation',false);await bootstrapPro(p);
+  await p.page.goto('https://soundcruise.jp/apps/cruise-studio/index.html');await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());
+  const receipt=await(await import('./score-return.acceptance.mjs')).acceptLocalCreation(p.page,OUT);
+  fs.writeFileSync(OUT+'/local-creation.json',JSON.stringify(receipt,null,2));
+ });
+ if(process.env.STUDIO_INVITATION_VISIBILITY_ONLY==='1')return acceptInvitationVisibility({profile,bootstrapPro,createAccount,check,OUT});
  if(process.env.STUDIO_RESTART_GUARDS_ONLY==='1')return acceptReleaseGuards({profile,bootstrapPro,createAccount,check,db,normalGear,OUT});
- for(let repetition=0;repetition<(process.env.STUDIO_RESTART_FOCUSED==='1'?3:1);repetition++)for(const surface of (process.env.STUDIO_RESTART_FOCUSED==='1'||process.env.STUDIO_RELEASE_RACE_BASELINE==='1'?['studio']:['port','studio']))for(const deleted of (process.env.STUDIO_RESTART_FOCUSED==='1'||process.env.STUDIO_RELEASE_RACE_BASELINE==='1'?['deleted']:['deleting','deleted','invalid']))for(const mode of (process.env.STUDIO_RESTART_FOCUSED==='1'||process.env.STUDIO_RELEASE_RACE_BASELINE==='1'?['connect']:['create','connect']))await check(surface+' '+deleted+' restart '+mode+' retains old UNKNOWN and local data',async()=>{
+ for(let repetition=0;repetition<(process.env.STUDIO_RESTART_FOCUSED==='1'?3:1);repetition++)for(const surface of (process.env.STUDIO_RESTART_FOCUSED==='1'||(process.env.STUDIO_RELEASE_RACE_BASELINE==='1'||process.env.STUDIO_SYNC_JOIN_INTERRUPTED==='1')?['studio']:['port','studio']))for(const deleted of (process.env.STUDIO_RESTART_FOCUSED==='1'||(process.env.STUDIO_RELEASE_RACE_BASELINE==='1'||process.env.STUDIO_SYNC_JOIN_INTERRUPTED==='1')?['deleted']:['deleting','deleted','invalid']))for(const mode of (process.env.STUDIO_RESTART_FOCUSED==='1'||(process.env.STUDIO_RELEASE_RACE_BASELINE==='1'||process.env.STUDIO_SYNC_JOIN_INTERRUPTED==='1')?['connect']:['create','connect']))await check(surface+' '+deleted+' restart '+mode+' retains old UNKNOWN and local data',async()=>{
   const p=await profile(surface+'-'+deleted+'-'+mode+'-'+repetition,false);await bootstrapPro(p);const account=await createAccount(p);
   await p.page.goto('https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/#sync-center');await p.page.locator('#sync-center-view').waitFor({state:'visible'});await normalGear(p.page,'Retained old local instrument');
 
@@ -59,6 +66,16 @@ export async function acceptDeletedRestart({profile,bootstrapPro,createAccount,c
   await f.locator(mode==='create'?'#sync-center-setup':'#sync-center-port-connect').waitFor({state:'visible'});
   if(raceRoute)await p.context.unroute('**/v2/accounts/summary',raceRoute);
   assert.equal(await p.page.evaluate(async()=>await SoundCruiseSyncAccount.storage.getAccount()),null);
+  if(process.env.STUDIO_SYNC_JOIN_INTERRUPTED==='1'){
+   // Code issuance happens in another browser. Returning to Sync after a
+   // workspace/visibility interruption must still finish the native join.
+   await p.page.locator('button[data-workspace=home]').click();
+   await p.page.locator('#home-cruise-sync').click();
+   f=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();
+   await f.waitForFunction(()=>document.body.dataset.componentState==='ready');
+   await f.locator('#sync-center-port-connect-open').click();
+   await f.locator('#sync-center-port-connect').waitFor({state:'visible'});
+  }
   if(releaseSummary){
    fs.writeFileSync(OUT+'/'+surface+'-'+deleted+'-'+mode+'-release-race.json',JSON.stringify({nativeReturnRefreshCompleted:true,credentialReleased:true,nativeDialogVisible:true,requests:evidence},null,2));
    if(surface==='studio'&&deleted==='deleted'&&mode==='connect')await p.page.screenshot({path:OUT+'/fixed-release-dialog.png',mask:[f.locator('[data-sensitive]')]});
@@ -72,13 +89,52 @@ console.log('SETUP_GEOMETRY',surface,await f.locator('#sync-center-setup-confirm
    await f.locator('#sync-center-port-connect-name').fill('Synthetic restart environment');await f.locator('#sync-center-port-connect-input').fill(invitation.displayJoinCode);await f.locator('#sync-center-port-connect-confirm').click();if(surface==='port')await f.waitForFunction(()=>document.getElementById('sync-center-port-connect-close').hidden===false);else await p.page.waitForFunction(()=>!document.querySelector('#port-sync-surface iframe')?.contentDocument?.querySelector('#sync-center-port-connect[open]'));
   }
   if(surface==='studio'){await p.page.waitForFunction(()=>document.querySelector('#port-sync-surface iframe')?.contentDocument?.body?.dataset.componentState==='ready');f=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();}
-  if(surface==='studio'){assert.equal(await p.page.locator('#port-sync-surface [data-entry-owner-hold]').count(),0);assert.equal(await p.page.locator('#port-sync-surface iframe').evaluate(e=>e.inert),false);}
+  if(surface==='studio'){
+   const handoff={ownerHold:await p.page.locator('#port-sync-surface [data-entry-owner-hold]').count(),inert:await p.page.locator('#port-sync-surface iframe').evaluate(e=>e.inert)};
+   if(process.env.STUDIO_SYNC_JOIN_INTERRUPTED==='1')fs.writeFileSync(OUT+'/interrupted-join-handoff.json',JSON.stringify(handoff,null,2));
+   assert.equal(handoff.ownerHold,0);assert.equal(handoff.inert,false);
+  }
   const changed=await f.evaluate(async oldId=>{const a=await SoundCruiseSyncAccount.storage.getAccount(),old=await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:oldId}).listOutbox();return{different:!!a?.accountId&&a.accountId!==oldId,oldRetained:old.some(o=>o.operationId==='retain-unknown'&&o.state==='UNKNOWN'),newPortCredential:!!await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:a.accountId}).readMeta('credential'),rawRetained:Object.values(localStorage).some(s=>s.includes('Retained old local instrument'))};},account.accountId);
   if(project){assert(project.bytes);assert.equal(await p.page.evaluate(id=>localStorage.getItem('cruiseStudio.project.'+id),project.id),project.bytes);}
   assert(changed.different);assert(changed.oldRetained);assert(changed.rawRetained);assert.equal(changed.newPortCredential,false);
 
  });
  if(process.env.STUDIO_RESTART_RELEASE_GUARDS==='1')await acceptReleaseGuards({profile,bootstrapPro,createAccount,check,db,normalGear,OUT});
+}
+
+async function acceptInvitationVisibility({profile,bootstrapPro,createAccount,check,OUT}) {
+ await check('Studio retains native addition code across browser visibility change',async()=>{
+  const p=await profile('invitation-visibility',false);await bootstrapPro(p);await createAccount(p);
+  await p.page.goto('https://soundcruise.jp/apps/cruise-studio/index.html');
+  await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());await p.page.locator('#home-cruise-sync').click();
+  const f=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();
+  await f.locator('[data-sync-port-add-environment]').click();
+  await f.locator('dialog[data-sync-join-invitation][open]').waitFor({state:'visible'});
+  const invitation=await f.evaluate(()=>({id:document.querySelector('dialog[data-sync-join-invitation]').dataset.syncJoinInvitation,code:document.querySelector('.sync-center-join-code').textContent}));
+  const status=()=>p.page.evaluate(async id=>{
+   const r=SoundCruiseSyncAccount,c=new r.AccountClient({endpoint:'https://sound-cruise-sync.cruise-port-requests.workers.dev',storage:r.storage,core:r.core,admissionMode:'production'});
+   return c.request('/v2/accounts/port-join-invitations?invitationId='+encodeURIComponent(id),{accountCredential:(await r.storage.getAccount()).accountCredential});
+  },invitation.id);
+  assert.equal((await status()).state,'active');
+  await p.page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
+  const kept=await p.page.locator('#port-sync-surface iframe').count();
+  if(process.env.STUDIO_EXPECT_CODE_LOSS==='1'){
+   assert.equal(kept,0);
+   await p.page.goto('https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/#sync-center');
+   const denied=p.page.waitForResponse(r=>new URL(r.url()).pathname==='/v2/accounts/port-join-invitations'&&r.request().method()==='POST');
+   await p.page.locator('[data-sync-port-add-environment]').click();
+   const response=await denied,body=await response.json(),refusal={status:response.status(),code:body.code};
+   assert.deepEqual(refusal,{status:409,code:'port_join_already_active'});
+   fs.writeFileSync(OUT+'/orphan-invitation.json',JSON.stringify({iframeLost:true,invitationState:(await status()).state,...refusal},null,2));return;
+  }
+  assert.equal(kept,1);assert.equal(await f.locator('.sync-center-join-code').textContent(),invitation.code);
+  assert.equal((await status()).state,'active');
+  await p.page.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});
+  const cancelled=p.page.waitForResponse(r=>new URL(r.url()).pathname==='/v2/accounts/port-join-invitations/cancel');
+  await f.locator('dialog[data-sync-join-invitation] button',{hasText:'閉じる'}).click();
+  await cancelled;
+  assert.equal((await status()).state,'cancelled');
+ });
 }
 
 // Disposable profiles only: exercise native failure UI and the REAL Account DB CAS.

@@ -1,0 +1,6 @@
+{
+  "iframeLost": true,
+  "invitationState": "active",
+  "status": 409,
+  "code": "port_join_already_active"
+}
