@@ -1,0 +1,43 @@
+{
+  "status": "FAIL",
+  "tests": [
+    {
+      "name": "port deleting restart create retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "port deleting restart connect retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "port deleted restart create retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "port deleted restart connect retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "port invalid restart create retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "port invalid restart connect retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "studio deleting restart create retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "studio deleting restart connect retains old UNKNOWN and local data",
+      "status": "PASS"
+    },
+    {
+      "name": "studio deleted restart create retains old UNKNOWN and local data",
+      "status": "PASS"
+    }
+  ],
+  "error": "locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-deleted-account-restart]') to be visible\u001b[22m\n\n    at /private/tmp/sync-account-restart/apps/cruise-studio/tests/deleted-account-restart.acceptance.mjs:12:53\n    at async check (/private/tmp/restart-final6-restart-webkit/project-product-run.mjs:19:392)\n    at async Module.acceptDeletedRestart (/private/tmp/sync-account-restart/apps/cruise-studio/tests/deleted-account-restart.acceptance.mjs:3:134)\n    at async file:///private/tmp/restart-final6-restart-webkit/project-product-run.mjs:120:2",
+  "errors": []
+}

@@ -2,7 +2,7 @@ import { getAttentionGuide } from './sync-attention-ui.mjs?v=1.26.1';
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.25.1';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.27.0';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
@@ -535,7 +535,7 @@ export function renderPortStatus(root, presentation, onRecheck = null) {
         structured: presentation.portStructuredStatus || { conflictCount: presentation.portConflictCount }, assets: presentation.portAssetStatus,
         online: presentation.portOnline, status });
     const activate = root.querySelector('#port-sync-activate');
-    if (activate) activate.hidden = ['unset', 'deleting'].includes(presentation.accountState) || ['checking', 'syncing', 'synced'].includes(status.state) || shouldShowPortConflictAction(presentation);
+    if (activate) activate.hidden = presentation.restartAccount || ['unset', 'deleting'].includes(presentation.accountState) || ['checking', 'syncing', 'synced'].includes(status.state) || shouldShowPortConflictAction(presentation);
     const legacyRetry = root.querySelector('#sync-center-port-legacy-retry');
     if (legacyRetry) legacyRetry.hidden = checking || !presentation.legacyRetryCount;
 }
@@ -687,7 +687,7 @@ function confirmDeleteCancellation(root, appName) {
 }
 
 export function renderSyncCenter(root, presentation, {
-    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false, onResolveApp = null, onResolvePort = null
+    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false, onResolveApp = null, onResolvePort = null, onRestartDeletedAccount = null
 } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
@@ -695,6 +695,12 @@ export function renderSyncCenter(root, presentation, {
     const setupOpen = root.querySelector('#sync-center-setup-open');
     const portConnectOpen = root.querySelector('#sync-center-port-connect-open');
     const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
+    let restart=root.querySelector('[data-deleted-account-restart]');
+    if(!restart){restart=document.createElement('section');restart.dataset.deletedAccountRestart='';const copy=document.createElement('p');copy.setAttribute('role','status');copy.textContent='このAccountは削除済み、または削除処理中です。古いAccountへの同期は停止しています。削除処理の完了を待たずに再スタートできます。接続資格だけを解除し、ローカルデータ・未送信データは保持します。別Accountへ自動送信しません。';restart.append(copy);for(const [mode,label] of [['create','新しいAccountを作成'],['connect','既存Accountに接続']]){const button=document.createElement('button');button.type='button';button.className='sync-center-account-action';button.dataset.restartMode=mode;button.textContent=label;restart.append(button);}root.querySelector('.sync-center-account-actions')?.append(restart);}
+    restart.hidden=!presentation.restartAccount;
+    restart.querySelector('p').textContent=(presentation.deletedAccount?'このAccountは削除済み、または削除処理中です。':'以前のAccount接続資格はサーバーに無効と判定されました。削除済みかどうかは断定できません。')+' 古い資格での同期は停止しています。接続資格だけを解除して、新規作成または既存Account接続へ進めます。ローカルデータ・未送信データは保持し、別Accountへ自動送信しません。';
+    for(const button of restart.querySelectorAll('button')){button.disabled=!onRestartDeletedAccount;button.onclick=async()=>{if(!globalThis.confirm('以前のAccountの接続資格だけをこのブラウザから解除します。ローカルデータ・未送信Outbox・制作Projectは削除も別Accountへの移管もしません。続けますか？'))return;button.disabled=true;try{await onRestartDeletedAccount?.(button.dataset.restartMode);}catch{const alert=root.querySelector('#sync-center-alert');if(alert){alert.hidden=false;alert.textContent='接続資格を解除できませんでした。通信または接続先の変更を確認してから再確認してください。保存データは保持しています。';}}finally{button.disabled=false;}};}
+
     const recoveryOpen = root.querySelector('#sync-center-recovery-open');
     const recoveryHelp = root.querySelector('#sync-center-recovery-help');
     const accountActionRow = root.querySelector('.sync-center-account-action-row');
@@ -705,7 +711,7 @@ export function renderSyncCenter(root, presentation, {
     if (accountActionRow) accountActionRow.dataset.syncAccountState = accountState || 'unknown';
     const accountDisplayId = root.querySelector('#sync-center-account-display-id');
     if (accountStatus) {
-        accountStatus.textContent = accountState === 'unset' ? '未作成' :
+        accountStatus.textContent = presentation.restartAccount ? (presentation.deletedAccount?'削除済み・削除処理中':'以前の接続資格が無効') : accountState === 'unset' ? '未作成' :
             accountState === 'active' ? '作成済み' : accountState === 'deleting' ? '削除中' : '確認が必要';
         accountStatus.dataset.syncAccountState = accountState || 'unknown';
     }
@@ -732,7 +738,7 @@ export function renderSyncCenter(root, presentation, {
     const alert = root.querySelector('#sync-center-alert');
     if (alert) {
         alert.hidden = !['error', 'offline'].includes(presentation.kind);
-        alert.textContent = presentation.kind === 'offline'
+        alert.textContent = presentation.restartAccount ? '上の操作から接続資格だけを解除して再スタートできます。端末内のデータは削除しません。' : presentation.kind === 'offline'
             ? 'オフラインのため同期情報を更新できません。各アプリとCruise Portはそのまま利用できます。'
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }

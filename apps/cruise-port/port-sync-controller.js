@@ -209,7 +209,7 @@
         const client = new accountRoot.AccountClient({ endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage,
           core: accountRoot.core, admissionMode, qaScope: 'port', assertCurrent: guard, signal: lifetime.signal });
         runtime = new syncRoot.MultiAppSyncRuntime({ appId: 'port', endpoint: config.endpoint, adapter, store,
-          accountClient: client, accountCore: accountRoot.core, admissionMode, fetchImpl, hostLifecycle: true, assertCurrent: guard, assertCurrentAsync: accountGuard });
+          accountClient: client, accountCore: accountRoot.core, admissionMode, fetchImpl, hostLifecycle: true, retainTerminalIdentity: true, assertCurrent: guard, assertCurrentAsync: accountGuard });
         runtime.identity = Object.freeze({ accountId, appId: 'port', generation: epoch });
         for (const name of ['sync', 'initializeDataset', 'resolveConflict', 'retryLegacyFailures']) {
           const original = runtime[name];
