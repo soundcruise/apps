@@ -1,0 +1,306 @@
+diff --git a/apps/cruise-studio/index.html b/apps/cruise-studio/index.html
+index 9d3ebf22..a00e8e73 100644
+--- a/apps/cruise-studio/index.html
++++ b/apps/cruise-studio/index.html
+@@ -9 +9 @@
+-    <script src="js/core/color-theme.js?v=0.77.0"></script>
++    <script src="js/core/color-theme.js?v=0.78.0"></script>
+@@ -14 +14 @@
+-    <link rel="stylesheet" href="entry.css?v=0.77.0">
++    <link rel="stylesheet" href="entry.css?v=0.78.0">
+@@ -21 +21 @@
+-    <link rel="stylesheet" href="theme-projection.css?v=0.77.0">
++    <link rel="stylesheet" href="theme-projection.css?v=0.78.0">
+@@ -24,10 +24,10 @@
+-    <link rel="stylesheet" href="theme.css?v=0.77.0">
+-    <link rel="stylesheet" href="melody-staff.css?v=0.77.0">
+-    <link rel="stylesheet" href="melody-editor.css?v=0.77.0">
+-    <link rel="stylesheet" href="chord-form.css?v=0.77.0">
+-    <link rel="stylesheet" href="rhythm-panel.css?v=0.77.0">
+-    <link rel="stylesheet" href="print.css?v=0.77.0" media="print">
+-    <link rel="stylesheet" href="shell.css?v=0.77.0">
+-    <link rel="stylesheet" href="studio-home.css?v=0.77.0">
+-    <link rel="stylesheet" href="studio-tools.css?v=0.77.0">
+-    <link rel="stylesheet" href="port-tuner-surface.css?v=0.77.0">
++    <link rel="stylesheet" href="theme.css?v=0.78.0">
++    <link rel="stylesheet" href="melody-staff.css?v=0.78.0">
++    <link rel="stylesheet" href="melody-editor.css?v=0.78.0">
++    <link rel="stylesheet" href="chord-form.css?v=0.78.0">
++    <link rel="stylesheet" href="rhythm-panel.css?v=0.78.0">
++    <link rel="stylesheet" href="print.css?v=0.78.0" media="print">
++    <link rel="stylesheet" href="shell.css?v=0.78.0">
++    <link rel="stylesheet" href="studio-home.css?v=0.78.0">
++    <link rel="stylesheet" href="studio-tools.css?v=0.78.0">
++    <link rel="stylesheet" href="port-tuner-surface.css?v=0.78.0">
+@@ -39 +39 @@
+-    <link rel="stylesheet" href="port-pc.css?v=0.77.0">
++    <link rel="stylesheet" href="port-pc.css?v=0.78.0">
+@@ -47 +47 @@
+-                <button type="button" data-workspace="home" title="ホーム"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg?v=0.77.0#house"></use></svg>Home</button>
++                <button type="button" data-workspace="home" title="ホーム"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg?v=0.78.0#house"></use></svg>Home</button>
+@@ -50 +50 @@
+-                <button type="button" data-workspace="portSync" title="AccountとSync"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg?v=0.77.0#sliders-horizontal"></use></svg>Account・Sync</button>
++                <button type="button" data-workspace="portSync" title="Cruise Sync"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 16.5a4.5 4.5 0 0 0-1.1-8.86A7 7 0 0 0 5.4 9.4a4 4 0 0 0 .6 7.1Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Cruise Sync</button>
+@@ -79,2 +79,2 @@
+-                <h1>クルーズスタジオ</h1><p>音楽のワークスペース</p>
+-                <span class="studio-version" id="studio-version">v0.77.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
++                <div class="studio-header-title"><div><span class="studio-header-eyebrow">CRUISE STUDIO <span aria-hidden="true">／</span> MUSIC WORKSPACE</span><h1>クルーズスタジオ</h1></div><button type="button" class="studio-header-sync" id="home-cruise-sync" aria-label="Cruise Syncを開く" title="Cruise Sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 16.5a4.5 4.5 0 0 0-1.1-8.86A7 7 0 0 0 5.4 9.4a4 4 0 0 0 .6 7.1Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div><p>弾き語りストのワークスペース</p>
++                <span class="studio-version" id="studio-version">v0.78.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
+@@ -107 +107 @@
+-            <p class="home-project-storage-note">制作Projectはこのブラウザに保存します。Cruise Syncの対象外です。JSONでバックアップできます。</p>
++            <p class="home-project-storage-note">制作Projectはこのブラウザに保存します。JSONでバックアップできます。</p>
+@@ -109 +109 @@
+-            <section class="module-section" data-port-sync-status aria-label="Account・Cruise Sync"></section>
++            <div data-port-sync-status hidden aria-hidden="true"></div>
+@@ -527 +527 @@
+-    <script src="js/core/music-theory.js?v=0.77.0"></script>
++    <script src="js/core/music-theory.js?v=0.78.0"></script>
+@@ -531,41 +531,41 @@
+-    <script src="js/modules/chord/read-model.js?v=0.77.0"></script>
+-    <script src="js/modules/chord/inspector.js?v=0.77.0"></script>
+-    <script src="js/core/rhythm-snapshot.js?v=0.77.0"></script>
+-    <script src="js/core/schema2.js?v=0.77.0"></script>
+-    <script src="js/core/melody-commands.js?v=0.77.0"></script>
+-    <script src="js/core/song-model.js?v=0.77.0"></script>
+-    <script src="js/core/storage.js?v=0.77.0"></script>
+-    <script src="js/core/editing-session.js?v=0.77.0"></script>
+-    <script src="js/core/project-repository.js?v=0.77.0"></script>
+-    <script src="js/core/active-document.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/history-commands.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.77.0"></script>
+-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.77.0"></script>
+-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.77.0"></script>
+-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.77.0"></script>
+-    <script src="js/core/common-music-model.js?v=0.77.0"></script>
+-    <script src="js/core/structure-conversion.js?v=0.77.0"></script>
+-    <script src="vendor/vexflow.js?v=0.77.0"></script>
+-    <script src="js/core/melody-notation.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.77.0"></script>
+-    <script src="js/core/port-frame-theme.js?v=0.77.0"></script>
+-    <script src="js/core/command-router.js?v=0.77.0"></script>
+-    <script src="js/core/focus-routing.js?v=0.77.0"></script>
+-    <script src="js/core/keyboard-router.js?v=0.77.0"></script>
+-    <script src="js/core/modal-manager.js?v=0.77.0"></script>
+-    <script src="js/core/workspace-scroll.js?v=0.77.0"></script>
+-    <script src="js/shell.js?v=0.77.0"></script>
+-    <script src="js/core/app-refresh.js?v=0.77.0"></script>
+-    <script src="js/core/native-port-presentation.js?v=0.77.0"></script>
+-    <script src="js/modules/practice/port-surface.js?v=0.77.0"></script>
+-    <script src="js/modules/tuner/port-surface.js?v=0.77.0"></script>
+-    <script src="js/modules/metronome/port-surface.js?v=0.77.0"></script>
+-    <script src="js/modules/library/port-surface.js?v=0.77.0"></script>
+-    <script src="js/core/audio-coordinator.js?v=0.77.0"></script>
+-    <script src="js/modules/series/workspaces.js?v=0.77.0"></script>
+-    <script src="js/score-workspace.js?v=0.77.0"></script>
+-    <script src="js/port-pc.js?v=0.77.0"></script>
++    <script src="js/modules/chord/read-model.js?v=0.78.0"></script>
++    <script src="js/modules/chord/inspector.js?v=0.78.0"></script>
++    <script src="js/core/rhythm-snapshot.js?v=0.78.0"></script>
++    <script src="js/core/schema2.js?v=0.78.0"></script>
++    <script src="js/core/melody-commands.js?v=0.78.0"></script>
++    <script src="js/core/song-model.js?v=0.78.0"></script>
++    <script src="js/core/storage.js?v=0.78.0"></script>
++    <script src="js/core/editing-session.js?v=0.78.0"></script>
++    <script src="js/core/project-repository.js?v=0.78.0"></script>
++    <script src="js/core/active-document.js?v=0.78.0"></script>
++    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.78.0"></script>
++    <script src="js/modules/sheet-cruise/history-commands.js?v=0.78.0"></script>
++    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.78.0"></script>
++    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.78.0"></script>
++    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.78.0"></script>
++    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.78.0"></script>
++    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.78.0"></script>
++    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.78.0"></script>
++    <script src="js/core/common-music-model.js?v=0.78.0"></script>
++    <script src="js/core/structure-conversion.js?v=0.78.0"></script>
++    <script src="vendor/vexflow.js?v=0.78.0"></script>
++    <script src="js/core/melody-notation.js?v=0.78.0"></script>
++    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.78.0"></script>
++    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.78.0"></script>
++    <script src="js/core/port-frame-theme.js?v=0.78.0"></script>
++    <script src="js/core/command-router.js?v=0.78.0"></script>
++    <script src="js/core/focus-routing.js?v=0.78.0"></script>
++    <script src="js/core/keyboard-router.js?v=0.78.0"></script>
++    <script src="js/core/modal-manager.js?v=0.78.0"></script>
++    <script src="js/core/workspace-scroll.js?v=0.78.0"></script>
++    <script src="js/shell.js?v=0.78.0"></script>
++    <script src="js/core/app-refresh.js?v=0.78.0"></script>
++    <script src="js/core/native-port-presentation.js?v=0.78.0"></script>
++    <script src="js/modules/practice/port-surface.js?v=0.78.0"></script>
++    <script src="js/modules/tuner/port-surface.js?v=0.78.0"></script>
++    <script src="js/modules/metronome/port-surface.js?v=0.78.0"></script>
++    <script src="js/modules/library/port-surface.js?v=0.78.0"></script>
++    <script src="js/core/audio-coordinator.js?v=0.78.0"></script>
++    <script src="js/modules/series/workspaces.js?v=0.78.0"></script>
++    <script src="js/score-workspace.js?v=0.78.0"></script>
++    <script src="js/port-pc.js?v=0.78.0"></script>
+@@ -575,6 +575,6 @@
+-    <script type="module" src="js/modules/series/official-links.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/core/studio-entry.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/port-sync-status.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.77.0"></script>
++    <script type="module" src="js/modules/series/official-links.mjs?v=0.78.0"></script>
++    <script type="module" src="js/core/studio-entry.mjs?v=0.78.0"></script>
++    <script type="module" src="js/port-sync-status.mjs?v=0.78.0"></script>
++    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.78.0"></script>
++    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.78.0"></script>
++    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.78.0"></script>
+diff --git a/apps/cruise-studio/js/core/component-metadata.mjs b/apps/cruise-studio/js/core/component-metadata.mjs
+index e5c96b26..560b0584 100644
+--- a/apps/cruise-studio/js/core/component-metadata.mjs
++++ b/apps/cruise-studio/js/core/component-metadata.mjs
+@@ -32 +32 @@ const components = Object.freeze([
+-        'APP_VERSION', '0.77.0')
++        'APP_VERSION', '0.78.0')
+diff --git a/apps/cruise-studio/js/core/song-model.js b/apps/cruise-studio/js/core/song-model.js
+index cdbe60d5..d0745391 100644
+--- a/apps/cruise-studio/js/core/song-model.js
++++ b/apps/cruise-studio/js/core/song-model.js
+@@ -11 +11 @@
+-    var APP_VERSION = '0.77.0';
++    var APP_VERSION = '0.78.0';
+diff --git a/apps/cruise-studio/js/modules/chord/form-panel.mjs b/apps/cruise-studio/js/modules/chord/form-panel.mjs
+index c2b9ff2c..e33aaf6d 100644
+--- a/apps/cruise-studio/js/modules/chord/form-panel.mjs
++++ b/apps/cruise-studio/js/modules/chord/form-panel.mjs
+@@ -1,3 +1,3 @@
+-import { createChordFormAdapter } from './form-adapter.mjs?v=0.77.0';
+-import { createFormAdoptionService } from './form-adoption.mjs?v=0.77.0';
+-import { getAppVersion } from '../../core/component-metadata.mjs?v=0.77.0';
++import { createChordFormAdapter } from './form-adapter.mjs?v=0.78.0';
++import { createFormAdoptionService } from './form-adoption.mjs?v=0.78.0';
++import { getAppVersion } from '../../core/component-metadata.mjs?v=0.78.0';
+diff --git a/apps/cruise-studio/js/modules/library/port-surface.js b/apps/cruise-studio/js/modules/library/port-surface.js
+index f5bd5570..2dfaa7aa 100644
+--- a/apps/cruise-studio/js/modules/library/port-surface.js
++++ b/apps/cruise-studio/js/modules/library/port-surface.js
+@@ -105 +105 @@
+-            setPhase('loading', 'CRUISE STUDIO · 読み込み中…');
++            setPhase('loading', config.kind === 'sync' ? 'Cruise Syncに移動しています。' : 'CRUISE STUDIO · 読み込み中…');
+diff --git a/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs b/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs
+index 9b6b5223..45bf678f 100644
+--- a/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs
++++ b/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs
+@@ -2 +2 @@
+-import {createOfficialRhythmAdapter} from './official-pattern-adapter.mjs?v=0.77.0';
++import {createOfficialRhythmAdapter} from './official-pattern-adapter.mjs?v=0.78.0';
+diff --git a/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs b/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs
+index e619116f..0890042a 100644
+--- a/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs
++++ b/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs
+@@ -2 +2 @@
+-import {createRhythmAdoptionService} from './pattern-adoption.mjs?v=0.77.0';
++import {createRhythmAdoptionService} from './pattern-adoption.mjs?v=0.78.0';
+diff --git a/apps/cruise-studio/js/modules/rhythm/panel.mjs b/apps/cruise-studio/js/modules/rhythm/panel.mjs
+index 7f4cd7e6..18d37781 100644
+--- a/apps/cruise-studio/js/modules/rhythm/panel.mjs
++++ b/apps/cruise-studio/js/modules/rhythm/panel.mjs
+@@ -32 +32 @@ export function mountRhythmPanel({C,document:doc,loader}){
+-    function initializeControl(){if(!initialization)initialization=Promise.all([import('./owner-loader.mjs?v=0.77.0'),import('./panel-controller.mjs?v=0.77.0')]).then(([l,c])=>{selectionBarIds=c.selectionBarIds;control=c.createRhythmPanelController({owner:C.documents,schema:C.model.schema2,rhythmSnapshots:C.rhythmSnapshots,repository:C.repository,getContext:context,getSelection:C.sheetCruise.getSelectionSnapshot,loader:loader||l.createOwnerLoader()});});return initialization;}
++    function initializeControl(){if(!initialization)initialization=Promise.all([import('./owner-loader.mjs?v=0.78.0'),import('./panel-controller.mjs?v=0.78.0')]).then(([l,c])=>{selectionBarIds=c.selectionBarIds;control=c.createRhythmPanelController({owner:C.documents,schema:C.model.schema2,rhythmSnapshots:C.rhythmSnapshots,repository:C.repository,getContext:context,getSelection:C.sheetCruise.getSelectionSnapshot,loader:loader||l.createOwnerLoader()});});return initialization;}
+diff --git a/apps/cruise-studio/js/modules/series/workspaces.js b/apps/cruise-studio/js/modules/series/workspaces.js
+index 1c5062c9..1a19e8d0 100644
+--- a/apps/cruise-studio/js/modules/series/workspaces.js
++++ b/apps/cruise-studio/js/modules/series/workspaces.js
+@@ -8 +8 @@
+-  CS.seriesApps[id]={pause:silence,refreshLayout(){mounted?.refreshLayout();},claimAudio(){if(!CS.audio||!CS.entryAuth?.isAuthorized())return false;if(!handle)handle=CS.audio.register({sessionId:'series-'+id,ownerFeatureId:'series-'+id,cleanup:silence});const lease=CS.audio.request(handle,'audio-output/session');return !!lease&&CS.audio.grant(handle,lease);},activate(){if(mounted)return;reload.hidden=true;const turn=++epoch;host().textContent='読み込み中…';import('./internal-app.mjs?v=0.77.0').then(m=>m.mount(id,host(),()=>epoch===turn)).then(result=>{if(epoch===turn)mounted=result;else result?.dispose();}).catch(()=>{if(epoch===turn)host().textContent='アプリを読み込めません。もう一度開いてください。';});},deactivate:stop,async refresh(){if(CS.seriesApps[id].requestLeave())return;await stop();CS.seriesApps[id].activate();},requestLeave(){return !!mounted?.iframe.contentWindow?.studioAppDirty&&!confirm('入力内容が変更されています。アプリ内で保存済みか確認してください。画面を閉じますか？');}};
++  CS.seriesApps[id]={pause:silence,refreshLayout(){mounted?.refreshLayout();},claimAudio(){if(!CS.audio||!CS.entryAuth?.isAuthorized())return false;if(!handle)handle=CS.audio.register({sessionId:'series-'+id,ownerFeatureId:'series-'+id,cleanup:silence});const lease=CS.audio.request(handle,'audio-output/session');return !!lease&&CS.audio.grant(handle,lease);},activate(){if(mounted)return;reload.hidden=true;const turn=++epoch;host().textContent='読み込み中…';import('./internal-app.mjs?v=0.78.0').then(m=>m.mount(id,host(),()=>epoch===turn)).then(result=>{if(epoch===turn)mounted=result;else result?.dispose();}).catch(()=>{if(epoch===turn)host().textContent='アプリを読み込めません。もう一度開いてください。';});},deactivate:stop,async refresh(){if(CS.seriesApps[id].requestLeave())return;await stop();CS.seriesApps[id].activate();},requestLeave(){return !!mounted?.iframe.contentWindow?.studioAppDirty&&!confirm('入力内容が変更されています。アプリ内で保存済みか確認してください。画面を閉じますか？');}};
+diff --git a/apps/cruise-studio/js/port-pc.js b/apps/cruise-studio/js/port-pc.js
+index ab91de1c..ea77ffab 100644
+--- a/apps/cruise-studio/js/port-pc.js
++++ b/apps/cruise-studio/js/port-pc.js
+@@ -5 +5 @@
+-    CS.portPC=Object.freeze({version:'0.77.0'});
++    CS.portPC=Object.freeze({version:'0.78.0'});
+@@ -14,0 +15 @@
++    document.getElementById('home-cruise-sync').addEventListener('click', function(){CS.shellHost.navigate('portSync');});
+diff --git a/apps/cruise-studio/studio-home.css b/apps/cruise-studio/studio-home.css
+index 897e8924..19b81289 100644
+--- a/apps/cruise-studio/studio-home.css
++++ b/apps/cruise-studio/studio-home.css
+@@ -212,0 +213,14 @@
++
++/* Home identity and existing Sync entry. */
++.studio-main #screen-home .studio-header { position:relative; padding:30px 0 25px; border-bottom:1px solid var(--studio-border-default); }
++.studio-header-title { display:flex; align-items:center; gap:20px; }
++.studio-header-eyebrow { display:block; margin-bottom:12px; color:var(--studio-text-muted); font-size:10px; font-weight:600; letter-spacing:.18em; }
++.studio-header-eyebrow span { color:var(--studio-accent-text); padding:0 5px; }
++.studio-main #screen-home .studio-header h1 { margin:0; font-size:clamp(28px,3.1vw,42px); letter-spacing:.06em; font-weight:600; }
++.studio-main #screen-home .studio-header > p { margin:12px 0 20px; color:var(--studio-text-muted); letter-spacing:.06em; }
++.studio-header-sync { display:grid; place-items:center; width:42px; height:42px; flex:none; border:1px solid var(--studio-border-default); border-radius:10px; color:var(--studio-text-primary); background:var(--studio-control); cursor:pointer; }
++.studio-header-sync svg { width:23px; height:23px; }
++.studio-header-sync:hover { background:var(--studio-control-hover); }
++.studio-header-sync:focus-visible { outline:2px solid var(--studio-focus); outline-offset:3px; }
++.studio-main #screen-home #studio-refresh { min-height:30px; padding:4px 9px; font-size:11px; }
++@media (max-width:600px) { .studio-main #screen-home .studio-header { padding:22px 0 20px; } .studio-header-title { gap:12px; } .studio-header-eyebrow { font-size:9px; letter-spacing:.12em; } }
+diff --git a/apps/cruise-studio/tests/chord-form-adapter.test.mjs b/apps/cruise-studio/tests/chord-form-adapter.test.mjs
+index d7884a40..12bf6275 100644
+--- a/apps/cruise-studio/tests/chord-form-adapter.test.mjs
++++ b/apps/cruise-studio/tests/chord-form-adapter.test.mjs
+@@ -181 +181 @@ test('adapter stays pure and the product explicitly connects only owner CAGED pl
+-    assert.match(read('../index.html'), /form-panel.mjs\?v=0.77.0/);
++    assert.match(read('../index.html'), /form-panel.mjs\?v=0.78.0/);
+diff --git a/apps/cruise-studio/tests/color-theme.test.mjs b/apps/cruise-studio/tests/color-theme.test.mjs
+index 9f1556f5..caec33fe 100644
+--- a/apps/cruise-studio/tests/color-theme.test.mjs
++++ b/apps/cruise-studio/tests/color-theme.test.mjs
+@@ -271 +271 @@ test('Theme does not couple to Feature Metadata / Port runtime / Sync / project
+-    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.77.0'/);
++    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.78.0'/);
+diff --git a/apps/cruise-studio/tests/component-version-cache.test.mjs b/apps/cruise-studio/tests/component-version-cache.test.mjs
+index 13e234fe..953b0a6b 100644
+--- a/apps/cruise-studio/tests/component-version-cache.test.mjs
++++ b/apps/cruise-studio/tests/component-version-cache.test.mjs
+@@ -65,3 +65,3 @@ test('F3: published internal ESM dependencies resolve inside the release and sha
+-test('0.77.0 release identity and recursively reachable Studio module cache paths', () => {
+-    assert.equal(getAppVersion('cruise-studio'), '0.77.0');
+-    assert.match(html, /id="studio-version">v0\.77\.0<\/span>/);
++test('0.78.0 release identity and recursively reachable Studio module cache paths', () => {
++    assert.equal(getAppVersion('cruise-studio'), '0.78.0');
++    assert.match(html, /id="studio-version">v0\.78\.0<\/span>/);
+@@ -71 +71 @@ test('0.77.0 release identity and recursively reachable Studio module cache path
+-        if (url.search) assert.equal(url.search, '?v=0.77.0', url.href);
++        if (url.search) assert.equal(url.search, '?v=0.78.0', url.href);
+diff --git a/apps/cruise-studio/tests/project-canary.acceptance.mjs b/apps/cruise-studio/tests/project-canary.acceptance.mjs
+index 8ec7deeb..f736bba6 100644
+--- a/apps/cruise-studio/tests/project-canary.acceptance.mjs
++++ b/apps/cruise-studio/tests/project-canary.acceptance.mjs
+@@ -34,0 +35,4 @@ export function canaryAcceptance({db,mf,src,check,network,OUT,profile,bootstrapP
++  await check('synthetic Pro challenge preflight preserves the expected CORS contract',async()=>{
++   const r=await mf.dispatchFetch('http://native.fixture.invalid/v2/pro-auth/device-session/challenge',{method:'OPTIONS',headers:{Origin:'https://soundcruise.jp','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}});
++   assert(r.status>=200&&r.status<300);assert.equal(r.headers.get('access-control-allow-origin'),'https://soundcruise.jp');assert.match(r.headers.get('access-control-allow-methods')||'',/POST/i);assert.match(r.headers.get('access-control-allow-headers')||'',/content-type/i);
++  });
+diff --git a/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs b/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
+index bfaaf989..fd631354 100644
+--- a/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
++++ b/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
+@@ -11 +11 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+- if(baseline){await cloud(390,844,'before-cloud-390');await p.locator('button[data-workspace=home]').click();await p.screenshot({path:OUT+'/ui-'+engine+'-before-home-390.png'});fs.writeFileSync(OUT+'/UI-'+engine+'.json',JSON.stringify(evidence,null,2));return;}
++ if(baseline){await cloud(390,844,'before-cloud-390');await p.locator('button[data-workspace=home]').click();for(const width of [390,1440]){await p.setViewportSize({width,height:width===390?844:1000});await p.evaluate(()=>{CruiseStudio.colorTheme.setColorTheme('midnight');document.querySelector('#studio-main').scrollTop=0;});await settle();await p.screenshot({path:OUT+'/header-before-'+width+'.png'});}fs.writeFileSync(OUT+'/UI-'+engine+'.json',JSON.stringify(evidence,null,2));return;}
+@@ -29 +29 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+-  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-bpm').fill(String(before===103?104:103));await p.locator('#sc-bpm').press('Tab');assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));
++  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-bpm').fill(String(before===103?104:103));await p.locator('#sc-bpm').press('Tab');assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));await p.locator('#studio-refresh').evaluate(e=>e.click());assert.match(await p.locator('#studio-refresh-status').textContent(),/保存/);assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));
+@@ -52,0 +53,17 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
++ await check('Home header and Sync navigation retain the existing Account observer',async()=>{
++  await p.locator('button[data-workspace=home]').click();
++  assert.equal(await p.locator('.studio-header > p').textContent(),'弾き語りストのワークスペース');
++  assert(await p.locator('[data-port-sync-status]').isHidden());
++  assert(await p.evaluate(()=>typeof CruiseStudio.accountStatus?.refresh==='function'));
++  for(const width of [390,768,1024,1440]){await p.setViewportSize({width,height:width<600?844:1000});await settle();for(const theme of ['dark','midnight','charcoal','gray','light']){await p.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);assert(await p.locator('#home-cruise-sync').isVisible());assert(await p.locator('#studio-refresh').isVisible());assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}await p.evaluate(()=>{CruiseStudio.colorTheme.setColorTheme('midnight');document.querySelector('#studio-main').scrollTop=0;});await settle();await p.screenshot({path:OUT+'/header-'+engine+'-'+width+'.png'});}
++  const loading=await p.evaluate(()=>{document.querySelector('#home-cruise-sync').click();return document.querySelector('#port-sync-status').textContent;});assert.equal(loading,'Cruise Syncに移動しています。');assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portSync');
++  await p.locator('button[data-workspace=home]').click();await p.locator('button[data-workspace=portSync]').click();assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portSync');
++  await p.evaluate(()=>CruiseStudio.accountStatus.refresh());assert(await p.evaluate(()=>!!CruiseStudio.accountStatus.diagnostics().state));
++  await p.locator('button[data-workspace=home]').click();
++  // Keep the two reload checks sequential: navigation cancels in-flight auth and Project requests in WebKit.
++  await p.waitForLoadState('networkidle');
++  await p.reload();await p.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized()&&typeof CruiseStudio.accountStatus?.refresh==='function');
++  await p.waitForFunction(()=>document.querySelector('#home-cruise-sync')&&!document.querySelector('#studio-shell').inert);
++  await p.waitForLoadState('networkidle');
++  await Promise.all([p.waitForEvent('load'),p.locator('#studio-refresh').click()]);await p.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized()&&typeof CruiseStudio.accountStatus?.refresh==='function');await p.waitForLoadState('networkidle');
++ });
