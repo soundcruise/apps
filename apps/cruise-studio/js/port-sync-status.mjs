@@ -38,6 +38,20 @@ export function createAccountObservation({storage, summary, format=id=>id, allow
     return Object.freeze({read:()=>state,confirmed:()=>confirmed,refresh,invalidate,dispose(){disposed=true;revision++;}});
 }
 
+export function describeSyncConnection(s={}) {
+ const rows={
+ checking:['接続を確認中','保存済みの接続情報を確認しています。','同期状況を見る'],
+ disconnected:['未接続','このブラウザにはAccountの接続情報がありません。接続済みのPortで追加コードを発行し、ここで入力してください。新規作成は不要です。','既存Accountに接続'],
+ connected:['接続済み','Accountを確認しました。各アプリの同期状況は下のPort Sync Centerで確認できます。','同期状況を見る'],
+ stored:['接続情報あり','以前の接続情報を保持しています。Pro認証後に確認できます。','接続を復旧する'],
+ attention:['接続情報あり・再確認が必要','以前の接続情報と未送信データを保持しています。再確認で解消しない場合は、下のPort Sync Centerの接続・復旧手順を確認してください。','接続を復旧する'],
+ offline:['オフライン','接続情報・ローカル保存・未送信データを保持しています。通信復帰後に再確認してください。','同期状況を見る'],
+ error:['一時的に接続を確認できません','通信に失敗しました。未接続や資格失効とは判定していません。保存情報を保持しています。通信を確認して再試行してください。','同期状況を見る']
+ };
+ const [title,detail,action]=rows[s.state]||rows.checking;
+ return {title,detail,action,recheck:!['checking','disconnected'].includes(s.state)};
+}
+
 if(typeof window!=='undefined'){
     const CS=window.CruiseStudio,root=window.SoundCruiseSyncAccount,node=document.querySelector('[data-port-sync-status]');
     const client=new root.AccountClient({endpoint:'https://sound-cruise-sync.cruise-port-requests.workers.dev',admissionMode:'production',storage:root.storage});
@@ -51,11 +65,30 @@ if(typeof window!=='undefined'){
     }
     const labels={checking:'接続先を確認中…',disconnected:'未接続',stored:'端末内に接続情報があります。Pro認証後に確認します。',connected:'接続先を確認しました',error:'通信失敗。接続情報・端末内データは保持しています。',offline:'オフライン。接続情報・端末内データは保持しています。',attention:'接続資格の確認が必要です。接続情報は変更していません。'};
     const frames=new Map();
+    const visible=document.createElement('section');visible.className='studio-account-guide';visible.setAttribute('aria-label','Cruise Sync接続');
+    visible.innerHTML='<h2 data-connection-title></h2><p data-connection-detail role="status"></p><p data-connection-id></p><button type="button" class="btn-primary" data-connection-action></button><button type="button" class="btn-ghost" data-connection-recheck>Accountの資格を再確認</button><p>「資格を再確認」は接続先の確認です。下の「同期を開始・再開」は、この端末でPortのデータ同期を動かす操作です。</p><details><summary>以前のAccountへ戻るには</summary><ol><li>接続済みのPortで「アカウントを同期」から追加コードを発行します。</li><li>下のPort Sync Centerの「既存のアカウントに接続」で追加コードを入力します。</li><li>Account番号を照合します。Pro認証の番号とは別です。</li></ol><p>以前の接続情報がある場合は、まず再確認してください。別Accountへの切替は正規の確認手順に従い、未送信データを自動移管しません。</p></details>';
+    document.getElementById('port-sync-surface').before(visible);
+    visible.querySelector('[data-connection-recheck]').onclick=()=>void observation.refresh();
+    visible.querySelector('[data-connection-action]').onclick=()=>{
+        const frame=document.querySelector('#port-sync-surface iframe'),doc=frame?.contentDocument;
+        const connect=doc?.getElementById('sync-center-port-connect-open');
+        if(observation.read().state==='disconnected'&&connect&&!connect.hidden&&!connect.disabled){frame.scrollIntoView({block:'start'});connect.click();return;}
+        const target=doc?.querySelector('.sync-center-account');
+        if(target){target.scrollIntoView({block:'start'});target.setAttribute('tabindex','-1');target.focus({preventScroll:true});}
+    };
     const guide='<details data-account-guide><summary>いつものAccountに接続するには</summary><ol><li>iPhoneのPort（ホーム画面）とSafariでは、接続情報・保存データが別になる場合があります。Safariで未接続でも、PortのAccountが消えたわけではありません。</li><li>いつものPortの「アカウントを同期」から追加コードを発行します。</li><li>このStudioの「Account・Syncを開く」から「既存のアカウントに接続」を選び、追加コードを入力します。新しいAccountの作成や復旧コードの更新は不要です。</li><li>両方のAccount番号が同じことを確認します。Pro認証の番号とは別です。</li></ol><p>このブラウザに別Accountや未同期データがある場合は、先に内容を保全して既存の正規手順で判断してください。自動切替・移管・統合はしません。Macでは別のブラウザprofileを使う方法も選べます。</p></details>';
     node.innerHTML='<h2>Account・Cruise Sync</h2><p data-account-status role="status"></p><p data-account-target></p><p data-account-origin>このブラウザで接続したAccountを使用します。新規作成やデータ移管は自動では行いません。</p><p>Accountの確認と、保存データの同期完了は別です。</p><button type="button" class="btn-ghost" data-open-sync>Account・Syncを開く</button> <button type="button" class="btn-ghost" data-check-account>接続先を確認</button>'+guide;
     function text(node,value){if(node.textContent!==value)node.textContent=value;}
     function renderBox(box,s){
         box.dataset.studioAccountState=s.state;
+        const copy=describeSyncConnection(s);visible.dataset.connectionState=s.state;
+        text(visible.querySelector('[data-connection-title]'),copy.title);text(visible.querySelector('[data-connection-detail]'),copy.detail);
+        text(visible.querySelector('[data-connection-id]'),s.displayId||'');text(visible.querySelector('[data-connection-action]'),copy.action);
+        const frame=document.querySelector('#port-sync-surface iframe'),native=frame?.contentDocument?.getElementById('sync-center-view');
+        const connect=native?.querySelector('#sync-center-port-connect-open');
+        visible.querySelector('[data-connection-action]').disabled=!native||s.state==='checking'||(s.state==='disconnected'&&(!connect||connect.hidden||connect.disabled));
+        visible.querySelector('[data-connection-recheck]').hidden=!copy.recheck;
+        window.dispatchEvent(new CustomEvent('studio-account-observed',{detail:{state:s.state}}));
         text(box.querySelector('[data-account-status]'),CS.entryAuth?.isAuthorized()?'Studio：Pro認証済み'+(CS.entryAuth.read().offline?'（オフライン猶予）':''):'Studio：Pro認証を確認してください。入力内容は保持しています。');
         text(box.querySelector('[data-account-target]'),'Cruise Sync：'+(s.displayId?s.displayId+' — ':'')+labels[s.state]);
         box.querySelector('[data-check-account]').disabled=s.state==='checking';
@@ -67,19 +100,21 @@ if(typeof window!=='undefined'){
         if(frames.has(frame))return;
         const doc=frame.contentDocument,view=doc?.getElementById('sync-center-view');if(!view)return;
         // Diagnostics only: no native status projection, reader, API or controls.
+        renderBox(node,observation.read());
         const record={view,attachedAt:performance.now(),nativeFirstStateMs:view.dataset.syncState?0:null};
         record.observer=new MutationObserver(()=>{
             if(!frame.isConnected){record.observer.disconnect();frames.delete(frame);return;}
+            renderBox(node,observation.read());
             if(record.nativeFirstStateMs===null&&view.dataset.syncState)record.nativeFirstStateMs=performance.now()-record.attachedAt;
         });
-        record.observer.observe(view,{attributes:true,attributeFilter:['data-sync-state']});frames.set(frame,record);
+        record.observer.observe(view,{attributes:true,subtree:true,attributeFilter:['data-sync-state','hidden','disabled']});frames.set(frame,record);
         frame.contentWindow.addEventListener('pagehide',event=>{if(event.isTrusted){record.observer.disconnect();frames.delete(frame);}});
     }
     let lastReady=false;
     const entryObserver=new MutationObserver(()=>{const ready=CS.entryAuth?.isAuthorized()===true;if(ready!==lastReady){lastReady=ready;void observation.refresh();}else {renderBox(node,observation.read());}});
     entryObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-studio-entry']});
     const unwatch=root.storage.subscribeAccount(()=>{observation.invalidate();void observation.refresh();});
-    CS.accountStatus=Object.freeze({attachFrame,refresh:observation.refresh,diagnostics:()=>({state:observation.read().state,errorCode:observation.read().errorCode,timings:{...observation.read().timings},entry:CS.entryAuth?.diagnostics?.(),requests:{...requestTimings},frames:[...frames].map(([frame,r])=>({iframeReadyMs:frame.studioReadyMs??null,nativeFirstStateMs:r.nativeFirstStateMs,nativeState:r.view.dataset.syncState}))})});
+    CS.accountStatus=Object.freeze({attachFrame,read:observation.read,refresh:observation.refresh,diagnostics:()=>({state:observation.read().state,errorCode:observation.read().errorCode,timings:{...observation.read().timings},entry:CS.entryAuth?.diagnostics?.(),requests:{...requestTimings},frames:[...frames].map(([frame,r])=>({iframeReadyMs:frame.studioReadyMs??null,nativeFirstStateMs:r.nativeFirstStateMs,nativeState:r.view.dataset.syncState}))})});
     CS.attachAccountFrame=attachFrame;
     for(const frame of document.querySelectorAll('iframe')){try{attachFrame(frame);}catch{}}
     void observation.refresh();
