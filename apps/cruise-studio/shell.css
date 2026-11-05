@@ -566,9 +566,6 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .studio-nav-workspaces .nav-icon { grid-row:1; align-self:center; }
 .home-tools .pc-home-grid svg.home-tool-icon { width:76px; height:76px; flex-shrink:0; }
 .calendar-icon { fill:none; stroke:currentColor; stroke-width:1.5; color:var(--studio-accent-text); }
-.studio-account-guide { padding:20px; border:1px solid var(--studio-border-default); border-radius:12px; margin-bottom:16px; }
-.studio-account-guide p { line-height:1.7; }
-.studio-account-guide button { margin:4px 8px 4px 0; }
 @media(max-width:600px){.home-tools .pc-home-grid svg.home-tool-icon { width:64px; height:64px; }}
 .studio-main .studio-container { display:flex; flex-direction:column; }
 .studio-footer { order:100; }
@@ -576,3 +573,8 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 
 .studio-main .studio-container { padding-bottom:max(24px,calc(clamp(180px,42cqh,480px) - var(--studio-footer-space,0px) + var(--studio-safe-bottom,0px))); }
 .studio-nav-workspaces [data-open-calendar] { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:center; column-gap:8px; }
+
+/* Native Port owns the Sync controls; Studio's Project entry follows it quietly. */
+.studio-main .studio-project-sync-summary { background:transparent; border:0; border-top:1px solid var(--studio-border-default); padding:20px 0; box-shadow:none; }
+.studio-main .studio-project-sync-summary h2 { font-size:1rem; }
+.studio-header-sync .cruise-sync-image { width:32px; height:32px; object-fit:contain; }
