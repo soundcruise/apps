@@ -9,6 +9,7 @@ export async function acceptProEdition({profile,bootstrapPro,createAccount,check
   assert.equal(await page.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);assert(await page.locator('#studio-shell').evaluate(e=>e.inert));
  });
  await bootstrapPro(p);await page.goto(entry);await page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
+ if(process.env.STUDIO_DESIGN_REVIEW==='1')return(await import('./pro-design-review.acceptance.mjs')).acceptDesignReview({p,check,OUT,root,entry});
  await check('Pro-only Home; 5 themes × 4 widths; original icons and Port badge',async()=>{
   assert.equal(await page.evaluate(async()=>SoundCruiseSyncAccount.storage.getAccount()),null);
   const matrix=[];

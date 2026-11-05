@@ -14,3 +14,9 @@ test('authored icons use separate light faces without filters or theme persisten
  for(const name of ['home','sheet','predtm','myapps','calendar','sync']){assert.notEqual(read('assets/tool-'+name+'.svg'),read('assets/tool-'+name+'-light.svg'));}
  const theme=read('js/core/studio-icon-theme.js');assert.match(theme,/subscribeColorTheme/);assert(!/localStorage|setColorTheme/.test(theme));
 });
+
+test('design revision keeps transparent light Calendar/Sync and one music app silhouette',()=>{
+ for(const name of ['calendar','sync'])assert(!read('assets/tool-'+name+'-light.svg').includes('fill="url(#face)"'));
+ assert.match(read('assets/tool-calendar-light.svg'),/mask="url\(#open-face\)"/);
+ for(const suffix of ['', '-light']){const svg=read('assets/tool-myapps'+suffix+'.svg');assert.match(svg,/<ellipse cx="229"/);assert.match(svg,/width="280" height="280" rx="58"/);assert(!svg.includes('width="118"'));}
+});

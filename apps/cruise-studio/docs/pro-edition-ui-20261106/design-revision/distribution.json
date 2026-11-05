@@ -1,0 +1,11 @@
+{
+  "matched": 192,
+  "changedFiles": [
+    "apps/cruise-studio/assets/tool-myapps.svg",
+    "apps/cruise-studio/assets/tool-myapps-light.svg",
+    "apps/cruise-studio/assets/tool-calendar-light.svg",
+    "apps/cruise-studio/assets/tool-sync-light.svg"
+  ],
+  "other188Unchanged": true,
+  "standardEntryAbsent": true
+}

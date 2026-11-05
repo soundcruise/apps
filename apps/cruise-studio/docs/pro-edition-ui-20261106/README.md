@@ -1,10 +1,12 @@
 # Studio 0.85.0 Pro edition / UI candidate
 
+**Final design review:** [corrected palette screenshots and musical My Apps icon](design-revision/README.md). Earlier images below captured ongoing CSS transitions and are retained only as historical evidence; use the revision record for final colors.
+
 Base: `7f7e07212ae50554f8eaf703764cd46bccacf53a` (public Studio 0.84.2 / Port 1.27.1). Port version stays unchanged. All browser runs use disposable synthetic profiles and intercepted network; no real Safari or real Account was modified.
 
 ## Design
 
-Original metallic SVGs replace sidebar Sheet / PreDTM and Studio My Apps. Sheet uses paper, staff and notes; PreDTM uses multiple tracks and waveform; My Apps uses four app tiles. Home uses a recognizable roof / wall / doorway instead of a line icon. Original Home large Sheet / PreDTM artwork is unchanged. Optical sheet sizing was adjusted after rendering.
+Original metallic SVGs replace sidebar Sheet / PreDTM and Studio My Apps. Sheet uses paper, staff and notes; PreDTM uses multiple tracks and waveform; My Apps now uses one rounded musical app tile (see final revision). Home uses a recognizable roof / wall / doorway instead of a line icon. Original Home large Sheet / PreDTM artwork is unchanged. Optical sheet sizing was adjusted after rendering.
 
 Home Pro badge follows Port's thin gold border, small gold type, rounded corners and restrained gradient. Existing title size remains unchanged. Calendar / Sync and the four new icons use authored light-face SVG variants in gray / light; midnight / dark / charcoal keep the darker metallic faces. The existing colorTheme subscriber swaps image URLs immediately without changing theme storage. CSS filters are disabled only on these authored assets.
 
