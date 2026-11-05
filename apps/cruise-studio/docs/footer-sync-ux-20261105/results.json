@@ -1,0 +1,98 @@
+{
+  "ux-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "shared footer, official information links and guarded refresh across widths",
+        "status": "PASS"
+      },
+      {
+        "name": "no Account: existing native addition-code dialog; Project hidden",
+        "status": "PASS"
+      },
+      {
+        "name": "normal Account; Project permission separate; communication failure and recovery retain storage",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "ux-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "shared footer, official information links and guarded refresh across widths",
+        "status": "PASS"
+      },
+      {
+        "name": "no Account: existing native addition-code dialog; Project hidden",
+        "status": "PASS"
+      },
+      {
+        "name": "normal Account; Project permission separate; communication failure and recovery retain storage",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "scroll-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Home and 4 app initial states, colors, manual settings and viewport scrolling",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 1440",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 1024",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 768",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 390",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "scroll-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Home and 4 app initial states, colors, manual settings and viewport scrolling",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 1440",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 1024",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 768",
+        "status": "PASS"
+      },
+      {
+        "name": "center surfaces keep one scrollbar and reachable bottom controls at 390",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "realCredentialsUsed": false
+  },
+  "package": {
+    "files": 179,
+    "jekyllHashesMatch": true
+  }
+}

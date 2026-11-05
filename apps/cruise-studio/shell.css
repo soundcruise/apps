@@ -554,3 +554,25 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .cruise-sync-icon .sync-arrows{stroke:var(--studio-accent,#c9af73)}
 .pc-home-grid .cruise-sync-icon{width:48px;height:48px;margin-inline:auto}
 @media print{.studio-main .studio-container{padding-bottom:0}}
+
+/* Shared footer remains in the outer scroller, followed by existing reading space. */
+.studio-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:14px; margin-top:48px; padding:24px 12px; border-top:1px solid var(--studio-border-default); color:var(--studio-text-muted); font-size:12px; }
+.studio-footer > span:first-child { letter-spacing:.14em; }
+.studio-footer button, #studio-information button { font:inherit; padding:8px 12px; color:var(--studio-text-primary); background:var(--studio-control); border:1px solid var(--studio-border-default); border-radius:8px; cursor:pointer; }
+#studio-information { max-width:min(440px,90vw); color:var(--studio-text-primary); background:var(--studio-panel); border:1px solid var(--studio-border-default); border-radius:16px; padding:24px; }
+#studio-information::backdrop { background:rgb(0 0 0 / .65); }
+#studio-information nav { display:grid; gap:16px; margin-block:24px; }
+#studio-information a { color:var(--studio-accent-text); }
+.studio-nav-workspaces .nav-icon { grid-row:1; align-self:center; }
+.home-tools .pc-home-grid svg.home-tool-icon { width:76px; height:76px; flex-shrink:0; }
+.calendar-icon { fill:none; stroke:currentColor; stroke-width:1.5; color:var(--studio-accent-text); }
+.studio-account-guide { padding:20px; border:1px solid var(--studio-border-default); border-radius:12px; margin-bottom:16px; }
+.studio-account-guide p { line-height:1.7; }
+.studio-account-guide button { margin:4px 8px 4px 0; }
+@media(max-width:600px){.home-tools .pc-home-grid svg.home-tool-icon { width:64px; height:64px; }}
+.studio-main .studio-container { display:flex; flex-direction:column; }
+.studio-footer { order:100; }
+@media print { .studio-footer { display:none; } }
+
+.studio-main .studio-container { padding-bottom:max(24px,calc(clamp(180px,42cqh,480px) - var(--studio-footer-space,0px) + var(--studio-safe-bottom,0px))); }
+.studio-nav-workspaces [data-open-calendar] { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:center; column-gap:8px; }

@@ -18,7 +18,7 @@
         const originalHeight = frame.style.height;
         function update() {
             queued = false;
-            if (!frame.isConnected) { disposed = true; resize?.disconnect(); changes?.disconnect(); placement.disconnect(); return; }
+            if (!frame.isConnected) { disposed = true; resize?.disconnect(); changes?.disconnect(); placement.disconnect(); document.getElementById('studio-main')?.removeEventListener('scroll',schedule); return; }
             if (!doc?.body || !frame.getClientRects().length) return;
             const center = !frame.closest('#tool-window-slot');
             const style = doc.getElementById('studio-center-height');
@@ -27,6 +27,11 @@
                 const css = doc.createElement('style'); css.id = 'studio-center-height';
                 css.textContent = 'html,body{height:auto!important;min-height:0!important} body{overflow-y:visible!important} body>.app-container,body>.cc-app,body>.port-shell{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important} .app-container:has(>#overlay:not(.hidden))>header,.app-container:has(>#overlay:not(.hidden))>main{display:none!important} .app-container>#overlay{position:relative!important;inset:auto!important;height:auto!important;min-height:0!important;overflow:visible!important} .app-container>#overlay>.modal{max-height:none!important;overflow-y:visible!important}';
                 doc.head.append(css);
+            }
+            const viewport=document.getElementById('studio-main'),bounds=viewport.getBoundingClientRect(),frameBounds=frame.getBoundingClientRect();
+            for(const dialog of doc.querySelectorAll('.sync-center-help-dialog[open]')){
+                const top=Math.max(12,bounds.top-frameBounds.top+12)+'px',limit=Math.max(120,bounds.height-32)+'px';
+                for(const [key,value] of Object.entries({top, maxHeight:limit, margin:'0px auto', bottom:'auto'}))if(dialog.style[key]!==value)dialog.style[key]=value;
             }
             let bottom = doc.body.getBoundingClientRect().bottom + frame.contentWindow.scrollY;
             for (const child of doc.body.children) {
@@ -46,6 +51,7 @@
             } catch (_) { /* Cross-origin documents keep their native scrolling. */ }
         }
         const placement = new MutationObserver(schedule); placement.observe(document.getElementById('studio-shell'), {subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
+        document.getElementById('studio-main')?.addEventListener('scroll',schedule,{passive:true});
         frame.addEventListener('load', bind); heightOwners.set(frame, {schedule}); bind();
     }
     document.addEventListener('load', event => { if (event.target instanceof HTMLIFrameElement) attachHeight(event.target); }, true);
