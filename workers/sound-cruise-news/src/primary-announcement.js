@@ -6,8 +6,8 @@ import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {releaseDateFields} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-6';
-export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4','primary-announcement-5',PRIMARY_ANNOUNCEMENT_PARSER]);
+export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-7';
+export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4','primary-announcement-5','primary-announcement-6',PRIMARY_ANNOUNCEMENT_PARSER]);
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -18,7 +18,7 @@ const identity=s=>typeof s==='string'&&s.length>=2&&s.length<=110&&/^[A-Za-z0-9]
 const unsafe=/旧製品|関連商品|参考製品|他社|例えば|発売しない|登場しない|ではない|かもしれ|再入荷|中古|クーポン|レビュー|比較/;
 const reservation=/受注を開始(?:いたします|します|しました)|予約受付を開始(?:いたします|します|しました)/;
 const purchase=/^[＝=]+$|^[★●■]?【[^】]+】$|^(?:※|【ご注意】|[—–−-]+$)|^ご予約|^店舗での|^発売後の|^発売予定日以降|^入荷状況|^誠に申し訳|^お支払/;
-const types={mini_keyboard:['ミニキーボード','dtm_software'],midi_keyboard:['MIDIキーボード','dtm_software'],headset:['ヘッドセット','recording_audio'],headphone:['ヘッドフォン','recording_audio'],guitar_amp_bundle:['ギターアンプセット','amps_effects'],electric_guitar:['エレキギター','electric_guitar_bass'],guitar:['ギター','electric_guitar_bass'],software_instrument:['ソフトウェア音源','dtm_software'],clip_tuner:['クリップチューナー','amps_effects'],effect_pedal:['オーバードライブ','amps_effects'],head_amp:['ヘッドアンプ','amps_effects']};
+const types={daw:['音楽制作ソフトウェア','dtm_software'],mini_keyboard:['ミニキーボード','dtm_software'],midi_keyboard:['MIDIキーボード','dtm_software'],headset:['ヘッドセット','recording_audio'],headphone:['ヘッドフォン','recording_audio'],guitar_amp_bundle:['ギターアンプセット','amps_effects'],electric_guitar:['エレキギター','electric_guitar_bass'],guitar:['ギター','electric_guitar_bass'],software_instrument:['ソフトウェア音源','dtm_software'],clip_tuner:['クリップチューナー','amps_effects'],effect_pedal:['オーバードライブ','amps_effects'],head_amp:['ヘッドアンプ','amps_effects']};
 const signal={appearance:'explicit_new_appearance',announcement:'explicit_new_model',scheduled_release:'explicit_scheduled_release',release:'explicit_release',release_notice:'explicit_undated_release_notice',reservation_start:'explicit_reservation_start'};
 // Closed field codes, never publisher sentences or unvalidated headline text.
 export function primaryAnnouncementErrors(f){
@@ -104,6 +104,7 @@ export function parsePrimaryAnnouncement(html,source,row){
   const bound=(s,m)=>modelMention(s,m);
   const software=/ソフトウェア(?:音源|シンセサイザー)|スコアリング音源/;
   const quotedModel=(s,m)=>new RegExp('[「『]'+escapeModel(m)+'[」』]').test(s.normalize('NFKC'));
+  const dawDefinition=own.every((ps,i)=>ps.some(p=>{const m=escapeModel(models[i]);return new RegExp('(?:音楽制作ソフトウェア|\\bDAW\\b)[「『]'+m+'[」』]|[「『]'+m+'[」』]は(?:音楽制作ソフトウェア|\\bDAW\\b)(?:です|ソフトウェア|。)','i').test(p.normalize('NFKC'));}));
   const softwareDefinition=models.length===1&&own[0].some(p=>bound(p,models[0])&&software.test(p)&&/を発売/.test(p))&&productTable.filter(t=>norm(t).startsWith(norm(models[0])+'janコード')).length===1;
   const tunerDefinition=models.length===1&&/クリップチューナー/.test(title)&&own[0].some(p=>/クリップチューナーです/.test(p))&&bound(title,models[0])&&own[0].some(p=>bound(p,models[0])&&/が登場/.test(p))&&productTable.some(t=>norm(t).startsWith(norm(models[0])));
   const shortHeadphone=source.id==='ikebe'&&shortHeadphoneDefinition(title,sections,models,brand);
@@ -114,7 +115,7 @@ export function parsePrimaryAnnouncement(html,source,row){
   // Power corroboration may occur later in that same bounded (16 paragraph)
   // product section, never across the following product heading/related links.
   const familyAmp=source.id==='ikebe'&&models.length>=2&&variants.every(v=>v&&identity(v))&&bound(title,family)&&variants.every(v=>quotedModel(title,v))&&own.slice(1).every((ps,i)=>ps.some(p=>new RegExp('ヘッドアンプ'+escapeModel(family)).test(p.normalize('NFKC'))&&quotedModel(p,variants[i])&&/オリジナル|カラー/.test(p)))&&definitions.every(ps=>ps.some(p=>bound(p,family)&&/出力|パワーアンプ/.test(p)));
-  if(softwareDefinition)productType='software_instrument';else if(tunerDefinition)productType='clip_tuner';else if(shortHeadphone)productType='headphone';else if(groupedPedals)productType='effect_pedal';else if(familyAmp)productType='head_amp';else throw Error('facts_primary_type_unbound');
+  if(dawDefinition)productType='daw';else if(softwareDefinition)productType='software_instrument';else if(tunerDefinition)productType='clip_tuner';else if(shortHeadphone)productType='headphone';else if(groupedPedals)productType='effect_pedal';else if(familyAmp)productType='head_amp';else throw Error('facts_primary_type_unbound');
   typeBasis=groupedPedals?'bound_group_definition':familyAmp?'bound_family_definition':'bound_section_definition';
  }
 
@@ -150,6 +151,7 @@ function shortHeadphoneDefinition(title,sections,models,brand){return models.len
 
 export function primaryParserSupports(facts,parser){
  if(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(parser))return false;
- if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4','primary-announcement-5',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
+ if(facts?.productType==='daw')return parser===PRIMARY_ANNOUNCEMENT_PARSER;
+ if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4','primary-announcement-5','primary-announcement-6',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
  return facts?.announcement?.action!=='release_notice'||parser!=='primary-announcement-1';
 }
