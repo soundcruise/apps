@@ -1,3 +1,4 @@
+import {factFailure,sourceIdentityConflict} from './facts-failure.js';
 // Source-bound editorial evidence. No product/brand whitelist and no related cards.
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
@@ -5,8 +6,10 @@ import {validOfficialIdentity,sourceIdentityContext,resolveOfficialIdentity} fro
 import {validHeadlineEvidence,enrichHeadlineFacts,releaseDateFields} from './headline-evidence.js';
 import {explicitProductAction,validatedProductEvent,productActionSuffix} from './product-event.js';
 import {subjectProductTypes,isProductSubjectMention,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
-export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-12';
-export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11',SHIMAMURA_PRODUCT_PARSER]);
+export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-13';
+export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11','shimamura-product-fields-12',SHIMAMURA_PRODUCT_PARSER]);
+// Preserve known valid historical proof versions; unknown/bad versions are never accepted.
+export const shimamuraProofParserSupported=(version,minVersion=7)=>SHIMAMURA_PRODUCT_PARSERS.includes(version)&&Number(version.split('-').at(-1))>=minVersion;
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const plain=n=>(hidden(n)?'':DomUtils.textContent(n)).replace(/[®™]/g,'').replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim();
@@ -30,7 +33,7 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
   const canon=find(doc,n=>n.name==='link'&&n.attribs.rel==='canonical'),roots=find(doc,n=>cls(n,'p-content')),heads=find(doc,n=>n.name==='h1'&&cls(n.parent,'mb-80')),dates=find(doc,n=>n.name==='time'&&plain(n.parent).startsWith('公開：'));
   if(canon.length!==1||canon[0].attribs.href!==row.source_url||roots.length!==1||heads.length!==1||dates.length!==1)throw Error('facts_parser_failure');
   const day=new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10);if(dates[0].attribs.datetime!==day)throw Error('facts_date_changed');
-  const title=plain(heads[0]),root=roots[0];if(denied.test(title)||/ケース|スタンド|交換用|ケーブル|記事広告|PR記事/.test(title))throw Error('facts_scope_uncertain');
+  const title=plain(heads[0]),root=roots[0];if(denied.test(title)||/ケース|スタンド|交換用|ケーブル|記事広告|PR記事/.test(title))throw factFailure('facts_scope_uncertain',{stage:'article_scope',missingFields:['supported_article_scope']});
   // A tuning mode for guitar/bass is not an instrument definition. The bounded
   // primary-announcement parser owns clip-tuner identity/type corroboration.
   if(/クリップチューナー/.test(title))throw Error('facts_scope_uncertain');
@@ -45,10 +48,12 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
   }
   const quoted=[...launch.matchAll(/「([^」]{2,100})」/g)].filter(m=>isProductSubjectMention(launch.slice(0,m.index),launch.slice(m.index+m[0].length))).map(m=>m[1].replace(/（[^）]*）/g,'').trim()).filter(nameOK);
   const unquoted=/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)(?:より|から)([A-Za-z0-9][A-Za-z0-9 .&+()'/-]{1,70})が登場/.exec(launch)||/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)\s+([A-Za-z0-9][A-Za-z0-9 .&+()'/-]{1,70})に限定カラー/.exec(launch);
-  let models=[...new Set(quoted.length?quoted:unquoted?[unquoted[2].trim()]:[])];if(!models.length||models.length>4)throw Error('facts_identity_changed');
+  let models=[...new Set(quoted.length?quoted:unquoted?[unquoted[2].trim()]:[])];if(!models.length||models.length>4)throw factFailure('facts_extraction_incomplete',{stage:'subject_identity',missingFields:['models'],checks:{modelsCount:models.length}});
   const brandMatch=/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)\s*\(\s*[ァ-ヶー\s]+\s*\)\s*(?:より|から|が)/.exec(intro)||/^([A-Za-z][A-Za-z0-9 .&'-]{1,60})(?:（[^）]*）)?(?:より|から|が)/.exec(intro)||unquoted||/([A-Za-z][A-Za-z0-9 .&'-]{1,60})(?:より|「)/.exec(title)||/([A-Za-z][A-Za-z0-9 .&'-]{1,60})(?:（[^）]*）)?(?:より|\s*から)/.exec(intro)||/([A-Za-z][A-Za-z0-9 .&'-]{1,60})「/.exec(title)||/^([A-Za-z][A-Za-z0-9 .&'-]{1,60})の/.exec(title);
   const japaneseMatch=/^([ァ-ヶー一-龯]{2,40})(?:より|から|が)/.exec(intro);
   let brand=brandMatch?.[1].trim()||japaneseMatch?.[1]||/([A-Za-z][A-Za-z0-9 .&'-]{1,60})「/.exec(launch)?.[1].trim();if(officialIdentity){if(!validOfficialIdentity(officialIdentity,row.source_url,officialIdentity.brand,officialIdentity.product))throw Error('facts_identity_changed');const resolved=resolveOfficialIdentity(sourceIdentityContext(htmlForIdentity),[officialIdentity],row.source_url);if(JSON.stringify(resolved.previousValues)!==JSON.stringify(officialIdentity.previousValues))throw Error('facts_identity_changed');brand=officialIdentity.brand;models=[officialIdentity.product];}
+  const sourceConflicts=!officialIdentity&&brandOK(brand)?sourceIdentityConflict(title,brand,models):[];
+  if(sourceConflicts.length)throw factFailure('facts_identity_conflict',{stage:'source_identity_binding',conflictingFields:sourceConflicts,checks:{brandPresent:true,modelsCount:models.length}});
   // A Japanese manufacturer must be the explicit grammatical launch subject.
   // Its models must share at least two distinctive title tokens and each have
   // an exact product heading or a second quoted mention in the first body
@@ -58,17 +63,17 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
   const productHeads=find(root,n=>/^h[23]$/.test(n.name)||n.name==='tr'&&find(n,x=>x.name==='td').length&&/JANコード/.test(plain(n))).map(plain);
   const launchMaker=/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)\s*が[、,]?/.exec(launch)?.[1].trim();
   const softwareIdentity=models.length===1&&nameOK(brand)&&launchMaker===brand&&softwareInstrument.test(launch)&&norm(title).includes(norm(models[0]))&&productHeads.filter(h=>/JANコード/.test(h)&&norm(h).startsWith(norm(models[0])+'janコード')).length===1;
-  if(!officialIdentity&&(!brandOK(brand)||!(japaneseIdentity||softwareIdentity||nameOK(brand)&&new RegExp('(?:^|[^A-Za-z0-9])'+brand.split(' ')[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^A-Za-z0-9])','i').test(title))))throw Error('facts_identity_changed');
+  if(!officialIdentity&&(!brandOK(brand)||!(japaneseIdentity||softwareIdentity||nameOK(brand)&&new RegExp('(?:^|[^A-Za-z0-9])'+brand.split(' ')[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^A-Za-z0-9])','i').test(title))))throw factFailure(!brandOK(brand)?'facts_extraction_incomplete':'facts_identity_unconfirmed',{stage:'subject_identity',missingFields:!brandOK(brand)?['brand']:[],checks:{brandPresent:brandOK(brand),modelsCount:models.length,titleBound:false}});
   const corroboratingModels=japaneseIdentity?additionalQuotes:[];
-  if(!officialIdentity&&!models.every(m=>norm(title).includes(norm(m))||productHeads.some(h=>norm(h).includes(norm(m)))||corroboratingModels.some(x=>norm(x)===norm(m))))throw Error('facts_identity_changed');
+  if(!officialIdentity&&!models.every(m=>norm(title).includes(norm(m))||productHeads.some(h=>norm(h).includes(norm(m)))||corroboratingModels.some(x=>norm(x)===norm(m))))throw factFailure('facts_identity_unconfirmed',{stage:'model_binding',missingFields:['model_corroboration'],checks:{modelsCount:models.length,titleOrProductHeadingBound:false}});
   // Type comes from the subject/title, never the listing category or related products.
-  const secondaryScope=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>p!=='目次に戻る').slice(0,4).filter(s=>!denied.test(s)&&! /関連商品|参考製品|付属品|例えば|他社/.test(s)).join(' ');let matches=subjectProductTypes([title,launch],types);if(!matches.length)matches=subjectProductTypes([secondaryScope],types);if(matches.some(([t])=>t==='guitar_pickup'))matches=matches.filter(([t])=>t!=='guitar');if(matches.some(([t])=>t==='guitar_amp'))matches=matches.filter(([t])=>t!=='guitar');if(matches.some(([t])=>t==='effect_pedal'))matches=matches.filter(([t])=>t!=='guitar');if(matches.length!==1)throw Error('facts_scope_uncertain');
+  const secondaryScope=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>p!=='目次に戻る').slice(0,4).filter(s=>!denied.test(s)&&! /関連商品|参考製品|付属品|例えば|他社/.test(s)).join(' ');let matches=subjectProductTypes([title,launch],types);if(!matches.length)matches=subjectProductTypes([secondaryScope],types);if(matches.some(([t])=>t==='guitar_pickup'))matches=matches.filter(([t])=>t!=='guitar');if(matches.some(([t])=>t==='guitar_amp'))matches=matches.filter(([t])=>t!=='guitar');if(matches.some(([t])=>t==='effect_pedal'))matches=matches.filter(([t])=>t!=='guitar');if(matches.length!==1)throw factFailure('facts_extraction_incomplete',{stage:'product_type',missingFields:['productType'],checks:{typeMatches:matches.length}});
   const titleAction=primaryAction(title);const boundActions=statements.filter(s=>models.every(m=>norm(s).includes(norm(m)))).map(primaryAction).filter(Boolean);const bodyActions=[...new Map(boundActions.map(a=>[a.action+':'+a.signal,a])).values()];const action=titleAction||(bodyActions.length===1?bodyActions[0]:null);if(/限定|新色|コラボ|復刻/.test(title)&&!action)throw Error('facts_scope_uncertain');if(action&&!statements.some(s=>primaryAction(s)?.action===action.action&&primaryAction(s)?.signal===action.signal))throw Error('facts_scope_uncertain');
   const [productType,,category]=matches[0];const facts={brand,product:models.join(' / '),models,version:null,category,productType,...(['software_instrument','power_distribution','guitar_amp','audio_interface','subwoofer','voicebank','effect_pedal'].includes(productType)?{productTypeEvidence:{product:models.join(' / '),basis:'verified_primary_article'}}:{}),...(officialIdentity?{officialIdentity}:{}),identifierBasis:'explicit_shimamura_product_fields',listingSource:source.id,articleUrl:row.source_url,...(/発売します/.test(launch)?{releaseEvent:{action:'scheduled_release',basis:'verified_primary_article'}}:{}),...(action?{productEvent:{...action,basis:'verified_primary_article'}}:{}),...(/シグネ(?:イ|ー)?チャ[ーア]?(?:モデル|[A-Za-z0-9 .®™'-]{0,40}アンプ)/.test(launch)?{signatureModel:true}:{}),...(action?.action==='limited_edition'&&/日本限定/.test(title)&&/日本限定/.test(intro)?{editionMarket:'Japan'}:{})};
   if(officialIdentity?.productType&&officialIdentity.productType!==productType)throw Error('facts_scope_uncertain');if(officialIdentity?.releasePeriod&&facts.releaseEvent)facts.releaseEvent.period=officialIdentity.releasePeriod;
   const enriched=enrichHeadlineFacts(facts,{title,statements:[launch],releaseDates:releaseDateFields(root),publishedAt:row.published_at,basis:'verified_primary_article',confirmPastRelease:productType==='software_instrument'&&/発売しました/.test(launch)||/発売/.test(title)&&models.every(m=>norm(title).includes(norm(m)))});
   if(enriched.releaseEvent)facts.releaseEvent=enriched.releaseEvent;
   if(!action&&!facts.releaseEvent&&/登場しました|登場いたしました/.test(launch)&&models.every(m=>norm(launch).includes(norm(m))))facts.appearanceEvidence={basis:'verified_primary_article',product:facts.product};
-  if(!validatedShimamuraProductFacts(facts))throw Error('facts_identity_changed');return {productFacts:facts,eventType:facts.releaseEvent?.action==='release'||productType==='software_instrument'&&/発売しました/.test(launch)||/発売/.test(title)&&/発売/.test(launch)?'release':'new_product',publishedAt:row.published_at};
+  if(!validatedShimamuraProductFacts(facts))throw factFailure('facts_extraction_incomplete',{stage:'facts_schema',missingFields:['validated_product_facts']});return {productFacts:facts,eventType:facts.releaseEvent?.action==='release'||productType==='software_instrument'&&/発売しました/.test(launch)||/発売/.test(title)&&/発売/.test(launch)?'release':'new_product',publishedAt:row.published_at};
  }finally{doc=null;}
 }

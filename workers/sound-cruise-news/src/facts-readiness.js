@@ -1,3 +1,4 @@
+import {factFailureKind} from './facts-failure.js';
 import {morrisArticleUrl,morrisPermissionValid,MORRIS_PARSER} from './morris-policy.js';
 import {sourcePolicySurface} from './source-policy-evidence.js';
 import {productArticleSurface} from './product-article-evidence.js';
@@ -53,6 +54,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
  else if(validation.valid)recoveryClass='READY_FOR_HUMAN_DECISION';
  else if(errors.some(e=>['operator_source_gate','source_url_invalid','publication_policy_rejected','candidate_takedown','expired_candidate','event_validation_failed'].includes(e))||facts?.scope==='expansion'||facts?.kind==='guitar_event'&&facts.artist&&facts.eventType&&facts.eventDate&&facts.venue&&!validation.publishableLabel)recoveryClass='POLICY_BLOCKED';
  else if(surface?.method==='morris_once_only_article')recoveryClass='NOT_SAFELY_RECOVERABLE';
+ else if(factFailureKind(last?.outcome)==='extraction')recoveryClass='RECOVERABLE_WITH_SOURCE_SPECIFIC_PARSER';
  else if(!surface||['facts_not_on_current_surface','facts_identity_changed','facts_official_identity_missing','facts_official_identity_conflict','facts_date_changed','facts_release_date_conflict','facts_event_missing','facts_scope_uncertain'].includes(last?.outcome))recoveryClass='NOT_SAFELY_RECOVERABLE';
  else if(surface.method!=='existing_listing_parser')recoveryClass='RECOVERABLE_FROM_ORIGINAL_SOURCE';
  else {
@@ -60,7 +62,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
   recoveryClass=item?.productFacts&&!item.productFacts.scopeUncertain?'RECOVERABLE_FROM_ORIGINAL_SOURCE':facts?.scopeUncertain?'NOT_SAFELY_RECOVERABLE':'RECOVERABLE_WITH_SOURCE_SPECIFIC_PARSER';
  }
  const nextAction={READY_FOR_HUMAN_DECISION:'事実・原記事を確認して、掲載するかご判断ください。',DUPLICATE_BLOCKED:'既存掲載との重複を確認してください。事実の補完だけでは掲載できません。',POLICY_BLOCKED:'現在の掲載方針・情報源の条件を確認してください。事実の補完だけでは掲載できません。',NOT_SAFELY_RECOVERABLE:'現在の許可済み情報では安全に確定できません。一次情報の対象・日付・出来事を追加確認してください。',RECOVERABLE_FROM_ORIGINAL_SOURCE:'許可済みの一次情報から事実を再確認できます。確認後も掲載条件を別途検証します。',RECOVERABLE_WITH_SOURCE_SPECIFIC_PARSER:'許可済み一覧で製品名・出来事を再確認してください。不足が残る場合は抽出方法の検証が必要です。'}[recoveryClass];
- return {recoveryClass,nextAction};
+ return {recoveryClass,nextAction:factFailureKind(last?.outcome)==='extraction'?'解析更新または新しい許可済み証拠を待っています。同じ解析器での再取得は繰り返しません。更新後は通常予算内で自動再評価します。':nextAction};
 }
 
 export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){

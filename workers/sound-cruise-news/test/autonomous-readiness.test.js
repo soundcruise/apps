@@ -68,13 +68,16 @@ test('a large pending queue is processed in bounded, progressing windows instead
  const second=await runPendingRechecks(s,now,[source],pepper,options);assert.equal(second.due,96);assert.equal(second.scanned,16);assert(second.items.every(r=>!first.items.some(old=>old.id===r.id)));
  assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM candidate_items WHERE review_status<>\'pending\'').first()).n,0);
 });
-test('parser failure is retried after a bounded interval and repairs itself without a manual confirmation',async()=>{
+test('same-parser failure waits without repeated GETs; a parser update requeues and repairs without manual confirmation',async()=>{
  const x=await daily({list:[cases[0]],render:c=>html(c).replace('ボディ、ネック、指板、フレット、ピックアップ、ブリッジ','補足情報')});await x.run();
  const r=await row(x.s,cases[0].id),l=await x.s.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(r.id).first();
- assert.equal(l.recheck_status,'PARSER_RETRY');assert.equal(l.recheck_attempt_count,0,'cached failure did not make another publisher request');assert(l.next_recheck_at>at);const before=x.calls.length;
+ assert.equal(l.recheck_status,'PARSER_RETRY');assert.equal(l.recheck_attempt_count,0,'cached failure did not make another publisher request');assert.equal(l.next_recheck_at,null);const before=x.calls.length;
  await x.run(at+DAY,'17 * * * *');assert.equal(x.calls.length,before);
- x.render=html;await x.run(l.next_recheck_at,'17 * * * *');
- const detail=await reviewDetail(x.s,r.id,l.next_recheck_at,x.registry,pepper);assert.equal(detail.preparationState,'READY');
+ for(const table of ['news_facts_sources','news_facts_rechecks']){
+  const records=(await x.s.db.prepare('SELECT rowid,* FROM '+table).all()).results;for(const record of records){const column=table==='news_facts_sources'?'proof_json':'provenance_json';let p=JSON.parse(record[column]||'null');const proof=Array.isArray(p)?p[0]:p;if(!proof)continue;proof.parserVersion='shimamura-product-fields-12';proof.extractionMethod='explicit_shimamura_product_fields';if(proof.parserFailures?.[0])proof.parserFailures[0].parser='shimamura-product-fields-12';await x.s.db.prepare('UPDATE '+table+' SET '+column+'=? WHERE rowid=?').bind(JSON.stringify(p),record.rowid).run();}
+ }
+ x.render=html;await x.run(at+DAY+1,'17 * * * *');
+ const detail=await reviewDetail(x.s,r.id,at+DAY+1,x.registry,pepper);assert.equal(detail.preparationState,'READY');
  assert.equal(x.calls.filter(u=>u===r.source_url).length,2);assert.equal((await row(x.s,r.id)).review_status,'pending');
 });
 test('source transient failure resumes after backoff, but operator stop and permission failures do not',async()=>{

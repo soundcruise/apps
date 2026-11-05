@@ -33,7 +33,7 @@ test('MONSTER multi-model power equipment is recovered without category/target-d
  assert.deepEqual(result.productFacts.models,['MONSTER POWER 8000','MONSTER POWER 8001']);
  assert.equal(result.productFacts.category,'recording_audio');assert.equal(result.publishedAt,row.published_at);
  assert.match(factualLabel(result.productFacts,result.eventType),/電源タップ/);
- assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-12');
+ assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-13');
 });
 
 for(const phrase of ['オーディオインターフェースを保護する電源タップ',
@@ -111,7 +111,7 @@ test('a named product used only as a connection target cannot gain the type of i
 test('unsupported supply category does not borrow the type of protected equipment',()=>{
  assert.throws(()=>parseShimamuraProductEvidence(article('Maker「SUP-20」が登場',
   'Makerより、電源ユニット「SUP-20」が登場しました。',
-  '<p class="wp-block-paragraph">オーディオインターフェースを保護します。</p>'),source,row),/facts_scope_uncertain/);
+  '<p class="wp-block-paragraph">オーディオインターフェースを保護します。</p>'),source,row),/facts_extraction_incomplete/);
 });
 
 test('related, previous, comparison and ambiguous identities never gain type evidence',()=>{

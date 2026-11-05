@@ -1,8 +1,9 @@
+import {articleParserFailure,factFailureKind,safeFactDiagnostics} from './facts-failure.js';
 import {recordListingUrls,recordDiscovered,recordDiscoveryResult,discoveryState} from './discovery-work.js';
 import {morrisNoticeLabel,MORRIS_FACT_CHECKS} from './morris-editorial-policy.js';
 import {observePreparation} from './preparation-metrics.js';
 import {legalGate} from './registry.js';
-import {boundedFetch,hash,DAY,optOut,BOT,robotsPolicy} from './policy.js';
+import {boundedFetch,hash,DAY,optOut,BOT,robotsPolicy,retryAt} from './policy.js';
 import {requirePepper,validatedFingerprint} from './fingerprint.js';
 import {MORRIS_PERMISSION,MORRIS_LISTING,morrisParserSupported,MORRIS_FRESH_MS,morrisDay,morrisArticleUrl,morrisUrlDate,morrisPermissionValid} from './morris-policy.js';
 import {parseMorrisListing,parseMorrisArticle,morrisLabel,MORRIS_LISTING_PARSER} from './morris-evidence.js';
@@ -112,7 +113,7 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
   .bind(now,key,kind==='article'?1:2).run();if(claimed.meta.changes!==1)throw Error('access_stopped');
   await store.publisherAttempt('morris',now,DAY);report.requests++;report.requestCounts[kind]++;
   const response=await boundedFetch(url,{fetcher,maxBytes:128000,headers:{Accept:kind==='robots'?'text/plain':'text/html','Cache-Control':'no-store'}});
-  if([401,403,451,429].includes(response.status)||response.status>=500)throw Error(response.status===429?'rate_limited':'http_'+response.status);
+  if([401,403,451,429].includes(response.status)||response.status>=500){const e=Error(response.status===429?'rate_limited':'http_'+response.status);e.retryAfterAt=retryAt(response.status,response.headers.get('retry-after'),0,now);throw e;}
   if(kind!=='robots'&&optOut(response.headers.get('x-robots-tag')||''))throw Error('header_optout');return response;
  };
  try{
@@ -168,7 +169,14 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
      if(article.status!==200||!/text\/html/i.test(article.headers.get('content-type')||''))throw Error('facts_unavailable');
      try{parsed=await parseMorrisArticle(article.text,entry,now,pepper);}finally{article.text='';article=null;}
      await store.db.prepare("UPDATE news_morris_acquisition SET outcome='verified',response_hash=?,facts_json=?,proof_json=?,fingerprint_json=? WHERE request_key=?").bind(parsed.proof.responseHash,parsed.facts?JSON.stringify(parsed.facts):null,JSON.stringify(parsed.proof),JSON.stringify(parsed.fingerprint),articleKey).run();
-    }catch(error){await store.db.prepare('UPDATE news_morris_acquisition SET outcome=? WHERE request_key=?').bind(/^facts_/.test(error.message)?error.message:'facts_acquisition_failed',articleKey).run();failure=error;}
+    }catch(error){
+     const outcome=/^facts_/.test(error.message)?error.message:/^http_\d{3}$/.test(error.message)?'facts_'+error.message:error.message==='rate_limited'?'facts_http_429':error.name==='AbortError'||error.name==='TimeoutError'?'facts_timeout':error.message==='header_optout'?'facts_optout':'facts_acquisition_failed',diagnostics=safeFactDiagnostics(error.factDiagnostics||{stage:articleParserFailure(error.message)?'article_parser':'article_fetch',missingFields:['validated_article_facts']});
+     // A failed receipt remains spent. Retain only the hash/closed diagnostic,
+     // never the HTML, and never make a failed proof publication evidence.
+     await store.db.prepare('UPDATE news_morris_acquisition SET outcome=?,response_hash=?,proof_json=? WHERE request_key=?')
+      .bind(outcome,error.evidenceProof?.responseHash||null,error.evidenceProof?JSON.stringify(error.evidenceProof):JSON.stringify({failureReason:outcome,failureKind:factFailureKind(outcome),diagnostics}),articleKey).run();failure=error;
+     if(articleParserFailure(error.message)){report.articleParserFailures=(report.articleParserFailures||0)+1;report.articleFailureDetails=[...(report.articleFailureDetails||[]),{url:entry.url,outcome,diagnostics}].slice(0,3);}
+    }
     receipt=await morrisEvidenceReceipt(store,entry.url,now);
    }
    if(receipt.outcome==='baseline_old'){report.baseline++;report.historicalFactsInsufficient=(report.historicalFactsInsufficient||0)+1;continue;}
@@ -180,16 +188,20 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    const exists=await store.db.prepare('SELECT 1 FROM candidate_items WHERE id=?').bind(item.id).first();
    if(exists){report.duplicates++;continue;}
    const created=await store.put(item);observePreparation(report,entry,{item,created});if(created){report.pending++;if(historical&&receipt.outcome==='verified_listing')report.historicalRecovered=(report.historicalRecovered||0)+1;}else report.duplicates++;
-   if(failure)throw failure;
+   if(failure&&!articleParserFailure(failure.message))throw failure;
+   if(failure)await discoveryState(store,source.id,entry.url,now,{state:'parser_failed',reason:failure.message,nextAction:'permitted_evidence_or_human_review',nextAt:null,diagnostics:safeFactDiagnostics(failure.factDiagnostics||{stage:'article_parser',missingFields:['validated_article_facts']})});
   }
   const review=await materializeMorrisReviewCandidates(store,{source,now,pepper});report.reviewCandidatesAdded=review.added;report.pending+=review.added;report.reviewExcluded=review.excluded;
   for(const id of review.ids){const row=await store.db.prepare('SELECT source_url,published_at FROM candidate_items WHERE id=?').bind(id).first();if(row)observePreparation(report,{url:row.source_url,publishedAt:row.published_at},{created:true,reason:'historical_evidence_review'});}
   report.outcome='collected';completed=true;
  }catch(error){
-  report.outcome=['access_stopped','robots_changed_review','robots_disallow','rate_limited','http_401','http_403','http_451','redirect_blocked','header_optout','listing_structure_changed','listing_too_large','discovery_unavailable'].includes(error.message)?error.message:error.name==='AbortError'||error.name==='TimeoutError'?'request_timeout':'network_or_internal_error';
+  report.outcome=/^http_5[0-9]{2}$/.test(error.message)?'upstream_error':error.message==='facts_source_invalid'?'evidence_missing':['access_stopped','robots_changed_review','robots_disallow','rate_limited','http_401','http_403','http_451','redirect_blocked','header_optout','listing_structure_changed','listing_too_large','discovery_unavailable'].includes(error.message)?error.message:error.name==='AbortError'||error.name==='TimeoutError'?'request_timeout':'network_or_internal_error';
   if(report.outcome==='access_stopped'&&(await store.state('morris')).disabled)report.outcome='source_disabled';
-  // No general-source retry: explicit intervention is required for a failed acquisition.
-  await store.db.prepare("UPDATE source_state SET disabled=1,failures=failures+1,lease_until=0 WHERE source_id='morris'").run();
+  // Access/permission failures still stop the source. Transport/listing parsing
+  // gets bounded backoff, while spent detail reservations are never retried.
+  const hardStop=['evidence_missing','access_stopped','robots_changed_review','robots_disallow','http_401','http_403','http_451','redirect_blocked','header_optout'].includes(report.outcome);
+  const backoff=hardStop?0:Math.max(error.retryAfterAt||0,now+(report.outcome==='rate_limited'?DAY:6*3600000));
+  await store.db.prepare("UPDATE source_state SET disabled=MAX(disabled,?),backoff_until=MAX(backoff_until,?),failures=failures+1,lease_until=0 WHERE source_id='morris'").bind(+hardStop,backoff).run();
   await store.db.prepare("UPDATE news_morris_acquisition SET outcome=? WHERE request_key=? AND outcome='reserved'").bind(report.outcome,key).run();
  }finally{
   if(report.outcome!=='backoff'){

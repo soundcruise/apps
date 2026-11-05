@@ -63,7 +63,7 @@ test('old parser failure does not suppress later permitted new parser recovery',
 });
 test('unchanged parser failure remains cached without publisher requests',async()=>{
  const c=await prepare(fulltone,172778);await failedReceipt(c,IKEBE_PRODUCT_PARSER);const r=await recover(c);
- assert.equal(r.outcome,'facts_primary_evidence_unchanged');assert.equal(c.calls(),0);assert.equal(r.validation.valid,false);
+ assert.equal(r.outcome,'facts_primary_type_unbound');assert.equal(r.awaitingParserUpdate,true);assert.equal(c.calls(),0);assert.equal(r.validation.valid,false);
 });
 test('a verified parser upgrade may retry once within the ordinary source budget',async()=>{
  const c=await prepare(fulltone,172779);const p=await failedReceipt(c,'ikebe-product-fields-12',now-1000);

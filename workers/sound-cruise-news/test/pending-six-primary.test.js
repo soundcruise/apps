@@ -111,7 +111,7 @@ test('parser upgrade requeues a terminal old failure and normal hourly recovery 
 test('unchanged current parser does not requeue or refetch a terminal failure',async()=>{
  const c=cases.find(c=>c.name==='OLLO AUDIO'),x=await prepare(c);await failedEvidence(x,c,PRIMARY_ANNOUNCEMENT_PARSER);await initializePending(x.s,at);
  assert.equal((await x.s.db.prepare('SELECT next_recheck_at FROM news_pending_lifecycle WHERE candidate_id=?').bind(c.r.id).first()).next_recheck_at,null);
- const out=await x.recover();assert.equal(out.outcome,'facts_primary_evidence_unchanged');assert.equal(x.calls.length,0);
+ const out=await x.recover();assert.equal(out.outcome,'facts_primary_type_unbound');assert.equal(out.awaitingParserUpdate,true);assert.equal(x.calls.length,0);
 });
 test('one parser-upgrade retry is allowed within the ordinary source budget',async()=>{
  const c=cases.find(c=>c.name==='OLLO AUDIO'),x=await prepare(c),p=await failedEvidence(x,c,'primary-announcement-3',at-1000);
