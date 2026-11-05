@@ -1,0 +1,167 @@
+{
+  "regression-chrome": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "regression-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "handoff-after": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "handoff-chrome": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "code-preserve-after": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Studio retains native addition code across browser visibility change",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "code-chrome": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Studio retains native addition code across browser visibility change",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "local-creation": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "isolated existing score/PreDTM save reload JSON MIDI PDF acceptance",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  }
+}

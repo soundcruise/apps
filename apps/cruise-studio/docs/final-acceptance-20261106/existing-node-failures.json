@@ -1,0 +1,12 @@
+{
+  "sameFailuresAsMain": true,
+  "count": 6,
+  "names": [
+    "Dock toggles independently of workspace/pane and has no audio effects",
+    "Navigation IDs resolve to real workspaces including retained Home/Apps",
+    "Shell colors use semantic tokens, with no palette literals or Port import",
+    "UI keeps advanced metronome disabled, explicit drafts and owner code without persistence imports",
+    "four Shell regions and two logical Dock slots exist once",
+    "four themes use the existing runtime, save failure is visible"
+  ]
+}

@@ -35,6 +35,7 @@
             if (!frame) return;
             var old = frame;
             frame = null;
+            old.studioJoinCompletionObserver?.disconnect();
             try { void CS.stopNativePort(old); } catch (_) {}
             old.onload = null;
             old.onerror = null;
@@ -81,9 +82,12 @@
                 if (currentFrame.studioReadyMs == null) currentFrame.studioReadyMs = performance.now() - currentFrame.studioStartedAt;
                 currentFrame.style.visibility = ''; currentFrame.removeAttribute('aria-busy');
                 setPhase('ready', ''); scrollMyApps(child);
-                if(pendingAccountRestart){var mode=pendingAccountRestart;pendingAccountRestart=null;
+                if(config.kind==='sync'&&!currentFrame.studioJoinCompletionObserver){
                     const done=new child.MutationObserver(()=>{const complete=child.document.getElementById('sync-center-setup')?.dataset.syncPhase==='complete'||child.document.getElementById('sync-center-port-connect-close')?.hidden===false;if(complete&&restartInProgress&&frame===currentFrame){restartInProgress=false;done.disconnect();requestAnimationFrame(async()=>{if(frame===currentFrame){const account=await window.SoundCruiseSyncAccount.storage.getAccount();if(frame===currentFrame){retireRestartFrame();startForRestartOwner(account?.accountId||null);}}});}});
+                    currentFrame.studioJoinCompletionObserver=done;
                     done.observe(child.document.getElementById('sync-center-view'),{subtree:true,attributes:true,attributeFilter:['data-sync-phase','hidden']});
+                }
+                if(pendingAccountRestart){var mode=pendingAccountRestart;pendingAccountRestart=null;
                     child.document.getElementById(mode==='create'?'sync-center-setup-open':'sync-center-port-connect-open')?.click();
                 }
             }
@@ -98,6 +102,10 @@
         }
         function onChildClick(child, currentFrame, event) {
             if (!active || frame !== currentFrame) return;
+            // A normal native join can follow a visibility/workspace interruption
+            // after release. Retire only this Sync document after committed join;
+            // editor frames keep the ordinary Account-owner hold.
+            if(config.kind==='sync'&&event.target.closest?.('#sync-center-port-connect-confirm'))restartInProgress=true;
             var link = event.target.closest('a[href]');
             if (link && !event.defaultPrevented && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                 var href = link.getAttribute('href');
@@ -218,6 +226,11 @@
         function preserveEditor() {
             if (!frame || !component) return false;
             var doc = frame.contentDocument;
+            // Switching browsers to enter an addition code must not destroy its
+            // still-active invitation or the native connection form.
+            if(config.kind==='sync'&&doc?.querySelector('dialog[data-sync-join-invitation][open],#sync-center-port-connect[open]')){
+                frame.contentWindow.CruiseStudioPortTool?.pause();return true;
+            }
             var editing = ['gear-form-view', 'my-apps-form-view'].some(function (id) { var view = doc?.getElementById(id); return view && !view.hidden; });
             if (editing) { frame.contentWindow.CruiseStudioPortTool?.pause(); return true; }
             return false;
