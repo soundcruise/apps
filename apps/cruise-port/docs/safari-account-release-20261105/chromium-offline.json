@@ -1,0 +1,10 @@
+{
+  "stage": "summary",
+  "code": "network_error",
+  "errorName": "AccountApiError",
+  "status": null,
+  "generationMatches": true,
+  "bindingMatches": null,
+  "casAttempted": false,
+  "casSucceeded": false
+}

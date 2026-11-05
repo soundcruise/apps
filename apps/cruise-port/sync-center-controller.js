@@ -331,6 +331,19 @@ export function createUnavailablePresentation(kind = 'error', previous = null) {
 
 // Deliberately separate from summary's active/ready state: existing UI actions
 // key on those values. Observation never enables recovery/setup/delete/Sync.
+export const ACCOUNT_RESTART_FAILURE_CODES = Object.freeze([
+    'account_generation_changed','account_identity_changed','account_binding_changed',
+    'account_revalidation_failed','account_deletion_unconfirmed','account_release_failed','account_restart_handoff_failed',
+    'account_request_timeout','network_error','invalid_response','service_unavailable','rate_limited',
+    'account_storage_blocked','account_storage_invalid','account_storage_open_failed',
+    'account_storage_read_failed','account_storage_schema_invalid','account_storage_timeout',
+    'account_storage_transaction_failed','account_storage_unavailable','account_storage_write_failed'
+]);
+const restartErrorName = error => ['Error','AccountApiError','AccountStorageError','AbortError',
+    'InvalidStateError','QuotaExceededError','SecurityError','UnknownError'].includes(error?.name) ? error.name : 'Error';
+const restartErrorCode = (error, fallback) => ACCOUNT_RESTART_FAILURE_CODES.includes(error?.code) ? error.code :
+    ACCOUNT_RESTART_FAILURE_CODES.includes(error?.message) ? error.message : fallback;
+
 function isolatedController(reader, enabled) {
     if(!isAccountObservationReader(reader))throw Error('account-observation-reader-required');
     const presentation=()=>{
@@ -367,6 +380,11 @@ export function createSyncCenterController({
     let lastPresentation = null;
     let observation = null;
     let deletedBinding = null;
+    const sameBinding = (a, b) => !!a && !!b && a.generation === b.generation &&
+        a.account.accountId === b.account.accountId &&
+        a.account.accountCredential === b.account.accountCredential &&
+        (a.account.accountDeviceId ?? null) === (b.account.accountDeviceId ?? null);
+    let restartDiagnostic = null;
     let loadRevision = 0;
     let cachedGeneration = accountRoot?.storage?.getGeneration?.();
     const effectiveConfig = config || readSyncCenterConfig();
@@ -383,18 +401,51 @@ export function createSyncCenterController({
             return cachedGeneration === accountRoot?.storage?.getGeneration?.() ? lastPresentation || createUnavailablePresentation('unknown', null) : createUnavailablePresentation('unknown', null);
         },
         async releaseDeletedAccount() {
-            const binding=deletedBinding;
-            if(!binding||binding.generation!==accountRoot.storage.getGeneration())throw new Error('account_generation_changed');
-            // Re-read server authority before an explicit, local-only detach. A network
-            // failure or a recovered Account must never be treated as deletion.
-            const client=new accountRoot.AccountClient({endpoint:effectiveConfig.endpoint,fetchImpl,storage:accountRoot.storage,core:accountRoot.core,admissionMode:effectiveConfig.admissionMode||'qa'});
-            let confirmed=false;
-            try{await client.summary(binding.account.accountCredential);}catch(e){confirmed=['account_deleting','account_deleted'].includes(e?.code)||(e?.status===401&&e?.code==='invalid_account_credential');}
-            if(!confirmed||deletedBinding!==binding||binding.generation!==accountRoot.storage.getGeneration())throw new Error('account_deletion_unconfirmed');
-            await accountRoot.storage.changeAccountIfCurrent(binding.account,null,indexedDb);
-            deletedBinding=null;cachedGeneration=accountRoot.storage.getGeneration();
-            lastPresentation=createUnsetPresentation();return lastPresentation;
+            const binding = deletedBinding;
+            const diagnostic = {stage:'binding',code:null,status:null,generationMatches:null,
+                bindingMatches:null,casAttempted:false,casSucceeded:false};
+            try {
+                diagnostic.generationMatches = !!binding && binding.generation === accountRoot.storage.getGeneration();
+                if (!diagnostic.generationMatches) throw new Error('account_generation_changed');
+                // Re-read server authority before an explicit, local-only detach.
+                // Network failure and active recovery never authorize release.
+                diagnostic.stage = 'summary';
+                const client = new accountRoot.AccountClient({endpoint:effectiveConfig.endpoint,fetchImpl,
+                    storage:accountRoot.storage,core:accountRoot.core,admissionMode:effectiveConfig.admissionMode||'qa'});
+                let confirmed = false;
+                try { await client.summary(binding.account.accountCredential); }
+                catch (error) {
+                    diagnostic.status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599 ? error.status : null;
+                    diagnostic.generationMatches = binding.generation === accountRoot.storage.getGeneration();
+                    confirmed = ['account_deleting','account_deleted'].includes(error?.code) ||
+                        (error?.status === 401 && error?.code === 'invalid_account_credential');
+                    diagnostic.code = !diagnostic.generationMatches ? 'account_generation_changed' :
+                        confirmed ? null : restartErrorCode(error, 'account_revalidation_failed');
+                    if (!confirmed) diagnostic.errorName = restartErrorName(error);
+                }
+                if (!confirmed) throw new Error('account_deletion_unconfirmed');
+                diagnostic.stage = 'binding-recheck';
+                diagnostic.generationMatches = binding.generation === accountRoot.storage.getGeneration();
+                // A read-only refresh returns a new object for the SAME identity.
+                // Compare the full CAS identity and generation, never object reference.
+                diagnostic.bindingMatches = sameBinding(deletedBinding, binding);
+                if (!diagnostic.generationMatches) throw new Error('account_generation_changed');
+                if (!diagnostic.bindingMatches) throw new Error('account_binding_changed');
+                diagnostic.stage = 'cas';diagnostic.casAttempted = true;
+                await accountRoot.storage.changeAccountIfCurrent(binding.account, null, indexedDb);
+                diagnostic.casSucceeded = true;diagnostic.stage = 'released';diagnostic.code = null;
+                restartDiagnostic = Object.freeze({...diagnostic});
+                deletedBinding = null;cachedGeneration = accountRoot.storage.getGeneration();
+                lastPresentation = createUnsetPresentation();return lastPresentation;
+            } catch (error) {
+                // Closed vocabulary only. Never expose exception messages, identities or bodies.
+                const code = diagnostic.code || restartErrorCode(error, 'account_release_failed');
+                const errorName = diagnostic.errorName || restartErrorName(error);
+                restartDiagnostic = Object.freeze({...diagnostic,code,errorName});
+                throw Object.assign(new Error(code),{code,restartDiagnostic});
+            }
         },
+        getRestartDiagnostic() { return restartDiagnostic; },
         load({ readOnly = false } = {}) {
             const generation = accountRoot?.storage?.getGeneration?.();
             if (readOnly && observation && observation.generation === generation && observation?.revision === loadRevision) return observation.operation;

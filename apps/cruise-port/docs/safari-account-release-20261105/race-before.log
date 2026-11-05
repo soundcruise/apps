@@ -1,0 +1,72 @@
+✖ account_deleting: same binding observation during release (readonly=true) (1.292666ms)
+✖ account_deleting: same binding observation during release (readonly=false) (0.175958ms)
+✖ account_deleted: same binding observation during release (readonly=true) (0.137167ms)
+✖ account_deleted: same binding observation during release (readonly=false) (0.501333ms)
+✖ invalid_account_credential: same binding observation during release (readonly=true) (0.164209ms)
+✖ invalid_account_credential: same binding observation during release (readonly=false) (0.145083ms)
+✔ A→B during server confirmation preserves B (generation notification=true) (0.447667ms)
+✔ A→B during server confirmation preserves B (generation notification=false) (0.088334ms)
+✔ same credential but newer generation is rejected (0.124ms)
+✔ same Account but changed credential or Device is rejected (0.232583ms)
+✔ failed/recovered summary preserves credential (network_error) (0.085333ms)
+✔ failed/recovered summary preserves credential (null) (0.07625ms)
+✔ active observation supersedes a pending terminal confirmation (0.586167ms)
+✔ CAS refusal is propagated without deleting retained data (0.678167ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 8
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51.544208
+
+✖ failing tests:
+
+test at apps/cruise-port/deleted-account-release-race.test.mjs:39:36
+✖ account_deleting: same binding observation during release (readonly=true) (1.292666ms)
+  Error: account_deletion_unconfirmed
+      at Object.releaseDeletedAccount (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/sync-center-controller.js:393:117)
+      at async TestContext.<anonymous> (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/deleted-account-release-race.test.mjs:45:19)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+
+test at apps/cruise-port/deleted-account-release-race.test.mjs:39:36
+✖ account_deleting: same binding observation during release (readonly=false) (0.175958ms)
+  Error: account_deletion_unconfirmed
+      at Object.releaseDeletedAccount (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/sync-center-controller.js:393:117)
+      at async TestContext.<anonymous> (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/deleted-account-release-race.test.mjs:45:19)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+
+test at apps/cruise-port/deleted-account-release-race.test.mjs:39:36
+✖ account_deleted: same binding observation during release (readonly=true) (0.137167ms)
+  Error: account_deletion_unconfirmed
+      at Object.releaseDeletedAccount (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/sync-center-controller.js:393:117)
+      at async TestContext.<anonymous> (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/deleted-account-release-race.test.mjs:45:19)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+
+test at apps/cruise-port/deleted-account-release-race.test.mjs:39:36
+✖ account_deleted: same binding observation during release (readonly=false) (0.501333ms)
+  Error: account_deletion_unconfirmed
+      at Object.releaseDeletedAccount (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/sync-center-controller.js:393:117)
+      at async TestContext.<anonymous> (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/deleted-account-release-race.test.mjs:45:19)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+
+test at apps/cruise-port/deleted-account-release-race.test.mjs:39:36
+✖ invalid_account_credential: same binding observation during release (readonly=true) (0.164209ms)
+  Error: account_deletion_unconfirmed
+      at Object.releaseDeletedAccount (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/sync-center-controller.js:393:117)
+      at async TestContext.<anonymous> (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/deleted-account-release-race.test.mjs:45:19)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+
+test at apps/cruise-port/deleted-account-release-race.test.mjs:39:36
+✖ invalid_account_credential: same binding observation during release (readonly=false) (0.145083ms)
+  Error: account_deletion_unconfirmed
+      at Object.releaseDeletedAccount (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/sync-center-controller.js:393:117)
+      at async TestContext.<anonymous> (file:///private/tmp/cruise-safari-account-release-fix/apps/cruise-port/deleted-account-release-race.test.mjs:45:19)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)

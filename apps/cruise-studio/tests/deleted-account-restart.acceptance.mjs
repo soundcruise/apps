@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';
 export async function acceptDeletedRestart({profile,bootstrapPro,createAccount,check,db,nativeClient,normalGear,OUT}){
- for(let repetition=0;repetition<(process.env.STUDIO_RESTART_FOCUSED==='1'?3:1);repetition++)for(const surface of (process.env.STUDIO_RESTART_FOCUSED==='1'?['studio']:['port','studio']))for(const deleted of (process.env.STUDIO_RESTART_FOCUSED==='1'?['deleted']:['deleting','deleted','invalid']))for(const mode of (process.env.STUDIO_RESTART_FOCUSED==='1'?['connect']:['create','connect']))await check(surface+' '+deleted+' restart '+mode+' retains old UNKNOWN and local data',async()=>{
+ if(process.env.STUDIO_RESTART_GUARDS_ONLY==='1')return acceptReleaseGuards({profile,bootstrapPro,createAccount,check,db,normalGear,OUT});
+ for(let repetition=0;repetition<(process.env.STUDIO_RESTART_FOCUSED==='1'?3:1);repetition++)for(const surface of (process.env.STUDIO_RESTART_FOCUSED==='1'||process.env.STUDIO_RELEASE_RACE_BASELINE==='1'?['studio']:['port','studio']))for(const deleted of (process.env.STUDIO_RESTART_FOCUSED==='1'||process.env.STUDIO_RELEASE_RACE_BASELINE==='1'?['deleted']:['deleting','deleted','invalid']))for(const mode of (process.env.STUDIO_RESTART_FOCUSED==='1'||process.env.STUDIO_RELEASE_RACE_BASELINE==='1'?['connect']:['create','connect']))await check(surface+' '+deleted+' restart '+mode+' retains old UNKNOWN and local data',async()=>{
   const p=await profile(surface+'-'+deleted+'-'+mode+'-'+repetition,false);await bootstrapPro(p);const account=await createAccount(p);
   await p.page.goto('https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/#sync-center');await p.page.locator('#sync-center-view').waitFor({state:'visible'});await normalGear(p.page,'Retained old local instrument');
 
@@ -24,10 +25,44 @@ export async function acceptDeletedRestart({profile,bootstrapPro,createAccount,c
   assert(await p.page.evaluate(async()=>!!(await SoundCruiseSyncAccount.storage.getAccount())?.accountCredential));
   await f.locator('[data-deleted-account-restart]').scrollIntoViewIfNeeded();await p.page.screenshot({path:OUT+'/'+surface+'-'+deleted+'-'+mode+'.png'});
   p.page.once('dialog',d=>d.dismiss());await f.locator('[data-restart-mode='+mode+']').click();assert(await p.page.evaluate(async()=>!!(await SoundCruiseSyncAccount.storage.getAccount())?.accountCredential));
+  let releaseSummary,finishSummary,raceRoute,refreshRequest;
+  if(process.env.STUDIO_RESTART_RELEASE_RACE==='1'){
+   let enter;releaseSummary=new Promise(r=>enter=r);const wait=new Promise(r=>finishSummary=r);let held=false;
+   raceRoute=async route=>{
+    // Hold only the native release revalidation. Parent Studio observation is independent.
+    if(route.request().frame()===(surface==='port'?p.page.mainFrame():f)){
+     if(!held){held=true;enter();await wait;}
+     else if(!refreshRequest)refreshRequest=route.request();
+    }
+    await route.fallback();
+   };
+   await p.context.route('**/v2/accounts/summary',raceRoute);
+  }
   p.page.once('dialog',d=>d.accept());await f.locator('[data-restart-mode='+mode+']').click();
+  if(releaseSummary){
+   await releaseSummary;
+   const observed=p.page.waitForResponse(r=>r.request()===refreshRequest);
+   // Native return-refresh uses this existing online event; no controller injection.
+   await f.evaluate(()=>window.dispatchEvent(new Event('online')));
+   await observed;
+   await f.waitForFunction(()=>{const s=document.getElementById('sync-center-account-status')?.textContent;return s==='削除済み・削除処理中'||s==='以前の接続資格が無効';});
+   finishSummary();
+   if(process.env.STUDIO_RELEASE_RACE_BASELINE==='1'){
+    await f.waitForFunction(()=>document.getElementById('sync-center-alert')?.textContent.includes('接続資格を解除できませんでした'));
+    const retained=await p.page.evaluate(async()=>!!(await SoundCruiseSyncAccount.storage.getAccount())?.accountCredential);
+    assert(retained);fs.writeFileSync(OUT+'/BASELINE-RACE.json',JSON.stringify({reproduced:true,retained,summaryStatus:410,controllerReproduction:'account_deletion_unconfirmed before CAS'},null,2));
+    await p.page.screenshot({path:OUT+'/baseline-release-failed.png'});
+    await p.context.unroute('**/v2/accounts/summary',raceRoute);return;
+   }
+  }
   if(surface==='studio'){await p.page.waitForFunction(()=>document.querySelector('#port-sync-surface iframe')?.contentDocument?.querySelector('#sync-center-setup[open],#sync-center-port-connect[open]'));f=await(await p.page.locator('#port-sync-surface iframe').elementHandle()).contentFrame();}
   await f.locator(mode==='create'?'#sync-center-setup':'#sync-center-port-connect').waitFor({state:'visible'});
+  if(raceRoute)await p.context.unroute('**/v2/accounts/summary',raceRoute);
   assert.equal(await p.page.evaluate(async()=>await SoundCruiseSyncAccount.storage.getAccount()),null);
+  if(releaseSummary){
+   fs.writeFileSync(OUT+'/'+surface+'-'+deleted+'-'+mode+'-release-race.json',JSON.stringify({nativeReturnRefreshCompleted:true,credentialReleased:true,nativeDialogVisible:true,requests:evidence},null,2));
+   if(surface==='studio'&&deleted==='deleted'&&mode==='connect')await p.page.screenshot({path:OUT+'/fixed-release-dialog.png',mask:[f.locator('[data-sensitive]')]});
+  }
   if(mode==='create'){
    await f.evaluate(()=>globalThis.__SOUND_CRUISE_ACCOUNT_TURNSTILE__={getToken:async()=> 'synthetic'});
 console.log('SETUP_GEOMETRY',surface,await f.locator('#sync-center-setup-confirm').boundingBox(),surface==='studio'?await p.page.locator('#port-sync-surface iframe').boundingBox():null);await p.page.screenshot({path:OUT+'/setup-'+surface+'-'+deleted+'.png',mask:[f.locator('[data-sensitive]')]});
@@ -42,5 +77,57 @@ console.log('SETUP_GEOMETRY',surface,await f.locator('#sync-center-setup-confirm
   if(project){assert(project.bytes);assert.equal(await p.page.evaluate(id=>localStorage.getItem('cruiseStudio.project.'+id),project.id),project.bytes);}
   assert(changed.different);assert(changed.oldRetained);assert(changed.rawRetained);assert.equal(changed.newPortCredential,false);
 
+ });
+ if(process.env.STUDIO_RESTART_RELEASE_GUARDS==='1')await acceptReleaseGuards({profile,bootstrapPro,createAccount,check,db,normalGear,OUT});
+}
+
+// Disposable profiles only: exercise native failure UI and the REAL Account DB CAS.
+async function acceptReleaseGuards({profile,bootstrapPro,createAccount,check,db,normalGear,OUT}) {
+ await check('Studio Pro-only Home admission without Account',async()=>{
+  const p=await profile('release-pro-only',false);await bootstrapPro(p);
+  await p.page.goto('https://soundcruise.jp/apps/cruise-studio/index.html');
+  await p.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());
+  assert.equal(await p.page.evaluate(async()=>await SoundCruiseSyncAccount.storage.getAccount()),null);
+  assert(await p.page.locator('#screen-home').isVisible());
+ });
+ for(const fault of ['offline','active','generation','cas'])await check('Port release guard: '+fault,async()=>{
+  const p=await profile('release-guard-'+fault,false);await bootstrapPro(p);const old=await createAccount(p);
+  await p.page.goto('https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/#sync-center');
+  await p.page.locator('#sync-center-view').waitFor({state:'visible'});await normalGear(p.page,'Retained guard instrument');
+  await db.prepare("UPDATE sync_accounts SET state='deleting',delete_requested_at=?,purge_after=? WHERE id=?").bind(Date.now(),Date.now()+7*86400000,old.accountId).run();
+  await p.page.goto('https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/#sync-center');
+  await p.page.locator('[data-deleted-account-restart]').waitFor({state:'visible'});
+  const before=await p.page.evaluate(async id=>{
+   await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:id}).putOutbox({operationId:'guard-unknown',state:'UNKNOWN',value:'retain'});
+   return {account:JSON.stringify(await SoundCruiseSyncAccount.storage.getAccount()),local:JSON.stringify(Object.entries(localStorage).sort())};
+  },old.accountId);
+  let enter,finish;const entered=new Promise(r=>enter=r),wait=new Promise(r=>finish=r);let held=false;
+  const route=async r=>{if(!held){held=true;enter();await wait;if(fault==='offline')return r.abort('internetdisconnected');}return r.fallback();};
+  await p.context.route('**/v2/accounts/summary',route);
+  p.page.once('dialog',d=>d.accept());await p.page.locator('[data-restart-mode=connect]').click();await entered;
+  let replacement=null;
+  if(fault==='active')await db.prepare("UPDATE sync_accounts SET state='active',delete_requested_at=NULL,purge_after=NULL WHERE id=?").bind(old.accountId).run();
+  if(fault==='generation')await p.page.evaluate(async()=>SoundCruiseSyncAccount.storage.setAccount(await SoundCruiseSyncAccount.storage.getAccount()));
+  if(fault==='cas'){
+   // Another tab may write before its BroadcastChannel hint arrives. No guard is bypassed:
+   // the unchanged production CAS must reject this raw DB drift atomically.
+   replacement={...old,accountId:crypto.randomUUID(),accountCredential:'isolated-replacement-credential',accountDeviceId:crypto.randomUUID()};
+   await p.page.evaluate(async value=>{
+    const db=await new Promise((ok,no)=>{const r=indexedDB.open('sound-cruise-sync-account');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+    try{await new Promise((ok,no)=>{const tx=db.transaction('meta','readwrite');tx.objectStore('meta').put(value,'account');tx.oncomplete=ok;tx.onabort=()=>no(tx.error);});}finally{db.close();}
+   },replacement);
+  }
+  finish();await p.page.waitForFunction(()=>!!document.getElementById('sync-center-view').dataset.accountRestartDiagnostic);
+  const d=await p.page.locator('#sync-center-view').evaluate(e=>JSON.parse(e.dataset.accountRestartDiagnostic));
+  assert.equal(d.casSucceeded,false);
+  if(fault==='cas'){assert.equal(d.stage,'cas');assert.equal(d.casAttempted,true);assert.equal(d.code,'account_identity_changed');}
+  else {assert.equal(d.casAttempted,false);assert.equal(d.stage,'summary');}
+  if(fault==='generation'){assert.equal(d.generationMatches,false);assert.equal(d.code,'account_generation_changed');}
+  assert.equal(await p.page.locator('#sync-center-port-connect').isVisible(),false);
+  const after=await p.page.evaluate(async oldId=>({account:JSON.stringify(await SoundCruiseSyncAccount.storage.getAccount()),local:JSON.stringify(Object.entries(localStorage).sort()),outbox:await SoundCruiseMultiAppSync.dataStorage.createStore('port',{accountId:oldId}).listOutbox()}),old.accountId);
+  assert.equal(after.account,replacement?JSON.stringify(replacement):before.account);assert.equal(after.local,before.local);
+  assert(after.outbox.some(x=>x.operationId==='guard-unknown'&&x.state==='UNKNOWN'));
+  fs.writeFileSync(OUT+'/release-guard-'+fault+'.json',JSON.stringify(d,null,2));
+  await p.context.unroute('**/v2/accounts/summary',route);
  });
 }
