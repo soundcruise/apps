@@ -578,3 +578,6 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .studio-main .studio-project-sync-summary { background:transparent; border:0; border-top:1px solid var(--studio-border-default); padding:20px 0; box-shadow:none; }
 .studio-main .studio-project-sync-summary h2 { font-size:1rem; }
 .studio-header-sync .cruise-sync-image { width:32px; height:32px; object-fit:contain; }
+
+/* Stable viewport gutter including notched devices, independent of the open pane. */
+#studio-tool-toggle { right:max(20px,env(safe-area-inset-right,0px)); }

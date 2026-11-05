@@ -52,6 +52,32 @@ export function describeSyncConnection(s={}) {
  return {title,detail,action,recheck:!['checking','disconnected'].includes(s.state)};
 }
 
+// Explicit read-only operator diagnostic. Never return identifiers, credentials, bodies or messages.
+export async function inspectSyncConnection({storage,summary,devices,readPortCredential,deviceId,online=true,nativeState=null,ownerSessionPresent=false}) {
+ const result={category:'unconfirmed',stage:'storage',online,accountCredentialPresent:null,portCredentialPresent:null,deviceState:'unconfirmed',nativeState,ownerSessionPresent,requests:[]};
+ const generation=storage.getGeneration?.();
+ let account;
+ try{account=await storage.getAccount();result.accountCredentialPresent=!!account?.accountCredential;}
+ catch{return {...result,storageReadable:false};}
+ result.storageReadable=true;
+ if(!result.accountCredentialPresent)return {...result,category:'account-unconnected',stage:'complete'};
+ try{result.portCredentialPresent=!!await readPortCredential(account);}catch{result.portCredentialPresent=null;}
+ if(!online)return {...result,category:'communication',stage:'offline'};
+ const record=async(stage,fn)=>{try{const value=await fn(account.accountCredential);result.requests.push({stage,status:200,code:null});return {ok:true,value};}catch(e){const status=Number.isInteger(e?.status)&&e.status>=100&&e.status<=599?e.status:null,code=/^[a-z][a-z0-9_-]{0,63}$/.test(e?.code||'')?e.code:null;result.requests.push({stage,status,code});return {ok:false,status,code};}};
+ const a=await record('summary',summary),d=await record('devices',devices);
+ const latest=await storage.getAccount().catch(()=>null);
+ if(storage.getGeneration?.()!==generation||latest?.accountId!==account.accountId||latest?.accountCredential!==account.accountCredential)return {...result,category:'unconfirmed',stage:'account-changed'};
+ const failure=[a,d].find(x=>!x.ok&&([401,403,410].includes(x.status)||/^(account_device_|account_credential_|invalid_account)/.test(x.code||'')))||[a,d].find(x=>!x.ok);
+ if(failure)return {...result,category:([401,403,410].includes(failure.status)||/^(account_device_|account_credential_|invalid_account)/.test(failure.code||''))?'credential-attention':'communication',stage:result.requests.find(x=>x.status!==200)?.stage||'summary'};
+ if(a.value?.account?.id!==account.accountId)return {...result,category:'credential-attention',stage:'account-match'};
+ if(a.value?.account?.state&&a.value.account.state!=='active')return {...result,category:'credential-attention',stage:'account-state'};
+ const rows=d.value?.devices,id=deviceId(account.accountCredential);
+ if(Array.isArray(rows)&&id){const current=rows.find(x=>x.id===id);result.deviceState=current?(current.revokedAt==null?'active':'revoked'):'not-listed';}
+ // A successful Account read is not a claim that app Sync or Project admission succeeded.
+ result.category=result.deviceState==='revoked'?'credential-attention':result.deviceState==='not-listed'?'unconfirmed':'account-confirmed';result.stage=result.deviceState==='not-listed'?'device-list':'complete';
+ return result;
+}
+
 if(typeof window!=='undefined'){
     const CS=window.CruiseStudio,root=window.SoundCruiseSyncAccount,node=document.querySelector('[data-port-sync-status]');
     const client=new root.AccountClient({endpoint:'https://sound-cruise-sync.cruise-port-requests.workers.dev',admissionMode:'production',storage:root.storage});
@@ -96,7 +122,14 @@ if(typeof window!=='undefined'){
     const entryObserver=new MutationObserver(()=>{const ready=CS.entryAuth?.isAuthorized()===true;if(ready!==lastReady){lastReady=ready;void observation.refresh();}else {renderBox(node,observation.read());}});
     entryObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-studio-entry']});
     const unwatch=root.storage.subscribeAccount(()=>{observation.invalidate();void observation.refresh();});
-    CS.accountStatus=Object.freeze({attachFrame,read:observation.read,refresh:observation.refresh,diagnostics:()=>({state:observation.read().state,errorCode:observation.read().errorCode,timings:{...observation.read().timings},entry:CS.entryAuth?.diagnostics?.(),requests:{...requestTimings},frames:[...frames].map(([frame,r])=>({iframeReadyMs:frame.studioReadyMs??null,nativeFirstStateMs:r.nativeFirstStateMs,nativeState:r.view.dataset.syncState}))})});
+    CS.accountStatus=Object.freeze({attachFrame,read:observation.read,refresh:observation.refresh,
+        inspectConnection:()=>{
+            const frame=document.querySelector('#port-sync-surface iframe'),native=frame?.contentWindow?.SoundCruiseMultiAppSync;
+            let ownerSessionPresent=false;try{ownerSessionPresent=!!CS.projectCloud?.session.readSession();}catch{}
+            return inspectSyncConnection({storage:root.storage,summary:credential=>client.summary(credential),devices:credential=>client.devices(credential),deviceId:root.core.accountDeviceIdFromCredential,
+                readPortCredential:async account=>native?.dataStorage?.createStore('port',{accountId:account.accountId}).readMeta('credential'),online:navigator.onLine!==false,
+                nativeState:frame?.contentDocument?.querySelector('#sync-center-view')?.dataset.syncState||null,ownerSessionPresent});
+        },diagnostics:()=>({state:observation.read().state,errorCode:observation.read().errorCode,timings:{...observation.read().timings},entry:CS.entryAuth?.diagnostics?.(),requests:{...requestTimings},frames:[...frames].map(([frame,r])=>({iframeReadyMs:frame.studioReadyMs??null,nativeFirstStateMs:r.nativeFirstStateMs,nativeState:r.view.dataset.syncState}))})});
     CS.attachAccountFrame=attachFrame;
     for(const frame of document.querySelectorAll('iframe')){try{attachFrame(frame);}catch{}}
     void observation.refresh();
