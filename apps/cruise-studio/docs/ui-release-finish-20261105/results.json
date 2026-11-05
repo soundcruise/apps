@@ -1,0 +1,30 @@
+{
+  "synthetic": true,
+  "realDevice": false,
+  "node": {
+    "pass": 116,
+    "fail": 0
+  },
+  "product": {
+    "final6-chromium": {
+      "status": "PASS",
+      "checks": 34,
+      "errors": 0
+    },
+    "final6-webkit": {
+      "status": "PASS",
+      "checks": 34,
+      "errors": 0
+    },
+    "repeat-chromium": {
+      "status": "PASS",
+      "checks": 34,
+      "errors": 0
+    },
+    "repeat-webkit": {
+      "status": "PASS",
+      "checks": 34,
+      "errors": 0
+    }
+  }
+}

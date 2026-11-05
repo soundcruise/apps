@@ -9,14 +9,15 @@
         // Pitch color theme before first paint. Reads only pitchTrainerSettings.theme; anything else is Dark.
         // Dark keeps the page exactly as before; other themes add a theme-color meta ahead of the Dark one.
         (function () {
-            var colors = { charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
+            var colors = { midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
             var theme = 'dark';
             try {
                 var saved = JSON.parse(localStorage.getItem('pitchTrainerSettings') || 'null');
                 var value = saved && saved.theme;
-                if (value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
+                if (value === 'midnight' || value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
             } catch (_) { theme = 'dark'; }
-            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-theme', theme === 'midnight' ? 'charcoal' : theme);
+    document.documentElement.setAttribute('data-midnight', String(theme === 'midnight'));
             if (theme !== 'dark') {
                 var meta = document.createElement('meta');
                 meta.setAttribute('name', 'theme-color');
@@ -28,7 +29,7 @@
     </script>
     <link rel="stylesheet" href="../shared/style.css?v=100">
     <link rel="stylesheet" href="../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="./theme.css?v=13">
+    <link rel="stylesheet" href="./theme.css?v=2.32.0">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

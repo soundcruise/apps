@@ -7,12 +7,12 @@
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.31.0';
+const PITCH_TRAINER_APP_VERSION = '2.32.0';
 
 // Color theme (per app; synced by Pro Cloud Sync since 2.27.0). Missing or invalid values are Dark; the value is stored only when
 // the user picks one in Settings. The head bootstrap applies it before first paint.
-const PITCH_THEMES = ['dark', 'charcoal', 'gray', 'light'];
-const PITCH_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
+const PITCH_THEMES = ['dark', 'midnight', 'charcoal', 'gray', 'light'];
+const PITCH_THEME_META_COLORS = { midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
 
 function resolvePitchTheme(value) {
     return PITCH_THEMES.includes(value) ? value : 'dark';
@@ -27,7 +27,8 @@ function pitchThemeOf(settings) {
 }
 function applyPitchTheme(value) {
     const theme = resolvePitchTheme(value);
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme === 'midnight' ? 'charcoal' : theme);
+    document.documentElement.setAttribute('data-midnight', String(theme === 'midnight'));
     let meta = document.querySelector('meta[data-pitch-theme-color]');
     if (theme === 'dark') {
         if (meta) meta.remove();

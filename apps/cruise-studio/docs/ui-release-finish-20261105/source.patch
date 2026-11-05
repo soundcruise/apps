@@ -1,0 +1,543 @@
+diff --git a/apps/cruise-studio/index.html b/apps/cruise-studio/index.html
+index 9d3ebf220..875b83938 100644
+--- a/apps/cruise-studio/index.html
++++ b/apps/cruise-studio/index.html
+@@ -9 +9 @@
+-    <script src="js/core/color-theme.js?v=0.77.0"></script>
++    <script src="js/core/color-theme.js?v=0.79.0"></script>
+@@ -14 +14 @@
+-    <link rel="stylesheet" href="entry.css?v=0.77.0">
++    <link rel="stylesheet" href="entry.css?v=0.79.0">
+@@ -21 +21 @@
+-    <link rel="stylesheet" href="theme-projection.css?v=0.77.0">
++    <link rel="stylesheet" href="theme-projection.css?v=0.79.0">
+@@ -24,10 +24,10 @@
+-    <link rel="stylesheet" href="theme.css?v=0.77.0">
+-    <link rel="stylesheet" href="melody-staff.css?v=0.77.0">
+-    <link rel="stylesheet" href="melody-editor.css?v=0.77.0">
+-    <link rel="stylesheet" href="chord-form.css?v=0.77.0">
+-    <link rel="stylesheet" href="rhythm-panel.css?v=0.77.0">
+-    <link rel="stylesheet" href="print.css?v=0.77.0" media="print">
+-    <link rel="stylesheet" href="shell.css?v=0.77.0">
+-    <link rel="stylesheet" href="studio-home.css?v=0.77.0">
+-    <link rel="stylesheet" href="studio-tools.css?v=0.77.0">
+-    <link rel="stylesheet" href="port-tuner-surface.css?v=0.77.0">
++    <link rel="stylesheet" href="theme.css?v=0.79.0">
++    <link rel="stylesheet" href="melody-staff.css?v=0.79.0">
++    <link rel="stylesheet" href="melody-editor.css?v=0.79.0">
++    <link rel="stylesheet" href="chord-form.css?v=0.79.0">
++    <link rel="stylesheet" href="rhythm-panel.css?v=0.79.0">
++    <link rel="stylesheet" href="print.css?v=0.79.0" media="print">
++    <link rel="stylesheet" href="shell.css?v=0.79.0">
++    <link rel="stylesheet" href="studio-home.css?v=0.79.0">
++    <link rel="stylesheet" href="studio-tools.css?v=0.79.0">
++    <link rel="stylesheet" href="port-tuner-surface.css?v=0.79.0">
+@@ -39 +39 @@
+-    <link rel="stylesheet" href="port-pc.css?v=0.77.0">
++    <link rel="stylesheet" href="port-pc.css?v=0.79.0">
+@@ -47 +47 @@
+-                <button type="button" data-workspace="home" title="ホーム"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg?v=0.77.0#house"></use></svg>Home</button>
++                <button type="button" data-workspace="home" title="ホーム"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg?v=0.79.0#house"></use></svg>Home</button>
+@@ -50 +50 @@
+-                <button type="button" data-workspace="portSync" title="AccountとSync"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="assets/studio-icons.svg?v=0.77.0#sliders-horizontal"></use></svg>Account・Sync</button>
++                <button type="button" data-workspace="portSync" title="Cruise Sync"><svg class="nav-icon home-tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 16.5a4.5 4.5 0 0 0-1.1-8.86A7 7 0 0 0 5.4 9.4a4 4 0 0 0 .6 7.1Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Cruise Sync</button>
+@@ -79,2 +79,2 @@
+-                <h1>クルーズスタジオ</h1><p>音楽のワークスペース</p>
+-                <span class="studio-version" id="studio-version">v0.77.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
++                <div class="studio-header-title"><div><span class="studio-header-eyebrow">CRUISE STUDIO <span aria-hidden="true">／</span> MUSIC WORKSPACE</span><h1>クルーズスタジオ</h1></div><button type="button" class="studio-header-sync" id="home-cruise-sync" aria-label="Cruise Syncを開く" title="Cruise Sync"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 16.5a4.5 4.5 0 0 0-1.1-8.86A7 7 0 0 0 5.4 9.4a4 4 0 0 0 .6 7.1Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button></div><p>弾き語りストのワークスペース</p>
++                <span class="studio-version" id="studio-version">v0.79.0</span> <button type="button" id="studio-refresh" aria-label="アプリを更新" title="配信中のアプリを再読み込み">ページを更新</button><span id="studio-refresh-status" role="status" aria-live="polite"></span>
+@@ -107 +107 @@
+-            <p class="home-project-storage-note">制作Projectはこのブラウザに保存します。Cruise Syncの対象外です。JSONでバックアップできます。</p>
++            <p class="home-project-storage-note">制作Projectはこのブラウザに保存します。JSONでバックアップできます。</p>
+@@ -109 +109 @@
+-            <section class="module-section" data-port-sync-status aria-label="Account・Cruise Sync"></section>
++            <div data-port-sync-status hidden aria-hidden="true"></div>
+@@ -527 +527 @@
+-    <script src="js/core/music-theory.js?v=0.77.0"></script>
++    <script src="js/core/music-theory.js?v=0.79.0"></script>
+@@ -531,41 +531,41 @@
+-    <script src="js/modules/chord/read-model.js?v=0.77.0"></script>
+-    <script src="js/modules/chord/inspector.js?v=0.77.0"></script>
+-    <script src="js/core/rhythm-snapshot.js?v=0.77.0"></script>
+-    <script src="js/core/schema2.js?v=0.77.0"></script>
+-    <script src="js/core/melody-commands.js?v=0.77.0"></script>
+-    <script src="js/core/song-model.js?v=0.77.0"></script>
+-    <script src="js/core/storage.js?v=0.77.0"></script>
+-    <script src="js/core/editing-session.js?v=0.77.0"></script>
+-    <script src="js/core/project-repository.js?v=0.77.0"></script>
+-    <script src="js/core/active-document.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/history-commands.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.77.0"></script>
+-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.77.0"></script>
+-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.77.0"></script>
+-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.77.0"></script>
+-    <script src="js/core/common-music-model.js?v=0.77.0"></script>
+-    <script src="js/core/structure-conversion.js?v=0.77.0"></script>
+-    <script src="vendor/vexflow.js?v=0.77.0"></script>
+-    <script src="js/core/melody-notation.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.77.0"></script>
+-    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.77.0"></script>
+-    <script src="js/core/port-frame-theme.js?v=0.77.0"></script>
+-    <script src="js/core/command-router.js?v=0.77.0"></script>
+-    <script src="js/core/focus-routing.js?v=0.77.0"></script>
+-    <script src="js/core/keyboard-router.js?v=0.77.0"></script>
+-    <script src="js/core/modal-manager.js?v=0.77.0"></script>
+-    <script src="js/core/workspace-scroll.js?v=0.77.0"></script>
+-    <script src="js/shell.js?v=0.77.0"></script>
+-    <script src="js/core/app-refresh.js?v=0.77.0"></script>
+-    <script src="js/core/native-port-presentation.js?v=0.77.0"></script>
+-    <script src="js/modules/practice/port-surface.js?v=0.77.0"></script>
+-    <script src="js/modules/tuner/port-surface.js?v=0.77.0"></script>
+-    <script src="js/modules/metronome/port-surface.js?v=0.77.0"></script>
+-    <script src="js/modules/library/port-surface.js?v=0.77.0"></script>
+-    <script src="js/core/audio-coordinator.js?v=0.77.0"></script>
+-    <script src="js/modules/series/workspaces.js?v=0.77.0"></script>
+-    <script src="js/score-workspace.js?v=0.77.0"></script>
+-    <script src="js/port-pc.js?v=0.77.0"></script>
++    <script src="js/modules/chord/read-model.js?v=0.79.0"></script>
++    <script src="js/modules/chord/inspector.js?v=0.79.0"></script>
++    <script src="js/core/rhythm-snapshot.js?v=0.79.0"></script>
++    <script src="js/core/schema2.js?v=0.79.0"></script>
++    <script src="js/core/melody-commands.js?v=0.79.0"></script>
++    <script src="js/core/song-model.js?v=0.79.0"></script>
++    <script src="js/core/storage.js?v=0.79.0"></script>
++    <script src="js/core/editing-session.js?v=0.79.0"></script>
++    <script src="js/core/project-repository.js?v=0.79.0"></script>
++    <script src="js/core/active-document.js?v=0.79.0"></script>
++    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.79.0"></script>
++    <script src="js/modules/sheet-cruise/history-commands.js?v=0.79.0"></script>
++    <script src="js/modules/sheet-cruise/text-adapter.js?v=0.79.0"></script>
++    <script src="js/modules/sheet-cruise/operation-adapter.js?v=0.79.0"></script>
++    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.79.0"></script>
++    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.79.0"></script>
++    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.79.0"></script>
++    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.79.0"></script>
++    <script src="js/core/common-music-model.js?v=0.79.0"></script>
++    <script src="js/core/structure-conversion.js?v=0.79.0"></script>
++    <script src="vendor/vexflow.js?v=0.79.0"></script>
++    <script src="js/core/melody-notation.js?v=0.79.0"></script>
++    <script src="js/modules/sheet-cruise/melody-staff.js?v=0.79.0"></script>
++    <script src="js/modules/sheet-cruise/melody-editor.js?v=0.79.0"></script>
++    <script src="js/core/port-frame-theme.js?v=0.79.0"></script>
++    <script src="js/core/command-router.js?v=0.79.0"></script>
++    <script src="js/core/focus-routing.js?v=0.79.0"></script>
++    <script src="js/core/keyboard-router.js?v=0.79.0"></script>
++    <script src="js/core/modal-manager.js?v=0.79.0"></script>
++    <script src="js/core/workspace-scroll.js?v=0.79.0"></script>
++    <script src="js/shell.js?v=0.79.0"></script>
++    <script src="js/core/app-refresh.js?v=0.79.0"></script>
++    <script src="js/core/native-port-presentation.js?v=0.79.0"></script>
++    <script src="js/modules/practice/port-surface.js?v=0.79.0"></script>
++    <script src="js/modules/tuner/port-surface.js?v=0.79.0"></script>
++    <script src="js/modules/metronome/port-surface.js?v=0.79.0"></script>
++    <script src="js/modules/library/port-surface.js?v=0.79.0"></script>
++    <script src="js/core/audio-coordinator.js?v=0.79.0"></script>
++    <script src="js/modules/series/workspaces.js?v=0.79.0"></script>
++    <script src="js/score-workspace.js?v=0.79.0"></script>
++    <script src="js/port-pc.js?v=0.79.0"></script>
+@@ -575,6 +575,6 @@
+-    <script type="module" src="js/modules/series/official-links.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/core/studio-entry.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/port-sync-status.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.77.0"></script>
+-    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.77.0"></script>
++    <script type="module" src="js/modules/series/official-links.mjs?v=0.79.0"></script>
++    <script type="module" src="js/core/studio-entry.mjs?v=0.79.0"></script>
++    <script type="module" src="js/port-sync-status.mjs?v=0.79.0"></script>
++    <script type="module" src="js/modules/pre-dtm-cruise/guitar-voicing.mjs?v=0.79.0"></script>
++    <script type="module" src="js/modules/rhythm/panel.mjs?v=0.79.0"></script>
++    <script type="module" src="js/modules/chord/form-panel.mjs?v=0.79.0"></script>
+diff --git a/apps/cruise-studio/js/core/color-theme.js b/apps/cruise-studio/js/core/color-theme.js
+index 1b2505146..897b77511 100644
+--- a/apps/cruise-studio/js/core/color-theme.js
++++ b/apps/cruise-studio/js/core/color-theme.js
+@@ -19 +19 @@
+-    var DEFAULT_THEME = 'dark';
++    var DEFAULT_THEME = 'midnight';
+diff --git a/apps/cruise-studio/js/core/component-metadata.mjs b/apps/cruise-studio/js/core/component-metadata.mjs
+index e5c96b26a..1f7442ac1 100644
+--- a/apps/cruise-studio/js/core/component-metadata.mjs
++++ b/apps/cruise-studio/js/core/component-metadata.mjs
+@@ -32 +32 @@ const components = Object.freeze([
+-        'APP_VERSION', '0.77.0')
++        'APP_VERSION', '0.79.0')
+diff --git a/apps/cruise-studio/js/core/native-port-presentation.js b/apps/cruise-studio/js/core/native-port-presentation.js
+index b97d23cf3..2aa7467cd 100644
+--- a/apps/cruise-studio/js/core/native-port-presentation.js
++++ b/apps/cruise-studio/js/core/native-port-presentation.js
+@@ -12,0 +13,39 @@
++    // Same-origin center surfaces use the workspace scroller; pane and modal scrollers retain ownership.
++    const heightOwners = new WeakMap();
++    function attachHeight(frame) {
++        if (!frame.closest('#studio-shell') || heightOwners.has(frame)) return;
++        let doc, resize, changes, queued = false, disposed = false;
++        const originalHeight = frame.style.height;
++        function update() {
++            queued = false;
++            if (!frame.isConnected) { disposed = true; resize?.disconnect(); changes?.disconnect(); placement.disconnect(); return; }
++            if (!doc?.body || !frame.getClientRects().length) return;
++            const center = !frame.closest('#tool-window-slot');
++            const style = doc.getElementById('studio-center-height');
++            if (!center) { style?.remove(); if (frame.style.height !== originalHeight) frame.style.height = originalHeight; return; }
++            if (!style) {
++                const css = doc.createElement('style'); css.id = 'studio-center-height';
++                css.textContent = 'html,body{height:auto!important;min-height:0!important} body{overflow-y:visible!important} body>.app-container,body>.cc-app,body>.port-shell{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important} .app-container:has(>#overlay:not(.hidden))>header,.app-container:has(>#overlay:not(.hidden))>main{display:none!important} .app-container>#overlay{position:relative!important;inset:auto!important;height:auto!important;min-height:0!important;overflow:visible!important} .app-container>#overlay>.modal{max-height:none!important;overflow-y:visible!important}';
++                doc.head.append(css);
++            }
++            let bottom = doc.body.getBoundingClientRect().bottom + frame.contentWindow.scrollY;
++            for (const child of doc.body.children) {
++                const style = frame.contentWindow.getComputedStyle(child);
++                if (style.position !== 'fixed' && style.display !== 'none') bottom = Math.max(bottom, child.getBoundingClientRect().top + frame.contentWindow.scrollY + Math.max(child.getBoundingClientRect().height, child.scrollHeight) + (parseFloat(style.marginBottom) || 0));
++            }
++            const height = Math.max(120, Math.ceil(bottom) + 2);
++            if (Math.abs(frame.getBoundingClientRect().height - height) > 1) frame.style.height = height + 'px';
++        }
++        function schedule() { if (!queued && !disposed) { queued = true; requestAnimationFrame(update); } }
++        function bind() {
++            try { doc = frame.contentDocument; if (!doc?.body || frame.contentWindow.location.origin !== location.origin) return;
++                resize?.disconnect(); changes?.disconnect();
++                resize = new ResizeObserver(schedule); resize.observe(doc.body); for (const child of doc.body.children) resize.observe(child);
++                changes = new MutationObserver(schedule); changes.observe(doc.body, {subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden','open','style']});
++                schedule();
++            } catch (_) { /* Cross-origin documents keep their native scrolling. */ }
++        }
++        const placement = new MutationObserver(schedule); placement.observe(document.getElementById('studio-shell'), {subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
++        frame.addEventListener('load', bind); heightOwners.set(frame, {schedule}); bind();
++    }
++    document.addEventListener('load', event => { if (event.target instanceof HTMLIFrameElement) attachHeight(event.target); }, true);
+@@ -14 +52,0 @@
+-        frame.contentWindow?.studioEntryStopMedia?.();
+@@ -19 +57,2 @@
+-        return tool?.stop();
++        tool?.stop();
++        return frame.contentWindow?.studioEntryStopMedia?.();
+@@ -37,2 +76,9 @@
+-            var streams = new Set(), getMedia = child.navigator.mediaDevices.getUserMedia.bind(child.navigator.mediaDevices);
+-            child.studioEntryStopMedia = function () { streams.forEach(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); }); streams.clear(); };
++            var streams = new Set(), contexts = new Set(), getMedia = child.navigator.mediaDevices.getUserMedia.bind(child.navigator.mediaDevices);
++            child.studioEntryStopMedia = function () {
++                streams.forEach(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); }); streams.clear();
++                return Promise.all([...contexts].map(async context => { if (context.state !== 'closed') await context.close(); contexts.delete(context); }));
++            };
++            for (const prototype of new Set([child.AudioContext?.prototype, child.webkitAudioContext?.prototype].filter(Boolean))) {
++                const resume = prototype.resume;
++                prototype.resume = function (...args) { contexts.add(this); return resume.apply(this, args); };
++            }
+diff --git a/apps/cruise-studio/js/core/song-model.js b/apps/cruise-studio/js/core/song-model.js
+index cdbe60d5d..ab5f917cf 100644
+--- a/apps/cruise-studio/js/core/song-model.js
++++ b/apps/cruise-studio/js/core/song-model.js
+@@ -11 +11 @@
+-    var APP_VERSION = '0.77.0';
++    var APP_VERSION = '0.79.0';
+diff --git a/apps/cruise-studio/js/core/studio-entry.mjs b/apps/cruise-studio/js/core/studio-entry.mjs
+index 367839366..5c73603b7 100644
+--- a/apps/cruise-studio/js/core/studio-entry.mjs
++++ b/apps/cruise-studio/js/core/studio-entry.mjs
+@@ -2 +2 @@
+-export function createStudioEntry({storage, source, validatePro, summary, gateReady, changed=()=>{}, rejectPro=()=>{}, now=()=>performance.now()}) {
++export function createStudioEntry({storage, source, validatePro, gateReady, changed=()=>{}, rejectPro=()=>{}, now=()=>performance.now()}) {
+@@ -9 +9 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
+-    function read(){return {phase:isAuthorized()?'ready':phase==='ready'?'locked':phase,accountId:proof?.account.accountId||null,revision:epoch,offline:!!proof?.offline};}
++    function read(){return {phase:isAuthorized()?'ready':phase==='ready'?'locked':phase,accountId:proof?.account?.accountId||null,revision:epoch,offline:!!proof?.offline};}
+@@ -19 +18,0 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
+-                if(!account?.accountId||!account.accountCredential)throw Error('account-required');
+@@ -20,0 +20 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
++                if(turn!==epoch||generation!==storage.getGeneration()||!gateReady()||!same(pro,source.read()))throw Error('session-changed');
+@@ -24 +24 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
+-                    previous.account.accountId===account.accountId&&previous.account.accountCredential===account.accountCredential;
++                    previous.account?.accountId===account?.accountId&&previous.account?.accountCredential===account?.accountCredential;
+@@ -27,9 +27 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
+-                let remote,accountUnavailable=false,offline=result.online!==true;
+-                try{stageStart=now();try{remote=await summary(account.accountCredential);}finally{stages.accountSummaryMs=now()-stageStart;}}
+-                catch(error){
+-                    // A network failure is not a new Account grant. Only the same
+-                    // in-memory, previously verified owner may retain native Pro grace.
+-                    const transient=(error.status===0&&['network_error','account_request_timeout'].includes(error.code))||error.status===429||error.status>=500;
+-                    if(!retained||!allowance||!transient)throw error;
+-                    accountUnavailable=true;offline=true;
+-                }
++                const offline=result.online!==true;
+@@ -38 +30 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
+-                    after?.accountId!==account.accountId||after?.accountCredential!==account.accountCredential||(!accountUnavailable&&remote?.account?.id!==account.accountId)||now()>=expiresAt)
++                    after?.accountId!==account?.accountId||after?.accountCredential!==account?.accountCredential||now()>=expiresAt)
+@@ -56 +48 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
+-    const owners=new WeakMap();let accountFrame=null,retriedRevision=null,modalOwner=null,lastReadyOwner=null;
++    const owners=new WeakMap();let accountFrame=null,retriedRevision=null,modalOwner=null,lastReadyOwner=null,modalSuspended=false;
+@@ -58 +50 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
+-        if(CS.shellHost?.modal.getActive()){modalOwner=lastReadyOwner;CS.shellHost.modal.suspend();}
++        if(CS.shellHost?.modal.getActive()){modalOwner=lastReadyOwner;modalSuspended=true;CS.shellHost.modal.suspend();}
+@@ -75 +66,0 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
+-    const accountClient=new window.SoundCruiseSyncAccount.AccountClient({endpoint:'https://sound-cruise-sync.cruise-port-requests.workers.dev',admissionMode:'production',storage});
+@@ -77 +68 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
+-        validatePro:auth=>device.validate(auth,{force:true}),summary:credential=>accountClient.summary(credential),
++        validatePro:auth=>device.validate(auth,{force:true}),
+@@ -88 +79 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
+-                const revision=source.read().revision;
++                const revision=JSON.stringify([source.read().revision,storage.getGeneration()]);
+@@ -92 +83 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
+-                if(modalOwner===state.accountId){CS.shellHost?.modal.resume();modalOwner=null;}
++                if(modalSuspended&&modalOwner===state.accountId){CS.shellHost?.modal.resume();modalOwner=null;modalSuspended=false;}
+@@ -104 +95 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
+-        if(!previous){owners.set(frame,owner);frame.inert=false;}
++        if(!owners.has(frame)){owners.set(frame,owner);frame.inert=false;}
+diff --git a/apps/cruise-studio/js/modules/chord/form-panel.mjs b/apps/cruise-studio/js/modules/chord/form-panel.mjs
+index c2b9ff2cd..0de4f82c9 100644
+--- a/apps/cruise-studio/js/modules/chord/form-panel.mjs
++++ b/apps/cruise-studio/js/modules/chord/form-panel.mjs
+@@ -1,3 +1,3 @@
+-import { createChordFormAdapter } from './form-adapter.mjs?v=0.77.0';
+-import { createFormAdoptionService } from './form-adoption.mjs?v=0.77.0';
+-import { getAppVersion } from '../../core/component-metadata.mjs?v=0.77.0';
++import { createChordFormAdapter } from './form-adapter.mjs?v=0.79.0';
++import { createFormAdoptionService } from './form-adoption.mjs?v=0.79.0';
++import { getAppVersion } from '../../core/component-metadata.mjs?v=0.79.0';
+diff --git a/apps/cruise-studio/js/modules/library/port-surface.js b/apps/cruise-studio/js/modules/library/port-surface.js
+index f5bd55709..2dfaa7aac 100644
+--- a/apps/cruise-studio/js/modules/library/port-surface.js
++++ b/apps/cruise-studio/js/modules/library/port-surface.js
+@@ -105 +105 @@
+-            setPhase('loading', 'CRUISE STUDIO · 読み込み中…');
++            setPhase('loading', config.kind === 'sync' ? 'Cruise Syncに移動しています。' : 'CRUISE STUDIO · 読み込み中…');
+diff --git a/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs b/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs
+index 9b6b5223f..369beefc9 100644
+--- a/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs
++++ b/apps/cruise-studio/js/modules/rhythm/owner-loader.mjs
+@@ -2 +2 @@
+-import {createOfficialRhythmAdapter} from './official-pattern-adapter.mjs?v=0.77.0';
++import {createOfficialRhythmAdapter} from './official-pattern-adapter.mjs?v=0.79.0';
+diff --git a/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs b/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs
+index e619116f2..5a9c2541a 100644
+--- a/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs
++++ b/apps/cruise-studio/js/modules/rhythm/panel-controller.mjs
+@@ -2 +2 @@
+-import {createRhythmAdoptionService} from './pattern-adoption.mjs?v=0.77.0';
++import {createRhythmAdoptionService} from './pattern-adoption.mjs?v=0.79.0';
+diff --git a/apps/cruise-studio/js/modules/rhythm/panel.mjs b/apps/cruise-studio/js/modules/rhythm/panel.mjs
+index 7f4cd7e60..389356bd9 100644
+--- a/apps/cruise-studio/js/modules/rhythm/panel.mjs
++++ b/apps/cruise-studio/js/modules/rhythm/panel.mjs
+@@ -32 +32 @@ export function mountRhythmPanel({C,document:doc,loader}){
+-    function initializeControl(){if(!initialization)initialization=Promise.all([import('./owner-loader.mjs?v=0.77.0'),import('./panel-controller.mjs?v=0.77.0')]).then(([l,c])=>{selectionBarIds=c.selectionBarIds;control=c.createRhythmPanelController({owner:C.documents,schema:C.model.schema2,rhythmSnapshots:C.rhythmSnapshots,repository:C.repository,getContext:context,getSelection:C.sheetCruise.getSelectionSnapshot,loader:loader||l.createOwnerLoader()});});return initialization;}
++    function initializeControl(){if(!initialization)initialization=Promise.all([import('./owner-loader.mjs?v=0.79.0'),import('./panel-controller.mjs?v=0.79.0')]).then(([l,c])=>{selectionBarIds=c.selectionBarIds;control=c.createRhythmPanelController({owner:C.documents,schema:C.model.schema2,rhythmSnapshots:C.rhythmSnapshots,repository:C.repository,getContext:context,getSelection:C.sheetCruise.getSelectionSnapshot,loader:loader||l.createOwnerLoader()});});return initialization;}
+diff --git a/apps/cruise-studio/js/modules/series/workspaces.js b/apps/cruise-studio/js/modules/series/workspaces.js
+index 1c5062c92..ce146b7fb 100644
+--- a/apps/cruise-studio/js/modules/series/workspaces.js
++++ b/apps/cruise-studio/js/modules/series/workspaces.js
+@@ -8 +8 @@
+-  CS.seriesApps[id]={pause:silence,refreshLayout(){mounted?.refreshLayout();},claimAudio(){if(!CS.audio||!CS.entryAuth?.isAuthorized())return false;if(!handle)handle=CS.audio.register({sessionId:'series-'+id,ownerFeatureId:'series-'+id,cleanup:silence});const lease=CS.audio.request(handle,'audio-output/session');return !!lease&&CS.audio.grant(handle,lease);},activate(){if(mounted)return;reload.hidden=true;const turn=++epoch;host().textContent='読み込み中…';import('./internal-app.mjs?v=0.77.0').then(m=>m.mount(id,host(),()=>epoch===turn)).then(result=>{if(epoch===turn)mounted=result;else result?.dispose();}).catch(()=>{if(epoch===turn)host().textContent='アプリを読み込めません。もう一度開いてください。';});},deactivate:stop,async refresh(){if(CS.seriesApps[id].requestLeave())return;await stop();CS.seriesApps[id].activate();},requestLeave(){return !!mounted?.iframe.contentWindow?.studioAppDirty&&!confirm('入力内容が変更されています。アプリ内で保存済みか確認してください。画面を閉じますか？');}};
++  CS.seriesApps[id]={pause:silence,refreshLayout(){mounted?.refreshLayout();},claimAudio(){if(!CS.audio||!CS.entryAuth?.isAuthorized())return false;if(!handle)handle=CS.audio.register({sessionId:'series-'+id,ownerFeatureId:'series-'+id,cleanup:silence});const lease=CS.audio.request(handle,'audio-output/session');return !!lease&&CS.audio.grant(handle,lease);},activate(){if(mounted)return;reload.hidden=true;const turn=++epoch;host().textContent='読み込み中…';import('./internal-app.mjs?v=0.79.0').then(m=>m.mount(id,host(),()=>epoch===turn)).then(result=>{if(epoch===turn)mounted=result;else result?.dispose();}).catch(()=>{if(epoch===turn)host().textContent='アプリを読み込めません。もう一度開いてください。';});},deactivate:stop,async refresh(){if(CS.seriesApps[id].requestLeave())return;await stop();CS.seriesApps[id].activate();},requestLeave(){return !!mounted?.iframe.contentWindow?.studioAppDirty&&!confirm('入力内容が変更されています。アプリ内で保存済みか確認してください。画面を閉じますか？');}};
+diff --git a/apps/cruise-studio/js/port-pc.js b/apps/cruise-studio/js/port-pc.js
+index ab91de1cc..2b33a1041 100644
+--- a/apps/cruise-studio/js/port-pc.js
++++ b/apps/cruise-studio/js/port-pc.js
+@@ -5 +5 @@
+-    CS.portPC=Object.freeze({version:'0.77.0'});
++    CS.portPC=Object.freeze({version:'0.79.0'});
+@@ -14,0 +15 @@
++    document.getElementById('home-cruise-sync').addEventListener('click', function(){CS.shellHost.navigate('portSync');});
+diff --git a/apps/cruise-studio/studio-home.css b/apps/cruise-studio/studio-home.css
+index 897e8924d..9ec399dbf 100644
+--- a/apps/cruise-studio/studio-home.css
++++ b/apps/cruise-studio/studio-home.css
+@@ -212,0 +213,22 @@
++
++/* Home identity and existing Sync entry. */
++.studio-main #screen-home .studio-header { position:relative; padding:30px 0 25px; border-bottom:1px solid var(--studio-border-default); }
++.studio-header-title { display:flex; align-items:center; gap:20px; }
++.studio-header-eyebrow { display:block; margin-bottom:12px; color:var(--studio-text-muted); font-size:10px; font-weight:600; letter-spacing:.18em; }
++.studio-header-eyebrow span { color:var(--studio-accent-text); padding:0 5px; }
++.studio-main #screen-home .studio-header h1 { margin:0; font-size:clamp(28px,3.1vw,42px); letter-spacing:.06em; font-weight:600; }
++.studio-main #screen-home .studio-header > p { margin:12px 0 20px; color:var(--studio-text-muted); letter-spacing:.06em; }
++.studio-header-sync { display:grid; place-items:center; width:42px; height:42px; flex:none; border:1px solid var(--studio-border-default); border-radius:10px; color:var(--studio-text-primary); background:var(--studio-control); cursor:pointer; }
++.studio-header-sync svg { width:23px; height:23px; }
++.studio-header-sync:hover { background:var(--studio-control-hover); }
++.studio-header-sync:focus-visible { outline:2px solid var(--studio-focus); outline-offset:3px; }
++.studio-main #screen-home #studio-refresh { min-height:30px; padding:4px 9px; font-size:11px; }
++@media (max-width:600px) { .studio-main #screen-home .studio-header { padding:22px 0 20px; } .studio-header-title { gap:12px; } .studio-header-eyebrow { font-size:9px; letter-spacing:.12em; } }
++
++/* Align the action with the title line below its eyebrow. */
++.studio-header-title > div { display:contents; }
++.studio-header-title { display:grid; grid-template-columns:max-content 42px; gap:0 20px; }
++.studio-header-eyebrow { grid-column:1 / -1; }
++.studio-header-title h1 { grid-column:1; }
++.studio-header-sync { grid-column:2; align-self:center; }
++@media(max-width:600px){.studio-header-title{grid-template-columns:minmax(0,max-content) 42px;column-gap:12px;}}
+diff --git a/apps/cruise-studio/tests/account-observation.test.mjs b/apps/cruise-studio/tests/account-observation.test.mjs
+index 1d29ab016..8b581a5e0 100644
+--- a/apps/cruise-studio/tests/account-observation.test.mjs
++++ b/apps/cruise-studio/tests/account-observation.test.mjs
+@@ -22 +22 @@ test('storage failure retains input ownership and does not request credentials e
+-test('entry timings distinguish native Pro and Account waiting without recording secrets',async()=>{let clock=0;const e=createStudioEntry({storage:{getGeneration:()=>1,getAccount:async()=>{clock+=5;return {accountId:'A',accountCredential:'secret-A'};}},source:{read:()=>({auth:{credential:'secret-Pro',generation:1},revision:'r',revoked:false})},gateReady:()=>true,now:()=>clock,validatePro:async()=>{clock+=1000;return {ok:true,online:true};},summary:async()=>{clock+=180000;return {account:{id:'A'}};}});assert(await e.check());assert.equal(e.diagnostics().proValidationMs,1000);assert.equal(e.diagnostics().accountSummaryMs,180000);assert(!JSON.stringify(e.diagnostics()).includes('secret'));});
++test('entry timings distinguish native Pro and Account waiting without recording secrets',async()=>{let clock=0;const e=createStudioEntry({storage:{getGeneration:()=>1,getAccount:async()=>{clock+=5;return {accountId:'A',accountCredential:'secret-A'};}},source:{read:()=>({auth:{credential:'secret-Pro',generation:1},revision:'r',revoked:false})},gateReady:()=>true,now:()=>clock,validatePro:async()=>{clock+=1000;return {ok:true,online:true};},summary:async()=>{clock+=180000;return {account:{id:'A'}};}});assert(await e.check());assert.equal(e.diagnostics().proValidationMs,1000);assert.equal(e.diagnostics().accountSummaryMs,undefined);assert.equal(clock,1010);assert(!JSON.stringify(e.diagnostics()).includes('secret'));});
+diff --git a/apps/cruise-studio/tests/chord-form-adapter.test.mjs b/apps/cruise-studio/tests/chord-form-adapter.test.mjs
+index d7884a40c..0827891a8 100644
+--- a/apps/cruise-studio/tests/chord-form-adapter.test.mjs
++++ b/apps/cruise-studio/tests/chord-form-adapter.test.mjs
+@@ -181 +181 @@ test('adapter stays pure and the product explicitly connects only owner CAGED pl
+-    assert.match(read('../index.html'), /form-panel.mjs\?v=0.77.0/);
++    assert.match(read('../index.html'), /form-panel.mjs\?v=0.79.0/);
+diff --git a/apps/cruise-studio/tests/color-theme.test.mjs b/apps/cruise-studio/tests/color-theme.test.mjs
+index 9f1556f56..67c925228 100644
+--- a/apps/cruise-studio/tests/color-theme.test.mjs
++++ b/apps/cruise-studio/tests/color-theme.test.mjs
+@@ -271 +271 @@ test('Theme does not couple to Feature Metadata / Port runtime / Sync / project
+-    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.77.0'/);
++    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.79.0'/);
+diff --git a/apps/cruise-studio/tests/component-version-cache.test.mjs b/apps/cruise-studio/tests/component-version-cache.test.mjs
+index 13e234fef..653656665 100644
+--- a/apps/cruise-studio/tests/component-version-cache.test.mjs
++++ b/apps/cruise-studio/tests/component-version-cache.test.mjs
+@@ -65,3 +65,3 @@ test('F3: published internal ESM dependencies resolve inside the release and sha
+-test('0.77.0 release identity and recursively reachable Studio module cache paths', () => {
+-    assert.equal(getAppVersion('cruise-studio'), '0.77.0');
+-    assert.match(html, /id="studio-version">v0\.77\.0<\/span>/);
++test('0.79.0 release identity and recursively reachable Studio module cache paths', () => {
++    assert.equal(getAppVersion('cruise-studio'), '0.79.0');
++    assert.match(html, /id="studio-version">v0\.79\.0<\/span>/);
+@@ -71 +71 @@ test('0.77.0 release identity and recursively reachable Studio module cache path
+-        if (url.search) assert.equal(url.search, '?v=0.77.0', url.href);
++        if (url.search) assert.equal(url.search, '?v=0.79.0', url.href);
+diff --git a/apps/cruise-studio/tests/project-canary.acceptance.mjs b/apps/cruise-studio/tests/project-canary.acceptance.mjs
+index 8ec7deeb2..f736bba66 100644
+--- a/apps/cruise-studio/tests/project-canary.acceptance.mjs
++++ b/apps/cruise-studio/tests/project-canary.acceptance.mjs
+@@ -34,0 +35,4 @@ export function canaryAcceptance({db,mf,src,check,network,OUT,profile,bootstrapP
++  await check('synthetic Pro challenge preflight preserves the expected CORS contract',async()=>{
++   const r=await mf.dispatchFetch('http://native.fixture.invalid/v2/pro-auth/device-session/challenge',{method:'OPTIONS',headers:{Origin:'https://soundcruise.jp','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}});
++   assert(r.status>=200&&r.status<300);assert.equal(r.headers.get('access-control-allow-origin'),'https://soundcruise.jp');assert.match(r.headers.get('access-control-allow-methods')||'',/POST/i);assert.match(r.headers.get('access-control-allow-headers')||'',/content-type/i);
++  });
+diff --git a/apps/cruise-studio/tests/project-cloud-product.acceptance.mjs b/apps/cruise-studio/tests/project-cloud-product.acceptance.mjs
+index dbfc4bbf9..4703be99f 100644
+--- a/apps/cruise-studio/tests/project-cloud-product.acceptance.mjs
++++ b/apps/cruise-studio/tests/project-cloud-product.acceptance.mjs
+@@ -108 +108 @@ export async function acceptProjectCloud({profile,bootstrapPro,createAccount,cre
+-  await B.page.waitForFunction(()=>!CruiseStudio.entryAuth.isAuthorized());
++  await B.page.waitForFunction(()=>CruiseStudio.entryAuth.isAuthorized());
+diff --git a/apps/cruise-studio/tests/studio-entry.test.mjs b/apps/cruise-studio/tests/studio-entry.test.mjs
+index bd4496716..19c1383b3 100644
+--- a/apps/cruise-studio/tests/studio-entry.test.mjs
++++ b/apps/cruise-studio/tests/studio-entry.test.mjs
+@@ -15 +15 @@ test('no gate, stored Account alone and a UI flag never grant entry',async()=>{
+-test('native Pro validation plus matching remote Account admits; invalidation permits reauthentication',async()=>{
++test('native Pro validation admits with an optional Account identity snapshot; invalidation permits reauthentication',async()=>{
+@@ -24 +24 @@ test('terminal native denial goes through existing revocation hook',async()=>{
+-test('remote Account mismatch or Device refusal fails closed without changing Account data',async()=>{
++test('Account summary cannot grant or deny local Pro entry',async()=>{
+@@ -26 +26 @@ test('remote Account mismatch or Device refusal fails closed without changing Ac
+-  const f=fixture({summary});assert.equal(await f.entry.check(),false);assert.equal(f.entry.isAuthorized(),false);assert.equal(f.entry.read().accountId,null);
++  const f=fixture({summary});assert.equal(await f.entry.check(),true);assert.equal(f.entry.isAuthorized(),true);assert.equal(f.calls.summary,0);
+@@ -32,2 +32,2 @@ test('Account replacement during validation cannot adopt the old result',async()
+-test('a delayed Account response cannot grant a changed Pro revision',async()=>{
+- let release;const f=fixture({summary:()=>new Promise(r=>release=r)});const pending=f.entry.check();await Promise.resolve();await Promise.resolve();f.replacePro();release({account:{id:'A'}});assert.equal(await pending,false);
++test('a delayed native denial cannot revoke or lock a newer Pro revision as an authentication failure',async()=>{
++ let release;const f=fixture({validatePro:()=>new Promise(r=>release=r)});const pending=f.entry.check();await Promise.resolve();await Promise.resolve();f.replacePro();release({ok:false,terminal:true});assert.equal(await pending,false);assert.equal(f.calls.reject,0);assert.equal(f.entry.read().phase,'session-changed');
+@@ -39 +39 @@ test('concurrent checks share one native validation and Account request',async()
+- const f=fixture();assert.deepEqual(await Promise.all([f.entry.check(),f.entry.check()]),[true,true]);assert.equal(f.calls.pro,1);assert.equal(f.calls.summary,1);
++ const f=fixture();assert.deepEqual(await Promise.all([f.entry.check(),f.entry.check()]),[true,true]);assert.equal(f.calls.pro,1);assert.equal(f.calls.summary,0);
+@@ -67,5 +67,3 @@ test('offline UI proof expires on a monotonic deadline, with no persistence or n
+-test('an explicit Account refusal or invalid response is never a network fallback',async()=>{
+- for(const failure of [undefined,{account:{id:'B'}},Object.assign(Error('revoked'),{status:401,code:'account_device_revoked'}),Object.assign(Error('changed'),{status:0,code:'account_generation_changed'}),Object.assign(Error('invalid'),{status:200,code:'invalid_response'})]){
+-  let first=true;const f=fixture({validatePro:async()=>({ok:true,online:true,offlineRemainingMs:1000}),summary:async()=>{if(first){first=false;return {account:{id:'A'}};}if(failure instanceof Error)throw failure;return failure;}});
+-  assert(await f.entry.check());assert.equal(await f.entry.check(),false);
+- }
++test('Pro-only entry does not need an Account or issue Account requests',async()=>{
++ const f=fixture({storage:{getGeneration:()=>1,getAccount:async()=>null},summary:()=>{throw Error('must not request Account');}});
++ assert(await f.entry.check());assert.equal(f.entry.read().accountId,null);assert.equal(f.calls.summary,0);
+@@ -73,3 +71,7 @@ test('an explicit Account refusal or invalid response is never a network fallbac
+-test('Account mismatch during a transient summary request cannot retain the old owner',async()=>{
+- let release,n=0;const f=fixture({validatePro:async()=>({ok:true,online:true,offlineRemainingMs:1000}),summary:async()=>++n===1?{account:{id:'A'}}:new Promise((_,reject)=>release=reject)});
+- assert(await f.entry.check());const pending=f.entry.check();await Promise.resolve();await Promise.resolve();f.switchAccount();release(Object.assign(Error('network'),{status:0,code:'network_error'}));assert.equal(await pending,false);assert.equal(f.entry.isAuthorized(),false);
++
++test('fresh Studio defaults to Midnight without writing and retains an explicit stored theme',async()=>{
++ const {createRequire}=await import('node:module'),theme=createRequire(import.meta.url)('../js/core/color-theme.js');
++ let raw=null,writes=0;const storage={getItem:()=>raw,setItem:(key,value)=>{raw=value;writes++;}};
++ assert.equal(theme.createColorThemeRuntime({storage}).getColorTheme(),'midnight');assert.equal(writes,0);
++ raw=JSON.stringify({colorTheme:'dark',unrelated:'retain'});const runtime=theme.createColorThemeRuntime({storage});assert.equal(runtime.getColorTheme(),'dark');assert.equal(writes,0);
++ runtime.setColorTheme('midnight');assert.deepEqual(JSON.parse(raw),{colorTheme:'midnight',unrelated:'retain'});
+diff --git a/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs b/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
+index bfaaf989b..73003306f 100644
+--- a/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
++++ b/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
+@@ -11 +11 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+- if(baseline){await cloud(390,844,'before-cloud-390');await p.locator('button[data-workspace=home]').click();await p.screenshot({path:OUT+'/ui-'+engine+'-before-home-390.png'});fs.writeFileSync(OUT+'/UI-'+engine+'.json',JSON.stringify(evidence,null,2));return;}
++ if(baseline){await cloud(390,844,'before-cloud-390');await p.locator('button[data-workspace=home]').click();for(const width of [390,1440]){await p.setViewportSize({width,height:width===390?844:1000});await p.evaluate(()=>{CruiseStudio.colorTheme.setColorTheme('midnight');document.querySelector('#studio-main').scrollTop=0;});await settle();await p.screenshot({path:OUT+'/header-before-'+width+'.png'});}fs.writeFileSync(OUT+'/UI-'+engine+'.json',JSON.stringify(evidence,null,2));return;}
+@@ -29 +29 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+-  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-bpm').fill(String(before===103?104:103));await p.locator('#sc-bpm').press('Tab');assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));
++  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-bpm').fill(String(before===103?104:103));await p.locator('#sc-bpm').press('Tab');assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));await p.locator('#studio-refresh').evaluate(e=>e.click());assert.match(await p.locator('#studio-refresh-status').textContent(),/保存/);assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));
+@@ -40 +40 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+-   await p.locator('button[data-workspace='+workspace+']').click();if(workspace!=='portNews')await p.waitForFunction(id=>document.querySelector('#'+id+'-surface iframe')?.contentDocument?.body?.dataset.componentState==='ready',surface);else await p.frameLocator('#'+surface+'-surface iframe').locator('#news-view:not([hidden])').waitFor();
++   await p.locator('button[data-workspace='+workspace+']').click().catch(async error=>{console.log('ENTRY_FAIL',await p.evaluate(()=>({state:CruiseStudio.entryAuth.read(),diagnostics:CruiseStudio.entryAuth.diagnostics()})));throw error;});if(workspace!=='portNews')await p.waitForFunction(id=>document.querySelector('#'+id+'-surface iframe')?.contentDocument?.body?.dataset.componentState==='ready',surface);else await p.frameLocator('#'+surface+'-surface iframe').locator('#news-view:not([hidden])').waitFor();
+@@ -47,5 +47,9 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+- await check('Safari-style empty storage explains PWA separation and opens the existing Account connection form',async()=>{
+-  const q=await profile('UI-empty-browser',false);await bootstrapPro(q);await q.page.setViewportSize({width:390,height:844});const start=network.length;
+-  await q.page.goto('https://soundcruise.jp/apps/cruise-studio-canary/project-canary.html');await q.page.locator('[data-entry-browser-note]').waitFor({state:'visible'});assert((await q.page.locator('[data-entry-browser-note]').textContent()).includes('Safari'));
+-  await q.page.locator('[data-entry-connect]').click();const frame=await(await q.page.locator('#studio-entry-account iframe').elementHandle()).contentFrame();await frame.locator('#sync-center-port-connect-open').click();await frame.locator('#sync-center-port-connect').waitFor({state:'visible'});
+-  assert.equal(await q.page.evaluate(()=>CruiseStudio.entryAuth.isAuthorized()),false);assert(!network.slice(start).some(x=>x.label==='UI-empty-browser'&&['/v2/accounts/start','/v2/accounts/port-device','/v1/sync/push'].includes(x.path)));await q.page.screenshot({path:OUT+'/ui-'+engine+'-account-guide-390.png'});
++ await check('Pro-only entry permits local work but never creates an Owner session',async()=>{
++  const q=await profile('UI-Pro-only',false);await bootstrapPro(q);const start=network.length;
++  await q.page.goto('https://soundcruise.jp/apps/cruise-studio-canary/project-canary.html');await q.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());
++  assert.equal(await q.page.evaluate(()=>CruiseStudio.entryAuth.read().accountId),null);assert.equal(await q.page.evaluate(()=>CruiseStudio.colorTheme.getColorTheme()),'midnight');
++  await q.page.locator('#open-sheet-cruise').click();await q.page.locator('#sc-goto-pre-dtm').click();
++  assert(await q.page.locator('#screen-pre-dtm').isVisible());await q.page.evaluate(()=>CruiseStudio.shellHost.navigate('metronome'));await q.page.waitForFunction(()=>document.querySelector('#port-metronome-surface iframe')?.contentDocument?.body?.dataset.componentState==='ready');
++  for(const id of ['pitch','fretboard','rhythm','chord']){const leave=d=>d.accept();q.page.on('dialog',leave);try{await q.page.evaluate(id=>{CruiseStudio.shellHost.navigate('home');CruiseStudio.shellHost.navigate('app_'+id);},id);}finally{q.page.off('dialog',leave);}await q.page.locator('#series-'+id+'-surface iframe').waitFor();}
++  assert(await q.page.evaluate(()=>{try{CruiseStudio.projectCloud.session.readSession();return false;}catch{return true;}}));
++  assert(!network.slice(start).some(x=>x.label==='UI-Pro-only'&&x.path==='/v2/studio/document'));
+@@ -53 +57,52 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+- await p.setViewportSize({width:1440,height:1000});await p.locator('button[data-workspace=home]').click();await p.screenshot({path:OUT+'/ui-'+engine+'-after-home-1440.png'});fs.writeFileSync(OUT+'/UI-'+engine+'.json',JSON.stringify(evidence,null,2));
++ await check('Home header and Sync navigation retain the existing Account observer',async()=>{
++  await p.locator('button[data-workspace=home]').click();
++  assert.equal(await p.locator('.studio-header > p').textContent(),'弾き語りストのワークスペース');
++  assert(await p.locator('[data-port-sync-status]').isHidden());
++  assert(await p.evaluate(()=>typeof CruiseStudio.accountStatus?.refresh==='function'));
++  for(const width of [390,768,1024,1440]){await p.setViewportSize({width,height:width<600?844:1000});await settle();for(const theme of ['dark','midnight','charcoal','gray','light']){await p.evaluate(t=>CruiseStudio.colorTheme.setColorTheme(t),theme);assert(await p.locator('#home-cruise-sync').isVisible());assert(await p.locator('#studio-refresh').isVisible());assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}await p.evaluate(()=>{CruiseStudio.colorTheme.setColorTheme('midnight');document.querySelector('#studio-main').scrollTop=0;});await settle();await p.screenshot({path:OUT+'/header-'+engine+'-'+width+'.png'});}
++  const loading=await p.evaluate(()=>{document.querySelector('#home-cruise-sync').click();return document.querySelector('#port-sync-status').textContent;});assert.equal(loading,'Cruise Syncに移動しています。');assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portSync');
++  await p.locator('button[data-workspace=home]').click();await p.locator('button[data-workspace=portSync]').click();assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portSync');
++  await p.evaluate(()=>CruiseStudio.accountStatus.refresh());assert(await p.evaluate(()=>!!CruiseStudio.accountStatus.diagnostics().state));
++  await p.locator('button[data-workspace=home]').click();
++  // Keep the two reload checks sequential: navigation cancels in-flight auth and Project requests in WebKit.
++  await p.waitForLoadState('networkidle');
++  await p.reload();await p.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized()&&typeof CruiseStudio.accountStatus?.refresh==='function');
++  await p.waitForFunction(()=>document.querySelector('#home-cruise-sync')&&!document.querySelector('#studio-shell').inert);
++  await p.waitForLoadState('networkidle');
++  await Promise.all([p.waitForEvent('load'),p.locator('#studio-refresh').click()]);await p.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized()&&typeof CruiseStudio.accountStatus?.refresh==='function');await p.waitForLoadState('networkidle');
++ });
++ await check('center surfaces expand with their content and project Midnight without persisting app choices',async()=>{
++  await p.setViewportSize({width:390,height:844});await p.evaluate(()=>CruiseStudio.colorTheme.setColorTheme('midnight'));
++  const measurements=[];
++  for(const [workspace,surface] of [['tuner','port-tuner'],['metronome','port-metronome'],['portPractice','port-practice'],['portGear','port-gear'],['portMyApps','port-my-apps'],['portSync','port-sync'],['calendar','port-practice'],...['pitch','fretboard','rhythm','chord'].map(id=>['app_'+id,'series-'+id])]){
++   console.log('CENTER_CHECK',workspace);const leave=d=>d.accept();p.on('dialog',leave);try{await p.evaluate(id=>{CruiseStudio.shellHost.navigate('home');if(id!=='calendar')CruiseStudio.shellHost.navigate(id);},workspace);if(workspace==='calendar')await p.locator('#screen-home [data-open-calendar]').click();}finally{p.off('dialog',leave);}
++   const locator=p.locator('#'+surface+'-surface iframe');await locator.waitFor();
++   const child=await(await locator.elementHandle()).contentFrame();await child.waitForLoadState('load');
++   await child.waitForFunction(()=>document.body&&document.getElementById('studio-center-height'));
++   await child.waitForFunction(()=>document.scrollingElement.scrollHeight<=innerHeight+4).catch(async error=>{console.log('SCROLL_FAIL',workspace,await child.evaluate(()=>({height:innerHeight,root:document.scrollingElement.scrollHeight,body:document.body.getBoundingClientRect().height,children:[...document.body.children].map(e=>({tag:e.tagName,id:e.id,height:e.getBoundingClientRect().height,position:getComputedStyle(e).position})).slice(0,8)})));throw error;});
++   if(workspace==='metronome'){await child.locator('#metronome-details').evaluate(e=>e.open=true);await child.waitForFunction(()=>document.scrollingElement.scrollHeight<=innerHeight+4);}
++   if(workspace==='tuner'){await child.locator('#tuner-input-settings-toggle').click();await child.waitForFunction(()=>document.scrollingElement.scrollHeight<=innerHeight+4);}
++   const bottom=await child.locator('button').evaluateAll(buttons=>{let target=null,max=-Infinity;for(const button of buttons){if(button.closest('details:not([open])')||button.matches(':disabled')||!button.getClientRects().length||getComputedStyle(button).visibility!=='visible')continue;let fixed=false;for(let n=button;n;n=n.parentElement)if(getComputedStyle(n).position==='fixed'||(n!==document.body&&n!==document.documentElement&&n.scrollHeight>n.clientHeight+1&&/auto|scroll/.test(getComputedStyle(n).overflowY))){fixed=true;break;}const r=button.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);if(!fixed&&hit&&button.contains(hit)&&r.width>0&&r.height>0&&r.bottom>max){target=button;max=r.bottom;}}if(target)target.dataset.studioBottomQa='';return !!target;});
++   assert(bottom,workspace+' has an actionable bottom control');await child.locator('[data-studio-bottom-qa]').scrollIntoViewIfNeeded();await child.locator('[data-studio-bottom-qa]').click({trial:true});assert.equal(await child.evaluate(()=>scrollY),0,workspace+' uses only outer vertical scrolling');
++   measurements.push({workspace,...await child.evaluate(()=>({height:innerHeight,scroll:document.scrollingElement.scrollHeight,theme:document.documentElement.dataset.studioTheme}))});
++  }
++  fs.writeFileSync(OUT+'/center-scroll-'+engine+'.json',JSON.stringify(measurements,null,2));
++ });
++ await check('synthetic microphone and metronome contexts stop when leaving their workspace',async()=>{
++  const q=await profile('UI-audio-only',false);await bootstrapPro(q);
++  await q.context.addInitScript(()=>{const Native=window.AudioContext||window.webkitAudioContext;if(!Native)return;window.__qaContexts=[];for(const name of ['AudioContext','webkitAudioContext']){if(window[name])window[name]=class extends Native{constructor(...args){super(...args);window.__qaContexts.push(this);}};}if(navigator.mediaDevices)navigator.mediaDevices.getUserMedia=async()=>{const context=new AudioContext(),source=context.createOscillator(),destination=context.createMediaStreamDestination();source.frequency.value=440;source.connect(destination);source.start();window.__qaGenerator=context;window.__qaMic=destination.stream;return destination.stream;};});
++  await q.page.goto('https://soundcruise.jp/apps/cruise-studio-canary/project-canary.html');await q.page.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized());await q.page.evaluate(()=>CruiseStudio.shellHost.navigate('tuner'));
++  await q.page.waitForFunction(()=>document.querySelector('#port-tuner-surface iframe')?.contentWindow?.__qaMic?.getTracks().length);
++  await q.page.evaluate(()=>{const w=document.querySelector('#port-tuner-surface iframe').contentWindow;window.__qaTrack=w.__qaMic.getTracks()[0];window.__qaGenerator=w.__qaGenerator;CruiseStudio.shellHost.navigate('metronome');});await q.page.waitForFunction(()=>__qaTrack.readyState==='ended');await q.page.waitForFunction(()=>__qaGenerator.state==='closed');
++  const frame=q.page.frameLocator('#port-metronome-surface iframe');await frame.locator('#metronome-toggle').click();await frame.locator('#metronome-toggle[aria-pressed=true]').waitFor();
++  await q.page.evaluate(()=>{window.__qaOutput=document.querySelector('#port-metronome-surface iframe').contentWindow.__qaContexts;CruiseStudio.shellHost.navigate('home');});await q.page.waitForFunction(()=>__qaOutput.length&&__qaOutput.every(c=>c.state==='closed'));
++ });
++ await check('standalone mobile apps retain an explicit Midnight choice across reload',async()=>{
++  const q=await profile('UI-mobile-midnight',false);await q.page.setViewportSize({width:390,height:844});
++  for(const [app,settings] of [['pitch-cruise','#home-settings-btn'],['fretboard_cruise','#btn-settings-home'],['rhythm-cruise','#settings-btn'],['chord-cruise','#cc-settings-btn']]){
++   await q.page.goto('https://soundcruise.jp/apps/'+app+'/standard/index.html');await q.page.locator(settings).click();if(app==='fretboard_cruise')await q.page.locator('[data-settings-tab=common]').click();await q.page.locator('[data-theme-choice=midnight]').click();
++   assert(await q.page.locator('html').evaluate(e=>e.getAttribute('data-midnight')==='true'));await q.page.screenshot({path:OUT+'/midnight-'+app+'-'+engine+'.png'});
++   if(app==='pitch-cruise')await q.page.locator('#confirm-settings').click();if(app==='fretboard_cruise')await q.page.locator('#btn-settings-apply').click();console.log('STANDALONE_THEME',app);await q.page.reload();await q.page.waitForFunction(()=>document.documentElement.getAttribute('data-midnight')==='true');
++  }
++ });
++ await p.setViewportSize({width:1440,height:1000});const finalLeave=d=>d.accept();p.on('dialog',finalLeave);try{await p.locator('button[data-workspace=home]').click();}finally{p.off('dialog',finalLeave);}await p.screenshot({path:OUT+'/ui-'+engine+'-after-home-1440.png'});fs.writeFileSync(OUT+'/UI-'+engine+'.json',JSON.stringify(evidence,null,2));

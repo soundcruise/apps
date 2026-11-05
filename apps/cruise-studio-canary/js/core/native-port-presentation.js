@@ -10,13 +10,52 @@
                 child.dispatchEvent(new child.CustomEvent('cruise-port-app-report-updated'));
         }catch(_){} });
     });
+    // Same-origin center surfaces use the workspace scroller; pane and modal scrollers retain ownership.
+    const heightOwners = new WeakMap();
+    function attachHeight(frame) {
+        if (!frame.closest('#studio-shell') || heightOwners.has(frame)) return;
+        let doc, resize, changes, queued = false, disposed = false;
+        const originalHeight = frame.style.height;
+        function update() {
+            queued = false;
+            if (!frame.isConnected) { disposed = true; resize?.disconnect(); changes?.disconnect(); placement.disconnect(); return; }
+            if (!doc?.body || !frame.getClientRects().length) return;
+            const center = !frame.closest('#tool-window-slot');
+            const style = doc.getElementById('studio-center-height');
+            if (!center) { style?.remove(); if (frame.style.height !== originalHeight) frame.style.height = originalHeight; return; }
+            if (!style) {
+                const css = doc.createElement('style'); css.id = 'studio-center-height';
+                css.textContent = 'html,body{height:auto!important;min-height:0!important} body{overflow-y:visible!important} body>.app-container,body>.cc-app,body>.port-shell{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important} .app-container:has(>#overlay:not(.hidden))>header,.app-container:has(>#overlay:not(.hidden))>main{display:none!important} .app-container>#overlay{position:relative!important;inset:auto!important;height:auto!important;min-height:0!important;overflow:visible!important} .app-container>#overlay>.modal{max-height:none!important;overflow-y:visible!important}';
+                doc.head.append(css);
+            }
+            let bottom = doc.body.getBoundingClientRect().bottom + frame.contentWindow.scrollY;
+            for (const child of doc.body.children) {
+                const style = frame.contentWindow.getComputedStyle(child);
+                if (style.position !== 'fixed' && style.display !== 'none') bottom = Math.max(bottom, child.getBoundingClientRect().top + frame.contentWindow.scrollY + Math.max(child.getBoundingClientRect().height, child.scrollHeight) + (parseFloat(style.marginBottom) || 0));
+            }
+            const height = Math.max(120, Math.ceil(bottom) + 2);
+            if (Math.abs(frame.getBoundingClientRect().height - height) > 1) frame.style.height = height + 'px';
+        }
+        function schedule() { if (!queued && !disposed) { queued = true; requestAnimationFrame(update); } }
+        function bind() {
+            try { doc = frame.contentDocument; if (!doc?.body || frame.contentWindow.location.origin !== location.origin) return;
+                resize?.disconnect(); changes?.disconnect();
+                resize = new ResizeObserver(schedule); resize.observe(doc.body); for (const child of doc.body.children) resize.observe(child);
+                changes = new MutationObserver(schedule); changes.observe(doc.body, {subtree:true,childList:true,attributes:true,attributeFilter:['class','hidden','open','style']});
+                schedule();
+            } catch (_) { /* Cross-origin documents keep their native scrolling. */ }
+        }
+        const placement = new MutationObserver(schedule); placement.observe(document.getElementById('studio-shell'), {subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class']});
+        frame.addEventListener('load', bind); heightOwners.set(frame, {schedule}); bind();
+    }
+    document.addEventListener('load', event => { if (event.target instanceof HTMLIFrameElement) attachHeight(event.target); }, true);
     CS.stopNativePort = function (frame) {
-        frame.contentWindow?.studioEntryStopMedia?.();
         var tool = frame.contentWindow?.CruiseStudioPortTool;
         // Native pagehide intentionally leaves standalone Port's timer running.
         // A Studio tool pauses through its existing control before losing ownership.
         tool?.pause();
-        return tool?.stop();
+        tool?.stop();
+        return frame.contentWindow?.studioEntryStopMedia?.();
     };
     CS.presentNativePort = function (frame) {
         var child = frame.contentWindow;
@@ -34,8 +73,15 @@
         // A permission prompt may finish after the entrance has locked. Retain
         // the form/document, but never let that old microphone request revive.
         if (!child.studioEntryStopMedia && child.navigator.mediaDevices?.getUserMedia) {
-            var streams = new Set(), getMedia = child.navigator.mediaDevices.getUserMedia.bind(child.navigator.mediaDevices);
-            child.studioEntryStopMedia = function () { streams.forEach(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); }); streams.clear(); };
+            var streams = new Set(), contexts = new Set(), getMedia = child.navigator.mediaDevices.getUserMedia.bind(child.navigator.mediaDevices);
+            child.studioEntryStopMedia = function () {
+                streams.forEach(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); }); streams.clear();
+                return Promise.all([...contexts].map(async context => { if (context.state !== 'closed') await context.close(); contexts.delete(context); }));
+            };
+            for (const prototype of new Set([child.AudioContext?.prototype, child.webkitAudioContext?.prototype].filter(Boolean))) {
+                const resume = prototype.resume;
+                prototype.resume = function (...args) { contexts.add(this); return resume.apply(this, args); };
+            }
             child.navigator.mediaDevices.getUserMedia = async function (options) {
                 var entry = CS.entryAuth, revision = entry?.read().revision;
                 if (!entry?.isAuthorized() || frame.inert || !frame.isConnected) throw new DOMException('Studio is locked', 'AbortError');

@@ -18,7 +18,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.22.0';
+const RHYTHM_CRUISE_VERSION = '1.23.0';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -832,8 +832,8 @@ const MIC_WAVE_WINDOW_MS = 4000;
 const SETTINGS_KEY = 'rhythmCruiseSettings';
 /* カラーテーマ（アプリ単位・端末ローカル）。欠落/不正値はダーク。設定で選んだときだけ保存する。
    起動時は index.html の head 内 bootstrap が描画前に適用する。 */
-const RHYTHM_THEMES = ['dark', 'charcoal', 'gray', 'light'];
-const RHYTHM_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f6f4ef' };
+const RHYTHM_THEMES = ['dark', 'midnight', 'charcoal', 'gray', 'light'];
+const RHYTHM_THEME_META_COLORS = { midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f6f4ef' };
 function resolveRhythmTheme(value) {
     return RHYTHM_THEMES.includes(value) ? value : 'dark';
 }
@@ -846,7 +846,8 @@ function rhythmThemeOf(settings) {
 
 function applyRhythmTheme(value) {
     const theme = resolveRhythmTheme(value);
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme === 'midnight' ? 'charcoal' : theme);
+    document.documentElement.setAttribute('data-midnight', String(theme === 'midnight'));
     let meta = document.querySelector('meta[data-rc-theme-color]');
     if (theme === 'dark') {
         if (meta) meta.remove();

@@ -1,0 +1,68 @@
+[
+  {
+    "workspace": "tuner",
+    "height": 1128,
+    "scroll": 1128,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "metronome",
+    "height": 1517,
+    "scroll": 1517,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portPractice",
+    "height": 809,
+    "scroll": 809,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portGear",
+    "height": 960,
+    "scroll": 960,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portMyApps",
+    "height": 454,
+    "scroll": 454,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portSync",
+    "height": 1804,
+    "scroll": 1804,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "calendar",
+    "height": 1170,
+    "scroll": 1170,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_pitch",
+    "height": 693,
+    "scroll": 693,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_fretboard",
+    "height": 692,
+    "scroll": 692,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_rhythm",
+    "height": 632,
+    "scroll": 632,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_chord",
+    "height": 735,
+    "scroll": 735,
+    "theme": "midnight"
+  }
+]

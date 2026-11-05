@@ -53,13 +53,13 @@ pages.forEach(function (entry) {
     var card = html.slice(html.indexOf('id="rc-theme-card"'), html.indexOf('id="settings-reset-all-wrap"'));
     var buttons = [];
     card.replace(/data-theme-choice="([a-z]+)" aria-pressed="(true|false)">([^<]+)</g, function (m, v, p, l) { buttons.push([v, p, l]); });
-    assert.deepStrictEqual(buttons, [['dark', 'true', 'ダーク'], ['charcoal', 'false', 'チャコール'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']],
+    assert.deepStrictEqual(buttons, [['dark', 'true', 'ダーク'], ['midnight', 'false', 'ミッドナイト'], ['charcoal', 'false', 'チャコール'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']],
         name + ': カラーテーマ card sits in the shared area above 全てを初期化する');
     assert.strictEqual((html.match(/class="settings-tab[ "]/g) || []).length, 4, name + ': no settings tab was added');
 });
 
 // ── Settings contract ────────────────────────────────────────────────────────────────────────
-assert(/const RHYTHM_THEMES = \['dark', 'charcoal', 'gray', 'light'\];/.test(script));
+assert(/const RHYTHM_THEMES = \['dark', 'midnight', 'charcoal', 'gray', 'light'\];/.test(script));
 assert(/state\.theme = s\.theme; \/\/ 保存値はそのまま保持/.test(script), 'loadSettings keeps the raw stored value');
 assert(/theme: state\.theme, \/\/ 明示的に選ばれたときだけ値がある/.test(script), 'saveSettings rebuilds with the theme explicitly');
 var load = script.slice(script.indexOf('function loadSettings() {'), script.indexOf('function saveSettings() {'));
@@ -73,7 +73,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     var nodes = [];
     var darkMeta = { attrs: { content: '#070b11' } };
     nodes.push(darkMeta);
-    var buttons = ['dark', 'charcoal', 'gray', 'light'].map(function (t) {
+    var buttons = ['dark', 'midnight', 'charcoal', 'gray', 'light'].map(function (t) {
         return { t: t, cls: {}, attrs: {}, getAttribute: function () { return this.t; }, setAttribute: function (n, v) { this.attrs[n] = v; },
             classList: { toggle: function (c, on) { this.on = on; } } };
     });
@@ -89,7 +89,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     ctx.apply('light');
     assert.strictEqual(doc.documentElement.attrs['data-theme'], 'light');
     assert.strictEqual(nodes[0].attrs.content, '#f6f4ef', 'theme meta precedes the Dark meta');
-    assert.strictEqual(buttons[3].attrs['aria-pressed'], 'true');
+    assert.strictEqual(buttons[4].attrs['aria-pressed'], 'true');
     ctx.apply('dark');
     assert.deepStrictEqual(nodes, [darkMeta]);
     [undefined, 'Light', 'sepia', 1].forEach(function (v) { assert.strictEqual(ctx.resolve(v), 'dark'); });
@@ -106,7 +106,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
             if (!/^@(media|supports|keyframes)/.test(sel) && !/^((from|to|\d+(\.\d+)?%)\s*,?\s*)+$/.test(sel)) {
                 sel.split(/,\s*(?![^()]*\))/).forEach(function (part) {
                     var p = part.trim();
-                    assert(p.indexOf(SCOPE) === 0 || SCOPE_RE.test(p), 'layer selector is theme-scoped: ' + p.slice(0, 100));
+                    assert(p.indexOf(SCOPE) === 0 || SCOPE_RE.test(p) || p === ':root:is([data-midnight="true"], [data-studio-theme="midnight"])', 'layer selector is theme-scoped: ' + p.slice(0, 100));
                 });
             }
             depth += 1; selector = '';
@@ -149,7 +149,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     assert.deepStrictEqual(JSON.parse(JSON.stringify(sent({ theme: 'gray' }))), { theme: 'gray' }, 'a theme-only settings record');
     assert.strictEqual(sent({}), undefined, 'nothing to send: no settings record');
     var remote = function (values) { return { appId: 'rhythm', schemaVersion: 1, records: [{ recordType: 'settings', recordId: 'settings', schemaVersion: 1, payload: { id: 'settings', values: values } }] }; };
-    ['dark', 'charcoal', 'gray', 'light'].forEach(function (theme) { api.validateSnapshot(remote({ tapLayout: 'ud', theme: theme })); });
+    ['dark', 'midnight', 'charcoal', 'gray', 'light'].forEach(function (theme) { api.validateSnapshot(remote({ tapLayout: 'ud', theme: theme })); });
     assert.throws(function () { api.validateSnapshot(remote({ tapLayout: 'ud', theme: 'sepia' })); });
     var merged = api.mergeSnapshots(remote({ tapLayout: 'ud' }), remote({ tapLayout: 'ud', theme: 'gray' }));
     assert.strictEqual(merged.conflicts.length, 0);
@@ -209,7 +209,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
             assert.deepStrictEqual(runBootstrap(html, c[0]), { theme: c[1], meta: c[2] }, file + ' ' + c[0]);
         });
         assert.strictEqual(runBootstrap(html, null, true).theme, 'dark', file + ': storage error is Dark');
-        var original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '');
+        var original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '').replace(/(?<!pro-)(theme\.css\?v=)[\d.]+/g, '$11.3.0'); // Normalize only the app stylesheet cache key for the content hash.
         assert.strictEqual(sha256(original), INFO_PAGES[file][1], file + ': text, links and navigation unchanged');
         var css = read(link[1].slice(2));
         css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map(function (b) { return b.trim().replace(/^@media[^{]*\{\s*/, ''); })
