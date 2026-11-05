@@ -18,9 +18,9 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
   if(await dock.count())await dock.click();await p.evaluate(()=>document.documentElement.style.removeProperty('--studio-safe-bottom'));
  });
  await check('Home connects through Cruise Sync to the existing Project UI without a write',async()=>{
-  await p.locator('button[data-workspace=home]').click();const note=p.locator('.home-project-storage-note');assert(!await note.textContent().then(s=>s.includes('Cruise Syncの対象外')));
+  await p.locator('button[data-workspace=home]').click();assert.equal(await p.locator('.home-project-storage-note').count(),0);assert.equal(await p.locator('.home-tools [data-home-workspace=portSync]').count(),1);
   assert.equal(await p.locator('[data-project-home-status]').textContent(),await p.locator('[data-project-sync-status]').textContent());
-  const start=network.length;await p.locator('[data-open-project-cloud]').focus();await p.keyboard.press('Enter');await settle();assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portSync');await p.locator('[data-open-project-details]').click();await p.waitForFunction(()=>CruiseStudio.shellHost.getActiveWorkspace()==='sheetCruise');assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'sheetCruise');assert(await p.locator('[data-project-canary] summary').evaluate(e=>e===document.activeElement));
+  const start=network.length;await p.locator('[data-home-workspace=portSync]').focus();await p.keyboard.press('Enter');await settle();assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portSync');await p.locator('[data-open-project-details]').click();await p.waitForFunction(()=>CruiseStudio.shellHost.getActiveWorkspace()==='sheetCruise');assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'sheetCruise');assert(await p.locator('[data-project-canary] summary').evaluate(e=>e===document.activeElement));
   assert(!network.slice(start).some(x=>x.path==='/v2/studio/document'&&['begin','upload','upload-batch','commit'].includes(x.kind)));
   await p.locator('button[data-workspace=home]').click();await p.screenshot({path:OUT+'/ui-'+engine+'-after-home-390.png'});
  });
@@ -42,7 +42,7 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
   }
   await p.locator('button[data-workspace=home]').click();await p.locator('#screen-home [data-open-calendar]').click();const cal=await(await p.locator('#port-practice-surface iframe').elementHandle()).contentFrame();await cal.locator('#practice-calendar-note-add').waitFor({state:'visible'});
   await p.locator('button[data-workspace=home]').click();await p.locator('#studio-tool-toggle').click();await p.locator('#tool-window-select').selectOption('metronome');await p.locator('#studio-tool-window #port-metronome-surface iframe').waitFor({state:'visible'});
-  await p.locator('#screen-home [data-open-project-cloud]').click();await p.locator('[data-open-project-details]').click();await p.waitForFunction(()=>CruiseStudio.shellHost.getActiveWorkspace()==='sheetCruise');assert(await p.locator('#studio-tool-window #port-metronome-surface iframe').isVisible());assert(await p.locator('[data-project-canary]').isVisible());await p.screenshot({path:OUT+'/ui-'+engine+'-right-tool-cloud-1440.png'});await p.locator('#studio-tool-toggle').click();
+  await p.locator('#screen-home [data-home-workspace=portSync]').click();await p.locator('[data-open-project-details]').click();await p.waitForFunction(()=>CruiseStudio.shellHost.getActiveWorkspace()==='sheetCruise');assert(await p.locator('#studio-tool-window #port-metronome-surface iframe').isVisible());assert(await p.locator('[data-project-canary]').isVisible());await p.screenshot({path:OUT+'/ui-'+engine+'-right-tool-cloud-1440.png'});await p.locator('#studio-tool-toggle').click();
  });
  await check('Pro-only entry permits local work but never creates an Owner session',async()=>{
   const q=await profile('UI-Pro-only',false);await bootstrapPro(q);const start=network.length;

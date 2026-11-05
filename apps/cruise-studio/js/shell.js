@@ -55,13 +55,13 @@
         var dock = doc.getElementById('studio-dock');
         var layout = createLayoutState(shell.clientWidth);
         var rail=doc.createElement('div');rail.id='studio-sidebar-resize';rail.tabIndex=0;rail.setAttribute('role','separator');rail.setAttribute('aria-label','左メニュー幅');rail.setAttribute('aria-orientation','vertical');doc.querySelector('.studio-nav').append(rail);
-        var sidebarWidth=176;
+        var sidebarWidth=216;
         try{var savedWidth=Number(localStorage.getItem('cruiseStudio.sidebarWidth'));if(savedWidth>=128&&savedWidth<=300)sidebarWidth=savedWidth;}catch(_){}
-        function sizeSidebar(value,save){sidebarWidth=Math.min(300,Math.max(128,value));var effective=Math.min(sidebarWidth,Math.max(128,shell.clientWidth*.22));shell.style.setProperty('--studio-sidebar-width',effective+'px');rail.setAttribute('aria-valuemin','128');rail.setAttribute('aria-valuemax','300');rail.setAttribute('aria-valuenow',String(Math.round(effective)));if(save)try{localStorage.setItem('cruiseStudio.sidebarWidth',String(sidebarWidth));}catch(_){} }
+        function sizeSidebar(value,save){sidebarWidth=Math.min(300,Math.max(216,value));var effective=Math.min(Math.max(216,sidebarWidth),Math.max(216,shell.clientWidth*.28));shell.style.setProperty('--studio-sidebar-width',effective+'px');rail.setAttribute('aria-valuemin','216');rail.setAttribute('aria-valuemax','300');rail.setAttribute('aria-valuenow',String(Math.round(effective)));if(save)try{localStorage.setItem('cruiseStudio.sidebarWidth',String(sidebarWidth));}catch(_){} }
         rail.addEventListener('pointerdown',function(e){if(e.button!==0)return;e.preventDefault();rail.setPointerCapture(e.pointerId);});
         rail.addEventListener('pointermove',function(e){if(rail.hasPointerCapture(e.pointerId))sizeSidebar(e.clientX-shell.getBoundingClientRect().left,true);});
         rail.addEventListener('pointerup',function(e){if(rail.hasPointerCapture(e.pointerId))rail.releasePointerCapture(e.pointerId);});
-        rail.addEventListener('keydown',function(e){if(e.isComposing)return;if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();sizeSidebar(e.key==='Home'?128:e.key==='End'?300:sidebarWidth+(e.key==='ArrowRight'?16:-16),true);}});
+        rail.addEventListener('keydown',function(e){if(e.isComposing)return;if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();sizeSidebar(e.key==='Home'?216:e.key==='End'?300:sidebarWidth+(e.key==='ArrowRight'?16:-16),true);}});
         sizeSidebar(sidebarWidth,false);window.addEventListener('resize',function(){sizeSidebar(sidebarWidth,false);});
         var positions = Object.create(null), focus = Object.create(null);
         var visitHistory = [];

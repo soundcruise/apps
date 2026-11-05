@@ -11,9 +11,6 @@ export function mountStudioCanary(C=globalThis.CruiseStudio){
  const heading=document.createElement('h2'),state=document.createElement('p'),availability=document.createElement('p'),open=document.createElement('button'),retry=document.createElement('button');
  heading.textContent='Project Cloud';heading.tabIndex=-1;state.dataset.projectHomeStatus='';state.setAttribute('role','status');open.type=retry.type='button';open.className=retry.className='btn-ghost';open.dataset.openProjectDetails='';open.textContent='Project Cloudを開く';open.disabled=false;open.setAttribute('aria-controls',details.id);retry.textContent='Project接続を再確認';sync.append(heading,open,retry,state,availability);
  document.getElementById('port-sync-surface').before(sync);
- const note=document.querySelector('.home-project-storage-note'),home=document.createElement('button');
- home.type='button';home.className='btn-ghost';home.dataset.openProjectCloud='';home.textContent='Cruise Syncで確認';note.replaceChildren(document.createTextNode('制作Projectはこのブラウザに保存します。クラウド接続はCruise Syncで確認できます。JSONでバックアップできます。'),home);
- home.addEventListener('click',()=>{C.shellHost.navigate('portSync');if(C.shellHost.getActiveWorkspace()==='portSync'){sync.scrollIntoView({block:'start'});heading.focus({preventScroll:true});}});
  open.addEventListener('click',()=>{C.shellHost.navigate('sheetCruise');if(C.shellHost.getActiveWorkspace()!=='sheetCruise')return;details.open=true;details.scrollIntoView({block:'start'});summary.focus({preventScroll:true});});
  let admitted=false;
  const render=()=>{open.disabled=false;const panel=element.querySelector('.studio-cloud-panel');if(panel)panel.inert=!admitted;const text=element.querySelector('[data-project-sync-status]')?.textContent||'Project接続を確認中…';if(state.textContent!==text)state.textContent=text;availability.textContent=!admitted?'Project Cloudは現在利用できません。ローカル制作は続けられます。':'現在のAccountで許可されたProjectを利用できます。';};

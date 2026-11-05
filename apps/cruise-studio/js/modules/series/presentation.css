@@ -37,3 +37,12 @@ html[data-studio-theme] body{background:var(--studio-app-bg);color:var(--studio-
 @media(min-width:700px){
  :root[data-studio-layout=center][data-studio-app=chord] #cc-fretboard-host .cc-fb-stage{margin-inline:auto}
 }
+
+/* The native start overlay fills a center frame; its backdrop follows Studio. */
+:root[data-studio-theme][data-studio-app=pitch] #overlay{background:var(--studio-app-bg)}
+/* The center owns vertical scrolling even while Pitch's native settings are open. */
+:root[data-studio-layout=center][data-studio-app=pitch] .app-container:has(>#settings-modal:not(.hidden)) > :not(#settings-modal){display:none!important}
+:root[data-studio-layout=center][data-studio-app=pitch] #settings-modal:not(.hidden){position:relative;inset:auto;height:auto;max-height:none;overflow:visible}
+:root[data-studio-layout=center][data-studio-app=chord] body:has(>#cc-settings-overlay:not(.cc-settings-overlay--hidden)) > .cc-app{display:none!important}
+:root[data-studio-layout=center][data-studio-app=chord] #cc-settings-overlay:not(.cc-settings-overlay--hidden){position:relative;inset:auto;overflow:visible}
+:root[data-studio-layout=center][data-studio-app=chord] #cc-settings-overlay .cc-settings-panel{min-height:0}

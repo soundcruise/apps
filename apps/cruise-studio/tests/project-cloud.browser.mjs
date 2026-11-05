@@ -3,9 +3,9 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {fileURLToPath} from 'node:url';import {execFileSync} from 'node:child_process';
 const here=path.dirname(fileURLToPath(import.meta.url)),root=path.resolve(here,'../../..'),out=process.env.STUDIO_CLIENT_OUTPUT;
 assert(out?.startsWith('/private/tmp/')&&process.env.STUDIO_WORKER_ROOT,'isolated retained source/output required');fs.mkdirSync(out,{recursive:true});
-const source=fs.readFileSync(path.join(here,'port-product-sync.browser.mjs'),'utf8'),start=source.indexOf(" await check('public Studio restores");assert(start>0);
+const source=fs.readFileSync(path.join(here,'port-product-sync.browser.mjs'),'utf8'),start=source.indexOf(process.env.STUDIO_DEVICE_UI_ONLY==='1'?" await check('normal Account detach":" await check('public Studio restores");assert(start>0);
 let run=source.slice(0,start)+`
- await(await import(${JSON.stringify(path.join(here,'project-cloud-product.acceptance.mjs'))})).acceptProjectCloud({profile,bootstrapPro,createAccount,createAccountCredential,accountCredentialVerifier,pepper,db,check,result,network,faults,OUT,port,nativeRuntime,normalGear,sync,go,ready});
+ ${process.env.STUDIO_DEVICE_UI_ONLY==='1'?`await(await import(${JSON.stringify(path.join(here,'device-ui-polish.acceptance.mjs'))})).acceptDeviceUI({profile,bootstrapPro,check,result,OUT});`:`await(await import(${JSON.stringify(path.join(here,'project-cloud-product.acceptance.mjs'))})).acceptProjectCloud({profile,bootstrapPro,createAccount,createAccountCredential,accountCredentialVerifier,pepper,db,check,result,network,faults,OUT,port,nativeRuntime,normalGear,sync,go,ready});`}
  assert.deepEqual(errors,[]);result.status='PASS';result.realCredentialsUsed=false;
 }catch(error){result.status='FAIL';result.error=String(error.stack||error);console.error(result.error);process.exitCode=1;}
 finally{fs.writeFileSync(OUT+'/PROJECT-PRODUCT.json',JSON.stringify(result,null,2));for(const context of contexts)await context.close();await browser?.close();await mf?.dispose();stopBuildService();}process.exit(result.status==='PASS'?0:1);`;
