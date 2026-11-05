@@ -555,7 +555,12 @@ test('Port remains a Control Plane and never opens app stores or handles user pa
 test('Recovery plaintext is ephemeral and Sync Center never persists credentials directly', () => {
     const ui = read('./sync-center-ui.js');
     const combined = `${root}\n${pro}\n${ui}\n${controller}`;
-    assert.doesNotMatch(combined, /setAccount|setPending|accountCredential\s*[:=]/);
+    // Comparisons in the binding fence are reads; assignments/object payloads remain forbidden.
+    const credentialWrite = /setAccount|setPending|accountCredential\s*[:=](?!=)/;
+    assert.match('accountCredential = value', credentialWrite);
+    assert.match('accountCredential: value', credentialWrite);
+    assert.doesNotMatch('a.accountCredential === b.accountCredential', credentialWrite);
+    assert.doesNotMatch(combined, credentialWrite);
     assert.doesNotMatch(combined, /innerHTML|insertAdjacentHTML/);
     assert.match(ui, /recoverySecret\?\.take\(\)/);
     assert.match(ui, /recoverySecret\.resolve\(\)/);

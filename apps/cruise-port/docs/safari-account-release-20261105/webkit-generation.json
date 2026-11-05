@@ -1,0 +1,10 @@
+{
+  "stage": "summary",
+  "code": "account_generation_changed",
+  "errorName": "AccountApiError",
+  "status": null,
+  "generationMatches": false,
+  "bindingMatches": null,
+  "casAttempted": false,
+  "casSucceeded": false
+}

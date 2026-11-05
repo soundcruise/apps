@@ -1,0 +1,10 @@
+{
+  "stage": "cas",
+  "code": "account_identity_changed",
+  "errorName": "Error",
+  "status": 410,
+  "generationMatches": true,
+  "bindingMatches": true,
+  "casAttempted": true,
+  "casSucceeded": false
+}

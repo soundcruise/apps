@@ -1,0 +1,198 @@
+{
+  "final-chrome": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: offline",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: active",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: generation",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: cas",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "final-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "port deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "port invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleting restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio deleted restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart create retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "studio invalid restart connect retains old UNKNOWN and local data",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: offline",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: active",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: generation",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: cas",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "guards-complete-chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Studio Pro-only Home admission without Account",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: offline",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: active",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: generation",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: cas",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  },
+  "guards-complete-webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Studio Pro-only Home admission without Account",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: offline",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: active",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: generation",
+        "status": "PASS"
+      },
+      {
+        "name": "Port release guard: cas",
+        "status": "PASS"
+      }
+    ],
+    "pageerrors": 0,
+    "realCredentialsUsed": false
+  }
+}

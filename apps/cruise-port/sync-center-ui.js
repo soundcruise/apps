@@ -2,12 +2,26 @@ import { getAttentionGuide } from './sync-attention-ui.mjs?v=1.26.1';
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.27.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.27.1';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
+
+// Failure-only, in-memory diagnostic: a closed vocabulary, never raw exceptions.
+export function accountRestartFailureDiagnostic(error) {
+    const d = error?.restartDiagnostic || {};
+    const stages = ['binding','summary','binding-recheck','cas','released','handoff'];
+    const names = ['Error','AccountApiError','AccountStorageError','AbortError','InvalidStateError','QuotaExceededError','SecurityError','UnknownError'];
+    const result = {stage:stages.includes(d.stage)?d.stage:'unknown',
+        code:ACCOUNT_RESTART_FAILURE_CODES.includes(d.code)?d.code:'account_release_failed',
+        errorName:names.includes(d.errorName)?d.errorName:null,
+        status:Number.isInteger(d.status)&&d.status>=100&&d.status<=599?d.status:null};
+    for(const key of ['generationMatches','bindingMatches','casAttempted','casSucceeded'])
+        result[key] = typeof d[key] === 'boolean' ? d[key] : null;
+    return result;
+}
 
 function setText(root, selector, value) {
     const element = root.querySelector(selector);
@@ -699,7 +713,23 @@ export function renderSyncCenter(root, presentation, {
     if(!restart){restart=document.createElement('section');restart.dataset.deletedAccountRestart='';const copy=document.createElement('p');copy.setAttribute('role','status');copy.textContent='このAccountは削除済み、または削除処理中です。古いAccountへの同期は停止しています。削除処理の完了を待たずに再スタートできます。接続資格だけを解除し、ローカルデータ・未送信データは保持します。別Accountへ自動送信しません。';restart.append(copy);for(const [mode,label] of [['create','新しいAccountを作成'],['connect','既存Accountに接続']]){const button=document.createElement('button');button.type='button';button.className='sync-center-account-action';button.dataset.restartMode=mode;button.textContent=label;restart.append(button);}root.querySelector('.sync-center-account-actions')?.append(restart);}
     restart.hidden=!presentation.restartAccount;
     restart.querySelector('p').textContent=(presentation.deletedAccount?'このAccountは削除済み、または削除処理中です。':'以前のAccount接続資格はサーバーに無効と判定されました。削除済みかどうかは断定できません。')+' 古い資格での同期は停止しています。接続資格だけを解除して、新規作成または既存Account接続へ進めます。ローカルデータ・未送信データは保持し、別Accountへ自動送信しません。';
-    for(const button of restart.querySelectorAll('button')){button.disabled=!onRestartDeletedAccount;button.onclick=async()=>{if(!globalThis.confirm('以前のAccountの接続資格だけをこのブラウザから解除します。ローカルデータ・未送信Outbox・制作Projectは削除も別Accountへの移管もしません。続けますか？'))return;button.disabled=true;try{await onRestartDeletedAccount?.(button.dataset.restartMode);}catch{const alert=root.querySelector('#sync-center-alert');if(alert){alert.hidden=false;alert.textContent='接続資格を解除できませんでした。通信または接続先の変更を確認してから再確認してください。保存データは保持しています。';}}finally{button.disabled=false;}};}
+    for(const button of restart.querySelectorAll('button')){
+        button.disabled=!onRestartDeletedAccount;
+        button.onclick=async()=>{
+            if(!globalThis.confirm('以前のAccountの接続資格だけをこのブラウザから解除します。ローカルデータ・未送信Outbox・制作Projectは削除も別Accountへの移管もしません。続けますか？'))return;
+            button.disabled=true;
+            delete root.dataset.accountRestartDiagnostic;
+            try { await onRestartDeletedAccount?.(button.dataset.restartMode); }
+            catch(error) {
+                const diagnostic=accountRestartFailureDiagnostic(error);
+                root.dataset.accountRestartDiagnostic=JSON.stringify(diagnostic);
+                const alert=root.querySelector('#sync-center-alert');
+                if(alert){alert.hidden=false;alert.textContent=diagnostic.casSucceeded
+                    ? '以前の接続資格は解除されましたが、接続画面を開けませんでした。Cruise Syncを開き直してください。保存データは保持しています。'
+                    : '接続資格を解除できませんでした。通信または接続先の変更を確認してから再確認してください。保存データは保持しています。';}
+            } finally { button.disabled=false; }
+        };
+    }
 
     const recoveryOpen = root.querySelector('#sync-center-recovery-open');
     const recoveryHelp = root.querySelector('#sync-center-recovery-help');
