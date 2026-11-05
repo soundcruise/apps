@@ -36,13 +36,13 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.25.1';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.26.1';
+} from './sync-center-controller.js?v=1.27.0';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.27.0';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
 import { createPortSyncStatus, portSyncActionError } from './port-sync-status.js?v=1.25.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.25.1';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.27.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.26.2';
+} from './app-version.js?v=1.27.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
 import { initTuner } from './tuner-app.js?v=1.24.24';
@@ -4442,6 +4442,15 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
         onAppAction: syncCenterActions?.onAppAction,
         onResolveApp: syncCenterActions?.resolveApp, onResolvePort: syncCenterActions?.resolvePort,
+        onRestartDeletedAccount: async mode => {
+            await syncCenterController.releaseDeletedAccount();
+            const host=window.parent!==window?window.parent.CruiseStudio?.portSync:null;
+            if(host?.restartDeletedAccount&&host.restartDeletedAccount(window.frameElement,mode))return;
+            await renderSyncCenterView({refreshAccount:false});
+            const button=elements.syncCenterView.querySelector(mode==='create'?'#sync-center-setup-open':'#sync-center-port-connect-open');
+            if(!button||button.hidden||button.disabled)throw new Error('account_restart_unavailable');
+            button.click();
+        },
         onRecheck: () => renderSyncCenterView(),
         aiSupport: Boolean(aiSupportPanel)
     });
