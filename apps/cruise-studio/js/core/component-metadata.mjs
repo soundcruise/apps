@@ -21,15 +21,15 @@ const components = Object.freeze([
         })
     }),
     mirror('chord-cruise', 'Chord Cruise', 'apps/chord-cruise/js/app.js',
-        'CHORD_CRUISE_APP_VERSION', '1.22.1'),
+        'CHORD_CRUISE_APP_VERSION', '1.23.0'),
     mirror('pitch-cruise', 'Pitch Cruise', 'apps/pitch-cruise/script.js',
-        'PITCH_TRAINER_APP_VERSION', '2.31.0'),
+        'PITCH_TRAINER_APP_VERSION', '2.32.0'),
     mirror('fretboard-cruise', 'Fretboard Cruise', 'apps/fretboard_cruise/script.js',
-        'FRETBOARD_CRUISE_APP_VERSION', '2.26.0'),
+        'FRETBOARD_CRUISE_APP_VERSION', '2.27.0'),
     mirror('rhythm-cruise', 'Rhythm Cruise', 'apps/rhythm-cruise/script.js',
-        'RHYTHM_CRUISE_VERSION', '1.22.0'),
+        'RHYTHM_CRUISE_VERSION', '1.23.0'),
     mirror('cruise-studio', 'Cruise Studio', 'apps/cruise-studio/js/core/song-model.js',
-        'APP_VERSION', '0.74.1')
+        'APP_VERSION', '0.80.0')
 ]);
 
 // The index is private; callers only receive deeply frozen descriptors.

@@ -17,9 +17,9 @@
         'cagedTabAutoChange'
     ];
     // Chord-only color theme. Keep in sync with the inline startup bootstrap in both entry HTMLs.
-    var VALID_THEMES = ['dark', 'charcoal', 'gray', 'light'];
+    var VALID_THEMES = ['dark', 'midnight', 'charcoal', 'gray', 'light'];
     var DEFAULT_THEME = 'dark';
-    var THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f7f5ef' };
+    var THEME_META_COLORS = { midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f5ef' };
     var overlayEl = null;
     var openBtn = null;
     var closeBtn = null;
@@ -199,7 +199,8 @@
     // exactly as before (no theme-color meta); Charcoal/Gray/Light tint the browser chrome.
     function applyTheme(value) {
         var theme = resolveTheme(value);
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-theme', theme === 'midnight' ? 'charcoal' : theme);
+    document.documentElement.setAttribute('data-midnight', String(theme === 'midnight'));
         if (typeof document.querySelector !== 'function') return theme;
         var meta = document.querySelector('meta[data-cc-theme-color]');
         if (theme === DEFAULT_THEME) {

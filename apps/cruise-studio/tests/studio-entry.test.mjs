@@ -12,7 +12,7 @@ function fixture(options={}){
 test('no gate, stored Account alone and a UI flag never grant entry',async()=>{
  const f=fixture({gateReady:()=>false});assert.equal(await f.entry.check(),false);assert.equal(f.entry.isAuthorized(),false);assert.equal(f.calls.pro,0);assert.equal(f.calls.summary,0);
 });
-test('native Pro validation plus matching remote Account admits; invalidation permits reauthentication',async()=>{
+test('native Pro validation admits with an optional Account identity snapshot; invalidation permits reauthentication',async()=>{
  const f=fixture();assert.equal(await f.entry.check(),true);assert.equal(f.entry.isAuthorized(),true);assert.equal(f.entry.read().accountId,'A');f.entry.invalidate();assert.equal(f.entry.isAuthorized(),false);assert.equal(await f.entry.check(),true);
 });
 test('native validation failure and offline allowance do not substitute for online entrance proof',async()=>{
@@ -21,22 +21,22 @@ test('native validation failure and offline allowance do not substitute for onli
 test('terminal native denial goes through existing revocation hook',async()=>{
  const f=fixture({validatePro:async()=>({ok:false,terminal:true})});assert.equal(await f.entry.check(),false);assert.equal(f.calls.reject,1);
 });
-test('remote Account mismatch or Device refusal fails closed without changing Account data',async()=>{
+test('Account summary cannot grant or deny local Pro entry',async()=>{
  for(const summary of [async()=>({account:{id:'other'}}),async()=>{throw Error('account_device_revoked');}]){
-  const f=fixture({summary});assert.equal(await f.entry.check(),false);assert.equal(f.entry.isAuthorized(),false);assert.equal(f.entry.read().accountId,null);
+  const f=fixture({summary});assert.equal(await f.entry.check(),true);assert.equal(f.entry.isAuthorized(),true);assert.equal(f.calls.summary,0);
  }
 });
 test('Account replacement during validation cannot adopt the old result',async()=>{
  let release;const f=fixture({validatePro:()=>new Promise(r=>release=r)});const pending=f.entry.check();await Promise.resolve();f.switchAccount();release({ok:true,online:true});assert.equal(await pending,false);assert.equal(f.entry.isAuthorized(),false);
 });
-test('a delayed Account response cannot grant a changed Pro revision',async()=>{
- let release;const f=fixture({summary:()=>new Promise(r=>release=r)});const pending=f.entry.check();await Promise.resolve();await Promise.resolve();f.replacePro();release({account:{id:'A'}});assert.equal(await pending,false);
+test('a delayed native denial cannot revoke or lock a newer Pro revision as an authentication failure',async()=>{
+ let release;const f=fixture({validatePro:()=>new Promise(r=>release=r)});const pending=f.entry.check();await Promise.resolve();await Promise.resolve();f.replacePro();release({ok:false,terminal:true});assert.equal(await pending,false);assert.equal(f.calls.reject,0);assert.equal(f.entry.read().phase,'session-changed');
 });
 test('revocation immediately closes an existing proof even before notifications',async()=>{
  const f=fixture();assert.equal(await f.entry.check(),true);f.revoke();assert.equal(f.entry.isAuthorized(),false);assert.notEqual(f.entry.read().phase,'ready');
 });
 test('concurrent checks share one native validation and Account request',async()=>{
- const f=fixture();assert.deepEqual(await Promise.all([f.entry.check(),f.entry.check()]),[true,true]);assert.equal(f.calls.pro,1);assert.equal(f.calls.summary,1);
+ const f=fixture();assert.deepEqual(await Promise.all([f.entry.check(),f.entry.check()]),[true,true]);assert.equal(f.calls.pro,1);assert.equal(f.calls.summary,0);
 });
 test('an old in-flight validation cannot clear or overwrite a newer Account proof',async()=>{
  let release,count=0;const f=fixture({validatePro:()=>++count===1?new Promise(r=>release=r):Promise.resolve({ok:true,online:true})});
@@ -64,13 +64,15 @@ test('native expired, terminal and ambiguous Pro failures never retain an old pr
 test('offline UI proof expires on a monotonic deadline, with no persistence or new qualification',async()=>{
  const f=offlineFixture();assert(await f.entry.check());f.offline();assert(await f.entry.check());f.advance(1000);assert.equal(f.entry.isAuthorized(),false);assert.equal(await f.entry.check(),false);
 });
-test('an explicit Account refusal or invalid response is never a network fallback',async()=>{
- for(const failure of [undefined,{account:{id:'B'}},Object.assign(Error('revoked'),{status:401,code:'account_device_revoked'}),Object.assign(Error('changed'),{status:0,code:'account_generation_changed'}),Object.assign(Error('invalid'),{status:200,code:'invalid_response'})]){
-  let first=true;const f=fixture({validatePro:async()=>({ok:true,online:true,offlineRemainingMs:1000}),summary:async()=>{if(first){first=false;return {account:{id:'A'}};}if(failure instanceof Error)throw failure;return failure;}});
-  assert(await f.entry.check());assert.equal(await f.entry.check(),false);
- }
+test('Pro-only entry does not need an Account or issue Account requests',async()=>{
+ const f=fixture({storage:{getGeneration:()=>1,getAccount:async()=>null},summary:()=>{throw Error('must not request Account');}});
+ assert(await f.entry.check());assert.equal(f.entry.read().accountId,null);assert.equal(f.calls.summary,0);
 });
-test('Account mismatch during a transient summary request cannot retain the old owner',async()=>{
- let release,n=0;const f=fixture({validatePro:async()=>({ok:true,online:true,offlineRemainingMs:1000}),summary:async()=>++n===1?{account:{id:'A'}}:new Promise((_,reject)=>release=reject)});
- assert(await f.entry.check());const pending=f.entry.check();await Promise.resolve();await Promise.resolve();f.switchAccount();release(Object.assign(Error('network'),{status:0,code:'network_error'}));assert.equal(await pending,false);assert.equal(f.entry.isAuthorized(),false);
+
+test('fresh Studio defaults to Midnight without writing and retains an explicit stored theme',async()=>{
+ const {createRequire}=await import('node:module'),theme=createRequire(import.meta.url)('../js/core/color-theme.js');
+ let raw=null,writes=0;const storage={getItem:()=>raw,setItem:(key,value)=>{raw=value;writes++;}};
+ assert.equal(theme.createColorThemeRuntime({storage}).getColorTheme(),'midnight');assert.equal(writes,0);
+ raw=JSON.stringify({colorTheme:'dark',unrelated:'retain'});const runtime=theme.createColorThemeRuntime({storage});assert.equal(runtime.getColorTheme(),'dark');assert.equal(writes,0);
+ runtime.setColorTheme('midnight');assert.deepEqual(JSON.parse(raw),{colorTheme:'midnight',unrelated:'retain'});
 });

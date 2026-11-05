@@ -1,0 +1,646 @@
+{
+  "productionOperations": false,
+  "realDevicePass": false,
+  "node": {
+    "tests": 288,
+    "pass": 288,
+    "fail": 0,
+    "skip": 0
+  },
+  "recovery": {
+    "status": "PASS",
+    "tests": 48,
+    "pageErrors": [],
+    "productionRequestsSent": 0
+  },
+  "productUI": {
+    "chromium": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "normal Account detach/join retains A assets without automatic B send; explicit review uses native path",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio includes the client while server admission stays 423 OFF before activation",
+          "status": "PASS"
+        },
+        {
+          "name": "current native Pro and Account entrance, without a second identity host",
+          "status": "PASS"
+        },
+        {
+          "name": "new schema2 from score UI stays local until first explicit Cloud save",
+          "status": "PASS"
+        },
+        {
+          "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+          "status": "PASS"
+        },
+        {
+          "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+          "status": "PASS"
+        },
+        {
+          "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+          "status": "PASS"
+        },
+        {
+          "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "real CAS conflict uses explicit existing resolution, retaining local export and Outbox; UNKNOWN cannot be discarded",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud deletion retains local Project and original immutable operation receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+          "status": "PASS"
+        },
+        {
+          "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+          "status": "PASS"
+        },
+        {
+          "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+          "status": "PASS"
+        },
+        {
+          "name": "isolated Project panel keeps five themes and four viewport widths",
+          "status": "PASS"
+        },
+        {
+          "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+          "status": "PASS"
+        },
+        {
+          "name": "synthetic Pro challenge preflight preserves the expected CORS contract",
+          "status": "PASS"
+        },
+        {
+          "name": "390px Cloud summary and every action remain reachable below the score toolbar, with safe-area scroll clearance",
+          "status": "PASS"
+        },
+        {
+          "name": "Home connects through Cruise Sync to the existing Project UI without a write",
+          "status": "PASS"
+        },
+        {
+          "name": "local unsaved score survives Home/PreDTM navigation and Cloud UI does not enter print output",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud layout retains five themes and mobile/desktop widths",
+          "status": "PASS"
+        },
+        {
+          "name": "native Port tools, calendar, NEWS and right-side tool remain usable beside Project UI",
+          "status": "PASS"
+        },
+        {
+          "name": "Pro-only entry permits local work but never creates an Owner session",
+          "status": "PASS"
+        },
+        {
+          "name": "Home header and Sync navigation retain the existing Account observer",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy canary URLs use normal Studio without rewriting local Projects, Account or Outbox IDs",
+          "status": "PASS"
+        },
+        {
+          "name": "center surfaces expand with their content and project Midnight without persisting app choices",
+          "status": "PASS"
+        },
+        {
+          "name": "synthetic microphone and metronome contexts stop when leaving their workspace",
+          "status": "PASS"
+        },
+        {
+          "name": "standalone mobile apps retain an explicit Midnight choice across reload",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio score and PreDTM share unchanged local schema2 with JSON and MIDI exports",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio retains all four native app Account/Pro hosts and page refresh",
+          "status": "PASS"
+        },
+        {
+          "name": "formal Session grant contains only approved dataset IDs; foreign Project read/write and catalogue leakage denied",
+          "status": "PASS"
+        },
+        {
+          "name": "Account erasure request remains a canary maintenance HOLD without changing local or Cloud documents",
+          "status": "PASS"
+        },
+        {
+          "name": "valid but unselected Account/Device and revoked Account/Device/Pro cannot use the canary",
+          "status": "PASS"
+        },
+        {
+          "name": "server activation OFF denies subsequent Project writes and leaves immutable operations and local drafts intact",
+          "status": "PASS"
+        }
+      ],
+      "errors": [],
+      "realCredentialsUsed": false,
+      "proResponsesWithError": []
+    },
+    "webkit": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "normal Account detach/join retains A assets without automatic B send; explicit review uses native path",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio includes the client while server admission stays 423 OFF before activation",
+          "status": "PASS"
+        },
+        {
+          "name": "current native Pro and Account entrance, without a second identity host",
+          "status": "PASS"
+        },
+        {
+          "name": "new schema2 from score UI stays local until first explicit Cloud save",
+          "status": "PASS"
+        },
+        {
+          "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+          "status": "PASS"
+        },
+        {
+          "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+          "status": "PASS"
+        },
+        {
+          "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+          "status": "PASS"
+        },
+        {
+          "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "real CAS conflict uses explicit existing resolution, retaining local export and Outbox; UNKNOWN cannot be discarded",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud deletion retains local Project and original immutable operation receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+          "status": "PASS"
+        },
+        {
+          "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+          "status": "PASS"
+        },
+        {
+          "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+          "status": "PASS"
+        },
+        {
+          "name": "isolated Project panel keeps five themes and four viewport widths",
+          "status": "PASS"
+        },
+        {
+          "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+          "status": "PASS"
+        },
+        {
+          "name": "synthetic Pro challenge preflight preserves the expected CORS contract",
+          "status": "PASS"
+        },
+        {
+          "name": "390px Cloud summary and every action remain reachable below the score toolbar, with safe-area scroll clearance",
+          "status": "PASS"
+        },
+        {
+          "name": "Home connects through Cruise Sync to the existing Project UI without a write",
+          "status": "PASS"
+        },
+        {
+          "name": "local unsaved score survives Home/PreDTM navigation and Cloud UI does not enter print output",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud layout retains five themes and mobile/desktop widths",
+          "status": "PASS"
+        },
+        {
+          "name": "native Port tools, calendar, NEWS and right-side tool remain usable beside Project UI",
+          "status": "PASS"
+        },
+        {
+          "name": "Pro-only entry permits local work but never creates an Owner session",
+          "status": "PASS"
+        },
+        {
+          "name": "Home header and Sync navigation retain the existing Account observer",
+          "status": "PASS"
+        },
+        {
+          "name": "legacy canary URLs use normal Studio without rewriting local Projects, Account or Outbox IDs",
+          "status": "PASS"
+        },
+        {
+          "name": "center surfaces expand with their content and project Midnight without persisting app choices",
+          "status": "PASS"
+        },
+        {
+          "name": "synthetic microphone and metronome contexts stop when leaving their workspace",
+          "status": "PASS"
+        },
+        {
+          "name": "standalone mobile apps retain an explicit Midnight choice across reload",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio score and PreDTM share unchanged local schema2 with JSON and MIDI exports",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio retains all four native app Account/Pro hosts and page refresh",
+          "status": "PASS"
+        },
+        {
+          "name": "formal Session grant contains only approved dataset IDs; foreign Project read/write and catalogue leakage denied",
+          "status": "PASS"
+        },
+        {
+          "name": "Account erasure request remains a canary maintenance HOLD without changing local or Cloud documents",
+          "status": "PASS"
+        },
+        {
+          "name": "valid but unselected Account/Device and revoked Account/Device/Pro cannot use the canary",
+          "status": "PASS"
+        },
+        {
+          "name": "server activation OFF denies subsequent Project writes and leaves immutable operations and local drafts intact",
+          "status": "PASS"
+        }
+      ],
+      "errors": [],
+      "realCredentialsUsed": false,
+      "proResponsesWithError": []
+    }
+  },
+  "nativeAppSync": {
+    "chromium": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "normal Account detach/join retains A assets without automatic B send; explicit review uses native path",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio includes the client while server admission stays 423 OFF before activation",
+          "status": "PASS"
+        },
+        {
+          "name": "current native Pro and Account entrance, without a second identity host",
+          "status": "PASS"
+        },
+        {
+          "name": "new schema2 from score UI stays local until first explicit Cloud save",
+          "status": "PASS"
+        },
+        {
+          "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+          "status": "PASS"
+        },
+        {
+          "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+          "status": "PASS"
+        },
+        {
+          "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+          "status": "PASS"
+        },
+        {
+          "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "real CAS conflict uses explicit existing resolution, retaining local export and Outbox; UNKNOWN cannot be discarded",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud deletion retains local Project and original immutable operation receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+          "status": "PASS"
+        },
+        {
+          "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+          "status": "PASS"
+        },
+        {
+          "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+          "status": "PASS"
+        },
+        {
+          "name": "isolated Project panel keeps five themes and four viewport widths",
+          "status": "PASS"
+        },
+        {
+          "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+          "status": "PASS"
+        },
+        {
+          "name": "synthetic Pro challenge preflight preserves the expected CORS contract",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio score and PreDTM share unchanged local schema2 with JSON and MIDI exports",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio retains all four native app Account/Pro hosts and page refresh",
+          "status": "PASS"
+        },
+        {
+          "name": "formal Session grant contains only approved dataset IDs; foreign Project read/write and catalogue leakage denied",
+          "status": "PASS"
+        },
+        {
+          "name": "Account erasure request remains a canary maintenance HOLD without changing local or Cloud documents",
+          "status": "PASS"
+        },
+        {
+          "name": "valid but unselected Account/Device and revoked Account/Device/Pro cannot use the canary",
+          "status": "PASS"
+        },
+        {
+          "name": "server activation OFF denies subsequent Project writes and leaves immutable operations and local drafts intact",
+          "status": "PASS"
+        },
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "native pitch first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native fretboard first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native rhythm first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native chord first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        }
+      ],
+      "errors": [],
+      "appSync": {
+        "pitch": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        },
+        "fretboard": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        },
+        "rhythm": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        },
+        "chord": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        }
+      },
+      "realCredentialsUsed": false
+    },
+    "webkit": {
+      "status": "PASS",
+      "tests": [
+        {
+          "name": "normal Account detach/join retains A assets without automatic B send; explicit review uses native path",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio includes the client while server admission stays 423 OFF before activation",
+          "status": "PASS"
+        },
+        {
+          "name": "current native Pro and Account entrance, without a second identity host",
+          "status": "PASS"
+        },
+        {
+          "name": "new schema2 from score UI stays local until first explicit Cloud save",
+          "status": "PASS"
+        },
+        {
+          "name": "second admitted device discovers Account catalogue without a Project ID and receives selected schema2",
+          "status": "PASS"
+        },
+        {
+          "name": "tracked local save automatically updates Cloud and peer reload resumes without a start button",
+          "status": "PASS"
+        },
+        {
+          "name": "ACK loss retains UNKNOWN and explicit same-operation reconcile does not duplicate the commit",
+          "status": "PASS"
+        },
+        {
+          "name": "Offline edit survives; reconnect retains revision and uses same Account tracked flow",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrent remote and local changes require explicit conflict resolution and keep local draft",
+          "status": "PASS"
+        },
+        {
+          "name": "real CAS conflict uses explicit existing resolution, retaining local export and Outbox; UNKNOWN cannot be discarded",
+          "status": "PASS"
+        },
+        {
+          "name": "Cloud deletion retains local Project and original immutable operation receipt",
+          "status": "PASS"
+        },
+        {
+          "name": "deleted Project restores under a new ID, preserving original raw data, tombstone and Outbox",
+          "status": "PASS"
+        },
+        {
+          "name": "copy restoration ACK loss keeps the new local copy and reconciles the same operation",
+          "status": "PASS"
+        },
+        {
+          "name": "existing Port writes and bidirectional Sync coexist with active Project release tables",
+          "status": "PASS"
+        },
+        {
+          "name": "retained encrypted fixture backup restores Project proofs to a separate disposable database",
+          "status": "PASS"
+        },
+        {
+          "name": "isolated Project panel keeps five themes and four viewport widths",
+          "status": "PASS"
+        },
+        {
+          "name": "foreign Account cannot automatically send tracked local data and pending evidence survives",
+          "status": "PASS"
+        },
+        {
+          "name": "synthetic Pro challenge preflight preserves the expected CORS contract",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio score and PreDTM share unchanged local schema2 with JSON and MIDI exports",
+          "status": "PASS"
+        },
+        {
+          "name": "normal Studio retains all four native app Account/Pro hosts and page refresh",
+          "status": "PASS"
+        },
+        {
+          "name": "formal Session grant contains only approved dataset IDs; foreign Project read/write and catalogue leakage denied",
+          "status": "PASS"
+        },
+        {
+          "name": "Account erasure request remains a canary maintenance HOLD without changing local or Cloud documents",
+          "status": "PASS"
+        },
+        {
+          "name": "valid but unselected Account/Device and revoked Account/Device/Pro cannot use the canary",
+          "status": "PASS"
+        },
+        {
+          "name": "server activation OFF denies subsequent Project writes and leaves immutable operations and local drafts intact",
+          "status": "PASS"
+        },
+        {
+          "name": "native Account and device-bound Pro authentication through existing libraries",
+          "status": "PASS"
+        },
+        {
+          "name": "native pitch first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native fretboard first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native rhythm first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        },
+        {
+          "name": "native chord first connection receives and edits Cloud data through actual Studio entrance",
+          "status": "PASS"
+        }
+      ],
+      "errors": [],
+      "appSync": {
+        "pitch": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        },
+        "fretboard": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        },
+        "rhythm": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        },
+        "chord": {
+          "firstSource": true,
+          "firstReceive": true,
+          "reloadResume": true,
+          "actualRefreshCloudReceive": true,
+          "credentialReused": true
+        }
+      },
+      "realCredentialsUsed": false
+    }
+  },
+  "observedEarlierFailures": [
+    {
+      "phase": "integration expectation",
+      "finding": "Old OFF assertion required hidden Project UI. New normal product shows unavailable UI with inert write controls. Replaced with visible/inert/studio_off plus unchanged local/Cloud assertions."
+    },
+    {
+      "phase": "version regression",
+      "finding": "Studio owner mirrors and Chord URLs still referenced pre-198 releases. Updated to the independently declared app versions; 288 Node checks pass."
+    },
+    {
+      "phase": "additional combined repeat",
+      "finding": "One Chromium repeat stopped at pro-required while entering NEWS; cause remains unconfirmed. WebKit synthetic microphone waits stopped intermittently when tuner navigation was invoked by evaluate without a user gesture. Real menu clicks retain identical stream-start and stop assertions; the corrected run passed 35 checks. This supports an autoplay-fixture hypothesis, not a real microphone PASS."
+    },
+    {
+      "phase": "legacy broad app test reuse",
+      "finding": "Temporary broad reuse hit a missing relative helper import and older right-pane/conflict UI assumptions. The final optional group is explicitly scoped to the unchanged original first-connection/two-way-save/reload/refresh checks. It does not claim the later full conflict/right-pane group passed."
+    }
+  ],
+  "webkitUserGestureRuns": {
+    "pass": 2,
+    "checksEach": 35,
+    "browserErrors": 0,
+    "proResponseErrors": 0
+  }
+}

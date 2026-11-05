@@ -9,14 +9,15 @@
         // Fretboard color theme before first paint. Reads only fretboard_cruise_state.settings.theme;
         // anything else is Dark. Dark keeps the page as before (no theme-color meta).
         (function () {
-            var colors = { charcoal: '#424346', gray: '#c8cbd0', light: '#f4f6f9' };
+            var colors = { midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f4f6f9' };
             var theme = 'dark';
             try {
                 var saved = JSON.parse(localStorage.getItem('fretboard_cruise_state') || 'null');
                 var value = saved && saved.settings && saved.settings.theme;
-                if (value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
+                if (value === 'midnight' || value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
             } catch (_) { theme = 'dark'; }
-            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.setAttribute('data-theme', theme === 'midnight' ? 'charcoal' : theme);
+    document.documentElement.setAttribute('data-midnight', String(theme === 'midnight'));
             if (theme !== 'dark') {
                 var meta = document.createElement('meta');
                 meta.setAttribute('name', 'theme-color');
@@ -28,7 +29,7 @@
     </script>
     <link rel="stylesheet" href="../shared/style.css?v=100">
     <link rel="stylesheet" href="../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="./theme.css?v=407">
+    <link rel="stylesheet" href="./theme.css?v=2.27.0">
     <style>
         .legal-page {
             min-height: 100vh;

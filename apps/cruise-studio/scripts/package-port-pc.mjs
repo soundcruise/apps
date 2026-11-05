@@ -1,4 +1,4 @@
-/* Explicit Studio release artifact. Project Cloud and developer entries stay excluded. */
+/* Single Studio release. Project API admission stays operator-restricted on the server. */
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -6,6 +6,7 @@ import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 const studio=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const RELEASE_FILES=Object.freeze([
+ 'cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
  'index.html','entry.css','theme-projection.css','theme.css','shell.css','studio-home.css','studio-tools.css','port-tuner-surface.css','port-pc.css','assets/studio-icons.svg',
  'js/score-workspace.js',
  'melody-staff.css',
@@ -66,12 +67,15 @@ export function packagePortPC(output){
   const source=path.join(studio,name),bytes=fs.readFileSync(source),target=path.join(destination,name);
   fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
  }
+ // Legacy resources are frozen compatibility bytes for already-open tabs, not a second build.
+ const legacy=path.join(repo,'apps/cruise-studio-canary');
+ for(const name of fs.readdirSync(legacy,{recursive:true}).sort()){const source=path.join(legacy,name);if(!fs.statSync(source).isFile())continue;const bytes=fs.readFileSync(source),target=path.join(out,'apps/cruise-studio-canary',name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio-canary/'+name]=createHash('sha256').update(bytes).digest('hex');}
  const version=fs.readFileSync(path.join(studio,'js/port-pc.js'),'utf8').match(/CS\.portPC=Object\.freeze\(\{version:'([^']+)'\}\)/)?.[1];
  if(!version)throw Error('studio-release-version-missing');
  const manifest={product:'Cruise Studio',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
   existingDeploymentDependencies:['apps/cruise-port/','apps/pitch-cruise/','apps/fretboard_cruise/','apps/rhythm-cruise/','apps/chord-cruise/','apps/shared/'],
-  excluded:['development.html','legacy app.js and developer UI','Project Sync and Cloud clients','Worker and migrations','native app releases/themes'],
-  productionReady:false};
+  excluded:['development.html','legacy app.js and developer UI','Worker and migrations','native app releases/themes'],
+  channel:'single-studio-operator-owner',productionReady:false};
  fs.writeFileSync(path.join(out,'RELEASE-MANIFEST.json'),JSON.stringify(manifest,null,2)+'\n');return manifest;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

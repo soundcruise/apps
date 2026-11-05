@@ -224,3 +224,11 @@
 .studio-header-sync:focus-visible { outline:2px solid var(--studio-focus); outline-offset:3px; }
 .studio-main #screen-home #studio-refresh { min-height:30px; padding:4px 9px; font-size:11px; }
 @media (max-width:600px) { .studio-main #screen-home .studio-header { padding:22px 0 20px; } .studio-header-title { gap:12px; } .studio-header-eyebrow { font-size:9px; letter-spacing:.12em; } }
+
+/* Align the action with the title line below its eyebrow. */
+.studio-header-title > div { display:contents; }
+.studio-header-title { display:grid; grid-template-columns:max-content 42px; gap:0 20px; }
+.studio-header-eyebrow { grid-column:1 / -1; }
+.studio-header-title h1 { grid-column:1; }
+.studio-header-sync { grid-column:2; align-self:center; }
+@media(max-width:600px){.studio-header-title{grid-template-columns:minmax(0,max-content) 42px;column-gap:12px;}}

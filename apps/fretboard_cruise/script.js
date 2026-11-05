@@ -6,8 +6,8 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-const FRETBOARD_CRUISE_APP_VERSION = '2.26.0';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.26.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.27.0';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.27.0';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
@@ -1481,8 +1481,8 @@ function isProEdition() {
 
 // Color theme (per app, local only). Missing or invalid values are Dark; a value is stored only
 // when the user picks one in Settings. The head bootstrap applies it before first paint.
-const FRETBOARD_THEMES = ['dark', 'charcoal', 'gray', 'light'];
-const FRETBOARD_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f4f6f9' };
+const FRETBOARD_THEMES = ['dark', 'midnight', 'charcoal', 'gray', 'light'];
+const FRETBOARD_THEME_META_COLORS = { midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f4f6f9' };
 
 function resolveFretboardTheme(value) {
     return FRETBOARD_THEMES.includes(value) ? value : 'dark';
@@ -1497,7 +1497,8 @@ function fretboardThemeOf(settings) {
 
 function applyFretboardTheme(value) {
     const theme = resolveFretboardTheme(value);
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme === 'midnight' ? 'charcoal' : theme);
+    document.documentElement.setAttribute('data-midnight', String(theme === 'midnight'));
     let meta = document.querySelector('meta[data-fb-theme-color]');
     if (theme === 'dark') {
         if (meta) meta.remove();
@@ -14108,7 +14109,7 @@ function renderSettings(app) {
                 </div>
                 <div class="mode-buttons settings-theme-buttons" role="group" aria-labelledby="settings-theme-title">
                     ${FRETBOARD_THEMES.map(theme => {
-                        const label = { dark: 'ダーク', charcoal: 'チャコール', gray: 'グレー', light: 'ライト' }[theme];
+                        const label = { dark: 'ダーク', midnight: 'ミッドナイト', charcoal: 'チャコール', gray: 'グレー', light: 'ライト' }[theme];
                         const active = resolveFretboardTheme(fretboardThemeOf(state.settings)) === theme;
                         return `<button type="button" class="mode-btn ${active ? 'active' : ''}" data-theme-choice="${theme}" aria-pressed="${active}">${label}</button>`;
                     }).join('')}

@@ -1,12 +1,12 @@
 /* One Studio entrance. Native Account DB, Pro gate and device session are the owners. */
-export function createStudioEntry({storage, source, validatePro, summary, gateReady, changed=()=>{}, rejectPro=()=>{}, now=()=>performance.now()}) {
+export function createStudioEntry({storage, source, validatePro, gateReady, changed=()=>{}, rejectPro=()=>{}, now=()=>performance.now()}) {
     let epoch=0, proof=null, pending=null, pendingEpoch=-1, phase='locked', measurement=null;
     const same=(a,b)=>!!a&&!!b&&a.revision===b.revision&&a.revoked===false&&b.revoked===false&&
         a.auth?.credential===b.auth?.credential&&a.auth?.generation===b.auth?.generation&&a.auth?.sessionVersion===b.auth?.sessionVersion;
     function isAuthorized(){return !!proof&&gateReady()&&proof.epoch===epoch&&
         proof.generation===storage.getGeneration()&&now()<proof.expiresAt&&same(proof.pro,source.read());}
     function invalidate(reason='locked'){epoch++;proof=null;phase=reason;changed(read());}
-    function read(){return {phase:isAuthorized()?'ready':phase==='ready'?'locked':phase,accountId:proof?.account.accountId||null,revision:epoch,offline:!!proof?.offline};}
+    function read(){return {phase:isAuthorized()?'ready':phase==='ready'?'locked':phase,accountId:proof?.account?.accountId||null,revision:epoch,offline:!!proof?.offline};}
     async function check(){
         if(pending&&pendingEpoch===epoch)return pending;
         const turn=epoch,previous=isAuthorized()?proof:null,started=now(),stages={};
@@ -16,26 +16,18 @@ export function createStudioEntry({storage, source, validatePro, summary, gateRe
                 const pro=source.read(),generation=storage.getGeneration();
                 if(pro?.revoked!==false||!pro.auth)throw Error('pro-required');
                 let stageStart=now();const account=await storage.getAccount();stages.accountReadMs=now()-stageStart;
-                if(!account?.accountId||!account.accountCredential)throw Error('account-required');
                 stageStart=now();let result;try{result=await validatePro({...pro.auth,operationRevision:pro.revision});}finally{stages.proValidationMs=now()-stageStart;}
+                if(turn!==epoch||generation!==storage.getGeneration()||!gateReady()||!same(pro,source.read()))throw Error('session-changed');
                 if(result?.terminal===true&&same(pro,source.read()))rejectPro(pro.auth.credential);
                 const allowance=Number.isFinite(result?.offlineRemainingMs)&&result.offlineRemainingMs>0;
                 const retained=previous&&previous.generation===generation&&same(previous.pro,pro)&&
-                    previous.account.accountId===account.accountId&&previous.account.accountCredential===account.accountCredential;
+                    previous.account?.accountId===account?.accountId&&previous.account?.accountCredential===account?.accountCredential;
                 if(result?.ok!==true||(result.online!==true&&!(result.offline===true&&allowance&&retained)))throw Error('pro-required');
                 const expiresAt=allowance?now()+result.offlineRemainingMs:Infinity;
-                let remote,accountUnavailable=false,offline=result.online!==true;
-                try{stageStart=now();try{remote=await summary(account.accountCredential);}finally{stages.accountSummaryMs=now()-stageStart;}}
-                catch(error){
-                    // A network failure is not a new Account grant. Only the same
-                    // in-memory, previously verified owner may retain native Pro grace.
-                    const transient=(error.status===0&&['network_error','account_request_timeout'].includes(error.code))||error.status===429||error.status>=500;
-                    if(!retained||!allowance||!transient)throw error;
-                    accountUnavailable=true;offline=true;
-                }
+                const offline=result.online!==true;
                 stageStart=now();const after=await storage.getAccount();stages.accountRecheckMs=now()-stageStart;
                 if(turn!==epoch||generation!==storage.getGeneration()||!gateReady()||!same(pro,source.read())||
-                    after?.accountId!==account.accountId||after?.accountCredential!==account.accountCredential||(!accountUnavailable&&remote?.account?.id!==account.accountId)||now()>=expiresAt)
+                    after?.accountId!==account?.accountId||after?.accountCredential!==account?.accountCredential||now()>=expiresAt)
                     throw Error('session-changed');
                 measurement={...stages,totalMs:now()-started,result:offline?'offline':'ready'};
                 proof={epoch:turn,generation,pro,account,offline,expiresAt};phase='ready';changed(read());return true;
@@ -53,9 +45,9 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
     const panel=document.createElement('section');panel.id='studio-entry-account';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');
     panel.innerHTML='<div><h1>Cruise Studio</h1><p role="status"></p><p data-entry-browser-note hidden>iPhoneのPort（ホーム画面）とSafariは、接続情報が別になる場合があります。いつものPortで追加コードを発行し、「Accountを接続」から「既存のアカウントに接続」を選んでください。新規作成は不要です。</p><button type="button" data-entry-connect>Accountを接続</button> <button type="button" data-entry-retry>確認する</button> <button type="button" data-entry-pro hidden>Pro認証をやり直す</button><div data-entry-account-frame></div></div>';
     document.body.append(panel);
-    const owners=new WeakMap();let accountFrame=null,retriedRevision=null,modalOwner=null,lastReadyOwner=null;
+    const owners=new WeakMap();let accountFrame=null,retriedRevision=null,modalOwner=null,lastReadyOwner=null,modalSuspended=false;
     function stop(){
-        if(CS.shellHost?.modal.getActive()){modalOwner=lastReadyOwner;CS.shellHost.modal.suspend();}
+        if(CS.shellHost?.modal.getActive()){modalOwner=lastReadyOwner;modalSuspended=true;CS.shellHost.modal.suspend();}
         // Stop media without removing any document, form, crop or Project draft.
         for(const frame of root.querySelectorAll('iframe')){try{CS.stopNativePort?.(frame);frame.contentWindow?.studioAppStop?.();}catch{}}
         for(const app of Object.values(CS.seriesApps||{}))app.pause?.();
@@ -72,9 +64,8 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
             return {status:response.status,body:await response.json()};
         }
     });
-    const accountClient=new window.SoundCruiseSyncAccount.AccountClient({endpoint:'https://sound-cruise-sync.cruise-port-requests.workers.dev',admissionMode:'production',storage});
     const entry=createStudioEntry({storage,source,gateReady,
-        validatePro:auth=>device.validate(auth,{force:true}),summary:credential=>accountClient.summary(credential),
+        validatePro:auth=>device.validate(auth,{force:true}),
         rejectPro:credential=>window.__soundCruiseRejectProBackendAuth(credential),
         changed(state){
             const ready=state.phase==='ready';const visiblePhase=ready&&!accountFrame?'ready':'locked';if(document.documentElement.dataset.studioEntry!==visiblePhase)document.documentElement.dataset.studioEntry=visiblePhase;root.inert=!ready||!!accountFrame||!!CS.shellHost?.modal.getActive();
@@ -85,11 +76,11 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
             panel.querySelector('p').textContent=ready&&accountFrame?'Accountを確認しました。Cruise Syncの初回同期を確認しています…':state.phase==='account-required'?'既存のAccountを接続してください。':'認証を確認できません。編集中の内容は保持しています。';
             if(!ready)stop();
             if(state.phase==='session-changed'&&gateReady()){
-                const revision=source.read().revision;
+                const revision=JSON.stringify([source.read().revision,storage.getGeneration()]);
                 if(revision!==retriedRevision){retriedRevision=revision;queueMicrotask(()=>void entry.check());}
             }
             if(ready){
-                if(modalOwner===state.accountId){CS.shellHost?.modal.resume();modalOwner=null;}
+                if(modalSuspended&&modalOwner===state.accountId){CS.shellHost?.modal.resume();modalOwner=null;modalSuspended=false;}
                 lastReadyOwner=state.accountId;
                 if(!CS.shellHost?.modal.getActive())root.removeAttribute('aria-hidden');
                 finishAccountConnection();
@@ -101,7 +92,7 @@ if(typeof window!=='undefined'&&document.getElementById('studio-shell')){
     function bindFrame(frame){
         if(!entry.isAuthorized()){if(!owners.has(frame))owners.set(frame,'unverified');frame.inert=true;return;}
         const owner=entry.read().accountId,previous=owners.get(frame);
-        if(!previous){owners.set(frame,owner);frame.inert=false;}
+        if(!owners.has(frame)){owners.set(frame,owner);frame.inert=false;}
         else if(previous===owner)frame.inert=false;
         else if(previous!==owner){
             frame.inert=true;frame.setAttribute('aria-label','前のAccountの入力を保持しています。閉じる前に内容を確認してください。');
