@@ -1,0 +1,12 @@
+# Studio canary Home / Cruise Sync
+
+- Distribution baseline: main `0db8a389b4f5cb093b742461657d0adf5e62d23d`, canary 0.77.0.
+- Canonical canary source: #195 `d14a3145b4261a0c16eb5ef2abd8bd36fee93ec5`. Its unmodified `package-project-canary.mjs` generated 90 files with SHA-256 matching all 90 baseline canary files.
+- `source.patch` is the reviewable source and test change relative to that exact commit. It is kept as a patch because main's normal Studio source is 0.74.1 and must not be replaced with the Project Cloud development source. Apply it with `git apply --unidiff-zero source.patch` to an isolated checkout of the fixed head, then run `node apps/cruise-studio/scripts/package-project-canary.mjs --out <empty-directory>`. The resulting 90-file `apps/cruise-studio-canary` subtree is the checked-in artifact. Canary version and cache keys are 0.78.0.
+- The hidden `data-port-sync-status` mount preserves the existing observation controller, its subscriptions, manual refresh API and frame hooks. Both visible entries navigate through the existing shell to the Port-owned Sync Center. The Project Cloud host, operator admission, storage and transport are unchanged.
+- Before/after PNGs use synthetic browser profiles at 390 and 1440 pixels in Midnight. They do not represent real Account or device acceptance.
+- The product test fixture uses isolated synthetic Account/Project/Worker services. It is not a real device or production Sync test. WebKit simulation does not establish iPhone Safari hardware acceptance.
+
+Validation: unmodified 0.77.0 source/package and latest main canary matched 90/90 SHA-256; patched source/package and this branch matched 90/90; independently generated normal 0.74.1 packages matched 81/81 SHA-256. Port, four apps, shared and Worker have no source changes. Chrome and WebKit product fixture checks cover 5 themes, 390/768/1024/1440, Home links, Sync loading label, Project Cloud and four native app hosts, unsaved-draft refresh guard, score and Pre-DTM. Account observation and version tests pass 24/24. The synthetic fixture uses temporary Account/Project records only.
+
+WebKit runs including the reload scenario recorded a simulated Pro challenge CORS error in two of three runs; one rerun passed. The final run fails its zero-error assertion despite its UI checks passing. Limited rollout remains on hold until the cause is resolved and the full run is stable. Actual Safari authentication and real Account/Project operation were not exercised.

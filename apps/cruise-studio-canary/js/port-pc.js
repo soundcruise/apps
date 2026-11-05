@@ -2,7 +2,7 @@
 (function(){
     'use strict';
     var CS=window.CruiseStudio;
-    CS.portPC=Object.freeze({version:'0.77.0'});
+    CS.portPC=Object.freeze({version:'0.78.0'});
     CS.scoreWorkspace.prepare();
     CS.shellHost=CS.shell.init(CS);
     CS.scoreWorkspace.attach();
@@ -12,6 +12,7 @@
     CS.portPractice.attach({audio:CS.audio,shell:CS.shellHost});
     for(var owner of [CS.portGear,CS.portMyApps,CS.portNews,CS.portSync])owner.attach({shell:CS.shellHost});
     document.getElementById('studio-version').textContent='v'+CS.portPC.version;
+    document.getElementById('home-cruise-sync').addEventListener('click', function(){CS.shellHost.navigate('portSync');});
     document.querySelectorAll('[data-home-workspace]').forEach(function(button){
         button.addEventListener('click',function(){CS.shellHost.navigate(button.dataset.homeWorkspace);});
     });
