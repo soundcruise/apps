@@ -243,7 +243,7 @@
 
   // Color theme (writer): the device sends its explicit theme; a theme kept by the reader-first release in
   // themeCloudMirror stands in for an unset one. Unset and no mirror: nothing is sent.
-  const CLOUD_THEMES = Object.freeze(['dark', 'charcoal', 'gray', 'light']);
+  const CLOUD_THEMES = Object.freeze(['dark', 'midnight', 'charcoal', 'gray', 'light']);
   function syncedTheme(main) {
     if (CLOUD_THEMES.includes(main.theme)) return main.theme;
     return CLOUD_THEMES.includes(main.themeCloudMirror) ? main.themeCloudMirror : undefined;

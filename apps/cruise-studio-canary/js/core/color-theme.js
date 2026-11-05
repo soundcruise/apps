@@ -16,7 +16,7 @@
     'use strict';
     var STORAGE_KEY = 'cruiseStudio.appSettings';
     var SETTING_NAME = 'colorTheme';
-    var DEFAULT_THEME = 'dark';
+    var DEFAULT_THEME = 'midnight';
     var themes = Object.freeze([
         Object.freeze({ id: 'dark', displayName: 'ダーク', colorScheme: 'dark', themeColor: '#090806' }),
         Object.freeze({ id: 'midnight', displayName: 'ミッドナイト', colorScheme: 'dark', themeColor: '#10151c' }),

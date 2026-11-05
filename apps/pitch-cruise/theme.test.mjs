@@ -55,13 +55,13 @@ test('every page bootstraps the theme before stylesheets and loads its theme lay
     assert.equal(html.match(BOOT_RE)[0], pages[0][1].match(BOOT_RE)[0], `${name}: same bootstrap`);
     const item = html.slice(html.indexOf('<h2>設定</h2>'), html.indexOf('<label>音名表記</label>'));
     const buttons = [...item.matchAll(/data-theme-choice="([a-z]+)" aria-pressed="(true|false)">([^<]+)</g)].map((m) => [m[1], m[2], m[3]]);
-    assert.deepEqual(buttons, [['dark', 'true', 'ダーク'], ['charcoal', 'false', 'チャコール'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']],
+    assert.deepEqual(buttons, [['dark', 'true', 'ダーク'], ['midnight', 'false', 'ミッドナイト'], ['charcoal', 'false', 'チャコール'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']],
       `${name}: カラーテーマ leads the settings modal`);
   }
 });
 
 test('settings keep the theme explicitly, preview it, revert on cancel and reset to Dark', () => {
-  assert.match(script, /const PITCH_THEMES = \['dark', 'charcoal', 'gray', 'light'\];/);
+  assert.match(script, /const PITCH_THEMES = \['dark', 'midnight', 'charcoal', 'gray', 'light'\];/);
   assert.match(script, /if \(this\.theme !== undefined\) data\.theme = this\.theme;/, 'saveSettings keeps an explicit theme only');
   assert.match(script, /isAnswerMode: this\.isAnswerMode,\n            theme: this\.theme\n        \};/, 'snapshot carries the theme');
   assert.match(script, /if \(Object\.prototype\.hasOwnProperty\.call\(s, 'theme'\)\) \{\n                this\.theme = s\.theme;/, 'cancel restores the theme');
@@ -108,7 +108,7 @@ test('theme layers are scoped to Charcoal / Gray / Light and keep keys and feedb
         if (!/^@(media|supports|keyframes)/.test(sel) && !/^((from|to|\d+(\.\d+)?%)\s*,?\s*)+$/.test(sel)) {
           for (const part of sel.split(/,\s*(?![^()]*\))/)) {
             const p = part.trim();
-            assert(p.startsWith(':root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"])') || SCOPE_RE.test(p), `${file}: ${p.slice(0, 100)}`);
+            assert(p.startsWith(':root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"])') || SCOPE_RE.test(p) || p === ':root:is([data-midnight="true"], [data-studio-theme="midnight"])', `${file}: ${p.slice(0, 100)}`);
           }
         }
         depth += 1;
@@ -154,7 +154,7 @@ test('theme writer: out of LOCAL_ONLY_SETTINGS; explicit theme sent, unset never
   assert.equal(sent({ ...base, theme: 'gray', themeCloudMirror: 'light' }).theme, 'gray');
   assert.equal(sent({ ...base, theme: 'sepia' }).theme, undefined);
   assert.equal(sent({ ...base, theme: 'gray', baseHz: 442, sustainTime: 2 }).baseHz, undefined, 'baseHz / sustainTime stay device-only');
-  for (const theme of ['dark', 'charcoal', 'gray', 'light']) api.validateSnapshot(remoteSettings({ notationStyle: 'letter', theme }));
+  for (const theme of ['dark', 'midnight', 'charcoal', 'gray', 'light']) api.validateSnapshot(remoteSettings({ notationStyle: 'letter', theme }));
   assert.throws(() => api.validateSnapshot(remoteSettings({ notationStyle: 'letter', theme: 'sepia' })));
 });
 
@@ -212,7 +212,7 @@ test('information pages follow the theme with the app bootstrap; content is unch
       assert.deepEqual(runBootstrap(html, value), { theme, meta }, `${file} ${value}`);
     }
     assert.equal(runBootstrap(html, null, true).theme, 'dark', `${file}: storage error is Dark`);
-    const original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '');
+    const original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '').replace(/(?<!pro-)(theme\.css\?v=)[\d.]+/g, '$113'); // Normalize only the app stylesheet cache key for the content hash.
     assert.equal(await sha256(original), originalHash, `${file}: text, links and navigation unchanged`);
     const css = read(layer.slice(2, -3));
     for (const block of css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map((b) => b.trim().replace(/^@media[^{]*\{\s*/, '')).filter((b) => b.includes('{') && !b.startsWith('@keyframes') && !/^(from|to|\d)/.test(b))) {

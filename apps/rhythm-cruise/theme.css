@@ -29,6 +29,10 @@
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
+/* Five theme choices remain readable on narrow screens. */
+.theme-choice-group,.settings-theme-buttons,#rc-theme-seg,.cc-settings-choices[aria-label="カラーテーマ"] { display:grid!important; grid-template-columns:repeat(auto-fit,minmax(86px,1fr))!important; gap:6px; }
+.theme-choice-group>button,.settings-theme-buttons>button,#rc-theme-seg>button,.cc-settings-choices[aria-label="カラーテーマ"]>button { width:auto!important; min-width:0!important; max-width:none; min-height:36px; white-space:normal; }
+
 
 /* ── ベース ─────────────────────────────────────────────── */
 * {
