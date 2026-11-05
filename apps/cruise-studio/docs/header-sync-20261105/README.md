@@ -9,6 +9,6 @@
 
 Validation: unmodified 0.77.0 source/package and latest main canary matched 90/90 SHA-256; patched source/package and this branch matched 90/90; independently generated normal 0.74.1 packages matched 81/81 SHA-256. Port, four apps, shared and Worker have no source changes. Chrome and WebKit product fixture checks cover 5 themes, 390/768/1024/1440, Home links, Sync loading label, Project Cloud and four native app hosts, unsaved-draft refresh guard, score and Pre-DTM. Account observation and version tests pass 24/24. The synthetic fixture uses temporary Account/Project records only.
 
-WebKit runs including the reload scenario recorded a simulated Pro challenge CORS error in two of three runs; one rerun passed. The final run fails its zero-error assertion despite its UI checks passing. Limited rollout remains on hold until the cause is resolved and the full run is stable. Actual Safari authentication and real Account/Project operation were not exercised.
+WebKit reload fixture race was investigated and corrected; see CORS-INVESTIGATION.md. WebKit 3/3 full runs and Chrome 1/1 full run each passed 31 checks with zero captured errors. Actual Safari authentication and real Account/Project operation were not exercised.
 
 The legacy `color-theme.test.mjs` reports 28/32 on both the fixed #195 baseline and this candidate: four static checks still assume the older four-theme/bootstrap configuration. These pre-existing failures were not skipped or relaxed. Product browser checks exercise all five themes.

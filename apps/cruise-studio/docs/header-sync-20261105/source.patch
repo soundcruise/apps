@@ -267,8 +267,17 @@ index 13e234fe..953b0a6b 100644
 @@ -71 +71 @@ test('0.77.0 release identity and recursively reachable Studio module cache path
 -        if (url.search) assert.equal(url.search, '?v=0.77.0', url.href);
 +        if (url.search) assert.equal(url.search, '?v=0.78.0', url.href);
+diff --git a/apps/cruise-studio/tests/project-canary.acceptance.mjs b/apps/cruise-studio/tests/project-canary.acceptance.mjs
+index 8ec7deeb..f736bba6 100644
+--- a/apps/cruise-studio/tests/project-canary.acceptance.mjs
++++ b/apps/cruise-studio/tests/project-canary.acceptance.mjs
+@@ -34,0 +35,4 @@ export function canaryAcceptance({db,mf,src,check,network,OUT,profile,bootstrapP
++  await check('synthetic Pro challenge preflight preserves the expected CORS contract',async()=>{
++   const r=await mf.dispatchFetch('http://native.fixture.invalid/v2/pro-auth/device-session/challenge',{method:'OPTIONS',headers:{Origin:'https://soundcruise.jp','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}});
++   assert(r.status>=200&&r.status<300);assert.equal(r.headers.get('access-control-allow-origin'),'https://soundcruise.jp');assert.match(r.headers.get('access-control-allow-methods')||'',/POST/i);assert.match(r.headers.get('access-control-allow-headers')||'',/content-type/i);
++  });
 diff --git a/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs b/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
-index bfaaf989..c190c053 100644
+index bfaaf989..fd631354 100644
 --- a/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
 +++ b/apps/cruise-studio/tests/ui-final-pass1.acceptance.mjs
 @@ -11 +11 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
@@ -277,7 +286,7 @@ index bfaaf989..c190c053 100644
 @@ -29 +29 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
 -  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-bpm').fill(String(before===103?104:103));await p.locator('#sc-bpm').press('Tab');assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));
 +  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-bpm').fill(String(before===103?104:103));await p.locator('#sc-bpm').press('Tab');assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));await p.locator('#studio-refresh').evaluate(e=>e.click());assert.match(await p.locator('#studio-refresh-status').textContent(),/保存/);assert(await p.evaluate(()=>CruiseStudio.documents.getSession().dirty));
-@@ -52,0 +53,14 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
+@@ -52,0 +53,17 @@ export async function acceptUI({A,projectId,check,OUT,network,profile,bootstrapP
 + await check('Home header and Sync navigation retain the existing Account observer',async()=>{
 +  await p.locator('button[data-workspace=home]').click();
 +  assert.equal(await p.locator('.studio-header > p').textContent(),'弾き語りストのワークスペース');
@@ -288,7 +297,10 @@ index bfaaf989..c190c053 100644
 +  await p.locator('button[data-workspace=home]').click();await p.locator('button[data-workspace=portSync]').click();assert.equal(await p.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'portSync');
 +  await p.evaluate(()=>CruiseStudio.accountStatus.refresh());assert(await p.evaluate(()=>!!CruiseStudio.accountStatus.diagnostics().state));
 +  await p.locator('button[data-workspace=home]').click();
++  // Keep the two reload checks sequential: navigation cancels in-flight auth and Project requests in WebKit.
++  await p.waitForLoadState('networkidle');
 +  await p.reload();await p.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized()&&typeof CruiseStudio.accountStatus?.refresh==='function');
 +  await p.waitForFunction(()=>document.querySelector('#home-cruise-sync')&&!document.querySelector('#studio-shell').inert);
++  await p.waitForLoadState('networkidle');
 +  await Promise.all([p.waitForEvent('load'),p.locator('#studio-refresh').click()]);await p.waitForFunction(()=>CruiseStudio.entryAuth?.isAuthorized()&&typeof CruiseStudio.accountStatus?.refresh==='function');await p.waitForLoadState('networkidle');
 + });
