@@ -1,0 +1,70 @@
+{
+  "stage": {
+    "entry": "ready",
+    "iframePresent": true,
+    "iframeInert": false,
+    "ready": "ready",
+    "nativeState": "error",
+    "proGate": false,
+    "restartPresent": true,
+    "restartHidden": false
+  },
+  "capturedFrameDetached": false,
+  "requests": [
+    {
+      "path": "/v2/pro-auth/device-session/challenge",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/pro-auth/device-session/renew",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/pro-auth/device-session/challenge",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/pro-auth/device-session/renew",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/accounts/summary",
+      "status": 410,
+      "code": "account_deleted"
+    },
+    {
+      "path": "/v2/pro-auth/device-session/challenge",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/pro-auth/device-session/challenge",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/pro-auth/device-session/renew",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/pro-auth/device-session/renew",
+      "status": 200,
+      "code": null
+    },
+    {
+      "path": "/v2/accounts/summary",
+      "status": 410,
+      "code": "account_deleted"
+    },
+    {
+      "path": "/v2/accounts/devices",
+      "status": 410,
+      "code": "account_deleted"
+    }
+  ]
+}

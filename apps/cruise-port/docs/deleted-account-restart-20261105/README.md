@@ -24,7 +24,7 @@ account-lifecycle-database.js の deleteGraceMs は7日。削除確定時に del
 - 最終製品コードでChrome12/12、WebKit12/12 PASS。Port単独/Studio埋込 × deleting/deleted/server-invalid資格 × 新規作成/既存Account接続。初回解除確認のキャンセル、実作成/追加コードconsume、旧Account scope Outbox（UNKNOWNマーカーと終端エラー）保持、raw機材データ保持、新AccountのPort資格なし=自動開始なし、Studio Projectの保存bytes不変、Sync iframe操作可能/holdなしを確認。
 - Studioのdeleting fixtureは削除から3日・猶予残4日、Port側は削除直後・猶予7日を再現。deletedはサーバー行のdeleted状態、物理purge後と同じ401応答は資格verifier不一致fixtureで再現する。実Accountや本番DBは使用しない。
 - 通常接続・503/410/offline復帰・Pro単独入場・Owner OFF拒否/限定許可の既存3群は両engine PASS。Node200/200、skip0。別途worker既存削除テスト29/29。配布181ファイルとJekyll hash一致。
-- **未確定事項**：同じ最終製品コードの先行WebKit実行でstudio deleted connectの案内表示待ちが1回timeout（9ケース通過後）。その後の全12ケースはPASSしたが、原因未確定なので再試行で解決済みとはしない。失敗記録も同梱。公開はHOLD、追加の限定切り分けが必要。
+- **未確定事項**：同じ最終製品コードの先行WebKit実行でstudio deleted connectの案内表示待ちが1回timeout（9ケース通過後）。その後の全12ケースはPASSしたが、原因未確定なので再試行で解決済みとはしない。失敗記録も同梱。当時は公開HOLDとした。今回の限定切り分け結果とHOLD解除判断は [最終確認](HOLD-RESOLUTION.md) を参照。
 
 再現: 既存project-cloud.browser.mjsの隔離環境に STUDIO_DELETED_RESTART_ONLY=1、STUDIO_EXPECTED_PORT_VERSION=1.27.0 を指定。STUDIO_WORKER_ROOTは既存隔離fixture、STUDIO_NATIVE_ROOTはこのworktree、STUDIO_RELEASE_ARTIFACTは生成済み通常パッケージ。全通信をローカルfixtureへinterceptし実資格を使わない。
 
