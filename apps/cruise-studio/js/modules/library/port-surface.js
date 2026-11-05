@@ -65,6 +65,13 @@
             if (hash.startsWith('#news')) return 'portNews';
             return routeWorkspaces[hash] || 'home';
         }
+        var pendingAccountRestart=null,restartInProgress=false,restartReadyObserver=null;
+        function retireRestartFrame(){const notice=frame?.previousElementSibling;if(notice?.matches('[data-entry-owner-hold]'))notice.remove();stop();}
+        function startForRestartOwner(expected){
+            restartReadyObserver?.disconnect();
+            const resume=()=>{if(!CS.entryAuth?.isAuthorized()||CS.entryAuth.read().accountId!==expected)return false;start();return true;};
+            if(!resume()){restartReadyObserver=new MutationObserver(()=>{if(disposed||!active){restartReadyObserver.disconnect();return;}if(resume())restartReadyObserver.disconnect();});restartReadyObserver.observe(document.documentElement,{attributes:true,attributeFilter:['data-studio-entry']});}
+        }
         function checkRoute(child, currentFrame) {
             if (!active || frame !== currentFrame || (component && child.document.body.dataset.componentState !== 'ready')) return;
             var hash = child.location.hash;
@@ -74,6 +81,11 @@
                 if (currentFrame.studioReadyMs == null) currentFrame.studioReadyMs = performance.now() - currentFrame.studioStartedAt;
                 currentFrame.style.visibility = ''; currentFrame.removeAttribute('aria-busy');
                 setPhase('ready', ''); scrollMyApps(child);
+                if(pendingAccountRestart){var mode=pendingAccountRestart;pendingAccountRestart=null;
+                    const done=new child.MutationObserver(()=>{const complete=child.document.getElementById('sync-center-setup')?.dataset.syncPhase==='complete'||child.document.getElementById('sync-center-port-connect-close')?.hidden===false;if(complete&&restartInProgress&&frame===currentFrame){restartInProgress=false;done.disconnect();requestAnimationFrame(async()=>{if(frame===currentFrame){const account=await window.SoundCruiseSyncAccount.storage.getAccount();if(frame===currentFrame){retireRestartFrame();startForRestartOwner(account?.accountId||null);}}});}});
+                    done.observe(child.document.getElementById('sync-center-view'),{subtree:true,attributes:true,attributeFilter:['data-sync-phase','hidden']});
+                    child.document.getElementById(mode==='create'?'sync-center-setup-open':'sync-center-port-connect-open')?.click();
+                }
             }
             else shell.navigate(destination(hash));
         }
@@ -235,12 +247,20 @@
                 if (active) start();
             },
             activate: function () { active = true; if (shell) start(); },
-            deactivate: function () { active = false; resume.hidden = true; stop(); },
+            deactivate: function () { active = false; restartReadyObserver?.disconnect();pendingAccountRestart=null;restartInProgress=false;resume.hidden = true; stop(); },
+            restartDeletedAccount: function(source,mode){
+                if(config.kind!=='sync'||source!==frame||!['create','connect'].includes(mode))return false;
+                // Only the explicitly released Account-management document is retired.
+                // Dataset/editor frames retain the ordinary Account ownership hold.
+                pendingAccountRestart=mode;restartInProgress=true;retireRestartFrame();
+                startForRestartOwner(null);
+                return true;
+            },
             requestLeave: requestLeave,
             getState: function () { return Object.freeze({ active: active, phase: phase, hasFrame: !!frame }); },
             dispose: function () {
                 if (disposed) return;
-                active = false; stop();
+                active = false; restartReadyObserver?.disconnect();stop();
                 document.removeEventListener('visibilitychange', onVisibility);
                 window.removeEventListener('pagehide', onPagehide);
                 stopButton.removeEventListener('click', onGlobalStop);

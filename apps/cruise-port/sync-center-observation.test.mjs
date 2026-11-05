@@ -29,7 +29,7 @@ test('unconnected/disabled/offline never requests or creates an Account',async()
  assert.equal((await createSyncCenterController({config:{enabled:false}}).load({readOnly:true})).kind,'disabled');assert.deepEqual(f.writes,[]);
 });
 for(const code of ['account_device_revoked','account_deleted','account_deleting','rate_limited','service_unavailable'])test('readonly '+code+' preserves binding and does not retain a successful current badge',async()=>{
- const f=fixture();await f.controller.load({readOnly:true});f.fail(Object.assign(Error('synthetic'),{code}));const p=await f.controller.load({readOnly:true});assert.equal(p.kind,'error');assert.equal(p.accountState,'unknown');assert.equal((await f.storage.getAccount()).accountId,'A');assert.deepEqual(f.writes,[]);
+ const f=fixture();await f.controller.load({readOnly:true});f.fail(Object.assign(Error('synthetic'),{code}));const p=await f.controller.load({readOnly:true});assert.equal(p.kind,'error');assert.equal(p.accountState,['account_deleted','account_deleting'].includes(code)?'deleting':'unknown');assert.equal((await f.storage.getAccount()).accountId,'A');assert.deepEqual(f.writes,[]);
 });
 test('late A response cannot overwrite the current B presentation',async()=>{
  const f=fixture();let finish;f.delay(()=>new Promise(r=>finish=r));const old=f.controller.load({readOnly:true});await Promise.resolve();await Promise.resolve();f.choose({accountId:'B',accountCredential:'fixture-B'});f.delay(null);assert.equal((await f.controller.load({readOnly:true})).accountState,'active');finish();assert.equal((await old).kind,'unknown');assert.equal(f.controller.getCachedPresentation().kind,'ready');assert.deepEqual(f.writes,[]);

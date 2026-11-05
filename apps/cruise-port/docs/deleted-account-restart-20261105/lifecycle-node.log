@@ -1,0 +1,41 @@
+(node:30455) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ expired Account handoff cleanup is bounded and idempotent (39.616ms)
+✔ expired app Join invitations are cleaned without affecting the Account membership (35.212542ms)
+✔ expired prepared Chord bridge is safely rolled back without deleting Account or legacy data (35.563625ms)
+(node:30456) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Account Recovery rotates once, revokes every old container and preserves every dataset (37.145ms)
+✔ authenticated Recovery rotation preserves devices/data and one concurrent CAS wins (36.001917ms)
+✔ QA Account Recovery atomically binds its session and immediately enables strict Join issue (38.794292ms)
+✔ QA Recovery rejects a session bound to another Account without rewriting either binding (35.124292ms)
+✔ QA session bind failure rolls back the complete Recovery transaction (34.739667ms)
+✔ QA Recovery rejects missing, expired and revoked sessions while preserving Account state (101.289209ms)
+✔ QA Recovery accepts an already-correct binding and non-QA Recovery remains independent (68.018417ms)
+✔ parallel Account Recovery claims are CAS protected and the old Recovery verifier is invalid (34.050125ms)
+✔ environment revoke invalidates linked app credentials without deleting local cloud records (33.700083ms)
+✔ app environment revoke targets one app device and preserves its Account environment and durable data (33.231458ms)
+✔ active app devices carry their own latest safety report; revoked history does not (33.607ms)
+✔ the report join never mixes in another Account, membership, or app (33.018125ms)
+✔ current Port environment detach follows invitation issuer links only and preserves Account data (33.503ms)
+✔ current Port environment detach identifies the last Port from formal device links (34.119541ms)
+✔ app detach revokes every target app environment while preserving membership, dataset and durable data (33.715375ms)
+✔ app detach fails closed for wrong Account and non-active lifecycle states (132.209542ms)
+✔ App-scoped delete retains its dataset for grace and leaves Account and other app active (33.682125ms)
+✔ App-scoped delete cancellation atomically restores the same dataset without reviving devices (33.667708ms)
+✔ delete cancellation fails closed after grace and during Account-wide deletion (66.727958ms)
+✔ Account-wide delete revokes every credential and scheduled cleanup purges only after grace (35.603ms)
+✔ Recovery and delete use Account generation CAS so only one lifecycle transition wins (34.493125ms)
+✔ parallel app delete intents are scope-bound and only one generation transition wins (34.71325ms)
+✔ cleanup batch failure rolls back membership state and dataset purge (33.978958ms)
+✔ each app delete contract is scoped and permits a fresh membership only after grace purge (136.372708ms)
+✔ expired delete intent cannot mutate Account state (34.218208ms)
+✔ Account Recovery candidate attempts are bounded and reset after the fixed window (33.311375ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1267.650541
