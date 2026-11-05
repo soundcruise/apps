@@ -6,8 +6,8 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-const FRETBOARD_CRUISE_APP_VERSION = '2.27.0';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.27.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.27.1';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.27.1';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
@@ -17529,6 +17529,8 @@ function runFretboardBoot() {
             console.error('Failed to restore state from localStorage:', e);
         }
     }
+    // Studio navigation starts at Home; keep persisted course/settings untouched.
+    if (window.SoundCruiseNativeSyncHost) state.course = null;
     applyStandardEditionRuntimeDefaults();
     if (reloadToHome) {
         saveState();

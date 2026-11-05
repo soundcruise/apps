@@ -1,0 +1,79 @@
+[
+  {
+    "workspace": "tuner",
+    "finalControlPosition": 0.4626875,
+    "height": 1185,
+    "scroll": 1185,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "metronome",
+    "finalControlPosition": 0.46321875,
+    "height": 1612,
+    "scroll": 1612,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portPractice",
+    "finalControlPosition": 0.46246875,
+    "height": 849,
+    "scroll": 849,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portGear",
+    "finalControlPosition": 0.463203125,
+    "height": 991,
+    "scroll": 991,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portMyApps",
+    "finalControlPosition": 0.462421875,
+    "height": 474,
+    "scroll": 474,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "portSync",
+    "finalControlPosition": 0.462609375,
+    "height": 1982,
+    "scroll": 1982,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "calendar",
+    "finalControlPosition": 0.462453125,
+    "height": 1289,
+    "scroll": 1289,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_pitch",
+    "finalControlPosition": 0.395046875,
+    "height": 629,
+    "scroll": 629,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_fretboard",
+    "finalControlPosition": 0.44175,
+    "height": 669,
+    "scroll": 669,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_rhythm",
+    "finalControlPosition": 0.3524921875,
+    "height": 618,
+    "scroll": 618,
+    "theme": "midnight"
+  },
+  {
+    "workspace": "app_chord",
+    "finalControlPosition": 0.338375,
+    "height": 761,
+    "scroll": 761,
+    "theme": "midnight"
+  }
+]
