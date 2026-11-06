@@ -127,9 +127,9 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    SELECT ?,?,?,?,'in_progress',? WHERE NOT EXISTS(SELECT 1 FROM news_facts_sources WHERE instr(source_id,?)=1 AND lease_until>?)`)
    .bind(cacheKey,token,now+60000,now,JSON.stringify({recoveryApproval:approvedRecovery}),source.id+':',now).run();
  }else{
-  claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) SELECT ?,?,?,?,'in_progress' WHERE NOT ? OR ((SELECT COUNT(*) FROM news_facts_sources WHERE instr(source_id,?)=1 AND instr(source_id,?)<>1 AND checked_at>=?)<? AND NOT EXISTS(SELECT 1 FROM news_facts_sources WHERE instr(source_id,?)=1 AND lease_until>?) AND (NOT ? OR NOT EXISTS(SELECT 1 FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=?)))
+  claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) SELECT ?,?,?,?,'in_progress' WHERE NOT ? OR ((SELECT COUNT(*) FROM news_facts_sources WHERE instr(source_id,?)=1 AND instr(source_id,?)<>1 AND instr(source_id,?)<>1 AND checked_at>=?)<? AND NOT EXISTS(SELECT 1 FROM news_facts_sources WHERE instr(source_id,?)=1 AND lease_until>?) AND (NOT ? OR NOT EXISTS(SELECT 1 FROM news_facts_sources WHERE instr(source_id,?)=1 AND checked_at>=?)))
    ON CONFLICT(source_id) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,checked_at=excluded.checked_at,outcome='in_progress',items_json=NULL,proof_json=NULL WHERE lease_until<=? AND checked_at<=?`)
-   .bind(cacheKey,token,now+60000,now,+primary,source.id+':',source.id+':recovery:',budget.since,budget.limit,source.id+':',now,+(primary&&!!upgraded),upgradePrefix,budget.since,now,now-DAY).run();
+   .bind(cacheKey,token,now+60000,now,+primary,source.id+':',source.id+':recovery:',source.id+':maintenance-probe:',budget.since,budget.limit,source.id+':',now,+(primary&&!!upgraded),upgradePrefix,budget.since,now,now-DAY).run();
  }
  if(claimed.meta.changes!==1)return {outcome:approvedRecovery?'facts_recovery_consumed_or_busy':primary&&(await recoveryBudget(store,source,now)).used>=budget.limit?'facts_daily_budget_deferred':'facts_recheck_busy',items_json:'[]',proof_json:null};
  const started=performance.now();
