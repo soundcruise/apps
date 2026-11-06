@@ -15,11 +15,11 @@ function fixture(options = {}) {
     const runtime = createRuntime({ coordinator, environment: { secure: options.secure ?? true, windowTarget, documentTarget, mediaDevices: devices, now: () => 0,
         setTimer: fn => { timers.set(++timerId, fn); return timerId; }, clearTimer: id => timers.delete(id), createContext: () => {
             if (options.createFailure) throw Error('create failed');
-            const context = new Target(); context.state = 'suspended'; context.sampleRate = 44100; context.nodes = []; contexts.push(context);
+            const context = new Target(); context.state = 'suspended'; context.sampleRate = options.sampleRate || 44100; context.nodes = []; contexts.push(context);
             context.resume = async () => { if (options.resume) await options.resume(context); context.state = 'running'; };
             context.close = async () => { if (options.close) await options.close(context); context.state = 'closed'; };
             function node() { const n = { disconnect() { this.disconnected = true; }, connect(target) { this.target = target; } }; context.nodes.push(n); return n; }
-            context.createMediaStreamSource = () => node(); context.createAnalyser = () => Object.assign(node(), { getFloatTimeDomainData: samples => samples.set(signal) }); return context;
+            context.createMediaStreamSource = () => node(); context.createAnalyser = () => Object.assign(node(), { getFloatTimeDomainData: samples => { samples.fill(0); samples.set(signal); } }); return context;
         } } });
     const tick = () => { for (const [id, fn] of [...timers]) { timers.delete(id); fn(); } };
     return { runtime, coordinator, contexts, streams, timers, devices, windowTarget, documentTarget, tick, captures: () => captures, signal: value => { signal = value; } };
@@ -60,3 +60,28 @@ test('context create/resume failures release resources; insecure environment nev
 test('Stop during delayed resume cannot start capture or close the newer owner context', async () => { const d = deferred(); let calls = 0; const f = fixture({ resume: () => ++calls === 1 ? d.promise : undefined }); const old = f.runtime.start(); await f.runtime.stop(); assert(await f.runtime.start()); d.resolve(); assert.equal(await old, false); assert.equal(f.captures(), 1); assert.equal(f.runtime.snapshot().state, 'active'); assert.equal(f.contexts[1].state, 'running'); await f.runtime.stop(); });
 test('track stop failure retains lease, retries ALL tracks, and clears cleanup error after success', async () => { const f = fixture(); await f.runtime.start(); const track = f.streams[0].getTracks()[0], stop = track.stop; track.stop = () => { throw Error('fixture stop'); }; assert.equal((await f.runtime.stop()).ok, false); assert.equal(f.streams[0].getTracks()[1].readyState, 'ended'); assert.equal(f.runtime.snapshot().canStart, false); assert.equal(f.coordinator.snapshot()[0].resourceType, 'microphone/session'); track.stop = stop; assert.equal((await f.runtime.stop()).ok, true); assert.equal(f.runtime.snapshot().error, null); assert.equal(track.readyState, 'ended'); });
 test('UI uses local native controls, Modal confirmation identity, IME guard, global Stop and workspace cleanup', () => { const s = read('../js/modules/tuner/workspace.js'); assert.match(s, /sameLeases\(conflicts\)/); assert.match(s, /getStopGeneration/); assert.match(s, /isIMEBlocked/); assert.match(s, /workspace-left/); assert.match(s, /audio.stopAll\(\)/); assert.doesNotMatch(s, /localStorage|indexedDB|fetch\(|setInterval|keydown.*document/); assert.match(read('../print.css'), /#screen-tuner \{ display: none !important;/); assert.match(read('../shell.css'), /--studio-focus/); });
+
+// Same harmonic/decay/noise fixtures used by the Port regression, through Studio's
+// independent capture owner and its shared engine (not a mock detector).
+const { GUITAR_NOTES, guitarSignal, frameAt } = await import('../../cruise-port/tests/fixtures/tuner-guitar.mjs');
+for (const sampleRate of [44100, 48000, 96000]) test(`quick tuner ${sampleRate}: six noisy plucked strings through runtime`, async () => {
+    const f = fixture({ sampleRate });
+    for (const [note, frequency] of GUITAR_NOTES) {
+        const signal = guitarSignal({ sampleRate, frequency, profile: 'hiss' });
+        f.signal(frameAt(signal, sampleRate, 350));
+        assert(await f.runtime.start());
+        for (const time of [400, 450, 600, 850, 1100]) {
+            f.signal(frameAt(signal, sampleRate, time)); f.tick();
+            const s = f.runtime.snapshot();
+            assert(s.reading, `${note} at ${time}: ${JSON.stringify(s.diagnostics)}`);
+            assert(Math.abs(1200 * Math.log2(s.reading.frequency / frequency)) < 10);
+            assert.equal(s.diagnostics.sampleRate, sampleRate);
+            assert.equal(s.diagnostics.audioContextState, 'running');
+            assert(s.diagnostics.rmsDbfs > -80);
+        }
+        f.signal(new Float32Array(frameAt(signal, sampleRate, 350).length)); f.tick();
+        assert.equal(f.runtime.snapshot().reading, null, 'quick tuner still immediately clears invalid frames');
+        await f.runtime.stop();
+    }
+    await f.runtime.dispose();
+});

@@ -1,0 +1,431 @@
+{
+  "syntheticOnly": true,
+  "cadenceMs": 50,
+  "toleranceCents": 10,
+  "rows": [
+    {
+      "sampleRate": 32000,
+      "profile": "clean",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.113423065187027,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.328647455752034,
+      "maxDbfs": -10.062923000914745
+    },
+    {
+      "sampleRate": 32000,
+      "profile": "hiss",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 8.388392383782296,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -51.93222922024831,
+      "maxDbfs": -9.647225077167603
+    },
+    {
+      "sampleRate": 32000,
+      "profile": "weak-fundamental",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.1679864676875666,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -63.08216878012394,
+      "maxDbfs": -14.672402956349561
+    },
+    {
+      "sampleRate": 32000,
+      "profile": "inharmonic",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.1385335333570825,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.33909425504888,
+      "maxDbfs": -10.06407981270781
+    },
+    {
+      "sampleRate": 32000,
+      "profile": "clipped",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.113423065187027,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.328647455752034,
+      "maxDbfs": -13.882830438132814
+    },
+    {
+      "sampleRate": 44100,
+      "profile": "clean",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.4166921590718544,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.610788832474604,
+      "maxDbfs": -10.259211918599298
+    },
+    {
+      "sampleRate": 44100,
+      "profile": "hiss",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 6.982824078813088,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -52.17859396704328,
+      "maxDbfs": -9.908432165139022
+    },
+    {
+      "sampleRate": 44100,
+      "profile": "weak-fundamental",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.5170167237248786,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -63.413071415696756,
+      "maxDbfs": -15.003952777892964
+    },
+    {
+      "sampleRate": 44100,
+      "profile": "inharmonic",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.0975067606818387,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.610537974563016,
+      "maxDbfs": -10.259104275524088
+    },
+    {
+      "sampleRate": 44100,
+      "profile": "clipped",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.5352551069568987,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.610788832474604,
+      "maxDbfs": -13.875135104710207
+    },
+    {
+      "sampleRate": 48000,
+      "profile": "clean",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 2.6043846771882118,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.64907680127572,
+      "maxDbfs": -10.405705262334145
+    },
+    {
+      "sampleRate": 48000,
+      "profile": "hiss",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 8.722021459270572,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -52.23310182076251,
+      "maxDbfs": -9.969407518781825
+    },
+    {
+      "sampleRate": 48000,
+      "profile": "weak-fundamental",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 2.550219001273109,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -63.55003908412944,
+      "maxDbfs": -15.168849493127638
+    },
+    {
+      "sampleRate": 48000,
+      "profile": "inharmonic",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.083544914919646,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.64984403494232,
+      "maxDbfs": -10.4058824776534
+    },
+    {
+      "sampleRate": 48000,
+      "profile": "clipped",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.856486074432841,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.64907680127572,
+      "maxDbfs": -13.93439283094066
+    },
+    {
+      "sampleRate": 96000,
+      "profile": "clean",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 2.4883699468279676,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.64887186135746,
+      "maxDbfs": -10.406065489576939
+    },
+    {
+      "sampleRate": 96000,
+      "profile": "hiss",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 3.9553799071580418,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -52.140004003569715,
+      "maxDbfs": -10.014811005163068
+    },
+    {
+      "sampleRate": 96000,
+      "profile": "weak-fundamental",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 2.4368559290370135,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -63.55253361731093,
+      "maxDbfs": -15.168373999770527
+    },
+    {
+      "sampleRate": 96000,
+      "profile": "inharmonic",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.0837348956453765,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.64971688027722,
+      "maxDbfs": -10.406174199112911
+    },
+    {
+      "sampleRate": 96000,
+      "profile": "clipped",
+      "frames": 342,
+      "correct": 342,
+      "wrong": 0,
+      "rejected": 0,
+      "portCorrect": 342,
+      "reasons": {
+        "valid": 342
+      },
+      "maxErrorCents": 1.7510661920135624,
+      "maxFirstDetectionMs": 50,
+      "neverDetected": 0,
+      "maxDropoutMs": 0,
+      "minDbfs": -55.64887186135746,
+      "maxDbfs": -13.934697606453632
+    }
+  ],
+  "negatives": {
+    "silence": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "low-rms": 80
+      }
+    },
+    "quiet": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "low-rms": 80
+      }
+    },
+    "dc": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "low-rms": 80
+      }
+    },
+    "noise": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "low-confidence": 80
+      }
+    },
+    "colored-noise": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "low-confidence": 80
+      }
+    },
+    "hum": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "low-confidence": 80
+      }
+    },
+    "low": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "out-of-range": 80
+      }
+    },
+    "high": {
+      "frames": 80,
+      "accepted": 0,
+      "reasons": {
+        "out-of-range": 80
+      }
+    }
+  },
+  "performance": {
+    "frames": 7920,
+    "meanMs": 2.6532891613636305,
+    "p95Ms": 6.752834000002622,
+    "maxMs": 7.355082999998558
+  }
+}

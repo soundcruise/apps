@@ -13,7 +13,7 @@ export function attachPresentation(iframe) {
   if(root.dataset.studioLayout!==mode){root.dataset.studioLayout=mode;}
   const tokens=getComputedStyle(document.getElementById('studio-shell'));
   for(const key of ['space-1','space-2','space-3','space-4','space-6','space-8','space-12','app-bg','surface','panel','text-primary','text-muted','border-default','field','control','control-hover','focus','color-scheme'])root.style.setProperty('--studio-'+key,tokens.getPropertyValue('--studio-'+key));
-  if(!doc.getElementById('studio-series-presentation')){const link=doc.createElement('link');link.id='studio-series-presentation';link.rel='stylesheet';link.href=new URL('/apps/cruise-studio/js/modules/series/presentation.css?v=0.85.4',document.baseURI).href;doc.head.append(link);}
+  if(!doc.getElementById('studio-series-presentation')){const link=doc.createElement('link');link.id='studio-series-presentation';link.rel='stylesheet';link.href=new URL('/apps/cruise-studio/js/modules/series/presentation.css?v=0.86.0',document.baseURI).href;doc.head.append(link);}
   if(observedRoot!==root){observer?.disconnect();observedRoot=root;observer=new MutationObserver(apply);observer.observe(root,{attributes:true,attributeFilter:['data-theme','data-midnight']});}
  }
  iframe.addEventListener('load',apply);const unsubscribe=theme.subscribeColorTheme(apply);const size=new ResizeObserver(apply);size.observe(iframe);

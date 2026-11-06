@@ -1,0 +1,127 @@
+{
+  "mode": "local",
+  "baseline": "a3717eb897b9e4c3525f400a4f73cd1d4d4ea4c8",
+  "themes": [
+    {
+      "theme": "dark",
+      "width": 375,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "dark",
+      "width": 393,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "gray",
+      "width": 375,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "gray",
+      "width": 393,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "gray",
+      "width": 1024,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "light",
+      "width": 375,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "light",
+      "width": 393,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "pixelsIdentical": true,
+      "computedStylesIdentical": true,
+      "pauseRectanglesDiff": 0,
+      "resumeRectanglesDiff": 0
+    }
+  ],
+  "levels": [
+    {
+      "sampleRate": 44100,
+      "midi": 40,
+      "peak": 0.47419464588165283,
+      "rms": 0.06624024105525961,
+      "expectedPeak": 0.47419464588165283,
+      "expectedRms": 0.06624024105525961
+    },
+    {
+      "sampleRate": 44100,
+      "midi": 64,
+      "peak": 0.46254459023475647,
+      "rms": 0.028559644177134923,
+      "expectedPeak": 0.46254459023475647,
+      "expectedRms": 0.028559644177134923
+    },
+    {
+      "sampleRate": 48000,
+      "midi": 40,
+      "peak": 0.5244203805923462,
+      "rms": 0.06627980837153452,
+      "expectedPeak": 0.5244203805923462,
+      "expectedRms": 0.06627980837153452
+    },
+    {
+      "sampleRate": 48000,
+      "midi": 64,
+      "peak": 0.4581543207168579,
+      "rms": 0.026876924777881433,
+      "expectedPeak": 0.4581543207168579,
+      "expectedRms": 0.026876924777881433
+    }
+  ],
+  "functional": [
+    "dark/375: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "dark/393: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "dark/1024: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "gray/375: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "gray/393: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "gray/1024: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "light/375: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "light/393: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "light/1024: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS",
+    "375px / pagehide / visibility / permission deny / retry PASS",
+    "unsupported AudioSession API PASS"
+  ],
+  "pageErrors": [],
+  "result": "PASS"
+}

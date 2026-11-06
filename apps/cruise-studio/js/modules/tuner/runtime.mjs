@@ -1,4 +1,4 @@
-import { createDetailedPitchDetector, TUNER_ENGINE_DEFAULTS } from '../../../../cruise-port/tuner-engine.js?v=1.1.4';
+import { createDetailedPitchDetector, TUNER_ENGINE_DEFAULTS } from '../../../../cruise-port/tuner-engine.js?v=1.28.0';
 // Port UI default, not the engine's fallback RMS threshold. Source parity is tested.
 export const STANDARD_THRESHOLD_DB = -80;
 export const CAPTURE_CONSTRAINTS = Object.freeze({ audio: Object.freeze({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: Object.freeze({ ideal: 1 }) }), video: false });
@@ -69,7 +69,11 @@ export function createRuntime({ coordinator, environment = {}, sessionId = 'stud
             const detection = old.detector(old.samples, old.context.sampleRate);
             if (!current(old)) return;
             reading = detection.result ? Object.freeze({ ...detection.result }) : null;
-            diagnostics = Object.freeze({ reason: detection.diagnostics.reason, confidence: detection.diagnostics.confidence });
+            diagnostics = Object.freeze({ ...detection.diagnostics, sampleRate: old.context.sampleRate, fftSize: old.analyser.fftSize,
+                audioContextState: old.context.state, trackSettings: old.trackSettings,
+                analysisDurationMs: Math.max(0, env.now() - started),
+                analysisIntervalMs: old.lastAnalysisAt == null ? null : Math.max(0, started - old.lastAnalysisAt) });
+            old.lastAnalysisAt = started;
             publish();
         } catch { if (current(old)) { error = 'analysis-failed'; void stop('failed'); } return; }
         if (current(old) && state === 'active') old.timer = env.setTimer(() => analyze(old), Math.max(0, 50 - (env.now() - started)));
@@ -100,6 +104,10 @@ export function createRuntime({ coordinator, environment = {}, sessionId = 'stud
                 const tracks = old.stream.getAudioTracks(); if (!tracks.length || tracks.some(t => t.readyState === 'ended')) throw Object.assign(new Error('No live microphone'), { name: 'NotFoundError' });
                 if (old.context.state !== 'running') await old.context.resume();
                 if (!current(old)) { await closeRun(old); return false; }
+                // Only non-identifying scalar settings; never expose deviceId/groupId in diagnostics.
+                let settings = {}; try { settings = tracks[0].getSettings?.() || {}; } catch { /* Optional diagnostics. */ }
+                old.trackSettings = Object.freeze(Object.fromEntries(['sampleRate', 'channelCount', 'echoCancellation', 'noiseSuppression', 'autoGainControl']
+                    .filter(key => typeof settings[key] === 'boolean' || Number.isFinite(settings[key])).map(key => [key, settings[key]])));
                 old.source = old.context.createMediaStreamSource(old.stream); old.analyser = old.context.createAnalyser();
                 let size = 4096; while (size < 32768 && size / old.context.sampleRate < 0.08) size *= 2;
                 old.analyser.fftSize = size; old.samples = new Float32Array(size);
