@@ -1,0 +1,103 @@
+{
+  "sources": {
+    "pro": {
+      "edition": "pro",
+      "originalFilename": "ChatGPT 画像 2026年11月6日 14_41_55.png",
+      "bytes": 1850048,
+      "format": "PNG",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "dpi": null,
+      "alphaExtrema": null,
+      "sha256": "7c51ecc3b08199e9e6ab506869121cb565f09a76482b3249a623cf1567d79ee0",
+      "byteIdentical": true,
+      "goldMaskApproximateMargins": {
+        "top": 109,
+        "bottom": 159,
+        "left": 167,
+        "right": 168
+      },
+      "goldMaskCentroid": [
+        634.6,
+        735.1
+      ],
+      "composition": "Original unchanged; no cropping, padding, translation, recolor or redraw. Gold-mask geometry is approximate and excludes dark engine/shadows."
+    },
+    "standard": {
+      "edition": "standard",
+      "originalFilename": "ChatGPT 画像 2026年11月6日 14_38_51.png",
+      "bytes": 2112351,
+      "format": "PNG",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "dpi": null,
+      "alphaExtrema": null,
+      "sha256": "ada2b89bdfcc61372fd484f2678ea55fee7bf1f740d86e0981591b6dbc011cbd",
+      "byteIdentical": true,
+      "goldMaskApproximateMargins": {
+        "top": 109,
+        "bottom": 156,
+        "left": 167,
+        "right": 167
+      },
+      "goldMaskCentroid": [
+        628.2,
+        734.0
+      ],
+      "composition": "Original unchanged; no cropping, padding, translation, recolor or redraw. Gold-mask geometry is approximate and excludes dark engine/shadows."
+    }
+  },
+  "outputs": [
+    {
+      "file": "apple-touch-icon-180.png",
+      "size": [
+        180,
+        180
+      ],
+      "sha256": "1b34908cd3d30bd0f567cdd1252ecb674260827605dc6d996792a656317362e4",
+      "pixelsEqualFullImageLanczos": true
+    },
+    {
+      "file": "favicon-32.png",
+      "size": [
+        32,
+        32
+      ],
+      "sha256": "e65ac41b4a792734103930812052ce3763e0ee2f851c50c5f59b480ac338a918",
+      "pixelsEqualFullImageLanczos": true
+    },
+    {
+      "file": "icon-1024.png",
+      "size": [
+        1024,
+        1024
+      ],
+      "sha256": "66e8ec5eb5fc3b30f8c6a9d87044fc495afc89c8249274a9ae95bc1a3cae23d7",
+      "pixelsEqualFullImageLanczos": true
+    },
+    {
+      "file": "icon-192.png",
+      "size": [
+        192,
+        192
+      ],
+      "sha256": "cd464040be2b3fe4cfe199b180066054acab9918602e5db0d9173a1f222fb815",
+      "pixelsEqualFullImageLanczos": true
+    },
+    {
+      "file": "icon-512.png",
+      "size": [
+        512,
+        512
+      ],
+      "sha256": "7ced0d443646670173b59d361e90fb930987dd2ff031394511c0b525b693e5aa",
+      "pixelsEqualFullImageLanczos": true
+    }
+  ]
+}

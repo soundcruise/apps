@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "tests": [
+    {
+      "name": "Unqualified Pro entry stays locked while manifest/icons remain readable",
+      "status": "PASS"
+    },
+    {
+      "name": "Qualified launch/reload, existing embedded routes and storage separation guidance",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "syntheticOnly": true
+}
