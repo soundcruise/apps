@@ -1,0 +1,57 @@
+[
+  {
+    "file": "apps/cruise-studio/assets/app-icons/pro/favicon-32.png",
+    "size": [
+      32,
+      32
+    ],
+    "mode": "RGB",
+    "bytes": 2357,
+    "sha256": "4d5d193eef08aa22a0b46b908b1e1492516a5524aedbabc4aa0d60c5d5b23b10",
+    "exactWholeImageReduction": true
+  },
+  {
+    "file": "apps/cruise-studio/assets/app-icons/pro/apple-touch-icon-180.png",
+    "size": [
+      180,
+      180
+    ],
+    "mode": "RGB",
+    "bytes": 41149,
+    "sha256": "17ef378082cdadd02da43ecf8183512b22cd747466fafdd221087889b75ea6dd",
+    "exactWholeImageReduction": true
+  },
+  {
+    "file": "apps/cruise-studio/assets/app-icons/pro/icon-192.png",
+    "size": [
+      192,
+      192
+    ],
+    "mode": "RGB",
+    "bytes": 45539,
+    "sha256": "2094bc8b8edf9084c7ef29d52a435dd92824e37a1ec5047f3100b81329da5a64",
+    "exactWholeImageReduction": true
+  },
+  {
+    "file": "apps/cruise-studio/assets/app-icons/pro/icon-512.png",
+    "size": [
+      512,
+      512
+    ],
+    "mode": "RGB",
+    "bytes": 260928,
+    "sha256": "9f1cca0d8e471c34d82d1b422f92bae327cd9b319c6ab7e1b0ca6b07a6a33c94",
+    "exactWholeImageReduction": true
+  },
+  {
+    "file": "apps/cruise-studio/assets/app-icons/pro/icon-1024.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "mode": "RGB",
+    "bytes": 1000799,
+    "sha256": "a3565e6eb0f2a41b06ef1623e5e47284efdb87cf31ba1535b78471ad554ffa5f",
+    "exactWholeImageReduction": true
+  }
+]

@@ -1,6 +1,7 @@
 {
   "edition": "pro",
-  "bytes": 1823652,
+  "originalFilename": "ChatGPT 画像 2026年11月6日 13_35_29.png",
+  "bytes": 1691552,
   "format": "PNG",
   "size": [
     1254,
@@ -9,6 +10,5 @@
   "mode": "RGB",
   "dpi": null,
   "alphaExtrema": null,
-  "sha256": "6469d401526bd0774d2da839ab1ad5685afeb31d0b0b0dc621a10bd615346b13",
-  "originalFilename": "ChatGPT 画像 2026年11月6日 09_56_54.png"
+  "sha256": "bbce780c2acaf2c56bfb3e57bb74b1e14d3d734fc32c5da4e55b423efe61abfa"
 }
