@@ -54,3 +54,6 @@ exclude:
 
   # Canonical template only. No Standard Studio entry is published.
   - apps/cruise-studio/index.html
+
+  # Original edition artwork is source-only, including the future Standard icon.
+  - apps/cruise-studio/icon-sources

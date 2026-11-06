@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {createHash}from'node:crypto';
+import{APP_NAME,PRO_APP_ID,STANDARD_APP_ID,PRO_DIRECTORY,renderProManifest,renderProEntry}from'../scripts/edition-layout.mjs';
+const root=new URL('../',import.meta.url),read=p=>fs.readFileSync(new URL(p,root));
+test('stable Pro-only manifest and browser names come from the canonical source',()=>{
+ const html=read('index.html').toString(),generated=read(PRO_DIRECTORY+'/index.html').toString();assert.equal(generated,renderProEntry(html));assert.match(html,/<title>Cruise Studio<\/title>/);for(const name of ['application-name','apple-mobile-web-app-title'])assert(html.includes('name="'+name+'" content="Cruise Studio"'));assert(html.includes('クルーズスタジオ<span class="studio-pro-badge">Pro</span>'));
+ const version=read('js/port-pc.js').toString().match(/version:'([^']+)'/)[1];assert.equal(read(PRO_DIRECTORY+'/manifest.webmanifest').toString(),renderProManifest(version));const m=JSON.parse(renderProManifest(version));assert.equal(m.name,APP_NAME);assert.equal(m.short_name,APP_NAME);assert.equal(m.display,'standalone');assert.equal(m.id,PRO_APP_ID);assert.equal(m.start_url,PRO_APP_ID);assert.equal(m.scope,PRO_APP_ID);assert.notEqual(m.id,STANDARD_APP_ID);assert(!fs.existsSync(new URL('manifest.webmanifest',root)));assert(!fs.existsSync(new URL('manifest.json',root)));assert(m.icons.every(i=>i.purpose==='any'&&i.src.includes('/pro/')));
+});
+test('approved originals preserved byte-for-byte, only Pro outputs have exact PNG dimensions',()=>{
+ for(const [edition,hash]of Object.entries({pro:'6469d401526bd0774d2da839ab1ad5685afeb31d0b0b0dc621a10bd615346b13',standard:'8f35036d69f8a7ca1a33b079caf281886422284230b0a4c41495a5484837a39b'})){const b=read('icon-sources/'+edition+'/source.png');assert.equal(createHash('sha256').update(b).digest('hex'),hash);assert.equal(b.readUInt32BE(16),1254);assert.equal(b.readUInt32BE(20),1254);}
+ for(const [file,size]of [['favicon-32',32],['apple-touch-icon-180',180],['icon-192',192],['icon-512',512],['icon-1024',1024]]){const b=read('assets/app-icons/pro/'+file+'.png');assert.equal(b.subarray(1,4).toString(),'PNG');assert.equal(b.readUInt32BE(16),size);assert.equal(b.readUInt32BE(20),size);}
+ const config=fs.readFileSync(new URL('../../../_config.yml',import.meta.url),'utf8');assert(config.includes('  - apps/cruise-studio/icon-sources'));assert(config.includes('  - apps/cruise-studio/index.html'));assert(!fs.existsSync(new URL('assets/app-icons/standard',root)));
+});

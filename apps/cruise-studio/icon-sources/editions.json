@@ -1,0 +1,12 @@
+{
+  "name": "Cruise Studio",
+  "pro": {
+    "id": "/apps/cruise-studio/pro_969e958c31433f99c30b/",
+    "publishedCandidate": true
+  },
+  "standard": {
+    "reservedId": "/apps/cruise-studio/",
+    "published": false,
+    "manifestGenerated": false
+  }
+}
