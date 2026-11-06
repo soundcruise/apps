@@ -2,7 +2,7 @@
 (function(){
     'use strict';
     var CS=window.CruiseStudio;
-    CS.portPC=Object.freeze({version:'0.84.2'});
+    CS.portPC=Object.freeze({version:'0.85.0'});
     CS.scoreWorkspace.prepare();
     CS.shellHost=CS.shell.init(CS);
     CS.scoreWorkspace.attach();

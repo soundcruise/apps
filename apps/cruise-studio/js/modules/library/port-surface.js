@@ -2,12 +2,12 @@
 (function (root) {
     'use strict';
     var CS = root.CruiseStudio = root.CruiseStudio || {};
-    var portUrl = new URL('../cruise-port/', document.baseURI);
+    var portUrl = new URL('/apps/cruise-port/', document.baseURI);
     var routeWorkspaces = Object.freeze({ '#tuner': 'tuner', '#metronome': 'metronome', '#practice-menu': 'portPractice', '#wishlist': 'portGear', '#my-apps/manage': 'portMyApps', '#news': 'portNews' });
 
     function createSurface(config) {
         var component = config.kind !== 'news';
-        var portUrl = new URL(component ? '../cruise-port/pro_9a3943176561/' : '../cruise-port/', document.baseURI);
+        var portUrl = new URL(component ? '/apps/cruise-port/pro_9a3943176561/' : '/apps/cruise-port/', document.baseURI);
         portUrl.hash = config.hash || '';
         var node = document.getElementById(config.screen);
         var surface = document.getElementById(config.surface);

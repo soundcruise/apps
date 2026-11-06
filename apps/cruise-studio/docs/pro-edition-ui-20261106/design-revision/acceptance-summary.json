@@ -1,0 +1,42 @@
+{
+  "chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Standard absent; Pro requires existing Pro authentication",
+        "status": "PASS"
+      },
+      {
+        "name": "Published 0.84.2 palette equals revised 0.85.0: 5 themes x 4 widths",
+        "status": "PASS"
+      },
+      {
+        "name": "Light icon centers are actually transparent, preserving native backgrounds",
+        "status": "PASS"
+      }
+    ],
+    "capturedErrors": 0
+  },
+  "webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Standard absent; Pro requires existing Pro authentication",
+        "status": "PASS"
+      },
+      {
+        "name": "Published 0.84.2 palette equals revised 0.85.0: 5 themes x 4 widths",
+        "status": "PASS"
+      },
+      {
+        "name": "Light icon centers are actually transparent, preserving native backgrounds",
+        "status": "PASS"
+      }
+    ],
+    "capturedErrors": 0
+  },
+  "node": {
+    "pass": 4,
+    "fail": 0
+  }
+}
