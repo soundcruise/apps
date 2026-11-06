@@ -51,3 +51,6 @@ exclude:
   - apps/cruise-studio/tests
   - apps/cruise-studio/js/modules/pre-dtm-cruise/README.md
   - apps/cruise-studio/js/modules/sheet-cruise/README.md
+
+  # Canonical template only. No Standard Studio entry is published.
+  - apps/cruise-studio/index.html

@@ -1,0 +1,25 @@
+{
+  "formQualifiedGuitar": true,
+  "formSaveReload": true,
+  "guitarMIDI": true,
+  "legacyReadPreserved": true,
+  "explicitLegacySave": true,
+  "schema": 2,
+  "newEditSaveReload": true,
+  "existingProjectRead": true,
+  "undoRedo": true,
+  "jsonRoundTrip": true,
+  "pdf": true,
+  "printLayout": true,
+  "preDtmJSON": true,
+  "preDtmMIDI": true,
+  "workspaceDraftPreserved": true,
+  "themes": 5,
+  "widths": [
+    1440,
+    1024,
+    768,
+    390
+  ],
+  "projectCloud": false
+}

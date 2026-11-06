@@ -1,7 +1,7 @@
 /* Actual public Studio page. Called from the existing isolated Account/Pro product runner. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-export async function acceptLocalCreation(page, output) {
+export async function acceptLocalCreation(page, output, {printPDF=true}={}) {
  const C=()=>page.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
  const settle=()=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  await page.screenshot({path:output+'/creation-home.png'});
@@ -71,8 +71,8 @@ export async function acceptLocalCreation(page, output) {
   assert.equal(await page.locator(selector).evaluate(e=>getComputedStyle(e).display),'none',selector+' is screen-only');
  const paper=await page.locator('.sheet-page').boundingBox();assert(Math.abs(paper.y)<1,'A4 paper starts at the page origin');
  assert(Math.abs(paper.width-210*96/25.4)<1,'A4 paper width');
- const pdf=await page.pdf({path:output+(width===1440?'/original-score.pdf':'/original-score-narrow.pdf'),preferCSSPageSize:true,printBackground:true});
- assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,1,'one-page score must not emit a blank continuation');
+ if(printPDF){const pdf=await page.pdf({path:output+(width===1440?'/original-score.pdf':'/original-score-narrow.pdf'),preferCSSPageSize:true,printBackground:true});
+ assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,1,'one-page score must not emit a blank continuation');}
  await page.emulateMedia({media:'screen'});
  assert(await page.locator('#screen-sheet-cruise .workspace-local-nav').isVisible(),'screen navigation returns after print');
  }
@@ -88,5 +88,5 @@ export async function acceptLocalCreation(page, output) {
  assert.equal(await page.evaluate(key=>localStorage.getItem(key),legacy.key),legacy.raw,'opening legacy data never rewrites the stored Project');
  await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty&&!CruiseStudio.sheetCruise.getSession().commitInFlight);
  assert.equal(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).schemaVersion,legacy.key),2);
- return {formQualifiedGuitar:true,formSaveReload:true,guitarMIDI:true,legacyReadPreserved:true,explicitLegacySave:true,schema:2,newEditSaveReload:true,existingProjectRead:true,undoRedo:true,jsonRoundTrip:true,pdf:true,preDtmJSON:true,preDtmMIDI:true,workspaceDraftPreserved:true,themes:5,widths:[1440,1024,768,390],projectCloud:false};
+ return {formQualifiedGuitar:true,formSaveReload:true,guitarMIDI:true,legacyReadPreserved:true,explicitLegacySave:true,schema:2,newEditSaveReload:true,existingProjectRead:true,undoRedo:true,jsonRoundTrip:true,pdf:printPDF,printLayout:true,preDtmJSON:true,preDtmMIDI:true,workspaceDraftPreserved:true,themes:5,widths:[1440,1024,768,390],projectCloud:false};
 }

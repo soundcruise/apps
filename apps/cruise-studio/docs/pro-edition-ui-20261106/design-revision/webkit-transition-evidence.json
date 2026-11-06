@@ -1,0 +1,14 @@
+[
+  {
+    "version": "published",
+    "background": "rgb(67, 77, 82)",
+    "transitionDuration": "0.4s, 0.4s, 0.4s, 0.4s",
+    "activeTransitions": 12
+  },
+  {
+    "version": "revised",
+    "background": "rgb(67, 77, 82)",
+    "transitionDuration": "0.4s, 0.4s, 0.4s, 0.4s",
+    "activeTransitions": 12
+  }
+]
