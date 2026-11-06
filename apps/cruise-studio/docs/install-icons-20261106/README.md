@@ -1,5 +1,7 @@
 # Cruise Studio 0.85.2 — install metadata and approved artwork
 
+**Historical record:** original artwork below was replaced by the [0.85.3 icon candidate](../icon-refresh-20261106/README.md). The active source PNGs/metadata and generated Pro icons now use the newly approved files. This record is not the current artwork specification.
+
 Base main: `5e2d1ab8fbfdac4873e9438ebcd15524f6c23eb3` (Studio Pro0.85.1 / Port1.27.2). This is an unpublished patch candidate. No main merge, Pages deploy, actual Account/Project operation or OS app installation was performed.
 
 ## Approved originals and reductions

@@ -1,0 +1,20 @@
+{
+  "matchedHashes": 198,
+  "manifestIdentityUnchanged": true,
+  "protectedSourcesUnchanged": true,
+  "localHTTP": {
+    "apps/cruise-studio/": 404,
+    "apps/cruise-studio/index.html": 404,
+    "apps/cruise-studio/manifest.webmanifest": 404,
+    "apps/cruise-studio/manifest.json": 404,
+    "apps/cruise-studio/icon-sources/standard/source.png": 404,
+    "apps/cruise-studio/pro_969e958c31433f99c30b/": 200,
+    "apps/cruise-studio/pro_969e958c31433f99c30b/manifest.webmanifest": 200,
+    "apps/cruise-studio/assets/app-icons/pro/favicon-32.png": 200,
+    "apps/cruise-studio/assets/app-icons/pro/apple-touch-icon-180.png": 200,
+    "apps/cruise-studio/assets/app-icons/pro/icon-192.png": 200,
+    "apps/cruise-studio/assets/app-icons/pro/icon-512.png": 200,
+    "apps/cruise-studio/assets/app-icons/pro/icon-1024.png": 200
+  },
+  "publicNotDeployed": true
+}

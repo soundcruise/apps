@@ -1,0 +1,40 @@
+{
+  "chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Unqualified Pro entry stays locked while manifest/icons remain readable",
+        "status": "PASS"
+      },
+      {
+        "name": "Qualified launch/reload, existing embedded routes and storage separation guidance",
+        "status": "PASS"
+      }
+    ],
+    "capturedPageErrors": 0,
+    "syntheticOnly": true
+  },
+  "webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Unqualified Pro entry stays locked while manifest/icons remain readable",
+        "status": "PASS"
+      },
+      {
+        "name": "Qualified launch/reload, existing embedded routes and storage separation guidance",
+        "status": "PASS"
+      }
+    ],
+    "capturedPageErrors": 0,
+    "syntheticOnly": true
+  },
+  "node": {
+    "pass": 13,
+    "fail": 0
+  },
+  "sourceMacFilesUnchanged": true,
+  "installedApplicationsModified": false,
+  "realDeviceIconCacheTested": false,
+  "judgment": "PASS for this unpublished icon replacement candidate"
+}
