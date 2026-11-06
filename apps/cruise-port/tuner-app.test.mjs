@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
     createInputLevelSmoother,
     createTunerDiagnosticHistory,
+    diagnoseTunerInput,
     createTunerSmoother,
     formatTunerDiagnosticCopy,
     initTuner as initTunerCore,
@@ -235,6 +236,10 @@ function createFakeRoot() {
         'tuner-threshold-value',
         'tuner-threshold-error',
         'tuner-diagnostic',
+        'tuner-diagnostic-toggle',
+        'tuner-diagnostic-check',
+        'tuner-diagnostic-reconnect',
+        'tuner-diagnostic-advice',
         'tuner-diagnostic-dbfs',
         'tuner-diagnostic-level',
         'tuner-diagnostic-rms',
@@ -380,7 +385,12 @@ assert.equal(inputLevelPercentage(0), 100);
     history.add('low-confidence', 200);
     const bounded = history.add('invalid-input', 300);
     assert.equal(bounded.frames, 3, 'diagnostic history obeys its fixed frame cap');
-    assert.deepEqual(bounded, { frames: 3, valid: 0, lowRms: 33, lowConfidence: 33, other: 33 });
+    assert.deepEqual(bounded, { frames: 3, valid: 0, lowRms: 33, lowConfidence: 33, other: 33, reasons: { 'low-rms': 33, 'low-confidence': 33, 'invalid-input': 33 } });
+    const split = createTunerDiagnosticHistory();
+    split.add('out-of-range', 0);
+    const breakdown = split.add('no-candidate', 50);
+    assert.deepEqual(breakdown.reasons, { 'out-of-range': 50, 'no-candidate': 50 });
+    assert.equal(breakdown.other, 100);
     assert.equal(history.summary(6000).frames, 0, 'diagnostic history expires old frames');
 }
 
@@ -395,6 +405,7 @@ assert.equal(inputLevelPercentage(0), 100);
             rawFrequency: 82.57,
             sampleRate: 48000,
             fftSize: 4096,
+            audioContextState: 'running', analysisDurationMs: 2.25, analysisIntervalMs: 51.5, candidateLag: 582,
             trackSettings: { sampleRate: 48000, channelCount: 1, deviceId: 'private-id' },
             supportedConstraints: { sampleRate: true, deviceId: true }
         },
@@ -402,6 +413,10 @@ assert.equal(inputLevelPercentage(0), 100);
         summary: { frames: 100, valid: 18, lowRms: 76, lowConfidence: 5, other: 1 }
     });
     assert.match(copied, /low-rms 76%/);
+    assert.match(copied, /AudioContext: running/);
+    assert.match(copied, /Analysis Duration: 2.25 ms/);
+    assert.match(copied, /Analysis Interval: 51.50 ms/);
+    assert.match(copied, /Candidate Lag: 582.00/);
     assert.match(copied, /Current dBFS: -53\.6/);
     assert.match(copied, /Threshold: -80 dBFS/);
     assert.match(copied, /RMS Threshold: 0\.000100/);
@@ -455,7 +470,8 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.match(root.elements.get('tuner-threshold').attributes.get('aria-valuetext'), /左ほど高感度/);
     assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'input settings start closed');
     assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
-    assert.equal(root.elements.get('tuner-diagnostic').removeCalls, 1, 'debug OFF removes the panel');
+    assert.equal(root.elements.get('tuner-diagnostic').removeCalls, 0, 'normal mode keeps opt-in diagnostics available');
+    assert.equal(root.elements.get('tuner-diagnostic').hidden, true);
     assert.equal(root.elements.get('tuner-tuning').children.length, 11, 'preset select is generated from the shared definition');
     assert.equal(root.elements.get('tuner-tuning').children.at(-1).textContent, '自由');
     assert.deepEqual(
@@ -1177,4 +1193,59 @@ test('unconfirmed track stop refuses playback and does not restart capture', asy
     assert.equal(h.root.elements.get('tuner-error').hidden, false);
     assert.notEqual(h.root.elements.get('tuner-status').textContent, 'マイク一時停止中');
     await h.app.destroy();
+});
+
+// Installed apps have no address bar: diagnosis and reconnect must work without a query string.
+test('normal input settings diagnose, reconnect once and cancel work when leaving', async () => {
+    const root = createFakeRoot(), timers = new Map(), events = [];
+    let callbacks, clock = 0, status = 'idle', audioClock = 0, timerId = 0;
+    const controller = {
+        start() { events.push('start'); status = 'running'; callbacks.onStateChange({ status }); return Promise.resolve(true); },
+        stop() { events.push('stop'); status = 'idle'; callbacks.onStateChange({ status }); return Promise.resolve(); },
+        getState: () => ({ status, audioContextState: 'running', audioContextTime: audioClock }),
+        setDiagnosticEnabled: value => events.push('diagnostic:' + value),
+        setRmsThreshold() { throw Error('diagnosis must never change threshold'); },
+        destroy() { return this.stop(); }
+    };
+    const app = initTuner(root, { debugEnabled: false, now: () => clock,
+        audioControllerFactory: options => { callbacks = options; return controller; },
+        previewAudioControllerFactory: () => ({ stop() {}, suspend() { return Promise.resolve(); }, destroy() {} }),
+        setTimer: fn => { timers.set(++timerId, fn); return timerId; }, clearTimer: id => timers.delete(id) });
+    app.setActive(true);
+    await root.elements.get('tuner-input-settings-toggle').dispatch('click');
+    await root.elements.get('tuner-diagnostic-toggle').dispatch('click');
+    assert.equal(root.elements.get('tuner-diagnostic').hidden, false);
+    assert(events.includes('diagnostic:true'));
+    await Promise.resolve();
+    clock = 1000; audioClock = 1;
+    callbacks.onDiagnostic({ reason: 'low-confidence', rms: .01, rmsDbfs: -40, confidence: .2 });
+    clock = 5000; audioClock = 5;
+    for (const [id, fn] of [...timers]) { timers.delete(id); fn(); }
+    assert.equal(root.elements.get('tuner-diagnostic-advice').dataset.result, 'unclear');
+    assert.match(root.elements.get('tuner-diagnostic-advice').textContent, /入力は届いています/);
+    const before = events.length;
+    await root.elements.get('tuner-diagnostic-reconnect').dispatch('click'); await Promise.resolve();
+    assert.deepEqual(events.slice(before).filter(e => e === 'stop' || e === 'start'), ['stop', 'start']);
+    assert.equal(timers.size, 1);
+    app.setActive(false);
+    assert.equal(timers.size, 0, 'route exit cancels diagnosis timeout');
+    assert.equal(root.elements.get('tuner-diagnostic').hidden, true);
+    assert(events.includes('diagnostic:false'));
+    await app.destroy();
+});
+
+test('diagnosis separates stopped/stalled/muted/quiet/range/unclear/valid and never calls a browser bug proven', () => {
+    const running = { status: 'running', audioContextState: 'running' };
+    const base = { frames: 100, valid: 0, lowRms: 0, lowConfidence: 100, reasons: {} };
+    const check = (overrides = {}) => diagnoseTunerInput({ summary: base, audioState: running, clockAdvanced: true, ...overrides }).code;
+    assert.equal(check(), 'unclear');
+    assert.equal(check({ audioState: { status: 'idle' } }), 'stopped');
+    assert.equal(check({ clockAdvanced: false }), 'stalled');
+    assert.equal(check({ summary: { ...base, frames: 0 } }), 'stalled');
+    assert.equal(check({ audioState: { ...running, audioContextState: 'interrupted' } }), 'stalled');
+    assert.equal(check({ diagnostic: { trackMuted: true } }), 'muted');
+    assert.equal(check({ summary: { ...base, lowRms: 90 } }), 'quiet');
+    assert.equal(check({ summary: { ...base, valid: 95 } }), 'detected');
+    assert.equal(check({ summary: { ...base, valid: 20 } }), 'intermittent');
+    assert.equal(check({ summary: { ...base, reasons: { 'out-of-range': 95 } } }), 'range');
 });

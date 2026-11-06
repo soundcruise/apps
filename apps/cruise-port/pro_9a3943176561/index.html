@@ -24,7 +24,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=1.0.1">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=10">
-    <link rel="stylesheet" href="../style.css?v=1.24.30">
+    <link rel="stylesheet" href="../style.css?v=1.28.0">
     <link rel="stylesheet" href="../feature-help.css?v=1.21.2">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=23">
@@ -51,7 +51,7 @@
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=16"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="../pro-app-boot.js?v=1.27.2"></script>
+    <script type="module" src="../pro-app-boot.js?v=1.28.0"></script>
     <link rel="stylesheet" href="../news-article.css?v=1.16.0">
     <link rel="stylesheet" href="../pro-access.css?v=1.19.2">
     <link rel="stylesheet" href="../sync-pro-lock.css?v=1.19.2">
@@ -1252,50 +1252,59 @@
                             </div>
                             <p id="tuner-threshold-error" class="tuner-threshold-error" role="status"></p>
                         </div>
+                        <button id="tuner-diagnostic-toggle" class="diagnostic-copy" type="button" aria-expanded="false" aria-controls="tuner-diagnostic">入力を診断</button>
+                        <section id="tuner-diagnostic" class="tuner-diagnostic" aria-labelledby="tuner-diagnostic-title" hidden>
+                            <div class="tuner-diagnostic-heading">
+                                <h2 id="tuner-diagnostic-title">入力の診断</h2>
+                                <span>直近5秒</span>
+                            </div>
+                            <p id="tuner-diagnostic-advice" class="diagnostic-advice" role="status" aria-live="polite">弦を1本ずつ鳴らしながら診断してください。</p>
+                            <div class="diagnostic-actions">
+                                <button id="tuner-diagnostic-check" class="diagnostic-copy" type="button">5秒間診断</button>
+                                <button id="tuner-diagnostic-reconnect" class="diagnostic-copy" type="button">マイクを再接続</button>
+                            </div>
+                            <details class="diagnostic-details">
+                                <summary>詳しい診断値</summary>
+                            <div class="diagnostic-level-row">
+                                <span>入力レベル</span>
+                                <output id="tuner-diagnostic-dbfs">— dBFS</output>
+                            </div>
+                            <div id="tuner-diagnostic-level" class="diagnostic-level" role="meter" aria-label="入力レベル" aria-valuemin="-100" aria-valuemax="-18" aria-valuenow="-100">
+                                <span class="diagnostic-level-fill"></span>
+                                <span class="diagnostic-threshold" aria-hidden="true"></span>
+                            </div>
+                            <p id="tuner-diagnostic-threshold-label" class="diagnostic-threshold-label">現在の検出しきい値 -80 dBFS</p>
+                            <dl class="diagnostic-values">
+                                <div><dt>RMS</dt><dd id="tuner-diagnostic-rms">—</dd></div>
+                                <div><dt>Confidence</dt><dd id="tuner-diagnostic-confidence">—</dd></div>
+                                <div><dt>Raw Freq</dt><dd id="tuner-diagnostic-raw-frequency">—</dd></div>
+                                <div><dt>直近の有効音</dt><dd id="tuner-diagnostic-final">—</dd></div>
+                                <div><dt>Reason</dt><dd id="tuner-diagnostic-reason">—</dd></div>
+                                <div><dt>Display</dt><dd id="tuner-diagnostic-display">neutral</dd></div>
+                                <div><dt>Sample Rate</dt><dd id="tuner-diagnostic-sample-rate">—</dd></div>
+                                <div><dt>FFT Size</dt><dd id="tuner-diagnostic-fft-size">—</dd></div>
+                                <div><dt>Threshold</dt><dd id="tuner-diagnostic-threshold-db">-80 dBFS</dd></div>
+                                <div><dt>RMS Threshold</dt><dd id="tuner-diagnostic-rms-threshold">0.000100</dd></div>
+                            </dl>
+                            <div class="diagnostic-environment">
+                                <p><strong>Track</strong> <span id="tuner-diagnostic-track">—</span></p>
+                                <p><strong>Supported</strong> <span id="tuner-diagnostic-supported">—</span></p>
+                            </div>
+                            <dl class="diagnostic-summary">
+                                <div><dt>Frames</dt><dd id="tuner-diagnostic-frames">0</dd></div>
+                                <div><dt>Valid</dt><dd id="tuner-diagnostic-valid">0%</dd></div>
+                                <div><dt>Low RMS</dt><dd id="tuner-diagnostic-low-rms">0%</dd></div>
+                                <div><dt>Low confidence</dt><dd id="tuner-diagnostic-low-confidence">0%</dd></div>
+                                <div><dt>Other</dt><dd id="tuner-diagnostic-other">0%</dd></div>
+                            </dl>
+                            </details>
+                            <button id="tuner-diagnostic-copy" class="diagnostic-copy" type="button">診断結果をコピー</button>
+                            <p id="tuner-diagnostic-copy-status" class="diagnostic-copy-status" role="status"></p>
+                        </section>
                     </div>
                 </section>
                 <p class="tuner-privacy">音声は端末内で解析され、録音・送信されません。</p>
 
-                <section id="tuner-diagnostic" class="tuner-diagnostic" aria-labelledby="tuner-diagnostic-title" hidden>
-                    <div class="tuner-diagnostic-heading">
-                        <h2 id="tuner-diagnostic-title">診断</h2>
-                        <span>直近5秒</span>
-                    </div>
-                    <div class="diagnostic-level-row">
-                        <span>入力レベル</span>
-                        <output id="tuner-diagnostic-dbfs">— dBFS</output>
-                    </div>
-                    <div id="tuner-diagnostic-level" class="diagnostic-level" role="meter" aria-label="入力レベル" aria-valuemin="-100" aria-valuemax="-18" aria-valuenow="-100">
-                        <span class="diagnostic-level-fill"></span>
-                        <span class="diagnostic-threshold" aria-hidden="true"></span>
-                    </div>
-                    <p id="tuner-diagnostic-threshold-label" class="diagnostic-threshold-label">現在の検出しきい値 -80 dBFS</p>
-                    <dl class="diagnostic-values">
-                        <div><dt>RMS</dt><dd id="tuner-diagnostic-rms">—</dd></div>
-                        <div><dt>Confidence</dt><dd id="tuner-diagnostic-confidence">—</dd></div>
-                        <div><dt>Raw Freq</dt><dd id="tuner-diagnostic-raw-frequency">—</dd></div>
-                        <div><dt>Final</dt><dd id="tuner-diagnostic-final">—</dd></div>
-                        <div><dt>Reason</dt><dd id="tuner-diagnostic-reason">—</dd></div>
-                        <div><dt>Display</dt><dd id="tuner-diagnostic-display">neutral</dd></div>
-                        <div><dt>Sample Rate</dt><dd id="tuner-diagnostic-sample-rate">—</dd></div>
-                        <div><dt>FFT Size</dt><dd id="tuner-diagnostic-fft-size">—</dd></div>
-                        <div><dt>Threshold</dt><dd id="tuner-diagnostic-threshold-db">-80 dBFS</dd></div>
-                        <div><dt>RMS Threshold</dt><dd id="tuner-diagnostic-rms-threshold">0.000100</dd></div>
-                    </dl>
-                    <div class="diagnostic-environment">
-                        <p><strong>Track</strong> <span id="tuner-diagnostic-track">—</span></p>
-                        <p><strong>Supported</strong> <span id="tuner-diagnostic-supported">—</span></p>
-                    </div>
-                    <dl class="diagnostic-summary">
-                        <div><dt>Frames</dt><dd id="tuner-diagnostic-frames">0</dd></div>
-                        <div><dt>Valid</dt><dd id="tuner-diagnostic-valid">0%</dd></div>
-                        <div><dt>Low RMS</dt><dd id="tuner-diagnostic-low-rms">0%</dd></div>
-                        <div><dt>Low confidence</dt><dd id="tuner-diagnostic-low-confidence">0%</dd></div>
-                        <div><dt>Other</dt><dd id="tuner-diagnostic-other">0%</dd></div>
-                    </dl>
-                    <button id="tuner-diagnostic-copy" class="diagnostic-copy" type="button">診断結果をコピー</button>
-                    <p id="tuner-diagnostic-copy-status" class="diagnostic-copy-status" role="status"></p>
-                </section>
             </section>
         </main>
 

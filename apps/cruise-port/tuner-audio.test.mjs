@@ -462,6 +462,11 @@ function createHarness({
     assert.equal(diagnostics[0].reason, 'valid');
     assert.equal(diagnostics[0].sampleRate, 48000);
     assert.equal(diagnostics[0].fftSize, 4096);
+    assert.equal(diagnostics[0].audioContextState, 'running');
+    assert.equal(diagnostics[0].analysisDurationMs, 0);
+    assert.equal(diagnostics[0].analysisIntervalMs, null);
+    harness.timers.runNext();
+    assert.equal(diagnostics[1].analysisIntervalMs, 0);
     assert.deepEqual(diagnostics[0].trackSettings, {
         sampleRate: 48000,
         channelCount: 1,
@@ -989,3 +994,22 @@ test('unsupported Audio Session API leaves microphone cleanup safe', async () =>
 });
 
 console.log('tuner-audio: all controller tests passed');
+
+// Enabling support diagnostics mid-capture must not restart or change the microphone.
+{
+    const emitted = [], stream = createStream(48000, { channelCount: 1, deviceId: 'private' });
+    const harness = createHarness({ getUserMedia: async () => stream,
+        onInputLevel() {}, onDiagnostic: value => emitted.push(value),
+        detailedDetectorFactory: () => () => ({ result: null, diagnostics: { reason: 'low-confidence', rms: .01, rmsDbfs: -40, confidence: .2 } }) });
+    await harness.controller.start(); harness.timers.runNext();
+    assert.equal(emitted.length, 0);
+    harness.controller.setDiagnosticEnabled(true); harness.timers.runNext();
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0].trackSettings.channelCount, 1);
+    assert.equal(emitted[0].trackSettings.deviceId, undefined);
+    assert.equal(harness.getUserMediaCalls, 1);
+    harness.controller.setDiagnosticEnabled(false); harness.timers.runNext();
+    assert.equal(emitted.length, 1);
+    assert.equal(harness.getUserMediaCalls, 1);
+    await harness.controller.destroy(); assert.equal(harness.timers.size, 0);
+}

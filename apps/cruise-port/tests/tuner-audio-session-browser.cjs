@@ -13,14 +13,14 @@ const out = path.resolve(process.argv[2] || '/tmp/cruise-port-phase-a');
 const production = process.argv[3];
 const baseline = 'a3717eb897b9e4c3525f400a4f73cd1d4d4ea4c8';
 const digest = (value) => createHash('sha256').update(value).digest('hex');
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
 (async () => {
     fs.mkdirSync(out, { recursive: true });
     const server = http.createServer((request, response) => {
         let name = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
         const old = name.startsWith('/baseline/');
-        name = name.replace(/^\/(?:baseline|current)\//, '');
+        name = name.replace(/^\/(?:baseline|current)\//, '').replace(/^\//, '');
         if (name.endsWith('/')) name += 'index.html';
         const absolute = path.resolve(root, name);
         if (!absolute.startsWith(root + path.sep)) { response.writeHead(403).end(); return; }
@@ -83,6 +83,7 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
             const base = kind === 'baseline' ? `${origin}/baseline` : production || `${origin}/current`;
             await page.goto(`${base}/apps/cruise-port/`, { waitUntil: 'networkidle' });
             assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+            await page.waitForFunction(() => document.getElementById('tuner-tuning')?.options.length > 0);
             await page.locator('#tuner-card').click();
             await page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
             return { context, page, base };

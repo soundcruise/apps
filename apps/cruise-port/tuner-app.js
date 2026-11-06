@@ -1,7 +1,8 @@
-import { createTunerAudioController } from './tuner-audio.js?v=1.12.3';
+import { CRUISE_PORT_APP_VERSION } from './app-version.js?v=1.28.0';
+import { createTunerAudioController } from './tuner-audio.js?v=1.28.0';
 import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.12.3';
 import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.59.3';
-import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
+import { frequencyToNoteInfo } from './tuner-engine.js?v=1.28.0';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
     TUNER_SCHEMA_VERSION,
@@ -295,21 +296,26 @@ export function createTunerDiagnosticHistory({
     function summary(now) {
         prune(now);
         const counts = { valid: 0, 'low-rms': 0, 'low-confidence': 0, other: 0 };
-        for (const frame of frames) counts[frame.category] += 1;
+        const reasons = {};
+        for (const frame of frames) {
+            counts[frame.category] += 1;
+            reasons[frame.reason] = (reasons[frame.reason] || 0) + 1;
+        }
         const percentage = (count) => (frames.length ? Math.round((count / frames.length) * 100) : 0);
         return {
             frames: frames.length,
             valid: percentage(counts.valid),
             lowRms: percentage(counts['low-rms']),
             lowConfidence: percentage(counts['low-confidence']),
-            other: percentage(counts.other)
+            other: percentage(counts.other),
+            reasons: Object.fromEntries(Object.entries(reasons).map(([reason, count]) => [reason, percentage(count)]))
         };
     }
 
     return {
         add(reason, timestamp) {
             const now = Number.isFinite(timestamp) ? timestamp : 0;
-            frames.push({ timestamp: now, category: diagnosticCategory(reason) });
+            frames.push({ timestamp: now, category: diagnosticCategory(reason), reason });
             prune(now);
             return summary(now);
         },
@@ -340,6 +346,7 @@ function formatSettings(values = {}) {
 
 export function formatTunerDiagnosticCopy({
     device = 'Unknown browser',
+    assessment = '',
     diagnostic = {},
     display = {},
     thresholdDb = TUNER_DEFAULT_THRESHOLD_DB,
@@ -354,10 +361,19 @@ export function formatTunerDiagnosticCopy({
         : '—';
     return [
         'Cruise Port Tuner Diagnostic',
+        `App Version: ${CRUISE_PORT_APP_VERSION}`,
         '',
         `Device: ${device}`,
+        `Assessment: ${assessment || '—'}`,
         `Sample Rate: ${formatValue(diagnostic.sampleRate)} Hz`,
         `FFT Size: ${formatValue(diagnostic.fftSize)}`,
+        `Standalone: ${formatValue(diagnostic.standalone)}`,
+        `AudioContext: ${diagnostic.audioContextState || '—'}`,
+        `Audio Time: ${number(diagnostic.audioContextTime, 3)} sec`,
+        `Audio Session: ${diagnostic.audioSessionType || '—'}`,
+        `Track: ${diagnostic.trackState || '—'} / muted ${formatValue(diagnostic.trackMuted)}`,
+        `Analysis Duration: ${number(diagnostic.analysisDurationMs, 2)} ms`,
+        `Analysis Interval: ${number(diagnostic.analysisIntervalMs, 2)} ms`,
         `Track Settings: ${formatSettings(diagnostic.trackSettings)}`,
         `Supported: ${formatSettings(diagnostic.supportedConstraints)}`,
         '',
@@ -365,6 +381,7 @@ export function formatTunerDiagnosticCopy({
         `Current dBFS: ${number(diagnostic.rmsDbfs, 1)}`,
         `Current Confidence: ${number(diagnostic.confidence, 3)}`,
         `Raw Frequency: ${number(diagnostic.rawFrequency, 2)} Hz`,
+        `Candidate Lag: ${number(diagnostic.candidateLag, 2)}`,
         `Current Reason: ${diagnostic.reason || '—'}`,
         `Threshold: ${number(thresholdDb, 0)} dBFS`,
         `RMS Threshold: ${number(rmsThreshold, 6)}`,
@@ -377,8 +394,22 @@ export function formatTunerDiagnosticCopy({
         `valid ${summary.valid}%`,
         `low-rms ${summary.lowRms}%`,
         `low-confidence ${summary.lowConfidence}%`,
-        `other ${summary.other}%`
+        `other ${summary.other}%`,
+        `Reasons: ${Object.entries(summary.reasons || {}).map(([reason, percent]) => `${reason} ${percent}%`).join(', ') || '—'}`
     ].join('\n');
+}
+
+// This reports observed stages, not a guessed hardware/browser root cause.
+export function diagnoseTunerInput({ summary, audioState, diagnostic = {}, clockAdvanced = null }) {
+    if (audioState.status !== 'running') return { code: 'stopped', message: 'マイクが停止しています。「マイクを再接続」で入力を開始してください。' };
+    if ((audioState.audioContextState && audioState.audioContextState !== 'running') || clockAdvanced === false || !summary.frames)
+        return { code: 'stalled', message: '音声解析の更新が止まっています。「マイクを再接続」をお試しください。' };
+    if (diagnostic.trackMuted || diagnostic.trackState === 'ended') return { code: 'muted', message: 'マイク入力が中断されています。他の通話や録音を終了して「マイクを再接続」をお試しください。' };
+    if (summary.lowRms >= 80) return { code: 'quiet', message: '入力が検出閾値を下回っています。マイクを楽器に近づけ、1本の弦を繰り返し鳴らして再診断してください。' };
+    if (summary.valid >= 50) return { code: 'detected', message: `音程を検出できています（診断中の ${summary.valid}%）。演奏の合間の無音も含む参考値です。` };
+    if (summary.valid > 0) return { code: 'intermittent', message: `音程は検出できていますが途切れています（診断中の ${summary.valid}%）。1本ずつ弦を鳴らし、環境音を減らして再診断してください。改善しない場合はマイクを再接続できます。` };
+    if ((summary.reasons?.['out-of-range'] || 0) >= 50) return { code: 'range', message: '入力の候補が対応音域から外れています。ほかの弦を止め、開放弦を1本だけ鳴らして再診断してください。' };
+    return { code: 'unclear', message: '入力は届いていますが、音程の周期を確認できません。ほかの弦を止めてマイクを楽器に近づけてください。改善しない場合は「マイクを再接続」をお試しください。' };
 }
 
 function diagnosticDeviceLabel(navigatorObject) {
@@ -402,6 +433,8 @@ export function initTuner(root, {
     navigatorObject = globalThis.navigator,
     documentTarget = globalThis.document,
     windowTarget = globalThis.window,
+    setTimer = globalThis.setTimeout?.bind(globalThis),
+    clearTimer = globalThis.clearTimeout?.bind(globalThis),
     storage
 } = {}) {
     const elements = {
@@ -431,10 +464,13 @@ export function initTuner(root, {
         thresholdValue: root.querySelector('#tuner-threshold-value'),
         thresholdError: root.querySelector('#tuner-threshold-error'),
         diagnostic: root.querySelector('#tuner-diagnostic'),
+        diagnosticToggle: root.querySelector('#tuner-diagnostic-toggle'),
+        diagnosticCheck: root.querySelector('#tuner-diagnostic-check'),
+        diagnosticReconnect: root.querySelector('#tuner-diagnostic-reconnect'),
+        diagnosticAdvice: root.querySelector('#tuner-diagnostic-advice'),
         strings: [...root.querySelectorAll('[data-tuner-string]')]
     };
-    if (!debugEnabled) elements.diagnostic?.remove?.();
-    const diagnosticElements = debugEnabled && elements.diagnostic ? {
+    const diagnosticElements = elements.diagnostic ? {
         dbfs: root.querySelector('#tuner-diagnostic-dbfs'),
         level: root.querySelector('#tuner-diagnostic-level'),
         rms: root.querySelector('#tuner-diagnostic-rms'),
@@ -461,7 +497,7 @@ export function initTuner(root, {
     const smoother = createTunerSmoother();
     const inputLevelSmoother = createInputLevelSmoother();
     const previewAudioController = previewAudioControllerFactory();
-    const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
+    const diagnosticHistory = diagnosticElements ? createTunerDiagnosticHistory() : null;
     const loadResult = loadTunerSettings(storage);
     const meterVisible = loadTunerMeterVisible(storage);
     elements.meterVisibility.checked = meterVisible;
@@ -480,7 +516,10 @@ export function initTuner(root, {
     let currentCapo = effectiveCapo(storedCapo, capabilities);
     let currentTargets = getTuningTargets(currentTuningId, currentCapo);
     let currentReading = null;
-    let inputSettingsOpen = false;
+    let inputSettingsOpen = debugEnabled;
+    let diagnosticOpen = debugEnabled;
+    let diagnosticCheckTimer = null;
+    let diagnosticGeneration = 0;
     let viewActive = false;
     let audioStatus = 'idle';
     let lastAudioError = '';
@@ -801,7 +840,7 @@ export function initTuner(root, {
                 : { ...latestDiagnosticDisplay, state: 'neutral' };
         },
         onDiagnostic(diagnostic) {
-            if (!viewActive || previewPaused || audioStatus !== 'running') return;
+            if (!viewActive || previewPaused || !diagnosticOpen || audioStatus !== 'running') return;
             renderDiagnostic(diagnostic, now());
         },
         onInputLevel(level) {
@@ -809,10 +848,16 @@ export function initTuner(root, {
         },
         onStateChange(state) {
             renderAudioState(state);
+            if (elements.diagnosticReconnect) elements.diagnosticReconnect.disabled = state.status === 'starting' || previewPaused;
+            if (state.status !== 'running' && diagnosticCheckTimer !== null) cancelDiagnosticCheck();
         },
         onError(error) {
             lastAudioError = errorMessage(error);
             if (viewActive) showError(lastAudioError);
+            if (diagnosticOpen && elements.diagnosticAdvice) {
+                elements.diagnosticAdvice.textContent = lastAudioError;
+                elements.diagnosticAdvice.dataset.result = 'error';
+            }
         },
         diagnosticEnabled: debugEnabled,
         rmsThreshold: thresholdDbToRms(currentThresholdDb)
@@ -864,6 +909,7 @@ export function initTuner(root, {
     }
 
     function cancelPreview() {
+        cancelDiagnosticCheck();
         previewGeneration += 1;
         previewPaused = false;
         resumeCaptureAfterPreview = false;
@@ -889,11 +935,14 @@ export function initTuner(root, {
     });
 
     if (diagnosticElements) {
-        elements.diagnostic.hidden = false;
+        elements.diagnostic.hidden = !diagnosticOpen;
+        elements.diagnosticToggle?.setAttribute('aria-expanded', String(diagnosticOpen));
+        if (elements.diagnosticToggle) elements.diagnosticToggle.textContent = diagnosticOpen ? '診断を閉じる' : '入力を診断';
         resetDiagnostic();
         diagnosticElements.copy.addEventListener('click', async () => {
             const copyText = formatTunerDiagnosticCopy({
                 device: diagnosticDeviceLabel(navigatorObject),
+                assessment: elements.diagnosticAdvice?.textContent,
                 diagnostic: latestDiagnostic || {},
                 display: latestDiagnosticDisplay,
                 thresholdDb: currentThresholdDb,
@@ -948,6 +997,69 @@ export function initTuner(root, {
         (await saveCurrentSettings());
     }
 
+    function cancelDiagnosticCheck() {
+        if (diagnosticCheckTimer !== null && elements.diagnosticAdvice) {
+            elements.diagnosticAdvice.textContent = '診断を中止しました。弦を鳴らしながら再診断できます。';
+            elements.diagnosticAdvice.dataset.result = 'cancelled';
+        }
+        diagnosticGeneration++;
+        if (diagnosticCheckTimer !== null) clearTimer?.(diagnosticCheckTimer);
+        diagnosticCheckTimer = null;
+        if (elements.diagnosticCheck) elements.diagnosticCheck.disabled = false;
+    }
+
+    function showDiagnostic(open) {
+        cancelDiagnosticCheck();
+        diagnosticOpen = open;
+        elements.diagnostic.hidden = !open;
+        elements.diagnosticToggle?.setAttribute('aria-expanded', String(open));
+        if (elements.diagnosticToggle) elements.diagnosticToggle.textContent = open ? '診断を閉じる' : '入力を診断';
+        audioController.setDiagnosticEnabled?.(open);
+        if (open) {
+            resetDiagnostic();
+            elements.diagnosticAdvice.textContent = '弦を1本ずつ鳴らしながら「5秒間診断」を押してください。音声は録音・保存・送信されません。';
+        }
+    }
+
+    function checkInput(reconnect = false) {
+        if (!viewActive || destroyed || previewPaused || audioStatus === 'starting') return;
+        if (reconnect) cancelPreview(); // Stops every owned track synchronously before a new capture.
+        showDiagnostic(true);
+        const token = diagnosticGeneration;
+        elements.diagnosticCheck.disabled = true;
+        delete elements.diagnosticAdvice.dataset.result;
+        elements.diagnosticAdvice.textContent = '弦を1本ずつ繰り返し鳴らしてください。5秒間、入力を確認します…';
+        // Start synchronously in this click gesture, before awaiting context cleanup/permission.
+        const starting = audioStatus === 'running' ? Promise.resolve(true) : startAudio();
+        Promise.resolve(starting).then(started => {
+            if (token !== diagnosticGeneration || !viewActive || destroyed) return;
+            if (!started) {
+                elements.diagnosticCheck.disabled = false;
+                elements.diagnosticAdvice.textContent = lastAudioError || 'マイクを開始できませんでした。権限や他のアプリの使用状況を確認してください。';
+                return;
+            }
+            const firstClock = audioController.getState().audioContextTime;
+            diagnosticCheckTimer = setTimer(() => {
+                diagnosticCheckTimer = null;
+                if (token !== diagnosticGeneration || !viewActive || destroyed) return;
+                const state = audioController.getState();
+                const clockAdvanced = Number.isFinite(firstClock) && Number.isFinite(state.audioContextTime)
+                    ? state.audioContextTime > firstClock : null;
+                const result = diagnoseTunerInput({ summary: diagnosticHistory.summary(now()), audioState: state,
+                    diagnostic: latestDiagnostic || {}, clockAdvanced });
+                elements.diagnosticAdvice.textContent = result.message;
+                elements.diagnosticAdvice.dataset.result = result.code;
+                elements.diagnosticCheck.disabled = false;
+            }, DIAGNOSTIC_WINDOW_MS);
+        });
+    }
+    elements.diagnosticToggle?.addEventListener('click', () => {
+        if (diagnosticOpen) showDiagnostic(false);
+        else checkInput();
+    });
+    elements.diagnosticCheck?.addEventListener('click', () => checkInput());
+    elements.diagnosticReconnect?.addEventListener('click', () => checkInput(true));
+
     elements.capoDown.addEventListener('click', async () => (await changeCapo(-1)));
     elements.capoUp.addEventListener('click', async () => (await changeCapo(1)));
     root.querySelector('#tuner-capo-lock')?.addEventListener('click', () => requestPro('tunerCapo'));
@@ -974,6 +1086,7 @@ export function initTuner(root, {
 
     elements.inputSettingsToggle.addEventListener('click', () => {
         inputSettingsOpen = !inputSettingsOpen;
+        if (!inputSettingsOpen && diagnosticOpen) showDiagnostic(false);
         renderInputSettings();
     });
 
@@ -1006,6 +1119,7 @@ export function initTuner(root, {
             viewActive = active;
             if (!active) {
                 cancelPreview();
+                if (diagnosticOpen && !debugEnabled) showDiagnostic(false);
                 audioStatus = 'idle';
                 resetDiagnostic();
                 showError();
@@ -1029,6 +1143,7 @@ export function initTuner(root, {
         destroy() {
             if (destroyed) return Promise.resolve();
             destroyed = true;
+            cancelDiagnosticCheck();
             viewActive = false;
             cancelPreview();
             documentTarget?.removeEventListener?.('visibilitychange', handlePreviewVisibility);
