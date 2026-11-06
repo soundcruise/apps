@@ -1,4 +1,5 @@
 import {publicationHealthSQL} from './source-health.js';
+import {preferReviewSources} from './source-preference.js';
 import {preparationState} from './preparation-state.js';
 import {ASSISTED_ORIGIN,assistedPredicate} from './assisted-facts.js';
 import {effectiveCategory} from './category-editor.js';
@@ -17,7 +18,7 @@ function sort(value){if(Array.isArray(value))return value.map(sort);if(value&&ty
 export const candidateSnapshot=row=>hash(canonical(row));
 export async function decisionHistory(store,id){return (await store.db.prepare('SELECT verdict,reason,actor_type,actor_id,decided_at,source_id,category,policy_version,decision_id FROM news_decision_ledger WHERE candidate_id=? ORDER BY decided_at DESC,decision_id DESC LIMIT 100').bind(id).all()).results;}
 const safeProof=value=>{try{return JSON.parse(value||'[]');}catch{return [];}};
-const visibleFacts=facts=>facts?Object.fromEntries(Object.entries(facts).filter(([k])=>['author','focus','serviceAction','publicationAction','subject','actor','deadline','releaseDate','officialIdentity','productType','releaseEvent','models','components','theme','relevance','articleEvidence','section','articleType','person','brand','product','version','category','identifierBasis','manufacturerSource','listingSource','scopeUncertain','productEvent','kind','artist','performer','event','evidence','eventType','eventDate','endDate','endTime','startDate','venue','action','topic','seller','sellerKind','scope','nature','equipment','percentOff','brands'].includes(k))):null;
+const visibleFacts=facts=>facts?Object.fromEntries(Object.entries(facts).filter(([k])=>['announcement','keyboardKeys','signatureModel','editionMarket','limitedReissue','stringsCount','author','focus','serviceAction','publicationAction','subject','actor','deadline','releaseDate','officialIdentity','productType','releaseEvent','models','components','theme','relevance','articleEvidence','section','articleType','person','brand','product','version','category','identifierBasis','manufacturerSource','listingSource','scopeUncertain','productEvent','kind','artist','performer','event','evidence','eventType','eventDate','endDate','endTime','startDate','venue','action','topic','seller','sellerKind','scope','nature','equipment','percentOff','brands'].includes(k))):null;
 export async function reviewDetail(store,id,now,registry,pepper){
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(id).first();if(!row)throw Error('candidate_not_found');
  const validation=await publicationValidation(store,row,now,registry,pepper);
@@ -35,7 +36,7 @@ export async function reviewDetail(store,id,now,registry,pepper){
 }
 export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  const rows=(await store.candidates()).filter(i=>i.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(i.review_status));
- if(registry.length)return Promise.all(rows.map(row=>reviewDetail(store,row.id,now,registry,pepper)));
+ if(registry.length)return preferReviewSources(await Promise.all(rows.map(row=>reviewDetail(store,row.id,now,registry,pepper))));
  return Promise.all(rows.map(async row=>({id:row.id,label:row.label,source:row.source_name,category:await effectiveCategory(store,row),publishedAt:row.published_at,facts:visibleFacts(parseFacts(row)),reason:row.decision_reason,sourceUrl:row.source_url,decision:row.publication_decision,snapshot:await candidateSnapshot(row),revision:row.review_revision})));
 }
 const savedResult=row=>({id:row.candidate_id,action:row.verdict,reason:row.reason,at:row.decided_at,decisionId:row.decision_id,publisherRequests:0});

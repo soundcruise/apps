@@ -156,3 +156,13 @@ test('system exclusions and pre-candidate gaps are visible; restoration uses CSR
  assert.equal(u.run('restoreInput.path'),'/api/system-restore');assert.equal(u.run("restoreInput.options.headers['X-News-CSRF']"),'fixture-csrf');assert.equal(u.run('JSON.parse(restoreInput.options.body).snapshot'),'fixture-snapshot');
  assert(!u.requests.some(r=>r.path==='/api/decision'));
 });
+
+test('source preference is visible with a safe candidate link and never disables the valid alternative',async()=>{
+ const shim={...row('shim',true),sourcePreference:{role:'alternative',preferredId:'ikebe-verified'}},ikebe={...row('ikebe-verified',true),sourcePreference:{role:'preferred'}};
+ const u=ui([ikebe,shim]);await settle();const text=e=>[e.textContent,...e.children.flatMap(c=>text(c))].join(' '),all=e=>[e,...e.children.flatMap(all)];
+ assert.match(text(u.ids.list.children[0]),/池部楽器を代表記事として優先/);assert.match(text(u.ids.list.children[1]),/島村楽器の記事も掲載条件を満たしています/);
+ assert.equal(all(u.ids.list.children[1]).find(e=>e.textContent==='池部楽器の候補を確認').href,'?candidate=ikebe-verified');
+ assert.equal(all(u.ids.list.children[1]).find(e=>e.tagName==='button'&&e.textContent==='掲載する').disabled,false);
+ assert.ok(u.requests.every(r=>!r.options?.method||r.options.method==='GET'));
+ u.run("items[1].sourcePreference.preferredId='https://evil.test/';renderList()");assert.equal(all(u.ids.list.children[1]).some(e=>e.textContent==='池部楽器の候補を確認'),false);
+});
