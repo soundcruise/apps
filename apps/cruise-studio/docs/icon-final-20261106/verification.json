@@ -1,0 +1,17 @@
+{
+  "node": {
+    "pass": 12,
+    "fail": 0
+  },
+  "chromium": {
+    "pass": 2,
+    "fail": 0
+  },
+  "webkit": {
+    "pass": 2,
+    "fail": 0
+  },
+  "runtimeScope": "Only Studio version/cache literals; auth/storage/account/sync code unchanged",
+  "realMacWindowsInstallTested": false,
+  "installedAppsModified": false
+}
