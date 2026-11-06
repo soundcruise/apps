@@ -139,6 +139,7 @@ function interpolateLag(values, lag) {
 
 function createWorkspace() {
     return {
+        filtered: new Float32Array(0),
         difference: new Float64Array(0),
         normalizedDifference: new Float64Array(0),
         ensureLength(length) {
@@ -148,6 +149,32 @@ function createWorkspace() {
             }
         }
     };
+}
+
+// Restrict the periodicity measurement to the pitch band. Broadband microphone/pick
+// noise otherwise raises the YIN difference floor even when input RMS is high.
+// A second-order Butterworth low-pass leaves the supported fundamentals intact.
+// Reset for each overlapping analyser frame: retaining state would splice time backwards.
+function filterPitchBand(samples, sampleRate, maxFrequency, workspace) {
+    if (workspace.filtered.length !== samples.length) workspace.filtered = new Float32Array(samples.length);
+    const filtered = workspace.filtered;
+    const omega = 2 * Math.PI * Math.min(maxFrequency, sampleRate * 0.45) / sampleRate;
+    const cosine = Math.cos(omega);
+    const alpha = Math.sin(omega) / Math.SQRT2;
+    const a0 = 1 + alpha;
+    const b0 = (1 - cosine) / (2 * a0);
+    const b1 = 2 * b0;
+    const a1 = -2 * cosine / a0;
+    const a2 = (1 - alpha) / a0;
+    // Constant-input steady state avoids a DC startup impulse.
+    let x1 = samples[0], x2 = x1, y1 = x1, y2 = x1;
+    for (let i = 0; i < samples.length; i += 1) {
+        const x = samples[i];
+        const y = b0 * x + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+        filtered[i] = y;
+        x2 = x1; x1 = x; y2 = y1; y1 = y;
+    }
+    return filtered;
 }
 
 function rmsToDbfs(rms) {
@@ -208,11 +235,14 @@ function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = 
     difference.fill(0, 0, lastLag + 1);
     normalized.fill(0, 0, lastLag + 1);
 
+    // Gate and report the original input RMS, never a filtered or amplified level.
+    const pitchSamples = filterPitchBand(samples, sampleRate, config.maxFrequency, workspace);
+
     // YIN difference function. A common comparison length keeps every lag comparable.
     for (let lag = 1; lag <= lastLag; lag += 1) {
         let total = 0;
         for (let index = 0; index < comparisonLength; index += 1) {
-            const delta = samples[index] - samples[index + lag];
+            const delta = pitchSamples[index] - pitchSamples[index + lag];
             total += delta * delta;
         }
         difference[lag] = total;

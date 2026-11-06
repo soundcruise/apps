@@ -2,7 +2,7 @@ import {
     TUNER_ENGINE_DEFAULTS,
     createDetailedPitchDetector,
     createPitchDetector
-} from './tuner-engine.js?v=1.1.3';
+} from './tuner-engine.js?v=1.28.0';
 
 const ANALYSIS_INTERVAL_MS = 50;
 const BASE_ANALYSER_SIZE = 4096;
@@ -141,6 +141,7 @@ export function createTunerAudioController({
     let timerId = null;
     let trackSampleRate = null;
     let diagnosticTrackSettings = {};
+    let lastAnalysisAt = null;
     let diagnosticSupportedConstraints = {};
     let callbackErrorReported = false;
     let captureSessionNeedsReset = false;
@@ -149,7 +150,7 @@ export function createTunerAudioController({
     const captureStreams = new Set();
     const pendingStarts = new Set();
     const levelEnabled = typeof onInputLevel === 'function';
-    const detailedDetectionEnabled = diagnosticEnabled || levelEnabled;
+    let detailedDetectionEnabled = diagnosticEnabled || levelEnabled;
     const trackListeners = new Map();
 
     function getState() {
@@ -159,6 +160,8 @@ export function createTunerAudioController({
             trackSampleRate,
             analyserFftSize: analyser?.fftSize ?? null,
             rmsThreshold: currentRmsThreshold,
+            audioContextState: context?.state ?? null,
+            audioContextTime: context?.currentTime ?? null,
             destroyed: status === TUNER_AUDIO_STATES.destroyed
         };
     }
@@ -246,6 +249,7 @@ export function createTunerAudioController({
         detector = null;
         trackSampleRate = null;
         diagnosticTrackSettings = {};
+        lastAnalysisAt = null;
         diagnosticSupportedConstraints = {};
 
         return closeAudioContext(oldContext);
@@ -304,10 +308,16 @@ export function createTunerAudioController({
                     ...detection.diagnostics,
                     sampleRate: context.sampleRate,
                     fftSize: analyser.fftSize,
+                    audioContextState: context.state,
+                    audioContextTime: context.currentTime,
+                    ...captureDiagnosticState(),
+                    analysisDurationMs: Math.max(0, platform.now() - startedAt),
+                    analysisIntervalMs: lastAnalysisAt === null ? null : Math.max(0, startedAt - lastAnalysisAt),
                     trackSettings: diagnosticTrackSettings,
                     supportedConstraints: diagnosticSupportedConstraints
                 });
             }
+            lastAnalysisAt = startedAt;
         } catch (error) {
             void fail(error, 'analysis-failed');
             return;
@@ -497,6 +507,30 @@ export function createTunerAudioController({
         return wrapped;
     }
 
+    function captureDiagnosticState() {
+        try {
+            const track = stream?.getAudioTracks?.()[0];
+            return { standalone: platform.navigatorObject?.standalone === true,
+                audioSessionType: platform.navigatorObject?.audioSession?.type ?? null,
+                trackState: track?.readyState ?? null, trackMuted: track?.muted ?? null };
+        } catch (_) { return {}; } // Optional platform diagnostics never interrupt capture.
+    }
+
+    function setDiagnosticEnabled(enabled) {
+        diagnosticEnabled = enabled === true;
+        const nextDetailed = diagnosticEnabled || levelEnabled;
+        if (detector && nextDetailed !== detailedDetectionEnabled) {
+            detector = nextDetailed
+                ? platform.detailedDetectorFactory({ rmsThreshold: currentRmsThreshold })
+                : platform.detectorFactory({ rmsThreshold: currentRmsThreshold });
+        }
+        detailedDetectionEnabled = nextDetailed;
+        if (diagnosticEnabled && stream) {
+            try { diagnosticTrackSettings = selectDiagnosticValues(stream.getAudioTracks?.()[0]?.getSettings?.()); } catch (_) { /* Optional. */ }
+            try { diagnosticSupportedConstraints = selectDiagnosticValues(platform.navigatorObject?.mediaDevices?.getSupportedConstraints?.()); } catch (_) { /* Optional. */ }
+        }
+    }
+
     function setRmsThreshold(nextThreshold) {
         if (!Number.isFinite(nextThreshold) || nextThreshold < 0) return false;
         if (nextThreshold === currentRmsThreshold) return true;
@@ -529,5 +563,5 @@ export function createTunerAudioController({
         return closePromise;
     }
 
-    return { start, stop, pauseForPreview, destroy, getState, setRmsThreshold };
+    return { start, stop, pauseForPreview, destroy, getState, setRmsThreshold, setDiagnosticEnabled };
 }
