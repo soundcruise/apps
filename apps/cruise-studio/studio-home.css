@@ -238,3 +238,15 @@
 :root:is([data-theme="gray"],[data-theme="light"]) .studio-pro-badge {color:#76591f;border-color:#9a7a36;}
 /* Authored SVG palettes already include the correct light/dark materials. */
 :root[data-theme] .home-port-icon[data-studio-icon] { filter:none; opacity:1; }
+
+/* Logo actions inherit the existing typography, including the Port Pro badge. */
+.studio-logo-refresh { appearance:none; font:inherit; letter-spacing:inherit; line-height:inherit; color:inherit; text-align:inherit; border:0; padding:0; background:none; cursor:pointer; }
+.studio-logo-refresh:hover { text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:.2em; }
+.studio-logo-refresh:focus-visible { outline:1px solid currentColor; outline-offset:5px; border-radius:3px; }
+.studio-refresh-feedback:not(:empty) { position:fixed; top:76px; right:20px; z-index:1000; max-width:min(420px,calc(100vw - 40px)); padding:12px 16px; border:1px solid var(--studio-border-default); border-radius:8px; background:var(--studio-surface); color:var(--studio-text-primary); box-shadow:0 4px 16px #0003; }
+/* Sidebar button rules must not resize/recolor the pre-existing brand. */
+.studio-brand .studio-logo-refresh { font:inherit; letter-spacing:inherit; color:inherit; padding:0; border:0; min-height:0; border-radius:0; background:none; }
+.studio-brand .studio-logo-refresh:hover { background:none; }
+.studio-brand .studio-logo-refresh span { margin-top:0; }
+#studio-shell .studio-nav .studio-brand .studio-logo-refresh { color:inherit; }
+.studio-brand .studio-logo-refresh span { font-size:10px; letter-spacing:.34em; }
