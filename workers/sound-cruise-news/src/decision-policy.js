@@ -1,3 +1,4 @@
+import {canonicalProofValid} from './canonical-evidence.js';
 import {primaryContractValid} from './primary-provenance.js';
 import {publicationHealthAllowed} from './source-health.js';
 import {withLegacyDuplicates,duplicateFenceValid} from './legacy-duplicate-compat.js';
@@ -126,6 +127,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  const sourceGate=legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0,backoffUntil:0,failures:0},now,'production',registry);
  if(!controls.publication_enabled||state.publicationBlocked||(assisted?!verifiedAssisted:sourceGate||!source?.discoveryValid||!publicationHealthAllowed(health,now)))errors.push('operator_source_gate');
  if(!source||!sourceUrl(row.source_url,source)||(!assisted&&!allowedArticlePath(row.source_url,source)))errors.push('source_url_invalid');
+ if(facts?.kind==='human_product_notice'&&!await canonicalProofValid(store,row,now,source))errors.push('facts_provenance_invalid');
  if(facts?.kind==='assisted_notice'&&(!verifiedAssisted||!assistedLabel(facts)))errors.push('facts_provenance_invalid');
  if(!facts||!label||facts.scopeUncertain||row.event_type==='other'||!validLabel(label)||facts.category!==row.category||!CATEGORIES.includes(row.category))errors.push('facts_incomplete');
  if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source?.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source?.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source?.id!=='at-distribution'||facts?.manufacturerSource&&facts.manufacturerSource!==row.source_id||facts?.listingSource&&facts.listingSource!==row.source_id)errors.push('facts_provenance_invalid');

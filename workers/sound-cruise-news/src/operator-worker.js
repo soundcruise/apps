@@ -1,3 +1,4 @@
+import {confirmCanonicalFacts} from './canonical-confirmation.js';
 import {restoreSystemResolution} from './pending-resolution.js';
 import {listWebHints,runWebDiscovery} from './web-discovery.js';
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
@@ -47,7 +48,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   }
   if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,now));
   if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,now,options.webDiscoveryDependencies||{},true));}
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.44.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.45.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -88,6 +89,9 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='POST'&&url.pathname==='/api/pending-recheck'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(input.scope!=='due'||Object.keys(input).length!==1)throw Error('operator_recheck_invalid');
    return json(await runPendingRechecks(store,now,registry,env.NEWS_HEADLINE_PEPPER,{...options,limit:20}));
+  }
+  if(request.method==='POST'&&url.pathname==='/api/canonical-facts-confirm'){
+   await verifyCsrf(request,identity,env,now);return json(await confirmCanonicalFacts(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));
   }
   if(request.method==='POST'&&url.pathname==='/api/morris-facts-confirm'){
    await verifyCsrf(request,identity,env,now);return json(await confirmMorrisFacts(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));
