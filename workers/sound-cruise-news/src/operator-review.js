@@ -1,3 +1,5 @@
+import {canonicalReview} from './canonical-confirmation.js';
+import {canonicalReceiptFence} from './canonical-evidence.js';
 import {publicationHealthSQL} from './source-health.js';
 import {preferReviewSources} from './source-preference.js';
 import {preparationState} from './preparation-state.js';
@@ -32,7 +34,7 @@ export async function reviewDetail(store,id,now,registry,pepper){
   if(morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'){factsReview.available=false;factsReview.reviewability='EVIDENCE_WAIT';morrisReview.confirmationAvailable=false;}
  }}
  const lifecycle=await lifecycleView(store,row,now);
- return {preparationState:preparationState(row,validation,lifecycle),assistedEditable:row.origin===ASSISTED_ORIGIN,systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle,factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
+ return {canonicalReview:await canonicalReview(store,row,validation,source,now),preparationState:preparationState(row,validation,lifecycle),assistedEditable:row.origin===ASSISTED_ORIGIN,systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle,factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
 }
 export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  const rows=(await store.candidates()).filter(i=>i.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(i.review_status));
@@ -79,7 +81,7 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
  ${row.origin===ASSISTED_ORIGIN?'AND '+assistedPredicate():"AND EXISTS(SELECT 1 FROM source_health WHERE source_id=c.source_id AND "+publicationHealthSQL+" AND last_successful_run_at=?)"}
  AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND (${row.origin===ASSISTED_ORIGIN?'':'disabled=1 OR '}takedown=1 OR publication_blocked=1))
  AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=c.id)
- AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql}) AND ${predicate.fenceSql}`:''}`)
+ AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql}) AND ${predicate.fenceSql} ${parseFacts(row)?.kind==='human_product_notice'?'AND '+canonicalReceiptFence():''}`:''}`)
  .bind(decisionId,input.action,input.reason,actor.type,actor.id,now,features,DECISION_POLICY_VERSION,input.requestId,payloadHash,input.snapshot,now,approve?validation.publishableLabel:null,canonical(approve?{basis:'validated_official_surface',...input.checks}:{}),row.id,row.review_revision,row.review_status,...snapshotColumns.map(k=>row[k]),...(approve?[now,now,now,...(row.origin===ASSISTED_ORIGIN?[]:[validation.healthSuccessfulAt]),...predicate.args,...predicate.fenceArgs]:[]));
  try{await statement.run();}catch(error){const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;throw Error('decision_transaction_failed',{cause:error});}
  const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;

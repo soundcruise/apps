@@ -1,3 +1,4 @@
+import {CANONICAL_CHECKS} from '../src/canonical-evidence.js';
 import {MORRIS_REVIEW_TYPES,MORRIS_PRODUCT_TYPES} from '../src/morris-editorial-policy.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -165,4 +166,15 @@ test('source preference is visible with a safe candidate link and never disables
  assert.equal(all(u.ids.list.children[1]).find(e=>e.tagName==='button'&&e.textContent==='掲載する').disabled,false);
  assert.ok(u.requests.every(r=>!r.options?.method||r.options.method==='GET'));
  u.run("items[1].sourcePreference.preferredId='https://evil.test/';renderList()");assert.equal(all(u.ids.list.children[1]).some(e=>e.textContent==='池部楽器の候補を確認'),false);
+});
+
+test('canonical confirmation UI sends only bounded human facts with CSRF and never publishes or rewrites the URL',async()=>{
+ const candidate={...row('canonical-ui',false,['facts_incomplete'],null),revision:0,snapshot:'a'.repeat(64),canonicalReview:{adoptedUrl:'https://www.shimamura.co.jp/update/guitar-bass/2026/10/900101/',evidenceAt:1790899200000,types:{instrument_cable:['楽器用シールドケーブル','electric_guitar_bass']},actions:{introduction:'を紹介'}}};
+ const u=ui([candidate]);await settle();u.context.candidate=candidate;u.context.panel=new Element();u.context.sent=[];
+ u.run("canonicalConfirmation(candidate,panel); refresh=async()=>{};showDetail=async()=>{};api=async(path,options)=>{sent.push({path,options});return path==='/api/session'?{csrf:'fixture-csrf'}:{validation:{valid:true}}}");
+ const all=e=>[e,...e.children.flatMap(all)],nodes=all(u.context.panel),save=nodes.find(n=>n.tagName==='button');assert.equal(save.disabled,true);
+ for(const n of nodes.filter(n=>n.tagName==='input'&&n.type==='text'))n.value=n.attributes['aria-label'].includes('canonical')?'https://www.shimamura.co.jp/update/guitar-bass/2026/09/900101/':n.attributes['aria-label'].includes('メーカー')?'Synthetic Maker':'Clear Cable';
+ for(const n of nodes.filter(n=>n.type==='checkbox'))n.checked=true;
+ nodes.find(n=>n.tagName==='fieldset').events.change();assert.equal(save.disabled,false);await save.events.click();const request=u.context.sent.find(r=>r.path==='/api/canonical-facts-confirm');assert(request);assert.equal(request.options.headers['X-News-CSRF'],'fixture-csrf');const input=JSON.parse(request.options.body);assert.equal(input.facts.productType,'instrument_cable');assert.equal(input.facts.action,'introduction');assert.equal(input.reason,'same_article_stale_path');assert.deepEqual(Object.keys(input.checks).sort(),[...CANONICAL_CHECKS].sort());assert.equal(Object.values(input.checks).every(Boolean),true);assert.equal(Object.hasOwn(input,'adoptedUrl'),false);assert.equal(u.context.sent.some(r=>r.path==='/api/decision'||r.path==='/api/facts-recheck'),false);
+ u.context.panel=new Element();u.context.candidate={...candidate,canonicalReview:null};u.run('canonicalConfirmation(candidate,panel)');assert.equal(u.context.panel.children.length,0);
 });
