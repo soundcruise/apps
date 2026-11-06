@@ -5,6 +5,7 @@ import {candidateSnapshot,canonical,reviewDetail} from './operator-review.js';
 import {publicationValidation} from './decision-policy.js';
 import {eventEndsAt} from './event.js';
 import {hash} from './policy.js';
+import {publicationHealthSQL} from './source-health.js';
 // Human primary-source fact verification is an operational correction, not a
 // publication verdict. This never writes the Decision Ledger, feedback or Shadow.
 export async function confirmMorrisFacts(store,input,now,registry,pepper,actor){
@@ -27,11 +28,13 @@ export async function confirmMorrisFacts(store,input,now,registry,pepper,actor){
  // The confirmation record does not exist yet. Only that single provenance
  // check may be provisional; all ordinary date, duplicate and policy gates run.
  if(validation.errors.some(e=>e!=='facts_provenance_invalid'))throw Error(validation.errors.find(e=>e!=='facts_provenance_invalid'));
+ // Match the ordinary publication health policy in the same atomic insert.
+ // A transient collector failure is distinct from permission/robots/source stops.
  const columns=Object.keys(row);await store.db.prepare(`INSERT INTO news_facts_rechecks(request_id,request_payload_hash,candidate_id,checked_at,outcome,provenance_json,patch_json)
  SELECT ?,?,?,?,'morris_primary_facts_confirmed',?,? WHERE EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')} AND review_status IN ('pending','reopened'))
  AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1 AND publication_enabled=1)
  AND EXISTS(SELECT 1 FROM source_state WHERE source_id='morris' AND disabled=0 AND takedown=0 AND publication_blocked=0 AND backoff_until<=?)
- AND EXISTS(SELECT 1 FROM source_health WHERE source_id='morris' AND status='healthy' AND last_successful_run_at=?)
+ AND EXISTS(SELECT 1 FROM source_health WHERE source_id='morris' AND ${publicationHealthSQL} AND last_successful_run_at=?)
  AND EXISTS(SELECT 1 FROM news_morris_acquisition WHERE request_key=? AND outcome='verified' AND response_hash=? AND entries_json IS ? AND proof_json IS ?)
  AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)`)
  .bind(input.requestId,payloadHash,row.id,now,provenance,JSON.stringify(patch),...columns.map(k=>row[k]),now,validation.healthSuccessfulAt,listing.listing.request_key,listing.listing.response_hash,listing.listing.entries_json,listing.listing.proof_json,row.id).run();
