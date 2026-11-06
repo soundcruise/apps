@@ -134,7 +134,7 @@
                 try {
                     var child = next.contentWindow;
                     CS.presentNativePort(next);
-                    child.addEventListener('pagehide', function (event) { if (event.isTrusted && frame === next) { next.style.visibility = 'hidden'; next.setAttribute('aria-busy', 'true'); next.studioStartedAt = performance.now(); } });
+                    child.addEventListener('pagehide', function (event) { if (event.isTrusted && frame === next && !(config.kind === 'news' && event.persisted && CS.entryAuth?.isAuthorized())) { next.style.visibility = 'hidden'; next.setAttribute('aria-busy', 'true'); next.studioStartedAt = performance.now(); } });
                     if (child.location.origin !== portUrl.origin || child.location.pathname !== portUrl.pathname) throw new Error('unexpected-port-document');
                     child.addEventListener('studio-port-ready', function () { checkRoute(child, next); });
                     child.addEventListener('studio-port-account-changed', function () { if(frame===next)setPhase('account-changed','Accountが更新されました。未保存入力は保持しています。編集を終えてから再開してください。'); });
@@ -235,8 +235,14 @@
             if (editing) { frame.contentWindow.CruiseStudioPortTool?.pause(); return true; }
             return false;
         }
-        function onVisibility() { if (document.hidden && active && !preserveEditor()) stop('画面を閉じました。再開してください。'); }
-        function onPagehide() { if (active) stop(); }
+        function keepNews() { return config.kind === 'news' && CS.entryAuth?.isAuthorized() === true; }
+        function onVisibility() { if (document.hidden && active && !keepNews() && !preserveEditor()) stop('画面を閉じました。再開してください。'); }
+        function onPagehide(event) { if (active && !(event.persisted && keepNews())) stop(); }
+        function onPageshow(event) {
+            if (!event.persisted || config.kind !== 'news' || !active) return;
+            if (!keepNews()) { stop(); return; }
+            if (frame) checkRoute(frame.contentWindow, frame);
+        }
         function onGlobalStop() {
             if (shell.getCommandContext().activeModal || shell.keyboard.isIMEBlocked({})) return;
             if (active && !preserveEditor()) stop('画面を閉じました。再開してください。');
@@ -253,6 +259,7 @@
                 shell = options.shell;
                 document.addEventListener('visibilitychange', onVisibility);
                 window.addEventListener('pagehide', onPagehide);
+                window.addEventListener('pageshow', onPageshow);
                 stopButton.addEventListener('click', onGlobalStop);
                 resume.addEventListener('click', onResume);
                 overview?.addEventListener('click', onOverview);
@@ -276,6 +283,7 @@
                 active = false; restartReadyObserver?.disconnect();stop();
                 document.removeEventListener('visibilitychange', onVisibility);
                 window.removeEventListener('pagehide', onPagehide);
+                window.removeEventListener('pageshow', onPageshow);
                 stopButton.removeEventListener('click', onGlobalStop);
                 resume.removeEventListener('click', onResume);
                 overview?.removeEventListener('click', onOverview);

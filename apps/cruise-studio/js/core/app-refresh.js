@@ -2,6 +2,9 @@
 (function () {
     'use strict';
     var button = document.getElementById('studio-refresh'), status = document.getElementById('studio-refresh-status');
+    document.querySelectorAll('[data-studio-refresh]').forEach(function (logo) {
+        logo.addEventListener('click', function () { button.click(); });
+    });
     function blocked() {
         var sessions = window.CruiseStudio?.sessions;
         return window.CruiseStudio?.toolWindow?.hasUnsaved() || window.CruiseStudio?.shellHost?.keyboard.isIMEBlocked({}) || (!sessions ? !window.CruiseStudio?.portPC : sessions.listSessions().some(function (s) { return s.dirty || s.commitInFlight || s.inputPending || s.externalUpdatePending || s.conflict; }));

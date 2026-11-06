@@ -1,0 +1,88 @@
+{
+  "chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "NEWS starts loading, then renders native success without an initial error",
+        "status": "PASS"
+      },
+      {
+        "name": "External tab return preserves NEWS iframe, category and scroll; no duplicate request",
+        "status": "PASS"
+      },
+      {
+        "name": "Native article Back, workspace leave and explicit Stop retain their contracts",
+        "status": "PASS"
+      },
+      {
+        "name": "Native provider failure keeps first-party fallback and reports external failure",
+        "status": "PASS"
+      },
+      {
+        "name": "Broken native NEWS module shows a real error; Standard and Pro loading placeholders match",
+        "status": "PASS"
+      },
+      {
+        "name": "Both logos use guarded refresh, including keyboard; feedback visible outside Home",
+        "status": "PASS"
+      },
+      {
+        "name": "Invalid Pro does not resume background NEWS",
+        "status": "PASS"
+      }
+    ],
+    "capturedErrors": 0,
+    "syntheticOnly": true
+  },
+  "webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "NEWS starts loading, then renders native success without an initial error",
+        "status": "PASS"
+      },
+      {
+        "name": "External tab return preserves NEWS iframe, category and scroll; no duplicate request",
+        "status": "PASS"
+      },
+      {
+        "name": "Native article Back, workspace leave and explicit Stop retain their contracts",
+        "status": "PASS"
+      },
+      {
+        "name": "Native provider failure keeps first-party fallback and reports external failure",
+        "status": "PASS"
+      },
+      {
+        "name": "Broken native NEWS module shows a real error; Standard and Pro loading placeholders match",
+        "status": "PASS"
+      },
+      {
+        "name": "Both logos use guarded refresh, including keyboard; feedback visible outside Home",
+        "status": "PASS"
+      },
+      {
+        "name": "Invalid Pro does not resume background NEWS",
+        "status": "PASS"
+      }
+    ],
+    "capturedErrors": 0,
+    "syntheticOnly": true
+  },
+  "node": {
+    "scopedPass": 85,
+    "fail": 0,
+    "legacyLibrary": {
+      "pass": 39,
+      "fail": 1,
+      "sameFailureOnBaseline": true
+    }
+  },
+  "distribution": {
+    "jekyllMatched": 192,
+    "portResourcesMatched": 5,
+    "standardEntryAbsent": true,
+    "iconsUnchanged": true
+  },
+  "realSafariCandidateTested": false
+}
