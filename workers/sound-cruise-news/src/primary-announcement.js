@@ -6,8 +6,8 @@ import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {releaseDateFields} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-8';
-export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4','primary-announcement-5','primary-announcement-6','primary-announcement-7',PRIMARY_ANNOUNCEMENT_PARSER]);
+export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-9';
+export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4','primary-announcement-5','primary-announcement-6','primary-announcement-7','primary-announcement-8',PRIMARY_ANNOUNCEMENT_PARSER]);
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -155,17 +155,30 @@ function shortHeadphoneDefinition(title,sections,models,brand){return models.len
 
 export function primaryParserSupports(facts,parser){
  if(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(parser))return false;
- if(['digital_mixer','dc_cable_kit'].includes(facts?.productType))return parser===PRIMARY_ANNOUNCEMENT_PARSER;
- if(facts?.productType==='daw')return ['primary-announcement-7',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
- if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4','primary-announcement-5','primary-announcement-6','primary-announcement-7',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
+ if(['digital_mixer','dc_cable_kit'].includes(facts?.productType))return ['primary-announcement-8',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
+ if(facts?.productType==='daw')return ['primary-announcement-7','primary-announcement-8',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
+ if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4','primary-announcement-5','primary-announcement-6','primary-announcement-7','primary-announcement-8',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
  return facts?.announcement?.action!=='release_notice'||parser!=='primary-announcement-1';
 }
 
 // Bounded own article definitions, not captions, related cards or category labels.
 function relatedAncestor(n,root){for(let p=n;p&&p!==root;p=p.parent)if(/(?:^|\s)(?:related|recommend|profile|wp-block-latest)(?:[-_\s]|$)/.test(p.attribs?.class||''))return true;return false;}
 function ownParagraphs(root){return find(root,n=>n.name==='p'&&cls(n,'wp-block-paragraph')).filter(n=>!relatedAncestor(n,root)).slice(0,8).map(plain);}
+function definitionSentences(paragraph){
+ const sentences=[];let start=0,depth=0;
+ for(let i=0;i<paragraph.length;i++){
+  const c=paragraph[i];
+  if(c==='「'||c==='『')depth++;
+  else if(c==='」'||c==='』')depth=Math.max(0,depth-1);
+  else if(!depth&&/[。！？!]/u.test(c)){sentences.push(paragraph.slice(start,i+1).trim());start=i+1;}
+ }
+ sentences.push(paragraph.slice(start).trim());return sentences.filter(Boolean);
+}
 function dcKitDefinition(root,title,rows){
- const statements=ownParagraphs(root),definitions=[];
+ // Gutenberg can render the introduction as one paragraph with line breaks.
+ // Match one complete sentence inside the same bounded own-article paragraphs;
+ // never concatenate fragments across sentences, related cards or table rows.
+ const statements=ownParagraphs(root).flatMap(definitionSentences),definitions=[];
  for(const p of statements){
   if(unsafe.test(p))continue;
   const m=/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)(?:（[ァ-ヶー・ ]+）|\([ァ-ヶー・ ]+\))?より[、,]?[^。「」]{0,80}「([^「」]{2,100})（([A-Z][A-Z0-9-]{2,30})）」が登場(?:しました|します|いたします)[。！!]?$/u.exec(p);
