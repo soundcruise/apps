@@ -6,8 +6,8 @@ import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {releaseDateFields} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-7';
-export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4','primary-announcement-5','primary-announcement-6',PRIMARY_ANNOUNCEMENT_PARSER]);
+export const PRIMARY_ANNOUNCEMENT_PARSER='primary-announcement-8';
+export const PRIMARY_ANNOUNCEMENT_PARSERS=Object.freeze(['primary-announcement-1','primary-announcement-2','primary-announcement-3','primary-announcement-4','primary-announcement-5','primary-announcement-6','primary-announcement-7',PRIMARY_ANNOUNCEMENT_PARSER]);
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -18,7 +18,7 @@ const identity=s=>typeof s==='string'&&s.length>=2&&s.length<=110&&/^[A-Za-z0-9]
 const unsafe=/旧製品|関連商品|参考製品|他社|例えば|発売しない|登場しない|ではない|かもしれ|再入荷|中古|クーポン|レビュー|比較/;
 const reservation=/受注を開始(?:いたします|します|しました)|予約受付を開始(?:いたします|します|しました)/;
 const purchase=/^[＝=]+$|^[★●■]?【[^】]+】$|^(?:※|【ご注意】|[—–−-]+$)|^ご予約|^店舗での|^発売後の|^発売予定日以降|^入荷状況|^誠に申し訳|^お支払/;
-const types={daw:['音楽制作ソフトウェア','dtm_software'],mini_keyboard:['ミニキーボード','dtm_software'],midi_keyboard:['MIDIキーボード','dtm_software'],headset:['ヘッドセット','recording_audio'],headphone:['ヘッドフォン','recording_audio'],guitar_amp_bundle:['ギターアンプセット','amps_effects'],electric_guitar:['エレキギター','electric_guitar_bass'],guitar:['ギター','electric_guitar_bass'],software_instrument:['ソフトウェア音源','dtm_software'],clip_tuner:['クリップチューナー','amps_effects'],effect_pedal:['オーバードライブ','amps_effects'],head_amp:['ヘッドアンプ','amps_effects']};
+const types={digital_mixer:['デジタルミキサー','recording_audio'],dc_cable_kit:['DCケーブルキット','amps_effects'],daw:['音楽制作ソフトウェア','dtm_software'],mini_keyboard:['ミニキーボード','dtm_software'],midi_keyboard:['MIDIキーボード','dtm_software'],headset:['ヘッドセット','recording_audio'],headphone:['ヘッドフォン','recording_audio'],guitar_amp_bundle:['ギターアンプセット','amps_effects'],electric_guitar:['エレキギター','electric_guitar_bass'],guitar:['ギター','electric_guitar_bass'],software_instrument:['ソフトウェア音源','dtm_software'],clip_tuner:['クリップチューナー','amps_effects'],effect_pedal:['オーバードライブ','amps_effects'],head_amp:['ヘッドアンプ','amps_effects']};
 const signal={appearance:'explicit_new_appearance',announcement:'explicit_new_model',scheduled_release:'explicit_scheduled_release',release:'explicit_release',release_notice:'explicit_undated_release_notice',reservation_start:'explicit_reservation_start'};
 // Closed field codes, never publisher sentences or unvalidated headline text.
 export function primaryAnnouncementErrors(f){
@@ -59,7 +59,7 @@ export function parsePrimaryAnnouncement(html,source,row){
  const doc=parseDocument(html),canon=find(doc,n=>n.name==='link'&&n.attribs.rel==='canonical');
  if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))throw Error('facts_optout');
  if(canon.length!==1||canon[0].attribs.href!==row.source_url)throw Error('facts_source_invalid');
- let title,root,header,models,brand,sections,tableBound=false,productTable=[];
+ let title,root,header,models,brand,sections,tableBound=false,productTable=[],kitDefinition=false,consoleFamily=false;
  const day=new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10);
  if(source.id==='ikebe'){
   const articles=find(doc,n=>n.name==='article'&&n.attribs.id==='main');if(articles.length!==1)throw Error('facts_parser_failure');
@@ -78,12 +78,14 @@ export function parsePrimaryAnnouncement(html,source,row){
   if(roots.length!==1||titles.length!==1||dates.length!==1||dates[0].attribs.datetime!==day)throw Error('facts_date_changed');root=roots[0];title=plain(titles[0]);header=doc;
   const lead=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).find(p=>!purchase.test(p)&&p!=='目次に戻る');
   const match=/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)\s*(?:\([ァ-ヶー・\s]+\))?\s*(?:が|より|から)[、,]?/.exec(lead||'')||/(?:^|[、。])\s*([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)「/.exec(lead||'');models=[...String(lead).matchAll(/「([^」]{2,100})」/g)].map(m=>m[1].trim());brand=match?.[1]?.trim();
-  const quotedTitle=[...title.matchAll(/「([^」]{2,100})」/g)].map(m=>m[1]);const tableRows=find(root,n=>n.name==='tr'&&/JANコード/.test(plain(n))).map(plain);productTable=tableRows;
+  const quotedTitle=[...title.matchAll(/「([^」]{2,100})」/g)].map(m=>m[1]);const tableRows=find(root,n=>n.name==='tr'&&!relatedAncestor(n,root)&&/JANコード/.test(plain(n))).map(plain);productTable=tableRows;
   if(!models.length){const m=/^(?:[A-Za-z][A-Za-z0-9 .&'-]{1,60}?)(?:より|から)([A-Za-z0-9][A-Za-z0-9 .&+()'/-]{1,70})が登場/.exec(lead||'');if(m&&norm(title).includes(norm(m[1]))&&tableRows.some(t=>norm(t).startsWith(norm(m[1]))))models=[m[1].trim()];}
   if(models.length===1&&quotedTitle.length===1&&identity(quotedTitle[0])){const base=quotedTitle[0],full=models[0];const suffix=full.startsWith(base+' ')?full.slice(base.length+1):'';tableBound=!!suffix&&/^[A-Z0-9]{2,6}$/.test(suffix)&&tableRows.length>=1&&tableRows.length<=8&&tableRows.every(t=>t.startsWith(base+',')||t.startsWith(base+'JANコード'));if(tableBound)models=[base];}
+  const kit=dcKitDefinition(root,title,tableRows);if(kit){brand=kit.brand;models=[kit.model];sections=[kit.statements];kitDefinition=true;}
   if(!brand||!models.length)throw factFailure('facts_extraction_incomplete',{stage:'subject_identity',missingFields:[...(!brand?['brand']:[]),...(!models.length?['models']:[])],checks:{brandPresent:!!brand,modelsCount:models.length}});
   const sourceConflicts=sourceIdentityConflict(title,brand,models);if(sourceConflicts.length)throw factFailure('facts_identity_conflict',{stage:'source_identity_binding',conflictingFields:sourceConflicts,checks:{brandPresent:true,modelsCount:models.length}});
-  if(!models.every(m=>norm(title).includes(norm(m)))||!norm(title).includes(norm(brand.split(' ')[0])))throw factFailure('facts_identity_unconfirmed',{stage:'title_identity_binding',missingFields:['title_subject_binding'],checks:{brandPresent:true,modelsCount:models.length,modelsTitleBound:models.every(m=>norm(title).includes(norm(m))),brandTitleBound:norm(title).includes(norm(brand.split(' ')[0]))}});sections=models.map(()=>root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>!purchase.test(p)&&p!=='目次に戻る').slice(0,4));
+  consoleFamily=consoleFamilyDefinition(root,title,lead,brand,models,tableRows);
+  if(!kitDefinition&&!consoleFamily&&(!models.every(m=>norm(title).includes(norm(m)))||!norm(title).includes(norm(brand.split(' ')[0]))))throw factFailure('facts_identity_unconfirmed',{stage:'title_identity_binding',missingFields:['title_subject_binding'],checks:{brandPresent:true,modelsCount:models.length,modelsTitleBound:models.every(m=>norm(title).includes(norm(m))),brandTitleBound:norm(title).includes(norm(brand.split(' ')[0]))}});if(!kitDefinition)sections=models.map(()=>root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>!purchase.test(p)&&p!=='目次に戻る').slice(0,4));
  }
  if(!identity(brand)||!models.every(identity)||new Set(models).size!==models.length||models.join(' / ').length>110||unsafe.test(title)||/セール|特価|PR記事/.test(title))throw Error('facts_scope_uncertain');
  if(models.some(m=>/\b(?:case|stand|replacement|accessory|cable)\b/i.test(m)))throw Error('facts_primary_type_unbound');
@@ -92,7 +94,9 @@ export function parsePrimaryAnnouncement(html,source,row){
  const construction=definitions.every(ps=>[/ネック/,/ボディ/,/指板/,/フレット/,/ピックアップ/,/ブリッジ/].filter(re=>re.test(ps.join(' '))).length>=3);
  const explicit=(re)=>descriptor.every(s=>subjectProductTypes([s],[['primary_type',re]]).length===1&&!unsafe.test(s));
  let productType,typeBasis='explicit_type';
- if(models.length===1&&explicit(/\d+鍵[^。]{0,20}ミニキーボード/)&&!/シンセサイザー(?:です|を発売)/.test(descriptor[0]))productType='mini_keyboard';
+ if(kitDefinition){productType='dc_cable_kit';typeBasis='bound_section_definition';}
+ else if(consoleFamily){productType='digital_mixer';typeBasis='bound_group_definition';}
+ else if(models.length===1&&explicit(/\d+鍵[^。]{0,20}ミニキーボード/)&&!/シンセサイザー(?:です|を発売)/.test(descriptor[0]))productType='mini_keyboard';
  else if(models.length===1&&explicit(/MIDIキーボード/))productType='midi_keyboard';
  else if(models.length<=4&&/ヘッドセット/.test(title)&&explicit(/ヘッドセット/))productType='headset';
  else if(models.length===1&&/ヘッド(?:フォン|ホン|フォーン)/.test(title)&&explicit(/ヘッド(?:フォン|ホン|フォーン)/))productType='headphone';
@@ -151,7 +155,32 @@ function shortHeadphoneDefinition(title,sections,models,brand){return models.len
 
 export function primaryParserSupports(facts,parser){
  if(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(parser))return false;
- if(facts?.productType==='daw')return parser===PRIMARY_ANNOUNCEMENT_PARSER;
- if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4','primary-announcement-5','primary-announcement-6',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
+ if(['digital_mixer','dc_cable_kit'].includes(facts?.productType))return parser===PRIMARY_ANNOUNCEMENT_PARSER;
+ if(facts?.productType==='daw')return ['primary-announcement-7',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
+ if(facts?.subjectEvidence?.corroborated===true||facts?.announcement?.action==='reservation_start')return ['primary-announcement-4','primary-announcement-5','primary-announcement-6','primary-announcement-7',PRIMARY_ANNOUNCEMENT_PARSER].includes(parser);
  return facts?.announcement?.action!=='release_notice'||parser!=='primary-announcement-1';
+}
+
+// Bounded own article definitions, not captions, related cards or category labels.
+function relatedAncestor(n,root){for(let p=n;p&&p!==root;p=p.parent)if(/(?:^|\s)(?:related|recommend|profile|wp-block-latest)(?:[-_\s]|$)/.test(p.attribs?.class||''))return true;return false;}
+function ownParagraphs(root){return find(root,n=>n.name==='p'&&cls(n,'wp-block-paragraph')).filter(n=>!relatedAncestor(n,root)).slice(0,8).map(plain);}
+function dcKitDefinition(root,title,rows){
+ const statements=ownParagraphs(root),definitions=[];
+ for(const p of statements){
+  if(unsafe.test(p))continue;
+  const m=/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)(?:（[ァ-ヶー・ ]+）|\([ァ-ヶー・ ]+\))?より[、,]?[^。「」]{0,80}「([^「」]{2,100})（([A-Z][A-Z0-9-]{2,30})）」が登場(?:しました|します|いたします)[。！!]?$/u.exec(p);
+  if(!m||!/(?:DCケーブル|DC ケーブル)[^。]{0,30}キット/.test(m[2])||!title.startsWith('【'+m[1]+'】')||!norm(title).includes(norm(m[2])))continue;
+  const prefix=m[1]+' '+m[3];
+  if(rows.filter(r=>norm(r).startsWith(norm(prefix+'（'+m[2]+'）JANコード'))).length!==1)continue;
+  definitions.push({brand:m[1],model:m[3],statements:[p,...statements.filter(s=>s!==p)]});
+ }
+ return definitions.length===1?definitions[0]:null;
+}
+function consoleFamilyDefinition(root,title,lead,brand,models,rows){
+ if(!identity(brand)||models.length<2||models.length>4||new Set(models).size!==models.length||!models.every(identity))return false;
+ const family=models[0].split(/[- ]/)[0];if(family.length<3||!models.every(m=>new RegExp('^'+escapeModel(family)+'(?:[- ]|$)').test(m)))return false;
+ if(!norm(title).startsWith(norm(brand+' '+family+'シリーズ'))||!title.includes('デジタルミキサー'+models.length+'モデル'))return false;
+ if(!new RegExp('^'+escapeModel(brand)+'が[、,]?[^。]{0,80}デジタルミキサー').test(lead||'')||!models.every(m=>(lead||'').includes('「'+m+'」'))||!/を発売します[。！!]/.test(lead||''))return false;
+ if(rows.length!==models.length||!models.every(m=>rows.filter(r=>norm(r).startsWith(norm(m+'JANコード'))).length===1))return false;
+ return ownParagraphs(root).some(p=>p.startsWith(family+'シリーズの'+models.length+'モデルは')&&/デジタルミキサーです[。！!]/.test(p)&&!unsafe.test(p));
 }
