@@ -8,3 +8,11 @@ export function renderProEntry(source){
   const url=new URL(value,root);return attr+'="'+url.pathname+url.search+url.hash+'"';
  });
 }
+
+export const APP_NAME = 'Cruise Studio';
+export const PRO_APP_ID = '/apps/cruise-studio/'+PRO_DIRECTORY+'/';
+// Reserved only. No Standard manifest or entry is generated.
+export const STANDARD_APP_ID = '/apps/cruise-studio/';
+export function renderProManifest(version){
+ return JSON.stringify({id:PRO_APP_ID,name:APP_NAME,short_name:APP_NAME,start_url:PRO_APP_ID,scope:PRO_APP_ID,display:'standalone',background_color:'#10151c',theme_color:'#10151c',lang:'ja',description:'Cruise Studio Pro — 弾き語りストの総合ワークスペース',icons:[192,512,1024].map(size=>({src:'/apps/cruise-studio/assets/app-icons/pro/icon-'+size+'.png?v='+version,sizes:size+'x'+size,type:'image/png',purpose:'any'}))},null,2)+'\n';
+}

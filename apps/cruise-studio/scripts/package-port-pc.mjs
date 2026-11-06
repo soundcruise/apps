@@ -4,10 +4,11 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-import {PRO_DIRECTORY,renderProEntry} from './edition-layout.mjs';
+import {PRO_DIRECTORY,renderProEntry,renderProManifest} from './edition-layout.mjs';
 const studio=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const RELEASE_FILES=Object.freeze([
  'cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
+ PRO_DIRECTORY+'/manifest.webmanifest','assets/app-icons/pro/favicon-32.png','assets/app-icons/pro/apple-touch-icon-180.png','assets/app-icons/pro/icon-192.png','assets/app-icons/pro/icon-512.png','assets/app-icons/pro/icon-1024.png',
  PRO_DIRECTORY+'/index.html','entry.css','theme-projection.css','theme.css','shell.css','studio-home.css','studio-tools.css','port-tuner-surface.css','port-pc.css','assets/studio-icons.svg','assets/tool-calendar.svg','assets/tool-sync.svg',
  'js/core/studio-icon-theme.js',
  'assets/tool-sheet.svg','assets/tool-sheet-light.svg','assets/tool-predtm.svg','assets/tool-predtm-light.svg','assets/tool-home.svg','assets/tool-home-light.svg','assets/tool-myapps.svg','assets/tool-myapps-light.svg','assets/tool-calendar-light.svg','assets/tool-sync-light.svg',
@@ -76,6 +77,7 @@ export function packagePortPC(output){
  for(const name of fs.readdirSync(legacy,{recursive:true}).sort()){const source=path.join(legacy,name);if(!fs.statSync(source).isFile())continue;const bytes=fs.readFileSync(source),target=path.join(out,'apps/cruise-studio-canary',name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio-canary/'+name]=createHash('sha256').update(bytes).digest('hex');}
  const version=fs.readFileSync(path.join(studio,'js/port-pc.js'),'utf8').match(/CS\.portPC=Object\.freeze\(\{version:'([^']+)'\}\)/)?.[1];
  if(!version)throw Error('studio-release-version-missing');
+ if(fs.readFileSync(path.join(studio,PRO_DIRECTORY,'manifest.webmanifest'),'utf8')!==renderProManifest(version))throw Error('pro-manifest-out-of-date');
  const manifest={product:'Cruise Studio',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
   existingDeploymentDependencies:['apps/cruise-port/','apps/pitch-cruise/','apps/fretboard_cruise/','apps/rhythm-cruise/','apps/chord-cruise/','apps/shared/'],
   excluded:['development.html','legacy app.js and developer UI','Worker and migrations','native app releases/themes'],

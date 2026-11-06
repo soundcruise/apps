@@ -1,0 +1,54 @@
+{
+  "chromium": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Unqualified Pro entry stays locked while manifest/icons remain readable",
+        "status": "PASS"
+      },
+      {
+        "name": "Qualified launch/reload, existing embedded routes and storage separation guidance",
+        "status": "PASS"
+      }
+    ],
+    "capturedErrors": 0,
+    "syntheticOnly": true
+  },
+  "webkit": {
+    "status": "PASS",
+    "tests": [
+      {
+        "name": "Unqualified Pro entry stays locked while manifest/icons remain readable",
+        "status": "PASS"
+      },
+      {
+        "name": "Qualified launch/reload, existing embedded routes and storage separation guidance",
+        "status": "PASS"
+      }
+    ],
+    "capturedErrors": 0,
+    "syntheticOnly": true
+  },
+  "node": {
+    "pass": 12,
+    "fail": 0
+  },
+  "distribution": {
+    "matched": 198,
+    "standardRootAndSourceArtAbsent": true
+  },
+  "realSafari": {
+    "localCandidateAddToDockPreview": true,
+    "defaultName": "Cruise Studio",
+    "proIconShown": true,
+    "cancelled": true,
+    "createdApp": false,
+    "installedAppLaunchNotTested": true
+  },
+  "windowsDeviceTested": false,
+  "safety": {
+    "existingRuntimeChanges": "version/cache strings only",
+    "nativeAppsWorkerAuthStorageSyncUnchanged": true,
+    "originalMacPNGsStillMatch": true
+  }
+}
