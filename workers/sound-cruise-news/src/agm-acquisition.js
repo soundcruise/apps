@@ -1,3 +1,4 @@
+import {humanAgmBook,agmHumanBookProofValid} from './agm-human-evidence.js';
 // Shared by discovery and facts recheck. Cache hits never authorize publication.
 import {AGM_ARTICLE_PARSER,AGM_ARTICLE_PARSERS} from './agm-article-evidence.js';
 import {AGM_SECTIONS,agmArticleUrl} from './agm-sections.js';
@@ -28,6 +29,12 @@ export async function inspectAgmArticle(store,source,url,now,pepper,{listingTitl
  if(source.id!=='agm'||!AGM_SECTIONS.some(s=>agmArticleUrl(url,s)))throw Error('facts_source_invalid');
  let row=await store.db.prepare('SELECT * FROM news_agm_article_cache WHERE canonical_url=?').bind(url).first();
  const existing=await store.db.prepare('SELECT * FROM candidate_items WHERE source_id=? AND source_url=?').bind('agm',url).first();
+ // A confirmed human book is authoritative retained evidence, not a failed
+ // automatic cache. Reuse it without another publisher request or proof relabeling.
+ if(!forceRevalidate&&existing&&humanAgmBook((()=>{try{return JSON.parse(existing.product_facts||'null');}catch{return null;}})())&&await agmHumanBookProofValid(store,existing,now)){
+  const proof=JSON.parse(existing.facts_provenance)[0],item={id:existing.id,sourceId:'agm',sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:existing.published_at,category:existing.category,label:existing.label,topicKey:existing.topic_key,collectedAt:existing.collected_at,eventType:existing.event_type,productFacts:JSON.parse(existing.product_facts),factsProvenance:existing.facts_provenance,titleFingerprint:existing.title_fingerprint,publicationDecision:'PUBLISH_REVIEW'};
+  return {row,payload:{format:FORMAT,parser:proof.parserVersion,proof,item},valid:true,unchanged:true,hit:true,conditional:false,attempted:false,busy:false,parserUpgrade:false};
+ }
  let payload=null;try{if(row?.payload_json?.length<=64000&&await hash(row.payload_json)===row.payload_hash)payload=JSON.parse(row.payload_json);}catch{/* Corruption is a miss, never permission to reuse. */}
  // Upgrade valid retained evidence without a warm-up download. Never infer a cache
  // time from collection/publication dates, or upgrade an old parser's provenance.
