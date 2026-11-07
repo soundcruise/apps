@@ -14,7 +14,7 @@ function withoutQuotedNames(text) {
 }
 
 const RULES = Object.freeze([
-  // 「もう一度確認」 exists only in the app row's ⓘ. It is wrong only when tied to a sync target.
+  // 「もう一度確認」 exists only in the app row's 「同期先N件」. It is wrong only when tied to a sync target.
   Object.freeze({ category: 'per_target_recheck', scope: 'full',
     pattern: /(同期先|端末)(ごと|の横|の行|の中|の欄)?(に|の|で)[^。\n]{0,8}「?もう一度確認/ }),
   Object.freeze({ category: 'per_target_recheck', scope: 'full',
@@ -78,7 +78,7 @@ export function validateSupportReply(text) {
 // Fixed text for the one repair request. Categories come from GUARD_CATEGORIES only, so nothing
 // user-written (a message, a sync target name, the reply) is ever part of this instruction.
 const CATEGORY_HINTS = Object.freeze({
-  per_target_recheck: '「もう一度確認」を同期先や端末に結び付けて書いた（実際は対象アプリの行の ⓘ に表示される場合がある）',
+  per_target_recheck: '「もう一度確認」を同期先や端末に結び付けて書いた（実際はCruise Portの対象アプリの同期先の件数が表示されたボタンを開いた先に表示される場合がある）',
   target_selection: '同期先や端末を「選んで」操作するような、存在しない手順を書いた',
   resync_button: '再同期・手動同期のボタンなど、存在しない操作を書いた',
   login: 'ログイン・サインインなど、存在しない仕組みを書いた',
@@ -96,7 +96,7 @@ export function repairInstruction(violations) {
     '【修正依頼】直前の回答には、Cruise Port に存在しない画面・操作の案内、または利用者に見せてはいけない表記が含まれていました。',
     ...hints,
     '存在しないUI案内を削除し、確認済みのUIだけを使って回答全体を書き直してください。',
-    '「もう一度確認」は、対象アプリの行にある ⓘ を開いたときに表示される場合があるボタンです。例：「コードクルーズの行にある ⓘ を開き、『もう一度確認』が表示されている場合はタップしてください。」',
+    '「もう一度確認」は、Cruise Portの同期センターで対象アプリの行の同期先の件数が表示されたボタンを開いた先に、条件付きで表示されます。各アプリ側の「設定 → クラウド同期」にはありません。件数が分かれば実際の数を使い、分からなければ「同期先の件数が表示されたボタン」と案内してください。',
     'ツール結果はすでに上にあります。ツールは呼ばず、プレーンテキストの日本語で、最初の回答と同じ内容の案内を正確に書き直してください。'
   ].join('\n');
 }
@@ -106,4 +106,4 @@ export function repairInstruction(violations) {
 // Shown instead of a degenerate reply that could not be repaired: short, no cause, no UI claims.
 export const DEGENERATE_FALLBACK_REPLY = 'うまく回答を作成できませんでした。何を確認したいか、もう少し具体的に教えてください。';
 
-export const GUARD_FALLBACK_REPLY = '正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある ⓘ を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。';
+export const GUARD_FALLBACK_REPLY = '正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行の同期先の件数が表示されたボタンを開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。';

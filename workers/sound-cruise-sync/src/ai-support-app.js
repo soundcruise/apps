@@ -58,9 +58,17 @@ function respond(status, body, origin, extra = {}) {
 const fail = (status, code, origin, extra) => respond(status, { ok: false, code }, origin, extra);
 
 export const AI_SUPPORT_MODES = Object.freeze({ beta: 'beta', pro: 'pro' });
+// Beta has a server-side deadline. Require a canonical UTC timestamp and fail closed.
+export function betaBeforeExpiry(value, now = Date.now()) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)) return false;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || !Number.isFinite(now)) return false;
+  const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
+  return new Date(timestamp).toISOString() === canonical && now < timestamp;
+}
 export function aiSupportMode(env) {
   return env?.AI_SUPPORT_MODE === AI_SUPPORT_MODES.pro ? AI_SUPPORT_MODES.pro
-    : env?.AI_SUPPORT_MODE === AI_SUPPORT_MODES.beta ? AI_SUPPORT_MODES.beta : null;
+    : env?.AI_SUPPORT_MODE === AI_SUPPORT_MODES.beta && betaBeforeExpiry(env.AI_SUPPORT_BETA_EXPIRES_AT) ? AI_SUPPORT_MODES.beta : null;
 }
 
 // The limited beta is enforced here, not in the Port. AI_SUPPORT_BETA_ACCOUNT_IDS is a Worker
