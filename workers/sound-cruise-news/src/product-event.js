@@ -10,7 +10,7 @@ const signals=Object.freeze([
  ['reissue','explicit_reissue',/復刻|復活|リイシュー|\b(?:reissue|revival)\b/i],
  ['collaboration','explicit_collaboration_color',/コラボ(?:レーション)?カラー|\bcollaboration colou?r\b/i],
  ['collaboration','explicit_collaboration',/(?:コラボ(?:レーション)?)(?:.{0,12})(?:モデル|製品|カラー)|\bcollaboration (?:model|edition|colou?r)\b/i],
- ['new_color','explicit_new_color',/新色|追加カラー|カラー(?:バリエーション)?追加|\b(?:new colou?r|colou?r variation)\b/i],
+ ['new_color','explicit_new_color',/新色|新たなカラー|追加カラー|カラー(?:バリエーション)?追加|\b(?:new colou?r|colou?r variation)\b/i],
  ['limited_edition','explicit_limited_color',/限定カラー|限定色|リミテッドカラー|\blimited colou?r\b/i],
  ['limited_edition','explicit_limited_edition',/限定(?:.{0,8})(?:モデル|仕様|版|カラー|色|生産)|\blimited (?:edition|model|run|colou?r)\b/i],
  ['special_edition','explicit_special_bundle',/特別セット|\bspecial bundle\b/i],

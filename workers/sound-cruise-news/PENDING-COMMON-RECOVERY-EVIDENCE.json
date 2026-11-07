@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "newsVersion": "0.46.0",
+  "preflightAt": "2026-11-07T04:14:21.574Z",
+  "productionNewsVersion": "0.45.0",
+  "initialMain": "d053905141a0e75806a8a14fc24929632da0154c",
+  "productionPreflightUnchanged": true,
+  "cases": [
+    {
+      "name": "ikebe-toolkit",
+      "candidateId": "3c1db46ec27bfcb76268728436bc0c27ce7666287441fed29e9a1d9c0eeeba04",
+      "source": "ikebe",
+      "url": "https://www.ikebe-gakki-pb.com/new_product/173948/",
+      "productionStatus": "pending; formal facts absent at preflight",
+      "localFormalValidation": "PASS",
+      "localPreparationState": "READY",
+      "basis": "structural fixture reproducing observed identifiers; mocked acquisition, NOT production response replay"
+    },
+    {
+      "name": "ikebe-thinline",
+      "candidateId": "c157e6ae1e8afa79a720179ec3cd32c0a1c265809f3c5b418e30aa7590673a52",
+      "source": "ikebe",
+      "url": "https://www.ikebe-gakki-pb.com/new_product/173912/",
+      "productionStatus": "pending; formal facts absent at preflight",
+      "localFormalValidation": "PASS",
+      "localPreparationState": "READY",
+      "basis": "structural fixture reproducing observed identifiers; mocked acquisition, NOT production response replay"
+    },
+    {
+      "name": "shimamura-brent",
+      "candidateId": "91816e93aef2ece1b162b62971544f021aecbfe197cd6783e9c865be84f1b40b",
+      "source": "shimamura",
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/108280/",
+      "productionStatus": "pending; formal facts absent at preflight",
+      "localFormalValidation": "PASS",
+      "localPreparationState": "READY",
+      "basis": "structural fixture reproducing observed identifiers; mocked acquisition, NOT production response replay"
+    },
+    {
+      "name": "agm-book",
+      "candidateId": "bd17b6a238942d7b6997de154c6923cd9c3ba303862102d061e106fcd218f9da",
+      "source": "agm",
+      "url": "https://acousticguitarmagazine.jp/2026-1106-okijin-flamenco/",
+      "productionStatus": "pending; formal facts absent at preflight",
+      "localFormalValidation": "PASS",
+      "localPreparationState": "READY",
+      "basis": "structural fixture reproducing observed identifiers; mocked acquisition, NOT production response replay"
+    },
+    {
+      "name": "morris-west",
+      "candidateId": "0f3d683347441e7d0de21bfc87d2b90c7b9c433e26a808dddb4a69fcaeeb7a0d",
+      "source": "morris",
+      "url": "https://www.morris-guitar.com/information/2026/1103_01.html",
+      "productionStatus": "pending; formal facts absent at preflight",
+      "localFormalValidation": "PASS",
+      "localPreparationState": "READY",
+      "basis": "structural fixture reproducing observed identifiers; mocked acquisition, NOT production response replay"
+    },
+    {
+      "name": "morris-concert",
+      "candidateId": "700e7f11c5aafc615031316e6f546906c616357a0c6e78d8917e01aae8331735",
+      "source": "morris",
+      "url": "https://www.morris-guitar.com/information/2026/1102_01.html",
+      "productionStatus": "pending; formal facts absent at preflight",
+      "localFormalValidation": "PASS",
+      "localPreparationState": "READY",
+      "basis": "structural fixture reproducing observed identifiers; mocked acquisition, NOT production response replay"
+    }
+  ],
+  "otherCandidates": {
+    "duplicates": {
+      "toolkit": "only prefer verified Ikebe; alternate blocked after an approved representative exists",
+      "pjb": "reviewed manufacturer spelling relation, same approved winter-colour news"
+    },
+    "agmCorrection": "not promoted to READY; editorial nonpublication decision remains human",
+    "morrisKyushu": "unresolved; event-year contradiction, no inferred correction"
+  },
+  "validation": {
+    "newsOperator": {
+      "passed": 1764,
+      "failed": 0
+    },
+    "portNews": {
+      "passed": 60,
+      "failed": 0
+    },
+    "persistentWorkerdD1": "six READY; cached primary proof reused with no HTTP; restart preserves validation",
+    "normalPreparation": "retail initial preparation 3 READY; book born with formal facts; historical Morris pending 2 auto recovered from new listing only",
+    "negativeCases": [
+      "changed brand or provenance rejected",
+      "different finish/HH models and different dated events stay distinct",
+      "other-card facts cannot supply missing date/venue",
+      "year contradiction remains even with complete venue",
+      "missing author/date or conflicting book information rejected",
+      "takedown blocks publication",
+      "existing canonical-confirmation regressions pass"
+    ]
+  },
+  "evidenceLimits": [
+    "Production failure records retain response hashes and diagnostics, not the discarded HTML. Hashes cannot reconstruct missing facts.",
+    "Structural fixture HTML is explicitly labelled and never associated with the old production response hashes.",
+    "No additional publisher HTTP, production writes, paid API calls, publication, deployment or automation changes were performed.",
+    "Production acceptance still requires the normal permitted article acquisition (or reusable successful facts proof), and the normal Morris listing acquisition; historical Morris details must not be fetched."
+  ],
+  "postDeploymentAcceptance": [
+    "Reconfirm main/head, production versions, candidate revisions and snapshots before any operation.",
+    "Preserve runtime vars/bindings, pilot budgets and cron; no migration.",
+    "Reuse supported successful evidence. Retail parser-update recovery remains within the existing source budget/CAS.",
+    "Let the next permitted listing rebuild Morris facts and run existing automatic reconciliation; do not fabricate facts against old hash-only records.",
+    "Accept READY only after live formal validation, never from this fixture result.",
+    "Keep the three proposed nonpublication decisions and all six publication decisions for an authorized human; do not publish automatically."
+  ]
+}
