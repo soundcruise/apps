@@ -25,7 +25,7 @@ export async function acceptDesignReview({p,check,OUT,root,entry}){
    await settle(page);const colors=await palette(page);
    if(version==='published')rows.push({theme,width,published:colors});else{
     const row=rows.find(r=>r.theme===theme&&r.width===width);assert.deepEqual(colors,row.published);row.revised=colors;
-    const geometry=await page.evaluate(()=>{const b=document.querySelector('.studio-pro-badge').getBoundingClientRect(),c=document.querySelector('#home-cruise-sync').getBoundingClientRect();return{overflow:document.documentElement.scrollWidth>innerWidth,badgeBeforeSync:b.right<=c.left,images:[...document.querySelectorAll('img[data-studio-icon]')].map(i=>({light:i.src.includes('-light.svg'),loaded:i.complete&&i.naturalWidth>0}))};});assert(!geometry.overflow&&geometry.badgeBeforeSync);assert(geometry.images.every(i=>i.loaded&&i.light===['gray','light'].includes(theme)));row.geometry=geometry;
+    const geometry=await page.evaluate(()=>{const b=document.querySelector('.studio-pro-badge').getBoundingClientRect(),c=document.querySelector('#home-cruise-sync').getBoundingClientRect();return{overflow:document.documentElement.scrollWidth>innerWidth,syncInEyebrow:c.top<b.top&&c.left>document.querySelector('.studio-header-eyebrow').getBoundingClientRect().left,images:[...document.querySelectorAll('img[data-studio-icon]')].map(i=>({light:i.src.includes('-light.svg'),loaded:i.complete&&i.naturalWidth>0}))};});assert(!geometry.overflow&&geometry.syncInEyebrow);assert(geometry.images.every(i=>i.loaded&&i.light===['gray','light'].includes(theme)));row.geometry=geometry;
    }
    await page.screenshot({path:OUT+'/'+version+'-'+theme+'-'+width+'.png'});
    // Tool cards below the fold must also be reviewed, rather than only title.

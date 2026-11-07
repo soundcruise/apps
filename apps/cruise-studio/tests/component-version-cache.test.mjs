@@ -62,13 +62,13 @@ test('F3: published internal ESM dependencies resolve inside the release and sha
 
 // Fixed patch-release expectation plus traversal of the actual HTML module entries.
 // Owner versions are still checked against their independent source declarations above.
-test('0.86.1 release identity and recursively reachable Studio module cache paths', () => {
-    assert.equal(getAppVersion('cruise-studio'), '0.86.1');
-    assert.match(html, /id="studio-version">v0\.86\.1<\/span>/);
+test('0.86.2 release identity and recursively reachable Studio module cache paths', () => {
+    assert.equal(getAppVersion('cruise-studio'), '0.86.2');
+    assert.match(html, /id="studio-version">v0\.86\.2<\/span>/);
     const visited = new Set();
     function visit(url) {
         if (!url.pathname.startsWith(studio.pathname) || !url.pathname.endsWith('.mjs')) return;
-        if (url.search) assert.equal(url.search, '?v=0.86.1', url.href);
+        if (url.search) assert.equal(url.search, '?v=0.86.2', url.href);
         if (visited.has(url.pathname)) return;
         visited.add(url.pathname);
         const content = read(new URL(url.pathname, 'file://'));
