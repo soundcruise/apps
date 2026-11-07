@@ -75,7 +75,7 @@ test('A–F: the validator flags unsupported UI in context, not the word 「も�
 test('the repair instruction is fixed text plus category hints only', () => {
   const instruction = repairInstruction(['per_target_recheck', 'internal_term', 'not-a-category']);
   assert.match(instruction, /存在しないUI案内を削除し、確認済みのUIだけを使って回答全体を書き直してください。/);
-  assert.match(instruction, /対象アプリの行にある 「同期先N件」/);
+  assert.match(instruction, /Cruise Portの同期センターで対象アプリの行/);
   assert.doesNotMatch(instruction, /not-a-category/);
   assert.equal(repairInstruction(GUARD_CATEGORIES), repairInstruction([...GUARD_CATEGORIES]), 'deterministic');
   const source = fs.readFileSync(path.join(import.meta.dirname, '../src/ai-support-guard.js'), 'utf8');
@@ -181,7 +181,7 @@ test('mail guidance: requested contact guidance uses the real footer without man
   assert.doesNotMatch(AI_SUPPORT_SYSTEM_PROMPT, /メールで問い合わせられると添える|メールでの問い合わせだけを案内/, 'no instruction to add mail guidance');
   assert.equal((AI_SUPPORT_SYSTEM_PROMPT.match(/メール/g) || []).length, 2, 'one short principle, not a list of banned phrases');
   // Unknown cause: the fixed first sentence and the real 「同期先N件」（Nは件数）/もう一度確認 route stay; a short question is allowed.
-  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /本当に原因も確認先も特定できないとき[^\n]*「もう一度確認」（表示されている場合）だけを案内し、必要なら何を確認したいかを短く尋ねる/);
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /本当に原因も確認先も特定できないとき[^\n]*「もう一度確認」（表示されている場合）を案内し、必要なら何を確認したいかを短く尋ねる/);
   // Scope handling and named-target guidance are unchanged.
   assert.match(AI_SUPPORT_SYSTEM_PROMPT, /このAIはCruise Portのクラウド同期に関する相談専用です/);
   assert.match(AI_SUPPORT_SYSTEM_PROMPT, /その同期先を reference の表記で名指しし、その端末でアプリを開いて「設定 → クラウド同期」を確認するよう案内する/);

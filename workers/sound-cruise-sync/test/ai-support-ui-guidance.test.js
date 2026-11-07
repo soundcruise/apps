@@ -25,6 +25,9 @@ test('saved v143 useful replies retain the existing validator behavior and natur
 test('current UI and real contact route are explicit; old captured failure is a model reacceptance case', () => {
   assert.equal(syncTargetsTabLabel(2), '同期先2件');
   assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes('同期先N件'));
+  assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes('「同期先N件」と文字どおり回答しない'));
+  assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes('Cruise Portの同期センター側にあり'));
+  assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes('各アプリの「設定 → クラウド同期」には存在しない'));
   assert.equal(AI_SUPPORT_SYSTEM_PROMPT.includes('ⓘ'), false);
   assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes('問い合わせ方法を尋ねられたら、相談画面下部の「メールで報告」'));
   assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes('「設定 → サポート」やヘルプ画面のリンクを推測しない'));
@@ -32,6 +35,12 @@ test('current UI and real contact route are explicit; old captured failure is a 
   assert.match(IPHONE_THIRD_REPLY, /サポート/);
   // No claim that prompt changes deterministically block a previously unseen model mistake.
   assert.equal(validateSupportReply(IPHONE_THIRD_REPLY).ok, true);
+});
+
+test('repair and fallback guidance do not expose a literal count placeholder', async () => {
+  const { GUARD_FALLBACK_REPLY, repairInstruction } = await import('../src/ai-support-guard.js');
+  assert.doesNotMatch(GUARD_FALLBACK_REPLY, /同期先N件/);
+  assert.doesNotMatch(repairInstruction(['per_target_recheck']), /同期先N件/);
 });
 
 test('state knowledge preserves previous report versus present state and registration versus missing report', () => {
