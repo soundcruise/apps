@@ -77,10 +77,9 @@ export function createWorkersAiProvider({ ai, modelKey = DEFAULT_AI_SUPPORT_MODE
   return Object.freeze({
     modelKey,
     modelId: model.id,
-    async complete({ messages, tools = [], responseFormat }) {
+    async complete({ messages, tools = [] }) {
       const inputs = { messages, max_tokens: maxOutputTokens, temperature: 0.2 };
       if (tools.length) inputs.tools = tools;
-      if (responseFormat) inputs.response_format = responseFormat;
       if (model.reasoningEffort) inputs.reasoning = { effort: model.reasoningEffort };
       // The final egress boundary: the exact input for AI.run, checked here and nowhere skipped.
       if (!isProviderInputSafe(inputs, { containsKnownId })) throw new EgressBlockedError();

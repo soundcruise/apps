@@ -1,98 +1,164 @@
-// Read-only diagnosis -> one AI description/plan -> application-rendered operations.
-// No correction inference, no arbitrary model-written navigation, no persistence.
+// One AI support turn (AI1-B): fixed system prompt, bounded history, the user's message as a user
+// message, at most two read-only diagnostic tool calls, and diagnostics returned only as tool
+// results in the AI1-A trust envelope. Provider- and model-agnostic; nothing is stored.
 import { toModelToolResult } from './ai-diagnostics.js';
 import { EgressBlockedError, guardedProvider, isProviderInputSafe } from './ai-support-egress.js';
-import { validateSupportReply, GUARD_FALLBACK_REPLY } from './ai-support-guard.js';
-import { AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, FALLBACK_REPLIES, SECRET_REFUSAL, sanitizeReply } from './ai-support-policy.js';
+import { DEGENERATE_FALLBACK_REPLY, GUARD_FALLBACK_REPLY, repairInstruction, validateSupportReply } from './ai-support-guard.js';
+import {
+  AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, SECRET_REFUSAL, containsMarkdown,
+  sanitizeReply, validateToolCall
+} from './ai-support-policy.js';
 import { containsSensitive, createKnownIdMatcher } from './secret-detector.js';
-import { SUPPORT_PLAN_FORMAT, SUPPORT_QUESTIONS, chooseSupportApp, decodeSupportPlan, defaultSupportActions,
-  renderSupportAction, supportCaption, supportDescription, supportFaq, supportModelData } from './ai-support-actions.js';
 
+const TOOL_NAMES = new Set(AI_SUPPORT_TOOLS.map((tool) => tool.function.name));
+
+// history: earlier [{ role: 'user' | 'assistant', content }] (already validated and capped).
+// Every provider call goes through guardedProvider: the egress guard on the whole request and a
+// budget of maxModelCalls (maxModelRounds + one repair) per turn. A blocked request returns
+// SECRET_REFUSAL with egressBlocked, and nothing is sent.
+// knownIds: the authenticated Account's raw IDs (Worker-internal; never sent). Every request and
+// every reply is compared against them.
+// maxModelCalls can only lower the budget (tests); it is never raised above the policy limit.
 export async function runSupportTurn({ provider: rawProvider, diagnostics, history = [], message, knownIds = [],
-  maxModelCalls = AI_SUPPORT_LIMITS.maxModelCalls, observeModelResult }) {
-  const containsKnownId = createKnownIdMatcher(knownIds);
-  const maxCalls = Math.min(Number.isSafeInteger(maxModelCalls) && maxModelCalls > 0 ? maxModelCalls : 0, 1);
+  maxModelCalls = AI_SUPPORT_LIMITS.maxModelCalls }) {
+  const maxCalls = Math.min(Number.isSafeInteger(maxModelCalls) && maxModelCalls > 0 ? maxModelCalls : 0,
+    AI_SUPPORT_LIMITS.maxModelCalls);
   const provider = guardedProvider(rawProvider, { maxCalls, knownIds });
-  const started = Date.now();
-  const stats = { modelCalls: 0, toolCalls: 0, rejectedToolCalls: 0, usage: { inputTokens: 0, outputTokens: 0 },
-    guardViolations: [], repairAttempted: false, repaired: false, fallback: false, firstAnswerMs: null,
-    directAnswer: false, explanationSentencesOmitted: 0, diagnosticSummaryUsed: false, rejectedActions: 0 };
-  const messages = [{ role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT },
-    ...history.map(({ role, content }) => ({ role, content })), { role: 'user', content: message }];
-  // Direct answers do not bypass the same input/known-ID checks or read any diagnostic data.
-  if (!isProviderInputSafe({ messages, tools: [] }, { containsKnownId })) {
-    return { reply: SECRET_REFUSAL, stats, egressBlocked: true };
-  }
-  const faq = supportFaq(message);
-  if (faq) { stats.directAnswer = true; return { reply: faq, stats }; }
-
-  const context = { overview: null, appId: null, details: new Map() };
-  const load = async (name, args, read) => {
-    const data = await read(); stats.toolCalls++;
-    const id = `call_${stats.toolCalls}`;
-    messages.push({ role: 'assistant', content: '', tool_calls: [{ id, type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
-    messages.push({ role: 'tool', tool_call_id: id, name, content: toModelToolResult(name, supportModelData(data)) });
-    return data;
-  };
+  const containsKnownId = createKnownIdMatcher(knownIds);
   try {
-    context.overview = await load('getSyncOverview', {}, () => diagnostics.getSyncOverview());
-    context.appId = chooseSupportApp(message, context.overview, history);
-    if (context.appId) {
-      const detail = await load('getAppSyncTargets', { appId: context.appId }, () => diagnostics.getAppSyncTargets(context.appId));
-      if (detail.app?.appId !== context.appId) throw new Error('diagnostic_app_mismatch');
-      context.details.set(context.appId, detail);
-      // Each original diagnostic performs its own SELECTs. A later detail may observe a state
-      // transition; both the caption and action prerequisites must use that newer snapshot.
-      context.overview = { ...context.overview, apps: context.overview.apps.map((app) => app.appId === context.appId ? detail.app : app) };
-    }
-  } catch {
-    return { reply: FALLBACK_REPLIES.diagnosticsUnavailable, stats, diagnosticsFailed: true };
-  }
-  const caption = supportCaption(context);
-  const compose = (plan) => {
-    const safeSentence = (s) => validateSupportReply(s).ok && !containsKnownId(s);
-    const description = supportDescription(sanitizeReply(plan.explanation), safeSentence);
-    stats.explanationSentencesOmitted = description.omitted;
-    stats.diagnosticSummaryUsed = !description.text;
-    const suggestions = plan.actions.length ? plan.actions : defaultSupportActions(context);
-    const operations = [];
-    for (const action of suggestions) {
-      const rendered = renderSupportAction(action, context);
-      if (rendered && !operations.includes(rendered)) operations.push(rendered);
-      else stats.rejectedActions++;
-    }
-    if (!operations.length) for (const action of defaultSupportActions(context)) operations.push(renderSupportAction(action, context));
-    const redundantAppQuestion = plan.questionId === 'which_app' && (context.appId ||
-      new Set(context.overview.apps?.map((app) => app.displayStatus)).size === 1);
-    const question = redundantAppQuestion ? '' : SUPPORT_QUESTIONS[plan.questionId] || '';
-    // Output stays plain text and uses the existing API shape. No stored-schema or UI change.
-    return sanitizeReply([caption, description.text, ...operations, question].filter(Boolean).join('\n\n'));
-  };
-  if (!maxCalls) { stats.fallback = true; return { reply: compose({ explanation: '', actions: [], questionId: 'none' }), stats }; }
-  try {
-    const result = await provider.complete({ messages, tools: [], responseFormat: SUPPORT_PLAN_FORMAT });
-    stats.modelCalls = provider.calls;
-    stats.usage.inputTokens += result.usage?.inputTokens || 0;
-    stats.usage.outputTokens += result.usage?.outputTokens || 0;
-    stats.firstAnswerMs = Date.now() - started;
-    // Only the synthetic evaluator supplies this callback. The HTTP route never accepts it,
-    // so production prompts/replies are neither logged nor persisted by this observer.
-    observeModelResult?.({ text: result.text, toolCalls: result.toolCalls, usage: result.usage });
-    if (containsSensitive(result.text) || containsKnownId(result.text)) {
-      stats.guardViolations.push('sensitive_output'); stats.fallback = true;
-      return { reply: GUARD_FALLBACK_REPLY, stats };
-    }
-    const plan = decodeSupportPlan(result.text);
-    if (result.toolCalls?.length) { stats.rejectedToolCalls += result.toolCalls.length; plan.malformed = true; plan.explanation = ''; plan.actions = []; }
-    if (containsSensitive(plan.explanation) || containsKnownId(plan.explanation)) {
-      stats.guardViolations.push('sensitive_output'); stats.fallback = true;
-      return { reply: GUARD_FALLBACK_REPLY, stats };
-    }
-    stats.fallback = Boolean(plan.malformed);
-    return { reply: compose(plan), stats };
+    return await runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls });
   } catch (error) {
-    stats.modelCalls = provider.calls;
-    if (error instanceof EgressBlockedError) return { reply: SECRET_REFUSAL, stats, egressBlocked: true };
+    if (error instanceof EgressBlockedError) {
+      return { reply: SECRET_REFUSAL, stats: { modelCalls: provider.calls, egressBlocked: true }, egressBlocked: true };
+    }
     throw error;
   }
+}
+
+async function runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls }) {
+  const messages = [
+    { role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT },
+    ...history.map(({ role, content }) => ({ role, content })),
+    { role: 'user', content: message }
+  ];
+  const started = Date.now();
+  // Counters only (no text) — safe to count in future telemetry.
+  const stats = { modelCalls: 0, toolCalls: 0, rejectedToolCalls: 0, usage: { inputTokens: 0, outputTokens: 0 },
+    guardViolations: [], repairAttempted: false, repaired: false, fallback: false, firstAnswerMs: null };
+  const track = (result) => {
+    stats.modelCalls += 1;
+    stats.usage.inputTokens += result.usage?.inputTokens || 0;
+    stats.usage.outputTokens += result.usage?.outputTokens || 0;
+  };
+
+  let callCount = 0;
+  for (let round = 0; round < AI_SUPPORT_LIMITS.maxModelRounds; round += 1) {
+    const toolsAllowed = stats.toolCalls < AI_SUPPORT_LIMITS.maxToolCalls &&
+      round < AI_SUPPORT_LIMITS.maxModelRounds - 1;
+    const result = await provider.complete({ messages, tools: toolsAllowed ? AI_SUPPORT_TOOLS : [] });
+    track(result);
+    if (!result.toolCalls.length) {
+      // Recorded for evaluation: whether the model itself produced Markdown before it was removed.
+      stats.rawMarkdown = containsMarkdown(result.text);
+      stats.firstAnswerMs = Date.now() - started;
+      const reply = sanitizeReply(result.text);
+      if (!reply) return { reply: FALLBACK_REPLIES.noAnswer, stats };
+      return guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls });
+    }
+    if (!toolsAllowed) break;
+    // Nothing the model wrote around a tool call is sent back as-is. A call naming anything but
+    // one of the two fixed tools ends the turn (fail closed); otherwise the Worker writes the
+    // follow-up itself: its own call ids, the fixed tool name, and validated arguments only.
+    if (result.toolCalls.some((call) => typeof call?.name !== 'string' || !TOOL_NAMES.has(call.name))) {
+      stats.rejectedToolCalls += result.toolCalls.length;
+      return { reply: FALLBACK_REPLIES.noAnswer, stats, unsafeToolCall: true };
+    }
+    const calls = result.toolCalls.map((call) => {
+      callCount += 1;
+      return { id: `call_${callCount}`, name: call.name, valid: validateToolCall(call.name, call.arguments) };
+    });
+    messages.push({
+      role: 'assistant',
+      content: '',
+      tool_calls: calls.map((call) => ({ id: call.id, type: 'function',
+        function: { name: call.name, arguments: JSON.stringify(call.valid.ok ? call.valid.args ?? {} : {}) } }))
+    });
+    for (const call of calls) {
+      let content;
+      const { valid } = call;
+      if (!valid.ok) {
+        stats.rejectedToolCalls += 1;
+        content = JSON.stringify({ kind: 'sound_cruise_sync_diagnostic_tool_error', error: 'invalid_tool_call' });
+      } else if (stats.toolCalls >= AI_SUPPORT_LIMITS.maxToolCalls) {
+        stats.rejectedToolCalls += 1;
+        content = JSON.stringify({ kind: 'sound_cruise_sync_diagnostic_tool_error', error: 'tool_call_limit' });
+      } else {
+        stats.toolCalls += 1;
+        let data;
+        try {
+          data = valid.name === 'getSyncOverview'
+            ? await diagnostics.getSyncOverview()
+            : await diagnostics.getAppSyncTargets(valid.args.appId);
+        } catch {
+          // Never switch to guessing when the current state cannot be read.
+          return { reply: FALLBACK_REPLIES.diagnosticsUnavailable, stats, diagnosticsFailed: true };
+        }
+        content = toModelToolResult(valid.name, data);
+      }
+      messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content });
+    }
+  }
+  return { reply: FALLBACK_REPLIES.noAnswer, stats };
+}
+
+// Every final reply passes the deterministic guard. A failing reply is never shown: the model gets
+// one fixed repair request (no tools; the conversation, tool results and its own reply stay as
+// messages, never inside the instruction), and a second failure returns the fixed fallback.
+// A reply that looks like it holds a code or a full ID is left out of the repair request
+// entirely; the fixed instruction names only the category. If a safe repair request cannot be
+// built, the fixed fallback is returned without another model call.
+// A reply holding a known internal ID in any form counts as a full_id violation.
+function checkReply(reply, containsKnownId) {
+  const { violations } = validateSupportReply(reply);
+  if (containsKnownId(reply) && !violations.includes('full_id')) violations.push('full_id');
+  return { ok: violations.length === 0, violations };
+}
+
+// A degenerate reply (only symbols, e.g. 「!!!…」) is never shown and never sent back either; if it
+// cannot be repaired, a short fixed reply asks what the user wants to check.
+async function guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls }) {
+  const first = checkReply(reply, containsKnownId);
+  if (first.ok) return { reply, stats };
+  stats.guardViolations.push(...first.violations);
+  const degenerate = first.violations.includes('degenerate_output');
+  const fallback = degenerate ? DEGENERATE_FALLBACK_REPLY : GUARD_FALLBACK_REPLY;
+  // No call left in the turn budget: fixed fallback, no model call.
+  if (provider.calls >= maxCalls) {
+    stats.fallback = true;
+    return { reply: fallback, stats };
+  }
+  stats.repairAttempted = true;
+  let repaired = '';
+  const badReply = degenerate || containsSensitive(reply) || containsKnownId(reply)
+    ? [] : [{ role: 'assistant', content: reply }];
+  const request = { messages: [...messages, ...badReply, { role: 'user', content: repairInstruction(first.violations) }], tools: [] };
+  if (!isProviderInputSafe(request, { containsKnownId })) {
+    stats.fallback = true;
+    return { reply: fallback, stats };
+  }
+  try {
+    const result = await provider.complete(request);
+    track(result);
+    if (!result.toolCalls.length) repaired = sanitizeReply(result.text);
+  } catch {
+    repaired = '';
+  }
+  const second = checkReply(repaired, containsKnownId);
+  if (repaired && second.ok) {
+    stats.repaired = true;
+    return { reply: repaired, stats };
+  }
+  if (repaired) stats.guardViolations.push(...second.violations);
+  stats.fallback = true;
+  return { reply: fallback, stats };
 }

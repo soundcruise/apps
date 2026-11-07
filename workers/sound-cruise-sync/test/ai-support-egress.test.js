@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runSupportTurn } from '../src/ai-support-chat.js';
 import { EgressBlockedError, ModelCallBudgetError, guardedProvider, isProviderInputSafe } from '../src/ai-support-egress.js';
-import { GUARD_FALLBACK_REPLY, validateSupportReply } from '../src/ai-support-guard.js';
+import { GUARD_FALLBACK_REPLY, repairInstruction, validateSupportReply } from '../src/ai-support-guard.js';
 import {
   AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, SECRET_REFUSAL, containsSecret
 } from '../src/ai-support-policy.js';
@@ -15,7 +15,7 @@ import { createWorkersAiProvider } from '../src/ai-support-provider.js';
 // AI1-C security fixes: the final provider egress guard, tool metadata, ID-like names and the
 // 4-call budget. Synthetic data only; no real provider.
 
-const GOOD = '前回の報告に完了したものがあります。';
+const GOOD = 'コードクルーズの行にある ⓘ を開き、「もう一度確認」が表示されている場合はタップしてください。';
 const ACCOUNT_ID = '4714bf0c-f6bb-4edb-a29f-01fa9ae44daa';
 const ACCOUNT_DEVICE_ID = '0d9e1c2b-3a4f-4b5c-8d6e-7f8091a2b3c4';
 const ID_A = 'b91c7f00a1b2c3d4e5f60718293a4b5c';
@@ -37,7 +37,7 @@ function diagnostics(targets, identity = { accountId: ACCOUNT_ID, accountDeviceI
   });
 }
 const plain = () => diagnostics([{ id: ID_A, label: 'Chord Cruise', userLabel: 'Pixel' }]);
-const text = (content) => ({ text: JSON.stringify({ explanation: content, actions: [], questionId: 'none' }), toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } });
+const text = (content) => ({ text: content, toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } });
 const tools = (...names) => ({ text: '', toolCalls: names.map((name, index) => ({ id: `c${index}`, name,
   arguments: name === 'getAppSyncTargets' ? { appId: 'chord' } : {} })), usage: { inputTokens: 1, outputTokens: 1 } });
 function provider(script) {
@@ -153,34 +153,46 @@ test('B: exactly one AI.run call site, behind the guard', () => {
   assert.doesNotMatch(egress, /console\.|\.exec\(/, 'only a yes/no leaves the guard; nothing is logged');
 });
 
-test('B/35: model tool metadata is discarded; only preloaded trusted diagnostics are sent', async () => {
-  for (const name of ['getSyncOverview', 'PIN 1234', 'コードは12/34', 'runSql', '', null]) {
-    const p = provider([{ text: '', usage: {}, toolCalls: [{ id: 'PIN 1234', name, arguments: { note: 'コードは12/34' } }] }]);
-    const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: 'コードクルーズがおかしい' });
-    assert.equal(p.calls.length, 1);
-    assert.equal(turn.stats.rejectedToolCalls, 1);
-    assert.equal(turn.stats.toolCalls, 2);
-    assert.equal(turn.stats.fallback, true);
-    assert.doesNotMatch(turn.reply, /PIN|12\/34|runSql/);
-    assert.deepEqual(p.calls[0].messages.filter((m) => m.role === 'tool').map((m) => m.name), ['getSyncOverview', 'getAppSyncTargets']);
-    assertCleanRequests(p.calls);
+test('B/35: model tool-call metadata is never resent; the Worker writes ids, names and arguments', async () => {
+  const hostile = { text: '暗証番号 1 2 3 4 を確認します', usage: {}, toolCalls: [
+    { id: 'PIN 1234', name: 'getSyncOverview', arguments: {} },
+    { id: 'コードは12/34', name: 'getAppSyncTargets', arguments: { appId: 'chord', note: 'Proコードは12/34' } }] };
+  const p = provider([hostile, text(GOOD)]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません' });
+  assert.equal(turn.reply, GOOD);
+  assert.equal(p.calls.length, 2);
+  const follow = p.calls[1].messages;
+  const assistant = follow.find((message) => message.role === 'assistant');
+  assert.equal(assistant.content, '', 'the model text next to a tool call is not resent');
+  assert.deepEqual(assistant.tool_calls, [
+    { id: 'call_1', type: 'function', function: { name: 'getSyncOverview', arguments: '{}' } },
+    { id: 'call_2', type: 'function', function: { name: 'getAppSyncTargets', arguments: '{}' } }]);
+  assert.deepEqual(follow.filter((message) => message.role === 'tool').map((message) => [message.tool_call_id, message.name]),
+    [['call_1', 'getSyncOverview'], ['call_2', 'getAppSyncTargets']]);
+  assertCleanRequests(p.calls);
+  // An unexpected function name ends the turn (fail closed): no follow-up call at all.
+  for (const name of ['PIN 1234', 'コードは12/34', 'runSql', '', null]) {
+    const q = provider([{ text: '', usage: {}, toolCalls: [{ id: 'x', name, arguments: {} }] }, text(GOOD)]);
+    const failed = await runSupportTurn({ provider: q, diagnostics: plain(), message: '同期できません' });
+    assert.equal(failed.reply, FALLBACK_REPLIES.noAnswer, String(name));
+    assert.equal(failed.unsafeToolCall, true);
+    assert.equal(q.calls.length, 1, 'never resent');
   }
 });
 
-test('B: unexpected diagnostic fields are projected away; secrets in an allowed field still block', async () => {
-  for (const note of ['PINは1:2:3:4', ID_A]) {
-    const p = provider([text(GOOD)]);
-    const projected = { async getSyncOverview() { return { apps: [], note }; } };
-    await runSupportTurn({ provider: p, diagnostics: projected, message: '同期できません' });
-    assert.equal(p.calls.length, 1);
-    assert.equal(JSON.stringify(p.calls).includes(note), false);
-    assertCleanRequests(p.calls);
-  }
-  const p = provider([text(GOOD)]);
-  const leaky = { async getSyncOverview() { return { accountState: 'PINは1:2:3:4', apps: [] }; } };
-  assert.equal((await runSupportTurn({ provider: p, diagnostics: leaky, message: '同期できません' })).egressBlocked, true);
-  assert.equal(p.calls.length, 0);
+test('B: a secret-like string inside a tool result blocks the follow-up call', async () => {
+  const leaky = { async getSyncOverview() { return { note: 'PINは1:2:3:4' }; }, async getAppSyncTargets() { return {}; } };
+  const p = provider([tools('getSyncOverview'), text(GOOD)]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: leaky, message: '同期できません' });
+  assert.equal(turn.egressBlocked, true);
+  assert.equal(p.calls.length, 1);
+  const idLeak = { async getSyncOverview() { return { note: ID_A }; }, async getAppSyncTargets() { return {}; } };
+  const q = provider([tools('getSyncOverview'), text(GOOD)]);
+  assert.equal((await runSupportTurn({ provider: q, diagnostics: idLeak, message: '同期できません' })).egressBlocked, true);
+  assert.equal(q.calls.length, 1);
 });
+
+// ------------------------------------------------------------------ Part C: ID-like names
 
 test('C/36/37: ID-like names fall back to a safe registered label, then short ID, then T-ref', async () => {
   const idLabels = [...forms(ACCOUNT_ID), ...forms(ACCOUNT_DEVICE_ID), ID_A, ID_A.toUpperCase(),
@@ -206,68 +218,113 @@ test('C/36/37: ID-like names fall back to a safe registered label, then short ID
   assert.equal(safe('B91C7F'), true, 'a short prefix is fine');
 });
 
-test('C/38: ID-like and private names are absent from the single model request', async () => {
+test('C/38: a turn with ID-like names sends no full Account or Device ID in any form', async () => {
   const d = diagnostics([{ id: ID_A, userLabel: ACCOUNT_ID.toUpperCase(), label: ID_A }, { id: ID_B, userLabel: ID_B.toUpperCase(), label: 'iPhone Safari' }]);
-  const p = provider([text(GOOD)]);
+  const p = provider([tools('getSyncOverview'), tools('getAppSyncTargets'), text(GOOD)]);
   const turn = await runSupportTurn({ provider: p, diagnostics: d, message: 'コードクルーズがおかしい' });
-  assert.ok(turn.reply.includes(GOOD));
-  assert.equal(p.calls.length, 1);
+  assert.equal(turn.reply, GOOD, 'not blocked: the names fell back');
+  assert.equal(p.calls.length, 3);
   assertCleanRequests(p.calls);
-  const targets = JSON.parse(p.calls[0].messages.find((m) => m.name === 'getAppSyncTargets').content).data.targets;
-  for (const target of targets) assert.deepEqual(Object.keys(target), ['reportState', 'reportedAt', 'attentionCount']);
-  assert.equal(JSON.stringify(p.calls).includes('iPhone Safari'), false);
+  const targets = JSON.parse(p.calls[2].messages.find((message) => message.name === 'getAppSyncTargets').content).data.targets;
+  assert.deepEqual(targets.map((target) => target.displayName), [`同期先 ${targets[0].shortId}`, 'iPhone Safari']);
 });
 
-test('39: bounded short IDs and T-refs in the user question remain permitted', async () => {
-  const p = provider([text(GOOD)]);
-  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期先 B91C7F00 と T1 は？' });
-  assert.ok(turn.reply.includes(GOOD));
-  assert.equal(p.calls.length, 1);
+test('39: bounded short IDs and T-refs are never blocked', async () => {
+  const d = diagnostics([{ id: ID_A, userLabel: null, label: null }, { id: 'b91c7f00ffff0000', userLabel: null, label: null }, { id: 'x', label: null }]);
+  const p = provider([tools('getAppSyncTargets'), text('同期先 B91C7F と T3 を確認してください。')]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: d, message: '同期先 B91C7F00 と T1 は？' });
+  assert.equal(turn.reply, '同期先 B91C7F と T3 を確認してください。');
+  assert.equal(p.calls.length, 2);
   assertCleanRequests(p.calls);
 });
 
-test('D/34: secret-bearing model output is refused without resending or another inference', async () => {
-  for (const bad of ['Proコードは12/34です。', ID_A, ACCOUNT_ID, ACCOUNT_ID.toUpperCase()]) {
-    const p = provider([text(bad), text(GOOD)]);
+// ------------------------------------------------------------------ Part D: repair
+
+test('D/34: a bad reply with a code or full ID is never sent back; categories only', async () => {
+  const cases = [
+    ['Proコードは12/34です。再同期ボタンを押してください。', ['resync_button', 'secret_like'], '12/34'],
+    [`端末 ${ID_A} で再同期ボタンを押してください。`, ['resync_button', 'full_id'], ID_A],
+    // A UUID also has the legacy recovery-code shape (4-character groups); both categories apply.
+    [`アカウント ${ACCOUNT_ID} です。`, ['secret_like', 'full_id'], ACCOUNT_ID],
+    [`アカウント ${ACCOUNT_ID.toUpperCase()} です。`, ['secret_like', 'full_id'], ACCOUNT_ID.toUpperCase()]
+  ];
+  for (const [bad, violations, raw] of cases) {
+    assert.deepEqual(validateSupportReply(bad).violations, violations);
+    const p = provider([tools('getSyncOverview'), text(bad), text(GOOD)]);
     const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません' });
-    assert.equal(turn.reply, GUARD_FALLBACK_REPLY);
-    assert.equal(p.calls.length, 1);
-    assert.deepEqual(turn.stats.guardViolations, ['sensitive_output']);
+    assert.equal(turn.reply, GOOD);
+    assert.equal(p.calls.length, 3);
+    const repair = p.calls[2];
+    assert.equal(JSON.stringify(repair).includes(raw), false, 'the bad reply is not resent');
+    assert.equal(repair.messages.at(-1).content, repairInstruction(violations));
     assertCleanRequests(p.calls);
   }
+  // A code-like reply that fails again becomes the fixed fallback; it is never shown.
+  const again = provider([text('PINは1:2:3:4 です'), text('PINは1:2:3:4 です')]);
+  const fallback = await runSupportTurn({ provider: again, diagnostics: plain(), message: '同期できません' });
+  assert.equal(fallback.reply, GUARD_FALLBACK_REPLY);
+  assert.equal(JSON.stringify(again.calls[1]).includes('1:2:3:4'), false);
+  // A bad reply without a secret is still passed back as its own assistant message (unchanged).
+  const ui = provider([text('再同期ボタンを押してください。'), text(GOOD)]);
+  await runSupportTurn({ provider: ui, diagnostics: plain(), message: '同期できません' });
+  assert.deepEqual(ui.calls[1].messages.at(-2), { role: 'assistant', content: '再同期ボタンを押してください。' });
 });
 
-test('D/25: no repair request is built even if provider input mutates', async () => {
+test('D/25: when a safe repair request cannot be built, the fallback comes without a model call', async () => {
+  // Simulate conversation state that became unsafe after the earlier checks (defence in depth):
+  // the repair request is checked before it is sent, and no call is made.
   const calls = [];
-  const p = { async complete(input) { calls.push(input); input.messages.push({ role: 'user', content: 'PINは1:2:3:4' }); return text('Proコードは12/34です。'); } };
-  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません' });
+  const mutating = { async complete(input) {
+    calls.push(input);
+    input.messages.push({ role: 'user', content: 'PINは1:2:3:4' });
+    return text('再同期ボタンを押してください。');
+  } };
+  const turn = await runSupportTurn({ provider: mutating, diagnostics: plain(), message: '同期できません' });
   assert.equal(turn.reply, GUARD_FALLBACK_REPLY);
-  assert.equal(calls.length, 1);
+  assert.equal(turn.stats.fallback, true);
+  assert.equal(calls.length, 1, 'no repair call');
 });
 
-test('K: recursively inspect the complete request including preloaded tools and response schema', async () => {
-  const p = provider([text(GOOD)]);
-  await runSupportTurn({ provider: p, diagnostics: plain(), message: 'コードクルーズが同期しません' });
-  assert.equal(p.calls.length, 1);
-  assert.equal(p.calls[0].responseFormat.type, 'json_schema');
+// ------------------------------------------------------------------ K / budget
+
+test('K: recursive inspection of every request in a full tool + repair turn', async () => {
+  const p = provider([tools('getSyncOverview'), tools('getAppSyncTargets'), text('スナップショットが未検証です。'), text(GOOD)]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: diagnostics([
+    { id: ID_A, userLabel: 'Proの番号 12/34', label: 'Chord Cruise' }, { id: ID_B, userLabel: ACCOUNT_ID, label: null }]),
+  message: 'コードクルーズがおかしい', history: [{ role: 'user', content: '前回 12:34 に同期' }, { role: 'assistant', content: 'v1.2.3.4 ですね' }] });
+  assert.equal(turn.reply, GOOD);
+  assert.equal(p.calls.length, 4);
   assertCleanRequests(p.calls);
+  for (const call of p.calls) assert.equal(call.messages[0].content, AI_SUPPORT_SYSTEM_PROMPT);
 });
 
-test('42: one inference per turn; a caller cannot raise that limit', async () => {
-  for (const maxModelCalls of [0, 1, 4, 99]) {
-    const p = provider(Array.from({ length: 8 }, () => tools('getSyncOverview')));
-    const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません', maxModelCalls });
-    assert.equal(p.calls.length, maxModelCalls === 0 ? 0 : 1);
-    assert.ok(turn.stats.modelCalls <= 1);
-  }
-  const limited = guardedProvider(provider([text(GOOD)]), { maxCalls: 1 });
-  const request = { messages: [{ role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT }, { role: 'user', content: '同期' }] };
-  await limited.complete(request);
-  await assert.rejects(limited.complete(request), ModelCallBudgetError);
-  const blocked = guardedProvider(provider([]), { maxCalls: 1 });
-  await assert.rejects(blocked.complete({ messages: [{ role: 'user', content: 'PIN 1234' }] }), EgressBlockedError);
-  assert.equal(blocked.calls, 0);
+test('42: at most 4 provider calls per turn; blocked requests add no retries', async () => {
+  assert.equal(AI_SUPPORT_LIMITS.maxModelCalls, 4);
+  assert.equal(AI_SUPPORT_LIMITS.maxModelCalls, AI_SUPPORT_LIMITS.maxModelRounds + 1);
+  const worst = provider([tools('getSyncOverview'), tools('getAppSyncTargets'), text('ログインし直してください。'),
+    text('再同期ボタンを押してください。'), text(GOOD), text(GOOD)]);
+  const turn = await runSupportTurn({ provider: worst, diagnostics: plain(), message: '同期できません' });
+  assert.equal(worst.calls.length, 4);
+  assert.equal(turn.reply, GUARD_FALLBACK_REPLY);
+  const looping = provider(Array.from({ length: 10 }, () => tools('getSyncOverview')));
+  await runSupportTurn({ provider: looping, diagnostics: plain(), message: 'ループ' });
+  assert.ok(looping.calls.length <= 4);
+  // Blocked turns stop at once.
+  const leaky = { async getSyncOverview() { return { note: 'PIN 1234' }; }, async getAppSyncTargets() { return {}; } };
+  const blocked = provider(Array.from({ length: 6 }, () => tools('getSyncOverview')));
+  await runSupportTurn({ provider: blocked, diagnostics: leaky, message: '同期できません' });
+  assert.equal(blocked.calls.length, 1);
+  // The central budget itself.
+  const raw = provider(Array.from({ length: 6 }, () => text(GOOD)));
+  const guarded = guardedProvider(raw, { maxCalls: 4 });
+  const request = { messages: [{ role: 'user', content: 'x' }], tools: [] };
+  for (let index = 0; index < 4; index += 1) await guarded.complete(request);
+  await assert.rejects(guarded.complete(request), ModelCallBudgetError);
+  assert.equal(raw.calls.length, 4);
+  await assert.rejects(guardedProvider(raw, { maxCalls: 4 }).complete({ messages: [{ role: 'user', content: 'PIN 1234' }] }), EgressBlockedError);
+  assert.equal(raw.calls.length, 4, 'a blocked request is not sent');
 });
+
 // ------------------------------------------------------------------ Final focused review blockers
 
 const REVERSE = ['12/34がPINです', '1.2.3.4 が暗証番号です', '1:2:3:4 がProコードです', '12-34 が接続コードです',
@@ -308,12 +365,26 @@ test('R4: reverse-context codes in the message or user/assistant history → pro
   }
 });
 
-test('R5: reverse-context secret output is refused after one inference', async () => {
-  const p = provider([text('12/34がPINです。再同期ボタンを押してください。')]);
+test('R5: a reverse-context bad reply is never resent; fixed categories only; unsafe repair → no call', async () => {
+  const bad = '12/34がPINです。再同期ボタンを押してください。';
+  assert.deepEqual(validateSupportReply(bad).violations, ['resync_button', 'secret_like']);
+  const p = provider([tools('getSyncOverview'), text(bad), text(GOOD)]);
   const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません' });
-  assert.equal(turn.reply, GUARD_FALLBACK_REPLY);
-  assert.equal(p.calls.length, 1);
+  assert.equal(turn.reply, GOOD);
+  assert.equal(p.calls.length, 3, 'one repair, no extra loop');
+  assert.equal(JSON.stringify(p.calls[2]).includes('12/34'), false);
+  assert.equal(p.calls[2].messages.at(-1).content, repairInstruction(['resync_button', 'secret_like']));
   assertCleanRequests(p.calls);
+  const twice = provider([text(bad), text(bad), text(GOOD)]);
+  const fallback = await runSupportTurn({ provider: twice, diagnostics: plain(), message: '同期できません' });
+  assert.equal(fallback.reply, GUARD_FALLBACK_REPLY);
+  assert.equal(twice.calls.length, 2);
+  // Unsafe repair context (state changed after the earlier checks) → deterministic fallback, no call.
+  const calls = [];
+  const mutating = { async complete(input) { calls.push(input); input.messages.push({ role: 'user', content: '12/34がPINです' }); return text(bad); } };
+  const closed = await runSupportTurn({ provider: mutating, diagnostics: plain(), message: '同期できません' });
+  assert.equal(closed.reply, GUARD_FALLBACK_REPLY);
+  assert.equal(calls.length, 1);
 });
 
 test('R6: known internal IDs in any separator form never reach the provider (message, history, reply)', async () => {
@@ -332,10 +403,10 @@ test('R6: known internal IDs in any separator form never reach the provider (mes
       // A reply carrying the ID is a full_id violation and is never resent in the repair.
       const q = provider([text(`端末 ${form} で再同期ボタンを押してください。`), text(GOOD)]);
       const turn = await runSupportTurn({ provider: q, diagnostics: plain(), knownIds: KNOWN, message: '同期できません' });
-      assert.equal(turn.reply, GUARD_FALLBACK_REPLY);
-      assert.equal(q.calls.length, 1);
-      assert.ok(turn.stats.guardViolations.includes('sensitive_output'));
-      assert.equal(JSON.stringify(q.calls).includes(form), false);
+      assert.equal(turn.reply, GOOD);
+      assert.equal(q.calls.length, 2);
+      assert.ok(turn.stats.guardViolations.includes('full_id'));
+      assert.equal(JSON.stringify(q.calls[1]).includes(form), false);
       assertCleanRequests(q.calls, KNOWN);
     }
   }
@@ -411,7 +482,7 @@ test('FP: a bare 番号 is not a secret context; explicit secret contexts still 
   // The direct regression reaches the model; Proの番号 does not.
   const ok = provider([text(GOOD)]);
   const turn = await runSupportTurn({ provider: ok, diagnostics: plain(), message: '同期先の番号は1234です' });
-  assert.ok(turn.reply.includes(GOOD));
+  assert.equal(turn.reply, GOOD);
   assert.equal(ok.calls.length, 1);
   for (const secret of ['Proの番号は1234です', '認証番号は1234です']) {
     const p = provider([text(GOOD)]);
@@ -430,12 +501,12 @@ test('FP: benign four-digit display names are kept; secret-like and ID-like name
 
 // ------------------------------------------------------------------ Degenerate output guard
 
-import { isDegenerateReply } from '../src/ai-support-guard.js';
+import { DEGENERATE_FALLBACK_REPLY, isDegenerateReply } from '../src/ai-support-guard.js';
 
 const DEGENERATE = ['!'.repeat(900), '！'.repeat(300), '?'.repeat(40), `\n${'! '.repeat(200)}\n`, `  ${'。'.repeat(30)}  `];
 const NORMAL_REPLIES = ['はい！', 'いいえ。', '同期済みです！', '同期済みです。', 'Pixel側を確認してください。', '確認が必要です！',
   '「同期済み」と表示されています。', 'エラー404が表示されている場合は、もう一度状態を確認してください。', 'T1を確認してください。', GOOD,
-  'まず同期センターでコードクルーズの行にある 同期先 を開いてください。次に Pixel でアプリを開き、設定 → クラウド同期を確認してください。'];
+  'まず同期センターでコードクルーズの行にある ⓘ を開いてください。次に Pixel でアプリを開き、設定 → クラウド同期を確認してください。'];
 
 test('DG1-4 / 5-10: only obviously broken output is degenerate', () => {
   for (const bad of DEGENERATE) {
@@ -446,43 +517,58 @@ test('DG1-4 / 5-10: only obviously broken output is degenerate', () => {
     assert.equal(isDegenerateReply(ok), false, ok);
     assert.equal(validateSupportReply(ok).ok, true, ok);
   }
+  assert.equal(validateSupportReply(DEGENERATE_FALLBACK_REPLY).ok, true, 'the fallback passes the guard itself');
+  assert.doesNotMatch(DEGENERATE_FALLBACK_REPLY, /エラー|provider|AI|番号|コード|ボタン/, 'no internal cause, no UI claim, no code request');
+  assert.match(repairInstruction(['degenerate_output']), /意味のある文章になっていなかった/);
 });
 
-test('Case A: degenerate output is omitted; actual diagnostic summary remains without repair', async () => {
-  const p = provider([text('!'.repeat(900))]);
+test('Case A: degenerate → one repair (bad reply not resent) → only the repaired reply reaches the user', async () => {
+  const p = provider([text('!'.repeat(900)), text(GOOD)]);
   const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期先の番号は1234です' });
-  assert.equal(p.calls.length, 1);
-  assert.equal(turn.stats.diagnosticSummaryUsed, true);
-  assert.equal(turn.stats.repairAttempted, false);
-  assert.doesNotMatch(turn.reply, /!{3}/);
-  assert.match(turn.reply, /同期済み/);
+  assert.equal(turn.reply, GOOD);
+  assert.equal(p.calls.length, 2);
+  assert.deepEqual(turn.stats.guardViolations, ['degenerate_output']);
+  const repair = p.calls[1];
+  assert.equal(repair.messages.some((message) => message.role === 'assistant'), false, 'the degenerate reply is not sent back');
+  assert.equal(repair.messages.at(-1).content, repairInstruction(['degenerate_output']));
+  assert.equal(p.calls[0].messages.at(-1).content, '同期先の番号は1234です', 'the benign 4-digit input still reaches the model');
   assertCleanRequests(p.calls);
 });
 
-test('Case B: malformed outputs never expose raw JSON, invented actions or broken text', async () => {
-  for (const bad of ['！'.repeat(300), '?'.repeat(40), '', '{broken', '{"explanation":123}']) {
-    const p = provider([text(bad)]);
-    const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません' });
-    assert.equal(p.calls.length, 1);
-    assert.equal(turn.stats.diagnosticSummaryUsed, true);
-    assert.doesNotMatch(turn.reply, /！{3}|\?{3}|broken|explanation/);
+test('Case B: degenerate twice → short fixed reply, no further call', async () => {
+  for (const second of [text('！'.repeat(300)), text('?'.repeat(40)), new Error('provider down'), text('')]) {
+    const p = provider([text('!'.repeat(900)), second, text(GOOD)]);
+    const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期先の番号は1234です' });
+    assert.equal(turn.reply, DEGENERATE_FALLBACK_REPLY);
+    assert.equal(p.calls.length, 2, 'one repair only');
+    assert.equal(turn.stats.fallback, true);
   }
 });
 
-test('Case C: zero budget reads diagnostics but performs no inference', async () => {
-  const p = provider([]);
-  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません', maxModelCalls: 0 });
-  assert.equal(p.calls.length, 0);
-  assert.equal(turn.stats.modelCalls, 0);
-  assert.match(turn.reply, /同期済み/);
+test('Case C: no call left in the budget → fixed reply without a model call; never more than 4 calls', async () => {
+  const p = provider([tools('getSyncOverview'), tools('getAppSyncTargets'), text('!'.repeat(900)), text(GOOD)]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません', maxModelCalls: 3 });
+  assert.equal(turn.reply, DEGENERATE_FALLBACK_REPLY);
+  assert.equal(p.calls.length, 3, 'no repair call without budget');
+  assert.equal(turn.stats.repairAttempted, false);
+  // Full budget: tool, tool, degenerate, repair = 4, and a degenerate repair adds nothing.
+  const worst = provider([tools('getSyncOverview'), tools('getAppSyncTargets'), text('!'.repeat(900)), text('!'.repeat(900)), text(GOOD)]);
+  const full = await runSupportTurn({ provider: worst, diagnostics: plain(), message: '同期できません' });
+  assert.equal(worst.calls.length, 4);
+  assert.equal(full.reply, DEGENERATE_FALLBACK_REPLY);
+  // The budget can only be lowered, never raised.
+  const raised = provider(Array.from({ length: 8 }, () => tools('getSyncOverview')).concat([text('!'.repeat(50)), text(GOOD)]));
+  await runSupportTurn({ provider: raised, diagnostics: plain(), message: '同期できません', maxModelCalls: 99 });
+  assert.ok(raised.calls.length <= 4);
 });
 
-test('Case D: broken output with a code or known ID is not shown or resent', async () => {
+test('Case D: a degenerate reply carrying a code or a known ID is never resent', async () => {
   for (const bad of [`${'!'.repeat(60)} PINは1:2:3:4`, `${'!'.repeat(60)} ${ACCOUNT_ID.replace(/-/g, '_')}`]) {
-    const p = provider([text(bad)]);
+    const p = provider([text(bad), text(GOOD)]);
     const turn = await runSupportTurn({ provider: p, diagnostics: plain(), knownIds: KNOWN, message: '同期できません' });
-    assert.equal(turn.reply, GUARD_FALLBACK_REPLY);
-    assert.equal(p.calls.length, 1);
+    assert.equal(turn.reply, GOOD);
+    assert.equal(p.calls.length, 2);
+    assert.equal(JSON.stringify(p.calls[1]).includes('!!!!!'), false);
     assertCleanRequests(p.calls, KNOWN);
   }
 });

@@ -67,7 +67,3 @@ Recovery Codeは紛らわしい文字`I/L/O/U`を除いた32文字alphabetの20�
 ## Local rollback
 
 Chord側のfeature flagは既定OFFです。Workerを停止しても現在のChord localStorage動作は継続します。ローカル実装のrollbackはChordのSyncファイルとこの専用Worker directoryのrevertに閉じ、Cruise PortやK3-Aへ広げません。
-
-## AI相談の品質修正候補
-
-PR #222の2026年11月7日の品質HOLD分析、説明と操作IDを分ける候補実装、保存済み回答のローカル比較、追加有料再受入の条件は [AI-SUPPORT-QUALITY-HOLD-20261107.md](./AI-SUPPORT-QUALITY-HOLD-20261107.md) を参照。本番OFFを維持し、ローカル試験だけで実モデルの改善を断定しません。
