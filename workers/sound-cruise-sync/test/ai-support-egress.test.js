@@ -15,7 +15,7 @@ import { createWorkersAiProvider } from '../src/ai-support-provider.js';
 // AI1-C security fixes: the final provider egress guard, tool metadata, ID-like names and the
 // 4-call budget. Synthetic data only; no real provider.
 
-const GOOD = 'コードクルーズの行にある ⓘ を開き、「もう一度確認」が表示されている場合はタップしてください。';
+const GOOD = 'コードクルーズの行にある 同期先 を開き、「もう一度確認」が表示されている場合はタップしてください。';
 const ACCOUNT_ID = '4714bf0c-f6bb-4edb-a29f-01fa9ae44daa';
 const ACCOUNT_DEVICE_ID = '0d9e1c2b-3a4f-4b5c-8d6e-7f8091a2b3c4';
 const ID_A = 'b91c7f00a1b2c3d4e5f60718293a4b5c';
@@ -242,8 +242,8 @@ test('39: bounded short IDs and T-refs are never blocked', async () => {
 
 test('D/34: a bad reply with a code or full ID is never sent back; categories only', async () => {
   const cases = [
-    ['Proコードは12/34です。再同期ボタンを押してください。', ['resync_button', 'secret_like'], '12/34'],
-    [`端末 ${ID_A} で再同期ボタンを押してください。`, ['resync_button', 'full_id'], ID_A],
+    ['Proコードは12/34です。再同期ボタンを押してください。', ['resync_button', 'secret_like', 'unsupported_ui_path'], '12/34'],
+    [`端末 ${ID_A} で再同期ボタンを押してください。`, ['resync_button', 'full_id', 'unsupported_ui_path'], ID_A],
     // A UUID also has the legacy recovery-code shape (4-character groups); both categories apply.
     [`アカウント ${ACCOUNT_ID} です。`, ['secret_like', 'full_id'], ACCOUNT_ID],
     [`アカウント ${ACCOUNT_ID.toUpperCase()} です。`, ['secret_like', 'full_id'], ACCOUNT_ID.toUpperCase()]
@@ -367,13 +367,13 @@ test('R4: reverse-context codes in the message or user/assistant history → pro
 
 test('R5: a reverse-context bad reply is never resent; fixed categories only; unsafe repair → no call', async () => {
   const bad = '12/34がPINです。再同期ボタンを押してください。';
-  assert.deepEqual(validateSupportReply(bad).violations, ['resync_button', 'secret_like']);
+  assert.deepEqual(validateSupportReply(bad).violations, ['resync_button', 'secret_like', 'unsupported_ui_path']);
   const p = provider([tools('getSyncOverview'), text(bad), text(GOOD)]);
   const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません' });
   assert.equal(turn.reply, GOOD);
   assert.equal(p.calls.length, 3, 'one repair, no extra loop');
   assert.equal(JSON.stringify(p.calls[2]).includes('12/34'), false);
-  assert.equal(p.calls[2].messages.at(-1).content, repairInstruction(['resync_button', 'secret_like']));
+  assert.equal(p.calls[2].messages.at(-1).content, repairInstruction(['resync_button', 'secret_like', 'unsupported_ui_path']));
   assertCleanRequests(p.calls);
   const twice = provider([text(bad), text(bad), text(GOOD)]);
   const fallback = await runSupportTurn({ provider: twice, diagnostics: plain(), message: '同期できません' });
@@ -506,7 +506,7 @@ import { DEGENERATE_FALLBACK_REPLY, isDegenerateReply } from '../src/ai-support-
 const DEGENERATE = ['!'.repeat(900), '！'.repeat(300), '?'.repeat(40), `\n${'! '.repeat(200)}\n`, `  ${'。'.repeat(30)}  `];
 const NORMAL_REPLIES = ['はい！', 'いいえ。', '同期済みです！', '同期済みです。', 'Pixel側を確認してください。', '確認が必要です！',
   '「同期済み」と表示されています。', 'エラー404が表示されている場合は、もう一度状態を確認してください。', 'T1を確認してください。', GOOD,
-  'まず同期センターでコードクルーズの行にある ⓘ を開いてください。次に Pixel でアプリを開き、設定 → クラウド同期を確認してください。'];
+  'まず同期センターでコードクルーズの行にある 同期先 を開いてください。次に Pixel でアプリを開き、設定 → クラウド同期を確認してください。'];
 
 test('DG1-4 / 5-10: only obviously broken output is degenerate', () => {
   for (const bad of DEGENERATE) {

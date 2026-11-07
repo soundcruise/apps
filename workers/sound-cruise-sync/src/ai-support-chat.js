@@ -51,6 +51,8 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
     stats.usage.outputTokens += result.usage?.outputTokens || 0;
   };
 
+  // Only this turn's trusted enum state is retained for UI preconditions; no labels or IDs.
+  const observedApps = new Map();
   let callCount = 0;
   for (let round = 0; round < AI_SUPPORT_LIMITS.maxModelRounds; round += 1) {
     const toolsAllowed = stats.toolCalls < AI_SUPPORT_LIMITS.maxToolCalls &&
@@ -63,7 +65,7 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
       stats.firstAnswerMs = Date.now() - started;
       const reply = sanitizeReply(result.text);
       if (!reply) return { reply: FALLBACK_REPLIES.noAnswer, stats };
-      return guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls });
+      return guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls, apps: [...observedApps.values()] });
     }
     if (!toolsAllowed) break;
     // Nothing the model wrote around a tool call is sent back as-is. A call naming anything but
@@ -103,6 +105,11 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
           // Never switch to guessing when the current state cannot be read.
           return { reply: FALLBACK_REPLIES.diagnosticsUnavailable, stats, diagnosticsFailed: true };
         }
+        for (const app of (Array.isArray(data?.apps) ? data.apps : data?.app ? [data.app] : [])) {
+          if (typeof app?.appId === 'string' && typeof app.displayStatus === 'string') {
+            observedApps.set(app.appId, { appId: app.appId, displayStatus: app.displayStatus });
+          }
+        }
         content = toModelToolResult(valid.name, data);
       }
       messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content });
@@ -118,16 +125,16 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
 // entirely; the fixed instruction names only the category. If a safe repair request cannot be
 // built, the fixed fallback is returned without another model call.
 // A reply holding a known internal ID in any form counts as a full_id violation.
-function checkReply(reply, containsKnownId) {
-  const { violations } = validateSupportReply(reply);
+function checkReply(reply, containsKnownId, apps) {
+  const { violations } = validateSupportReply(reply, { apps });
   if (containsKnownId(reply) && !violations.includes('full_id')) violations.push('full_id');
   return { ok: violations.length === 0, violations };
 }
 
 // A degenerate reply (only symbols, e.g. 「!!!…」) is never shown and never sent back either; if it
 // cannot be repaired, a short fixed reply asks what the user wants to check.
-async function guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls }) {
-  const first = checkReply(reply, containsKnownId);
+async function guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls, apps }) {
+  const first = checkReply(reply, containsKnownId, apps);
   if (first.ok) return { reply, stats };
   stats.guardViolations.push(...first.violations);
   const degenerate = first.violations.includes('degenerate_output');
@@ -153,7 +160,7 @@ async function guardReply({ provider, messages, reply, stats, track, containsKno
   } catch {
     repaired = '';
   }
-  const second = checkReply(repaired, containsKnownId);
+  const second = checkReply(repaired, containsKnownId, apps);
   if (repaired && second.ok) {
     stats.repaired = true;
     return { reply: repaired, stats };

@@ -464,7 +464,7 @@ test('production config candidate: AI binding present but AI_SUPPORT_MODE is "of
 
 test('system prompt states the real UI and forbids invented flows, Markdown and field names', () => {
   for (const fact of ['同期コード', 'Cruise Portと接続', 'ログイン・サインイン・パスワードの仕組みは無い', 'URL を作らない',
-    '対象アプリの行にある ⓘ を開いたときに表示される場合がある', '同期先の名前と「もう一度確認」を同じ文で結び付けない', 'Markdown', 'cloudState', '回答の最初の一文を必ず「現在の情報だけでは原因を特定できません。」とする',
+    '対象アプリの行にある「同期先」を開いたときに表示される場合がある', '同期先の名前と「もう一度確認」を同じ文で結び付けない', 'Markdown', 'cloudState', '回答の最初の一文を必ず「現在の情報だけでは原因を特定できません。」とする',
     '同期先を案内する前に必ずそのアプリの getAppSyncTargets を呼ぶ', '概要だけから同期先の名前を推測しない',
     '「1.」「-」「・」で始まる箇条書き', 'mismatch、cloudState、snapshotState、removalSafety', '「現在の情報だけでは原因を特定できません」とは書かない']) {
     assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(fact), fact);
@@ -679,7 +679,7 @@ test('final blockers at the route: reverse-context codes and alternate-separator
   assert.ok(statements.every((statement) => statement === 'SELECT'), 'SELECT only');
   // A bad reply carrying a known ID (alternate separators) is never resent in the repair.
   const leak = separated(a.appDeviceId)[0];
-  const repairing = mockAi([reply(`端末 ${leak} で再同期ボタンを押してください。`), reply('同期センターでコードクルーズの行の ⓘ を開いてください。')]);
+  const repairing = mockAi([reply(`端末 ${leak} で再同期ボタンを押してください。`), reply('同期センターでコードクルーズの行の 同期先 を開いてください。')]);
   const repaired = await chat({ ...env, AI: repairing }, a, pro, { message: '同期できません' });
   assert.equal(repaired.status, 200);
   assert.equal(repairing.requests.length, 2);

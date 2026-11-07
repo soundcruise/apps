@@ -19,20 +19,37 @@ const modelKey = args.model;
 if (!AI_SUPPORT_MODELS[modelKey]) throw new Error(`--model must be one of ${Object.keys(AI_SUPPORT_MODELS).join(', ')}`);
 const dry = args.dry === true;
 // --targeted: the 12 cases used to check a prompt change (2 phrasings each of attention, error,
-// pending, mismatch, unknown and hostile names) instead of the full 30.
+// pending, mismatch, unknown and hostile names) instead of the full set. --ui-guidance adds the captured-question regression to its 12.
 const TARGETED = Object.freeze({ S3: [0, 2], S4: [0, 1], S2: [0, 1], S6: [1, 2], S9: [0, 1], S10: [0, 2] });
-const targeted = args.targeted === true;
-const MAX_CASES = targeted ? 12 : 30; // 10 scenarios × 3 phrasings, or the targeted 12
-const MAX_AI_RUNS = targeted ? 50 : 100; // targeted: up to 4 calls per case with one repair // ≤3 model calls per case + ≤1 retry of a few cases; hard stop beyond this
+const uiGuidance = args['ui-guidance'] === true;
+const UI_TARGETED = Object.freeze({ S1: [0], S2: [0], S3: [0], S4: [0], S6: [1], S8: [0], S9: [0, 2], S10: [0], S11: [0, 1, 2] });
+const selection = uiGuidance ? UI_TARGETED : TARGETED;
+const targeted = args.targeted === true || uiGuidance;
+const MAX_CASES = targeted ? 12 : SCENARIOS.reduce((count, scenario) => count + scenario.phrasings.length, 0);
+const MAX_AI_RUNS = uiGuidance ? 48 : targeted ? 50 : 100; // targeted: up to 4 calls per case with one repair // ≤3 model calls per case + ≤1 retry of a few cases; hard stop beyond this
 const label = typeof args.label === 'string' ? `.${args.label.replace(/[^a-z0-9-]/gi, '')}` : '';
 const outDir = path.join(import.meta.dirname, 'results');
 
 let aiRuns = 0;
+const billedTokens = { input: 0, output: 0 };
+let unknownUsageCalls = 0;
+let inFlightCalls = 0;
 function capped(ai) {
   return { async run(model, inputs) {
+    if (aiRuns >= MAX_AI_RUNS) throw new Error('evaluation call cap reached');
     aiRuns += 1;
-    if (aiRuns > MAX_AI_RUNS) throw new Error('evaluation call cap reached');
-    return ai.run(model, inputs);
+    inFlightCalls += 1;
+    checkpoint();
+    try {
+      const response = await ai.run(model, inputs);
+      const usage = response?.usage;
+      if (!Number.isFinite(Number(usage?.prompt_tokens ?? usage?.input_tokens)) ||
+          !Number.isFinite(Number(usage?.completion_tokens ?? usage?.output_tokens))) unknownUsageCalls += 1;
+      billedTokens.input += Number(usage?.prompt_tokens ?? usage?.input_tokens) || 0;
+      billedTokens.output += Number(usage?.completion_tokens ?? usage?.output_tokens) || 0;
+      return response;
+    } catch (error) { unknownUsageCalls += 1; throw error; }
+    finally { inFlightCalls -= 1; checkpoint(); }
   } };
 }
 function mockAi() {
@@ -41,7 +58,7 @@ function mockAi() {
     const hasTool = inputs.messages.some((message) => message.role === 'tool');
     if (!hasTool && inputs.tools) return { choices: [{ message: { content: '', tool_calls: [{ id: 'c1', type: 'function',
       function: { name: 'getSyncOverview', arguments: '{}' } }] } }], usage: { prompt_tokens: 1000, completion_tokens: 20 } };
-    return { choices: [{ message: { content: '（dry run）同期センターで「もう一度確認」を押してください。' } }], usage: { prompt_tokens: 1500, completion_tokens: 40 } };
+    return { choices: [{ message: { content: '（dry run）対象アプリの行の「同期先」を開き、「もう一度確認」が表示されている場合は押してください。' } }], usage: { prompt_tokens: 1500, completion_tokens: 40 } };
   } };
 }
 
@@ -64,24 +81,29 @@ function tracked(diagnostics, calls) {
 }
 
 const results = [];
+fs.mkdirSync(outDir, { recursive: true });
+function checkpoint() {
+  fs.writeFileSync(path.join(outDir, `${modelKey}${label}${dry ? '.dry' : ''}.checkpoint.json`),
+    JSON.stringify({ dry, aiRuns, billedTokens, unknownUsageCalls, inFlightCalls, results }, null, 2) + '\n');
+}
 try {
   for (const scenario of SCENARIOS) {
-    if (targeted && !TARGETED[scenario.id]) continue;
+    if (targeted && !selection[scenario.id]) continue;
     for (const [phrasingIndex, phrasing] of scenario.phrasings.entries()) {
-      if (targeted && !TARGETED[scenario.id].includes(phrasingIndex)) continue;
+      if (targeted && !selection[scenario.id].includes(phrasingIndex)) continue;
       if (results.length >= MAX_CASES) break;
       let attempt = 0;
       let run;
-      while (!run && attempt < 2) {
+      while (!run && attempt < (uiGuidance ? 1 : 2)) {
         attempt += 1;
         const toolCalls = [];
-        const provider = createWorkersAiProvider({ ai: capped(ai), modelKey, timeoutMs: 60_000 });
+        const provider = createWorkersAiProvider({ ai: capped(ai), modelKey, timeoutMs: uiGuidance ? 25_000 : 60_000 });
         const started = Date.now();
         try {
-          const turn = await runSupportTurn({ provider, diagnostics: tracked(diagnosticsFor(scenario.build()), toolCalls), message: phrasing });
+          const turn = await runSupportTurn({ provider, diagnostics: tracked(diagnosticsFor(scenario.build()), toolCalls), message: phrasing, history: scenario.history || [] });
           run = { reply: turn.reply, toolCalls, stats: turn.stats, latencyMs: Date.now() - started, attempts: attempt };
         } catch (error) {
-          if (!(error instanceof AiProviderError) || attempt >= 2) {
+          if (uiGuidance || !(error instanceof AiProviderError) || attempt >= 2) {
             run = { reply: null, error: error.message, toolCalls, stats: null, latencyMs: Date.now() - started, attempts: attempt };
           }
           if (aiRuns >= MAX_AI_RUNS) break;
@@ -89,6 +111,7 @@ try {
       }
       const score = run.reply == null ? { hardFails: [], flags: ['provider_error'], pass: false } : autoScore(scenario, run);
       results.push({ scenario: scenario.id, title: scenario.title, phrasing, ...run, score });
+      checkpoint();
       process.stdout.write(`${scenario.id} ${score.pass ? 'PASS' : 'CHECK'} ${score.hardFails.join(',')} ${score.flags.join(',')}\n`);
     }
   }
@@ -97,11 +120,10 @@ try {
 }
 
 const price = AI_SUPPORT_MODELS[modelKey].price;
-const tokens = results.reduce((sum, result) => ({
-  input: sum.input + (result.stats?.usage.inputTokens || 0), output: sum.output + (result.stats?.usage.outputTokens || 0)
-}), { input: 0, output: 0 });
+// Binding usage includes calls made before an egress refusal, whose turn stats have no usage.
+const tokens = billedTokens;
 const summary = {
-  model: AI_SUPPORT_MODELS[modelKey].id, dry, targeted, cases: results.length, aiRuns,
+  model: AI_SUPPORT_MODELS[modelKey].id, dry, targeted, uiGuidance, unknownUsageCalls: unknownUsageCalls + inFlightCalls, cases: results.length, aiRuns,
   rawModelMarkdown: results.filter((result) => result.stats?.rawMarkdown).length,
   repairs: results.filter((result) => result.stats?.repairAttempted).length,
   repaired: results.filter((result) => result.stats?.repaired).length,
