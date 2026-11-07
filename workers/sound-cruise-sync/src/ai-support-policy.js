@@ -6,7 +6,7 @@
 // results built by toModelToolResult. That separation plus the instructions below and the model
 // evaluation (test/ai-support-eval) are the prompt-injection defence; no single part is enough.
 
-import { DIAGNOSTIC_APPS } from './ai-diagnostics.js';
+import { DIAGNOSTIC_APPS, DIAGNOSTIC_REQUEST_SCOPES } from './ai-diagnostics.js';
 
 export const AI_SUPPORT_LIMITS = Object.freeze({
   maxTurns: 20,            // user turns per conversation, including the current one
@@ -29,6 +29,8 @@ export const AI_SUPPORT_SYSTEM_PROMPT = [
   '- 同期のことか分からない短い相談（「うまくいきません」など）は、範囲外と決めつけない。同期の相談として状態を確認してよい。状態から確認先が分からなければ、「どのアプリの同期について確認したいですか？」のように短く聞き返す。',
   '',
   '# ツール',
+  '- ツールを要求するときは、結果を見る前に現在のユーザーの相談対象を consultationScope で指定する。Port自身だけなら port_local、4アプリなら apps、両方または対象不明なら mixed_or_unclear。以前の会話にアプリ名があるだけで、現在のPort専用相談を横断相談にしない。毎回のユーザーの質問で対象を読み直す。',
+  '- port_local の要求ではWorkerは4アプリの診断を実行せず、scopeと未取得を示すdata=nullだけを返す。これはアプリが正常・未接続という診断ではない。そのあとはPortの一般仕様と利用者が確認できる画面・再発条件・問い合わせ方法を自然な文章で案内する。',
   '- まず相談対象が4アプリの状態か、Port自身の開始・再開かを読み分ける。4アプリの状態を具体的に答えるときは先にツールで確認し、ユーザーの文章だけから原因や端末を推測しない。Portだけの相談には、ツールで得られないローカル状態の確認や一般仕様の説明から答えてよい。4アプリの診断が必要な相談も含まれる場合はツールを使う。',
   '- getSyncOverview：4アプリのクラウド上の接続状態・登録件数と、各同期先から最後に届いた報告の集計。4アプリの状態を調べるときはまずこれを使う。端末の画面や実行中の処理を直接見るツールではない。',
   '- getAppSyncTargets：1つのアプリの同期先（端末・ブラウザ）ごとの前回報告。',
@@ -88,6 +90,8 @@ export const AI_SUPPORT_SYSTEM_PROMPT = [
 ].join('\n');
 
 const APP_ENUM = DIAGNOSTIC_APPS.map((app) => app.id);
+const CONSULTATION_SCOPE_PARAMETER = Object.freeze({ type: 'string', enum: DIAGNOSTIC_REQUEST_SCOPES,
+  description: '診断結果を見る前に、現在のユーザーの相談対象を選ぶ。Port自身の開始・再開だけ=port_local、4アプリの診断=apps、両方または対象不明=mixed_or_unclear。履歴にアプリ名があるだけで現在のPort専用相談を横断扱いにしない。port_localではアプリ情報は取得・提供されない。' });
 
 // OpenAI-style function tools. Both are read-only; arguments are validated again on execution.
 export const AI_SUPPORT_TOOLS = Object.freeze([
@@ -95,22 +99,24 @@ export const AI_SUPPORT_TOOLS = Object.freeze([
     type: 'function',
     function: {
       name: 'getSyncOverview',
-      description: 'Sound Cruise の4アプリ（音感・指板・リズム・コード）のクラウド上の接続状態・登録件数と、各同期先の前回報告の集計を今回取得する。過去の診断履歴やPortローカル状態、端末の現在画面は取得しない。入力は不要。',
-      parameters: { type: 'object', properties: {}, additionalProperties: false }
+      description: '相談対象を先に宣言する。apps/mixed_or_unclearなら4アプリのクラウド登録と前回報告の集計を取得する。port_localなら診断を実行せず未取得のscopeだけを返す。Portローカル状態を取得する機能は無い。',
+      parameters: { type: 'object', properties: { consultationScope: CONSULTATION_SCOPE_PARAMETER },
+        required: ['consultationScope'], additionalProperties: false }
     }
   }),
   Object.freeze({
     type: 'function',
     function: {
       name: 'getAppSyncTargets',
-      description: '1つのアプリの同期先（端末・ブラウザ）ごとの前回の同期報告を取得する。',
+      description: '相談対象を先に宣言する。apps/mixed_or_unclearなら指定アプリの同期先ごとの前回報告を取得する。port_localならアプリ情報を取得・提供せず未取得のscopeだけを返す。',
       parameters: {
         type: 'object',
         properties: {
+          consultationScope: CONSULTATION_SCOPE_PARAMETER,
           appId: { type: 'string', enum: APP_ENUM,
-            description: 'pitch=音感クルーズ, fretboard=指板クルーズ, rhythm=リズムクルーズ, chord=コードクルーズ' }
+            description: 'apps/mixed_or_unclearでは必須。port_localでは省略する。pitch=音感クルーズ, fretboard=指板クルーズ, rhythm=リズムクルーズ, chord=コードクルーズ' }
         },
-        required: ['appId'],
+        required: ['consultationScope'],
         additionalProperties: false
       }
     }
@@ -130,10 +136,17 @@ export function validateToolCall(name, rawArguments) {
   if (args == null) args = {};
   if (typeof args !== 'object' || Array.isArray(args)) return { ok: false };
   const keys = Object.keys(args);
-  if (name === 'getSyncOverview') return keys.length === 0 ? { ok: true, name, args: {} } : { ok: false };
+  if (!DIAGNOSTIC_REQUEST_SCOPES.includes(args.consultationScope)) return { ok: false };
+  const consultationScope = args.consultationScope;
+  if (name === 'getSyncOverview') return keys.length === 1 && keys[0] === 'consultationScope'
+    ? { ok: true, name, args: { consultationScope } } : { ok: false };
   if (name === 'getAppSyncTargets') {
-    return keys.length === 1 && keys[0] === 'appId' && APP_ENUM.includes(args.appId)
-      ? { ok: true, name, args: { appId: args.appId } } : { ok: false };
+    if (consultationScope === 'port_local' && (keys.length === 1 && keys[0] === 'consultationScope' ||
+      keys.length === 2 && keys.includes('consultationScope') && keys.includes('appId') && APP_ENUM.includes(args.appId))) {
+      return { ok: true, name, args: { consultationScope } };
+    }
+    return keys.length === 2 && keys.includes('consultationScope') && keys.includes('appId') && APP_ENUM.includes(args.appId)
+      ? { ok: true, name, args: { consultationScope, appId: args.appId } } : { ok: false };
   }
   return { ok: false };
 }

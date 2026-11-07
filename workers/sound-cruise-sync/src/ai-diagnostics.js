@@ -20,6 +20,7 @@ import { normalizeSyncTargetUserLabel } from './account-validation.js';
 import { containsFullId, containsSecret, createKnownIdMatcher, normalizeIdText } from './secret-detector.js';
 
 export const DIAGNOSTIC_CONTRACT_VERSION = 1;
+export const DIAGNOSTIC_REQUEST_SCOPES = Object.freeze(['port_local', 'apps', 'mixed_or_unclear']);
 
 export const DIAGNOSTIC_APPS = Object.freeze([
   Object.freeze({ id: 'pitch', name: '音感クルーズ' }),
@@ -366,8 +367,10 @@ export function userControlledPaths(result) {
 // This marks the boundary; it does not by itself prevent prompt injection. AI1-B must still send
 // this only as a tool/function result (never inside the system prompt), keep a strict tool schema,
 // instruct the model to treat those paths as data, and evaluate the model against hostile names.
-export function toModelToolResult(tool, result) {
+export function toModelToolResult(tool, result, { consultationScope = 'mixed_or_unclear' } = {}) {
   if (!TOOLS.has(tool)) throw new Error('sync_diagnostics_unknown_tool');
+  if (!DIAGNOSTIC_REQUEST_SCOPES.includes(consultationScope)) throw new Error('sync_diagnostics_invalid_scope');
+  const portOnly = consultationScope === 'port_local';
   return JSON.stringify({
     kind: TOOL_RESULT_KIND,
     contractVersion: DIAGNOSTIC_CONTRACT_VERSION,
@@ -376,9 +379,10 @@ export function toModelToolResult(tool, result) {
     // capabilities/semantics, not observations of Port or instructions derived from names.
     // Keep the original data and trust paths intact; app IDs come only from the known enum.
     scope: {
-      subjectAppIds: tool === 'getSyncOverview' ? DIAGNOSTIC_APPS.map(app => app.id)
+      consultationScope,
+      subjectAppIds: portOnly ? [] : tool === 'getSyncOverview' ? DIAGNOSTIC_APPS.map(app => app.id)
         : APP_IDS.has(result?.app?.appId) ? [result.app.appId] : [],
-      evidence: 'cloud_registration_and_last_app_reports',
+      evidence: portOnly ? 'not_collected_for_port_local' : 'cloud_registration_and_last_app_reports',
       portLocalSync: 'not_observed',
       portRestartCause: 'outside_diagnostic_scope',
       targetNames: 'display_labels_only',
@@ -386,8 +390,8 @@ export function toModelToolResult(tool, result) {
     },
     trust: {
       dataRole: 'tool_data',
-      userControlledPaths: userControlledPaths(result)
+      userControlledPaths: portOnly ? [] : userControlledPaths(result)
     },
-    data: result
+    data: portOnly ? null : result
   });
 }

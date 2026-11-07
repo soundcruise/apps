@@ -31,7 +31,7 @@ function reply(text, usage = { prompt_tokens: 100, completion_tokens: 20 }) {
 }
 function callTools(...calls) {
   return { choices: [{ message: { role: 'assistant', content: '', tool_calls: calls.map(([name, args], index) => ({
-    id: `call_${index + 1}_${name}`, type: 'function', function: { name, arguments: JSON.stringify(args) } })) } }],
+    id: `call_${index + 1}_${name}`, type: 'function', function: { name, arguments: JSON.stringify({ consultationScope: 'apps', ...args }) } })) } }],
   usage: { prompt_tokens: 150, completion_tokens: 10 } };
 }
 function mockAi(script) {
@@ -343,19 +343,30 @@ test('expired or invalid beta denies even authenticated allowlisted users before
 });
 
 test('7/8: tool arguments are strict; extra args and unknown app ids are refused without executing', () => {
-  assert.equal(validateToolCall('getSyncOverview', {}).ok, true);
-  assert.equal(validateToolCall('getSyncOverview', '').ok, true);
+  assert.equal(validateToolCall('getSyncOverview', { consultationScope: 'apps' }).ok, true);
+  assert.equal(validateToolCall('getSyncOverview', {}).ok, false);
+  assert.equal(validateToolCall('getSyncOverview', '').ok, false);
   assert.equal(validateToolCall('getSyncOverview', { accountId: 'x' }).ok, false);
-  assert.equal(validateToolCall('getAppSyncTargets', { appId: 'chord' }).ok, true);
-  assert.equal(validateToolCall('getAppSyncTargets', '{"appId":"rhythm"}').ok, true);
+  assert.equal(validateToolCall('getAppSyncTargets', { consultationScope: 'apps', appId: 'chord' }).ok, true);
+  assert.equal(validateToolCall('getAppSyncTargets', '{"consultationScope":"mixed_or_unclear","appId":"rhythm"}').ok, true);
+  assert.equal(validateToolCall('getAppSyncTargets', { appId: 'chord' }).ok, false);
+  assert.deepEqual(validateToolCall('getAppSyncTargets', { consultationScope: 'port_local' }),
+    { ok: true, name: 'getAppSyncTargets', args: { consultationScope: 'port_local' } });
+  assert.equal(validateToolCall('getAppSyncTargets', { consultationScope: 'port_local', accountId: 'x' }).ok, false);
+  assert.equal(validateToolCall('getAppSyncTargets', { consultationScope: 'port_local', appId: 'port' }).ok, false);
   for (const args of [{ appId: 'chord', accountId: 'x' }, { appId: 'chord', deviceId: 'y' }, { appId: 'port' }, { appId: "chord' --" },
     {}, { appId: ['chord'] }, 'not json', '[]', null]) {
-    assert.equal(validateToolCall('getAppSyncTargets', args).ok, false, JSON.stringify(args));
+    const input = args && typeof args === 'object' ? { consultationScope: 'apps', ...args } : args;
+    assert.equal(validateToolCall('getAppSyncTargets', input).ok, false, JSON.stringify(input));
   }
   for (const name of ['runSql', 'fetch', 'revokeDevice', 'renameTarget', '']) assert.equal(validateToolCall(name, {}).ok, false, name);
   const schemas = AI_SUPPORT_TOOLS.map((tool) => tool.function);
   assert.deepEqual(schemas.map((tool) => tool.name), ['getSyncOverview', 'getAppSyncTargets'], 'exactly two tools');
   for (const tool of schemas) assert.equal(tool.parameters.additionalProperties, false);
+  for (const tool of schemas) {
+    assert.ok(tool.parameters.required.includes('consultationScope'));
+    assert.deepEqual(tool.parameters.properties.consultationScope.enum, ['port_local', 'apps', 'mixed_or_unclear']);
+  }
   assert.deepEqual(schemas[1].parameters.properties.appId.enum, ['pitch', 'fretboard', 'rhythm', 'chord']);
 });
 
@@ -541,7 +552,7 @@ test('CORS: only allowed origins, POST only', async () => {
 
 test('provider normalization accepts chat-completions, classic and Responses shapes', () => {
   assert.deepEqual(normalizeCompletion(callTools(['getSyncOverview', {}])).toolCalls,
-    [{ id: 'call_1_getSyncOverview', name: 'getSyncOverview', arguments: {} }]);
+    [{ id: 'call_1_getSyncOverview', name: 'getSyncOverview', arguments: { consultationScope: 'apps' } }]);
   assert.deepEqual(normalizeCompletion({ response: 'はい', tool_calls: [{ name: 'getAppSyncTargets', arguments: { appId: 'chord' } }] }),
     { text: 'はい', toolCalls: [{ id: 'call_1', name: 'getAppSyncTargets', arguments: { appId: 'chord' } }], usage: null });
   assert.deepEqual(normalizeCompletion({ output: [{ type: 'function_call', call_id: 'c9', name: 'getSyncOverview', arguments: '{}' },

@@ -1,5 +1,63 @@
 # 一般Pro公開候補 — 検証記録
 
+## 2026-11-07 診断要求・実行ゲート（Worker 0.2.3、未配備）
+
+既存head `b58751a958f03ce50022f868f45f41abbc2f10d9` への追加。最新origin/main `4cfbea2c` のWorker/Port対象ファイルに重複なし。
+PR #225を維持し、main merge/rebaseは行わない。本番v157 (`ae8d9611-2f3c-45ee-b6ed-e537e8d4da0f`) @100% / AI OFFをread-only APIで確認。
+今回、本番デプロイ・AI有効化・有料推論・本番D1/R2変更・Port/Studio/NEWS/他アプリの変更は行わない。
+
+### 何が記録から分かるか
+
+0.2.2の質問3は3モデル呼出、repair=0、fallback=0、処理outcome=okで精算済みだったが、意味内容はHOLD。
+実際のtool名・引数・モデル内部の判断は保存されておらず、3呼出だけから厳密な選択順序は確定できない。
+コード上は、毎回の初期要求で両ツールが利用可能で、認識された名前/引数なら相談対象の制御なしに実行し、完全なアプリ診断を渡していた。
+0.2.2のscopeは結果を読んだ後の解釈用で、診断要求や結果提供を止める機能ではなかった。
+修正はUI表現・秘密・内部語等の既存検査違反で起きる。この因果関係の誤推測はそこを通り、修正が発生しなかった。
+
+### 最小の構造変更
+
+既存2ツールの要求に`consultationScope`を必須化し、結果を見る前に現在の相談対象を宣言させる。
+値は`port_local` / `apps` / `mixed_or_unclear`。別のAI・分類用呼出し・自然文正規表現・ツールは追加しない。
+`getAppSyncTargets`のappIdはアプリ診断時に必須。Port専用では架空のアプリ選択を要求せず省略できる。enum外のIDやAccount指定は引き続き拒否。
+
+| 宣言された対象 | Workerの実行と提供 |
+|---|---|
+| Port自身のみ | 2つの診断メソッドを呼ばず、`data=null`・アプリ情報未取得・Port状態未観測を返す。次の要求ではツールを渡さない |
+| 4アプリ | 従来の全体概要と指定アプリの同期先/前回報告を維持 |
+| 横断・対象不明 | 従来の情報を利用可能にし、Port未観測のscopeを保って区別 |
+| 対象なし・不正引数 | アプリ取得へ暗黙にdefaultせず、既存の無効tool応答にする |
+
+同一batch内の全要求を実行前に確認し、Port専用宣言があれば先頭のアプリ要求を含めて提供を止める。
+同一turnでPort専用へ狭めた場合は、既に受け取ったそのturnのtool結果も後続completion/修正要求へ再送しない。
+Port専用からの同一turn内の拡張は認めず、次のユーザーturnでは対象を初期化して選び直せる。
+結果は「アプリが正常/未接続」ではなく「取得していない」。一般仕様、同じ端末の状態表示/説明、再発タイミング、メールを自然文で案内できる。
+
+最大モデル4呼出・診断2実行・1回修正、同時予約/精算、認証/Account隔離/秘密保護を維持。追加の分類用推論は無い。
+既存の秘密照合用`knownIds()`取得は維持するため、Port専用の要求全体でSQL読取りがゼロという意味ではない。
+ここで抑止するのはアプリ診断メソッドの実行と、アプリ診断結果のモデルへの提供。内部IDやその照合結果は従来どおりモデルへ送らない。
+履歴はuser/assistantの文章を保持し、過去のtool結果は元々引き継がない。新しい保存領域・本文ログ・固定回答・包括回答ガードは追加しない。
+
+### ローカル試験
+
+Node 24.14.0、**132 PASS / 0 FAIL / 0 SKIP**。保存済み評価とモックだけを使用。
+
+```sh
+node --test --test-reporter=tap workers/sound-cruise-sync/test/ai-support-port-scope.test.js workers/sound-cruise-sync/test/ai-support-ui-guidance.test.js workers/sound-cruise-sync/test/ai-support-guard.test.js workers/sound-cruise-sync/test/ai-support-egress.test.js workers/sound-cruise-sync/test/ai-support.test.js workers/sound-cruise-sync/test/ai-diagnostics.test.js
+```
+
+保留あり/全アプリ正常の両方でPort専用の診断実行0・tool dataなしを検証。現象の再発条件を尋ね、具体的操作/メールを含む自然文は変更なく通過。
+アプリ専用と横断では概要/同期先各1回、前回報告/時刻/端末名がそのまま提供される。
+batchの順序を逆にした場合、不正/未指定scope、途中の対象縮小、Port専用の1回修正、無断拡張、ユーザーturn間の話題変更を確認。
+既存の正常な12合成実モデル回答、会話/4呼出修正の計数、Pro/Account/秘密/SELECT-only回帰も維持する。
+
+### 判定と限界
+
+ローカル候補としてPASS。ゲートの強制は検証したが、現在の質問の意味からscopeを選ぶ判断はモデルに委ねる。
+モデルがPort専用質問を誤ってapps/mixedと宣言する可能性や、過去の自然文の説明を誤用する可能性まで解消済みとはしない。
+今回の改善は、事実を見せた後の注意書きだけでなく、要求時の対象宣言とWorker側の実行/提供制御を分離した点にある。
+次は承認後の質問3の実機受入で、正しい対象選択と有用な案内が成立するかを確認する。一般公開はそれまでHOLD。
+以下の各節は、それぞれの変更時点の記録である。
+
 ## 2026-11-07 Port診断範囲の限定修正（Worker 0.2.2、未配備）
 
 既存head `cd88b90a45e7b982abf1ba81e4b8c070fca00cca` へ追加する差分。最新origin/mainは`4cfbea2c`。

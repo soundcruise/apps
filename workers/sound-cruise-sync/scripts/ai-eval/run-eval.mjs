@@ -40,7 +40,7 @@ function mockAi() {
   return { async run(_model, inputs) {
     const hasTool = inputs.messages.some((message) => message.role === 'tool');
     if (!hasTool && inputs.tools) return { choices: [{ message: { content: '', tool_calls: [{ id: 'c1', type: 'function',
-      function: { name: 'getSyncOverview', arguments: '{}' } }] } }], usage: { prompt_tokens: 1000, completion_tokens: 20 } };
+      function: { name: 'getSyncOverview', arguments: '{"consultationScope":"apps"}' } }] } }], usage: { prompt_tokens: 1000, completion_tokens: 20 } };
     return { choices: [{ message: { content: '（dry run）同期センターで「もう一度確認」を押してください。' } }], usage: { prompt_tokens: 1500, completion_tokens: 40 } };
   } };
 }

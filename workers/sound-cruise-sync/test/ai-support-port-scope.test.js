@@ -10,8 +10,9 @@ import { createPortSyncStatus } from '../../../apps/cruise-port/port-sync-status
 // All examples are synthetic. No beta conversation, device name or diagnostic JSON is copied.
 const scenario = id => diagnosticsFor(SCENARIOS.find(s => s.id === id).build());
 const text = content => ({ text: content, toolCalls: [], usage: {} });
-const tool = name => ({ text: '', toolCalls: [{ name,
-  arguments: name === 'getAppSyncTargets' ? { appId: 'chord' } : {} }], usage: {} });
+const tool = (name, consultationScope = 'mixed_or_unclear') => ({ text: '', toolCalls: [{ name,
+  arguments: name === 'getAppSyncTargets' && consultationScope !== 'port_local'
+    ? { consultationScope, appId: 'chord' } : { consultationScope } }], usage: {} });
 function provider(script) {
   const requests = [];
   return { requests, async complete(request) {
@@ -104,7 +105,7 @@ test('conversation: pending app evidence carries its scope beside the facts desp
   for (const id of ['S2', 'S1']) {
     const p = provider([tool('getSyncOverview'), tool('getAppSyncTargets'), text(usefulPortReply)]);
     const result = await runSupportTurn({ provider: p, diagnostics: scenario(id), history: prior,
-      message: 'Portの開始・再開が繰り返し出ます。原因と問い合わせ方法は？' });
+      message: 'Portの開始・再開と、コードクルーズの状態を両方確認したいです。' });
     const request = p.requests.at(-1);
     assert.deepEqual(request.messages.slice(1, 1 + prior.length), prior);
     const evidence = request.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content));
@@ -136,7 +137,7 @@ test('repair: one existing UI repair keeps scope and does not redirect a Port qu
   const p = provider([tool('getSyncOverview'), tool('getAppSyncTargets'),
     text('再同期ボタンを押してください。'), text(usefulPortReply)]);
   const result = await runSupportTurn({ provider: p, diagnostics: scenario('S2'), history,
-    message: 'Portの開始・再開について教えてください。' });
+    message: 'Portの開始・再開とコードクルーズの状態を両方教えてください。' });
   assert.equal(result.reply, usefulPortReply);
   assert.equal(result.stats.repaired, true);
   assert.equal(result.stats.fallback, false);
@@ -157,4 +158,130 @@ test('recheck absence: uncertainty still permits concrete device/app and refresh
   assert.equal(result.stats.fallback, false);
   assert.equal(result.stats.repairAttempted, false);
   assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes('非表示は確認不要や同期完了を意味するとは限らず'));
+});
+
+function monitoredDiagnostics(id) {
+  const base = scenario(id);
+  const reads = { overview: 0, targets: 0 };
+  return { reads, diagnostics: {
+    async getSyncOverview() { reads.overview++; return base.getSyncOverview(); },
+    async getAppSyncTargets(appId) { reads.targets++; return base.getAppSyncTargets(appId); }
+  } };
+}
+const evidenceIn = request => request.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content));
+function assertWithheld(request) {
+  const evidence = evidenceIn(request);
+  assert.ok(evidence.length);
+  for (const result of evidence) {
+    assert.equal(result.data, null, 'no app report data reaches this completion');
+    assert.equal(result.scope.consultationScope, 'port_local');
+    assert.equal(result.scope.evidence, 'not_collected_for_port_local');
+    assert.deepEqual(result.scope.subjectAppIds, []);
+    assert.deepEqual(result.trust.userControlledPaths, []);
+    assert.equal(result.scope.portLocalSync, 'not_observed');
+  }
+  assert.deepEqual(request.tools, [], 'Port-only scope cannot request more app facts');
+}
+
+test('execution gate: Port-only requests execute neither diagnostic, with pending reports or normal apps', async () => {
+  for (const id of ['S2', 'S1']) for (const name of ['getSyncOverview', 'getAppSyncTargets']) {
+    const { reads, diagnostics } = monitoredDiagnostics(id);
+    const p = provider([tool(name, 'port_local'), text(usefulPortReply)]);
+    const result = await runSupportTurn({ provider: p, diagnostics, message: 'Portの「同期を開始・再開」が繰り返し出ます。' });
+    assert.deepEqual(reads, { overview: 0, targets: 0 });
+    assert.equal(result.stats.toolCalls, 0);
+    assert.equal(result.stats.modelCalls, 2, 'no separate classifier call');
+    assert.equal(result.reply, usefulPortReply, 'concrete steps, recurrence question and contact survive');
+    assert.equal(result.stats.fallback, false);
+    assertWithheld(p.requests[1]);
+  }
+});
+
+test('execution gate: a Port declaration anywhere in a batch withholds every app result before any read', async () => {
+  for (const reverse of [false, true]) {
+    const { reads, diagnostics } = monitoredDiagnostics('S2');
+    const calls = [tool('getSyncOverview', 'apps').toolCalls[0], tool('getAppSyncTargets', 'port_local').toolCalls[0]];
+    const p = provider([{ text: '', toolCalls: reverse ? calls.reverse() : calls, usage: {} }, text(usefulPortReply)]);
+    await runSupportTurn({ provider: p, diagnostics, message: 'Port自身についての相談です。' });
+    assert.deepEqual(reads, { overview: 0, targets: 0 });
+    assertWithheld(p.requests[1]);
+    assert.equal(evidenceIn(p.requests[1]).length, 2);
+  }
+});
+
+test('execution gate: app-only and mixed/unclear questions retain full overview and per-target diagnostics', async () => {
+  for (const consultationScope of ['apps', 'mixed_or_unclear']) {
+    const { reads, diagnostics } = monitoredDiagnostics('S2');
+    const answer = 'Pixelのコードクルーズから前回の完了報告がまだ確認できていません。Pixelで設定 → クラウド同期の現在の表示を確認してください。';
+    const p = provider([tool('getSyncOverview', consultationScope), tool('getAppSyncTargets', consultationScope), text(answer)]);
+    const result = await runSupportTurn({ provider: p, diagnostics,
+      message: consultationScope === 'apps' ? 'コードクルーズの同期先を教えてください。' : 'Portとコードクルーズの両方の状態を教えてください。' });
+    assert.deepEqual(reads, { overview: 1, targets: 1 });
+    const evidence = evidenceIn(p.requests[2]);
+    assert.equal(evidence[0].data.apps.length, 4);
+    assert.ok(evidence[1].data.targets.some(t => t.reportState === 'pending' && t.reference === 'Pixel'));
+    assert.ok(evidence[1].data.targets.every(t => Number.isSafeInteger(t.reportedAt)));
+    assert.equal(evidence[1].scope.portLocalSync, 'not_observed', 'mixed evidence is not a Port observation');
+    assert.equal(result.reply, answer);
+    assert.equal(result.stats.toolCalls, 2);
+    assert.equal(result.stats.modelCalls, 3);
+    assert.equal(result.stats.fallback, false);
+  }
+});
+
+test('execution gate: a narrowed Port target removes previously supplied app facts from later completion requests', async () => {
+  const { reads, diagnostics } = monitoredDiagnostics('S2');
+  const p = provider([tool('getSyncOverview', 'apps'), tool('getAppSyncTargets', 'port_local'), text(usefulPortReply)]);
+  const result = await runSupportTurn({ provider: p, diagnostics, message: '知りたいのはPort自身の再開表示です。' });
+  assert.ok(evidenceIn(p.requests[1])[0].data.apps.some(a => a.reportCounts.pending));
+  assert.deepEqual(reads, { overview: 1, targets: 0 }, 'no second diagnostic is read');
+  assertWithheld(p.requests[2]);
+  assert.equal(result.reply, usefulPortReply);
+});
+
+test('execution gate: switching subjects between user turns resets scope and preserves conversational history', async () => {
+  const { reads, diagnostics } = monitoredDiagnostics('S2');
+  const port = provider([tool('getSyncOverview', 'port_local'), text(usefulPortReply)]);
+  const first = await runSupportTurn({ provider: port, diagnostics, history, message: '今はPort自身の表示だけを確認したいです。' });
+  assert.deepEqual(port.requests[1].messages.slice(1, 1 + history.length), history);
+  assertWithheld(port.requests[1]);
+  assert.deepEqual(reads, { overview: 0, targets: 0 });
+  const nextHistory = [...history, { role: 'user', content: '今はPort自身の表示だけを確認したいです。' },
+    { role: 'assistant', content: first.reply }];
+  const apps = provider([tool('getSyncOverview', 'apps'), tool('getAppSyncTargets', 'apps'), text('Pixelでコードクルーズの設定 → クラウド同期を確認してください。')]);
+  const next = await runSupportTurn({ provider: apps, diagnostics, history: nextHistory, message: '次はコードクルーズの同期先を調べてください。' });
+  assert.deepEqual(apps.requests[0].messages.slice(1, 1 + nextHistory.length), nextHistory);
+  assert.deepEqual(reads, { overview: 1, targets: 1 });
+  assert.equal(next.stats.fallback, false);
+  assert.ok(evidenceIn(apps.requests[2])[1].data.targets.length);
+});
+
+test('execution gate: missing/invalid scope never silently defaults to app disclosure', async () => {
+  for (const args of [{}, { consultationScope: 'port' }, { consultationScope: ['apps'] },
+    { consultationScope: 'apps', accountId: 'outside-account' }]) {
+    const { reads, diagnostics } = monitoredDiagnostics('S2');
+    const p = provider([{ text: '', toolCalls: [{ name: 'getSyncOverview', arguments: args }], usage: {} },
+      text('Port自身の表示についてですか、それともCruiseアプリの同期についてですか。')]);
+    const result = await runSupportTurn({ provider: p, diagnostics, message: '同期について聞きたいです。' });
+    assert.deepEqual(reads, { overview: 0, targets: 0 });
+    assert.equal(result.stats.rejectedToolCalls, 1);
+    assert.equal(evidenceIn(p.requests[1])[0].error, 'invalid_tool_call');
+    assert.equal(result.stats.fallback, false);
+  }
+});
+
+test('execution gate: Port scope survives one repair and cannot upgrade through later tool requests', async () => {
+  const { reads, diagnostics } = monitoredDiagnostics('S2');
+  const p = provider([tool('getSyncOverview', 'port_local'), text('再同期ボタンを押してください。'), text(usefulPortReply)]);
+  const result = await runSupportTurn({ provider: p, diagnostics, message: 'Portの再開表示が繰り返されます。' });
+  assertWithheld(p.requests[2]);
+  assert.equal(result.stats.repaired, true);
+  assert.equal(result.stats.modelCalls, 3);
+  assert.equal(result.stats.fallback, false);
+  assert.deepEqual(reads, { overview: 0, targets: 0 });
+  const upgrade = provider([tool('getSyncOverview', 'port_local'), tool('getAppSyncTargets', 'mixed_or_unclear')]);
+  const blocked = await runSupportTurn({ provider: upgrade, diagnostics, message: 'Portの表示についてです。' });
+  assert.equal(blocked.stats.toolCalls, 0);
+  assert.equal(upgrade.requests.length, 2);
+  assert.deepEqual(reads, { overview: 0, targets: 0 });
 });

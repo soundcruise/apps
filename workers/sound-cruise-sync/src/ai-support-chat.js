@@ -53,8 +53,11 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
   };
 
   let callCount = 0;
+  // Request-local intent, declared before diagnostic execution. Port-only is restrictive for
+  // the remainder of this turn; a subsequent tool request cannot upgrade it to app access.
+  let consultationScope = null;
   for (let round = 0; round < AI_SUPPORT_LIMITS.maxModelRounds; round += 1) {
-    const toolsAllowed = stats.toolCalls < AI_SUPPORT_LIMITS.maxToolCalls &&
+    const toolsAllowed = consultationScope !== 'port_local' && stats.toolCalls < AI_SUPPORT_LIMITS.maxToolCalls &&
       round < AI_SUPPORT_LIMITS.maxModelRounds - 1;
     const result = await provider.complete({ messages, tools: toolsAllowed ? AI_SUPPORT_TOOLS : [] });
     track(result);
@@ -79,6 +82,19 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
       callCount += 1;
       return { id: `call_${callCount}`, name: call.name, valid: validateToolCall(call.name, call.arguments) };
     });
+    // Preflight the whole batch, so a mixed batch cannot expose an app result before a
+    // port_local declaration later in that same batch. No user-text/regex classifier here.
+    const requestedScopes = calls.filter(call => call.valid.ok).map(call => call.valid.args.consultationScope);
+    if (requestedScopes.includes('port_local')) {
+      consultationScope = 'port_local';
+      // Completion requests are stateless: if the model narrows the target after a prior
+      // app round, do not resend that round's diagnostic facts in the final/repair context.
+      for (const message of messages) if (message.role === 'tool' && TOOL_NAMES.has(message.name)) {
+        message.content = toModelToolResult(message.name, null, { consultationScope });
+      }
+    } else if (consultationScope === null && requestedScopes.length) {
+      consultationScope = requestedScopes.includes('mixed_or_unclear') ? 'mixed_or_unclear' : 'apps';
+    }
     messages.push({
       role: 'assistant',
       content: '',
@@ -91,6 +107,10 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
       if (!valid.ok) {
         stats.rejectedToolCalls += 1;
         content = JSON.stringify({ kind: 'sound_cruise_sync_diagnostic_tool_error', error: 'invalid_tool_call' });
+      } else if (consultationScope === 'port_local') {
+        // Do not execute either diagnostic or construct an app report, even if one is known
+        // to be pending. The model gets the reason for non-observation and can answer freely.
+        content = toModelToolResult(valid.name, null, { consultationScope });
       } else if (stats.toolCalls >= AI_SUPPORT_LIMITS.maxToolCalls) {
         stats.rejectedToolCalls += 1;
         content = JSON.stringify({ kind: 'sound_cruise_sync_diagnostic_tool_error', error: 'tool_call_limit' });
@@ -105,7 +125,7 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
           // Never switch to guessing when the current state cannot be read.
           return { reply: FALLBACK_REPLIES.diagnosticsUnavailable, stats, diagnosticsFailed: true };
         }
-        content = toModelToolResult(valid.name, data);
+        content = toModelToolResult(valid.name, data, { consultationScope });
       }
       messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content });
     }

@@ -28,7 +28,7 @@ function diagnostics() {
 }
 const text = (content) => ({ text: content, toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } });
 const tools = (...names) => ({ text: '', toolCalls: names.map((name, index) => ({ id: `c${index}`, name,
-  arguments: name === 'getAppSyncTargets' ? { appId: 'chord' } : {} })), usage: { inputTokens: 10, outputTokens: 2 } });
+  arguments: name === 'getAppSyncTargets' ? { consultationScope: 'apps', appId: 'chord' } : { consultationScope: 'apps' } })), usage: { inputTokens: 10, outputTokens: 2 } });
 function provider(script) {
   const calls = [];
   return { calls, async complete(input) { calls.push(JSON.parse(JSON.stringify(input))); const next = script.shift();

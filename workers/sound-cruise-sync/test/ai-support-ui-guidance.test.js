@@ -21,8 +21,8 @@ test('normal useful explanation is delivered intact, with no new output contract
 // Invented local examples, not captured beta text. A scripted provider proves transport/guard
 // behavior, not what a real model will choose to say with the revised knowledge.
 const completion = text => ({ text, toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } });
-const toolCall = (name, appId = 'chord') => ({ text: '', toolCalls: [{ name,
-  arguments: name === 'getSyncOverview' ? {} : { appId } }], usage: {} });
+const toolCall = (name, appId = 'chord', consultationScope = 'apps') => ({ text: '', toolCalls: [{ name,
+  arguments: name === 'getSyncOverview' ? { consultationScope } : { consultationScope, appId } }], usage: {} });
 function scriptedProvider(script) {
   const requests = [];
   return { requests, async complete(request) { requests.push(structuredClone(request));
@@ -102,7 +102,7 @@ test('B: existing UI mistake gets only one repair; conditional and alternative g
 
 test('C: Port-local uncertainty can coexist with concrete Port steps and contact, despite pending app reports', async () => {
   const answer = '今回の診断ではPort自身のローカル状態は取得できないため、繰り返し表示される原因は分かりません。コードクルーズの前回報告は別の情報です。同じ端末のPortで同期センターを開き、上部のCruise Portの状態表示を確認してください。「同期を開始・再開」を押した直後に再表示されますか、それともページを開き直した後ですか。解決しなければ相談画面下部の「メールで報告」からお問い合わせください。';
-  const p = scriptedProvider([toolCall('getSyncOverview'), toolCall('getAppSyncTargets'), completion(answer)]);
+  const p = scriptedProvider([toolCall('getSyncOverview', 'chord', 'port_local'), completion(answer)]);
   const turn = await runSupportTurn({ provider: p, diagnostics: scenario('S2'), message: 'Portの開始・再開が繰り返し出ます。' });
   assert.equal(turn.reply, answer);
   assert.equal(turn.stats.repairAttempted, false);
