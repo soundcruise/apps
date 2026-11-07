@@ -1,3 +1,7 @@
+# Studio 0.86.1 — 指板のviewport高さを維持（未公開修正候補）
+
+Studio中央の共通content-height調整を指板クルーズのdocumentだけ除外する。指板の倍率計算とiframe高さの循環による開始・問題切替時の縮小を防ぐ。機能差分は `js/core/native-port-presentation.js` のみで、残りはversion/cache・生成入口・テスト・記録。Fretboard本体2.27.1、Port1.28.0、保存/認証/Sync/Workerは無変更。関連Node 28/28、隔離Chromiumの操作・サイズ変更を確認。Safariはfixed-v2ローカルfixtureの初回縮小解消を本人が確認。完全な認証済み修正版StudioでのSafari試験は未実施。判定はCONDITIONAL PASS、merge/Pages公開は別途。[調査記録](../docs/fretboard-viewport-20261107/investigation.txt)。以下は履歴。
+
 # Studio 0.47.17 — Pointer/Consumer停止協調・明示部分復旧（未公開隔離候補）
 
 Port1.24.20 / Project schema2。PR #22固定head ae1309d5が直接親。Authorityのtyped stop/Control epochとowner SQLの永続stopped fenceを協調させ、旧lease消費/新規発行を停止。完全roster・元pin・typed local receiptを分類し、最新backend結果のみを別UUIDの明示復旧で元世代へ適用する。pointer/consumer CAS・journal・receiptは同Authority tx、新世代はsuspended/fenceRevoked/readOnly維持。owner確定もreadonly止まりで通常writerを再開しない。独立DBの原子性、全device/Cloud writer排除、本番cutoverは未保証。Shared Write OFF/canWrite=false、schema2・公開版・他owner不変。契約: [Owner Pointer Consumer Cutover](../../cruise-port/docs/OWNER_POINTER_CONSUMER_CUTOVER.md)。以下は履歴。
