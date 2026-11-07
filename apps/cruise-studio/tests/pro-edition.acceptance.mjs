@@ -16,8 +16,8 @@ export async function acceptProEdition({profile,bootstrapPro,createAccount,check
   for(const width of [1440,1024,768,390])for(const theme of ['midnight','dark','charcoal','gray','light']){
    await page.setViewportSize({width,height:width===390?844:1000});await page.evaluate(t=>CruiseStudio.colorTheme.applyColorTheme(t),theme);
    await page.locator('.studio-pro-badge').waitFor();await page.waitForFunction(()=>[...document.querySelectorAll('img[data-studio-icon]')].every(i=>i.complete&&i.naturalWidth>0));
-   const measure=await page.evaluate(()=>{const h=document.querySelector('.studio-header h1').getBoundingClientRect(),b=document.querySelector('.studio-pro-badge').getBoundingClientRect(),c=document.querySelector('#home-cruise-sync').getBoundingClientRect();return {overflow:document.documentElement.scrollWidth>innerWidth,badgeWithinTitle:b.right<=h.right+1,badgeBeforeSync:b.right<=c.left,images:[...document.querySelectorAll('img[data-studio-icon]')].map(i=>({name:i.dataset.studioIcon,loaded:i.complete&&i.naturalWidth>0,light:i.src.includes('-light.svg')}))};});
-   assert(!measure.overflow);assert(measure.badgeWithinTitle);assert(measure.badgeBeforeSync);
+   const measure=await page.evaluate(()=>{const h=document.querySelector('.studio-header h1').getBoundingClientRect(),b=document.querySelector('.studio-pro-badge').getBoundingClientRect(),c=document.querySelector('#home-cruise-sync').getBoundingClientRect();return {overflow:document.documentElement.scrollWidth>innerWidth,badgeWithinTitle:b.right<=h.right+1,syncInEyebrow:c.top<b.top&&c.left>document.querySelector('.studio-header-eyebrow').getBoundingClientRect().left,images:[...document.querySelectorAll('img[data-studio-icon]')].map(i=>({name:i.dataset.studioIcon,loaded:i.complete&&i.naturalWidth>0,light:i.src.includes('-light.svg')}))};});
+   assert(!measure.overflow);assert(measure.badgeWithinTitle);assert(measure.syncInEyebrow);
    assert(measure.images.every(i=>i.loaded&&i.light===['gray','light'].includes(theme)));
    matrix.push({width,theme,...measure});await page.screenshot({path:OUT+'/after-'+theme+'-'+width+'.png'});
   }
