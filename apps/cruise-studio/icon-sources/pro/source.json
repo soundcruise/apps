@@ -1,7 +1,7 @@
 {
   "edition": "pro",
-  "originalFilename": "銀色ギターと金色の波紋.png",
-  "bytes": 1543029,
+  "originalFilename": "夜空に浮かぶギターと波の紋章.png",
+  "bytes": 1475337,
   "format": "PNG",
   "size": [
     1254,
@@ -10,5 +10,5 @@
   "mode": "RGB",
   "dpi": null,
   "alphaExtrema": null,
-  "sha256": "1a7de9eabeeccceff75e1c84cc288a0879db3a926c30de5973d7a26855d81ec7"
+  "sha256": "5ce5530075f4bb9c27591a8c50e8ee564cf3a75185d30c4d989622b078529460"
 }
