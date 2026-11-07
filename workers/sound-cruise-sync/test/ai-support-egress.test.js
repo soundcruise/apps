@@ -39,7 +39,7 @@ function diagnostics(targets, identity = { accountId: ACCOUNT_ID, accountDeviceI
 const plain = () => diagnostics([{ id: ID_A, label: 'Chord Cruise', userLabel: 'Pixel' }]);
 const text = (content) => ({ text: content, toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } });
 const tools = (...names) => ({ text: '', toolCalls: names.map((name, index) => ({ id: `c${index}`, name,
-  arguments: name === 'getAppSyncTargets' ? { appId: 'chord' } : {} })), usage: { inputTokens: 1, outputTokens: 1 } });
+  arguments: name === 'getAppSyncTargets' ? { consultationScope: 'apps', appId: 'chord' } : { consultationScope: 'apps' } })), usage: { inputTokens: 1, outputTokens: 1 } });
 function provider(script) {
   const calls = [];
   return { calls, async complete(input) { calls.push(JSON.parse(JSON.stringify(input))); const next = script.shift();

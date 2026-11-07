@@ -70,6 +70,10 @@ Chord側のfeature flagは既定OFFです。Workerを停止しても現在のCho
 
 ## AI相談の本人限定βの期限と停止
 
+一般Pro公開候補の上限管理・別D1・保持期間・日次SQL・配備手順は
+[AI-SUPPORT-PRO-ROLLOUT.md](AI-SUPPORT-PRO-ROLLOUT.md)を参照。候補は新しいusage binding/secret/schemaが
+未設定ならAIだけを停止する。本番のmode・bindingをこのREADMEだけを根拠に変更しない。
+
 候補Workerの `AI_SUPPORT_MODE=beta` は、本人1 Accountの許可と既存のPro・Account認証に加え、`AI_SUPPORT_BETA_EXPIRES_AT` に指定したUTC期限より前のリクエストだけを受け付けます。形式は `YYYY-MM-DDTHH:mm:ssZ` またはミリ秒付きの `YYYY-MM-DDTHH:mm:ss.sssZ` です。未設定、不正、期限到達後はAI相談だけを `404 ai_support_disabled` で拒否します。`off` は期限の値に関係なく停止し、既存 `pro` モードにはこのβ期限を適用しません。
 
 本番の有効化には別途承認が必要です。実施前に現行Workerの配備コード・binding・変数・secretの存在を確認し、本人1 Accountだけの許可を認証済み経路で確認します。予定終了時刻をUTCで設定し、改変のない通常Sync設定を保って配備します。期限はサーバー側の各新規AI相談開始時に判定され、Mac・Codex・手動停止作業に依存しません。期限前に開始した相談の処理・進行中の推論は期限をまたいで完了する場合があります。

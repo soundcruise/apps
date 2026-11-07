@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  AI_SUPPORT_COPY, buildHistory, containsSecret, createAiSupportClient, errorKind, readAiSupportConfig, readProCredential, readProAuthState
+  AI_SUPPORT_COPY, aiLimitMessage, buildHistory, containsSecret, createAiSupportClient, errorKind, readAiSupportConfig, readProCredential, readProAuthState
 } from './ai-support-client.js';
 import { AI_PANEL_COPY, createAiSupportPanel } from './ai-support-ui.js';
 import { createUnavailablePresentation, normalizeSyncCenterSummary } from './sync-center-controller.js';
@@ -88,6 +88,33 @@ function mountPanel({ send, online = () => true, enterSends = () => true } = {})
   };
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test('day/month Account and global budget limits have distinct safe JST messages and preserve the question', async () => {
+  const resetAt = Date.parse('2026-11-30T15:00:00Z');
+  for (const [code, kind] of [['ai_account_daily_limit','accountDaily'],['ai_account_monthly_limit','accountMonthly'],
+    ['ai_global_daily_budget','globalDaily'],['ai_global_monthly_budget','globalMonthly']]) {
+    assert.equal(errorKind(429, code), kind);
+    const client = createAiSupportClient({ endpoint: 'https://sync.example', canUse: () => true, readPro: () => PRO,
+      accountRoot: { storage: { async getAccount() { return { accountCredential: 'synthetic-account' }; } } },
+      fetchImpl: async () => new Response(JSON.stringify({ ok: false, code, resetAt, message: 'untrusted server text' }), { status: 429 }) });
+    const result = await client.send({ message: '同期について' });
+    assert.equal(result.kind, kind); assert.match(result.message, /12\/1 0?0:00（日本時間）/);
+    assert.match(result.message, /通常のクラウド同期は利用できます/); assert.doesNotMatch(result.message, /1分|untrusted/);
+    const view = mountPanel({ send: async () => result }); view.panel.open(); view.type('同期について'); view.submit(); await tick();
+    assert.equal(view.input.value, '同期について'); assert.equal(view.error.textContent, result.message);
+  }
+  assert.equal(aiLimitMessage('accountDaily', '<script>'), AI_SUPPORT_COPY.accountDaily);
+  assert.equal(errorKind(429, 'rate_limited'), 'rateLimited');
+});
+
+test('usage disclosure agrees with Privacy/Terms and explicitly excludes conversation and credentials', () => {
+  const privacy = readFileSync(new URL('./privacy.html', import.meta.url), 'utf8');
+  const terms = readFileSync(new URL('./terms.html', import.meta.url), 'utf8');
+  for (const token of ['35日', '400日', '仮名識別子', '使用量不明', '相談文・AI回答本文・診断情報の本文・同期先名・認証情報・元のIPアドレス']) assert.ok(privacy.includes(token));
+  for (const token of ['日本時間の相談受付日', '1日10相談', '1か月100相談', '費用枠を事前に確保']) assert.ok(terms.includes(token));
+  assert.match(AI_PANEL_COPY.limits, /本文を含まない/);
+  assert.match(AI_PANEL_COPY.memory, /相談内容をサーバーにも端末にも保存しません/);
+});
 
 // ---------------------------------------------------------------- tests
 

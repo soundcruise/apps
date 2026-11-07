@@ -28,7 +28,7 @@ function diagnostics() {
 }
 const text = (content) => ({ text: content, toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } });
 const tools = (...names) => ({ text: '', toolCalls: names.map((name, index) => ({ id: `c${index}`, name,
-  arguments: name === 'getAppSyncTargets' ? { appId: 'chord' } : {} })), usage: { inputTokens: 10, outputTokens: 2 } });
+  arguments: name === 'getAppSyncTargets' ? { consultationScope: 'apps', appId: 'chord' } : { consultationScope: 'apps' } })), usage: { inputTokens: 10, outputTokens: 2 } });
 function provider(script) {
   const calls = [];
   return { calls, async complete(input) { calls.push(JSON.parse(JSON.stringify(input))); const next = script.shift();
@@ -149,9 +149,11 @@ test('N: hard-safety rules and caps are unchanged by the guard', async () => {
   }
 });
 
-test('L/M: the unknown-cause first sentence is scoped to truly unknown cases', () => {
-  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /本当に原因も確認先も特定できないとき[^\n]*回答の最初の一文を必ず「現在の情報だけでは原因を特定できません。」とする/);
-  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /確認すべき同期先が分かるとき[^\n]*「現在の情報だけでは原因を特定できません」とは書かない/);
+test('L/M: a known next target does not imply a known cause or force a stock opening', () => {
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /確認する同期先が分かることと、相談された症状の原因が分かることは別/);
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /前回報告で確認先が分かれば、端末名とアプリ名を挙げて次の確認を案内/);
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /原因を特定できない場合はその範囲を自然に説明/);
+  assert.doesNotMatch(AI_SUPPORT_SYSTEM_PROMPT, /回答の最初の一文を必ず|原因を特定できません」とは書かない/);
 });
 
 test('scope: the prompt handles unrelated questions by principle, without tools or hard-coded question lists', async () => {
@@ -179,9 +181,9 @@ test('scope: the prompt handles unrelated questions by principle, without tools 
 test('mail guidance: requested contact guidance uses the real footer without mandatory repetition', () => {
   assert.match(AI_SUPPORT_SYSTEM_PROMPT, /メールでの問い合わせ導線は相談画面に常設されているので、通常の回答に毎回添える必要はない。問い合わせ方法を尋ねられたら、相談画面下部の「メールで報告」を案内する。/);
   assert.doesNotMatch(AI_SUPPORT_SYSTEM_PROMPT, /メールで問い合わせられると添える|メールでの問い合わせだけを案内/, 'no instruction to add mail guidance');
-  assert.equal((AI_SUPPORT_SYSTEM_PROMPT.match(/メール/g) || []).length, 2, 'one short principle, not a list of banned phrases');
-  // Unknown cause: the fixed first sentence and the real 「同期先N件」（Nは件数）/もう一度確認 route stay; a short question is allowed.
-  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /本当に原因も確認先も特定できないとき[^\n]*「もう一度確認」（表示されている場合）を案内し、必要なら何を確認したいかを短く尋ねる/);
+  assert.equal((AI_SUPPORT_SYSTEM_PROMPT.match(/^- メールでの問い合わせ導線/gm) || []).length, 1, 'one shared contact principle');
+  // Unknown cause still permits real UI steps and a short question, without forcing an opening.
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /実在する画面での確認や短い質問へつなぐ/);
   // Scope handling and named-target guidance are unchanged.
   assert.match(AI_SUPPORT_SYSTEM_PROMPT, /このAIはCruise Portのクラウド同期に関する相談専用です/);
   assert.match(AI_SUPPORT_SYSTEM_PROMPT, /その同期先を reference の表記で名指しし、その端末でアプリを開いて「設定 → クラウド同期」を確認するよう案内する/);
