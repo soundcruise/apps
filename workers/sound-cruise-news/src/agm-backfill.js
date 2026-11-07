@@ -3,7 +3,7 @@
 import {agmArticleUrl} from './agm-sections.js';
 import {inspectAgmArticle} from './agm-acquisition.js';
 import {DAY} from './policy.js';
-export const AGM_DETAIL_BUDGET=9;
+export {AGM_DETAIL_BUDGET} from './agm-acquisition.js';
 export const AGM_DEFERRED='agm_detail_budget_deferred';
 export async function recordAgmDeferred(store,source,entries,now){
  if(source.id!=='agm'||!source.agmSections||!source.explicitAutomationPermission)throw Error('permission_required');

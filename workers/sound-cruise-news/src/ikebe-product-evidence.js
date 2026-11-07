@@ -1,3 +1,4 @@
+import {factFailure} from './facts-failure.js';
 import {MAINTENANCE_TOOL_KIT,coDevelopment,validCoDevelopment,productVariants,validVariants} from './retail-identity-fields.js';
 import {ikebeTagUrl} from './ikebe-tag-url.js';
 // Existing Ikebe pending articles only: explicit editorial fields, never related cards.
@@ -7,7 +8,7 @@ import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
 import {subjectProductTypes} from './product-type-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-16';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-17';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -138,7 +139,11 @@ export function parseIkebeProductEvidence(html,source,row){
   const guitarConstruction=find(header,n=>n.name==='li'&&cls(n,'cate-guitar')).some(n=>/エレキギター/.test(plain(n)))&&blocks.every((b,i)=>
    ((modelBound(b,products[i][1])||/ネック/.test(b)&&/ボディ/.test(b))&&!denied.test(b.replace(/(?:入荷|納品|発送|出荷)予定/g,'')))||
    [/ネック/,/ボディ/,/指板/,/フレット/,/ピックアップ/,/ブリッジ/].filter(re=>re.test(b)).length>=3&&b.split(/[。!?！？]/).some(v=>modelBound(v,products[i][1])&&!denied.test(v.replace(/(?:入荷|納品|発送|出荷)予定/g,''))));
-  let typeMatches=types.filter(([t,,tag])=>categoryCorroborates(tag)&&(subjectTypes.some(([v])=>v===t)||t==='electric_guitar'&&guitarConstruction));
+  // Maintenance kits belong to the publisher's accessory category, not to the
+  // instruments serviced by the tools. Still require an explicit primary definition.
+  const toolDefinition=models.length===1&&MAINTENANCE_TOOL_KIT.test(title)&&blocks[0].split(/[。!?！？]/).some(s=>modelBound(s,models[0])&&MAINTENANCE_TOOL_KIT.test(s)&&!denied.test(s));
+  const accessoryCategory=find(header,n=>n.name==='li').some(n=>/^楽器アクセサリ(?:ー)?$/.test(plain(n))||cls(n,'cate-accessory'));
+  let typeMatches=types.filter(([t,,tag])=>(categoryCorroborates(tag)||t==='maintenance_tool_kit'&&accessoryCategory&&toolDefinition)&&(subjectTypes.some(([v])=>v===t)||t==='electric_guitar'&&guitarConstruction));
   typeMatches=definitionTypes.length===1?definitionTypes:typeMatches.filter(([t])=>!definitionRequired.includes(t));
   // An explicitly named buffer is not an amplifier/pedal merely because its
   // signal chain mentions an amp or pedalboard. Require model-bound proof.
@@ -146,7 +151,7 @@ export function parseIkebeProductEvidence(html,source,row){
   typeMatches=typeMatches.filter(([t])=>t!=='signal_buffer'||/バッファ[ーァ]/.test(title)||blocks.some((b,i)=>b.split(/[。!?！？]/).some(v=>modelBound(v,products[i][1])&&/バッファ[ーァ](?:です|として)/.test(v))));
   if(typeMatches.some(([t])=>t==='multi_effect_processor')&&blocks.some(b=>/マルチ[・ ]?エフェクト[・ ]?(?:プラットフォーム|プロセッサー)|マルチエフェクター/.test(b)))typeMatches=typeMatches.filter(([t])=>!['guitar_amp','effect_pedal'].includes(t));
   if(typeMatches.some(([t])=>t==='maintenance_tool_kit')&&MAINTENANCE_TOOL_KIT.test(title)&&paras.slice(0,2).some(p=>modelBound(p,models[0])&&MAINTENANCE_TOOL_KIT.test(p)))typeMatches=typeMatches.filter(([t])=>t==='maintenance_tool_kit');
-  if(typeMatches.length!==1)throw Error('facts_scope_uncertain');
+  if(typeMatches.length!==1)throw factFailure('facts_scope_uncertain',{stage:'product_type',missingFields:['unambiguous_subject_type','source_category_binding']});
   // Launches require a product-bound editorial title and corroborating article fields.
   // Facts-only extraction may retain 'other'; publication still rejects missing events.
   const titleDescription=title.replace(/(?:が)?(?:新)?登場[！!。]*$/,'').replace(/[！!。]$/,'').trim();

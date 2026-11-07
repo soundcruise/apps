@@ -95,7 +95,7 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
     return planned;
    },acquireArticle:async listingEntry=>{
     const inspected=listingEntry.agmCacheInspection;
-    if(!inspected.hit&&!inspected.attempted&&!inspected.busy&&(report.requestCounts.article||0)>=AGM_DETAIL_BUDGET){
+    if(!inspected.hit&&(!inspected.attempted||inspected.parserUpgrade)&&!inspected.busy&&(report.requestCounts.article||0)>=AGM_DETAIL_BUDGET){
      report.articleCache.deferred++;report.backfill.deferredUrls++;
      return {url:listingEntry.url,agmAcquired:true,agmDeferred:true,title:''};
     }

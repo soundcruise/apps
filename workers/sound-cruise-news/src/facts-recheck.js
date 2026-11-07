@@ -40,7 +40,7 @@ export async function reusablePrimaryEvidence(previous,row,source,now){
  try{const p=JSON.parse(previous.proof_json),items=JSON.parse(previous.items_json),f=items[0]?.productFacts;
  const stable=p.contract&&await primaryContractValid({...row,event_type:items[0]?.eventType},f,Object.keys(f||{}).concat('event_type').map(factField=>({...p,factField})),now);
  if(p.contract&&!stable)return false;
- const typed=stable||p.extractionMethod==='explicit_ikebe_product_fields'&&source.id==='ikebe'&&[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-15','ikebe-product-fields-12','ikebe-product-fields-11','ikebe-product-fields-10','ikebe-product-fields-9','ikebe-product-fields-8','ikebe-product-fields-7'].includes(p.parserVersion)&&validatedIkebeProductFacts(f)||p.extractionMethod==='explicit_primary_announcement_fields'&&primaryParserSupports(f,p.parserVersion)&&validPrimaryAnnouncement(f)||p.extractionMethod==='explicit_shimamura_product_fields'&&source.id==='shimamura'&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&validatedShimamuraProductFacts(f);
+ const typed=stable||p.extractionMethod==='explicit_ikebe_product_fields'&&source.id==='ikebe'&&[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-16','ikebe-product-fields-15','ikebe-product-fields-12','ikebe-product-fields-11','ikebe-product-fields-10','ikebe-product-fields-9','ikebe-product-fields-8','ikebe-product-fields-7'].includes(p.parserVersion)&&validatedIkebeProductFacts(f)||p.extractionMethod==='explicit_primary_announcement_fields'&&primaryParserSupports(f,p.parserVersion)&&validPrimaryAnnouncement(f)||p.extractionMethod==='explicit_shimamura_product_fields'&&source.id==='shimamura'&&SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&validatedShimamuraProductFacts(f);
  return !!typed&&p.sourceId===source.id&&p.sourceUrl===row.source_url&&(!p.pipelineVersion||p.publishedAt===row.published_at&&(stable||PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.pipelineVersion))&&p.evidenceKey===await hash(row.title_fingerprint||''))&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash)&&items.length===1&&items[0].id===row.id&&items[0].sourceUrl===row.source_url&&items[0].publishedAt===row.published_at;
  }catch{return false;}
 }
@@ -56,7 +56,7 @@ export async function retainedPrimaryEvidence(store,row,source,now){
   if(proof.failureReason)return PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)?{...base,outcome:'facts_primary_evidence_unchanged',items_json:'[]'}:null;
   const facts=JSON.parse(patch?.product_facts||'null');
   const stable=await primaryContractValid({...row,event_type:patch?.event_type},facts,fields,now);
-  if(!stable&&(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)||!(validPrimaryAnnouncement(facts)||validatedShimamuraProductFacts(facts)||validatedIkebeProductFacts(facts))||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&(PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'||SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'||[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-15','ikebe-product-fields-12','ikebe-product-fields-11'].includes(p.parserVersion)&&p.extractionMethod==='explicit_ikebe_product_fields')))))return null;
+  if(!stable&&(!PRIMARY_ANNOUNCEMENT_PARSERS.includes(proof.pipelineVersion)||!(validPrimaryAnnouncement(facts)||validatedShimamuraProductFacts(facts)||validatedIkebeProductFacts(facts))||![...Object.keys(facts),'event_type'].every(k=>fields.some(p=>p.factField===k&&p.responseHash===proof.responseHash&&(PRIMARY_ANNOUNCEMENT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_primary_announcement_fields'||SHIMAMURA_PRODUCT_PARSERS.includes(p.parserVersion)&&p.extractionMethod==='explicit_shimamura_product_fields'||[IKEBE_PRODUCT_PARSER,'ikebe-product-fields-16','ikebe-product-fields-15','ikebe-product-fields-12','ikebe-product-fields-11'].includes(p.parserVersion)&&p.extractionMethod==='explicit_ikebe_product_fields')))))return null;
   const candidate={...base,outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:patch.event_type,productFacts:facts}])};
   return await reusablePrimaryEvidence(candidate,row,source,now)?candidate:null;
  }catch{return null;}
@@ -85,7 +85,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
   const cached=await inspectAgmArticle(store,source,row.source_url,now,pepper,{expectedPublishedAt:row.published_at,forceRevalidate});
   if(cached.busy)throw Error('facts_recheck_busy');
   if(cached.hit)return agmSurface(cached.payload,row);
-  if(cached.attempted&&!forceRevalidate)return {outcome:'facts_not_recovered',items_json:'[]',proof_json:null};
+  if(cached.attempted&&!cached.parserUpgrade&&!forceRevalidate)return {outcome:'facts_not_recovered',items_json:'[]',proof_json:null};
  }
  const surface=await resolvedRecoverySurface(store,row,source),baseKey=recoveryCacheKey(row,source,surface,{serverRepair});
  const primary=initialPrimarySource(source),budget=await recoveryBudget(store,source,now);
