@@ -577,7 +577,7 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 /* Native Port owns the Sync controls; Studio's Project entry follows it quietly. */
 .studio-main .studio-project-sync-summary { background:transparent; border:0; border-top:1px solid var(--studio-border-default); padding:20px 0; box-shadow:none; }
 .studio-main .studio-project-sync-summary h2 { font-size:1rem; }
-.studio-header-sync .cruise-sync-image { width:32px; height:32px; object-fit:contain; }
+.studio-header-sync .cruise-sync-image { width:26px; height:26px; object-fit:contain; }
 
 /* Shared viewport gutter, including safe-area, in every workspace. */
 #studio-tool-toggle { right:max(20px,env(safe-area-inset-right,0px)); }
