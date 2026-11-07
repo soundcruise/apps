@@ -55,7 +55,7 @@ export function agmEditorialAssessment(entry){
  const category=['interview','equipment'].includes(kind)?'artist_guitar':'media_other';
  return {kind,category,facts:kind?{kind:'agm_editorial',section,articleType:kind,...(topic?{topic:topic[0]}:{}),...(artist?{person:artist}:{}),category,articleUrl:entry.url,evidence:'agm_permission_metadata_v1'}:null};
 }
-export function agmEditorialLabel(f,event){if(f?.evidence==='agm_explicit_article_v1')return agmArticleUrl(f.articleUrl,f.section)?agmArticleLabel(f,event):null;if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||f.evidence!=='agm_permission_metadata_v1'||!agmArticleUrl(f.articleUrl,f.section))return null;
+export function agmEditorialLabel(f,event){if(['agm_explicit_article_v1','agm_human_book_v1'].includes(f?.evidence))return agmArticleUrl(f.articleUrl,f.section)?agmArticleLabel(f,event):null;if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||f.evidence!=='agm_permission_metadata_v1'||!agmArticleUrl(f.articleUrl,f.section))return null;
  const topic=topics.find(([key])=>key===f.topic);if(!topic||!['beginner','lesson','column','interview','equipment','review'].includes(f.articleType)||f.category!==(['interview','equipment'].includes(f.articleType)?'artist_guitar':'media_other'))return null;
  const person=f.person;if(person!==undefined&&(typeof person!=='string'||person.length<2||person.length>35||/[<>\x00-\x1f]/.test(person)))return null;
  if(['interview','equipment'].includes(f.articleType)&&!person)return null;

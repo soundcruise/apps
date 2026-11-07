@@ -1,0 +1,106 @@
+{
+  "version": "0.48.0",
+  "base": "bf7458fceb5d61e740d1b68408d2919af7299946",
+  "at": "2026-11-07T06:06:30.172Z",
+  "approvedArticle": {
+    "id": "ff9b8092f94d5f2dafa17439a59584cbee167b67092a4eec6ce4b1708fb46a98",
+    "description": "Shimamura Fender x MusicNomad Tool Kit",
+    "preserved": true
+  },
+  "pending": 7,
+  "realRetainedEvidence": [
+    {
+      "id": "bd17b6a238942d7b6997de154c6923cd9c3ba303862102d061e106fcd218f9da",
+      "url": "https://acousticguitarmagazine.jp/2026-1106-okijin-flamenco/",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ],
+      "agmBookConfirmationAvailable": true
+    },
+    {
+      "id": "70e6dd4655643274e34dd5f032806feb06959ab989ee9d3329ee09a684d0c0bb",
+      "url": "https://acousticguitarmagazine.jp/2026-1109-agm110-owabikiji/",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ],
+      "agmBookConfirmationAvailable": true
+    },
+    {
+      "id": "3c1db46ec27bfcb76268728436bc0c27ce7666287441fed29e9a1d9c0eeeba04",
+      "url": "https://www.ikebe-gakki-pb.com/new_product/173948/",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ]
+    },
+    {
+      "id": "0f3d683347441e7d0de21bfc87d2b90c7b9c433e26a808dddb4a69fcaeeb7a0d",
+      "url": "https://www.morris-guitar.com/information/2026/1103_01.html",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "humanConfirmationAvailable": true
+    },
+    {
+      "id": "d48dde5b9b2b46541fbcd30518341600f7f4e6ab147c57d65edc41a91d93c0c9",
+      "url": "https://www.morris-guitar.com/information/2026/1103_02.html",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "humanConfirmationAvailable": true
+    },
+    {
+      "id": "700e7f11c5aafc615031316e6f546906c616357a0c6e78d8917e01aae8331735",
+      "url": "https://www.morris-guitar.com/information/2026/1102_01.html",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "humanConfirmationAvailable": true
+    },
+    {
+      "id": "8b752a1a25999c894bb041b8cd1d8cf880c9cf603de77ef82e6a42a8c9d372af",
+      "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/108182/",
+      "formalValidation": false,
+      "errors": [
+        "duplicate"
+      ]
+    }
+  ],
+  "boundary": "Actual production cache permits human confirmation UI; no human book facts, READY result or production save are inferred from that eligibility.",
+  "verification": {
+    "newsOperator": 1785,
+    "portNews": 60,
+    "failures": 0,
+    "workerd": "Human confirmation -> READY -> restart, no publication or HTTP PASS",
+    "negative": "Unbound/modified proof, changed CAS/cache/source, stopped source, takedown, wrong actor, missing CSRF, malformed facts, duplicate, altered replay and proof borrowing rejected",
+    "dryRun": "Both production configs PASS",
+    "publisherRequests": 0,
+    "paidCalls": 0,
+    "productionWrites": 0
+  },
+  "preservation": {
+    "hashes": {
+      "schema": true,
+      "migrations": true,
+      "webHints": true,
+      "webRuns": true,
+      "candidates": true,
+      "ledger": true,
+      "takedowns": true,
+      "controls": true,
+      "factsRechecks": true,
+      "morrisAcquisition": true,
+      "freedomAcquisition": true
+    },
+    "workersAndBindings": true,
+    "automations": true
+  }
+}

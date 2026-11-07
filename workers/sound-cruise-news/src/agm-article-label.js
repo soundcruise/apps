@@ -6,9 +6,10 @@ export const ARTICLE_TOPICS=Object.freeze({chord_progression:'コード進行',h
 export const ARTICLE_FOCUS=Object.freeze({ai_music:'音楽制作でのAIとの付き合い方',mic_placement:'アコギ録音のマイク配置',recording_latency:'録音時のレイテンシー対策',headphone_choice:'音楽制作向けヘッドホンの選び方',chord_transposition:'コード進行の移調',strumming:'弾き語りのストローク',fingerpicking_basics:'フィンガーピッキングの基礎'});
 export const factName=v=>typeof v==='string'&&v.trim()===v&&v.length>=2&&v.length<=80&&!/[<>\x00-\x1f]/.test(v);
 export function agmArticleLabel(f,event){
- if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||f.evidence!=='agm_explicit_article_v1'||!['beginners','lesson','gears','interview','news','column'].includes(f.section)||!/^https:\/\/acousticguitarmagazine\.jp\//.test(f.articleUrl||''))return null;
+ if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||!['agm_explicit_article_v1','agm_human_book_v1'].includes(f.evidence)||!['beginners','lesson','gears','interview','news','column'].includes(f.section)||!/^https:\/\/acousticguitarmagazine\.jp\//.test(f.articleUrl||''))return null;
+ if(f.evidence==='agm_human_book_v1'&&f.articleType!=='book_release')return null;
  const type=f.articleType,person=f.person,topic=ARTICLE_TOPICS[f.topic];
- if(type==='book_release')return f.section==='news'&&f.category==='media_other'&&validBook(f)?`${f.author}の教則本『${f.bookTitle}』、${Number(f.releaseDate.slice(5,7))}月${Number(f.releaseDate.slice(8,10))}日に発売予定`:null;
+ if(type==='book_release')return f.section==='news'&&f.category==='media_other'&&validBook(f)?`${f.author}の教則本『${f.bookTitle}』、${Number(f.releaseDate.slice(5,7))}月${Number(f.releaseDate.slice(8,10))}日${f.evidence==='agm_human_book_v1'?'の発売情報':'に発売予定'}`:null;
  if(type==='performance_event')return agmPerformanceLabel(f);
  if(person!==undefined&&!factName(person)||f.author!==undefined&&!factName(f.author)||f.focus!==undefined&&!Object.hasOwn(ARTICLE_FOCUS,f.focus))return null;
  const expected=['interview','equipment','artist_news'].includes(type)?'artist_guitar':'media_other';if(f.category!==expected)return null;
