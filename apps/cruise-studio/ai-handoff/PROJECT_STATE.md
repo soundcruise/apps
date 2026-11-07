@@ -1,3 +1,7 @@
+# Studio 0.86.1 — 正式アイコン・指板表示統合候補（未公開）
+
+PR #220の承認済みProアイコンとPR #221の指板viewport修正を統合。Standard原本はsource-only、ProのID・URL・保存契約を維持。関連Node 31件PASS。認証済みStudioでの限定UI確認とPages配布差分の最終確認が必要。main merge・公開なし。
+
 # Studio 0.86.1 — 指板のviewport高さを維持（未公開修正候補）
 
 Studio中央の共通content-height調整を指板クルーズのdocumentだけ除外する。指板の倍率計算とiframe高さの循環による開始・問題切替時の縮小を防ぐ。機能差分は `js/core/native-port-presentation.js` のみで、残りはversion/cache・生成入口・テスト・記録。Fretboard本体2.27.1、Port1.28.0、保存/認証/Sync/Workerは無変更。関連Node 28/28、隔離Chromiumの操作・サイズ変更を確認。Safariはfixed-v2ローカルfixtureの初回縮小解消を本人が確認。完全な認証済み修正版StudioでのSafari試験は未実施。判定はCONDITIONAL PASS、merge/Pages公開は別途。[調査記録](../docs/fretboard-viewport-20261107/investigation.txt)。以下は履歴。
