@@ -7,7 +7,7 @@ import {preparationState} from './preparation-state.js';
 import {ASSISTED_ORIGIN,assistedPredicate} from './assisted-facts.js';
 import {effectiveCategory} from './category-editor.js';
 import {MORRIS_EDITORIAL_POLICY,MORRIS_REVIEW_TYPES,MORRIS_PRODUCT_TYPES} from './morris-editorial-policy.js';
-import {morrisRecoveryView} from './morris-collector.js';
+import {morrisRecoveryView,morrisReviewEvidence} from './morris-collector.js';
 import {reviewReference} from './review-reference.js';
 import {lifecycleView} from './pending-lifecycle.js';
 import {retainedDecisionProfile} from './operator-insights.js';
@@ -31,8 +31,8 @@ export async function reviewDetail(store,id,now,registry,pepper){
  const factsReview={...recoveryAssessment(row,validation,surface,last,cached),missing:missingFacts(row,validation.facts,validation),available:!!surface&&!validation.errors.includes('operator_source_gate')&&!validation.errors.includes('source_url_invalid')&&['pending','reopened'].includes(row.review_status),surfaceUrl:surface?.url||null,method:surface?.method||null,lastVerifiedAt:last?.checked_at||cached?.checked_at||null,outcome:last?.outcome||cached?.outcome||null,provenance:last?.provenance_json&&last.provenance_json!=='[]'?safeProof(last.provenance_json):safeProof(row.facts_provenance),reviewability:validation.errors.includes('duplicate')?'DUPLICATE_BLOCKED':validation.valid?'READY_FOR_HUMAN_DECISION':validation.errors.includes('operator_source_gate')?'POLICY_BLOCKED':surface?'FACTS_RECOVERY_UNCERTAIN':'POLICY_BLOCKED'};
  const morrisReview=row.source_id==='morris'?{policy:MORRIS_EDITORIAL_POLICY,state:validation.valid?'READY':validation.errors.some(e=>['duplicate','expired_candidate','event_validation_failed','candidate_takedown','publication_policy_rejected'].includes(e))?'EXCLUDED':'NEEDS_CONFIRMATION',historical:row.review_reason==='morris_historical_confirmation_required',types:MORRIS_REVIEW_TYPES,productTypes:Object.keys(MORRIS_PRODUCT_TYPES),confirmationAvailable:['pending','reopened'].includes(row.review_status)&&!validation.valid&&!validation.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e))}:null;
  if(morrisReview){morrisReview.automation=await morrisRecoveryView(store,row,now);if(morrisReview.state==='NEEDS_CONFIRMATION'){
-  factsReview.nextAction=morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'?'システム側の証拠待ちです。保存済み一次証拠が不足し、許諾範囲では過去詳細を再取得できません。新しい許可済み一覧に正式なfactsが得られた場合だけ再評価します。事実入力・掲載判断はまだ不要です。':'新着は許可済みの1回取得で自動解析します。不足が残る間は掲載判断を求めません。';
-  if(morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'){factsReview.available=false;factsReview.reviewability='EVIDENCE_WAIT';morrisReview.confirmationAvailable=false;}
+  factsReview.nextAction=morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'?'システム側の証拠待ちです。保存済み一次証拠が不足し、許諾範囲では過去詳細を再取得できません。自動の詳細再取得は行いません。原記事を人間が確認した事実は、保存済み一覧証拠と結び付けて正式に入力できます。掲載可と非掲載は別に判断します。':'新着は許可済みの1回取得で自動解析します。不足が残る間は掲載判断を求めません。';
+  if(morrisReview.automation.recoveryStatus==='PERMISSION_BLOCKED_HISTORICAL'){factsReview.available=false;factsReview.reviewability='EVIDENCE_WAIT';morrisReview.confirmationAvailable=morrisReview.confirmationAvailable&&!!await morrisReviewEvidence(store,row,now);}
  }}
  const work=await store.db.prepare('SELECT diagnostics_json FROM news_discovery_work WHERE source_id=? AND normalized_url=?').bind(row.source_id,row.source_url).first();
  try{if(work?.diagnostics_json)factsReview.diagnostics=safeFactDiagnostics(JSON.parse(work.diagnostics_json));}catch{}

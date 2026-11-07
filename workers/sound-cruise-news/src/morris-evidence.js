@@ -1,5 +1,5 @@
 import {validateMorrisArticleDates} from './morris-article-dates.js';
-import {safeFactDiagnostics} from './facts-failure.js';
+import {factFailure,safeFactDiagnostics} from './facts-failure.js';
 import {morrisNoticeLabel} from './morris-editorial-policy.js';
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {analyzeMorrisAutomaticFacts} from './morris-recovery.js';
@@ -17,7 +17,7 @@ const field=v=>typeof v==='string'&&v.length>=2&&v.length<=100&&!/[<>\x00-\x1f]/
 const day=v=>!!morrisDate(v);
 function document(html){if(typeof html!=='string'||new TextEncoder().encode(html).length>128000)throw Error('listing_too_large');const doc=parseDocument(html);
  if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))throw Error('header_optout');
- const mains=find(doc,n=>n.name==='main');if(mains.length!==1)throw Error('listing_structure_changed');return {doc,root:mains[0]};}
+ const mains=find(doc,n=>n.name==='main');if(mains.length!==1)throw factFailure('listing_structure_changed',{stage:'document_scope',missingFields:['single_main'],checks:{mainCount:Math.min(mains.length,100)}});return {doc,root:mains[0]};}
 function fieldTexts(root,heading=null){
  const order=heading?find(root,()=>true):null,position=heading?order.indexOf(heading):-1,inScope=n=>!heading||order.indexOf(n)>position;
  const values=find(root,n=>['li','p'].includes(n.name)&&inScope(n)).map(plain).filter(v=>/^[^:：]{2,20}[:：]/.test(v));
@@ -110,7 +110,7 @@ export function morrisLabel(f,eventType){
 export async function parseMorrisArticle(html,entry,verifiedAt,pepper){
  if(!morrisArticleUrl(entry.url)||morrisUrlDate(entry.url)!==entry.publishedAt)throw Error('facts_date_changed');
  const responseHash=await hash(html),{doc,root}=document(html),canonicalBasis=identity(doc,entry.url),titles=find(root,n=>n.name==='h2'&&cls(n,'serif'));
- if(titles.length!==1)throw Error('listing_structure_changed');const title=plain(titles[0]),paras=primaryBlocks(root,titles[0]);
+ if(titles.length!==1)throw factFailure('listing_structure_changed',{stage:'article_heading',missingFields:['single_primary_heading'],checks:{headingCount:Math.min(titles.length,100)}});const title=plain(titles[0]),paras=primaryBlocks(root,titles[0]);
  // Publication day is the explicitly dated listing; URL day agrees. Optional article date must agree too.
  let dateEvidence;try{dateEvidence=validateMorrisArticleDates(find(root,n=>n.name==='time'),entry.publishedAt);}catch(error){error.evidenceProof={sourceId:'morris',sourceUrl:entry.url,publishedAt:entry.publishedAt,verifiedAt,extractionMethod:'morris_once_only_article',parserVersion:MORRIS_PARSER,responseHash,canonicalBasis,permissionRef:MORRIS_PERMISSION,failureReason:error.message,diagnostics:safeFactDiagnostics(error.factDiagnostics)};throw error;}
  const titleFingerprint=await fingerprint(title,pepper),proof={sourceId:'morris',sourceUrl:entry.url,publishedAt:entry.publishedAt,verifiedAt,extractionMethod:'morris_once_only_article',parserVersion:MORRIS_PARSER,responseHash,canonicalBasis,permissionRef:MORRIS_PERMISSION};

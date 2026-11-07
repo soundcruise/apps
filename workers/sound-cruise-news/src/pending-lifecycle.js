@@ -1,3 +1,4 @@
+import {inspectAgmArticle} from './agm-acquisition.js';
 import {factFailureKind} from './facts-failure.js';
 import {SHIMAMURA_PRODUCT_PARSERS,SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
 import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
@@ -27,7 +28,7 @@ export function nextRecheck(row,attempt,now){
  const interval=[6*3600000,DAY,3*DAY,7*DAY][Math.min(Math.max(attempt-1,0),3)],lastChance=deadline(row)-2*3600000;
  return Math.min(now+interval,lastChance>now?lastChance:now+3600000);
 }
-export async function initializePending(store,now){
+export async function initializePending(store,now,pepper){
  // A retained extraction failure is terminal only for that parser version.
  // Requeue pending records after an actual pipeline upgrade; fetch/cache/day and
  // source-policy gates still decide whether any publisher request is allowed.
@@ -54,6 +55,10 @@ export async function initializePending(store,now){
    .bind(Math.min(pending.next_recheck_at??next,next),pending.candidate_id,pending.next_recheck_at,now).run();
  }
 
+ // A verified old-parser cache miss is not a reason to postpone its replacement
+ // parser. Acquisition still atomically limits this to one source upgrade/day.
+ const agmPending=pepper?(await store.db.prepare("SELECT c.*,l.next_recheck_at FROM candidate_items c JOIN news_pending_lifecycle l ON l.candidate_id=c.id WHERE c.source_id='agm' AND c.review_status IN ('pending','reopened') AND c.product_facts IS NULL AND c.expires_at>? AND l.lease_until<=? ORDER BY c.collected_at LIMIT 20").bind(now,now).all()).results:[];
+ for(const row of agmPending){const cached=await inspectAgmArticle(store,getSource('agm'),row.source_url,now,pepper,{expectedPublishedAt:row.published_at});if(cached.parserUpgrade)await store.db.prepare('UPDATE news_pending_lifecycle SET next_recheck_at=? WHERE candidate_id=? AND next_recheck_at IS ? AND lease_until<=?').bind(Math.min(row.next_recheck_at??now,now),row.id,row.next_recheck_at,now).run();}
  await store.db.prepare(`INSERT OR IGNORE INTO news_pending_lifecycle(candidate_id,next_recheck_at,recheck_policy_version)
  SELECT id,?,? FROM candidate_items WHERE review_status IN ('pending','reopened') AND origin<>'legacy_fixture_backfill' AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=candidate_items.source_id AND s.disabled=1)`).bind(now,RECHECK_POLICY).run();
  await store.db.prepare(`UPDATE news_pending_lifecycle SET next_recheck_at=? WHERE recheck_status<>'SOURCE_EXCLUDED' AND lease_until<=? AND assessed_revision>=0 AND assessed_revision<>(SELECT review_revision FROM candidate_items WHERE id=candidate_id)`).bind(now,now).run();
@@ -69,7 +74,7 @@ export async function setPublishInterest(store,input,now,registry,pepper,actor){
  if(row.review_revision!==input.revision||await candidateSnapshot(row)!==input.snapshot)throw Error('candidate_changed');
  const validation=await publicationValidation(store,row,now,registry,pepper);
  if(input.interest&&((await store.state(row.source_id)).disabled||validation.valid||objectiveBlock(row,validation,now)))throw Error('operator_interest_not_applicable');
- await initializePending(store,now);
+ await initializePending(store,now,pepper);
  const state=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
  if(!state)return lifecycleView(store,row,now);
  if(!!state.user_publish_interest===input.interest)return lifecycleView(store,row,now);
@@ -95,7 +100,7 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
  const robotCache=new Map();
  const started=Date.now(),report={due:0,attempted:0,recovered:0,newlyReady:0,autoBlocked:0,noEvidence:0,failure:0,items:[]};
  if(!(await store.controls()).collection_enabled)return {...report,stopped:true,durationMs:0};
- await initializePending(store,now);
+ await initializePending(store,now,pepper);
  // Bound validation work before loading full facts/proofs. A large human-review
  // queue must not exhaust the cron's D1 budget before any recovery can run.
  const dueSQL="FROM candidate_items c JOIN news_pending_lifecycle l ON c.id=l.candidate_id WHERE c.review_status IN ('pending','reopened') AND c.origin<>'legacy_fixture_backfill' AND l.next_recheck_at<=? AND l.lease_until<=? AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND s.disabled=1)";

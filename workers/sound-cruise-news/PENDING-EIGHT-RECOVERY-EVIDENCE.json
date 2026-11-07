@@ -1,0 +1,222 @@
+{
+  "version": "0.47.0",
+  "base": "63363dda56d054a949526c4a51959eda4c0d77eb",
+  "at": "2026-11-07T05:24:27.134Z",
+  "productionUnmodifiedByThisTask": true,
+  "productionCodeReplay": [
+    {
+      "id": "bd17b6a238942d7b6997de154c6923cd9c3ba303862102d061e106fcd218f9da",
+      "preparationState": "RETRY",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ],
+      "duplicates": []
+    },
+    {
+      "id": "70e6dd4655643274e34dd5f032806feb06959ab989ee9d3329ee09a684d0c0bb",
+      "preparationState": "RETRY",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ],
+      "duplicates": []
+    },
+    {
+      "id": "3c1db46ec27bfcb76268728436bc0c27ce7666287441fed29e9a1d9c0eeeba04",
+      "preparationState": "RETRY",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ],
+      "duplicates": []
+    },
+    {
+      "id": "ff9b8092f94d5f2dafa17439a59584cbee167b67092a4eec6ce4b1708fb46a98",
+      "preparationState": "READY",
+      "formalValidation": true,
+      "errors": [],
+      "duplicates": []
+    },
+    {
+      "id": "0f3d683347441e7d0de21bfc87d2b90c7b9c433e26a808dddb4a69fcaeeb7a0d",
+      "preparationState": "HUMAN_REVIEW",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "duplicates": []
+    },
+    {
+      "id": "d48dde5b9b2b46541fbcd30518341600f7f4e6ab147c57d65edc41a91d93c0c9",
+      "preparationState": "HUMAN_REVIEW",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "duplicates": []
+    },
+    {
+      "id": "700e7f11c5aafc615031316e6f546906c616357a0c6e78d8917e01aae8331735",
+      "preparationState": "HUMAN_REVIEW",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "duplicates": []
+    },
+    {
+      "id": "8b752a1a25999c894bb041b8cd1d8cf880c9cf603de77ef82e6a42a8c9d372af",
+      "preparationState": "READY",
+      "formalValidation": true,
+      "errors": [],
+      "duplicates": []
+    }
+  ],
+  "candidateCodeReplay": [
+    {
+      "id": "bd17b6a238942d7b6997de154c6923cd9c3ba303862102d061e106fcd218f9da",
+      "preparationState": "RETRY",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ]
+    },
+    {
+      "id": "70e6dd4655643274e34dd5f032806feb06959ab989ee9d3329ee09a684d0c0bb",
+      "preparationState": "RETRY",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ]
+    },
+    {
+      "id": "3c1db46ec27bfcb76268728436bc0c27ce7666287441fed29e9a1d9c0eeeba04",
+      "preparationState": "RETRY",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete"
+      ]
+    },
+    {
+      "id": "ff9b8092f94d5f2dafa17439a59584cbee167b67092a4eec6ce4b1708fb46a98",
+      "preparationState": "READY",
+      "formalValidation": true,
+      "errors": []
+    },
+    {
+      "id": "0f3d683347441e7d0de21bfc87d2b90c7b9c433e26a808dddb4a69fcaeeb7a0d",
+      "preparationState": "HUMAN_REVIEW",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "humanConfirmationAvailable": true
+    },
+    {
+      "id": "d48dde5b9b2b46541fbcd30518341600f7f4e6ab147c57d65edc41a91d93c0c9",
+      "preparationState": "HUMAN_REVIEW",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "humanConfirmationAvailable": true
+    },
+    {
+      "id": "700e7f11c5aafc615031316e6f546906c616357a0c6e78d8917e01aae8331735",
+      "preparationState": "HUMAN_REVIEW",
+      "formalValidation": false,
+      "errors": [
+        "facts_incomplete",
+        "facts_provenance_invalid"
+      ],
+      "humanConfirmationAvailable": true
+    },
+    {
+      "id": "8b752a1a25999c894bb041b8cd1d8cf880c9cf603de77ef82e6a42a8c9d372af",
+      "preparationState": "EXCLUDED",
+      "formalValidation": false,
+      "errors": [
+        "duplicate"
+      ]
+    }
+  ],
+  "agmRetainedEvidence": {
+    "valid": false,
+    "hit": false,
+    "oldParser": "agm-article-6",
+    "upgradeEligible": true,
+    "attempted": true
+  },
+  "structuralFixtures": {
+    "toolKit": "READY after accessory-category corroboration; not production response replay",
+    "book": "READY with separately bound publication/release dates; not production response replay"
+  },
+  "morrisOneTimeRead": {
+    "requests": [
+      {
+        "url": "https://www.morris-guitar.com/information/2026/1103_01.html",
+        "status": 200,
+        "error": "listing_structure_changed",
+        "factsPresent": false,
+        "reason": null
+      },
+      {
+        "url": "https://www.morris-guitar.com/information/2026/1103_02.html",
+        "status": 200,
+        "error": "listing_structure_changed",
+        "factsPresent": false,
+        "reason": null
+      },
+      {
+        "url": "https://www.morris-guitar.com/information/2026/1102_01.html",
+        "status": 200,
+        "error": null,
+        "factsPresent": false,
+        "reason": "NO_COMPLETE_ARTICLE_TYPE"
+      }
+    ],
+    "rawResponseSaved": false,
+    "additionalFetchPermittedAfterThisRead": false,
+    "productionReceiptUpdated": false
+  },
+  "preservation": {
+    "workersAndBindingsUnchanged": true,
+    "approvedUnchanged": true,
+    "ledgerUnchanged": true,
+    "takedownsUnchanged": true,
+    "schemaUnchanged": true,
+    "webHintsUnchanged": true,
+    "webRunsUnchanged": true,
+    "automationsUnchanged": true,
+    "note": "Existing 14:17 JST normal rechecks updated two pending candidates and cache invalidation revision during this task. No task-initiated production writes."
+  },
+  "verification": {
+    "newsOperator": {
+      "passed": 1773,
+      "failed": 0
+    },
+    "portNews": {
+      "passed": 60,
+      "failed": 0
+    },
+    "persistentWorkerd": "bounded upgrade reservation, crash/restart and existing six structural cases PASS",
+    "dryRun": "NEWS and Operator PASS",
+    "syntaxDiffSecretPattern": "PASS"
+  },
+  "prohibitedActionsPerformed": {
+    "productionWrites": 0,
+    "deployments": 0,
+    "merges": 0,
+    "migrations": 0,
+    "publications": 0,
+    "rejections": 0,
+    "paidSearch": 0,
+    "paidAI": 0
+  }
+}

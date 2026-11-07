@@ -6,7 +6,10 @@ export function bookFields(title,paragraphs,headings,fields=[]){
  if(titles.length!==1||!/教則本|書籍|新刊/.test(title)||!/発売/.test(title))return null;
  const bookTitle=titles[0],units=paragraphs.filter(p=>p.includes('『'+bookTitle+'』')&&!/関連|例えば|過去|発売済み|ではない|かもしれ/.test(p));
  const declarations=units.filter(p=>/発売(?:される|されます|します|となる|となります|が決定|決定|予定)/.test(p));
- const dates=[...new Set(declarations.flatMap(p=>[...p.matchAll(/(20\d{2})年(\d{1,2})月(\d{1,2})日/g)].map(m=>m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'))))];
+ // Bind dates to a release predicate, never to an article's publication/update day.
+ const datePattern='(20\\d{2})年(\\d{1,2})月(\\d{1,2})日';
+ const releaseDates=p=>[...p.matchAll(new RegExp(datePattern+'(?:[（(][^）)]{0,4}[）)])?\\s*(?:に|より|から)?\\s*発売','g')),...p.matchAll(new RegExp('発売日\\s*[:：]\\s*'+datePattern,'g'))];
+ const dates=[...new Set([...declarations,...fields.filter(p=>p.includes('発売日'))].flatMap(p=>releaseDates(p).map(m=>m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'))))];
  const credits=[...paragraphs,...headings,...fields].flatMap(p=>[...p.matchAll(/(?:著者|著|編著)\s*[:：＝]\s*([^、。\s]{2,35})/g)].map(m=>m[1]));
  const boundAuthors=units.flatMap(p=>[...p.matchAll(/([^、。\s]{2,25})(?:による教則本|が執筆した教則本|の連載をまとめた教則本)/g)].map(m=>m[1])).filter(a=>title.includes(a));
  const authors=[...new Set([...credits,...boundAuthors])];
