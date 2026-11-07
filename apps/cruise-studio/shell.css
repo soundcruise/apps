@@ -581,3 +581,6 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 
 /* Shared viewport gutter, including safe-area, in every workspace. */
 #studio-tool-toggle { right:max(20px,env(safe-area-inset-right,0px)); }
+
+/* Navigation labels, without changing sidebar width or icon styling. */
+.studio-nav-workspaces > button { font-size: 14px; }
