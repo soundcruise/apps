@@ -1,5 +1,5 @@
 // Shared by discovery and facts recheck. Cache hits never authorize publication.
-import {AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
+import {AGM_ARTICLE_PARSER,AGM_ARTICLE_PARSERS} from './agm-article-evidence.js';
 import {AGM_SECTIONS,agmArticleUrl} from './agm-sections.js';
 import {fingerprint,validatedFingerprint} from './fingerprint.js';
 import {publicationValidation} from './decision-policy.js';
@@ -14,8 +14,8 @@ export function agmProvenance(facts,proof){return JSON.stringify([...Object.keys
 function validationRow(i){return {id:i.id,source_id:i.sourceId,source_url:i.sourceUrl,normalized_url:i.normalizedUrl,published_at:i.publishedAt,expires_at:Date.parse(i.publishedAt)+90*DAY,title_fingerprint:i.titleFingerprint,product_facts:JSON.stringify(i.productFacts),facts_provenance:i.factsProvenance,event_type:i.eventType,category:i.category,label:i.label,topic_key:i.topicKey,publication_decision:i.publicationDecision,event_ends_at:eventEndsAt(i.productFacts)};}
 async function complete(store,source,p,now,pepper){
  const i=p?.item,q=p?.proof;
- if(p?.format!==FORMAT||p.parser!==AGM_ARTICLE_PARSER||!i||i.sourceId!=='agm'||i.id!==await hash(i.sourceUrl)||i.normalizedUrl!==i.sourceUrl||!AGM_SECTIONS.some(s=>agmArticleUrl(i.sourceUrl,s))||i.publicationDecision!=='PUBLISH_REVIEW'||!Number.isFinite(Date.parse(i.publishedAt))||!await validatedFingerprint(i.titleFingerprint,pepper)||!factualLabel(i.productFacts,i.eventType)||i.label!==factualLabel(i.productFacts,i.eventType))return false;
- if(q?.sourceId!=='agm'||q.sourceUrl!==i.sourceUrl||q.parserVersion!==AGM_ARTICLE_PARSER||q.extractionMethod!=='explicit_agm_article_fields'||!Number.isSafeInteger(q.verifiedAt)||q.verifiedAt>now||! /^[a-f0-9]{64}$/.test(q.responseHash||''))return false;
+ if(p?.format!==FORMAT||!AGM_ARTICLE_PARSERS.includes(p.parser)||!i||i.sourceId!=='agm'||i.id!==await hash(i.sourceUrl)||i.normalizedUrl!==i.sourceUrl||!AGM_SECTIONS.some(s=>agmArticleUrl(i.sourceUrl,s))||i.publicationDecision!=='PUBLISH_REVIEW'||!Number.isFinite(Date.parse(i.publishedAt))||!await validatedFingerprint(i.titleFingerprint,pepper)||!factualLabel(i.productFacts,i.eventType)||i.label!==factualLabel(i.productFacts,i.eventType))return false;
+ if(q?.sourceId!=='agm'||q.sourceUrl!==i.sourceUrl||q.parserVersion!==p.parser||q.extractionMethod!=='explicit_agm_article_fields'||!Number.isSafeInteger(q.verifiedAt)||q.verifiedAt>now||! /^[a-f0-9]{64}$/.test(q.responseHash||''))return false;
  let provenance;try{provenance=JSON.parse(i.factsProvenance);}catch{return false;}
  if(!Array.isArray(provenance)||![...Object.keys(i.productFacts),'event_type'].every(field=>provenance.some(v=>v.factField===field&&Object.keys(q).every(k=>v[k]===q[k]))))return false;
  // Reuse the formal evidence validator. Operational/duplicate/expiry decisions still

@@ -5,6 +5,7 @@ import {optOut} from './policy.js';
 import {subjectProductTypes,hasProductSubject,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
 export const HEADLINE_EVIDENCE_PARSER='headline-evidence-2';
 const types=[
+ ['maintenance_tool_kit','楽器メンテナンス工具セット',/メンテナンス(?:用)?(?:ツール|工具)(?:セット|キット)/],
  ['software_instrument','ソフトウェア音源',/Kontakt用[^。]{0,60}インストゥルメント|ソフトウェア音源|サンプル(?:音源|ライブラリー)|スコアリング音源/],
  ['stage_keyboard','ステージキーボード',/ステージキーボード|\bstage keyboard\b/i],
  ['analog_drive','アナログドライブ',/(?:完全|フル)アナログのテープ[・ ]?(?:スタイル|サチュレーション)[・ ]?ドライブ|\banalog tape drive\b/i],

@@ -3,7 +3,9 @@
 // Review: retained Ikebe primary facts and Oct 25 Shimamura primary evidence
 // independently name the same reference headphone under these two brand forms.
 // No general removal of "Audio", "Guitars", etc. is permitted.
-const reviewed=Object.freeze([Object.freeze(['ADAM Audio','ADAM'])]);
+// PJB's expanded name is explicitly retained in the approved Ikebe primary facts;
+// this manufacturer spelling relation never aliases products, colours or events.
+const reviewed=Object.freeze([Object.freeze(['ADAM Audio','ADAM']),Object.freeze(['PJB (Phil Jones Bass)','PJB','Phil Jones Bass'])]);
 const normalized=s=>typeof s==='string'?s.normalize('NFKC').trim().toLowerCase():'';
 export function productBrandVariants(brand){
  if(typeof brand!=='string'||!brand)return [];

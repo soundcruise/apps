@@ -27,7 +27,7 @@ export function sourceIdentityConflict(title,brand,models){
  const titleModels=[...title.matchAll(/[「『]([A-Za-z0-9][A-Za-z0-9 .&+()'/:-]{1,99})[」』]/g)].map(m=>m[1]);
  const conflictingFields=[];
  if(titleBrand&&brand&&norm(titleBrand)!==norm(brand)&&!norm(titleBrand).endsWith(norm(brand))&&!norm(brand).endsWith(norm(titleBrand)))conflictingFields.push('brand');
- const words=v=>v.normalize('NFKC').replace(/[®™]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ const words=v=>v.normalize('NFKC').replace(/[®™]/g,'').replace(/,/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
  if(models.length===1&&titleModels.length===1&&norm(models[0])!==norm(titleModels[0])&&!words(models[0]).startsWith(words(titleModels[0])+' ')&&!words(titleModels[0]).startsWith(words(models[0])+' '))conflictingFields.push('models');
  return conflictingFields;
 }

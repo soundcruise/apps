@@ -1,7 +1,9 @@
+import {bookFields} from './agm-book-evidence.js';
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {performanceFields} from './agm-performance-evidence.js';
 import {musicReleaseFields} from './agm-music-release.js';
-export const AGM_ARTICLE_PARSER='agm-article-6';
+export const AGM_ARTICLE_PARSER='agm-article-7';
+export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-6','agm-article-5','agm-article-4']);
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
 import {agmArticleLabel,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
@@ -74,8 +76,10 @@ export function parseAgmArticleEvidence(html,source,row){
  if(section==='lesson'){const song=headings.map(h=>h.match(/^「([^」]{2,60})」について$/)?.[1]).find(Boolean);if(song&&title.includes(song))f.song=song;}
  if(section==='news'){
   f.articleType='artist_news';f.category='artist_guitar';
+  const book=bookFields(title,ps.map(text),headings,find(article,n=>['li','tr','dt','dd'].includes(n.name)).map(text));
   const performance=performanceFields({title,intro,article,find,text});
-  if(performance){Object.assign(f,performance,{articleType:'performance_event',category:'live_guitar'});delete f.person;}
+  if(book){Object.assign(f,book);delete f.person;delete f.topic;}
+  else if(performance){Object.assign(f,performance,{articleType:'performance_event',category:'live_guitar'});delete f.person;}
   else if(/受賞/.test(title)&&/受賞した/.test(intro)){
    f.person=intro.match(/ギタリストの([^が、。]{2,35})が/)?.[1]||f.person;
    const award=intro.match(/[“「]([^”」]{2,65}コンクール)[”」]/)?.[1],work=intro.match(/作曲した「([^」]{2,75})」/)?.[1];if(award&&work){f.action='award';f.award=award;f.work=work;}

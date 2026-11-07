@@ -1,6 +1,7 @@
 import {morrisNoticeFacts} from './morris-editorial-policy.js';
 // All classifiers inspect the same bounded primary card. They never fetch,
 // infer dates from publication metadata, or make a publication decision.
+const MORRIS_REQUIRED_EVENT_FIELDS=t=>['event_announcement'].includes(t)?['eventDate','venue']:[];
 const normal=v=>v.normalize('NFKC').replace(/[‐‑–−]/g,'-').replace(/\s+/g,' ').trim();
 const compact=v=>normal(v).replace(/\s/g,'').toLowerCase();
 const contains=(text,value)=>compact(text).includes(compact(value));
@@ -44,7 +45,7 @@ export function analyzeMorrisAutomaticFacts(rawTitle,blocks,fields,url){
   const additional=extra(units.filter(s=>subject&&contains(s,subject)));checks.explicit_fields=additional!==null;
   let input=subject&&additional!==null?{articleType:type,subject,...additional}:null;
   const facts=Object.values(checks).every(Boolean)&&input?morrisNoticeFacts(input,url,{automatic:true}):null;
-  candidates.push({type,triggered:hint,eligible:!!facts,checks,missingFields:Object.keys(checks).filter(k=>!checks[k]),reason:facts?'EXPLICIT_BOUND_FACTS':units.length?'NOTICE_SUBJECT_MISSING_OR_UNBOUND':'NOTICE_ACTION_MISSING_OR_NEGATED',facts,eventType:'morris_notice'});
+  candidates.push({type,triggered:hint,eligible:!!facts,checks,missingFields:[...Object.keys(checks).filter(k=>!checks[k]),...(!facts&&input&&MORRIS_REQUIRED_EVENT_FIELDS(type).some(k=>!input[k])?MORRIS_REQUIRED_EVENT_FIELDS(type).filter(k=>!input[k]):[])],reason:facts?'EXPLICIT_BOUND_FACTS':units.length?'NOTICE_SUBJECT_MISSING_OR_UNBOUND':'NOTICE_ACTION_MISSING_OR_NEGATED',facts,eventType:'morris_notice'});
  };
  const pub=units=>({publicationAction:units.some(s=>/更新/.test(s))?'updated':'published'});
  const namedSuffix=action=>new RegExp('^(.+?)(?:の|を|への|についての)?(?:'+action+')(?:の)?(?:お知らせ|ご案内|情報|開始|公開|更新|について|を開始|を公開|しました|します|決定)?[!！。]?$');
@@ -80,13 +81,18 @@ export function analyzeMorrisAutomaticFacts(rawTitle,blocks,fields,url){
  const action=actions[0],eventType=action==='release'?'release':'new_product',pf=Object.values(checks).every(Boolean)?{evidence:'morris_explicit_article_v1',listingSource:'morris',articleUrl:url,kind:'product',category:'acoustic_guitar',brand:'Morris Guitars',product:model,models:[model],productType:'acoustic_guitar',action:eventType,...(action==='release_decided'?{announcement:'release_decided'}:{}),...(qualifier.length?{productEvent:{action:qualifier[0][1]}}:{})}:null;
  candidates.push({type:qualifier[0]?.[1]==='signature'?'signature_model':eventType==='release'?'product_release':'product_announcement',triggered:!!model,eligible:!!pf,checks,missingFields:Object.keys(checks).filter(k=>!checks[k]),reason:pf?'EXPLICIT_BOUND_FACTS':'PRODUCT_FACTS_MISSING_OR_UNBOUND',facts:pf,eventType});
  if(/中止|延期|取りやめ/.test(title+' '+blocks.join(' ')))for(const c of candidates)if(!['report','service'].includes(c.type)){c.eligible=false;c.facts=null;}
+ // A listing card itself is a bounded primary relation. Natural venue syntax
+ // may bind an explicit event identifier, but never a neighbouring card or a date inferred from a URL.
+ const eventCard=cardEvent(title,blocks,fields,url);
+ if(eventCard.facts)candidates.push({type:'event_announcement',triggered:true,eligible:true,checks:{card_subject:true,event_date:true,venue:true},missingFields:[],reason:'EXPLICIT_BOUND_FACTS',facts:eventCard.facts,eventType:'morris_notice'});
+ if(eventCard.conflict)for(const c of candidates){c.eligible=false;c.facts=null;if(c.triggered){c.missingFields=[...c.missingFields,'consistent_event_year'];c.reason='CONTRADICTORY_EVENT_YEAR';}}
  const eligible=candidates.filter(c=>c.eligible);
  // Retain the established product/event/editorial representation when both
  // analyses describe the same primary action. Different actions remain a hold.
  const group=f=>f?.kind==='product'?(f.productEvent?.action==='signature'?'signature_model':f.action==='release'?'product_release':'product_announcement'):f?.kind==='guitar_event'?({exhibition:'exhibition',competition:'recruitment'}[f.eventType]||'event_announcement'):f?.kind==='morris_editorial'?({event_report:'report',support:'maintenance',support_notice:'service',artist_activity:'artist'}[f.articleType]||f.articleType):f?.articleType;
  const productConflict=!!model&&(fieldModel&&fieldModel!==model||manufacturer&&!/^(?:Morris(?: Guitars)?|モーリス)$/i.test(manufacturer)||typed&&!['アコースティックギター','エレアコ'].includes(typed));
- const types=unique([...(legacy.facts?[group(legacy.facts)]:[]),...eligible.map(c=>c.type)]),selected=!productConflict&&types.length===1?(legacy.facts?{facts:legacy.facts,eventType:legacy.eventType}:eligible[0]):null;
- const analysis={...legacy.analysis,version:'morris-recovery-3',subjectBound:!!selected,actionExplicit:!!selected,articleType:selected?group(selected.facts):'unresolved',selected:selected?'generic':'none',result:selected?'recovered':'hold',reason:selected?'EXPLICIT_BOUND_FACTS':productConflict?'CONTRADICTORY_PRODUCT_FIELDS':types.length>1?'AMBIGUOUS_ARTICLE_TYPES':'NO_COMPLETE_ARTICLE_TYPE',candidates:[...legacy.analysis.candidates,...candidates.filter(c=>c.triggered).map(({facts,eventType,...c})=>c)],evaluatedTypes:unique([...legacy.analysis.evaluatedTypes,...candidates.map(c=>c.type)])};
+ const types=unique([...(legacy.facts?[group(legacy.facts)]:[]),...eligible.map(c=>c.type)]),selected=!productConflict&&!eventCard.conflict&&types.length===1?(legacy.facts?{facts:legacy.facts,eventType:legacy.eventType}:eligible[0]):null;
+ const analysis={...legacy.analysis,version:'morris-recovery-3',subjectBound:!!selected,actionExplicit:!!selected,articleType:selected?group(selected.facts):'unresolved',selected:selected?'generic':'none',result:selected?'recovered':'hold',reason:selected?'EXPLICIT_BOUND_FACTS':eventCard.conflict?'CONTRADICTORY_EVENT_YEAR':productConflict?'CONTRADICTORY_PRODUCT_FIELDS':types.length>1?'AMBIGUOUS_ARTICLE_TYPES':'NO_COMPLETE_ARTICLE_TYPE',candidates:[...legacy.analysis.candidates,...candidates.filter(c=>c.triggered).map(({facts,eventType,...c})=>c)],evaluatedTypes:unique([...legacy.analysis.evaluatedTypes,...candidates.map(c=>c.type)])};
  return {facts:selected?.facts||null,eventType:selected?.eventType||'other',analysis};
 }
 function dateRange(value){
@@ -187,4 +193,26 @@ export function analyzeMorrisFacts(rawTitle,paragraphs,fields,url){
   manufacturerExplicit:maker.test(lead),acousticExplicit:acoustic.test(all),modelCount:titleModels.length,typedIdentity:!!primary.length,
   eventSignal:triggered.some(c=>['event_exhibition','event_announcement','recruitment_announcement'].includes(c.type)),eventNameExplicit:!!eventName,eventDateExplicit:!!dates,venueExplicit:!!venue,
   subjectBound:!!selected,actionExplicit:!!selected,articleType:selected?.type||'unresolved',result:selected?'recovered':'hold',reason,excluded,evaluatedTypes:candidates.map(c=>c.type),candidates:diagnostics.filter(c=>c.triggered)}};
+}
+
+function cardEvent(title,blocks,fields,url){
+ const prose=blocks.map(normal).join(' '),all=title+' '+prose;
+ if(!/開催/.test(title)||/レポート|中止|延期|昨年|過去|比較|関連/.test(all))return {};
+ const dates=[...new Set([...prose.matchAll(/(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日/g)].map(m=>m[1]+'年'+m[2]+'月'+m[3]+'日'))];
+ const year=title.match(/20\d{2}/)?.[0];
+ if(year&&dates.some(d=>!d.startsWith(year+'年')))return {conflict:true};
+ if(dates.length!==1)return {};
+ const date=dateRange(dates[0]);if(!date)return {};
+ const venues=[...new Set([...prose.matchAll(/(?:[、,]|^|の)\s*([A-Za-z][A-Za-z0-9’' .-]{1,55})\s*にて/g)].map(m=>m[1].trim()))];
+ const explicit=oneField(fields.map(normal),'会場');if(explicit)venues.push(explicit);
+ if(new Set(venues).size!==1)return {};
+ const quoted=[...title.matchAll(/「([^」]{2,60})」/g)].map(m=>m[1]);
+ let subject=quoted.length===1?quoted[0]:title.replace(/開催(?:の)?お知らせ$/,'').trim();
+ if(!safe(subject)||subject.length>60)return {};
+ const artist=subject.match(/^(.{2,25})\s+ギターコンサート$/)?.[1];
+ const stem=subject.replace(/^(?:モーリス|Morris)[・ ]?/i,'').replace(/20\d{2}.*$/,'').trim();
+ const exact=contains(prose,subject),contest=/フィンガーピッキング|Finger\s*Picking/i.test(subject)&&/コンテスト|予選/.test(title)&&stem.length>=8&&contains(prose,stem)&&(!year||prose.includes(year));
+ const concert=artist&&prose.includes(artist)&&/フィンガー(?:スタイル|ピッキング)|アコースティックギター/.test(prose)&&new RegExp(artist.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:[（(][^）)]{1,30}[）)])?(?:氏)?のコンサート').test(prose);
+ if(!(exact||contest||concert)||!/開催(?:します|いたします|されます|される|のお知らせ|を案内)/.test(all))return {};
+ const facts=morrisNoticeFacts({articleType:'event_announcement',subject,...date,venue:venues[0]},url,{automatic:true});return {facts};
 }
