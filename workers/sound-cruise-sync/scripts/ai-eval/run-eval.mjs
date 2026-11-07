@@ -107,8 +107,6 @@ const summary = {
   repaired: results.filter((result) => result.stats?.repaired).length,
   fallbacks: results.filter((result) => result.stats?.fallback).length,
   guardViolations: results.flatMap((result) => (result.stats?.guardViolations || []).map((category) => `${result.scenario}:${category}`)),
-  knownTargetFalseUnknown: results.filter((result) => result.score.flags.includes('known_target_false_unknown')).length,
-  s9ExactFirstSentence: `${results.filter((result) => result.scenario === 'S9' && !result.score.flags.includes('first_sentence_mismatch') && result.reply).length}/${results.filter((result) => result.scenario === 'S9').length}`,
   avgFirstAnswerMs: Math.round(results.reduce((sum, result) => sum + (result.stats?.firstAnswerMs || 0), 0) / Math.max(1, results.length)),
   quality: results.reduce((tally, result) => {
     for (const name of result.score.quality || []) tally[name] += 1;
