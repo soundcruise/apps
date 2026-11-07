@@ -1,5 +1,61 @@
 # 一般Pro公開候補 — 検証記録
 
+## 2026-11-07 Port診断範囲の限定修正（Worker 0.2.2、未配備）
+
+既存head `cd88b90a45e7b982abf1ba81e4b8c070fca00cca` へ追加する差分。最新origin/mainは`4cfbea2c`。
+mainの追加更新にWorker/Portの対象ファイルの重複なし。PR #225はDraft・merge可能。main merge/rebaseは行わない。
+read-only APIで本番v154 (`0022218c-505e-49f3-bb76-55e37b66bca3`) @100% / AI OFFを確認。
+今回、本番デプロイ・AI有効化・有料推論・本番D1/R2変更は行っていない。
+
+### 確認できた構造的な誘因
+
+0.2.1の本人βは質問1/2が概ね成立したが、質問3で別アプリの前回保留報告をPort再開表示の原因とする誤りが再現した。
+モデル内部の判断は直接観測できず、以下はコード上で確認できた誤適用を招く構造である。
+
+- toolのschema/systemには範囲説明があった一方、各tool結果のenvelopeには証拠の対象/未観測範囲が無い。
+  直前の会話と新しいtool結果に詳細な保留報告があり、Portローカル状態の欠測は結果内では明示されなかった。
+- `connectedFromThisPort`はAccount deviceを介した登録関係で、Portの現在の実行/接続状態ではない。
+  同期先の表示名もアプリのインストール情報ではない。この2つの意味がtool結果に付随していなかった。
+- 一般のツール利用指示は「同期状態はまず概要」となっており、Portだけの相談にも4アプリの異常を探す方向へ誘導し得た。
+- 共通の修正依頼にも4アプリの再確認案内が無条件で入っていた。ただし実βの質問3はrepair=0/fallback=0であり、
+  その回答が修正依頼によって作られたという意味ではない。既存検査はUI/秘密等の検査で、今回の因果関係の誤りは通過する。
+
+Portの`createPortSyncStatus`は、この端末のruntime・接続資格・未送信/画像状態等から表示を決め、別アプリの前回保留報告を入力にしない。
+実関数でも、同じ4アプリの診断が「全て正常」「保留あり」のどちらでも、別のローカル状態ならPortの停止/稼働表示が成立することを確認した。
+
+### 最小修正
+
+- `toModelToolResult`のenvelopeへ固定の`scope`を追加。対象アプリenum、クラウド登録/前回報告という証拠の種類、
+  Portローカル状態は未観測、Port再開原因は診断範囲外、表示名/登録関係の意味を各結果の隣へ置く。
+  元の`data`・時刻・診断2ツール・trustのJSON Pointerはそのまま。contractVersion 1の加算フィールドであり、既存データの置換や削除はしない。
+- systemでA=観測した4アプリの事実、B=未取得のPort状態、C=一般仕様/条件付き切り分けを区別。
+  Portだけの相談は、Portの一般仕様と同じ端末の状態表示/説明の確認から回答できる。2ツールは引き続き利用可能で、強制ルーターは作らない。
+- Portの停止/未開始表示は、その端末の同期処理が動作中と確認できない場合などに出るという既存仕様を説明し、
+  その一般仕様と今回どの条件に該当するかの未確認を分ける。「可能性」という表現自体を一律禁止する方式ではない。
+- 修正依頼もscopeを維持し、4アプリ用の案内はその相談を扱う場合に限定。Portの相談を別アプリへ戻さない。
+- 質問2は非表示だけで確認不要/完了と判断できないと明確化し、既存の端末側確認→Portで報告/時刻確認という代替手順を保持。
+
+新しいツール・包括ガード・操作ID・固定回答・応答JSON化は追加しない。validator/fallback本文、履歴/修正回数、認証、
+秘密保護、利用管理、SELECT-only境界に変更なし。Port/Studio/NEWS/他アプリのファイルは変更しない。
+
+### 関連ローカル試験
+
+Node 24.14.0、**125 PASS / 0 FAIL / 0 SKIP**。費用管理の包括試験・有料モデル・30ケース再評価は実行しない。
+
+```sh
+node --test --test-reporter=tap workers/sound-cruise-sync/test/ai-support-port-scope.test.js workers/sound-cruise-sync/test/ai-support-ui-guidance.test.js workers/sound-cruise-sync/test/ai-support-guard.test.js workers/sound-cruise-sync/test/ai-support-egress.test.js workers/sound-cruise-sync/test/ai-support.test.js workers/sound-cruise-sync/test/ai-diagnostics.test.js
+```
+
+保留あり/4アプリ正常の両方、登録元フラグ/表示名の意味、悪意ある名前からscopeを変更できないこと、
+アプリに集中した履歴/誤った以前の説明があっても新しいtool結果にscopeが随伴することを確認。
+同じscopeが1回修正にも残り、一般仕様・具体的なPort確認・質問・メールを含む自然文がそのまま通る。
+「原因不明」という定型句が無くても有用な案内を維持。現在と前回報告、ボタン非表示時の代替案内、保存済み12合成回答、
+既存認可/egress/Account隔離/秘密/SELECT-onlyの回帰も維持する。
+
+モックは証拠の伝達と自然文を壊さない処理の確認であり、実モデルが正しく推論することまで保証しない。
+ローカル候補としてPASS、承認後に質問3だけの本人実機再受入へ進める。一般公開は、その回答で未観測の原因を断定せず、
+同じ端末のPortで確認する具体的手順と問い合わせ導線が自然に成立することを確認するまでHOLD。
+
 ## 2026-11-07 本人β後の限定修正（Worker 0.2.1、未配備）
 
 PR #225の既存head `27c0f73e6f6e38907e7fcfd159aa52ad0eb4eb92` へ追加する差分。

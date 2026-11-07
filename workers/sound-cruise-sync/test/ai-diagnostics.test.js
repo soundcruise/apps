@@ -575,7 +575,7 @@ test('security: hostile labels (A–H, quotes/backslashes) stay JSON string data
   const result = await diagnostics.getAppSyncTargets('chord');
   const payload = toModelToolResult('getAppSyncTargets', result);
   const parsed = JSON.parse(payload);
-  assert.deepEqual(Object.keys(parsed), ['kind', 'contractVersion', 'tool', 'trust', 'data'], 'the envelope shape is fixed');
+  assert.deepEqual(Object.keys(parsed), ['kind', 'contractVersion', 'tool', 'scope', 'trust', 'data'], 'the envelope shape is fixed');
   assert.equal(parsed.kind, TOOL_RESULT_KIND);
   assert.deepEqual(Object.keys(parsed.data), ['contractVersion', 'observedAt', 'accountState', 'app', 'targets']);
   assert.equal(parsed.data.targets.length, names.length, 'no label added or removed a target');

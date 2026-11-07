@@ -372,6 +372,18 @@ export function toModelToolResult(tool, result) {
     kind: TOOL_RESULT_KIND,
     contractVersion: DIAGNOSTIC_CONTRACT_VERSION,
     tool,
+    // Evidence scope accompanies every result, including a repair round. These are fixed
+    // capabilities/semantics, not observations of Port or instructions derived from names.
+    // Keep the original data and trust paths intact; app IDs come only from the known enum.
+    scope: {
+      subjectAppIds: tool === 'getSyncOverview' ? DIAGNOSTIC_APPS.map(app => app.id)
+        : APP_IDS.has(result?.app?.appId) ? [result.app.appId] : [],
+      evidence: 'cloud_registration_and_last_app_reports',
+      portLocalSync: 'not_observed',
+      portRestartCause: 'outside_diagnostic_scope',
+      targetNames: 'display_labels_only',
+      connectedFromThisPort: 'registration_relation_only'
+    },
     trust: {
       dataRole: 'tool_data',
       userControlledPaths: userControlledPaths(result)
