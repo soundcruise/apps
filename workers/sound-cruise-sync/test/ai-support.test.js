@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { handleRequest } from '../src/app.js';
+import { betaBeforeExpiry } from '../src/ai-support-app.js';
 import { createAccountCredential, createAccountRecoveryCode, createAppJoinCode } from '../src/account-crypto.js';
 import { createIdentityMaterial, hmacVerifier } from '../src/crypto.js';
 import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
@@ -67,6 +68,7 @@ function environment(db, overrides = {}) {
     ACCOUNT_RECOVERY_RATE_LIMITER: limiter(),
     TURNSTILE_PRODUCTION_SECRET_KEY: 'test-only-turnstile-secret',
     AI_SUPPORT_MODE: 'beta',
+    AI_SUPPORT_BETA_EXPIRES_AT: '2099-01-01T00:00:00Z',
     AI_SUPPORT_RATE_LIMITER: limiter(),
     AI_SUPPORT_IP_RATE_LIMITER: limiter(),
     ...overrides
@@ -237,6 +239,40 @@ test('6: AI gate off by default, beta requires Pro, limiter and a known model; n
   assert.equal(ai.requests.length, 0);
   const source = fs.readFileSync(path.join(import.meta.dirname, '../src/ai-support-app.js'), 'utf8');
   assert.doesNotMatch(source, /ACCOUNT_GATE_ACTIONS|accountGateDecision|runtime_control/, 'no sync gate reuse');
+  db.close();
+});
+
+test('beta UTC expiry is strict, fail-closed, and exclusive at the exact deadline', () => {
+  const deadline = Date.parse('2026-11-07T12:00:00Z');
+  for (const value of ['2026-11-07T12:00:00Z', '2026-11-07T12:00:00.000Z']) {
+    assert.equal(betaBeforeExpiry(value, deadline - 1), true);
+    assert.equal(betaBeforeExpiry(value, deadline), false);
+    assert.equal(betaBeforeExpiry(value, deadline + 1), false);
+  }
+  for (const value of [undefined, null, '', '2026-02-30T12:00:00Z', '2026-11-07',
+    '2026-11-07T12:00:00+00:00', '2026-11-07T12:00:00', '2026-11-07T12:00Z', '2099-01-01T00:00:00Z ']) {
+    assert.equal(betaBeforeExpiry(value, deadline - 1), false, String(value));
+  }
+});
+
+test('expired or invalid beta denies even authenticated allowlisted users before reads or inference; normal Sync works', async () => {
+  const { db, env, a, pro } = await setup();
+  const before = dump(db);
+  for (const expires of [undefined, '', 'invalid', '2026-02-30T00:00:00Z', '2000-01-01T00:00:00Z']) {
+    const ai = mockAi([]);
+    const { env: recorded, statements } = recording({ ...env, AI: ai, AI_SUPPORT_BETA_EXPIRES_AT: expires });
+    const response = await chat(recorded, a, pro, { message: '同期の状態は？' });
+    assert.equal(response.status, 404, String(expires));
+    assert.equal((await response.json()).code, 'ai_support_disabled');
+    assert.equal(ai.requests.length, 0);
+    assert.deepEqual(statements, []);
+    const summary = await handleRequest(plainRequest('/v2/accounts/summary', undefined, a.auth), recorded);
+    assert.equal(summary.status, 200, 'normal authenticated Sync remains available');
+  }
+  assert.deepEqual(dump(db), before, 'expiry checks and Sync reads make no D1 changes');
+  const ai = mockAi([reply('はい')]);
+  assert.equal((await chat({ ...env, AI: ai, AI_SUPPORT_MODE: 'pro', AI_SUPPORT_BETA_EXPIRES_AT: undefined }, a, pro, { message: '同期は？' })).status, 200);
+  assert.equal(ai.requests.length, 1, 'the beta-only deadline does not change existing pro mode');
   db.close();
 });
 
