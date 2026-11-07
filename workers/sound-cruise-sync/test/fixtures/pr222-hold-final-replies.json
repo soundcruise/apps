@@ -1,0 +1,274 @@
+{
+  "provenance": {
+    "head": "93c932aafe577182533a5ddd76f701b9a70ecb38",
+    "sourceSha256": "8eb5ef96019329b1624682ef631162f1861a9a5d7fdc00062b7982c6612ea844",
+    "kind": "Saved final responses to synthetic fixtures only; intermediate model responses unavailable.",
+    "model": "@cf/openai/gpt-oss-120b",
+    "date": "2026-11-07"
+  },
+  "results": [
+    {
+      "scenario": "S1",
+      "phrasing": "同期できていますか？",
+      "reply": "どのアプリの同期状態を確認したいですか？（音感クルーズ、指板クルーズ、リズムクルーズ、コードクルーズのいずれか）",
+      "stats": {
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 2883,
+          "outputTokens": 126
+        },
+        "guardViolations": [],
+        "repairAttempted": false,
+        "repaired": false,
+        "fallback": false,
+        "firstAnswerMs": 3897,
+        "rawMarkdown": false
+      },
+      "latencyMs": 3900
+    },
+    {
+      "scenario": "S2",
+      "phrasing": "コードクルーズが同期できません",
+      "reply": "コードクルーズは「✓ 同期済み」と表示されていますが、同期先が2件あり、そのうち1件で前回の報告が保留になっています。まず、同期センターでコードクルーズの行にある「同期先」を開き、各同期先の状態を確認してください。もし「もう一度確認」ボタンが表示されていればタップし、指示に従ってください。その端末でアプリを開き、設定 → クラウド同期 を確認し、エラーメッセージや確認事項がないかチェックしてください。これでも解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールで報告してください。",
+      "stats": {
+        "modelCalls": 3,
+        "toolCalls": 1,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 10134,
+          "outputTokens": 948
+        },
+        "guardViolations": [
+          "internal_term"
+        ],
+        "repairAttempted": true,
+        "repaired": true,
+        "fallback": false,
+        "firstAnswerMs": 3205,
+        "rawMarkdown": true
+      },
+      "latencyMs": 17102
+    },
+    {
+      "scenario": "S3",
+      "phrasing": "コードクルーズに「確認が必要」と出ています",
+      "reply": "コードクルーズの「同期先」一覧を開き、注意が出ている Pixel を選んでください。その端末でコードクルーズを起動し、設定 → クラウド同期 を確認します。画面に「もう一度確認」ボタンが表示されていればタップし、接続状態やエラーメッセージを確認してください。問題が解消しない場合は、同じ画面で表示される指示に従って再度確認してください。何か他に分からない点があれば教えてください。",
+      "stats": {
+        "modelCalls": 3,
+        "toolCalls": 2,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 9740,
+          "outputTokens": 575
+        },
+        "guardViolations": [],
+        "repairAttempted": false,
+        "repaired": false,
+        "fallback": false,
+        "firstAnswerMs": 10056,
+        "rawMarkdown": true
+      },
+      "latencyMs": 10057
+    },
+    {
+      "scenario": "S4",
+      "phrasing": "リズムクルーズの同期でエラーが出ました",
+      "reply": "リズムクルーズの同期先「iPhoneホーム」でエラーが報告されています。まず、その iPhone でリズムクルーズを開き、設定 → クラウド同期 の画面で接続状態やインターネット接続に問題がないか確認してください。次に、Cruise Port の同期センターでリズムクルーズの行の「同期先」を開き、画面に「もう一度確認」ボタンが表示されていればタップして再確認を行ってください。問題が解消しない場合は、同期センター下部の「クラウド同期で困ったときは」から「メールで報告」を選んでお問い合わせください。",
+      "stats": {
+        "modelCalls": 4,
+        "toolCalls": 2,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 13892,
+          "outputTokens": 1394
+        },
+        "guardViolations": [
+          "unsupported_ui_path"
+        ],
+        "repairAttempted": true,
+        "repaired": true,
+        "fallback": false,
+        "firstAnswerMs": 11336,
+        "rawMarkdown": false
+      },
+      "latencyMs": 27639
+    },
+    {
+      "scenario": "S6",
+      "phrasing": "どの端末が原因ですか",
+      "reply": "正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある「同期先」を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。",
+      "stats": {
+        "modelCalls": 4,
+        "toolCalls": 2,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 13674,
+          "outputTokens": 1120
+        },
+        "guardViolations": [
+          "unsupported_ui_path",
+          "unsupported_ui_path"
+        ],
+        "repairAttempted": true,
+        "repaired": false,
+        "fallback": true,
+        "firstAnswerMs": 11661,
+        "rawMarkdown": false
+      },
+      "latencyMs": 20338
+    },
+    {
+      "scenario": "S8",
+      "phrasing": "同期できません",
+      "reply": "どのアプリ（音感クルーズ・指板クルーズ・リズムクルーズ・コードクルーズ）の同期について確認したいですか？",
+      "stats": {
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 2881,
+          "outputTokens": 100
+        },
+        "guardViolations": [],
+        "repairAttempted": false,
+        "repaired": false,
+        "fallback": false,
+        "firstAnswerMs": 2291,
+        "rawMarkdown": false
+      },
+      "latencyMs": 2292
+    },
+    {
+      "scenario": "S9",
+      "phrasing": "コードクルーズがおかしい",
+      "reply": "正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある「同期先」を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。",
+      "stats": {
+        "modelCalls": 2,
+        "toolCalls": 0,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 6743,
+          "outputTokens": 1554
+        },
+        "guardViolations": [
+          "tool_syntax",
+          "internal_term"
+        ],
+        "repairAttempted": true,
+        "repaired": false,
+        "fallback": true,
+        "firstAnswerMs": 11028,
+        "rawMarkdown": false
+      },
+      "latencyMs": 18328
+    },
+    {
+      "scenario": "S9",
+      "phrasing": "コードクルーズの同期が確認が必要になっている",
+      "reply": "正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある「同期先」を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。",
+      "stats": {
+        "modelCalls": 4,
+        "toolCalls": 2,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 14177,
+          "outputTokens": 1650
+        },
+        "guardViolations": [
+          "tool_syntax",
+          "internal_term",
+          "unsupported_ui_path",
+          "unsupported_ui_path"
+        ],
+        "repairAttempted": true,
+        "repaired": false,
+        "fallback": true,
+        "firstAnswerMs": 9674,
+        "rawMarkdown": false
+      },
+      "latencyMs": 16231
+    },
+    {
+      "scenario": "S10",
+      "phrasing": "コードクルーズに確認が必要と出ています",
+      "reply": "4桁の番号や復旧コードなどが相談内容に含まれている可能性があります。該当部分を削除してから、もう一度お試しください。",
+      "stats": {
+        "modelCalls": 2,
+        "egressBlocked": true
+      },
+      "latencyMs": 3872
+    },
+    {
+      "scenario": "S11",
+      "phrasing": "原因を特定できない場合はどうすればよいですか？解決しないときの問い合わせ方法も教えてください。",
+      "reply": "正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある「同期先」を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。",
+      "stats": {
+        "modelCalls": 3,
+        "toolCalls": 1,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 10355,
+          "outputTokens": 994
+        },
+        "guardViolations": [
+          "unsupported_ui_path",
+          "ui_precondition",
+          "unsupported_ui_path"
+        ],
+        "repairAttempted": true,
+        "repaired": false,
+        "fallback": true,
+        "firstAnswerMs": 7507,
+        "rawMarkdown": false
+      },
+      "latencyMs": 12016
+    },
+    {
+      "scenario": "S11",
+      "phrasing": "設定のサポートから自動修復できますか？",
+      "reply": "正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある「同期先」を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。",
+      "stats": {
+        "modelCalls": 3,
+        "toolCalls": 1,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 10252,
+          "outputTokens": 1097
+        },
+        "guardViolations": [
+          "unsupported_ui_path",
+          "unsupported_ui_path"
+        ],
+        "repairAttempted": true,
+        "repaired": false,
+        "fallback": true,
+        "firstAnswerMs": 5078,
+        "rawMarkdown": false
+      },
+      "latencyMs": 14004
+    },
+    {
+      "scenario": "S11",
+      "phrasing": "クラウド同期の問い合わせ先はどこですか？",
+      "reply": "クラウド同期でお困りの際は、同期センター画面下部にある「メールで報告」からお問い合わせください。",
+      "stats": {
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "rejectedToolCalls": 0,
+        "usage": {
+          "inputTokens": 2924,
+          "outputTokens": 98
+        },
+        "guardViolations": [],
+        "repairAttempted": false,
+        "repaired": false,
+        "fallback": false,
+        "firstAnswerMs": 1024,
+        "rawMarkdown": false
+      },
+      "latencyMs": 1024
+    }
+  ]
+}

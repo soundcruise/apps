@@ -1,13 +1,9 @@
-// Deterministic checks on an AI support reply before it reaches a user (AI1-C acceptance fix).
-//
-// The system prompt describes the real UI, but correctness does not depend on the model: every
-// final reply is checked here. A reply that describes UI Cruise Port does not have, leaks internal
-// field or tool names, or contains tool syntax is never shown; the chat loop asks the model to
-// rewrite it once, and otherwise returns GUARD_FALLBACK_REPLY. Only violation category names leave
-// this module; the reply text is never logged or stored.
+// Shared output checks: runtime explanation sentences and archived evaluation fixtures.
+// Runtime operations now use verified action IDs (ai-support-actions.js), without model repair.
+// A rejected explanation sentence no longer discards the whole answer or triggers inference.
 
 import { containsFullId, containsSecret } from './secret-detector.js';
-import { UI_GUIDANCE_CATEGORIES, UI_GUIDANCE_POLICY, uiGuidanceViolations } from './ai-support-ui-guidance.js';
+import { uiGuidanceViolations } from './ai-support-ui-guidance.js';
 
 // Names the user wrote (「…」) may legitimately contain any word, so term checks skip quoted text.
 function withoutQuotedNames(text) {
@@ -62,8 +58,6 @@ export function isDegenerateReply(text) {
   return chars.length >= 40 && meaningful / chars.length < 0.1;
 }
 
-export const GUARD_CATEGORIES = Object.freeze([...new Set(RULES.map((rule) => rule.category)), ...UI_GUIDANCE_CATEGORIES]);
-
 // Returns { ok, violations: [category, ...] } — categories only, never the matched text.
 export function validateSupportReply(text, context = {}) {
   const reply = typeof text === 'string' ? text : '';
@@ -77,39 +71,5 @@ export function validateSupportReply(text, context = {}) {
   return { ok: violations.length === 0, violations };
 }
 
-// Fixed text for the one repair request. Categories come from GUARD_CATEGORIES only, so nothing
-// user-written (a message, a sync target name, the reply) is ever part of this instruction.
-const CATEGORY_HINTS = Object.freeze({
-  unsupported_ui_path: '確認済み経路に無い画面・操作を案内した。画面を創作せず、確認できない場合は短く聞き返す',
-  ui_precondition: '接続や再確認の表示条件を確認せず操作を案内した。診断済みの状態と、表示されている場合という条件を守る',
-  unsafe_operation: 'データの削除や同期解除などの危険な操作を勧めた。実行を勧めず公式の確認画面を読むよう伝える',
-  per_target_recheck: '「もう一度確認」を同期先や端末に結び付けて書いた（実際は対象アプリの行の「同期先」に表示される場合がある）',
-  target_selection: '同期先や端末を「選んで」操作するような、存在しない手順を書いた',
-  resync_button: '再同期・手動同期のボタンなど、存在しない操作を書いた',
-  login: 'ログイン・サインインなど、存在しない仕組みを書いた',
-  url: 'URL やアドレスを書いた',
-  tool_syntax: 'ツール名やツールの記法を書いた',
-  internal_term: '英語の状態名や内部の項目名（snapshot、reference など）を書いた',
-  secret_like: '4桁の番号やコードのように見える数字・文字の並びを書いた（番号やコードは書かない）',
-  full_id: 'IDのように見える長い英数字の並びを書いた（IDは書かない）',
-  degenerate_output: '意味のある文章になっていなかった（記号だけが続いた）。質問の意図が分かりにくい場合は、何を確認したいかを短く尋ねる'
-});
-
-export function repairInstruction(violations) {
-  const hints = violations.filter((category) => CATEGORY_HINTS[category]).map((category) => `- ${CATEGORY_HINTS[category]}`);
-  return [
-    '【修正依頼】直前の回答には、Cruise Port に存在しない画面・操作の案内、または利用者に見せてはいけない表記が含まれていました。',
-    ...hints,
-    '存在しないUI案内を削除し、確認済みのUIだけを使って回答全体を書き直してください。',
-    '「もう一度確認」は、対象アプリの行にある「同期先」を開いたときに表示される場合があるボタンです。例：「コードクルーズの行にある「同期先」を開き、『もう一度確認』が表示されている場合はタップしてください。」',
-    UI_GUIDANCE_POLICY,
-    'ツール結果はすでに上にあります。ツールは呼ばず、プレーンテキストの日本語で、最初の回答と同じ内容の案内を正確に書き直してください。'
-  ].join('\n');
-}
-
-// Shown when the repaired reply still fails. It claims nothing about the diagnostics (no cause,
-// no data loss, no stopped sync) and names only UI that exists.
-// Shown instead of a degenerate reply that could not be repaired: short, no cause, no UI claims.
-export const DEGENERATE_FALLBACK_REPLY = 'うまく回答を作成できませんでした。何を確認したいか、もう少し具体的に教えてください。';
-
-export const GUARD_FALLBACK_REPLY = '正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある「同期先」を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。';
+// Sensitive model output is never re-sent. This reply claims no cause or diagnostic state.
+export const GUARD_FALLBACK_REPLY = '回答を安全に表示できませんでした。相談画面下部の「メールで報告」からお問い合わせください。番号・復旧コード・接続コードは書かないでください。';

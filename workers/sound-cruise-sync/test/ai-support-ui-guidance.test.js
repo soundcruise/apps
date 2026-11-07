@@ -1,191 +1,192 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { validateSupportReply, GUARD_FALLBACK_REPLY } from '../src/ai-support-guard.js';
 import { runSupportTurn } from '../src/ai-support-chat.js';
-import { AI_SUPPORT_SYSTEM_PROMPT } from '../src/ai-support-policy.js';
-import { VERIFIED_UI_PATHS } from '../src/ai-support-ui-guidance.js';
+import { SUPPORT_ACTION_IDS, SUPPORT_QUESTIONS, CONTACT_GUIDANCE, renderSupportAction, supportModelData,
+  decodeSupportPlan, supportDescription } from '../src/ai-support-actions.js';
+import { validateSupportReply as validateSupportExplanation } from '../src/ai-support-guard.js';
+import { SCENARIOS, diagnosticsFor } from '../scripts/ai-eval/scenarios.mjs';
 import { IPHONE_THIRD_QUESTION, IPHONE_THIRD_REPLY } from './fixtures/iphone-support-20261107.js';
-import { SCENARIOS, diagnosticsFor, autoScore } from '../scripts/ai-eval/scenarios.mjs';
 import { syncTargetsTabLabel } from '../../../apps/cruise-port/sync-center-ui.js';
-import { describeAppSyncDetail } from '../../../apps/cruise-port/sync-center-device-detail.js';
-
-const GOOD = '現在の情報だけでは原因を特定できません。コードクルーズの行の「同期先」を開き、「もう一度確認」が表示されている場合はタップしてください。どの端末で起きているか教えていただけますか？';
-const text = (value) => ({ text: value, toolCalls: [], usage: { inputTokens: 10, outputTokens: 5 } });
-const tool = (name = 'getSyncOverview', args = {}) => ({ text: '', toolCalls: [{ id: 'model-id', name, arguments: args }] });
-function scripted(script) {
-  const calls = [];
-  return { calls, async complete(request) { calls.push(request); assert.ok(script.length, 'no unexpected extra inference'); const next = script.shift(); if (next instanceof Error) throw next; return next; } };
-}
+import { describeAppSyncDetail, appHasSyncDetail } from '../../../apps/cruise-port/sync-center-device-detail.js';
 const diag = (id) => diagnosticsFor(SCENARIOS.find((s) => s.id === id).build());
+function provider(explanation, actions = [], questionId = 'none', raw = false) {
+  const calls = [];
+  return { calls, async complete(input) { calls.push(structuredClone(input));
+    return { text: raw ? explanation : JSON.stringify({ explanation, actions, questionId }), toolCalls: [], usage: { inputTokens: 100, outputTokens: 30 } }; } };
+}
+async function turn(id, message, explanation, actions, questionId) {
+  const p = provider(explanation, actions, questionId);
+  return { ...await runSupportTurn({ provider: p, diagnostics: diag(id), message }), requests: p.calls };
+}
 
-test('captured third iPhone reply cannot reach the user; one repair still works', async () => {
-  assert.equal(validateSupportReply(IPHONE_THIRD_REPLY).ok, false);
-  const p = scripted([text(IPHONE_THIRD_REPLY), text(GOOD)]);
-  const turn = await runSupportTurn({ provider: p, diagnostics: diag('S1'), message: IPHONE_THIRD_QUESTION });
-  assert.equal(turn.reply, GOOD);
-  assert.ok(turn.stats.guardViolations.includes('unsupported_ui_path'));
-  assert.equal(turn.stats.repaired, true);
-  assert.equal(p.calls.length, 2);
-  assert.deepEqual(p.calls[1].tools, []);
-  assert.equal(p.calls[0].messages.at(-1).content, IPHONE_THIRD_QUESTION);
+test('captured iPhone question receives the exact current contact route with zero inference', async () => {
+  const p = provider(IPHONE_THIRD_REPLY, [], 'none', true);
+  const result = await runSupportTurn({ provider: p, diagnostics: diag('S1'), message: IPHONE_THIRD_QUESTION });
+  assert.equal(p.calls.length, 0);
+  assert.equal(result.stats.directAnswer, true);
+  assert.match(result.reply, /分かっている症状/);
+  assert.ok(result.reply.includes(CONTACT_GUIDANCE));
+  assert.doesNotMatch(result.reply, /設定|ⓘ|サポート画面/);
 });
 
-test('repair failure, timeout, and exhausted budget never expose the captured bad answer', async () => {
-  for (const bad of [IPHONE_THIRD_REPLY, '設定 → 高度な診断 → 自動修復を開いてください。']) {
-    const p = scripted([text(bad), text(bad)]);
-    const turn = await runSupportTurn({ provider: p, diagnostics: diag('S1'), message: IPHONE_THIRD_QUESTION });
-    assert.equal(turn.reply, GUARD_FALLBACK_REPLY);
-    assert.equal(p.calls.length, 2);
-    const capped = scripted([text(bad)]);
-    const limited = await runSupportTurn({ provider: capped, diagnostics: diag('S1'), message: IPHONE_THIRD_QUESTION, maxModelCalls: 1 });
-    assert.equal(limited.reply, GUARD_FALLBACK_REPLY);
-    assert.equal(capped.calls.length, 1);
-  }
-  const unavailable = scripted([text(IPHONE_THIRD_REPLY), new Error('provider unavailable')]);
-  const failure = await runSupportTurn({ provider: unavailable, diagnostics: diag('S1'), message: IPHONE_THIRD_QUESTION });
-  assert.equal(failure.reply, GUARD_FALLBACK_REPLY);
-  assert.equal(unavailable.calls.length, 2);
+test('unrecognised contact wording still supports AI explanation plus the real contact action', async () => {
+  const result = await turn('S9', '直らず原因も不明です。相談できる窓口はありますか。',
+    '現在の情報だけでは原因を特定できません。症状が起きるタイミングも判断の手掛かりになります。', [{ id: 'contact_support', appId: 'none' }]);
+  assert.equal(result.requests.length, 1);
+  assert.match(result.reply, /タイミングも判断の手掛かり/);
+  assert.ok(result.reply.includes(CONTACT_GUIDANCE));
+  assert.equal(result.stats.diagnosticSummaryUsed, false);
 });
 
-test('unknown paths and unknown controls are checked by evidence, across names and notation', () => {
-  for (const reply of [
-    '設定 → サポートを開いてください。',
-    '「設定」→「サポート」からお問い合わせください。',
-    '設定 > 詳細診断 > 自動修復を開いてください。',
-    '詳細設定 → クラウド同期を開いてください。',
-    '高速設定 → お問い合わせを開いてください。',
-    '設定からサポートを開いてください。',
-    '設定のサポートからお問い合わせください。',
-    '設定のクラウド同期からサポートを開いてください。',
-    '「サポート」画面があります。そこでお問い合わせください。',
-    '自動修復ボタンがあります。',
-    '設定の「ヘルプ」を開いてください。',
-    '設定の「クラウド同期」から「自動修復」を開いてください。',
-    '同期センターの「同期先」から「管理者診断」を押してください。',
-    '同期センターの「Cruise Portと接続」を開いてください。',
-    'Cruise Port のヘルプ画面にあるサポートリンクをご利用ください。',
-    '「クラウド修復」ボタンをタップしてください。',
-    '「秘密の設定」から診断画面を開いてください。',
-    '同期センターの「管理者設定」を開いてください。',
-    'コードクルーズの行の ⓘ を開いてください。',
-    '「全データを削除」ボタンを押してください。',
-    '同期を解除してください。',
-    'ボタンがあれば同期コードを表示してください。',
-    'メールがあれば「もう一度確認」ボタンを押してください。',
-    'アカウントを削除してください。'
-  ]) assert.equal(validateSupportReply(reply).ok, false, reply);
-});
-
-test('real paths, harmless names, denials and clarification remain answerable without repair', async () => {
-  for (const reply of [
-    GOOD,
-    'その端末でコードクルーズを開き、設定 → クラウド同期を確認してください。',
-    '設定の「クラウド同期」を開いてください。',
-    '「コードクルーズ」の設定 → クラウド同期を開いてください。',
-    '「送信内容の取り扱い」ボタンがあります。',
-    'Cruise Port の設定 → クラウド同期を開くを押してください。',
-    '同期センター → クラウド同期で困ったときは → AIに相談を開いてください。',
-    '相談画面下部の「メールで報告」からご相談ください。',
-    '未接続の場合は設定のクラウド同期からCruise Portと接続を開いてください。',
-    '「同期先3件」ボタンがあります。',
-    '「送信内容の取り扱い」を開いてください。',
-    '設定 → お問い合わせからご相談ください。',
-    '同期先「設定→サポート」の前回の報告を確認してください。',
-    '「設定→サポート」という画面はありません。',
-    '設定→サポートはありません。',
-    'データを削除していません。',
-    '同期コードを表示できません。どのアプリで起きていますか？',
-    '「もう一度確認」ボタンが見つかりません。画面の状態を教えてください。',
-    '「設定 → サポート」の存在は確認できません。どのアプリの同期についてお困りですか？',
-    'サポート機能について確認できません。どの画面で起きていますか？',
-    '未接続と表示されている場合、設定 → クラウド同期 → Cruise Portと接続を開いてください。',
-    '現在の情報だけでは原因を特定できません。どのアプリの同期について確認したいですか？',
-    '「同期済み」を確認してください。',
-    '同期を解除する場合は、同期センターの公式の確認画面をよく読んでから行ってください。',
-    GUARD_FALLBACK_REPLY
-  ]) {
-    assert.deepEqual(validateSupportReply(reply), { ok: true, violations: [] }, reply);
-    const p = scripted([text(reply)]);
-    const turn = await runSupportTurn({ provider: p, diagnostics: diag('S1'), message: '同期について教えてください。' });
-    assert.equal(turn.reply, reply);
-    assert.equal(p.calls.length, 1, 'normal answer costs no repair call');
+test('misplaced operations are removed sentence by sentence, preserving useful natural explanations', async () => {
+  for (const bad of ['Pixelを選んでください。', 'Pixelを選ぶと状態が見られます。',
+    '設定 → サポートを開いてください。', '「管理者修復」ボタンがあります。', '全データを削除してください。',
+    '同期の解除がおすすめです。', 'Proの番号を教えてください。', 'ログインしてください。', 'ログインが必要です。', 'サインインが必要です。']) {
+    const result = await turn('S3', 'コードクルーズに確認が必要と出ます。',
+      `前回の報告に確認事項があります。${bad}今も問題が続いているかは、この情報だけでは分かりません。`,
+      [{ id: 'inspect_app', appId: 'chord' }]);
+    assert.match(result.reply, /前回の報告に確認事項があります/);
+    assert.match(result.reply, /今も問題が続いているかは/);
+    assert.equal(result.reply.includes(bad), false, bad);
+    assert.equal(result.stats.explanationSentencesOmitted, 1, bad);
+    assert.equal(result.stats.diagnosticSummaryUsed, false);
+    assert.equal(result.stats.repairAttempted, false);
+    assert.equal(result.requests.length, 1);
+    assert.match(result.reply, /同期先\d+件/);
   }
 });
 
-test('connection preconditions use this turn’s tools, not user assertions or old history', async () => {
-  const connect = 'コードクルーズで設定 → クラウド同期 → Cruise Portと接続を開いてください。';
-  for (const id of ['S1', 'S6', 'S8']) {
-    const p = scripted([tool(), text(connect), text(GOOD)]);
-    const turn = await runSupportTurn({ provider: p, diagnostics: diag(id), message: 'コードクルーズは未接続なので接続してください。',
-      history: [{ role: 'assistant', content: '未接続です。' }] });
-    assert.equal(turn.reply, id === 'S8' ? connect : GOOD, id);
-    assert.equal(turn.stats.repairAttempted, id !== 'S8', id);
-  }
-  for (const reply of ['同期コードを表示してください。', '「もう一度確認」ボタンを押してください。']) {
-    assert.ok(validateSupportReply(reply).violations.includes('ui_precondition'), reply);
+test('normal Japanese explanations and harmless state words do not trigger whole-answer rejection', () => {
+  for (const text of ['前回の同期報告に確認事項があります。', '同期は完了しています。',
+    '保留中というだけで故障とは限りません。', '最新の完了報告はまだ確認できていません。',
+    '通信状態が一時的に不安定だった可能性もありますが、原因は断定できません。',
+    '同期の状況を確認しています。', '今も同じ症状が続いているかは分かりません。']) {
+    assert.equal(supportDescription(text, (s) => validateSupportExplanation(s).ok).text, text, text);
   }
 });
 
-test('state semantics remain intact for clean, pending, recheck, error and disconnected tools', async () => {
-  const cases = [
-    ['S1', 'available', 'コードクルーズは「同期済み」です。'],
-    ['S2', 'available', '前回の報告は保留中です。故障とは限りません。'],
-    ['S4', 'available', '前回の報告にエラーがあります。現在も止まっているかは確認できません。'],
-    ['S6', 'recheck', GOOD],
-    ['S8', 'detached', 'コードクルーズは未接続です。同期コードを表示し、設定 → クラウド同期 → Cruise Portと接続を開いてください。']
-  ];
-  for (const [id, expected, answer] of cases) {
-    const diagnostic = diag(id); const overview = await diagnostic.getSyncOverview();
-    const app = overview.apps.find((a) => a.appId === 'chord');
-    if (id !== 'S4') assert.equal(app.displayStatus, expected, id);
-    const p = scripted([tool(), text(answer)]);
-    const turn = await runSupportTurn({ provider: p, diagnostics: diagnostic, message: '同期状態は？' });
-    assert.equal(turn.reply, answer, id);
-    assert.equal(turn.stats.repairAttempted, false, id);
+test('unknown IDs, model-written labels, target names, URLs and app IDs never become instructions', async () => {
+  for (const action of [{ id: 'select_pixel', appId: 'chord' }, { id: 'inspect_app', appId: 'chord', label: 'Pixelを選ぶ' },
+    { id: 'delete_account', appId: 'chord' }, { id: 'contact_support', appId: 'unknown' },
+    { id: 'contact_support', appId: 'none', url: 'https://invalid.example' }, null]) {
+    const result = await turn('S3', 'コードクルーズの同期状態を教えてください。', '前回の報告に確認事項があります。', [action]);
+    assert.equal(result.stats.rejectedActions, 1);
+    assert.equal(result.stats.repairAttempted, false);
+    assert.equal(result.requests.length, 1);
+    assert.doesNotMatch(result.reply, /select_pixel|delete_account|invalid|Pixel|unknown/);
+    assert.match(result.reply, /同期先\d+件/);
   }
 });
 
-test('UI grounding detects future label drift and verifies conditional controls', () => {
+test('diagnosis precedes every non-FAQ answer, including synced and disconnected; redundant questions are omitted', async () => {
+  for (const [id, match] of [['S1', /同期済み/], ['S8', /未接続/]]) {
+    const result = await turn(id, '現在の同期状態について教えてください。', '今確認できる同期状態を基に説明します。', [], 'which_app');
+    assert.equal(result.requests.length, 1);
+    assert.equal(result.stats.toolCalls, 1);
+    assert.equal(result.requests[0].messages.filter((m) => m.role === 'tool').length, 1);
+    assert.match(result.reply, match);
+    assert.doesNotMatch(result.reply, /どのアプリ/);
+  }
+  const focused = await turn('S3', 'コードクルーズについて', '前回の報告に確認事項があります。', [], 'which_app');
+  assert.equal(focused.stats.toolCalls, 2);
+  assert.doesNotMatch(focused.reply, /どのアプリ/);
+  const mixed = await turn('S9', '状況がよく分かりません。', '原因を絞るには、症状についても情報が必要です。', [], 'which_environment');
+  assert.ok(mixed.reply.includes(SUPPORT_QUESTIONS.which_environment));
+});
+
+test('action visibility conditions match actual Port controls for all diagnostic scenarios', async () => {
+  for (const scenario of SCENARIOS.filter((s) => s.id !== 'S7')) {
+    const d = diagnosticsFor(scenario.build()); const overview = await d.getSyncOverview();
+    for (const app of overview.apps) {
+      const context = { overview, appId: app.appId, details: new Map([[app.appId, await d.getAppSyncTargets(app.appId)]]) };
+      const rendered = renderSupportAction({ id: 'inspect_targets', appId: app.appId }, context);
+      if (rendered) assert.ok(rendered.includes(syncTargetsTabLabel(app.activeTargetCount)));
+      const actual = { status: app.cloudState, snapshot: app.snapshotState, presentationStatus: { state: app.displayStatus }, environments: [] };
+      assert.equal(Boolean(renderSupportAction({ id: 'inspect_targets', appId: app.appId }, context)), appHasSyncDetail(actual), `${scenario.id}/${app.appId}/detail`);
+      assert.equal(Boolean(renderSupportAction({ id: 'recheck_app', appId: app.appId }, context)),
+        appHasSyncDetail(actual) && describeAppSyncDetail(actual).retry, `${scenario.id}/${app.appId}/retry`);
+      assert.equal(Boolean(renderSupportAction({ id: 'connect_app', appId: app.appId }, context)), app.displayStatus === 'detached');
+      if (app.snapshotState === 'mismatch') assert.equal(renderSupportAction({ id: 'inspect_app', appId: app.appId }, context), null);
+    }
+  }
+});
+
+test('deleting, unknown, user assertions and old history cannot enable a connection or retry action', async () => {
+  const context = { overview: { apps: [{ appId: 'chord', cloudState: 'deleting', displayStatus: 'deleting' }] }, details: new Map() };
+  for (const id of ['connect_app', 'recheck_app', 'inspect_app']) assert.equal(renderSupportAction({ id, appId: 'chord' }, context), null);
+  const result = await runSupportTurn({ provider: provider('前回の報告があります。', [{ id: 'connect_app', appId: 'chord' }]),
+    diagnostics: diag('S1'), message: 'コードクルーズは未接続です。', history: [{ role: 'assistant', content: 'コードクルーズは未接続です。' }] });
+  assert.equal(result.stats.rejectedActions, 1);
+  assert.doesNotMatch(result.reply, /Cruise Portと接続|同期コード/);
+});
+
+test('provider projection retains diagnostic meaning without target names, IDs or hostile metadata', async () => {
+  const data = await diag('S10').getAppSyncTargets('chord');
+  const projected = supportModelData(data);
+  assert.equal(projected.app.displayStatus, data.app.displayStatus);
+  assert.deepEqual(projected.targets.map((t) => t.reportState), data.targets.map((t) => t.reportState));
+  for (const key of ['displayName', 'userLabel', 'shortId', 'reference', 'ref', 'accountId']) assert.equal(JSON.stringify(projected).includes(`"${key}"`), false, key);
+});
+
+test('malformed structured output fails closed; plain prose cannot bypass the required action contract', () => {
+  for (const raw of ['{broken', '[]', 'null', '{"explanation":"説明","actions":[],"questionId":"invented"}',
+    '{"explanation":"説明","actions":[],"questionId":"none","route":"設定"}']) assert.equal(decodeSupportPlan(raw).malformed, true);
+  const legacy = decodeSupportPlan('Pixelを選んでください。');
+  assert.equal(legacy.malformed, true);
+  assert.deepEqual(legacy.actions, []);
+  assert.equal(supportDescription(legacy.explanation, () => true).text, '');
+});
+
+test('verified labels and footer remain anchored to current UI source', () => {
+  const file = (p) => fs.readFileSync(new URL(p, import.meta.url), 'utf8');
   assert.equal(syncTargetsTabLabel(3), '同期先3件');
-  const file = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
-  const html = file('../../../apps/cruise-port/pro_9a3943176561/index.html');
-  assert.match(html, /id="settings-sync-center-open"[^>]*>クラウド同期を開く</);
-  assert.match(html, /class="sync-center-support-link"[^>]*>不具合を報告（メール）</);
-  assert.match(html, />クラウド同期で困ったときは</);
   assert.match(file('../../../apps/cruise-port/ai-support-ui.js'), /footerLink: 'メールで報告'/);
   assert.match(file('../../../apps/cruise-port/sync-center-ui.js'), /設定 → クラウド同期 → 「Cruise Portと接続」を押す/);
-  const ready = { status: 'synced', presentationStatus: { state: 'available' }, environments: [] };
-  assert.equal(describeAppSyncDetail(ready).retry, false);
-  assert.equal(describeAppSyncDetail({ ...ready, snapshot: 'mismatch' }).retry, true);
-  assert.ok(VERIFIED_UI_PATHS.every(Object.isFrozen));
-  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /同期先N件/);
-  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /状態が未確認なら/);
+  assert.equal(SUPPORT_ACTION_IDS.some((id) => /delete|revoke|rename/.test(id)), false);
 });
 
-
-test('evaluation scores the captured bad route and still tolerates support clarification', () => {
-  const scenario = SCENARIOS.find((s) => s.id === 'S11');
-  const bad = autoScore(scenario, { reply: IPHONE_THIRD_REPLY, toolCalls: [] });
-  assert.equal(bad.pass, false);
-  assert.ok(bad.flags.includes('unsupported_ui_path'));
-  assert.equal(autoScore(scenario, { reply: 'どのアプリの同期について確認したいですか？', toolCalls: [] }).pass, true);
+test('diagnostic errors and provider errors never trigger automatic retries', async () => {
+  const p = provider('説明です。');
+  const fail = await runSupportTurn({ provider: p, diagnostics: { async getSyncOverview() { throw new Error('offline'); } }, message: '同期の状態は？' });
+  assert.equal(p.calls.length, 0);
+  assert.equal(fail.diagnosticsFailed, true);
+  let calls = 0;
+  await assert.rejects(runSupportTurn({ provider: { async complete() { calls++; throw new Error('timeout'); } }, diagnostics: diag('S1'), message: '同期の状態は？' }), /timeout/);
+  assert.equal(calls, 1);
 });
 
-test('two diagnostic tools plus repair stay within four calls, without losing the diagnostic context', async () => {
-  const p = scripted([tool(), tool('getAppSyncTargets', { appId: 'chord' }),
-    text('コードクルーズで設定 → クラウド同期 → Cruise Portと接続を開いてください。'), text(GOOD)]);
-  const turn = await runSupportTurn({ provider: p, diagnostics: diag('S1'), message: 'コードクルーズの同期について教えてください。' });
-  assert.equal(turn.reply, GOOD);
-  assert.equal(p.calls.length, 4);
-  assert.equal(turn.stats.toolCalls, 2);
-  assert.ok(p.calls[3].messages.filter((m) => m.role === 'tool').length === 2);
+test('a dangerous proposed workaround gets app-owned preservation guidance without losing natural reasoning', async () => {
+  const result = await turn('S3', '解除してデータを消せば直りますか。',
+    '前回の報告だけでは原因は分かりません。データを保ったままでも、症状を絞るための情報は得られます。',
+    [{ id: 'preserve_data', appId: 'none' }, { id: 'inspect_app', appId: 'chord' }]);
+  assert.match(result.reply, /データの削除や同期解除は行わず/);
+  assert.match(result.reply, /症状を絞るための情報/);
+  assert.equal(result.stats.diagnosticSummaryUsed, false);
+  assert.equal(result.requests.length, 1);
 });
 
+test('a state transition between overview and detail cannot enable a stale connection action', async () => {
+  const detached = diag('S8'); const connected = diag('S1');
+  const result = await runSupportTurn({
+    provider: provider('前回の報告があります。', [{ id: 'connect_app', appId: 'chord' }]),
+    diagnostics: { getSyncOverview: () => detached.getSyncOverview(), getAppSyncTargets: (appId) => connected.getAppSyncTargets(appId) },
+    message: 'コードクルーズが未接続です。'
+  });
+  assert.equal(result.stats.rejectedActions, 1);
+  assert.match(result.reply, /同期済み/);
+  assert.doesNotMatch(result.reply, /Cruise Portと接続|同期コード/);
+});
 
-test('an app identified in the previous sentence keeps its verified connection state', () => {
-  const answer = 'コードクルーズは未接続です。設定 → クラウド同期 → Cruise Portと接続を開いてください。';
-  const apps = [{ appId: 'pitch', displayStatus: 'available' }, { appId: 'chord', displayStatus: 'detached' }];
-  assert.equal(validateSupportReply(answer, { apps }).ok, true);
-  assert.equal(validateSupportReply(answer, { apps: apps.map((a) => ({ ...a, displayStatus: 'available' })) }).ok, false);
+test('a follow-up retains the app context while obtaining fresh state; a multi-app question stays overview-only', async () => {
+  const history = [{ role: 'user', content: 'コードクルーズが未接続です。' }];
+  const result = await runSupportTurn({ provider: provider('前回の報告があります。', [{ id: 'inspect_app', appId: 'chord' }]),
+    diagnostics: diag('S1'), message: '今の状態はどうですか。', history });
+  assert.equal(result.stats.toolCalls, 2);
+  assert.equal(result.stats.rejectedActions, 0);
+  assert.match(result.reply, /コードクルーズの表示は「✓ 同期済み」/);
+  assert.match(result.reply, /設定 → クラウド同期/);
+  const multi = await runSupportTurn({ provider: provider('前回の報告があります。'), diagnostics: diag('S1'),
+    message: 'コードクルーズと音感クルーズはどうですか。', history });
+  assert.equal(multi.stats.toolCalls, 1);
 });
