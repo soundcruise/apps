@@ -11,6 +11,7 @@ import { AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, contains
 import { normalizeCompletion } from '../src/ai-support-provider.js';
 import { sanitizeReply, containsMarkdown } from '../src/ai-support-policy.js';
 import { createSqliteD1 } from './sqlite-d1.js';
+import { createAiUsageD1 } from './ai-usage-fixture.js';
 
 // Cloud Sync UX 2.0 Phase AI1-B: the AI support route with a mock Workers AI binding. No real
 // provider is called here; all data is synthetic.
@@ -50,8 +51,15 @@ function mockAi(script) {
 // ---------------------------------------------------------------- D1 fixtures
 
 function environment(db, overrides = {}) {
+  const usageDb = createAiUsageD1();
+  // Security fixtures exercise many synthetic requests. Quota tests below use explicit small caps.
+  usageDb.raw.exec('UPDATE ai_usage_policy SET account_daily=1000, account_monthly=10000, daily_micros=100000000, monthly_micros=1000000000, usage_verified=1');
+  const close = db.close.bind(db);
+  db.close = () => { usageDb.close(); close(); };
   return {
     SYNC_DB: db,
+    AI_SUPPORT_USAGE_DB: usageDb,
+    AI_SUPPORT_USAGE_HMAC_KEY: 'synthetic-ai-usage-hmac-key-at-least-32-characters',
     ACCOUNT_ALLOWED_ORIGINS: origin,
     SYNC_ACCOUNT_CREDENTIAL_PEPPER: accountCredentialPepper,
     SYNC_ACCOUNT_RECOVERY_PEPPER: 'ai1b-test-account-recovery-pepper-32-c',
@@ -163,6 +171,64 @@ function idForms(value) {
   const hyphenless = value.replace(/-/g, '');
   return [value, value.toUpperCase(), hyphenless, hyphenless.toUpperCase()];
 }
+
+test('quota admission: valid Pro+Account is counted separately; exhausted Account does not call AI or affect another Account', async () => {
+  const { db, env, a, b, pro } = await setup();
+  env.AI_SUPPORT_USAGE_DB.raw.exec('UPDATE ai_usage_policy SET account_daily=1');
+  const ai = mockAi([reply('状態を確認してください。')]), before = dump(db);
+  assert.equal((await chat({ ...env, AI: ai }, a, pro, { message: '同期の状態を知りたい' })).status, 200);
+  const denied = await chat({ ...env, AI: ai }, a, pro, { message: '続けて相談したい' });
+  assert.equal(denied.status, 429);
+  const error = await denied.json(); assert.equal(error.code, 'ai_account_daily_limit');
+  assert.ok(Number.isSafeInteger(error.resetAt)); assert.ok(Number(denied.headers.get('Retry-After')) > 60);
+  assert.equal(ai.requests.length, 1);
+  assert.equal((await chat({ ...env, AI: ai }, b, pro, { message: '同期について' })).status, 200);
+  assert.deepEqual(dump(db), before, 'Sync DB stays byte-identical'); db.close();
+});
+
+test('accounting unavailable: no binding, key, schema or before-dispatch write means no inference; normal Sync remains available', async () => {
+  for (const mode of ['binding', 'key', 'schema', 'dispatch']) {
+    const { db, env, a, pro } = await setup();
+    if (mode === 'binding') env.AI_SUPPORT_USAGE_DB = undefined;
+    if (mode === 'key') env.AI_SUPPORT_USAGE_HMAC_KEY = '';
+    if (mode === 'schema') env.AI_SUPPORT_USAGE_DB.raw.exec('DROP TABLE ai_usage');
+    if (mode === 'dispatch') env.AI_SUPPORT_USAGE_DB.raw.exec(`CREATE TRIGGER reject_calls BEFORE UPDATE OF model_calls ON ai_usage BEGIN SELECT RAISE(ABORT,'private detail'); END`);
+    const ai = mockAi([]), before = dump(db);
+    const response = await chat({ ...env, AI: ai }, a, pro, { message: '同期について' });
+    assert.equal(response.status, 503); assert.equal((await response.json()).code, 'ai_support_accounting_unavailable');
+    assert.equal(ai.requests.length, 0);
+    const sync = await handleRequest(plainRequest('/v2/accounts/summary', undefined, a.auth), env);
+    assert.equal(sync.status, 200); assert.deepEqual(dump(db), before); db.close();
+  }
+});
+
+test('usage ledger stores numeric metrics and categories, never conversation, labels, IDs, credentials or provider error text', async () => {
+  const { db, env, a, pro } = await setup();
+  const text = '独自の相談内容です。同期状況を教えてください。';
+  const ai = mockAi([callTools(['getSyncOverview', {}]), reply('独自の回答内容です。同期状況を確認しました。')]);
+  assert.equal((await chat({ ...env, AI: ai }, a, pro, { message: text })).status, 200);
+  const failed = mockAi([new Error('private-provider-text')]);
+  assert.equal((await chat({ ...env, AI: failed }, a, pro, { message: '同期について' })).status, 503);
+  const ledger = JSON.stringify(env.AI_SUPPORT_USAGE_DB.raw.prepare('SELECT * FROM ai_usage').all());
+  for (const value of [text, '独自の回答内容', HOSTILE_LABEL, a.accountId, a.appDeviceId, a.credential, pro, 'private-provider-text']) assert.equal(ledger.includes(value), false, value);
+  const usage = env.AI_SUPPORT_USAGE_DB.raw.prepare('SELECT * FROM ai_usage ORDER BY rowid').all();
+  assert.equal(usage[0].model_calls, 2); assert.equal(usage[0].input_tokens, 250);
+  assert.equal(usage[1].outcome, 'provider_error'); assert.equal(usage[1].unknown_calls, 1);
+  db.close();
+});
+
+test('existing tool rounds, history and one repair are metered without changing the natural answer', async () => {
+  const { db, env, a, pro } = await setup();
+  const ai = mockAi([callTools(['getSyncOverview', {}]), callTools(['getAppSyncTargets', { appId: 'pitch' }]),
+    reply('再同期ボタンを押してください。'), reply('その端末で音感クルーズを開き、設定からクラウド同期を確認してください。')]);
+  const response = await chat({ ...env, AI: ai }, a, pro, { message: '次はどうすればよいですか？',
+    history: [{ role: 'user', content: '音感クルーズについてです。' }, { role: 'assistant', content: '同期の状態を確認します。' }] });
+  assert.equal(response.status, 200); assert.match((await response.json()).reply, /その端末で音感クルーズ/);
+  assert.equal(ai.requests.length, 4); assert.equal(ai.requests[0].inputs.messages[1].content, '音感クルーズについてです。');
+  const usage = env.AI_SUPPORT_USAGE_DB.raw.prepare('SELECT * FROM ai_usage').get();
+  assert.equal(usage.model_calls, 4); assert.equal(usage.repair, 1); assert.equal(usage.fallback, 0); assert.equal(usage.unknown_calls, 0);
+  db.close();
+});
 
 // ---------------------------------------------------------------- tests
 

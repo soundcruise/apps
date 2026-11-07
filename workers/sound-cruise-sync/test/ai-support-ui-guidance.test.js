@@ -47,3 +47,14 @@ test('state knowledge preserves previous report versus present state and registr
   for (const text of ['現在も同期が未完了だと断定しない', 'activeTargetCount', '未登録・未接続と読み替えない',
     '前回の報告', '全端末が一致している保証ではない']) assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(text));
 });
+
+test('UI knowledge matches conditional native recheck and explicitly limits Port local diagnosis', () => {
+  const ui = fs.readFileSync(new URL('../../../apps/cruise-port/sync-center-device-detail.js', import.meta.url), 'utf8');
+  assert.match(ui, /retry: inProgress \|\| membershipAttention/);
+  assert.match(ui, /snapshot === 'mismatch'/);
+  for (const text of ['同期先の前回報告だけに確認事項やエラーがある場合は、表示されるとは限らない',
+    'Port自身のローカル状態・未送信データ・画像処理・実行中の同期処理は取得しない',
+    'Port自身には「同期を開始・再開」がある', 'reportedAt はその同期先から届いた前回報告の時刻']) assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(text));
+  // The existing guard accepts a correct Port-specific explanation unchanged.
+  assert.equal(validateSupportReply('Cruise Portの「同期を開始・再開」はデータの送受信を始める操作です。表示されている状態を教えてください。').ok, true);
+});

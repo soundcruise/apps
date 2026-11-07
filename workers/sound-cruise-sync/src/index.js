@@ -7,6 +7,7 @@
  * See ../../../LICENSE and ../../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
 import { handleRequest, handleScheduled } from './app.js';
+import { AiUsageError, cleanupAiUsage } from './ai-support-usage.js';
 
 export default {
   fetch(request, env, ctx) {
@@ -14,5 +15,7 @@ export default {
   },
   scheduled(event, env, ctx) {
     ctx.waitUntil(handleScheduled(event, env));
+    // Independent of Sync cleanup. Surface only a fixed error to platform metrics; no app logs.
+    ctx.waitUntil(cleanupAiUsage(env).catch(() => { throw new AiUsageError(); }));
   }
 };

@@ -6,6 +6,7 @@
 
 import { EgressBlockedError, isProviderInputSafe } from './ai-support-egress.js';
 import { createKnownIdMatcher } from './secret-detector.js';
+import { normalizeBillableUsage } from './ai-support-usage.js';
 
 export const AI_SUPPORT_MODELS = Object.freeze({
   'gpt-oss-120b': Object.freeze({ id: '@cf/openai/gpt-oss-120b', reasoningEffort: 'low',
@@ -59,17 +60,14 @@ export function normalizeCompletion(raw) {
     name: typeof (call.function?.name ?? call.name) === 'string' ? (call.function?.name ?? call.name) : '',
     arguments: parseArguments(call.function?.arguments ?? call.arguments)
   }));
-  const usage = raw.usage && typeof raw.usage === 'object' ? {
-    inputTokens: Number(raw.usage.prompt_tokens ?? raw.usage.input_tokens) || 0,
-    outputTokens: Number(raw.usage.completion_tokens ?? raw.usage.output_tokens) || 0
-  } : null;
+  const usage = normalizeBillableUsage(raw.usage);
   return { text, toolCalls, usage };
 }
 
 // ai: the Workers AI binding (env.AI) or a test double with run(model, inputs).
 // knownIds: the authenticated Account's raw IDs, used only to refuse inputs that contain them.
 export function createWorkersAiProvider({ ai, modelKey = DEFAULT_AI_SUPPORT_MODEL, timeoutMs = 25_000,
-  maxOutputTokens = 900, knownIds = [] } = {}) {
+  maxOutputTokens = 900, knownIds = [], usageMeter = null } = {}) {
   const containsKnownId = createKnownIdMatcher(knownIds);
   const model = AI_SUPPORT_MODELS[modelKey];
   if (!model) throw new Error('ai_support_model_unknown');
@@ -83,12 +81,16 @@ export function createWorkersAiProvider({ ai, modelKey = DEFAULT_AI_SUPPORT_MODE
       if (model.reasoningEffort) inputs.reasoning = { effort: model.reasoningEffort };
       // The final egress boundary: the exact input for AI.run, checked here and nowhere skipped.
       if (!isProviderInputSafe(inputs, { containsKnownId })) throw new EgressBlockedError();
+      // Await durable accounting before dispatch, including every diagnostic round and repair.
+      // A failure here never reaches AI.run. It must not be disguised as a provider timeout.
+      await usageMeter?.beforeCall(inputs);
       let timer;
       try {
         const raw = await Promise.race([
           ai.run(model.id, inputs),
           new Promise((_, reject) => { timer = setTimeout(() => reject(new AiProviderError()), timeoutMs); })
         ]);
+        usageMeter?.record(raw?.usage);
         return normalizeCompletion(raw);
       } catch {
         throw new AiProviderError();

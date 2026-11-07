@@ -1,6 +1,6 @@
 // One AI support turn (AI1-B): fixed system prompt, bounded history, the user's message as a user
 // message, at most two read-only diagnostic tool calls, and diagnostics returned only as tool
-// results in the AI1-A trust envelope. Provider- and model-agnostic; nothing is stored.
+// results in the AI1-A trust envelope. Provider- and model-agnostic; no conversation is stored.
 import { toModelToolResult } from './ai-diagnostics.js';
 import { EgressBlockedError, guardedProvider, isProviderInputSafe } from './ai-support-egress.js';
 import { DEGENERATE_FALLBACK_REPLY, GUARD_FALLBACK_REPLY, repairInstruction, validateSupportReply } from './ai-support-guard.js';
@@ -11,6 +11,9 @@ import {
 import { containsSensitive, createKnownIdMatcher } from './secret-detector.js';
 
 const TOOL_NAMES = new Set(AI_SUPPORT_TOOLS.map((tool) => tool.function.name));
+export const createSupportStats = () => ({ modelCalls: 0, toolCalls: 0, rejectedToolCalls: 0,
+  usage: { inputTokens: 0, outputTokens: 0 }, guardViolations: [], repairAttempted: false,
+  repaired: false, fallback: false, firstAnswerMs: null });
 
 // history: earlier [{ role: 'user' | 'assistant', content }] (already validated and capped).
 // Every provider call goes through guardedProvider: the egress guard on the whole request and a
@@ -20,13 +23,13 @@ const TOOL_NAMES = new Set(AI_SUPPORT_TOOLS.map((tool) => tool.function.name));
 // every reply is compared against them.
 // maxModelCalls can only lower the budget (tests); it is never raised above the policy limit.
 export async function runSupportTurn({ provider: rawProvider, diagnostics, history = [], message, knownIds = [],
-  maxModelCalls = AI_SUPPORT_LIMITS.maxModelCalls }) {
+  maxModelCalls = AI_SUPPORT_LIMITS.maxModelCalls, stats = createSupportStats() }) {
   const maxCalls = Math.min(Number.isSafeInteger(maxModelCalls) && maxModelCalls > 0 ? maxModelCalls : 0,
     AI_SUPPORT_LIMITS.maxModelCalls);
   const provider = guardedProvider(rawProvider, { maxCalls, knownIds });
   const containsKnownId = createKnownIdMatcher(knownIds);
   try {
-    return await runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls });
+    return await runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls, stats });
   } catch (error) {
     if (error instanceof EgressBlockedError) {
       return { reply: SECRET_REFUSAL, stats: { modelCalls: provider.calls, egressBlocked: true }, egressBlocked: true };
@@ -35,16 +38,14 @@ export async function runSupportTurn({ provider: rawProvider, diagnostics, histo
   }
 }
 
-async function runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls }) {
+async function runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls, stats }) {
   const messages = [
     { role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT },
     ...history.map(({ role, content }) => ({ role, content })),
     { role: 'user', content: message }
   ];
   const started = Date.now();
-  // Counters only (no text) — safe to count in future telemetry.
-  const stats = { modelCalls: 0, toolCalls: 0, rejectedToolCalls: 0, usage: { inputTokens: 0, outputTokens: 0 },
-    guardViolations: [], repairAttempted: false, repaired: false, fallback: false, firstAnswerMs: null };
+  // Counters only (no text) — shared with the separate usage accounting path.
   const track = (result) => {
     stats.modelCalls += 1;
     stats.usage.inputTokens += result.usage?.inputTokens || 0;
@@ -62,7 +63,7 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
       stats.rawMarkdown = containsMarkdown(result.text);
       stats.firstAnswerMs = Date.now() - started;
       const reply = sanitizeReply(result.text);
-      if (!reply) return { reply: FALLBACK_REPLIES.noAnswer, stats };
+      if (!reply) { stats.fallback = true; return { reply: FALLBACK_REPLIES.noAnswer, stats }; }
       return guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls });
     }
     if (!toolsAllowed) break;
@@ -71,6 +72,7 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
     // follow-up itself: its own call ids, the fixed tool name, and validated arguments only.
     if (result.toolCalls.some((call) => typeof call?.name !== 'string' || !TOOL_NAMES.has(call.name))) {
       stats.rejectedToolCalls += result.toolCalls.length;
+      stats.fallback = true;
       return { reply: FALLBACK_REPLIES.noAnswer, stats, unsafeToolCall: true };
     }
     const calls = result.toolCalls.map((call) => {
@@ -108,6 +110,7 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
       messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content });
     }
   }
+  stats.fallback = true;
   return { reply: FALLBACK_REPLIES.noAnswer, stats };
 }
 
