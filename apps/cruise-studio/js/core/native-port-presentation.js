@@ -22,7 +22,14 @@
             if (!doc?.body || !frame.getClientRects().length) return;
             const center = !frame.closest('#tool-window-slot');
             const style = doc.getElementById('studio-center-height');
-            if (!center) { style?.remove(); if (frame.style.height !== originalHeight) frame.style.height = originalHeight; return; }
+            // Fretboard scales its neck from the viewport height. Content-driven iframe
+            // sizing feeds that result back into the next scale calculation and makes
+            // the neck shrink between renders. Keep its native viewport/scroll owner.
+            if (!center || doc.documentElement.dataset.studioApp === 'fretboard') {
+                style?.remove();
+                if (frame.style.height !== originalHeight) frame.style.height = originalHeight;
+                return;
+            }
             if (!style) {
                 const css = doc.createElement('style'); css.id = 'studio-center-height';
                 css.textContent = 'html,body{height:auto!important;min-height:0!important} body{overflow-y:visible!important} body>.app-container,body>.cc-app,body>.port-shell{height:auto!important;min-height:0!important;max-height:none!important;overflow-y:visible!important} .app-container:has(>#overlay:not(.hidden))>header,.app-container:has(>#overlay:not(.hidden))>main{display:none!important} .app-container>#overlay{position:relative!important;inset:auto!important;height:auto!important;min-height:0!important;overflow:visible!important} .app-container>#overlay>.modal{max-height:none!important;overflow-y:visible!important}';

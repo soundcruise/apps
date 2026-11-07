@@ -1,0 +1,71 @@
+指板表示の瞬間的変化 — 調査・修正候補 Studio 0.86.1
+2026-11-07 / base main 565c25e562d6d3302d39c19b1aaab321094ac551
+
+判定: CONDITIONAL PASS（Draftレビュー可、公開承認ではない）
+
+再現
+公開Studio Pro 0.86.0のSafariプライベートウインドウで、指板をたどる
+STAGE 1開始時の4→3→2カウントダウン中に指板全体が段階的に縮小した。
+指板クイズSTAGE 1でも、最初の問題表示後に指板全体が縮小した。
+双方を連続PNGで記録。公開のFretboard 2.27.1 script/themeとmainの同一性を確認。
+指板単体Pro 2.27.1のSafariでは、通常・低いウインドウの開始時に同じ縮小を
+観測しなかった。単体全条件の不存在を証明する結果ではない。
+今回Windows VMは追加操作していない。タップ遅延は対象外。
+
+原因と因果比較
+Studio js/core/native-port-presentation.js の共通高さ調整は、内容に合わせて
+iframe.heightを変更し、内部app-containerをheight:auto!importantへ変える。
+指板はviewportの高さを読み取って投影倍率を決めるため、出力の高さが次の
+入力の高さへ戻る循環になる。開始・問題遷移・親DOM変更・resizeで再計算される。
+srcdocはlocation.originがnullなのでbindの監視登録前にreturnするが、docは
+代入済みであり、親のplacement observer等からupdateが呼ばれる経路は残る。
+
+隔離fixtureはStandardの実際のscript/theme、Studioの表示CSSと上記高さ調整を使用。
+Pro認証を偽造せず、Account/Syncホストや資格を注入しない。親のclass更新を
+毎秒発生させ、Studioの共通更新から高さ調整が呼ばれる条件だけを作った。
+初期指定は1300×450。旧高さ調整では756→561→493→475px等に変化し、
+同じ5弦ドのカウントダウン中にscale 1.4428→1.1978→1.1331を記録。
+修正後は高さのinline上書きなし、viewport 1300×450、カウントダウン4/3/2/1と
+通常進行でscale 1.1763が一定。Chromium 157の観測値でありSafari実測値と混同しない。
+観測用コードは作業フォルダResults内だけ。製品配布へ追加していない。
+
+修正
+共通高さ調整からdata-studio-app=fretboardのdocumentだけを除外する。
+既存の高さ上書きがあれば除去し、元のiframeの高さ・指板側のscroll管理へ戻す。
+中央と右側paneのいずれも指板の本来のviewportを維持する。
+機能差分はnative-port-presentation.jsの1条件のみ。
+Studioを0.86.1へpatch更新し、既存のversion/cache参照と生成Pro入口を揃えた。
+Portは1.28.0、Fretboardは2.27.1のまま。
+
+正常演出との区別
+対象/次の音の青・緑のマーカー、弦の強調、正誤色、カウントダウン数字は残す。
+問題と結果の間で指板全体の投影サイズが変わる現象を修正対象とした。
+描画DOM、学習判定、ステージ進行や既存アニメーションは編集していない。
+
+検証
+- 新規Node回帰7件PASS。旧コードを同じfixtureで実行すると指板の2件のみFAIL。
+- 関連Node回帰28/28 PASS（高さ所有、pane、他center surfaceの既存動作、
+  Fretboard boot、native Pro/Account境界、cache/version、配布生成）。
+- 隔離Chromium: たどる開始/進行/一時停止、クイズ正解・不正解・次の問題・
+  終了と次ステージ、1300×450→900×600→440×740の表示切替を確認。
+- Safari修正後: ユーザーが版表示fixed-v2のローカルfixtureを確認し、
+  「初回縮小は出なくなりました」と回答。本人による目視確認として分類する。
+  agent自身が修正後のSafari連続画像を取得したという結果ではない。
+- 初回の版表示のない確認では縮小が残ると報告されたため、その確認をPASSに
+  数えない。キャッシュ原因と断定せず、明示版表示・新参照の確認を採用した。
+
+保護
+Fretboard本体・他のアプリ・shared・Port・Worker/D1/R2の製品差分なし。
+ステージ/成績/設定/Pro条件/カスタム練習/Sync/Account/schema2/CAS/Web Locks/
+Outbox/UNKNOWN/譜面/PreDTMのロジック変更なし。実Account接続・同期書込みなし。
+公開Proの番号は本人入力。抽出・推測・保存していない。
+Safari privateとlocalhostの使い捨て練習状態だけを操作した。
+
+画像と限界
+display-comparison.png: 公開Safariの修正前と隔離Chromiumの修正後の参考比較。
+異なるブラウザ・viewportを含むため、同一条件のピクセル差分ではない。
+同一の隔離fixtureでの因果比較は上記の高さ/倍率記録と旧/新Node回帰による。
+正規Pro認証のlocalhost確認は通信エラーで進めず、認証回避はしていない。
+修正版Studio 0.86.1の完全な認証済みStudioシェルでの実Safari試験は未実施。
+merge/公開後に、中央・右pane、設定/ステージ選択のスクロールを短く限定受入する。
+Windows/Chrome実機全般へ一般化せず、残る単体固有再現があれば別途条件を記録する。
