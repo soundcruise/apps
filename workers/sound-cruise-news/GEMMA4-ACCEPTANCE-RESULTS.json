@@ -1,0 +1,188 @@
+{
+  "model": "@cf/google/gemma-4-26b-a4b-it",
+  "route": "Native Workers AI REST /ai/run; no gateway, fallback or extra provider. Workers AI neuron billing, before free allowance; no AI Gateway prepaid credit request.",
+  "attempts": 6,
+  "retries": 0,
+  "exasearches": 0,
+  "allHttp200": true,
+  "schemaPass": 6,
+  "completeJson": 6,
+  "japaneseReasons": 6,
+  "finishReasons": [
+    "stop",
+    "stop",
+    "stop",
+    "stop",
+    "stop",
+    "stop"
+  ],
+  "thinkingRequested": false,
+  "reasoningTokenCounts": "not returned; do not infer zero",
+  "promptTokens": 2886,
+  "completionTokens": 635,
+  "cachedInputTokens": 320,
+  "neurons": 42.099997997283936,
+  "latencyMs": {
+    "sum": 12771,
+    "min": 1412,
+    "max": 2590
+  },
+  "preflightConservativeEstimateUsd": 0.007053800000000001,
+  "uncachedTokenEstimateUsd": 0.00047910000000000004,
+  "usageNeuronEstimateUsd": 0.00046309997797012325,
+  "actualInvoiceAfterFreeAllowance": "unconfirmed",
+  "adoption": "Provisional: unverified hints with human review only; not formal facts/category/date/publication authority",
+  "sampleLimit": "Six fixed cases, one run each, no statistical accuracy claim; production three-item batch not measured live",
+  "cases": [
+    {
+      "id": "ja_new_product",
+      "estimate": {
+        "category": "news_hint",
+        "brand": "ヤマハ",
+        "product": "Acompass 60",
+        "event": "アコースティックギターアンプの発売",
+        "value": "high",
+        "priority": "high",
+        "relevance": "high",
+        "duplicate": "unknown",
+        "reason": "新製品の発売に関する具体的なニュースリリースのため。"
+      },
+      "usage": {
+        "promptTokens": 514,
+        "completionTokens": 115,
+        "totalTokens": 629,
+        "cachedTokens": 0,
+        "reasoningTokens": null,
+        "neurons": 7.809090614318848
+      },
+      "elapsedMs": 2590,
+      "estimatedCostUsd": 0.00008589999675750731,
+      "assessment": "Useful launch correctly recognized; raw priority high despite unverified publication hint. Existing runner caps it to medium, never formal READY."
+    },
+    {
+      "id": "ja_limited",
+      "estimate": {
+        "category": "news",
+        "brand": "Headway",
+        "product": "The Eagle (Mahogany & Rosewood Limited Model)",
+        "event": "New limited model release",
+        "value": "high",
+        "priority": "medium",
+        "relevance": "high",
+        "duplicate": "unknown",
+        "reason": "限定モデルの発売情報。日付の検証が必要なため優先度は中。"
+      },
+      "usage": {
+        "promptTokens": 476,
+        "completionTokens": 119,
+        "totalTokens": 595,
+        "cachedTokens": 0,
+        "reasoningTokens": null,
+        "neurons": 7.572727203369141
+      },
+      "elapsedMs": 2444,
+      "estimatedCostUsd": 0.00008329999923706054,
+      "assessment": "Limited finish/wood variant retained; medium priority with date verification needed."
+    },
+    {
+      "id": "ja_old_article",
+      "estimate": {
+        "category": "unknown",
+        "brand": "Infinite",
+        "product": "guitar",
+        "event": "unknown",
+        "value": "low",
+        "priority": "low",
+        "relevance": "medium",
+        "duplicate": "unknown",
+        "reason": "ブランド紹介記事。2022年の記事であり、情報の鮮度が低い。"
+      },
+      "usage": {
+        "promptTokens": 472,
+        "completionTokens": 107,
+        "totalTokens": 579,
+        "cachedTokens": 0,
+        "reasoningTokens": null,
+        "neurons": 7.209090709686279
+      },
+      "elapsedMs": 2073,
+      "estimatedCostUsd": 0.00007929999780654907,
+      "assessment": "Correct low-value/priority result despite synthetic recent modification. Reason states unverified 2022 hint assertively; remains an AI estimate."
+    },
+    {
+      "id": "ja_product_page",
+      "estimate": {
+        "category": "unknown",
+        "brand": "ヤマハ",
+        "product": "FG/FS7シリーズ アコースティックギター",
+        "event": "unknown",
+        "value": "low",
+        "priority": "low",
+        "relevance": "medium",
+        "duplicate": "unknown",
+        "reason": "製品ラインアップの紹介ページであり、新しいニュースではないため。"
+      },
+      "usage": {
+        "promptTokens": 483,
+        "completionTokens": 61,
+        "totalTokens": 544,
+        "cachedTokens": 320,
+        "reasoningTokens": null,
+        "neurons": 4.599998474121094
+      },
+      "elapsedMs": 1412,
+      "estimatedCostUsd": 0.00005059998321533203,
+      "assessment": "Correct low news value/priority for lineup; not an article-date proof."
+    },
+    {
+      "id": "ja_useful_unknown_date",
+      "estimate": {
+        "category": "unknown",
+        "brand": "unknown",
+        "product": "沖仁のフラメンコ教則本",
+        "event": "教則本の発売",
+        "value": "high",
+        "priority": "medium",
+        "relevance": "high",
+        "duplicate": "unknown",
+        "reason": "新刊発売のニュースだが、日付の検証が必要なため優先度は中。"
+      },
+      "usage": {
+        "promptTokens": 452,
+        "completionTokens": 118,
+        "totalTokens": 570,
+        "cachedTokens": 0,
+        "reasoningTokens": null,
+        "neurons": 7.327272415161133
+      },
+      "elapsedMs": 2131,
+      "estimatedCostUsd": 0.00008059999656677246,
+      "assessment": "Book release recognized as useful and date verification needed; no publication date invented. Category remains unknown."
+    },
+    {
+      "id": "ja_ambiguous",
+      "estimate": {
+        "category": "unknown",
+        "brand": "Bacchus",
+        "product": "flagship models",
+        "event": "Deviser One Day 2026",
+        "value": "medium",
+        "priority": "medium",
+        "relevance": "high",
+        "duplicate": "unknown",
+        "reason": "イベントの告知。日付は未検証のため鮮度確認が必要。"
+      },
+      "usage": {
+        "promptTokens": 489,
+        "completionTokens": 115,
+        "totalTokens": 604,
+        "cachedTokens": 0,
+        "reasoningTokens": null,
+        "neurons": 7.581818580627441
+      },
+      "elapsedMs": 2121,
+      "estimatedCostUsd": 0.00008340000438690185,
+      "assessment": "No invented model codes/specifications; event name taken from title. Category unknown and relevance high require human review."
+    }
+  ]
+}
