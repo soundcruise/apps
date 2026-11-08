@@ -4636,9 +4636,9 @@ body.cc-settings-open {
     --cc-text-faint: #c6c2b9;
     --cc-ink-rgb: 242, 241, 237;
     --cc-neutral-rgb: 205, 200, 188;
-    --cc-well-rgb: 40, 41, 44;
-    --cc-chrome-rgb: 72, 73, 77;
-    --cc-overlay-bg-rgb: 66, 67, 70;
+    --cc-well-rgb: 16, 21, 28;
+    --cc-chrome-rgb: 37, 47, 59;
+    --cc-overlay-bg-rgb: 16, 21, 28;
     --cc-sheet-top: #1d2631;
     --cc-sheet-bottom: #1d2631;
     --cc-card-top: #1d2631;
