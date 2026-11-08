@@ -6,6 +6,7 @@ import {publicationValidation} from './decision-policy.js';
 import {NewsStore} from './store.js';
 import {nextDailyCollectionAt} from './collection-clock.js';
 import {publicSearchUrl,searchDate,generalPage} from './web-discovery-quality.js';
+import {inspectIkebeWebEvidence} from './web-evidence-bridge.js';
 
 // A read-only join into the existing collector/lifecycle, NOT a new fetch or
 // candidate-registration contract. No search value is promoted to provenance.
@@ -29,6 +30,10 @@ export function webVerification(env,now,{registry=SOURCES}={}){
   // path scope. In particular Yamaha Topics permission never covers newsroom.
   const gate=evidenceGate(source,now);
   if(gate||!allowedArticlePath(url,source))return {...info,path:'C',reason:gate||'outside_allowed_article_path',nextAction:'operator_source_permission'};
+  if(source.id==='ikebe'){
+   if(formalChecks++>=10)return {...info,path:'C',reason:'verification_view_limit',nextAction:'operator_candidate_review'};
+   return {...(await inspectIkebeWebEvidence(store,url,now,sources,env.NEWS_HEADLINE_PEPPER)).view,automaticEvidenceEnabled:env.NEWS_WEB_EVIDENCE_ENABLED==='true'};
+  }
   const rows=(await store.db.prepare('SELECT * FROM candidate_items WHERE source_id=? AND (source_url=? OR normalized_url=?) LIMIT 2').bind(source.id,url,url).all()).results;
   if(rows.length>1)return {...info,path:'C',reason:'ambiguous_existing_candidate',nextAction:'operator_candidate_review'};
   const row=rows[0];

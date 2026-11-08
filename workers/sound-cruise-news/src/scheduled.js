@@ -1,4 +1,5 @@
 import {probeMaintenanceRecovery,maintenanceRecoveryPlan} from './maintenance-recovery.js';
+import {reconcileWebEvidence} from './web-evidence-bridge.js';
 import {runPendingRechecks} from './pending-lifecycle.js';
 import {SOURCES,evidenceGate} from './registry.js';
 import {NewsStore} from './store.js';
@@ -56,6 +57,11 @@ export async function scheduledNews(event,env,ctx,now=Date.now(),{registry=SOURC
  try{readiness=await runPendingRechecks(store,now,active,env.NEWS_HEADLINE_PEPPER,{fetcher,sleep,resolveObjective:true});}
  catch{console.error(JSON.stringify({event:'news_pending_recheck_failed'}));}
  await store.recordHealth({sourceId:'collection',...collectionHealth(results),checkedAt:now,successfulAt:now});
+ let webEvidence=null;
+ if(env.NEWS_WEB_EVIDENCE_ENABLED==='true'){
+  try{webEvidence=await reconcileWebEvidence(env,now,{registry});}
+  catch{console.error(JSON.stringify({event:'news_web_evidence_failed'}));}
+ }
  console.log(JSON.stringify({event:'news_collection',scheduledAt,startedAt:now,nextCollectionAt:nextDailyCollectionAt(now),results:results.map(({sourceId,outcome,candidates,pending,published,requests,requestCounts,articleCache,backfill,preparation,maintenanceOutcome,schedule,backlogRemaining})=>({sourceId,outcome,candidates,pending,published,requests,newCandidates:preparation?.candidateCreated??null,ready:preparation?.ready??null,readyNew:preparation?.readyNew??null,maintenanceOutcome,schedule,...(sourceId==='agm'?{requestCounts,articleCache,backfill,backlogRemaining}:{})}))}));
- return {purged:true,results,readiness};
+ return {purged:true,results,readiness,webEvidence};
 }
