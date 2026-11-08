@@ -1,0 +1,25 @@
+✔ head bootstrap runs before every stylesheet and resolves only the four themes (3.495166ms)
+✔ settings expose カラーテーマ with four choices, previewed and reverted on cancel (0.685458ms)
+✔ applyFretboardTheme sets data-theme and the theme-color meta only for non-Dark themes (0.555208ms)
+✔ generated layer only applies under Charcoal / Gray / Light and keeps objects in Dark (6.710292ms)
+✔ theme writer: an explicit theme is sent, an unset one never is, a reader-first mirror stands in (2.818125ms)
+✔ theme writer: a received theme becomes the device theme; a missing one never clears it (9.331959ms)
+✔ information pages follow the theme with the app bootstrap; content is unchanged (7.562166ms)
+✔ every page bootstraps the theme before stylesheets and loads its theme layer last (5.604084ms)
+✔ settings keep the theme explicitly, preview it, revert on cancel and reset to Dark (0.30075ms)
+✔ applyPitchTheme toggles data-theme and an extra theme-color meta ahead of the Dark one (0.397708ms)
+✔ theme layers are scoped to Charcoal / Gray / Light and keep keys and feedback colors (6.180666ms)
+✔ theme writer: out of LOCAL_ONLY_SETTINGS; explicit theme sent, unset never sent, mirror stands in (2.524625ms)
+✔ theme writer: a received theme becomes the device theme; a missing one never clears it (5.300125ms)
+✔ information pages follow the theme with the app bootstrap; content is unchanged (7.823958ms)
+theme: information pages follow the theme; content and Pro acquisition pages unchanged OK
+theme: Cloud Sync writer OK (explicit sent, unset never sent, received adopted, absence keeps it)
+✔ apps/rhythm-cruise/tests/theme.test.js (53.023083ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.901666

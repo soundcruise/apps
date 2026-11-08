@@ -6180,3 +6180,6 @@ body:has(#app > .fret-info-home-slot) #in-game-refresh-bar {
     flex-shrink: 0;
     margin: 0 max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) 0;
 }
+
+/* Temporarily suspend new Midnight selection; retain saved values and Studio projection. */
+:root:not([data-studio-theme]) [data-theme-choice="midnight"] { display: none !important; }

@@ -1219,6 +1219,23 @@
 
     async resolveMergedSettingsConflict(conflict, fieldChoices = {}) {
       const context = await this.wait(async () => (this.conflictContext(conflict)));
+      // Only a proven view change at the SAME cloud revision may refresh a saved
+      // resolution anchor. Genuine concurrent edits still use the ordinary stale-CAS path.
+      const expected = conflict.resolution?.expectedRemote;
+      const themeRemote = context.remoteRecord;
+      if (['pitch', 'fretboard', 'rhythm'].includes(this.appId) &&
+          this.syncCapabilities().includes('settings_theme_v2') && expected &&
+          themeRemote?.payload?.values?.theme === 'midnight' &&
+          Number(expected.revision) === Number(themeRemote.revision) && !sameAnchor(themeRemote, expected)) {
+        const projected = { ...themeRemote, payload: { ...themeRemote.payload, values: { ...themeRemote.payload.values, theme: 'dark' } } };
+        const [serialized] = await this.wait(() => this.adapter.serializeRecords({
+          appId: this.appId, schemaVersion: context.local.snapshot.schemaVersion, records: [projected]
+        }));
+        if (sameAnchor({ ...projected, payloadHash: serialized.payloadHash }, expected)) {
+          conflict = await this.wait(() => this.saveConflict(conflict, conflict.state || 'attention',
+            { ...conflict.resolution, expectedRemote: recordAnchor(themeRemote) }));
+        }
+      }
       const saved = conflict.resolution?.choice === 'merged' ? clone(conflict.resolution) : null;
       const stored = saved?.expectedRemote ? saved : null;
       const choices = saved?.fieldChoices || fieldChoices;
@@ -1519,6 +1536,13 @@
         !item.conflict && item.terminalError === 'invalid_request');
       const recoverableIds = new Set(migration && oversizedInvalidMigration.length > MAX_PUSH_OPERATIONS
         ? oversizedInvalidMigration.map((item) => item.operationId) : []);
+      // Reuse the exact durable operation after the adapter has acquired the reader
+      // capability. Existing writer/Account guards below still control every send.
+      if (['pitch', 'fretboard', 'rhythm'].includes(this.appId) &&
+          this.syncCapabilities().includes('settings_theme_v2')) {
+        for (const item of initial) if (item.recordType === 'settings' &&
+            item.terminalError === 'settings_theme_upgrade_required') recoverableIds.add(item.operationId);
+      }
       let sent = 0;
       let conflicts = 0;
       let oversized = initial.some(item => item.migration === migration && item.terminalError === 'operation_too_large');
@@ -1598,6 +1622,16 @@
           const operation = operations.find((item) => item.operationId === result.operationId);
           if (!operation) throw new MultiAppSyncError('invalid_response');
           if (['applied', 'duplicate'].includes(result.status)) {
+            if (this.appId === 'port' && !operation.deleted) {
+              // Persist the server-confirmed ancestor before removing the only durable
+              // pending proof. A crash/failure between commits leaves an idempotent retry,
+              // never an unowned local edit with neither Outbox nor matching Shadow.
+              if (!await this.wait(() => this.acknowledgeOwnRecord(operation, result.record))) {
+                throw new MultiAppSyncError('invalid_response');
+              }
+              await this.wait(() => this.store.deleteOutbox(operation.operationId));
+              continue;
+            }
             await this.wait(async () => (this.store.deleteOutbox(operation.operationId)));
             if (operation.deleted) await this.wait(async () => (this.adapter.acknowledgeDelete?.(keyOf(operation), operation.deleteIntentGeneration)));
             else await this.wait(async () => (this.acknowledgeOwnRecord(operation, result.record)));

@@ -166,7 +166,7 @@ function validatePortPayload(recordType, recordId, payload) {
 
 // Color theme (reader-first): settings payloads may carry an optional per-app theme. Only these four
 // values are accepted; clients start sending it in a later writer phase.
-const SETTINGS_THEMES = ['dark', 'charcoal', 'gray', 'light'];
+const SETTINGS_THEMES = ['midnight', 'dark', 'charcoal', 'gray', 'light'];
 
 function validSettingsTheme(values) {
   return values.theme === undefined || SETTINGS_THEMES.includes(values.theme);

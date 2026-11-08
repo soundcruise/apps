@@ -1,0 +1,13 @@
+{
+  "commit": "4cfbea2cfee9d63e0e55690741cad0179cb54e0a",
+  "sha256": {
+    "apps/pitch-cruise/sync/pitch-sync-adapter.js": "4ae605324c4c4e8c07c46e2449930d8686db03e0bea487abedd7b5ec39d8c31b",
+    "apps/fretboard_cruise/sync/fretboard-sync-adapter.js": "00629bc4bfa5661e2f950b55300c8c4830952d28e6b716a2159732014b82ab1d",
+    "apps/rhythm-cruise/sync/rhythm-sync-adapter.js": "dbdb6a74547f20a876fbf4ae9aeed00d0a3be8afb774f307a9ab5aa3616adf97"
+  },
+  "runtime": {
+    "file": "multi-app-sync-runtime.js.fixture",
+    "commit": "10449b7d21b2871ea3ae9a04c1b55765bf5842de",
+    "sha256": "2687c834989c756130338947a3865b0feb3110046e9ae4109afb33f149701136"
+  }
+}

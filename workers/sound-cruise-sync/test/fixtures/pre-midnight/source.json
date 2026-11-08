@@ -1,0 +1,32 @@
+[
+  {
+    "file": "rhythm-sync-adapter.js.fixture",
+    "commit": "b9a26bba559ce41ed8d2d00a1449c60307e82807",
+    "path": "apps/rhythm-cruise/sync/rhythm-sync-adapter.js",
+    "sha256": "9542f9d4049239c5377bf217983017899e41b7f82e9a19545d70f8a7b019f2d9"
+  },
+  {
+    "file": "fretboard-sync-adapter.js.fixture",
+    "commit": "b9a26bba559ce41ed8d2d00a1449c60307e82807",
+    "path": "apps/fretboard_cruise/sync/fretboard-sync-adapter.js",
+    "sha256": "9b22a0ca1126c958b7f8be58d2d7b35facd5468219a4a3e35d0a5969397f1fd3"
+  },
+  {
+    "file": "pitch-sync-adapter.js.fixture",
+    "commit": "b9a26bba559ce41ed8d2d00a1449c60307e82807",
+    "path": "apps/pitch-cruise/sync/pitch-sync-adapter.js",
+    "sha256": "f04addff283ace522a20875ca51a53d0c29e63103ea853e2c49ffd71ed5ffc5a"
+  },
+  {
+    "file": "chord-storage.js.fixture",
+    "commit": "b9a26bba559ce41ed8d2d00a1449c60307e82807",
+    "path": "apps/chord-cruise/js/core/storage.js",
+    "sha256": "4a0c531f95f78614541b21121482e077da588ca1059ae911c8c0448a54717286"
+  },
+  {
+    "file": "port-settings-store.js.fixture",
+    "commit": "4cfbea2cfee9d63e0e55690741cad0179cb54e0a",
+    "path": "apps/cruise-port/settings-store.js",
+    "sha256": "e71f4754411425335de4e12f080e0f91e3281207df407649878e0be77b2d9543"
+  }
+]

@@ -26,7 +26,7 @@
   // settings record without theme never clears it, so it is handled outside the default-based code.
   const SYNC_OPTIONAL_SETTINGS = Object.freeze(['theme']);
   // Tells the Sync Worker this client understands a settings theme (older clients never receive it).
-  const SYNC_CAPABILITIES = Object.freeze(['settings_theme_v1']);
+  const SYNC_CAPABILITIES = Object.freeze(['settings_theme_v1', 'settings_theme_v2']);
   const DEFAULT_SETTINGS = Object.freeze({
     tapLayout: 'lr', tapUnified: true, inputMode: 'tap', judgePreset: 'semiStrict',
     clickRange: 'always', clickBeats: 'all', clickOffbeat: false

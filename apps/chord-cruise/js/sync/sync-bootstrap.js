@@ -93,7 +93,7 @@
             return Promise.resolve(installManagementUi());
         }
         if (!managementUiPromise) {
-            managementUiPromise = loadScript('sync-pairing-ui.js?v=1.23.0').then(function () {
+            managementUiPromise = loadScript('sync-pairing-ui.js?v=1.23.1').then(function () {
                 if (!global.ChordCruiseSync || !global.ChordCruiseSync.pairingUi) return false;
                 return installManagementUi();
             }).catch(function () {
@@ -107,9 +107,9 @@
     var ready = Promise.resolve({ enabled: false });
     if (isEnabled() && global.document && baseUrl) {
         ready = loadScript('sync-core.js')
-            .then(function () { return loadScript('sync-db.js?v=1.23.0'); })
-            .then(function () { return loadScript('sync-merge.js?v=1.23.0'); })
-            .then(function () { return loadScript('sync-client.js?v=1.23.0'); })
+            .then(function () { return loadScript('sync-db.js?v=1.23.1'); })
+            .then(function () { return loadScript('sync-merge.js?v=1.23.1'); })
+            .then(function () { return loadScript('sync-client.js?v=1.23.3'); })
             .then(function () {
                 var production = isProductionHost() || Boolean(global.SoundCruiseNativeSyncHost);
                 var endpoint = production

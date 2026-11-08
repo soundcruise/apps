@@ -1,0 +1,39 @@
+node:internal/assert/utils:77
+    throw err;
+    ^
+
+AssertionError [ERR_ASSERTION]: :root:not([data-studio-theme]) [data-theme-choice="midnight"]
+    at /private/tmp/port1304c-publish-20261108/apps/chord-cruise/tests/theme.test.js:299:13
+    at Array.forEach (<anonymous>)
+    at /private/tmp/port1304c-publish-20261108/apps/chord-cruise/tests/theme.test.js:296:14
+    at Array.forEach (<anonymous>)
+    at cssKeepsDarkAndOnlyRecolorsGrayLight (/private/tmp/port1304c-publish-20261108/apps/chord-cruise/tests/theme.test.js:285:56)
+    at Object.<anonymous> (/private/tmp/port1304c-publish-20261108/apps/chord-cruise/tests/theme.test.js:368:2)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+    at Module.load (node:internal/modules/cjs/loader:1533:32)
+    at Module._load (node:internal/modules/cjs/loader:1335:12) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.14.0
+✖ /tmp/port1304c-publish-20261108/apps/chord-cruise/tests/theme.test.js (45.656625ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 49.297834
+
+✖ failing tests:
+
+test at ../../../tmp/port1304c-publish-20261108/apps/chord-cruise/tests/theme.test.js:1:1
+✖ /tmp/port1304c-publish-20261108/apps/chord-cruise/tests/theme.test.js (45.656625ms)
+  'test failed'

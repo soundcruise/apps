@@ -3550,7 +3550,7 @@ for (const count of [49, 50, 51]) test(`push wire chunks respect count boundary 
   const bodies = [];
   fixture.runtime.fetchImpl = async (url, options) => {
     const body = JSON.parse(options.body); bodies.push(options.body);
-    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied'}))});
+    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied',record:{...op,revision:1,deletedAt:null}}))});
   };
   for (let i=0;i<count;i++) await fixture.store.putOutbox({operationId:'byte-'+i,recordType:'x',recordId:String(i),schemaVersion:1,baseRevision:0,payload:{text:'small'},payloadHash:'h',deleted:false,migration:false});
   await fixture.runtime.flushOutbox();
@@ -3566,7 +3566,7 @@ for(const delta of [-1,0,1]) test(`serialized push UTF-8 body at 256KiB ${delta}
   const overhead=new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength;
   operation.payload.text='a'.repeat(256*1024-overhead+delta);
   assert.equal(new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength,256*1024+delta);
-  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate'}]});};
+  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate',record:{...JSON.parse(options.body).operations[0],revision:1,deletedAt:null}}]});};
   await fixture.store.putOutbox({...operation,migration:false});
   if(delta<=0){await fixture.runtime.flushOutbox();assert.equal(calls,1);assert.equal((await fixture.store.listOutbox()).length,0);}
   else{await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);assert.equal((await fixture.store.listOutbox())[0].terminalError,'operation_too_large');await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);}
@@ -3575,14 +3575,14 @@ for(const delta of [-1,0,1]) test(`serialized push UTF-8 body at 256KiB ${delta}
 
 test('multibyte UTF-8 split measures entire envelope and retains other operations beside oversized',async()=>{
   const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');const bodies=[];
-  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'applied'}))});};
+  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'applied',record:{...op,revision:1,deletedAt:null}}))});};
   for(const[id,text]of[['one','音'.repeat(45000)],['huge','音'.repeat(100000)],['two','音'.repeat(45000)]])await fixture.store.putOutbox({operationId:id,recordType:'x',recordId:id,schemaVersion:1,baseRevision:0,payload:{text},payloadHash:'h',deleted:false,migration:false});
   await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(bodies.length,2);assert.ok(bodies.every(body=>new TextEncoder().encode(body).byteLength<=256*1024));
   assert.deepEqual((await fixture.store.listOutbox()).map(op=>[op.operationId,op.terminalError]),[['huge','operation_too_large']]);fixture.runtime.dispose();
 });
 test('conflict/bulk push path shares byte chunking and rejects malformed partial ACK without looping',async()=>{
   const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');const ops=Array.from({length:51},(_,i)=>({operationId:'bulk-'+i,payload:{text:'a'.repeat(7000)}}));const bodies=[];
-  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'duplicate'}))});};
+  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'duplicate',record:{...op,revision:1,deletedAt:null}}))});};
   assert.equal((await fixture.runtime.pushRequest({appId:'port',mode:'sync',operations:ops})).results.length,51);assert.ok(bodies.every(body=>JSON.parse(body).operations.length<=50&&new TextEncoder().encode(body).byteLength<=256*1024));
   fixture.runtime.fetchImpl=async()=>Response.json({ok:true,results:[]});await assert.rejects(fixture.runtime.pushRequest({operations:[ops[0]]}),e=>e.code==='invalid_response');fixture.runtime.dispose();
 });
@@ -3715,7 +3715,7 @@ test('B1-1 response loss preserves protocol context and operationId',async()=>{
   const f=runtimeFixture([], 'port','production');await f.store.setMeta('credential','scd1.valid');
   f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:1});
   const op=await f.runtime.operationFor(record('retry'),0);await f.store.putOutbox({...op,migration:false});
-  const bodies=[];f.runtime.fetchImpl=async(u,o)=>{bodies.push(JSON.parse(o.body));if(bodies.length===1)throw Error('lost');return Response.json({ok:true,results:[{operationId:op.operationId,status:'duplicate'}]});};
+  const bodies=[];f.runtime.fetchImpl=async(u,o)=>{bodies.push(JSON.parse(o.body));if(bodies.length===1)throw Error('lost');return Response.json({ok:true,results:[{operationId:op.operationId,status:'duplicate',record:{...op,revision:1,deletedAt:null}}]});};
   await assert.rejects(f.runtime.flushOutbox(),e=>e.code==='network_error');
   await f.runtime.flushOutbox({force:true});assert.deepEqual(bodies[0],bodies[1]);assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
 });
@@ -3725,7 +3725,7 @@ for (const count of [49, 50, 51]) test(`authority push wire chunks respect count
   const bodies = [];
   fixture.runtime.fetchImpl = async (url, options) => {
     const body = JSON.parse(options.body); bodies.push(options.body);
-    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied'}))});
+    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied',record:{...op,revision:1,deletedAt:null}}))});
   };
   for (let i=0;i<count;i++) await fixture.store.putOutbox({writerAuthority:{...fixture.runtime.writerWireContext.fields},operationId:'byte-'+i,recordType:'x',recordId:String(i),schemaVersion:1,baseRevision:0,payload:{text:'small'},payloadHash:'h',deleted:false,migration:false});
   await fixture.runtime.flushOutbox();
@@ -3741,7 +3741,7 @@ for(const delta of [-1,0,1]) test(`authority serialized push UTF-8 body at 256Ki
   const overhead=new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength;
   operation.payload.text='a'.repeat(256*1024-overhead+delta);
   assert.equal(new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength,256*1024+delta);
-  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate'}]});};
+  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate',record:{...JSON.parse(options.body).operations[0],revision:1,deletedAt:null}}]});};
   await fixture.store.putOutbox({...operation,migration:false,writerAuthority:{...fixture.runtime.writerWireContext.fields}});
   if(delta<=0){await fixture.runtime.flushOutbox();assert.equal(calls,1);assert.equal((await fixture.store.listOutbox()).length,0);}
   else{await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);assert.equal((await fixture.store.listOutbox())[0].terminalError,'operation_too_large');await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);}
