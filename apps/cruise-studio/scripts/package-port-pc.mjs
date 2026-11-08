@@ -7,7 +7,7 @@ import {execFileSync} from 'node:child_process';
 import {PRO_DIRECTORY,renderProEntry,renderProManifest} from './edition-layout.mjs';
 const studio=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const RELEASE_FILES=Object.freeze([
- 'cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
+ 'report-form.css','js/report-form.js','cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
  PRO_DIRECTORY+'/manifest.webmanifest','assets/app-icons/pro/favicon-32.png','assets/app-icons/pro/apple-touch-icon-180.png','assets/app-icons/pro/icon-192.png','assets/app-icons/pro/icon-512.png','assets/app-icons/pro/icon-1024.png',
  PRO_DIRECTORY+'/index.html','entry.css','theme-projection.css','theme.css','shell.css','studio-home.css','studio-tools.css','port-tuner-surface.css','port-pc.css','assets/studio-icons.svg','assets/tool-calendar.svg','assets/tool-sync.svg',
  'js/core/studio-icon-theme.js',

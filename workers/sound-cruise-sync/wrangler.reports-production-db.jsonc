@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "studio-report-db-preparation-only",
+  "account_id": "a9f2a3e9fcb6d0f68fd2eaa9df909e33",
+  "compatibility_date": "2026-09-01",
+  "d1_databases": [{
+    "binding": "REPORT_DB",
+    "database_name": "cruise-studio-reports-production",
+    "database_id": "d1054012-3f3f-4eff-bad0-d801683273b8",
+    "migrations_dir": "report-migrations"
+  }]
+}

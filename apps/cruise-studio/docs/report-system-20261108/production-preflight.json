@@ -1,0 +1,280 @@
+{
+  "version": "ae8d9611-2f3c-45ee-b6ed-e537e8d4da0f",
+  "deployment": "2be01215-bfcc-4205-91ab-1e24a22a0d35",
+  "mainModule": "studio-canary-entry.js",
+  "compatibilityDate": "2026-09-01",
+  "settingsSha256": "a0493d6fdd448d13d4479a12c578fd336bf77d248fbcaa17d2377942f3865d2c",
+  "bindings": [
+    {
+      "name": "ACCOUNT_ALLOWED_ORIGINS",
+      "type": "plain_text"
+    },
+    {
+      "name": "ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "ACCOUNT_BRIDGE_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "ACCOUNT_QA_ENROLL_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "ACCOUNT_RECOVERY_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "ACCOUNT_START_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "AI",
+      "type": "ai"
+    },
+    {
+      "name": "AI_SUPPORT_BETA_ACCOUNT_IDS",
+      "type": "secret_text"
+    },
+    {
+      "name": "AI_SUPPORT_BETA_EXPIRES_AT",
+      "type": "plain_text"
+    },
+    {
+      "name": "AI_SUPPORT_IP_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "AI_SUPPORT_MODE",
+      "type": "plain_text"
+    },
+    {
+      "name": "AI_SUPPORT_MODEL",
+      "type": "plain_text"
+    },
+    {
+      "name": "AI_SUPPORT_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "AI_SUPPORT_USAGE_DB",
+      "type": "d1"
+    },
+    {
+      "name": "AI_SUPPORT_USAGE_HMAC_KEY",
+      "type": "secret_text"
+    },
+    {
+      "name": "ALLOWED_ORIGINS",
+      "type": "plain_text"
+    },
+    {
+      "name": "PAIRING_ISSUE_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "PAIR_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "PRO_CREDENTIAL_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "PRO_LOCKOUT_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "PRO_PASSCODE_SLOT_A",
+      "type": "secret_text"
+    },
+    {
+      "name": "PRO_PASSCODE_SLOT_B",
+      "type": "secret_text"
+    },
+    {
+      "name": "PRO_VERIFY_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "RECOVERY_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "START_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "STUDIO_RELEASE_ROUTE_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_APP_JOIN_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_CREDENTIAL_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_HANDOFF_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_PUBLIC_APP_IDS",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_QA_ENROLLMENT_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_ACCOUNT_RECOVERY_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_ALLOWED_APP_IDS",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_ASSET_CLEANUP_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_ASSET_DOWNLOAD_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_ASSETS",
+      "type": "r2_bucket"
+    },
+    {
+      "name": "SYNC_ASSET_WRITE_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_CREDENTIAL_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_DB",
+      "type": "d1"
+    },
+    {
+      "name": "SYNC_ENROLLMENT_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_PAIRING_CODE_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "SYNC_QA_ALLOWED_APP_IDS",
+      "type": "plain_text"
+    },
+    {
+      "name": "SYNC_RATE_LIMITER",
+      "type": "ratelimit"
+    },
+    {
+      "name": "SYNC_RECOVERY_PEPPER",
+      "type": "secret_text"
+    },
+    {
+      "name": "TURNSTILE_EXPECTED_ACTION",
+      "type": "plain_text"
+    },
+    {
+      "name": "TURNSTILE_EXPECTED_HOSTNAME",
+      "type": "plain_text"
+    },
+    {
+      "name": "TURNSTILE_PAIR_EXPECTED_ACTION",
+      "type": "plain_text"
+    },
+    {
+      "name": "TURNSTILE_PRODUCTION_SECRET_KEY",
+      "type": "secret_text"
+    },
+    {
+      "name": "TURNSTILE_PRO_EXPECTED_ACTION",
+      "type": "plain_text"
+    },
+    {
+      "name": "TURNSTILE_RECOVER_EXPECTED_ACTION",
+      "type": "plain_text"
+    }
+  ],
+  "selectedVars": {
+    "AI_SUPPORT_MODE": "off",
+    "STUDIO_RELEASE_ROUTE_ENABLED": "false"
+  },
+  "cron": [
+    "15 3 * * *"
+  ],
+  "routes": [],
+  "artifactModules": [
+    {
+      "name": "studio-canary-entry.js",
+      "bytes": 620,
+      "sha256": "feab28be49b9a93c46295bc014c39b58d90b049a61cc428f1ba7698ff8b7303e"
+    },
+    {
+      "name": "ai-support-candidate.mjs",
+      "bytes": 239313,
+      "sha256": "7248d7a9a53e23e31d4b9ed6700b1a8999e22e5e1b8af9acde67be6c0ffce3be"
+    },
+    {
+      "name": "production-v148.mjs",
+      "bytes": 1043287,
+      "sha256": "c3e2ecaa06731254201f02fe80d874fb6df9915a86d5e07d102bbd12956d7f7b"
+    }
+  ],
+  "productionWorkerChanged": false,
+  "reportDatabase": {
+    "name": "cruise-studio-reports-production",
+    "id": "d1054012-3f3f-4eff-bad0-d801683273b8",
+    "tables": 4,
+    "namedIndexes": 4,
+    "reports": 0,
+    "audit": 0
+  },
+  "Access": {
+    "applicationCreated": false,
+    "creationHttpStatus": 403,
+    "error": "auth.forbidden"
+  },
+  "AI": {
+    "enabled": false,
+    "calls": 0,
+    "candidateModel": "@cf/openai/gpt-oss-20b",
+    "dailyCallsCap": 10,
+    "dailyReservedMicrousdCap": 100000,
+    "perCallReservationMicrousd": 10000
+  },
+  "migrationHashes": {
+    "0001_reports.sql": "36c89dfa21af8fa61fc33feef8382ad688d8a5c20d498bb8e94a12c13fb16520",
+    "0002_retention.sql": "18ef701b531bf658f1812c3c7f8d87e48d82ad0cd57cce8d20a8bb19a9f08877"
+  }
+}
