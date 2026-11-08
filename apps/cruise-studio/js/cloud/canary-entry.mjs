@@ -34,6 +34,6 @@ export function mountStudioCanary(C=globalThis.CruiseStudio){
  globalThis.addEventListener('pagehide',e=>{if(!e.persisted){observer.disconnect();window.removeEventListener('studio-account-observed',render);host.dispose();}},{once:true});C.projectCloud=host;return host;
 }
 if(globalThis.location?.origin==='https://soundcruise.jp'){
- const start=()=>{if(globalThis.CruiseStudio?.entryAuth&&!globalThis.CruiseStudio.projectCloud)mountStudioCanary();};
+ const start=()=>{if(globalThis.CruiseStudio?.releaseFeatures?.creation&&globalThis.CruiseStudio?.entryAuth&&!globalThis.CruiseStudio.projectCloud)mountStudioCanary();};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 }

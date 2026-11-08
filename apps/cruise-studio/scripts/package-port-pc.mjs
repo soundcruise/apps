@@ -4,10 +4,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-import {PRO_DIRECTORY,renderProEntry,renderProManifest} from './edition-layout.mjs';
+import {PRO_DIRECTORY,renderProEntry,renderProManifest,renderStandardEntry,renderStandardManifest} from './edition-layout.mjs';
 const studio=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const RELEASE_FILES=Object.freeze([
- 'report-form.css','js/report-form.js','cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
+ 'js/standard-surfaces.js','js/core/release-features.js','report-form.css','js/report-form.js','cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
  PRO_DIRECTORY+'/manifest.webmanifest','assets/app-icons/pro/favicon-32.png','assets/app-icons/pro/apple-touch-icon-180.png','assets/app-icons/pro/icon-192.png','assets/app-icons/pro/icon-512.png','assets/app-icons/pro/icon-1024.png',
  PRO_DIRECTORY+'/index.html','entry.css','theme-projection.css','theme.css','shell.css','studio-home.css','studio-tools.css','port-tuner-surface.css','port-pc.css','assets/studio-icons.svg','assets/tool-calendar.svg','assets/tool-sync.svg',
  'js/core/studio-icon-theme.js',
@@ -64,13 +64,17 @@ export const RELEASE_FILES=Object.freeze([
  'js/modules/series/workspaces.js','js/modules/series/internal-app.mjs','js/modules/series/official-links.mjs','js/modules/series/presentation.mjs','js/modules/series/presentation.css'
 ]);
 export function packagePortPC(output){
- const generated=fs.readFileSync(path.join(studio,PRO_DIRECTORY,'index.html'),'utf8');if(generated!==renderProEntry(fs.readFileSync(path.join(studio,'index.html'),'utf8')))throw Error('pro-entry-out-of-date');
+ const generated=fs.readFileSync(path.join(studio,PRO_DIRECTORY,'index.html'),'utf8');if(generated!==renderProEntry(fs.readFileSync(path.join(studio,'studio-template.html'),'utf8')))throw Error('pro-entry-out-of-date');
  const repo=path.resolve(studio,'../..'),out=path.resolve(output),parent=fs.realpathSync(path.dirname(out));
  if(parent===repo||parent.startsWith(repo+path.sep)||fs.existsSync(out))throw Error('new-external-output-directory-required');
  const destination=path.join(out,'apps/cruise-studio'),files={};
  for(const name of RELEASE_FILES){
   const source=path.join(studio,name),bytes=fs.readFileSync(source),target=path.join(destination,name);
   fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
+ }
+ // Generated root Standard entry is independently packaged, never the Pro template.
+ for(const [name,bytes] of Object.entries({'index.html':renderStandardEntry(fs.readFileSync(path.join(studio,'studio-template.html'),'utf8')),'manifest.webmanifest':renderStandardManifest('0.88.0')})){
+  const target=path.join(destination,name);fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
  }
  // Legacy resources are frozen compatibility bytes for already-open tabs, not a second build.
  const legacy=path.join(repo,'apps/cruise-studio-canary');
@@ -81,7 +85,7 @@ export function packagePortPC(output){
  const manifest={product:'Cruise Studio',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
   existingDeploymentDependencies:['apps/cruise-port/','apps/pitch-cruise/','apps/fretboard_cruise/','apps/rhythm-cruise/','apps/chord-cruise/','apps/shared/'],
   excluded:['development.html','legacy app.js and developer UI','Worker and migrations','native app releases/themes'],
-  channel:'single-studio-operator-owner',edition:'pro',entry:'apps/cruise-studio/'+PRO_DIRECTORY+'/',standardPublished:false,productionReady:false};
+  channel:'single-studio-operator-owner',edition:'standard-and-pro',entry:'apps/cruise-studio/'+PRO_DIRECTORY+'/',standardPublished:true,productionReady:false};
  fs.writeFileSync(path.join(out,'RELEASE-MANIFEST.json'),JSON.stringify(manifest,null,2)+'\n');return manifest;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

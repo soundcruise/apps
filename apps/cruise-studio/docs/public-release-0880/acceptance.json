@@ -1,0 +1,64 @@
+{
+  "candidate": "0.88.0",
+  "targetedTests": {
+    "pass": 15,
+    "fail": 0
+  },
+  "browser": {
+    "unauthenticatedProductBootNoErrors": true,
+    "publicWorkspaceRejection": true,
+    "projectRepositoryNotInitialized": true,
+    "visualFixtureThemes": [
+      "dark",
+      "midnight",
+      "light"
+    ],
+    "visualFixtureWidths": [
+      390,
+      1280,
+      1920
+    ],
+    "authenticatedProductAcceptance": false,
+    "developmentEditorEditingAcceptance": false
+  },
+  "knownShellTestFailuresOnBothBaselineAndCandidate": 5,
+  "protectedFilesByteEqual": [
+    "js/core/schema2.js",
+    "js/core/project-repository.js",
+    "js/core/common-music-model.js",
+    "js/core/studio-entry.mjs",
+    "js/report-form.js",
+    "js/cloud/studio-sync-client.mjs"
+  ],
+  "packageFiles": 204,
+  "standardRuntimeReady": true,
+  "mainMerged": false,
+  "published": false,
+  "standardProductBrowser": {
+    "entryWithoutPro": true,
+    "nativeStandardPortSurfaces": 7,
+    "fourNativeStandardApps": 4,
+    "calendar": true,
+    "reportModal": true,
+    "reportSubmitted": false,
+    "creationHashRefused": true,
+    "proHostBoundaryRefused": true,
+    "proUnauthenticatedGateMaintained": true,
+    "themes": 5,
+    "widths": [
+      390,
+      1280,
+      1920
+    ],
+    "pageErrors": 0
+  },
+  "authSchemaTests": {
+    "pass": 116,
+    "fail": 0
+  },
+  "pagesBaseline": "a76f1dc967fc96773ef08efb2391adbbc9558840",
+  "pagesBaselinePort": "1.30.0 (parallel release preserved)",
+  "osPwaInstallationTested": false,
+  "authenticatedProBrowserAcceptance": false,
+  "developmentEditorEditingAcceptance": false
+}
