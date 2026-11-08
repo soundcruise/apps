@@ -5,6 +5,16 @@ import {morrisDiagnosticsHealth} from './morris-diagnostics.js';
 import {discoverySummary} from './discovery-work.js';
 export const INSIGHTS_VERSION='structured-human-v1';
 export const MINIMUM_EVIDENCE=5;
+// These verdicts describe a particular evidence/duplicate/policy problem, not
+// an editorial preference against other news with the same coarse profile.
+export function decisionLearningUse(row){
+ if(row.verdict!=='reject')return 'editorial';
+ if(['facts_identifier_missing','date_uncertain','category_uncertain'].includes(row.reason))return 'technical_only';
+ if(row.reason==='duplicate')return 'duplicate_only';
+ if(row.reason==='policy_concern')return 'policy_only';
+ if(row.reason==='operator_review'&&parse(row.decision_features_json).insightsProfile?.factsVerified!==true)return 'unconfirmed_only';
+ return 'editorial';
+}
 // No older policy is declared compatible without an explicit, reviewed mapping.
 const COMPATIBLE_POLICIES=Object.freeze([]);
 export const displayCategory=key=>['recording_audio','creator_streaming'].includes(key)?'recording_streaming':key;
@@ -38,18 +48,19 @@ export function evaluateDecisions(profile,rows,{now=Date.now(),candidateId,valid
  const latest=new Map();for(const row of [...rows].sort((a,b)=>b.decided_at-a.decided_at||b.decision_id.localeCompare(a.decision_id))){if(row.actor_type!=='human_operator'||row.success_state!=='committed'||row.decided_at>now||row.created_at<=now-365*DAY||row.candidate_id===candidateId||!['approve','reject'].includes(row.verdict))continue;if(!latest.has(row.candidate_id))latest.set(row.candidate_id,row);}
  const seenArticles=new Set(),seenTopics=new Set();
  const independent=[...latest.values()].filter(row=>{const p=teacherProfile(row);if(p.articleIdentity&&seenArticles.has(p.articleIdentity)||p.topicIdentity&&seenTopics.has(p.topicIdentity))return false;if(p.articleIdentity)seenArticles.add(p.articleIdentity);if(p.topicIdentity)seenTopics.add(p.topicIdentity);return !(profile.articleIdentity&&p.articleIdentity===profile.articleIdentity||profile.topicIdentity&&p.topicIdentity===profile.topicIdentity);});
- const matches=independent.map(row=>({decisionId:row.decision_id,candidateId:row.candidate_id,verdict:row.verdict,reason:row.reason,decidedAt:row.decided_at,source:row.source_id,category:row.category,type:teacherProfile(row).type,policyVersion:row.policy_version,policyCompatibility:policyCompatibility(row.policy_version),...similarity(profile,teacherProfile(row))})).filter(m=>m.level!=='INSUFFICIENT');
- const evidence=matches.filter(m=>['EXACT_PATTERN','STRONG_SIMILAR'].includes(m.level)&&m.policyCompatibility==='SAME');
+ const matches=independent.map(row=>({decisionId:row.decision_id,candidateId:row.candidate_id,verdict:row.verdict,reason:row.reason,decidedAt:row.decided_at,source:row.source_id,category:row.category,type:teacherProfile(row).type,policyVersion:row.policy_version,policyCompatibility:policyCompatibility(row.policy_version),learningUse:decisionLearningUse(row),...similarity(profile,teacherProfile(row))})).filter(m=>m.level!=='INSUFFICIENT');
+ const editorial=matches.filter(m=>m.learningUse==='editorial');
+ const evidence=editorial.filter(m=>['EXACT_PATTERN','STRONG_SIMILAR'].includes(m.level)&&m.policyCompatibility==='SAME');
  const approveCount=matches.filter(m=>m.verdict==='approve').length,rejectCount=matches.filter(m=>m.verdict==='reject').length;
  const approvals=evidence.filter(m=>m.verdict==='approve').length,rejections=evidence.filter(m=>m.verdict==='reject').length;
  // Even a weak contradictory match under the same policy suppresses a recommendation.
- const same=matches.filter(m=>m.policyCompatibility==='SAME'),yes=same.filter(m=>m.verdict==='approve').length,no=same.filter(m=>m.verdict==='reject').length,contradictionCount=Math.min(yes,no);
+ const same=editorial.filter(m=>m.policyCompatibility==='SAME'),yes=same.filter(m=>m.verdict==='approve').length,no=same.filter(m=>m.verdict==='reject').length,contradictionCount=Math.min(yes,no);
  let recommendation='NO_RECOMMENDATION',reason='insufficient_evidence';
  if(contradictionCount)reason='contradictory_history';
  else if(evidence.length>=MINIMUM_EVIDENCE){if(approvals===evidence.length){if(validation?.valid){recommendation='RECOMMEND_APPROVE';reason='consistent_human_evidence';}else reason='publication_blocked';}else if(rejections===evidence.length){recommendation='RECOMMEND_REJECT';reason='consistent_human_evidence';}}
  const rank=['INSUFFICIENT','WEAK_SIMILAR','STRONG_SIMILAR','EXACT_PATTERN'];
  const level=matches.reduce((best,m)=>rank.indexOf(m.level)>rank.indexOf(best)?m.level:best,'INSUFFICIENT');
- return {version:INSIGHTS_VERSION,generatedAt:now,matchedDecisionCount:matches.length,approveCount,rejectCount,evidenceCount:evidence.length,minimumEvidence:MINIMUM_EVIDENCE,contradictionCount,similarityLevel:level,reasonSummary:reason,policyVersion:DECISION_POLICY_VERSION,policyCounts:Object.fromEntries(['SAME','COMPATIBLE','OBSOLETE'].map(k=>[k,matches.filter(m=>m.policyCompatibility===k).length])),recommendation,matches:matches.slice(0,50),truncated:matches.length>50};
+ return {version:INSIGHTS_VERSION,generatedAt:now,matchedDecisionCount:matches.length,approveCount,rejectCount,evidenceCount:evidence.length,minimumEvidence:MINIMUM_EVIDENCE,contradictionCount,similarityLevel:level,reasonSummary:reason,policyVersion:DECISION_POLICY_VERSION,policyCounts:Object.fromEntries(['SAME','COMPATIBLE','OBSOLETE'].map(k=>[k,matches.filter(m=>m.policyCompatibility===k).length])),excludedTeacherCounts:Object.fromEntries(['technical_only','duplicate_only','policy_only','unconfirmed_only'].map(k=>[k,matches.filter(m=>m.learningUse===k).length])),recommendation,matches:matches.slice(0,50),truncated:matches.length>50};
 }
 export async function humanDecisions(store,now){return (await store.db.prepare("SELECT decision_id,candidate_id,verdict,reason,actor_type,decided_at,created_at,candidate_revision,candidate_snapshot,source_id,category,decision_features_json,policy_version,success_state FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? AND decided_at<=? ORDER BY decided_at DESC,decision_id DESC").bind(now-365*DAY,now).all()).results;}
 export async function similarDecisions(store,row,validation,now){return evaluateDecisions(await retainedDecisionProfile(row,validation,now),await humanDecisions(store,now),{now,candidateId:row.id,validation});}

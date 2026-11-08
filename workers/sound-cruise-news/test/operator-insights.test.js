@@ -20,3 +20,26 @@ test('human decision stores coarse profile and shadow evaluation atomically; fut
 test('different record IDs for the same article or topic are not independent evidence',()=>{
  for(const key of ['articleIdentity','topicIdentity']){const rows=Array.from({length:5},(_,i)=>teacher(i,{decision_features_json:JSON.stringify({insightsProfile:{...profile,[key]:'same-hashed-identity'}})}));const result=evaluate(rows);assert.equal(result.evidenceCount,1);assert.equal(result.recommendation,'NO_RECOMMENDATION');}
 });
+
+test('technical failures, duplicate and source-policy verdicts stay visible without teaching low editorial value',()=>{
+ const reasons=['facts_identifier_missing','date_uncertain','category_uncertain','duplicate','policy_concern'];
+ const rows=reasons.map((reason,i)=>teacher(i,{verdict:'reject',reason}));
+ let result=evaluate(rows);assert.equal(result.recommendation,'NO_RECOMMENDATION');assert.equal(result.evidenceCount,0);
+ assert.deepEqual(result.excludedTeacherCounts,{technical_only:3,duplicate_only:1,policy_only:1,unconfirmed_only:0});
+ result=evaluate([...rows,...Array.from({length:5},(_,i)=>teacher('approve'+i))]);
+ assert.equal(result.recommendation,'RECOMMEND_APPROVE');assert.equal(result.contradictionCount,0);assert.equal(result.evidenceCount,5);
+ assert.equal(result.matches.filter(m=>m.learningUse!=='editorial').length,5);
+ // A genuine editorial disagreement must still stop the recommendation.
+ assert.equal(evaluate([...rows,...Array.from({length:5},(_,i)=>teacher('approve'+i)),teacher('editorial',{verdict:'reject',reason:'not_relevant'})]).recommendation,'NO_RECOMMENDATION');
+ const unclear=teacher('unclear',{verdict:'reject',reason:'operator_review',decision_features_json:JSON.stringify({insightsProfile:{...profile,factsVerified:false}})});
+ result=evaluate([...Array.from({length:5},(_,i)=>teacher('approve'+i)),unclear]);
+ assert.equal(result.recommendation,'RECOMMEND_APPROVE');assert.equal(result.excludedTeacherCounts.unconfirmed_only,1);
+});
+
+test('excluding the newest technical verdict never revives an older approval for the same article',()=>{
+ const rows=Array.from({length:4},(_,i)=>teacher(i));
+ rows.push(teacher('old',{candidate_id:'changed',decided_at:now-2000}));
+ rows.push(teacher('latest',{candidate_id:'changed',verdict:'reject',reason:'facts_identifier_missing'}));
+ const result=evaluate(rows);assert.equal(result.evidenceCount,4);assert.equal(result.recommendation,'NO_RECOMMENDATION');
+ assert.equal(result.excludedTeacherCounts.technical_only,1);
+});
