@@ -1,18 +1,29 @@
 import {hash,DAY} from './policy.js';
-import {DECISION_POLICY_VERSION,publicationValidation} from './decision-policy.js';
-import {INSIGHTS_VERSION,humanDecisions,retainedDecisionProfile,evaluateDecisions} from './operator-insights.js';
-export const SHADOW_RULE_VERSION=INSIGHTS_VERSION;
+import {DECISION_POLICY_VERSION,publicationValidation,parseFacts} from './decision-policy.js';
+import {humanDecisions,retainedDecisionProfile,evaluateDecisions} from './operator-insights.js';
+import {validatedProductEvent} from './product-event.js';
+export const SHADOW_RULE_VERSION='structured-human-v2';
 export const SHADOW_CONTRACT_VERSION='shadow-v1';
 const canonical=value=>JSON.stringify(sort(value));
 function sort(value){return Array.isArray(value)?value.map(sort):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,sort(value[k])])):value;}
 export const shadowSnapshot=row=>hash(canonical(row));
 export const comparison=(recommendation,verdict)=>({RECOMMEND_APPROVE:{approve:'AGREE_APPROVE',reject:'FALSE_PUBLISH_DIRECTION'},RECOMMEND_REJECT:{approve:'MISSED_PUBLISH_DIRECTION',reject:'AGREE_REJECT'},NO_RECOMMENDATION:{approve:'NO_RECOMMENDATION_APPROVE',reject:'NO_RECOMMENDATION_REJECT'}}[recommendation]?.[verdict]||null);
+// Coarse, decision-time evidence only. This is a diagnostic, never publication
+// authority. Missing historical context stays unknown; do not use current facts
+// to fill it into an older evaluation.
+export function shadowEvidenceContext(row,validation,teachers,now){
+ const facts=parseFacts(row);let fields=[];try{fields=JSON.parse(row.facts_provenance);}catch{}if(!Array.isArray(fields))fields=[];
+ const human=facts?.kind==='human_product_notice'||/human/.test(facts?.evidence||'')||/human/.test(facts?.identifierBasis||'')||fields.some(p=>['verificationMethod','extractionMethod'].some(k=>/^human[_-]/.test(p?.[k]||'')));
+ const structured=validation.valid&&fields.length>0&&fields.every(p=>p?.sourceId===row.source_id&&p.sourceUrl===row.source_url&&/^explicit_/.test(p.extractionMethod||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now);
+ return {version:'shadow-evidence-1',evidenceOrigin:human?'human_confirmation':structured?'publisher_structured':'unknown',relevanceStatus:['PASS','REVIEW'].includes(validation.relevance?.status)?validation.relevance.status:'UNKNOWN',publicationDateVerified:validation.valid&&Number.isFinite(Date.parse(row.published_at)),identityScope:!facts?.scopeUncertain&&facts?.brand&&facts?.productType&&Array.isArray(facts.models)&&facts.models.length>0?'explicit_models':'unconfirmed',productAction:validatedProductEvent(facts?.productEvent)?facts.productEvent.action:'not_recorded',priorHumanDecision:teachers.some(d=>d.candidate_id===row.id)};
+}
 export async function prepareShadowEvaluation(store,row,validation,now,{trigger='review',decisionId=null}={}){
  const profile=await retainedDecisionProfile(row,validation,now),teachers=await humanDecisions(store,now),result=evaluateDecisions(profile,teachers,{now,candidateId:row.id,validation});
+ const evidenceContext=shadowEvidenceContext(row,validation,teachers,now);
  const candidateSnapshot=await shadowSnapshot(row),historyWatermark=await hash(canonical(teachers.map(d=>[d.decision_id,d.policy_version,d.candidate_revision]).sort()));
  const reviewability=validation.errors.includes('duplicate')?'DUPLICATE_BLOCKED':validation.valid?'READY_FOR_HUMAN_DECISION':validation.errors.includes('operator_source_gate')?'POLICY_BLOCKED':'FACTS_OR_VALIDATION_BLOCKED';
- const state={candidateId:row.id,candidateRevision:row.review_revision,candidateSnapshot,policyVersion:DECISION_POLICY_VERSION,ruleVersion:SHADOW_RULE_VERSION,profile,historyWatermark,reviewability,validationErrors:validation.errors,trigger,decisionId};
- return {...result,evaluationId:await hash(canonical(state)),contractVersion:SHADOW_CONTRACT_VERSION,ruleVersion:SHADOW_RULE_VERSION,candidateId:row.id,candidateRevision:row.review_revision,candidateSnapshot,sourceId:row.source_id,category:row.category,articleType:row.event_type,profile,historyWatermark,trigger,reviewability,publicationValidation:{valid:validation.valid,errors:validation.errors,policyVersion:validation.policyVersion}};
+ const state={candidateId:row.id,candidateRevision:row.review_revision,candidateSnapshot,policyVersion:DECISION_POLICY_VERSION,ruleVersion:SHADOW_RULE_VERSION,profile,historyWatermark,evidenceContext,reviewability,validationErrors:validation.errors,trigger,decisionId};
+ return {...result,evaluationId:await hash(canonical(state)),contractVersion:SHADOW_CONTRACT_VERSION,ruleVersion:SHADOW_RULE_VERSION,candidateId:row.id,candidateRevision:row.review_revision,candidateSnapshot,sourceId:row.source_id,category:row.category,articleType:row.event_type,profile,historyWatermark,evidenceContext,trigger,reviewability,publicationValidation:{valid:validation.valid,errors:validation.errors,policyVersion:validation.policyVersion}};
 }
 export async function saveShadowEvaluation(store,input,now,registry,pepper){
  if(!input||Object.keys(input).some(k=>!['id','revision','snapshot'].includes(k))||!/^[-a-zA-Z0-9_]{1,128}$/.test(input.id||'')||!Number.isSafeInteger(input.revision)||input.revision<0||!/^[a-f0-9]{64}$/.test(input.snapshot||''))throw Error('operator_shadow_input_invalid');
