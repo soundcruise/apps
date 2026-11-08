@@ -3550,7 +3550,7 @@ for (const count of [49, 50, 51]) test(`push wire chunks respect count boundary 
   const bodies = [];
   fixture.runtime.fetchImpl = async (url, options) => {
     const body = JSON.parse(options.body); bodies.push(options.body);
-    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied'}))});
+    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied',record:{...op,revision:1,deletedAt:null}}))});
   };
   for (let i=0;i<count;i++) await fixture.store.putOutbox({operationId:'byte-'+i,recordType:'x',recordId:String(i),schemaVersion:1,baseRevision:0,payload:{text:'small'},payloadHash:'h',deleted:false,migration:false});
   await fixture.runtime.flushOutbox();
@@ -3566,7 +3566,7 @@ for(const delta of [-1,0,1]) test(`serialized push UTF-8 body at 256KiB ${delta}
   const overhead=new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength;
   operation.payload.text='a'.repeat(256*1024-overhead+delta);
   assert.equal(new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength,256*1024+delta);
-  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate'}]});};
+  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate',record:{...JSON.parse(options.body).operations[0],revision:1,deletedAt:null}}]});};
   await fixture.store.putOutbox({...operation,migration:false});
   if(delta<=0){await fixture.runtime.flushOutbox();assert.equal(calls,1);assert.equal((await fixture.store.listOutbox()).length,0);}
   else{await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);assert.equal((await fixture.store.listOutbox())[0].terminalError,'operation_too_large');await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);}
@@ -3575,14 +3575,14 @@ for(const delta of [-1,0,1]) test(`serialized push UTF-8 body at 256KiB ${delta}
 
 test('multibyte UTF-8 split measures entire envelope and retains other operations beside oversized',async()=>{
   const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');const bodies=[];
-  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'applied'}))});};
+  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'applied',record:{...op,revision:1,deletedAt:null}}))});};
   for(const[id,text]of[['one','音'.repeat(45000)],['huge','音'.repeat(100000)],['two','音'.repeat(45000)]])await fixture.store.putOutbox({operationId:id,recordType:'x',recordId:id,schemaVersion:1,baseRevision:0,payload:{text},payloadHash:'h',deleted:false,migration:false});
   await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(bodies.length,2);assert.ok(bodies.every(body=>new TextEncoder().encode(body).byteLength<=256*1024));
   assert.deepEqual((await fixture.store.listOutbox()).map(op=>[op.operationId,op.terminalError]),[['huge','operation_too_large']]);fixture.runtime.dispose();
 });
 test('conflict/bulk push path shares byte chunking and rejects malformed partial ACK without looping',async()=>{
   const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');const ops=Array.from({length:51},(_,i)=>({operationId:'bulk-'+i,payload:{text:'a'.repeat(7000)}}));const bodies=[];
-  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'duplicate'}))});};
+  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'duplicate',record:{...op,revision:1,deletedAt:null}}))});};
   assert.equal((await fixture.runtime.pushRequest({appId:'port',mode:'sync',operations:ops})).results.length,51);assert.ok(bodies.every(body=>JSON.parse(body).operations.length<=50&&new TextEncoder().encode(body).byteLength<=256*1024));
   fixture.runtime.fetchImpl=async()=>Response.json({ok:true,results:[]});await assert.rejects(fixture.runtime.pushRequest({operations:[ops[0]]}),e=>e.code==='invalid_response');fixture.runtime.dispose();
 });
@@ -3715,7 +3715,7 @@ test('B1-1 response loss preserves protocol context and operationId',async()=>{
   const f=runtimeFixture([], 'port','production');await f.store.setMeta('credential','scd1.valid');
   f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:1});
   const op=await f.runtime.operationFor(record('retry'),0);await f.store.putOutbox({...op,migration:false});
-  const bodies=[];f.runtime.fetchImpl=async(u,o)=>{bodies.push(JSON.parse(o.body));if(bodies.length===1)throw Error('lost');return Response.json({ok:true,results:[{operationId:op.operationId,status:'duplicate'}]});};
+  const bodies=[];f.runtime.fetchImpl=async(u,o)=>{bodies.push(JSON.parse(o.body));if(bodies.length===1)throw Error('lost');return Response.json({ok:true,results:[{operationId:op.operationId,status:'duplicate',record:{...op,revision:1,deletedAt:null}}]});};
   await assert.rejects(f.runtime.flushOutbox(),e=>e.code==='network_error');
   await f.runtime.flushOutbox({force:true});assert.deepEqual(bodies[0],bodies[1]);assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
 });
@@ -3725,7 +3725,7 @@ for (const count of [49, 50, 51]) test(`authority push wire chunks respect count
   const bodies = [];
   fixture.runtime.fetchImpl = async (url, options) => {
     const body = JSON.parse(options.body); bodies.push(options.body);
-    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied'}))});
+    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied',record:{...op,revision:1,deletedAt:null}}))});
   };
   for (let i=0;i<count;i++) await fixture.store.putOutbox({writerAuthority:{...fixture.runtime.writerWireContext.fields},operationId:'byte-'+i,recordType:'x',recordId:String(i),schemaVersion:1,baseRevision:0,payload:{text:'small'},payloadHash:'h',deleted:false,migration:false});
   await fixture.runtime.flushOutbox();
@@ -3741,7 +3741,7 @@ for(const delta of [-1,0,1]) test(`authority serialized push UTF-8 body at 256Ki
   const overhead=new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength;
   operation.payload.text='a'.repeat(256*1024-overhead+delta);
   assert.equal(new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength,256*1024+delta);
-  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate'}]});};
+  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate',record:{...JSON.parse(options.body).operations[0],revision:1,deletedAt:null}}]});};
   await fixture.store.putOutbox({...operation,migration:false,writerAuthority:{...fixture.runtime.writerWireContext.fields}});
   if(delta<=0){await fixture.runtime.flushOutbox();assert.equal(calls,1);assert.equal((await fixture.store.listOutbox()).length,0);}
   else{await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);assert.equal((await fixture.store.listOutbox())[0].terminalError,'operation_too_large');await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);}
@@ -3773,3 +3773,88 @@ test('B1-2 scoped protocol context rejects different Account/authority, includin
 for(const [code,status] of [['writer_protocol_required','needs-upgrade'],['dataset_epoch_stale','stale-epoch'],['dataset_authority_unavailable','blocked-authority']])test('B1-2 blocked authority outbox preserves fields and is not auto-ACKed: '+code,async()=>{const f=runtimeFixture([record('kept')],'port','production');await f.store.setMeta('credential','scd1.valid');f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:7});const op=await f.runtime.operationFor(record('kept'),0);await f.store.putOutbox({...op,migration:false});f.runtime.fetchImpl=async()=>Response.json({ok:false,code},{status:code==='dataset_authority_unavailable'?503:409});await assert.rejects(f.runtime.flushOutbox(),e=>e.code===code);const pending=(await f.store.listOutbox())[0];assert.equal(pending.authorityStatus,status);assert.equal(pending.writerAuthority.expectedWriteEpoch,7);assert.equal(pending.writerAuthority.writerProtocol,2);assert.equal(pending.operationId,op.operationId);await f.runtime.acknowledgeOwnEchoes([{...op,revision:1}]);assert.equal((await f.store.listOutbox()).length,1);assert.equal(f.runtime.adapter.records.length,1);assert.equal(f.runtime.retryTimer,null);f.runtime.dispose();});
 
 test('B1-2 generic conflict cleanup cannot discard protocol blocked/legacy outbox',async()=>{const f=runtimeFixture([],'port','production');const op=await f.runtime.operationFor(record('held'),0);await f.store.putOutbox({...op,migration:false});f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:7});await f.runtime.clearConflictOutbox('custom_record/held');assert.equal((await f.store.listOutbox()).length,1);f.runtime.authorityFailure='dataset_epoch_stale';const before=structuredClone(f.runtime.adapter.records);await assert.rejects(f.runtime.performSync('blocked'),e=>e.code==='dataset_epoch_stale');assert.deepEqual(f.runtime.adapter.records,before);assert.equal((await f.store.listOutbox()).length,1);f.runtime.dispose();});
+
+// Port interruption regression: separate durable commits, using a real local SQLite database.
+// Synthetic records only; no production DB, credential or user data is used.
+async function portAckFixture(t, recordType) {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE durable (bucket TEXT, id TEXT, value TEXT, PRIMARY KEY(bucket,id))');
+  const f = runtimeFixture([], 'port');
+  for (const [bucket, put, list, del] of [['outbox','putOutbox','listOutbox','deleteOutbox'],['shadow','putShadow','listShadow','deleteShadow']]) {
+    f.store[put] = async (...args) => {
+      const value = args.at(-1), id = bucket === 'outbox' ? value.operationId : args[0];
+      db.prepare('INSERT OR REPLACE INTO durable VALUES (?,?,?)').run(bucket,id,JSON.stringify(value));
+    };
+    f.store[list] = async () => db.prepare('SELECT value FROM durable WHERE bucket=? ORDER BY id').all(bucket).map(r=>JSON.parse(r.value));
+    f.store[del] = async id => { db.prepare('DELETE FROM durable WHERE bucket=? AND id=?').run(bucket,id); };
+  }
+  f.store.getShadow = async id => { const row=db.prepare('SELECT value FROM durable WHERE bucket=? AND id=?').get('shadow',id);return row?JSON.parse(row.value):null; };
+  t.after(()=>{ f.runtime.dispose(); db.close(); });
+  await f.runtime.consumeHandoff('synthetic');
+  f.local.records = [record(recordType === 'practice_cycle' ? 'current' : 'history-new', 'synthetic-edit', recordType)];
+  f.restart = () => {
+    f.runtime.dispose();
+    f.runtime = new f.Runtime({appId:'port',endpoint:'https://example.test',adapter:f.local,store:f.store,
+      accountClient:f.accountClient,accountCore:f.core,fetchImpl:f.fetchImpl,admissionMode:'qa',randomOperationId:f.nextId});
+  };
+  return f;
+}
+for (const type of ['practice_history_event','practice_cycle']) {
+  test(`Port ${type}: failed Shadow commit never removes the only durable operation`, async t => {
+    const f=await portAckFixture(t,type), put=f.store.putShadow;
+    f.store.putShadow=async()=>{throw Error('injected-shadow-commit-failure');};
+    await assert.rejects(f.runtime.sync('save'),/injected-shadow-commit-failure/);
+    assert.equal(f.server.records.size,1,'cloud already applied the operation');
+    assert.equal((await f.store.listShadow()).length,0);
+    assert.equal((await f.store.listOutbox()).length,1,'must retain proof across restart');
+    f.store.putShadow=put; f.restart();
+    assert.equal((await f.runtime.sync('restart')).ok,true);
+    assert.equal((await f.store.listOutbox()).length,0);
+    assert.equal((await f.store.listShadow()).length,1);
+    assert.equal(f.server.revision,1,'own echo/idempotent retry does not duplicate');
+  });
+  test(`Port ${type}: interruption after Shadow commit before Outbox removal is recoverable`, async t => {
+    const f=await portAckFixture(t,type), remove=f.store.deleteOutbox;
+    f.store.deleteOutbox=async()=>{throw Error('injected-before-outbox-delete');};
+    await assert.rejects(f.runtime.sync('save'),/injected-before-outbox-delete/);
+    assert.equal((await f.store.listShadow()).length,1);
+    assert.equal((await f.store.listOutbox()).length,1);
+    f.store.deleteOutbox=remove;f.restart();await f.runtime.sync('restart');
+    assert.equal((await f.store.listOutbox()).length,0);assert.equal(f.server.revision,1);
+  });
+  test(`Port ${type}: first snapshot network failure precedes Outbox capture (remaining gap)`, async t => {
+    const f=await portAckFixture(t,type);f.server.nextSnapshotFailure={network:true};
+    await assert.rejects(f.runtime.sync('save'),e=>e.code==='network_error');
+    assert.equal(f.local.records.length,1);assert.equal((await f.store.listOutbox()).length,0);
+    assert.equal((await f.store.listShadow()).length,0);assert.equal(f.server.records.size,0);
+  });
+  test(`Port ${type}: teardown before save notification leaves local data but no operation (remaining gap)`, async t => {
+    const f=await portAckFixture(t,type); f.runtime.dispose(); f.runtime.notifyLocalSave();
+    await Promise.resolve();assert.equal(f.local.records.length,1);
+    assert.equal((await f.store.listOutbox()).length,0);assert.equal(f.server.records.size,0);
+  });
+}
+for (const type of ['practice_history_event','practice_cycle']) {
+  test(`Port ${type}: disposal after durable Shadow commit retains a retryable operation`, async t => {
+    const f=await portAckFixture(t,type), put=f.store.putShadow;
+    f.store.putShadow=async(...args)=>{await put(...args);f.runtime.dispose();};
+    await assert.rejects(f.runtime.sync('save'));
+    assert.equal((await f.store.listShadow()).length,1);
+    assert.equal((await f.store.listOutbox()).length,1);
+    f.store.putShadow=put;f.restart();await f.runtime.sync('restart');
+    assert.equal((await f.store.listOutbox()).length,0);assert.equal(f.server.revision,1);
+  });
+  test(`Port ${type}: mismatched acknowledgement cannot discard Account-owned pending proof`, async t => {
+    const f=await portAckFixture(t,type), fetch=f.runtime.fetchImpl;
+    f.runtime.fetchImpl=async(...args)=>{
+      const response=await fetch(...args);
+      if(new URL(args[0]).pathname!=='/v1/sync/push')return response;
+      const body=await response.json();body.results[0].record.payloadHash='wrong-confirmation';
+      return Response.json(body);
+    };
+    await assert.rejects(f.runtime.sync('save'),e=>e.code==='invalid_response');
+    assert.equal((await f.store.listOutbox()).length,1);
+    assert.equal((await f.store.listShadow()).length,0);
+  });
+}

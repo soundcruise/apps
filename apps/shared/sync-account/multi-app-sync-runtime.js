@@ -1598,6 +1598,16 @@
           const operation = operations.find((item) => item.operationId === result.operationId);
           if (!operation) throw new MultiAppSyncError('invalid_response');
           if (['applied', 'duplicate'].includes(result.status)) {
+            if (this.appId === 'port' && !operation.deleted) {
+              // Persist the server-confirmed ancestor before removing the only durable
+              // pending proof. A crash/failure between commits leaves an idempotent retry,
+              // never an unowned local edit with neither Outbox nor matching Shadow.
+              if (!await this.wait(() => this.acknowledgeOwnRecord(operation, result.record))) {
+                throw new MultiAppSyncError('invalid_response');
+              }
+              await this.wait(() => this.store.deleteOutbox(operation.operationId));
+              continue;
+            }
             await this.wait(async () => (this.store.deleteOutbox(operation.operationId)));
             if (operation.deleted) await this.wait(async () => (this.adapter.acknowledgeDelete?.(keyOf(operation), operation.deleteIntentGeneration)));
             else await this.wait(async () => (this.acknowledgeOwnRecord(operation, result.record)));
