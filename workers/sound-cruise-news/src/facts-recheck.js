@@ -73,7 +73,14 @@ async function gate(store,source,registry,now,row){
 
 function agmSurface(cached,row){const i=cached.item;return i?{outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:i.sourceUrl,publishedAt:i.publishedAt,eventType:i.eventType,productFacts:i.productFacts}]),proof_json:JSON.stringify(cached.proof)}:{outcome:'facts_not_recovered',items_json:'[]',proof_json:null};}
 
-export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null,dailyOnly=false,approvedRecovery=null}={}){
+export async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false,forceRevalidate=false,cachedRobots=null,robotCache=null,onPrimaryResponse=null,dailyOnly=false,approvedRecovery=null,cacheOnly=false}={}){
+ // The Web evidence connector can reuse retained Ikebe proofs only. It never
+ // reaches transport reservations, robots GETs, parser retries or publisher IO.
+ if(cacheOnly){
+  if(source.id!=='ikebe')return {outcome:'facts_saved_source_unsupported',items_json:'[]',proof_json:null,publisherAttempted:false};
+  await gate(store,source,registry,now,row);
+  if(!await validatedFingerprint(row.title_fingerprint,pepper))return {outcome:'facts_saved_fingerprint_invalid',items_json:'[]',proof_json:null,publisherAttempted:false};
+ }
  if(source.id==='morris'){
   await gate(store,source,registry,now,row);const receipt=await morrisEvidenceReceipt(store,row.source_url,now);
   if(!['verified','verified_listing'].includes(receipt?.outcome)||!receipt.facts_json||!await validatedFingerprint(receipt.fingerprint_json,pepper))return {outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
@@ -99,6 +106,14 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
  const previousProof=(()=>{try{return JSON.parse(previous?.proof_json||'null');}catch{return null;}})();
  if(await reusablePrimaryEvidence(previous,row,source,now))return previous;
  const retained=await retainedPrimaryEvidence(store,row,source,now);if(await reusablePrimaryEvidence(retained,row,source,now))return retained;
+ if(cacheOnly){
+  // A later failed transport attempt must not hide an earlier successful,
+  // still-bound collector projection. Apply the identical proof validator.
+  try{const e=JSON.parse(work?.evidence_json||'null'),saved={lease_until:0,outcome:e?.outcome,items_json:JSON.stringify(e?.items),proof_json:JSON.stringify(e?.proof)};
+   if(await reusablePrimaryEvidence(saved,row,source,now))return saved;
+  }catch{}
+  return {outcome:'facts_saved_evidence_missing',items_json:'[]',proof_json:null,publisherAttempted:false};
+ }
  const attemptedParser=previousProof?.parserFailures?.[0]?.parser||(previousProof?.extractionMethod===surface.method?previousProof.parserVersion:null);
  const parserChanged=!!attemptedParser&&attemptedParser!==surface.parser;
  const currentFailure=primary&&previousProof?.sourceId===source.id&&previousProof.sourceUrl===row.source_url&&/^[a-f0-9]{64}$/.test(previousProof.responseHash||'')&&previousProof?.failureReason&&previousProof.pipelineVersion===PRIMARY_ANNOUNCEMENT_PARSER&&previousProof.evidenceKey===evidenceKey&&!parserChanged;
@@ -241,7 +256,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
 export async function recheckFacts(store,input,now,registry,pepper,actor,options={}){
  if(!actor||!['human_operator','system_repair','system_recheck','fixture'].includes(actor.type)||!/^[a-zA-Z0-9:_-]{1,128}$/.test(actor.id||''))throw Error('facts_actor_invalid');
  if(!input||typeof input!=='object'||Object.keys(input).some(k=>!['id','snapshot','revision','requestId'].includes(k))||!/^[a-zA-Z0-9_-]{1,128}$/.test(input.id||'')||!/^([a-f0-9]{64})$/.test(input.snapshot||'')||!Number.isSafeInteger(input.revision)||input.revision<0||!/^[a-zA-Z0-9_-]{16,100}$/.test(input.requestId||''))throw Error('facts_request_invalid');
- const payloadHash=await hash(canonical({input,actor,...(options.recoveryApproval!==undefined?{recoveryApproval:options.recoveryApproval}:{})}));
+ const payloadHash=await hash(canonical({input,actor,...(options.cacheOnly?{cacheOnly:true}:{}),...(options.recoveryApproval!==undefined?{recoveryApproval:options.recoveryApproval}:{})}));
  const replay=await store.db.prepare('SELECT * FROM news_facts_rechecks WHERE request_id=?').bind(input.requestId).first();
  if(replay){if(replay.request_payload_hash!==payloadHash)throw Error('idempotency_payload_changed');return {id:replay.candidate_id,outcome:replay.outcome,recovered:!!replay.patch_json,replayed:true};}
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(input.id).first();
