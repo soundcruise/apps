@@ -13,6 +13,7 @@ import {renderWebDiscovery} from '../operator-ui/web-discovery.js';
 const fixtures=JSON.parse(await readFile(new URL('./fixtures/web-search-exa.json',import.meta.url))).map(q=>({...q,items:q.items.map(h=>({...h,publishedDate:'2026-10-30'}))}));
 const now=Date.parse('2026-10-31T00:00:00Z');
 const estimate=h=>({category:'acoustic_guitar',brand:h.title.includes('Emerald')?'Emerald':h.title.includes('Headway')?'Headway':'unknown',product:'needs verification',event:'announcement',value:h.title.includes('Solid-Body')?'low':'high',priority:'high',relevance:'high',duplicate:'unknown',reason:'fixture model estimate; human review required'});
+const permit=(at,extra={})=>JSON.stringify({issuedAt:new Date(at).toISOString(),expiresAt:new Date(at+60000).toISOString(),maxSearches:3,maxAiCalls:5,model:'@cf/test',...extra});
 const dom={createElement(tag){return {tag,children:[],setAttribute(k,v){this[k]=v;},addEventListener(){},append(...nodes){this.children.push(...nodes);}};}};
 test('persistent workerd D1: Exa fixture → mock AI → authenticated Operator → rendered hints → restart',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'web-discovery-'));let runtime=await localDatabase(dir);
@@ -67,13 +68,13 @@ test('known NEWS URL avoids model; search errors and concurrent invocations obey
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });
 
-test('manual Operator run requires flags, human Access, CSRF and is once per day',async()=>{
- const dir=await mkdtemp(join(tmpdir(),'web-manual-'));const runtime=await localDatabase(dir);
+test('manual Operator run requires an expiring permit, human Access, CSRF and once-per-UTC-day consumption',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'web-manual-'));let runtime=await localDatabase(dir);
  try{
   const origin='https://operator.fixture.test',issuer='https://fixture.cloudflareaccess.com',aud='a'.repeat(64);
   const {privateKey,publicKey}=await generateKeyPair('RS256');const jwks=createLocalJWKSet({keys:[{...await exportJWK(publicKey),kid:'manual'}]});
   const token=await new SignJWT({email:'human@fixture.test',type:'app'}).setProtectedHeader({alg:'RS256',kid:'manual'}).setSubject('human').setIssuer(issuer).setAudience(aud).setIssuedAt(now/1000).setExpirationTime(now/1000+3600).sign(privateKey);
-  const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_MANUAL_ENABLED:'true',NEWS_WEB_QUERIES:'["試験"]',NEWS_HEADLINE_PEPPER:'fixture-only-secret-32-characters-long',NEWS_OPERATOR_ORIGIN:origin,NEWS_OPERATOR_EMAILS:'["human@fixture.test"]',NEWS_ACCESS_ISSUER:issuer,NEWS_ACCESS_AUD:aud};let calls=0;
+  const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_MANUAL_ENABLED:'true',NEWS_WEB_MODEL:'@cf/test',NEWS_WEB_MANUAL_PERMIT:permit(now),NEWS_WEB_QUERIES:'["試験"]',NEWS_HEADLINE_PEPPER:'fixture-only-secret-32-characters-long',NEWS_OPERATOR_ORIGIN:origin,NEWS_OPERATOR_EMAILS:'["human@fixture.test"]',NEWS_ACCESS_ISSUER:issuer,NEWS_ACCESS_AUD:aud};let calls=0;
   const options={jwks,webDiscoveryDependencies:{search:async()=>{calls++;return [{url:'https://www.takamineguitars.co.jp/x',title:'新製品'},{url:'https://takamineguitars.co.jp/x',title:'新製品'},{url:'https://example.test/new',title:'新製品'}];},classify:async hints=>hints.map(estimate)}};
   const call=(path,{auth=true,csrf,originHeader=origin,method='POST'}={})=>handleOperatorRequest(new Request(origin+path,{method,headers:{...(auth?{'Cf-Access-Jwt-Assertion':token}:{}),...(method==='POST'?{'Origin':originHeader,'Content-Type':'application/json',...(csrf?{'X-News-CSRF':csrf}:{})}:{})},...(method==='POST'?{body:'{}'}:{})}),env,now,options);
   assert.equal((await call('/api/web-discovery/run',{auth:false})).status,401);
@@ -81,9 +82,13 @@ test('manual Operator run requires flags, human Access, CSRF and is once per day
   const session=await(await call('/api/session',{method:'GET'})).json();
   assert.equal((await call('/api/web-discovery/run',{csrf:session.csrf,originHeader:'https://evil.test'})).status,403);
   env.NEWS_WEB_MANUAL_ENABLED='false';assert.equal((await call('/api/web-discovery/run',{csrf:session.csrf})).status,503);env.NEWS_WEB_MANUAL_ENABLED='true';
+  options.webDiscoveryDependencies.clock=()=>now+60000;
+  const expired=await call('/api/web-discovery/run',{csrf:session.csrf});assert.equal(expired.status,422);assert.equal((await expired.json()).error,'operator_web_permit_expired');assert.equal(calls,0);
+  delete options.webDiscoveryDependencies.clock;
   const response=await call('/api/web-discovery/run',{csrf:session.csrf});assert.equal(response.status,200);assert.equal((await response.json()).searches,1);assert.equal(calls,1);
-  const hints=await listWebHints(env,now);assert.equal(hints.items.length,1);assert.equal(hints.items[0].url,'https://example.test/new');const view=renderWebDiscovery(dom,hints);assert(view.children.some(n=>n.textContent?.includes('誤りが含まれる可能性')));assert(view.children.some(n=>n.textContent==='Web探索を1回実行'));
+  const hints=await listWebHints(env,now);assert.equal(hints.items.length,1);assert.equal(hints.items[0].url,'https://example.test/new');const view=renderWebDiscovery(dom,hints);assert(view.children.some(n=>n.textContent?.includes('誤りが含まれる可能性')));assert(!view.children.some(n=>n.textContent==='Web探索を1回実行'));assert.equal(hints.manualAuthorization.reason,'operator_web_permit_spent');
   const again=await(await call('/api/web-discovery/run',{csrf:session.csrf})).json();assert.equal(again.skipped,true);assert.equal((await runWebDiscovery(env,now,options.webDiscoveryDependencies)).skipped,true);assert.equal(calls,1);
+  await runtime.mf.dispose();runtime=await localDatabase(dir);env.NEWS_DB=runtime.db;const restarted=await(await call('/api/web-discovery/run',{csrf:session.csrf})).json();assert.equal(restarted.skipped,true);assert.equal(calls,1);assert.equal((await runtime.db.prepare('SELECT manual_started FROM news_web_runs').first()).manual_started,1);
   assert.equal((await runtime.db.prepare('SELECT COUNT(*) n FROM candidate_items').first()).n,0);
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });
@@ -94,8 +99,8 @@ test('manual run cannot race cron or repeat after a prior daily run',async()=>{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["試験"]'};let started,release,calls=0;
   const gate=new Promise(r=>{release=r;}),ready=new Promise(r=>{started=r;});
   const deps={search:async()=>{calls++;started();await gate;return [];},classify:()=>assert.fail()};
-  const start=Date.parse('2026-10-31T23:59:59Z');const cron=runWebDiscovery(env,start,deps);await ready;
-  assert.equal((await runWebDiscovery(env,start,deps,true)).skipped,true);assert.equal((await runWebDiscovery(env,start+1000,deps,true)).skipped,true);release();await cron;
+  const start=Date.parse('2026-10-31T23:59:59Z');Object.assign(env,{NEWS_WEB_MANUAL_ENABLED:'true',NEWS_WEB_MODEL:'@cf/test',NEWS_WEB_MANUAL_PERMIT:permit(start)});const cron=runWebDiscovery(env,start,deps);await ready;
+  assert.equal((await runWebDiscovery(env,start,deps,true)).skipped,true);await assert.rejects(runWebDiscovery(env,start+1000,deps,true),/operator_web_utc_day_changed/);release();await cron;
   assert.equal((await runWebDiscovery(env,start,deps,true)).skipped,true);assert.equal(calls,1);
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });
