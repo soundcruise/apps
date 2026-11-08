@@ -4,7 +4,7 @@
  function apply(id){
   const light=id==='gray'||id==='light';
   for(const image of document.querySelectorAll('img[data-studio-icon]')){
-   const file='tool-'+image.dataset.studioIcon+(light?'-light':'')+'.svg?v=0.87.0';
+   const file='tool-'+image.dataset.studioIcon+(light?'-light':'')+'.svg?v=0.87.1';
    image.src=new URL('/apps/cruise-studio/assets/'+file,location.origin).href;
   }
  }
