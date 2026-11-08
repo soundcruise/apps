@@ -1,7 +1,7 @@
 {
-  "id": "/apps/cruise-port/pro_9a3943176561/",
-  "name": "Cruise Port",
-  "short_name": "Cruise Port",
+  "id": "/p1292/apps/cruise-port/pro_9a3943176561/",
+  "name": "Port1292 TEST",
+  "short_name": "Port1292 TEST",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
