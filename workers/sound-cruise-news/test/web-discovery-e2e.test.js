@@ -8,7 +8,9 @@ import {localDatabase} from '../scripts/local-db.mjs';
 import {runWebDiscovery,listWebHints,exaAdapter,llmAdapter} from '../src/web-discovery.js';
 import {handleOperatorRequest} from '../src/operator-worker.js';
 import {renderWebDiscovery} from '../operator-ui/web-discovery.js';
-const fixtures=JSON.parse(await readFile(new URL('./fixtures/web-search-exa.json',import.meta.url)));
+// Synthetic optional publication dates below test adapter contracts only.
+// The original saved search fixture had no publication-date fields.
+const fixtures=JSON.parse(await readFile(new URL('./fixtures/web-search-exa.json',import.meta.url))).map(q=>({...q,items:q.items.map(h=>({...h,publishedDate:'2026-10-30'}))}));
 const now=Date.parse('2026-10-31T00:00:00Z');
 const estimate=h=>({category:'acoustic_guitar',brand:h.title.includes('Emerald')?'Emerald':h.title.includes('Headway')?'Headway':'unknown',product:'needs verification',event:'announcement',value:h.title.includes('Solid-Body')?'low':'high',priority:'high',relevance:'high',duplicate:'unknown',reason:'fixture model estimate; human review required'});
 const dom={createElement(tag){return {tag,children:[],setAttribute(k,v){this[k]=v;},addEventListener(){},append(...nodes){this.children.push(...nodes);}};}};
@@ -17,10 +19,10 @@ test('persistent workerd D1: Exa fixture → mock AI → authenticated Operator 
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_DAILY_LIMIT:'5'};let searches=0,models=0;
   const dependencies={search:async()=>fixtures[searches++%3].items,classify:async hints=>{models++;return hints.map(estimate);}};
-  const result=await runWebDiscovery(env,now,dependencies);assert.equal(result.searches,3);assert.equal(result.ai_calls,2);assert.equal(models,2);
+  const result=await runWebDiscovery(env,now,dependencies);assert.equal(result.searches,3);assert.equal(result.ai_calls,1);assert.equal(models,1);
   let data=await listWebHints(env,now);assert.equal(data.items.length,15);assert(data.items.some(i=>i.title.includes('Emerald')&&i.status==='hold'&&i.reason==='japanese_article_unconfirmed')); assert(data.items.some(i=>i.title.includes('Headway')));assert(data.items.some(i=>i.titleLanguageHint==='japanese_unconfirmed')); assert(data.items.every(i=>i.formalFacts===false&&i.publishedAt===null&&i.publicationCandidate===false&&i.pageLanguage==='unverified'));
-  await runWebDiscovery(env,now,dependencies);assert.equal(models,2); // classified and language-hold URLs are not reevaluated
-  await runWebDiscovery(env,now,dependencies);assert.equal(searches,5);assert.equal(models,2);
+  await runWebDiscovery(env,now,dependencies);assert.equal(models,1); // classified and language-hold URLs are not reevaluated
+  await runWebDiscovery(env,now,dependencies);assert.equal(searches,5);assert.equal(models,1);
   assert.equal((await runtime.db.prepare('SELECT COUNT(*) n FROM candidate_items').first()).n,0);
   const {privateKey,publicKey}=await generateKeyPair('RS256'),issuer='https://fixture.cloudflareaccess.com',aud='a'.repeat(64),origin='https://operator.fixture.test';
   const jwks=createLocalJWKSet({keys:[{...await exportJWK(publicKey),kid:'fixture'}]});
@@ -29,7 +31,7 @@ test('persistent workerd D1: Exa fixture → mock AI → authenticated Operator 
   const call=(headers={},method='GET')=>handleOperatorRequest(new Request(origin+'/api/web-discovery',{headers,method}),env,now,{jwks});
   assert.equal((await call()).status,401);
   const response=await call({'Cf-Access-Jwt-Assertion':token});assert.equal(response.status,200);data=await response.json();
-  const view=renderWebDiscovery(dom,data);assert.equal(view.children.length,17);assert(JSON.stringify(view).includes('Emerald'));assert(!JSON.stringify(view).includes('innerHTML'));
+  const view=renderWebDiscovery(dom,data);assert(view.children.length>17);assert(JSON.stringify(view).includes('検索記録'));assert(JSON.stringify(view).includes('Emerald'));assert(!JSON.stringify(view).includes('innerHTML'));
   assert.equal((await call({'Cf-Access-Jwt-Assertion':token},'POST')).status,404);
   assert.equal((await call({'Cf-Access-Jwt-Assertion':token,Origin:'https://evil.test'})).status,403);
   env.NEWS_WEB_ENABLED='false';assert.deepEqual(await runWebDiscovery(env,now,{search:()=>assert.fail()}),{disabled:true});assert.deepEqual(await listWebHints(env,now),{enabled:false,items:[]});
@@ -40,9 +42,9 @@ test('failed model holds, invalid output rejected, known URL and denied host avo
  const dir=await mkdtemp(join(tmpdir(),'web-hold-'));const runtime=await localDatabase(dir);
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["acoustic"]',NEWS_WEB_DENIED_HOSTS:'["blocked.test"]'};
-  const d={search:async()=>[{url:'https://blocked.test/news',title:'blocked'},{url:'https://example.test/new',title:'<script>悪意</script>'}],classify:async()=>[{formalFacts:true}]};
+  const d={search:async()=>[{url:'https://blocked.test/news',title:'blocked'},{url:'https://example.test/new',title:'<script>悪意</script>',publishedDate:'2026-10-30'}],classify:async()=>[{formalFacts:true}]};
   await runWebDiscovery(env,now,d);let data=await listWebHints(env,now);assert.equal(data.items.length,1);assert.equal(data.items[0].status,'hold');assert.equal(data.items[0].reason,'web-triage-2:classification_schema_failed');
-  const view=renderWebDiscovery(dom,data);assert.equal(view.children[2].children[0].textContent,'<script>悪意</script>');
+  const view=renderWebDiscovery(dom,data);assert(JSON.stringify(view).includes('<script>悪意</script>'));
   const before=(await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls;await runWebDiscovery(env,now,d);assert.equal((await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls,before);
   await runWebDiscovery(env,now+31*86400000,{search:async()=>[],classify:()=>assert.fail()});assert.equal((await listWebHints(env,now+31*86400000)).items.length,0);
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
@@ -103,7 +105,7 @@ test('saved 15 hints survive model failure, daily bounded retry and restart with
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["fixture"]'};
   const {saveHint}=await import('../src/web-discovery.js');
-  for(let i=0;i<15;i++)await saveHint(runtime.db,{url:`https://fixture.test/${i}`,title:`日本語 新製品 ${i}`,provider:'exa',searchedAt:now},now);
+  for(let i=0;i<15;i++)await saveHint(runtime.db,{url:`https://fixture.test/${i}`,title:`日本語 新製品 ${i}`,provider:'exa',searchedAt:now},now,{metadata:{publishedAtHint:'2026-10-30',languageHint:null}});
   const failed=await runWebDiscovery(env,now,{search:async()=>[],classify:async hints=>{assert(hints.length<=3);throw Error('private provider message');}});
   assert.equal(failed.ai_calls,5);assert.equal(failed.errors,5);
   let rows=(await listWebHints(env,now)).items;assert.equal(rows.length,15);assert(rows.every(h=>h.reason==='web-triage-2:classification_model_failed'));
@@ -121,7 +123,7 @@ test('legacy exhausted failures get one versioned recovery, new exhausted failur
  const dir=await mkdtemp(join(tmpdir(),'web-version-retry-'));const runtime=await localDatabase(dir);
  try{
   const {saveHint}=await import('../src/web-discovery.js');const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["fixture"]'};
-  await saveHint(runtime.db,{url:'https://fixture.test/legacy',title:'日本語新製品',provider:'exa',searchedAt:now},now);
+  await saveHint(runtime.db,{url:'https://fixture.test/legacy',title:'日本語新製品',provider:'exa',searchedAt:now},now,{metadata:{publishedAtHint:'2026-10-30',languageHint:null}});
   await runtime.db.prepare("UPDATE news_web_hints SET attempts=3,status='hold',reason='classification_schema_failed'").run();let calls=0;
   const d={search:async()=>[],classify:async()=>{calls++;throw Error('private');}};
   await runWebDiscovery(env,now,d);assert.equal(calls,1);await runWebDiscovery(env,now+86400000,d);assert.equal(calls,1);

@@ -1,3 +1,5 @@
+> 0.50.0 Web quality PR1: current candidate behavior, migration 0026, date-field limitations and acceptance boundaries are in [WEB-QUALITY-OPERATIONS.md](WEB-QUALITY-OPERATIONS.md). The sections below retain earlier implementation/acceptance history.
+
 # Web discovery PR1 (0.42.0)
 
 The existing NEWS scheduled entry point may run Web discovery after the daily collector. No cron is added or enabled by this PR. Only `NEWS_WEB_ENABLED=true` enables the runner and authenticated Operator list. Leave it unset/off until a separately approved deployment and paid API acceptance.
