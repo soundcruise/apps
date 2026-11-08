@@ -1,0 +1,22 @@
+{
+  "name": "cruise-studio-reports-dev-20261108",
+  "main": "src/report-dev-entry.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "STUDIO_REPORTS_ENABLED": "true",
+    "REPORT_AI_ENABLED": "false",
+    "REPORT_ALLOWED_ORIGINS": "http://127.0.0.1:18842"
+  },
+  "d1_databases": [
+    {
+      "binding": "REPORT_DB",
+      "database_name": "cruise-studio-reports-dev-20261108",
+      "database_id": "0bbff651-94cf-4474-9951-5ceac648c9ce"
+    }
+  ]
+}

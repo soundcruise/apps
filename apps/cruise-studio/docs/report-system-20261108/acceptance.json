@@ -1,0 +1,32 @@
+{
+  "candidate": "0.87.0",
+  "productionChanged": false,
+  "reportTests": {
+    "passed": 9,
+    "failed": 0,
+    "browserOperatorIncluded": true
+  },
+  "studioChecks": {
+    "passed": 12,
+    "failed": 0
+  },
+  "remoteDevelopment": {
+    "worker": "cruise-studio-reports-dev-20261108",
+    "version": "89272cba-997d-467e-a2e6-67bb41092b18",
+    "dedicatedD1": true,
+    "realHttpSubmissionAndPersistence": true,
+    "paidAIEnabled": false,
+    "operatorAccessConfigured": false
+  },
+  "syntheticProvider": {
+    "successPersisted": true,
+    "failureRetried": true,
+    "budgetLimitEnforced": true
+  },
+  "notAccepted": [
+    "paid model completion",
+    "remote human Access login",
+    "full authenticated Studio entrance integration"
+  ],
+  "packageFiles": 200
+}
