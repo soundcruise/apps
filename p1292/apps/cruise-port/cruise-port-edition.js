@@ -1,4 +1,4 @@
-export const CRUISE_PORT_ROOT = '/apps/cruise-port/';
+export const CRUISE_PORT_ROOT = '/p1292/apps/cruise-port/';
 export const PRO_ENTRY_PATH = `${CRUISE_PORT_ROOT}pro_9a3943176561/`;
 
 // Edition is presentation/product policy, NOT proof of Pro authentication.
