@@ -97,9 +97,10 @@ function parseJournal(raw) {
     return value;
 }
 export class PortDatasetRepository {
-    constructor({ storage, authorityProvider, backend, accountStorage = null, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
+    constructor({ storage, authorityProvider, backend, accountStorage = null, prepareLocalSync = null, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
         if (backend !== undefined && (!isIsolatedRepositoryBackend(backend) || authorityProvider)) throw error('isolated-backend-required');
         this.accountStorage = accountStorage;
+        this.prepareLocalSync = prepareLocalSync;
         this.backend = backend;
         this.storage = authorityProvider?.storage || storage;
         this.authorityProvider = authorityProvider;
@@ -133,7 +134,7 @@ export class PortDatasetRepository {
         parseJournal(values[PORT_DELETE_INTENTS]);
         return Object.freeze({ protocol: PORT_DATASET_PROTOCOL, generation: meta?.generation ?? null,
             // Include raw values: an old build cannot silently invalidate a new-build base by omitting our metadata.
-            revision: JSON.stringify([metaRaw, values]), values: Object.freeze(values), keyRevisions: Object.freeze({ ...(meta?.keyRevisions || {}) }), sharedWriteCapable: this.sharedWriteCapable });
+            revision: JSON.stringify([metaRaw, values]), values: Object.freeze(values), keyRevisions: Object.freeze({ ...(meta?.keyRevisions || {}) }), pendingSync: meta?.pendingSync ?? null, sharedWriteCapable: this.sharedWriteCapable });
     }
     async readDatasetState() {
         if (this.backend) return this.backend.hydrate();
@@ -206,14 +207,17 @@ export class PortDatasetRepository {
                 const generation = this.token();
                 if (source === 'local') this.coordinateDeletes(before.values, draft.values, generation);
                 const changed = PORT_DATASET_KEYS.filter(key => draft.values[key] !== before.values[key]);
+                const pendingSync = source === 'local' && this.prepareLocalSync
+                    ? await this.prepareLocalSync({ before, after: draft.values, changed }) : before.pendingSync;
+                await assertCurrent();
                 Object.freeze(draft.values); // caller cannot mutate a validated draft while commit lock is queued
-                return { before, draft, result, changed };
+                return { before, draft, result, changed, pendingSync };
             };
             const commit = prepared => {
                 if (prepared.rejected) return prepared.rejected;
-                const { before, draft, result, changed } = prepared;
+                const { before, draft, result, changed, pendingSync } = prepared;
                 const metaBefore = this.storage.getItem(PORT_DATASET_META);
-                const meta = !changed.length ? null : { protocol: PORT_DATASET_PROTOCOL, generation: before.generation || this.token(), revision: this.token(), keyRevisions: { ...before.keyRevisions, ...Object.fromEntries(changed.map(key => [key, this.token()])) } };
+                const meta = !changed.length ? null : { ...(pendingSync ? { pendingSync } : {}), protocol: PORT_DATASET_PROTOCOL, generation: before.generation || this.token(), revision: this.token(), keyRevisions: { ...before.keyRevisions, ...Object.fromEntries(changed.map(key => [key, this.token()])) } };
                 // Final synchronous boundary: no caller await after these checks.
                 if (this.inspect().revision !== before.revision) throw error('stale');
                 this.authorityProvider?.assertWritable();
@@ -254,7 +258,7 @@ export class PortDatasetRepository {
                 // if a subscriber subsequently changes Account/pointer/gate.
                 const state = Object.freeze({ protocol: PORT_DATASET_PROTOCOL, generation: meta.generation,
                     revision: JSON.stringify([JSON.stringify(meta), draft.values]), values: Object.freeze({ ...draft.values }),
-                    keyRevisions: Object.freeze({ ...meta.keyRevisions }), sharedWriteCapable: this.sharedWriteCapable });
+                    keyRevisions: Object.freeze({ ...meta.keyRevisions }), pendingSync: meta.pendingSync ?? null, sharedWriteCapable: this.sharedWriteCapable });
                 const event = Object.freeze({ revision: state.revision, generation: state.generation, keys: Object.freeze(changed), source,
                     ...(guarded || commitGuard ? { authorityContext, authorizationContext, publish: false, operationId } : {}) });
                 // A listener may invalidate an operation after publication. Keep
