@@ -28,7 +28,7 @@ export function renderStandardEntry(source){
  let html=renderPublicCreation(source).replace('data-studio-product="studio"','data-studio-product="studio" data-studio-edition="standard"');
  html=html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/g,(all,attrs,body)=>{
   if(/__SOUNDCRUISE_PRO_GATE__/.test(body)||/shared\/(?:pro-|sync-account\/)|js\/(?:core\/studio-entry|port-sync-status|cloud\/canary-entry|modules\/series\/(?:workspaces|official-links)|modules\/(?:practice|tuner|metronome|library)\/port-surface)/.test(attrs))return '';
-  if(attrs.includes('js/port-pc.js'))return '<script src="js/standard-surfaces.js?v=0.88.0"></script>'+all;
+  if(attrs.includes('js/port-pc.js'))return '<script src="js/standard-surfaces.js?v=0.88.1"></script>'+all;
   return all;
  }).replace(/<link[^>]*shared\/pro-gate.css[^>]*>/g,'').replace(/pro_969e958c31433f99c30b\/manifest.webmanifest/g,'manifest.webmanifest').replace(/<span class="studio-pro-badge">Pro<\/span>/g,'').replace(/Cruise Studio Pro/g,'Cruise Studio').replace(/クルーズ Pro/g,'クルーズ').replace(/同期を確認中…/g,'通常版 — 各アプリの機能制限が適用されます。').replace(/data-studio-edition="pro"/g,'data-studio-edition="standard"');
  for(const [dir,pro] of Object.entries({'pitch-cruise':'pro_x9v7q2m8','fretboard_cruise':'pro_a9f4k7q2m8z','rhythm-cruise':'pro_r4m8k7n2q9x','chord-cruise':'pro_k7m4q9v2x8'}))html=html.replaceAll('../'+dir+'/'+pro+'/', '../'+dir+'/standard/');
