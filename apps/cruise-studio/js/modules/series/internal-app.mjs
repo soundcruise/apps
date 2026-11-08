@@ -1,5 +1,5 @@
 import {getAttentionGuide} from '../../../../cruise-port/sync-attention-ui.mjs';
-import {attachPresentation} from './presentation.mjs?v=0.87.2';
+import {attachPresentation} from './presentation.mjs?v=0.87.3';
 import {createPortProBoundary} from '../../core/port-pro-boundary.mjs';
 import {resolveCruiseAppHref} from '../../../../cruise-port/cruise-app-links.js';
 

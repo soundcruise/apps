@@ -584,3 +584,9 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 
 /* Navigation labels, without changing sidebar width or icon styling. */
 .studio-nav-workspaces > button { font-size: 14px; }
+
+.studio-nav-safety{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.studio-nav-safety #studio-sidebar-info,.studio-nav-safety #shell-audio-stop{width:100%;height:auto;min-height:36px;box-sizing:border-box;white-space:nowrap;font-size:14px;text-align:left;padding:6px 8px}
+@media(max-width:600px){.studio-nav{grid-template-columns:minmax(0,1fr) 160px 52px}.studio-nav-safety #studio-sidebar-info,.studio-nav-safety #shell-audio-stop{font-size:12px;padding:4px;min-height:30px}}
+
+@media(max-width:600px){.studio-nav .studio-nav-safety #studio-sidebar-info{font-size:12px}}
