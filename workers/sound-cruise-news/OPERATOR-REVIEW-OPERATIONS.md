@@ -398,6 +398,66 @@ Measure recommendation coverage and asymmetric errors per policy/rule/pattern ov
 time. Duplicate resolution remains the existing objective-evidence path, not a
 learned category-wide rejection. No automatic publication/rejection is enabled.
 
+### 0.52.2 candidate — scoped reuse of publication-policy-1 editorial decisions
+
+The actual policy transition is commit `1344e8ad`: `REASONS` and `CHECKS` did not
+change. Changes cover source health/backoff, stable primary-proof contracts,
+parser compatibility, malformed-proof rejection and an explicit relevance result.
+An old formal PASS is not a new-policy proof or source permission. Generic
+editorial/event profiles do not retain enough subtype meaning to import safely.
+
+`editorialCompatibility` admits a policy-1 decision only when it is a committed
+human editorial verdict with a bound structured profile and pre-decision Shadow
+envelope: matching source/category/type, candidate/revision/snapshot, policy/rule,
+verdict and bounded timestamps; retained formal PASS/date/identity evidence; and a
+typed product/launch profile (`new_product`/`release` with brand, product and
+identifier-basis fields). No bare policy allowlist is added. Technical, duplicate,
+source-policy and unconfirmed verdicts remain outside editorial teaching. Prior
+human decisions and original evidence are never changed.
+
+Compatible history contributes to both the five-independent-teacher threshold and
+contradiction checks only for strong/exact retained patterns. A weak cross-policy
+category/source resemblance imports neither a positive nor a negative signal.
+Same-policy weak contradictions keep the existing conservative behavior. Explicit
+new-color/limited/reissue actions cannot match ordinary or unknown actions. A
+target must still pass its current formal validation; recommendations grant no
+publication authority. Shadow rule `structured-human-v3` isolates these semantics
+from v1/v2 observations; aggregation does not relabel historical observations.
+
+Read-only 2026-11-08 evaluation: of 163 old decisions, 78 contracts are compatible,
+77 are latest and 76 are independent after article/topic deduplication (Ikebe 46,
+Shimamura 23, Kikutani 6, typed AGM product news 1; 69 approve / 7 reject).
+Excluded contracts: 63 lack retained editorial scope, 12 are non-editorial,
+4 lack a pre-decision observation, 3 have unbound profiles and 3 lack confirmed
+formal evidence. Compatibility does not revive a superseded approval or count
+duplicate articles/topics twice.
+
+Of 191 ledger rows, 185 latest independent cases have usable pre-decision
+observations. Time-ordered editorial-only replay using strictly earlier teachers
+changes approve recommendations from 0 to 4; all four agree with the human verdict,
+with no reject recommendations or false-publish directions. These four are old
+period Ikebe product cases (three amps/effects, one electric-guitar group). Current
+policy's 28 cases stay at 0 recommendations. Old validation is not reauthenticated
+as current validation. Unrestricted import of generic editorial profiles would
+incorrectly recommend one AGM article rejected as not relevant; such profiles are
+therefore excluded by the shared scope contract, not an article-specific rule.
+
+Decision-time validation flags record 163 PASS / 24 FAIL / 4 unknown, but all 191
+lack the later `evidenceContext` origin field. The count published without human
+fact supplementation cannot be certified from these coarse historical snapshots.
+Current mutable facts are not used to fill that gap. Four agreeing recommendations
+are editorial learning evidence, not a statistical safety claim or live auto-READY.
+
+`pending-resolution` already handles objectively proven duplicate/expiry/policy
+exclusions with CAS and restoration, separately from human learning. The legacy
+`publishAutomatic` exists but is not connected to cron/Shadow and does not call the
+current full `publicationValidation` or write the human Decision Ledger. Do not
+wire it directly into cron. The next minimal implementation is to reuse that
+publication boundary with current formal validation, the existing transactional
+Ledger/CAS service and source preference, keeping execution OFF until prospective
+evidence and explicit activation approval exist. No collector, source permission,
+formal validator, automatic boundary or production setting changes in this PR.
+
 UI adds a small Shadow section, observation/comparison totals, low-N notice and optional
 pattern detail. It does not announce agreement after decisions or change confirmation
 buttons. No auto approve/reject, adaptive rule table, rule promotion, feedback activation

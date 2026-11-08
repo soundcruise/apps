@@ -2,7 +2,7 @@ import {hash,DAY} from './policy.js';
 import {DECISION_POLICY_VERSION,publicationValidation,parseFacts} from './decision-policy.js';
 import {humanDecisions,retainedDecisionProfile,evaluateDecisions} from './operator-insights.js';
 import {validatedProductEvent} from './product-event.js';
-export const SHADOW_RULE_VERSION='structured-human-v2';
+export const SHADOW_RULE_VERSION='structured-human-v3';
 export const SHADOW_CONTRACT_VERSION='shadow-v1';
 const canonical=value=>JSON.stringify(sort(value));
 function sort(value){return Array.isArray(value)?value.map(sort):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,sort(value[k])])):value;}

@@ -15,8 +15,6 @@ export function decisionLearningUse(row){
  if(row.reason==='operator_review'&&parse(row.decision_features_json).insightsProfile?.factsVerified!==true)return 'unconfirmed_only';
  return 'editorial';
 }
-// No older policy is declared compatible without an explicit, reviewed mapping.
-const COMPATIBLE_POLICIES=Object.freeze([]);
 export const displayCategory=key=>['recording_audio','creator_streaming'].includes(key)?'recording_streaming':key;
 const parse=value=>{try{return JSON.parse(value)||{};}catch{return {};}};
 const populated=value=>value!==null&&value!==undefined&&value!==''&&(!Array.isArray(value)||value.length>0);
@@ -34,7 +32,29 @@ function teacherProfile(row){
  // Historical coarse fields are immutable evidence, never reconstructed from mutable candidates.
  return {version:'legacy_coarse',source:row.source_id,surface:'unknown',category:displayCategory(row.category),type:features.eventType||'other',factShape:[],factsVerified:false,reviewReasons:[],freshness:'unknown'};
 }
-export function policyCompatibility(version){return version===DECISION_POLICY_VERSION?'SAME':COMPATIBLE_POLICIES.includes(version)?'COMPATIBLE':'OBSOLETE';}
+// Publication policy 2 changed health/proof validation and exposed relevance;
+// it did not redefine the retained human editorial verdict/reason vocabulary.
+// Reuse only the editorial signal, never the old proof as current publication
+// authority. An old policy name alone is deliberately insufficient.
+export function editorialCompatibility(row){
+ if(row?.policy_version===DECISION_POLICY_VERSION)return {status:'SAME',reason:'current_policy'};
+ const fail=reason=>({status:'OBSOLETE',reason});
+ if(row?.policy_version!=='operator-publication-1')return fail('unmapped_policy');
+ if(row.actor_type!=='human_operator'||row.success_state!=='committed'||!['approve','reject'].includes(row.verdict))return fail('not_committed_human');
+ if(decisionLearningUse(row)!=='editorial')return fail('non_editorial_verdict');
+ const f=parse(row.decision_features_json),p=f.insightsProfile,e=f.shadowEvaluation;
+ if(f.operation&&f.operation!=='pending_decision'||e?.trigger!=='pre_decision')return fail('not_pre_decision');
+ if(p?.version!==INSIGHTS_VERSION||!e||JSON.stringify(p)!==JSON.stringify(e.profile)||p.source!==row.source_id||e.sourceId!==row.source_id||p.category!==displayCategory(row.category)||p.type!==f.eventType||typeof p.type!=='string'||p.type==='other'||p.surface==='unknown'||typeof p.surface!=='string')return fail('profile_unbound');
+ if(e.contractVersion!=='shadow-v1'||e.ruleVersion!=='structured-human-v1'||e.policyVersion!==row.policy_version||e.candidateId!==row.candidate_id||e.candidateRevision!==row.candidate_revision||e.candidateSnapshot!==row.candidate_snapshot||!/^[a-f0-9]{64}$/.test(row.candidate_snapshot||'')||e.operatorFinalVerdict!==row.verdict)return fail('snapshot_unbound');
+ if(!Number.isSafeInteger(e.generatedAt)||!Number.isSafeInteger(row.decided_at)||!Number.isSafeInteger(row.created_at)||e.generatedAt>row.decided_at||e.generatedAt<row.decided_at-1800000||row.created_at<e.generatedAt)return fail('invalid_evidence_time');
+ if(f.factsPresent!==true||f.hasDate!==true||p.factsVerified!==true||e.publicationValidation?.policyVersion!==row.policy_version||e.publicationValidation.valid!==true||!Array.isArray(e.publicationValidation.errors)||e.publicationValidation.errors.length||!Array.isArray(p.factShape)||!p.factShape.length||!['within_7_days','within_14_days','within_90_days'].includes(p.freshness)||!/^[a-f0-9]{64}$/.test(p.articleIdentity||'')||!/^[a-f0-9]{64}$/.test(p.topicIdentity||''))return fail('formal_evidence_unconfirmed');
+ // Old generic editorial/event profiles retain field names, not the article
+ // subtype (interview/book/correction, etc.). They cannot establish equal
+ // editorial meaning. Start with explicitly typed product/launch decisions.
+ if(!['new_product','release'].includes(p.type)||!['brand','product','identifierBasis'].every(k=>p.factShape.includes(k)))return fail('editorial_scope_unretained');
+ return {status:'COMPATIBLE',reason:'retained_verified_editorial_verdict'};
+}
+export function policyCompatibility(version,row){return editorialCompatibility({...row,policy_version:version}).status;}
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 export function similarity(a,b){
  const signals={source:a.source===b.source&&!!a.source,surface:a.surface===b.surface&&a.surface!=='unknown',type:a.type===b.type&&a.type!=='other',category:a.category===b.category&&!!a.category,factStructure:a.factsVerified&&b.factsVerified&&a.factShape.length>0&&equal(a.factShape,b.factShape),reviewReason:a.reviewReasons.length>0&&equal(a.reviewReasons,b.reviewReasons),freshness:a.freshness!=='unknown'&&a.freshness!=='expired'&&a.freshness===b.freshness};
@@ -45,16 +65,21 @@ export function similarity(a,b){
 }
 export function evaluateDecisions(profile,rows,{now=Date.now(),candidateId,validation}={}){
  // Latest successful human decision per independent article. Retries/revisions are not extra teachers.
- const latest=new Map();for(const row of [...rows].sort((a,b)=>b.decided_at-a.decided_at||b.decision_id.localeCompare(a.decision_id))){if(row.actor_type!=='human_operator'||row.success_state!=='committed'||row.decided_at>now||row.created_at<=now-365*DAY||row.candidate_id===candidateId||!['approve','reject'].includes(row.verdict))continue;if(!latest.has(row.candidate_id))latest.set(row.candidate_id,row);}
+ const latest=new Map();for(const row of [...rows].sort((a,b)=>b.decided_at-a.decided_at||b.decision_id.localeCompare(a.decision_id))){if(row.actor_type!=='human_operator'||row.success_state!=='committed'||row.decided_at>now||row.created_at>now||row.created_at<=now-365*DAY||row.candidate_id===candidateId||!['approve','reject'].includes(row.verdict))continue;if(!latest.has(row.candidate_id))latest.set(row.candidate_id,row);}
  const seenArticles=new Set(),seenTopics=new Set();
  const independent=[...latest.values()].filter(row=>{const p=teacherProfile(row);if(p.articleIdentity&&seenArticles.has(p.articleIdentity)||p.topicIdentity&&seenTopics.has(p.topicIdentity))return false;if(p.articleIdentity)seenArticles.add(p.articleIdentity);if(p.topicIdentity)seenTopics.add(p.topicIdentity);return !(profile.articleIdentity&&p.articleIdentity===profile.articleIdentity||profile.topicIdentity&&p.topicIdentity===profile.topicIdentity);});
- const matches=independent.map(row=>({decisionId:row.decision_id,candidateId:row.candidate_id,verdict:row.verdict,reason:row.reason,decidedAt:row.decided_at,source:row.source_id,category:row.category,type:teacherProfile(row).type,policyVersion:row.policy_version,policyCompatibility:policyCompatibility(row.policy_version),learningUse:decisionLearningUse(row),...similarity(profile,teacherProfile(row))})).filter(m=>m.level!=='INSUFFICIENT');
+ const matches=independent.map(row=>{const compatibility=editorialCompatibility(row);return {decisionId:row.decision_id,candidateId:row.candidate_id,verdict:row.verdict,reason:row.reason,decidedAt:row.decided_at,source:row.source_id,category:row.category,type:teacherProfile(row).type,policyVersion:row.policy_version,policyCompatibility:compatibility.status,compatibilityReason:compatibility.reason,learningUse:decisionLearningUse(row),...similarity(profile,teacherProfile(row))};}).filter(m=>m.level!=='INSUFFICIENT');
  const editorial=matches.filter(m=>m.learningUse==='editorial');
- const evidence=editorial.filter(m=>['EXACT_PATTERN','STRONG_SIMILAR'].includes(m.level)&&m.policyCompatibility==='SAME');
+ // Cross-policy compatibility is established only for the same retained
+ // editorial pattern. A weak category/source resemblance cannot import an
+ // old verdict in either direction (including as a contradiction).
+ const usable=m=>m.policyCompatibility==='SAME'||m.policyCompatibility==='COMPATIBLE'&&['EXACT_PATTERN','STRONG_SIMILAR'].includes(m.level);
+ const evidence=editorial.filter(m=>['EXACT_PATTERN','STRONG_SIMILAR'].includes(m.level)&&usable(m));
  const approveCount=matches.filter(m=>m.verdict==='approve').length,rejectCount=matches.filter(m=>m.verdict==='reject').length;
  const approvals=evidence.filter(m=>m.verdict==='approve').length,rejections=evidence.filter(m=>m.verdict==='reject').length;
- // Even a weak contradictory match under the same policy suppresses a recommendation.
- const same=editorial.filter(m=>m.policyCompatibility==='SAME'),yes=same.filter(m=>m.verdict==='approve').length,no=same.filter(m=>m.verdict==='reject').length,contradictionCount=Math.min(yes,no);
+ // Apply compatible verdicts consistently to evidence AND contradictions.
+ // A weak same-policy disagreement keeps the existing conservative behavior.
+ const same=editorial.filter(usable),yes=same.filter(m=>m.verdict==='approve').length,no=same.filter(m=>m.verdict==='reject').length,contradictionCount=Math.min(yes,no);
  let recommendation='NO_RECOMMENDATION',reason='insufficient_evidence';
  if(contradictionCount)reason='contradictory_history';
  else if(evidence.length>=MINIMUM_EVIDENCE){if(approvals===evidence.length){if(validation?.valid){recommendation='RECOMMEND_APPROVE';reason='consistent_human_evidence';}else reason='publication_blocked';}else if(rejections===evidence.length){recommendation='RECOMMEND_REJECT';reason='consistent_human_evidence';}}
