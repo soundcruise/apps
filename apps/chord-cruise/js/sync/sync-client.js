@@ -653,7 +653,17 @@
             };
         }
 
+        // Capability affects the settings view only; credentials and request categories stay unchanged.
+        function themeReadPath(path) {
+            return /^\/v1\/sync\/(snapshot|changes)\?/.test(path)
+                ? path + '&capabilities=settings_theme_v2' : path;
+        }
+
         async function authenticatedRequest(method, path, body) {
+            path = themeReadPath(path);
+            if (path === '/v1/sync/push' || path === '/v1/sync/migration/complete') {
+                body = Object.assign({}, body, { capabilities: ['settings_theme_v2'] });
+            }
             if (!fetchImpl) return { ok: false, code: 'network_unavailable', retryable: true };
             var store = await openStore();
             var credentialMeta = await store.getMeta('deviceCredential');
@@ -939,6 +949,7 @@
         }
 
         async function requestWithCredential(credential, path) {
+            path = themeReadPath(path);
             if (!fetchImpl || !CREDENTIAL_PATTERN.test(credential || '')) return { ok: false, code: 'credential_missing' };
             var response;
             try {
@@ -1416,10 +1427,54 @@
             return { status: 'conflict', conflictId: conflictId };
         }
 
+        // A cursor says which revisions were seen, not which projection was seen.
+        // Re-read only settings when an old Dark shadow may be a Midnight projection.
+        // Keep the cursor/outbox and use the ordinary divergence/conflict checks.
+        async function refreshSettingsThemeView(store) {
+            if (await store.getMeta('migrationState') !== 'complete') return { ok: true };
+            var shadow = await store.getShadow('settings/default');
+            var fingerprint = core.canonicalJson(shadow ? [shadow.revision, shadow.payloadHash] : null);
+            if (await store.getMeta('settingsThemeViewV2') === fingerprint) return { ok: true };
+            if (shadow && shadow.deletedAt == null && shadow.payload?.theme === 'dark') {
+                if ((await store.listConflicts()).some(function (c) { return c.recordKey === 'settings/default'; })) {
+                    return { ok: false, code: 'theme_view_upgrade_pending' };
+                }
+                var cloud = await readValidatedCloudSnapshot();
+                if (!cloud.ok) return cloud;
+                var record = cloud.snapshot.records.find(function (r) {
+                    return r.recordType === 'settings' && r.recordId === 'default';
+                });
+                var pendingSettings = (await store.listOutbox()).filter(function (op) { return op.recordType === 'settings'; });
+                if (pendingSettings.length ||
+                    (await store.listConflicts()).some(function (c) { return c.recordKey === 'settings/default'; })) {
+                    // Keep the pending operation and old shadow intact. Materialize
+                    // the existing review path instead of leaving an invisible hold.
+                    if (record && pendingSettings.length) {
+                        // The normal merge sender skips the operation under review.
+                        // Persist its existing conflict marker before exposing that review.
+                        await store.putOutbox({ ...pendingSettings[0], conflict: true });
+                        await persistConflict(store, 'push', pendingSettings[0], record,
+                            { code: 'theme_view_upgrade_pending' });
+                    }
+                    return { ok: false, code: 'theme_view_upgrade_pending' };
+                }
+                if (record) {
+                    var applied = await applyPulledRecord(store, record);
+                    if (applied.status === 'conflict') return { ok: false, code: 'theme_view_upgrade_conflict' };
+                }
+                shadow = await store.getShadow('settings/default');
+                fingerprint = core.canonicalJson(shadow ? [shadow.revision, shadow.payloadHash] : null);
+            }
+            await store.setMeta('settingsThemeViewV2', fingerprint, now());
+            return { ok: true };
+        }
+
         async function pullOnce(options) {
             if (!enabled) return { enabled: false, pages: 0 };
             var settings = options || {};
             var store = await openStore();
+            var themeView = await refreshSettingsThemeView(store);
+            if (!themeView.ok) return { enabled: true, ...themeView, pages: 0, applied: 0, conflicts: 0 };
             var cursor = await store.getMeta('cursor') || INITIAL_CURSOR;
             var pages = 0;
             var applied = 0;
@@ -2108,6 +2163,8 @@
         async function performSyncNow() {
             if (!enabled) return { enabled: false };
             var mergeStore = await openStore();
+            var themeView = await refreshSettingsThemeView(mergeStore);
+            if (!themeView.ok) return { enabled: true, ...themeView };
             var activeMergeId = await mergeStore.getMeta('activeMergeSessionId');
             var activeMerge = activeMergeId ? await mergeStore.getMergeSession(activeMergeId) : null;
             if (activeMerge && activeMerge.mode === 'ongoing' && activeMerge.stage !== 'complete') {
