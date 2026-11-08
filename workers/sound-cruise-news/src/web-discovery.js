@@ -1,3 +1,4 @@
+import {manualPermit,manualAvailability} from './web-manual-permit.js';
 import {webVerification} from './web-verification.js';
 import {DEFAULT_WEB_QUERIES,searchPlan,publicSearchUrl,resultMetadata,searchDate,screenWebHint,beginWebSearch,finishWebSearch,recentWebSearches} from './web-discovery-quality.js';
 import {SOURCES,evidenceGate} from './registry.js';
@@ -95,22 +96,32 @@ export async function listWebHints(env,now=Date.now()){
  const rows=(await env.NEWS_DB.prepare('SELECT url,title,provider,searched_at,status,reason,estimate_json,search_meta_json FROM news_web_hints WHERE expires_at>? ORDER BY searched_at DESC,url LIMIT 100').bind(now).all()).results;
  const verify=webVerification(env,now);
  const items=await Promise.all(rows.map(async row=>({...row,verification:await verify(row.url),estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,searchMetadata:row.search_meta_json?JSON.parse(row.search_meta_json):null,search_meta_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'})));
- return {enabled:true,searches:await recentWebSearches(env.NEWS_DB,now),manualEnabled:env.NEWS_WEB_MANUAL_ENABLED==='true',items};
+ const manualAuthorization=await manualAvailability(env.NEWS_DB,env,now);
+ return {enabled:true,searches:await recentWebSearches(env.NEWS_DB,now),manualEnabled:manualAuthorization.effective,manualAuthorization,items};
 }
 export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=false){
  const config=discoveryConfig(env);if(!config)return {disabled:true};
  const wallStart=Date.now(),clock=dependencies.clock||(()=>now+Math.max(0,Date.now()-wallStart));
+ const permit=manual?manualPermit(env,clock()):null,permitText=env.NEWS_WEB_MANUAL_PERMIT;
+ if(manual&&!permit.effective)throw Error(permit.reason);
+ let stopReason=null;const used={searches:0,ai_calls:0};
+ const checkPermit=()=>{if(!manual)return;const current=manualPermit(env,clock());if(!current.effective)throw Error(current.reason);if(env.NEWS_WEB_MANUAL_PERMIT!==permitText)throw Error('operator_web_permit_changed');};
  const db=env.NEWS_DB,day=new Date(now).toISOString().slice(0,10);
- await db.prepare('DELETE FROM news_web_hints WHERE expires_at<=?').bind(now).run();
- await db.prepare('DELETE FROM news_web_searches WHERE expires_at<=?').bind(now).run();
- await db.prepare('DELETE FROM news_web_runs WHERE day<?').bind(new Date(now-31*86400000).toISOString().slice(0,10)).run();
+ if(manual&&permit.day!==day)throw Error('operator_web_utc_day_changed');
  await db.prepare('INSERT OR IGNORE INTO news_web_runs(day) VALUES(?)').bind(day).run();
  // Claim an entire run across cron and manual entry points. Manual is once per UTC day,
  // even after failure or ACK loss. Do not clear the flag without a new day.
  const claimed=await db.prepare(`UPDATE news_web_runs SET lock_until=?, manual_started=CASE WHEN ?=1 THEN 1 ELSE manual_started END WHERE day=? AND lock_until<=? AND NOT EXISTS (SELECT 1 FROM news_web_runs WHERE lock_until>?) AND (?=0 OR (manual_started=0 AND searches=0 AND ai_calls=0)) AND (?=1 OR manual_started=0) RETURNING day`).bind(now+900000,manual?1:0,day,now,now,manual?1:0,manual?1:0).first();
  if(!claimed)return {skipped:true,reason:'busy_or_already_run'};
  try{
- const reserve=async column=>Boolean(await db.prepare(`UPDATE news_web_runs SET ${column}=${column}+1 WHERE day=? AND ${column}<? RETURNING day`).bind(day,config.max).first());
+ await db.prepare('DELETE FROM news_web_hints WHERE expires_at<=?').bind(now).run();
+ await db.prepare('DELETE FROM news_web_searches WHERE expires_at<=?').bind(now).run();
+ await db.prepare('DELETE FROM news_web_runs WHERE day<?').bind(new Date(now-31*86400000).toISOString().slice(0,10)).run();
+ const reserve=async column=>{
+  if(manual){try{checkPermit();}catch(e){stopReason=e.message;return false;}if(used[column]>=(column==='searches'?permit.maxSearches:permit.maxAiCalls))return false;}
+  const reserved=Boolean(await db.prepare(`UPDATE news_web_runs SET ${column}=${column}+1 WHERE day=? AND ${column}<? RETURNING day`).bind(day,config.max).first());
+  if(reserved)used[column]++;return reserved;
+ };
  const policyDenied=SOURCES.filter(source=>evidenceGate(source,now)==='legal_block').map(source=>new URL(source.baseUrl).hostname.replace(/^www\./,''));
  const search=dependencies.search||exaAdapter(env.AI,env.NEWS_WEB_GATEWAY||'default');
  const classify=dependencies.classify||(hints=>llmAdapter(env.AI,env.NEWS_WEB_MODEL)(hints));
@@ -133,7 +144,7 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=
   await beginWebSearch(db,{id:searchId,plan,now:clock()});
   let stage='search';
   try{
-   const items=await search(plan.query);
+   checkPermit();const items=await search(plan.query);
    if(!Array.isArray(items)||items.length>10)throw Error('invalid_search_response');
    stage='processing';const seen=new Set();
    for(let i=0;i<items.length;i++){
@@ -167,20 +178,21 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=
     if(saved){hintUrls.set(url,{...hint,status:screening.status,reason:screening.reason});if(hint.title.length>=25)hintTitles.add(titleKey(hint.title));}
    }
    await finishWebSearch(db,searchId,'completed',records);
-  }catch{
+  }catch(failure){
    await error();await finishWebSearch(db,searchId,stage==='search'?'search_failed':'processing_failed',records);
+   if(manual){stopReason=/^operator_web_/.test(failure?.message)?failure.message:stage==='search'?'search_failed':'processing_failed';break;}
   }
  }
  // Metadata-only holds are re-joined to normal NEWS evidence without another
  // search. This also runs on the read-only Operator view while exploration OFF.
  const waiting=(await db.prepare("SELECT url,search_meta_json FROM news_web_hints WHERE status='hold' AND reason IN ('publication_date_unconfirmed','publication_verification_pending','japanese_article_unconfirmed') ORDER BY searched_at DESC,url LIMIT 100").all()).results;
- for(const h of waiting){
+ for(const h of waiting){if(stopReason)break;
   const metadata=h.search_meta_json?JSON.parse(h.search_meta_json):resultMetadata({},'legacy',0);
   metadata.verification=await verify(h.url);
   await db.prepare('UPDATE news_web_hints SET search_meta_json=? WHERE url=?').bind(JSON.stringify(metadata),h.url).run();
  }
- for(let batch=0;batch<config.max;batch++){
- const selected=(await db.prepare("SELECT * FROM news_web_hints WHERE status IN ('unreviewed','hold') AND (attempts<3 OR reason IN ('classification_failed','classification_schema_failed','model_output_truncated')) AND retry_at<=? ORDER BY searched_at,url LIMIT 15").bind(now).all()).results;
+ for(let batch=0;batch<config.max&&!stopReason;batch++){
+ const selected=(await db.prepare("SELECT * FROM news_web_hints WHERE status IN ('unreviewed','hold') AND (attempts<3 OR reason IN ('classification_failed','classification_schema_failed','model_output_truncated')) AND retry_at<=? AND (?=0 OR attempts=0) ORDER BY searched_at,url LIMIT 15").bind(now,manual?1:0).all()).results;
  const pending=[];
  for(const h of selected){
   const metadata=h.search_meta_json?JSON.parse(h.search_meta_json):resultMetadata({},'legacy',0);
@@ -196,7 +208,7 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=
   await db.batch(pending.map(h=>db.prepare("UPDATE news_web_hints SET status='hold',reason='classification_pending',attempts=attempts+1,retry_at=? WHERE url=?").bind(nextDailyCollectionAt(now),h.url)));
   let stage='model';
   try{
-   const estimates=await classify(pending);
+   checkPermit();const estimates=await classify(pending);
    stage='count';
    if(!Array.isArray(estimates)||estimates.length!==pending.length)throw Error('invalid_estimate');
    stage='schema';const triaged=estimates.map(validateEstimate).map((e,i)=>{
@@ -208,12 +220,14 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=
    await db.prepare('UPDATE news_web_runs SET processed=processed+? WHERE day=?').bind(pending.length,day).run();
   }catch(failure){
    const known=['model_request_failed','model_output_truncated','model_output_invalid','model_json_invalid','model_output_incomplete'];
-   const reason=WEB_CLASSIFIER_VERSION+':'+(known.includes(failure?.message)?failure.message:'classification_'+stage+'_failed');
+   const reason=manual&&/^operator_web_/.test(failure?.message)?failure.message:WEB_CLASSIFIER_VERSION+':'+(known.includes(failure?.message)?failure.message:'classification_'+stage+'_failed');
    console.error(JSON.stringify({event:'news_web_classification_failed',day,stage,reason,count:pending.length}));
    await error();await db.batch(pending.map(h=>db.prepare("UPDATE news_web_hints SET reason=? WHERE url=?").bind(reason,h.url)));
+   if(manual)stopReason=/^operator_web_/.test(failure?.message)?failure.message:reason;
   }
  }
  }
- return await db.prepare('SELECT day,searches,ai_calls,processed,errors FROM news_web_runs WHERE day=?').bind(day).first();
+ const result=await db.prepare('SELECT day,searches,ai_calls,processed,errors FROM news_web_runs WHERE day=?').bind(day).first();
+ return manual?{...result,manualAuthorization:{effective:false,reason:stopReason||'operator_web_permit_spent',expiresAt:permit.expiresAt,day:permit.day},...(stopReason?{stopped:stopReason}:{})}:result;
  }finally{await db.prepare('UPDATE news_web_runs SET lock_until=0 WHERE day=? AND lock_until=?').bind(day,now+900000).run();}
 }
