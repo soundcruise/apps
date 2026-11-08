@@ -1,0 +1,106 @@
+{
+  "compatibility": {
+    "counts": {
+      "tests": 83,
+      "pass": 83,
+      "fail": 0,
+      "skipped": 0
+    },
+    "failed": [],
+    "note": "83 pass; includes all prior 74 test cases plus added fault/validation/provenance tests"
+  },
+  "appThemesAndAdapters": {
+    "counts": {
+      "tests": 84,
+      "pass": 84,
+      "fail": 0,
+      "skipped": 0
+    },
+    "failed": [],
+    "note": "84 pass"
+  },
+  "workerRecordsAndProtocol": {
+    "counts": {
+      "tests": 44,
+      "pass": 44,
+      "fail": 0,
+      "skipped": 0
+    },
+    "failed": [],
+    "note": "44 pass"
+  },
+  "regressions": {
+    "counts": {
+      "tests": 4,
+      "pass": 3,
+      "fail": 1,
+      "skipped": 0
+    },
+    "failed": [
+      "A: published v1 Midnight send, local/remote resolution and subsequent sync converge"
+    ],
+    "note": "A remains a release HOLD; B/C/D pass"
+  },
+  "portThemes": {
+    "counts": {
+      "tests": 26,
+      "pass": 21,
+      "fail": 5,
+      "skipped": 0
+    },
+    "failed": [
+      "CSS: Dark is the attribute-free default; Gray/Light only override tokens under data-theme",
+      "Dark CSS is byte-identical to the 1.12.0 production Dark apart from explicit theme-button and NEWS-label rules",
+      "Gray/Light rules only change colors: no sizing, spacing or layout property is themed",
+      "NEWS is structurally a general rule and retains its complete badge style",
+      "theme structural guard rejects changed NEWS layout"
+    ],
+    "note": "same five failures as unchanged main"
+  },
+  "chordFull": {
+    "counts": {
+      "tests": 96,
+      "pass": 90,
+      "fail": 6,
+      "skipped": 0
+    },
+    "failed": [
+      "apps/chord-cruise/tests/current-version.test.js",
+      "apps/chord-cruise/tests/custom-save-pro-gate.test.js",
+      "apps/chord-cruise/tests/focus-trap.test.js",
+      "apps/chord-cruise/tests/pro-edition-entry.test.js",
+      "apps/chord-cruise/tests/sync-pilot-feature-flag.test.js",
+      "apps/chord-cruise/tests/sync-production-cohort-activation.test.js"
+    ],
+    "note": "same six failures as unchanged main"
+  },
+  "chordMainBaseline": {
+    "counts": {
+      "tests": 96,
+      "pass": 90,
+      "fail": 6,
+      "skipped": 0
+    },
+    "failed": [
+      "apps/chord-cruise/tests/current-version.test.js",
+      "apps/chord-cruise/tests/custom-save-pro-gate.test.js",
+      "apps/chord-cruise/tests/focus-trap.test.js",
+      "apps/chord-cruise/tests/pro-edition-entry.test.js",
+      "apps/chord-cruise/tests/sync-pilot-feature-flag.test.js",
+      "apps/chord-cruise/tests/sync-production-cohort-activation.test.js"
+    ],
+    "note": "unchanged 4cfbea2c baseline"
+  },
+  "regressionsBefore": {
+    "counts": {
+      "tests": 4,
+      "pass": 0,
+      "fail": 4
+    },
+    "source": "before-fixes.patch preserved externally; regressions-before.log"
+  },
+  "productionOperations": [],
+  "protectedDiffs": [],
+  "comparisonBase": "4cfbea2cfee9d63e0e55690741cad0179cb54e0a",
+  "finalBase": "23b449dc5c7d13fbb9f966dd6323d0b1d3ae98df"
+}

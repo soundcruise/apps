@@ -150,10 +150,10 @@ const remoteSettings = (values) => ({ appId: 'fretboard', schemaVersion: 1, reco
 
 test('theme writer: an explicit theme is sent, an unset one never is, a reader-first mirror stands in', () => {
   const api = loadAdapter();
-  assert.deepEqual([...api.SYNC_CAPABILITIES], ['settings_theme_v1']);
+  assert.deepEqual([...api.SYNC_CAPABILITIES], ['settings_theme_v1', 'settings_theme_v2']);
   assert.deepEqual([...api.SYNC_OPTIONAL_SETTINGS], ['theme']);
   assert(!api.SYNC_SETTINGS.includes('theme'), 'theme has no default, so it stays out of the default-filled list');
-  assert.deepEqual([...new api.FretboardSyncAdapter({ storage: memoryStorage({}).storage }).syncCapabilities], ['settings_theme_v1']);
+  assert.deepEqual([...new api.FretboardSyncAdapter({ storage: memoryStorage({}).storage }).syncCapabilities], ['settings_theme_v1', 'settings_theme_v2']);
   const sent = (settings) => api.normalizeLocalSnapshot(api.readLocalSnapshot(memoryStorage(settings).storage))
     .records.find((record) => record.recordType === 'settings')?.payload.values;
   assert.equal(sent({ theme: 'charcoal', tempo: 96 }).theme, 'charcoal');

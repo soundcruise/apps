@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import {
-    DEFAULT_SETTINGS, DEFAULT_THEME, SETTINGS_SCHEMA_VERSION, SETTINGS_STORAGE_KEY, THEMES, THEME_META_COLORS,
+    DEFAULT_SETTINGS, DEFAULT_THEME, SETTINGS_SCHEMA_VERSION, SETTINGS_STORAGE_KEY, MIDNIGHT_PENDING_KEY, THEMES, THEME_META_COLORS,
     loadSettings, normalizeSettings, resolveTheme, saveSettings
 } from './settings-store.js';
 import { validateRecordPayload } from '../../workers/sound-cruise-sync/src/record-schema-registry.js';
@@ -84,7 +84,7 @@ function themeDeclarations(body) {
 
 function assertThemeStructure(source) {
     const regions = themeRegions(source), radii = [];
-    const scoped = /^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/;
+    const scoped = /^:root(?:\[data-theme="(?:midnight|charcoal|gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/;
     const allowed = /^(?:--port-[a-z0-9-]+|color|color-scheme|background|background-color|border-color|outline-color|box-shadow|filter|accent-color|border-radius)$/;
     for (const rule of regions.themed) {
         for (const selector of rule.selectors) assert.match(selector, scoped, selector);
@@ -122,7 +122,7 @@ function storage(values = {}) {
 const v3 = (extra = {}) => JSON.stringify({ version: 3, displaySize: 'small', fontSize: 'large', sectionOrder: ['tools', 'cruiseApps', 'myApps'], ...extra });
 
 test('theme values, Dark default and the unchanged settings schema version', () => {
-    assert.deepEqual([...THEMES], ['dark', 'charcoal', 'gray', 'light']);
+    assert.deepEqual([...THEMES], ['dark', 'midnight', 'charcoal', 'gray', 'light']);
     assert.equal(DEFAULT_THEME, 'dark');
     assert.equal(SETTINGS_SCHEMA_VERSION, 3, 'the schema version must never move for the theme');
     assert.equal(Object.hasOwn(DEFAULT_SETTINGS, 'theme'), false, 'defaults never inject a theme into saved settings');
@@ -168,7 +168,7 @@ test('an explicit choice saves dark, gray and light and reloads as saved', () =>
         const saved = saveSettings({ ...loadSettings(store).settings, theme }, store);
         assert.equal(saved.ok, true);
         const stored = JSON.parse(store.value(SETTINGS_STORAGE_KEY));
-        assert.equal(stored.theme, theme);
+        assert.equal(stored.theme, theme === 'midnight' ? undefined : theme);
         assert.equal(stored.version, 3);
         assert.equal(stored.fontSize, 'large', 'other settings are kept');
         assert.equal(loadSettings(store).settings.theme, theme);
@@ -176,8 +176,8 @@ test('an explicit choice saves dark, gray and light and reloads as saved', () =>
 });
 
 test('reset returns the theme to Dark explicitly, within the existing display-settings reset', () => {
-    const handlers = app.slice(app.indexOf('function updateDisplaySettings(next)'), app.indexOf('elements.myAppsForm.addEventListener'));
-    assert.match(handlers, /updateDisplaySettings\(\{ \.\.\.DEFAULT_SETTINGS, theme: DEFAULT_THEME \}\)/);
+    const handlers = app.slice(app.indexOf('function updateDisplaySettings(next, options)'), app.indexOf('elements.myAppsForm.addEventListener'));
+    assert.match(handlers, /updateDisplaySettings\(\{ \.\.\.DEFAULT_SETTINGS, theme: DEFAULT_THEME \}, \{ themeChanged: true \}\)/);
     const store = storage({ [SETTINGS_STORAGE_KEY]: v3({ theme: 'light' }) });
     saveSettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME }, store);
     assert.equal(JSON.parse(store.value(SETTINGS_STORAGE_KEY)).theme, 'dark');
@@ -185,7 +185,7 @@ test('reset returns the theme to Dark explicitly, within the existing display-se
 
 test('only an explicit tap stores the theme and the choice applies without reload', () => {
     assert.match(app, /themeChoices: \[\.\.\.document\.querySelectorAll\('button\[data-theme-choice\]'\)\]/);
-    assert.match(app, /elements\.themeChoices\.forEach\(\(button\) => button\.addEventListener\('click', async \(\) => \{\n\s*\(await updateDisplaySettings\(\{ \.\.\.homeSettings, theme: button\.dataset\.themeChoice \}\)\);/);
+    assert.match(app, /elements\.themeChoices\.forEach\(\(button\) => button\.addEventListener\('click', async \(\) => \{\n\s*\(await updateDisplaySettings\(\{ \.\.\.homeSettings, theme: button\.dataset\.themeChoice \}, \{ themeChanged: true \}\)\);/);
     assert.match(app, /function applyColorTheme\(theme\) \{\n\s*document\.documentElement\.dataset\.theme = theme;\n\s*document\.querySelector\('meta\[name="theme-color"\]'\)\?\.setAttribute\('content', THEME_META_COLORS\[theme\]\);/);
     assert.match(app, /applyColorTheme\(resolveTheme\(homeSettings\.theme\)\);/);
     assert.doesNotMatch(app, /location\.reload\(\)[^\n]*theme|theme[^\n]*location\.reload/);
@@ -203,8 +203,8 @@ test('Settings UI: カラーテーマ radiogroup reuses the existing choices, ri
         assert.match(section, /<h2 id="color-theme-title">カラーテーマ<\/h2>/);
         assert.match(section, /class="settings-choices" role="radiogroup" aria-label="カラーテーマ"/);
         const buttons = [...section.matchAll(/<button type="button" class="settings-choice" data-theme-choice="([a-z]+)" role="radio" aria-checked="(true|false)">([^<]+)<\/button>/g)];
-        assert.deepEqual(buttons.map(([, value, , label]) => [value, label]), [['dark', 'ダーク'], ['charcoal', 'チャコール'], ['gray', 'グレー'], ['light', 'ライト']], name);
-        assert.deepEqual(buttons.map(([, , checked]) => checked), ['true', 'false', 'false', 'false'], `${name}: Dark is the initial state`);
+        assert.deepEqual(buttons.map(([, value, , label]) => [value, label]), [['dark', 'ダーク'], ['midnight', 'ミッドナイト'], ['charcoal', 'チャコール'], ['gray', 'グレー'], ['light', 'ライト']], name);
+        assert.deepEqual(buttons.map(([, , checked]) => checked), ['true', 'false', 'false', 'false', 'false'], `${name}: Dark is the initial state`);
     }
 });
 
@@ -244,11 +244,11 @@ test('startup bootstrap applies the saved theme before the stylesheet, Dark for 
         }
         assert.equal(runBootstrap(html, {}, { throwOnRead: true }).theme, 'dark', `${name}: storage error → Dark`);
         assert.match(html, /<meta name="theme-color" content="#090806">/, `${name}: static meta is still the Dark color`);
-        assert.doesNotMatch(html.slice(bootstrap, html.indexOf('</script>', bootstrap)), /localStorage\.getItem\('(?!cruisePort\.settings')/);
+        assert.doesNotMatch(html.slice(bootstrap, html.indexOf('</script>', bootstrap)), /localStorage\.getItem\('(?!cruisePort\.(?:settings|midnightTheme(?:\.pending)?\.v1)')/);
     }
     assert.equal(entries[0][1].match(/<script>\s*\/\/ Port color theme[\s\S]*?<\/script>/)[0],
         entries[1][1].match(/<script>\s*\/\/ Port color theme[\s\S]*?<\/script>/)[0], 'Standard and Pro share one bootstrap');
-    assert.deepEqual({ ...THEME_META_COLORS }, { dark: '#090806', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' });
+    assert.deepEqual({ ...THEME_META_COLORS }, { dark: '#090806', midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' });
 });
 
 test('Cloud Sync carries the theme inside settings/global without any Worker or adapter change', async () => {
@@ -284,7 +284,7 @@ test('the theme is Port-only: other Cruise app settings are never read or writte
     };
     const store = storage({ ...others, [SETTINGS_STORAGE_KEY]: v3() });
     saveSettings({ ...loadSettings(store).settings, theme: 'gray' }, store);
-    assert.deepEqual(store.writes, [SETTINGS_STORAGE_KEY]);
+    assert.deepEqual(store.writes, [MIDNIGHT_PENDING_KEY, SETTINGS_STORAGE_KEY]);
     for (const [key, value] of Object.entries(others)) assert.equal(store.value(key), value, key);
     for (const source of [app, read('./settings-store.js'), css, ...entries.map(([, html]) => html)]) {
         assert.doesNotMatch(source, /globalTheme|soundCruise\.theme|prefers-color-scheme/);
