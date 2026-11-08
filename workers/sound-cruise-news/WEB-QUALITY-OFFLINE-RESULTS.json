@@ -1,0 +1,40 @@
+{
+  "scope": "Offline screening, not search recall or model accuracy",
+  "raw58": {
+    "n": 58,
+    "aiEligible": 0,
+    "reasons": {
+      "publication_date_unconfirmed": 22,
+      "japanese_article_unconfirmed": 24,
+      "general_page": 9,
+      "known_product_event_unconfirmed": 2,
+      "roundup_requires_primary": 1
+    }
+  },
+  "rawPilot45": {
+    "n": 45,
+    "aiEligible": 0,
+    "reasons": {
+      "general_page": 8,
+      "publication_date_unconfirmed": 13,
+      "japanese_article_unconfirmed": 21,
+      "known_product_event_unconfirmed": 2,
+      "roundup_requires_primary": 1
+    }
+  },
+  "baselineTitleOnlyAiEligible45": 18,
+  "datedSimulation45": {
+    "n": 45,
+    "aiEligible": 0,
+    "reasons": {
+      "general_page": 8,
+      "publication_date_unconfirmed": 8,
+      "old_publication_unverified": 11,
+      "japanese_article_unconfirmed": 15,
+      "known_product_event_unconfirmed": 2,
+      "roundup_requires_primary": 1
+    }
+  },
+  "confirmedOldDateLabels": 12,
+  "paidCalls": 0
+}
