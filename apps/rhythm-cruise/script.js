@@ -18,7 +18,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.23.3';
+const RHYTHM_CRUISE_VERSION = '1.23.4';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }

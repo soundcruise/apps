@@ -7238,6 +7238,3 @@ body.metronome-preset-open {
     --port-well-warm-rgb: 16,21,28;
     --port-chrome-rgb: 29,38,49;
 }
-
-/* Temporarily suspend new Midnight selection; retain saved values and Studio projection. */
-:root:not([data-studio-theme]) [data-theme-choice="midnight"] { display: none !important; }

@@ -8856,7 +8856,3 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
 .rc-theme-card .stage-set-row {
     flex-wrap: wrap;
 }
-
-
-/* Temporarily suspend new Midnight selection; retain saved values and Studio projection. */
-:root:not([data-studio-theme]) [data-theme-choice="midnight"] { display: none !important; }
