@@ -3,7 +3,7 @@ import {setup,put,approveInput,source,now} from './operator-case.js';import {pep
 import {operatorDecision,candidateSnapshot} from '../src/operator-review.js';
 import {publicationValidation,DECISION_POLICY_VERSION} from '../src/decision-policy.js';
 import {INSIGHTS_VERSION,retainedDecisionProfile} from '../src/operator-insights.js';
-import {comparison,prepareShadowEvaluation,saveShadowEvaluation,evaluatePending,aggregateShadowMetrics,shadowMetrics,SHADOW_RULE_VERSION} from '../src/operator-shadow.js';
+import {comparison,prepareShadowEvaluation,saveShadowEvaluation,evaluatePending,aggregateShadowMetrics,shadowMetrics,shadowEvidenceContext,SHADOW_RULE_VERSION} from '../src/operator-shadow.js';
 const actor={type:'human_operator',id:'access:synthetic-human'};
 const statuses=['RECOMMEND_APPROVE','RECOMMEND_REJECT','NO_RECOMMENDATION'];
 const count=s=>s.db.raw.prepare('SELECT COUNT(*) n FROM news_shadow_evaluations').get().n;
@@ -20,3 +20,29 @@ test('policy/rule versions, stale time, revision and snapshot mismatches never m
 test('duplicate topic/source sightings cannot inflate independent evaluation metrics; newest unmatched human does not reuse older result',()=>{const a=fixture(statuses[0],'approve',0),b=fixture(statuses[0],'approve',1);b.evaluation.profile_json=a.evaluation.profile_json;const m=aggregateShadowMetrics([a.ledger,b.ledger],[a.evaluation,b.evaluation],now);assert.equal(m.matchedHumanDecisions,2);assert.equal(m.independentHumanDecisions,1);const newer={...a.ledger,decision_id:'newer',decided_at:now+1,decision_features_json:'{}'};assert.equal(aggregateShadowMetrics([a.ledger,newer],[a.evaluation],now+2).independentHumanDecisions,0);});
 test('batch records NONE for pending only and preserves every candidate and existing ledger row',async()=>{const s=await setup();await put(s,'one');await put(s,'two',{productFacts:null});const before=JSON.stringify(await s.candidates()),ledger=JSON.stringify(await s.db.prepare('SELECT * FROM news_decision_ledger').all());const results=await evaluatePending(s,now,[source],pepper);assert.equal(results.evaluated,2);assert(results.items.every(i=>i.recommendation==='NO_RECOMMENDATION'));assert.equal(JSON.stringify(await s.candidates()),before);assert.equal(JSON.stringify(await s.db.prepare('SELECT * FROM news_decision_ledger').all()),ledger);await evaluatePending(s,now+1000,[source],pepper);assert.equal(count(s),2);});
 test('additive shadow migration preserves existing candidate, ledger and controls, and lazy retention affects shadow rows only',async()=>{const s=await setup(),item=await put(s);await operatorDecision(s,await approveInput(s,item),now,[source],pepper,actor);const before=JSON.stringify(await s.candidates()),ledger=JSON.stringify(await s.db.prepare('SELECT * FROM news_decision_ledger').all());const existing=await s.db.prepare('SELECT * FROM news_shadow_evaluations').first();await s.db.prepare('INSERT INTO news_shadow_evaluations VALUES(?,?,?,?,?,?,?,?,?,?)').bind('new-retention',existing.candidate_id,existing.candidate_revision,existing.candidate_snapshot,now+366*86400000,existing.policy_version,existing.rule_version,existing.recommendation,existing.profile_json,existing.evaluation_json).run();assert.equal(count(s),1);assert.equal(JSON.stringify(await s.candidates()),before);assert.equal(JSON.stringify(await s.db.prepare('SELECT * FROM news_decision_ledger').all()),ledger);});
+
+test('decision-time evidence context distinguishes publisher evidence, human supplementation and unknown history without retaining fact values',()=>{
+ const facts={brand:'PRIVATE BRAND',productType:'amplifier',models:['PRIVATE MODEL'],productEvent:{action:'new_color',basis:'verified_primary_article',signal:'explicit_new_color'}};
+ const r={id:'candidate',source_id:'ikebe',source_url:'https://www.ikebe-gakki-pb.com/new_product/1/',published_at:new Date(now-1000).toISOString(),product_facts:JSON.stringify(facts)};
+ const validation={valid:true,relevance:{status:'PASS'}};
+ const field={sourceId:r.source_id,sourceUrl:r.source_url,extractionMethod:'explicit_ikebe_product_fields',verifiedAt:now-1000};
+ const context=row=>shadowEvidenceContext(row,validation,[],now);
+ assert.equal(context(r).evidenceOrigin,'unknown');
+ const structured={...r,facts_provenance:JSON.stringify([field])},c=context(structured);
+ assert.equal(c.evidenceOrigin,'publisher_structured');assert.equal(c.relevanceStatus,'PASS');assert.equal(c.identityScope,'explicit_models');assert.equal(c.productAction,'new_color');assert.equal(c.publicationDateVerified,true);
+ assert(!JSON.stringify(c).includes('PRIVATE'));assert(!JSON.stringify(c).includes('https://'));
+ assert.equal(context({...structured,facts_provenance:JSON.stringify([{...field,verificationMethod:'human_primary_confirmation'}])}).evidenceOrigin,'human_confirmation');
+ assert.equal(context({...r,product_facts:JSON.stringify({evidence:'agm_human_book_v1'})}).evidenceOrigin,'human_confirmation');
+ for(const change of [{sourceUrl:'https://other.test/'},{verifiedAt:now+1},{extractionMethod:'unknown'}])assert.equal(context({...structured,facts_provenance:JSON.stringify([{...field,...change}])}).evidenceOrigin,'unknown');
+ assert.equal(shadowEvidenceContext(structured,{valid:false,relevance:{status:'REVIEW'}},[{candidate_id:r.id}],now).publicationDateVerified,false);
+ assert.equal(shadowEvidenceContext(structured,validation,[{candidate_id:r.id}],now).priorHumanDecision,true);
+});
+
+test('new Shadow records retain evidence context and never retrofit it into old rule observations',async()=>{
+ const s=await setup(),item=await put(s),before=JSON.stringify(await s.candidates()),old=fixture('RECOMMEND_APPROVE','approve');
+ old.evaluation.rule_version='structured-human-v1';
+ const result=await evaluate(s,item.id);assert.equal(result.ruleVersion,'structured-human-v2');assert.equal(result.evidenceContext.version,'shadow-evidence-1');
+ assert.equal(result.evidenceContext.evidenceOrigin,'unknown');assert.equal(JSON.stringify(await s.candidates()),before);
+ assert.equal(aggregateShadowMetrics([old.ledger],[old.evaluation],now).matchedHumanDecisions,0);
+ assert.equal(JSON.parse((await s.db.prepare('SELECT evaluation_json FROM news_shadow_evaluations').first()).evaluation_json).evidenceContext.evidenceOrigin,'unknown');
+});

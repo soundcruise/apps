@@ -343,6 +343,61 @@ operator approval. Numeric readiness cutoffs need prospective data; do not fit t
 to the current two cases. Deterministic duplicate/expiry/out-of-scope rejection would
 need its own validation track, not category-wide activation.
 
+### 0.52.1 candidate — editorial learning and decision-time evidence
+
+`structured-human-v2` changes recommendation inputs, not the human decision or
+publication service. `facts_identifier_missing`, `date_uncertain` and
+`category_uncertain` rejections are technical-only; `duplicate` and `policy_concern`
+are duplicate/policy-only. A generic `operator_review` rejection without a verified
+decision-time profile is unconfirmed, not evidence of low news value. They remain
+visible as matches with `learningUse` and `excludedTeacherCounts`, but cannot meet
+the editorial threshold or create editorial contradictions. Explicit human
+`not_relevant` judgments remain editorial even if publication facts were incomplete.
+The latest decision still wins: excluding it never revives an older approval.
+
+The threshold remains five independent, current-policy, strong/exact editorial
+teachers. Real editorial contradictions still suppress recommendations. Policy
+compatibility is unchanged; old policy observations are not combined with current
+results. The profile format remains `structured-human-v1`; the separate Shadow
+rule version changes so pre/post-fix measurements are not silently mixed.
+
+New evaluations retain a coarse `evidenceContext` in the existing evaluation JSON:
+publisher-structured/human-confirmed/unknown origin, relevance status, verified
+publication date, explicit/unconfirmed model scope, explicit product action and
+prior human decision presence. No names, model values, prose, actor identity or
+new tables are stored. This context is diagnostic, not permission to publish.
+Old observations remain immutable and unknown context is never filled from a
+candidate's later, mutable facts. Existing CAS, atomic decision trigger and
+365-day retention remain unchanged.
+
+Read-only production evidence on 2026-11-08: 259 candidates, 191 human ledger
+decisions (150 approve / 41 reject), 461 Shadow observations. Current publication
+policy has 28 independent, matched pre-decision observations: 20 formally valid,
+7 facts-incomplete and 1 formally duplicate-blocked. Stored v1 and offline v2 both
+make zero approve/reject recommendations. V2 time-ordered replay uses only each
+stored profile/validation and strictly earlier teachers; current candidate facts
+and later verdicts are not inputs. Same-pattern prior evidence peaks at two,
+below the unchanged threshold. Agreement is undefined with zero recommendations;
+zero false-publish directions does not establish safety. Old publication policy
+has 29/29 agreeing approve recommendations among 157 independent matched cases;
+this is historical, policy-incompatible evidence, not current automation readiness.
+
+The first prospective automation target is a narrowly scoped retailer product
+announcement: formal READY, relevance PASS, publisher-only evidence, confirmed
+dates/identity/edition event and no prior human decision, duplicate, source stop or
+takedown. Human supplementation, unknown context and ambiguous edition matching
+remain outside automatic publication. At any future action, freshly revalidate
+the actual candidate and use the existing Ikebe preference only for formally valid,
+undecided equivalents; a Shadow recommendation alone is never an action grant.
+
+Next acceptance needs separate approval to deploy this candidate, then observe
+normal new candidates with existing Shadow observations and normal human verdicts.
+The existing authenticated Shadow endpoint can record audit-only observations if
+needed; no source fetch, model, collector change or publication is required.
+Measure recommendation coverage and asymmetric errors per policy/rule/pattern over
+time. Duplicate resolution remains the existing objective-evidence path, not a
+learned category-wide rejection. No automatic publication/rejection is enabled.
+
 UI adds a small Shadow section, observation/comparison totals, low-N notice and optional
 pattern detail. It does not announce agreement after decisions or change confirmation
 buttons. No auto approve/reject, adaptive rule table, rule promotion, feedback activation
