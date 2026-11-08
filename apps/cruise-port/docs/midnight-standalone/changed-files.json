@@ -1,0 +1,21 @@
+[
+  "apps/cruise-port/app-version.js",
+  "apps/cruise-port/docs/midnight-standalone/README.md",
+  "apps/cruise-port/docs/midnight-standalone/browser-results.json",
+  "apps/cruise-port/docs/midnight-standalone/changed-files.json",
+  "apps/cruise-port/docs/midnight-standalone/pro-midnight.png",
+  "apps/cruise-port/docs/midnight-standalone/standard-midnight.png",
+  "apps/cruise-port/docs/midnight-standalone/theme.log",
+  "apps/cruise-port/docs/midnight-standalone/unit.log",
+  "apps/cruise-port/index.html",
+  "apps/cruise-port/midnight-compat.test.mjs",
+  "apps/cruise-port/practice-menu-app.js",
+  "apps/cruise-port/pro-app-boot.js",
+  "apps/cruise-port/pro_9a3943176561/index.html",
+  "apps/cruise-port/settings-store.js",
+  "apps/cruise-port/style.css",
+  "apps/cruise-port/tests/midnight-fixtures/settings-store.js.fixture",
+  "apps/cruise-port/tests/midnight-fixtures/settings-store.js.fixture.json",
+  "apps/cruise-port/tests/midnight.browser.mjs",
+  "apps/cruise-port/theme.test.mjs"
+]
