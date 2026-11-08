@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  AI_SUPPORT_COPY, buildHistory, containsSecret, createAiSupportClient, errorKind, readAiSupportConfig, readProCredential, readProAuthState
+  AI_SUPPORT_COPY, aiLimitMessage, buildHistory, containsSecret, createAiSupportClient, errorKind, readAiSupportConfig, readProCredential, readProAuthState
 } from './ai-support-client.js';
 import { AI_PANEL_COPY, createAiSupportPanel } from './ai-support-ui.js';
 import { createUnavailablePresentation, normalizeSyncCenterSummary } from './sync-center-controller.js';
@@ -792,3 +792,15 @@ test('UI mail route stays: the panel footer links to mail, and failure messages 
   assert.deepEqual(await client.send({message:'同期を確認したいです'}), {ok:false,kind:'auth'});
   assert.equal(reads,0);assert.equal(sends,0);
  });
+
+// Published 1.29.0 behavior must survive the 1.29.2 Sync integration.
+test('published usage limits stay distinct from the short rate limiter', () => {
+  for (const [code, kind] of [['ai_account_daily_limit','accountDaily'], ['ai_account_monthly_limit','accountMonthly'], ['ai_global_daily_budget','globalDaily'], ['ai_global_monthly_budget','globalMonthly']]) {
+    assert.equal(errorKind(429, code), kind);
+    assert.match(aiLimitMessage(kind, Date.UTC(2026, 10, 8, 15)), /11\/9.*00:00.*日本時間.*通常のクラウド同期/);
+    assert.equal(aiLimitMessage(kind, 'untrusted'), AI_SUPPORT_COPY[kind]);
+  }
+  assert.equal(errorKind(429, 'rate_limited'), 'rateLimited');
+  assert.equal(errorKind(413, 'ai_support_context_limit'), 'contextLimit');
+  assert.equal(aiLimitMessage('rateLimited', 1), null);
+});

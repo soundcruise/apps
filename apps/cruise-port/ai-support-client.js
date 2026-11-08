@@ -156,6 +156,11 @@ export const AI_SUPPORT_COPY = Object.freeze({
   disabled: '現在、AI相談は利用できません。お手数ですが、メールでお知らせください。',
   notEntitled: '現在、AI相談はこのアカウントでは利用できません。',
   rateLimited: '短時間に多く送信されました。1分ほど待ってから、もう一度お試しください。',
+  accountDaily: 'このAccountの本日のAI相談回数が上限に達しました。',
+  accountMonthly: 'このAccountの今月のAI相談回数が上限に達しました。',
+  globalDaily: '本日のAI相談の利用枠に空きがありません。処理中の相談が終わると利用できる場合があります。',
+  globalMonthly: '今月のAI相談の利用枠に空きがありません。処理中の相談が終わると利用できる場合があります。',
+  contextLimit: '会話または同期情報が長く、AIへ送信できませんでした。会話を始め直すにはページを更新してください。現在の会話は消えます。',
   unavailable: 'AIが応答できませんでした。少し時間をおいてもう一度お試しいただくか、メールでお知らせください。',
   auth: 'Cruise Portの接続またはPro版の確認が必要です。同期センターの状態を確認してから、もう一度お試しください。',
   // Only real UI: 設定 → 「Pro版の認証」 → 「Pro版の認証をリセット」, then the Pro password prompt.
@@ -167,6 +172,11 @@ export const AI_SUPPORT_COPY = Object.freeze({
 
 // Server code → user-facing kind. Raw bodies are never shown.
 export function errorKind(status, code) {
+  if (code === 'ai_account_daily_limit') return 'accountDaily';
+  if (code === 'ai_account_monthly_limit') return 'accountMonthly';
+  if (code === 'ai_global_daily_budget') return 'globalDaily';
+  if (code === 'ai_global_monthly_budget') return 'globalMonthly';
+  if (code === 'ai_support_context_limit') return 'contextLimit';
   if (code === 'ai_support_secret_detected') return 'secret';
   if (code === 'message_too_long') return 'tooLong';
   if (status === 429 || code === 'rate_limited') return 'rateLimited';
@@ -175,6 +185,15 @@ export function errorKind(status, code) {
   if (code === 'ai_provider_unavailable' || code === 'ai_support_unavailable' || status >= 500) return 'unavailable';
   if ([401, 403, 410].includes(status)) return 'auth';
   return 'failed';
+}
+
+// Only a validated timestamp and our fixed copy are displayed, never server-supplied prose.
+export function aiLimitMessage(kind, resetAt) {
+  if (!['accountDaily', 'accountMonthly', 'globalDaily', 'globalMonthly'].includes(kind)) return null;
+  if (!Number.isSafeInteger(resetAt) || resetAt <= 0 || resetAt > 8640000000000000) return AI_SUPPORT_COPY[kind];
+  const date = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(resetAt));
+  return `${AI_SUPPORT_COPY[kind]} 利用枠は${date}（日本時間）に更新されます。通常のクラウド同期は利用できます。`;
 }
 
 export function createAiSupportClient({
@@ -221,7 +240,8 @@ export function createAiSupportClient({
       let body = null;
       try { body = await response.json(); } catch (_) { body = null; }
       if (response.ok && body?.ok === true && typeof body.reply === 'string') return { ok: true, reply: body.reply };
-      return { ok: false, kind: errorKind(response.status, body?.code) };
+      const kind = errorKind(response.status, body?.code);
+      return { ok: false, kind, ...(aiLimitMessage(kind, body?.resetAt) ? { message: aiLimitMessage(kind, body?.resetAt) } : {}) };
     }
   });
 }

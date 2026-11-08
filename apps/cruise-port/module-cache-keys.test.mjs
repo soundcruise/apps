@@ -167,3 +167,10 @@ test('NEWS dynamic modules use their reviewed revision keys', () => {
 });
 
 test('both entries load the crop/binary compatibility adapter revision',()=>{for(const entry of ['./index.html','./pro_9a3943176561/index.html'])assert.match(read(entry),/port-sync-adapter\.js\?v=1\.24\.22/);});
+
+test('Port entries bypass the public pre-ACK runtime cache during 1.29.2 integration', () => {
+    for (const path of ['./index.html', './pro_9a3943176561/index.html']) {
+        assert.match(read(path), /multi-app-sync-runtime\.js\?v=35/);
+        assert.doesNotMatch(read(path), /multi-app-sync-runtime\.js\?v=34/);
+    }
+});
