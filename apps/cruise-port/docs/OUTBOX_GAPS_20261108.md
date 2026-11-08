@@ -1,5 +1,7 @@
 # Port未記録変更・Outbox欠落の調査と限定修正
 
+2026-11-08追記：以下は569dae80時点の調査記録。続く保存時journal対応と最新判定は [LOCAL_SAVE_JOURNAL_20261108.md](LOCAL_SAVE_JOURNAL_20261108.md) を参照。
+
 ## 判定
 
 **限定修正のローカル試験PASS。毎日の手動再開問題全体／本番反映はHOLD。**

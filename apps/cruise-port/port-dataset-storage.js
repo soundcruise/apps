@@ -1,4 +1,4 @@
-import { PortDatasetRepository, PORT_DATASET_KEYS } from './port-dataset-repository.js?v=1.24.24';
+import { PortDatasetRepository, PORT_DATASET_KEYS } from './port-dataset-repository.js?v=1.29.2';
 const repositories = new WeakMap();
 const bases = new WeakMap();
 export function registerPortRepository(storage, repository) { repositories.set(storage, repository); bases.set(storage, new Map()); }
@@ -7,7 +7,8 @@ export function usesPortRepository(storage) {
     return !!storage && (repositories.has(storage) || (typeof globalThis.Storage === 'function' && storage instanceof globalThis.Storage));
 }
 export function portRepository(storage = globalThis.localStorage) {
-    if (!repositories.has(storage)) registerPortRepository(storage, new PortDatasetRepository({ storage, accountStorage: globalThis.SoundCruiseSyncAccount?.storage, notify(detail, operationIsCurrent = () => true) {
+    if (!repositories.has(storage)) registerPortRepository(storage, new PortDatasetRepository({ storage, accountStorage: globalThis.SoundCruiseSyncAccount?.storage,
+        prepareLocalSync: request => globalThis.SoundCruisePortSync?.prepareLocalCommit?.(request) ?? request.before.pendingSync, notify(detail, operationIsCurrent = () => true) {
         globalThis.dispatchEvent?.(new CustomEvent('cruise-port-local-data-changed', { detail }));
         if (detail.source === 'local' && detail.operationAuthorized !== false && operationIsCurrent()) globalThis.SoundCruiseMultiAppSync?.notifyLocalSave?.('port');
     } }));

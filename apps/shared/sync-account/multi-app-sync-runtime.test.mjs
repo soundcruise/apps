@@ -1,7 +1,7 @@
 import { createWriterWireContext, AUTHORITY_ERROR_CODES } from './writer-authority.mjs';
 import { createFixtureLocks as fixtureLocks } from './test-fixtures/web-locks.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.24.24';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.29.2';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -3858,3 +3858,65 @@ for (const type of ['practice_history_event','practice_cycle']) {
     assert.equal((await f.store.listShadow()).length,0);
   });
 }
+
+// End-to-end: actual domain save -> repository journal -> new native controller -> actual
+// runtime/Outbox/Shadow. Only network and IDB backing maps are synthetic.
+async function journalProductFixture(t) {
+  const f=realPortFixture({});
+  await f.runtime.consumeHandoff('synthetic'); f.runtime.dispose();
+  const c=f.runtime.constructor.testContext;
+  const { commitPracticeActivity }=await import('../../cruise-port/practice-dataset-writes.js');
+  const { loadPracticeProgress,savePracticeProgress,createEmptyPracticeProgress }=await import('../../cruise-port/practice-menu-progress-store.js');
+  const { createEmptyPracticeHistory }=await import('../../cruise-port/practice-menu-history-store.js');
+  let generation=0,account={accountId:f.store.accountId,accountDeviceId:'account-device',accountCredential:'sca1.synthetic.secret'};
+  const listeners=new Set();
+  const native={getAccount:async()=>account,getGeneration:()=>generation,subscribeAccount(fn){listeners.add(fn);return()=>listeners.delete(fn);}};
+  const core={...f.runtime.accountCore,validAccountCredential:v=>v?.startsWith('sca1.')};
+  class Client{async devices(){return {devices:[{revokedAt:null,portAppDeviceIds:['valid']}]};}}
+  Object.assign(c.SoundCruiseSyncAccount,{storage:native,core,AccountClient:Client});
+  c.SoundCruiseMultiAppSync.dataStorage={createStore:()=>({...f.store,dispose(){}})};
+  const ownedMeta={legacyInspected:true,lastSyncAt:1};for(const [k,v]of Object.entries(ownedMeta))await f.store.setMeta(k,v);
+  vm.runInNewContext(readFileSync(new URL('../../cruise-port/port-sync-controller.js',import.meta.url),'utf8'),c);
+  const repo=new PortDatasetRepository({storage:f.storage,locks:c.navigator.locks,accountStorage:native,
+    prepareLocalSync:r=>c.SoundCruisePortSync.prepareLocalCommit(r)});
+  registerPortRepository(f.storage,repo);c.SoundCruisePortSync.portRepository=()=>repo;c.SoundCruisePortSync.usesPortRepository=usesPortRepository;
+  const options={config:{enabled:true,environment:'production',endpoint:'https://example.test'},canSync:()=>true,fetchImpl:f.fetchImpl};
+  let controller=c.SoundCruisePortSync.createPortSyncController(options);
+  t.after(()=>controller.dispose());
+  const activity={...createEmptyPracticeHistory(),events:[createPracticeCompletedEvent({id:'menu',name:'SYNTHETIC',durationMinutes:15,appId:null},'cycle',new Date('2026-11-08T00:00:00Z'))]};
+  const progress=createEmptyPracticeProgress(new Date('2026-11-08T00:00:00Z'));
+  async function save(){loadPracticeHistory(f.storage);loadPracticeProgress(f.storage);return commitPracticeActivity(progress,activity,f.storage);}
+  async function coldResume(){controller.dispose();controller=c.SoundCruisePortSync.createPortSyncController(options);
+    controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});
+    for(let i=0;i<200;i++){await new Promise(r=>setImmediate(r));if(!controller.getCachedStatus().checking)break;}
+    return controller;}
+  return {...f,c,repo,save,coldResume,advance:()=>savePracticeProgress({...loadPracticeProgress(f.storage).progress,cycleId:'next-synthetic-cycle'},f.storage),get controller(){return controller;},changeAccount(){generation++;account={...account,accountId:'other-account',accountCredential:'sca1.other.secret'};for(const fn of listeners)fn();}};
+}
+for(const fault of ['none','snapshot-network','offline','pagehide','shadow-commit'])test(`Port journal product: saved activity survives ${fault} and automatically converges`,async t=>{
+ const f=await journalProductFixture(t);if(fault==='offline')f.c.navigator.onLine=false;assert.equal((await f.save()).ok,true);
+ assert.equal((await f.store.listOutbox()).length,0,'evidence exists before a runtime or network call');
+ const before=f.storage.getItem('cruisePort.datasetRepository.v1');assert.ok(JSON.parse(before).pendingSync);
+ let put;
+ if(fault==='snapshot-network')f.server.nextSnapshotFailure={network:true};
+ if(fault==='offline')f.c.navigator.onLine=false;
+ if(fault==='shadow-commit'){put=f.store.putShadow;f.store.putShadow=async()=>{throw Error('commit-failed');};}
+ if(fault==='pagehide'){
+   f.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});
+   f.c.dispatchEvent(new Event('pagehide'));assert.equal(f.controller.runtime,null);
+ }
+ let controller=await f.coldResume();
+ if(fault!=='none'){
+   f.c.navigator.onLine=true;if(put)f.store.putShadow=put;
+   controller=await f.coldResume();
+ }
+ assert.ok(controller.runtime,JSON.stringify(controller.getCachedStatus()));
+ assert.equal(controller.getCachedStatus().autoResumeCode,null);
+ assert.equal((await f.store.listOutbox()).length,0);
+ assert.equal((await f.store.listConflicts()).length,0);
+ assert.equal([...f.server.records.values()].filter(r=>r.recordType==='practice_history_event').length,1);
+ assert.equal([...f.server.records.values()].filter(r=>r.recordType==='practice_cycle').length,1);
+ const ids=f.server.pushedOperationIds;assert.equal(new Set(ids).size,2,'stable operations / own echo, no duplicate records');
+ // A subsequent ordinary save prunes acknowledged anchors rather than growing a second database.
+ assert.equal((await f.advance()).ok,true);
+ assert.equal(f.repo.inspect().pendingSync.records.length,1,'acknowledged history anchor is pruned, only the changed cycle remains');
+});

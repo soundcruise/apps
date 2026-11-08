@@ -50,17 +50,17 @@ for(const family of ['gear','categories','myApps','practice'])test('real '+famil
  const f=fixture(),savedRoot=globalThis.SoundCruiseSyncAccount;
  globalThis.SoundCruiseSyncAccount={storage:f.accountStorage};
  try {
-  const {portRepository}=await import('./port-dataset-storage.js?v=1.24.24');
+  const {portRepository}=await import('./port-dataset-storage.js?v=1.29.2');
   const repo=portRepository(f.storage),options={accountContext:repo.captureAccountContext()};repo.locks={request:async(_n,_o,fn)=>fn()};
   let load,save,item;
   if(family==='gear'){
-   const s=await import('./gear-list-store.js?v=1.24.24');load=()=>s.loadGearList(f.storage);save=()=>s.saveGearList([item],f.storage,options);item=s.createGearItem({name:'Synthetic',manufacturer:'',category:'guitar',status:'owned',priority:'medium',priceText:'',memo:''},[]);
+   const s=await import('./gear-list-store.js?v=1.29.2');load=()=>s.loadGearList(f.storage);save=()=>s.saveGearList([item],f.storage,options);item=s.createGearItem({name:'Synthetic',manufacturer:'',category:'guitar',status:'owned',priority:'medium',priceText:'',memo:''},[]);
   }else if(family==='categories'){
-   const s=await import('./gear-category-store.js?v=1.24.24');load=()=>s.loadGearCategories([],f.storage);save=()=>s.saveGearCategories([{id:'synthetic-category',name:'Synthetic category'}],f.storage,options);
+   const s=await import('./gear-category-store.js?v=1.29.2');load=()=>s.loadGearCategories([],f.storage);save=()=>s.saveGearCategories([{id:'synthetic-category',name:'Synthetic category'}],f.storage,options);
   }else if(family==='myApps'){
-   const s=await import('./my-apps-store.js?v=1.24.24');load=()=>s.loadMyApps(f.storage);save=()=>s.saveMyApps([item],f.storage,options);item=s.createMyApp({name:'Synthetic',url:'https://example.invalid'},[]).item;
+   const s=await import('./my-apps-store.js?v=1.29.2');load=()=>s.loadMyApps(f.storage);save=()=>s.saveMyApps([item],f.storage,options);item=s.createMyApp({name:'Synthetic',url:'https://example.invalid'},[]).item;
   }else{
-   const s=await import('./practice-menu-store.js?v=1.24.24');load=()=>s.loadPracticeMenus(f.storage);save=()=>s.savePracticeMenus([item],f.storage,options);item=s.createPracticeMenu({name:'Synthetic',durationMinutes:5,appId:null,memo:''},[]);
+   const s=await import('./practice-menu-store.js?v=1.29.2');load=()=>s.loadPracticeMenus(f.storage);save=()=>s.savePracticeMenus([item],f.storage,options);item=s.createPracticeMenu({name:'Synthetic',durationMinutes:5,appId:null,memo:''},[]);
   }
   load();assert((await save()).ok);const before=[...f.data];f.change(B);load();const r=await save();assert.equal(r.reason,'account-changed');assert.deepEqual([...f.data],before);f.change(f.initial);assert((await save()).ok);
  } finally {globalThis.SoundCruiseSyncAccount=savedRoot;}
