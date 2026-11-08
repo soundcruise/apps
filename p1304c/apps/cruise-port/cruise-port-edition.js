@@ -1,0 +1,18 @@
+export const CRUISE_PORT_ROOT = '/p1304c/apps/cruise-port/';
+export const PRO_ENTRY_PATH = `${CRUISE_PORT_ROOT}pro_9a3943176561/`;
+
+// Edition is presentation/product policy, NOT proof of Pro authentication.
+// Never derive it from saved user data or a query parameter.
+export function getEdition(pathname = globalThis.location?.pathname) {
+    if (pathname === PRO_ENTRY_PATH || pathname === `${PRO_ENTRY_PATH}index.html`) return 'pro';
+    return 'standard';
+}
+
+export function isProEdition(pathname) { return getEdition(pathname) === 'pro'; }
+export function isStandardEdition(pathname) { return getEdition(pathname) === 'standard'; }
+
+export function applyEditionDisplay(documentObject = document, edition = getEdition()) {
+    documentObject.documentElement.dataset.edition = edition === 'pro' ? 'pro' : 'standard';
+    const badge = documentObject.getElementById('home-pro-badge');
+    if (badge) badge.hidden = edition !== 'pro';
+}

@@ -1,0 +1,4 @@
+.sync-pro-note, .sync-pro-feedback { color: var(--port-muted); font-size: .82rem; line-height: 1.7; }
+.sync-pro-note a { color: var(--port-gold); white-space: nowrap; }
+#sync-center-view .sync-operation-locked[aria-disabled="true"] { background: var(--port-control-quiet); opacity: .85; pointer-events: auto; cursor: pointer; }
+.sync-operation-pro { display: inline-block; margin-left: .4em; color: var(--port-gold); font-size: .7rem; font-weight: 500; }

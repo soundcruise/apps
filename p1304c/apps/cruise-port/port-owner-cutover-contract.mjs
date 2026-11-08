@@ -1,0 +1,56 @@
+// Port typed facts. None is a bearer grant or a second dataset authority.
+import {validateCutoverRequest,validateConsumer,validateStopReceipt,isUUID,isDigest,exactKeys} from '../shared/sync-account/owner-cutover-contract.mjs';
+import {validateOperationEnvelope,validateOperationLease} from '../shared/sync-account/owner-operation-lease-contract.mjs';
+import {validateOwnerOperationProof} from './port-owner-operation-contract.mjs';
+import {digest,equal,fail,validateControl,validateHead,validatePointer} from './port-idb-authority-contract.mjs';
+export const CUTOVER_STOP='owner-cutover-stop',CUTOVER_PUBLICATION='owner-cutover-publication',CUTOVER_RECOVERY='owner-cutover-recovery';
+const require=(v)=>{if(!v)throw fail('owner-cutover-evidence-invalid');};
+export function validateCutoverStop(r){
+ require(exactKeys(r,['schemaVersion','kind','generation','operationId','request','requestDigest','before','after'])&&r.schemaVersion===1&&r.kind===CUTOVER_STOP);validateCutoverRequest(r.request);const q=r.request;
+ require(r.generation===q.sourceGeneration&&r.operationId===q.transitionId&&r.requestDigest===digest(q)&&exactKeys(r.before,['control','head']));validateControl(r.before.control);validateControl(r.after);validateHead(r.before.head);validatePointer(q.sourcePointer);
+ const c=r.before.control;require(c.generation===r.generation&&c.epoch===q.sourceControlEpoch&&c.state==='active'&&c.suspended&&c.fenceRevoked&&!c.recoveryRequired&&!c.identityInvalidated&&r.before.head.revision===q.sourceHeadRevision&&equal(r.after,{...c,epoch:c.epoch+1,fenceEpoch:c.fenceEpoch+1,recoveryRequired:true}));
+ require(c.identity.accountId===q.anchorRequest.accountId&&c.identity.accountGeneration===q.anchorRequest.accountGeneration&&c.identity.membershipId===q.anchorRequest.membershipId&&c.identity.membershipGeneration===q.anchorRequest.membershipGeneration);
+}
+export function validateCutoverIntent(i,q){
+ validateCutoverRequest(q);require(exactKeys(i,['schemaVersion','purpose','operationId','sourceOperationId','sourceDigest','rosterDigest','sourceManifestDigest','consumer','pointerDigest','controlEpoch','headRevision','targetGeneration'])&&i.schemaVersion===1&&isUUID(i.operationId)&&['owner-cutover-publication-intent-v1','owner-cutover-recovery-intent-v1'].includes(i.purpose)&&['sourceDigest','rosterDigest','sourceManifestDigest','pointerDigest'].every(k=>isDigest(i[k]))&&equal(i.consumer,q.consumer)&&i.pointerDigest===digest(q.sourcePointer)&&i.controlEpoch>q.sourceControlEpoch&&i.sourceManifestDigest===q.sourceManifestDigest&&typeof i.headRevision==='string');
+ if(i.purpose==='owner-cutover-publication-intent-v1')require(i.operationId===q.transitionId&&i.sourceOperationId===null&&i.targetGeneration===q.targetGeneration);
+ else require(isUUID(i.sourceOperationId)&&i.operationId!==i.sourceOperationId&&i.operationId!==q.transitionId&&i.targetGeneration===q.sourceGeneration);
+}
+export function validateCutoverQualification(k,q,intent){
+ validateCutoverIntent(intent,q);require(exactKeys(k,['schemaVersion','purpose','transitionId','requestDigest','stopReceipt','sourceDigest','rosterDigest','operationId','operationDigest','currentOwnerConfirmed','productionReady','intent','intentDigest'])&&k.schemaVersion===1&&k.purpose==='owner-cutover-current-qualification-v1'&&k.transitionId===q.transitionId&&k.requestDigest===digest(q)&&k.currentOwnerConfirmed===true&&k.productionReady===false&&k.sourceDigest===intent.sourceDigest&&k.rosterDigest===intent.rosterDigest&&k.operationId===intent.operationId&&k.operationDigest===digest(intent)&&k.intentDigest===digest(intent)&&equal(k.intent,intent));validateStopReceipt(k.stopReceipt,q);require(k.stopReceipt.requestDigest===digest(q));
+}
+export function validateCutoverRoster(r,q){
+ validateCutoverRequest(q);require(r&&Array.isArray(r.items)&&r.items.length<=64&&r.rosterDigest===digest({items:r.items,latest:r.latest}));validateStopReceipt(r.stopFact,q);require(r.stopFact.requestDigest===digest(q));const ids=new Set();
+ for(const i of r.items){require(exactKeys(i,['operationId','envelope','lease','state','backendFact','operationLeaseReceipt'])&&isUUID(i.operationId)&&!ids.has(i.operationId));ids.add(i.operationId);validateOperationEnvelope(i.envelope);validateOperationLease(i.lease,i.envelope);const e=i.envelope,a=e.request;
+  require(e.schemaVersion===2&&a.operation.operationId===i.operationId&&a.accountId===q.anchorRequest.accountId&&a.accountDeviceId===q.anchorRequest.accountDeviceId&&a.datasetId===q.anchorRequest.datasetId&&e.authority.generation===q.sourceGeneration&&equal(e.authority.pointer,q.sourcePointer)&&equal(e.consumer,q.consumer)&&i.lease.envelopeDigest===digest(e)&&i.lease.fencingRevision<r.stopFact.fencingRevision);
+  if(i.state==='backend-not-committed')require(i.backendFact===null&&i.operationLeaseReceipt===null);else require(i.state==='backend-committed'&&i.backendFact&&i.operationLeaseReceipt);
+ }
+}
+export function validateCutoverPin(pin,item){
+ require(exactKeys(pin,['schemaVersion','purpose','operationId','envelope','envelopeDigest','localIdentity'])&&pin.schemaVersion===1&&pin.purpose==='owner-operation-pending-v1'&&pin.operationId===item.operationId&&equal(pin.envelope,item.envelope)&&pin.envelopeDigest===digest(pin.envelope));const l=pin.localIdentity,b=l?.body;
+ require(exactKeys(l,['generation','operationId','fingerprint','body'])&&l.generation===item.envelope.authority.generation&&l.operationId===item.operationId&&l.fingerprint===digest(b)&&b.operationId===l.operationId&&b.generation===l.generation&&b.action==='saveBpm'&&exactKeys(b.changes,['cruisePort.metronome'])&&equal(JSON.parse(b.changes['cruisePort.metronome']),item.envelope.request.operation.payload.value));
+ if(item.state==='backend-committed')validateOwnerOperationProof(originalOperationProof(pin,item));
+}
+export function originalOperationProof(pin,item){return {schemaVersion:1,purpose:'owner-committed-bpm-application-v1',envelope:item.envelope,lease:item.lease,backendReceipt:item.backendFact,operationLeaseReceipt:item.operationLeaseReceipt,fingerprint:pin.localIdentity.fingerprint};}
+export function validateCutoverProof(p){
+ require(p&&p.schemaVersion===1);validateCutoverRequest(p.request);const q=p.request;validateConsumer(p.consumer);require(equal(p.consumer,q.consumer));
+ if(p.purpose==='owner-cutover-stop-proof-v1'){
+  require(exactKeys(p,['schemaVersion','purpose','request','snapshot','consumer'])&&digest(p.snapshot)===q.sourceAuthorityDigest&&equal(p.snapshot.pointer,q.sourcePointer)&&p.snapshot.control.epoch===q.sourceControlEpoch&&p.snapshot.head.revision===q.sourceHeadRevision);return p;
+ }
+ require(['owner-cutover-publication-proof-v1','owner-cutover-recovery-proof-v1'].includes(p.purpose));validateCutoverStop(p.stop);validateCutoverIntent(p.intent,q);validateCutoverQualification(p.qualification,q,p.intent);validateCutoverRoster(p.roster,q);
+ require(equal(p.stop.request,q)&&equal(p.snapshot.control,p.stop.after)&&digest(p.snapshot)===p.intent.sourceDigest&&equal(p.snapshot.pointer,q.sourcePointer)&&p.snapshot.active===true);
+ if(p.purpose==='owner-cutover-recovery-proof-v1'){
+  require(exactKeys(p,['schemaVersion','purpose','request','stop','snapshot','consumer','intent','qualification','roster','pins','sourcePin','localFingerprint'])&&isDigest(p.localFingerprint)&&p.intent.purpose==='owner-cutover-recovery-intent-v1');require(Array.isArray(p.pins)&&p.pins.length===p.roster.items.length);for(let n=0;n<p.pins.length;n++)validateCutoverPin(p.pins[n],p.roster.items[n]);const item=p.roster.items.find(i=>i.operationId===p.intent.sourceOperationId);require(item?.state==='backend-committed');validateCutoverPin(p.sourcePin,item);require(equal(p.sourcePin,p.pins.find(x=>x.operationId===item.operationId)));
+  require(p.roster.latest?.last_operation_id===item.operationId&&p.roster.latest.revision===item.backendFact.revision&&p.roster.latest.payload_hash===item.backendFact.payloadHash&&p.snapshot.head.revision===item.envelope.authority.headRevision&&p.snapshot.head.manifestId===p.sourcePin.localIdentity.body.base.manifestId&&equal(p.snapshot.versions,p.sourcePin.localIdentity.body.base.versions));
+ }else{require(exactKeys(p,['schemaVersion','purpose','request','stop','snapshot','consumer','intent','qualification','roster','pins'])&&p.intent.purpose==='owner-cutover-publication-intent-v1'&&Array.isArray(p.pins)&&p.pins.length===p.roster.items.length);for(let n=0;n<p.pins.length;n++)validateCutoverPin(p.pins[n],p.roster.items[n]);}
+ return p;
+}
+export function recoveryRow(p,fingerprint){validateCutoverProof(p);require(p.purpose==='owner-cutover-recovery-proof-v1'&&p.localFingerprint===fingerprint);return {schemaVersion:1,kind:CUTOVER_RECOVERY,generation:p.request.sourceGeneration,operationId:p.intent.operationId,fingerprint,proof:p,proofDigest:digest(p)};}
+export function validateCutoverRecovery(r){require(exactKeys(r,['schemaVersion','kind','generation','operationId','fingerprint','proof','proofDigest'])&&r.kind===CUTOVER_RECOVERY&&r.schemaVersion===1);validateCutoverProof(r.proof);require(r.proof.purpose==='owner-cutover-recovery-proof-v1'&&r.generation===r.proof.request.sourceGeneration&&r.operationId===r.proof.intent.operationId&&r.fingerprint===r.proof.localFingerprint&&r.proofDigest===digest(r.proof));}
+export function assertCutoverRecoveryApplication(proof,p,current){
+ validateCutoverProof(proof);require(proof.purpose==='owner-cutover-recovery-proof-v1'&&p.action==='saveBpm'&&p.policy==='standard'&&p.authorizationContext===undefined&&!p.initialControl&&p.operationId===proof.intent.operationId&&p.generation===proof.request.sourceGeneration&&p.fingerprint===proof.localFingerprint&&equal(current,proof.snapshot)&&equal(p.base,current)&&exactKeys(p.changes,['cruisePort.metronome'])&&equal(JSON.parse(p.changes['cruisePort.metronome']),proof.sourcePin.envelope.request.operation.payload.value));
+}
+export function validateCutoverPublication(r){
+ require(exactKeys(r,['generation','operationId','schemaVersion','kind','fingerprint','action','policy','targetKeys','origin','publication'])&&r.kind===CUTOVER_PUBLICATION&&r.schemaVersion===1&&r.action==='publishOwnerCutover'&&r.policy==='control:owner-cutover'&&r.origin==='v2'&&equal(r.targetKeys,[]));const f=r.publication,p=f?.pointer,q=f?.request,e=f?.evidence;require(exactKeys(f,['schemaVersion','pointer','identity','request','evidence'])&&f.schemaVersion===1&&e?.kind==='isolated-owner-cutover');validatePointer(p);validateCutoverProof(e.cutover);const c=e.cutover.request;
+ require(r.generation===c.targetGeneration&&r.operationId===c.transitionId&&p.operationId===c.transitionId&&p.activeGeneration===c.targetGeneration&&p.previousGeneration===c.sourceGeneration&&p.pointerEpoch===c.sourcePointer.pointerEpoch+1&&p.publication.kind==='isolated-owner-cutover'&&q.generation===c.targetGeneration&&q.operationId===c.transitionId&&q.migrationId===p.migrationId&&q.expectedPointerEpoch===c.sourcePointer.pointerEpoch&&p.publication.controlEpoch===q.expectedControlEpoch+1&&e.sealHash===p.publication.sealHash&&equal(f.identity,e.cutover.snapshot.control.identity)&&e.binary?.assetCount===0&&e.sync?.cloudConnected===false&&e.sync.scope==='local-known-empty-fixture'&&e.sync.outboxPending===0&&e.fence===null&&r.fingerprint===digest({kind:CUTOVER_PUBLICATION,...q,evidence:e}));
+}

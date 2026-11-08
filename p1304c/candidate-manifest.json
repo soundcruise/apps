@@ -1,0 +1,556 @@
+{
+  "publicBase": "f4d6b8cd1bbbba1b319737de012ded36345d4b65",
+  "syncInput": "a2d53683c17bbc2b3b8ddcc937632bd460d1718b",
+  "candidateVersion": "1.30.4",
+  "functionalMerges": [
+    "apps/cruise-port/ai-support-client.js",
+    "apps/cruise-port/ai-support-ui.js",
+    "apps/cruise-port/app-version.js",
+    "apps/cruise-port/port-dataset-repository.js",
+    "apps/cruise-port/port-dataset-storage.js",
+    "apps/cruise-port/port-sync-controller.js",
+    "apps/cruise-port/privacy.html",
+    "apps/cruise-port/sync-center-orchestrator.js",
+    "apps/cruise-port/terms.html",
+    "apps/shared/sync-account/multi-app-sync-runtime.js"
+  ],
+  "changedProductPaths": [
+    "apps/cruise-port/ai-support-client.js",
+    "apps/cruise-port/ai-support-ui.js",
+    "apps/cruise-port/app-version.js",
+    "apps/cruise-port/cruise-port-capabilities.js",
+    "apps/cruise-port/gear-category-store.js",
+    "apps/cruise-port/gear-list-store.js",
+    "apps/cruise-port/gear-photo-store.js",
+    "apps/cruise-port/gear-photo-workflow.js",
+    "apps/cruise-port/home-display.js",
+    "apps/cruise-port/index.html",
+    "apps/cruise-port/metronome-app.js",
+    "apps/cruise-port/metronome-presets-store.js",
+    "apps/cruise-port/metronome-store.js",
+    "apps/cruise-port/metronome-timing.js",
+    "apps/cruise-port/my-apps-capabilities.js",
+    "apps/cruise-port/my-apps-icon-store.js",
+    "apps/cruise-port/my-apps-icon-workflow.js",
+    "apps/cruise-port/my-apps-store.js",
+    "apps/cruise-port/port-account-join.js",
+    "apps/cruise-port/port-asset-sync.js",
+    "apps/cruise-port/port-dataset-repository.js",
+    "apps/cruise-port/port-dataset-storage.js",
+    "apps/cruise-port/port-indexeddb-repository-backend.mjs",
+    "apps/cruise-port/port-metronome-authorization.mjs",
+    "apps/cruise-port/port-sync-controller.js",
+    "apps/cruise-port/port-sync-local-validation.js",
+    "apps/cruise-port/practice-capabilities.js",
+    "apps/cruise-port/practice-dataset-writes.js",
+    "apps/cruise-port/practice-menu-app-resolver.js",
+    "apps/cruise-port/practice-menu-app.js",
+    "apps/cruise-port/practice-menu-attachment-store.js",
+    "apps/cruise-port/practice-menu-calendar-store.js",
+    "apps/cruise-port/practice-menu-history-store.js",
+    "apps/cruise-port/practice-menu-pending-attachments.js",
+    "apps/cruise-port/practice-menu-progress-store.js",
+    "apps/cruise-port/practice-menu-sets-store.js",
+    "apps/cruise-port/practice-menu-store.js",
+    "apps/cruise-port/pro-app-boot.js",
+    "apps/cruise-port/pro_9a3943176561/index.html",
+    "apps/cruise-port/settings-store.js",
+    "apps/cruise-port/sync-center-orchestrator.js",
+    "apps/cruise-port/sync-center-ui.js",
+    "apps/cruise-port/sync-pro-lock.js",
+    "apps/cruise-port/tool-capabilities.js",
+    "apps/cruise-port/tuner-app.js",
+    "apps/cruise-port/tuner-store.js",
+    "apps/shared/sync-account/multi-app-sync-runtime.js"
+  ],
+  "hashes": {
+    "apps/cruise-port/ai-support-client.js": "983e67e0db62b83b15d484afecca72697ad55bfee6e563a0a9de6cca74042f31",
+    "apps/cruise-port/ai-support-ui.js": "247c7f585b63fabd613c608f3af3f069861dc0adc83fbbb4563ad273cc8bbafd",
+    "apps/cruise-port/app-version.js": "83e1cce1ce24475df10d8b7ff4ca70cd9ed20855c220f08f6654db98cae787cd",
+    "apps/cruise-port/cruise-port-capabilities.js": "a46c224344afbcf2dcdd123f21e33e23b6a081830cd9d825cad3ebf5b9857d5d",
+    "apps/cruise-port/gear-category-store.js": "5fb100b15774c9e3c1efe0735f28ae14ba24d3d86bcadf817492210777e2ee97",
+    "apps/cruise-port/gear-list-store.js": "36c5e02057f00f572e7cc7b3f24280fd5d386e915a0001733931a5a6c9a23294",
+    "apps/cruise-port/gear-photo-store.js": "6a63ab46bc73aeee5478f5379e677c814a42edaa5e6a2b790144a667e0643c20",
+    "apps/cruise-port/gear-photo-workflow.js": "5c48e8b8cfa7411a7824c59252104cf74c44bec3b8fb3a598e02a0565172281d",
+    "apps/cruise-port/home-display.js": "338013d4432bb4eed30e497322117122b27cb5a899e8c9fa96aa710d678dd1a8",
+    "apps/cruise-port/index.html": "5d3c0669770f3b7fb1a0b29c7425bd8abcb95689dcc1aaf6399145309840d617",
+    "apps/cruise-port/metronome-app.js": "38a901f1b26cd361cc2849cce63b22e01db98d3a7ad501dbe8f53b67f0506df1",
+    "apps/cruise-port/metronome-presets-store.js": "8975460c4d6f6638120a5d9effe18758098e0486e025f4d45f47c0a7ed5c2cb3",
+    "apps/cruise-port/metronome-store.js": "659ced3a16f291be5ddae36e539eaa7d5f299106c2a1c24e2d82cf2e1b3b7b3f",
+    "apps/cruise-port/metronome-timing.js": "19b94a4a8574e6a58d0cd7b06d7112ed6563448871fe6d09d775095f0c0934f1",
+    "apps/cruise-port/my-apps-capabilities.js": "6ec2ce2179bd2ac2abdfc37797032fe0f9bd0da855cf3c11c2572b9153abde97",
+    "apps/cruise-port/my-apps-icon-store.js": "95841a1994dacc125ccfad524cc270a9456a13a113bd02e72952d1bdab1c381c",
+    "apps/cruise-port/my-apps-icon-workflow.js": "d3aa4ca82ea9c212621dc9c5897274d08f048ef31a9f99d497e60e8b31f14d08",
+    "apps/cruise-port/my-apps-store.js": "0292ff6d3c9a2be7bbcff482e7cac1a07400f21fda5d7f7dd088d54c0ed62f76",
+    "apps/cruise-port/port-account-join.js": "1c849d91c7c8b00610905ebd7b837aa8d938f3e9cf67e893970ca4cb05f5e9b0",
+    "apps/cruise-port/port-asset-sync.js": "7d32a6c26b63b3b925baae8ef6862bafdab3423a316b446cddd9e08f96dda527",
+    "apps/cruise-port/port-dataset-repository.js": "43a69161f182b7150e185298e5b7e62ddc1bd9120a9168a8d8c7bae57e52b318",
+    "apps/cruise-port/port-dataset-storage.js": "64ca1e299b8e0374ec814d6aca019c652a64de884a91c8fdf6b1739d60fcf080",
+    "apps/cruise-port/port-indexeddb-repository-backend.mjs": "12f9369b1e76e4c29dd3ab09f8011f47358600e2bb067fcd5c536f125ca1c3b4",
+    "apps/cruise-port/port-metronome-authorization.mjs": "1b8f7aaee0d8ad5e8d8c786519a9bd999af357676c886530314434d3b6a59820",
+    "apps/cruise-port/port-sync-controller.js": "ae4a748f82173ad27de64d5086bfd85e0e2f4a70ec5a121e4a2c8304d8186aaf",
+    "apps/cruise-port/port-sync-local-validation.js": "434d5164cefada8bb304783b190cb0b2b1b73b6481f1dd5e606b682882c7c641",
+    "apps/cruise-port/practice-capabilities.js": "086c21fc0f121cda8a0b3a09b0783db6545c6d1eac2a83c1923b9451bec083e3",
+    "apps/cruise-port/practice-dataset-writes.js": "c68826ab338676b603a34f99ec70818dadacc0b5b921af8bc7faa90addfdb043",
+    "apps/cruise-port/practice-menu-app-resolver.js": "4328ce49f0f32d421600393354dfb3934b8bbe175d7f56cf3d05e49668f2b3bb",
+    "apps/cruise-port/practice-menu-app.js": "867dfeab8592845b5e87f7f72d7b813efeaca89360ffe161945fea0357049fba",
+    "apps/cruise-port/practice-menu-attachment-store.js": "6d60c4d7919ea1ebf4e7de5ea25bad453db2e97657576cf005e9ef485b11e19c",
+    "apps/cruise-port/practice-menu-calendar-store.js": "ab48c6293d5abb493d44e13bf2713bfee4b63d93ba20b025e147a565947aacc5",
+    "apps/cruise-port/practice-menu-history-store.js": "e8ea22dc9f2423509abc1314d9b3d3849a02b6d885404935021772d7e5278eee",
+    "apps/cruise-port/practice-menu-pending-attachments.js": "0a45e39b339b876670ae41ac21a0160f3d382c492b6492b8cd2a0436a1ac8cc2",
+    "apps/cruise-port/practice-menu-progress-store.js": "3e208bf570b270d0a43cca2ffe3782ccacc9b6e661c130a3fab536012e74ea83",
+    "apps/cruise-port/practice-menu-sets-store.js": "2930f0f2f15563fb12828d7159581282a82d70f03904af140b64d05ddb363a7b",
+    "apps/cruise-port/practice-menu-store.js": "0b7354f7fb35f998a445c5938f81ccff96afff95a939e1f5125a154dbc91589d",
+    "apps/cruise-port/pro-app-boot.js": "6a3c7eaa5fa038d33d7c32ae45a40df6108d347abb3dcc620c276b77e7cdd4d0",
+    "apps/cruise-port/pro_9a3943176561/index.html": "980d9375396fd65e0d77d370b01cf7f244619e2048d8d4a7138c42e538ac9eb1",
+    "apps/cruise-port/settings-store.js": "29294589f95365d6c2b519ab6c507cdf5a56589b8b59e25d1745e8ec9df158c3",
+    "apps/cruise-port/sync-center-orchestrator.js": "e1bd29a8c7a5db8a8fd97c412e56842e31d96d0a43a5d0ba6ae618111ae27b94",
+    "apps/cruise-port/sync-center-ui.js": "5246f1a92f093d68ea5729a239c1e3cbc26f61c62d5392c3ef07925e2b49e3f5",
+    "apps/cruise-port/sync-pro-lock.js": "34be7d5216aeff738939b7aa5d9a2ef7ed65f4f7909ec2b8ce9042a1fdd9f824",
+    "apps/cruise-port/tool-capabilities.js": "4498d7e2ba7b2910b58823259328fcc87c67aefa0e2f75af342c20fc2874753d",
+    "apps/cruise-port/tuner-app.js": "117b9f3f4e0b9b0d0d268e232dd8d670faa06ef361ff3fa3947e37524e7e1dac",
+    "apps/cruise-port/tuner-store.js": "0dcefddd2ecb7dfc36ccb832fe4a1e1a7d1b14e1a62bd67f076d2d0846e9321e",
+    "apps/shared/sync-account/multi-app-sync-runtime.js": "2687c834989c756130338947a3865b0feb3110046e9ae4109afb33f149701136"
+  },
+  "actualFunctionalChanges": [
+    "apps/cruise-port/app-version.js",
+    "apps/cruise-port/port-dataset-repository.js",
+    "apps/cruise-port/port-dataset-storage.js",
+    "apps/cruise-port/port-sync-controller.js",
+    "apps/cruise-port/sync-center-orchestrator.js",
+    "apps/shared/sync-account/multi-app-sync-runtime.js"
+  ],
+  "publicReadOnlyVerified": [
+    {
+      "path": "apps/cruise-port/ai-support-client.js",
+      "sha256": "4feac23984e6fb193afa6b1987b9df29a776d6e2fb4f2454f5b4aefabe404d1b"
+    },
+    {
+      "path": "apps/cruise-port/ai-support-ui.js",
+      "sha256": "57b89697692c64790788d61ff7ccc09c128c939de1073ae95cd96b45f81849ce"
+    },
+    {
+      "path": "apps/cruise-port/app-version.js",
+      "sha256": "39107986a4eaaaf8c94d3b9fa2cd3cf5983fd54aeaa2d17da6077e85d9fc02d8"
+    },
+    {
+      "path": "apps/cruise-port/cruise-port-capabilities.js",
+      "sha256": "7ad9ae15a3710c27287582014916645ef3bb4a38c560f46032ab44701c58ed80"
+    },
+    {
+      "path": "apps/cruise-port/gear-category-store.js",
+      "sha256": "df8d287ec84461cab1e1c735a2c23d32a6cf51c0113a12d3e73d81197910108d"
+    },
+    {
+      "path": "apps/cruise-port/gear-list-store.js",
+      "sha256": "8c43a84451ffb2122310b084d270cc00af67ca8c71ee44b582628f71727aad27"
+    },
+    {
+      "path": "apps/cruise-port/gear-photo-store.js",
+      "sha256": "c71600aa32a124e68424c300ccc1a1b52d1728f478350710ab22c2e3272dfc57"
+    },
+    {
+      "path": "apps/cruise-port/gear-photo-workflow.js",
+      "sha256": "61465bcd0b5c9a8db4a8bc5097907b533ea74fbde7b602b313808e000a92bcdf"
+    },
+    {
+      "path": "apps/cruise-port/home-display.js",
+      "sha256": "8a5cbbe669ad9d2404a0c5560581793c1517ad449f46aceeca72ee2824ba2c97"
+    },
+    {
+      "path": "apps/cruise-port/index.html",
+      "sha256": "4283f9de17c787e912aa1b8b18eab5a3c29303a2809cf3ad18396564398e3077"
+    },
+    {
+      "path": "apps/cruise-port/metronome-app.js",
+      "sha256": "1343face3e09c64186dbdae6cce764f2f1d67eba18aab652757e184365ba9d4a"
+    },
+    {
+      "path": "apps/cruise-port/metronome-presets-store.js",
+      "sha256": "f11150adfef441c72c6e5132cdaa9d69a97d10358facc94b09218e4d38253ac7"
+    },
+    {
+      "path": "apps/cruise-port/metronome-store.js",
+      "sha256": "eecabd0eabc79580332b1020473894a650941065284436aee6bd32ea8eeac6e5"
+    },
+    {
+      "path": "apps/cruise-port/metronome-timing.js",
+      "sha256": "0459a2b17f64af9e61ec3872bae448d1ed08fd94e4022cd75c326b365b5042b7"
+    },
+    {
+      "path": "apps/cruise-port/my-apps-capabilities.js",
+      "sha256": "0ebdc194c9eaf9b40bdb2a1013e4a614df9e80980b15b351d6609081afeda84f"
+    },
+    {
+      "path": "apps/cruise-port/my-apps-icon-store.js",
+      "sha256": "618d9f71cf1ecb081f9c34140deea2f5683b540554397ba3c0a75631c73970f2"
+    },
+    {
+      "path": "apps/cruise-port/my-apps-icon-workflow.js",
+      "sha256": "ad9969f1a04f7711ffd3ebd400150676b00da5ab1754469a052f30dc56f102ce"
+    },
+    {
+      "path": "apps/cruise-port/my-apps-store.js",
+      "sha256": "2c033a7d5d63a5c8d7a0afef524e275ffb96bcb0483785eaa03cd1a74a80b958"
+    },
+    {
+      "path": "apps/cruise-port/port-account-join.js",
+      "sha256": "a0c10499cf099abd0bf50b275d7ee207b7ebae79aec5731290ca8d23ff65bf19"
+    },
+    {
+      "path": "apps/cruise-port/port-asset-sync.js",
+      "sha256": "0257ec07c49fcf2487c2058583fc8755e258ccd44b2ebed45605ab7600a5d901"
+    },
+    {
+      "path": "apps/cruise-port/port-dataset-repository.js",
+      "sha256": "ac6af5763b9ea1f7419ca0ee1f4e41dd4fb49d563e88c8227f3fffd8fba30934"
+    },
+    {
+      "path": "apps/cruise-port/port-dataset-storage.js",
+      "sha256": "a99119763836071868cbf9e816ced368a57f74b5e7ada68a9bc50c2458396424"
+    },
+    {
+      "path": "apps/cruise-port/port-indexeddb-repository-backend.mjs",
+      "sha256": "4fc05a0993c585b3ec4e6253a5a884a2a77c0d3ddcdd42881a1b55b671654e33"
+    },
+    {
+      "path": "apps/cruise-port/port-metronome-authorization.mjs",
+      "sha256": "97423a8a39f2a9258d2a3ed4c5b91470dd79f167ed6a5d143b04e999deef7408"
+    },
+    {
+      "path": "apps/cruise-port/port-sync-controller.js",
+      "sha256": "85f4f6baca8e5a53fb266b5f152f9c51bf8eea3e4fa72a0fd73f75668d92aad5"
+    },
+    {
+      "path": "apps/cruise-port/port-sync-local-validation.js",
+      "sha256": "829e8c0768c7d93602855b6b8175b38240884d777ae9e7e433d72085fc881e05"
+    },
+    {
+      "path": "apps/cruise-port/practice-capabilities.js",
+      "sha256": "1cd5493a2b6d58c215daa22a4c3b1d9937ae9d7ec16bd3279c2dbc2f4e0fb0ad"
+    },
+    {
+      "path": "apps/cruise-port/practice-dataset-writes.js",
+      "sha256": "8349dfd8e083fe2a4974fc411a1d83e88a0aa1d1ad36789c9ed780845a46e9ec"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-app-resolver.js",
+      "sha256": "76292693f35f3818f1881f112a4bbcdf5d2e0d7b7898ace0421b492e088a8cb7"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-app.js",
+      "sha256": "a16a38fd21888ec1d9b014a61d2c3ff3c36ab1cb37c8883bd5d9161f6d1f952f"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-attachment-store.js",
+      "sha256": "1432244a9ddb4702e23f95ea41461c9e0450f216ce09a82e188766b8c4f6b36e"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-calendar-store.js",
+      "sha256": "bb3e213ad9cd0f5ed32bd89e2853a0696867c9a1104fa7dc8fae1a2bc28f852b"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-history-store.js",
+      "sha256": "8d2f0d9dfabeef9ed6574e182a8c3035a7b353f7194b65d343fccb5389c3e990"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-pending-attachments.js",
+      "sha256": "8f7b1efade89aab408e98c39a2cbdc22a21a133021eae41179daf5178b6b1ee1"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-progress-store.js",
+      "sha256": "21a09e7728441fc91f816835cc90e250c091f659ca6f41867bc76b2848eb16c9"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-sets-store.js",
+      "sha256": "3c8339ff3c2b98f367cad1afb63be9ea160c396dfc28e5c5a1507f8aa1e54020"
+    },
+    {
+      "path": "apps/cruise-port/practice-menu-store.js",
+      "sha256": "71accd91ff130dc11c048336cf00fe12eef958b85a893e7e25dccbe9bc56df5e"
+    },
+    {
+      "path": "apps/cruise-port/pro-app-boot.js",
+      "sha256": "48dad6f27854fec7aac36a7ed01875cdce4356db10d265916fcb5cde6be1665b"
+    },
+    {
+      "path": "apps/cruise-port/pro_9a3943176561/index.html",
+      "sha256": "f737a01f00062b2371308f177731377755b10177637d11f8e9e0905373699185"
+    },
+    {
+      "path": "apps/cruise-port/settings-store.js",
+      "sha256": "922727905a465da4fbebefd918c769580e9c81af3fc42cc2433b6418b722e124"
+    },
+    {
+      "path": "apps/cruise-port/sync-center-orchestrator.js",
+      "sha256": "c16ffe0945d57ec595d8bc99638dbe73caec2002c99a9b52c814afbdc7df2b97"
+    },
+    {
+      "path": "apps/cruise-port/sync-center-ui.js",
+      "sha256": "6c62b50b7c379b8c73bd5219ac5afd3313d7cb67f003c83769143beb987391d2"
+    },
+    {
+      "path": "apps/cruise-port/sync-pro-lock.js",
+      "sha256": "f582ef5f95a924409343ad1c97993d05e84ebf600f31448c204841768cc54cc4"
+    },
+    {
+      "path": "apps/cruise-port/tool-capabilities.js",
+      "sha256": "71d4be06dfb7df53c7e28220b19c2389f888a68e6803e42fb07311a859b3ea06"
+    },
+    {
+      "path": "apps/cruise-port/tuner-app.js",
+      "sha256": "ba31d85983884eba59cec310b46b3b5087001ed0c061b5801264de624603fa20"
+    },
+    {
+      "path": "apps/cruise-port/tuner-store.js",
+      "sha256": "00094a46b3df99881056957912f9a40d27f8eb15f93ce381293c501c954c36f4"
+    },
+    {
+      "path": "apps/shared/sync-account/multi-app-sync-runtime.js",
+      "sha256": "a381d034d508a557b24dc85be5c6c86c40e915aaf687b335b3fafc87c99244d7"
+    },
+    {
+      "path": "apps/cruise-port/style.css",
+      "sha256": "88b29aa758f3f1b7e1c6900e63f1dbdc79bedfac9dc8e9d711789af06c42490a"
+    },
+    {
+      "path": "apps/shared/pro-gate.js",
+      "sha256": "2a92005f1c0249483e84c02daab8166a22087f297ed98e3238f79fa5425245c0"
+    },
+    {
+      "path": "apps/cruise-port/cruise-port-edition.js",
+      "sha256": "9c05c879a2f9c5b0217ba70f2fce52e11b93ebc0ad674921c3679fc415ed378c"
+    }
+  ],
+  "testPath": "https://soundcruise.jp/p1304c/",
+  "testOnlyAdjustments": [
+    "Unique test manifest IDs/name",
+    "Edition presentation root under test prefix; auth unchanged",
+    "Empty-profile marker page"
+  ],
+  "packageHashes": {
+    "apps/cruise-port/ai-support-client.js": "983e67e0db62b83b15d484afecca72697ad55bfee6e563a0a9de6cca74042f31",
+    "apps/cruise-port/ai-support-ui.js": "247c7f585b63fabd613c608f3af3f069861dc0adc83fbbb4563ad273cc8bbafd",
+    "apps/cruise-port/app-version.js": "83e1cce1ce24475df10d8b7ff4ca70cd9ed20855c220f08f6654db98cae787cd",
+    "apps/cruise-port/assets/app-icons/pro/apple-touch-icon-180.png": "a7ea43f885e8228c54f458dd843c7c7723ef26f7612daebb3617c2f3105db089",
+    "apps/cruise-port/assets/app-icons/pro/favicon-32.png": "ddca874372d279688da75a3cb5b12d70501ab29b5afc1344c350aa766bcf8f7a",
+    "apps/cruise-port/assets/app-icons/pro/icon-192.png": "6c53534b2b0691f1105226682e6d49f5e2b175af9630f3579c6a032526d203b5",
+    "apps/cruise-port/assets/app-icons/pro/icon-512.png": "64dc0f52054078c0722d3d2ad2a68223fc8a5d81bb0aa7f1769de7f99c63e884",
+    "apps/cruise-port/assets/app-icons/pro/icon-maskable-192.png": "4b91a6bfac143017b5977a8e74b328b9beec1a61d800c572186b40c2d263284c",
+    "apps/cruise-port/assets/app-icons/pro/icon-maskable-512.png": "167cc9a466f9eb3c2063b3f323f22c1ea9536028de4df51c44a82862171b5b9c",
+    "apps/cruise-port/assets/app-icons/standard/apple-touch-icon-180.png": "bffcf834312cc2d42c0deb2ae87a2983e395a4981cbfb05a401d334496ef1b20",
+    "apps/cruise-port/assets/app-icons/standard/favicon-32.png": "377c94315fd083e71164406045db1907dc040567bf4a9f25a9a063adc3847288",
+    "apps/cruise-port/assets/app-icons/standard/icon-192.png": "6f254f0a4af513790ec1b0e2f8fad4a5f2fd56d5a5a4e96f90d50c141210be55",
+    "apps/cruise-port/assets/app-icons/standard/icon-512.png": "7bbf5902cd1bf9b519c995c9cc40fae4c56b4700485a89d7e13521b66dd4cdaf",
+    "apps/cruise-port/assets/app-icons/standard/icon-maskable-192.png": "fa56a18bae5e0d7a0a6e2a049d63ab234cb637915199bc45b560cc2e8b40dd14",
+    "apps/cruise-port/assets/app-icons/standard/icon-maskable-512.png": "1671009840ffb9950adcd55a03733fdf1b798f57ddbcc1fd27790f7e07944616",
+    "apps/cruise-port/assets/my-app-icons/audio-file.png": "9b4a5ea0e32a6c218eb0b56d9f0906f998e01deac4b86d6a76ce70f574811289",
+    "apps/cruise-port/assets/my-app-icons/chord.png": "3d277931ab589b5c7647df975a198d73683f1cd69c12f361ed7730ac495c1a28",
+    "apps/cruise-port/assets/my-app-icons/daw.png": "54cd3248119ff54619c8cd83ba41b945714e6c4371df6ec8a02962e40ab03ea8",
+    "apps/cruise-port/assets/my-app-icons/drums.png": "590e2e9f5654fe97476debf510eeeac684fa5d2db884518874cd6f186be1e022",
+    "apps/cruise-port/assets/my-app-icons/ear.png": "7ca345eb642cbfccd31825db040fe5036ecd2d62f3a8dc0a0441182d84d9f756",
+    "apps/cruise-port/assets/my-app-icons/equalizer.png": "c5323dafbe70b5c32787652d38b430e5f17043ad61c81a065d9ee965d02c0682",
+    "apps/cruise-port/assets/my-app-icons/gear-list.png": "e1d7fc88fd309e91875b25c52e9b9d28a2371652d124e8ddbd2035875e56af07",
+    "apps/cruise-port/assets/my-app-icons/guitar-acoustic.png": "e22fcd26156f51fc7bb79404b0f92074fda3b0acb89a642136fb699b37fdb82b",
+    "apps/cruise-port/assets/my-app-icons/guitar-electric.png": "711361e5eb0941fd99aedff720c06918cd40298a3460be27033edfb9391b3426",
+    "apps/cruise-port/assets/my-app-icons/headphones.png": "fe1ebb720af288b0878e55e06fd0c723cdfd4ef82403c3d7236f641168d65c51",
+    "apps/cruise-port/assets/my-app-icons/loop.png": "43f105766610ad2291460d482d17c833bd66baef848d83b850b32535deb776a5",
+    "apps/cruise-port/assets/my-app-icons/metronome.png": "12210dc374b62c38a4600b50336b7161170840c60055b1c2226900f23f085dbd",
+    "apps/cruise-port/assets/my-app-icons/microphone.png": "a6a64628980dcf8db308405e92ecf76b3597fdee12cdb04cf55217b28e80aaed",
+    "apps/cruise-port/assets/my-app-icons/mixer.png": "260f63a1dded3deab50e20cc8cd2b0fb8fc490fbb657199bbebb37ae2ba35c0a",
+    "apps/cruise-port/assets/my-app-icons/note.png": "a4750862680b27dc9786f4624a887e7ab6622330f377444ec68fcfa859459fa5",
+    "apps/cruise-port/assets/my-app-icons/piano.png": "eb74fd3277b39ba26c270e7a32e0ff45836ac6ecd27d8c6c385212c6d6db0660",
+    "apps/cruise-port/assets/my-app-icons/practice-menu.png": "1e8b5a41c0e0e84da75a05eae82c6f0715888ed8f184be4a087ca2f9b593baed",
+    "apps/cruise-port/assets/my-app-icons/recording.png": "ada70651f5150baa7ba80080aadfde5050427df50ff1540795895591a39140d4",
+    "apps/cruise-port/assets/my-app-icons/rhythm.png": "2f5efd9d3e67f604bead6f4267cc5c205e486715743ec3f17d40451ad71337f3",
+    "apps/cruise-port/assets/my-app-icons/sheet-music.png": "5ff6a9924c9e482a5f3fe8d775bbcc2b3ba59179f985d740addbac1798e476e7",
+    "apps/cruise-port/assets/my-app-icons/speaker.png": "ec2943c4d520cac996683753f296302d25d99b24e5352ab1eb127a81ed209cea",
+    "apps/cruise-port/assets/my-app-icons/tool-metronome.png": "9c77ee4d0cc1ec9d63be12207978e0793075bb8fcae1815831c1a623ce419454",
+    "apps/cruise-port/assets/my-app-icons/tool-tuner.png": "c02e37e796fd8609f4aa7bd1d71f0785bada0591ee3364b04a0d4229899ba999",
+    "apps/cruise-port/assets/my-app-icons/tuner.png": "a2bee0bb6e14b11ede4ff241375d1a50760ed8b59e27a4ada284e00a22264aed",
+    "apps/cruise-port/assets/my-app-icons/vocal.png": "25e1a9bdea64478fdaa8050bc0be787bd601a4e930ee2ca393e6b5d370cea29e",
+    "apps/cruise-port/assets/my-app-icons/waveform.png": "0b9e2ee7794060683ccba18e93a6869cc98ff1226ecb6b352588f3123a197ecd",
+    "apps/cruise-port/assets/news/theme-colors/charcoal.jpg": "bf20d3c08d00f1c39702a55b291699f74a54ab69a58402cb048626cbd866c40d",
+    "apps/cruise-port/assets/news/theme-colors/dark.jpg": "ccb77cfc261c243798b7d557639a21b59424c9a771ff93f3aa9726a36b79f844",
+    "apps/cruise-port/assets/news/theme-colors/gray.jpg": "9f2da911b9e8963b9e4b0b81f7595eb8fffacec1e5d422c490d3e7847558cbc8",
+    "apps/cruise-port/assets/news/theme-colors/light.jpg": "e96c2e9c2b6fa0138e754c8a62bdd0647a6c00fe6a182e79944f1c9ed99aa913",
+    "apps/cruise-port/cruise-app-links.js": "e7f0e2bcde97ff52324346372af986a3ce42069b22483c10db6deb8f61ac1c26",
+    "apps/cruise-port/cruise-port-capabilities.js": "a46c224344afbcf2dcdd123f21e33e23b6a081830cd9d825cad3ebf5b9857d5d",
+    "apps/cruise-port/cruise-port-edition.js": "aaef20087d0aa0a536115bdbfd8983dc58eec0d9c722fcda8d18c13311288020",
+    "apps/cruise-port/data/news-beta.js": "082f53743b50e8f650e4480efaa2126bc53c82fbcd305093bce00077103766f5",
+    "apps/cruise-port/feature-help.css": "d5714e0e4555e48da598091713ce796df05ed81fcb62c9bdbd3d19f7d14706e4",
+    "apps/cruise-port/feature-help.js": "02c297d9eb4c657343d8368b6c36724775efcf4f031003e965d7b922108730f9",
+    "apps/cruise-port/feature-tutorial.js": "a43905e8efbb9c5568ead6dd740dbb4b39a45065945a666bbc96a39592406e88",
+    "apps/cruise-port/gear-card-export.js": "464fbf8e22ff33ceb9b5ec4b073eccd87a0a0cbcc5b0fbed23f8ce165bbb16ac",
+    "apps/cruise-port/gear-category-store.js": "5fb100b15774c9e3c1efe0735f28ae14ba24d3d86bcadf817492210777e2ee97",
+    "apps/cruise-port/gear-list-image-export.js": "89fe1ccda98ec8c42d3ecf215baec4b8136513b4b640dfca904c9b9349ba34cf",
+    "apps/cruise-port/gear-list-navigation.js": "86324ee08dd79ccdd59b2156ced931fb1eb1e25bcafb7ecf46edcbba0072e681",
+    "apps/cruise-port/gear-list-store.js": "36c5e02057f00f572e7cc7b3f24280fd5d386e915a0001733931a5a6c9a23294",
+    "apps/cruise-port/gear-list-ux.js": "bf2a03c16bc9cdd9aadb4ada267170b0eefd7c2ab7f09b6c8f279d0e9197002a",
+    "apps/cruise-port/gear-photo-processor.js": "4a2e9f41edd8532eca4b79caa2f3f7201159178aaf721368d065d92762f1fbb7",
+    "apps/cruise-port/gear-photo-store.js": "6a63ab46bc73aeee5478f5379e677c814a42edaa5e6a2b790144a667e0643c20",
+    "apps/cruise-port/gear-photo-workflow.js": "5c48e8b8cfa7411a7824c59252104cf74c44bec3b8fb3a598e02a0565172281d",
+    "apps/cruise-port/home-display.js": "338013d4432bb4eed30e497322117122b27cb5a899e8c9fa96aa710d678dd1a8",
+    "apps/cruise-port/index.html": "5d3c0669770f3b7fb1a0b29c7425bd8abcb95689dcc1aaf6399145309840d617",
+    "apps/cruise-port/manifest.json": "95bf99fdb2b802d096843d5bf1a75f8320bb98931e20cea0d8bb903e5f2f6abe",
+    "apps/cruise-port/metronome-app.js": "38a901f1b26cd361cc2849cce63b22e01db98d3a7ad501dbe8f53b67f0506df1",
+    "apps/cruise-port/metronome-presets-store.js": "8975460c4d6f6638120a5d9effe18758098e0486e025f4d45f47c0a7ed5c2cb3",
+    "apps/cruise-port/metronome-store.js": "659ced3a16f291be5ddae36e539eaa7d5f299106c2a1c24e2d82cf2e1b3b7b3f",
+    "apps/cruise-port/metronome-timing.js": "19b94a4a8574e6a58d0cd7b06d7112ed6563448871fe6d09d775095f0c0934f1",
+    "apps/cruise-port/my-apps-capabilities.js": "6ec2ce2179bd2ac2abdfc37797032fe0f9bd0da855cf3c11c2572b9153abde97",
+    "apps/cruise-port/my-apps-crop.js": "4a16af18237e1ae5fbf5f574c2622470024adc640c9feb2af2f200e9487c0cc7",
+    "apps/cruise-port/my-apps-icon-presets.js": "d1dd16283bc6c7c459f6859be1acc9c9daa5b81a849ed4fc11a380c97dda9cd8",
+    "apps/cruise-port/my-apps-icon-scale-classifier.js": "b809b1722f1a75049f414eab687660a8e26cfa92b5c483f74d21f9e28f8ab089",
+    "apps/cruise-port/my-apps-icon-store.js": "95841a1994dacc125ccfad524cc270a9456a13a113bd02e72952d1bdab1c381c",
+    "apps/cruise-port/my-apps-icon-workflow.js": "d3aa4ca82ea9c212621dc9c5897274d08f048ef31a9f99d497e60e8b31f14d08",
+    "apps/cruise-port/my-apps-image-processor.js": "231ed6cfe9493d4d9afe1c5d234ea61f773aa31d37a9315de7c444f9aa59b78e",
+    "apps/cruise-port/my-apps-known-apps.js": "6cadc80c27309ee8e10f66518da0dd4e339ade7d63f7ae4135543917156d1b80",
+    "apps/cruise-port/my-apps-launch-form-state.js": "0afc97342c3f452e966764785a6e4cb0a9d269f542a8e194657097502ad19621",
+    "apps/cruise-port/my-apps-launch.js": "bfa9ca5a69a5041bbc5a68535a5cca605f2bf43d9e3a397edb897ac5e8551d8b",
+    "apps/cruise-port/my-apps-store.js": "0292ff6d3c9a2be7bbcff482e7cac1a07400f21fda5d7f7dd088d54c0ed62f76",
+    "apps/cruise-port/news-article-ui.js": "86b006c3dd0c29665f8808515c3c6e52d027ea0385eb6babd2bba31bf765fdbc",
+    "apps/cruise-port/news-article.css": "d63c38f8e037e6d1296f7bdedf109903fe9cf5f71319022db4c4e1c066c6bbe4",
+    "apps/cruise-port/news-articles.js": "56376809799eec5f62000cbff29fbbd0af2dc241bd7b5be07ceec8c26d709888",
+    "apps/cruise-port/news-config.js": "b840efe71568b0ce3ecccfc6bd13aafc3157b64431489a6541a6cba7d7c39f7b",
+    "apps/cruise-port/news-data.js": "9e1502c1d4242beb22ee41ef7529226f2045d4a8d19338698acf8c06271bc899",
+    "apps/cruise-port/news-external-link.js": "7ed10f2658d00fcc8f8f5660816a5d7e41e557d264ed47d89c651b36fc5e7217",
+    "apps/cruise-port/news-provider.js": "450626b760cffd6a498a55ff18c841ac71d9d5d2707cf6ec594fd42249235909",
+    "apps/cruise-port/news-quality.js": "1169ae72ee47250765e349d535f1f1ffdcff4b6caea8e3b9d02a2581ff1ee6dc",
+    "apps/cruise-port/news-ui.js": "f9a438589fa97bfad7a87ae1c7e6af8e94a47fc80fb950965a88b1307af27427",
+    "apps/cruise-port/port-account-bootstrap-intent.mjs": "a652a22a63a2d131910bac171fc1c93720f9475a21e612ad64b685b2e1dbe4e9",
+    "apps/cruise-port/port-account-bootstrap.mjs": "c4dd3ff7a9f600f54e1bb65edc64179b264c24210d5e3f02faed864cb8b08252",
+    "apps/cruise-port/port-account-coordination.mjs": "d9a6a47b0bc147bd0dabe2205437b6f8f57b65c5ddf2e7bef81f83a8b1634560",
+    "apps/cruise-port/port-account-cutover-contract.mjs": "e8570030e8669f3924c76ee3806a57d0d05e211e179dbf41737d399c25932390",
+    "apps/cruise-port/port-account-cutover.mjs": "910f1e06bfd9eeb57c103c1300ebfabbfea96452f147b33d5bcdcd00b90bd035",
+    "apps/cruise-port/port-account-join.js": "1c849d91c7c8b00610905ebd7b837aa8d938f3e9cf67e893970ca4cb05f5e9b0",
+    "apps/cruise-port/port-account-provider.mjs": "9879a28080f8f6106ef1eaf3d1cd6322926b25e634651d508a27130d46017e0c",
+    "apps/cruise-port/port-account-save-admission.mjs": "565dbcf9ea41234d56e3c0137a30437d54d9ed34f743c20fbacbe30aceec943f",
+    "apps/cruise-port/port-account-transition-intent.mjs": "e567b9006b3274c81d1134d1324865ab5e3164a6408271d484599cb2fa834948",
+    "apps/cruise-port/port-account-writer-participation.mjs": "48966c34ab4ed6c417b70ab399fcfb67894bce5115161f24ee97a73a5563ed4a",
+    "apps/cruise-port/port-asset-sync.js": "7d32a6c26b63b3b925baae8ef6862bafdab3423a316b446cddd9e08f96dda527",
+    "apps/cruise-port/port-authority-action-policy.mjs": "bcb1cfa163f6a90ccd83e6652ef790ea38e6067a5d2e4a940069b596ef6da610",
+    "apps/cruise-port/port-authority-binary.mjs": "266e37ce8a8f344f46c57974dcc1b873548e63baee7a35d6b3e0274f650bce95",
+    "apps/cruise-port/port-authority-capabilities.mjs": "488303352ec012c7f8c383c258a938c1627d9328c89dcbfe5a97efcf7a1edd92",
+    "apps/cruise-port/port-authority-control.mjs": "c678eb603690aaa6a7a69d077fdff6ccf6acdddfb707f3598accb4a7ebc5b9ed",
+    "apps/cruise-port/port-authority-evidence-lifetime.mjs": "8db31fc2b19a3fda8f362b016219afab9e8eeafff8e2ca09a5d9c14a83b99ef4",
+    "apps/cruise-port/port-authority-migration.mjs": "0019da5a24783ca4a375fa3ef95b3d405f362e133855eab1a7ef2df4d040f910",
+    "apps/cruise-port/port-authority-pro-device-adapter.mjs": "b83631c98d497a63fb772d52563c5ae38a432d6cafa3c750c27a679cc08591f0",
+    "apps/cruise-port/port-authority-reauthorization-contract.mjs": "6a6065d6b95d5e3420af116dfff74e3b12f1dc14c3da0efa03470c09813e8dad",
+    "apps/cruise-port/port-authority-reauthorization-isolated.mjs": "ad1fcd906eb3bf4655c31896e67969c782e3f7989b885a701f2350b1214ad633",
+    "apps/cruise-port/port-authority-write-control.mjs": "89538f344839248ead2d6ff9a60e9e9a25431d4a4b16d8fb4423eda3d5bb62c7",
+    "apps/cruise-port/port-backend-save-isolated.mjs": "e0a30bca708b52d01a3c698866e2e7a440796bc5d9d22c47e88933e133157574",
+    "apps/cruise-port/port-binary-recovery.mjs": "ef6492256805e3414429fdefe4e7c91e488d6dc515e36809846b96f8cc061832",
+    "apps/cruise-port/port-credential-adoption-isolated.mjs": "b92747799c8ee61a108edf4006230dc1c17ce8ed7808303d2ef97796747a31ec",
+    "apps/cruise-port/port-dataset-repository.js": "43a69161f182b7150e185298e5b7e62ddc1bd9120a9168a8d8c7bae57e52b318",
+    "apps/cruise-port/port-dataset-storage.js": "64ca1e299b8e0374ec814d6aca019c652a64de884a91c8fdf6b1739d60fcf080",
+    "apps/cruise-port/port-idb-authority-contract.mjs": "9381841746a7e067dfca53b09d9e448b7fbcc2bc45f735f9f27cf80b7b0d495d",
+    "apps/cruise-port/port-indexeddb-authority-store.mjs": "1b745a466b88ecb1879b56cf59d3414fb45eb6a475e605f64f4e962c9dce5f6a",
+    "apps/cruise-port/port-indexeddb-repository-backend.mjs": "12f9369b1e76e4c29dd3ab09f8011f47358600e2bb067fcd5c536f125ca1c3b4",
+    "apps/cruise-port/port-local-authority.mjs": "b19f608ea1e603d04a225f1b658fcf67b2ee9d718d3e501e803f5cf19dd17d7d",
+    "apps/cruise-port/port-metronome-authorization.mjs": "1b8f7aaee0d8ad5e8d8c786519a9bd999af357676c886530314434d3b6a59820",
+    "apps/cruise-port/port-metronome-bpm-isolated.mjs": "72ce69395037ef465ff5feeb529c26768995be177d1de7568c7b901eba8d61d1",
+    "apps/cruise-port/port-migration-candidate.mjs": "b2f15868369562b4ba52eb2b29b15364523ad5a2abfe708636f89e204447f547",
+    "apps/cruise-port/port-migration-contract.mjs": "76221b3189210ca4c566e66dcd7244c9da2b06a7d9667beb57ca4f9a1f7326c4",
+    "apps/cruise-port/port-migration-planner.mjs": "b8494ec3f487e291f7d8fdf861ee861b1f35869a0cf324a30f9cc5b6fc3ae9f9",
+    "apps/cruise-port/port-owner-cutover-contract.mjs": "33489e7cb670d2966620b7a6130b433445842a646fbd889b6f47230e9090f728",
+    "apps/cruise-port/port-owner-cutover-isolated.mjs": "4201bc9c043c9635063b095b444cb334804c43932f5b1a9c26e257476586d784",
+    "apps/cruise-port/port-owner-operation-contract.mjs": "4b08086f07065079f0ad4433be16d86db8869180a2849ea0a54e8f849908df8d",
+    "apps/cruise-port/port-owner-operation-isolated.mjs": "a4f35de2b8e15e1546081961058ef21849e8d1b06d835d58c30b95358a18aa1b",
+    "apps/cruise-port/port-referential-integrity.mjs": "3da09574fda3cd5d15c0bc49f7ee86d194b9bdfa5b29764a0b042ae823c7506d",
+    "apps/cruise-port/port-renewal-recovery-isolated.mjs": "0e7e5645058fad81c7c13560487b708788345fffbf825f479f7f57a0055031af",
+    "apps/cruise-port/port-repository-backend.mjs": "45fb8c89275d32e5a1ec299e1d60789f15e1146b67deb253a1e0c308a0e9d169",
+    "apps/cruise-port/port-sync-adapter.js": "6efcfaabf08db245ba42c8d9f2a9562b9165ba8efae499cac17834efc0abd849",
+    "apps/cruise-port/port-sync-controller.js": "ae4a748f82173ad27de64d5086bfd85e0e2f4a70ec5a121e4a2c8304d8186aaf",
+    "apps/cruise-port/port-sync-local-validation.js": "434d5164cefada8bb304783b190cb0b2b1b73b6481f1dd5e606b682882c7c641",
+    "apps/cruise-port/port-sync-status.js": "2d219553e1d2a366d58e0b867ae4ee25bd17800c42f993b86f28b9e59738ece7",
+    "apps/cruise-port/port-write-readiness.mjs": "9fa69343779226dfefdec37026c1d85553e13a6133ce4a6aa70cbd9c4c813c10",
+    "apps/cruise-port/practice-analytics.js": "3dbc5b42079ffd4afc8366225784ca324a71f4e5265df3990ae4c9e3d091f22d",
+    "apps/cruise-port/practice-calendar-keyboard.js": "b6c1e3991c0321d11b8414fbabd281534176aeee0d4ae0372da5166ec8b94ac4",
+    "apps/cruise-port/practice-capabilities.js": "086c21fc0f121cda8a0b3a09b0783db6545c6d1eac2a83c1923b9451bec083e3",
+    "apps/cruise-port/practice-cross-day-display.js": "e855a3ab76b1492755c54d6cb27fb0bf04686182940f0a1e72226fee954ff1cf",
+    "apps/cruise-port/practice-dataset-writes.js": "c68826ab338676b603a34f99ec70818dadacc0b5b921af8bc7faa90addfdb043",
+    "apps/cruise-port/practice-menu-app-resolver.js": "4328ce49f0f32d421600393354dfb3934b8bbe175d7f56cf3d05e49668f2b3bb",
+    "apps/cruise-port/practice-menu-app.js": "867dfeab8592845b5e87f7f72d7b813efeaca89360ffe161945fea0357049fba",
+    "apps/cruise-port/practice-menu-attachment-store.js": "6d60c4d7919ea1ebf4e7de5ea25bad453db2e97657576cf005e9ef485b11e19c",
+    "apps/cruise-port/practice-menu-calendar-store.js": "ab48c6293d5abb493d44e13bf2713bfee4b63d93ba20b025e147a565947aacc5",
+    "apps/cruise-port/practice-menu-file-open.js": "4e4936057d1b746be855991cbf944be7b839d2b88ef8be60d39480821462c2ab",
+    "apps/cruise-port/practice-menu-history-store.js": "e8ea22dc9f2423509abc1314d9b3d3849a02b6d885404935021772d7e5278eee",
+    "apps/cruise-port/practice-menu-navigation.js": "798267d6ffbd43a06d6f608cf2f9bd76d73c04ed6b95cf10426018de6417fe0d",
+    "apps/cruise-port/practice-menu-pending-attachments.js": "0a45e39b339b876670ae41ac21a0160f3d382c492b6492b8cd2a0436a1ac8cc2",
+    "apps/cruise-port/practice-menu-presets.js": "a653df4279338dbd51c2eb06885d60917f18080827b7f0523d6af6fc6ee20162",
+    "apps/cruise-port/practice-menu-progress-store.js": "3e208bf570b270d0a43cca2ffe3782ccacc9b6e661c130a3fab536012e74ea83",
+    "apps/cruise-port/practice-menu-sets-store.js": "2930f0f2f15563fb12828d7159581282a82d70f03904af140b64d05ddb363a7b",
+    "apps/cruise-port/practice-menu-store.js": "0b7354f7fb35f998a445c5938f81ccff96afff95a939e1f5125a154dbc91589d",
+    "apps/cruise-port/practice-menu-timer-store.js": "7aa3f2a71c7e6652001b1f251d8ffb3ae11190ec744d2e70a567dbc03e62ef51",
+    "apps/cruise-port/privacy.html": "eef8db7305cee97ceaaa5669d724ca4571938503018925c96e929949d1063a16",
+    "apps/cruise-port/pro-access-content.js": "76fbae5d0b6b60f61e0cd216a07ecef73ea7c268dfe22db4b27a422b5db1a9bf",
+    "apps/cruise-port/pro-access-page.js": "74df15af80a765b6d404180f854be8d0de9dc0da1d7e5d05e53e0b8b4f6f4b85",
+    "apps/cruise-port/pro-access.css": "544f01bdd1055ba5711b146ea8a0d9d7099588088806e6f42574f4e8dd2e46e5",
+    "apps/cruise-port/pro-access.html": "276cbe938a4ab8d1f88550c7a3ad84d37045104b39932bb93cd612c91d408dc0",
+    "apps/cruise-port/pro-app-boot.js": "6a3c7eaa5fa038d33d7c32ae45a40df6108d347abb3dcc620c276b77e7cdd4d0",
+    "apps/cruise-port/pro-auth-settings.js": "c4bdf546a83475f421de03b781af78557e7e2e06c355ca0c75be6432cf2ae05a",
+    "apps/cruise-port/pro-prompt.js": "0c4b7a6a02bfcce05d470de80b3df730736aca3e0f9d0c47b29fce871e7d7933",
+    "apps/cruise-port/pro_9a3943176561/index.html": "980d9375396fd65e0d77d370b01cf7f244619e2048d8d4a7138c42e538ac9eb1",
+    "apps/cruise-port/pro_9a3943176561/manifest.json": "154e4ee9993e007edf357c9fb5aef5b6fdafaefaa556b913d44d6a76c40b3d26",
+    "apps/cruise-port/settings-store.js": "29294589f95365d6c2b519ab6c507cdf5a56589b8b59e25d1745e8ec9df158c3",
+    "apps/cruise-port/storage-conflict.js": "30e568e57b5a9d7d8a2f8a5d01cd10a1da22d9d74f00cbe57e6d474925d9d2d7",
+    "apps/cruise-port/style.css": "88b29aa758f3f1b7e1c6900e63f1dbdc79bedfac9dc8e9d711789af06c42490a",
+    "apps/cruise-port/sync-attention-ui.mjs": "2c0333682e54063a983a334f1b109b33d2a7cc7d38411bf1814474ff67817b7a",
+    "apps/cruise-port/sync-center-controller.js": "1880be10ef8bb6317b6ebc4c09c278912654b4abbc5b488f424020ace71f6200",
+    "apps/cruise-port/sync-center-device-detail.js": "a52810edcec669cd31621b0743539be03f438aea7f7ddfd610877242f2b04afa",
+    "apps/cruise-port/sync-center-navigation.js": "8f5d929119793c543cd0e3da0f299d15d9abf959a84997e13770a367f8e73776",
+    "apps/cruise-port/sync-center-orchestrator.js": "e1bd29a8c7a5db8a8fd97c412e56842e31d96d0a43a5d0ba6ae618111ae27b94",
+    "apps/cruise-port/sync-center-refresh.js": "c556a22af84fcd3d4aecac8d944141b21c0b4fbcf370433d582790acdda78ff3",
+    "apps/cruise-port/sync-center-ui.js": "5246f1a92f093d68ea5729a239c1e3cbc26f61c62d5392c3ef07925e2b49e3f5",
+    "apps/cruise-port/sync-pro-lock.css": "efdc8e5bc9eff7a9711a0a7b02720535eee3f8fa52fe8b619f2108b41677c070",
+    "apps/cruise-port/sync-pro-lock.js": "34be7d5216aeff738939b7aa5d9a2ef7ed65f4f7909ec2b8ce9042a1fdd9f824",
+    "apps/cruise-port/sync-target-name.js": "cc60172f646d41635fb3eb5dbdd484f8cc43e8a3d4a5014263f652d89f3ece58",
+    "apps/cruise-port/sync-target-rename.js": "44f4768818fac49897410fb805c4326fc25329f6f100dbc29da7829294d549d9",
+    "apps/cruise-port/terms.html": "270b75500cc569f72c940ab3b6fceb4bf4772bccd106dc5762203456bc8da971",
+    "apps/cruise-port/theme-test-support.mjs": "87c20d009c51e301092d5938477b8f113867cdf742dc5ae73bed99bce645fd4a",
+    "apps/cruise-port/tool-capabilities.js": "4498d7e2ba7b2910b58823259328fcc87c67aefa0e2f75af342c20fc2874753d",
+    "apps/cruise-port/tool-return.js": "93530a21f40215d010f0f3f603d4252cae4ae55ccae5478af13e40991d686111",
+    "apps/cruise-port/tuner-app.js": "117b9f3f4e0b9b0d0d268e232dd8d670faa06ef361ff3fa3947e37524e7e1dac",
+    "apps/cruise-port/tuner-audio.js": "e887eb7b2b413bfa742ce89678036f65caa018c709518838caeda9ade225288f",
+    "apps/cruise-port/tuner-engine.js": "599e81f085d57d3a005d56227e35a583492f467b0f009caf04d58532818ecfd3",
+    "apps/cruise-port/tuner-meter-preference.js": "d1d502326f944d8e27be5083796ac3dd555befe4158668124a8154e50be2f70f",
+    "apps/cruise-port/tuner-preview-audio.js": "7c5d6e5fbe42f003fc96083af20f7770b4717bd616bbd31f8babfb625af2903c",
+    "apps/cruise-port/tuner-store.js": "0dcefddd2ecb7dfc36ccb832fe4a1e1a7d1b14e1a62bd67f076d2d0846e9321e",
+    "apps/cruise-port/tuner-tuning.js": "17e2f2d1599be4d8e5c86f0addc1910ffbe71e5762a4a114cea1ae6bc6b7a998",
+    "apps/shared/information-app-links.css": "bf56a0f46369401bdaa66298c6d8d1f76c712594bfd756afbe57b70524203fbc",
+    "apps/shared/information-app-links.js": "ab449c2aed3d161bc75247373da05780b2f1e6cc697f786e3cce065b15c56e7a",
+    "apps/shared/legal-links.css": "a674c6dbce3edca3eb9bad4e22cd894248666c7c6c33dc75fd8294ed24a153e4",
+    "apps/shared/licenses/Outfit-OFL.txt": "c676351bf8576b9aba743cd5eaa8c0e7ee0d51f805d720447b4df4ddb6a2e416",
+    "apps/shared/pro-backend-entitlement.js": "e22b66b9741067b1b69a9012f0d9de5b7dc31f76e1d4a29b701a675dcf37753c",
+    "apps/shared/pro-device-session.js": "34246b62266152381e2ce131699a9a64c371625ab0c0a2811ffd0198335fc67a",
+    "apps/shared/pro-gate-help.js": "614f568cb55ef4796a5a6a582e17f7bbd11df51e7f85f6fd3885532efad12eb2",
+    "apps/shared/pro-gate.css": "09e4e04787a672d60daf08b96bea937a2bf114626c74f560e243112fa135c37f",
+    "apps/shared/pro-gate.js": "2a92005f1c0249483e84c02daab8166a22087f297ed98e3238f79fa5425245c0",
+    "apps/shared/pro-theme.css": "f0de8675efaf995393cddf4d021477156af3cf7f161d3e27330d00306f159dc4",
+    "apps/shared/style.css": "3f7e5872ee473fc49fbacb834a943c3cf394a766d8448bb3799ac6b24c4b0cd9",
+    "apps/shared/sync-account/account-mutation-receipts.mjs": "1491be2e7601cc29c5e3cdc8045785660fc6f4532e09778444576287459daa47",
+    "apps/shared/sync-account/account-observation-consumer.mjs": "8ed2aa49d5fcf361c23b8652c3d7d9f5eb64970929f9273fef8beef36178ae07",
+    "apps/shared/sync-account/account-owner-context.mjs": "21d889096892fc1303b446c16c6b7894a8238003fd29da076d82f805c7c9d02e",
+    "apps/shared/sync-account/app-backup-recovery.mjs": "5ba1c079289136411e6f0bfb0b8422e3726938eacd5ea0505641cfe94a1e8c94",
+    "apps/shared/sync-account/authority-reauthorization-contract.mjs": "8b5a942c02738e25eec805bebba300188bdaf7ed7cb0455a30cf68b70b6c66ee",
+    "apps/shared/sync-account/chord-account-bridge.js": "8e04a1b7a5d37ca2e6ff671aaa1fada0b8b56557938cdea7cfb8fe0db3f8893b",
+    "apps/shared/sync-account/multi-app-conflict-ui.js": "753ba108ea918b7fad8914db7b367807b758b52483ea561315722090cb4afe9e",
+    "apps/shared/sync-account/multi-app-sync-bootstrap.js": "ee1627290dcfa865effadd446c41676cbf80354b700dc554a01c7a3eff65dbaf",
+    "apps/shared/sync-account/multi-app-sync-db.js": "bc3067ab63adfab484786852ae909ff0c4b0203e3fcbb617838c69478ea3c9de",
+    "apps/shared/sync-account/multi-app-sync-runtime.js": "2687c834989c756130338947a3865b0feb3110046e9ae4109afb33f149701136",
+    "apps/shared/sync-account/multi-app-sync.css": "b0ae7a7299b4a918c1e7ae7c411ed5222d476153177e5f07f9c0174f3b633631",
+    "apps/shared/sync-account/owner-cutover-contract.mjs": "efac5ff63be9f037fc5a1027d6580649700e48e94ca67b10394ae13d293b4af0",
+    "apps/shared/sync-account/owner-operation-lease-contract.mjs": "1f23acfde0db73ad8310e1c1db976c9689873f739c66c07fd0c5f6dd8f0376ba",
+    "apps/shared/sync-account/production-config.js": "9ed881da7d9f2695a300bf42efc1873eada190f807d23534f17dbe0986e9caa5",
+    "apps/shared/sync-account/settings-field-merge.js": "f8d5b0ef75cf48d9d964e3765caaf95d251bdcf11959b49e9398eaa65228e71e",
+    "apps/shared/sync-account/sync-account-client.js": "c5428748422863a6751f3f1b19799680e64095182565b419f28c647a8b26c06a",
+    "apps/shared/sync-account/sync-account-core.js": "6541e1de53bf7a2eccff56fe67fc1e93f0fc558224dba6f8f050d83832669066",
+    "apps/shared/sync-account/sync-account-db.js": "9079e1e9112979fb3c8d4f8cd2dd8f6356524f772e1f8eaf56babe2208cbea94",
+    "apps/shared/sync-account/sync-account-turnstile.js": "37acb36d1fcc7b2fe99ac5928578cd30a81a84f0dd31319627436091fca0878e",
+    "apps/shared/sync-account/sync-app-backup.js": "66e47066aa4c82ed4aed8d72371861f8ca0fbdbbbb4cca13115342c42f56dde6",
+    "apps/shared/sync-account/sync-ui-components.js": "ca2be3818ec212c0097b88ee339b2567b8d1f5fc5a72e68244ab09a82c5ad2be",
+    "apps/shared/sync-account/writer-authority.mjs": "779ea71b93be08a81184d86c8af0f7cd10517ed6cd26e25ee8e616c3f4e41ad5",
+    "isolation.html": "6a6769acf10f47d68713cca79304225acad656a2d531c980a3dbda5121144381"
+  },
+  "candidateCommit": "91e60cc1ee53a1884cd378f33788df149badd964"
+}

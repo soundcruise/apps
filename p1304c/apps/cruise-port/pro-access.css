@@ -1,0 +1,188 @@
+/* Port-only reuse of the existing Chord/Pitch/Fretboard/Rhythm access design. */
+
+        .port-pro-access-page {
+            background: #0a0a0c;
+            color: #fff;
+            overflow: auto;
+        }
+
+        .pro-access-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+            background: rgba(10, 10, 12, 0.97);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+        }
+
+        .pro-access-panel {
+            width: 100%;
+            max-width: 420px;
+            padding: 32px 24px;
+            border: 1px solid rgba(255, 210, 90, 0.35);
+            border-radius: 16px;
+            background: linear-gradient(165deg, rgba(40, 40, 44, 0.98), rgba(22, 22, 26, 0.99));
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+            text-align: center;
+        }
+
+        .pro-access-panel h1 {
+            margin: 0 0 12px;
+            color: #fff !important;
+            background: none !important;
+            -webkit-text-fill-color: unset !important;
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .pro-access-intro {
+            margin: 0 0 24px;
+            color: rgba(255, 255, 255, 0.68);
+            font-size: 0.84rem;
+            line-height: 1.65;
+        }
+
+        .pro-access-features {
+            margin: 0 0 24px;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 214, 94, 0.22);
+            border-radius: 10px;
+            background: rgba(255, 214, 94, 0.06);
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 0.8rem;
+            line-height: 1.7;
+            text-align: left;
+        }
+
+        .pro-access-features strong {
+            display: block;
+            margin-bottom: 4px;
+            color: rgba(255, 229, 102, 0.96);
+        }
+
+        .pro-access-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            text-align: left;
+        }
+
+        .pro-access-step {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .pro-access-step-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            min-width: 40px;
+            height: 40px;
+            border: 1.5px solid rgba(255, 214, 94, 0.4);
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.2), rgba(77, 150, 255, 0.15));
+            color: rgba(255, 229, 102, 0.92);
+            font-size: 1rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .pro-access-step-content {
+            flex: 1;
+            padding-top: 4px;
+        }
+
+        .pro-access-step-title {
+            margin-bottom: 8px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .pro-access-step-note {
+            margin-bottom: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.78rem;
+            line-height: 1.55;
+        }
+
+        .pro-access-step-link {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #ffd25a 0%, #ffb900 100%);
+            color: #000;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .pro-access-step-link:hover {
+            background: linear-gradient(90deg, #ffe066 0%, #ffc100 100%);
+            box-shadow: 0 4px 16px rgba(255, 210, 90, 0.3);
+        }
+
+        .pro-access-back {
+            margin-top: 28px;
+        }
+
+        .pro-access-back a {
+            color: rgba(255, 229, 102, 0.92);
+            font-size: 0.85rem;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        @media (max-width: 768px) {
+            .pro-access-container {
+                display: block;
+                min-height: auto;
+                padding-top: max(16px, env(safe-area-inset-top));
+                padding-bottom: max(16px, env(safe-area-inset-bottom));
+            }
+
+            .pro-access-panel {
+                margin: 20px auto;
+            }
+
+            .pro-access-panel h1 {
+                font-size: 1.15rem;
+            }
+
+            .pro-access-step-number {
+                width: 36px;
+                min-width: 36px;
+                height: 36px;
+                font-size: 0.9rem;
+            }
+        }
+
+.port-pro-access-page { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.pro-access-container, .pro-access-container * { box-sizing: border-box; }
+.pro-access-container[hidden] { display: none; }
+.pro-access-container ol { list-style: none; padding: 0; margin: 0; }
+.pro-access-container h2 { line-height: 1.5; }
+.pro-access-panel { min-width: 0; }
+.pro-access-features h2 { margin: 0 0 8px; font-size: 0.9rem; color: rgba(255,229,102,0.96); }
+.pro-access-features ul { margin: 0; padding-left: 1.2em; }
+.pro-access-features li { margin: 6px 0; }
+.pro-access-features p { margin: 12px 0 0; }
+.pro-access-container .pro-access-step-title { margin-top: 0; }
+.pro-access-container .pro-access-step-note { margin-top: 0; }
+.pro-access-step-content { min-width: 0; overflow-wrap: anywhere; }
+.pro-access-storage-note { font-size: 0.78rem; line-height: 1.7; color: rgba(255,255,255,0.68); text-align: left; margin: 24px 0 0; }
+.pro-access-back { display: flex; gap: 20px; justify-content: center; }
+.pro-access-back button { appearance: none; padding: 0; border: 0; background: none; color: rgba(255,229,102,0.92); font: inherit; font-size: 0.85rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.pro-access-container :is(a,button):focus-visible { outline: 2px solid #ffe566; outline-offset: 4px; }
+.pro-access-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pro-access-container .pro-access-step-link { color: #111; line-height: 1.5; }
+
+.pro-access-container { color: #fff; }
+.pro-access-container .pro-access-step { margin: 0; }
+.pro-access-container .pro-access-step-title { font-size: 0.95rem; }
+.pro-access-view.pro-access-container { padding: 0; min-height: 0; background: none; backdrop-filter: none; }

@@ -1,0 +1,1517 @@
+import { getAttentionGuide } from './sync-attention-ui.mjs?v=1.26.1';
+import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.4';
+import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.27.1';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
+import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
+import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
+
+const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
+
+// Failure-only, in-memory diagnostic: a closed vocabulary, never raw exceptions.
+export function accountRestartFailureDiagnostic(error) {
+    const d = error?.restartDiagnostic || {};
+    const stages = ['binding','summary','binding-recheck','cas','released','handoff'];
+    const names = ['Error','AccountApiError','AccountStorageError','AbortError','InvalidStateError','QuotaExceededError','SecurityError','UnknownError'];
+    const result = {stage:stages.includes(d.stage)?d.stage:'unknown',
+        code:ACCOUNT_RESTART_FAILURE_CODES.includes(d.code)?d.code:'account_release_failed',
+        errorName:names.includes(d.errorName)?d.errorName:null,
+        status:Number.isInteger(d.status)&&d.status>=100&&d.status<=599?d.status:null};
+    for(const key of ['generationMatches','bindingMatches','casAttempted','casSucceeded'])
+        result[key] = typeof d[key] === 'boolean' ? d[key] : null;
+    return result;
+}
+
+function setText(root, selector, value) {
+    const element = root.querySelector(selector);
+    if (element) element.textContent = value;
+}
+
+function appendText(parent, tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    element.textContent = text;
+    parent.append(element);
+    return element;
+}
+
+export function syncTargetsTabLabel(count) {
+    return `同期先${Number.isSafeInteger(count) && count >= 0 ? count : 0}件`;
+}
+
+function createSyncTargetsTab({ name, count, listId = null, panelId = null, disabled = false }) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `${panelId ? 'sync-center-app-info-toggle' : 'sync-center-environment-count'} sync-center-targets-tab`;
+    button.textContent = syncTargetsTabLabel(count);
+    button.setAttribute('aria-label', `${name}の${syncTargetsTabLabel(count)}を表示`);
+    button.setAttribute('aria-expanded', 'false');
+    if (panelId) button.setAttribute('aria-controls', panelId);
+    if (listId) {
+        button.dataset.syncEnvironmentToggle = listId;
+        button.setAttribute('aria-controls', `sync-center-environment-details-${listId}`);
+    }
+    button.disabled = disabled;
+    return button;
+}
+
+function appTargetCount(app, devicesState) {
+    if (devicesState !== 'unavailable' && Array.isArray(app.environments)) return app.environments.length;
+    return Number.isSafeInteger(app.activeAppDeviceCount) && app.activeAppDeviceCount >= 0
+        ? app.activeAppDeviceCount : 0;
+}
+
+// 「名前を変更」 for one sync target. Every surface (app detail, target management) emits the same data
+// attributes and one delegated handler opens the rename dialog. Names travel as dataset strings
+// and are only ever written back through textContent / input.value.
+export function createRenameButton({ kind, id, appId = null, context, userLabel = null, registeredLabel = null,
+    shortId = null, name }) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'sync-center-target-rename';
+    button.textContent = '名前を変更';
+    button.setAttribute('aria-label', `${name}の名前を変更`);
+    button.dataset.syncTargetRename = kind;
+    button.dataset.syncTargetId = id;
+    if (appId) button.dataset.syncTargetApp = appId;
+    button.dataset.syncTargetContext = context;
+    button.dataset.syncTargetUserLabel = userLabel || '';
+    button.dataset.syncTargetRegisteredLabel = registeredLabel || '';
+    button.dataset.syncTargetShortId = shortId || '';
+    return button;
+}
+
+// Target detail for one app row: the cloud state, then each sync target's own last report. Port can
+// only describe targets; it cannot open a specific one, so this panel offers no app launch.
+function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = false, aiSupport = false } = {}) {
+    const panel = document.createElement('div');
+    panel.className = 'sync-center-app-info';
+    panel.id = `sync-center-app-info-${app.id}`;
+    panel.hidden = true;
+    if (detail.statusText) appendText(panel, 'p', 'sync-center-app-info-summary', detail.statusText);
+    const cloud = document.createElement('section');
+    cloud.className = 'sync-center-app-info-section';
+    appendText(cloud, 'h3', 'sync-center-app-info-heading', 'クラウド');
+    appendText(cloud, 'p', 'sync-center-app-info-text', detail.cloudText);
+    panel.append(cloud);
+    if (detail.targets || detail.notice) {
+        const targets = document.createElement('section');
+        targets.className = 'sync-center-app-info-section';
+        appendText(targets, 'h3', 'sync-center-app-info-heading', '同期先');
+        if (detail.notice) appendText(targets, 'p', 'sync-center-app-info-notice', detail.notice);
+        if (detail.targets?.length) {
+            const list = document.createElement('ul');
+            list.className = 'sync-center-app-info-targets';
+            list.replaceChildren(...detail.targets.map((target) => {
+                const item = document.createElement('li');
+                item.className = `sync-center-app-info-target sync-center-app-info-target--${target.tone}`;
+                item.dataset.syncTargetState = target.state;
+                const mark = appendText(item, 'span', 'sync-center-app-info-mark', target.mark);
+                mark.setAttribute('aria-hidden', 'true');
+                const copy = document.createElement('div');
+                copy.className = 'sync-center-app-info-target-copy';
+                appendText(copy, 'strong', '', target.name);
+                if (target.secondary) appendText(copy, 'small', 'sync-center-app-info-meta', target.secondary);
+                appendText(copy, 'span', 'sync-center-app-info-state', target.stateText);
+                if (target.countText) appendText(copy, 'span', 'sync-center-app-info-state', target.countText);
+                if (target.meta.length) appendText(copy, 'small', 'sync-center-app-info-meta', target.meta.join('・'));
+                item.append(copy);
+                if (target.id && renameEnabled) {
+                    const actions = document.createElement('div');
+                    actions.className = 'sync-center-app-info-target-actions';
+                    actions.append(createRenameButton({ kind: 'app', id: target.id, appId: app.id, context: app.name,
+                        userLabel: target.userLabel, registeredLabel: target.registeredLabel,
+                        shortId: target.shortId, name: target.name }));
+                    // Same data attributes as the target-management 解除, so the same named confirmation
+                    // (and the same device-ID revoke) is used; nothing is removed without confirming.
+                    const revoke = document.createElement('button');
+                    revoke.type = 'button';
+                    revoke.className = 'sync-center-target-revoke';
+                    revoke.textContent = '解除';
+                    revoke.setAttribute('aria-label', `${target.name}を解除`);
+                    revoke.dataset.syncAppEnvironmentRevoke = target.id;
+                    revoke.dataset.syncAppEnvironmentApp = app.id;
+                    revoke.dataset.syncTargetLabel = describeTargetForConfirm(target, app.name);
+                    actions.append(revoke);
+                    item.append(actions);
+                }
+                return item;
+            }));
+            targets.append(list);
+        } else if (detail.emptyText) {
+            appendText(targets, 'p', 'sync-center-app-info-text', detail.emptyText);
+        }
+        for (const text of detail.guidance || []) appendText(targets, 'p', 'sync-center-app-info-guidance', text);
+        if (detail.footnote) appendText(targets, 'p', 'sync-center-app-info-footnote', detail.footnote);
+        panel.append(targets);
+    }
+    // Points at the existing support section instead of adding a mail button to every row.
+    if (detail.support) appendText(panel, 'p', 'sync-center-app-info-support', SYNC_DETAIL_COPY.support);
+    // Pro beta: a status that needs attention can go straight to the same AI support panel.
+    if (detail.support && aiSupport) {
+        const ask = document.createElement('button');
+        ask.type = 'button';
+        ask.className = 'sync-center-app-info-ai';
+        ask.textContent = 'AIに相談';
+        ask.setAttribute('aria-label', `${app.name}についてAIに相談`);
+        ask.dataset.syncAiSupportOpen = app.id;
+        panel.append(ask);
+    }
+    if (detail.retry && typeof onRecheck === 'function') {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'sync-center-app-info-retry';
+        button.textContent = 'もう一度確認';
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            button.disabled = true;
+            void Promise.resolve(onRecheck(app.id)).finally(() => { button.disabled = false; });
+        });
+        panel.append(button);
+    }
+    return panel;
+}
+
+// Confirmation copy follows the Worker's revoke scope for each operation. Disconnecting sync never
+// deletes cloud or on-device data, but an app loses its pending sync state when its connection ends.
+export const RECOVERY_IMPACT = '復旧を確定すると、現在接続されているすべてのCruise Portと各Cruiseアプリ（ホーム画面版・ブラウザ版を含む）で再接続が必要になります。クラウド上の同期データは残ります。';
+// 「同期済み」 here is the target app's own sync status, not Port's 「✓ 同期済み」 product status.
+export const SYNC_DETACH_NOTE = 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。';
+const LINKED_APPS = 'このCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。';
+
+export function describeLifecycleAction(kind, { appName = 'このアプリ', lastPort = false, current = false,
+    targetLabel = null } = {}) {
+    if (kind === 'app-environment') {
+        return Object.freeze({ title: '選択した同期先を解除', severity: 'normal', syncNote: true,
+            summary: `${targetLabel ? `${targetLabel}の同期だけを解除します。` : '選択した同期先1件だけの同期を解除します。'}同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。` });
+    }
+    if (kind === 'current-environment') {
+        return Object.freeze({ title: 'このCruise Portの接続を解除', severity: 'caution', syncNote: true,
+            summary: lastPort
+                ? `このCruise Portの接続を解除します。${LINKED_APPS}これが最後のCruise Portのため、このアカウントへ再び接続するには保存済みの復旧コードが必要です。アカウントは削除されず、クラウド上と端末内のデータは残ります。`
+                : `このCruise Portの接続を解除します。${LINKED_APPS}別のCruise Portから接続した同期先と、クラウド上・端末内のデータは残ります。` });
+    }
+    if (kind === 'environment') {
+        return Object.freeze({ title: current ? 'このCruise Portの同期を解除' : '選択したCruise Portの同期を解除',
+            severity: 'caution', syncNote: true,
+            summary: current
+                ? 'このCruise Portの同期を解除します。このCruise Portに結び付いた各Cruiseアプリの同期も解除され、このCruise Portは未接続になります。ほかのCruise Portと、クラウド上・端末内のデータは残ります。'
+                : `${targetLabel ? `${targetLabel}の同期を解除します。` : '選択したCruise Portの同期を解除します。'}そのCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。ほかのCruise Portとその同期先、クラウド上のデータは残ります。` });
+    }
+    if (kind === 'detach') {
+        return Object.freeze({ title: `${appName}の同期を解除`, severity: 'caution', syncNote: true,
+            summary: `${appName}の同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。解除後は同期コードからいつでも再接続できます。` });
+    }
+    return null;
+}
+
+export function markAppRowsChecking(root) {
+    renderPortStatus(root, { accountState: 'unknown', portStatus: PORT_SYNC_STATUS_PRESENTATIONS.checking, portStructuredStatus: { checking: true } });
+    const alert = root?.querySelector?.('#sync-center-alert');
+    if (alert) alert.hidden = true;
+    const recheck = root?.querySelector?.('#sync-center-account-recheck');
+    if (recheck) recheck.disabled = true;
+    const list = root?.querySelector?.('#sync-center-apps');
+    if (!list) return;
+    list.setAttribute('aria-busy', 'true');
+    list.querySelectorAll?.('.sync-center-app-status-chip').forEach((chip) => {
+        chip.className = 'sync-center-app-status-chip sync-center-app-status-chip--checking';
+        chip.textContent = '確認中…';
+    });
+    list.querySelectorAll?.('.sync-center-app-action').forEach((action) => {
+        if (action.dataset?.syncAriaBase) action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（確認中…）`);
+    });
+    list.querySelectorAll?.('.sync-center-app-info-toggle').forEach((toggle) => {
+        toggle.disabled = true;
+        toggle.setAttribute('aria-expanded', 'false');
+    });
+    list.querySelectorAll?.('.sync-center-app-info').forEach((panel) => { panel.hidden = true; });
+}
+
+export function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction = null,
+    { onRecheck = null, aiSupport = false, onResolveApp = null } = {}) {
+    const list = root.querySelector('#sync-center-apps');
+    if (!list) return;
+    list.removeAttribute('aria-busy');
+    const rows = presentation.apps.map((app) => {
+        const row = document.createElement('li');
+        const presentationStatus = presentation.kind === 'ready'
+            ? (app.presentationStatus || appSyncStatusPresentation(app))
+            : appSyncStatusPresentation(app, presentation.kind);
+        row.className = `sync-center-app sync-status-${presentationStatus.state}`;
+        const image = document.createElement('img');
+        image.src = CRUISE_APP_ICONS[app.id][edition === 'pro' ? 'pro' : 'standard'];
+        image.alt = '';
+        image.width = 48;
+        image.height = 48;
+        const copy = document.createElement('div');
+        copy.className = 'sync-center-app-copy';
+        const name = document.createElement('strong');
+        name.textContent = app.name;
+        const detail = document.createElement('span');
+        detail.className = 'sync-center-app-status-line sync-center-app-status-line--app';
+        // The status chip is display-only; the target tab opens the existing detail.
+        const chip = document.createElement('span');
+        chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${presentationStatus.state}`;
+        const visibleStatus = presentationStatus.state === 'attention' && app.attentionCount > 0
+            ? `${presentationStatus.label} ${app.attentionCount}件` : presentationStatus.label;
+        chip.textContent = visibleStatus;
+        detail.append(chip);
+        let infoPanel = null;
+        if (appHasSyncDetail(app, presentation.kind)) {
+            infoPanel = createSyncInfoPanel(app, describeAppSyncDetail(app, {
+                kind: presentation.kind, devicesState: presentation.devicesState
+            }), { onRecheck, aiSupport, renameEnabled: orchestrationEnabled && presentation.accountState === 'active' });
+            const toggle = createSyncTargetsTab({ name: app.name,
+                count: appTargetCount(app, presentation.devicesState), panelId: infoPanel.id });
+            toggle.addEventListener('click', (event) => {
+                event.stopPropagation();
+                infoPanel.hidden = !infoPanel.hidden;
+                toggle.setAttribute('aria-expanded', String(!infoPanel.hidden));
+            });
+            detail.append(toggle);
+        }
+        copy.append(name, detail);
+        const actions = document.createElement('div');
+        actions.className = 'sync-center-app-row-actions';
+        const needsInitialConnection = ['unset', 'prepared', 'detached'].includes(app.status);
+        const accountReady = presentation.accountState === 'active';
+        const canRemoveAppSync = Number(app.activeAppDeviceCount || 0) > 0 &&
+            app.status !== 'deleting' && orchestrationEnabled;
+        const action = document.createElement(needsInitialConnection
+            ? (accountReady && !orchestrationEnabled ? 'a' : 'button')
+            : canRemoveAppSync ? 'button' : 'span');
+        action.className = canRemoveAppSync
+            ? 'sync-center-app-action sync-center-app-remove'
+            : 'sync-center-app-action';
+        if (needsInitialConnection && accountReady && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
+        else if (needsInitialConnection && accountReady) {
+            action.type = 'button';
+            action.dataset.syncAppAction = app.id;
+            if (typeof onAppAction === 'function') {
+                action.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    void onAppAction(action);
+                });
+            }
+        }
+        if (needsInitialConnection && app.deleteGrace) {
+            action.dataset.syncAppDeleteGrace = 'true';
+            action.dataset.syncAppName = app.name;
+        }
+        if (canRemoveAppSync) {
+            action.type = 'button';
+            action.dataset.syncAppDetach = app.id;
+            action.dataset.syncAppName = app.name;
+        }
+        // Prepared memberships use the same launch callback as normal rows, but
+        // opening them issues the initial connection code. Keep that callback
+        // contract intact while making the next action clear in the UI.
+        const actionLabel = needsInitialConnection && !accountReady
+            ? '先にアカウントを作成または接続してください'
+            : needsInitialConnection ? '同期コード' : canRemoveAppSync ? '同期を解除' : app.statusLabel;
+        action.textContent = actionLabel;
+        // The screen reader hears the same status as the visible chip, never the membership label.
+        action.dataset.syncAriaBase = `${app.name}で${actionLabel}`;
+        action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（${visibleStatus}）`);
+        if (needsInitialConnection && !accountReady) {
+            action.disabled = true;
+            action.setAttribute('aria-disabled', 'true');
+        } else if (app.action === 'none' || (!needsInitialConnection && !canRemoveAppSync)) {
+            action.removeAttribute('href');
+            action.setAttribute('aria-disabled', 'true');
+        }
+        if (presentationStatus.state === 'attention' || presentationStatus.state === 'recheck') {
+            const review = document.createElement('button');review.type='button';review.className='sync-center-app-action secondary';
+            review.textContent='解決方法を確認';review.dataset.syncResolveApp=app.id;review.dataset.syncAriaBase=app.name+'の解決方法を確認';review.setAttribute('aria-label',review.dataset.syncAriaBase+'（'+visibleStatus+'）');
+            review.addEventListener('click',()=>{void onResolveApp?.(app);});actions.append(review);
+        }
+        actions.append(action);
+        row.append(image, copy, actions);
+        if (infoPanel) row.append(infoPanel);
+        return row;
+    });
+    list.replaceChildren(...rows);
+}
+
+
+// Count each app's authoritative summary once; device reports describe the same items.
+export function syncAttentionItems(presentation) {
+    if(presentation.kind!=='ready'||presentation.accountState!=='active')return [];
+    const apps=(presentation.apps||[]).filter(a=>appSyncStatusPresentation(a).state==='attention').map(a=>({id:a.id,
+        count:Math.max(1,a.attentionCount||0),key:JSON.stringify([a.id,a.status,a.removalSafety,a.attentionCount,
+            (a.environments||[]).filter(e=>['attention','error'].includes(e.lastReport?.state)).map(e=>[e.id,e.lastReport.state,e.lastReport.attentionCount])]),app:a}));
+    if(presentation.portStatus?.state==='attention')apps.unshift({id:'port',count:Math.max(1,presentation.portConflictCount||0),
+        key:JSON.stringify(['port',presentation.portStatus.state,presentation.portConflictCount,presentation.portStatus.detail]),port:true});
+    return apps;
+}
+function renderAttentionGuidance(root,presentation,{onResolveApp,onResolvePort}) {
+    let overall=root.querySelector('#sync-center-overall-status');
+    if(!overall){overall=document.createElement('span');overall.id='sync-center-overall-status';overall.className='sync-center-app-status-chip';overall.setAttribute('role','status');
+        root.querySelector('.sync-center-account-status-row')?.append(overall);}
+    const issues=syncAttentionItems(presentation),count=issues.reduce((n,i)=>n+i.count,0);
+    if(overall){overall.hidden=presentation.kind!=='ready';overall.textContent=count?'要確認'+count+'件':'同期の確認事項なし';overall.dataset.syncOverallCount=String(count);}
+    const guide=getAttentionGuide();
+    for(const i of issues){const open=i.port?()=>onResolvePort?.({automatic:true,runtimeActive:presentation.portRuntimeActive}):typeof onResolveApp==='function'?()=>onResolveApp(i.app):null;if(typeof open!=='function')continue;
+        void guide.open({key:JSON.stringify([presentation.accountDisplayId||presentation.accountState,i.key]),open,
+            canOpen:()=>!root.closest('[hidden]')&&!document.querySelector('dialog[open]')},true).catch(()=>{});}
+}
+
+// 「Pixel」（コードクルーズ・EDAE） / 登録名「Chord Cruise」（コードクルーズ・B91C） / 同期先 B91C（コードクルーズ）
+export function describeTargetForConfirm(naming, context) {
+    const name = naming.userLabel ? `「${naming.userLabel}」` : naming.name;
+    const detail = naming.userLabel || naming.registeredLabel ? [context, naming.shortId].filter(Boolean) : [context];
+    return `${name}（${detail.join('・')}）`;
+}
+
+function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, listId }) {
+        const details = document.createElement('ul');
+        details.className = 'sync-center-environments sync-center-environment-list';
+        details.dataset.syncEnvironmentDetails = listId;
+        details.id = `sync-center-environment-details-${listId}`;
+        details.hidden = true;
+        const targetNames = describeSyncTargetNames(entry.environments);
+        const environmentRows = entry.environments.map((environment, index) => {
+            const naming = targetNames[index];
+            const item = document.createElement('li');
+            const copy = document.createElement('span');
+            copy.className = 'sync-center-environment-copy';
+            // The user's name and the system marker are separate: a name can never read as the marker.
+            // For an app target, isCurrent only means it was connected from this Cruise Port.
+            appendText(copy, 'span', 'sync-center-environment-name', naming.name);
+            if (entry.id === 'port' ? environment.isCurrentPortEnvironment : environment.isCurrent) {
+                appendText(copy, 'span', entry.id === 'port'
+                    ? 'sync-center-environment-current sync-center-environment-current--account'
+                    : 'sync-center-environment-current',
+                    entry.id === 'port' ? 'この端末' : 'このCruise Portから接続');
+            }
+            if (naming.secondary) appendText(copy, 'small', '', naming.secondary);
+            const metadata = document.createElement('small');
+            const lastSeen = environment.lastSeenAt == null ? '不明' : new Date(environment.lastSeenAt).toLocaleString('ja-JP');
+            metadata.textContent = `最終利用 ${lastSeen}`;
+            copy.append(metadata);
+            item.append(copy);
+            if (environment.id && renameEnabled) {
+                const rename = createRenameButton({ kind: entry.id === 'port' ? 'account' : 'app', id: environment.id,
+                    appId: entry.id === 'port' ? null : entry.id, context: entry.name,
+                    userLabel: naming.userLabel, registeredLabel: naming.registeredLabel,
+                    shortId: naming.shortId, name: naming.name });
+                rename.dataset.syncTargetSurface = listId;
+                item.append(rename);
+            }
+            if (environment.id) {
+                const revoke = document.createElement('button');
+                revoke.type = 'button';
+                revoke.className = 'action-button secondary-action';
+                revoke.textContent = '解除';
+                revoke.setAttribute('aria-label', `${naming.name}を解除`);
+                // The detach confirmation names exactly this target to prevent removing the wrong one.
+                revoke.dataset.syncTargetLabel = describeTargetForConfirm(naming, entry.name);
+                revoke.dataset.syncEnvironmentCurrent = environment.isCurrent ? 'true' : 'false';
+                if (entry.id === 'port') {
+                    revoke.dataset.syncEnvironmentRevoke = environment.id;
+                    if (environment.isCurrent) {
+                        revoke.dataset.syncCurrentEnvironmentDetach = 'true';
+                        revoke.dataset.syncCurrentEnvironmentLastPort = String(portEnvironments.length === 1);
+                    }
+                } else {
+                    revoke.dataset.syncAppEnvironmentRevoke = environment.id;
+                    revoke.dataset.syncAppEnvironmentApp = entry.id;
+                }
+                item.append(revoke);
+            }
+            return item;
+        });
+        details.replaceChildren(...environmentRows);
+        return details;
+}
+
+function renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled) {
+    const portList = root.querySelector('#sync-center-add-environments');
+    const appList = root.querySelector('#sync-center-app-environments');
+    if (!portList || !appList) return;
+    const activeAccount = presentation.accountState === 'active';
+    const portEnvironments = presentation.environments.filter((environment) =>
+        environment.state === 'active' && environment.isPortEnvironment);
+    const entries = [
+        {
+            id: 'port', name: 'Cruise Port',
+            subtitle: null,
+            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.69.0`,
+            available: activeAccount,
+            environments: portEnvironments
+        },
+        ...presentation.apps.map((app) => ({
+            ...app,
+            icon: CRUISE_APP_ICONS[app.id][edition === 'pro' ? 'pro' : 'standard'],
+            available: activeAccount && app.canAddEnvironment && !app.deleteGrace,
+            environments: Array.isArray(app.environments) ? app.environments : []
+        }))
+    ];
+    const rows = entries.map((entry) => {
+        const row = document.createElement('li');
+        row.className = 'sync-center-app sync-center-environment-group sync-center-destination-card';
+        const primary = document.createElement('div');
+        primary.className = 'sync-center-destination-primary';
+        const image = document.createElement('img');
+        image.src = entry.icon;
+        image.alt = '';
+        image.width = 48;
+        image.height = 48;
+        const copy = document.createElement('div');
+        copy.className = 'sync-center-app-copy';
+        const name = document.createElement('strong');
+        name.textContent = entry.name;
+        copy.append(name);
+        if (entry.subtitle) {
+            const subtitle = document.createElement('span');
+            subtitle.className = 'sync-center-app-subtitle';
+            subtitle.textContent = entry.subtitle;
+            copy.append(subtitle);
+        }
+        primary.append(image, copy);
+        const count = createSyncTargetsTab({ name: entry.name, count: entry.environments.length,
+            listId: entry.id, disabled: entry.environments.length === 0 });
+        count.className += ' sync-center-destination-count';
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'sync-center-app-action secondary sync-center-destination-add';
+        add.textContent = entry.id === 'port' ? '別の端末を追加' : '同期先を追加';
+        add.disabled = !orchestrationEnabled || !entry.available;
+        add.setAttribute('aria-label', `${entry.name}の追加コードを表示`);
+        if (entry.id === 'port') add.dataset.syncPortAddEnvironment = 'true';
+        else add.dataset.syncAppAddEnvironment = entry.id;
+        const details = createEnvironmentDetails({ entry, portEnvironments,
+            renameEnabled: orchestrationEnabled && activeAccount, listId: entry.id });
+        row.append(primary, add, count, details);
+        return row;
+    });
+    portList.replaceChildren(rows[0]);
+    appList.replaceChildren(...rows.slice(1));
+    const accountTargets = root.querySelector('#sync-center-account-targets');
+    const accountTrigger = root.querySelector('#sync-center-account-targets-trigger');
+    if (accountTargets && accountTrigger) {
+        const entry = entries[0];
+        const count = createSyncTargetsTab({ name: entry.name, count: entry.environments.length,
+            listId: 'port-account', disabled: entry.environments.length === 0 });
+        const details = createEnvironmentDetails({ entry, portEnvironments,
+            renameEnabled: orchestrationEnabled && activeAccount, listId: 'port-account' });
+        accountTrigger.replaceChildren(count);
+        accountTargets.replaceChildren(details);
+    }
+}
+
+function renderDangerActions(root, presentation) {
+    const accountDelete = root.querySelector('#sync-center-account-delete');
+    if (accountDelete) accountDelete.disabled = presentation.accountState !== 'active';
+    root.querySelectorAll('[data-sync-app-delete]').forEach((button) => {
+        const app = presentation.apps.find((item) => item.id === button.dataset.syncAppDelete);
+        button.disabled = presentation.accountState !== 'active' ||
+            !app || app.deleteGrace || ['unset', 'prepared', 'deleting'].includes(app.status);
+    });
+}
+
+export function shouldShowPortConflictAction(presentation = {}) {
+    return Number(presentation.portConflictCount) > 0;
+}
+
+export function renderPortStatus(root, presentation, onRecheck = null) {
+    const checking = presentation.portStatus?.state === 'checking';
+    const status = !checking && shouldShowPortConflictAction(presentation) ? { state: 'attention', label: '確認が必要' } : presentation.portStatus || {
+        state: 'attention', label: '確認が必要'
+    };
+    const chip = root.querySelector('#sync-center-port-status-chip');
+    if (chip) {
+        const actionable = status.state === 'synced' && typeof onRecheck === 'function';
+        chip.setAttribute('role', actionable ? 'button' : 'status');
+        chip.setAttribute('tabindex', actionable ? '0' : '-1');
+        chip.setAttribute('aria-disabled', String(!actionable));
+        chip.setAttribute('aria-label', actionable ? '同期済み。Account・端末の接続状態を確認。データ同期は開始しません。' : status.label);
+        chip.setAttribute('title', actionable ? 'Account・端末の接続状態を確認（データ同期は開始しません）' : '');
+        chip.onclick = actionable ? () => { chip.onclick = null; chip.onkeydown = null; chip.setAttribute('aria-disabled', 'true'); return onRecheck(); } : null;
+        chip.onkeydown = actionable ? event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); chip.onclick?.(); } } : null;
+        chip.textContent = status.label;
+        chip.dataset.syncPortStatus = status.state;
+        chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${status.state}`;
+    }
+    const conflictsOpen = root.querySelector('#sync-center-port-conflicts-open');
+    if (conflictsOpen) {
+        conflictsOpen.hidden = checking || !shouldShowPortConflictAction(presentation);
+        // A Studio read-only projection has no owner state. Preserve the native
+        // explicit activation wording instead of claiming this is a read-only action.
+        if (typeof presentation.portRuntimeActive === 'boolean') {
+            conflictsOpen.textContent = presentation.portRuntimeActive ? '競合を確認する' : '同期を再開して競合を確認する';
+        }
+    }
+    const detail = root.querySelector('#sync-center-port-status-detail');
+    if (detail && ('portStructuredStatus' in presentation || shouldShowPortConflictAction(presentation))) detail.textContent = portSyncStatusDetail({ accountState: presentation.accountState,
+        structured: presentation.portStructuredStatus || { conflictCount: presentation.portConflictCount }, assets: presentation.portAssetStatus,
+        online: presentation.portOnline, status });
+    const activate = root.querySelector('#port-sync-activate');
+    if (activate) activate.hidden = presentation.restartAccount || ['unset', 'deleting'].includes(presentation.accountState) || ['checking', 'syncing', 'synced'].includes(status.state) || shouldShowPortConflictAction(presentation);
+    const legacyRetry = root.querySelector('#sync-center-port-legacy-retry');
+    if (legacyRetry) legacyRetry.hidden = checking || !presentation.legacyRetryCount;
+}
+
+function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sync-center-help-dialog';
+    dialog.dataset.syncJoinInvitation = result.invitationId;
+    const panel = document.createElement('div');
+    panel.className = 'sync-center-join-panel';
+    const header = document.createElement('header');
+    header.className = 'sync-center-join-header';
+    const title = document.createElement('h2');
+    const isPortAddition = result.kind === 'add_port';
+    title.textContent = isPortAddition ? '別のCruise Portを追加'
+        : 'このアプリを接続';
+    const target = isPortAddition
+        ? { id: 'port', name: 'Cruise Port' }
+        : SYNC_CENTER_APPS.find((app) => app.id === result.appId);
+    if (target) {
+        const badge = document.createElement('div');
+        badge.className = 'sync-center-join-target';
+        const icon = document.createElement('img');
+        icon.src = isPortAddition
+            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.69.0`
+            : CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
+        icon.alt = '';
+        icon.width = 44;
+        icon.height = 44;
+        const name = document.createElement('span');
+        name.textContent = target.name;
+        badge.append(icon, name);
+        header.append(title, badge);
+    } else {
+        header.append(title);
+    }
+    const intro = document.createElement('p');
+    intro.className = 'sync-center-join-intro';
+    intro.textContent = isPortAddition
+        ? '別の端末やブラウザのCruise Portを、このアカウントに追加します。'
+        : '以下の手順で接続します。';
+    const steps = document.createElement('ol');
+    steps.className = 'sync-center-join-steps';
+    (isPortAddition ? [
+        '追加コードをコピー',
+        '追加したい端末やブラウザでCruise Portを開く',
+        '「既存のアカウントに接続」を押す',
+        'コードを入力して接続する'
+    ] : [
+        'コードをコピー',
+        '普段使っているProアプリを開く',
+        '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
+        'コードを貼り付けて「接続する」を押す'
+    ]).forEach((step) => {
+        const item = document.createElement('li');
+        item.textContent = step;
+        steps.append(item);
+    });
+    const codeLabel = document.createElement('p');
+    codeLabel.className = 'sync-center-join-code-label';
+    codeLabel.textContent = '接続コード';
+    const code = document.createElement('output');
+    code.dataset.sensitive = 'true';
+    code.className = 'sync-center-join-code';
+    code.textContent = result.displayJoinCode;
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'action-button primary-action';
+    copy.textContent = 'コードをコピー';
+    const copyStatus = document.createElement('p');
+    copyStatus.setAttribute('role', 'status');
+    copyStatus.setAttribute('aria-live', 'polite');
+    let copyStatusTimer = null;
+    copy.addEventListener('click', async () => {
+        copy.disabled = true;
+        copy.setAttribute('aria-busy', 'true');
+        try {
+            if (!globalThis.navigator?.clipboard?.writeText) throw new Error('clipboard_unavailable');
+            await globalThis.navigator.clipboard.writeText(result.displayJoinCode);
+            copyStatus.textContent = 'コピーしました';
+        } catch (_) {
+            copyStatus.textContent = 'コピーできませんでした。コードを選択してコピーしてください。';
+        } finally {
+            copy.disabled = false;
+            copy.removeAttribute('aria-busy');
+            if (copyStatusTimer) globalThis.clearTimeout(copyStatusTimer);
+            copyStatusTimer = globalThis.setTimeout(() => { copyStatus.textContent = ''; }, TEMPORARY_FEEDBACK_MS);
+        }
+    });
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'action-button secondary-action';
+    close.textContent = '閉じる';
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', () => {
+        code.textContent = '';
+        dialog.remove();
+        Promise.resolve(onClose()).catch(() => {});
+    }, { once: true });
+    const actions = document.createElement('div');
+    actions.className = 'sync-center-join-actions';
+    actions.append(copy, close);
+    const expires = document.createElement('p');
+    expires.className = 'sync-center-join-note';
+    expires.textContent = 'このコードは5分間有効です。';
+    const keepOpen = document.createElement('p');
+    keepOpen.className = 'sync-center-join-note sync-center-join-warning';
+    keepOpen.textContent = '※ 接続が完了するまで、この画面を開いたままにしてください。閉じると、このコードは使えなくなります。';
+    steps.children[0]?.after(keepOpen);
+    panel.append(header, intro, steps, codeLabel, code, actions, expires, copyStatus);
+    dialog.append(panel);
+    root.append(dialog);
+    dialog.showModal();
+}
+
+function confirmDeleteCancellation(root, appName) {
+    return new Promise((resolve) => {
+        const dialog = document.createElement('dialog');
+        dialog.className = 'sync-center-help-dialog';
+        const panel = document.createElement('div');
+        panel.className = 'sync-center-join-panel';
+        const title = document.createElement('h2');
+        title.textContent = '削除を取り消して再接続';
+        const copy = document.createElement('p');
+        copy.textContent = `${appName}の同期データは削除待ちです。再接続すると削除を取り消し、現在のクラウドデータを引き続き使用します。`;
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.className = 'action-button primary-action';
+        confirm.textContent = '削除を取り消して同期コードを表示';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'action-button secondary-action';
+        cancel.textContent = 'キャンセル';
+        const actions = document.createElement('div');
+        actions.className = 'sync-center-join-actions';
+        actions.append(confirm, cancel);
+        panel.append(title, copy, actions);
+        dialog.append(panel);
+        root.append(dialog);
+        let accepted = false;
+        confirm.addEventListener('click', () => { accepted = true; dialog.close(); }, { once: true });
+        cancel.addEventListener('click', () => dialog.close(), { once: true });
+        dialog.addEventListener('close', () => {
+            dialog.remove();
+            resolve(accepted);
+        }, { once: true });
+        dialog.showModal();
+    });
+}
+
+export function renderSyncCenter(root, presentation, {
+    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false, onResolveApp = null, onResolvePort = null, onRestartDeletedAccount = null
+} = {}) {
+    if (!root || !presentation || presentation.kind === 'disabled') return;
+    root.dataset.syncState = presentation.kind;
+    const accountStatus = root.querySelector('#sync-center-account-status');
+    const setupOpen = root.querySelector('#sync-center-setup-open');
+    const portConnectOpen = root.querySelector('#sync-center-port-connect-open');
+    const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
+    let restart=root.querySelector('[data-deleted-account-restart]');
+    if(!restart){restart=document.createElement('section');restart.dataset.deletedAccountRestart='';const copy=document.createElement('p');copy.setAttribute('role','status');copy.textContent='このAccountは削除済み、または削除処理中です。古いAccountへの同期は停止しています。削除処理の完了を待たずに再スタートできます。接続資格だけを解除し、ローカルデータ・未送信データは保持します。別Accountへ自動送信しません。';restart.append(copy);for(const [mode,label] of [['create','新しいAccountを作成'],['connect','既存Accountに接続']]){const button=document.createElement('button');button.type='button';button.className='sync-center-account-action';button.dataset.restartMode=mode;button.textContent=label;restart.append(button);}root.querySelector('.sync-center-account-actions')?.append(restart);}
+    restart.hidden=!presentation.restartAccount;
+    restart.querySelector('p').textContent=(presentation.deletedAccount?'このAccountは削除済み、または削除処理中です。':'以前のAccount接続資格はサーバーに無効と判定されました。削除済みかどうかは断定できません。')+' 古い資格での同期は停止しています。接続資格だけを解除して、新規作成または既存Account接続へ進めます。ローカルデータ・未送信データは保持し、別Accountへ自動送信しません。';
+    for(const button of restart.querySelectorAll('button')){
+        button.disabled=!onRestartDeletedAccount;
+        button.onclick=async()=>{
+            if(!globalThis.confirm('以前のAccountの接続資格だけをこのブラウザから解除します。ローカルデータ・未送信Outbox・制作Projectは削除も別Accountへの移管もしません。続けますか？'))return;
+            button.disabled=true;
+            delete root.dataset.accountRestartDiagnostic;
+            try { await onRestartDeletedAccount?.(button.dataset.restartMode); }
+            catch(error) {
+                const diagnostic=accountRestartFailureDiagnostic(error);
+                root.dataset.accountRestartDiagnostic=JSON.stringify(diagnostic);
+                const alert=root.querySelector('#sync-center-alert');
+                if(alert){alert.hidden=false;alert.textContent=diagnostic.casSucceeded
+                    ? '以前の接続資格は解除されましたが、接続画面を開けませんでした。Cruise Syncを開き直してください。保存データは保持しています。'
+                    : '接続資格を解除できませんでした。通信または接続先の変更を確認してから再確認してください。保存データは保持しています。';}
+            } finally { button.disabled=false; }
+        };
+    }
+
+    const recoveryOpen = root.querySelector('#sync-center-recovery-open');
+    const recoveryHelp = root.querySelector('#sync-center-recovery-help');
+    const accountActionRow = root.querySelector('.sync-center-account-action-row');
+    const accountState = presentation.accountState;
+    const recheck = root.querySelector('#sync-center-account-recheck');
+    if (recheck) { recheck.disabled = false; recheck.hidden = ['unset', 'deleting'].includes(accountState) || (accountState === 'active' && presentation.kind === 'ready' &&
+        !(presentation.portStatus?.state === 'attention' && !shouldShowPortConflictAction(presentation))); recheck.onclick = () => onRecheck?.(); }
+    if (accountActionRow) accountActionRow.dataset.syncAccountState = accountState || 'unknown';
+    const accountDisplayId = root.querySelector('#sync-center-account-display-id');
+    if (accountStatus) {
+        accountStatus.textContent = presentation.restartAccount ? (presentation.deletedAccount?'削除済み・削除処理中':'以前の接続資格が無効') : accountState === 'unset' ? '未作成' :
+            accountState === 'active' ? '作成済み' : accountState === 'deleting' ? '削除中' : '確認が必要';
+        accountStatus.dataset.syncAccountState = accountState || 'unknown';
+    }
+    if (setupOpen) {
+        setupOpen.hidden = accountState !== 'unset';
+        setupOpen.textContent = 'アカウントの作成';
+    }
+    if (portConnectOpen) portConnectOpen.hidden = accountState !== 'unset';
+    if (accountRecoveryOpen) {
+        accountRecoveryOpen.hidden = accountState !== 'active';
+        accountRecoveryOpen.textContent = '復旧コードを更新';
+    }
+    if (recoveryOpen) recoveryOpen.hidden = accountState !== 'unset';
+    if (recoveryHelp) {
+        recoveryHelp.textContent = accountState === 'active'
+            ? '復旧コードは、アカウントを取り戻すためのコードです。現在のコードは再表示できません。「復旧コードを更新」で新しいコードを発行すると、以前のコードは使えなくなります。安全な場所に保存してください。'
+            : '保存してある復旧コードを使って、既存のSound Cruise Syncアカウントを復旧できます。';
+    }
+    if (accountDisplayId) {
+        accountDisplayId.textContent = presentation.accountDisplayId
+            ? `アカウント：${presentation.accountDisplayId}` : '';
+        accountDisplayId.hidden = !presentation.accountDisplayId;
+    }
+    const alert = root.querySelector('#sync-center-alert');
+    if (alert) {
+        alert.hidden = !['error', 'offline'].includes(presentation.kind);
+        alert.textContent = presentation.restartAccount ? '上の操作から接続資格だけを解除して再スタートできます。端末内のデータは削除しません。' : presentation.kind === 'offline'
+            ? 'オフラインのため同期情報を更新できません。各アプリとCruise Portはそのまま利用できます。'
+            : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
+    }
+    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onRecheck, aiSupport, onResolveApp });
+    renderPortStatus(root, presentation, onRecheck);
+    renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
+    renderDangerActions(root, presentation);
+    renderAttentionGuidance(root, presentation, {onResolveApp,onResolvePort});
+}
+
+function bindSectionHelp(root) {
+    root?.querySelectorAll?.('[data-sync-section-help-toggle]').forEach((button) => {
+        if (button.dataset.syncSectionHelpBound === 'true') return;
+        button.dataset.syncSectionHelpBound = 'true';
+        button.addEventListener('click', () => {
+            const help = root.querySelector(`#${button.dataset.syncSectionHelpToggle}`);
+            if (!help) return;
+            help.hidden = !help.hidden;
+            button.setAttribute('aria-expanded', String(!help.hidden));
+        });
+    });
+}
+
+function bindAdvancedEnvironmentManagement(root) {
+    const toggle = root?.querySelector?.('#sync-center-app-environments-toggle');
+    const panel = root?.querySelector?.('#sync-center-app-environments-advanced');
+    if (!toggle || !panel || toggle.dataset.syncBound === 'true') return;
+    toggle.dataset.syncBound = 'true';
+    toggle.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        toggle.setAttribute('aria-expanded', String(!panel.hidden));
+        toggle.textContent = panel.hidden ? 'Cruiseアプリの同期先を管理' : 'Cruiseアプリの同期先を閉じる';
+    });
+}
+
+export function bindSyncCenterActions(root, {
+    orchestrator = null, refresh = async () => {}, tokenProvider = async () => null,
+    edition = 'standard', onPortConflictOpen = async () => {},
+    canSync = () => getCapabilities().cloudSyncOperations
+} = {}) {
+    bindSectionHelp(root);
+    bindAdvancedEnvironmentManagement(root);
+    const setup = root?.querySelector?.('#sync-center-setup');
+    const setupTitle = root?.querySelector?.('#sync-center-setup-title');
+    const setupClose = root?.querySelector?.('#sync-center-setup-close');
+    const confirm = root?.querySelector?.('#sync-center-setup-confirm');
+    const recovery = root?.querySelector?.('#sync-center-recovery-code');
+    const summary = root?.querySelector?.('#sync-center-setup-summary');
+    const setupIntro = root?.querySelector?.('#sync-center-setup-intro');
+    const setupSteps = root?.querySelector?.('#sync-center-setup-steps');
+    const setupPlan = root?.querySelector?.('#sync-center-setup-plan');
+    const setupTurnstile = root?.querySelector?.('#sync-center-setup-turnstile');
+    const setupTurnstileMount = root?.querySelector?.('#sync-center-turnstile');
+    const recoveryDialog = root?.querySelector?.('#sync-center-recovery');
+    const recoveryTitle = root?.querySelector?.('#sync-center-recovery-dialog-title');
+    const recoveryInput = root?.querySelector?.('#sync-center-recovery-input');
+    const recoverySummary = root?.querySelector?.('#sync-center-recovery-summary');
+    const recoveryCandidate = root?.querySelector?.('#sync-center-recovery-candidate');
+    const recoveryConfirm = root?.querySelector?.('#sync-center-recovery-confirm');
+    const recoveryClose = root?.querySelector?.('#sync-center-recovery-close');
+    const setupCopy = root?.querySelector?.('#sync-center-setup-copy');
+    const setupCopyStatus = root?.querySelector?.('#sync-center-setup-copy-status');
+    const recoveryCopy = root?.querySelector?.('#sync-center-recovery-copy');
+    const recoveryCopyStatus = root?.querySelector?.('#sync-center-recovery-copy-status');
+    const recoveryRotateConfirmDialog = root?.querySelector?.('#sync-center-recovery-rotate-confirm-dialog');
+    const recoveryRotateConfirm = root?.querySelector?.('#sync-center-recovery-rotate-confirm');
+    const recoverySecret = recoveryInput && globalThis.SoundCruiseSyncAccount?.core
+        ?.createSensitiveInputController?.(recoveryInput);
+    const portConnectDialog = root?.querySelector?.('#sync-center-port-connect');
+    const portConnectDescription = root?.querySelector?.('#sync-center-port-connect-description');
+    const portConnectLabel = root?.querySelector?.('#sync-center-port-connect-label');
+    const portConnectName = root?.querySelector?.('#sync-center-port-connect-name');
+    const portConnectInput = root?.querySelector?.('#sync-center-port-connect-input');
+    const portConnectConfirm = root?.querySelector?.('#sync-center-port-connect-confirm');
+    const portConnectCancel = root?.querySelector?.('#sync-center-port-connect-cancel');
+    const portConnectClose = root?.querySelector?.('#sync-center-port-connect-close');
+    const portConnectStatus = root?.querySelector?.('#sync-center-port-connect-status');
+    const portConnectSecret = portConnectInput && globalThis.SoundCruiseSyncAccount?.core
+        ?.createSensitiveInputController?.(portConnectInput);
+    root?.querySelector?.('#sync-center-port-conflicts-open')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        if (button.disabled) return;
+        button.disabled = true;
+        try { await onPortConflictOpen(); } finally { button.disabled = false; }
+    });
+    const setPortConnectPhase = (phase) => {
+        const inputPhase = phase === 'input';
+        const successPhase = phase === 'complete';
+        if (portConnectDialog) portConnectDialog.dataset.syncPhase = phase;
+        if (portConnectDescription) portConnectDescription.hidden = !inputPhase;
+        if (portConnectLabel) portConnectLabel.hidden = !inputPhase;
+        if (portConnectInput) portConnectInput.hidden = !inputPhase;
+        if (portConnectName) portConnectName.parentElement.hidden = !inputPhase;
+        if (portConnectConfirm) portConnectConfirm.hidden = !inputPhase;
+        if (portConnectCancel) portConnectCancel.hidden = !inputPhase;
+        if (portConnectClose) portConnectClose.hidden = !successPhase;
+    };
+    const lifecycleDialog = root?.querySelector?.('#sync-center-lifecycle-confirm');
+    const lifecycleTitle = root?.querySelector?.('#sync-center-lifecycle-title');
+    const lifecycleSummary = root?.querySelector?.('#sync-center-lifecycle-summary');
+    const lifecycleConfirm = root?.querySelector?.('#sync-center-lifecycle-submit');
+    const lifecycleDeleteNote = root?.querySelector?.('#sync-center-lifecycle-delete-note');
+    const lifecycleSyncNote = root?.querySelector?.('#sync-center-lifecycle-sync-note');
+    let lifecycleAction = null;
+    const copySensitiveOutput = async (button, status, value) => {
+        if (!button || !status) return;
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        try {
+            if (!value || !globalThis.navigator?.clipboard?.writeText) throw new Error('clipboard_unavailable');
+            await globalThis.navigator.clipboard.writeText(value);
+            status.textContent = 'コピーしました';
+        } catch (_) {
+            status.textContent = 'コピーできませんでした。コードを選択して保存してください。';
+        } finally {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            if (status._syncFeedbackTimer) globalThis.clearTimeout(status._syncFeedbackTimer);
+            status._syncFeedbackTimer = globalThis.setTimeout(() => { status.textContent = ''; }, TEMPORARY_FEEDBACK_MS);
+        }
+    };
+    const requestSetupTurnstileToken = async (action) => {
+        if (setupTurnstile) setupTurnstile.hidden = false;
+        if (summary) summary.textContent = '本人確認を完了してください。';
+        try {
+            return await tokenProvider(action, { mount: setupTurnstileMount, visible: true });
+        } finally {
+            if (setupTurnstile) setupTurnstile.hidden = true;
+        }
+    };
+    setupCopy?.addEventListener('click', () => copySensitiveOutput(setupCopy, setupCopyStatus, recovery?.textContent || ''));
+    recoveryCopy?.addEventListener('click', () => copySensitiveOutput(recoveryCopy, recoveryCopyStatus, recoveryCandidate?.textContent || ''));
+    const setPhase = (phase) => {
+        setup.dataset.syncPhase = phase;
+        const processing = ['starting', 'preparing-memberships'].includes(phase);
+        if (setupTitle) setupTitle.textContent = phase === 'recovery'
+            ? '復旧コードを保存' : phase === 'complete' ? 'アカウント作成が完了しました'
+                : processing ? 'アカウントを作成しています…' : 'クラウド同期をはじめる';
+        if (setupClose) setupClose.hidden = phase === 'complete' || processing;
+        if (confirm) confirm.hidden = processing;
+        const introduction = phase === 'introduction';
+        if (setupIntro) setupIntro.hidden = !introduction;
+        if (setupSteps) setupSteps.hidden = !introduction;
+        if (setupPlan) setupPlan.hidden = !introduction;
+        if (summary) summary.hidden = introduction;
+        if (confirm) confirm.dataset.syncAction = ['recovery', 'start-uncertain'].includes(phase)
+            ? 'confirm-recovery-saved' : phase === 'membership-retry' ? 'retry-memberships' : 'create-account';
+    };
+    const showRecoveryCandidate = () => {
+        const candidate = orchestrator.createAccountCandidate();
+        setPhase('recovery');
+        recovery.hidden = false;
+        recovery.textContent = candidate.recoveryCode;
+        if (setupCopy) setupCopy.hidden = false;
+        if (summary) summary.textContent = 'この復旧コードを安全な場所に保存してください。';
+        if (confirm) confirm.textContent = '保存しました';
+    };
+    const safeErrorCode = (error) => {
+        const value = String(error?.code || error?.message || 'setup_failed');
+        return /^[a-z0-9_]{1,64}$/.test(value) ? value : 'setup_failed';
+    };
+    const failureCategory = (error) => {
+        const code = safeErrorCode(error);
+        if (error?.category === 'storage' || code.startsWith('account_storage_')) return 'storage';
+        if (['verification_required', 'verification_failed', 'turnstile_failed'].includes(code) || code.includes('turnstile')) {
+            return 'turnstile';
+        }
+        if (['qa_admission_required', 'qa_enrollment_required'].includes(code)) return 'admission';
+        if (code === 'rate_limited') return 'rate_limit';
+        if (['network_error', 'account_request_timeout', 'account_start_uncertain', 'invalid_response'].includes(code)) {
+            return 'network';
+        }
+        if (Number(error?.status) >= 500 || code.includes('server_') || code.includes('runtime_')) return 'server';
+        return 'unknown';
+    };
+    const accountStartFailureMessage = (category) => ({
+        storage: 'このブラウザ環境では同期の準備を完了できませんでした。もう一度お試しください。',
+        turnstile: '人間確認の検証に失敗しました。ページを更新してから、もう一度お試しください。',
+        admission: 'このQA環境の利用確認を完了できませんでした。ページを更新してから、もう一度お試しください。',
+        rate_limit: '短時間に操作が集中しました。少し待ってから、もう一度お試しください。',
+        network: 'アカウント作成の通信を完了できませんでした。通信状態を確認して、もう一度お試しください。',
+        server: '同期サービスでアカウント作成を完了できませんでした。少し待ってから、もう一度お試しください。'
+    })[category] || 'アカウント作成を完了できませんでした。もう一度お試しください。';
+    const ensureQaAdmission = async () => {
+        if (!orchestrator?.qaAdmissionRequired || await orchestrator.hasQaAdmission()) return true;
+        const enrollmentCode = globalThis.prompt('Multi-App QA Enrollment Codeを入力してください。');
+        if (!enrollmentCode) throw new Error('qa_enrollment_required');
+        const enrollmentToken = await tokenProvider('sound_cruise_account_qa_enroll');
+        if (!enrollmentToken) throw new Error('verification_required');
+        await orchestrator.enrollQa({ enrollmentCode, turnstileToken: enrollmentToken });
+        return true;
+    };
+    root?.querySelector?.('#sync-center-port-connect-open')?.addEventListener('click', () => {
+        portConnectSecret?.resolve();
+        setPortConnectPhase('input');
+        if (portConnectStatus) portConnectStatus.textContent = '';
+        if (portConnectName) portConnectName.value = orchestrator.defaultDeviceLabel?.() || 'Cruise Port';
+        portConnectDialog?.showModal();
+        portConnectInput?.focus();
+    });
+    portConnectCancel?.addEventListener('click', () => {
+        portConnectSecret?.resolve();
+        if (portConnectStatus) portConnectStatus.textContent = '';
+        portConnectDialog?.close();
+    });
+    portConnectClose?.addEventListener('click', () => {
+        portConnectDialog?.close();
+        setText(root, '#sync-center-action-status', '既存のアカウントに接続しました。');
+    });
+    portConnectConfirm?.addEventListener('click', async () => {
+        if (!orchestrator?.enabled) return;
+        portConnectConfirm.disabled = true;
+        try {
+            const joinCode = portConnectSecret?.take();
+            if (!joinCode) throw new Error('port_join_code_required');
+            setPortConnectPhase('working');
+            if (portConnectStatus) portConnectStatus.textContent = '既存のアカウントに接続しています…';
+            const result = await orchestrator.connectExistingAccount(joinCode, portConnectName?.value);
+            portConnectSecret.resolve();
+            setPortConnectPhase('complete');
+            if (portConnectStatus) portConnectStatus.textContent = result.portSyncState?.ok === false || result.portSyncState?.locked
+                ? 'Accountに接続しました。同期の確認が必要です。接続先と端末内の内容を確認し、画面の案内に沿って続けてください。' : 'Accountに接続し、初回同期を確認しました。';
+            try { await refresh({ activate: false }); } catch (_) { /* committed Join remains successful */ }
+        } catch (error) {
+            portConnectSecret?.reject(error);
+            setPortConnectPhase('input');
+            if (portConnectStatus) {
+                portConnectStatus.textContent = '接続できませんでした。コードの有効期限と入力内容を確認してください。';
+            }
+        } finally {
+            portConnectConfirm.disabled = false;
+        }
+    });
+    root?.querySelector?.('#sync-center-setup-open')?.addEventListener('click', () => {
+        if (recovery) { recovery.hidden = true; recovery.textContent = ''; }
+        if (setupCopy) setupCopy.hidden = true;
+        if (setupCopyStatus) setupCopyStatus.textContent = '';
+        try {
+            showRecoveryCandidate();
+            setup.showModal();
+        } catch (_) {
+            setText(root, '#sync-center-action-status', 'アカウント作成を開始できませんでした。もう一度お試しください。');
+        }
+    });
+    root?.querySelector?.('#sync-center-setup-close')?.addEventListener('click', () => {
+        orchestrator?.discardAccountCandidate?.();
+        if (recovery) recovery.textContent = '';
+        if (setupCopy) setupCopy.hidden = true;
+        if (setupCopyStatus) setupCopyStatus.textContent = '';
+        setup.close();
+    });
+    confirm?.addEventListener('click', async () => {
+        if (!orchestrator?.enabled) {
+            setup.close();
+            setText(root, '#sync-center-action-status', 'この機能は現在利用できません。');
+            return;
+        }
+        confirm.disabled = true;
+        try {
+            delete setup.dataset.syncError;
+            delete setup.dataset.syncFailureCategory;
+            await ensureQaAdmission();
+            if (setup.dataset.syncPhase === 'complete') {
+                setup.close();
+                return;
+            }
+            if (setup.dataset.syncPhase === 'membership-retry') {
+                setPhase('preparing-memberships');
+                if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
+                const prepared = await orchestrator.prepareAll();
+                if (!prepared.ok) throw new Error('membership_partial');
+                setPhase('complete');
+                if (summary) summary.textContent = canSync() ? '続いて、各アプリの初回同期を完了してください。' : 'アカウントを作成しました。データ同期はPro版で利用できます。';
+                confirm.textContent = '閉じる';
+                try { await refresh(); } catch (_) { /* Account is already authoritative */ }
+                return;
+            }
+            if (!['recovery', 'start-uncertain'].includes(setup.dataset.syncPhase)) {
+                showRecoveryCandidate();
+                return;
+            }
+            const turnstileToken = await requestSetupTurnstileToken('sound_cruise_account_start');
+            if (!turnstileToken) throw new Error('verification_required');
+            recovery.textContent = '';
+            recovery.hidden = true;
+            if (setupCopy) setupCopy.hidden = true;
+            setPhase('starting');
+            if (summary) summary.textContent = 'Sound Cruise Syncアカウントを作成しています…';
+            await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken });
+            if (canSync()) {
+                setPhase('preparing-memberships');
+                if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
+                const prepared = await orchestrator.prepareAll();
+                if (!prepared.ok) throw new Error('membership_partial');
+            }
+            setPhase('complete');
+            if (summary) summary.textContent = canSync() ? '続いて、各アプリの初回同期を完了してください。' : 'アカウントを作成しました。データ同期はPro版で利用できます。';
+            confirm.textContent = '閉じる';
+            try { await refresh(); } catch (_) { /* Account is already authoritative */ }
+        } catch (error) {
+            const failedPhase = setup.dataset.syncPhase;
+            setup.dataset.syncError = safeErrorCode(error);
+            setup.dataset.syncFailureCategory = failureCategory(error);
+            if (failedPhase === 'starting' || failedPhase === 'start-uncertain') {
+                setPhase('start-uncertain');
+                if (summary) summary.textContent = accountStartFailureMessage(setup.dataset.syncFailureCategory);
+                confirm.textContent = 'もう一度試す';
+            } else if (failedPhase === 'preparing-memberships' || failedPhase === 'membership-retry') {
+                setPhase('membership-retry');
+                if (summary) summary.textContent = '完了していないアプリの同期準備があります。成功済みの設定は保持されています。';
+                confirm.textContent = 'もう一度試す';
+            } else if (failedPhase === 'recovery' && error?.message === 'verification_required') {
+                if (summary) summary.textContent = '人間確認を完了してから、もう一度お試しください。';
+            }
+            setText(root, '#sync-center-action-status', error?.message === 'verification_required'
+                ? '人間確認を完了してから続けてください。'
+                : error?.message === 'qa_enrollment_required'
+                    ? 'QA Enrollment Codeが必要です。'
+                : '準備を完了できませんでした。成功済みの設定は保持されています。もう一度お試しください。');
+        } finally { confirm.disabled = false; }
+    });
+    const issueAppJoin = async (button) => {
+        if (!button || !orchestrator?.enabled) return;
+        button.disabled = true;
+        const deleting = button.dataset.syncAppDeleteGrace === 'true';
+        try {
+            if (deleting) {
+                const confirmed = await confirmDeleteCancellation(
+                    root, button.dataset.syncAppName || 'このアプリ'
+                );
+                if (!confirmed) { button.disabled = false; return; }
+            }
+            const result = deleting
+                ? await orchestrator.cancelAppDeleteAndLaunch(button.dataset.syncAppAction)
+                : await orchestrator.launch(button.dataset.syncAppAction);
+            if (result?.kind === 'join') {
+                showJoinCode(root, result, edition, async () => {
+                    try { await orchestrator.cancelJoin(result.invitationId); }
+                    catch (_) { /* consumed, expired, or already cancelled */ }
+                    button.disabled = false;
+                    await refresh();
+                });
+            }
+        }
+        catch (_) {
+            button.disabled = false;
+            if (deleting) await refresh();
+            setText(root, '#sync-center-action-status', '同期コードを表示できませんでした。同期状態を確認してください。');
+        }
+    };
+    root?.addEventListener?.('click', async (event) => {
+        const environmentToggle = event.target.closest?.('[data-sync-environment-toggle]');
+        if (environmentToggle) {
+            const environmentId = environmentToggle.dataset.syncEnvironmentToggle;
+            const details = root.querySelector(`[data-sync-environment-details="${environmentId}"]`);
+            if (details) {
+                details.hidden = !details.hidden;
+                environmentToggle.setAttribute('aria-expanded', String(!details.hidden));
+                const count = details.children.length;
+                environmentToggle.textContent = syncTargetsTabLabel(count);
+            }
+            return;
+        }
+        const addEnvironment = event.target.closest?.('[data-sync-app-add-environment]');
+        if (addEnvironment && orchestrator?.enabled) {
+            addEnvironment.disabled = true;
+            try {
+                const result = await orchestrator.addEnvironment(addEnvironment.dataset.syncAppAddEnvironment);
+                showJoinCode(root, result, edition, async () => {
+                    try { await orchestrator.cancelJoin(result.invitationId); }
+                    catch (_) { /* consumed, expired, or already cancelled */ }
+                    addEnvironment.disabled = false;
+                    await refresh();
+                });
+            } catch (_) {
+                addEnvironment.disabled = false;
+                setText(root, '#sync-center-action-status', '別の環境を追加できませんでした。同期状態を確認してください。');
+            }
+            return;
+        }
+        const addPort = event.target.closest?.('[data-sync-port-add-environment]');
+        if (addPort && orchestrator?.enabled) {
+            addPort.disabled = true;
+            try {
+                await ensureQaAdmission();
+                const result = await orchestrator.issuePortAddition();
+                showJoinCode(root, result, edition, async () => {
+                    try { await orchestrator.cancelPortAddition(result.invitationId); }
+                    catch (_) { /* consumed, expired, or already cancelled */ }
+                    addPort.disabled = false;
+                    await refresh();
+                });
+            } catch (_) {
+                addPort.disabled = false;
+                setText(root, '#sync-center-action-status', 'Cruise Portの追加コードを表示できませんでした。同期状態を確認してください。');
+            }
+            return;
+        }
+        const button = event.target.closest?.('[data-sync-app-action]');
+        await issueAppJoin(button);
+    });
+    root?.querySelectorAll?.('[data-sync-center-unavailable]').forEach((button) => {
+        button.addEventListener('click', () => {
+            setText(root, '#sync-center-action-status', 'この操作はまだ利用できません。各Cruiseアプリの設定から操作してください。');
+        });
+    });
+
+    const closeRecovery = () => {
+        recoverySecret?.resolve();
+        orchestrator?.discardRecoveryCandidate?.();
+        orchestrator?.discardRecoveryRotationCandidate?.();
+        if (recoveryCandidate) { recoveryCandidate.textContent = ''; recoveryCandidate.hidden = true; }
+        if (recoveryCopy) recoveryCopy.hidden = true;
+        if (recoveryCopyStatus) recoveryCopyStatus.textContent = '';
+        if (recoveryClose) recoveryClose.hidden = false;
+        if (recoveryDialog?.open) recoveryDialog.close();
+    };
+    const openRecovery = async () => {
+        if (!orchestrator?.enabled) return;
+        try {
+            await ensureQaAdmission();
+            recoveryDialog.dataset.syncMode = 'execution';
+            recoveryDialog.dataset.syncPhase = 'input';
+            recoveryConfirm.dataset.syncAction = 'prepare-recovery';
+            if (recoveryTitle) recoveryTitle.textContent = 'Sound Cruise Syncを復旧';
+            if (recoveryInput) recoveryInput.hidden = false;
+            if (recoveryClose) { recoveryClose.hidden = false; recoveryClose.textContent = '戻る'; }
+            recoveryConfirm.textContent = '復旧対象を確認';
+            recoverySummary.textContent = '保存してある復旧コードを入力してください。';
+            recoveryCandidate.hidden = true;
+            recoveryCandidate.textContent = '';
+            if (recoveryCopy) recoveryCopy.hidden = true;
+            recoveryDialog.showModal();
+        } catch (_) {
+            setText(root, '#sync-center-action-status', '復旧を開始できませんでした。QA認証と通信状態を確認してください。');
+        }
+    };
+    root?.querySelector?.('#sync-center-recovery-open')?.addEventListener('click', () => openRecovery());
+    root?.querySelector?.('#sync-center-account-recovery-open')?.addEventListener('click', () => {
+        if (orchestrator?.enabled) recoveryRotateConfirmDialog?.showModal();
+    });
+    root?.querySelector?.('#sync-center-recovery-rotate-cancel')?.addEventListener('click', () => recoveryRotateConfirmDialog?.close());
+    recoveryRotateConfirm?.addEventListener('click', async () => {
+        recoveryRotateConfirm.disabled = true;
+        try {
+            await ensureQaAdmission();
+            const turnstileToken = await tokenProvider('sound_cruise_recovery_rotation');
+            if (!turnstileToken) throw new Error('verification_required');
+            await orchestrator.prepareRecoveryRotation({ turnstileToken });
+            recoveryRotateConfirmDialog?.close();
+            recoverySecret?.resolve();
+            recoveryDialog.dataset.syncMode = 'rotation';
+            recoveryDialog.dataset.syncPhase = 'candidate';
+            recoveryConfirm.dataset.syncAction = 'commit-recovery-rotation';
+            if (recoveryTitle) recoveryTitle.textContent = '新しい復旧コードを保存';
+            if (recoveryInput) recoveryInput.hidden = true;
+            if (recoveryClose) { recoveryClose.hidden = false; recoveryClose.textContent = 'キャンセル'; }
+            recoveryCandidate.textContent = orchestrator.recoveryRotationCandidateCode();
+            recoveryCandidate.hidden = false;
+            if (recoveryCopy) recoveryCopy.hidden = false;
+            recoverySummary.textContent = 'この復旧コードを安全な場所に保存してください。';
+            recoveryConfirm.textContent = '保存しました';
+            recoveryDialog.showModal();
+        } catch (error) {
+            setText(root, '#sync-center-action-status', error?.message === 'verification_required'
+                ? '人間確認を完了してから続けてください。'
+                : '復旧コードを更新できませんでした。同期状態と通信状態を確認してください。');
+        } finally {
+            recoveryRotateConfirm.disabled = false;
+        }
+    });
+    root?.querySelector?.('#sync-center-recovery-close')?.addEventListener('click', closeRecovery);
+    recoveryConfirm?.addEventListener('click', async () => {
+        recoveryConfirm.disabled = true;
+        const phase = recoveryDialog.dataset.syncPhase;
+        try {
+            if (phase === 'input') {
+                const recoveryCode = recoverySecret?.take();
+                if (!recoveryCode) throw new Error('account_recovery_code_required');
+                const turnstileToken = await tokenProvider('sound_cruise_account_recovery');
+                if (!turnstileToken) throw new Error('verification_required');
+                const prepared = await orchestrator.prepareRecovery({ recoveryCode, turnstileToken });
+                recoveryDialog.dataset.syncPhase = 'summary';
+                recoveryConfirm.dataset.syncAction = 'show-recovery-candidate';
+                if (recoveryInput) recoveryInput.hidden = true;
+                const memberships = prepared.summary.memberships || [];
+                const ready = memberships.filter((item) => item.dataset?.state === 'ready').length;
+                const records = memberships.reduce((total, item) => total + Number(item.dataset?.recordCount || 0), 0);
+                recoverySummary.textContent = `${memberships.length}アプリ（準備完了${ready}件）、同期データ${records}件を復旧します。${RECOVERY_IMPACT}`;
+                recoveryConfirm.textContent = '新しい復旧コードを確認';
+                recoverySecret.resolve();
+                return;
+            }
+            if (phase === 'summary') {
+                recoveryDialog.dataset.syncPhase = 'candidate';
+                recoveryConfirm.dataset.syncAction = 'commit-recovery';
+                recoveryCandidate.textContent = orchestrator.recoveryCandidateCode();
+                recoveryCandidate.hidden = false;
+                if (recoveryCopy) recoveryCopy.hidden = false;
+                recoverySummary.textContent = recoveryDialog.dataset.syncMode === 'rotation'
+                    ? '新しい復旧コードを安全な場所へ保存してください。次の操作で復旧コードの更新が確定します。'
+                    : `新しい復旧コードを安全な場所へ保存してください。次の操作で復旧が確定します。${RECOVERY_IMPACT}`;
+                recoveryConfirm.textContent = '保存しました';
+                return;
+            }
+            if (phase === 'candidate') {
+                const rotation = recoveryDialog.dataset.syncMode === 'rotation';
+                recoveryCandidate.textContent = '';
+                recoveryCandidate.hidden = true;
+                if (recoveryCopy) recoveryCopy.hidden = true;
+                recoveryDialog.dataset.syncPhase = 'committing';
+                if (rotation) await orchestrator.commitRecoveryRotation({ recoverySaved: true });
+                else await orchestrator.commitRecovery({ recoverySaved: true });
+                recoveryDialog.dataset.syncPhase = 'complete';
+                recoverySummary.textContent = rotation
+                    ? '復旧コードを更新しました。以前の復旧コードは使えません。'
+                    : 'Sound Cruise Syncを復旧しました。以前接続していたCruise Portと各Cruiseアプリは、再接続が必要です。クラウド上の同期データは残っています。';
+                recoveryConfirm.dataset.syncAction = 'close';
+                recoveryConfirm.textContent = '閉じる';
+                if (recoveryClose) recoveryClose.hidden = true;
+                try { await refresh(); } catch (_) {}
+                return;
+            }
+            closeRecovery();
+        } catch (error) {
+            recoverySecret?.reject(error);
+            if (phase === 'candidate' && recoveryDialog.dataset.syncMode === 'rotation') {
+                recoveryDialog.dataset.syncPhase = 'candidate';
+                recoveryConfirm.dataset.syncAction = 'commit-recovery-rotation';
+                recoveryConfirm.textContent = 'もう一度試す';
+                recoveryCandidate.textContent = orchestrator.recoveryRotationCandidateCode();
+                recoveryCandidate.hidden = false;
+                if (recoveryCopy) recoveryCopy.hidden = false;
+                recoverySummary.textContent = '更新結果を確認できませんでした。保存済みの同じコードで安全に再確認します。';
+            } else {
+                recoveryCandidate.textContent = '';
+                recoveryCandidate.hidden = true;
+                if (recoveryCopy) recoveryCopy.hidden = true;
+            }
+            setText(root, '#sync-center-action-status', error?.message === 'verification_required'
+                ? '人間確認を完了してから続けてください。'
+                : recoveryDialog.dataset.syncMode === 'rotation'
+                    ? '復旧コードの更新結果を確認できませんでした。同じ操作でもう一度確認してください。'
+                    : '復旧を完了できませんでした。入力内容と通信状態を確認してください。');
+        } finally {
+            recoveryConfirm.disabled = false;
+        }
+    });
+
+    const openLifecycle = (action) => {
+        lifecycleAction = action;
+        lifecycleDialog.dataset.syncPhase = 'review';
+        lifecycleConfirm.dataset.syncAction = action.kind === 'delete'
+            ? 'issue-delete-intent' : action.kind === 'detach' ? 'detach-app'
+                : action.kind === 'current-environment' ? 'detach-current-environment' : 'revoke-environment';
+        lifecycleConfirm.textContent = action.kind === 'delete' ? '削除内容を確認' : '同期を解除';
+        if (lifecycleDeleteNote) lifecycleDeleteNote.hidden = action.kind !== 'delete';
+        if (lifecycleSyncNote) {
+            lifecycleSyncNote.textContent = SYNC_DETACH_NOTE;
+            lifecycleSyncNote.hidden = action.syncNote !== true;
+        }
+        lifecycleDialog.dataset.syncSeverity = action.severity || (action.kind === 'delete' ? 'danger' : 'normal');
+        if (lifecycleTitle) lifecycleTitle.textContent = action.title || '操作内容を確認';
+        lifecycleSummary.textContent = action.summary;
+        lifecycleDialog.showModal();
+    };
+    // After a save the rows re-render collapsed; reopen the surface the user came from (app detail or the
+    // target list) so the new name is visible, and focus the same target's 名前を変更 again.
+    const refocusRenameTarget = (target, surface) => {
+        const listId = surface === 'port-account' ? 'port-account'
+            : target.kind === 'account' ? 'port' : target.appId;
+        if (surface === 'info') {
+            const toggle = root.querySelector?.(`[aria-controls="sync-center-app-info-${target.appId}"]`);
+            if (toggle?.getAttribute?.('aria-expanded') === 'false' && !toggle.disabled) toggle.click();
+        } else {
+            const toggle = root.querySelector?.(`[data-sync-environment-toggle="${listId}"]`);
+            if (toggle?.getAttribute?.('aria-expanded') === 'false' && !toggle.disabled) toggle.click();
+        }
+        const scope = surface === 'info'
+            ? root.querySelector?.(`#sync-center-app-info-${target.appId}`)
+            : root.querySelector?.(`[data-sync-environment-details="${listId}"]`);
+        const next = [...(scope?.querySelectorAll?.('[data-sync-target-rename]') || [])]
+            .find((button) => button.dataset.syncTargetId === target.id);
+        next?.focus?.();
+        return Boolean(next);
+    };
+    const openRename = (trigger) => {
+        const target = renameTargetFromDataset(trigger.dataset);
+        if (!target.id || !orchestrator?.enabled) return;
+        const surface = trigger.closest?.('.sync-center-app-info') ? 'info'
+            : trigger.dataset.syncTargetSurface || 'list';
+        openSyncTargetRenameDialog(root, target, {
+            save: async (userLabel) => {
+                await ensureQaAdmission();
+                return target.kind === 'account'
+                    ? orchestrator.renameEnvironment(target.id, userLabel)
+                    : orchestrator.renameAppEnvironment(target.appId, target.id, userLabel);
+            },
+            onSaved: refresh,
+            restoreFocus: (reason) => {
+                if (reason === 'saved' && refocusRenameTarget(target, surface)) return;
+                if (trigger.isConnected) trigger.focus?.();
+            }
+        });
+    };
+    root?.addEventListener?.('click', (event) => {
+        const rename = event.target.closest?.('[data-sync-target-rename]');
+        if (rename) {
+            event.stopPropagation?.();
+            openRename(rename);
+            return;
+        }
+        const appEnvironment = event.target.closest?.('[data-sync-app-environment-revoke]');
+        if (appEnvironment) {
+            openLifecycle({
+                kind: 'app-environment',
+                appId: appEnvironment.dataset.syncAppEnvironmentApp,
+                appDeviceId: appEnvironment.dataset.syncAppEnvironmentRevoke,
+                ...describeLifecycleAction('app-environment', { targetLabel: appEnvironment.dataset.syncTargetLabel || null })
+            });
+            return;
+        }
+        const environment = event.target.closest?.('[data-sync-environment-revoke]');
+        if (environment) {
+            if (environment.dataset.syncCurrentEnvironmentDetach === 'true') {
+                const lastPort = environment.dataset.syncCurrentEnvironmentLastPort === 'true';
+                openLifecycle({
+                    kind: 'current-environment',
+                    ...describeLifecycleAction('current-environment', { lastPort })
+                });
+                return;
+            }
+            openLifecycle({
+                kind: 'environment', accountDeviceId: environment.dataset.syncEnvironmentRevoke,
+                ...describeLifecycleAction('environment', { current: environment.dataset.syncEnvironmentCurrent === 'true',
+                    targetLabel: environment.dataset.syncTargetLabel || null })
+            });
+            return;
+        }
+        const appDetach = event.target.closest?.('[data-sync-app-detach]');
+        if (appDetach) {
+            const appName = appDetach.dataset.syncAppName || 'このアプリ';
+            openLifecycle({
+                kind: 'detach', appId: appDetach.dataset.syncAppDetach,
+                ...describeLifecycleAction('detach', { appName })
+            });
+            return;
+        }
+        const appDelete = event.target.closest?.('[data-sync-app-delete]');
+        if (appDelete) {
+            const appName = appDelete.dataset.syncAppName || 'このアプリ';
+            openLifecycle({
+                kind: 'delete', scope: 'app', appId: appDelete.dataset.syncAppDelete,
+                title: `${appName}の同期データを削除`,
+                summary: `${appName}のクラウド上の同期データを削除対象にします。端末内のデータは削除されません。削除を確定すると、7日後に完全削除の対象になります。他の3アプリとSound Cruise Syncアカウントは維持されます。`
+            });
+        }
+    });
+    root?.querySelector?.('[data-sync-app-delete-toggle]')?.addEventListener('click', (event) => {
+        const details = root.querySelector('#sync-center-app-delete-actions');
+        if (!details) return;
+        details.hidden = !details.hidden;
+        event.currentTarget.setAttribute('aria-expanded', String(!details.hidden));
+        event.currentTarget.textContent = details.hidden ? 'アプリ単位で削除⌄' : 'アプリ単位で削除を閉じる⌃';
+    });
+    root?.querySelector?.('#sync-center-account-delete')?.addEventListener('click', () => {
+        openLifecycle({
+            kind: 'delete', scope: 'account', appId: null,
+            title: 'Sound Cruise Syncアカウントを削除',
+            summary: '4つのアプリすべてのクラウド同期データと、Sound Cruise Syncの接続情報を削除対象にします。端末内のデータは削除されません。削除を確定すると同期中の環境は解除され、クラウドデータは7日後に完全削除の対象になります。'
+        });
+    });
+    root?.querySelector?.('#sync-center-lifecycle-close')?.addEventListener('click', () => {
+        orchestrator?.discardDeleteCandidate?.();
+        lifecycleAction = null;
+        lifecycleDialog.close();
+    });
+    lifecycleConfirm?.addEventListener('click', async () => {
+        if (!lifecycleAction || !orchestrator?.enabled) return;
+        lifecycleConfirm.disabled = true;
+        try {
+            await ensureQaAdmission();
+            if (lifecycleAction.kind === 'environment') {
+                await orchestrator.revokeEnvironment(lifecycleAction.accountDeviceId);
+                lifecycleDialog.close();
+                lifecycleAction = null;
+                await refresh();
+                return;
+            }
+            if (lifecycleAction.kind === 'app-environment') {
+                await orchestrator.revokeAppEnvironment(
+                    lifecycleAction.appId, lifecycleAction.appDeviceId
+                );
+                lifecycleDialog.close();
+                lifecycleAction = null;
+                await refresh();
+                return;
+            }
+            if (lifecycleAction.kind === 'current-environment') {
+                await orchestrator.detachCurrentEnvironment();
+                lifecycleDialog.close();
+                lifecycleAction = null;
+                await refresh();
+                return;
+            }
+            if (lifecycleAction.kind === 'detach') {
+                await orchestrator.detachApp(lifecycleAction.appId);
+                lifecycleDialog.close();
+                lifecycleAction = null;
+                await refresh();
+                return;
+            }
+            if (lifecycleDialog.dataset.syncPhase === 'review') {
+                await orchestrator.issueDelete(lifecycleAction.scope, lifecycleAction.appId);
+                lifecycleDialog.dataset.syncPhase = 'confirm';
+                lifecycleConfirm.dataset.syncAction = 'commit-delete';
+                lifecycleConfirm.textContent = '削除を確定';
+                lifecycleSummary.textContent += ' この操作を確定すると復旧コードでは取り消せません。';
+                return;
+            }
+            await orchestrator.commitDelete(lifecycleAction.scope, lifecycleAction.appId);
+            lifecycleDialog.close();
+            lifecycleAction = null;
+            await refresh();
+        } catch (_) {
+            setText(root, '#sync-center-action-status', '操作を完了できませんでした。状態を更新してもう一度お試しください。');
+        } finally {
+            lifecycleConfirm.disabled = false;
+        }
+    });
+    async function resolveApp(app) {
+        // Summary reports are not live local conflicts. The native app checks its
+        // own store before opening merge UI; otherwise it opens existing management.
+        if(globalThis.CruisePortSyncAttentionHost?.open)return globalThis.CruisePortSyncAttentionHost.open(app.id);
+        const url=new URL(resolveCruiseAppHref(app.id,'pro'),location.origin);url.searchParams.set('sync-review','1');
+        if(orchestrator?.qaAdmissionRequired)url.searchParams.set('sound-cruise-qa','1');
+        location.assign(url.href);
+    }
+    return Object.freeze({ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp, resolvePort: ({automatic=false,runtimeActive=false} = {}) => {
+        const conflict=root.querySelector('#sync-center-port-conflicts-open');
+        if(conflict&&!conflict.hidden&&(!automatic||runtimeActive))return onPortConflictOpen();
+        root.querySelector('#port-sync-activate:not([hidden]), #sync-center-account-recheck:not([hidden])')?.focus();
+    } });
+}
+
+export const bindSyncCenterUnavailableActions = bindSyncCenterActions;
