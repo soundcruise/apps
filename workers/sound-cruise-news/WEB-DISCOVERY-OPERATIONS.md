@@ -1,4 +1,4 @@
-> 0.49.0 Web quality PR1: current candidate behavior, migration 0026, date-field limitations and acceptance boundaries are in [WEB-QUALITY-OPERATIONS.md](WEB-QUALITY-OPERATIONS.md). The sections below retain earlier implementation/acceptance history.
+> 0.50.0 Web quality PR1: current candidate behavior, migration 0026, date-field limitations and acceptance boundaries are in [WEB-QUALITY-OPERATIONS.md](WEB-QUALITY-OPERATIONS.md). The sections below retain earlier implementation/acceptance history.
 
 # Web discovery PR1 (0.42.0)
 

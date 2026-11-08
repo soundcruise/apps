@@ -1,8 +1,8 @@
-# Web discovery quality PR1 — NEWS / Operator 0.49.0 candidate
+# Web discovery quality PR1 — NEWS / Operator 0.50.0 candidate
 
 Scope: offline development only. Production remains NEWS discovery OFF / manual OFF,
-Operator viewing ON / manual OFF. No searches, inference, judgments, deployment or
-remote migration were performed. No registration/publication authority is added.
+Operator viewing ON / manual OFF. This update performs no new searches, inference, judgments, deployment or
+remote migration; the prior approved three-request acceptance is distinguished below. No registration/publication authority is added.
 
 ## Search contract and limits
 
@@ -39,7 +39,7 @@ account invoices/pricing must be checked before paid acceptance. See https://dev
 
 The normalized Cloudflare response guarantees URL/title, not a publication date.
 A forward-compatible optional `publishedDate`, when present, is validated and stored
-only as `publishedAtHint` / `provider_unverified`. Optional last_modified/lastModified
+only as `publishedAtHint` / `provider_unverified`. The real `lastModifiedDate` (and legacy aliases last_modified/lastModified)
 is stored separately and is **never** substituted for publication date. Missing dates
 remain null. No year is inferred from URL/title, anniversary, copyright or search time.
 The response body is capped at 64 KiB and 10 result entries; descriptions/body/images,
@@ -55,20 +55,20 @@ Before AI, we distinguish:
 - edition/reissue/color/signature/custom/new-feature wording: never collapsed by model alone;
 - generic pages and roundups: no AI; roundups remain leads for original sources;
 - provider-supplied old/future publication dates: held as unverified date evidence;
-- unknown publication date or Japanese language: held without asking AI to invent either.
+- unknown Japanese language: held; unknown publication date: follow the permission-scoped verification path below. A recent modification may prioritize semantic triage, never establish freshness.
 
 Japanese characters in a title or provider language tags are not formal page-language
-proof. A recent provider date plus a Japanese title (or Japanese language hint) permits
-unverified AI triage only. The model output remains separate from facts; formal date,
+proof. A recent provider publication hint or recent modification hint plus a Japanese title (or Japanese language hint) permits
+unverified semantic AI triage only. With publication date unknown, priority is capped at low and a successful estimate stays in publication_verification_pending (or AI-low-value exclusion), without repeated AI calls. The model output remains separate from facts; formal date,
 page language and publication eligibility remain unverified in the Operator response.
 The nine-field estimate schema remains closed. No search hint is registered as NEWS.
 
 Legacy successful estimates remain intact. Legacy pending hints are screened without
 paid inference. At most 75 queue entries are checked per invocation; eligible batches
 remain at most three hints and existing daily AI limits apply. A later search providing
-missing date information may release a metadata-only hold once; model-failure counters
+missing publication/modification information may release a metadata-only hold once; model-failure counters
 are not reset. Search hints are not modified by this migration; screening occurs only
-when an authorized future discovery run is enabled.
+when an authorized future discovery run is enabled. The Operator separately resolves verification pointers read-only even while NEWS exploration is OFF.
 
 Ikebe preference stays in the existing formal source-preference code, unchanged.
 It requires both sources' valid evidence, same product/event and no human decision.
@@ -116,18 +116,67 @@ Tests report two separate modes:
 1. Replay of actual retained URL/title fields, without invented date metadata.
 2. A clearly labeled simulation of optional provider dates using independent date labels.
 
-Actual retained data cannot prove freshness. Holding such items without AI is an honest
+Actual pilot data cannot prove freshness. Holding such items without AI is an honest
 cost reduction, not evidence that they are worthless or that recall improved. Date labels
 are never written into formal NEWS facts/provenance. Acompass, the AGM book and Fender
 new colors are covered when returned by a mocked provider with recent date hints; absent
 dates hold them. Already known URLs are excluded even if they are comparison positives.
 
-No live search recall, publication-date-field availability, language verification,
-model quality, latency or billing claim follows from these tests. Minimal paid follow-up,
-only after approval: the three new queries once each (about $0.021 at the old unit price),
-with exact input/output-stage records. For known comparison stories already outside
-14 days, do not count failure to return them as a new-query recall failure; test their
-screening separately. Do not restart a recurring pilot to perform this acceptance.
+### Actual three-search acceptance already completed, not repeated
+
+The separately approved 2026-11-08 10:24 JST acceptance ran three requests ($0.021
+estimated, actual billing unconfirmed), returned 15 ranks / 14 URLs and found Acompass
+60 at equipment rank 1. There were **zero publication-date fields and 12 lastModifiedDate
+values**. Safe projections are in test/fixtures/web-quality-live-20261108.json. No
+response descriptions, article bodies or credentials are in the fixture.
+
+Replaying those inputs locally retains all 12 modification values and all 15 publication
+values remain null. Three archive/tag/index URLs are recognized as general pages. With
+an empty synthetic history, three distinct article titles with recent modification
+metadata reach one mocked semantic batch, remain date-unverified, priority low, and
+cannot register/publish NEWS. Production-history exclusions are evaluated separately.
+This is not a new live/model test, proof of new-query recall, or proof of formal readiness.
+The current change ran zero paid searches/inferences. Do not repeat the three searches
+merely to test metadata normalization.
+
+### A/B/C verification bridge (read-only)
+
+The new web-verification.js joins a safe exact source URL to the existing registry,
+source conditions, candidate and discovery-work records. It never fetches a URL,
+writes a formal record, changes a retry time, or creates a listing receipt.
+
+- **A:** an existing candidate passes the existing complete publicationValidation
+  (provenance, dates, identity, duplicate, takedown, source/health/fingerprint). Show
+  its existing verified date, candidate ID and revision separately from search hints.
+  The date is NOT copied into provider metadata, and the hint is not made a formal fact.
+- **B:** a permitted article belongs to an enabled normal collector. Show the existing
+  candidate/lifecycle or discovery-work action and next time. Only that normal path
+  may acquire/check it, using its robots/cache/once-per-URL/budget/CAS rules. If the
+  URL has not appeared in an authorized listing, show listing_discovery_required;
+  **this PR does not promise automatic registration of a search-only URL**.
+- **C:** unknown/CONTACT/DO_NOT_USE/expired permission, outside an allowed article
+  path, stopped source, human exclusion/takedown or unavailable evidence. Display
+  reason and a source/candidate confirmation link; no automatic fetch or retry.
+
+A resolver checks at most 100 URLs and ten full formal validations per request,
+with memoization; remaining candidates keep their existing verification route without
+asserting a verified date. Search traces retain the point-in-time route; Operator
+re-resolves it on each read so holds can point to newly created formal evidence
+without another search or model call. Run-time refresh touches only Web metadata.
+There is no new scheduled task, global crawler, source permission or formal import endpoint.
+
+Acompass 60 is discovered and may receive semantic triage from its search title.
+The www.yamaha.com newsroom registry is CONTACT and jp.yamaha.com product pages are
+not the guitar-Topics assisted-entry scope. Both are C, with registrationAllowed=false.
+Topics permission cannot authorize the general press release. No Yamaha HTTP was made.
+
+For search-only URLs not covered by normal listing discovery, a future *separate*
+thin registration adapter must prove permission for the specific source/path and
+an allowed listing/cache record before calling the existing collector intake. This
+changes the formal registration boundary and needs separate acceptance; adding it
+as a generic URL fetch to this discovery PR would bypass existing listing contracts.
+Unknown-source/Yamaha permission must be resolved first. No extra state machine or
+independent publication mechanism is needed.
 
 ## Model migration preparation
 
@@ -157,7 +206,7 @@ without an explicit bounded test plan and approval. The old model retires Novemb
 
 Do not enable production exploration, manual execution or automatic publication as part
 of this PR. First approve 0026, current-code deployments with flags unchanged, the minimal
-paid search/model tests, then evaluate useful Japanese new discoveries/search, unknown-date
+separately approved model contract test (existing searches need not repeat), then evaluate useful Japanese new discoveries/search, unknown-date
 rate and actual human review time. Formal NEWS connection is a separate thin adapter for
 permission-scoped URLs into existing discovery/collector/provenance/facts/duplicate/takedown/
 validation; source conditions requiring listing evidence must still be satisfied. No
@@ -179,10 +228,28 @@ to fields that Cloudflare returned. Both FG7/FS7 aliases are held for the same
 stored product's event uncertainty. Comparison positives are admitted only when
 mocked date hints are present; an absent date holds rather than inventing freshness.
 
-**Operational limitation:** if Cloudflare continues to return no publication-date
-metadata, this strict path sends no date-unknown item to AI. It still records and
-shows discoveries. A later permission-scoped formal-source metadata connection,
-or a separately confirmed provider-date API path, is needed for autonomous freshness
-verification. Adding year words or calling a stronger LLM does not remove this limit.
+**Operational limitation:** a recent update is only a triage preference. Old articles
+with recent edits can still be triaged, but are not marked new or formally ready.
+Undated items without a recent modification remain held with an actionable A/B/C
+verification route. A listing-discovery requirement or source-permission gap is not
+resolved by a stronger model, by repeating searches, or by forging a receipt.
 
-Validation on this candidate: NEWS/Operator 1,795 passed; Port NEWS 9 passed; NEWS and Operator Wrangler dry-runs passed. Migration compatibility and live-Access-shaped local E2E are included; no production deployment or paid acceptance occurred.
+Validation: NEWS/Operator **1,799 passed**, Port NEWS **9 passed**, both production-config
+Wrangler **dry-runs passed** (no deployment). Dedicated metadata/bridge tests: 14 passed.
+The formal bridge regression runs a synthetic permission-scoped collector into formal
+validation, then follows B→A using SELECT only. It verifies null/tampered provenance,
+takedown, disabled/out-of-scope sources, unchanged retry dates and existing records.
+
+`WEB-QUALITY-LIVE-REPLAY-RESULTS.json` replays the real 15 ranks against saved
+58-hint/259-candidate projections: semantic triage 3, general pages 3, known-product
+event uncertainty 2, publication date unknown 4, known Web URLs 2, known NEWS URL 1.
+All 15 publication values remain null; 12 updates are retained. These are offline
+screening results, not formal NEWS admissions or actual model decisions.
+
+Minimal next acceptance: separately approve migration 0026 and deploy current code
+with NEWS OFF/manual OFF and Operator viewing ON/manual OFF preserved. Verify all
+58 old rows remain readable, update/publication labels and A/B/C links through real
+Access, one permitted pre-existing candidate resolves from the existing formal validator,
+and Yamaha newsroom remains C. No new search is needed. Real new-model JSON/quality
+acceptance requires a separately approved bounded call/count/cost plan using saved
+inputs. Do not enable discovery with the retiring model merely to exercise this PR.

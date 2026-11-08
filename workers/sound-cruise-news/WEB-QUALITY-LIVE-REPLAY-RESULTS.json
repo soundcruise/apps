@@ -1,0 +1,154 @@
+{
+  "scope": "Offline replay of already executed 2026-11-08 results against saved 58-hint / 259-candidate projection, not a live search/model test or formal NEWS readiness claim",
+  "paidSearchesThisUpdate": 0,
+  "paidModelCallsThisUpdate": 0,
+  "returnedRanks": 15,
+  "modificationMetadata": 12,
+  "publicationMetadata": 0,
+  "semanticAiEligible": 3,
+  "reasons": {
+    "triage_date_unconfirmed": 3,
+    "general_page": 3,
+    "known_product_event_unconfirmed": 2,
+    "publication_date_unconfirmed": 4,
+    "known_web_url": 2,
+    "known_news_url": 1
+  },
+  "results": [
+    {
+      "queryId": "web-quality-1-equipment",
+      "rank": 1,
+      "url": "https://www.yamaha.com/ja/news_release/2026/26110601/",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-11-06T01:00:00.000Z",
+      "reason": "triage_date_unconfirmed",
+      "semanticAiEligible": true
+    },
+    {
+      "queryId": "web-quality-1-equipment",
+      "rank": 2,
+      "url": "https://www.dtmstation.com/archives/2026/10",
+      "publishedAtHint": null,
+      "lastModifiedHint": null,
+      "reason": "general_page",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-equipment",
+      "rank": 3,
+      "url": "https://h-resolution.com/blog/motu-octalite/",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-10-08T16:14:44.000Z",
+      "reason": "known_product_event_unconfirmed",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-equipment",
+      "rank": 4,
+      "url": "https://www.phileweb.com/news/d-av/202610/07/66097.html",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-10-07T09:26:53.000Z",
+      "reason": "publication_date_unconfirmed",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-equipment",
+      "rank": 5,
+      "url": "https://hashout.jp/gadget/11852/",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-10-03T09:08:59.000Z",
+      "reason": "known_product_event_unconfirmed",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-acoustic",
+      "rank": 1,
+      "url": "https://nihon-meisho.com/3718/",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-11-02T03:56:54.000Z",
+      "reason": "known_web_url",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-acoustic",
+      "rank": 2,
+      "url": "https://guitarmagazine.jp/news/2026-1007-gibson-baggs-hifi-dna/",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-10-07T21:24:05.000Z",
+      "reason": "publication_date_unconfirmed",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-acoustic",
+      "rank": 3,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/93576/",
+      "publishedAtHint": null,
+      "lastModifiedHint": null,
+      "reason": "known_news_url",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-acoustic",
+      "rank": 4,
+      "url": "https://guitar-home.net/gibson-sj-200-elegant-koa-hummingbird-elegant-koa/",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-10-07T11:02:00.000Z",
+      "reason": "publication_date_unconfirmed",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-acoustic",
+      "rank": 5,
+      "url": "https://gibson.jp/news-events",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2017-11-14T08:43:52.000Z",
+      "reason": "general_page",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-edition",
+      "rank": 1,
+      "url": "https://www.deviser.co.jp/information/624555",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-10-27T08:57:00.000Z",
+      "reason": "triage_date_unconfirmed",
+      "semanticAiEligible": true
+    },
+    {
+      "queryId": "web-quality-1-edition",
+      "rank": 2,
+      "url": "https://www.deviser.co.jp/information/626551",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-11-06T09:00:00.000Z",
+      "reason": "triage_date_unconfirmed",
+      "semanticAiEligible": true
+    },
+    {
+      "queryId": "web-quality-1-edition",
+      "rank": 3,
+      "url": "https://gibson.jp/news-events/27755",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-10-15T02:33:34.000Z",
+      "reason": "publication_date_unconfirmed",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-edition",
+      "rank": 4,
+      "url": "https://nihon-meisho.com/3718/",
+      "publishedAtHint": null,
+      "lastModifiedHint": "2026-11-02T03:56:54.000Z",
+      "reason": "known_web_url",
+      "semanticAiEligible": false
+    },
+    {
+      "queryId": "web-quality-1-edition",
+      "rank": 5,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass-tags/ag/",
+      "publishedAtHint": null,
+      "lastModifiedHint": null,
+      "reason": "general_page",
+      "semanticAiEligible": false
+    }
+  ]
+}

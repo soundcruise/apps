@@ -1,7 +1,7 @@
 import {legacyProductIdentity} from './legacy-product-identity.js';
 import {productBrandVariants} from './product-brand-identity.js';
 
-export const WEB_QUALITY_VERSION='web-quality-1';
+export const WEB_QUALITY_VERSION='web-quality-2';
 export const WEB_WINDOW_DAYS=14;
 const DAY=86400000;
 const japanese=t=>/[\u3040-\u30ff\u3400-\u9fff]/u.test(t);
@@ -38,12 +38,12 @@ export function searchDate(value){
 }
 export function resultMetadata(item,queryId,rank){
  // These optional provider values are hints, even if called publishedDate.
- // last_modified/lastModified must never be substituted for publication date.
- return {version:WEB_QUALITY_VERSION,queryId,rank,publishedAtHint:searchDate(item?.publishedDate),dateSource:item?.publishedDate?'provider_unverified':'unknown',lastModifiedHint:searchDate(item?.last_modified)||searchDate(item?.lastModified),languageHint:typeof item?.language==='string'&&/^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(item.language)?item.language:null};
+ // lastModifiedDate/last_modified/lastModified must never be substituted for publication date.
+ return {version:WEB_QUALITY_VERSION,queryId,rank,publishedAtHint:searchDate(item?.publishedDate),dateSource:searchDate(item?.publishedDate)?'provider_unverified':'unknown',lastModifiedHint:searchDate(item?.lastModifiedDate)||searchDate(item?.last_modified)||searchDate(item?.lastModified),languageHint:typeof item?.language==='string'&&/^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(item.language)?item.language:null};
 }
 export function generalPage(url){
  const u=new URL(url),p=u.pathname.replace(/\/$/,'');
- return !p&&!u.search||/\.(?:pdf)$/i.test(p)||/^\/(?:about|company)(?:\/|$)/i.test(p)||/^\/(?:brands|collections|category|tag)(?:\/[^/]+)?$/i.test(p)||/\/lineup\.html$/i.test(p)||/\/list(?:\/|$)/.test(p)||u.hostname==='linkedin.com'||u.hostname.endsWith('.linkedin.com');
+ return !p&&!u.search||/^\/(?:archives\/\d{4}(?:\/\d{2})?|news-events)$/i.test(p)||/\/(?:[^/]+-tags)\/[^/]+$/i.test(p)||/\.(?:pdf)$/i.test(p)||/^\/(?:about|company)(?:\/|$)/i.test(p)||/^\/(?:brands|collections|category|tag)(?:\/[^/]+)?$/i.test(p)||/\/lineup\.html$/i.test(p)||/\/list(?:\/|$)/.test(p)||u.hostname==='linkedin.com'||u.hostname.endsWith('.linkedin.com');
 }
 function mentioned(title,token){
  const t=norm(title),s=norm(token);if(s.length<2)return false;
@@ -80,7 +80,13 @@ export function screenWebHint(hint,metadata,rows,now){
   if(age>WEB_WINDOW_DAYS*DAY)return {status:'hold',reason:'old_publication_unverified',ai:false};
  }
  if(metadata.languageHint&&!/^ja(?:-|$)/.test(metadata.languageHint)||!japanese(hint.title)&&!/^ja(?:-|$)/.test(metadata.languageHint||''))return {status:'hold',reason:'japanese_article_unconfirmed',ai:false};
- if(!metadata.publishedAtHint)return {status:'hold',reason:'publication_date_unconfirmed',ai:false};
+ if(!metadata.publishedAtHint){
+  // Recent modification prioritizes semantic triage only. It never proves
+  // publication/freshness, nor authorizes an article fetch or registration.
+  const modified=metadata.lastModifiedHint&&Date.parse(metadata.lastModifiedHint);
+  if(modified&&modified<=now&&now-modified<=WEB_WINDOW_DAYS*DAY)return {status:'unreviewed',reason:'triage_date_unconfirmed',ai:true,semanticOnly:true};
+  return {status:'hold',reason:'publication_date_unconfirmed',ai:false};
+ }
  // Search-side language and dates still do not constitute verified NEWS facts.
  return {status:'unreviewed',reason:'triage_pending_unverified',ai:true};
 }
