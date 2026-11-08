@@ -10,7 +10,12 @@
   "vars": {
     "STUDIO_REPORTS_ENABLED": "true",
     "REPORT_AI_ENABLED": "false",
-    "REPORT_ALLOWED_ORIGINS": "http://127.0.0.1:18842"
+    "REPORT_ALLOWED_ORIGINS": "http://127.0.0.1:18842",
+    "REPORT_INTAKE_ENABLED": "true",
+    "REPORT_RETENTION_ENABLED": "true",
+    "REPORT_AI_DAILY_CALLS": "10",
+    "REPORT_AI_DAILY_MICROUSD": "100000",
+    "REPORT_AI_CALL_MICROUSD": "10000"
   },
   "d1_databases": [
     {

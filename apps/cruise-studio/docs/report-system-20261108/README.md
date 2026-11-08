@@ -1,5 +1,7 @@
 # Studio 0.87.0 report-system candidate
 
+**Latest:** [Production preparation and actual acceptance status](production-preparation.md) supersedes the initial deployment/AI/retention notes below.
+
 Base main: `4cfbea2cfee9d63e0e55690741cad0179cb54e0a`. Independent development branch. No main merge, Pages update, Production Worker/D1/R2 change, real Account/Project access or paid AI request.
 
 ## Completed flow
