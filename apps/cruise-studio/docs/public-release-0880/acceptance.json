@@ -1,0 +1,37 @@
+{
+  "candidate": "0.88.0",
+  "targetedTests": {
+    "pass": 12,
+    "fail": 0
+  },
+  "browser": {
+    "unauthenticatedProductBootNoErrors": true,
+    "publicWorkspaceRejection": true,
+    "projectRepositoryNotInitialized": true,
+    "visualFixtureThemes": [
+      "dark",
+      "midnight",
+      "light"
+    ],
+    "visualFixtureWidths": [
+      390,
+      1280,
+      1920
+    ],
+    "authenticatedProductAcceptance": false,
+    "developmentEditorEditingAcceptance": false
+  },
+  "knownShellTestFailuresOnBothBaselineAndCandidate": 5,
+  "protectedFilesByteEqual": [
+    "js/core/schema2.js",
+    "js/core/project-repository.js",
+    "js/core/common-music-model.js",
+    "js/core/studio-entry.mjs",
+    "js/report-form.js",
+    "js/cloud/studio-sync-client.mjs"
+  ],
+  "packageFiles": 201,
+  "standardRuntimeReady": false,
+  "mainMerged": false,
+  "published": false
+}

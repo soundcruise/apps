@@ -249,3 +249,8 @@
 .studio-brand .studio-logo-refresh span { margin-top:0; }
 #studio-shell .studio-nav .studio-brand .studio-logo-refresh { color:inherit; }
 .studio-brand .studio-logo-refresh span { font-size:10px; letter-spacing:.34em; }
+
+[data-coming-soon]{cursor:default!important;opacity:.65;pointer-events:none;transform:none!important;box-shadow:none!important}
+[data-coming-soon] .home-feature-arrow{display:none}
+.coming-soon-label{display:block;font-size:12px;color:var(--studio-text-muted);margin-top:6px}
+.studio-nav [data-coming-soon]{white-space:normal!important}

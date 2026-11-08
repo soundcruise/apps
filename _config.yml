@@ -47,6 +47,7 @@ exclude:
   - apps/cruise-studio/js/port-components
   - apps/cruise-studio/js/port-data
   - apps/cruise-studio/port-tool.html
+  - apps/cruise-studio/edition-candidates
   - apps/cruise-studio/scripts
   - apps/cruise-studio/tests
   - apps/cruise-studio/js/modules/pre-dtm-cruise/README.md

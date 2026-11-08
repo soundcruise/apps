@@ -1,7 +1,12 @@
 /* Stable product address, not an authorization secret. Standard is not shipped. */
 export const PRO_DIRECTORY = 'pro_969e958c31433f99c30b';
 export const PRO_ENTRY = 'apps/cruise-studio/'+PRO_DIRECTORY+'/index.html';
+export function renderPublicCreation(source){
+ return source.replace(/<button\b([^>]*(?:data-workspace="(?:sheetCruise|preDtm)"|data-home-workspace="(?:sheetCruise|preDtm)")[^>]*)>([\s\S]*?)<\/button>/g,(_,attrs,content)=>attrs.includes('data-coming-soon')?'<button'+attrs+'>'+content+'</button>':'<button'+attrs+' disabled aria-disabled="true" data-coming-soon>'+content+'<small class="coming-soon-label">Coming soon...</small></button>')
+ .replace(/(<section[^>]*id="screen-(?:sheet-cruise|pre-dtm)"[^>]*)(>)/g,'$1 hidden inert$2');
+}
 export function renderProEntry(source){
+ source=renderPublicCreation(source);
  const root=new URL('https://layout.invalid/apps/cruise-studio/');
  return '<!-- Generated from the single Studio index.html source. Do not edit. -->\n'+source.replace('data-studio-product="studio"','data-studio-product="studio" data-studio-edition="pro"').replace(/\b(src|href)="([^"]+)"/g,(all,attr,value)=>{
   if(/^(#|[a-z][a-z0-9+.-]*:|\/)/i.test(value))return all;

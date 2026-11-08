@@ -1,6 +1,6 @@
-import { createChordFormAdapter } from './form-adapter.mjs?v=0.87.3';
-import { createFormAdoptionService } from './form-adoption.mjs?v=0.87.3';
-import { getAppVersion } from '../../core/component-metadata.mjs?v=0.87.3';
+import { createChordFormAdapter } from './form-adapter.mjs?v=0.88.0';
+import { createFormAdoptionService } from './form-adoption.mjs?v=0.88.0';
+import { getAppVersion } from '../../core/component-metadata.mjs?v=0.88.0';
 
 const STANDARD = Object.freeze([64,59,55,50,45,40]);
 // Missing/destroyed documents and selections are normal lifecycle states, never booleans.
@@ -256,5 +256,5 @@ export function mountFormPanel({C,document:doc,owner=globalThis.ChordCruise}) {
     globalThis.addEventListener('pagehide',hide,{once:true});globalThis.addEventListener('pageshow',show);connect();
     return Object.freeze({dispose(){if(disposed)return;disposed=true;disconnect();globalThis.removeEventListener('pagehide',hide);globalThis.removeEventListener('pageshow',show);opened=false;clearCandidate();slot.replaceChildren();}});
 }
-function initialize(){const C=globalThis.CruiseStudio;if(C?.shellHost&&!C.formPanel)C.formPanel=mountFormPanel({C,document});}
+function initialize(){const C=globalThis.CruiseStudio;if(C?.releaseFeatures?.creation&&C?.shellHost&&!C.formPanel)C.formPanel=mountFormPanel({C,document});}
 if(typeof document!=='undefined'){if(globalThis.CruiseStudio?.shellHost)initialize();else document.addEventListener('DOMContentLoaded',initialize,{once:true});}

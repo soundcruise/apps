@@ -8,7 +8,7 @@ test('one canonical template generates the stable authenticated Pro edition; Sta
  assert.match(generated,/shared\/pro-gate.js/);assert.match(generated,/data-studio-edition="pro"/);
  assert.match(fs.readFileSync(new URL('../../../_config.yml',import.meta.url),'utf8'),/\n  - apps\/cruise-studio\/index.html/);
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'studio-pro-edition-')),out=path.join(dir,'release');
- try{const m=packagePortPC(out);assert.equal(m.edition,'pro');assert.equal(m.standardPublished,false);assert.equal(Object.keys(m.files).length,200);assert(!fs.existsSync(path.join(out,'apps/cruise-studio/index.html')));assert(fs.existsSync(path.join(out,'apps/cruise-studio',PRO_DIRECTORY,'index.html')));}finally{fs.rmSync(dir,{recursive:true,force:true});}
+ try{const m=packagePortPC(out);assert.equal(m.edition,'pro');assert.equal(m.standardPublished,false);assert.equal(Object.keys(m.files).length,201);assert(!fs.existsSync(path.join(out,'apps/cruise-studio/index.html')));assert(fs.existsSync(path.join(out,'apps/cruise-studio',PRO_DIRECTORY,'index.html')));}finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 test('authored icons use separate light faces without filters or theme persistence',()=>{
  for(const name of ['home','sheet','predtm','myapps','calendar','sync']){assert.notEqual(read('assets/tool-'+name+'.svg'),read('assets/tool-'+name+'-light.svg'));}

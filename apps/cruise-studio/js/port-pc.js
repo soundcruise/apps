@@ -2,10 +2,10 @@
 (function(){
     'use strict';
     var CS=window.CruiseStudio;
-    CS.portPC=Object.freeze({version:'0.87.3'});
-    CS.scoreWorkspace.prepare();
+    CS.portPC=Object.freeze({version:'0.88.0'});
+    if(CS.releaseFeatures?.creation)CS.scoreWorkspace.prepare();
     CS.shellHost=CS.shell.init(CS);
-    CS.scoreWorkspace.attach();
+    if(CS.releaseFeatures?.creation)CS.scoreWorkspace.attach();
     CS.audio=CS.audioCoordinator.createCoordinator();
     CS.tuner.attach({audio:CS.audio,shell:CS.shellHost});
     CS.portMetronome.attach({audio:CS.audio,shell:CS.shellHost});
@@ -23,7 +23,7 @@
     });
     document.querySelectorAll('[data-open-calendar]').forEach(function(button){button.addEventListener('click',function(){CS.portPractice.openCalendar();});});
     // Isolated host injection only; no production Project requests or Cloud bundle.
-    if((location.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(location.hostname)||location.protocol==='https:'&&location.hostname.endsWith('.invalid'))&&globalThis.__SOUND_CRUISE_STUDIO_CLOUD__?.endpoint){
+    if(CS.releaseFeatures?.creation&&(location.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(location.hostname)||location.protocol==='https:'&&location.hostname.endsWith('.invalid'))&&globalThis.__SOUND_CRUISE_STUDIO_CLOUD__?.endpoint){
         import('./cloud/project-sync-host.mjs').then(function(m){CS.projectCloud=m.mountIsolatedProjectSync(CS,globalThis.__SOUND_CRUISE_STUDIO_CLOUD__);}).catch(function(){/* local editing remains available */});
     }
     // Only registered workspaces are navigable.
