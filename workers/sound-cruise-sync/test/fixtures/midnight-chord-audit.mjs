@@ -34,8 +34,9 @@ function storage(data) { return {
     const meta = new Map([['appId','chord'],['cursor',before.cursor],['migrationState','complete'],['datasetState','ready'],
       ['deviceCredential',{credential:'scd1.'+id+'.'+'A'.repeat(43)}]]);
     const shadow = new Map([['settings/default',{...before.records[0],recordKey:'settings/default'}]]);
-    const store = {getMeta:async k=>meta.get(k),setMeta:async(k,v)=>meta.set(k,v),getShadow:async k=>shadow.get(k),
-      putShadow:async r=>shadow.set(r.recordKey,r),listShadow:async()=>[...shadow.values()],listOutbox:async()=>[],listConflicts:async()=>[]};
+    const conflicts=[];
+    const store = {putOutbox:async o=>{const i=pending.findIndex(p=>p.operationId===o.operationId);pending[i]=o},getMeta:async k=>meta.get(k),setMeta:async(k,v)=>meta.set(k,v),getShadow:async k=>shadow.get(k),
+      putShadow:async r=>shadow.set(r.recordKey,r),listShadow:async()=>[...shadow.values()],listOutbox:async()=>[],listConflicts:async()=>conflicts,putConflict:async c=>{const i=conflicts.findIndex(x=>x.conflictId===c.conflictId);if(i<0)conflicts.push(c);else conflicts[i]=c}};
     const c = { crypto:webcrypto,TextEncoder,URL,structuredClone,AbortController,setTimeout,clearTimeout };
     c.window=c; vm.createContext(c);
     vm.runInContext(read('apps/chord-cruise/js/sync/sync-core.js'),c);
@@ -70,7 +71,8 @@ function storage(data) { return {
     results.chordUpgrade.pending = JSON.parse(JSON.stringify(await client.pullOnce()));
     results.chordUpgrade.pendingPreserved = pending.length === 1 && meta.get('cursor') === before.cursor &&
       JSON.parse(data.get('chordCruise.settings')).theme === 'dark';
-    pending.length = 0;
+    // Separate invalid-manifest fault scenario; real reviewed recovery is covered in browsers.
+    pending.length = 0; conflicts.length=0;
     corruptSnapshot = true;
     results.chordUpgrade.badManifest = JSON.parse(JSON.stringify(await client.pullOnce()));
     results.chordUpgrade.badManifestPreserved = meta.get('cursor') === before.cursor &&

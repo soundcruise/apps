@@ -1,0 +1,25 @@
+{
+  "inputHead": "f644d1f0b3108d403bf000b6ac098c4b731a39f8",
+  "browserPass": 52,
+  "browserFail": 0,
+  "engineCounts": {
+    "chromium": 26,
+    "webkit": 26
+  },
+  "localRegressionPass": 34,
+  "localRegressionFail": 0,
+  "workerModuleCount": 5,
+  "modifiedWorkerModules": 1,
+  "workerFunctionChecks": 15,
+  "workerHandlerChecks": 19,
+  "bindings": 70,
+  "secretBindings": 19,
+  "workerVersion": 161,
+  "aiMode": "off",
+  "chordCandidateVersion": "1.23.4",
+  "newDBs": 0,
+  "newPersistentFlags": 0,
+  "productionChanges": 0,
+  "iphoneAcceptance": "not performed",
+  "releaseDecision": "candidate PASS; production and Midnight re-enable require approval"
+}

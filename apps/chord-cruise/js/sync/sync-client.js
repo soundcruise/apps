@@ -1436,19 +1436,28 @@
             var fingerprint = core.canonicalJson(shadow ? [shadow.revision, shadow.payloadHash] : null);
             if (await store.getMeta('settingsThemeViewV2') === fingerprint) return { ok: true };
             if (shadow && shadow.deletedAt == null && shadow.payload?.theme === 'dark') {
-                if ((await store.listOutbox()).some(function (op) { return op.recordType === 'settings'; }) ||
-                    (await store.listConflicts()).some(function (c) { return c.recordKey === 'settings/default'; })) {
+                if ((await store.listConflicts()).some(function (c) { return c.recordKey === 'settings/default'; })) {
                     return { ok: false, code: 'theme_view_upgrade_pending' };
                 }
                 var cloud = await readValidatedCloudSnapshot();
                 if (!cloud.ok) return cloud;
-                if ((await store.listOutbox()).some(function (op) { return op.recordType === 'settings'; }) ||
-                    (await store.listConflicts()).some(function (c) { return c.recordKey === 'settings/default'; })) {
-                    return { ok: false, code: 'theme_view_upgrade_pending' };
-                }
                 var record = cloud.snapshot.records.find(function (r) {
                     return r.recordType === 'settings' && r.recordId === 'default';
                 });
+                var pendingSettings = (await store.listOutbox()).filter(function (op) { return op.recordType === 'settings'; });
+                if (pendingSettings.length ||
+                    (await store.listConflicts()).some(function (c) { return c.recordKey === 'settings/default'; })) {
+                    // Keep the pending operation and old shadow intact. Materialize
+                    // the existing review path instead of leaving an invisible hold.
+                    if (record && pendingSettings.length) {
+                        // The normal merge sender skips the operation under review.
+                        // Persist its existing conflict marker before exposing that review.
+                        await store.putOutbox({ ...pendingSettings[0], conflict: true });
+                        await persistConflict(store, 'push', pendingSettings[0], record,
+                            { code: 'theme_view_upgrade_pending' });
+                    }
+                    return { ok: false, code: 'theme_view_upgrade_pending' };
+                }
                 if (record) {
                     var applied = await applyPulledRecord(store, record);
                     if (applied.status === 'conflict') return { ok: false, code: 'theme_view_upgrade_conflict' };

@@ -1,0 +1,56 @@
+{
+  "workerVersion": 161,
+  "workerVersionId": "d278abbd-6989-44ab-a9bf-f7539dc0c8d9",
+  "entryModule": "report-overlay.mjs",
+  "modules": [
+    {
+      "name": "ai-support-candidate.mjs",
+      "bytes": 239313,
+      "sha256": "7248d7a9a53e23e31d4b9ed6700b1a8999e22e5e1b8af9acde67be6c0ffce3be",
+      "candidateSHA256": "7248d7a9a53e23e31d4b9ed6700b1a8999e22e5e1b8af9acde67be6c0ffce3be",
+      "changed": false
+    },
+    {
+      "name": "production-v148.mjs",
+      "bytes": 1043287,
+      "sha256": "c3e2ecaa06731254201f02fe80d874fb6df9915a86d5e07d102bbd12956d7f7b",
+      "candidateSHA256": "835401c65b1a22d4102edf1be7b7ce17f74e1e4259188d24bf23d701ce2dbf6f",
+      "changed": true
+    },
+    {
+      "name": "report-overlay.mjs",
+      "bytes": 194,
+      "sha256": "b582df75169dd5cb82e31d6b3ae634e2b277ad7c480d1b7a3bf7dc4338e202e4",
+      "candidateSHA256": "b582df75169dd5cb82e31d6b3ae634e2b277ad7c480d1b7a3bf7dc4338e202e4",
+      "changed": false
+    },
+    {
+      "name": "reports-feature.mjs",
+      "bytes": 111224,
+      "sha256": "273f4177ae1ce0a57d599881eb7abbcd4ad0966ba55be10a05df0695e29e42e0",
+      "candidateSHA256": "273f4177ae1ce0a57d599881eb7abbcd4ad0966ba55be10a05df0695e29e42e0",
+      "changed": false
+    },
+    {
+      "name": "studio-canary-entry.js",
+      "bytes": 620,
+      "sha256": "feab28be49b9a93c46295bc014c39b58d90b049a61cc428f1ba7698ff8b7303e",
+      "candidateSHA256": "feab28be49b9a93c46295bc014c39b58d90b049a61cc428f1ba7698ff8b7303e",
+      "changed": false
+    }
+  ],
+  "bindingCount": 70,
+  "secretBindingCount": 19,
+  "bindingSettingsSHA256": "d397df8810287efafb38eddf82a9075247b7636d8e9ce334d46f1d470b8bcbcf",
+  "cron": [
+    "15 3 * * *"
+  ],
+  "publicControls": {
+    "enabled": true,
+    "previews_enabled": false
+  },
+  "integrationHandlerChecks": 19,
+  "moduleFunctionEquivalenceChecks": 15,
+  "aiOffStatus": 404,
+  "deployPerformed": false
+}

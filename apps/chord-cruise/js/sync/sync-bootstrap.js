@@ -109,7 +109,7 @@
         ready = loadScript('sync-core.js')
             .then(function () { return loadScript('sync-db.js?v=1.23.1'); })
             .then(function () { return loadScript('sync-merge.js?v=1.23.1'); })
-            .then(function () { return loadScript('sync-client.js?v=1.23.3'); })
+            .then(function () { return loadScript('sync-client.js?v=1.23.4'); })
             .then(function () {
                 var production = isProductionHost() || Boolean(global.SoundCruiseNativeSyncHost);
                 var endpoint = production
