@@ -1,0 +1,162 @@
+{
+  "scope": "Bounded projection of six authorized real Gemma4 responses from 2026-11-08. Classification estimates only, not NEWS facts, provenance, publication decisions or statistical quality proof. Reasoning text is not retained.",
+  "model": "@cf/google/gemma-4-26b-a4b-it",
+  "cases": [
+    {
+      "id": "ja_new_product",
+      "response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"items\": [\n    {\n      \"category\": \"news_hint\",\n      \"brand\": \"ヤマハ\",\n      \"product\": \"Acompass 60\",\n      \"event\": \"アコースティックギターアンプの発売\",\n      \"value\": \"high\",\n      \"priority\": \"high\",\n      \"relevance\": \"high\",\n      \"duplicate\": \"unknown\",\n      \"reason\": \"新製品の発売に関する具体的なニュースリリースのため。\"\n    }\n  ]\n}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 514,
+          "completion_tokens": 115,
+          "total_tokens": 629,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "neurons": 7.809090614318848
+        }
+      },
+      "elapsedMs": 2590,
+      "tokenCostEstimateUsd": 0.0000859,
+      "neuronCostEstimateUsd": 0.00008589999675750731
+    },
+    {
+      "id": "ja_limited",
+      "response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"items\": [\n    {\n      \"category\": \"news\",\n      \"brand\": \"Headway\",\n      \"product\": \"The Eagle (Mahogany & Rosewood Limited Model)\",\n      \"event\": \"New limited model release\",\n      \"value\": \"high\",\n      \"priority\": \"medium\",\n      \"relevance\": \"high\",\n      \"duplicate\": \"unknown\",\n      \"reason\": \"限定モデルの発売情報。日付の検証が必要なため優先度は中。\"\n    }\n  ]\n}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 476,
+          "completion_tokens": 119,
+          "total_tokens": 595,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "neurons": 7.572727203369141
+        }
+      },
+      "elapsedMs": 2444,
+      "tokenCostEstimateUsd": 0.00008329999999999999,
+      "neuronCostEstimateUsd": 0.00008329999923706054
+    },
+    {
+      "id": "ja_old_article",
+      "response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"items\": [\n    {\n      \"category\": \"unknown\",\n      \"brand\": \"Infinite\",\n      \"product\": \"guitar\",\n      \"event\": \"unknown\",\n      \"value\": \"low\",\n      \"priority\": \"low\",\n      \"relevance\": \"medium\",\n      \"duplicate\": \"unknown\",\n      \"reason\": \"ブランド紹介記事。2022年の記事であり、情報の鮮度が低い。\"\n    }\n  ]\n}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 472,
+          "completion_tokens": 107,
+          "total_tokens": 579,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "neurons": 7.209090709686279
+        }
+      },
+      "elapsedMs": 2073,
+      "tokenCostEstimateUsd": 0.00007930000000000002,
+      "neuronCostEstimateUsd": 0.00007929999780654907
+    },
+    {
+      "id": "ja_product_page",
+      "response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\"items\":[{\"category\":\"unknown\",\"brand\":\"ヤマハ\",\"product\":\"FG/FS7シリーズ アコースティックギター\",\"event\":\"unknown\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"製品ラインアップの紹介ページであり、新しいニュースではないため。\"}]}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 483,
+          "completion_tokens": 61,
+          "total_tokens": 544,
+          "prompt_tokens_details": {
+            "cached_tokens": 320
+          },
+          "neurons": 4.599998474121094
+        }
+      },
+      "elapsedMs": 1412,
+      "tokenCostEstimateUsd": 0.0000666,
+      "neuronCostEstimateUsd": 0.00005059998321533203
+    },
+    {
+      "id": "ja_useful_unknown_date",
+      "response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"items\": [\n    {\n      \"category\": \"unknown\",\n      \"brand\": \"unknown\",\n      \"product\": \"沖仁のフラメンコ教則本\",\n      \"event\": \"教則本の発売\",\n      \"value\": \"high\",\n      \"priority\": \"medium\",\n      \"relevance\": \"high\",\n      \"duplicate\": \"unknown\",\n      \"reason\": \"新刊発売のニュースだが、日付の検証が必要なため優先度は中。\"\n    }\n  ]\n}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 452,
+          "completion_tokens": 118,
+          "total_tokens": 570,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "neurons": 7.327272415161133
+        }
+      },
+      "elapsedMs": 2131,
+      "tokenCostEstimateUsd": 0.0000806,
+      "neuronCostEstimateUsd": 0.00008059999656677246
+    },
+    {
+      "id": "ja_ambiguous",
+      "response": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"items\": [\n    {\n      \"category\": \"unknown\",\n      \"brand\": \"Bacchus\",\n      \"product\": \"flagship models\",\n      \"event\": \"Deviser One Day 2026\",\n      \"value\": \"medium\",\n      \"priority\": \"medium\",\n      \"relevance\": \"high\",\n      \"duplicate\": \"unknown\",\n      \"reason\": \"イベントの告知。日付は未検証のため鮮度確認が必要。\"\n    }\n  ]\n}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 489,
+          "completion_tokens": 115,
+          "total_tokens": 604,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "neurons": 7.581818580627441
+        }
+      },
+      "elapsedMs": 2121,
+      "tokenCostEstimateUsd": 0.00008340000000000001,
+      "neuronCostEstimateUsd": 0.00008340000438690185
+    }
+  ]
+}

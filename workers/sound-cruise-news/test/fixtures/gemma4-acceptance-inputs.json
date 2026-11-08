@@ -1,0 +1,77 @@
+{
+  "scope": "Six local acceptance inputs. No formal evidence or production records are created. Evaluation dates are explicitly unverified.",
+  "cases": [
+    {
+      "id": "ja_new_product",
+      "type": "日本語新製品",
+      "basis": "Title and modification from retained Nov8 Exa result; publication hint is an explicitly local evaluation input, not returned by Exa or formal NEWS evidence.",
+      "input": {
+        "url": "https://www.yamaha.com/ja/news_release/2026/26110601/",
+        "title": "シンガーソングライターの歌声とアコースティックギターの自然な響きを忠実に再現するアコースティックギターアンプ『Acompass 60』を発売 - ニュースリリース - ヤマハ株式会社",
+        "searchedAt": 1794096000000,
+        "search_meta_json": "{\"publishedAtHint\":\"2026-11-06\",\"lastModifiedHint\":\"2026-11-06T01:00:00.000Z\"}"
+      },
+      "expected": "Yamaha Acompass 60 acoustic amplifier; useful launch; no verified-date claim"
+    },
+    {
+      "id": "ja_limited",
+      "type": "限定仕様と通常モデル",
+      "basis": "Retained Japanese Qwen fixture title/URL only. No date invented.",
+      "input": {
+        "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/97022/",
+        "title": "Headwayの旗艦シリーズ「The Eagle」に伝統の漆塗装を施したマホガニー＆ローズウッド限定モデルが登場 | 楽器情報メディア - 島村楽器 Update!",
+        "searchedAt": 1794096000000,
+        "search_meta_json": "{}"
+      },
+      "expected": "Headway The Eagle limited finish/woods; retain edition distinction, freshness unknown"
+    },
+    {
+      "id": "ja_old_article",
+      "type": "古い記事と最近の更新",
+      "basis": "Retained title and independently checked 2022-08-12 evaluation label (not formal evidence). Recent modification is a synthetic adversarial fixture.",
+      "input": {
+        "url": "https://youngguitar.jp/gear/hi-end-music-infinite",
+        "title": "大阪から全国、そして世界へ…！ 気鋭のギター・ブランド：Infiniteの全貌に ...",
+        "searchedAt": 1794096000000,
+        "search_meta_json": "{\"publishedAtHint\":\"2022-08-12\",\"lastModifiedHint\":\"2026-11-06T01:00:00Z\"}"
+      },
+      "expected": "Old publication hint dominates recent modification; low priority; no new launch assertion"
+    },
+    {
+      "id": "ja_product_page",
+      "type": "一般商品ページ",
+      "basis": "Retained Japanese Yamaha product lineup title and URL, not a launch notice.",
+      "input": {
+        "url": "https://jp.yamaha.com/musical-instruments/guitars-basses-amps/products/acoustic-guitars/fg-series/fg-7/lineup.html",
+        "title": "ヤマハ | FG/FS7シリーズ - 製品ラインアップ - FG/FSシリーズ - アコースティックギター - 製品情報 - ギター・ベース・アンプ - 楽器",
+        "searchedAt": 1794096000000,
+        "search_meta_json": "{}"
+      },
+      "expected": "Product lineup, low news value/priority; do not call it a new launch"
+    },
+    {
+      "id": "ja_useful_unknown_date",
+      "type": "公開日不明の有用情報",
+      "basis": "Retained local comparison title for Oki Jin book; Dec15 is a release date in the title, not publication date.",
+      "input": {
+        "url": "https://acousticguitarmagazine.jp/2026-1106-okijin-flamenco/",
+        "title": "沖仁のフラメンコ教則本が12月15日に発売",
+        "searchedAt": 1794096000000,
+        "search_meta_json": "{}"
+      },
+      "expected": "Useful guitar instruction book, publication unknown, no high priority or invented publication date"
+    },
+    {
+      "id": "ja_ambiguous",
+      "type": "情報不足・出来事不明",
+      "basis": "Retained Nov8 Exa title and real lastModifiedDate only; no article body or specifications.",
+      "input": {
+        "url": "https://www.deviser.co.jp/information/626551",
+        "title": "進化を続ける国産Bacchusフラッグシップモデル【ディバイザーワンデイ2026】 | Deviser ｜株式会社ディバイザー｜長野県松本市のギターメーカー",
+        "searchedAt": 1794096000000,
+        "search_meta_json": "{\"lastModifiedHint\":\"2026-11-06T09:00:00.000Z\"}"
+      },
+      "expected": "Bacchus brand can be identified; do not invent model/specifications or a definite launch event; freshness remains unknown"
+    }
+  ]
+}
