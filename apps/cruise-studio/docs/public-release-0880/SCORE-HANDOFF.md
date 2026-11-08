@@ -13,3 +13,7 @@ Project Cloud modules in `js/cloud/` use a separate Owner/Session/Outbox/CAS con
 Run developer entry using DEVELOPMENT-LINES.md. First work should be a concrete score-editing acceptance gap chosen with the user (e.g. TAB/rhythm UX and unsupported meter behavior), with existing schema/undo/output tests before changes. Transport/playback, meter expansion and new model fields are future scope, not assumed completed. Keep PreDTM consuming common music projections; avoid parallel chord/beat implementations.
 
 Current candidate proves the developer capability admits both workspace IDs, not a fresh complete editor product acceptance. Existing creation tests and authorized browser acceptance must be run for B's actual changes. No real user's Project is a test fixture.
+
+## Standard completion update
+
+Standard now lives at `/apps/cruise-studio/`, with Pro unchanged at its dedicated path. Both come from excluded `studio-template.html` and both use the public disabled feature policy. `standard-surfaces.js` only hosts native Standard documents; it is not a model/Sync owner. The development generator continues to render a Pro-authenticated creation entry from `studio-template.html` and substitute the excluded developer capability. Do not edit generated root/Pro HTML by hand. Source projects and schema2/repository contracts have not been migrated.

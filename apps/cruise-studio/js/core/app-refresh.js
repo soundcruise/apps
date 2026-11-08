@@ -7,7 +7,7 @@
     });
     function blocked() {
         var sessions = window.CruiseStudio?.sessions;
-        return window.CruiseStudio?.toolWindow?.hasUnsaved() || window.CruiseStudio?.shellHost?.keyboard.isIMEBlocked({}) || (!sessions ? !window.CruiseStudio?.portPC : sessions.listSessions().some(function (s) { return s.dirty || s.commitInFlight || s.inputPending || s.externalUpdatePending || s.conflict; }));
+        return window.CruiseStudio?.standardHasUnsaved?.() || window.CruiseStudio?.toolWindow?.hasUnsaved() || window.CruiseStudio?.shellHost?.keyboard.isIMEBlocked({}) || (!sessions ? !window.CruiseStudio?.portPC : sessions.listSessions().some(function (s) { return s.dirty || s.commitInFlight || s.inputPending || s.externalUpdatePending || s.conflict; }));
     }
     button.addEventListener('click', async function () {
         if (blocked()) { status.textContent = '編集中の内容を保存し、入力を確定してから更新してください。'; return; }
