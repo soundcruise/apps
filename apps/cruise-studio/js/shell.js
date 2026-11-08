@@ -13,6 +13,7 @@
         var loaded = new Set();
         return Object.freeze({
             activate: function (id) {
+                if (typeof window!=='undefined' && ['sheetCruise','preDtm'].includes(id) && !window.CruiseStudio?.releaseFeatures?.allows(id)) return false;
                 if (!Object.hasOwn(workspaces, id) || active === id) return false;
                 var previous = active;
                 if (previous && workspaces[previous].deactivate) workspaces[previous].deactivate();

@@ -29,7 +29,7 @@ export function mountRhythmPanel({C,document:doc,loader}){
     let control=null,selectionBarIds=null,initialization=null,offs=[],shownTarget=null,officialButtons=[];
     function connect(){if(!offs.length){offs=[C.sessions.subscribe(changed),C.documents.subscribe(changed),C.sheetCruise.subscribeSelection(changed)];globalThis.addEventListener('pagehide',hide);watchInteraction();}}
     function disconnect(){offs.forEach(off=>off());offs=[];globalThis.removeEventListener('pagehide',hide);stopInteraction();}
-    function initializeControl(){if(!initialization)initialization=Promise.all([import('./owner-loader.mjs?v=0.87.3'),import('./panel-controller.mjs?v=0.87.3')]).then(([l,c])=>{selectionBarIds=c.selectionBarIds;control=c.createRhythmPanelController({owner:C.documents,schema:C.model.schema2,rhythmSnapshots:C.rhythmSnapshots,repository:C.repository,getContext:context,getSelection:C.sheetCruise.getSelectionSnapshot,loader:loader||l.createOwnerLoader()});});return initialization;}
+    function initializeControl(){if(!initialization)initialization=Promise.all([import('./owner-loader.mjs?v=0.88.0'),import('./panel-controller.mjs?v=0.88.0')]).then(([l,c])=>{selectionBarIds=c.selectionBarIds;control=c.createRhythmPanelController({owner:C.documents,schema:C.model.schema2,rhythmSnapshots:C.rhythmSnapshots,repository:C.repository,getContext:context,getSelection:C.sheetCruise.getSelectionSnapshot,loader:loader||l.createOwnerLoader()});});return initialization;}
     let opened=false,disposed=false,raf=0,request=0,preview=null,chosen=null,previewKey='',savedKey='',notice='',offlineCache=null,compositionTimer=null;
     const node=(tag,text,parent=slot)=>{const n=doc.createElement(tag);if(text!==undefined)n.textContent=text;parent.append(n);return n;};
     const toggle=node('button','リズムを選ぶ');toggle.type='button';toggle.id='rhythm-open';toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-controls','rhythm-body');
@@ -132,5 +132,5 @@ export function mountRhythmPanel({C,document:doc,loader}){
     const hide=()=>close();render();
     return Object.freeze({dispose(){if(disposed)return;close();disposed=true;disconnect();globalThis.removeEventListener('storage',external);globalThis.removeEventListener('focus',focus);globalThis.removeEventListener('pagehide',hide);doc.removeEventListener('focusin',schedule);doc.removeEventListener('compositionstart',composition,true);doc.removeEventListener('compositionend',composition,true);slot.removeEventListener('keydown',escape);slot.replaceChildren();}});
 }
-function initialize(){const C=globalThis.CruiseStudio;if(C?.shellHost&&!C.rhythmPanel)C.rhythmPanel=mountRhythmPanel({C,document});}
+function initialize(){const C=globalThis.CruiseStudio;if(C?.releaseFeatures?.creation&&C?.shellHost&&!C.rhythmPanel)C.rhythmPanel=mountRhythmPanel({C,document});}
 if(typeof document!=='undefined'){if(globalThis.CruiseStudio?.shellHost)initialize();else document.addEventListener('DOMContentLoaded',initialize,{once:true});}
