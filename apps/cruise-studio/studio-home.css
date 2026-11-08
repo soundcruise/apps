@@ -250,7 +250,8 @@
 #studio-shell .studio-nav .studio-brand .studio-logo-refresh { color:inherit; }
 .studio-brand .studio-logo-refresh span { font-size:10px; letter-spacing:.34em; }
 
-[data-coming-soon]{cursor:default!important;opacity:.65;pointer-events:none;transform:none!important;box-shadow:none!important}
+[data-coming-soon]{cursor:default!important;pointer-events:none;transform:none!important}
 [data-coming-soon] .home-feature-arrow{display:none}
-.coming-soon-label{display:block;font-size:12px;color:var(--studio-text-muted);margin-top:6px}
+.studio-main .home-primary [data-coming-soon] > .coming-soon-label{position:absolute;z-index:3;top:46%;left:50%;transform:translate(-50%,-50%) rotate(-8deg);white-space:nowrap;font-size:clamp(18px,2.3vw,28px);font-weight:600;letter-spacing:.04em;color:color-mix(in srgb,var(--home-text) 62%,transparent);text-shadow:0 1px 4px var(--home-panel);pointer-events:none}
+.studio-nav [data-coming-soon] > .coming-soon-label{display:block;grid-column:2;font-size:10px;line-height:1.2;color:var(--studio-text-muted);margin-top:2px}
 .studio-nav [data-coming-soon]{white-space:normal!important}
