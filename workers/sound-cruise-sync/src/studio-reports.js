@@ -39,10 +39,17 @@ export async function handleReports(request,env,ctx,{now=Date.now(),jwks}={}){
  const identity=await authenticateOperator(request,authEnv(env),now,{jwks});
  if(path==='/report-operator'&&request.method==='GET')return new Response(operatorPage,{headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"}});
  if(path==='/report-operator/session'&&request.method==='GET')return json({csrf:await csrfToken(identity,authEnv(env),now)});
+ // This fixed synthetic intake is Access/CSRF protected and works while public intake is OFF.
+ if(path==='/report-operator/test-report'&&request.method==='POST'){
+  await verifyCsrf(request,identity,authEnv(env),now);const input=await body(request);if(!/^[0-9a-f-]{36}$/i.test(input?.report_id||''))throw Error('invalid_input');
+  const fields={app:'Cruise Studio',app_version:'0.87.0',category:'bug',feature:'Operator acceptance',title:'管理者受入テスト（合成報告）',description:'Synthetic acceptance report. No real user data.',reproduction_steps:'Open report form, submit synthetic input, verify receipt and Operator decision.',expected_behavior:'The report is persisted and available only to the authorized operator.',environment:JSON.stringify({os:'synthetic',browser:'operator-acceptance',workspace:'home',occurred_at:'synthetic'})};const digest=await hash(JSON.stringify(fields));
+  await env.REPORT_DB.batch([env.REPORT_DB.prepare('INSERT OR IGNORE INTO studio_reports(report_id,created_at,app,app_version,category,feature,title,description,reproduction_steps,expected_behavior,environment,request_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(input.report_id,now,...Object.values(fields),digest),env.REPORT_DB.prepare('INSERT INTO studio_report_audit SELECT ?,?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),input.report_id,now,identity.actor.id,'synthetic_acceptance','{}')]);
+  const stored=await env.REPORT_DB.prepare('SELECT request_hash FROM studio_reports WHERE report_id=?').bind(input.report_id).first();if(stored.request_hash!==digest)return json({code:'idempotency_conflict'},409);ctx.waitUntil(analyzeReports(env));return json({report_id:input.report_id,accepted:true},201);
+ }
  if(path==='/report-operator/reports'&&request.method==='GET'){
   const before=Number(url.searchParams.get('before')||Number.MAX_SAFE_INTEGER);if(!Number.isSafeInteger(before))throw Error('invalid_input');
   const rows=await env.REPORT_DB.prepare('SELECT * FROM studio_reports WHERE created_at<? ORDER BY created_at DESC,report_id LIMIT 50').bind(before).all();
-  const summary=await env.REPORT_DB.prepare("SELECT COUNT(*) AS total,SUM(status='new') AS pending,SUM(ai_state='done') AS analyzed FROM studio_reports").first();return json({items:rows.results,summary});
+  const summary=await env.REPORT_DB.prepare("SELECT COUNT(*) AS total,COALESCE(SUM(status='new'),0) AS pending,COALESCE(SUM(ai_state='done'),0) AS analyzed FROM studio_reports").first();return json({items:rows.results,summary});
  }
  const m=/^\/report-operator\/reports\/([0-9a-f-]{36})(?:\/(request|retry|erase))?$/.exec(path);if(!m)return json({code:'not_found'},404);
  const r=await env.REPORT_DB.prepare('SELECT * FROM studio_reports WHERE report_id=?').bind(m[1]).first();if(!r)return json({code:'not_found'},404);

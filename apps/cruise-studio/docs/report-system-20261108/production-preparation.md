@@ -1,5 +1,7 @@
 # Production preparation — 2026-11-08
 
+> Historical preparation snapshot. The later authorized rollout and real Access/model acceptance are recorded in [production-rollout.md](production-rollout.md). Statements below about pending deployment/approval describe the earlier preparation stage.
+
 This updates the original PR #234 acceptance. Initial fixed head/tree were `f16188e150e7fa57e6f548a1d0c5d4cd97a1aaad` / `8fa609b141e0ba1bdb03359018b3ef1ca06b8abc`. The same PR is extended; Studio remains the unpublished 0.87.0 candidate. No main merge, Pages release, Production Worker replacement, general intake opening or paid inference was performed.
 
 ## Actual Production baseline and prepared integration
