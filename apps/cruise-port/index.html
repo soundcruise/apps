@@ -5,14 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#090806">
     <script>
-        // Port color theme before first paint. Reads only cruisePort.settings; anything else is Dark.
+        // Port color theme before first paint. Port-local settings and Midnight overlay; never reads another app.
         (function () {
-            var colors = { dark: '#090806', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' };
+            var colors = { dark: '#090806', midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' };
             var theme = 'dark';
             try {
                 var saved = JSON.parse(localStorage.getItem('cruisePort.settings') || 'null');
-                if (saved && (saved.theme === 'charcoal' || saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
-            } catch (_) { theme = 'dark'; }
+                if (saved && (saved.theme === 'midnight' || saved.theme === 'charcoal' || saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
+                var overlay = JSON.parse(localStorage.getItem('cruisePort.midnightTheme.v1') || 'null');
+                if (overlay && overlay.version === 1 && overlay.theme === 'midnight' &&
+                    overlay.baseTheme === ((saved && colors[saved.theme]) ? saved.theme : null)) theme = 'midnight';
+                var pending = JSON.parse(localStorage.getItem('cruisePort.midnightTheme.pending.v1') || 'null');
+                var baseTheme = (saved && colors[saved.theme]) ? saved.theme : null;
+                if (pending && pending.version === 1 && (pending.beforeTheme === null || colors[pending.beforeTheme]) &&
+                    (baseTheme === pending.baseTheme || baseTheme === pending.nextBaseTheme)) theme = pending.beforeTheme || 'dark';
+            } catch (_) { /* Keep the ordinary theme if the overlay is malformed. */ }
             document.documentElement.setAttribute('data-theme', theme);
             var meta = document.querySelector('meta[name="theme-color"]');
             if (meta) meta.setAttribute('content', colors[theme]);
@@ -23,7 +30,7 @@
     <link rel="manifest" href="./manifest.json?v=1.0.1">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=1.0.1">
-    <link rel="stylesheet" href="./style.css?v=1.28.0">
+    <link rel="stylesheet" href="./style.css?v=1.30.0">
     <link rel="stylesheet" href="./feature-help.css?v=1.21.2">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=23">
@@ -41,7 +48,7 @@
     <script defer src="../shared/sync-account/sync-ui-components.js?v=16"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="./practice-menu-app.js?v=1.28.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.30.0"></script>
     <link rel="stylesheet" href="./news-article.css?v=1.16.0">
     <link rel="stylesheet" href="./pro-access.css?v=1.19.2">
     <link rel="stylesheet" href="./sync-pro-lock.css?v=1.19.2">
@@ -192,6 +199,7 @@
                     <h2 id="color-theme-title">カラーテーマ</h2>
                     <div class="settings-choices" role="radiogroup" aria-label="カラーテーマ">
                         <button type="button" class="settings-choice" data-theme-choice="dark" role="radio" aria-checked="true">ダーク</button>
+                        <button type="button" class="settings-choice" data-theme-choice="midnight" role="radio" aria-checked="false">ミッドナイト</button>
                         <button type="button" class="settings-choice" data-theme-choice="charcoal" role="radio" aria-checked="false">チャコール</button>
                         <button type="button" class="settings-choice" data-theme-choice="gray" role="radio" aria-checked="false">グレー</button>
                         <button type="button" class="settings-choice" data-theme-choice="light" role="radio" aria-checked="false">ライト</button>
