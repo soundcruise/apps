@@ -73,7 +73,7 @@ export function packagePortPC(output){
   fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
  }
  // Generated root Standard entry is independently packaged, never the Pro template.
- for(const [name,bytes] of Object.entries({'index.html':renderStandardEntry(fs.readFileSync(path.join(studio,'studio-template.html'),'utf8')),'manifest.webmanifest':renderStandardManifest('0.88.0')})){
+ for(const [name,bytes] of Object.entries({'index.html':renderStandardEntry(fs.readFileSync(path.join(studio,'studio-template.html'),'utf8')),'manifest.webmanifest':renderStandardManifest('0.88.1')})){
   const target=path.join(destination,name);fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
  }
  // Legacy resources are frozen compatibility bytes for already-open tabs, not a second build.
