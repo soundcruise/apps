@@ -1,0 +1,37 @@
+{
+  "A": {
+    "accountHash": "69e3403a370290c00dbe4eedb96b067e6aabbe9d4c9fc8f64a3dd045f19d164a",
+    "state": "deleting",
+    "delete_requested_at": 1794130135124,
+    "purge_after": 1794734935124,
+    "active_account_devices": 0,
+    "active_app_devices": 0,
+    "recordCounts": [
+      {
+        "app_id": "chord",
+        "records": 2
+      },
+      {
+        "app_id": "fretboard",
+        "records": 1
+      },
+      {
+        "app_id": "pitch",
+        "records": 1
+      },
+      {
+        "app_id": "rhythm",
+        "records": 1
+      }
+    ]
+  },
+  "B": {
+    "accountHash": "f26f6101123ac69705600a52629610604b438bf43f2b3b8147838c4446a38a45",
+    "state": "deleting",
+    "delete_requested_at": 1794130133846,
+    "purge_after": 1794734933846,
+    "active_account_devices": 0,
+    "active_app_devices": 0,
+    "recordCounts": []
+  }
+}
