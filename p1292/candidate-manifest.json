@@ -1,0 +1,241 @@
+{
+  "head": "74bac129061d882233f3261a2ef3af9f2fddd282",
+  "version": "1.29.2",
+  "files": [
+    {
+      "file": "apps/cruise-port/ai-support-client.js",
+      "sha256": "f0856fab9c09737d5a013583c3ea140102bc15fdc60a65d07f0eedca1f735f18",
+      "bytes": 14941
+    },
+    {
+      "file": "apps/cruise-port/ai-support-ui.js",
+      "sha256": "b2d439349e16ce5bbcea30cfa7825c3c648394e6264c227eadc721b738f2fcad",
+      "bytes": 17437
+    },
+    {
+      "file": "apps/cruise-port/app-version.js",
+      "sha256": "e01b708b11abef21431102acd56d04f3b00a52fd17e93f6ece53e15d7417941d",
+      "bytes": 1724
+    },
+    {
+      "file": "apps/cruise-port/cruise-port-capabilities.js",
+      "sha256": "f84d8aba4d117bb1c095bc239dc86d933006388ae2c4d26b769bca4b01b88eb7",
+      "bytes": 2839
+    },
+    {
+      "file": "apps/cruise-port/gear-category-store.js",
+      "sha256": "dd2fce550ec062299101b8401568833fa43dfde5b706b16579e6ea1949b419e9",
+      "bytes": 12010
+    },
+    {
+      "file": "apps/cruise-port/gear-list-store.js",
+      "sha256": "8a3baf1aa3914caf6f654411745cbb679a23b5875dbefde1586f8d75a8e53aae",
+      "bytes": 25138
+    },
+    {
+      "file": "apps/cruise-port/gear-photo-store.js",
+      "sha256": "dee89e313ab59243fb856d7666a7ba3d9704ae89c1b20f63427674d62e0d840e",
+      "bytes": 6344
+    },
+    {
+      "file": "apps/cruise-port/gear-photo-workflow.js",
+      "sha256": "0959b68119e5384a1dd078f9a9bc4d48e75d3dbe5a7ab547411d939469708b95",
+      "bytes": 2950
+    },
+    {
+      "file": "apps/cruise-port/home-display.js",
+      "sha256": "bde4085bbad01f8e1fb6ff499777b869ee3197b169933b4d22a5af3c4ac302b2",
+      "bytes": 532
+    },
+    {
+      "file": "apps/cruise-port/index.html",
+      "sha256": "36dce88d09ca6cb705533d4fc431af776ec6f2a71ee33e243dbbad82e6ee42ff",
+      "bytes": 120467
+    },
+    {
+      "file": "apps/cruise-port/metronome-app.js",
+      "sha256": "004ff8fab1824748465c4509784b1e5269237dcbfc5d81b26888a8c77aca6497",
+      "bytes": 43797
+    },
+    {
+      "file": "apps/cruise-port/metronome-presets-store.js",
+      "sha256": "72aa31ac62ece39eb46c2ca33217f553409d06db800d1c823df74f3c8f2acf3f",
+      "bytes": 8693
+    },
+    {
+      "file": "apps/cruise-port/metronome-store.js",
+      "sha256": "85c998223cd05de373d2b808a0f11efc688f947c588a24d0a9200e6ad9c25074",
+      "bytes": 7869
+    },
+    {
+      "file": "apps/cruise-port/metronome-timing.js",
+      "sha256": "d0ba3be6ea783392a61aee38dbf19aebdf89d4d7b3ef8bf62ddbcc08c8745778",
+      "bytes": 4945
+    },
+    {
+      "file": "apps/cruise-port/my-apps-capabilities.js",
+      "sha256": "991f77cb69c7c468101f28cea17d83ab6f4028f2a19072969c27acdc2d0c4fcd",
+      "bytes": 618
+    },
+    {
+      "file": "apps/cruise-port/my-apps-icon-store.js",
+      "sha256": "2a40d1d291f108c42f598edc84ae9f8518c5f00a09534eff729f9246e988e53b",
+      "bytes": 6471
+    },
+    {
+      "file": "apps/cruise-port/my-apps-icon-workflow.js",
+      "sha256": "a96cd7b57332e65e979a718dea01dee9163995a02b9b5f9ac98d61dac8576986",
+      "bytes": 8143
+    },
+    {
+      "file": "apps/cruise-port/my-apps-store.js",
+      "sha256": "90b4f23ee20457cc0e6f68b98f14bd999a5c750c2ebcd5da7d3ec46e2f4a2d9e",
+      "bytes": 18907
+    },
+    {
+      "file": "apps/cruise-port/port-account-join.js",
+      "sha256": "93fb96c02b35982de3437e06de2a59c00fc7537495e696cea4c8409383c9498c",
+      "bytes": 6222
+    },
+    {
+      "file": "apps/cruise-port/port-asset-sync.js",
+      "sha256": "362c0d3110369f03a80eb2817671f9af61b9fa76112ae96825fa800595c33e0e",
+      "bytes": 49672
+    },
+    {
+      "file": "apps/cruise-port/port-dataset-repository.js",
+      "sha256": "43a69161f182b7150e185298e5b7e62ddc1bd9120a9168a8d8c7bae57e52b318",
+      "bytes": 24789
+    },
+    {
+      "file": "apps/cruise-port/port-dataset-storage.js",
+      "sha256": "faaf7f603f1eda889526825f45bec5aacfcb9f8b905d3431cb994073f3a3cfd0",
+      "bytes": 3345
+    },
+    {
+      "file": "apps/cruise-port/port-indexeddb-repository-backend.mjs",
+      "sha256": "80ae2d2f872bc5cb000cc640587fc35dc20141f6c39fce04f2ad39fede5573b8",
+      "bytes": 10282
+    },
+    {
+      "file": "apps/cruise-port/port-metronome-authorization.mjs",
+      "sha256": "5ebd0287d814021fe4c6d5d70c0ca47d156f3be62b368b4f326a0fa45d2336f7",
+      "bytes": 1743
+    },
+    {
+      "file": "apps/cruise-port/port-sync-controller.js",
+      "sha256": "b58c9c7decbbc65c8189f4004c0453914db3e43f6a726477d829709e02c6005d",
+      "bytes": 37196
+    },
+    {
+      "file": "apps/cruise-port/port-sync-local-validation.js",
+      "sha256": "5f48e180b7439b2cff3b834fa850b25bce2de8993b478d6d9ef2fd5d0f5d1b39",
+      "bytes": 2906
+    },
+    {
+      "file": "apps/cruise-port/practice-capabilities.js",
+      "sha256": "bb3531b56338815cc26eb3d7f51e10cdc857303fdd53cb6a5fe68d65e2ca7c4b",
+      "bytes": 741
+    },
+    {
+      "file": "apps/cruise-port/practice-dataset-writes.js",
+      "sha256": "e5f141910a7855ba2f89aa433652141059c91dfd2b1a30979247494803a9fcbe",
+      "bytes": 1038
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-app-resolver.js",
+      "sha256": "5038e28ab3429f95747362b14f36bbe45be35324e959263b482fdba4d5ee11ca",
+      "bytes": 5017
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-app.js",
+      "sha256": "2d9548e8f68abb05d9b9bac747114ca4fb55bfa25aed75d23adc09f5991cc06f",
+      "bytes": 326925
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-attachment-store.js",
+      "sha256": "cd994bee1492d3ff71c24551628a01eccf5f18b5817e3509a2aebb76e11cfe1c",
+      "bytes": 12492
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-calendar-store.js",
+      "sha256": "f4dbf8adfaabc8ec806540edfe90ccd91a653e023e237c3436495c9cc2b2d439",
+      "bytes": 11210
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-history-store.js",
+      "sha256": "e5537eeb5dc73164917ee3681c653c33bdfef4823b9169a89f36b38bc5a9de12",
+      "bytes": 29730
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-pending-attachments.js",
+      "sha256": "7158a2f9d7d26449e8d042d3820572eee4a22268691021540ecbcc21aaafd48a",
+      "bytes": 2818
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-progress-store.js",
+      "sha256": "e999eab8b75f3f54d6abb91577059d21e4f68977a992197f1d5e83cadf626967",
+      "bytes": 9275
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-sets-store.js",
+      "sha256": "4f33a454543fcbda5b4cb8bda5208f15b2318c01d5a1df3e4e44b636915998cd",
+      "bytes": 13182
+    },
+    {
+      "file": "apps/cruise-port/practice-menu-store.js",
+      "sha256": "0e39ba25581e911f388ae988ace8a218d186448de664bc168187fe49a8a28fa0",
+      "bytes": 9016
+    },
+    {
+      "file": "apps/cruise-port/pro-app-boot.js",
+      "sha256": "ea83d964de43bae4e94783c4ae5f68f27af8682d5bcacb567b6b9ae268397906",
+      "bytes": 1996
+    },
+    {
+      "file": "apps/cruise-port/pro_9a3943176561/index.html",
+      "sha256": "06b0bc84b1dde745b1c6a05ae18603972a79147244bd4a7fb7204847d85bd0da",
+      "bytes": 120938
+    },
+    {
+      "file": "apps/cruise-port/settings-store.js",
+      "sha256": "213c7751f48afd61e1a8aa155e0912c524ba7f16c01525e1d18e28a6b7e0385e",
+      "bytes": 5219
+    },
+    {
+      "file": "apps/cruise-port/sync-center-orchestrator.js",
+      "sha256": "c2dd1eed7339d74e251a229eddac1782838a37d753fdb3036df34d67a1eecf40",
+      "bytes": 20442
+    },
+    {
+      "file": "apps/cruise-port/sync-center-ui.js",
+      "sha256": "3ce5eeaa2f74b0b932dc42602ee1975f71264735c4f8e685c1a801fbf3d7f8d3",
+      "bytes": 93312
+    },
+    {
+      "file": "apps/cruise-port/sync-pro-lock.js",
+      "sha256": "f8372b269bb846049666378c5a1272b97958285e9b7876c0808ca726930d21a8",
+      "bytes": 3222
+    },
+    {
+      "file": "apps/cruise-port/tool-capabilities.js",
+      "sha256": "7369fd6102ce83ec968dc49a39ee4854e2c680ae66479f6d33d11cf4073c2166",
+      "bytes": 2014
+    },
+    {
+      "file": "apps/cruise-port/tuner-app.js",
+      "sha256": "47bae4eea77bf1d77efb075efcdd9c776ebed02f84e12d574d3c8a0a97f150f6",
+      "bytes": 53623
+    },
+    {
+      "file": "apps/cruise-port/tuner-store.js",
+      "sha256": "250dfe5447f33f56ecb38287268cbf621ebca5e692eaa7787b7691e8b0d50b70",
+      "bytes": 4138
+    },
+    {
+      "file": "apps/shared/sync-account/multi-app-sync-runtime.js",
+      "sha256": "2687c834989c756130338947a3865b0feb3110046e9ae4109afb33f149701136",
+      "bytes": 127693
+    }
+  ]
+}

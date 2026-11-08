@@ -1,0 +1,1473 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#090806">
+    <script>
+        // Port color theme before first paint. Reads only cruisePort.settings; anything else is Dark.
+        (function () {
+            var colors = { dark: '#090806', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' };
+            var theme = 'dark';
+            try {
+                var saved = JSON.parse(localStorage.getItem('cruisePort.settings') || 'null');
+                if (saved && (saved.theme === 'charcoal' || saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
+            } catch (_) { theme = 'dark'; }
+            document.documentElement.setAttribute('data-theme', theme);
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', colors[theme]);
+        }());
+    </script>
+    <title>クルーズポート Pro</title>
+    <meta name="apple-mobile-web-app-title" content="Cruise Port">
+    <link rel="manifest" href="./manifest.json?v=1.0.1">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.69.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=1.0.1">
+    <link rel="stylesheet" href="../../shared/pro-gate.css?v=10">
+    <link rel="stylesheet" href="../style.css?v=1.28.0">
+    <link rel="stylesheet" href="../feature-help.css?v=1.21.2">
+    <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
+    <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=23">
+    <script>
+        window.__SOUNDCRUISE_PRO_GATE__ = {
+            gateVersion: 8,
+            appName: 'クルーズポート'
+        };
+    </script>
+    <script src="../../shared/pro-device-session.js?v=7" defer></script>
+    <script src="../../shared/pro-gate-help.js?v=4"></script>
+    <script src="../../shared/pro-gate.js?v=33" defer></script>
+    <script src="../../shared/sync-account/production-config.js?v=2"></script>
+    <script defer src="../../shared/pro-backend-entitlement.js?v=3"></script>
+    <script defer src="../../shared/sync-account/sync-account-core.js?v=7"></script>
+    <script defer src="../../shared/sync-account/sync-account-db.js?v=10"></script>
+    <script defer src="../../shared/sync-account/sync-account-client.js?v=17"></script>
+    <script defer src="../../shared/sync-account/sync-app-backup.js?v=3"></script>
+    <script defer src="../../shared/sync-account/multi-app-sync-db.js?v=6"></script>
+    <script defer src="../../shared/sync-account/multi-app-sync-runtime.js?v=35"></script>
+    <script defer src="../../shared/sync-account/multi-app-conflict-ui.js?v=10"></script>
+    <script defer src="../port-sync-adapter.js?v=1.24.22"></script>
+    <script defer src="../port-sync-controller.js?v=1.29.2"></script>
+    <script defer src="../../shared/sync-account/sync-ui-components.js?v=16"></script>
+    <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
+    <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
+    <script type="module" src="../pro-app-boot.js?v=1.29.2"></script>
+    <link rel="stylesheet" href="../news-article.css?v=1.16.0">
+    <link rel="stylesheet" href="../pro-access.css?v=1.19.2">
+    <link rel="stylesheet" href="../sync-pro-lock.css?v=1.19.2">
+</head>
+<body>
+    <div class="port-shell">
+        <main id="home-view" class="port-view">
+            <header class="port-header">
+                <div class="port-header-actions">
+                    <button id="home-calendar-button" class="port-calendar-button" type="button" aria-label="音楽カレンダーを開く" title="音楽カレンダー">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5"/><path d="M8 3v5M16 3v5M3.5 10h17"/><g fill="currentColor" stroke="none"><rect x="7" y="12.5" width="2.5" height="2.5" rx=".5"/><rect x="10.75" y="12.5" width="2.5" height="2.5" rx=".5"/><rect x="14.5" y="12.5" width="2.5" height="2.5" rx=".5"/><rect x="7" y="16.5" width="2.5" height="2.5" rx=".5"/><rect x="10.75" y="16.5" width="2.5" height="2.5" rx=".5"/><rect x="14.5" y="16.5" width="2.5" height="2.5" rx=".5"/></g></svg>
+                    </button>
+                    <button id="home-settings-button" class="port-settings-button" type="button" aria-label="表示設定を開く">
+                        <span class="port-settings-gear" aria-hidden="true">⚙️</span><span>設定</span>
+                    </button>
+                </div>
+                <h1><span class="port-title-text">クルーズポート<span id="home-pro-badge" class="port-pro-badge" aria-hidden="true" hidden>Pro</span></span></h1>
+                <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
+            </header>
+        <div class="news-home">
+            <a id="news-ticker" class="news-ticker" href="#news" hidden></a>
+            <a id="news-entry" class="news-entry" href="#news">ニュース</a>
+        </div>
+
+            <section class="port-section" data-home-section="cruiseApps" aria-labelledby="cruise-apps-heading">
+                <h2 id="cruise-apps-heading">クルーズapps</h2>
+                <nav class="card-grid home-card-grid" aria-label="クルーズアプリ">
+                    <a class="port-card app-card" data-cruise-app="pitch">
+                        <img src="../../pitch-cruise/pro_icon_192.png" alt="" width="192" height="192">
+                        <span class="card-name">音感クルーズ</span>
+                    </a>
+
+                    <a class="port-card app-card" data-cruise-app="fretboard">
+                        <img src="../../fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png" alt="" width="192" height="192">
+                        <span class="card-name">指板クルーズ</span>
+                    </a>
+
+                    <a class="port-card app-card" data-cruise-app="rhythm">
+                        <img src="../../rhythm-cruise/pro_r4m8k7n2q9x/icon-192.png" alt="" width="192" height="192">
+                        <span class="card-name">リズムクルーズ</span>
+                    </a>
+
+                    <a class="port-card app-card" data-cruise-app="chord">
+                        <img src="../../chord-cruise/icons/chord-cruise-pro-192.png" alt="" width="192" height="192">
+                        <span class="card-name">コードクルーズ</span>
+                    </a>
+                </nav>
+            </section>
+
+            <section class="port-section" data-home-section="tools" aria-labelledby="tools-heading">
+                <h2 id="tools-heading">ツール</h2>
+                <div class="card-grid home-card-grid" aria-label="ツール">
+                    <a class="port-card skeleton-card tool-card" id="tuner-card" href="#tuner">
+                        <span class="skeleton-icon" aria-hidden="true"><img src="../assets/my-app-icons/tool-tuner.png?v=0.13.1" alt="" decoding="async"></span>
+                        <span class="card-name">チューナー</span>
+                    </a>
+
+                    <a class="port-card skeleton-card tool-card" id="metronome-card" href="#metronome">
+                        <span class="skeleton-icon" aria-hidden="true"><img src="../assets/my-app-icons/tool-metronome.png?v=0.13.1" alt="" decoding="async"></span>
+                        <span class="card-name">メトロノーム</span>
+                    </a>
+
+                    <a class="port-card skeleton-card tool-card" id="practice-menu-card" href="#practice-menu">
+                        <span class="skeleton-icon" aria-hidden="true"><img src="../assets/my-app-icons/practice-menu.png?v=0.12.8" alt="" decoding="async"></span>
+                        <span class="card-name">練習メニュー</span>
+                    </a>
+
+                    <a class="port-card skeleton-card tool-card" id="wishlist-card" href="#wishlist">
+                        <span class="skeleton-icon" aria-hidden="true"><img src="../assets/my-app-icons/gear-list.png?v=0.12.8" alt="" decoding="async"></span>
+                        <span class="card-name">機材リスト</span>
+                    </a>
+                </div>
+            </section>
+
+            <section id="my-apps-section" class="port-section" data-home-section="myApps" aria-labelledby="my-apps-heading">
+                <div class="practice-heading-row my-apps-heading-row">
+                    <h2 id="my-apps-heading">My Apps</h2>
+                    <button id="my-apps-manage" class="reorder-button" type="button" hidden>編集・並び替え</button>
+                </div>
+                <p id="my-apps-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <div id="my-apps-grid" class="card-grid home-card-grid">
+                    <button id="my-apps-add" class="port-card skeleton-card add-card my-app-card" type="button">
+                        <span class="add-symbol" aria-hidden="true">＋</span>
+                        <span class="card-name">アプリを追加</span>
+                    </button>
+                </div>
+            </section>
+            <section class="port-pro-link" data-standard-pro-link hidden>
+                <span>Cruise Port Pro</span> · <a href="#pro-access">Pro版の入手方法 →</a>
+            </section>
+        </main>
+
+        <main id="news-article-view" class="port-view" hidden>
+            <section class="view-panel" aria-labelledby="news-article-title">
+                <a class="view-back" href="#news">← ニュース一覧</a>
+                <h1 id="news-article-title" class="view-title" tabindex="-1">記事</h1>
+                <article id="news-article-content"></article>
+            </section>
+        </main>
+
+        <main id="news-view" class="port-view" hidden>
+        <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
+        <section class="view-panel" aria-labelledby="news-title">
+            <p class="view-kicker">Cruise Port</p>
+            <div class="news-heading">
+                <h1 id="news-title" class="view-title" tabindex="-1">ニュース</h1>
+                <span class="news-test-label">テスト中</span>
+            </div>
+            <div id="news-content"><p>ニュースを読み込み中…</p></div>
+            <p class="news-contact"><a href="mailto:soundcruise.inc@gmail.com">ニュースの修正・掲載停止のお問い合わせ</a></p>
+        </section>
+    </main>
+
+    <main id="settings-view" class="port-view settings-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
+            <section class="view-panel settings-panel" aria-labelledby="settings-title">
+                <p class="view-kicker">クルーズポート</p>
+                <h1 id="settings-title" class="view-title" tabindex="-1">設定</h1>
+                <section id="settings-sync-center-entry" class="sound-cruise-sync-settings-card settings-sync-center-card" hidden>
+                    <header class="sound-cruise-sync-settings-head">
+                        <strong class="sound-cruise-sync-settings-title">クラウド同期</strong>
+                        <button id="settings-sync-center-help" class="sound-cruise-sync-help-button" type="button" aria-label="クラウド同期のヘルプを開く">?</button>
+                    </header>
+                    <div class="sound-cruise-sync-card-actions">
+                        <button id="settings-sync-center-open" class="sound-cruise-sync-button sound-cruise-sync-button--primary" type="button">クラウド同期を開く</button>
+                    </div>
+                </section>
+                <section class="settings-card" aria-labelledby="display-size-title">
+                    <h2 id="display-size-title">表示の大きさ</h2>
+                    <p>ホームのカード表示を選べます。</p>
+                    <div class="settings-choices" role="radiogroup" aria-label="表示の大きさ">
+                        <button type="button" class="settings-choice" data-display-size="large" role="radio" aria-checked="false"><span>大</span><small>1列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="standard" role="radio" aria-checked="true"><span>中</span><small>2列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="small" role="radio" aria-checked="false"><span>小</span><small>4列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="xsmall" role="radio" aria-checked="false"><span>極小</span><small>6列</small></button>
+                    </div>
+                </section>
+                <section class="settings-card" aria-labelledby="font-size-title">
+                    <h2 id="font-size-title">フォント</h2>
+                    <div class="settings-choices" role="radiogroup" aria-label="フォント">
+                        <button type="button" class="settings-choice" data-font-size="small" role="radio" aria-checked="false">小</button>
+                        <button type="button" class="settings-choice" data-font-size="medium" role="radio" aria-checked="true">中</button>
+                        <button type="button" class="settings-choice" data-font-size="large" role="radio" aria-checked="false">大</button>
+                        <button type="button" class="settings-choice" data-font-size="xlarge" role="radio" aria-checked="false">特大</button>
+                    </div>
+                </section>
+                <section class="settings-card" aria-labelledby="color-theme-title">
+                    <h2 id="color-theme-title">カラーテーマ</h2>
+                    <div class="settings-choices" role="radiogroup" aria-label="カラーテーマ">
+                        <button type="button" class="settings-choice" data-theme-choice="dark" role="radio" aria-checked="true">ダーク</button>
+                        <button type="button" class="settings-choice" data-theme-choice="charcoal" role="radio" aria-checked="false">チャコール</button>
+                        <button type="button" class="settings-choice" data-theme-choice="gray" role="radio" aria-checked="false">グレー</button>
+                        <button type="button" class="settings-choice" data-theme-choice="light" role="radio" aria-checked="false">ライト</button>
+                    </div>
+                </section>
+                <section class="settings-card" aria-labelledby="section-order-title">
+                    <h2 id="section-order-title">ホームの表示順</h2>
+                    <div id="settings-section-order" class="settings-section-order"></div>
+                    <p id="settings-order-status" role="status" class="settings-order-status"></p>
+                </section>
+                <button id="settings-reset" class="action-button secondary-action" type="button">全てをデフォルトに戻す</button>
+                <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <section class="settings-card port-pro-link" data-standard-pro-link hidden>
+                    <h2>Pro版について</h2>
+                    <p>登録枠の拡張、写真・ファイルの追加、音の詳細設定を利用できます。</p>
+                    <a href="#pro-access">Pro版の入手方法 →</a>
+                </section>
+                <section id="settings-pro-auth" class="settings-card" aria-labelledby="settings-pro-auth-title" hidden>
+                    <h2 id="settings-pro-auth-title">Pro版の認証</h2>
+                    <p>次回Pro版を開く際に、パスワードの入力が必要になります。</p>
+                    <button id="settings-pro-auth-reset" class="action-button secondary-action" type="button">Pro版の認証をリセット</button>
+                    <p id="settings-pro-auth-error" class="notice notice-error" role="alert" hidden></p>
+                </section>
+                <nav class="settings-card sound-cruise-info-links" aria-label="法務・お問い合わせ">
+                    <a href="../terms.html">利用規約</a><br>
+                    <a href="../privacy.html">プライバシーポリシー</a><br>
+                    <a href="mailto:soundcruise.inc@gmail.com">お問い合わせ</a>
+                </nav>
+            </section>
+        </main>
+
+        <main id="sync-center-view" class="port-view sync-center-view" hidden>
+            <button id="sync-center-back" class="view-back" type="button">← TOPに戻る</button>
+            <section class="view-panel sync-center-panel" aria-labelledby="sync-center-title">
+                <div class="sync-center-heading">
+                    <div>
+                        <p class="view-kicker">Sound Cruise Sync</p>
+                        <h1 id="sync-center-title" class="view-title" tabindex="-1">クラウド同期</h1>
+                    </div>
+                    <button id="sync-center-help-open" class="sync-center-help" type="button" aria-label="クラウド同期のヘルプを開く">?</button>
+                </div>
+                <section class="sync-center-account" aria-labelledby="sync-center-account-title">
+                    <div class="sync-center-section-heading">
+                        <h2 id="sync-center-account-title">1. アカウント</h2>
+                        <button id="sync-center-account-help-toggle" class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-account-help" aria-expanded="false" aria-controls="sync-center-account-help" aria-label="アカウントの説明を表示">?</button>
+                    </div>
+                    <div class="sync-center-account-actions">
+                        <div class="sync-center-account-status-row">
+                            <span id="sync-center-account-status" class="sync-center-account-status-chip">確認中</span><button id="sync-center-account-recheck" class="sync-center-app-action secondary" type="button" hidden>再確認</button>
+                            <p id="sync-center-account-display-id" class="sync-center-account-display-id" hidden></p>
+                        </div>
+                        <div class="sync-center-account-action-row">
+                            <button id="sync-center-setup-open" class="sync-center-account-action" type="button" hidden>アカウントの作成</button>
+                            <button id="sync-center-port-connect-open" class="sync-center-account-action" type="button" hidden>既存のアカウントに接続</button>
+                        </div>
+                    </div>
+                    <div class="sync-center-app sync-center-port-card">
+                        <img src="/apps/cruise-port/assets/app-icons/pro/icon-192.png?v=0.69.0" alt="" width="48" height="48">
+                        <div class="sync-center-app-copy">
+                            <strong>Cruise Port</strong>
+                            <span class="sync-center-app-status-line"><span class="sync-center-status-and-targets"><span id="sync-center-port-status-chip" class="sync-center-app-status-chip sync-center-app-status-chip--checking" data-sync-port-status="checking" role="status" aria-live="polite">確認中…</span><span id="sync-center-account-targets-trigger"></span></span><button id="port-sync-activate" class="sync-center-port-conflicts-open" type="button" hidden>同期を開始・再開</button><button id="sync-center-port-conflicts-open" class="sync-center-port-conflicts-open" type="button" hidden>競合を確認する</button><button id="sync-center-port-legacy-retry" class="sync-center-port-conflicts-open" type="button" hidden>同期を再試行</button></span>
+                            <p id="sync-center-port-status-detail" class="sync-center-section-note" role="status"></p>
+                        </div>
+                        <div id="sync-center-account-targets" class="sync-center-account-targets"></div>
+                    </div>
+                    <div id="sync-center-account-help" class="sync-center-section-help-copy" hidden>
+                        <h3>アカウントについて</h3>
+                        <p>クラウド同期に使うアカウントです。同じアカウントを使う端末では、対応する保存データを共有できます。</p>
+                        <h3>アカウントを作成</h3>
+                        <p>初めて使う場合は、新しいアカウントを作成します。</p>
+                        <h3>既存アカウントに接続</h3>
+                        <p>別のCruise Portで使っている既存アカウントへ接続できます。</p>
+                        <h3>アカウントIDについて</h3>
+                        <p>表示されるアカウントIDは確認用です。パスワードではありません。</p>
+                        <h3>Cruise Portのデータ</h3>
+                        <p>機材リスト、練習メニュー、My Apps、カレンダー、メトロノーム、設定などを同期します。写真、カスタムアイコン、添付ファイルにも対応しています。</p>
+                    </div>
+                    <p id="sync-center-alert" class="notice notice-error" role="alert" hidden></p>
+                </section>
+                <section class="sync-center-section" aria-labelledby="sync-center-apps-title">
+                    <div class="sync-center-section-heading">
+                        <h2 id="sync-center-apps-title">2. Cruiseアプリを接続</h2>
+                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-apps-help" aria-expanded="false" aria-controls="sync-center-apps-help" aria-label="アプリの接続方法を表示">?</button>
+                    </div>
+                    <div id="sync-center-apps-help" hidden>
+                        <p class="sync-center-section-help-copy">音感・指板・リズム・コードの各Cruiseアプリで保存したデータをクラウドに同期します。未接続のアプリは「同期コード」から接続できます。</p>
+                        <div class="sync-center-section-help-copy"><h3>「✓ 同期済み」について</h3><p>「✓ 同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。各端末やブラウザのアプリがすべて最新であることまでは示しません。同期先ごとの最後の報告は、各アプリの「同期先」から確認できます。</p><h3>Home画面から削除する前に</h3><p>削除するアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。Cruise Portの「✓ 同期済み」だけでは、その端末の変更がすべて同期されたかは分かりません。同期済みのデータは、ホーム画面のアプリを削除したあともCruise Portから再び利用できます。端末固有の設定や、まだ同期されていない変更は対象外です。</p></div>
+                    </div>
+                    <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
+                </section>
+                <section class="sync-center-section" aria-labelledby="sync-center-add-environments-title">
+                    <div class="sync-center-section-heading">
+                        <h2 id="sync-center-add-environments-title">3. アカウントを同期</h2>
+                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-add-environments-help" aria-expanded="false" aria-controls="sync-center-add-environments-help" aria-label="環境の管理方法を表示">?</button>
+                    </div>
+                    <div id="sync-center-add-environments-help" class="sync-center-section-help-copy" hidden>
+                        <p>別のスマートフォンやパソコンで同じSound Cruise Syncアカウントを使うときに追加します。</p>
+                        <h3>同期先について</h3><p>同期先には、スマートフォンやパソコンのほか、ブラウザ版やホーム画面版も個別に表示される場合があります。</p>
+                        <h3>Cruiseアプリの同期先を管理</h3><p>以前使っていた端末やブラウザなど、Cruiseアプリの同期先を確認・解除できます。使わなくなった同期先や、紛失した端末の接続を解除できます。</p>
+                        <p class="sync-center-help-note">同じ端末でも、ブラウザ版とホーム画面版は別の同期先として扱われる場合があります。</p>
+                    </div>
+                    <ul id="sync-center-add-environments" class="sync-center-apps" aria-live="polite"></ul>
+                    <button id="sync-center-app-environments-toggle" class="sync-center-advanced-toggle" type="button" aria-expanded="false" aria-controls="sync-center-app-environments-advanced">Cruiseアプリの同期先を管理</button>
+                    <div id="sync-center-app-environments-advanced" hidden>
+                        <ul id="sync-center-app-environments" class="sync-center-apps" aria-live="polite"></ul>
+                    </div>
+                </section>
+                <section class="sync-center-section" aria-labelledby="sync-center-recovery-title">
+                    <div class="sync-center-section-heading">
+                        <h2 id="sync-center-recovery-title">復旧とセキュリティ</h2>
+                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-recovery-help" aria-expanded="false" aria-controls="sync-center-recovery-help" aria-label="復旧とセキュリティの説明を表示">?</button>
+                    </div>
+                    <p id="sync-center-recovery-help" class="sync-center-section-help-copy" hidden>保存してある復旧コードを使って、既存のSound Cruise Syncアカウントを復旧できます。</p>
+                    <div class="sync-center-actions">
+                        <button id="sync-center-account-recovery-open" class="action-button secondary-action" type="button" hidden>復旧コードを更新</button>
+                        <button id="sync-center-recovery-open" class="action-button secondary-action" type="button" hidden>復旧コードで復旧</button>
+                    </div>
+                </section>
+                <section class="sync-center-section sync-center-danger" aria-labelledby="sync-center-danger-title">
+                    <div class="sync-center-section-heading">
+                        <h2 id="sync-center-danger-title">危険な操作</h2>
+                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-danger-help" aria-expanded="false" aria-controls="sync-center-danger-help" aria-label="危険な操作の説明を表示">?</button>
+                    </div>
+                    <p id="sync-center-danger-help" class="sync-center-section-help-copy" hidden>「同期を解除」は、クラウド上と端末内のデータを残したまま、そのアプリの同期接続を外す操作です。「アプリ単位で削除」は、選んだCruiseアプリのクラウドデータだけを削除対象にします。ほかのアプリには影響しません。「アカウントを削除」は、Cruise PortとすべてのCruiseアプリのクラウドデータを削除対象にします。端末内のデータは自動では削除されず、削除を確定したデータは7日後に完全削除の対象になります。</p>
+                    <button class="sync-center-danger-toggle" type="button" data-sync-app-delete-toggle aria-expanded="false" aria-controls="sync-center-app-delete-actions">アプリ単位で削除⌄</button>
+                    <div id="sync-center-app-delete-actions" class="sync-center-app-delete-actions" hidden>
+                        <button class="action-button danger-action" type="button" data-sync-app-delete="pitch" data-sync-app-name="音感クルーズ">音感クルーズの同期データを削除</button>
+                        <button class="action-button danger-action" type="button" data-sync-app-delete="fretboard" data-sync-app-name="指板クルーズ">指板クルーズの同期データを削除</button>
+                        <button class="action-button danger-action" type="button" data-sync-app-delete="rhythm" data-sync-app-name="リズムクルーズ">リズムクルーズの同期データを削除</button>
+                        <button class="action-button danger-action" type="button" data-sync-app-delete="chord" data-sync-app-name="コードクルーズ">コードクルーズの同期データを削除</button>
+                    </div>
+                    <button id="sync-center-account-delete" class="action-button danger-action" type="button">アカウントを削除</button>
+                </section>
+                <p id="sync-center-action-status" class="settings-order-status" role="status" aria-live="polite"></p>
+            </section>
+            <section class="sync-center-support" aria-labelledby="sync-center-support-title">
+                <h2 id="sync-center-support-title">クラウド同期で困ったときは</h2>
+                <div id="sync-center-ai-support" class="sync-center-ai-support" hidden></div>
+                <p id="sync-center-support-intro">不具合や分からないことがあれば、メールでお知らせください。返信でやりとりできます。</p>
+                <a class="sync-center-support-link" href="mailto:soundcruise.inc@gmail.com?subject=Cruise%20Port%20%E3%82%AF%E3%83%A9%E3%82%A6%E3%83%89%E5%90%8C%E6%9C%9F%E3%81%AE%E4%B8%8D%E5%85%B7%E5%90%88&amp;body=%E5%9B%B0%E3%81%A3%E3%81%A6%E3%81%84%E3%82%8B%E3%82%A2%E3%83%97%E3%83%AA%EF%BC%88%E4%BE%8B%EF%BC%9A%E9%9F%B3%E6%84%9F%E3%82%AF%E3%83%AB%E3%83%BC%E3%82%BA%EF%BC%89%EF%BC%9A%0A%E8%B5%B7%E3%81%8D%E3%81%9F%E3%81%93%E3%81%A8%EF%BC%9A%0A%E4%BD%BF%E3%81%A3%E3%81%A6%E3%81%84%E3%82%8B%E7%AB%AF%E6%9C%AB%E3%83%BB%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%EF%BC%88%E4%BE%8B%EF%BC%9AiPhone%20%E3%83%9B%E3%83%BC%E3%83%A0%E7%94%BB%E9%9D%A2%E7%89%88%EF%BC%89%EF%BC%9A%0ACruise%20Port%E3%81%AE%E3%83%90%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3%EF%BC%88%E7%94%BB%E9%9D%A2%E3%81%AE%E4%B8%80%E7%95%AA%E4%B8%8B%E3%81%AB%E8%A1%A8%E7%A4%BA%EF%BC%89%EF%BC%9A%0A%0A%E2%80%BB%204%E6%A1%81%E3%81%AE%E7%95%AA%E5%8F%B7%E3%80%81%E5%BE%A9%E6%97%A7%E3%82%B3%E3%83%BC%E3%83%89%E3%80%81%E6%8E%A5%E7%B6%9A%E3%82%B3%E3%83%BC%E3%83%89%E3%81%AF%E6%9B%B8%E3%81%8B%E3%81%AA%E3%81%84%E3%81%A7%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84%E3%80%82">不具合を報告（メール）</a>
+                <p class="sync-center-support-note">メールアプリが開きます。送信するまで何も送られません。4桁の番号や復旧コードは書かないでください。</p>
+            </section>
+            <dialog id="sync-center-setup" class="sync-center-help-dialog" aria-labelledby="sync-center-setup-title" data-sync-phase="introduction">
+                <h2 id="sync-center-setup-title">クラウド同期をはじめる</h2>
+                <p id="sync-center-setup-intro">次の手順で設定します。</p>
+                <ol id="sync-center-setup-steps" class="sync-center-setup-steps">
+                    <li>復旧コードを保存する</li>
+                    <li>各Proアプリを開く</li>
+                    <li>設定から「Cruise Portと接続」を押す</li>
+                    <li>画面の案内に沿って接続する</li>
+                </ol>
+                <p id="sync-center-setup-plan">4つのProアプリは、それぞれ1回ずつ接続します。</p>
+                <p id="sync-center-setup-summary" data-sync-summary hidden></p>
+                <div id="sync-center-setup-turnstile" class="sync-center-turnstile" hidden>
+                    <p>本人確認を完了してください。</p>
+                    <div id="sync-center-turnstile"></div>
+                </div>
+                <output id="sync-center-recovery-code" data-sensitive="recovery-code" hidden></output>
+                <button id="sync-center-setup-copy" class="action-button secondary-action" type="button" hidden>復旧コードをコピー</button>
+                <p id="sync-center-setup-copy-status" role="status" aria-live="polite"></p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-setup-confirm" class="action-button primary-action" type="button" data-sync-action="create-account">復旧コードを確認</button>
+                    <button id="sync-center-setup-close" class="action-button secondary-action" type="button">戻る</button>
+                </div>
+            </dialog>
+            <dialog id="sync-center-port-connect" class="sync-center-help-dialog" aria-labelledby="sync-center-port-connect-title">
+                <h2 id="sync-center-port-connect-title">既存のアカウントに接続</h2>
+                <p id="sync-center-port-connect-description">別のCruise Portに表示された追加コードを入力してください。</p>
+                <label>この端末の名前<input id="sync-center-port-connect-name" type="text" autocomplete="off" maxlength="80"></label>
+                <label id="sync-center-port-connect-label" for="sync-center-port-connect-input">追加コード</label>
+                <input id="sync-center-port-connect-input" data-sensitive="port-addition-code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text">
+                <p id="sync-center-port-connect-status" role="alert" aria-live="polite"></p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-port-connect-confirm" class="action-button primary-action" type="button">接続する</button>
+                    <button id="sync-center-port-connect-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                    <button id="sync-center-port-connect-close" class="action-button primary-action" type="button" hidden>閉じる</button>
+                </div>
+            </dialog>
+            <dialog id="sync-center-recovery" class="sync-center-help-dialog" aria-labelledby="sync-center-recovery-dialog-title" data-sync-phase="input">
+                <h2 id="sync-center-recovery-dialog-title">Sound Cruise Syncを復旧</h2>
+                <p id="sync-center-recovery-summary" data-sync-summary>保存してある復旧コードを入力してください。</p>
+                <input id="sync-center-recovery-input" data-sensitive="account-recovery-code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Account Recovery Code">
+                <output id="sync-center-recovery-candidate" data-sensitive="account-recovery-candidate" hidden></output>
+                <button id="sync-center-recovery-copy" class="action-button secondary-action" type="button" hidden>復旧コードをコピー</button>
+                <p id="sync-center-recovery-copy-status" role="status" aria-live="polite"></p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-recovery-confirm" class="action-button primary-action" type="button" data-sync-action="prepare-recovery">復旧対象を確認</button>
+                    <button id="sync-center-recovery-close" class="action-button secondary-action" type="button">戻る</button>
+                </div>
+            </dialog>
+            <dialog id="sync-center-recovery-rotate-confirm-dialog" class="sync-center-help-dialog" aria-labelledby="sync-center-recovery-rotate-confirm-title">
+                <h2 id="sync-center-recovery-rotate-confirm-title">復旧コードを更新</h2>
+                <p>新しい復旧コードを発行します。発行すると、現在の復旧コードは使えなくなります。</p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-recovery-rotate-confirm" class="action-button primary-action" type="button" data-sync-action="prepare-recovery-rotation">新しい復旧コードを発行</button>
+                    <button id="sync-center-recovery-rotate-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                </div>
+            </dialog>
+            <dialog id="sync-center-lifecycle-confirm" class="sync-center-help-dialog" aria-labelledby="sync-center-lifecycle-title" data-sync-phase="review">
+                <h2 id="sync-center-lifecycle-title">操作内容を確認</h2>
+                <p id="sync-center-lifecycle-summary" data-sync-summary></p>
+                <p id="sync-center-lifecycle-delete-note" hidden>端末内のデータは削除されません。クラウドデータは7日後に完全削除されます。</p>
+                <p id="sync-center-lifecycle-sync-note" class="sync-center-lifecycle-sync-note" hidden></p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-lifecycle-submit" class="action-button danger-action" type="button" data-sync-action="review">続ける</button>
+                    <button id="sync-center-lifecycle-close" class="action-button secondary-action" type="button">キャンセル</button>
+                </div>
+            </dialog>
+        </main>
+
+        <main id="wishlist-view" class="port-view wishlist-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
+            <section class="view-panel wishlist-panel" aria-labelledby="wishlist-title">
+                <p class="view-kicker">ツール</p>
+                <div class="gear-list-title-row">
+                    <div class="port-feature-title"><h1 id="wishlist-title" class="view-title" tabindex="-1">機材リスト</h1><button class="port-feature-help" type="button" data-feature-help="gear" aria-label="機材リストの使い方" aria-haspopup="dialog" aria-controls="port-feature-help-dialog"><span aria-hidden="true">？</span></button></div>
+                    <button id="gear-list-title-add" class="gear-list-title-add" type="button">＋ 機材を追加</button>
+                </div>
+
+                <div class="gear-list-tabs" role="tablist" aria-label="機材リストの種類">
+                    <button id="gear-all-tab" type="button" role="tab" aria-selected="true" aria-controls="gear-list-content" data-gear-status="all">全て</button>
+                    <button id="gear-owned-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="owned">自分の機材</button>
+                    <button id="gear-wishlist-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="wishlist">ほしい機材</button>
+                </div>
+
+                <div class="gear-category-toolbar">
+                    <select id="gear-category-select" class="gear-category-select" aria-label="カテゴリで絞り込む"></select>
+                    <div class="gear-category-menu-wrap">
+                        <button id="gear-category-menu-toggle" class="gear-category-menu-toggle" type="button" aria-label="カテゴリメニューを開く" title="カテゴリメニュー" aria-haspopup="menu" aria-expanded="false">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.35" /><circle cx="12" cy="12" r="1.35" /><circle cx="12" cy="19" r="1.35" /></svg>
+                        </button>
+                        <div id="gear-category-menu" class="gear-category-menu" role="menu" aria-label="カテゴリ操作" hidden>
+                            <button id="gear-category-add" class="gear-category-menu-item" type="button" role="menuitem" aria-label="カテゴリを追加" title="カテゴリを追加">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg><span>カテゴリを追加</span>
+                            </button>
+                            <button id="gear-category-rename" class="gear-category-menu-item" type="button" role="menuitem" aria-label="カテゴリ名を変更" title="カテゴリ名を変更">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.7 4.2 4.2-.7L19 8.5 15.5 5 4 16.5Z" /><path d="m13.8 6.7 3.5 3.5" /></svg><span>カテゴリ名を変更</span>
+                            </button>
+                            <button id="gear-category-delete" class="gear-category-menu-item" type="button" role="menuitem" aria-label="カテゴリを削除" title="カテゴリを削除">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" /></svg><span>カテゴリを削除</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="gear-display-toolbar">
+                    <div class="gear-grid-picker" role="group" aria-label="機材カードの列数">
+                        <button type="button" data-gear-columns="1">1列</button>
+                        <button type="button" data-gear-columns="2">2列</button>
+                        <button type="button" data-gear-columns="3">3列</button>
+                        <button type="button" data-gear-columns="4">4列</button>
+                    </div>
+                    <div class="gear-export-wrap">
+                        <button id="gear-list-export" type="button" class="gear-export-button" aria-label="この一覧を書き出す" title="この一覧を書き出す" aria-haspopup="menu" aria-expanded="false">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3" /></svg>
+                        </button>
+                        <div id="gear-export-menu" class="gear-export-menu" role="menu" aria-label="書き出し形式" hidden>
+                            <button id="gear-export-csv" type="button" role="menuitem">CSVで書き出し</button>
+                            <button id="gear-export-png" type="button" role="menuitem">PNGで書き出し</button>
+                        </div>
+                    </div>
+                </div>
+                <p id="gear-list-storage-error" class="notice notice-error" role="alert" hidden></p>
+
+                <div id="gear-list-content" role="tabpanel" aria-labelledby="gear-all-tab">
+                    <div id="gear-reorder-actions" class="gear-reorder-actions" hidden>
+                        <button id="gear-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
+                        <button id="gear-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
+                    </div>
+                    <p id="gear-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
+                    <p id="gear-reorder-notice" class="notice notice-error" role="alert" hidden></p>
+                    <div id="gear-list-sections" class="gear-list-sections"></div>
+                    <button id="gear-list-add" class="action-button primary-action gear-list-add" type="button">＋ 機材を追加</button>
+                </div>
+            </section>
+        </main>
+
+        <div id="gear-category-dialog" class="gear-category-dialog" role="dialog" aria-modal="true" aria-labelledby="gear-category-dialog-title" hidden>
+            <section class="gear-category-dialog-panel">
+                <h2 id="gear-category-dialog-title" tabindex="-1">カテゴリを追加</h2>
+                <form id="gear-category-form" novalidate>
+                    <label for="gear-category-name">カテゴリ名 <span class="required-label">必須・40文字以内</span></label>
+                    <input id="gear-category-name" name="categoryName" type="text" maxlength="40" autocomplete="off" required>
+                    <p id="gear-category-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="gear-category-dialog-actions">
+                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button id="gear-category-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+
+        <main id="gear-form-view" class="port-view form-view gear-form-view" hidden>
+            <button class="view-back" type="button" data-action="gear-list">← 機材リスト</button>
+            <section class="view-panel" aria-labelledby="gear-form-title">
+                <p class="view-kicker">機材リスト</p>
+                <h1 id="gear-form-title" class="view-title" tabindex="-1">機材を追加</h1>
+
+                <form id="gear-list-form" novalidate>
+                    <div class="form-field">
+                        <label for="gear-manufacturer">メーカー <span class="optional-label">任意・100文字以内</span></label>
+                        <input id="gear-manufacturer" name="manufacturer" type="text" maxlength="100" autocomplete="off">
+                    </div>
+                    <div class="form-field">
+                        <label for="gear-name">名前 <span class="required-label">必須・100文字以内</span></label>
+                        <input id="gear-name" name="name" type="text" maxlength="100" autocomplete="off" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-category">カテゴリ <span class="required-label">必須</span></label>
+                        <select id="gear-category" name="category" required>
+                            <option value="">選択してください</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-price">価格 <span class="optional-label">任意・100文字以内</span></label>
+                        <input id="gear-price" name="priceText" type="text" maxlength="100" autocomplete="off" placeholder="例：198,000円、約20万円、未定">
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-status">リスト <span class="required-label">必須</span></label>
+                        <select id="gear-status" name="status" required>
+                            <option value="owned">自分の機材</option>
+                            <option value="wishlist">ほしい機材</option>
+                            <option value="sold">手放した機材</option>
+                        </select>
+                    </div>
+
+                    <div id="gear-priority-field" class="form-field">
+                        <label for="gear-priority">優先度</label>
+                        <select id="gear-priority" name="priority">
+                            <option value="low">低</option>
+                            <option value="medium" selected>中</option>
+                            <option value="high">高</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-memo">メモ <span class="optional-label">任意・1000文字以内</span></label>
+                        <textarea id="gear-memo" name="memo" maxlength="1000" rows="4"></textarea>
+                    </div>
+
+                    <fieldset class="gear-photo-field">
+                        <legend>写真 <span class="optional-label">任意・1枚</span></legend>
+                        <input id="gear-photo-input" type="file" accept="image/*" hidden>
+                        <button id="gear-photo-preview" class="gear-photo-preview" type="button" aria-label="機材写真を確認" disabled>
+                            <span>写真は未設定です</span>
+                        </button>
+                        <div class="gear-photo-actions">
+                            <button type="button" id="gear-photo-select-label" class="action-button secondary-action" aria-controls="gear-photo-input">写真を選択</button>
+                            <button id="gear-photo-readjust" class="action-button secondary-action" type="button" hidden>再調整</button>
+                            <button id="gear-photo-remove" class="action-button danger-action" type="button" hidden>写真を削除</button>
+                        </div>
+                        <p id="gear-photo-status" class="gear-photo-status" role="status" aria-live="polite"></p>
+                    </fieldset>
+
+                    <p id="gear-form-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="form-actions">
+                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button class="action-button secondary-action" type="button" data-action="gear-list">キャンセル</button>
+                        <button id="gear-single-export" class="action-button secondary-action" type="button" hidden>画像で書き出す / 共有</button>
+                    </div>
+                </form>
+            </section>
+        </main>
+
+        <div id="gear-exit-dialog" class="gear-category-dialog" role="dialog" aria-modal="true" aria-labelledby="gear-exit-title" aria-describedby="gear-exit-description" hidden>
+            <section class="gear-category-dialog-panel">
+                <h2 id="gear-exit-title">変更を保存しますか？</h2>
+                <p id="gear-exit-description">機材の編集内容がまだ保存されていません。</p>
+                <div class="gear-exit-dialog-actions">
+                    <button id="gear-exit-save" class="action-button primary-action" type="button">保存して戻る</button>
+                    <button id="gear-exit-discard" class="action-button secondary-action" type="button">保存せずに戻る</button>
+                    <button id="gear-exit-continue" class="action-button secondary-action" type="button">編集を続ける</button>
+                </div>
+            </section>
+        </div>
+
+        <main id="practice-list-view" class="port-view practice-list-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
+            <section class="view-panel" aria-labelledby="practice-heading">
+                <div class="practice-heading-row">
+                    <div>
+                        <p class="view-kicker">ツール</p>
+                        <div class="port-feature-title"><h1 id="practice-heading" class="view-title" tabindex="-1">練習メニュー</h1><button class="port-feature-help" type="button" data-feature-help="practice" aria-label="練習メニューの使い方" aria-haspopup="dialog" aria-controls="port-feature-help-dialog"><span aria-hidden="true">？</span></button></div>
+                    </div>
+                    <button id="practice-history-open" class="practice-calendar-open practice-calendar-open-compact" type="button" aria-label="音楽カレンダーを開く" title="音楽カレンダー">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2.5"/><path d="M8 3v5M16 3v5M3.5 10h17"/><g fill="currentColor" stroke="none"><rect x="7" y="12.5" width="2.5" height="2.5" rx=".5"/><rect x="10.75" y="12.5" width="2.5" height="2.5" rx=".5"/><rect x="14.5" y="12.5" width="2.5" height="2.5" rx=".5"/><rect x="7" y="16.5" width="2.5" height="2.5" rx=".5"/><rect x="10.75" y="16.5" width="2.5" height="2.5" rx=".5"/><rect x="14.5" y="16.5" width="2.5" height="2.5" rx=".5"/></g></svg>
+                    </button>
+                    <div id="practice-reorder-actions" class="reorder-actions" hidden>
+                        <button id="practice-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
+                        <button id="practice-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
+                    </div>
+                </div>
+                <div class="practice-timer-card">
+                    <div class="practice-timer-controls">
+                        <button id="practice-timer-toggle" class="practice-timer-toggle" type="button">
+                            <span id="practice-timer-icon" aria-hidden="true">▶</span>
+                            <span id="practice-timer-label">練習スタート</span>
+                        </button>
+                        <button id="practice-timer-stop" class="practice-timer-toggle practice-timer-stop" type="button" hidden>練習終了</button>
+                    </div>
+                    <time id="practice-timer-display" datetime="PT0S">00:00</time>
+                </div>
+                <p id="practice-timer-status" class="practice-saved" role="status" hidden></p>
+                <div id="practice-set-bar" class="practice-set-bar">
+                    <label class="practice-set-label" for="practice-set-select">プリセット</label>
+                    <div class="practice-set-controls">
+                        <select id="practice-set-select">
+                            <option value="all">全ての練習メニュー</option>
+                        </select>
+                        <button id="practice-set-create" class="practice-set-add" type="button" aria-label="プリセットを作成" title="プリセットを作成"><span aria-hidden="true">＋</span></button>
+                    </div>
+                    <button id="practice-set-edit" class="practice-set-edit" type="button" hidden>プリセットを編集</button>
+                </div>
+                <p id="practice-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <p id="practice-list-notice" class="practice-saved" role="status" hidden></p>
+                <p id="practice-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
+                <p id="practice-reorder-notice" class="notice notice-error" role="alert" hidden></p>
+                <div class="practice-list">
+                    <div id="practice-empty" class="practice-empty" hidden>
+                        <p>まだ練習メニューがありません</p>
+                        <span>下のボタンから、最初の練習メニューを作成できます。</span>
+                    </div>
+                    <div id="practice-set-empty" class="practice-empty" hidden>
+                        <p>このプリセットに表示できる練習メニューがありません</p>
+                        <span>「プリセットを編集」から、含める練習メニューを選んでください。</span>
+                    </div>
+                    <div id="practice-menu-list"></div>
+                    <button id="practice-menu-add" class="practice-row add-row" type="button">
+                        <span class="add-symbol" aria-hidden="true">＋</span>
+                        <span class="card-name">練習メニューを追加</span>
+                    </button>
+                </div>
+                <div class="practice-cycle-actions">
+                    <button id="practice-finish" class="practice-finish-action" type="button" disabled>ここで練習終了</button>
+                    <button id="practice-cycle-reset" class="practice-quiet-action" type="button" disabled>チェックをすべてリセット</button>
+                    <div class="practice-overview">
+                        <div class="practice-overview-links" aria-label="練習メニューの補助機能">
+                            <button id="practice-hidden-open" type="button">非表示 <span id="practice-hidden-count">0</span></button>
+                            <button id="practice-reorder-start" class="practice-sort-button" type="button" aria-label="全ての練習メニューを並び替え" hidden><span aria-hidden="true">↕</span> 並び替え</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <div id="practice-set-dialog" class="practice-set-dialog" role="dialog" aria-modal="true" aria-labelledby="practice-set-dialog-title" hidden>
+            <section class="practice-set-dialog-panel">
+                <p class="view-kicker">練習メニュー</p>
+                <h2 id="practice-set-dialog-title" tabindex="-1">プリセットを作成</h2>
+                <form id="practice-set-form" novalidate>
+                    <label for="practice-set-name">プリセット名 <span class="required-label">必須</span></label>
+                    <input id="practice-set-name" name="practiceSetName" type="text" maxlength="100" autocomplete="off" required>
+                    <fieldset class="practice-set-items">
+                        <legend>含める練習メニュー <span id="practice-set-items-requirement" class="required-label">1つ以上</span></legend>
+                        <div id="practice-set-item-list" class="practice-set-item-list"></div>
+                        <p id="practice-set-items-empty" class="practice-set-note" hidden>表示中の練習メニューがありません。</p>
+                        <p id="practice-set-form-note" class="practice-set-note" hidden>いま追加中の練習メニューは、保存するとこのプリセットに入ります。既存の練習メニューの選択は任意です。</p>
+                        <p id="practice-set-hidden-note" class="practice-set-note" hidden></p>
+                    </fieldset>
+                    <p id="practice-set-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="practice-set-dialog-actions">
+                        <button id="practice-set-save" class="action-button primary-action" type="submit">保存</button>
+                        <button id="practice-set-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                    </div>
+                    <button id="practice-set-delete" class="practice-set-delete" type="button" hidden>このプリセットを削除</button>
+                </form>
+            </section>
+        </div>
+
+        <main id="practice-hidden-view" class="port-view practice-hidden-view" hidden>
+            <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
+            <section class="view-panel" aria-labelledby="practice-hidden-title">
+                <p class="view-kicker">練習メニュー</p>
+                <h1 id="practice-hidden-title" class="view-title" tabindex="-1">非表示一覧</h1>
+                <p id="practice-hidden-notice" class="practice-saved" role="status" hidden></p>
+                <p id="practice-hidden-empty" class="practice-subview-empty" hidden>非表示の練習メニューはありません。</p>
+                <div id="practice-hidden-list" class="practice-list"></div>
+            </section>
+        </main>
+
+        <main id="practice-history-view" class="port-view practice-history-view" hidden>
+            <button id="practice-history-back" class="view-back" type="button">← TOPに戻る</button>
+            <section class="view-panel" aria-labelledby="practice-history-title">
+                <p class="view-kicker">練習メニュー</p>
+                <h1 id="practice-history-title" class="view-title" tabindex="-1">音楽カレンダー</h1>
+                <p id="practice-history-error" class="notice notice-error" role="alert" hidden></p>
+                <div id="practice-calendar-view-tabs" class="practice-calendar-view-tabs" role="group" aria-label="カレンダー表示">
+                    <button type="button" data-calendar-view="month" aria-pressed="true">月</button>
+                    <button type="button" data-calendar-view="week" aria-pressed="false">週</button>
+                    <button type="button" data-calendar-view="day" aria-pressed="false">日</button>
+                </div>
+                <div class="practice-calendar-heading">
+                    <button id="practice-calendar-previous" type="button" aria-label="前の月">‹</button>
+                    <strong id="practice-calendar-month"></strong>
+                    <button id="practice-calendar-next" type="button" aria-label="次の月">›</button>
+                </div>
+                <button id="practice-calendar-today" class="practice-calendar-today" type="button">今日</button>
+                <div id="practice-calendar-weekdays" class="practice-calendar-weekdays" aria-hidden="true">
+                    <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+                </div>
+                <div id="practice-calendar-days" class="practice-calendar-days" role="group" aria-label="音楽カレンダー"></div>
+                <div id="practice-calendar-day-focus" class="practice-calendar-day-focus" hidden></div>
+                <section class="practice-calendar-notes" aria-labelledby="practice-calendar-notes-title">
+                    <div class="practice-calendar-section-heading">
+                        <h2 id="practice-calendar-notes-title">予定・メモ</h2>
+                        <button id="practice-calendar-note-add" type="button">追加</button>
+                    </div>
+                    <p id="practice-calendar-notes-empty" class="practice-calendar-section-empty">予定・メモはありません。</p>
+                    <div id="practice-calendar-notes-list"></div>
+                    <form id="practice-calendar-note-form" data-keyboard-scroll-target="calendar-note-form" hidden>
+                        <fieldset class="practice-calendar-note-icon-field">
+                            <legend>表示アイコン</legend>
+                            <div class="practice-calendar-icon-dropdown">
+                                <button id="practice-calendar-note-icon-toggle" class="practice-calendar-note-icon-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="practice-calendar-note-icons">
+                                    <span id="practice-calendar-note-icon-selection"></span>
+                                    <span class="practice-calendar-dropdown-chevron" aria-hidden="true">⌄</span>
+                                </button>
+                                <div id="practice-calendar-note-icons" class="practice-calendar-note-icons" role="listbox" aria-label="表示アイコン" hidden></div>
+                            </div>
+                        </fieldset>
+                        <fieldset class="practice-calendar-note-time-field">
+                            <legend>時刻 <span class="optional-label">任意</span></legend>
+                            <div class="practice-calendar-note-times">
+                                <label for="practice-calendar-note-time">開始
+                                    <select id="practice-calendar-note-time"><option value="">なし</option></select>
+                                </label>
+                                <span aria-hidden="true">–</span>
+                                <label for="practice-calendar-note-end-time">終了
+                                    <select id="practice-calendar-note-end-time" disabled><option value="">なし</option></select>
+                                </label>
+                            </div>
+                        </fieldset>
+                        <label for="practice-calendar-note-text">予定・メモ <span class="optional-label">500文字以内</span></label>
+                        <textarea id="practice-calendar-note-text" maxlength="500" rows="4" placeholder="予定やメモを入力してください…" required></textarea>
+                        <p id="practice-calendar-note-error" class="notice notice-error" role="alert" hidden></p>
+                        <div class="practice-calendar-note-form-actions">
+                            <button class="action-button primary-action" type="submit">保存</button>
+                            <button id="practice-calendar-note-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                        </div>
+                    </form>
+                </section>
+                <section class="practice-day-history" aria-labelledby="practice-day-history-title">
+                    <div class="practice-calendar-section-heading">
+                        <h2 id="practice-day-history-title" tabindex="-1">練習記録</h2>
+                        <button id="practice-history-add" type="button" aria-label="練習実績を追加">追加</button>
+                    </div>
+                    <p id="practice-history-status" class="practice-saved" role="status" hidden></p>
+                    <form id="practice-history-form" class="practice-history-form" aria-labelledby="practice-history-form-title" novalidate hidden>
+                        <h3 id="practice-history-form-title">練習実績を追加</h3>
+                        <label for="practice-history-date">日付</label>
+                        <input id="practice-history-date" type="date" required>
+                        <label for="practice-history-menu">練習メニュー</label>
+                        <select id="practice-history-menu" required></select>
+                        <label for="practice-history-minutes">練習時間（分）</label>
+                        <div id="practice-history-presets" class="practice-history-presets" role="group" aria-label="練習時間の候補"></div>
+                        <input id="practice-history-minutes" type="number" inputmode="numeric" min="1" max="999" step="1" required>
+                        <p id="practice-history-form-note" class="practice-history-form-note" hidden></p>
+                        <p id="practice-history-form-error" class="notice notice-error" role="alert" hidden></p>
+                        <div class="practice-calendar-note-form-actions">
+                            <button class="action-button primary-action" type="submit">保存</button>
+                            <button id="practice-history-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                        </div>
+                    </form>
+                    <div id="practice-day-history-list"></div>
+                </section>
+                <section class="practice-analytics" aria-labelledby="practice-total-title">
+                    <div class="practice-total-row">
+                        <div><h2 id="practice-total-title">総練習時間</h2><strong id="practice-total-value">0分</strong></div>
+                        <button id="practice-analytics-toggle" type="button" aria-expanded="false" aria-controls="practice-analytics-details">詳細</button>
+                    </div>
+                    <div id="practice-analytics-details" hidden>
+                        <div class="practice-analytics-tabs" role="group" aria-label="練習時間の集計単位">
+                            <button type="button" data-analytics-mode="daily" aria-pressed="true">日別</button>
+                            <button type="button" data-analytics-mode="weekly" aria-pressed="false">週別</button>
+                            <button type="button" data-analytics-mode="monthly" aria-pressed="false">月別</button>
+                            <button type="button" data-analytics-mode="menu" aria-pressed="false">メニュー別</button>
+                        </div>
+                        <div id="practice-analytics-list" class="practice-analytics-list"></div>
+                    </div>
+                </section>
+            </section>
+        </main>
+
+        <main id="practice-detail-view" class="port-view detail-view" hidden>
+            <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
+            <article class="view-panel" aria-labelledby="practice-detail-title">
+                <p class="view-kicker">練習メニュー</p>
+                <div class="practice-detail-top-actions">
+                    <h1 id="practice-detail-title" class="view-title" tabindex="-1"></h1>
+                    <button id="practice-edit-top" class="action-button secondary-action" type="button">編集</button>
+                </div>
+                <p id="practice-detail-saved" class="practice-saved" role="status" hidden></p>
+
+                <dl class="detail-list">
+                    <div>
+                        <dt>練習時間の目安</dt>
+                        <dd id="practice-detail-duration"></dd>
+                    </div>
+                    <div>
+                        <dt>使用アプリ</dt>
+                        <dd class="practice-detail-app-row">
+                            <span id="practice-detail-app"></span>
+                            <a id="practice-open-app" class="practice-detail-launch" href="#" hidden>アプリを開く</a>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>メモ</dt>
+                        <dd id="practice-detail-memo" class="detail-memo"></dd>
+                    </div>
+                    <div>
+                        <dt>通算回数</dt>
+                        <dd id="practice-detail-count"></dd>
+                    </div>
+                </dl>
+
+                <p id="practice-detail-error" class="notice notice-error" role="alert" hidden></p>
+                <section class="practice-attachments" aria-labelledby="practice-attachments-title">
+                    <div class="practice-attachments-heading">
+                        <h2 id="practice-attachments-title" tabindex="-1">ファイル</h2>
+                        <button type="button" class="practice-attachment-add" aria-controls="practice-attachment-input">ファイルを追加</button>
+                        <input id="practice-attachment-input" type="file" multiple hidden>
+                    </div>
+                    <p id="practice-attachment-status" class="practice-attachment-status" role="status" aria-live="polite"></p>
+                    <p id="practice-attachments-empty" class="practice-attachment-empty">ファイルはありません。</p>
+                    <div id="practice-attachments-list" class="practice-attachments-list"></div>
+                </section>
+                <div class="view-actions">
+                    <button id="practice-detail-back" class="action-button primary-action" type="button" data-action="practice-list">練習メニューに戻る</button>
+                    <button id="practice-edit" class="action-button secondary-action" type="button">編集</button>
+                    <button id="practice-delete" class="action-button danger-action" type="button">削除</button>
+                </div>
+            </article>
+        </main>
+
+        <main id="practice-form-view" class="port-view form-view" hidden>
+            <button class="view-back" type="button" data-action="cancel-form">← 戻る</button>
+            <section class="view-panel" aria-labelledby="practice-form-title">
+                <p class="view-kicker">練習メニュー</p>
+                <h1 id="practice-form-title" class="view-title" tabindex="-1">練習メニューを作成</h1>
+
+                <form id="practice-menu-form" novalidate>
+                    <div class="form-field">
+                        <label id="practice-name-label" for="practice-name-preset">メニュー名 <span class="required-label">必須</span></label>
+                        <div class="practice-name-controls">
+                            <select id="practice-name-preset" name="namePreset"></select>
+                            <input id="practice-name" aria-labelledby="practice-name-label" name="name" type="text" maxlength="100" autocomplete="off" required>
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="practice-duration">練習時間 <span class="required-label">必須</span></label>
+                        <div class="duration-input">
+                            <input id="practice-duration" name="durationMinutes" type="number" min="1" max="999" step="1" inputmode="numeric" required>
+                            <span>分</span>
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="practice-app">使用アプリ <span class="optional-label">任意</span></label>
+                        <select id="practice-app" name="appId">
+                            <option value="">使用アプリなし</option>
+                        </select>
+                    </div>
+
+                    <section id="practice-form-attachments" class="form-field practice-form-attachments" aria-labelledby="practice-form-attachments-title" hidden>
+                        <div class="practice-attachments-heading">
+                            <h2 id="practice-form-attachments-title">ファイル</h2>
+                            <button type="button" class="practice-attachment-add" aria-controls="practice-form-attachment-input">ファイルを追加</button>
+                            <input id="practice-form-attachment-input" type="file" multiple hidden>
+                        </div>
+                        <p id="practice-form-attachment-status" class="practice-attachment-status" role="status" aria-live="polite"></p>
+                        <p id="practice-form-attachments-empty" class="practice-attachment-empty">ファイルはありません。</p>
+                        <div id="practice-form-attachments-list" class="practice-attachments-list"></div>
+                    </section>
+
+                    <div class="form-field">
+                        <label for="practice-memo">メモ <span class="optional-label">任意・1000文字以内</span></label>
+                        <textarea id="practice-memo" name="memo" maxlength="1000" rows="6"></textarea>
+                    </div>
+
+                    <fieldset id="practice-form-sets" class="form-field practice-form-sets" hidden>
+                        <legend>追加するプリセット <span class="optional-label">任意・複数選択可</span></legend>
+                        <button id="practice-form-set-toggle" class="practice-form-set-toggle" type="button" aria-expanded="false" aria-controls="practice-form-set-list">
+                            <span id="practice-form-set-summary" class="practice-form-set-summary"><span class="practice-form-set-placeholder">プリセットを選択</span></span>
+                            <span class="practice-form-set-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <div id="practice-form-set-list" class="practice-set-item-list practice-form-set-list" hidden></div>
+                        <button id="practice-form-set-create" class="practice-form-set-create" type="button"><span aria-hidden="true">＋</span> プリセットを作成</button>
+                    </fieldset>
+
+                    <div id="practice-hidden-field" class="form-field practice-hidden-field" hidden>
+                        <label class="practice-hidden-toggle" for="practice-hidden">
+                            <span>
+                                <strong>非表示</strong>
+                                <small>通常の一覧と自動完了の対象から外します。</small>
+                            </span>
+                            <input id="practice-hidden" name="hidden" type="checkbox">
+                        </label>
+                    </div>
+
+                    <section id="practice-count-reset-section" class="practice-count-reset-section" aria-labelledby="practice-count-reset-title" hidden>
+                        <div>
+                            <strong id="practice-count-reset-title">通算回数</strong>
+                            <span id="practice-form-total-count">0回</span>
+                        </div>
+                        <button id="practice-count-reset" type="button">通算回数をリセット</button>
+                    </section>
+
+                    <p id="practice-form-error" class="notice notice-error" role="alert" hidden></p>
+                    <p id="practice-form-status" class="practice-saved" role="status" hidden></p>
+                    <div class="form-actions">
+                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button class="action-button secondary-action" type="button" data-action="cancel-form">キャンセル</button>
+                    </div>
+                    <div class="practice-form-delete-row">
+                        <button id="practice-form-delete" class="practice-form-delete" type="button" hidden>この練習メニューを削除</button>
+                    </div>
+                </form>
+            </section>
+        </main>
+
+        <div id="practice-exit-dialog" class="gear-category-dialog" role="dialog" aria-modal="true" aria-labelledby="practice-exit-title" aria-describedby="practice-exit-description" hidden>
+            <section class="gear-category-dialog-panel">
+                <h2 id="practice-exit-title">変更を保存しますか？</h2>
+                <p id="practice-exit-description">練習メニューの編集内容がまだ保存されていません。</p>
+                <div class="gear-exit-dialog-actions">
+                    <button id="practice-exit-save" class="action-button primary-action" type="button">保存して戻る</button>
+                    <button id="practice-exit-discard" class="action-button secondary-action" type="button">保存せずに戻る</button>
+                    <button id="practice-exit-continue" class="action-button secondary-action" type="button">編集を続ける</button>
+                </div>
+            </section>
+        </div>
+
+        <main id="my-apps-manage-view" class="port-view my-apps-manage-view" hidden>
+            <button class="view-back" type="button" data-action="my-apps-home">← クルーズポート</button>
+            <section class="view-panel" aria-labelledby="my-apps-manage-title">
+                <div class="practice-heading-row my-apps-manage-heading">
+                    <div>
+                        <p class="view-kicker">My Apps</p>
+                        <h1 id="my-apps-manage-title" class="view-title" tabindex="-1">My Appsを管理</h1>
+                    </div>
+                    <div id="my-apps-reorder-actions" class="reorder-actions" hidden>
+                        <button id="my-apps-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
+                        <button id="my-apps-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
+                    </div>
+                    <button id="my-apps-reorder-start" class="reorder-button" type="button" hidden>並び替え</button>
+                </div>
+                <p id="my-apps-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
+                <p id="my-apps-reorder-notice" class="notice notice-error" role="alert" hidden></p>
+                <div id="my-apps-list" class="practice-list"></div>
+                <div class="view-actions my-apps-manage-actions">
+                    <button id="my-apps-manage-add" class="action-button primary-action" type="button" data-action="new-my-app">アプリを追加</button>
+                    <button class="action-button secondary-action" type="button" data-action="my-apps-home-scroll">クルーズポートへ戻る</button>
+                </div>
+            </section>
+        </main>
+
+        <main id="my-apps-form-view" class="port-view form-view my-apps-form-view" hidden>
+            <button id="my-apps-form-back" class="view-back" type="button" data-action="cancel-my-apps-form">← 戻る</button>
+            <section class="view-panel" aria-labelledby="my-apps-form-title">
+                <p class="view-kicker">My Apps</p>
+                <h1 id="my-apps-form-title" class="view-title" tabindex="-1">My Appを追加</h1>
+
+                <form id="my-apps-form" novalidate>
+                    <div class="form-field">
+                        <label for="my-apps-name">アプリ名 <span class="required-label">必須・80文字以内</span></label>
+                        <input id="my-apps-name" name="name" type="text" maxlength="80" autocomplete="off" required>
+                    </div>
+
+                    <div class="form-field">
+                        <div class="my-apps-url-label-row">
+                            <span class="form-field-label">URL <span class="optional-label">いずれか1つ必須・HTTPSのみ</span></span>
+                            <button id="my-apps-url-help-toggle" class="my-apps-url-help-toggle" type="button" aria-expanded="false" aria-controls="my-apps-url-help" aria-label="端末別URLの説明">?</button>
+                        </div>
+                        <label for="my-apps-ios-url">iPhone / iPad</label>
+                        <input id="my-apps-ios-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://apps.apple.com/…">
+                        <label for="my-apps-android-url">Android</label>
+                        <input id="my-apps-android-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://play.google.com/…">
+                        <details id="my-apps-other-urls" class="my-apps-other-urls">
+                            <summary>PC・その他のURL</summary>
+                            <div class="my-apps-other-urls-body">
+                                <label for="my-apps-macos-url">Mac</label>
+                                <input id="my-apps-macos-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…">
+                                <label for="my-apps-windows-url">Windows</label>
+                                <input id="my-apps-windows-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…">
+                                <label for="my-apps-web-url">Web / 共通</label>
+                                <input id="my-apps-web-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…">
+                                <p class="my-apps-url-note">専用URLが設定されていない端末では、共通URLを使用します。</p>
+                            </div>
+                        </details>
+                        <input id="my-apps-url" type="hidden">
+                        <section id="my-apps-url-help" class="my-apps-url-help" aria-label="端末別URLの説明" hidden>
+                            <div class="my-apps-url-help-heading"><strong>端末に合わせて開くURLを切り替えます</strong><button id="my-apps-url-help-close" type="button" aria-label="URLの説明を閉じる">×</button></div>
+                            <p>各端末のURLを設定できます。専用URLがない場合はWeb / 共通URLを使用します。</p>
+                        </section>
+                    </div>
+
+                    <div id="my-apps-direct-launch" class="my-apps-direct-launch" hidden inert aria-hidden="true">
+                        <p id="my-apps-direct-recognition" class="my-apps-direct-recognition"></p>
+                        <label id="my-apps-direct-toggle" class="my-apps-direct-toggle" for="my-apps-direct-enabled">
+                            <input id="my-apps-direct-enabled" type="checkbox" aria-describedby="my-apps-direct-description">
+                            <span>アプリを直接開く</span>
+                        </label>
+                        <p id="my-apps-direct-description" class="my-apps-direct-description">対応している端末では、Webページではなくアプリを開きます。</p>
+                    </div>
+
+                    <details id="my-apps-custom-launch" class="my-apps-custom-launch" hidden inert aria-hidden="true">
+                        <summary>直接起動の設定（任意）</summary>
+                        <div class="my-apps-custom-launch-body">
+                            <p id="my-apps-custom-description" class="my-apps-custom-description">アプリが対応している公式の起動用Web URLを入力してください。設定しなくても通常どおり登録できます。</p>
+                            <div class="form-field my-apps-custom-field">
+                                <label for="my-apps-custom-ios">iPhone・iPad用URL <span class="optional-label">任意・HTTPSのみ</span></label>
+                                <input id="my-apps-custom-ios" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/app-link" aria-describedby="my-apps-custom-description">
+                                <div class="my-apps-launch-test-row">
+                                    <a id="my-apps-custom-ios-test" class="my-apps-launch-test" target="_blank" rel="noopener noreferrer" aria-label="iPhone・iPad用URLの起動をテスト" hidden>起動をテスト</a>
+                                    <span id="my-apps-custom-ios-status" class="my-apps-launch-test-status" role="status" aria-live="polite"></span>
+                                </div>
+                            </div>
+                            <div class="form-field my-apps-custom-field">
+                                <label for="my-apps-custom-android">Android用URL <span class="optional-label">任意・HTTPSのみ</span></label>
+                                <input id="my-apps-custom-android" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/app-link" aria-describedby="my-apps-custom-description">
+                                <div class="my-apps-launch-test-row">
+                                    <a id="my-apps-custom-android-test" class="my-apps-launch-test" target="_blank" rel="noopener noreferrer" aria-label="Android用URLの起動をテスト" hidden>起動をテスト</a>
+                                    <span id="my-apps-custom-android-status" class="my-apps-launch-test-status" role="status" aria-live="polite"></span>
+                                </div>
+                            </div>
+                            <label class="my-apps-direct-toggle" for="my-apps-custom-enabled">
+                                <input id="my-apps-custom-enabled" type="checkbox" aria-describedby="my-apps-custom-enabled-description">
+                                <span>この起動設定を使用する</span>
+                            </label>
+                            <p id="my-apps-custom-enabled-description" class="my-apps-direct-description">OFFで保存すると、入力した起動用URLは保存されません。</p>
+                        </div>
+                    </details>
+
+                    <div class="form-field my-apps-icon-field">
+                        <span class="form-field-label">アイコン <span class="optional-label">任意・15MB以内</span></span>
+                        <div class="my-apps-icon-editor">
+                            <div class="my-apps-icon-preview-wrap">
+                                <button id="my-apps-icon-preview" class="my-apps-icon-preview" type="button" aria-label="現在のアイコンを調整" disabled></button>
+                                <span id="my-apps-icon-adjust-hint" class="my-apps-icon-adjust-hint" hidden>タップして調整</span>
+                            </div>
+                            <div class="my-apps-icon-controls">
+                                <input id="my-apps-icon-input" name="icon" type="file" accept="image/*" hidden>
+                                <button type="button" class="my-apps-icon-select" aria-controls="my-apps-icon-input"><span id="my-apps-icon-select-label">画像を選択</span></button>
+                                <button id="my-apps-icon-preset-open" class="my-apps-icon-preset-open" type="button" aria-expanded="false" aria-controls="my-apps-icon-preset-picker">アイコンから選ぶ</button>
+                                <button id="my-apps-icon-remove" class="my-apps-icon-remove" type="button" hidden>アイコンを削除</button>
+                                <p id="my-apps-icon-status" class="my-apps-icon-status" role="status" aria-live="polite">画像未設定</p>
+                            </div>
+                        </div>
+                        <section id="my-apps-icon-preset-picker" class="my-apps-icon-preset-picker" aria-label="アイコンから選ぶ" hidden></section>
+                    </div>
+
+                    <p id="my-apps-form-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="form-actions">
+                        <button id="my-apps-submit" class="action-button primary-action" type="submit">保存</button>
+                        <button id="my-apps-delete" class="action-button danger-action" type="button" hidden>削除</button>
+                        <button class="action-button secondary-action" type="button" data-action="cancel-my-apps-form">キャンセル</button>
+                    </div>
+                </form>
+            </section>
+        </main>
+
+        <main id="my-apps-not-found-view" class="port-view my-apps-not-found-view" hidden>
+            <section class="view-panel" aria-labelledby="my-apps-not-found-title">
+                <p class="view-kicker">My Apps</p>
+                <h1 id="my-apps-not-found-title" class="view-title" tabindex="-1">アプリが見つかりません</h1>
+                <p class="my-apps-not-found-copy">この登録は削除されたか、URLが正しくありません。</p>
+                <div class="view-actions">
+                    <button class="action-button secondary-action" type="button" data-action="my-apps-home">クルーズポートへ戻る</button>
+                </div>
+            </section>
+        </main>
+
+        <div id="my-apps-crop-dialog" class="my-apps-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="my-apps-crop-title" hidden>
+            <section class="my-apps-crop-panel">
+                <p class="view-kicker">My Apps</p>
+                <h1 id="my-apps-crop-title" class="my-apps-crop-title" tabindex="-1">アイコンを調整</h1>
+                <p class="my-apps-crop-help">画像をドラッグして位置を調整します。2本指のピンチまたはスライダーで拡大できます。</p>
+                <div class="my-apps-crop-stage-wrap">
+                    <canvas id="my-apps-crop-canvas" class="my-apps-crop-canvas" width="320" height="320" aria-label="アイコンとして切り出す正方形の範囲"></canvas>
+                </div>
+                <div class="my-apps-crop-zoom">
+                    <label for="my-apps-crop-slider">拡大・縮小</label>
+                    <input id="my-apps-crop-slider" type="range" min="1" max="6" step="0.001" value="1">
+                    <div class="my-apps-crop-zoom-labels" aria-hidden="true"><span>縮小</span><span>拡大</span></div>
+                </div>
+                <p id="my-apps-crop-status" class="my-apps-crop-status" role="status" aria-live="polite"></p>
+                <div class="my-apps-crop-actions">
+                    <button id="my-apps-crop-confirm" class="action-button primary-action" type="button">決定</button>
+                    <button id="my-apps-crop-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                </div>
+            </section>
+        </div>
+
+        <div id="gear-photo-crop-dialog" class="my-apps-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="gear-photo-crop-title" hidden>
+            <section class="my-apps-crop-panel">
+                <p class="view-kicker">機材リスト</p>
+                <h1 id="gear-photo-crop-title" class="my-apps-crop-title" tabindex="-1">写真を調整</h1>
+                <p class="my-apps-crop-help">画像をドラッグして位置を調整します。2本指のピンチまたはスライダーで拡大できます。</p>
+                <div class="my-apps-crop-stage-wrap">
+                    <canvas id="gear-photo-crop-canvas" class="my-apps-crop-canvas" width="320" height="320" aria-label="機材写真として切り出す正方形の範囲"></canvas>
+                </div>
+                <div class="my-apps-crop-zoom">
+                    <label for="gear-photo-crop-slider">拡大・縮小</label>
+                    <input id="gear-photo-crop-slider" type="range" min="1" max="6" step="0.001" value="1">
+                    <div class="my-apps-crop-zoom-labels" aria-hidden="true"><span>縮小</span><span>拡大</span></div>
+                </div>
+                <p id="gear-photo-crop-status" class="my-apps-crop-status" role="status" aria-live="polite"></p>
+                <div class="my-apps-crop-actions">
+                    <button id="gear-photo-crop-confirm" class="action-button primary-action" type="button">決定</button>
+                    <button id="gear-photo-crop-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                </div>
+            </section>
+        </div>
+
+        <div id="gear-photo-lightbox" class="gear-photo-lightbox" role="dialog" aria-modal="true" aria-labelledby="gear-photo-lightbox-title" hidden>
+            <section class="gear-photo-lightbox-panel">
+                <h1 id="gear-photo-lightbox-title" class="visually-hidden" tabindex="-1">機材写真</h1>
+                <img id="gear-photo-lightbox-image" alt="">
+                <button id="gear-photo-lightbox-close" class="action-button secondary-action" type="button">閉じる</button>
+            </section>
+        </div>
+
+        <main id="tuner-view" class="port-view tuner-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポート</button>
+            <section class="view-panel tuner-panel" aria-labelledby="tuner-title">
+                <div class="tuner-heading">
+                    <div>
+                        <p class="view-kicker">ツール</p>
+                        <h1 id="tuner-title" class="view-title tuner-title" tabindex="-1">チューナー</h1>
+                    </div>
+                    <p class="tuner-reference">A4 = 440 Hz</p>
+                </div>
+
+                <div class="tuner-target-controls">
+                    <label class="tuner-tuning-field" for="tuner-tuning">
+                        <span>チューニング</span>
+                        <select id="tuner-tuning"></select>
+                    </label>
+                    <div class="tuner-capo-field">
+                        <span id="tuner-capo-label">カポ</span>
+                        <div class="tuner-capo-control" role="group" aria-labelledby="tuner-capo-label">
+                            <button id="tuner-capo-lock" class="tool-pro-locked" type="button" aria-label="カポ（Pro版機能）" hidden>Pro</button>
+                            <button id="tuner-capo-down" type="button" aria-label="カポを1フレット下げる">−</button>
+                            <output id="tuner-capo-value" aria-label="カポなし">なし</output>
+                            <button id="tuner-capo-up" type="button" aria-label="カポを1フレット上げる">＋</button>
+                        </div>
+                    </div>
+                </div>
+                <p id="tuner-settings-error" class="tuner-settings-error" role="status"></p>
+
+                <div class="tuner-reading" aria-label="検出した音程">
+                    <p id="tuner-note" class="tuner-note"><span id="tuner-note-string" class="tuner-note-string" hidden></span><span id="tuner-note-value">—</span></p>
+                    <p id="tuner-frequency" class="tuner-frequency">— Hz</p>
+                </div>
+
+                <div
+                    id="tuner-meter"
+                    class="tuner-meter is-neutral"
+                    role="meter"
+                    aria-label="音程メーター、入力待ち"
+                    aria-valuemin="-50"
+                    aria-valuemax="50"
+                    aria-valuenow="0"
+                    aria-valuetext="入力待ち"
+                >
+                    <div class="tuner-meter-scale" aria-hidden="true">
+                        <span>−50</span>
+                        <span>0</span>
+                        <span>＋50</span>
+                    </div>
+                    <div class="tuner-meter-track" aria-hidden="true">
+                        <span class="tuner-meter-center"></span>
+                        <span class="tuner-meter-marker"></span>
+                    </div>
+                    <div class="tuner-meter-directions" aria-hidden="true">
+                        <span>低い</span>
+                        <span>高い</span>
+                    </div>
+                </div>
+
+                <p id="tuner-direction" class="tuner-direction" data-state="neutral">入力待ち</p>
+                <p id="tuner-cents" class="tuner-cents">—</p>
+
+                <ul class="tuner-strings" aria-label="ギターの目標音">
+                    <li><button type="button" data-tuner-string data-string="6" data-note="E2" aria-label="6弦 E2 の音を鳴らす"><span>6弦</span><strong>E2</strong></button></li>
+                    <li><button type="button" data-tuner-string data-string="5" data-note="A2" aria-label="5弦 A2 の音を鳴らす"><span>5弦</span><strong>A2</strong></button></li>
+                    <li><button type="button" data-tuner-string data-string="4" data-note="D3" aria-label="4弦 D3 の音を鳴らす"><span>4弦</span><strong>D3</strong></button></li>
+                    <li><button type="button" data-tuner-string data-string="3" data-note="G3" aria-label="3弦 G3 の音を鳴らす"><span>3弦</span><strong>G3</strong></button></li>
+                    <li><button type="button" data-tuner-string data-string="2" data-note="B3" aria-label="2弦 B3 の音を鳴らす"><span>2弦</span><strong>B3</strong></button></li>
+                    <li><button type="button" data-tuner-string data-string="1" data-note="E4" aria-label="1弦 E4 の音を鳴らす"><span>1弦</span><strong>E4</strong></button></li>
+                </ul>
+                <div class="tuner-preview-controls">
+                    <label class="tuner-meter-visibility" for="tuner-meter-visibility"><span>メーター表示</span><input id="tuner-meter-visibility" type="checkbox" role="switch" checked><span class="tuner-meter-switch-track" aria-hidden="true"></span></label>
+                    <button id="tuner-preview-help" class="tuner-preview-help-button" type="button" aria-label="弦のプレビュー音について" aria-controls="tuner-preview-help-text" aria-expanded="false">?</button>
+                </div>
+                <p id="tuner-preview-help-text" class="tuner-preview-help-text" hidden>弦のボタンをタップすると基準音が鳴ります。耳で音を合わせるときにお使いください。</p>
+
+                <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
+                <p id="tuner-status" class="tuner-status" aria-live="polite">マイクを準備しています…</p>
+                <button id="tuner-toggle" class="action-button primary-action tuner-toggle" type="button" hidden>マイクを再試行</button>
+
+                <section class="tuner-input-settings" aria-label="入力設定">
+                    <button
+                        id="tuner-input-settings-toggle"
+                        class="tuner-input-settings-toggle"
+                        type="button"
+                        aria-expanded="false"
+                        aria-controls="tuner-input-settings-panel"
+                    >
+                        <span>入力設定</span><span class="tuner-input-settings-chevron" aria-hidden="true">⌄</span>
+                    </button>
+                    <div id="tuner-input-settings-panel" class="tuner-input-tools" hidden>
+                        <div id="tuner-input-level-wrap" class="tuner-input-level-wrap" hidden>
+                            <p class="tuner-input-label">入力レベル</p>
+                            <div
+                                id="tuner-input-level"
+                                class="tuner-input-level"
+                                role="meter"
+                                aria-label="マイクの入力レベル"
+                                aria-valuemin="-100"
+                                aria-valuemax="-18"
+                                aria-valuenow="-100"
+                            >
+                                <span class="tuner-input-level-fill"></span>
+                                <span class="tuner-input-threshold-marker" aria-hidden="true"></span>
+                            </div>
+                        </div>
+
+                        <div class="tuner-threshold-control">
+                            <div class="tuner-threshold-heading">
+                                <label for="tuner-threshold">検出閾値</label>
+                                <output id="tuner-threshold-value" for="tuner-threshold">-80 dB</output>
+                            </div>
+                            <input
+                                id="tuner-threshold"
+                                type="range"
+                                min="-100"
+                                max="-40"
+                                step="1"
+                                value="-80"
+                                aria-valuetext="-80 dBFS。左ほど高感度、右ほど低感度"
+                            >
+                            <div class="tuner-threshold-labels" aria-hidden="true">
+                                <span>高感度（小さい音まで拾う）</span><span>低感度（大きい音だけ拾う）</span>
+                            </div>
+                            <p id="tuner-threshold-error" class="tuner-threshold-error" role="status"></p>
+                        </div>
+                        <button id="tuner-diagnostic-toggle" class="diagnostic-copy" type="button" aria-expanded="false" aria-controls="tuner-diagnostic">入力を診断</button>
+                        <section id="tuner-diagnostic" class="tuner-diagnostic" aria-labelledby="tuner-diagnostic-title" hidden>
+                            <div class="tuner-diagnostic-heading">
+                                <h2 id="tuner-diagnostic-title">入力の診断</h2>
+                                <span>直近5秒</span>
+                            </div>
+                            <p id="tuner-diagnostic-advice" class="diagnostic-advice" role="status" aria-live="polite">弦を1本ずつ鳴らしながら診断してください。</p>
+                            <div class="diagnostic-actions">
+                                <button id="tuner-diagnostic-check" class="diagnostic-copy" type="button">5秒間診断</button>
+                                <button id="tuner-diagnostic-reconnect" class="diagnostic-copy" type="button">マイクを再接続</button>
+                            </div>
+                            <details class="diagnostic-details">
+                                <summary>詳しい診断値</summary>
+                            <div class="diagnostic-level-row">
+                                <span>入力レベル</span>
+                                <output id="tuner-diagnostic-dbfs">— dBFS</output>
+                            </div>
+                            <div id="tuner-diagnostic-level" class="diagnostic-level" role="meter" aria-label="入力レベル" aria-valuemin="-100" aria-valuemax="-18" aria-valuenow="-100">
+                                <span class="diagnostic-level-fill"></span>
+                                <span class="diagnostic-threshold" aria-hidden="true"></span>
+                            </div>
+                            <p id="tuner-diagnostic-threshold-label" class="diagnostic-threshold-label">現在の検出しきい値 -80 dBFS</p>
+                            <dl class="diagnostic-values">
+                                <div><dt>RMS</dt><dd id="tuner-diagnostic-rms">—</dd></div>
+                                <div><dt>Confidence</dt><dd id="tuner-diagnostic-confidence">—</dd></div>
+                                <div><dt>Raw Freq</dt><dd id="tuner-diagnostic-raw-frequency">—</dd></div>
+                                <div><dt>直近の有効音</dt><dd id="tuner-diagnostic-final">—</dd></div>
+                                <div><dt>Reason</dt><dd id="tuner-diagnostic-reason">—</dd></div>
+                                <div><dt>Display</dt><dd id="tuner-diagnostic-display">neutral</dd></div>
+                                <div><dt>Sample Rate</dt><dd id="tuner-diagnostic-sample-rate">—</dd></div>
+                                <div><dt>FFT Size</dt><dd id="tuner-diagnostic-fft-size">—</dd></div>
+                                <div><dt>Threshold</dt><dd id="tuner-diagnostic-threshold-db">-80 dBFS</dd></div>
+                                <div><dt>RMS Threshold</dt><dd id="tuner-diagnostic-rms-threshold">0.000100</dd></div>
+                            </dl>
+                            <div class="diagnostic-environment">
+                                <p><strong>Track</strong> <span id="tuner-diagnostic-track">—</span></p>
+                                <p><strong>Supported</strong> <span id="tuner-diagnostic-supported">—</span></p>
+                            </div>
+                            <dl class="diagnostic-summary">
+                                <div><dt>Frames</dt><dd id="tuner-diagnostic-frames">0</dd></div>
+                                <div><dt>Valid</dt><dd id="tuner-diagnostic-valid">0%</dd></div>
+                                <div><dt>Low RMS</dt><dd id="tuner-diagnostic-low-rms">0%</dd></div>
+                                <div><dt>Low confidence</dt><dd id="tuner-diagnostic-low-confidence">0%</dd></div>
+                                <div><dt>Other</dt><dd id="tuner-diagnostic-other">0%</dd></div>
+                            </dl>
+                            </details>
+                            <button id="tuner-diagnostic-copy" class="diagnostic-copy" type="button">診断結果をコピー</button>
+                            <p id="tuner-diagnostic-copy-status" class="diagnostic-copy-status" role="status"></p>
+                        </section>
+                    </div>
+                </section>
+                <p class="tuner-privacy">音声は端末内で解析され、録音・送信されません。</p>
+
+            </section>
+        </main>
+
+        <main id="metronome-view" class="port-view metronome-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポート</button>
+            <section class="view-panel metronome-panel" aria-labelledby="metronome-title">
+                <p class="view-kicker">ツール</p>
+                <h1 id="metronome-title" class="view-title metronome-title" tabindex="-1">メトロノーム</h1>
+
+                <div class="tempo-display">
+                    <label class="visually-hidden" for="metronome-bpm">テンポ</label>
+                    <div class="tempo-readout">
+                        <span class="tempo-unit">BPM</span>
+                        <input id="metronome-bpm" class="tempo-value" aria-label="テンポ、BPM" type="number" min="30" max="240" step="1" inputmode="numeric" value="120">
+                    </div>
+                    <div class="metronome-visual-rhythm" aria-label="再生位置">
+                        <div id="metronome-visual-beats" class="visual-beat-display" role="img" aria-label="4分の4拍子、停止中"></div>
+                        <div id="metronome-visual-subdivisions" class="visual-subdivision-display" aria-hidden="true" hidden></div>
+                    </div>
+                </div>
+
+                <label class="tempo-slider-field" for="metronome-bpm-slider">
+                    <span class="visually-hidden">BPMスライダー</span>
+                    <input id="metronome-bpm-slider" type="range" min="30" max="240" step="1" value="120" aria-valuetext="120 BPM">
+                    <span class="tempo-slider-limits" aria-hidden="true"><span>30</span><span>240</span></span>
+                </label>
+
+                <div class="tempo-steps" aria-label="テンポ調整">
+                    <button type="button" data-bpm-delta="-5">−5</button>
+                    <button type="button" data-bpm-delta="-1">−1</button>
+                    <button type="button" data-bpm-delta="1">＋1</button>
+                    <button type="button" data-bpm-delta="5">＋5</button>
+                </div>
+
+                <p id="metronome-status" class="metronome-status" aria-live="polite">停止中</p>
+                <button id="metronome-toggle" class="action-button primary-action metronome-toggle" type="button" aria-pressed="false">▶ 開始</button>
+
+                <section class="metronome-presets" aria-labelledby="metronome-presets-label">
+                    <label id="metronome-presets-label" for="metronome-preset-select">プリセット</label>
+                    <div class="metronome-preset-controls">
+                        <select id="metronome-preset-select">
+                            <option value="">プリセットを選択</option>
+                        </select>
+                        <button id="metronome-preset-save-open" type="button">保存</button>
+                    </div>
+                    <button id="metronome-preset-delete" class="metronome-preset-delete" type="button" hidden>選択中のプリセットを削除</button>
+                    <p id="metronome-preset-status" class="metronome-preset-status" role="status" aria-live="polite"></p>
+                    <p id="metronome-preset-error" class="notice notice-error" role="alert" hidden></p>
+                </section>
+
+                <details id="metronome-details" class="metronome-details">
+                    <summary id="metronome-details-summary" aria-expanded="false">
+                        <span>詳細設定</span>
+                        <span class="metronome-details-chevron" aria-hidden="true"></span>
+                    </summary>
+                    <div class="metronome-settings">
+                    <section class="metronome-section" aria-labelledby="metronome-meter-label">
+                        <label class="metronome-field" for="metronome-meter">
+                            <span id="metronome-meter-label">拍子</span>
+                            <select id="metronome-meter">
+                                <option value="2/4">2/4</option>
+                                <option value="3/4">3/4</option>
+                                <option value="4/4" selected>4/4</option>
+                                <option value="5/4">5/4</option>
+                                <option value="6/8">6/8</option>
+                                <option value="9/8">9/8</option>
+                                <option value="12/8">12/8</option>
+                            </select>
+                        </label>
+                    </section>
+
+                    <section class="metronome-section" aria-labelledby="metronome-rhythm-label">
+                        <h2 id="metronome-rhythm-label">リズム</h2>
+                        <div id="metronome-rhythm" class="metronome-choice-grid" role="radiogroup" aria-labelledby="metronome-rhythm-label">
+                            <button type="button" role="radio" aria-checked="true" data-metronome-rhythm="quarter">4分</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="eighth">8分</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="sixteenth">16分</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="triplet">3連符</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="eighth-shuffle">8分シャッフル</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="sixteenth-shuffle">16分シャッフル</button>
+                        </div>
+                        <p id="metronome-rhythm-hint" class="metronome-section-note" hidden>複合拍子では付点4分を1拍として、8分は3分割、16分は6分割します。</p>
+                    </section>
+
+                    <section class="metronome-section" aria-labelledby="metronome-accent-label">
+                        <div class="metronome-section-heading">
+                            <h2 id="metronome-accent-label">アクセント</h2>
+                            <span>拍をタップして切り替え</span>
+                        </div>
+                        <div id="metronome-beats" class="beat-display" role="group" aria-labelledby="metronome-accent-label"></div>
+                    </section>
+
+                    <section class="metronome-section metronome-sound-section" aria-labelledby="metronome-sound-label">
+                        <h2 id="metronome-sound-label">音色</h2>
+                        <div id="metronome-sound" class="metronome-choice-grid metronome-sound-grid" role="radiogroup" aria-labelledby="metronome-sound-label">
+                            <button type="button" role="radio" aria-checked="true" data-metronome-sound="electronic">電子音</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="analog">アナログ</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="click">クリック</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="rim">リム</button>
+                        </div>
+
+                        <label class="metronome-field volume-field" for="metronome-volume">
+                            <span>音量 <output id="metronome-volume-value" for="metronome-volume">70</output></span>
+                            <input id="metronome-volume" type="range" min="0" max="100" step="1" value="70">
+                        </label>
+                    </section>
+                    </div>
+                </details>
+
+                <p id="metronome-storage-error" class="notice notice-error" role="alert" hidden></p>
+            </section>
+
+            <div id="metronome-preset-dialog" class="metronome-preset-dialog" role="dialog" aria-modal="true" aria-labelledby="metronome-preset-dialog-title" hidden>
+                <section class="metronome-preset-dialog-panel">
+                    <p class="view-kicker">メトロノーム</p>
+                    <h2 id="metronome-preset-dialog-title" tabindex="-1">プリセットを保存</h2>
+                    <label for="metronome-preset-name">プリセット名 <span>40文字以内</span></label>
+                    <input id="metronome-preset-name" type="text" maxlength="40" autocomplete="off">
+                    <p id="metronome-preset-dialog-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="metronome-preset-dialog-actions">
+                        <button id="metronome-preset-save" class="action-button primary-action" type="button">保存</button>
+                        <button id="metronome-preset-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                    </div>
+                </section>
+            </div>
+        </main>
+        <div id="practice-attachment-lightbox" class="practice-attachment-lightbox" role="dialog" aria-modal="true" aria-labelledby="practice-attachment-lightbox-title" hidden>
+            <section>
+                <div>
+                    <h2 id="practice-attachment-lightbox-title" tabindex="-1">ファイル</h2>
+                    <button id="practice-attachment-lightbox-close" type="button" aria-label="プレビューを閉じる">×</button>
+                </div>
+                <img id="practice-attachment-lightbox-image" alt="">
+            </section>
+        </div>
+        <div id="practice-completion-dialog" class="practice-completion-dialog" role="dialog" aria-modal="true" aria-labelledby="practice-completion-title" aria-describedby="practice-completion-description" hidden>
+            <section class="practice-completion-panel">
+                <div class="practice-completion-sparkles" aria-hidden="true"><i>✦</i><i>✧</i><i>✦</i><i>✧</i><i>✦</i><i>✧</i></div>
+                <span class="practice-completion-mark" aria-hidden="true">✓</span>
+                <h2 id="practice-completion-title" tabindex="-1">お疲れさまでした！</h2>
+                <p id="practice-completion-description">今日の練習メニューをすべて完了しました。</p>
+                <p id="practice-completion-error" class="notice notice-error" role="alert" hidden></p>
+                <div class="practice-completion-actions">
+                    <button id="practice-completion-end" class="action-button primary-action" type="button">練習を終了する</button>
+                    <button id="practice-completion-practice" class="action-button secondary-action" type="button">練習画面に戻る</button>
+                    <button id="practice-completion-calendar" class="action-button secondary-action" type="button">音楽カレンダーを見る</button>
+                </div>
+            </section>
+        </div>
+        <div class="port-global-refresh-bar" aria-label="バージョンとページの再読み込み">
+            <span class="port-app-version-display"></span>
+            <button type="button" class="port-refresh-btn port-refresh-app">ページを更新</button>
+        </div>
+        <footer class="port-footer">Sound Cruise Series</footer>
+        <dialog id="port-feature-help-dialog" class="sync-center-help-dialog port-feature-help-dialog" aria-labelledby="port-feature-help-title" aria-describedby="port-feature-help-description">
+            <h2 id="port-feature-help-title" tabindex="-1" autofocus></h2>
+            <p id="port-feature-help-description"></p>
+            <h3 class="port-feature-help-subtitle">基本の使い方</h3>
+            <ol id="port-feature-help-steps"></ol>
+            <p id="port-feature-help-note"></p>
+            <button type="button" class="action-button primary-action" data-feature-tutorial>チュートリアルを見る</button>
+            <button type="button" class="action-button secondary-action" data-feature-help-close>閉じる</button>
+        </dialog>
+    </div>
+</body>
+</html>

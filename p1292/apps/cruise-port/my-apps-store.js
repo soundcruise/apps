@@ -1,0 +1,497 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.29.2';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
+import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
+import { getKnownApp } from './my-apps-known-apps.js?v=1.3.0';
+import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
+
+export const MY_APPS_SCHEMA_VERSION = 7;
+export const MY_APPS_STORAGE_KEY = 'cruisePort.myApps';
+
+export const MY_APPS_LIMITS = Object.freeze({
+    name: 80,
+    url: 2048,
+    items: 100,
+    id: 128
+});
+
+const ITEM_KEYS_V1 = Object.freeze(['id', 'name', 'url', 'createdAt', 'updatedAt']);
+const ITEM_KEYS_V2 = Object.freeze(['id', 'name', 'url', 'iconId', 'createdAt', 'updatedAt']);
+const ITEM_KEYS_V3 = Object.freeze([
+    'id',
+    'name',
+    'url',
+    'iconId',
+    'iconSourceId',
+    'iconCrop',
+    'createdAt',
+    'updatedAt'
+]);
+const ITEM_KEYS_V4 = Object.freeze([
+    'id',
+    'name',
+    'url',
+    'launchMode',
+    'appKey',
+    'iconId',
+    'iconSourceId',
+    'iconCrop',
+    'createdAt',
+    'updatedAt'
+]);
+const ITEM_KEYS_V5 = Object.freeze([
+    'id',
+    'name',
+    'url',
+    'launchMode',
+    'appKey',
+    'customLaunch',
+    'iconId',
+    'iconSourceId',
+    'iconCrop',
+    'createdAt',
+    'updatedAt'
+]);
+const ITEM_KEYS_V6 = Object.freeze([...ITEM_KEYS_V5.slice(0, -2), 'iconPresetKey', 'createdAt', 'updatedAt']);
+const URL_PLATFORMS = Object.freeze(['ios', 'android', 'macos', 'windows', 'web']);
+const ITEM_KEYS_V7 = Object.freeze([...ITEM_KEYS_V6, 'urls']);
+
+export function emptyMyAppUrls() {
+    return { ios: '', android: '', macos: '', windows: '', web: '' };
+}
+
+export function normalizeMyAppUrls(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || !hasExactKeys(value, URL_PLATFORMS)) return { ok: false, reason: 'invalid-url' };
+    const urls = emptyMyAppUrls();
+    for (const platform of URL_PLATFORMS) {
+        if (value[platform] === '') continue;
+        const result = normalizeMyAppUrl(value[platform]);
+        if (!result.ok) return result;
+        urls[platform] = result.url;
+    }
+    return { ok: true, urls };
+}
+
+function isIsoDate(value) {
+    return typeof value === 'string'
+        && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+        && !Number.isNaN(Date.parse(value));
+}
+
+function hasExplicitScheme(value) {
+    return /^[a-z][a-z\d+.-]*:/i.test(value);
+}
+
+export function normalizeMyAppUrl(value) {
+    if (typeof value !== 'string') {
+        return { ok: false, reason: 'invalid-url' };
+    }
+
+    const input = value.trim();
+    if (!input || input.length > MY_APPS_LIMITS.url) {
+        return { ok: false, reason: 'invalid-url' };
+    }
+
+    const candidate = hasExplicitScheme(input) ? input : `https://${input}`;
+    try {
+        const parsed = new URL(candidate);
+        if (
+            parsed.protocol !== 'https:'
+            || !parsed.hostname
+            || parsed.username
+            || parsed.password
+            || parsed.href.length > MY_APPS_LIMITS.url
+        ) {
+            return { ok: false, reason: 'invalid-url' };
+        }
+        return { ok: true, url: parsed.href };
+    } catch (_) {
+        return { ok: false, reason: 'invalid-url' };
+    }
+}
+
+export function validateMyAppValues(values) {
+    const name = typeof values?.name === 'string' ? values.name.trim() : '';
+    if (!name) return { ok: false, reason: 'invalid-name' };
+    if (name.length > MY_APPS_LIMITS.name) return { ok: false, reason: 'invalid-name' };
+
+    const legacyUrl = values?.url ?? '';
+    const urlResult = legacyUrl === '' ? { ok: true, url: '' } : normalizeMyAppUrl(legacyUrl);
+    if (!urlResult.ok) return urlResult;
+    const urlsResult = normalizeMyAppUrls(values?.urls ?? emptyMyAppUrls());
+    if (!urlsResult.ok) return urlsResult;
+    if (!urlResult.url && !Object.values(urlsResult.urls).some(Boolean)) {
+        return { ok: false, reason: 'missing-url' };
+    }
+    const launchMode = values?.launchMode ?? 'https';
+    const appKey = values?.appKey ?? null;
+    const customLaunch = values?.customLaunch ?? null;
+    const customResult = launchMode === 'custom'
+        ? normalizeCustomLaunch(customLaunch)
+        : null;
+    if (
+        !['https', 'known-app', 'custom'].includes(launchMode)
+        || (launchMode === 'https' && (appKey !== null || customLaunch !== null))
+        || (launchMode === 'known-app' && (!getKnownApp(appKey) || customLaunch !== null))
+        || (launchMode === 'custom' && (appKey !== null || !customResult?.ok))
+    ) {
+        return { ok: false, reason: 'invalid-launch' };
+    }
+    return {
+        ok: true,
+        values: {
+            name,
+            url: urlResult.url,
+            urls: urlsResult.urls,
+            launchMode,
+            appKey,
+            customLaunch: customResult?.value || null
+        }
+    };
+}
+
+function hasExactKeys(item, keys) {
+    return Object.keys(item).length === keys.length && keys.every((key) => Object.hasOwn(item, key));
+}
+
+function sameMyAppUrls(left, right) {
+    return URL_PLATFORMS.every((platform) => left?.[platform] === right?.[platform]);
+}
+
+function storedItemVersion(item, envelopeVersion) {
+    if (envelopeVersion < 6) return envelopeVersion;
+    // An older sync adapter can hydrate a v7 record into a v6 envelope.
+    // Validate each complete item shape before migrating; never discard unknown data.
+    return item && typeof item === 'object' && Object.hasOwn(item, 'urls') ? 7 : 6;
+}
+
+function isStructurallyValidCustomLaunch(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !hasExactKeys(value, ['ios', 'android'])) {
+        return false;
+    }
+    const validValue = (target) => target === null
+        || (typeof target === 'string' && target.length > 0 && target.length <= MY_APPS_LIMITS.url);
+    return validValue(value.ios) && validValue(value.android) && (value.ios !== null || value.android !== null);
+}
+
+export function normalizeCustomLaunch(value) {
+    if (!isStructurallyValidCustomLaunch(value)) return { ok: false, reason: 'invalid-launch' };
+    const normalizeTarget = (target) => target === null ? { ok: true, url: null } : normalizeMyAppUrl(target);
+    const iosResult = normalizeTarget(value.ios);
+    const androidResult = normalizeTarget(value.android);
+    if (!iosResult.ok || !androidResult.ok) return { ok: false, reason: 'invalid-launch' };
+    return {
+        ok: true,
+        value: { ios: iosResult.url, android: androidResult.url }
+    };
+}
+
+function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, {
+    allowUnknownAppKey = false,
+    allowUnknownPresetKey = false,
+    allowPresetConflict = false
+} = {}) {
+    const expectedKeys = version === 1
+        ? ITEM_KEYS_V1
+        : version === 2
+            ? ITEM_KEYS_V2
+            : version === 3
+                ? ITEM_KEYS_V3
+                : version === 4
+                    ? ITEM_KEYS_V4
+                    : version === 5
+                        ? ITEM_KEYS_V5
+                        : version === 6 ? ITEM_KEYS_V6 : ITEM_KEYS_V7;
+    if (
+        !item
+        || typeof item !== 'object'
+        || Array.isArray(item)
+        || typeof item.id !== 'string'
+        || !item.id
+        || item.id.length > MY_APPS_LIMITS.id
+        || typeof item.name !== 'string'
+        || item.name !== item.name.trim()
+        || !isIsoDate(item.createdAt)
+        || !isIsoDate(item.updatedAt)
+        || !hasExactKeys(item, expectedKeys)
+        || (version >= 2 && !(
+            item.iconId === null
+            || (typeof item.iconId === 'string' && item.iconId.length > 0 && item.iconId.length <= MY_APPS_LIMITS.id)
+        ))
+    ) {
+        return false;
+    }
+
+    if (version >= 3) {
+        const validSourceId = item.iconSourceId === null || (
+            typeof item.iconSourceId === 'string'
+            && item.iconSourceId.length > 0
+            && item.iconSourceId.length <= MY_APPS_LIMITS.id
+        );
+        const validImageState = item.iconId === null
+            ? item.iconSourceId === null && item.iconCrop === null
+            : item.iconSourceId === null
+                ? item.iconCrop === null
+                : isValidIconCrop(item.iconCrop);
+        if (!validSourceId || !validImageState) return false;
+    }
+
+    if (version >= 6) {
+        const validPresetKey = item.iconPresetKey === null || (
+            typeof item.iconPresetKey === 'string'
+            && item.iconPresetKey.length > 0
+            && item.iconPresetKey.length <= 80
+            && (allowUnknownPresetKey || isKnownMyAppsIconPreset(item.iconPresetKey))
+        );
+        const hasCustomImage = item.iconId !== null;
+        if (!validPresetKey || (!allowPresetConflict && hasCustomImage && item.iconPresetKey !== null)) return false;
+    }
+
+    if (version === 4) {
+        const validLaunch = item.launchMode === 'https'
+            ? item.appKey === null
+            : item.launchMode === 'known-app'
+                && typeof item.appKey === 'string'
+                && item.appKey.length > 0
+                && item.appKey.length <= 80
+                && (allowUnknownAppKey || Boolean(getKnownApp(item.appKey)));
+        if (!validLaunch) return false;
+    }
+
+    const baseValuesResult = validateMyAppValues({ name: item.name, url: item.url, urls: version >= 7 ? item.urls : emptyMyAppUrls() });
+    if (!baseValuesResult.ok || baseValuesResult.values.url !== item.url
+        || (version >= 7 && !sameMyAppUrls(baseValuesResult.values.urls, item.urls))) return false;
+
+    if (version !== MY_APPS_SCHEMA_VERSION) return true;
+    if (allowUnknownAppKey) {
+        if (item.launchMode === 'https') return item.appKey === null && item.customLaunch === null;
+        if (item.launchMode === 'known-app') {
+            return typeof item.appKey === 'string'
+                && item.appKey.length > 0
+                && item.appKey.length <= 80
+                && item.customLaunch === null;
+        }
+        return item.launchMode === 'custom'
+            && item.appKey === null
+            && isStructurallyValidCustomLaunch(item.customLaunch);
+    }
+
+    const valuesResult = validateMyAppValues(item);
+    return valuesResult.ok
+        && valuesResult.values.url === item.url
+        && JSON.stringify(valuesResult.values.customLaunch) === JSON.stringify(item.customLaunch)
+        && sameMyAppUrls(valuesResult.values.urls, item.urls);
+}
+
+function hasUniqueIds(items) {
+    return new Set(items.map((item) => item.id)).size === items.length;
+}
+
+function cloneItems(items) {
+    return items.map((item) => ({
+        ...item,
+        urls: { ...item.urls },
+        iconPresetKey: item.iconPresetKey ?? null,
+        customLaunch: item.customLaunch ? { ...item.customLaunch } : null,
+        iconCrop: item.iconCrop ? { ...item.iconCrop } : null
+    }));
+}
+
+export function createSecureId() {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+        return globalThis.crypto.randomUUID();
+    }
+    if (typeof globalThis.crypto?.getRandomValues === 'function') {
+        const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+    throw new Error('secure-id-unavailable');
+}
+
+export function loadMyApps(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadMyApps(tx));
+    try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        const rawValue = readStorageValue(storage, MY_APPS_STORAGE_KEY);
+        if (rawValue === null) return { ok: true, items: [] };
+
+        const parsed = JSON.parse(rawValue);
+        const storedVersion = parsed?.version;
+        let repairedMissingPresetKey = false;
+        const storedItems = Array.isArray(parsed?.items)
+            ? parsed.items.map((item) => {
+                if (
+                    storedVersion >= 6
+                    && item
+                    && typeof item === 'object'
+                    && !Array.isArray(item)
+                    && !Object.hasOwn(item, 'iconPresetKey')
+                ) {
+                    repairedMissingPresetKey = true;
+                    return { ...item, iconPresetKey: null };
+                }
+                return item;
+            })
+            : null;
+        if (
+            !parsed
+            || typeof parsed !== 'object'
+            || Array.isArray(parsed)
+            || ![1, 2, 3, 4, 5, 6, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
+            || !Array.isArray(storedItems)
+            || !storedItems.every((item) => isValidItem(item, storedItemVersion(item, storedVersion), {
+                allowUnknownAppKey: true,
+                allowUnknownPresetKey: true,
+                allowPresetConflict: true
+            }))
+            || !hasUniqueIds(storedItems)
+        ) {
+            return { ok: false, items: [], reason: 'invalid-data' };
+        }
+        const mixedRecordShape = storedVersion === 7 && storedItems.some((item) => storedItemVersion(item, storedVersion) === 6);
+        let repairedLaunch = false;
+        let repairedPreset = false;
+        const items = storedItems.map((item) => {
+            const knownLaunch = storedVersion >= 4
+                && item.launchMode === 'known-app'
+                && getKnownApp(item.appKey);
+            const customResult = storedVersion >= 5 && item.launchMode === 'custom'
+                ? normalizeCustomLaunch(item.customLaunch)
+                : null;
+            const customLaunch = customResult?.ok ? customResult.value : null;
+            if (
+                (storedVersion >= 4 && item.launchMode === 'known-app' && !knownLaunch)
+                || (storedVersion >= 5 && item.launchMode === 'custom' && !customLaunch)
+            ) {
+                repairedLaunch = true;
+            }
+            if (
+                customLaunch
+                && JSON.stringify(customLaunch) !== JSON.stringify(item.customLaunch)
+            ) {
+                repairedLaunch = true;
+            }
+            const storedPresetKey = storedVersion >= 6 ? item.iconPresetKey : null;
+            const iconPresetKey = item.iconId !== null || !isKnownMyAppsIconPreset(storedPresetKey)
+                ? null
+                : storedPresetKey;
+            if (storedPresetKey !== iconPresetKey) repairedPreset = true;
+            return {
+                ...item,
+                urls: storedItemVersion(item, storedVersion) === 7
+                    ? Object.fromEntries(URL_PLATFORMS.map((platform) => [platform, item.urls[platform]]))
+                    : emptyMyAppUrls(),
+                launchMode: knownLaunch ? 'known-app' : customLaunch ? 'custom' : 'https',
+                appKey: knownLaunch ? item.appKey : null,
+                customLaunch,
+                iconId: storedVersion === 1 ? null : item.iconId,
+                iconSourceId: storedVersion < 3 ? null : item.iconSourceId,
+                iconCrop: storedVersion < 3 || item.iconCrop === null
+                    ? null
+                    : { ...item.iconCrop },
+                iconPresetKey
+            };
+        });
+        return storedVersion < MY_APPS_SCHEMA_VERSION || mixedRecordShape || repairedMissingPresetKey || repairedLaunch || repairedPreset
+            ? { ok: true, items, migrated: true }
+            : { ok: true, items };
+    } catch (_) {
+        return { ok: false, items: [], reason: 'read-failed' };
+    }
+}
+
+export function saveMyApps(items, storage, writeOptions = {}) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [MY_APPS_STORAGE_KEY], tx => saveMyApps(items, tx), writeOptions);
+    if (
+        !Array.isArray(items)
+        || items.length > MY_APPS_LIMITS.items
+        || !items.every((item) => isValidItem(item))
+        || !hasUniqueIds(items)
+    ) {
+        return { ok: false, reason: 'invalid-data' };
+    }
+
+    try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [MY_APPS_STORAGE_KEY]);
+        storage.setItem(MY_APPS_STORAGE_KEY, JSON.stringify({
+            version: MY_APPS_SCHEMA_VERSION,
+            items: cloneItems(items)
+        }));
+        acceptStorageValues(storage, [MY_APPS_STORAGE_KEY]);
+        return { ok: true };
+    } catch (_) {
+        return { ok: false, reason: 'write-failed' };
+    }
+}
+
+export function createMyApp(values, existingItems, now = new Date(), idFactory = createSecureId) {
+    const valuesResult = validateMyAppValues(values);
+    if (!valuesResult.ok) return { ok: false, reason: valuesResult.reason };
+    if (!Array.isArray(existingItems) || existingItems.length >= MY_APPS_LIMITS.items) {
+        return { ok: false, reason: 'limit-reached' };
+    }
+
+    const existingIds = new Set(existingItems.map((item) => item.id));
+    let id;
+    try {
+        do {
+            id = idFactory();
+        } while (existingIds.has(id));
+    } catch (_) {
+        return { ok: false, reason: 'id-unavailable' };
+    }
+
+    const timestamp = now.toISOString();
+    return {
+        ok: true,
+        item: {
+            id,
+            ...valuesResult.values,
+            iconId: null,
+            iconSourceId: null,
+            iconCrop: null,
+            iconPresetKey: null,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        }
+    };
+}
+
+export function updateMyApp(items, id, values, now = new Date()) {
+    const valuesResult = validateMyAppValues(values);
+    if (!valuesResult.ok) return { found: false, items: cloneItems(items), reason: valuesResult.reason };
+
+    let found = false;
+    const nextItems = items.map((item) => {
+        if (item.id !== id) return { ...item };
+        found = true;
+        return {
+            ...item,
+            ...valuesResult.values,
+            id: item.id,
+            createdAt: item.createdAt,
+            updatedAt: now.toISOString()
+        };
+    });
+    return { found, items: nextItems };
+}
+
+export function deleteMyApp(items, id) {
+    const nextItems = items.filter((item) => item.id !== id).map((item) => ({ ...item }));
+    return { found: nextItems.length !== items.length, items: nextItems };
+}
+
+export function moveMyApp(items, id, direction) {
+    const currentIndex = items.findIndex((item) => item.id === id);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= items.length) {
+        return { moved: false, items: cloneItems(items) };
+    }
+    const nextItems = cloneItems(items);
+    [nextItems[currentIndex], nextItems[nextIndex]] = [nextItems[nextIndex], nextItems[currentIndex]];
+    return { moved: true, items: nextItems };
+}
