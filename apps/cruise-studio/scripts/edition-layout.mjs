@@ -32,6 +32,7 @@ export function renderStandardEntry(source){
   return all;
  }).replace(/<link[^>]*shared\/pro-gate.css[^>]*>/g,'').replace(/pro_969e958c31433f99c30b\/manifest.webmanifest/g,'manifest.webmanifest').replace(/<span class="studio-pro-badge">Pro<\/span>/g,'').replace(/Cruise Studio Pro/g,'Cruise Studio').replace(/クルーズ Pro/g,'クルーズ').replace(/同期を確認中…/g,'通常版 — 各アプリの機能制限が適用されます。').replace(/data-studio-edition="pro"/g,'data-studio-edition="standard"');
  for(const [dir,pro] of Object.entries({'pitch-cruise':'pro_x9v7q2m8','fretboard_cruise':'pro_a9f4k7q2m8z','rhythm-cruise':'pro_r4m8k7n2q9x','chord-cruise':'pro_k7m4q9v2x8'}))html=html.replaceAll('../'+dir+'/'+pro+'/', '../'+dir+'/standard/');
+ html=html.replaceAll('../rhythm-cruise/standard/icon-192.png','../rhythm-cruise/icon-192.png');
  return '<!-- Generated Standard edition. Native Standard owners enforce capabilities. -->\n'+html.replace(/^[ \t]+$/gm,'');
 }
 export function renderStandardManifest(version){const m=JSON.parse(renderProManifest(version));m.id=m.start_url=m.scope=STANDARD_APP_ID;m.description='Cruise Studio — 弾き語りストの総合ワークスペース';return JSON.stringify(m,null,2)+'\n';}
