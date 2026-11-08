@@ -422,3 +422,33 @@ test('journal: local save during Pro reauthentication preserves Account proof wi
  assert.equal(h.meta().pendingSync.records.length,2);let c=await h.restart();assert.equal(c.runtime,null);assert.equal(h.deviceReads.length,0);
  pro=true;c=await h.restart();assert.ok(c.runtime);c.dispose();
 });
+
+test('automatic Account entry cannot bypass native asset readiness or adopt an unowned dataset', async () => {
+ for (const mode of ['unknown-assets', 'pending-assets', 'unowned', 'new-account']) {
+  const h = harness();
+  await connected(h);
+  h.context.navigator.onLine = false;
+  h.controller.bindAutoResume({assets:{status:async()=>({known:mode!=='unknown-assets',pendingCount:mode==='pending-assets'?1:0})}});
+  await settled();
+  if (mode === 'unowned') h.setLocal([row]);
+  if (mode === 'new-account') { h.setLocal([row]); h.changeAccount('recreated-A'); }
+  h.context.navigator.onLine = true;
+  const result = await h.controller.resumeAutomatically();
+  assert.equal(result.ok, false, mode);
+  assert.equal(h.runtimes.length, 0, mode);
+  assert.equal(h.network.length, 0, mode);
+  h.controller.dispose();
+ }
+});
+test('Account replacement during automatic readiness does not provision or transmit either Account', async () => {
+ const h = harness(), gate = deferred();
+ await connected(h);
+ h.context.navigator.onLine = false;
+ h.controller.bindAutoResume({assets:{status:async()=>{await gate.promise;return {known:true,pendingCount:0};}}});
+ await settled(); h.context.navigator.onLine = true;
+ const task = h.controller.resumeAutomatically(); await settled();
+ h.changeAccount('B'); gate.resolve();
+ await assert.rejects(task, /account_generation_changed/);
+ assert.equal(h.runtimes.length, 0); assert.equal(h.network.length, 0);
+ h.controller.dispose();
+});

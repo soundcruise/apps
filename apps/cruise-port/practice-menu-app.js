@@ -42,7 +42,7 @@ import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.29.2';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.29.2';
 import { createPortSyncStatus, portSyncActionError } from './port-sync-status.js?v=1.25.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.29.2';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.29.3';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
@@ -195,10 +195,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.29.2';
+} from './app-version.js?v=1.29.3';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.29.2';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.29.2';
-import { initTuner } from './tuner-app.js?v=1.29.2';
+import { initTuner } from './tuner-app.js?v=1.29.3';
 import {
     clearGearPhotoReferences,
     createGearItem,

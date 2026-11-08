@@ -3920,3 +3920,159 @@ for(const fault of ['none','snapshot-network','offline','pagehide','shadow-commi
  assert.equal((await f.advance()).ok,true);
  assert.equal(f.repo.inspect().pendingSync.records.length,1,'acknowledged history anchor is pruned, only the changed cycle remains');
 });
+
+// Reuse the real Port adapter/runtime and existing synthetic server. Control-plane
+// replies are mocked; Account stores and server records are distinct for A and B.
+async function accountRecoveryFixture(t, { local = 'pending' } = {}) {
+  const { createSyncCenterOrchestrator } = await import('../../cruise-port/sync-center-orchestrator.js');
+  const f = await journalProductFixture(t), c = f.c;
+  assert.equal((await f.save()).ok, true);
+  let controller = await f.coldResume();
+  if (local === 'pending') assert.equal((await f.advance()).ok, true);
+  controller.dispose();
+  const original = await c.SoundCruiseSyncAccount.storage.getAccount();
+  let account = original, generation = 0, pendingRecovery = false, target = 'B';
+  const listeners = new Set(), stores = new Map([[original.accountId, f.store]]), b = serverFetch();
+  const getStore = id => {
+    if (!stores.has(id)) { const s = memoryStore(); s.accountId = id; stores.set(id, s); }
+    return stores.get(id);
+  };
+  const native = {
+    getAccount: async () => account, getGeneration: () => generation, getPendingConsume: async () => null,
+    subscribeAccount(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+    async setAccount(next) { account = next; generation++; for (const fn of listeners) fn(); }
+  };
+  let op = 0;
+  const core = { ...c.SoundCruiseSyncAccount.core,
+    validAppCredential: v => v?.startsWith('scd1.'), createOperationId: () => `recovery-op-${++op}`,
+    createAppCredential: () => ({ appDeviceCredential: account.accountId === 'B' ? 'scd1.B.synthetic' : 'scd1.A.synthetic' }),
+    accountDeviceIdFromCredential: v => v.split('.')[1],
+    createAccountRecoveryMaterial: () => ({ nextRecoveryCode: 'synthetic-only' }) };
+  class Client {
+    constructor() { this.admissionMode = 'production'; }
+    async request() { throw Error('unexpected control-plane request'); }
+    async detachCurrentEnvironment() { await native.setAccount(null); return { status: 'detached' }; }
+    async prepareAccountRecovery() { return { summary: { memberships: [] } }; }
+    async commitAccountRecovery() {
+      await native.setAccount(target === 'B' ? { accountId: 'B', accountCredential: 'sca1.B.synthetic' } : original);
+      return { accountId: account.accountId };
+    }
+    async resumePendingRecovery() {
+      if (!pendingRecovery) return { status: 'none' };
+      pendingRecovery = false;
+      return { status: 'committed', result: await this.commitAccountRecovery() };
+    }
+    async resumePendingStart() { return { status: 'none' }; }
+    async summary() { return { account: { id: account.accountId, state: 'active' }, memberships: [] }; }
+    async devices() { return { devices: [{ id: core.accountDeviceIdFromCredential(account.accountCredential),
+      revokedAt: null, isPortEnvironment: true, portAppDeviceIds: [account.accountId === 'B' ? 'B' : 'valid'] }] }; }
+    async provisionPortDevice() { return { membershipId: 'member-B' }; }
+  }
+  Object.assign(c.SoundCruiseSyncAccount, { storage: native, core, AccountClient: Client });
+  c.SoundCruiseMultiAppSync.dataStorage.createStore = (_app, options = {}) => getStore(options.accountId || 'legacy');
+  const fetchImpl = (url, init) => (new Headers(init.headers).get('Authorization')?.includes('scd1.B.') ? b.fetchImpl : f.fetchImpl)(url, init);
+  const options = { config: { enabled: true, environment: 'production', endpoint: 'https://example.test' }, canSync: () => true, fetchImpl };
+  function open() {
+    controller = c.SoundCruisePortSync.createPortSyncController(options);
+    const empty = async () => !f.adapter.isMeaningfulLocalData();
+    controller.bindAutoResume({ assets: { status: async () => ({ known: true, pendingCount: 0 }) }, canInitialize: empty });
+    return createSyncCenterOrchestrator({ ...options, accountRoot: c.SoundCruiseSyncAccount, portSync: controller, canInitializeJoined: empty });
+  }
+  // Keep A's last local change genuinely unsent before the control-plane switch.
+  // Account APIs are brought back online without emitting an app resume event.
+  c.navigator.onLine = false;
+  let orchestrator = open();
+  t.after(() => controller.dispose());
+  for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
+  c.navigator.onLine = true;
+  return { ...f, b, stores, native, original, get controller() { return controller; }, get orchestrator() { return orchestrator; },
+    async recover({ resumed = false, same = false } = {}) {
+      target = same ? original.accountId : 'B';
+      await orchestrator.detachCurrentEnvironment();
+      if (resumed) { pendingRecovery = true; return orchestrator.resume(); }
+      await orchestrator.prepareRecovery({ recoveryCode: 'synthetic-only', turnstileToken: 'synthetic-only' });
+      return orchestrator.commitRecovery({ recoverySaved: true });
+    },
+    async readyB() {
+      const store = getStore('B'); b.server.state = 'ready';
+      for (const [key, value] of Object.entries({ credential: 'scd1.B.synthetic', membership: { id: 'member-B', appId: 'port', state: 'active' },
+        migrationState: 'complete', datasetState: 'ready', lastSyncAt: 1, legacyInspected: true })) await store.setMeta(key, value);
+    },
+    async freshContainer() {
+      // Only synthetic local storage is cleared to model a separate fresh browser.
+      controller.dispose();
+      for (const key of ['cruisePort.practiceHistory', 'cruisePort.practiceProgress', 'cruisePort.datasetRepository.v1']) f.storage.removeItem(key);
+      stores.set(original.accountId, memoryStore());
+      orchestrator = open();
+    },
+    async restart() { controller.dispose(); orchestrator = open(); for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); return orchestrator.resume(); }
+  };
+}
+for (const local of ['pending', 'synced']) for (const resumed of [false, true]) {
+  test(`Port Account recovery: ${local} A data never enters B (${resumed ? 'lost response reconciliation' : 'direct commit'})`, async t => {
+    const f = await accountRecoveryFixture(t, { local });
+    const data = f.adapter.readLocalSnapshot(), proof = f.repo.inspect().pendingSync;
+    const shadow = await f.store.listShadow(), outbox = await f.store.listOutbox();
+    if (local === 'pending') {
+      const records = await f.adapter.serializeRecords(data), cycle = records.find(r => r.recordType === 'practice_cycle');
+      assert.notEqual(cycle.payloadHash, f.server.records.get('practice_cycle/current').payloadHash, 'A change is genuinely not uploaded');
+      assert.ok(proof?.records.length);
+    }
+    await f.recover({ resumed });
+    await f.restart();
+    assert.equal(f.b.server.pushCalls, 0, 'no unauthorized B push, even after a reload');
+    assert.equal(f.b.server.records.size, 0);
+    assert.deepEqual(f.adapter.readLocalSnapshot(), data, 'local A records retained');
+    assert.deepEqual(f.repo.inspect().pendingSync, proof, 'never restamp A proof for B');
+    assert.deepEqual(await f.store.listShadow(), shadow, 'A baseline retained');
+    assert.deepEqual(await f.store.listOutbox(), outbox);
+  });
+}
+test('Port Account recovery: proven same-Account reconnection without credential rotation retains automatic resume and pending journal', async t => {
+  const f = await accountRecoveryFixture(t);
+  await f.recover({ same: true });
+  await f.restart();
+  assert.ok(f.controller.runtime);
+  assert.equal((await f.store.listOutbox()).length, 0);
+  const cycle = f.server.records.get('practice_cycle/current');
+  assert.equal(cycle.payload.value.cycleId, 'next-synthetic-cycle');
+  assert.equal(f.b.server.records.size, 0);
+});
+
+test('Port Account recovery: a fresh empty container can restore the existing cloud Account', async t => {
+  const f = await accountRecoveryFixture(t, { local: 'synced' });
+  await f.freshContainer();
+  const result = await f.recover({ same: true });
+  assert.equal(result.portSyncState.ok, true);
+  assert.equal((await f.controller.store.listShadow()).length, 2);
+  assert.equal(f.adapter.readLocalSnapshot().records.filter(r => r.recordType === 'practice_history_event').length, 1);
+  assert.equal(f.b.server.records.size, 0);
+});
+test('Port Account recovery: explicit reviewed local merge remains available after automatic B refusal', async t => {
+  const f = await accountRecoveryFixture(t);
+  await f.recover();
+  assert.equal(f.b.server.pushCalls, 0);
+  // The existing product UI separately obtains send/merge consent before ensure().
+  const result = await f.controller.ensure();
+  assert.equal(result.ok, true);
+  assert.equal(f.b.server.records.size, 2);
+});
+test('Port Account recovery: rotated credentials do not borrow old pending journal evidence', async t => {
+  const f = await accountRecoveryFixture(t);
+  const a = await f.native.getAccount();
+  await f.native.setAccount({ ...a, accountCredential: 'sca1.rotated.synthetic' });
+  await f.restart();
+  assert.equal(f.controller.runtime, null);
+  assert.equal(f.controller.getCachedStatus().autoResumeCode, 'local_data_unconfirmed');
+  assert.ok(f.repo.inspect().pendingSync);
+});
+
+test('Port Account recovery: an already-ready B baseline cannot attribute A data', async t => {
+  const f = await accountRecoveryFixture(t);
+  await f.readyB();
+  await f.recover();
+  await f.restart();
+  assert.equal(f.b.server.pushCalls, 0);
+  assert.equal(f.controller.runtime, null);
+  assert.equal(f.controller.getCachedStatus().autoResumeCode, 'local_data_unconfirmed');
+});

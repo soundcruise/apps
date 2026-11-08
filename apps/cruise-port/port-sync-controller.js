@@ -219,6 +219,15 @@
       if (!global.navigator?.locks?.request) throw new Error('sync_locks_unavailable');
       const guard = () => check(epoch, accountGeneration);
       const wait = async operation => { guard(); const value = await operation(); guard(); return value; };
+      // All automatic callers, including Account recovery, need the same
+      // native attachment readiness as lifecycle resume. Explicit merge is separate.
+      if (resumeOnly) {
+        const assets = await wait(() => autoAssets?.status?.());
+        if (!assets?.known || assets.pendingCount || assets.error) {
+          autoResumeCode = 'local_data_unconfirmed'; await wait(() => readLocalStatus());
+          return { ok: false, code: autoResumeCode };
+        }
+      }
       const account = await wait(() => accountRoot.storage.getAccount());
       if (!accountRoot.core.validAccountCredential(account?.accountCredential)) {
         publish({ known: true, state: 'local-only', connected: false, credentialState: 'unknown' });
@@ -491,7 +500,7 @@
       return Object.freeze({ enabled: true, get restricted() { return !canSync(); },
         get runtime() { return released ? null : runtime; }, get store() { return released ? null : store; },
         get identity() { return runtime?.identity || null; },
-        getCachedStatus: () => released ? unknown() : cachedStatus(), status: requireConsumer(readLocalStatus), readLocalStatus: requireConsumer(readLocalStatus), ensure: requireConsumer(() => ensure()), bindAutoResume: requireConsumer(bindAutoResume),
+        getCachedStatus: () => released ? unknown() : cachedStatus(), status: requireConsumer(readLocalStatus), readLocalStatus: requireConsumer(readLocalStatus), ensure: requireConsumer(() => ensure()), resumeAutomatically: requireConsumer(() => ensure({ resumeOnly: true })), bindAutoResume: requireConsumer(bindAutoResume),
         subscribe(listener) { if (released) return () => {}; ownSubscriptions.add(listener); subscriptions.add(listener);
           return () => { ownSubscriptions.delete(listener); subscriptions.delete(listener); }; },
         sync: requireConsumer((reason = 'manual') => run('sync', reason)), resume: requireConsumer(() => run('sync', 'resume')),
