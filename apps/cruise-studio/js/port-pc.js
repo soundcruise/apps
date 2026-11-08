@@ -2,7 +2,7 @@
 (function(){
     'use strict';
     var CS=window.CruiseStudio;
-    CS.portPC=Object.freeze({version:'0.87.1'});
+    CS.portPC=Object.freeze({version:'0.87.2'});
     CS.scoreWorkspace.prepare();
     CS.shellHost=CS.shell.init(CS);
     CS.scoreWorkspace.attach();
@@ -16,7 +16,7 @@
     document.querySelector('[data-studio-footer-version]').textContent='v'+CS.portPC.version;
     document.getElementById('studio-footer-refresh').onclick=()=>document.getElementById('studio-refresh').click();
     new MutationObserver(()=>{document.querySelector('[data-footer-refresh-status]').textContent=document.getElementById('studio-refresh-status').textContent;}).observe(document.getElementById('studio-refresh-status'),{childList:true,subtree:true,characterData:true});
-    document.getElementById('studio-info-open').onclick=()=>document.getElementById('studio-information').showModal();
+    const openInformation=()=>document.getElementById('studio-information').showModal(); document.getElementById('studio-info-open').onclick=openInformation; document.getElementById('studio-sidebar-info').onclick=openInformation;
     document.getElementById('home-cruise-sync').addEventListener('click', function(){CS.shellHost.navigate('portSync');});
     document.querySelectorAll('[data-home-workspace]').forEach(function(button){
         button.addEventListener('click',function(){CS.shellHost.navigate(button.dataset.homeWorkspace);});
