@@ -1,6 +1,0 @@
-<!doctype html><meta name="viewport" content="width=device-width"><meta charset="utf-8"><title>Port1304C isolation</title>
-<h1>Port1304C storage probe</h1><pre id="state">Reading</pre><button id="mark">Mark empty TEST profile only</button><p><a href="apps/cruise-port/pro_9a3943176561/">Candidate 1.30.4 Pro</a></p><script>
-const key='port1304c.isolation.marker',dbName='port1304c-isolation-marker';
-async function inspect(){const dbs=await indexedDB.databases(),sw=await navigator.serviceWorker.getRegistrations();const s={marker:localStorage.getItem(key),localKeys:localStorage.length,databases:dbs.length,markerDatabase:dbs.some(d=>d.name===dbName),serviceWorkers:sw.length,cookiePresent:document.cookie.length>0};document.getElementById('state').textContent=JSON.stringify(s,null,2);return s;}
-document.getElementById('mark').onclick=async()=>{const s=await inspect();if(s.localKeys||s.databases||s.serviceWorkers||s.cookiePresent)return alert('NOT EMPTY: no writes performed');localStorage.setItem(key,'PORT1304C-TEST-ONLY');await new Promise((ok,no)=>{const r=indexedDB.open(dbName,1);r.onupgradeneeded=()=>r.result.createObjectStore('marker');r.onerror=no;r.onsuccess=()=>{const db=r.result,t=db.transaction('marker','readwrite');t.objectStore('marker').put('PORT1304C-TEST-ONLY','marker');t.oncomplete=()=>{db.close();ok();};};});await inspect();};inspect();
-</script>
