@@ -3078,11 +3078,15 @@ textarea:focus-visible {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* カラーテーマ: four labels (チャコール is the longest) stay on one line. */
+/* カラーテーマ: 長い名前は幅に合わせて折り返す。 */
 .settings-choices[aria-label="カラーテーマ"] .settings-choice {
     font-size: calc(0.8rem * var(--font-scale));
     letter-spacing: 0;
-    white-space: nowrap;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.25;
 }
 
 .settings-choice small {
