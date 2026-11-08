@@ -4646,3 +4646,6 @@ body.cc-settings-open {
     --cc-overlay: rgba(15, 15, 16, 0.55);
     --cc-shadow-alpha: 0.3;
 }
+
+/* Temporarily suspend new Midnight selection; retain saved values and Studio projection. */
+:root:not([data-studio-theme]) [data-theme-choice="midnight"] { display: none !important; }

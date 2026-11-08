@@ -195,10 +195,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.30.3';
+} from './app-version.js?v=1.30.4';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.30.3';
-import { initTuner } from './tuner-app.js?v=1.30.3';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.30.4';
+import { initTuner } from './tuner-app.js?v=1.30.4';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -6577,7 +6577,11 @@ for (const choices of [elements.settingsChoices, elements.fontChoices, elements.
     if (!['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
-    const next = choices[(index + offset + choices.length) % choices.length];
+    const visibleChoices = choices === elements.themeChoices
+        ? choices.filter((choice) => getComputedStyle(choice).display !== 'none')
+        : choices;
+    const currentIndex = visibleChoices.indexOf(button);
+    const next = visibleChoices[(currentIndex + offset + visibleChoices.length) % visibleChoices.length];
     next.click();
 }));
 elements.sectionOrder.addEventListener('click', async (event) => {
