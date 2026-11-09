@@ -46,8 +46,11 @@ Only additional automatic requirements are checked at commit:
 - Strictly healthy target source/reason, unchanged target robots hash, and no active target backoff.
 - The immutable IDs of committed human teachers used in this evaluation are
   unchanged. Normal Ledger rows are immutable except persisted-label retention;
-  that label is not a learning input. Teacher input is read once and shared with
-  prepareShadowEvaluation, preventing a learning/fence read mismatch.
+  that label is not a learning input. Human input is read once and shared with prepareShadowEvaluation, preventing
+  a learning/fence read mismatch. The commit fence includes later/future-dated
+  committed human IDs, so a new judgment made after evaluation start invalidates
+  the action too. evaluateDecisions still excludes future timestamps from
+  learning, and ordinary human history queries keep their prior behavior.
 - For Shimamura only: live same-category pending Ikebe candidates, their effective
   category and publication health/stop/robots fields are unchanged. Insertion, deletion,
   edits, relevant category transitions and an invalid competitor becoming valid
@@ -98,12 +101,12 @@ Real local workerd/D1 tests measure each complete final INSERT separately:
 
 | Fixture | SQL bytes | Parameters | Bound-data bytes | Largest bound string |
 | --- | ---: | ---: | ---: | ---: |
-| Ikebe | 6,729 | 48 | 17,213 | 15,087 |
-| Shimamura with a nonmatching Ikebe peer | 9,675 | 52 | 35,493 | 17,286 |
-| Ikebe four-model signature announcement | 8,355 | 95 | 19,826 | 16,287 |
+| Ikebe | 6,711 | 47 | 17,200 | 15,087 |
+| Shimamura with a nonmatching Ikebe peer | 9,657 | 51 | 35,480 | 17,286 |
+| Ikebe four-model signature announcement | 8,337 | 94 | 19,813 | 16,287 |
 
 With 100 unrelated source/state/category rows in an offline comparison, old versus
-new bound data fell from 138,368 to 17,173 bytes for Ikebe, and 157,591 to 34,609 for
+new bound data fell from 138,368 to 17,160 bytes for Ikebe, and 157,591 to 34,596 for
 Shimamura. Old SQL text was 9,194 bytes, not 138–158 KB: the larger number was bound
 data. These cases do not certify every source/model combination. An exploratory
 Shimamura four-model structural template failed to establish brand/model facts;
@@ -167,7 +170,7 @@ management platform or new learning engine is proposed.
 
 ## Final local verification
 
-NEWS/Operator: 1,903 PASS; Port NEWS: 60 PASS; both Worker dry-runs PASS.
+NEWS/Operator: 1,904 PASS; Port NEWS: 60 PASS; both Worker dry-runs PASS.
 The original normal collectors, publicationValidation, source preference rules,
 Shadow rule/evidence retention, auth/CSRF and decision Ledger schema are unchanged.
 The new GET requires existing Access authentication, rejects write methods and

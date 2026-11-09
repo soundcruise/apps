@@ -62,7 +62,7 @@ export async function assessAutomatic(store,row,registry,now,pepper,{validation}
  if((await decisionHistory(store,row.id)).length)return stop('existing_decision');
  if(await store.db.prepare('SELECT candidate_id FROM news_category_overrides WHERE candidate_id=?').bind(row.id).first())return stop('human_category_override');
  if(!validation.valid)return {...stop('formal_validation_failed'),validation};
- const teachers=await humanDecisions(store,now),shadow=await prepareShadowEvaluation(store,row,validation,now,{teachers}),context=shadow.evidenceContext;
+ const teachers=await humanDecisions(store,now,{includeFuture:true}),shadow=await prepareShadowEvaluation(store,row,validation,now,{teachers}),context=shadow.evidenceContext;
  if(context.evidenceOrigin!=='publisher_structured'||context.identityScope!=='explicit_models'||!context.publicationDateVerified||context.relevanceStatus!=='PASS'||context.priorHumanDecision)return {...stop('unassisted_explicit_evidence_required'),validation};
  const project=async(r,v)=>({id:r.id,sourceId:r.source_id,status:r.review_status,history:await decisionHistory(store,r.id),eventType:r.event_type,category:await effectiveCategory(store,r),facts:v.facts,publishedAt:r.published_at,validation:v});
  const self=await project(row,validation);
@@ -87,11 +87,11 @@ export async function assessAutomatic(store,row,registry,now,pepper,{validation}
   "(SELECT robots_hash FROM source_state WHERE source_id=c.source_id) IS ?",
   "NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND backoff_until>?)",
   "NOT EXISTS(SELECT 1 FROM news_category_overrides WHERE candidate_id=c.id)",
-  "(SELECT json_group_array(decision_id) FROM (SELECT decision_id FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? AND decided_at<=? ORDER BY decision_id))=?",
+  "(SELECT json_group_array(decision_id) FROM (SELECT decision_id FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? ORDER BY decision_id))=?",
   ...(peers?[peers.sql]:[])];
  return {eligible:true,reasons:[],validation,shadow,ruleVersion:SHADOW_RULE_VERSION,policyVersion:AUTOMATIC_POLICY_VERSION,evaluatedAt:now,
   audit:{policyVersion:AUTOMATIC_POLICY_VERSION,ruleVersion:shadow.ruleVersion,evaluationId:shadow.evaluationId,historyWatermark:shadow.historyWatermark,recommendation:shadow.recommendation,evidenceCount:shadow.evidenceCount,evidenceContext:context},
-  fenceSql:and(conditions),fenceArgs:[health.reason_code,state.robotsHash??null,now,now-365*DAY,now,teacherIds,...(peers?peers.args:[])]};
+  fenceSql:and(conditions),fenceArgs:[health.reason_code,state.robotsHash??null,now,now-365*DAY,teacherIds,...(peers?peers.args:[])]};
 }
 
 // Bounded prospective read-only projection. No new record store, cron or HTTP

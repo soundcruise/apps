@@ -107,7 +107,7 @@ for(const kind of ['health','source','category'])test('Ikebe preference detects 
 test('new committed human editorial evidence is fenced, while persisted-label retention is irrelevant',async()=>{
  const x=await automaticCase();raceAtCommit(x,()=>x.s.db.raw.exec("UPDATE news_decision_ledger SET persisted_label=NULL"));assert.equal(await run(x),1);
  const y=await automaticCase();raceAtCommit(y,()=>{
-  const d={...y.s.db.raw.prepare("SELECT * FROM news_decision_ledger WHERE candidate_id='teacher0'").get()};d.decision_id=crypto.randomUUID();d.request_id=crypto.randomUUID();d.candidate_id='new-human';
+  const d={...y.s.db.raw.prepare("SELECT * FROM news_decision_ledger WHERE candidate_id='teacher0'").get()};d.decision_id=crypto.randomUUID();d.request_id=crypto.randomUUID();d.candidate_id='new-human';d.decided_at=at+1;d.created_at=at+1;
   // A real human decision for an unrelated formal candidate; trigger requires CAS.
   const c={...y.s.db.raw.prepare("SELECT * FROM candidate_items WHERE id='teacher0'").get()};c.id='new-human';c.source_url+='?human=1';c.normalized_url=c.source_url;c.topic_key='new-human';c.review_status='pending';c.review_revision=d.candidate_revision;d.candidate_snapshot='b'.repeat(64);d.decision_features_json='{}';
   y.s.db.raw.prepare('INSERT INTO candidate_items('+Object.keys(c).join(',')+') VALUES('+Object.keys(c).map(()=>'?').join(',')+')').run(...Object.values(c));
@@ -128,4 +128,8 @@ for(const error of ['database_unavailable','unrecognised_programming_error'])tes
 test('real first-candidate CAS conflict does not stop an independent next candidate',async()=>{
  const x=await automaticCase({additionalFixtureSlots:1});await x.add({id:'zz-next',model:'Studio H220',num:90022});
  raceAtCommit(x,()=>x.s.db.raw.exec("UPDATE candidate_items SET review_revision=review_revision+1 WHERE id='target'"));assert.equal(await run(x),1);assert.equal((await current(x)).review_status,'pending');assert.equal((await x.s.db.prepare("SELECT review_status FROM candidate_items WHERE id='zz-next'").first()).review_status,'approved');
+});
+
+test('future-dated history is observed for concurrency but never teaches an earlier recommendation',async()=>{
+ const x=await automaticCase();await x.s.db.prepare("UPDATE news_decision_ledger SET decided_at=?,created_at=? WHERE candidate_id='teacher0'").bind(at+1,at+1).run();const p=await assessAutomatic(x.s,x.row,x.registry,at,pepper);assert.equal(p.eligible,false);assert.equal(p.shadow.evidenceCount,4);assert(!p.shadow.matches.some(m=>m.candidateId==='teacher0'));
 });
