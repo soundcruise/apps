@@ -97,7 +97,7 @@ test('C: a reported attention is the only thing that makes the row 確認が必�
   const d = dom();
   renderAppRows(d.root, presentation, 'pro', true, null, { onRecheck: () => {} });
   assert.equal(d.chip('chord').tagName, 'span');
-  assert.equal(d.chip('chord').textContent, '確認が必要 2件');
+  assert.equal(d.chip('chord').textContent, '前回報告に確認事項 2件');
   assert.equal(d.chip('pitch').textContent, '✓ 同期済み');
   assert.equal(presentation.apps.find((app) => app.id === 'chord').removalSafetyLabel, '確認が必要',
     'Safe-to-remove label and authority are unchanged');

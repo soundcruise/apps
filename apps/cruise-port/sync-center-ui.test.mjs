@@ -268,7 +268,7 @@ test('Sync Code rows bind the existing launch callback after every render', () =
     const styles = readDarkStyle();
     assert.match(source, /function renderAppRows\(root, presentation, edition, orchestrationEnabled, onAppAction = null[,)]/);
     assert.match(source, /action\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\(action\)/);
-    assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp, resolvePort:/);
+    assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp \}/);
     assert.match(app, /onAppAction: syncCenterActions\?\.onAppAction/);
     assert.match(source, /await orchestrator\.launch\(button\.dataset\.syncAppAction\)/);
     assert.match(source, /await orchestrator\.cancelAppDeleteAndLaunch\(button\.dataset\.syncAppAction\)/);

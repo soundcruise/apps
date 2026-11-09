@@ -35,7 +35,8 @@ export const SYNC_DETAIL_COPY = Object.freeze({
     devicesUnavailable: '同期先の詳細情報を取得できませんでした',
     mismatch: '状態を確定できませんでした。最新情報をもう一度確認してください。',
     noDevices: '同期先はありません',
-    footnote: '各同期先のアプリから届いた、最後の報告を表示しています。',
+    footnote: '各同期先から届いた最後の報告です。現在の未送信変更や競合を読み取った結果ではありません。',
+    openScope: '「アプリを開く」はアプリへのリンクです。前回報告の端末・ブラウザを指定して開くことはできません。',
     current: 'このCruise Portから接続',
     support: '解決しない場合は、画面下の「クラウド同期で困ったときは」からお知らせください。'
 });
@@ -185,6 +186,7 @@ export function describeAppSyncDetail(app, { kind = 'ready', devicesState = 'rea
         statusText: statusTextFor(app, presentationState, rows),
         cloudText,
         targets: Object.freeze(rows),
+        notice: reportedAttention ? SYNC_DETAIL_COPY.openScope : null,
         emptyText: rows.length ? null : SYNC_DETAIL_COPY.noDevices,
         guidance: Object.freeze(guidanceFor(app, rows, reportedAttention)),
         footnote: rows.length ? SYNC_DETAIL_COPY.footnote : null,

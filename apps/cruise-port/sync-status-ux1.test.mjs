@@ -75,8 +75,14 @@ function assertNextAction(view, message) {
 }
 
 function assertNoLaunch(view) {
+  for (const node of view.walk(view.panel)) {
+    assert.equal(Boolean(node.dataset.syncResolveApp), false, 'target details cannot open a specific environment');
+  }
   for (const node of view.walk(view.row)) {
-    assert.doesNotMatch(node.textContent, /を開く$|この端末で開く|アプリを開く/, 'no launch CTA');
+    if (node.tagName === 'button' && /アプリを開く/.test(node.textContent)) {
+      assert.equal(node.textContent, 'アプリを開く');
+      assert.equal(node.dataset.syncResolveApp, 'chord', 'app navigation must be explicitly labelled');
+    }
     assert.equal(node.tagName === 'a', false, 'no app link');
   }
 }
@@ -124,7 +130,7 @@ test('5: aligned attention → 確認が必要 N件 with count, target, report a
   const presentation = presentationFor([target(PIXEL, clean(), { label: 'iPhone' }),
     target(MAC, attention(2), { label: 'Pixel' })], { removalSafety: 'attention', attentionConflictCount: 2 });
   const view = render(presentation);
-  assert.equal(view.chip.textContent, '確認が必要 2件');
+  assert.equal(view.chip.textContent, '前回報告に確認事項 2件');
   const text = view.text(view.panel);
   assert.match(text, /確認する内容が2件あります。/);
   assert.match(text, /登録名「Pixel」\n前回の同期報告に確認事項があります\n確認する内容 2件/);
@@ -137,7 +143,7 @@ test('5: aligned attention → 確認が必要 N件 with count, target, report a
 
 test('6: aligned error → 確認が必要 as a past report, with where to look', () => {
   const view = render(presentationFor([target(PIXEL, error(), { label: 'Pixel' })], { removalSafety: 'attention' }));
-  assert.equal(view.chip.textContent, '確認が必要');
+  assert.equal(view.chip.textContent, '前回報告に確認事項');
   const text = view.text(view.panel);
   assert.equal(view.panel.children[0].textContent, '前回の同期報告でエラーが報告されています。');
   assert.match(text, /登録名「Pixel」のコードクルーズを開き、同期画面を確認してください。/);
@@ -293,7 +299,7 @@ test('19: detach copy names the app\'s own sync status; the condition itself is 
   assert.equal(view.action.dataset.syncAppDetach, 'chord');
 });
 
-test('20: no app launch CTA returns in any state', () => {
+test('20: only explicitly labelled app links and existing controls are offered', () => {
   for (const presentation of [
     presentationFor([target(PIXEL, clean(), { label: 'Pixel', isCurrent: true })]),
     presentationFor([target(PIXEL, attention(1), { label: 'Pixel', isCurrent: true })], { removalSafety: 'attention', attentionConflictCount: 1 }),
@@ -304,7 +310,7 @@ test('20: no app launch CTA returns in any state', () => {
     const view = render(presentation);
     assertNoLaunch(view);
     const buttons = view.walk(view.row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-    for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['解決方法を確認', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
+    for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['アプリを開く', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
   }
 });
 
