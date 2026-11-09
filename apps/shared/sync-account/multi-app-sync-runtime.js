@@ -2103,7 +2103,8 @@
         try { this.assertActive(); } catch (_) { return; }
         const paused = error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code);
         const retrying = !paused && !TERMINAL_CODES.has(error?.code) && retryableError(error);
-        void this.reportRemovalSafety(retrying ? 'pending' : 'error').catch(() => {});
+        void this.reportRemovalSafety(retrying && (error.code === 'network_error' ||
+          error.status === 429 || error.status === 503) ? 'pending' : 'error').catch(() => {});
         this.setState(paused ? 'paused' : authorityBlocked(error.code) ? 'blocked' : retrying ? 'retrying' : 'attention');
       }); });
     }

@@ -4,7 +4,8 @@
 
 `notifyLocalSave()`の失敗通知は、既存runtimeがretryingとして自動再試行する通信失敗も
 一律errorとしてPortへ送っていた。503/429で修正前に再現した。
-既存のretryableErrorとPAUSE_CODES/TERMINAL_CODESを使い、その通信失敗だけpendingへ振り分ける。
+既存のretryableErrorとPAUSE_CODES/TERMINAL_CODESを使い、503・429・network_errorだけpendingへ振り分ける。
+500/502/504の報告は従来どおりerrorとし、既存retry timerは維持する。
 自動再試行・同期成功後のclean報告・Outbox処理は変更しない。
 
 本人3件の最新報告は依然として**attention / attentionCount=0**。
@@ -13,7 +14,7 @@ Midnight旧v1保留は未確定。内容一致terminal整理は実装してい�
 
 ## 変更・影響
 
-- 製品ロジックは共有runtimeの1か所だけ。4行追加・3行削除。
+- 製品ロジックは共有runtimeの1か所だけ。5行追加・3行削除。
 - 新しいエラー分類、永続フラグ、DB、schema、同期エンジンは0。
 - 400系の恒久エラーはerrorのまま。PAUSEは今回pendingへ変更しない。
   PAUSEは通信エラーと異なり、経路によって自動再試行の有無が違うため、一律に再試行待ちとしない。
@@ -42,9 +43,9 @@ authorityStatus/競合/Shadowおよびアプリ版は未確認。payload本文�
 
 ## 試験
 
-- 新規8件＋関連既存6件、計14件PASS。
+- 新規11件＋関連既存6件、計17件PASS。
 - 503/429/通信例外: 保存内容と既存Outboxを保持、実retry timerで送信、成功後だけclean。
-- 400・PAUSE・authority拒否・Device失効: 既存の失敗/資格保護を維持、cleanを偽装しない。
+- 400・500/502/504・PAUSE・authority拒否・Device失効: 既存の失敗/資格保護を維持、cleanを偽装しない。
 - pending混在時のremovalSafety=unknown、全clean時のみsafeを実際のAccount repositoryで確認。
 - Port表示のpending関連既存3件PASS。全5入口のv38参照と版/cache整合も確認。
 - 本人データの書換え、Account/同期先解除、本番配備、有料推論は0。
@@ -61,3 +62,13 @@ authorityStatus/競合/Shadowおよびアプリ版は未確認。payload本文�
 
 本候補の限定修正はローカルPASS。本番公開は未承認・未実施。
 本人3件の原因特定・解消はHOLD。新しいterminal整理や一律PAUSE処理を追加しない。
+
+## 実機照合と公開準備の追記
+
+iPhoneの既存音感・指板・リズムPWAを送信前に読み取り確認したが、全てAppDevice資格・membershipなし、
+credential_invalid、Outbox/競合/Shadow各0件だった。問題報告元のIDを取り出せず、一致とは扱わない。
+リズムの実行版は1.23.4。音感・指板はオフライン起動失敗後、同じPWA内の静的manifest文書から
+JS起動を抑えて読取り。他の版は実行未確認。資格・payload・復旧コードを記録せず、再接続・送信・採用は未実施。
+JavaScriptの一時停止は解除し、通信は本人操作で復元。3件とも同じ報告元のcleanは得られていない。
+公開treeは68112995のまま。20製品ファイルの旧hashをHTTPと照合済みで、候補以外の全面置換は不要。
+公開範囲を今回指定の503/429/network_errorに揃える追加commitのみを行い、本番配備はしない。

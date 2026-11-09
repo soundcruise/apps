@@ -3797,7 +3797,7 @@ for (const failure of [{status:503,code:'temporary'},{status:429,code:'rate_limi
   }finally{f.runtime.dispose();}
  });
 }
-for(const failure of [{status:400,code:'invalid_request'},{status:423,code:'sync_read_paused'},{status:503,code:'dataset_authority_unavailable'}]) {
+for(const failure of [{status:400,code:'invalid_request'},{status:423,code:'sync_read_paused'},{status:503,code:'dataset_authority_unavailable'},... [500,502,504].map(status=>({status,code:'temporary_'+status}))]) {
  test('transient report: notify save does not hide '+failure.code,async()=>{
   const f=runtimeFixture([record('a')],'pitch','production');
   try{await f.runtime.consumeHandoff('synthetic');const reports=[];const fetch=f.runtime.fetchImpl;
@@ -3807,6 +3807,7 @@ for(const failure of [{status:400,code:'invalid_request'},{status:423,code:'sync
    for(let n=0;n<30&&reports.length<2;n++)await new Promise(setImmediate);
    if(failure.code==='dataset_authority_unavailable') assert.equal(await f.store.readMeta('runtimeState'),'blocked');
    else assert.equal(reports.at(-1),'error');
+   if([500,502,504].includes(failure.status)){assert.equal(await f.store.readMeta('runtimeState'),'retrying');assert.notEqual(f.runtime.retryTimer,null);}
    assert.deepEqual(await f.store.listOutbox(),[op]);
    assert.equal(f.local.records.length,2);assert.ok(!reports.includes('clean'));
   }finally{f.runtime.dispose();}
