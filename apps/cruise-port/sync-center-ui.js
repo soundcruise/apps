@@ -1,8 +1,8 @@
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.31.0';
-import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.31.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.31.1';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.31.1';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
 
