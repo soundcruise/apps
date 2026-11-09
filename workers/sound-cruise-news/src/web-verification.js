@@ -1,3 +1,4 @@
+import {assistedUrl} from './assisted-facts.js';
 import {SOURCES,evidenceGate} from './registry.js';
 import {runtimeSources} from './runtime.js';
 import {sourceUrl} from './policy.js';
@@ -23,6 +24,17 @@ export function webVerification(env,now,{registry=SOURCES}={}){
   const url=publicSearchUrl(raw),base={publishedAt:null,checkedAt:now,registrationAllowed:false};
   if(!url)return {...base,path:'C',reason:'unsafe_url',nextAction:'none'};
   if(generalPage(url))return {...base,path:'C',reason:'individual_article_required',nextAction:'find_individual_article'};
+  // A prior human-confirmed Topics candidate remains reachable even though
+  // the separate Bot collection policy is OFF. This grants no new registration.
+  if(assistedUrl(url)){
+   const existing=await store.db.prepare("SELECT * FROM candidate_items WHERE source_id='yamaha' AND (source_url=? OR normalized_url=?) LIMIT 2").bind(url,url).all();
+   if(existing.results.length===1){const row=existing.results[0],ref={...base,candidateId:row.id,revision:row.review_revision,sourceId:'yamaha',confirmationUrl:url};
+    if(!['pending','reopened'].includes(row.review_status))return {...ref,path:'C',reason:'existing_decision_preserved',nextAction:'operator_candidate_review'};
+    const validation=env.NEWS_HEADLINE_PEPPER&&formalChecks++<10&&await publicationValidation(store,row,now,sources,env.NEWS_HEADLINE_PEPPER);
+    return {...ref,path:validation?.valid?'A':'C',reason:validation?.valid?'existing_formal_evidence':'existing_candidate_verification',nextAction:'operator_candidate_review',publishedAt:validation?.valid?row.published_at:null};
+   }
+   if(existing.results.length>1)return {...base,path:'C',reason:'ambiguous_existing_candidate',nextAction:'operator_candidate_review'};
+  }
   const source=sources.find(s=>sourceUrl(url,s)===url);
   if(!source)return {...base,path:'C',reason:'source_not_registered',nextAction:'operator_source_permission',confirmationUrl:url};
   const info={...base,sourceId:source.id,confirmationUrl:url};
