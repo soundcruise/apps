@@ -2101,9 +2101,10 @@
       queueMicrotask(() => { if (this.disposed) return; Promise.resolve().then(() => this.sync('save')).catch((error) => {
         if (this.disposed) return;
         try { this.assertActive(); } catch (_) { return; }
-        void this.reportRemovalSafety('error').catch(() => {});
-        this.setState(error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code) ? 'paused' :
-          authorityBlocked(error.code) ? 'blocked' : retryableError(error) ? 'retrying' : 'attention');
+        const paused = error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code);
+        const retrying = !paused && !TERMINAL_CODES.has(error?.code) && retryableError(error);
+        void this.reportRemovalSafety(retrying ? 'pending' : 'error').catch(() => {});
+        this.setState(paused ? 'paused' : authorityBlocked(error.code) ? 'blocked' : retrying ? 'retrying' : 'attention');
       }); });
     }
 

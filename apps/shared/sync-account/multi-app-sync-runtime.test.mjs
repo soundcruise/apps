@@ -3773,3 +3773,66 @@ test('B1-2 scoped protocol context rejects different Account/authority, includin
 for(const [code,status] of [['writer_protocol_required','needs-upgrade'],['dataset_epoch_stale','stale-epoch'],['dataset_authority_unavailable','blocked-authority']])test('B1-2 blocked authority outbox preserves fields and is not auto-ACKed: '+code,async()=>{const f=runtimeFixture([record('kept')],'port','production');await f.store.setMeta('credential','scd1.valid');f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:7});const op=await f.runtime.operationFor(record('kept'),0);await f.store.putOutbox({...op,migration:false});f.runtime.fetchImpl=async()=>Response.json({ok:false,code},{status:code==='dataset_authority_unavailable'?503:409});await assert.rejects(f.runtime.flushOutbox(),e=>e.code===code);const pending=(await f.store.listOutbox())[0];assert.equal(pending.authorityStatus,status);assert.equal(pending.writerAuthority.expectedWriteEpoch,7);assert.equal(pending.writerAuthority.writerProtocol,2);assert.equal(pending.operationId,op.operationId);await f.runtime.acknowledgeOwnEchoes([{...op,revision:1}]);assert.equal((await f.store.listOutbox()).length,1);assert.equal(f.runtime.adapter.records.length,1);assert.equal(f.runtime.retryTimer,null);f.runtime.dispose();});
 
 test('B1-2 generic conflict cleanup cannot discard protocol blocked/legacy outbox',async()=>{const f=runtimeFixture([],'port','production');const op=await f.runtime.operationFor(record('held'),0);await f.store.putOutbox({...op,migration:false});f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:7});await f.runtime.clearConflictOutbox('custom_record/held');assert.equal((await f.store.listOutbox()).length,1);f.runtime.authorityFailure='dataset_epoch_stale';const before=structuredClone(f.runtime.adapter.records);await assert.rejects(f.runtime.performSync('blocked'),e=>e.code==='dataset_epoch_stale');assert.deepEqual(f.runtime.adapter.records,before);assert.equal((await f.store.listOutbox()).length,1);f.runtime.dispose();});
+
+for (const failure of [{status:503,code:'temporary'},{status:429,code:'rate_limited'},{network:true}]) {
+ test('transient report: notify save keeps retryable '+(failure.status||'network')+' pending until real clean',async()=>{
+  const f=runtimeFixture([record('a')],'pitch','production');
+  try {
+   await f.runtime.consumeHandoff('synthetic');
+   const reports=[];const fetch=f.runtime.fetchImpl;
+   f.runtime.fetchImpl=async(url,init)=>{if(new URL(url).pathname==='/v1/sync/removal-safety')reports.push(JSON.parse(init.body).state);return fetch(url,init);};
+   let now=100000;f.runtime.now=()=>now;const timers=[];
+   f.context.setTimeout=(callback,delay)=>{timers.push({callback,delay,active:true});return timers.length;};f.context.clearTimeout=id=>{if(timers[id-1])timers[id-1].active=false;};
+   f.local.records.push(record('b'));const op={...await f.runtime.operationFor(record('b'),0),migration:false};await f.store.putOutbox(op);
+   f.server.nextSnapshotFailure=failure;f.runtime.notifyLocalSave();
+   for(let n=0;n<30&&reports.length<2;n++)await new Promise(setImmediate);
+   assert.equal(reports.at(-1),'pending');assert.ok(!reports.includes('clean'));
+   assert.deepEqual(await f.store.listOutbox(),[op]);assert.equal(f.local.records.length,2);
+   assert.equal(await f.store.readMeta('runtimeState'),'retrying');assert.ok(timers.length>0);
+   await new Promise(setImmediate);
+   const wake=timers.findLast(t=>t.active);assert.ok(wake);
+   now=f.runtime.networkRetryAt;wake.callback();await new Promise(setImmediate);await f.runtime.running;
+   assert.equal((await f.store.listOutbox()).length,0);assert.equal(reports.at(-1),'clean');
+   assert.equal(f.server.records.size,2);
+  }finally{f.runtime.dispose();}
+ });
+}
+for(const failure of [{status:400,code:'invalid_request'},{status:423,code:'sync_read_paused'},{status:503,code:'dataset_authority_unavailable'}]) {
+ test('transient report: notify save does not hide '+failure.code,async()=>{
+  const f=runtimeFixture([record('a')],'pitch','production');
+  try{await f.runtime.consumeHandoff('synthetic');const reports=[];const fetch=f.runtime.fetchImpl;
+   f.runtime.fetchImpl=async(url,init)=>{if(new URL(url).pathname==='/v1/sync/removal-safety')reports.push(JSON.parse(init.body).state);return fetch(url,init);};
+   f.local.records.push(record('b'));const op={...await f.runtime.operationFor(record('b'),0),migration:false};await f.store.putOutbox(op);
+   f.server.nextSnapshotFailure=failure;f.runtime.notifyLocalSave();
+   for(let n=0;n<30&&reports.length<2;n++)await new Promise(setImmediate);
+   if(failure.code==='dataset_authority_unavailable') assert.equal(await f.store.readMeta('runtimeState'),'blocked');
+   else assert.equal(reports.at(-1),'error');
+   assert.deepEqual(await f.store.listOutbox(),[op]);
+   assert.equal(f.local.records.length,2);assert.ok(!reports.includes('clean'));
+  }finally{f.runtime.dispose();}
+ });
+}
+
+test('transient report: revoked Device still follows existing credential invalidation',async()=>{
+ const f=runtimeFixture([record('a')],'pitch','production');
+ try {await f.runtime.consumeHandoff('synthetic');
+ const reports=[];const fetch=f.runtime.fetchImpl;
+ f.runtime.fetchImpl=async(url,init)=>{if(new URL(url).pathname==='/v1/sync/removal-safety')reports.push(JSON.parse(init.body).state);return fetch(url,init);};
+ f.server.nextSnapshotFailure={status:410,code:'app_device_revoked'};f.runtime.notifyLocalSave();
+ for(let n=0;n<30&&await f.store.readMeta('credential')!==null;n++)await new Promise(setImmediate);
+ assert.equal(await f.store.readMeta('credential'),null);assert.equal(f.local.records.length,1);
+ assert.ok(!reports.includes('clean'));assert.equal(f.runtime.retryTimer,null);
+ }finally{f.runtime.dispose();}
+});
+
+test('transient report: pending remains unknown removal safety, never a clean deletion proof',async()=>{
+ const {createD1AccountRepository}=await import('../../../workers/sound-cruise-sync/src/account-database.js');
+ for(const [clean,safety] of [[1,'unknown'],[2,'safe']]){
+  const db={batch(){throw Error('no writes');},prepare(sql){assert.match(sql.trim(),/^SELECT/);return {bind(){return this;},
+   async first(){return {id:'synthetic',state:'active',recovery_version:1,generation:1};},
+   async all(){return {results:[{id:'member',app_id:'pitch',state:'active',dataset_state:'ready',
+    active_app_device_count:2,clean_app_device_count:clean,attention_app_device_count:0,attention_conflict_count:0}]};}};}};
+  const summary=await createD1AccountRepository(db).getAccountSummary('synthetic');
+  assert.equal(summary.memberships[0].removalSafety,safety);
+ }
+});
