@@ -26,6 +26,7 @@ const APP_STATUS_PRESENTATIONS = Object.freeze({
     available: Object.freeze({ state: 'available', label: '✓ 同期済み' }),
     syncing: Object.freeze({ state: 'syncing', label: '同期中' }),
     attention: Object.freeze({ state: 'attention', label: '確認が必要' }),
+    reportedAttention: Object.freeze({ state: 'attention', label: '前回報告に確認事項' }),
     detached: Object.freeze({ state: 'detached', label: '未接続' }),
     connecting: Object.freeze({ state: 'connecting', label: '接続中' }),
     deleting: Object.freeze({ state: 'deleting', label: '削除中' }),
@@ -39,7 +40,8 @@ const APP_STATUS_PRESENTATIONS = Object.freeze({
 // 「✓ 同期済み」 is a product status: cloud sync can be used normally and nothing known needs the
 // user's action. It is not a technical guarantee that every sync target is up to date, and it is
 // never a reason that removal is safe. A target that has not reported yet (pending / no report)
-// stays neutral, and only a reported attention or error becomes 「確認が必要」.
+// stays neutral. An attention/error report is historical evidence from that target,
+// not a live inspection of the app opened on this device.
 export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
     if (unavailableKind === 'offline') return APP_STATUS_PRESENTATIONS.offline;
     if (unavailableKind === 'error') return APP_STATUS_PRESENTATIONS.unavailable;
@@ -53,7 +55,7 @@ export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
         // claims neither 「✓ 同期済み」 nor 「確認が必要」.
         if (app.snapshot === 'mismatch') return APP_STATUS_PRESENTATIONS.recheck;
         return app.removalSafety === 'attention' || Number(app.attentionCount) > 0
-            ? APP_STATUS_PRESENTATIONS.attention : APP_STATUS_PRESENTATIONS.available;
+            ? APP_STATUS_PRESENTATIONS.reportedAttention : APP_STATUS_PRESENTATIONS.available;
     }
     return APP_STATUS_PRESENTATIONS.attention;
 }
