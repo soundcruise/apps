@@ -1,4 +1,5 @@
-import {assistedUrl} from './assisted-facts.js';
+import {resolveProductType} from './assisted-product-type.js';
+import {assistedUrl,assistedLabel} from './assisted-facts.js';
 import {manualPermit,manualAvailability} from './web-manual-permit.js';
 import {webVerification} from './web-verification.js';
 import {hintSyndicationKey,qualifiedWebEstimate,DEFAULT_WEB_QUERIES,searchPlan,publicSearchUrl,resultMetadata,searchDate,screenWebHint,beginWebSearch,finishWebSearch,recentWebSearches} from './web-discovery-quality.js';
@@ -92,11 +93,28 @@ export function llmAdapter(ai,model) {
   const parsed=parseModelJson(response);return parsed?.items||parsed;
  };
 }
+// Projection of the persisted nine-field estimate; never formal facts or a new draft store.
+export function webArticleDraft(row){
+ let e;try{e=validateEstimate(JSON.parse(row.estimate_json));}catch{return null;}
+ const safe=v=>typeof v==='string'&&v.length>=2&&v.length<=100&&!/[<>\x00-\x1f]/.test(v)&&!/^(unknown|不明|未確認)$/i.test(v)?v:'';
+ const brand=safe(e.brand),product=safe(e.product),event=safe(e.event);
+ const type=resolveProductType(e.category),productType=type.resolved?type.productType:'';
+ // Variant/reissue claims cannot silently become a normal-model launch.
+ const variant=/新色|限定|復刻|再発売|仕様変更|limited|reissue/i.test(event+' '+row.title);
+ const action=variant?'':/発売|release/i.test(event)?'release':/発表|announcement/i.test(event)?'announcement':/紹介|introduction/i.test(event)?'introduction':/インタビュー/i.test(event)?'interview':'';
+ const fields={sourceId:assistedUrl(row.url)?'yamaha':'',url:row.url,brand,product,productType,action,publishedAt:''};
+ const label=assistedLabel({kind:'assisted_notice',brand,product,productType,category:type.resolved?type.category:null,action});
+ return {basis:'saved_ai_estimate_unverified',headline:brand&&product?`${brand}「${product}」${event?' — '+event:'（出来事は未確認）'}`:'記事の対象・出来事の確認が必要です',fields:{...fields,...(label?{label}:{})},missing:['publishedAt',...['brand','product','productType','action'].filter(k=>!fields[k])],relevance:e.relevance,duplicate:e.duplicate,registrationAllowed:!!assistedUrl(row.url),requiredConfirmation:'原記事の事実・公開日・利用条件。AI推定は正式証拠ではありません。'};
+}
+export async function savedWebDraft(db,url,now){
+ if(typeof url!=='string'||url.length>2048)return null;
+ const row=await db.prepare('SELECT url,title,estimate_json FROM news_web_hints WHERE url=? AND expires_at>?').bind(url,now).first();return row?webArticleDraft(row):null;
+}
 export async function listWebHints(env,now=Date.now()){
  if(env.NEWS_WEB_ENABLED!=='true')return {enabled:false,items:[]};
  const rows=(await env.NEWS_DB.prepare('SELECT url,title,provider,searched_at,status,reason,estimate_json,search_meta_json FROM news_web_hints WHERE expires_at>? ORDER BY searched_at DESC,url LIMIT 100').bind(now).all()).results;
  const verify=webVerification(env,now);
- const items=await Promise.all(rows.map(async row=>({...row,humanEntry:assistedUrl(row.url)?{sourceId:'yamaha',url:row.url}:null,verification:await verify(row.url),estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,searchMetadata:row.search_meta_json?JSON.parse(row.search_meta_json):null,search_meta_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'})));
+ const items=await Promise.all(rows.map(async row=>({...row,articleDraft:webArticleDraft(row),humanEntry:assistedUrl(row.url)?{sourceId:'yamaha',url:row.url}:null,verification:await verify(row.url),estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,searchMetadata:row.search_meta_json?JSON.parse(row.search_meta_json):null,search_meta_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'})));
  const manualAuthorization=await manualAvailability(env.NEWS_DB,env,now);
  return {enabled:true,searches:await recentWebSearches(env.NEWS_DB,now),manualEnabled:manualAuthorization.effective,manualAuthorization,items};
 }

@@ -2,7 +2,7 @@ import {assessAutomaticCandidates} from './automatic.js';
 import {confirmAgmBookFacts} from './agm-fact-confirmation.js';
 import {confirmCanonicalFacts} from './canonical-confirmation.js';
 import {restoreSystemResolution} from './pending-resolution.js';
-import {listWebHints,runWebDiscovery} from './web-discovery.js';
+import {listWebHints,runWebDiscovery,savedWebDraft} from './web-discovery.js';
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
 import {parseAssistedPaste,YAMAHA_TOPICS_START} from './assisted-paste.js';
 import {assistedSources,assistedTypes,assistedActions,ASSISTED_ORIGIN} from './assisted-facts.js';
@@ -51,7 +51,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   }
   if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,webClock()));
   if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,webClock(),{...options.webDiscoveryDependencies,clock:webClock},true));}
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.55.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.56.0'});
   if(request.method==='GET'&&url.pathname==='/api/automatic-assessment'){if(url.search)throw Error('operator_query_invalid');return json({readOnly:true,items:await assessAutomaticCandidates(store,registry,now,env.NEWS_HEADLINE_PEPPER)});}
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
@@ -59,7 +59,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    if(input.scope==='pending'&&Object.keys(input).length===1)return json(await evaluatePending(store,now,registry,env.NEWS_HEADLINE_PEPPER));
    return json(await saveShadowEvaluation(store,input,now,registry,env.NEWS_HEADLINE_PEPPER));
   }
-  if(request.method==='GET'&&url.pathname==='/api/assisted')return json({sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:Object.fromEntries(Object.entries(assistedTypes).filter(([id])=>id!=='guitar_accessory')),actions:assistedActions});
+  if(request.method==='GET'&&url.pathname==='/api/assisted')return json({draft:await savedWebDraft(env.NEWS_DB,url.searchParams.get('hintUrl'),now),sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:Object.fromEntries(Object.entries(assistedTypes).filter(([id])=>id!=='guitar_accessory')),actions:assistedActions});
   if(request.method==='POST'&&url.pathname==='/api/assisted-parse'){await verifyCsrf(request,identity,env,now);return json(parseAssistedPaste(await inputJSON(request)));}
   if(request.method==='POST'&&['/api/assisted-preview','/api/assisted-save'].includes(url.pathname)){await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);const p=url.pathname.endsWith('-save')?await saveAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor):await prepareAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER);return json({...p,row:undefined,existing:undefined});}
   if(request.method==='GET'&&/^\/api\/assisted\/[a-f0-9]{64}$/.test(url.pathname)){const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=? AND origin=?').bind(url.pathname.split('/').at(-1),ASSISTED_ORIGIN).first();if(!row)throw Error('candidate_not_found');return json({id:row.id,url:row.source_url,publishedAt:new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10),sourceId:row.source_id,label:row.label,...JSON.parse(row.product_facts),snapshot:await candidateSnapshot(row)});}
