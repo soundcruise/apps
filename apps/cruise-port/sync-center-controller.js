@@ -23,7 +23,7 @@ const MEMBERSHIP_STATES = Object.freeze({
 const ACCOUNT_TERMINAL_CODES = new Set(['account_deleting', 'account_deleted', 'account_device_revoked']);
 
 const APP_STATUS_PRESENTATIONS = Object.freeze({
-    available: Object.freeze({ state: 'available', label: '✓ 同期済み' }),
+    available: Object.freeze({ state: 'available', label: 'クラウド利用可' }),
     syncing: Object.freeze({ state: 'syncing', label: '同期中' }),
     attention: Object.freeze({ state: 'attention', label: '確認が必要' }),
     reportedAttention: Object.freeze({ state: 'attention', label: '前回報告に確認事項' }),
@@ -37,9 +37,8 @@ const APP_STATUS_PRESENTATIONS = Object.freeze({
 
 // This is presentation-only.  The membership status and removal-safety
 // authority below continue to drive every existing operation and callback.
-// 「✓ 同期済み」 is a product status: cloud sync can be used normally and nothing known needs the
-// user's action. It is not a technical guarantee that every sync target is up to date, and it is
-// never a reason that removal is safe. A target that has not reported yet (pending / no report)
+// 「クラウド利用可」 describes the ready cloud dataset, not this device's connection or
+// completion. It is never a reason that removal is safe. A target that has not reported yet (pending / no report)
 // stays neutral. An attention/error report is historical evidence from that target,
 // not a live inspection of the app opened on this device.
 export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
