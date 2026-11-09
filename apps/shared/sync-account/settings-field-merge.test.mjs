@@ -54,3 +54,13 @@ test('the present side wins missing fields while simultaneous different changes 
   const conflict = merge({ x: 2 }, { x: 3 }, { x: 1 });
   assert.equal(conflict.unresolved, 1);
 });
+
+
+test('Dark and Midnight are not interchangeable evidence for a settings choice', () => {
+  const result = merge({ theme: 'dark' }, { theme: 'midnight' }, null);
+  assert.equal(result.unresolved, 1);
+  assert.equal(result.conflicts[0].path, '/theme');
+  assert.equal(result.values, null);
+  assert.equal(merge({ theme: 'dark' }, { theme: 'midnight' }, null,
+    { '/theme': 'remote' }).values.theme, 'midnight');
+});

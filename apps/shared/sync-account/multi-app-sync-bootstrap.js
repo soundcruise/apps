@@ -303,6 +303,23 @@
         showConnectedSettings(result.accountId);
         syncUi?.completeJoinDialog?.(dialog);
       } catch (reason) {
+        // The invitation has already connected this app. Keep its durable binding
+        // and review the recorded conflict instead of asking for another code.
+        if (['pitch', 'fretboard'].includes(config.appId) &&
+            (reason?.code || reason?.message) === 'merge_conflict' &&
+            attentionRuntime === runtime && attentionController) {
+          const controller = attentionController;
+          joinSecret?.resolve();
+          dialog.dataset.syncPhase = 'attention';
+          error.hidden = false;
+          error.textContent = '接続は完了しました。端末とクラウドの設定に違いがあります。設定を確認して、残す値を選んでください。';
+          startButton.hidden = true;
+          if (joinField) joinField.hidden = true;
+          continueButton.hidden = false;
+          continueButton.textContent = '設定を確認して解決';
+          continueButton.addEventListener('click', () => { void controller.refresh(); }, { once: true });
+          return;
+        }
         joinSecret?.reject(reason);
         syncUi?.restoreJoinInput?.(dialog);
         error.hidden = false;
