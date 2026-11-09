@@ -46,13 +46,18 @@ export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  if(registry.length)return preferReviewSources(await Promise.all(rows.map(row=>reviewDetail(store,row.id,now,registry,pepper))));
  return Promise.all(rows.map(async row=>({id:row.id,label:row.label,source:row.source_name,category:await effectiveCategory(store,row),publishedAt:row.published_at,facts:visibleFacts(parseFacts(row)),reason:row.decision_reason,sourceUrl:row.source_url,decision:row.publication_decision,snapshot:await candidateSnapshot(row),revision:row.review_revision})));
 }
+// Keep the existing full-row CAS within D1's expression-depth limit.
+const andSql=parts=>parts.length===1?parts[0]:`(${andSql(parts.slice(0,Math.ceil(parts.length/2)))} AND ${andSql(parts.slice(Math.ceil(parts.length/2)))})`;
 const savedResult=row=>({id:row.candidate_id,action:row.verdict,reason:row.reason,at:row.decided_at,decisionId:row.decision_id,publisherRequests:0});
 async function replay(store,requestId,payloadHash){const existing=await store.db.prepare('SELECT * FROM news_decision_ledger WHERE request_id=?').bind(requestId).first();if(!existing)return null;if(existing.request_payload_hash!==payloadHash)throw Error('idempotency_payload_changed');return savedResult(existing);}
-export async function operatorDecision(store,input,now,registry,pepper,actor){
- if(!actor||!['human_operator','fixture','system_repair'].includes(actor.type)||typeof actor.id!=='string'||!/^[a-zA-Z0-9:_@.\-]{1,200}$/.test(actor.id))throw Error('operator_identity_required');
+export async function operatorDecision(store,input,now,registry,pepper,actor,{authorizeAutomatic}={}){
+ const automatic=actor?.type==='automatic_policy';
+ // Internal server capability only; the HTTP operator always supplies its Access actor.
+ if(automatic&&(typeof authorizeAutomatic!=='function'||input?.action!=='approve'||input?.reason!=='useful_product'))throw Error('automatic_authorization_required');
+ if(!actor||!['human_operator','fixture','system_repair','automatic_policy'].includes(actor.type)||typeof actor.id!=='string'||!/^[a-zA-Z0-9:_@.\-]{1,200}$/.test(actor.id))throw Error('operator_identity_required');
  if(!input||Object.keys(input).some(k=>!['id','action','reason','requestId','snapshot','revision','checks','label','category','publishedAt','takedown'].includes(k))||!['approve','reject'].includes(input.action)||!REASONS[input.action].includes(input.reason)||typeof input.id!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(input.id)||!/^[-a-zA-Z0-9_]{16,100}$/.test(input.requestId||'')||!/^[a-f0-9]{64}$/.test(input.snapshot||'')||!Number.isSafeInteger(input.revision)||input.revision<0)throw Error('operator_decision_invalid');
  if(input.takedown!==undefined&&(input.takedown!==true||input.action!=='reject'||actor.type!=='human_operator'))throw Error('operator_decision_invalid');
- const payloadHash=await hash(canonical({input,actor})),previous=await replay(store,input.requestId,payloadHash);if(previous)return previous;
+ const payloadHash=await hash(canonical({input,actor})),previous=await replay(store,input.requestId,payloadHash);if(previous)return automatic?{...previous,replayed:true}:previous;
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(input.id).first();
  if(!row)throw Error('candidate_not_found');
  const takedown=input.takedown===true;
@@ -66,30 +71,36 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
   if(input.label!==validation.publishableLabel||input.category!==await effectiveCategory(store,row)||input.publishedAt!==row.published_at)throw Error('verified_factual_label_required');
   if(!input.checks||Object.keys(input.checks).some(k=>!CHECKS.includes(k))||CHECKS.some(k=>input.checks[k]!==true))throw Error('operator_checks_required');
  }else if(input.checks&&Object.keys(input.checks).length)throw Error('operator_decision_invalid');
+ const authorization=automatic?await authorizeAutomatic(row,validation):null;
+ if(automatic&&authorization?.eligible!==true)throw Error('automatic_not_eligible');
  const predicate=await resolvedDuplicatePredicate(store,row,parseFacts(row),now),decisionId=crypto.randomUUID();
  // A full row CAS also catches collector/recovery edits without altering their UPDATE
  // change counts. Only this decision service increments review_revision.
  const snapshotColumns=Object.keys(row).sort();if(snapshotColumns.some(k=>!/^[_a-z]+$/.test(k)))throw Error('candidate_schema_invalid');
- const snapshotWhere=snapshotColumns.map(k=>`c."${k}" IS ?`).join(' AND ');
+ // One bound frame preserves every CAS value/time while keeping multi-model
+ // decisions below D1's parameter limit, for human and automatic actors alike.
+ const stampSql="json_extract(cas.frame,'$.now')";
+ const snapshotWhere=andSql(snapshotColumns.map(k=>`c."${k}" IS json_extract(cas.frame,'$.row.${k}')`));
  // No body, headline, raw HTML, product/artist names or tokens in retained features.
  const insightsValidation=actor.type==='human_operator'?(validation||await publicationValidation(store,row,now,registry,pepper)):null;
  // A takedown must not invent a retrospective Shadow evaluation.
  const observed=takedown?await store.db.prepare('SELECT evaluation_json FROM news_shadow_evaluations WHERE candidate_id=? AND candidate_revision=? AND candidate_snapshot=? AND policy_version=? AND evaluated_at BETWEEN ? AND ? ORDER BY evaluated_at DESC LIMIT 1').bind(row.id,row.review_revision,input.snapshot,DECISION_POLICY_VERSION,now-1800000,now).first():null;
  const evaluation=takedown?(observed?JSON.parse(observed.evaluation_json):null):actor.type==='human_operator'?await prepareShadowEvaluation(store,row,insightsValidation,now,{trigger:'pre_decision',decisionId}):null;
  const profile=actor.type==='human_operator'?await retainedDecisionProfile(row,insightsValidation,now):null;
- const features=canonical({...(input.reason==='minor_update'?{policySignal:{eventType:'firmware',articleNature:'routine_minor',newsValue:'low',basis:'human_operator',reason:'minor_update'}}:{}),operation:takedown?'human_takedown':'pending_decision',...(profile?{insightsProfile:profile}:{}),...(evaluation?{shadowEvaluation:{...evaluation,operatorFinalVerdict:input.action}}:{}),factsPresent:!!parseFacts(row),eventType:row.event_type,publicationDecision:row.publication_decision,hasDate:Number.isFinite(Date.parse(row.published_at)),sale:row.category==='sale',labelQuality:validation?.quality.labelInformationScore??null});
+ const features=canonical({...(input.reason==='minor_update'?{policySignal:{eventType:'firmware',articleNature:'routine_minor',newsValue:'low',basis:'human_operator',reason:'minor_update'}}:{}),operation:automatic?'automatic_publication':takedown?'human_takedown':'pending_decision',...(automatic?{automaticEvaluation:authorization.audit}:{}),...(profile?{insightsProfile:profile}:{}),...(evaluation?{shadowEvaluation:{...evaluation,operatorFinalVerdict:input.action}}:{}),factsPresent:!!parseFacts(row),eventType:row.event_type,publicationDecision:row.publication_decision,hasDate:Number.isFinite(Date.parse(row.published_at)),sale:row.category==='sale',labelQuality:validation?.quality.labelInformationScore??null});
  const statement=store.db.prepare(`INSERT INTO news_decision_ledger(decision_id,candidate_id,verdict,reason,actor_type,actor_id,decided_at,source_id,category,decision_features_json,policy_version,request_id,request_payload_hash,candidate_revision,candidate_snapshot,success_state,created_at,persisted_label,checks_json)
- SELECT ?,c.id,?,?,?,?,?,c.source_id,c.category,?,?,?,?,c.review_revision,?,'committed',?,?,?
- FROM candidate_items c WHERE c.id=? AND c.review_revision=? AND c.review_status=? ${takedown?'':"AND c.origin<>'legacy_fixture_backfill'"} AND ${snapshotWhere}
- ${approve?`AND c.expires_at>? AND (c.sale_ends_at IS NULL OR c.sale_ends_at>=?) AND (c.event_ends_at IS NULL OR c.event_ends_at>=?)
+ SELECT ?,c.id,?,?,?,?,${stampSql},c.source_id,c.category,?,?,?,?,c.review_revision,?,'committed',${stampSql},?,?
+ FROM candidate_items c,(SELECT ? AS frame) cas WHERE c.id=? AND c.review_revision=? AND c.review_status=? ${takedown?'':"AND c.origin<>'legacy_fixture_backfill'"} AND ${snapshotWhere}
+ ${approve?`AND c.expires_at>${stampSql} AND (c.sale_ends_at IS NULL OR c.sale_ends_at>=${stampSql}) AND (c.event_ends_at IS NULL OR c.event_ends_at>=${stampSql})
  AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1)
  ${row.origin===ASSISTED_ORIGIN?'AND '+assistedPredicate():"AND EXISTS(SELECT 1 FROM source_health WHERE source_id=c.source_id AND "+publicationHealthSQL+" AND last_successful_run_at=?)"}
  AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND (${row.origin===ASSISTED_ORIGIN?'':'disabled=1 OR '}takedown=1 OR publication_blocked=1))
  AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=c.id)
- AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql}) AND ${predicate.fenceSql} ${parseFacts(row)?.kind==='human_product_notice'?'AND '+canonicalReceiptFence():''}`:''}`)
- .bind(decisionId,input.action,input.reason,actor.type,actor.id,now,features,DECISION_POLICY_VERSION,input.requestId,payloadHash,input.snapshot,now,approve?validation.publishableLabel:null,canonical(approve?{basis:'validated_official_surface',...input.checks}:{}),row.id,row.review_revision,row.review_status,...snapshotColumns.map(k=>row[k]),...(approve?[now,now,now,...(row.origin===ASSISTED_ORIGIN?[]:[validation.healthSuccessfulAt]),...predicate.args,...predicate.fenceArgs]:[]));
- try{await statement.run();}catch(error){const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;throw Error('decision_transaction_failed',{cause:error});}
- const committed=await replay(store,input.requestId,payloadHash);if(committed)return committed;
+ AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql}) AND ${predicate.fenceSql} ${parseFacts(row)?.kind==='human_product_notice'?'AND '+canonicalReceiptFence():''}`:''}
+ ${automatic?'AND '+authorization.fenceSql:''}`)
+ .bind(decisionId,input.action,input.reason,actor.type,actor.id,features,DECISION_POLICY_VERSION,input.requestId,payloadHash,input.snapshot,approve?validation.publishableLabel:null,canonical(approve?{basis:automatic?'automatic_formal_and_editorial':'validated_official_surface',...input.checks}:{}),canonical({row,now}),row.id,row.review_revision,row.review_status,...(approve?[...(row.origin===ASSISTED_ORIGIN?[]:[validation.healthSuccessfulAt]),...predicate.args,...predicate.fenceArgs]:[]),...(automatic?authorization.fenceArgs:[]));
+ try{await statement.run();}catch(error){const committed=await replay(store,input.requestId,payloadHash);if(committed)return automatic?{...committed,replayed:committed.decisionId!==decisionId}:committed;throw Error('decision_transaction_failed',{cause:error});}
+ const committed=await replay(store,input.requestId,payloadHash);if(committed)return automatic?{...committed,replayed:committed.decisionId!==decisionId}:committed;
  const current=await store.db.prepare('SELECT review_status,review_revision FROM candidate_items WHERE id=?').bind(row.id).first();
  if(current?.review_revision!==row.review_revision||current?.review_status!==row.review_status)throw Error('stale_decision');
  if(approve){const after=await publicationValidation(store,row,now,registry,pepper);if(!after.valid)throw Error(after.errors[0]);}

@@ -17,8 +17,8 @@ export function shadowEvidenceContext(row,validation,teachers,now){
  const structured=validation.valid&&fields.length>0&&fields.every(p=>p?.sourceId===row.source_id&&p.sourceUrl===row.source_url&&/^explicit_/.test(p.extractionMethod||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now);
  return {version:'shadow-evidence-1',evidenceOrigin:human?'human_confirmation':structured?'publisher_structured':'unknown',relevanceStatus:['PASS','REVIEW'].includes(validation.relevance?.status)?validation.relevance.status:'UNKNOWN',publicationDateVerified:validation.valid&&Number.isFinite(Date.parse(row.published_at)),identityScope:!facts?.scopeUncertain&&facts?.brand&&facts?.productType&&Array.isArray(facts.models)&&facts.models.length>0?'explicit_models':'unconfirmed',productAction:validatedProductEvent(facts?.productEvent)?facts.productEvent.action:'not_recorded',priorHumanDecision:teachers.some(d=>d.candidate_id===row.id)};
 }
-export async function prepareShadowEvaluation(store,row,validation,now,{trigger='review',decisionId=null}={}){
- const profile=await retainedDecisionProfile(row,validation,now),teachers=await humanDecisions(store,now),result=evaluateDecisions(profile,teachers,{now,candidateId:row.id,validation});
+export async function prepareShadowEvaluation(store,row,validation,now,{trigger='review',decisionId=null,teachers}={}){
+ const profile=await retainedDecisionProfile(row,validation,now);teachers??=await humanDecisions(store,now);const result=evaluateDecisions(profile,teachers,{now,candidateId:row.id,validation});
  const evidenceContext=shadowEvidenceContext(row,validation,teachers,now);
  const candidateSnapshot=await shadowSnapshot(row),historyWatermark=await hash(canonical(teachers.map(d=>[d.decision_id,d.policy_version,d.candidate_revision]).sort()));
  const reviewability=validation.errors.includes('duplicate')?'DUPLICATE_BLOCKED':validation.valid?'READY_FOR_HUMAN_DECISION':validation.errors.includes('operator_source_gate')?'POLICY_BLOCKED':'FACTS_OR_VALIDATION_BLOCKED';

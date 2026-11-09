@@ -44,3 +44,12 @@ test('signed Access human session and CSRF reach the formal HTTP confirmation ro
  const session=await (await handleOperatorRequest(new Request(origin+'/api/session',{headers:{'Cf-Access-Jwt-Assertion':token}}),env,now,{jwks})).json();
  const response=await handleOperatorRequest(new Request(origin+'/api/canonical-facts-confirm',{method:'POST',headers:{'Cf-Access-Jwt-Assertion':token,Origin:origin,'Content-Type':'application/json','X-News-CSRF':session.csrf},body:JSON.stringify(await inputFor(row))}),env,now,{jwks});const result=await response.json();assert.equal(response.status,200,JSON.stringify(result));assert.equal(result.validation.valid,true);assert.equal(result.publisherRequests,0);assert.equal((await s.candidates())[0].review_status,'pending');assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
 });
+
+test('formally READY human canonical confirmation never becomes automatic publication authority',async()=>{
+ const {assessAutomatic,publishAutomatic}=await import('../src/automatic.js');
+ const {s,row}=await setup();await confirmCanonicalFacts(s,await inputFor(row),now,registry,pepper,actor);
+ const current=(await s.candidates())[0];assert.equal((await publicationValidation(s,current,now,registry,pepper)).valid,true);
+ const plan=await assessAutomatic(s,current,registry,now,pepper);assert.equal(plan.eligible,false);assert.equal(plan.reasons[0],'unassisted_explicit_evidence_required');
+ assert.equal(await publishAutomatic(s,source,registry,now,pepper,{enabled:true}),0);
+ assert.equal((await s.candidates())[0].review_status,'pending');assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+});
