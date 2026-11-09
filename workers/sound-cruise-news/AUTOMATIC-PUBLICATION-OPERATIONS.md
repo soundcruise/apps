@@ -1,117 +1,175 @@
-# Automatic publication completion candidate — NEWS 0.53.0
+# Automatic publication completion candidate — NEWS 0.54.0
 
-## Deployment boundary
+## Boundary
 
-PR #248 / 0.52.2 was separately accepted in production on 2026-11-09.
-This 0.53.0 branch is an **offline completion candidate**. It has no Worker,
-HTTP or cron caller, no new environment flags, no migration, no deployment, and
-no change to ordinary collection. `publishAutomatic(..., {enabled:true})` is an
-internal future integration boundary; omission (including old callers) performs
-no database access or external communication. It must not be connected to cron
-or enabled in production under this PR's current authorization.
+Production remains accepted NEWS/Operator 0.52.2. This updates Draft PR #252;
+no merge, deployment, production write, source HTTP, paid call or publication
+is authorized here. `publishAutomatic` has no Worker/HTTP/cron caller and is a
+complete no-op unless its internal caller explicitly supplies `{enabled:true}`.
+Web discovery/manual/B→A remain OFF. There is no new migration or scheduler.
+The minor version reflects the read-only assessment API, not publication enabling.
 
-## Existing path reused
+## Independent audit dispositions
 
-`automatic.js` replaces its old direct candidate UPDATE with `operatorDecision`.
-That existing service re-runs **current** `publicationValidation`, checks the
-full-row snapshot/revision, and conditionally inserts the existing Ledger row.
-The existing D1 trigger atomically changes the candidate, creates audit/feedback,
-and increments controls revision. Trigger failure rolls everything back. The
-existing duplicate predicate and legacy duplicate fence remain unchanged.
-No publisher request, model call, new registration engine or automatic rejection
-rule is added. `pending-resolution.js`, collectors and formal validators are unchanged.
+The second independent audit was CONDITIONAL PASS. The supplied findings were
+checked against fixed head `be5ea64379ad01e61d0c10264c8ca3c2957952ce`.
 
-The automatic actor may only approve with `useful_product`, and requires an
-internal server authorization callback. Operator HTTP requests cannot supply
-that callback or override their Access identity. Existing human request/replay
-contracts are unchanged. The callback evaluates fresh formal/editorial context
-inside the decision boundary; the final INSERT fences the evidence it used.
+- Adopt: remove whole-table snapshots of source_health, source_state and
+  news_category_overrides. Remove the common controls revision fence, which
+  retention increments even without an editorial/publication change.
+- Adopt: continue after known candidate race/eligibility outcomes. Unexpected
+  exceptions, SQL/transaction failure and context-limit errors still stop.
+- Compare but reject: broader learning shapes B and C both cause one false-publish
+  direction in retained prior-only replay. Keep exact factShape, five independent
+  teachers, source/category/event/action separation and structured-human-v3.
+- Adopt: bounded authenticated SELECT-only prospective assessment, reusing
+  assessAutomatic and existing Operator authentication. No second record store.
 
-## Initial eligible scope
+## Existing publication transaction reused
 
-All of the following are required; READY or a historical Shadow match alone is
-insufficient:
+`publishAutomatic` uses `operatorDecision`, current publicationValidation and the
+existing conditional Ledger INSERT/trigger. The shared boundary already checks:
+full candidate snapshot/revision, expiry, publication ON, source health successful
+run timestamp, disabled/takedown/publication_blocked, approved duplicates and the
+existing legacy duplicate fence. The trigger atomically updates candidate, audit,
+feedback and controls; failure rolls the whole decision back. No formal validator,
+collector, pending-resolution, source permission or rejection rule is changed.
+The exact CAS row and repeated timestamps now travel as one bound JSON frame.
+This preserves all comparisons and transaction semantics for human/automatic
+actors, while fixing the existing four-model human decision's D1 parameter overflow.
+Human four-model teacher decisions and the automatic commit are both exercised
+in real local workerd/D1; no production decision is performed.
 
-- Pending, never-decided Ikebe/Shimamura typed product/launch news.
-- Current full validation PASS: source/URL, date, expiry, facts, provenance,
-  fingerprint, identity, relevance, duplicate/takedown and publication controls.
-- Healthy permitted source, publisher-structured field evidence, explicit models,
-  no human-confirmed facts or manual category override.
-- Existing `sourcePreferenceIdentity` can establish the exact dated product event
-  (or explicit co-development notice). Model/version/color/edition/event qualifiers
-  remain significant; uncertain identity is excluded.
-- Existing structured-human-v3 recommends approve from at least five independent,
-  compatible prior human editorial decisions without contradiction. Historical
-  editorial compatibility never supplies current proof. Existing technical,
-  duplicate and source-policy learning exclusions remain unchanged.
-- If a formally valid unjudged Ikebe equivalent exists, Shimamura is excluded.
-  Invalid or absent Ikebe does not impose a waiting period. Previously published
-  or human-decided articles are never replaced. AGM editorial/book articles,
-  Morris events, sales and firmware remain outside this initial automatic scope.
+Only additional automatic requirements are checked at commit:
 
-## Atomic concurrency and audit
+- No prior decision of any actor for this candidate; no target category override.
+- Strictly healthy target source/reason, unchanged target robots hash, and no active target backoff.
+- The immutable IDs of committed human teachers used in this evaluation are
+  unchanged. Normal Ledger rows are immutable except persisted-label retention;
+  that label is not a learning input. Teacher input is read once and shared with
+  prepareShadowEvaluation, preventing a learning/fence read mismatch.
+- For Shimamura only: live same-category pending Ikebe candidates, their effective
+  category and publication health/stop/robots fields are unchanged. Insertion, deletion,
+  edits, relevant category transitions and an invalid competitor becoming valid
+  are detected. Heartbeat timestamps, leases and unrelated sources are excluded.
 
-The existing controls revision fences normal decision/edit history changes.
-Bounded snapshots additionally fence insert/delete/change of pending retail peers,
-source health/stops and category overrides during preference evaluation. Context
-is bounded to 512 rows / 1 MB per set; exceeding it stops rather than publishes.
-These snapshots are query parameters only, not new retained article data.
-Full-row CAS and current duplicate/takedown SQL remain authoritative. Condition
-conjunctions are balanced to stay within workerd D1's expression-depth limit.
+Existing sourcePreferenceIdentity chooses Ikebe only for formally valid unjudged
+exact product/events. Different models, colors, editions, dates and actions remain
+significant. Missing or invalid Ikebe does not create a waiting period. Existing
+published or human-decided news is never replaced. An existing formal duplicate
+fence may still abstain if its own relevant evidence changes; it is not bypassed.
 
-The request key binds policy, candidate and full snapshot. Concurrent/repeated
-invocations can create at most one decision. The returned count uses ownership
-of the unique decision ID, **not D1 `meta.changes`**, which includes trigger writes.
-An unexpected failure propagates without an automatic retry; any prior committed
-items are discoverable in the existing Ledger. An in-flight SQL request is not
-claimed cancellable by an OFF switch.
+## Scope and errors
 
-The Ledger uses `actor_type=automatic_policy` and records policy/rule versions,
-evaluation ID, history watermark, evidence count, recommendation and coarse
-proof context in `automaticEvaluation`. It has no human insights profile or
-human Shadow envelope. Existing `humanDecisions` excludes it from training;
-automatic approval is not independent human evidence.
+The initial automatic scope is pending never-decided Ikebe/Shimamura typed
+product/launch news with current formal PASS, relevance PASS, publisher-structured
+provenance, verified date and explicit model/event identity. READY or a historical
+Shadow match alone grants no authority. Human-confirmed facts, manual category
+overrides, uncertain identity, AGM editorial/book articles, Morris events, sales
+and firmware remain outside this automatic scope.
 
-## Validation and historical limits
+Existing Shadow must recommend approve from at least five independent compatible
+human editorial decisions without contradiction. Technical failure, duplicate and
+source-policy rejections remain excluded from low-value learning. Automatic
+Ledger rows use automatic_policy with coarse automaticEvaluation; no human
+insights profile/Shadow envelope is created and they cannot become human teachers.
 
-- Dedicated tests cover the real local workerd/D1 transaction and Node SQLite
-  negative/race cases: no permission, insufficient/contradictory editorial
-  history, invalid facts/date/provenance, human judgment/category protection,
-  source stops, takedown, preference, peer insertion, full-row CAS, controls
-  changes, child-trigger rollback, concurrent invocation and repeat invocation.
-- Legacy tests that equated `AUTO_PUBLISHABLE` with approval now assert OFF.
-  API expiry/source-kill fixtures remain explicitly approved **test fixtures**;
-  they are not claimed automatic-publication evidence.
-- Final NEWS/Operator regression: 1,878 PASS; Port NEWS: 60 PASS; both
-  Worker dry-runs PASS. The new automatic boundary adds 32 cases, including
-  local workerd/D1 and formally READY human-confirmation exclusion.
-- Saved history: 191 decisions; 163 old-policy records, 78 compatible contracts,
-  76 independent effective old teachers. Prior-only replay: 185 cases, four
-  approve recommendations matching human approvals, zero false-publish direction.
-  Current-policy 28 cases produced zero recommendations. These are editorial
-  replay results, not publication success rates.
-- All 191 historical decision frames lack recorded evidence-origin classification;
-  current publisher-only eligibility cannot be certified retrospectively. Current
-  production pending count is zero. Do not reopen decided candidates, invent
-  targets, re-sign production evidence with a fixture secret, or lower thresholds.
+Known candidate-not-found/changed/already-decided/stale, duplicate, takedown,
+source/publication and formal-validation eligibility errors abstain for that item
+and continue. A bounded structured log retains candidate ID and known reason,
+not SQL, response bodies or free-form errors. DB/transaction failures, schema or
+context-limit errors and unknown exceptions propagate. No retry is added. Prior
+commits remain identifiable in the existing Ledger if a later item fails.
+Request keys bind policy/candidate/snapshot; returned counts use decision-ID
+ownership rather than D1 meta.changes, which also counts trigger writes.
+Automatic policy version is verified-retail-editorial-2. Shadow rule stays v3
+because its learning semantics were not changed; older audit records stay intact.
 
-## Independent audit and next minimal acceptance
+## SQL and bound data are different limits
 
-Recommend a second independent review with Claude Code Opus 5.5 before approval:
+Cloudflare documents SQL statement text 100,000 bytes, 100 bound parameters, and
+string/BLOB/row size 2,000,000 bytes:
+https://developers.cloudflare.com/d1/platform/limits/
+Bound JSON is not concatenated into SQL text. Peer context is application-bounded
+to 512 live competitors / 1,000,000 UTF-8 bytes; teacher IDs to 1,000,000 bytes.
+These application bounds are not claimed to be a separate D1 request-body quota.
 
-1. Does the automatic authorization + existing Ledger transaction leave a bypass,
-   stale-context race or human decision overwrite?
-2. Are current proof, no-human-assistance, exact dated identity and Ikebe preference
-   sufficient? Are coarse five-example editorial patterns too broad?
-3. Do D1 expression/binding limits, triggers, replay/counting and rollback behave
-   correctly? Is any new code unnecessary?
-4. Can automatic actions enter human teaching or mutate old Shadow records?
-5. Confirm no collector/cron changes and no production enabling in this branch.
+Real local workerd/D1 tests measure each complete final INSERT separately:
 
-After audit fixes and separately approved merge/deploy, first inspect real newly
-collected READY candidates prospectively with the same read-only eligibility
-function. Compare with actual human judgments and measure scope, false-publish
-risk and abstentions. A further explicit authorization must identify the initial
-narrow scope, invocation/kill boundary and limited actual publication acceptance.
-Do not treat this Draft's synthetic transactions or historical four matches as
-sufficient approval to start daily automatic publication.
+| Fixture | SQL bytes | Parameters | Bound-data bytes | Largest bound string |
+| --- | ---: | ---: | ---: | ---: |
+| Ikebe | 6,729 | 48 | 17,213 | 15,087 |
+| Shimamura with a nonmatching Ikebe peer | 9,675 | 52 | 35,493 | 17,286 |
+| Ikebe four-model signature announcement | 8,355 | 95 | 19,826 | 16,287 |
+
+With 100 unrelated source/state/category rows in an offline comparison, old versus
+new bound data fell from 138,368 to 17,173 bytes for Ikebe, and 157,591 to 34,609 for
+Shimamura. Old SQL text was 9,194 bytes, not 138–158 KB: the larger number was bound
+data. These cases do not certify every source/model combination. An exploratory
+Shimamura four-model structural template failed to establish brand/model facts;
+it is not counted as formal success and no parser was changed to force it.
+Four-model commit proof here is Ikebe only. Before a limited real publication,
+check its exact full statement/parameters under the same local D1 test; a DB
+limit error remains fatal rather than silently skipping it. Start with the
+verified single-model scope. Balanced conditions remain necessary for workerd D1 expression-depth limits.
+
+## A/B/C replay, not publication accuracy
+
+Use only the retained decision-time profiles/validation and strictly earlier
+committed/created teachers. Do not fill old profiles from current facts. From 191
+Ledger records: 190 latest candidate judgments, 186 bound pre-decision frames,
+185 independent article/topic cases; narrow Ikebe/Shimamura product/launch subset
+98 cases. This explicitly defined replay population is not assumed identical to
+an audit population selected using other candidate fields.
+
+| Variant | Definition (source/category/event/action kept) | Approve | Reject | Human agreement | False-publish direction |
+| --- | --- | ---: | ---: | ---: | ---: |
+| A — adopted | Exact factShape | 4 | 0 | 4 | 0 |
+| B — rejected | Verified product profiles share brand/product/identifierBasis core | 11 | 0 | 10 | 1 |
+| C — rejected | Ignore only kind/version shape differences in verified product profiles | 11 | 0 | 10 | 1 |
+
+All 185 cases were evaluated under every variant; the remaining 181/174/174 abstain.
+The 98-case narrow retail subset has the same recommendation/error counts.
+The counterexample is retained as a small decision-time coarse projection in
+`test/fixtures/editorial-shape-counterexample.json`; no publisher proof or raw
+article is included. It keeps the strict rule from accidentally reintroducing the
+unsafe merge. Thresholds, contradiction rules, human independence and temporal
+exclusions are unchanged. Four historical agreements do not certify automatic
+eligibility or safety: historical evidence-origin classification is absent.
+
+## Prospective read-only use
+
+After separately approved OFF deployment, authenticated
+`GET /api/automatic-assessment` evaluates at most three pending candidates using
+assessAutomatic. No query parameters/write verb, cron, UI workflow or record store
+is added. Access identity/origin and no-store response policy match existing GETs.
+It returns candidate/revision/snapshot/evaluation time, automatic and Shadow rule
+versions, eligibility/known reasons, formal validation, editorial evidence and the
+next action. Technical evidence/source recovery is distinguished from human
+editorial judgment. A candidate that changes during the read is an abstention.
+
+The export assessAutomaticCandidates supports bounded offline use. Tests prohibit
+all non-SELECT calls and verify unchanged candidates/Ledger/Shadow. Read output is
+not a publication authorization or a persisted Shadow observation. Compare with a
+later existing human Ledger frame only when candidate/revision/snapshot and rule
+match, the read preceded the decision, and no later facts are used. The existing
+human pre_decision Shadow frame remains the authoritative retained comparison.
+
+## Next minimum acceptance
+
+Approve this updated PR for merge and OFF deployment with the existing guard,
+then use the bounded GET on actual next normal candidates. No new long pilot or
+paid call is needed. Confirm real current proof, abstentions and the ordinary
+human decision frame. Actual automatic publication still needs a separate explicit
+limited authorization specifying candidate scope/count and invocation/OFF boundary;
+synthetic commits and historical agreement do not substitute for it. No further
+management platform or new learning engine is proposed.
+
+## Final local verification
+
+NEWS/Operator: 1,903 PASS; Port NEWS: 60 PASS; both Worker dry-runs PASS.
+The original normal collectors, publicationValidation, source preference rules,
+Shadow rule/evidence retention, auth/CSRF and decision Ledger schema are unchanged.
+The new GET requires existing Access authentication, rejects write methods and
+query expansion, and is tested with SELECT-only database access. No main merge,
+production deployment/write or paid/source request was performed.

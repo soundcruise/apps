@@ -1,0 +1,150 @@
+{
+  "description": "Retained decision-time coarse profiles only; no publisher proof and no current facts. Human rejected this candidate; shape generalization would approve it. Labels/actor identity omitted.",
+  "target": {
+    "candidateId": "0b58148d7d4f7a69b10870e4390ed3a08a9da24f13376a5251eed03ee391482d",
+    "verdict": "reject",
+    "reason": "operator_review",
+    "profile": {
+      "articleIdentity": "0b58148d7d4f7a69b10870e4390ed3a08a9da24f13376a5251eed03ee391482d",
+      "articleNature": "not_firmware",
+      "category": "recording_streaming",
+      "factShape": [
+        "brand",
+        "product",
+        "identifierBasis",
+        "kind"
+      ],
+      "factsVerified": true,
+      "freshness": "within_7_days",
+      "reviewReasons": [
+        "structured_review_required",
+        "verified_facts_recheck"
+      ],
+      "source": "ikebe",
+      "surface": "www.ikebe-gakki-pb.com/new_product",
+      "topicIdentity": "f9d8e4f669a459319b5f00820e7d3c17914d406197a8e3224533ff3b3a2291b5",
+      "type": "new_product",
+      "version": "structured-human-v1"
+    },
+    "validation": {
+      "errors": [],
+      "policyVersion": "operator-publication-1",
+      "valid": true
+    },
+    "at": 1793497203717
+  },
+  "teachers": [
+    {
+      "decision_id": "1466e17a-e81b-4033-9e71-e6d470630c04",
+      "candidate_id": "368e218d4d5072a545f671dbf0b50dff5a7a6c21e5e6bf0fe545213cc2b9f3cb",
+      "verdict": "approve",
+      "reason": "useful_product",
+      "actor_type": "human_operator",
+      "decided_at": 1791171481048,
+      "created_at": 1791171481048,
+      "candidate_revision": 1,
+      "candidate_snapshot": "3864dc1d1e7fee25bc0e8d9bbf4e1cd7423749944a00936681a54642ae8e2efe",
+      "source_id": "ikebe",
+      "category": "recording_audio",
+      "decision_features_json": "{\"operation\":\"pending_decision\",\"factsPresent\":true,\"hasDate\":true,\"eventType\":\"new_product\",\"insightsProfile\":{\"articleIdentity\":\"368e218d4d5072a545f671dbf0b50dff5a7a6c21e5e6bf0fe545213cc2b9f3cb\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"7b88bc23f0d0d957f81a2703287912935069061a13c9c22db949a4450ce0717c\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"shadowEvaluation\":{\"contractVersion\":\"shadow-v1\",\"ruleVersion\":\"structured-human-v1\",\"policyVersion\":\"operator-publication-1\",\"sourceId\":\"ikebe\",\"candidateId\":\"368e218d4d5072a545f671dbf0b50dff5a7a6c21e5e6bf0fe545213cc2b9f3cb\",\"candidateRevision\":1,\"candidateSnapshot\":\"3864dc1d1e7fee25bc0e8d9bbf4e1cd7423749944a00936681a54642ae8e2efe\",\"operatorFinalVerdict\":\"approve\",\"trigger\":\"pre_decision\",\"generatedAt\":1791171481048,\"profile\":{\"articleIdentity\":\"368e218d4d5072a545f671dbf0b50dff5a7a6c21e5e6bf0fe545213cc2b9f3cb\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"7b88bc23f0d0d957f81a2703287912935069061a13c9c22db949a4450ce0717c\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"publicationValidation\":{\"errors\":[],\"policyVersion\":\"operator-publication-1\",\"valid\":true}}}",
+      "policy_version": "operator-publication-1",
+      "success_state": "committed"
+    },
+    {
+      "decision_id": "a35b2723-8e9e-44a5-aa51-66934c8afb53",
+      "candidate_id": "b3462045cf60048fd40ed3efd260453b8d69089647e61538e7f3625d5518c88f",
+      "verdict": "approve",
+      "reason": "useful_product",
+      "actor_type": "human_operator",
+      "decided_at": 1791499500621,
+      "created_at": 1791499500621,
+      "candidate_revision": 1,
+      "candidate_snapshot": "436093293a9dafabe704de7b6a7d46d2151f10d62371afbb04806021fef64caf",
+      "source_id": "ikebe",
+      "category": "recording_audio",
+      "decision_features_json": "{\"operation\":\"pending_decision\",\"factsPresent\":true,\"hasDate\":true,\"eventType\":\"new_product\",\"insightsProfile\":{\"articleIdentity\":\"b3462045cf60048fd40ed3efd260453b8d69089647e61538e7f3625d5518c88f\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_14_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"87c0e27d5fa8c4b259b4cbe6a04eb15a5eeba9635f9dfe4c86b11f2d45fe58b6\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"shadowEvaluation\":{\"contractVersion\":\"shadow-v1\",\"ruleVersion\":\"structured-human-v1\",\"policyVersion\":\"operator-publication-1\",\"sourceId\":\"ikebe\",\"candidateId\":\"b3462045cf60048fd40ed3efd260453b8d69089647e61538e7f3625d5518c88f\",\"candidateRevision\":1,\"candidateSnapshot\":\"436093293a9dafabe704de7b6a7d46d2151f10d62371afbb04806021fef64caf\",\"operatorFinalVerdict\":\"approve\",\"trigger\":\"pre_decision\",\"generatedAt\":1791499500621,\"profile\":{\"articleIdentity\":\"b3462045cf60048fd40ed3efd260453b8d69089647e61538e7f3625d5518c88f\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_14_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"87c0e27d5fa8c4b259b4cbe6a04eb15a5eeba9635f9dfe4c86b11f2d45fe58b6\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"publicationValidation\":{\"errors\":[],\"policyVersion\":\"operator-publication-1\",\"valid\":true}}}",
+      "policy_version": "operator-publication-1",
+      "success_state": "committed"
+    },
+    {
+      "decision_id": "e0e3f413-fade-4348-a964-29e9f0ae0082",
+      "candidate_id": "78d3251652f6ef53d2c1730828b576dcefa84b422f11fd02791c6f730881eb73",
+      "verdict": "approve",
+      "reason": "useful_product",
+      "actor_type": "human_operator",
+      "decided_at": 1791587924429,
+      "created_at": 1791587924429,
+      "candidate_revision": 1,
+      "candidate_snapshot": "baf780c1ba72a2f5cc00784b2713378f9284d9627dad9b4326f7ccdb25877312",
+      "source_id": "ikebe",
+      "category": "recording_audio",
+      "decision_features_json": "{\"operation\":\"pending_decision\",\"factsPresent\":true,\"hasDate\":true,\"eventType\":\"new_product\",\"insightsProfile\":{\"articleIdentity\":\"78d3251652f6ef53d2c1730828b576dcefa84b422f11fd02791c6f730881eb73\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"4b42d48c515484624c61813d1b2462071c664f01ada75874407b5b3e400772a0\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"shadowEvaluation\":{\"contractVersion\":\"shadow-v1\",\"ruleVersion\":\"structured-human-v1\",\"policyVersion\":\"operator-publication-1\",\"sourceId\":\"ikebe\",\"candidateId\":\"78d3251652f6ef53d2c1730828b576dcefa84b422f11fd02791c6f730881eb73\",\"candidateRevision\":1,\"candidateSnapshot\":\"baf780c1ba72a2f5cc00784b2713378f9284d9627dad9b4326f7ccdb25877312\",\"operatorFinalVerdict\":\"approve\",\"trigger\":\"pre_decision\",\"generatedAt\":1791587924429,\"profile\":{\"articleIdentity\":\"78d3251652f6ef53d2c1730828b576dcefa84b422f11fd02791c6f730881eb73\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"4b42d48c515484624c61813d1b2462071c664f01ada75874407b5b3e400772a0\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"publicationValidation\":{\"errors\":[],\"policyVersion\":\"operator-publication-1\",\"valid\":true}}}",
+      "policy_version": "operator-publication-1",
+      "success_state": "committed"
+    },
+    {
+      "decision_id": "8639b9e4-4526-49a6-9d7b-c1059c2db566",
+      "candidate_id": "6ed4f319c5b2f23d94a2124145e662e6dc93d621ad1a113e24cf38affb7e3880",
+      "verdict": "approve",
+      "reason": "useful_product",
+      "actor_type": "human_operator",
+      "decided_at": 1791587950952,
+      "created_at": 1791587950952,
+      "candidate_revision": 1,
+      "candidate_snapshot": "9ea5936f4a0467c629a378536927500edf3078a1d583532dfb9ad4b4add466df",
+      "source_id": "ikebe",
+      "category": "recording_audio",
+      "decision_features_json": "{\"operation\":\"pending_decision\",\"factsPresent\":true,\"hasDate\":true,\"eventType\":\"new_product\",\"insightsProfile\":{\"articleIdentity\":\"6ed4f319c5b2f23d94a2124145e662e6dc93d621ad1a113e24cf38affb7e3880\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"eaeae221f9c1943c721190634bce0143d1f92f9771344e5b030610803ac2b3e2\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"shadowEvaluation\":{\"contractVersion\":\"shadow-v1\",\"ruleVersion\":\"structured-human-v1\",\"policyVersion\":\"operator-publication-1\",\"sourceId\":\"ikebe\",\"candidateId\":\"6ed4f319c5b2f23d94a2124145e662e6dc93d621ad1a113e24cf38affb7e3880\",\"candidateRevision\":1,\"candidateSnapshot\":\"9ea5936f4a0467c629a378536927500edf3078a1d583532dfb9ad4b4add466df\",\"operatorFinalVerdict\":\"approve\",\"trigger\":\"pre_decision\",\"generatedAt\":1791587950952,\"profile\":{\"articleIdentity\":\"6ed4f319c5b2f23d94a2124145e662e6dc93d621ad1a113e24cf38affb7e3880\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"label_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"eaeae221f9c1943c721190634bce0143d1f92f9771344e5b030610803ac2b3e2\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"publicationValidation\":{\"errors\":[],\"policyVersion\":\"operator-publication-1\",\"valid\":true}}}",
+      "policy_version": "operator-publication-1",
+      "success_state": "committed"
+    },
+    {
+      "decision_id": "37541afb-a787-456c-b257-68addd84e281",
+      "candidate_id": "14425d316fefd12afd89ec106fd35296759f581b75252052fb0fa017549691c6",
+      "verdict": "approve",
+      "reason": "useful_product",
+      "actor_type": "human_operator",
+      "decided_at": 1792796743569,
+      "created_at": 1792796743569,
+      "candidate_revision": 1,
+      "candidate_snapshot": "3fca1d8f0b7fa882637a7325211b0118cab296d8bbe385d22166ffdc9653b14a",
+      "source_id": "ikebe",
+      "category": "recording_audio",
+      "decision_features_json": "{\"operation\":\"pending_decision\",\"factsPresent\":true,\"hasDate\":true,\"eventType\":\"new_product\",\"insightsProfile\":{\"articleIdentity\":\"14425d316fefd12afd89ec106fd35296759f581b75252052fb0fa017549691c6\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\",\"kind\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"structured_review_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"583cd9204f295ce6ebe22b7791c87c6c5d90890280da9e27788ad3b80bf4f89b\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"shadowEvaluation\":{\"contractVersion\":\"shadow-v1\",\"ruleVersion\":\"structured-human-v1\",\"policyVersion\":\"operator-publication-1\",\"sourceId\":\"ikebe\",\"candidateId\":\"14425d316fefd12afd89ec106fd35296759f581b75252052fb0fa017549691c6\",\"candidateRevision\":1,\"candidateSnapshot\":\"3fca1d8f0b7fa882637a7325211b0118cab296d8bbe385d22166ffdc9653b14a\",\"operatorFinalVerdict\":\"approve\",\"trigger\":\"pre_decision\",\"generatedAt\":1792796743569,\"profile\":{\"articleIdentity\":\"14425d316fefd12afd89ec106fd35296759f581b75252052fb0fa017549691c6\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\",\"kind\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"structured_review_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"583cd9204f295ce6ebe22b7791c87c6c5d90890280da9e27788ad3b80bf4f89b\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"publicationValidation\":{\"errors\":[],\"policyVersion\":\"operator-publication-1\",\"valid\":true}}}",
+      "policy_version": "operator-publication-1",
+      "success_state": "committed"
+    },
+    {
+      "decision_id": "5293fc38-16d4-480f-a738-a5565a9a0693",
+      "candidate_id": "09c0dd2acb3c250385447e0053745e45edf316a5b11962ae0c37af9155bff7cd",
+      "verdict": "approve",
+      "reason": "useful_product",
+      "actor_type": "human_operator",
+      "decided_at": 1792796754068,
+      "created_at": 1792796754068,
+      "candidate_revision": 1,
+      "candidate_snapshot": "a39ebe2c8a123e568e8bca16746968a631c3d42ed4d859ddf8781475225badfc",
+      "source_id": "ikebe",
+      "category": "recording_audio",
+      "decision_features_json": "{\"operation\":\"pending_decision\",\"factsPresent\":true,\"hasDate\":true,\"eventType\":\"new_product\",\"insightsProfile\":{\"articleIdentity\":\"09c0dd2acb3c250385447e0053745e45edf316a5b11962ae0c37af9155bff7cd\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\",\"kind\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"structured_review_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"23b75265bf6d7c7e093d9b28e13b01a33af121ee022d18d1ac95acbcc2692862\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"shadowEvaluation\":{\"contractVersion\":\"shadow-v1\",\"ruleVersion\":\"structured-human-v1\",\"policyVersion\":\"operator-publication-1\",\"sourceId\":\"ikebe\",\"candidateId\":\"09c0dd2acb3c250385447e0053745e45edf316a5b11962ae0c37af9155bff7cd\",\"candidateRevision\":1,\"candidateSnapshot\":\"a39ebe2c8a123e568e8bca16746968a631c3d42ed4d859ddf8781475225badfc\",\"operatorFinalVerdict\":\"approve\",\"trigger\":\"pre_decision\",\"generatedAt\":1792796754068,\"profile\":{\"articleIdentity\":\"09c0dd2acb3c250385447e0053745e45edf316a5b11962ae0c37af9155bff7cd\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\",\"kind\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"structured_review_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"23b75265bf6d7c7e093d9b28e13b01a33af121ee022d18d1ac95acbcc2692862\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"publicationValidation\":{\"errors\":[],\"policyVersion\":\"operator-publication-1\",\"valid\":true}}}",
+      "policy_version": "operator-publication-1",
+      "success_state": "committed"
+    },
+    {
+      "decision_id": "a97530bc-1cdb-469d-b15c-6060d131d715",
+      "candidate_id": "879d32bcabb1b0f4f17ae88d5cfe9e29eeb3a12d37d084ce0b06c4c0cdd6be4e",
+      "verdict": "approve",
+      "reason": "useful_product",
+      "actor_type": "human_operator",
+      "decided_at": 1793401780944,
+      "created_at": 1793401780944,
+      "candidate_revision": 1,
+      "candidate_snapshot": "092df6b8fe2ecdfb9747bbef80495434889914a1b3bb036a5d558ae95ba85319",
+      "source_id": "ikebe",
+      "category": "recording_audio",
+      "decision_features_json": "{\"operation\":\"pending_decision\",\"factsPresent\":true,\"hasDate\":true,\"eventType\":\"new_product\",\"insightsProfile\":{\"articleIdentity\":\"879d32bcabb1b0f4f17ae88d5cfe9e29eeb3a12d37d084ce0b06c4c0cdd6be4e\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\",\"kind\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"structured_review_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"1afbcbedc0153d7bbe6faa6023a800f7ddecb621afc139d3cc39dff8921f639c\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"shadowEvaluation\":{\"contractVersion\":\"shadow-v1\",\"ruleVersion\":\"structured-human-v1\",\"policyVersion\":\"operator-publication-1\",\"sourceId\":\"ikebe\",\"candidateId\":\"879d32bcabb1b0f4f17ae88d5cfe9e29eeb3a12d37d084ce0b06c4c0cdd6be4e\",\"candidateRevision\":1,\"candidateSnapshot\":\"092df6b8fe2ecdfb9747bbef80495434889914a1b3bb036a5d558ae95ba85319\",\"operatorFinalVerdict\":\"approve\",\"trigger\":\"pre_decision\",\"generatedAt\":1793401780944,\"profile\":{\"articleIdentity\":\"879d32bcabb1b0f4f17ae88d5cfe9e29eeb3a12d37d084ce0b06c4c0cdd6be4e\",\"articleNature\":\"not_firmware\",\"category\":\"recording_streaming\",\"factShape\":[\"brand\",\"product\",\"identifierBasis\",\"kind\"],\"factsVerified\":true,\"freshness\":\"within_7_days\",\"reviewReasons\":[\"structured_review_required\",\"verified_facts_recheck\"],\"source\":\"ikebe\",\"surface\":\"www.ikebe-gakki-pb.com/new_product\",\"topicIdentity\":\"1afbcbedc0153d7bbe6faa6023a800f7ddecb621afc139d3cc39dff8921f639c\",\"type\":\"new_product\",\"version\":\"structured-human-v1\"},\"publicationValidation\":{\"errors\":[],\"policyVersion\":\"operator-publication-1\",\"valid\":true}}}",
+      "policy_version": "operator-publication-1",
+      "success_state": "committed"
+    }
+  ]
+}
