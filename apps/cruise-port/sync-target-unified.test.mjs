@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {readFileSync} from 'node:fs';
+import {appSyncStatusPresentation as status} from './sync-center-controller.js';
+const target=state=>({reportKnown:true,lastReport:{state,reportedAt:1}});
+const app=()=>({status:'synced',snapshot:'aligned',removalSafety:'safe',attentionCount:0,environments:[target('clean')],activeAppDeviceCount:1});
+test('only aligned successful reports earn the synced label',()=>{assert.equal(status(app()).label,'✓ 同期済み');});
+test('pending is not a completed sync',()=>{const a=app();a.removalSafety='unknown';a.environments=[target('pending')];assert.equal(status(a).state,'syncing');});
+test('no report or unverifiable snapshot never claims success',()=>{for(const state of [null,'pending']){const a=app();a.snapshot='unverified';a.removalSafety='unknown';a.environments=[state?target(state):{reportKnown:true,lastReport:null}];assert.notEqual(status(a).label,'✓ 同期済み');}});
+test('revoking the last target does not create success',()=>{assert.equal(status({...app(),status:'detached',environments:[],activeAppDeviceCount:0}).label,'未接続');});
+test('attention and mismatched snapshots retain their checks',()=>{assert.equal(status({...app(),removalSafety:'attention',attentionCount:1}).label,'確認が必要');assert.equal(status({...app(),snapshot:'mismatch'}).state,'recheck');});
+test('offline and fetch errors never claim success',()=>{for(const k of ['offline','error'])assert.notEqual(status(app(),k).label,'✓ 同期済み');});
+test('one shared target renderer supports both surfaces; bulk detach stays in management',()=>{const ui=readFileSync(new URL('./sync-center-ui.js',import.meta.url),'utf8');assert.match(ui,/createEnvironmentDetails\(\{ entry: app/);assert.match(ui,/listId: `info-\$\{app.id\}`/);assert.equal((ui.match(/function createEnvironmentDetails/g)||[]).length,1);const panel=ui.slice(ui.indexOf('function createSyncInfoPanel'),ui.indexOf('// Confirmation copy'));assert.doesNotMatch(panel,/syncAppDetach|syncAppEnvironmentRevoke|createRenameButton/);assert.match(ui,/detach.dataset.syncAppDetach=entry.id/);});
