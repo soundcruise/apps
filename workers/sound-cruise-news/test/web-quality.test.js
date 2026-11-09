@@ -148,3 +148,31 @@ test('0026 is additive: old hint rows and old SELECT/INSERT contracts survive',a
   assert.equal((await db.prepare('SELECT COUNT(*) n FROM news_web_hints').first()).n,1);
  }finally{await mf.dispose();}
 });
+
+test('Nov9 retained results: only explicit syndication coalesces; freshness is qualified',async()=>{
+ const {hintSyndicationKey,qualifiedWebEstimate}=await import('../src/web-discovery-quality.js');
+ const observed=JSON.parse(await readFile(new URL('./fixtures/web-nov9-observed.json',import.meta.url)));
+ assert.equal(observed.length,12);
+ const official=observed.find(x=>x.url.includes('yamaha.com/ja/news_release'));
+ const syndicated=observed.find(x=>x.url.includes('sankei.com'));
+ assert.equal(hintSyndicationKey(official),hintSyndicationKey(syndicated));
+ assert(hintSyndicationKey(official));
+ const different=observed.find(x=>x.url.includes('vethel.media'));assert.notEqual(hintSyndicationKey(official),hintSyndicationKey(different));
+ for(const word of ['新色','限定','復刻','仕様変更'])assert.equal(hintSyndicationKey({...official,title:official.title+word}),null);
+ assert.notEqual(hintSyndicationKey({...official,title:official.title.replace('60','70')}),hintSyndicationKey(official));
+ assert.equal(hintSyndicationKey({...official,search_meta_json:'{}'}),null);
+ const e=qualifiedWebEstimate(JSON.parse(official.estimate_json),JSON.parse(official.search_meta_json));
+ assert(!e.reason.includes('最近'));assert.match(e.reason,/新着性は未確認/);assert.equal(e.priority,'low');
+ assert.match(qualifiedWebEstimate(estimate,{publishedAtHint:'2026-11-06'}).reason,/未検証/);
+ const dir=await mkdtemp(join(tmpdir(),'nov9-triage-'));const r=await localDatabase(dir);
+ try{
+  let calls=0,sent=0;
+  const out=await runWebDiscovery({NEWS_DB:r.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["offline"]'},Date.parse('2026-11-09T10:10:41Z'),{search:async()=>[official,syndicated,different].map(h=>({...h,lastModifiedDate:JSON.parse(h.search_meta_json).lastModifiedHint})),classify:async hs=>{calls++;sent+=hs.length;return hs.map(()=>({...estimate,reason:'日付も最近で新着ニュースです'}));}});
+  assert.equal(out.errors,0);assert.equal(sent,2);assert.equal(calls,1);
+  const rows=(await r.db.prepare('SELECT * FROM news_web_hints').all()).results;
+  assert.equal(rows.filter(x=>x.reason==='same_news_hint_unconfirmed').length,1);
+  assert(rows.filter(x=>x.estimate_json).every(x=>!JSON.parse(x.estimate_json).reason.includes('最近')));
+  assert.equal((await r.db.prepare('SELECT COUNT(*) n FROM candidate_items').first()).n,0);
+  assert.equal((await r.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+ }finally{await r.mf.dispose();await rm(dir,{recursive:true,force:true});}
+});

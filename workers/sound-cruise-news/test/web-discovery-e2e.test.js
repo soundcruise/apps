@@ -44,7 +44,7 @@ test('failed model holds, invalid output rejected, known URL and denied host avo
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["acoustic"]',NEWS_WEB_DENIED_HOSTS:'["blocked.test"]'};
   const d={search:async()=>[{url:'https://blocked.test/news',title:'blocked'},{url:'https://example.test/new',title:'<script>悪意</script>',publishedDate:'2026-10-30'}],classify:async()=>[{formalFacts:true}]};
-  await runWebDiscovery(env,now,d);let data=await listWebHints(env,now);assert.equal(data.items.length,1);assert.equal(data.items[0].status,'hold');assert.equal(data.items[0].reason,'web-triage-3:classification_schema_failed');
+  await runWebDiscovery(env,now,d);let data=await listWebHints(env,now);assert.equal(data.items.length,1);assert.equal(data.items[0].status,'hold');assert.equal(data.items[0].reason,'web-triage-4:classification_schema_failed');
   const view=renderWebDiscovery(dom,data);assert(JSON.stringify(view).includes('<script>悪意</script>'));
   const before=(await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls;await runWebDiscovery(env,now,d);assert.equal((await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls,before);
   await runWebDiscovery(env,now+31*86400000,{search:async()=>[],classify:()=>assert.fail()});assert.equal((await listWebHints(env,now+31*86400000)).items.length,0);
@@ -113,7 +113,7 @@ test('saved 15 hints survive model failure, daily bounded retry and restart with
   for(let i=0;i<15;i++)await saveHint(runtime.db,{url:`https://fixture.test/${i}`,title:`日本語 新製品 ${i}`,provider:'exa',searchedAt:now},now,{metadata:{publishedAtHint:'2026-10-30',languageHint:null}});
   const failed=await runWebDiscovery(env,now,{search:async()=>[],classify:async hints=>{assert(hints.length<=3);throw Error('private provider message');}});
   assert.equal(failed.ai_calls,5);assert.equal(failed.errors,5);
-  let rows=(await listWebHints(env,now)).items;assert.equal(rows.length,15);assert(rows.every(h=>h.reason==='web-triage-3:classification_model_failed'));
+  let rows=(await listWebHints(env,now)).items;assert.equal(rows.length,15);assert(rows.every(h=>h.reason==='web-triage-4:classification_model_failed'));
   assert.equal((await runtime.db.prepare('SELECT MIN(retry_at) at FROM news_web_hints').first()).at,Date.parse('2026-10-31T21:00:00Z'));
   // Retry is delayed; a repeated same-day invocation consumes no further model calls.
   await runWebDiscovery(env,now,{search:async()=>[],classify:()=>assert.fail()});
@@ -132,6 +132,6 @@ test('legacy exhausted failures get one versioned recovery, new exhausted failur
   await runtime.db.prepare("UPDATE news_web_hints SET attempts=3,status='hold',reason='classification_schema_failed'").run();let calls=0;
   const d={search:async()=>[],classify:async()=>{calls++;throw Error('private');}};
   await runWebDiscovery(env,now,d);assert.equal(calls,1);await runWebDiscovery(env,now+86400000,d);assert.equal(calls,1);
-  assert.equal((await listWebHints(env,now)).items[0].reason,'web-triage-3:classification_model_failed');
+  assert.equal((await listWebHints(env,now)).items[0].reason,'web-triage-4:classification_model_failed');
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });

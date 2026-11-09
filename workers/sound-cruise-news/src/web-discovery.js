@@ -1,6 +1,6 @@
 import {manualPermit,manualAvailability} from './web-manual-permit.js';
 import {webVerification} from './web-verification.js';
-import {DEFAULT_WEB_QUERIES,searchPlan,publicSearchUrl,resultMetadata,searchDate,screenWebHint,beginWebSearch,finishWebSearch,recentWebSearches} from './web-discovery-quality.js';
+import {hintSyndicationKey,qualifiedWebEstimate,DEFAULT_WEB_QUERIES,searchPlan,publicSearchUrl,resultMetadata,searchDate,screenWebHint,beginWebSearch,finishWebSearch,recentWebSearches} from './web-discovery-quality.js';
 import {SOURCES,evidenceGate} from './registry.js';
 import {nextDailyCollectionAt} from './collection-clock.js';
 // Japanese characters in the title are only a hint; page language must be verified by a human.
@@ -66,7 +66,7 @@ async function boundedText(response,max){
  const reader=response.body.getReader();const decoder=new TextDecoder();let text='',n=0;
  try{for(;;){const {value,done}=await reader.read();if(done)break;n+=value.byteLength;if(n>max){await reader.cancel();throw Error('response_too_large');}text+=decoder.decode(value,{stream:true});}return text+decoder.decode();}finally{reader.releaseLock();}
 }
-export const WEB_CLASSIFIER_VERSION='web-triage-3';
+export const WEB_CLASSIFIER_VERSION='web-triage-4';
 const estimateSchema={type:'object',additionalProperties:false,required:['category','brand','product','event','value','priority','relevance','duplicate','reason'],properties:Object.fromEntries(['category','brand','product','event','value','priority','relevance','duplicate','reason'].map(k=>[k,['value','priority','relevance'].includes(k)?{type:'string',enum:['high','medium','low','unknown']}:k==='duplicate'?{type:'string',enum:['possible','unknown']}:{type:'string',maxLength:k==='reason'?60:100}]))};
 function triageInput(h){
  let meta={};try{meta=JSON.parse(h.search_meta_json||'{}')||{};}catch{}
@@ -191,6 +191,8 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=
   metadata.verification=await verify(h.url);
   await db.prepare('UPDATE news_web_hints SET search_meta_json=? WHERE url=?').bind(JSON.stringify(metadata),h.url).run();
  }
+ const triagePeers=new Map();
+ for(const h of (await db.prepare("SELECT * FROM news_web_hints WHERE estimate_json IS NOT NULL ORDER BY searched_at,url").all()).results){const k=hintSyndicationKey(h);if(k&&!triagePeers.has(k))triagePeers.set(k,h.url);}
  for(let batch=0;batch<config.max&&!stopReason;batch++){
  const selected=(await db.prepare("SELECT * FROM news_web_hints WHERE status IN ('unreviewed','hold') AND (attempts<3 OR reason IN ('classification_failed','classification_schema_failed','model_output_truncated')) AND retry_at<=? AND (?=0 OR attempts=0) ORDER BY searched_at,url LIMIT 15").bind(now,manual?1:0).all()).results;
  const pending=[];
@@ -199,7 +201,9 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=
   const screening=screenWebHint(h,metadata,knownRows,now);
   if(knownUrls.has(publicSearchUrl(h.url))){await db.prepare("UPDATE news_web_hints SET status='excluded',reason='known_news_url',attempts=3 WHERE url=?").bind(h.url).run();continue;}
   if(!screening.ai){await db.prepare('UPDATE news_web_hints SET status=?,reason=?,attempts=3 WHERE url=?').bind(screening.status,screening.reason,h.url).run();continue;}
-  if(pending.length<3)pending.push(h);
+  const key=hintSyndicationKey(h),peer=key&&triagePeers.get(key);
+  if(peer&&peer!==h.url){metadata.triagePeerUrl=peer;await db.prepare("UPDATE news_web_hints SET status='hold',reason='same_news_hint_unconfirmed',attempts=3,search_meta_json=? WHERE url=?").bind(JSON.stringify(metadata),h.url).run();continue;}
+  if(pending.length<3){pending.push(h);if(key)triagePeers.set(key,h.url);}
  }
  if(!pending.length){if(!selected.length)break;continue;}
  if(!await reserve('ai_calls'))break;
@@ -213,7 +217,8 @@ export async function runWebDiscovery(env,now=Date.now(),dependencies={},manual=
    if(!Array.isArray(estimates)||estimates.length!==pending.length)throw Error('invalid_estimate');
    stage='schema';const triaged=estimates.map(validateEstimate).map((e,i)=>{
     const dated=!!JSON.parse(pending[i].search_meta_json||'{}').publishedAtHint,low=e.value==='low'||e.relevance==='low';
-    return {estimate:{...e,priority:!dated?'low':e.priority==='high'?'medium':e.priority},status:low?'excluded':dated?'classified':'hold',reason:low||dated?e.reason:'publication_verification_pending',attempts:dated?pending[i].attempts+1:3};
+    const estimate=qualifiedWebEstimate(e,JSON.parse(pending[i].search_meta_json||'{}'));
+    return {estimate,status:low?'excluded':dated?'classified':'hold',reason:low||dated?estimate.reason:'publication_verification_pending',attempts:dated?pending[i].attempts+1:3};
    });
    stage='storage';
    await db.batch(pending.map((h,i)=>{const t=triaged[i];return db.prepare('UPDATE news_web_hints SET estimate_json=?,status=?,reason=?,attempts=? WHERE url=?').bind(JSON.stringify(t.estimate),t.status,t.reason,t.attempts,h.url);}));

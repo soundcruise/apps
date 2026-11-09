@@ -104,3 +104,26 @@ export async function recentWebSearches(db,now){
  const rows=(await db.prepare('SELECT id,query_id,queried_at,query_text,outcome,results_json FROM news_web_searches WHERE expires_at>? ORDER BY queried_at DESC,id DESC LIMIT 15').bind(now).all()).results;
  return rows.map(({results_json,...r})=>({...r,results:JSON.parse(results_json)}));
 }
+
+// Search-only syndication suppression, never a formal duplicate verdict. Require
+// a long shared lead, one identical quoted product and the same
+// provider modification day. Different headlines/editions remain unresolved.
+export function hintSyndicationKey(h){
+ const t=norm(h.title);
+ if(/限定|新色|復刻|再発売|記念|仕様|改良|limited|reissue|anniversary|colou?r|価格|値上|値下|終了|中止|更新|アップデート|予約|再入荷/i.test(t))return null;
+ const products=[...t.matchAll(/[「『]([^」』]{3,100})[」』]/g)].map(x=>x[1]);
+ if(products.length!==1||!/[a-z]/.test(products[0])||!/[0-9]/.test(products[0]))return null;
+ const meta=parse(h.search_meta_json)||{},date=searchDate(meta.lastModifiedHint);
+ if(!date)return null;
+ const lead=t.split(/[「『]/)[0].replace(/[\s、,。・—─-]/g,'').slice(0,28);
+ if(lead.length<28)return null;
+ return JSON.stringify([lead,products[0],date.slice(0,10)]);
+}
+export function qualifiedWebEstimate(estimate,metadata){
+ // Even a provider publication value is an unverified hint. Do not retain a
+ // model's unsupported freshness claim as the explanation shown to an editor.
+ const published=searchDate(metadata?.publishedAtHint);
+ const caveat=published?'検索の公開日は未検証です。':'公開日・新着性は未確認です。';
+ const reason=/新着|最新|最近|新鮮|直近|今[日週月]|日付.{0,8}新/.test(estimate.reason)?'掲載価値はAI推定です。':estimate.reason;
+ return {...estimate,priority:published?(estimate.priority==='high'?'medium':estimate.priority):'low',reason:reason.slice(0,260)+' '+caveat};
+}
