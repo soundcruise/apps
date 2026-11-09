@@ -1,8 +1,8 @@
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.32.0';
-import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.32.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.33.0';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.33.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
 
@@ -100,32 +100,9 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
         appendText(targets, 'h3', 'sync-center-app-info-heading', '同期先');
         if (detail.notice) appendText(targets, 'p', 'sync-center-app-info-notice', detail.notice);
         if (detail.targets?.length) {
-            const list = document.createElement('ul');
-            list.className = 'sync-center-app-info-targets';
-            list.replaceChildren(...detail.targets.map((target) => {
-                const item = document.createElement('li');
-                item.className = `sync-center-app-info-target sync-center-app-info-target--${target.tone}`;
-                item.dataset.syncTargetState = target.state;
-                const mark = appendText(item, 'span', 'sync-center-app-info-mark', target.mark);
-                mark.setAttribute('aria-hidden', 'true');
-                const copy = document.createElement('div');
-                copy.className = 'sync-center-app-info-target-copy';
-                appendText(copy, 'strong', '', target.name);
-                if (target.secondary) appendText(copy, 'small', 'sync-center-app-info-meta', target.secondary);
-                appendText(copy, 'span', 'sync-center-app-info-state', target.stateText);
-                if (target.countText) appendText(copy, 'span', 'sync-center-app-info-state', target.countText);
-                for (const text of target.meta) appendText(copy, 'small', 'sync-center-app-info-meta', text);
-                item.append(copy);
-                if (target.id && renameEnabled) {
-                    const actions = document.createElement('div');
-                    actions.className = 'sync-center-app-info-target-actions';
-                    actions.append(createRenameButton({ kind: 'app', id: target.id, appId: app.id, context: app.name,
-                        userLabel: target.userLabel, registeredLabel: target.registeredLabel,
-                        shortId: target.shortId, name: target.name }));
-                    item.append(actions);
-                }
-                return item;
-            }));
+            const list = createEnvironmentDetails({ entry: app, portEnvironments: [],
+                renameEnabled, listId: `info-${app.id}` });
+            list.hidden = false;
             targets.append(list);
         } else if (detail.emptyText) {
             appendText(targets, 'p', 'sync-center-app-info-text', detail.emptyText);
@@ -334,6 +311,7 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
         details.id = `sync-center-environment-details-${listId}`;
         details.hidden = true;
         const targetNames = describeSyncTargetNames(entry.environments);
+        const reports = entry.id === 'port' ? [] : describeAppSyncDetail(entry).targets || [];
         const environmentRows = entry.environments.map((environment, index) => {
             const naming = targetNames[index];
             const item = document.createElement('li');
@@ -353,6 +331,12 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
             const lastSeen = environment.lastSeenAt == null ? '不明' : new Date(environment.lastSeenAt).toLocaleString('ja-JP');
             metadata.textContent = `最終利用 ${lastSeen}`;
             copy.append(metadata);
+            const report = reports.find((target) => target.id === environment.id);
+            if (report) {
+                appendText(copy, 'small', 'sync-center-app-info-state', report.stateText);
+                if (report.countText) appendText(copy, 'small', 'sync-center-app-info-state', report.countText);
+                for (const text of report.meta) appendText(copy, 'small', 'sync-center-app-info-meta', text);
+            }
             item.append(copy);
             if (environment.id && renameEnabled) {
                 const rename = createRenameButton({ kind: entry.id === 'port' ? 'account' : 'app', id: environment.id,

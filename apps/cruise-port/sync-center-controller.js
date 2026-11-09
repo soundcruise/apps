@@ -23,10 +23,10 @@ const MEMBERSHIP_STATES = Object.freeze({
 const ACCOUNT_TERMINAL_CODES = new Set(['account_deleting', 'account_deleted', 'account_device_revoked']);
 
 const APP_STATUS_PRESENTATIONS = Object.freeze({
+    synced: Object.freeze({ state: 'available', label: '✓ 同期済み' }),
     available: Object.freeze({ state: 'available', label: 'クラウド利用可' }),
     syncing: Object.freeze({ state: 'syncing', label: '同期中' }),
     attention: Object.freeze({ state: 'attention', label: '確認が必要' }),
-    reportedAttention: Object.freeze({ state: 'attention', label: '前回報告に確認事項' }),
     detached: Object.freeze({ state: 'detached', label: '未接続' }),
     connecting: Object.freeze({ state: 'connecting', label: '接続中' }),
     deleting: Object.freeze({ state: 'deleting', label: '削除中' }),
@@ -37,8 +37,8 @@ const APP_STATUS_PRESENTATIONS = Object.freeze({
 
 // This is presentation-only.  The membership status and removal-safety
 // authority below continue to drive every existing operation and callback.
-// 「クラウド利用可」 describes the ready cloud dataset, not this device's connection or
-// completion. It is never a reason that removal is safe. A target that has not reported yet (pending / no report)
+// A synced label requires aligned success reports from every active target.
+// It describes their last reports, not a live inspection or a deletion authority. It is never a reason that removal is safe. A target that has not reported yet (pending / no report)
 // stays neutral. An attention/error report is historical evidence from that target,
 // not a live inspection of the app opened on this device.
 export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
@@ -53,8 +53,13 @@ export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
         // The summary and the devices list disagree: neither is known to be newer, so the row
         // claims neither 「✓ 同期済み」 nor 「確認が必要」.
         if (app.snapshot === 'mismatch') return APP_STATUS_PRESENTATIONS.recheck;
-        return app.removalSafety === 'attention' || Number(app.attentionCount) > 0
-            ? APP_STATUS_PRESENTATIONS.reportedAttention : APP_STATUS_PRESENTATIONS.available;
+        if (app.removalSafety === 'attention' || Number(app.attentionCount) > 0)
+            return APP_STATUS_PRESENTATIONS.attention;
+        if (app.environments?.some((target) => target.lastReport?.state === 'pending'))
+            return APP_STATUS_PRESENTATIONS.syncing;
+        return app.snapshot === 'aligned' && app.removalSafety === 'safe' &&
+            app.environments?.length > 0 && deriveTargetSafety(app.environments) === 'safe'
+            ? APP_STATUS_PRESENTATIONS.synced : APP_STATUS_PRESENTATIONS.available;
     }
     return APP_STATUS_PRESENTATIONS.attention;
 }
