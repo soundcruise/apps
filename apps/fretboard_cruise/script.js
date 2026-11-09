@@ -6,8 +6,8 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-const FRETBOARD_CRUISE_APP_VERSION = '2.27.6';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.27.6';
+const FRETBOARD_CRUISE_APP_VERSION = '2.27.7';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.27.7';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
