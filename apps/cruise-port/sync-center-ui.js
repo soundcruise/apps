@@ -1,8 +1,8 @@
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.30.7';
-import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.30.7';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.31.0';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.31.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
 
@@ -114,7 +114,7 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
                 if (target.secondary) appendText(copy, 'small', 'sync-center-app-info-meta', target.secondary);
                 appendText(copy, 'span', 'sync-center-app-info-state', target.stateText);
                 if (target.countText) appendText(copy, 'span', 'sync-center-app-info-state', target.countText);
-                if (target.meta.length) appendText(copy, 'small', 'sync-center-app-info-meta', target.meta.join('・'));
+                for (const text of target.meta) appendText(copy, 'small', 'sync-center-app-info-meta', text);
                 item.append(copy);
                 if (target.id && renameEnabled) {
                     const actions = document.createElement('div');
@@ -142,6 +142,7 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
             appendText(targets, 'p', 'sync-center-app-info-text', detail.emptyText);
         }
         for (const text of detail.guidance || []) appendText(targets, 'p', 'sync-center-app-info-guidance', text);
+        if (renameEnabled && detail.targets?.length) appendText(targets, 'p', 'sync-center-app-info-guidance', SYNC_DETAIL_COPY.unusedTarget);
         if (detail.footnote) appendText(targets, 'p', 'sync-center-app-info-footnote', detail.footnote);
         panel.append(targets);
     }
@@ -258,11 +259,12 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         chip.textContent = visibleStatus;
         detail.append(chip);
         let infoPanel = null;
+        let targetsToggle = null;
         if (appHasSyncDetail(app, presentation.kind)) {
             infoPanel = createSyncInfoPanel(app, describeAppSyncDetail(app, {
                 kind: presentation.kind, devicesState: presentation.devicesState
             }), { onRecheck, aiSupport, renameEnabled: orchestrationEnabled && presentation.accountState === 'active' });
-            const toggle = createSyncTargetsTab({ name: app.name,
+            const toggle = targetsToggle = createSyncTargetsTab({ name: app.name,
                 count: appTargetCount(app, presentation.devicesState), panelId: infoPanel.id });
             toggle.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -324,10 +326,16 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         if (presentationStatus.state === 'attention' || presentationStatus.state === 'recheck') {
             const review = document.createElement('button');review.type='button';review.className='sync-center-app-action secondary';
             const recheck = presentationStatus.state === 'recheck';
-            review.textContent=recheck?'もう一度確認':'アプリを開く';review.dataset.syncResolveApp=app.id;
-            review.dataset.syncAriaBase=app.name+(recheck?'の報告を再確認':'を開く（別画面）');
+            const openApp = presentation.accountState === 'active' && canOpenReportedApp(app, presentation);
+            review.textContent=recheck?'もう一度確認':openApp?'アプリを開く':'同期先を確認';review.dataset.syncResolveApp=app.id;
+            review.dataset.syncAriaBase=app.name+(recheck?'の報告を再確認':openApp?'を開く（別画面）':'の同期先を確認');
             review.setAttribute('aria-label',review.dataset.syncAriaBase+'（'+visibleStatus+'）');
-            review.addEventListener('click',()=>{void (recheck?onRecheck?.():onResolveApp?.(app));});actions.append(review);
+            if (!recheck && !openApp) review.setAttribute('aria-controls', infoPanel.id);
+            review.addEventListener('click',()=>{
+                if (recheck) void onRecheck?.();
+                else if (openApp) void onResolveApp?.(app);
+                else { infoPanel.hidden=false;targetsToggle.setAttribute('aria-expanded','true'); }
+            });actions.append(review);
         }
         actions.append(action);
         row.append(image, copy, actions);
@@ -341,10 +349,8 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
 // Membership-level reports, not a count of live local conflicts.
 export function syncAttentionItems(presentation) {
     if(presentation.kind!=='ready'||presentation.accountState!=='active')return [];
-    const apps=(presentation.apps||[]).filter(a=>appSyncStatusPresentation(a).state==='attention').map(a=>({id:a.id,
-        count:Math.max(1,a.attentionCount||0)}));
-    if(presentation.portStatus?.state==='attention')apps.unshift({id:'port',count:Math.max(1,presentation.portConflictCount||0),
-        port:true});
+    const apps=(presentation.apps||[]).filter(a=>appSyncStatusPresentation(a).state==='attention').map(a=>({id:a.id}));
+    if(presentation.portStatus?.state==='attention')apps.unshift({id:'port'});
     return apps;
 }
 function renderAttentionSummary(root,presentation) {

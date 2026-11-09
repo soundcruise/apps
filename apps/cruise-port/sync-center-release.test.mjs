@@ -11,7 +11,7 @@ const changed = ['app-version.js', 'sync-center-controller.js', 'sync-center-dev
     'sync-center-ui.js', 'sync-center-navigation.js', 'sync-center-orchestrator.js', 'tuner-app.js'];
 
 test('Sync Center patch advances every changed module and transitive caller cache edge', () => {
-    assert.equal(CRUISE_PORT_APP_VERSION, '1.30.7');
+    assert.equal(CRUISE_PORT_APP_VERSION, '1.31.0');
     for (const name of changed) {
         const incoming = edges.filter(edge => edge.name === name);
         assert.ok(incoming.length, `${name} has a public importer`);
@@ -22,7 +22,7 @@ test('Sync Center patch advances every changed module and transitive caller cach
             }
         }
     }
-    assert.match(read('index.html'), /practice-menu-app\.js\?v=1\.30\.7/);
-    assert.match(read('pro_9a3943176561/index.html'), /pro-app-boot\.js\?v=1\.30\.7/);
-    assert.match(read('pro-app-boot.js'), /practice-menu-app\.js\?v=1\.30\.7/);
+    assert.match(read('index.html'), /practice-menu-app\.js\?v=1\.31\.0/);
+    assert.match(read('pro_9a3943176561/index.html'), /pro-app-boot\.js\?v=1\.31\.0/);
+    assert.match(read('pro-app-boot.js'), /practice-menu-app\.js\?v=1\.31\.0/);
 });

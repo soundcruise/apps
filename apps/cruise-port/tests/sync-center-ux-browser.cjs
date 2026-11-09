@@ -1,5 +1,5 @@
 // Real DOM / IndexedDB, synthetic Account only; never contacts production.
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -20,7 +20,9 @@ const server = http.createServer((req, res) => {
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch({ headless:true, channel:'chrome' });
+  const engine = process.env.SYNC_UX_BROWSER || 'chromium';
+  assert(['chromium','webkit'].includes(engine));
+  const browser = await (engine === 'webkit' ? webkit.launch({headless:true}) : chromium.launch({headless:true,channel:'chrome'}));
   let checks = 0;
   try {
     for (const edition of ['index.html', 'pro_9a3943176561/index.html']) {
@@ -36,16 +38,21 @@ const server = http.createServer((req, res) => {
         document.getElementById('pro-gate-overlay')?.remove();
         document.body.classList.remove('pro-gate-active');
         document.querySelectorAll('[inert]').forEach(el => el.removeAttribute('inert'));
-        window.calls = { opens:[], rechecks:0, port:0 };
-        window.makePresentation = (state = 'attention', count = 0) => {
+        window.calls = { opens:[], rechecks:0, port:0, revokes:[] };
+        // Exercise the real confirmation UI; the only mutation callback is a synthetic recorder.
+        ui.bindSyncCenterActions(root,{canSync:()=>true,orchestrator:{enabled:true,
+          async revokeAppEnvironment(app,id){calls.revokes.push([app,id]);}}});
+        window.makePresentation = (state = 'attention', count = 0, scope = 'remote') => {
           const ids = ['pitch','fretboard','rhythm','chord'];
           const memberships = ids.map(appId => ({appId,state:'active',activeAppDeviceCount:appId==='chord'?1:2,
             attentionConflictCount:appId==='chord'?0:count,removalSafety:appId==='chord'||state==='clean'?'safe':state==='pending'?'unknown':'attention',
             dataset:{state:'ready',schemaVersion:1,recordCount:4}}));
           const appDevices = ids.flatMap(appId => (appId==='chord'?['new']:['old','new']).map(which => ({
             id:`${appId}-${which}`,appId,label:which==='old'?'Synthetic old target':'Synthetic current target',
-            createdAt:1,lastSeenAt:3,revokedAt:null,isCurrent:which==='new',
-            lastReport:{state:which==='new'?'clean':state,reportedAt:which==='new'?3:2,attentionCount:which==='old'?count:0}})));
+            createdAt:1,lastSeenAt:3,revokedAt:null,
+            isCurrent:scope==='unknown'?false:scope==='ambiguous'||which===(scope==='current'?'old':'new'),
+            lastReport:scope==='missing'&&which==='new'?undefined:{state:which==='new'?(scope==='mixed'?'error':'clean'):state,
+              reportedAt:which==='new'?3:2,attentionCount:which==='old'?count:0}})));
           return {...ctrl.normalizeSyncCenterSummary({account:{id:'synthetic-A',state:'active',recoveryVersion:1},memberships},{devices:[],appDevices}),
             portStatus:{state:'synced',label:'✓ 同期済み'},portConflictCount:0,portRuntimeActive:false};
         };
@@ -66,7 +73,7 @@ const server = http.createServer((req, res) => {
       await page.evaluate(install);
       assert.deepEqual(await page.evaluate(()=>calls.opens), [], 'render must never open another app'); checks++;
       const saved = await page.evaluate(()=>({db:fixtureBefore,history:JSON.stringify(history.state),local:localStorage.getItem('synthetic-local-practice')}));
-      assert.equal(await page.locator('[data-sync-resolve-app="pitch"]').textContent(),'アプリを開く'); checks++;
+      assert.equal(await page.locator('[data-sync-resolve-app="pitch"]').textContent(),'同期先を確認'); checks++;
       assert.equal(await page.locator('.sync-center-app-status-chip--attention').first().textContent(),'前回報告に確認事項'); checks++;
       assert.equal(await page.locator('#sync-center-port-status-chip').textContent(),'✓ 同期済み'); checks++;
       for (const width of [393,320]) {
@@ -74,13 +81,51 @@ const server = http.createServer((req, res) => {
         assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'status wording must not overflow'); checks++;
       }
       await page.setViewportSize({width:393,height:852});
+      // A current target's clean report never erases another target's attention.
+      assert(await page.locator('#sync-center-app-info-pitch').isHidden()); checks++;
+      await page.locator('[data-sync-resolve-app="pitch"]').click();
+      assert.deepEqual(await page.evaluate(()=>calls.opens),[],'remote report opens details, not this browser app'); checks++;
+      assert(await page.locator('#sync-center-app-info-pitch').isVisible()); checks++;
+      assert.equal(await page.locator('[aria-controls="sync-center-app-info-pitch"].sync-center-targets-tab').getAttribute('aria-expanded'),'true'); checks++;
+      assert.match(await page.locator('#sync-center-app-info-pitch').textContent(),/最終報告.*使っていない同期先.*各同期先の「解除」/s); checks++;
+      assert.equal(await page.locator('#sync-center-app-info-pitch [data-sync-app-environment-revoke]').count(),2); checks++;
+      assert.deepEqual(await page.evaluate(()=>calls.revokes),[],'showing details cannot detach a target'); checks++;
+      await page.locator('#sync-center-app-info-pitch [data-sync-app-environment-revoke="pitch-old"]').click();
+      assert(await page.locator('#sync-center-lifecycle-confirm').isVisible()); checks++;
+      assert.match(await page.locator('#sync-center-lifecycle-summary').textContent(),/選択|Synthetic old target/); checks++;
+      assert.match(await page.locator('#sync-center-lifecycle-summary').textContent(),/ほかの同期先.*クラウド上と端末内のデータはそのまま/s); checks++;
+      assert.deepEqual(await page.evaluate(()=>calls.revokes),[],'target click first requires confirmation'); checks++;
+      await page.locator('#sync-center-lifecycle-close').click();
+      assert.deepEqual(await page.evaluate(()=>calls.revokes),[],'cancel leaves the target connected'); checks++;
+      await page.locator('#sync-center-app-info-pitch [data-sync-app-environment-revoke="pitch-old"]').click();
+      await page.locator('#sync-center-lifecycle-submit').click();
+      assert.deepEqual(await page.evaluate(()=>calls.revokes),[['pitch','pitch-old']],'only explicit confirmation reaches the synthetic revoke'); checks++;
+      // A small display must fit the opened reports and the actual controls, not just the page width.
+      await page.setViewportSize({width:320,height:852});
+      const visible = page.locator('#sync-center-app-info-pitch button, #sync-center-app-info-pitch .sync-center-app-info-meta, [data-sync-resolve-app="pitch"]');
+      for (const node of await visible.all()) {
+        const box = await node.boundingBox();
+        assert(box && box.x>=0 && box.x+box.width<=320 && box.height>0);
+        assert(await node.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=10));
+      }
+      checks++;
       if (process.env.SYNC_UX_ARTIFACT_DIR && edition==='index.html') {
         fs.mkdirSync(process.env.SYNC_UX_ARTIFACT_DIR,{recursive:true});
-        await page.screenshot({path:path.join(process.env.SYNC_UX_ARTIFACT_DIR,'sync-center-stage1.png')});
+        await page.screenshot({path:path.join(process.env.SYNC_UX_ARTIFACT_DIR,`sync-center-131-${engine}.png`),fullPage:true});
       }
-      // A current target's clean report never erases another target's attention.
+      await page.setViewportSize({width:393,height:852});
+      await page.evaluate(()=>render(makePresentation('attention',0,'current')));
+      assert.equal(await page.locator('[data-sync-resolve-app="pitch"]').textContent(),'アプリを開く'); checks++;
+      assert.deepEqual(await page.evaluate(()=>calls.opens),[],'current target also requires a click'); checks++;
       await page.locator('[data-sync-resolve-app="pitch"]').click();
       assert.deepEqual(await page.evaluate(()=>calls.opens),['pitch'],'only the explicit app link may open'); checks++;
+      for (const scope of ['unknown','mixed','ambiguous','missing']) {
+        await page.evaluate(scope=>render(makePresentation('attention',0,scope)),scope);
+        assert.equal(await page.locator('[data-sync-resolve-app="pitch"]').textContent(),'同期先を確認',scope); checks++;
+        await page.locator('[data-sync-resolve-app="pitch"]').click();
+        assert(await page.locator('#sync-center-app-info-pitch').isVisible(),scope); checks++;
+        assert.deepEqual(await page.evaluate(()=>calls.opens),['pitch'],`${scope} must not open another app`); checks++;
+      }
       await page.evaluate(()=>{ render(makePresentation());render(makePresentation());document.dispatchEvent(new Event('visibilitychange')); });
       assert.deepEqual(await page.evaluate(()=>calls.opens),['pitch'],'refresh/return must not open more apps'); checks++;
       assert.equal(await page.evaluate(()=>JSON.stringify(history.state)),saved.history,'render adds no seen/dismissal history'); checks++;
@@ -114,6 +159,6 @@ const server = http.createServer((req, res) => {
       assert.deepEqual(await page.evaluate(()=>calls.opens),[],'fresh page never auto-opens another app'); checks++;
       await context.close();
     }
-    console.log(`PASS: ${checks} Chromium DOM/IndexedDB checks, Standard and Pro`);
+    console.log(`PASS: ${checks} ${engine} DOM/IndexedDB checks, Standard and Pro`);
   } finally { await browser.close(); server.close(); }
 })().catch(error=>{console.error(error.stack);server.close();process.exitCode=1;});

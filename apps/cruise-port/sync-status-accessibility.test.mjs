@@ -77,4 +77,14 @@ test('while rows are checking the aria-label says 確認中… too', () => {
   assert.equal(action.getAttribute('aria-label'), 'コードクルーズで同期を解除（確認中…）');
 });
 
-test('review control is present only when needed and announces its actual status',()=>{const {review}=render(ready([target(ID,{state:'attention',reportedAt:1,attentionCount:1})],{removalSafety:'attention',attentionConflictCount:1}));assert.equal(review.textContent,'アプリを開く');assert.equal(review.getAttribute('aria-label'),'コードクルーズを開く（別画面）（前回報告に確認事項 1件）');assert.equal(render(ready([target(ID,{state:'clean',reportedAt:1,attentionCount:0})])).review,undefined);});
+test('review announces target details for another environment and app opening only for a confirmed current target',()=>{
+  const report = {state:'attention',reportedAt:1,attentionCount:1};
+  const other = render(ready([target(ID,report)],{removalSafety:'attention',attentionConflictCount:1})).review;
+  assert.equal(other.textContent,'同期先を確認');
+  assert.equal(other.getAttribute('aria-label'),'コードクルーズの同期先を確認（前回報告に確認事項 1件）');
+  assert.equal(other.getAttribute('aria-controls'),'sync-center-app-info-chord');
+  const current = render(ready([{...target(ID,report),isCurrent:true}],{removalSafety:'attention',attentionConflictCount:1})).review;
+  assert.equal(current.textContent,'アプリを開く');
+  assert.equal(current.getAttribute('aria-label'),'コードクルーズを開く（別画面）（前回報告に確認事項 1件）');
+  assert.equal(render(ready([target(ID,{state:'clean',reportedAt:1,attentionCount:0})])).review,undefined);
+});

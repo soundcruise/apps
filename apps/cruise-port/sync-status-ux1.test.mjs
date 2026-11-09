@@ -310,7 +310,7 @@ test('20: only explicitly labelled app links and existing controls are offered',
     const view = render(presentation);
     assertNoLaunch(view);
     const buttons = view.walk(view.row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-    for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['アプリを開く', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
+    for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['アプリを開く', '同期先を確認', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
   }
 });
 

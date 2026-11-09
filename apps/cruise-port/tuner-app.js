@@ -1,4 +1,4 @@
-import { CRUISE_PORT_APP_VERSION } from './app-version.js?v=1.30.7';
+import { CRUISE_PORT_APP_VERSION } from './app-version.js?v=1.31.0';
 import { createTunerAudioController } from './tuner-audio.js?v=1.28.0';
 import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.12.3';
 import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.59.3';

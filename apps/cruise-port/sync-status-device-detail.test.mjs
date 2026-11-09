@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSyncCenterController, normalizeSyncCenterSummary } from './sync-center-controller.js';
-import { describeAppSyncDetail, shortTargetIds, SYNC_DETAIL_COPY } from './sync-center-device-detail.js';
+import { describeAppSyncDetail, shortTargetIds, SYNC_DETAIL_COPY, canOpenReportedApp } from './sync-center-device-detail.js';
 import { renderAppRows } from './sync-center-ui.js';
 import { createPortSyncStatus } from './port-sync-status.js';
 
@@ -85,7 +85,7 @@ function assertNoLaunch(d, row) {
     assert.equal(node.tagName === 'a' && /cruise/i.test(node.href || ''), false, 'no app link');
   }
   const buttons = d.walk(row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-  for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['アプリを開く', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
+  for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['アプリを開く', '同期先を確認', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
 }
 
 test('1: all targets clean — simple row, ⓘ lists each target with 前回の完了報告あり', () => {
@@ -104,7 +104,7 @@ test('1: all targets clean — simple row, ⓘ lists each target with 前回の�
   assert.match(text, /クラウド\nクラウド上の同期データは利用できます/);
   assert.match(text, /同期先/);
   assert.equal((text.match(/前回の完了報告あり/g) || []).length, 2);
-  assert.match(text, /最終報告 \d{1,2}\/\d{1,2} \d{2}:\d{2}・追加 \d{1,2}\/\d{1,2} \d{2}:\d{2}/);
+  assert.match(text, /最終報告 \d{1,2}\/\d{1,2} \d{2}:\d{2}\n追加 \d{1,2}\/\d{1,2} \d{2}:\d{2}/);
   assert.doesNotMatch(text, /最終利用/, 'lastSeenAt is never presented as a report time');
   assert.doesNotMatch(text, /全端末同期済み|すべて最新|問題ありません/);
   d.toggle.click();
@@ -188,6 +188,31 @@ test('8: Android attention + iPhone clean is 確認が必要 with the attention 
   assert.equal(detail.targets[1].state, 'attention');
   assert.deepEqual([...detail.guidance], ['登録名「Android Chrome」のコードクルーズを開き、同期画面で内容を確認してください。']);
   assertNoLaunch(d, d.row);
+});
+
+test('reported app opening requires all problem reports to belong to one unambiguous current target', () => {
+  const current = target('chord', IPHONE, attention(1), {isCurrent:true});
+  const remoteClean = target('chord', ANDROID, clean());
+  const make = targets => chordPresentation(targets, {removalSafety:'attention',attentionConflictCount:1});
+  const allowed = make([current,remoteClean]);
+  assert.equal(canOpenReportedApp(chord(allowed),allowed),true);
+  const cases = [
+    [{...current,isCurrent:false},{...remoteClean,isCurrent:true}], // other target's clean is not evidence
+    [current,{...remoteClean,lastReport:error()}], // one current problem plus a different problem
+    [current,{...remoteClean,isCurrent:true}], // ambiguous current binding
+    [{...current,isCurrent:undefined},remoteClean],
+    [{...current,id:null},remoteClean],
+    [{...current,lastReport:{...attention(1),reportedAt:null}},remoteClean],
+    [current,{...remoteClean,lastReport:undefined}] // incomplete report response
+  ];
+  for (const targets of cases) {
+    const p = make(targets);
+    assert.equal(canOpenReportedApp(chord(p),p),false,JSON.stringify(targets));
+  }
+  for (const context of [{kind:'offline'},{kind:'error'},{devicesState:'unavailable'}]) {
+    assert.equal(canOpenReportedApp(chord(allowed),context),false);
+  }
+  assert.equal(canOpenReportedApp({...chord(allowed),snapshot:'mismatch'},allowed),false);
 });
 
 test('9/10: no app launch CTA in any state, even for the target connected from this Port', () => {
