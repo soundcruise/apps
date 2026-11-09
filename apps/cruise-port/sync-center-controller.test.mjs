@@ -339,7 +339,7 @@ test('app presentation status keeps safe-to-remove authority while exposing one 
         state: 'available', label: '✓ 同期済み'
     }, 'pending or unreported targets alone stay neutral');
     assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'attention' }), {
-        state: 'attention', label: '確認が必要'
+        state: 'attention', label: '前回報告に確認事項'
     });
     assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'safe' }, 'error'), {
         state: 'unavailable', label: '状態を取得できません'
