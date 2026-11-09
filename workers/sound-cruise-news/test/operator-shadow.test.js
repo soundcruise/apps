@@ -41,8 +41,15 @@ test('decision-time evidence context distinguishes publisher evidence, human sup
 test('new Shadow records retain evidence context and never retrofit it into old rule observations',async()=>{
  const s=await setup(),item=await put(s),before=JSON.stringify(await s.candidates()),old=fixture('RECOMMEND_APPROVE','approve');
  old.evaluation.rule_version='structured-human-v1';
- const result=await evaluate(s,item.id);assert.equal(result.ruleVersion,'structured-human-v2');assert.equal(result.evidenceContext.version,'shadow-evidence-1');
+ const result=await evaluate(s,item.id);assert.equal(result.ruleVersion,SHADOW_RULE_VERSION);assert.equal(result.evidenceContext.version,'shadow-evidence-1');
  assert.equal(result.evidenceContext.evidenceOrigin,'unknown');assert.equal(JSON.stringify(await s.candidates()),before);
  assert.equal(aggregateShadowMetrics([old.ledger],[old.evaluation],now).matchedHumanDecisions,0);
- assert.equal(JSON.parse((await s.db.prepare('SELECT evaluation_json FROM news_shadow_evaluations').first()).evaluation_json).evidenceContext.evidenceOrigin,'unknown');
+ const saved=await s.db.prepare('SELECT * FROM news_shadow_evaluations').first();
+ assert.equal(JSON.parse(saved.evaluation_json).evidenceContext.evidenceOrigin,'unknown');
+ const previous={...JSON.parse(saved.evaluation_json),evaluationId:'retained-v2',ruleVersion:'structured-human-v2'};
+ await s.db.prepare('INSERT INTO news_shadow_evaluations VALUES(?,?,?,?,?,?,?,?,?,?)').bind('retained-v2',saved.candidate_id,saved.candidate_revision,saved.candidate_snapshot,saved.evaluated_at,saved.policy_version,'structured-human-v2',saved.recommendation,saved.profile_json,JSON.stringify(previous)).run();
+ const retained=JSON.stringify(await s.db.prepare("SELECT * FROM news_shadow_evaluations WHERE evaluation_id='retained-v2'").first());
+ await evaluate(s,item.id,now+1000);
+ assert.equal(JSON.stringify(await s.db.prepare("SELECT * FROM news_shadow_evaluations WHERE evaluation_id='retained-v2'").first()),retained);
+ assert.equal(count(s),2);
 });
