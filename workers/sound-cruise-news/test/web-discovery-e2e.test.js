@@ -32,7 +32,7 @@ test('persistent workerd D1: Exa fixture → mock AI → authenticated Operator 
   const call=(headers={},method='GET')=>handleOperatorRequest(new Request(origin+'/api/web-discovery',{headers,method}),env,now,{jwks});
   assert.equal((await call()).status,401);
   const response=await call({'Cf-Access-Jwt-Assertion':token});assert.equal(response.status,200);data=await response.json();
-  const view=renderWebDiscovery(dom,data);assert(view.children.length>17);assert(JSON.stringify(view).includes('検索記録'));assert(JSON.stringify(view).includes('Emerald'));assert(!JSON.stringify(view).includes('innerHTML'));
+  const view=renderWebDiscovery(dom,data);assert(view.children.some(n=>n.textContent==='Webで見つかった記事'));assert(JSON.stringify(view).includes('検索記録'));assert(JSON.stringify(view).includes('Emerald'));assert(!JSON.stringify(view).includes('innerHTML'));
   assert.equal((await call({'Cf-Access-Jwt-Assertion':token},'POST')).status,404);
   assert.equal((await call({'Cf-Access-Jwt-Assertion':token,Origin:'https://evil.test'})).status,403);
   env.NEWS_WEB_ENABLED='false';assert.deepEqual(await runWebDiscovery(env,now,{search:()=>assert.fail()}),{disabled:true});assert.deepEqual(await listWebHints(env,now),{enabled:false,items:[]});
@@ -44,7 +44,7 @@ test('failed model holds, invalid output rejected, known URL and denied host avo
  try{
   const env={NEWS_DB:runtime.db,NEWS_WEB_ENABLED:'true',NEWS_WEB_QUERIES:'["acoustic"]',NEWS_WEB_DENIED_HOSTS:'["blocked.test"]'};
   const d={search:async()=>[{url:'https://blocked.test/news',title:'blocked'},{url:'https://example.test/new',title:'<script>悪意</script>',publishedDate:'2026-10-30'}],classify:async()=>[{formalFacts:true}]};
-  await runWebDiscovery(env,now,d);let data=await listWebHints(env,now);assert.equal(data.items.length,1);assert.equal(data.items[0].status,'hold');assert.equal(data.items[0].reason,'web-triage-3:classification_schema_failed');
+  await runWebDiscovery(env,now,d);let data=await listWebHints(env,now);assert.equal(data.items.length,1);assert.equal(data.items[0].status,'hold');assert.equal(data.items[0].reason,'web-triage-4:classification_schema_failed');
   const view=renderWebDiscovery(dom,data);assert(JSON.stringify(view).includes('<script>悪意</script>'));
   const before=(await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls;await runWebDiscovery(env,now,d);assert.equal((await runtime.db.prepare('SELECT ai_calls FROM news_web_runs').first()).ai_calls,before);
   await runWebDiscovery(env,now+31*86400000,{search:async()=>[],classify:()=>assert.fail()});assert.equal((await listWebHints(env,now+31*86400000)).items.length,0);
@@ -86,7 +86,7 @@ test('manual Operator run requires an expiring permit, human Access, CSRF and on
   const expired=await call('/api/web-discovery/run',{csrf:session.csrf});assert.equal(expired.status,422);assert.equal((await expired.json()).error,'operator_web_permit_expired');assert.equal(calls,0);
   delete options.webDiscoveryDependencies.clock;
   const response=await call('/api/web-discovery/run',{csrf:session.csrf});assert.equal(response.status,200);assert.equal((await response.json()).searches,1);assert.equal(calls,1);
-  const hints=await listWebHints(env,now);assert.equal(hints.items.length,1);assert.equal(hints.items[0].url,'https://example.test/new');const view=renderWebDiscovery(dom,hints);assert(view.children.some(n=>n.textContent?.includes('誤りが含まれる可能性')));assert(!view.children.some(n=>n.textContent==='Web探索を1回実行'));assert.equal(hints.manualAuthorization.reason,'operator_web_permit_spent');
+  const hints=await listWebHints(env,now);assert.equal(hints.items.length,1);assert.equal(hints.items[0].url,'https://example.test/new');const view=renderWebDiscovery(dom,hints);assert(view.children.some(n=>n.textContent?.includes('検索・AI情報は未確認')));assert(!view.children.some(n=>n.textContent==='Web探索を1回実行'));assert.equal(hints.manualAuthorization.reason,'operator_web_permit_spent');
   const again=await(await call('/api/web-discovery/run',{csrf:session.csrf})).json();assert.equal(again.skipped,true);assert.equal((await runWebDiscovery(env,now,options.webDiscoveryDependencies)).skipped,true);assert.equal(calls,1);
   await runtime.mf.dispose();runtime=await localDatabase(dir);env.NEWS_DB=runtime.db;const restarted=await(await call('/api/web-discovery/run',{csrf:session.csrf})).json();assert.equal(restarted.skipped,true);assert.equal(calls,1);assert.equal((await runtime.db.prepare('SELECT manual_started FROM news_web_runs').first()).manual_started,1);
   assert.equal((await runtime.db.prepare('SELECT COUNT(*) n FROM candidate_items').first()).n,0);
@@ -113,7 +113,7 @@ test('saved 15 hints survive model failure, daily bounded retry and restart with
   for(let i=0;i<15;i++)await saveHint(runtime.db,{url:`https://fixture.test/${i}`,title:`日本語 新製品 ${i}`,provider:'exa',searchedAt:now},now,{metadata:{publishedAtHint:'2026-10-30',languageHint:null}});
   const failed=await runWebDiscovery(env,now,{search:async()=>[],classify:async hints=>{assert(hints.length<=3);throw Error('private provider message');}});
   assert.equal(failed.ai_calls,5);assert.equal(failed.errors,5);
-  let rows=(await listWebHints(env,now)).items;assert.equal(rows.length,15);assert(rows.every(h=>h.reason==='web-triage-3:classification_model_failed'));
+  let rows=(await listWebHints(env,now)).items;assert.equal(rows.length,15);assert(rows.every(h=>h.reason==='web-triage-4:classification_model_failed'));
   assert.equal((await runtime.db.prepare('SELECT MIN(retry_at) at FROM news_web_hints').first()).at,Date.parse('2026-10-31T21:00:00Z'));
   // Retry is delayed; a repeated same-day invocation consumes no further model calls.
   await runWebDiscovery(env,now,{search:async()=>[],classify:()=>assert.fail()});
@@ -132,6 +132,6 @@ test('legacy exhausted failures get one versioned recovery, new exhausted failur
   await runtime.db.prepare("UPDATE news_web_hints SET attempts=3,status='hold',reason='classification_schema_failed'").run();let calls=0;
   const d={search:async()=>[],classify:async()=>{calls++;throw Error('private');}};
   await runWebDiscovery(env,now,d);assert.equal(calls,1);await runWebDiscovery(env,now+86400000,d);assert.equal(calls,1);
-  assert.equal((await listWebHints(env,now)).items[0].reason,'web-triage-3:classification_model_failed');
+  assert.equal((await listWebHints(env,now)).items[0].reason,'web-triage-4:classification_model_failed');
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });

@@ -16,3 +16,14 @@
 #assisted-fields{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0}#assisted-fields label{min-width:0}#assisted-fields input:not([type=checkbox]),#assisted-fields select,#assisted-fields textarea{display:block;width:100%;height:auto;min-height:44px;margin:6px 0 0;font:inherit;color:inherit;background:#08151f;border:1px solid #607483;border-radius:8px;padding:10px;max-width:100%}#assisted-fields textarea{resize:vertical;line-height:1.6}#assisted-fields button{white-space:normal}#assisted-fields> a{display:block;min-height:44px;padding:8px 0}#assisted-fields .assisted-check{display:flex;align-items:flex-start;gap:8px}#assisted-fields .assisted-check input{flex:0 0 18px;margin-top:5px}.assisted-advanced{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.assisted-draft{border:1px solid #7e714b;border-radius:8px;padding:16px;overflow-wrap:anywhere}.assisted-draft p{margin:8px 0}#assisted-status{white-space:pre-wrap;overflow-wrap:anywhere}textarea:focus-visible{outline:3px solid #79cfff;outline-offset:3px}@media(max-width:480px){.assisted-advanced{grid-template-columns:minmax(0,1fr)}}
 
 .yamaha-check h2{margin:12px 0 8px}.yamaha-check-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.yamaha-check-links a{display:block;border:1px solid #354b5c;border-radius:8px;padding:10px;min-height:44px;text-decoration:none}.yamaha-check-links a:hover{background:#243c4c}.yamaha-check-links strong{display:block;font-size:.9rem}.yamaha-check-links span{display:block;color:#b2c2cf;font-size:.8rem;margin-top:3px}.yamaha-check .meta{font-size:.8rem;margin:8px 0 14px}@media(max-width:340px){.yamaha-check-links{grid-template-columns:minmax(0,1fr)}}
+
+/* Daily work first; technical evidence stays in closed, keyboard-accessible details. */
+#dashboard{display:block;background:#10202d;border:1px solid #354b5c;border-radius:12px;padding:20px}
+#dashboard .system-state{font-size:1.15rem;font-weight:600;margin:0}
+#dashboard details{margin-top:16px}#dashboard .summary-count{display:inline-flex;min-width:140px;margin:4px}
+section[aria-label="Web発見"] article{padding:20px;margin:16px 0;border:1px solid #354b5c;border-radius:12px;overflow-wrap:anywhere}
+section[aria-label="Web発見"] article>p:first-child{font-weight:600;font-size:1.08rem}
+section[aria-label="Web発見"] article>a{display:inline-block;margin:8px 16px 8px 0;min-height:44px;padding:8px 0}
+section[aria-label="Web発見"] details{margin-top:12px}section[aria-label="Web発見"] details p{color:#b2c2cf}
+.account-detail{margin:8px 0}input,textarea{max-width:100%}main,article,section,details{min-width:0}
+@media(max-width:480px){#dashboard{padding:16px}#dashboard .summary-count{display:flex;margin:8px 0}section[aria-label="Web発見"] article{padding:16px}.decision-actions button{flex:1 1 120px}}

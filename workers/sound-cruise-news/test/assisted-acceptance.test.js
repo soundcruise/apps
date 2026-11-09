@@ -47,3 +47,18 @@ test('paste parsing is authenticated, CSRF-protected, bounded and read-only; out
  assert.equal((await call(env,'/api/assisted-parse',{body:{...body,information:'a'.repeat(9000)},csrf:session.csrf})).status,422);assert.equal(publisherHttpAttempts,0);
 });
 test('paste start route exposes only the allowed browser link, never a fetched response or another source',async()=>{const {env}=await environment(),d=await(await call(env,'/api/assisted')).json();assert.equal(d.sources.length,1);assert.equal(d.sources[0].id,'yamaha');assert.equal(d.sources[0].startUrl,'https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/index.html');assert.equal(publisherHttpAttempts,0);});
+
+test('Web hint handoff uses existing Topics human proof; newsroom never gains permission',async()=>{
+ const {listWebHints,saveHint}=await import('../src/web-discovery.js');
+ const {s,env}=await environment();env.NEWS_WEB_ENABLED='true';
+ for(const url of [input.url,'https://www.yamaha.com/ja/news_release/2026/26110601/'])await saveHint(s.db,{url,title:'検索からの製品ヒント',provider:'exa',searchedAt:now},now);
+ const view=await listWebHints(env,now);
+ assert.equal(view.items.find(x=>x.url===input.url).humanEntry.url,input.url);
+ assert.equal(view.items.find(x=>x.url.includes('www.yamaha.com')).humanEntry,null);
+ assert.equal((await s.candidates()).length,0);
+ const session=await(await call(env,'/api/session')).json();
+ const bad=await(await call(env,'/api/assisted-preview',{body:{...input,url:'https://www.yamaha.com/ja/news_release/2026/26110601/'},csrf:session.csrf})).json();assert.equal(bad.valid,false);
+ const good=await(await call(env,'/api/assisted-save',{body:input,csrf:session.csrf})).json();assert(good.saved);assert(good.validation.valid);
+ assert.equal(JSON.parse((await s.candidates())[0].facts_provenance).method,'human_official_article_confirmation');
+ assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+});
