@@ -1,8 +1,8 @@
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.31.1';
-import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.31.1';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.32.0';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.32.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
 
@@ -122,17 +122,6 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
                     actions.append(createRenameButton({ kind: 'app', id: target.id, appId: app.id, context: app.name,
                         userLabel: target.userLabel, registeredLabel: target.registeredLabel,
                         shortId: target.shortId, name: target.name }));
-                    // Same data attributes as the target-management 解除, so the same named confirmation
-                    // (and the same device-ID revoke) is used; nothing is removed without confirming.
-                    const revoke = document.createElement('button');
-                    revoke.type = 'button';
-                    revoke.className = 'sync-center-target-revoke';
-                    revoke.textContent = '解除';
-                    revoke.setAttribute('aria-label', `${target.name}を解除`);
-                    revoke.dataset.syncAppEnvironmentRevoke = target.id;
-                    revoke.dataset.syncAppEnvironmentApp = app.id;
-                    revoke.dataset.syncTargetLabel = describeTargetForConfirm(target, app.name);
-                    actions.append(revoke);
                     item.append(actions);
                 }
                 return item;
@@ -142,7 +131,7 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
             appendText(targets, 'p', 'sync-center-app-info-text', detail.emptyText);
         }
         for (const text of detail.guidance || []) appendText(targets, 'p', 'sync-center-app-info-guidance', text);
-        if (renameEnabled && detail.targets?.length) appendText(targets, 'p', 'sync-center-app-info-guidance', SYNC_DETAIL_COPY.unusedTarget);
+        if (app.status === 'synced') appendText(targets, 'p', 'sync-center-app-info-guidance', SYNC_DETAIL_COPY.reconnect);
         if (detail.footnote) appendText(targets, 'p', 'sync-center-app-info-footnote', detail.footnote);
         panel.append(targets);
     }
@@ -184,7 +173,7 @@ export function describeLifecycleAction(kind, { appName = 'このアプリ', las
     targetLabel = null } = {}) {
     if (kind === 'app-environment') {
         return Object.freeze({ title: '選択した同期先を解除', severity: 'normal', syncNote: true,
-            summary: `${targetLabel ? `${targetLabel}の同期だけを解除します。` : '選択した同期先1件だけの同期を解除します。'}同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。` });
+            summary: `${targetLabel ? `${targetLabel}の同期だけを解除します。` : '選択した同期先1件だけの同期を解除します。'}対象アプリは未接続になり、同期コードで再接続するまで同期しません。これは同期の修復・完了ではありません。同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。` });
     }
     if (kind === 'current-environment') {
         return Object.freeze({ title: 'このCruise Portの接続を解除', severity: 'caution', syncNote: true,
@@ -201,7 +190,7 @@ export function describeLifecycleAction(kind, { appName = 'このアプリ', las
     }
     if (kind === 'detach') {
         return Object.freeze({ title: `${appName}の同期を解除`, severity: 'caution', syncNote: true,
-            summary: `${appName}の同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。解除後は同期コードからいつでも再接続できます。` });
+            summary: `${appName}の同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。対象アプリは未接続になり、同期コードで再接続するまで同期しません。これは同期の修復・完了ではありません。` });
     }
     return null;
 }
@@ -278,50 +267,20 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         actions.className = 'sync-center-app-row-actions';
         const needsInitialConnection = ['unset', 'prepared', 'detached'].includes(app.status);
         const accountReady = presentation.accountState === 'active';
-        const canRemoveAppSync = Number(app.activeAppDeviceCount || 0) > 0 &&
-            app.status !== 'deleting' && orchestrationEnabled;
-        const action = document.createElement(needsInitialConnection
-            ? (accountReady && !orchestrationEnabled ? 'a' : 'button')
-            : canRemoveAppSync ? 'button' : 'span');
-        action.className = canRemoveAppSync
-            ? 'sync-center-app-action sync-center-app-remove'
-            : 'sync-center-app-action';
-        if (needsInitialConnection && accountReady && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
-        else if (needsInitialConnection && accountReady) {
-            action.type = 'button';
-            action.dataset.syncAppAction = app.id;
-            if (typeof onAppAction === 'function') {
-                action.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    void onAppAction(action);
-                });
+        if (needsInitialConnection) {
+            const action = document.createElement(accountReady && !orchestrationEnabled ? 'a' : 'button');
+            action.className = 'sync-center-app-action';
+            if (accountReady && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
+            else if (accountReady) {
+                action.type = 'button';action.dataset.syncAppAction = app.id;
+                action.addEventListener('click', event => {event.stopPropagation();void onAppAction?.(action);});
             }
-        }
-        if (needsInitialConnection && app.deleteGrace) {
-            action.dataset.syncAppDeleteGrace = 'true';
-            action.dataset.syncAppName = app.name;
-        }
-        if (canRemoveAppSync) {
-            action.type = 'button';
-            action.dataset.syncAppDetach = app.id;
-            action.dataset.syncAppName = app.name;
-        }
-        // Prepared memberships use the same launch callback as normal rows, but
-        // opening them issues the initial connection code. Keep that callback
-        // contract intact while making the next action clear in the UI.
-        const actionLabel = needsInitialConnection && !accountReady
-            ? '先にアカウントを作成または接続してください'
-            : needsInitialConnection ? '同期コード' : canRemoveAppSync ? '同期を解除' : app.statusLabel;
-        action.textContent = actionLabel;
-        // The screen reader hears the same status as the visible chip, never the membership label.
-        action.dataset.syncAriaBase = `${app.name}で${actionLabel}`;
-        action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（${visibleStatus}）`);
-        if (needsInitialConnection && !accountReady) {
-            action.disabled = true;
-            action.setAttribute('aria-disabled', 'true');
-        } else if (app.action === 'none' || (!needsInitialConnection && !canRemoveAppSync)) {
-            action.removeAttribute('href');
-            action.setAttribute('aria-disabled', 'true');
+            if (app.deleteGrace) {action.dataset.syncAppDeleteGrace='true';action.dataset.syncAppName=app.name;}
+            action.textContent = accountReady ? '同期コード' : '先にアカウントを作成または接続してください';
+            action.dataset.syncAriaBase = `${app.name}で${action.textContent}`;
+            action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（${visibleStatus}）`);
+            if (!accountReady) {action.disabled=true;action.setAttribute('aria-disabled','true');}
+            actions.append(action);
         }
         if (presentationStatus.state === 'attention' || presentationStatus.state === 'recheck') {
             const review = document.createElement('button');review.type='button';review.className='sync-center-app-action secondary';
@@ -337,7 +296,6 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
                 else { infoPanel.hidden=false;targetsToggle.setAttribute('aria-expanded','true'); }
             });actions.append(review);
         }
-        actions.append(action);
         row.append(image, copy, actions);
         if (infoPanel) row.append(infoPanel);
         return row;
@@ -358,7 +316,7 @@ function renderAttentionSummary(root,presentation) {
     if(!overall){overall=document.createElement('span');overall.id='sync-center-overall-status';overall.className='sync-center-app-status-chip';overall.setAttribute('role','status');
         root.querySelector('.sync-center-account-status-row')?.append(overall);}
     const count=syncAttentionItems(presentation).length;
-    if(overall){overall.hidden=presentation.kind!=='ready';overall.textContent=count?'確認事項のあるアプリ '+count+'件':'同期の確認事項なし';overall.dataset.syncOverallCount=String(count);}
+    if(overall){overall.hidden=presentation.kind!=='ready';overall.textContent=count?'確認事項のあるアプリ '+count+'件':'接続中の同期先に確認報告なし';overall.dataset.syncOverallCount=String(count);}
 }
 
 // 「Pixel」（コードクルーズ・EDAE） / 登録名「Chord Cruise」（コードクルーズ・B91C） / 同期先 B91C（コードクルーズ）
@@ -487,6 +445,15 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         else add.dataset.syncAppAddEnvironment = entry.id;
         const details = createEnvironmentDetails({ entry, portEnvironments,
             renameEnabled: orchestrationEnabled && activeAccount, listId: entry.id });
+        if (entry.id !== 'port' && orchestrationEnabled && activeAccount && entry.status !== 'deleting' &&
+            Number(entry.activeAppDeviceCount || 0) > 0 && entry.environments.length) {
+            const item = document.createElement('li');
+            const detach = document.createElement('button');
+            detach.type='button';detach.className='action-button secondary-action';
+            detach.textContent='このアプリの全接続を解除';
+            detach.dataset.syncAppDetach=entry.id;detach.dataset.syncAppName=entry.name;
+            item.append(detach);details.append(item);
+        }
         row.append(primary, add, count, details);
         return row;
     });
@@ -1468,6 +1435,7 @@ export function bindSyncCenterActions(root, {
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();
+                setText(root, '#sync-center-action-status', '接続を解除しました。対象アプリは未接続です。同期が完了したという意味ではありません。再び使う場合は同期コードで再接続してください。');
                 return;
             }
             if (lifecycleAction.kind === 'current-environment') {
@@ -1482,6 +1450,7 @@ export function bindSyncCenterActions(root, {
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();
+                setText(root, '#sync-center-action-status', '接続を解除しました。対象アプリは未接続です。同期が完了したという意味ではありません。再び使う場合は同期コードで再接続してください。');
                 return;
             }
             if (lifecycleDialog.dataset.syncPhase === 'review') {

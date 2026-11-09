@@ -75,15 +75,21 @@ function assertNextAction(view, message) {
 }
 
 function assertNoLaunch(view) {
+  for (const node of view.walk(view.panel)) {
+    assert.equal(Boolean(node.dataset.syncResolveApp), false, 'target details cannot open a specific environment');
+  }
   for (const node of view.walk(view.row)) {
-    assert.doesNotMatch(node.textContent, /を開く$|この端末で開く|アプリを開く/, 'no launch CTA');
+    if (node.tagName === 'button' && /アプリを開く/.test(node.textContent)) {
+      assert.equal(node.textContent, 'アプリを開く');
+      assert.equal(node.dataset.syncResolveApp, 'chord', 'app navigation must be explicitly labelled');
+    }
     assert.equal(node.tagName === 'a', false, 'no app link');
   }
 }
 
 test('1: all clean → ✓ 同期済み with a simple row', () => {
   const view = render(presentationFor([target(PIXEL, clean()), target(MAC, clean(), { label: 'Mac Safari' })]));
-  assert.equal(view.chip.textContent, '✓ 同期済み');
+  assert.equal(view.chip.textContent, 'クラウド利用可');
   assert.equal(view.row.children[1].children.length, 2, 'name + status line only, no secondary text');
   assert.equal(view.panel.hidden, true);
 });
@@ -96,12 +102,12 @@ test('2/3/4: pending, no report, and clean + pending stay ✓ 同期済み witho
   ]) {
     const presentation = presentationFor(targets, { removalSafety: safety });
     const view = render(presentation);
-    assert.equal(view.chip.textContent, '✓ 同期済み');
+    assert.equal(view.chip.textContent, 'クラウド利用可');
     assert.equal(chordOf(presentation).snapshot, 'aligned');
     const text = view.text(view.panel);
     assert.doesNotMatch(text, /確認が必要|要確認|エラー|解決しない場合/);
     assert.deepEqual([...new Set(view.walk(view.panel).filter((node) => node.tagName === 'button').map((node) => node.textContent))],
-      ['名前を変更', '解除'], 'no action demanded; only the optional per-target rename / detach');
+      ['名前を変更'], 'no action demanded; only the optional per-target rename / detach');
   }
 });
 
@@ -111,7 +117,7 @@ test('ⓘ explains 「同期済み」 briefly and keeps the Phase 1B technical d
   assert.equal(view.toggle.textContent, '同期先2件', 'the tab shows the app target count');
   const summaryLine = view.panel.children[0];
   assert.equal(summaryLine.className, 'sync-center-app-info-summary');
-  assert.equal(summaryLine.textContent, '「同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。');
+  assert.equal(summaryLine.textContent, SYNC_DETAIL_COPY.synced);
   const text = view.text(view.panel);
   assert.match(text, /前回の完了報告あり/);
   assert.match(text, /最新の完了報告は未確認/);
@@ -124,7 +130,7 @@ test('5: aligned attention → 確認が必要 N件 with count, target, report a
   const presentation = presentationFor([target(PIXEL, clean(), { label: 'iPhone' }),
     target(MAC, attention(2), { label: 'Pixel' })], { removalSafety: 'attention', attentionConflictCount: 2 });
   const view = render(presentation);
-  assert.equal(view.chip.textContent, '確認が必要 2件');
+  assert.equal(view.chip.textContent, '前回報告に確認事項 2件');
   const text = view.text(view.panel);
   assert.match(text, /確認する内容が2件あります。/);
   assert.match(text, /登録名「Pixel」\n前回の同期報告に確認事項があります\n確認する内容 2件/);
@@ -137,7 +143,7 @@ test('5: aligned attention → 確認が必要 N件 with count, target, report a
 
 test('6: aligned error → 確認が必要 as a past report, with where to look', () => {
   const view = render(presentationFor([target(PIXEL, error(), { label: 'Pixel' })], { removalSafety: 'attention' }));
-  assert.equal(view.chip.textContent, '確認が必要');
+  assert.equal(view.chip.textContent, '前回報告に確認事項');
   const text = view.text(view.panel);
   assert.equal(view.panel.children[0].textContent, '前回の同期報告でエラーが報告されています。');
   assert.match(text, /登録名「Pixel」のコードクルーズを開き、同期画面を確認してください。/);
@@ -204,7 +210,7 @@ test('12: devices failure keeps the summary status and explains the missing deta
   const ctrl = createSyncCenterController({ config: { enabled: true, endpoint: 'https://example.invalid' }, online: () => true,
     accountRoot: { AccountClient, core: {}, storage: { async getAccount() { return { accountCredential: 'dummy' }; } } } });
   const view = render(await ctrl.load());
-  assert.equal(view.chip.textContent, '✓ 同期済み');
+  assert.equal(view.chip.textContent, 'クラウド利用可');
   const text = view.text(view.panel);
   assert.match(text, /同期先の詳細情報を取得できませんでした/);
   assert.equal(view.panel.children.at(-1).textContent, 'もう一度確認');
@@ -269,14 +275,14 @@ test('every non-normal ready status offers a next action', () => {
   ];
   for (const presentation of cases) {
     const view = render(presentation);
-    assert.notEqual(view.chip.textContent, '✓ 同期済み');
+    assert.notEqual(view.chip.textContent, 'クラウド利用可');
     assertNextAction(view, view.chip.textContent);
   }
 });
 
 test('18: Safe-to-remove authority and labels are unchanged', () => {
   const pendingOnly = chordOf(presentationFor([target(PIXEL, clean()), target(MAC, pending())], { removalSafety: 'unknown' }));
-  assert.equal(pendingOnly.presentationStatus.label, '✓ 同期済み');
+  assert.equal(pendingOnly.presentationStatus.label, 'クラウド利用可');
   assert.equal(pendingOnly.removalSafety, 'unknown', '✓ 同期済み is never a reason removal is safe');
   assert.equal(pendingOnly.removalSafetyLabel, '同期を確認してください');
   const safe = chordOf(presentationFor([target(PIXEL, clean())]));
@@ -289,11 +295,10 @@ test('19: detach copy names the app\'s own sync status; the condition itself is 
   assert.equal(SYNC_DETACH_NOTE, 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。');
   assert.doesNotMatch(SYNC_DETACH_NOTE, /✓|Cruise Portの/, 'Port\'s ✓ 同期済み is never the removal basis');
   const view = render(presentationFor([target(PIXEL, pending())], { removalSafety: 'unknown' }));
-  assert.equal(view.action.textContent, '同期を解除');
-  assert.equal(view.action.dataset.syncAppDetach, 'chord');
+  assert.equal(view.action, undefined, 'disconnect is not a problem-solving row action');
 });
 
-test('20: no app launch CTA returns in any state', () => {
+test('20: only explicitly labelled app links and existing controls are offered', () => {
   for (const presentation of [
     presentationFor([target(PIXEL, clean(), { label: 'Pixel', isCurrent: true })]),
     presentationFor([target(PIXEL, attention(1), { label: 'Pixel', isCurrent: true })], { removalSafety: 'attention', attentionConflictCount: 1 }),
@@ -304,7 +309,7 @@ test('20: no app launch CTA returns in any state', () => {
     const view = render(presentation);
     assertNoLaunch(view);
     const buttons = view.walk(view.row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-    for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['解決方法を確認', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
+    for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['アプリを開く', '同期先を確認', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
   }
 });
 

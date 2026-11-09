@@ -18,8 +18,8 @@ const UNCONFIRMED_STATES = new Set(['pending', 'none']);
 const INFO_APP_STATUSES = new Set(['synced', 'attention', 'connecting', 'initial', 'deleting']);
 
 export const SYNC_DETAIL_COPY = Object.freeze({
-    // 「✓ 同期済み」 is a product status, not a per-target guarantee (see appSyncStatusPresentation).
-    synced: '「同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。',
+    // Cloud availability is not a per-target connection or completion guarantee.
+    synced: 'クラウドデータは利用できます。解除したアプリの同期完了を示す表示ではありません。',
     reportedError: '前回の同期報告でエラーが報告されています。',
     reportedAttention: '前回の同期報告に確認事項があります。',
     membershipAttention: '同期の状態に確認が必要な点があります。時間をおいて、もう一度確認してください。',
@@ -37,7 +37,7 @@ export const SYNC_DETAIL_COPY = Object.freeze({
     noDevices: '同期先はありません',
     footnote: '各同期先から届いた最後の報告です。現在の未送信変更や競合を読み取った結果ではありません。',
     openScope: '確認事項を報告した同期先で、アプリの同期画面を確認してください。別の端末・ブラウザ・ホーム画面版を、ここから指定して開くことはできません。',
-    unusedTarget: '使っていない同期先は、各同期先の「解除」で接続を外せます。クラウドと端末内の保存データは削除されません。未同期の変更がある場合は、先に対象アプリの同期状態を確認してください。',
+    reconnect: 'アプリが「未接続」の場合は、同期先管理の「同期先を追加」から同期コードを発行し、アプリの「Cruise Portと接続」に入力してください。',
     current: 'このCruise Portから接続',
     support: '解決しない場合は、画面下の「クラウド同期で困ったときは」からお知らせください。'
 });

@@ -256,7 +256,7 @@ test('current Port detach is distinct from generic environment revoke and leaves
     assert.equal((ui.match(/await orchestrator\.detachCurrentEnvironment\(\)/g) || []).length, 1);
     assert.equal((ui.match(/await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/g) || []).length, 1);
     assert.match(ui, /先にアカウントを作成または接続してください/);
-    assert.match(ui, /needsInitialConnection && !accountReady[\s\S]*action\.disabled = true/);
+    assert.match(ui, /if \(needsInitialConnection\)[\s\S]*if \(!accountReady\).*action\.disabled=true/);
     assert.match(ui, /これが最後のCruise Portのため、このアカウントへ再び接続するには保存済みの復旧コードが必要です。/);
     assert.match(ui, /syncCurrentEnvironmentDetach = 'true'/);
     assert.match(ui, /await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/);
@@ -267,8 +267,8 @@ test('Sync Code rows bind the existing launch callback after every render', () =
     const source = read('./sync-center-ui.js');
     const styles = readDarkStyle();
     assert.match(source, /function renderAppRows\(root, presentation, edition, orchestrationEnabled, onAppAction = null[,)]/);
-    assert.match(source, /action\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\(action\)/);
-    assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp, resolvePort:/);
+    assert.match(source, /action\.addEventListener\('click', event => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\?\.\(action\)/);
+    assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp \}/);
     assert.match(app, /onAppAction: syncCenterActions\?\.onAppAction/);
     assert.match(source, /await orchestrator\.launch\(button\.dataset\.syncAppAction\)/);
     assert.match(source, /await orchestrator\.cancelAppDeleteAndLaunch\(button\.dataset\.syncAppAction\)/);
@@ -590,13 +590,14 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
     assert.match(ui, /data-sync-app-delete/);
 });
 
-test('App detach stays in its row while app cloud deletion moves into a closed Danger accordion', () => {
+test('App detach is confined to existing management while cloud deletion stays in Danger', () => {
     const source = read('./sync-center-ui.js');
     const styles = readDarkStyle();
-    assert.match(source, /const canRemoveAppSync = Number\(app\.activeAppDeviceCount \|\| 0\) > 0 &&[\s\S]*app\.status !== 'deleting' && orchestrationEnabled/);
-    assert.match(source, /action\.dataset\.syncAppDetach = app\.id/);
-    assert.match(source, /action\.dataset\.syncAppName = app\.name/);
-    assert.match(source, /canRemoveAppSync \? '同期を解除' : app\.statusLabel/);
+    const problemRows = source.slice(source.indexOf('export function renderAppRows'), source.indexOf('export function syncAttentionItems'));
+    assert.doesNotMatch(problemRows, /syncAppDetach|syncAppEnvironmentRevoke/);
+    assert.match(source, /detach.dataset.syncAppDetach=entry.id/);
+    assert.match(source, /このアプリの全接続を解除/);
+    assert.match(source, /entry.status !== 'deleting'/);
     assert.match(source, /const appName = appDetach\.dataset\.syncAppName \|\| 'このアプリ'/);
     assert.match(source, /title: `\$\{appName\}の同期を解除`/);
     assert.match(source, /await orchestrator\.detachApp\(lifecycleAction\.appId\)/);
@@ -622,7 +623,7 @@ test('App detach stays in its row while app cloud deletion moves into a closed D
 test('delete grace reconnect is explicit and Section 3 owns counts, lists and scoped revoke', () => {
     const source = read('./sync-center-ui.js');
     const styles = readDarkStyle();
-    assert.match(source, /dataset\.syncAppDeleteGrace = 'true'/);
+    assert.match(source, /dataset\.syncAppDeleteGrace='true'/);
     assert.match(source, /削除を取り消して再接続/);
     assert.match(source, /削除を取り消して同期コードを表示/);
     assert.match(source, /cancelAppDeleteAndLaunch/);
