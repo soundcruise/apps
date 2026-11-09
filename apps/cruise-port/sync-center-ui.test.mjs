@@ -675,7 +675,7 @@ test('Sync Help uses current plain-language copy and keeps the browser and Home 
     for (const html of [root, pro]) {
         assert.match(html, /id="settings-sync-center-help"/);
         assert.match(html, /音感・指板・リズム・コードの各Cruiseアプリで保存したデータをクラウドに同期します。/);
-        assert.match(html, /「✓ 同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。各端末やブラウザのアプリがすべて最新であることまでは示しません。/);
+        assert.match(html, /Cruise Portの「✓ 同期済み」は、Port自身の同期状態です。4アプリの「クラウド利用可」は、クラウドデータを利用できるという意味で、すべての端末の同期完了を示すものではありません。/);
         assert.doesNotMatch(html, /クラウド同期 利用可能/);
         assert.doesNotMatch(html, /「✓ 同期済み」は、クラウドへ保存されていない変更がない状態です。/);
         assert.match(html, /削除するアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。Cruise Portの「✓ 同期済み」だけでは、その端末の変更がすべて同期されたかは分かりません。同期済みのデータは、ホーム画面のアプリを削除したあともCruise Portから再び利用できます。端末固有の設定や、まだ同期されていない変更は対象外です。/);

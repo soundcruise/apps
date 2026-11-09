@@ -167,6 +167,7 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
 export const RECOVERY_IMPACT = '復旧を確定すると、現在接続されているすべてのCruise Portと各Cruiseアプリ（ホーム画面版・ブラウザ版を含む）で再接続が必要になります。クラウド上の同期データは残ります。';
 // 「同期済み」 here is the target app's own sync status, not Port's 「✓ 同期済み」 product status.
 export const SYNC_DETACH_NOTE = 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。';
+const SYNC_DETACH_SUCCESS = '接続を解除しました。対象アプリは未接続です。同期が完了したという意味ではありません。再び使う場合は同期コードで再接続してください。';
 const LINKED_APPS = 'このCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。';
 
 export function describeLifecycleAction(kind, { appName = 'このアプリ', lastPort = false, current = false,
@@ -1435,7 +1436,7 @@ export function bindSyncCenterActions(root, {
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();
-                setText(root, '#sync-center-action-status', '接続を解除しました。対象アプリは未接続です。同期が完了したという意味ではありません。再び使う場合は同期コードで再接続してください。');
+                setText(root, '#sync-center-action-status', SYNC_DETACH_SUCCESS);
                 return;
             }
             if (lifecycleAction.kind === 'current-environment') {
@@ -1450,7 +1451,7 @@ export function bindSyncCenterActions(root, {
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();
-                setText(root, '#sync-center-action-status', '接続を解除しました。対象アプリは未接続です。同期が完了したという意味ではありません。再び使う場合は同期コードで再接続してください。');
+                setText(root, '#sync-center-action-status', SYNC_DETACH_SUCCESS);
                 return;
             }
             if (lifecycleDialog.dataset.syncPhase === 'review') {

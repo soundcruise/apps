@@ -91,3 +91,14 @@ consumeInvitationのpreservePending、initializeDatasetのバックアップ/mer
 
 候補はローカル検証PASS。本人の再接続・実データ一致受入はHOLD（未承認・未実施）。
 公開はPR #253との依存差分レビューと別途承認後。今回、本番配備・Worker設定変更・AI有効化なし。
+
+
+## 最終監査の限定反映（Port 1.32.0）
+
+通常版・Pro版のヘルプで、Port自身の「同期済み」、4アプリの「クラウド利用可」、解除後の未接続を区別した。解除成功の同一通知を定数で共有し、既存の確認/API/保存処理は変更していない。候補版とcacheは1.32.0を維持。新しい状態・保存形式は0。
+
+`sync-center-copy.test.mjs` と `sync-target-naming.test.mjs` は、修復面に解除がないこと、管理面の対象ID・確認文、Accountの現在端末判定を検証する。簡易DOMの子要素検索を現行描画に合わせた。関連する `sync-center-ui.test.mjs` のヘルプ期待値も更新した。skip/todoは追加していない。
+
+`sync-*.test.mjs` 比較：変更前244件（232 PASS / 12 FAIL）、変更後245件（241 PASS / 4 FAIL）。新規失敗0。残る既存失敗は `sync-attention-ui.test.mjs` の旧count期待1件と、`sync-center-orchestrator.test.mjs` の構造化同期利用不可時の期待コード3件。今回の対象外として保持した。
+
+対象2ファイルは19/19 PASS。版/cacheを含む重点試験21/21 PASS。一時エラー報告関連runtime11/11 PASS。実DOM/IndexedDBのChromium112項目・WebKit112項目PASS。本人データや再接続は未操作。本番公開は未実施。後続の本人受入は最新版アプリ→Portの同期コード→アプリの「Cruise Portと接続」→既存初期同期を用い、真の競合のみ本人が採用側を選択する。
