@@ -62,7 +62,7 @@ function installDom() {
     showModal() { this.open = true; }
     close(value = '') { if (!this.open) return; this.open = false; this.returnValue = value; this.dispatch('close'); }
     closest() { return null; }
-    querySelector() { return null; }
+    querySelector(selector) { return this.children.find((node) => node.tagName === selector) || null; }
     querySelectorAll() { return []; }
   }
   globalThis.document = { createElement: (tag) => new Node(tag) };
@@ -167,12 +167,14 @@ test('ⓘ rows render the name, second line and an accessible 名前を変更 fo
   assert.deepEqual({ ...rename.dataset }, { syncTargetRename: 'app', syncTargetId: PIXEL, syncTargetApp: 'chord',
     syncTargetContext: 'コードクルーズ', syncTargetUserLabel: '<b>Pixel</b>', syncTargetRegisteredLabel: 'Android Chrome',
     syncTargetShortId: '7A3E' });
-  const revoke = dom.walk(panel).find((node) => node.dataset.syncAppEnvironmentRevoke);
-  assert.equal(revoke.textContent, '解除', 'ⓘ offers the same per-target detach as target management');
+  assert.equal(dom.walk(panel).some((node) => node.dataset.syncAppEnvironmentRevoke), false,
+    'report details offer no disconnect as a repair action');
+  const management = lists['#sync-center-app-environments'];
+  const revoke = dom.walk(management).find((node) => node.dataset.syncAppEnvironmentRevoke === PIXEL);
+  assert.equal(revoke.textContent, '解除');
   assert.equal(revoke.getAttribute('aria-label'), '<b>Pixel</b>を解除');
-  assert.equal(revoke.dataset.syncAppEnvironmentRevoke, PIXEL, 'revoke authority is the device ID');
   assert.equal(revoke.dataset.syncAppEnvironmentApp, 'chord');
-  assert.equal(revoke.dataset.syncTargetLabel, '「<b>Pixel</b>」（コードクルーズ・7A3E）', 'the confirmation names the exact target');
+  assert.equal(revoke.dataset.syncTargetLabel, '「<b>Pixel</b>」（コードクルーズ・7A3E）');
   const ui = readFileSync(new URL('./sync-center-ui.js', import.meta.url), 'utf8');
   const rename2 = readFileSync(new URL('./sync-target-rename.js', import.meta.url), 'utf8');
   assert.doesNotMatch(ui + rename2, /innerHTML|insertAdjacentHTML|outerHTML/, 'names are only written via textContent/value');
@@ -329,24 +331,27 @@ test('all four app tabs show their own target count and keep the existing detail
     assert.equal(tab.textContent, `同期先${index + 1}件`);
     assert.equal(tab.getAttribute('aria-controls'), panel.id);
     assert.equal(dom.walk(panel).filter((node) => node.dataset.syncTargetRename).length, index + 1);
-    assert.equal(dom.walk(panel).filter((node) => node.dataset.syncAppEnvironmentRevoke).length, index + 1);
+    assert.equal(dom.walk(panel).filter((node) => node.dataset.syncAppEnvironmentRevoke).length, 0,
+      'report details do not offer disconnect as a repair');
+    assert.equal(dom.walk(lists['#sync-center-app-environments']).filter((node) =>
+      node.dataset.syncAppEnvironmentRevoke && node.dataset.syncAppEnvironmentApp === appId).length, index + 1);
   }
 });
 
-test('detach confirmation names the exact target; app-wide detach copy is unchanged', () => {
+test('detach confirmation names the exact target; app-wide detach explains disconnection without data deletion', () => {
   const names = describeSyncTargetNames([{ id: PIXEL, userLabel: 'Pixel', registeredLabel: 'Android Chrome' },
     { id: IPHONE, registeredLabel: 'Chord Cruise' }, { id: MAC }]);
   assert.equal(describeTargetForConfirm(names[0], 'コードクルーズ'), '「Pixel」（コードクルーズ・7A3E）');
   assert.equal(describeTargetForConfirm(names[1], 'コードクルーズ'), '登録名「Chord Cruise」（コードクルーズ・B91C）');
   assert.equal(describeTargetForConfirm(names[2], 'コードクルーズ'), '同期先 C0FF（コードクルーズ）');
   const action = describeLifecycleAction('app-environment', { targetLabel: '「Pixel」（コードクルーズ・7A3E）' });
-  assert.match(action.summary, /^「Pixel」（コードクルーズ・7A3E）の同期だけを解除します。同じアプリのほかの同期先/);
+  assert.match(action.summary, /^「Pixel」（コードクルーズ・7A3E）の同期だけを解除します。対象アプリは未接続になり、同期コードで再接続するまで同期しません。これは同期の修復・完了ではありません。同じアプリのほかの同期先/);
   assert.equal(action.syncNote, true);
   assert.equal(describeLifecycleAction('app-environment').summary.startsWith('選択した同期先1件だけの同期を解除します。'), true);
   assert.match(describeLifecycleAction('environment', { targetLabel: '「Mac Port」（Cruise Port・C0FF）' }).summary,
     /^「Mac Port」（Cruise Port・C0FF）の同期を解除します。そのCruise Portから接続した各Cruiseアプリの同期も解除されます/);
   assert.equal(describeLifecycleAction('detach', { appName: 'コードクルーズ' }).summary,
-    'コードクルーズの同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。解除後は同期コードからいつでも再接続できます。');
+    'コードクルーズの同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。対象アプリは未接続になり、同期コードで再接続するまで同期しません。これは同期の修復・完了ではありません。');
 });
 
 function openDialog(dom, target, options) {

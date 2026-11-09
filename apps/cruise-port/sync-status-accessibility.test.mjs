@@ -46,10 +46,10 @@ function render(presentation) {
 }
 
 const CASES = [
-  ['✓ 同期済み', () => ready([target(ID, { state: 'clean', reportedAt: 1, attentionCount: 0 })])],
-  ['確認が必要 2件', () => ready([target(ID, { state: 'attention', reportedAt: 1, attentionCount: 2 })],
+  ['クラウド利用可', () => ready([target(ID, { state: 'clean', reportedAt: 1, attentionCount: 0 })])],
+  ['前回報告に確認事項 2件', () => ready([target(ID, { state: 'attention', reportedAt: 1, attentionCount: 2 })],
     { removalSafety: 'attention', attentionConflictCount: 2 })],
-  ['確認が必要', () => ready([target(ID, { state: 'error', reportedAt: 1, attentionCount: 0 })], { removalSafety: 'attention' })],
+  ['前回報告に確認事項', () => ready([target(ID, { state: 'error', reportedAt: 1, attentionCount: 0 })], { removalSafety: 'attention' })],
   ['再確認が必要', () => ready([target(ID, { state: 'clean', reportedAt: 1, attentionCount: 0 }),
     target(OTHER, { state: 'error', reportedAt: 1, attentionCount: 0 })], { removalSafety: 'safe' })],
   ['オフライン', () => createUnavailablePresentation('offline', ready([target(ID, null)], { removalSafety: 'unknown' }))],
@@ -61,10 +61,11 @@ for (const [status, make] of CASES) {
   test(`aria-label carries the visible status: ${status}`, () => {
     const { chip, action } = render(make());
     assert.equal(chip.textContent, status);
+    if (!action) return; // No redundant action beside a cloud-only status.
     const label = action.getAttribute('aria-label');
-    assert.ok(label.startsWith('コードクルーズで'), label);
+    assert.ok(label.startsWith('コードクルーズ'), label);
     assert.ok(label.endsWith(`（${status}）`), `${label} ends with the chip status`);
-    if (status !== '✓ 同期済み') assert.doesNotMatch(label, /同期済み/, 'no stale 同期済み');
+    if (status !== 'クラウド利用可') assert.doesNotMatch(label, /同期済み/, 'no stale 同期済み');
     assert.doesNotMatch(label, /removalSafety|membership|snapshot|[0-9a-f]{8}-/i, 'no technical detail');
   });
 }
@@ -74,7 +75,17 @@ test('while rows are checking the aria-label says 確認中… too', () => {
     { removalSafety: 'attention' }));
   markAppRowsChecking(root);
   assert.equal(chip.textContent, '確認中…');
-  assert.equal(action.getAttribute('aria-label'), 'コードクルーズで同期を解除（確認中…）');
+  assert.equal(action.getAttribute('aria-label'), 'コードクルーズの同期先を確認（確認中…）');
 });
 
-test('review control is present only when needed and announces its actual status',()=>{const {review}=render(ready([target(ID,{state:'attention',reportedAt:1,attentionCount:1})],{removalSafety:'attention',attentionConflictCount:1}));assert.equal(review.textContent,'解決方法を確認');assert.equal(review.getAttribute('aria-label'),'コードクルーズの解決方法を確認（確認が必要 1件）');assert.equal(render(ready([target(ID,{state:'clean',reportedAt:1,attentionCount:0})])).review,undefined);});
+test('review announces target details for another environment and app opening only for a confirmed current target',()=>{
+  const report = {state:'attention',reportedAt:1,attentionCount:1};
+  const other = render(ready([target(ID,report)],{removalSafety:'attention',attentionConflictCount:1})).review;
+  assert.equal(other.textContent,'同期先を確認');
+  assert.equal(other.getAttribute('aria-label'),'コードクルーズの同期先を確認（前回報告に確認事項 1件）');
+  assert.equal(other.getAttribute('aria-controls'),'sync-center-app-info-chord');
+  const current = render(ready([{...target(ID,report),isCurrent:true}],{removalSafety:'attention',attentionConflictCount:1})).review;
+  assert.equal(current.textContent,'アプリを開く');
+  assert.equal(current.getAttribute('aria-label'),'コードクルーズを開く（別画面）（前回報告に確認事項 1件）');
+  assert.equal(render(ready([target(ID,{state:'clean',reportedAt:1,attentionCount:0})])).review,undefined);
+});

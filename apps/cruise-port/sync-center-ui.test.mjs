@@ -256,7 +256,7 @@ test('current Port detach is distinct from generic environment revoke and leaves
     assert.equal((ui.match(/await orchestrator\.detachCurrentEnvironment\(\)/g) || []).length, 1);
     assert.equal((ui.match(/await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/g) || []).length, 1);
     assert.match(ui, /先にアカウントを作成または接続してください/);
-    assert.match(ui, /needsInitialConnection && !accountReady[\s\S]*action\.disabled = true/);
+    assert.match(ui, /if \(needsInitialConnection\)[\s\S]*if \(!accountReady\).*action\.disabled=true/);
     assert.match(ui, /これが最後のCruise Portのため、このアカウントへ再び接続するには保存済みの復旧コードが必要です。/);
     assert.match(ui, /syncCurrentEnvironmentDetach = 'true'/);
     assert.match(ui, /await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/);
@@ -267,8 +267,8 @@ test('Sync Code rows bind the existing launch callback after every render', () =
     const source = read('./sync-center-ui.js');
     const styles = readDarkStyle();
     assert.match(source, /function renderAppRows\(root, presentation, edition, orchestrationEnabled, onAppAction = null[,)]/);
-    assert.match(source, /action\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\(action\)/);
-    assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp, resolvePort:/);
+    assert.match(source, /action\.addEventListener\('click', event => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\?\.\(action\)/);
+    assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp \}/);
     assert.match(app, /onAppAction: syncCenterActions\?\.onAppAction/);
     assert.match(source, /await orchestrator\.launch\(button\.dataset\.syncAppAction\)/);
     assert.match(source, /await orchestrator\.cancelAppDeleteAndLaunch\(button\.dataset\.syncAppAction\)/);
@@ -590,13 +590,14 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
     assert.match(ui, /data-sync-app-delete/);
 });
 
-test('App detach stays in its row while app cloud deletion moves into a closed Danger accordion', () => {
+test('App detach is confined to existing management while cloud deletion stays in Danger', () => {
     const source = read('./sync-center-ui.js');
     const styles = readDarkStyle();
-    assert.match(source, /const canRemoveAppSync = Number\(app\.activeAppDeviceCount \|\| 0\) > 0 &&[\s\S]*app\.status !== 'deleting' && orchestrationEnabled/);
-    assert.match(source, /action\.dataset\.syncAppDetach = app\.id/);
-    assert.match(source, /action\.dataset\.syncAppName = app\.name/);
-    assert.match(source, /canRemoveAppSync \? '同期を解除' : app\.statusLabel/);
+    const problemRows = source.slice(source.indexOf('export function renderAppRows'), source.indexOf('export function syncAttentionItems'));
+    assert.doesNotMatch(problemRows, /syncAppDetach|syncAppEnvironmentRevoke/);
+    assert.match(source, /detach.dataset.syncAppDetach=entry.id/);
+    assert.match(source, /このアプリの全接続を解除/);
+    assert.match(source, /entry.status !== 'deleting'/);
     assert.match(source, /const appName = appDetach\.dataset\.syncAppName \|\| 'このアプリ'/);
     assert.match(source, /title: `\$\{appName\}の同期を解除`/);
     assert.match(source, /await orchestrator\.detachApp\(lifecycleAction\.appId\)/);
@@ -622,7 +623,7 @@ test('App detach stays in its row while app cloud deletion moves into a closed D
 test('delete grace reconnect is explicit and Section 3 owns counts, lists and scoped revoke', () => {
     const source = read('./sync-center-ui.js');
     const styles = readDarkStyle();
-    assert.match(source, /dataset\.syncAppDeleteGrace = 'true'/);
+    assert.match(source, /dataset\.syncAppDeleteGrace='true'/);
     assert.match(source, /削除を取り消して再接続/);
     assert.match(source, /削除を取り消して同期コードを表示/);
     assert.match(source, /cancelAppDeleteAndLaunch/);
@@ -674,7 +675,7 @@ test('Sync Help uses current plain-language copy and keeps the browser and Home 
     for (const html of [root, pro]) {
         assert.match(html, /id="settings-sync-center-help"/);
         assert.match(html, /音感・指板・リズム・コードの各Cruiseアプリで保存したデータをクラウドに同期します。/);
-        assert.match(html, /「✓ 同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。各端末やブラウザのアプリがすべて最新であることまでは示しません。/);
+        assert.match(html, /Cruise Portの「✓ 同期済み」は、Port自身の同期状態です。4アプリの「クラウド利用可」は、クラウドデータを利用できるという意味で、すべての端末の同期完了を示すものではありません。/);
         assert.doesNotMatch(html, /クラウド同期 利用可能/);
         assert.doesNotMatch(html, /「✓ 同期済み」は、クラウドへ保存されていない変更がない状態です。/);
         assert.match(html, /削除するアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。Cruise Portの「✓ 同期済み」だけでは、その端末の変更がすべて同期されたかは分かりません。同期済みのデータは、ホーム画面のアプリを削除したあともCruise Portから再び利用できます。端末固有の設定や、まだ同期されていない変更は対象外です。/);
