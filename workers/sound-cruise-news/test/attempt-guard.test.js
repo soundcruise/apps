@@ -61,12 +61,12 @@ test('initial override: explicit same-day reason, empty/stopped DB and one-shot 
  assert.equal((await s.state('shimamura')).nextAt,at+DAY);
 });
 
-test('stored publication: collection OFF still publishes AUTO only, preserving REVIEW and attempt time',async()=>{
+test('stored publication: collection OFF and AUTO label cannot enable automatic publication',async()=>{
  const s=await store();await collectSource('shimamura',s,options);
  await administer(s,{action:'collection-off',reason:'operator_stop'},at);
  await administer(s,{action:'publish-on',reason:'review_complete'},at);
  const before=await s.state('shimamura');
- assert.equal(await publishAutomatic(s,active[0],active,at+1000,pepper),1);
- const rows=await s.candidates();assert.equal(rows.filter(r=>r.review_status==='approved').length,1);assert.equal(rows.filter(r=>r.publication_decision==='PUBLISH_REVIEW'&&r.review_status==='pending').length,1);
+ assert.equal(await publishAutomatic(s,active[0],active,at+1000,pepper),0);
+ const rows=await s.candidates();assert.equal(rows.filter(r=>r.review_status==='approved').length,0);assert.equal(rows.filter(r=>r.publication_decision==='PUBLISH_REVIEW'&&r.review_status==='pending').length,1);
  assert.equal((await s.controls()).collection_enabled,0);assert.deepEqual(await s.state('shimamura'),before);
 });

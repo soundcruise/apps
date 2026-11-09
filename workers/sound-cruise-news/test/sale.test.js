@@ -110,7 +110,7 @@ test('sale dates: ranges, until-dates, year rollover and JST end of day', ()=>{
  assert.equal(saleEndsAt('2026-10-31'),Date.parse('2026-11-01T00:00:00+09:00')-1);
 });
 
-test('sale is stored, auto-published, served by list and ticker, and never after it ends', async()=>{
+test('sale is stored without automatic authority; approved API fixture is never served after expiry', async()=>{
  const s=await store();await administer(s,{action:'publish-on',reason:'review_complete'},now);
  const live=(await judge(retailer,'決算セール ギター・エフェクター 10月31日まで',{url:retailer.baseUrl+'news/live/'})).item;
  const ending=(await judge(retailer,'サマーセール ギター・アンプ 9月30日まで',{url:retailer.baseUrl+'news/ending/'})).item;
@@ -119,7 +119,9 @@ test('sale is stored, auto-published, served by list and ticker, and never after
  assert.equal(stored.category,'sale');assert.equal(stored.event_type,'sale');assert.equal(JSON.parse(stored.product_facts).endDate,'2026-10-31');
  const publishAt=Date.parse('2026-10-01T03:00:00Z');// after the summer sale ended
  await s.recordHealth({sourceId:retailer.id,status:'healthy',reasonCode:'ok',checkedAt:publishAt,successfulAt:publishAt});
- assert.equal(await publishAutomatic(s,retailer,[retailer],publishAt,pepper),1,'only the running sale is published');
+ assert.equal(await publishAutomatic(s,retailer,[retailer],publishAt,pepper),0,'sale requires human editorial review');
+ // This is an API expiry fixture, not evidence of automatic publication.
+ await s.db.prepare("UPDATE candidate_items SET review_status='approved' WHERE id=?").bind(live.id).run();
  const rows=await s.candidates();
  assert.equal(rows.find(r=>r.id===ending.id).review_status,'pending');
  const env={NEWS_DB:s.db,NEWS_API_MODE:'local',NEWS_LOCAL_ORIGINS:'["http://localhost:8765"]'};
@@ -303,14 +305,14 @@ test('SQL filters expiry before LIMIT/OFFSET; keyset continuation survives expir
  assert.equal((await api(s,deadline,'/v1/news?cursor=bad')).status,400);
 });
 
-test('publication checks deadline and current authorization/evidence together, including exact time',async()=>{
+test('sales never obtain automatic authority, regardless of deadline and authorization',async()=>{
  const deadline=saleEndsAt('2026-09-30','20:00');
  for(const delta of [-1,0,1])for(const blocked of ['none','sale','policy','both']){
   const s=await store();await administer(s,{action:'publish-on',reason:'review_complete'},now);
   const {item}=await judge(retailer,'決算セール ギター・アンプ 9月30日 20:00まで');await s.put(item);
   await s.recordHealth({sourceId:retailer.id,status:'healthy',reasonCode:'ok',checkedAt:deadline+delta,successfulAt:deadline+delta});
   const current={...retailer,...(['sale','both'].includes(blocked)?{saleCollection:'pending_evidence'}:{}),...(['policy','both'].includes(blocked)?{reviewedAt:'2020-01-01'}:{})};
-  assert.equal(await publishAutomatic(s,current,[current],deadline+delta,pepper),delta<=0&&blocked==='none'?1:0,`${delta} ${blocked}`);
+  assert.equal(await publishAutomatic(s,current,[current],deadline+delta,pepper,{enabled:true}),0,`${delta} ${blocked}`);
  }
 });
 

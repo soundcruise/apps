@@ -1,52 +1,68 @@
-import {independentTopicUrls} from './label-quality.js';
 import {legalGate} from './registry.js';
-import {factualLabel,allowedArticlePath} from './metadata.js';
-import {sourceUrl,DAY} from './policy.js';
-import {saleEndsAt,saleAuthorized,isSaleRecord} from './sale.js';
-import {requirePepper,validatedFingerprint} from './fingerprint.js';
+import {requirePepper} from './fingerprint.js';
+import {hash} from './policy.js';
+import {CHECKS,publicationValidation} from './decision-policy.js';
+import {effectiveCategory} from './category-editor.js';
+import {candidateSnapshot,canonical,operatorDecision,decisionHistory} from './operator-review.js';
+import {prepareShadowEvaluation} from './operator-shadow.js';
+import {preferReviewSources,sourcePreferenceIdentity} from './source-preference.js';
 
-// Only a successful collector run can enter this boundary. It never performs a publisher request.
-export async function publishAutomatic(store,source,registry,now,pepper){
+const and=parts=>parts.length===1?parts[0]:`(${and(parts.slice(0,Math.ceil(parts.length/2)))} AND ${and(parts.slice(Math.ceil(parts.length/2)))})`;
+export const AUTOMATIC_POLICY_VERSION='verified-retail-editorial-1';
+// No Worker/cron caller is installed. Explicit invocation is also OFF by default.
+// This path never fetches a publisher or calls a model.
+export async function publishAutomatic(store,source,registry,now,pepper,{enabled=false}={}){
+ if(enabled!==true)return 0;
  requirePepper(pepper);
- // Resolve the current registry entry, never a stale candidate-time source object.
  source=registry.find(s=>s.id===source?.id);
- if(!source||source.id==='morris')return 0; // Publisher onboarding retains the owner's publication decision.
- if(legalGate(source,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'production',registry))return 0;
- const health=(await store.sourceHealth()).find(s=>s.source_id===source.id);
- if(health?.status!=='healthy'||!Number.isSafeInteger(health.last_successful_run_at)||health.last_successful_run_at>now)return 0;
- const rows=(await store.db.prepare("SELECT * FROM candidate_items WHERE source_id=? AND publication_decision='AUTO_PUBLISHABLE' AND review_status='pending' ORDER BY published_at DESC,id LIMIT 100").bind(source.id).all()).results;
+ if(!source||!['ikebe','shimamura'].includes(source.id))return 0;
+ const rows=(await store.db.prepare("SELECT * FROM candidate_items WHERE source_id=? AND review_status='pending' ORDER BY published_at DESC,id LIMIT 100").bind(source.id).all()).results;
  let published=0;
  for(const row of rows){
-  // Firmware importance requires explicit human review, including major exceptions.
-  if(row.event_type==='firmware'||row.event_type==='agm_editorial')continue;
-  let facts;try{facts=JSON.parse(row.product_facts);}catch{continue;}
-  // These lifecycle refinements remain human-reviewed; evidence recovery does
-  // not convert a pending release plan/delay/reservation into an auto-approval.
-  if(facts?.releaseEvent&&facts.releaseEvent.action!=='release')continue;
-  if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source.id!=='at-distribution')continue;
-  const stamp=Date.parse(row.published_at),label=factualLabel(facts,row.event_type);
-  const sale=isSaleRecord(row,facts),deadline=saleEndsAt(facts?.endDate,facts?.endTime);
-  if(sale&&(!saleAuthorized(source)||row.category!=='sale'||row.event_type!=='sale'||facts?.kind!=='sale'||
-   facts.seller!==source.name||facts.scope!=='broad'||facts.nature!=='sale'||!facts.equipment?.length||!Number.isFinite(deadline)||deadline<now))continue;
-  if(row.event_type==='other'||!label||row.label!==label||row.category!==facts.category||!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY||row.expires_at<=now||!sourceUrl(row.source_url,source)||!allowedArticlePath(row.source_url,source))continue;
-  // Validate keyed provenance; similarity is advisory for this facts-only label.
-  if(!await validatedFingerprint(row.title_fingerprint,pepper))continue;
-  // Recheck immediately before approval; DB controls/health/state are checked atomically below.
-  const current=registry.find(s=>s.id===source.id);
-  if(legalGate(current,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'production',registry)||(sale&&!saleAuthorized(current)))continue;
-  const legacyUrls=independentTopicUrls(row);
-  const update=store.db.prepare(`UPDATE candidate_items SET review_status='approved',review_reason='automatic_factual_template',reviewed_at=?,reviewed_by='automatic'
-   WHERE id=? AND review_status='pending' AND publication_decision='AUTO_PUBLISHABLE'
-   AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1)
-   AND EXISTS(SELECT 1 FROM source_health WHERE source_id=? AND status='healthy' AND last_successful_run_at=?)
-   AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
-   AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)
-   AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved')
-   AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE review_status='approved' AND source_url IN (${legacyUrls.length?legacyUrls.map(()=>'?').join(','):'NULL'}))
-   AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE review_status='approved' AND (? IS NULL OR json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.brand')=? OR (?='official_manufacturer_model' AND json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.brand') IS NULL AND json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.identifierBasis')='distinctive_software_model')) AND category=? AND json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.product')=? AND COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.version'),'')=? AND (event_type=? OR event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`)
-   .bind(new Date(now).toISOString(),row.id,source.id,health.last_successful_run_at,source.id,row.id,row.topic_key,...legacyUrls,facts.brand||null,facts.brand||null,facts.identifierBasis||'',row.category,facts.product||null,facts.version||'',row.event_type,row.event_type);
-  const result=await store.db.batch([update,store.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1')]);
-  published+=result[0].meta.changes;
+  const plan=await assessAutomatic(store,row,registry,now,pepper);
+  if(!plan.eligible)continue;
+  // The same formal validator and transactional Ledger trigger as human review.
+  // Re-authorize inside that boundary, then fence its decision-time evidence.
+  const result=await operatorDecision(store,{id:row.id,action:'approve',reason:'useful_product',requestId:await hash(canonical([AUTOMATIC_POLICY_VERSION,row.id,await candidateSnapshot(row)])),revision:row.review_revision,snapshot:await candidateSnapshot(row),checks:Object.fromEntries(CHECKS.map(k=>[k,true])),label:plan.validation.publishableLabel,category:await effectiveCategory(store,row),publishedAt:row.published_at},now,registry,pepper,{type:'automatic_policy',id:AUTOMATIC_POLICY_VERSION},{authorizeAutomatic:async(current,validation)=>assessAutomatic(store,current,registry,now,pepper,{validation})});
+  if(!result.replayed)published++;
  }
  return published;
+}
+
+// A small bounded snapshot fence, using the existing decision transaction rather
+// than a new lock. Detects inserted/deleted/changed pending peers and changes to
+// health, source stops or category overrides while choosing the representative.
+async function snapshotFence(store,table,where,limit=512){
+ const rows=(await store.db.prepare(`SELECT * FROM ${table} WHERE ${where} LIMIT ${limit+1}`).all()).results;
+ if(rows.length>limit||JSON.stringify(rows).length>1000000)throw Error('automatic_context_limit');
+ const columns=Object.keys(rows[0]||{});if(columns.some(k=>!/^[_a-z]+$/.test(k)))throw Error('candidate_schema_invalid');
+ const equal=columns.length?and(columns.map(k=>`x."${k}" IS json_extract(s.value,'$.${k}')`)):'0';
+ return {rows,sql:`((SELECT COUNT(*) FROM ${table} WHERE ${where})=? AND NOT EXISTS(SELECT 1 FROM json_each(?) s WHERE NOT EXISTS(SELECT 1 FROM ${table} x WHERE ${where} AND ${equal})))`,args:[rows.length,JSON.stringify(rows)]};
+}
+export async function assessAutomatic(store,row,registry,now,pepper,{validation}={}){
+ const stop=reason=>({eligible:false,reasons:[reason]});
+ if(row.review_status!=='pending'||row.origin==='legacy_fixture_backfill'||!['ikebe','shimamura'].includes(row.source_id)||!['new_product','release'].includes(row.event_type))return stop('outside_verified_retail_scope');
+ const controls=await store.controls();if(!controls.publication_enabled)return stop('publication_off');
+ // Capture before validation/learning. Any intervening normal decision or edit
+ // changes the existing controls revision; peer insertion is fenced separately.
+ const peers=await snapshotFence(store,'candidate_items',"source_id IN ('ikebe','shimamura') AND review_status='pending'"),health=await snapshotFence(store,'source_health','1=1'),states=await snapshotFence(store,'source_state','1=1'),categories=await snapshotFence(store,'news_category_overrides','1=1');
+ const source=registry.find(s=>s.id===row.source_id),state=await store.state(row.source_id);
+ if(!source||legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0},now,'production',registry)||health.rows.find(h=>h.source_id===row.source_id)?.status!=='healthy')return stop('source_not_healthy_or_permitted');
+ if((await decisionHistory(store,row.id)).length)return stop('existing_decision');
+ if(categories.rows.some(r=>r.candidate_id===row.id))return stop('human_category_override');
+ validation??=await publicationValidation(store,row,now,registry,pepper);
+ if(!validation.valid)return {...stop('formal_validation_failed'),validation};
+ const shadow=await prepareShadowEvaluation(store,row,validation,now),context=shadow.evidenceContext;
+ if(context.evidenceOrigin!=='publisher_structured'||context.identityScope!=='explicit_models'||!context.publicationDateVerified||context.relevanceStatus!=='PASS'||context.priorHumanDecision)return {...stop('unassisted_explicit_evidence_required'),validation};
+ const project=async(r,v)=>({id:r.id,sourceId:r.source_id,status:r.review_status,history:await decisionHistory(store,r.id),eventType:r.event_type,category:await effectiveCategory(store,r),facts:v.facts,publishedAt:r.published_at,validation:v});
+ const self=await project(row,validation);
+ // Exact dated event identity, preserving model/limited/color/version qualifiers.
+ if(!sourcePreferenceIdentity(self))return {...stop('explicit_product_event_required'),validation};
+ if(row.source_id==='shimamura'){
+  const reviews=[self];
+  for(const peer of peers.rows.filter(r=>r.source_id==='ikebe'))reviews.push(await project(peer,await publicationValidation(store,peer,now,registry,pepper)));
+  if(preferReviewSources(reviews).find(r=>r.id===row.id)?.sourcePreference?.role==='alternative')return {...stop('preferred_verified_ikebe'),validation};
+ }
+ if(shadow.recommendation!=='RECOMMEND_APPROVE')return {...stop('editorial_evidence_insufficient_or_conflicting'),validation,shadow};
+ return {eligible:true,reasons:[],validation,shadow,audit:{policyVersion:AUTOMATIC_POLICY_VERSION,ruleVersion:shadow.ruleVersion,evaluationId:shadow.evaluationId,historyWatermark:shadow.historyWatermark,recommendation:shadow.recommendation,evidenceCount:shadow.evidenceCount,evidenceContext:context},fenceSql:and(["EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1 AND revision=?)","NOT EXISTS(SELECT 1 FROM news_decision_ledger WHERE candidate_id=c.id)",... [peers,health,states,categories].map(f=>f.sql)]),fenceArgs:[controls.revision,...[peers,health,states,categories].flatMap(f=>f.args)]};
 }
