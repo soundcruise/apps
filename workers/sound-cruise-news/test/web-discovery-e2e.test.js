@@ -32,7 +32,7 @@ test('persistent workerd D1: Exa fixture → mock AI → authenticated Operator 
   const call=(headers={},method='GET')=>handleOperatorRequest(new Request(origin+'/api/web-discovery',{headers,method}),env,now,{jwks});
   assert.equal((await call()).status,401);
   const response=await call({'Cf-Access-Jwt-Assertion':token});assert.equal(response.status,200);data=await response.json();
-  const view=renderWebDiscovery(dom,data);assert(view.children.length>17);assert(JSON.stringify(view).includes('検索記録'));assert(JSON.stringify(view).includes('Emerald'));assert(!JSON.stringify(view).includes('innerHTML'));
+  const view=renderWebDiscovery(dom,data);assert(view.children.some(n=>n.textContent==='Webで見つかった記事'));assert(JSON.stringify(view).includes('検索記録'));assert(JSON.stringify(view).includes('Emerald'));assert(!JSON.stringify(view).includes('innerHTML'));
   assert.equal((await call({'Cf-Access-Jwt-Assertion':token},'POST')).status,404);
   assert.equal((await call({'Cf-Access-Jwt-Assertion':token,Origin:'https://evil.test'})).status,403);
   env.NEWS_WEB_ENABLED='false';assert.deepEqual(await runWebDiscovery(env,now,{search:()=>assert.fail()}),{disabled:true});assert.deepEqual(await listWebHints(env,now),{enabled:false,items:[]});
@@ -86,7 +86,7 @@ test('manual Operator run requires an expiring permit, human Access, CSRF and on
   const expired=await call('/api/web-discovery/run',{csrf:session.csrf});assert.equal(expired.status,422);assert.equal((await expired.json()).error,'operator_web_permit_expired');assert.equal(calls,0);
   delete options.webDiscoveryDependencies.clock;
   const response=await call('/api/web-discovery/run',{csrf:session.csrf});assert.equal(response.status,200);assert.equal((await response.json()).searches,1);assert.equal(calls,1);
-  const hints=await listWebHints(env,now);assert.equal(hints.items.length,1);assert.equal(hints.items[0].url,'https://example.test/new');const view=renderWebDiscovery(dom,hints);assert(view.children.some(n=>n.textContent?.includes('誤りが含まれる可能性')));assert(!view.children.some(n=>n.textContent==='Web探索を1回実行'));assert.equal(hints.manualAuthorization.reason,'operator_web_permit_spent');
+  const hints=await listWebHints(env,now);assert.equal(hints.items.length,1);assert.equal(hints.items[0].url,'https://example.test/new');const view=renderWebDiscovery(dom,hints);assert(view.children.some(n=>n.textContent?.includes('検索・AI情報は未確認')));assert(!view.children.some(n=>n.textContent==='Web探索を1回実行'));assert.equal(hints.manualAuthorization.reason,'operator_web_permit_spent');
   const again=await(await call('/api/web-discovery/run',{csrf:session.csrf})).json();assert.equal(again.skipped,true);assert.equal((await runWebDiscovery(env,now,options.webDiscoveryDependencies)).skipped,true);assert.equal(calls,1);
   await runtime.mf.dispose();runtime=await localDatabase(dir);env.NEWS_DB=runtime.db;const restarted=await(await call('/api/web-discovery/run',{csrf:session.csrf})).json();assert.equal(restarted.skipped,true);assert.equal(calls,1);assert.equal((await runtime.db.prepare('SELECT manual_started FROM news_web_runs').first()).manual_started,1);
   assert.equal((await runtime.db.prepare('SELECT COUNT(*) n FROM candidate_items').first()).n,0);

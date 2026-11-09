@@ -1,3 +1,4 @@
+import {assistedUrl} from './assisted-facts.js';
 import {manualPermit,manualAvailability} from './web-manual-permit.js';
 import {webVerification} from './web-verification.js';
 import {hintSyndicationKey,qualifiedWebEstimate,DEFAULT_WEB_QUERIES,searchPlan,publicSearchUrl,resultMetadata,searchDate,screenWebHint,beginWebSearch,finishWebSearch,recentWebSearches} from './web-discovery-quality.js';
@@ -95,7 +96,7 @@ export async function listWebHints(env,now=Date.now()){
  if(env.NEWS_WEB_ENABLED!=='true')return {enabled:false,items:[]};
  const rows=(await env.NEWS_DB.prepare('SELECT url,title,provider,searched_at,status,reason,estimate_json,search_meta_json FROM news_web_hints WHERE expires_at>? ORDER BY searched_at DESC,url LIMIT 100').bind(now).all()).results;
  const verify=webVerification(env,now);
- const items=await Promise.all(rows.map(async row=>({...row,verification:await verify(row.url),estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,searchMetadata:row.search_meta_json?JSON.parse(row.search_meta_json):null,search_meta_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'})));
+ const items=await Promise.all(rows.map(async row=>({...row,humanEntry:assistedUrl(row.url)?{sourceId:'yamaha',url:row.url}:null,verification:await verify(row.url),estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,searchMetadata:row.search_meta_json?JSON.parse(row.search_meta_json):null,search_meta_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'})));
  const manualAuthorization=await manualAvailability(env.NEWS_DB,env,now);
  return {enabled:true,searches:await recentWebSearches(env.NEWS_DB,now),manualEnabled:manualAuthorization.effective,manualAuthorization,items};
 }
