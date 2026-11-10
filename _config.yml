@@ -52,7 +52,9 @@ exclude:
   - apps/cruise-studio/js/modules/pre-dtm-cruise/README.md
   - apps/cruise-studio/js/modules/sheet-cruise/README.md
 
-  # Canonical template only. No Standard Studio entry is published.
+  # Standard distribution is paused; preserve source and the published Pro entry.
+  - apps/cruise-studio/index.html
+  - apps/cruise-studio/manifest.webmanifest
 
   # Original edition artwork is source-only, including the future Standard icon.
   - apps/cruise-studio/icon-sources
