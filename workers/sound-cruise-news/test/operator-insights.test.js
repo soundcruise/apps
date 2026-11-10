@@ -1,5 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {decisionProfile,evaluateDecisions,similarity,similarDecisions,dashboardSummary,humanDecisionHistory,policyCompatibility,MINIMUM_EVIDENCE} from '../src/operator-insights.js';
+test('dashboard keeps actionable source stops visible and recognized intentional pauses out of warnings',async()=>{
+ const s=await setup();await s.recordHealth({sourceId:'ikebe-event',status:'paused',reasonCode:'source_disabled',checkedAt:now});await s.recordHealth({sourceId:'sleepfreaks',status:'paused',reasonCode:'source_disabled',checkedAt:now});await s.recordHealth({sourceId:'agm',status:'error',reasonCode:'collector_repeated_failure',checkedAt:now});
+ const before=JSON.stringify(s.db.raw.prepare('SELECT * FROM source_health').all()),r=await dashboardSummary(s,now);assert.deepEqual(r.sourceWarnings,[{source:'ACOUSTIC GUITAR MAGAZINE WEB',status:'error'},{source:'池部楽器 Events',status:'paused'}]);assert.equal(JSON.stringify(s.db.raw.prepare('SELECT * FROM source_health').all()),before);
+});
 import {DECISION_POLICY_VERSION,publicationValidation} from '../src/decision-policy.js';
 import {operatorDecision} from '../src/operator-review.js';
 import {setup,put,approveInput,source,now} from './operator-case.js';import {pepper} from './helpers.js';

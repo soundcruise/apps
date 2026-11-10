@@ -1,4 +1,5 @@
 import {MAINTENANCE_TOOL_KIT,coDevelopment,validCoDevelopment} from './retail-identity-fields.js';
+import {listingArticleUrl} from './shimamura-listing.js';
 import {factFailure,sourceIdentityConflict} from './facts-failure.js';
 // Source-bound editorial evidence. No product/brand whitelist and no related cards.
 import {parseDocument,DomUtils} from 'htmlparser2';
@@ -15,7 +16,7 @@ const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','aside','nav','footer','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const plain=n=>(hidden(n)?'':DomUtils.textContent(n)).replace(/[®™]/g,'').replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim();
 const find=(n,p)=>DomUtils.findAll(x=>!!x.name&&!hidden(x)&&p(x),n.children||[]);
-const urlOK=u=>/^https:\/\/www\.shimamura\.co\.jp\/update\/(guitar-bass|amp-effector|dtm-recording)\/20\d{2}\/\d{2}\/[1-9]\d*\/$/.test(u||'');
+const urlOK=u=>typeof u==='string'&&listingArticleUrl(u)===u&&/\/(?:gs-)?[1-9][0-9]*\/$/.test(u);
 const nameOK=s=>typeof s==='string'&&s.length>=2&&s.length<=100&&/^[A-Za-z0-9][A-Za-z0-9 .&+()'/,:-]*$/.test(s)&&!s.includes('://')&&! /\b(?:ignore|instruction|prompt|script)\b/i.test(s);
 const japaneseBrand=s=>typeof s==='string'&&/^[ァ-ヶー一-龯]{2,40}$/.test(s);
 const brandOK=s=>nameOK(s)||japaneseBrand(s);

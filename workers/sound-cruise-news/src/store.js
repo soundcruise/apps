@@ -1,7 +1,8 @@
 import {eventEndsAt} from './event.js';
 import {duplicateOf,factualIdentity} from './dedupe.js';
 import {saleEndsAt,isSaleRecord} from './sale.js';
-import { DAY } from './policy.js';
+import { DAY,hash } from './policy.js';
+import {validKikutaniListingFacts,kikutaniListingProvenance} from './kikutani-listing-evidence.js';
 import {purgeDecisionLedger} from './operator-review.js';
 import { HEALTH_STATUSES,HEALTH_REASONS } from './source-health.js';
 export class NewsStore {
@@ -41,6 +42,25 @@ export class NewsStore {
    SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1)) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE source_id=? AND normalized_url=?) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE source_id=? AND dedupe_key=? AND id<>?)`)
    .bind(i.id,i.sourceId,i.sourceName,i.sourceUrl,i.normalizedUrl,i.publishedAt,i.category,i.label,i.topicKey,i.collectedAt,'pending',i.reviewReason,expiry,i.titleFingerprint||null,i.eventType||'other',i.productFacts?JSON.stringify(i.productFacts):null,i.feedPublishedAt||null,i.publicationDecision||'PUBLISH_REVIEW',i.decisionReason||'legacy_review_required',Number.isFinite(deadline)?deadline:null,identity,eventDeadline,['morris','agm','kikutani'].includes(i.sourceId)?i.factsProvenance||null:null,i.id,i.sourceId,i.sourceId,i.normalizedUrl,i.sourceId,identity,i.id).run();
   if(r.meta.changes===1)return true;
+  if(i.sourceId==='kikutani'&&i.productFacts){
+   // Complete a still-empty collector shell from the next permitted listing.
+   // Reuse the existing facts-recheck commit/ audit trigger, not the legacy
+   // refresh which omits provenance. Never replace identity or a human verdict.
+   const row=existing.find(row=>row.id===i.id),at=Date.parse(i.collectedAt);
+   let proof;try{proof=JSON.parse(i.factsProvenance);}catch{}
+   if(!row||row.review_status!=='pending'||row.origin==='operator_assisted'||row.reviewed_by||row.product_facts!==null||row.facts_provenance!==null||row.source_url!==i.sourceUrl||row.normalized_url!==i.normalizedUrl||row.published_at!==i.publishedAt||row.title_fingerprint!==i.titleFingerprint||i.eventType!=='new_product'||row.decision_reason==='maintenance_recovery_review'||!validKikutaniListingFacts(i.productFacts)||!Array.isArray(proof)||proof[0]?.verifiedAt!==at||kikutaniListingProvenance(i.productFacts,proof[0])!==i.factsProvenance)return false;
+   const payload=await hash(JSON.stringify({id:row.id,revision:row.review_revision,facts:i.productFacts,proof})),requestId='listing-facts-'+payload;
+   const patch={product_facts:JSON.stringify(i.productFacts),category:i.category,event_type:i.eventType,label:i.label,topic_key:i.topicKey,event_ends_at:eventDeadline};
+   const columns=Object.keys(row);
+   await this.db.prepare(`INSERT OR IGNORE INTO news_facts_rechecks(request_id,request_payload_hash,candidate_id,checked_at,outcome,provenance_json,patch_json)
+    SELECT ?,?,?,?,'facts_recovered',?,? WHERE EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')})
+    AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1)
+    AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
+    AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)
+    AND NOT EXISTS(SELECT 1 FROM news_decision_ledger WHERE candidate_id=?)`)
+    .bind(requestId,payload,row.id,at,i.factsProvenance,JSON.stringify(patch),...columns.map(k=>row[k]),i.sourceId,row.id,row.id).run();
+   return false; // An existing candidate was repaired, never newly registered.
+  }
   if(i.productFacts&&i.sourceId!=='morris'){await this.db.prepare(`UPDATE candidate_items SET product_facts=?,label=?,category=?,event_type=?,title_fingerprint=?,publication_decision=?,decision_reason=?,review_reason=?,event_ends_at=?
    WHERE id=? AND review_status='pending' AND source_url=? AND decision_reason<>'maintenance_recovery_review'
    AND NOT(COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.evidence'),'') IN ('agm_explicit_article_v1','agm_human_book_v1','guitar_exhibition_article_v1','explicit_named_workshop_v1') OR COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.identifierBasis'),'') IN ('explicit_kikutani_listing_product','verified_primary_announcement','verified_product_article_fields','explicit_article_product_fields','explicit_article_component_fields','explicit_shimamura_product_fields'))

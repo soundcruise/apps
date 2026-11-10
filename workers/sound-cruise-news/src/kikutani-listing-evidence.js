@@ -1,7 +1,7 @@
 // Facts from one public NEWS card. No article request, model catalogue or copied prose.
 import {attributedProductHeadline,listingProductNotice,validListingProductNotice} from './product-attribution.js';
-export const KIKUTANI_LISTING_PARSER='kikutani-listing-product-3';
-export const KIKUTANI_LISTING_PARSERS=[KIKUTANI_LISTING_PARSER,'kikutani-listing-product-2','kikutani-listing-product-1'];
+export const KIKUTANI_LISTING_PARSER='kikutani-listing-product-4';
+export const KIKUTANI_LISTING_PARSERS=[KIKUTANI_LISTING_PARSER,'kikutani-listing-product-3','kikutani-listing-product-2','kikutani-listing-product-1'];
 const brandOK=s=>typeof s==='string'&&/^[A-Za-z][A-Za-z0-9 &.-]{1,59}$/.test(s)&&!/\b(?:ignore|prompt|script|instruction)\b/i.test(s);
 const modelOK=s=>typeof s==='string'&&/^[A-Z][A-Z0-9]{0,9}-?\d{1,5}[A-Z0-9]{0,7}(?: [a-z]{1,5})?$/.test(s);
 const purposes={truss_rod:'トラスロッド調整工具',fret_sprout:'フレット用バリ取り工具',fret_leveling:'フレットすり合わせ工具'};
@@ -9,11 +9,12 @@ export function validKikutaniListingFacts(f){
  return !!f&&f.identifierBasis==='explicit_kikutani_listing_product'&&f.listingSource==='kikutani'&&f.noticeType==='new_product_information'&&(!f.listingNotice||validListingProductNotice(f.listingNotice,f))&&/^https:\/\/www\.kikutani\.co\.jp\/news\/[a-z0-9_%-]+\/$/i.test(f.articleUrl||'')&&brandOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(modelOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.version===null&&!f.productEvent&&!f.releaseEvent&&(
   f.productType==='guitar'&&/\bGuitars?$/i.test(f.brand)&&f.category==='media_other'||
   f.productType==='acoustic_guitar'&&/\bGuitars?$/i.test(f.brand)&&f.category==='acoustic_guitar'&&(!f.guitarConstruction||['acoustic','electric_acoustic'].includes(f.guitarConstruction))||
-  f.productType==='guitar_maintenance_tool'&&Object.hasOwn(purposes,f.purpose)&&f.category==='electric_guitar_bass');
+  f.productType==='guitar_maintenance_tool'&&Object.hasOwn(purposes,f.purpose)&&f.category==='electric_guitar_bass'||
+  f.productType==='pedal_power_supply'&&f.category==='amps_effects');
 }
 export function kikutaniListingLabel(f,event){
  if(event!=='new_product'||!validKikutaniListingFacts(f))return null;
- const type=f.productType==='guitar_maintenance_tool'?purposes[f.purpose]:f.productType==='acoustic_guitar'?(f.guitarConstruction==='acoustic'?'アコースティックギター':'エレアコ'):'ギター';
+ const type=f.productType==='pedal_power_supply'?'ペダル用電源':f.productType==='guitar_maintenance_tool'?purposes[f.purpose]:f.productType==='acoustic_guitar'?(f.guitarConstruction==='acoustic'?'アコースティックギター':'エレアコ'):'ギター';
  // The card proves new-product information, not a launch by the brand itself.
  const n=f.listingNotice;
  return attributedProductHeadline({brand:f.brand,source:f.listingSource,subject:`${type}「${f.product}」`,action:n?.action||'product_overview',actor:n?.actor||null,actorEvidence:n?.actor?{basis:'explicit_primary_subject',brand:f.brand,actor:n.actor,action:n.action}:null});
@@ -33,6 +34,13 @@ export function kikutaniListingFacts(entry,source){
   const acoustic=!!type&&!/用|向け|にも|対応|関連|エレキ|ベース|のような|風|サウンド|音色|鳴り/.test(type[0]);
   productType=acoustic?'acoustic_guitar':'guitar';category=acoustic?'acoustic_guitar':'media_other';
   if(acoustic)guitarConstruction=type[1]==='エレアコ'?'electric_acoustic':'acoustic';
+ }
+ else if(/(?:エフェクター|ペダル)用(?:の)?パワーサプライ\s*$/.test(title.slice(0,quoted[0].index))){
+  // The type belongs to the single quoted main product, not to a compatible
+  // accessory or another item elsewhere in the card. No inferred specifications.
+  const b=/^([A-Za-z][A-Za-z0-9 &.-]{1,59})(?:から|より)/.exec(title);
+  if(!b||!modelOK(quoted[0][1])||/対応|互換|交換用|ケース|ではない|新色|限定|復刻|再発売|再販|リニューアル/.test(title)||!/^(?:が)?(?:登場|発売|発表)(?:[！!。]|しました|されました|$)/.test(title.slice(quoted[0].index+quoted[0][0].length)))return null;
+  brand=b[1];models=[quoted[0][1]];productType='pedal_power_supply';category='amps_effects';
  }
  else {
   const b=/^([A-Za-z][A-Za-z0-9 &.-]{1,59})(?:から|より)/.exec(title),m=/^([A-Z][A-Z0-9]{0,9}-?\d{1,5}[A-Z0-9]{0,7}) [–−-] [A-Za-z0-9 .-]{2,100}$/.exec(quoted[0][1]);
