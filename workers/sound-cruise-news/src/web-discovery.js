@@ -1,3 +1,4 @@
+import {addWebReview,webHintSnapshot} from './web-review.js';
 import {resolveProductType} from './assisted-product-type.js';
 import {draftDate} from './draft-assistance.js';
 import {assistedSource,assistedUrl,assistedLabel} from './assisted-facts.js';
@@ -119,9 +120,10 @@ export async function savedWebDraft(db,url,now){
 }
 export async function listWebHints(env,now=Date.now()){
  if(env.NEWS_WEB_ENABLED!=='true')return {enabled:false,items:[]};
- const rows=(await env.NEWS_DB.prepare('SELECT url,title,provider,searched_at,status,reason,estimate_json,search_meta_json FROM news_web_hints WHERE expires_at>? ORDER BY searched_at DESC,url LIMIT 100').bind(now).all()).results;
+ const rows=(await env.NEWS_DB.prepare('SELECT * FROM news_web_hints WHERE expires_at>? ORDER BY (estimate_json IS NOT NULL) DESC,searched_at DESC,url LIMIT 100').bind(now).all()).results;
  const verify=webVerification(env,now);
- const items=await Promise.all(rows.map(async row=>({...row,articleDraft:webArticleDraft(row),humanEntry:assistedUrl(row.url)?{sourceId:assistedSource(row.url).id,url:row.url,basis:assistedSource(row.url).basis}:null,verification:await verify(row.url),estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,searchMetadata:row.search_meta_json?JSON.parse(row.search_meta_json):null,search_meta_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'})));
+ const items=await Promise.all(rows.map(async row=>({url:row.url,title:row.title,provider:row.provider,searched_at:row.searched_at,status:row.status,reason:row.reason,snapshot:await webHintSnapshot(row),articleDraft:webArticleDraft(row),humanEntry:assistedUrl(row.url)?{sourceId:assistedSource(row.url).id,url:row.url,basis:assistedSource(row.url).basis}:null,verification:await verify(row.url),estimate:row.estimate_json?validateEstimate(JSON.parse(row.estimate_json)):null,estimate_json:undefined,searchMetadata:row.search_meta_json?JSON.parse(row.search_meta_json):null,search_meta_json:undefined,publishedAt:null,formalFacts:false,pageLanguage:'unverified',publicationCandidate:false,titleLanguageHint:hasJapaneseTitle(row.title)?'japanese_possible':'japanese_unconfirmed'})));
+ await addWebReview(env.NEWS_DB,items,now);
  const manualAuthorization=await manualAvailability(env.NEWS_DB,env,now);
  return {enabled:true,searches:await recentWebSearches(env.NEWS_DB,now),manualEnabled:manualAuthorization.effective,manualAuthorization,items};
 }

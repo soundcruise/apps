@@ -259,3 +259,12 @@ test('conditional human facts need separate unchecked conditions; URL/source cha
  assert.equal(u.run('assistedConditions.checked'),false);assert.equal(u.run('assistedConfirm.checked'),false);assert.equal(u.run('assistedSave.disabled'),true);
  u.run("assistedInputs.sourceId.value='yamaha';assistedInputs.sourceId.events.change()");assert.equal(u.run('assistedConditionsLabel.hidden'),true);assert.equal(u.run("'conditionsConfirmed' in assistedPayload()"),false);
 });
+
+test('Web human review shares the ordinary list/count/filter without pretending to be formal READY',async()=>{
+ const u=ui([row('bot-ready',true)]);await settle();u.context.webData={items:[{url:'https://news.example/one',webReview:{queue:'judgment'}},{url:'https://news.example/old',articleDraft:{},webReview:{queue:'low'}},{url:'https://news.example/published',webReview:{queue:'existing'}}],renderCard:item=>new Element('article',item.url)};u.run('receiveWebReview(webData)');
+ assert(u.ids.count.textContent.includes('2件（全2件）'));const counts=u.ids.dashboard.children.find(e=>e.className==='review-counts');assert.equal(counts.children[0].children[1].textContent,'1');assert.equal(counts.children[1].children[1].textContent,'1');
+ assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,2);u.ids.mode.value='approvable';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,1);
+ u.ids.mode.value='human_facts';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,1);assert.equal(u.ids.list.children[0].textContent,'https://news.example/one');
+ u.ids.source.value='web:news.example';u.run('renderList()');assert.equal(u.ids.list.children.length,1);assert(!u.requests.some(r=>r.path==='/api/decision'));
+ u.run('receiveWebReview({error:true})');assert(u.ids.dashboard.children.some(e=>e.textContent.includes('Web記事案を読み込めません')));
+});

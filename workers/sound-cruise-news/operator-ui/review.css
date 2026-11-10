@@ -41,3 +41,5 @@ main{max-width:1040px}header{display:grid;grid-template-columns:1fr auto;gap:4px
 #web-discovery-workspace{border-top:1px solid #354b5c;margin-top:24px;padding-top:12px}
 @media(max-width:680px){.review-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){header{grid-template-columns:minmax(0,1fr)}header .account-detail{grid-column:1;grid-row:auto}header #refresh-status{grid-column:1}#dashboard{grid-template-columns:minmax(0,1fr)}#dashboard>details{grid-column:1;grid-row:auto}.review-counts{gap:8px}#dashboard .review-counts .summary-count{padding:10px}.review-counts span{font-size:.85rem}.card>.category-editor{margin:4px 0}.decision-actions button{min-width:0}}
+
+.web-review-card{overflow-wrap:anywhere}.web-review-card .button-link{display:inline-flex;align-items:center;min-height:44px;padding:9px 12px;border:1px solid #607483;border-radius:8px;text-decoration:none}.web-review-card>.status-pill{display:inline-block;margin:0 12px 12px 0}#web-low-priority{margin-top:24px;border-top:1px solid #354b5c;padding-top:12px}#web-low-priority>summary{min-height:44px;cursor:pointer}
