@@ -1,3 +1,5 @@
+> 0.61.0の有限定期探索は[WEB-SCHEDULE-OPERATIONS.md](WEB-SCHEDULE-OPERATIONS.md)を参照。通常収集後の毎日探索は廃止し、独立Cron・空計画・探索OFFを既定にする。以下は履歴。
+
 > 0.50.0 Web quality PR1: current candidate behavior, migration 0026, date-field limitations and acceptance boundaries are in [WEB-QUALITY-OPERATIONS.md](WEB-QUALITY-OPERATIONS.md). The sections below retain earlier implementation/acceptance history.
 
 # Web discovery PR1 (0.42.0)
