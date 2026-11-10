@@ -18,7 +18,7 @@ test('saved AI estimate → draft → explicit human facts → existing decision
  const api=await handleNewsRequest(new Request('https://news.internal/v1/news'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:SOURCES,cache:null});assert.equal((await api.json()).items.length,1);
 });
 test('AI fields do not expand scope, infer dates or silently collapse special events',()=>{
- const blocked=webArticleDraft({...hint,url:'https://www.yamaha.com/ja/news_release/2026/26110601/'});assert.equal(blocked.registrationAllowed,false);assert.equal(blocked.fields.sourceId,'');
+ const conditional=webArticleDraft({...hint,url:'https://www.yamaha.com/ja/news_release/2026/26110601/'});assert.equal(conditional.registrationAllowed,true);assert.equal(conditional.fields.sourceId,'yamaha-newsroom');assert.equal(conditional.usageBasis,'public_facts_conditions_review');assert.equal(conditional.fields.publishedAt,'');const blocked=webArticleDraft({...hint,url:'https://unreviewed.example/news/1'});assert.equal(blocked.registrationAllowed,false);
  assert.equal(webArticleDraft({...hint,estimate_json:'{}'}),null);
  for(const event of ['限定モデル発売','新色を発表','復刻を発売']){const d=webArticleDraft({...hint,estimate_json:JSON.stringify({...estimate,event})});assert(d.headline.includes(event));assert.equal(d.fields.action,'');assert(d.missing.includes('action'));}
  const d=webArticleDraft({...hint,estimate_json:JSON.stringify({...estimate,category:'product_launch'})});assert(d.missing.includes('productType'));assert.equal(d.fields.publishedAt,'');

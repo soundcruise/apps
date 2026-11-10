@@ -1,5 +1,5 @@
 import {resolveProductType,typeEvidence} from './assisted-product-type.js';
-import {assistedUrl,assistedTypes,assistedActions} from './assisted-facts.js';
+import {assistedUrl,assistedTypes,assistedActions,assistedSource} from './assisted-facts.js';
 
 export const YAMAHA_TOPICS_START='https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/index.html';
 const names={publishedAt:'記事公開日',brand:'ブランド・主催者・人物',product:'製品・イベント等の対象名',productType:'製品・記事種別',action:'出来事',eventDate:'開催日',venue:'会場'};
@@ -15,7 +15,7 @@ const aliases={brand:['ブランド','メーカー','主催者','主体','人物
 export function parseAssistedPaste(input){
  if(!input||Object.keys(input).some(k=>!['sourceId','url','information'].includes(k)))throw Error('assisted_fields_invalid');
  const errors=[],fields={sourceId:input.sourceId,url:input.url},basis={},choices={};
- if(input.sourceId!=='yamaha'||!assistedUrl(input.url))errors.push('許諾済みYamahaギターTopicsの記事URLを入力してください');
+ if(!assistedSource(input.url)||assistedSource(input.url).id!==input.sourceId)errors.push('人間確認に対応する出典の記事URLを入力してください');
  if(typeof input.information!=='string'||!input.information.trim()||input.information.length>2000||/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(input.information))return {valid:false,fields,missing:[],errors:[...errors,'確認済みの必要な情報を2000文字以内で貼り付けてください'],publisherHttpRequests:0};
  const text=input.information.trim(),lines=text.split(/\n/).map(s=>s.trim()).filter(Boolean),typeReadings=[];let unresolvedType=false;
  function offerType(phrase){const r=resolveProductType(phrase);if(!r.resolved){unresolvedType=true;return;}offer('productType',r.productType,'explicit_main_noun');typeReadings.push(typeEvidence(phrase));}
