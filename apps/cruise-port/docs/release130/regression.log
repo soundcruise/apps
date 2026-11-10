@@ -1,0 +1,394 @@
+TAP version 13
+# Subtest: new Midnight -> frozen old Port font-only save -> restart restores Midnight without Cloud Sync fields
+ok 1 - new Midnight -> frozen old Port font-only save -> restart restores Midnight without Cloud Sync fields
+  ---
+  duration_ms: 2.553208
+  type: 'test'
+  ...
+# Subtest: explicit old different theme wins; old selection of the unchanged fallback is indistinguishable
+ok 2 - explicit old different theme wins; old selection of the unchanged fallback is indistinguishable
+  ---
+  duration_ms: 0.539792
+  type: 'test'
+  ...
+# Subtest: old pre-opened tab cannot erase the separate choice; stale new tab is refused
+ok 3 - old pre-opened tab cannot erase the separate choice; stale new tab is refused
+  ---
+  duration_ms: 0.638042
+  type: 'test'
+  ...
+# Subtest: repository-backed new/old writes preserve choice, share existing CAS, reset explicitly exits Midnight
+ok 4 - repository-backed new/old writes preserve choice, share existing CAS, reset explicitly exits Midnight
+  ---
+  duration_ms: 1.675417
+  type: 'test'
+  ...
+# Subtest: overlay failures report unsaved choice and do not destroy an existing selection
+ok 5 - overlay failures report unsaved choice and do not destroy an existing selection
+  ---
+  duration_ms: 0.12225
+  type: 'test'
+  ...
+# Subtest: failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=false)
+ok 6 - failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=false)
+  ---
+  duration_ms: 0.309542
+  type: 'test'
+  ...
+# Subtest: failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=true)
+ok 7 - failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=true)
+  ---
+  duration_ms: 0.464083
+  type: 'test'
+  ...
+# Subtest: journal allocation failure changes neither settings nor the selected theme
+ok 8 - journal allocation failure changes neither settings nor the selected theme
+  ---
+  duration_ms: 0.091334
+  type: 'test'
+  ...
+# Subtest: Port Midnight tokens exactly reuse the existing Studio Port projection (read-only source)
+ok 9 - Port Midnight tokens exactly reuse the existing Studio Port projection (read-only source)
+  ---
+  duration_ms: 0.653292
+  type: 'test'
+  ...
+# Subtest: both startup bootstraps restore overlay before stylesheet; invalid overlay keeps ordinary theme
+ok 10 - both startup bootstraps restore overlay before stylesheet; invalid overlay keeps ordinary theme
+  ---
+  duration_ms: 2.130166
+  type: 'test'
+  ...
+# Subtest: retired icon comparison keys are removed individually without touching settings
+ok 11 - retired icon comparison keys are removed individually without touching settings
+  ---
+  duration_ms: 0.598833
+  type: 'test'
+  ...
+# Subtest: settings default to standard / medium / default order
+ok 12 - settings default to standard / medium / default order
+  ---
+  duration_ms: 0.155167
+  type: 'test'
+  ...
+# Subtest: settings save large and persist across reload
+ok 13 - settings save large and persist across reload
+  ---
+  duration_ms: 0.314
+  type: 'test'
+  ...
+# Subtest: settings save standard and persist across reload
+ok 14 - settings save standard and persist across reload
+  ---
+  duration_ms: 0.076292
+  type: 'test'
+  ...
+# Subtest: settings save small and persist across reload
+ok 15 - settings save small and persist across reload
+  ---
+  duration_ms: 0.068291
+  type: 'test'
+  ...
+# Subtest: settings save xsmall and persist across reload
+ok 16 - settings save xsmall and persist across reload
+  ---
+  duration_ms: 0.051583
+  type: 'test'
+  ...
+# Subtest: invalid settings safely fall back to standard
+ok 17 - invalid settings safely fall back to standard
+  ---
+  duration_ms: 0.052042
+  type: 'test'
+  ...
+# Subtest: schema v2 large remains unchanged after reload
+ok 18 - schema v2 large remains unchanged after reload
+  ---
+  duration_ms: 0.053875
+  type: 'test'
+  ...
+# Subtest: schema v2 standard remains unchanged after reload
+ok 19 - schema v2 standard remains unchanged after reload
+  ---
+  duration_ms: 0.417541
+  type: 'test'
+  ...
+# Subtest: schema v2 small remains unchanged after reload
+ok 20 - schema v2 small remains unchanged after reload
+  ---
+  duration_ms: 0.112291
+  type: 'test'
+  ...
+# Subtest: schema v2 xsmall remains unchanged after reload
+ok 21 - schema v2 xsmall remains unchanged after reload
+  ---
+  duration_ms: 0.062541
+  type: 'test'
+  ...
+# Subtest: legacy large migrates once to standard
+ok 22 - legacy large migrates once to standard
+  ---
+  duration_ms: 0.083042
+  type: 'test'
+  ...
+# Subtest: legacy standard migrates once to small
+ok 23 - legacy standard migrates once to small
+  ---
+  duration_ms: 0.044667
+  type: 'test'
+  ...
+# Subtest: legacy small migrates once to xsmall
+ok 24 - legacy small migrates once to xsmall
+  ---
+  duration_ms: 0.046208
+  type: 'test'
+  ...
+# Subtest: font small, order and display size persist independently
+ok 25 - font small, order and display size persist independently
+  ---
+  duration_ms: 0.085875
+  type: 'test'
+  ...
+# Subtest: font medium, order and display size persist independently
+ok 26 - font medium, order and display size persist independently
+  ---
+  duration_ms: 0.044792
+  type: 'test'
+  ...
+# Subtest: font large, order and display size persist independently
+ok 27 - font large, order and display size persist independently
+  ---
+  duration_ms: 0.035417
+  type: 'test'
+  ...
+# Subtest: font xlarge, order and display size persist independently
+ok 28 - font xlarge, order and display size persist independently
+  ---
+  duration_ms: 0.035333
+  type: 'test'
+  ...
+# Subtest: malformed fields and section permutations normalize without mutating input
+ok 29 - malformed fields and section permutations normalize without mutating input
+  ---
+  duration_ms: 0.094084
+  type: 'test'
+  ...
+# Subtest: stale tab order and reset cannot overwrite a newer font setting
+ok 30 - stale tab order and reset cannot overwrite a newer font setting
+  ---
+  duration_ms: 0.10225
+  type: 'test'
+  ...
+# Subtest: settings reset writes only its key and migration keeps conflict snapshot current
+ok 31 - settings reset writes only its key and migration keeps conflict snapshot current
+  ---
+  duration_ms: 0.102833
+  type: 'test'
+  ...
+# Subtest: 1: AI support shows for every Pro user (no opt-in flag); Standard and no-sync never show it
+ok 32 - 1: AI support shows for every Pro user (no opt-in flag); Standard and no-sync never show it
+  ---
+  duration_ms: 0.735041
+  type: 'test'
+  ...
+# Subtest: 2: both entries keep the mail support and ship the AI container hidden
+ok 33 - 2: both entries keep the mail support and ship the AI container hidden
+  ---
+  duration_ms: 1.316375
+  type: 'test'
+  ...
+# Subtest: 3: only rows that need attention offer 「AIに相談」 in ⓘ, and only when AI support is on
+ok 34 - 3: only rows that need attention offer 「AIに相談」 in ⓘ, and only when AI support is on
+  ---
+  duration_ms: 10.912083
+  type: 'test'
+  ...
+# Subtest: 4: the panel starts closed, opens with focus in the input, and returns focus on close
+ok 35 - 4: the panel starts closed, opens with focus in the input, and returns focus on close
+  ---
+  duration_ms: 0.519458
+  type: 'test'
+  ...
+# Subtest: 5/6: conversation is memory-only; a new panel (page reload) starts empty
+ok 36 - 5/6: conversation is memory-only; a new panel (page reload) starts empty
+  ---
+  duration_ms: 3.03775
+  type: 'test'
+  ...
+# Subtest: 7: send shows both messages, passes earlier turns only, and keeps focus in the input
+ok 37 - 7: send shows both messages, passes earlier turns only, and keeps focus in the input
+  ---
+  duration_ms: 0.66375
+  type: 'test'
+  ...
+# Subtest: 8/24: single-flight — a second submit while sending is ignored and replies stay in order
+ok 38 - 8/24: single-flight — a second submit while sending is ignored and replies stay in order
+  ---
+  duration_ms: 0.253958
+  type: 'test'
+  ...
+# Subtest: 9: Enter sends; Shift+Enter, IME composition and touch keyboards do not
+ok 39 - 9: Enter sends; Shift+Enter, IME composition and touch keyboards do not
+  ---
+  duration_ms: 0.379875
+  type: 'test'
+  ...
+# Subtest: 10: 2000 characters maximum, with a counter; longer text is never sent
+ok 40 - 10: 2000 characters maximum, with a counter; longer text is never sent
+  ---
+  duration_ms: 0.251375
+  type: 'test'
+  ...
+# Subtest: 11/32/33/34: secret-looking text is refused before sending and left unchanged
+ok 41 - 11/32/33/34: secret-looking text is refused before sending and left unchanged
+  ---
+  duration_ms: 1.0835
+  type: 'test'
+  ...
+# Subtest: 12/26/27/28/29/38/39: request carries only { message, history } with Account and Pro headers
+ok 42 - 12/26/27/28/29/38/39: request carries only { message, history } with Account and Pro headers
+  ---
+  duration_ms: 8.953917
+  type: 'test'
+  ...
+# Subtest: 12: missing Account or Pro credential never sends a request
+ok 43 - 12: missing Account or Pro credential never sends a request
+  ---
+  duration_ms: 0.237458
+  type: 'test'
+  ...
+# Subtest: 13/14/15/35: server errors map to fixed, friendly copy; raw bodies are never shown
+ok 44 - 13/14/15/35: server errors map to fixed, friendly copy; raw bodies are never shown
+  ---
+  duration_ms: 1.20575
+  type: 'test'
+  ...
+# Subtest: 16: a diagnostics-unavailable answer from the Worker is shown as the reply, not an error
+ok 45 - 16: a diagnostics-unavailable answer from the Worker is shown as the reply, not an error
+  ---
+  duration_ms: 0.329417
+  type: 'test'
+  ...
+# Subtest: 17/18: AI output is rendered as plain text only, whatever it contains
+ok 46 - 17/18: AI output is rendered as plain text only, whatever it contains
+  ---
+  duration_ms: 0.464417
+  type: 'test'
+  ...
+# Subtest: 19/48/49: email fallback is always one tap away in the panel footer
+ok 47 - 19/48/49: email fallback is always one tap away in the panel footer
+  ---
+  duration_ms: 0.5995
+  type: 'test'
+  ...
+# Subtest: 20: offline — nothing is sent and the panel says it works once online
+ok 48 - 20: offline — nothing is sent and the panel says it works once online
+  ---
+  duration_ms: 0.211708
+  type: 'test'
+  ...
+# Subtest: 23: 中止 aborts the wait on this device only; the message can be sent again
+ok 49 - 23: 中止 aborts the wait on this device only; the message can be sent again
+  ---
+  duration_ms: 0.389208
+  type: 'test'
+  ...
+# Subtest: privacy: the panel links to privacy.html\#ai-support and keeps the codes warning next to the input
+ok 50 - privacy: the panel links to privacy.html\#ai-support and keeps the codes warning next to the input
+  ---
+  duration_ms: 0.214167
+  type: 'test'
+  ...
+# Subtest: privacy/terms pages carry the AI clauses that match the implementation
+ok 51 - privacy/terms pages carry the AI clauses that match the implementation
+  ---
+  duration_ms: 0.206459
+  type: 'test'
+  ...
+# Subtest: beta: a non-entitled Account sees a fixed message; the Port flag is UI discovery only; Standard is unaffected
+ok 52 - beta: a non-entitled Account sees a fixed message; the Port flag is UI discovery only; Standard is unaffected
+  ---
+  duration_ms: 0.590875
+  type: 'test'
+  ...
+# Subtest: AI1-C final: full IDs and slash/dot/colon codes are refused before sending
+ok 53 - AI1-C final: full IDs and slash/dot/colon codes are refused before sending
+  ---
+  duration_ms: 0.086
+  type: 'test'
+  ...
+# Subtest: Pro Sync Help: the Privacy link resolves from the module URL, so it works under pro_*/
+ok 54 - Pro Sync Help: the Privacy link resolves from the module URL, so it works under pro_*/
+  ---
+  duration_ms: 1.032792
+  type: 'test'
+  ...
+# Subtest: final blockers: reverse-context codes are refused before sending, same as the Worker
+ok 55 - final blockers: reverse-context codes are refused before sending, same as the Worker
+  ---
+  duration_ms: 0.376667
+  type: 'test'
+  ...
+# Subtest: four-digit false positive: Port and Worker agree on benign numbers and secret contexts
+ok 56 - four-digit false positive: Port and Worker agree on benign numbers and secret contexts
+  ---
+  duration_ms: 0.096167
+  type: 'test'
+  ...
+# Subtest: AI UX: disclosure behind 「送信内容の取り扱い」, quiet open button, visible thinking state
+ok 57 - AI UX: disclosure behind 「送信内容の取り扱い」, quiet open button, visible thinking state
+  ---
+  duration_ms: 0.974
+  type: 'test'
+  ...
+# Subtest: A-2: legacy (v1) Pro access gets the renew guidance; other cases keep their own messages
+ok 58 - A-2: legacy (v1) Pro access gets the renew guidance; other cases keep their own messages
+  ---
+  duration_ms: 0.425542
+  type: 'test'
+  ...
+# Subtest: scroll UX: open reveals the input, a sent question and then the reply start at the top
+ok 59 - scroll UX: open reveals the input, a sent question and then the reply start at the top
+  ---
+  duration_ms: 0.743541
+  type: 'test'
+  ...
+# Subtest: scroll UX: a user who scrolled away while waiting is not pulled back; touch keeps the keyboard closed
+ok 60 - scroll UX: a user who scrolled away while waiting is not pulled back; touch keeps the keyboard closed
+  ---
+  duration_ms: 0.2675
+  type: 'test'
+  ...
+# Subtest: code warning: short, smaller, other text unchanged
+ok 61 - code warning: short, smaller, other text unchanged
+  ---
+  duration_ms: 0.409875
+  type: 'test'
+  ...
+# Subtest: scroll UX: opening brings 相談内容 to the top before focusing; no keyboard/viewport math
+ok 62 - scroll UX: opening brings 相談内容 to the top before focusing; no keyboard/viewport math
+  ---
+  duration_ms: 0.35575
+  type: 'test'
+  ...
+# Subtest: UI mail route stays: the panel footer links to mail, and failure messages still point to mail
+ok 63 - UI mail route stays: the panel footer links to mail, and failure messages still point to mail
+  ---
+  duration_ms: 0.414625
+  type: 'test'
+  ...
+# Subtest: Standard default AI API denies even with saved Account and Pro credentials
+ok 64 - Standard default AI API denies even with saved Account and Pro credentials
+  ---
+  duration_ms: 0.06
+  type: 'test'
+  ...
+1..64
+# tests 64
+# suites 0
+# pass 64
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 87.63525

@@ -1,0 +1,85 @@
+{
+  "pagesSource": {
+    "url": "https://api.github.com/repos/soundcruise/apps/pages",
+    "status": "built",
+    "cname": "soundcruise.jp",
+    "custom_404": false,
+    "html_url": "https://soundcruise.jp/",
+    "build_type": "legacy",
+    "source": {
+      "branch": "codex/port-1.28.0-release-20261106",
+      "path": "/"
+    },
+    "public": true,
+    "protected_domain_state": "verified",
+    "pending_domain_unverified_at": null,
+    "https_certificate": {
+      "state": "approved",
+      "description": "The certificate has been approved.",
+      "domains": [
+        "soundcruise.jp",
+        "www.soundcruise.jp"
+      ],
+      "expires_at": "2027-01-06"
+    },
+    "https_enforced": true
+  },
+  "releaseBase": "ed87b93e9c57fe5b58e2e76aa71ef32edc9bdcbc",
+  "candidateSource": "102e716ff0952927e7e34325ed265b58faba236a",
+  "localJekyll": "3.10.0 --safe",
+  "buildFileCounts": {
+    "baseline": 1059,
+    "release": 1059,
+    "recovery": 1059
+  },
+  "overlay": [
+    "app-version.js",
+    "index.html",
+    "pro_9a3943176561/index.html",
+    "practice-menu-app.js",
+    "pro-app-boot.js",
+    "settings-store.js",
+    "style.css",
+    "tuner-app.js"
+  ],
+  "outputHashes": {
+    "baseline": {
+      "app-version.js": "2dbb996260f5987d32ecd2edade02ea41bd0dbd5993b249f494ba626d164f407",
+      "index.html": "166595d71ebd716f530e818a868c2a31b2e2432bc9a6d863fecbd7cc3062fa46",
+      "pro_9a3943176561/index.html": "3d746ca9f3821756f75745f5a8a653bb5cfa95ac8a400c560b849001ae9ec0fc",
+      "practice-menu-app.js": "b1a1acb2ba97d57a526e3c5b00e11924676b619eef2afe375fa39db6d9346f37",
+      "pro-app-boot.js": "9f5e641370d6c5647af5bcda1a3a9324b26c4b2196054a24466f0ac0bc1a8c3d",
+      "settings-store.js": "e71f4754411425335de4e12f080e0f91e3281207df407649878e0be77b2d9543",
+      "style.css": "1f1b81291bcf6c85bcaf45fd7d1ba3f35e67fe2bbe93ce621b83c80f5ff2a59a",
+      "tuner-app.js": "2840af12efa781316f8128926ca7e967578d6a59e605b2a94e2e2261b8b5e3a9"
+    },
+    "release": {
+      "app-version.js": "bac15a90d2cb7c505bb8e255b02fb24c2eb2cb28014d48cf4e1368e7c244bd71",
+      "index.html": "07f09ab54ce61ff9186d5fa31bd71143a0caabcb75d565fe15ab9180b01ea56c",
+      "pro_9a3943176561/index.html": "f54c00a0a311b0d3fa9334832bd218fd5a02c292b04b3eaff6c9f42e261206dc",
+      "practice-menu-app.js": "fa206845a249cd2f34da755ce1cff84259493cf2512e655ed35f677471280638",
+      "pro-app-boot.js": "b7911e1ea65ee36cc60f2da22f13d034d6ba1b8783cb0f38821612c914626183",
+      "settings-store.js": "922727905a465da4fbebefd918c769580e9c81af3fc42cc2433b6418b722e124",
+      "style.css": "2ec3f4b3fcdacf16f9332ee7857964ed4cf1a7ee949bb5da4b410172293adde8",
+      "tuner-app.js": "f1ef4d1dc80c8329f292ce342754d0e39cef541d4406aa37d144094bdbbd44fb"
+    },
+    "recovery": {
+      "app-version.js": "192fd2c9a10e680938455e9c9712c6ed389d863512f773915934ac7175955f35",
+      "index.html": "bba25cfcef35408a5ad8540d72b429d1d919ae3a6fcb050276c1333e2d22e1c3",
+      "pro_9a3943176561/index.html": "2ff4c9fc770d1d7b51706a850865aa773cc6407b9f00b2ac72817222f568e9b3",
+      "practice-menu-app.js": "fff59c5c3786b7e370f0ee76338aaf00b16daf2a87457d880fee69fb13ada56f",
+      "pro-app-boot.js": "92aae81e110fe1503184bc82443525b67c442b29178c2025d2a56e890dddb839",
+      "settings-store.js": "922727905a465da4fbebefd918c769580e9c81af3fc42cc2433b6418b722e124",
+      "style.css": "2ec3f4b3fcdacf16f9332ee7857964ed4cf1a7ee949bb5da4b410172293adde8",
+      "tuner-app.js": "ce8fe5828cfb1bc232186455a1af2983483685d95010490459c7ce1644cd06b8"
+    }
+  },
+  "fullManifestSha256": "9eac3a294b27c2e2a61a1afe94975cd9d37c8b0d774844d58740d9f48cf14fdb",
+  "tests": {
+    "recovery": {
+      "pass": 4,
+      "fail": 0
+    }
+  },
+  "deployed": false
+}

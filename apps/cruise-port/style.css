@@ -7208,3 +7208,29 @@ body.metronome-preset-open {
 .diagnostic-details { margin: 18px 0; }
 .diagnostic-details summary { cursor: pointer; padding: 10px 0; }
 .tuner-input-tools > .tuner-diagnostic { margin-top: 14px; padding: 18px; }
+
+/* Midnight: exact existing Studio port-frame-theme.js token projection. */
+:root[data-theme="midnight"] {
+    color-scheme: dark;
+    --port-bg: #10151c;
+    --port-surface: #1d2631;
+    --port-surface-deep: #151d26;
+    --port-panel: #1d2631;
+    --port-panel-alt: #252f3b;
+    --port-panel-deep: #10151c;
+    --port-control: #252f3b;
+    --port-control-hover: #39434f;
+    --port-control-active: #303c49;
+    --port-field: #10151c;
+    --port-menu: #252f3b;
+    --port-menu-alt: #252f3b;
+    --port-menu-deep: #151d26;
+    --port-bg-top: #151d26;
+    --port-bg-bottom: #10151c;
+    --port-well-rgb: 16,21,28;
+    --port-well-alt-rgb: 16,21,28;
+    --port-well-deep-rgb: 12,16,22;
+    --port-well-cool-rgb: 16,21,28;
+    --port-well-warm-rgb: 16,21,28;
+    --port-chrome-rgb: 29,38,49;
+}

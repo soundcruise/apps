@@ -1,0 +1,27 @@
+{
+  "checks": [
+    "standard: five theme UI/save/reload",
+    "standard: font/display/unrelated data retained",
+    "standard: old tab font save/explicit Gray",
+    "standard: failed save/restart restores Midnight",
+    "standard: explicit retry commits",
+    "standard: passthrough SW/reload",
+    "standard: fresh context restart",
+    "standard: six non-settings data keys unchanged",
+    "pro: five theme UI/save/reload",
+    "pro: font/display/unrelated data retained",
+    "integrated Pro AI limit disclosure retained",
+    "pro: old tab font save/explicit Gray",
+    "pro: failed save/restart restores Midnight",
+    "pro: explicit retry commits",
+    "pro: passthrough SW/reload",
+    "pro: fresh context restart",
+    "pro: six non-settings data keys unchanged",
+    "actual Pro gate stays closed without qualification",
+    "unchanged Studio frame projection: five themes"
+  ],
+  "errors": [],
+  "proFixture": "Pro theme UI uses synthetic qualification substitution; actual unauthenticated gate separately tested closed",
+  "productionRequests": 0,
+  "nativePortSW": "No native Port registration; synthetic passthrough SW tested. Arbitrary stale cache-first SW cannot be forced to update."
+}

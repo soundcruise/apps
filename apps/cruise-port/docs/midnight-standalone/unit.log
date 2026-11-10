@@ -1,0 +1,232 @@
+TAP version 13
+# Subtest: home data attribute switches to large
+ok 1 - home data attribute switches to large
+  ---
+  duration_ms: 0.325416
+  type: 'test'
+  ...
+# Subtest: home data attribute switches to standard
+ok 2 - home data attribute switches to standard
+  ---
+  duration_ms: 0.043625
+  type: 'test'
+  ...
+# Subtest: home data attribute switches to small
+ok 3 - home data attribute switches to small
+  ---
+  duration_ms: 0.037584
+  type: 'test'
+  ...
+# Subtest: home data attribute switches to xsmall
+ok 4 - home data attribute switches to xsmall
+  ---
+  duration_ms: 0.033542
+  type: 'test'
+  ...
+# Subtest: home data attribute safely falls back to standard
+ok 5 - home data attribute safely falls back to standard
+  ---
+  duration_ms: 0.046416
+  type: 'test'
+  ...
+# Subtest: section order moves existing DOM nodes rather than CSS order or cloned cards
+ok 6 - section order moves existing DOM nodes rather than CSS order or cloned cards
+  ---
+  duration_ms: 0.365375
+  type: 'test'
+  ...
+# Subtest: new Midnight -> frozen old Port font-only save -> restart restores Midnight without Cloud Sync fields
+ok 7 - new Midnight -> frozen old Port font-only save -> restart restores Midnight without Cloud Sync fields
+  ---
+  duration_ms: 2.230584
+  type: 'test'
+  ...
+# Subtest: explicit old different theme wins; old selection of the unchanged fallback is indistinguishable
+ok 8 - explicit old different theme wins; old selection of the unchanged fallback is indistinguishable
+  ---
+  duration_ms: 0.549166
+  type: 'test'
+  ...
+# Subtest: old pre-opened tab cannot erase the separate choice; stale new tab is refused
+ok 9 - old pre-opened tab cannot erase the separate choice; stale new tab is refused
+  ---
+  duration_ms: 0.642708
+  type: 'test'
+  ...
+# Subtest: repository-backed new/old writes preserve choice, share existing CAS, reset explicitly exits Midnight
+ok 10 - repository-backed new/old writes preserve choice, share existing CAS, reset explicitly exits Midnight
+  ---
+  duration_ms: 1.536833
+  type: 'test'
+  ...
+# Subtest: overlay failures report unsaved choice and do not destroy an existing selection
+ok 11 - overlay failures report unsaved choice and do not destroy an existing selection
+  ---
+  duration_ms: 0.115416
+  type: 'test'
+  ...
+# Subtest: failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=false)
+ok 12 - failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=false)
+  ---
+  duration_ms: 0.290208
+  type: 'test'
+  ...
+# Subtest: failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=true)
+ok 13 - failed writes/cleanup keep the prior theme across restart and ordinary saves (repository=true)
+  ---
+  duration_ms: 0.457125
+  type: 'test'
+  ...
+# Subtest: journal allocation failure changes neither settings nor the selected theme
+ok 14 - journal allocation failure changes neither settings nor the selected theme
+  ---
+  duration_ms: 0.085833
+  type: 'test'
+  ...
+# Subtest: Port Midnight tokens exactly reuse the existing Studio Port projection (read-only source)
+ok 15 - Port Midnight tokens exactly reuse the existing Studio Port projection (read-only source)
+  ---
+  duration_ms: 0.646
+  type: 'test'
+  ...
+# Subtest: both startup bootstraps restore overlay before stylesheet; invalid overlay keeps ordinary theme
+ok 16 - both startup bootstraps restore overlay before stylesheet; invalid overlay keeps ordinary theme
+  ---
+  duration_ms: 1.958334
+  type: 'test'
+  ...
+# Subtest: retired icon comparison keys are removed individually without touching settings
+ok 17 - retired icon comparison keys are removed individually without touching settings
+  ---
+  duration_ms: 0.665792
+  type: 'test'
+  ...
+# Subtest: settings default to standard / medium / default order
+ok 18 - settings default to standard / medium / default order
+  ---
+  duration_ms: 0.187708
+  type: 'test'
+  ...
+# Subtest: settings save large and persist across reload
+ok 19 - settings save large and persist across reload
+  ---
+  duration_ms: 0.33925
+  type: 'test'
+  ...
+# Subtest: settings save standard and persist across reload
+ok 20 - settings save standard and persist across reload
+  ---
+  duration_ms: 0.087542
+  type: 'test'
+  ...
+# Subtest: settings save small and persist across reload
+ok 21 - settings save small and persist across reload
+  ---
+  duration_ms: 0.077333
+  type: 'test'
+  ...
+# Subtest: settings save xsmall and persist across reload
+ok 22 - settings save xsmall and persist across reload
+  ---
+  duration_ms: 0.058584
+  type: 'test'
+  ...
+# Subtest: invalid settings safely fall back to standard
+ok 23 - invalid settings safely fall back to standard
+  ---
+  duration_ms: 0.056458
+  type: 'test'
+  ...
+# Subtest: schema v2 large remains unchanged after reload
+ok 24 - schema v2 large remains unchanged after reload
+  ---
+  duration_ms: 0.059875
+  type: 'test'
+  ...
+# Subtest: schema v2 standard remains unchanged after reload
+ok 25 - schema v2 standard remains unchanged after reload
+  ---
+  duration_ms: 0.438834
+  type: 'test'
+  ...
+# Subtest: schema v2 small remains unchanged after reload
+ok 26 - schema v2 small remains unchanged after reload
+  ---
+  duration_ms: 0.079542
+  type: 'test'
+  ...
+# Subtest: schema v2 xsmall remains unchanged after reload
+ok 27 - schema v2 xsmall remains unchanged after reload
+  ---
+  duration_ms: 0.053833
+  type: 'test'
+  ...
+# Subtest: legacy large migrates once to standard
+ok 28 - legacy large migrates once to standard
+  ---
+  duration_ms: 0.066875
+  type: 'test'
+  ...
+# Subtest: legacy standard migrates once to small
+ok 29 - legacy standard migrates once to small
+  ---
+  duration_ms: 0.039709
+  type: 'test'
+  ...
+# Subtest: legacy small migrates once to xsmall
+ok 30 - legacy small migrates once to xsmall
+  ---
+  duration_ms: 0.047166
+  type: 'test'
+  ...
+# Subtest: font small, order and display size persist independently
+ok 31 - font small, order and display size persist independently
+  ---
+  duration_ms: 0.06125
+  type: 'test'
+  ...
+# Subtest: font medium, order and display size persist independently
+ok 32 - font medium, order and display size persist independently
+  ---
+  duration_ms: 0.040625
+  type: 'test'
+  ...
+# Subtest: font large, order and display size persist independently
+ok 33 - font large, order and display size persist independently
+  ---
+  duration_ms: 0.05
+  type: 'test'
+  ...
+# Subtest: font xlarge, order and display size persist independently
+ok 34 - font xlarge, order and display size persist independently
+  ---
+  duration_ms: 0.045375
+  type: 'test'
+  ...
+# Subtest: malformed fields and section permutations normalize without mutating input
+ok 35 - malformed fields and section permutations normalize without mutating input
+  ---
+  duration_ms: 0.08575
+  type: 'test'
+  ...
+# Subtest: stale tab order and reset cannot overwrite a newer font setting
+ok 36 - stale tab order and reset cannot overwrite a newer font setting
+  ---
+  duration_ms: 0.128334
+  type: 'test'
+  ...
+# Subtest: settings reset writes only its key and migration keeps conflict snapshot current
+ok 37 - settings reset writes only its key and migration keeps conflict snapshot current
+  ---
+  duration_ms: 0.140334
+  type: 'test'
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 37
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 44.443458
