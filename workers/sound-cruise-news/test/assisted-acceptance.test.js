@@ -63,13 +63,13 @@ test('Web handoff separates Topics grant from newsroom conditions review',async(
  assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
 });
 
-test('authenticated draft reload reuses stored estimate, not query facts or date hints',async()=>{
+test('authenticated draft reload reuses estimate and typed publication hint without formalizing either',async()=>{
  const {saveHint}=await import('../src/web-discovery.js');const {s,env}=await environment();
  await saveHint(s.db,{url:input.url,title:'製品ニュース',provider:'exa',searchedAt:now},now);
  const e={category:'アコースティックギター',brand:'Yamaha',product:'TEST-100',event:'新製品を発売',value:'high',priority:'low',relevance:'high',duplicate:'unknown',reason:'未検証'};
  await s.db.prepare('UPDATE news_web_hints SET estimate_json=?,search_meta_json=? WHERE url=?').bind(JSON.stringify(e),JSON.stringify({publishedAtHint:'2026-10-27',lastModifiedHint:'2026-10-28'}),input.url).run();
  const path='/api/assisted?hintUrl='+encodeURIComponent(input.url);
  assert.equal((await call(env,path,{authenticated:false})).status,401);
- const a=await(await call(env,path)).json(),b=await(await call(env,path)).json();assert.deepEqual(a.draft,b.draft);assert.equal(a.draft.fields.product,'TEST-100');assert.equal(a.draft.fields.publishedAt,'');assert(a.draft.registrationAllowed);
+ const a=await(await call(env,path)).json(),b=await(await call(env,path)).json();assert.deepEqual(a.draft,b.draft);assert.equal(a.draft.fields.product,'TEST-100');assert.equal(a.draft.fields.publishedAt,'2026-10-27');assert.equal(a.draft.fieldSources.publishedAt.kind,'search_publication_hint');assert.equal(a.draft.formalFacts,false);assert(a.draft.registrationAllowed);
  assert.equal((await s.candidates()).length,0);assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_assisted_edits').first()).n,0);
 });
