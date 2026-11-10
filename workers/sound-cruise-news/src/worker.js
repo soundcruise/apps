@@ -1,4 +1,5 @@
 import {runWebDiscovery} from './web-discovery.js';
+import {WEB_DISCOVERY_CRON} from './web-schedule.js';
 import {assistedPredicate} from './assisted-facts.js';
 import {compareTicker} from '../../../apps/cruise-port/news-quality.js';
 import {preferredIndependentLabel} from './label-quality.js';
@@ -34,7 +35,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
  if(request.method==='OPTIONS')return finish(new Response(null,{status:204}));
  if(request.method!=='GET')return finish(json({error:'method_not_allowed'},405));
  if(url.pathname==='/health'){
-  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.60.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
+  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.61.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
   catch{return finish(json({ok:false,error:'news_unavailable'},503));}
  }
  if(!['/v1/news','/v1/news/ticker'].includes(url.pathname))return finish(json({error:'not_found'},404));
@@ -96,4 +97,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
   return finish(response);
  }catch{return finish(json({error:'news_unavailable'},503));}
 }
-export default {fetch:(request,env)=>handleNewsRequest(request,env,Date.now(),{registry:env.NEWS_API_MODE==='production'?runtimeSources(env):SOURCES}),scheduled:async(event,env,ctx,now=Date.now(),options={})=>{const result=await scheduledNews(event,env,ctx,now,options);if(event.cron==='0 21 * * *'&&env.NEWS_WEB_ENABLED==='true'){try{await runWebDiscovery(env,now);}catch{console.error(JSON.stringify({event:'news_web_failed'}));}}return result;}};
+export default {fetch:(request,env)=>handleNewsRequest(request,env,Date.now(),{registry:env.NEWS_API_MODE==='production'?runtimeSources(env):SOURCES}),scheduled:async(event,env,ctx,now=Date.now(),options={})=>{
+ if(event.cron===WEB_DISCOVERY_CRON){try{const report=await runWebDiscovery(env,now,{...options.webDiscoveryDependencies,scheduledTime:event.scheduledTime??now});console.log(JSON.stringify({event:'news_web_scheduled',scheduledAt:event.scheduledTime??now,...report}));return {webDiscovery:report};}catch{console.error(JSON.stringify({event:'news_web_failed'}));return {webDiscovery:{stopped:'web_run_failed'}};}}
+ return scheduledNews(event,env,ctx,now,options);
+}};
