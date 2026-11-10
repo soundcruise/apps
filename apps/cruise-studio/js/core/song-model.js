@@ -201,17 +201,24 @@
      * TODO(Phase 2C以降): 小節内の複数コード（tick指定）に対応する。
      *                     データ構造は既に対応済みで、このUI用ヘルパーだけが1個制限。
      */
-    function setBarChord(project, barNumber, symbol) {
+    function setBarChord(project, barNumber, symbol, options) {
         var bar = project.bars[barNumber - 1];
         if (!bar || bar.barNumber !== barNumber) {
             bar = project.bars.filter(function (b) { return b.barNumber === barNumber; })[0];
         }
         if (!bar) return;
         var s = String(symbol || '').trim();
+        // Text controls edit a symbol, not the song's timeline. Keep the existing
+        // explicit whole-bar replacement API for callers that own that intent.
+        var symbolOnly = options && options.symbolOnly;
+        var previous = bar.chords[0];
+        if (symbolOnly && previous && previous.symbol === s) return;
+        if (symbolOnly && bar.chords.length > 1) throw Error('この小節には複数コードがあります。1小節1コード入力では変更できません。既存のコードと拍位置を保持しました');
         if (!s) {
             bar.chords = [];
         } else {
-            var events = [{ tick: 0, durationTicks: getBarLengthTicks(project), symbol: s }];
+            var events = [symbolOnly && previous ? Object.assign({}, previous, { symbol: s }) :
+                { tick: 0, durationTicks: getBarLengthTicks(project), symbol: s }];
             if(window.CruiseStudio.model.schema2)window.CruiseStudio.model.schema2.reconcileChord(bar,events);
             bar.chords = events;
         }
