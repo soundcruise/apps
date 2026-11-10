@@ -53,7 +53,11 @@ exclude:
   - apps/cruise-studio/js/modules/pre-dtm-cruise/README.md
   - apps/cruise-studio/js/modules/sheet-cruise/README.md
 
-  # Canonical source is excluded; generated Standard root and Pro entries are public candidates.
+  # Standard distribution is paused; preserve source and the published Pro entry.
+  - apps/cruise-studio/index.html
+  - apps/cruise-studio/manifest.webmanifest
+
+  # Canonical source is excluded; generated entries remain available for development.
   - apps/cruise-studio/studio-template.html
 
   # Original edition artwork is source-only, including the future Standard icon.
