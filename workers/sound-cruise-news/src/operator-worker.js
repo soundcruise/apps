@@ -4,6 +4,7 @@ import {confirmCanonicalFacts} from './canonical-confirmation.js';
 import {restoreSystemResolution} from './pending-resolution.js';
 import {listWebHints,runWebDiscovery,savedWebDraft} from './web-discovery.js';
 import {prepareAssisted,saveAssisted} from './assisted-entry.js';
+import {decideAssisted} from './assisted-decision.js';
 import {assistedDraftWithInformation} from './draft-assistance.js';
 import {parseAssistedPaste,YAMAHA_TOPICS_START} from './assisted-paste.js';
 import {assistedSources,assistedTypes,assistedActions,ASSISTED_ORIGIN} from './assisted-facts.js';
@@ -52,7 +53,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   }
   if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,webClock()));
   if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,webClock(),{...options.webDiscoveryDependencies,clock:webClock},true));}
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.59.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.60.0'});
   if(request.method==='GET'&&url.pathname==='/api/automatic-assessment'){if(url.search)throw Error('operator_query_invalid');return json({readOnly:true,items:await assessAutomaticCandidates(store,registry,now,env.NEWS_HEADLINE_PEPPER)});}
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
@@ -60,7 +61,11 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    if(input.scope==='pending'&&Object.keys(input).length===1)return json(await evaluatePending(store,now,registry,env.NEWS_HEADLINE_PEPPER));
    return json(await saveShadowEvaluation(store,input,now,registry,env.NEWS_HEADLINE_PEPPER));
   }
-  if(request.method==='GET'&&url.pathname==='/api/assisted')return json({draft:await savedWebDraft(env.NEWS_DB,url.searchParams.get('hintUrl'),now),sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:Object.fromEntries(Object.entries(assistedTypes).filter(([id])=>id!=='guitar_accessory')),actions:assistedActions});
+  if(request.method==='GET'&&url.pathname==='/api/assisted'){
+   const hintUrl=url.searchParams.get('hintUrl'),existing=hintUrl?await store.db.prepare('SELECT id FROM candidate_items WHERE normalized_url=?').bind(hintUrl).first():null;
+   return json({existing:existing?await reviewDetail(store,existing.id,now,registry,env.NEWS_HEADLINE_PEPPER):null,draft:await savedWebDraft(env.NEWS_DB,hintUrl,now),sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:Object.fromEntries(Object.entries(assistedTypes).filter(([id])=>id!=='guitar_accessory')),actions:assistedActions});
+  }
+  if(request.method==='POST'&&url.pathname==='/api/assisted-decision'){await verifyCsrf(request,identity,env,now);return json(await decideAssisted(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));}
   if(request.method==='POST'&&url.pathname==='/api/assisted-draft'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
    if(Object.keys(input).some(k=>!['url','information'].includes(k)))throw Error('assisted_draft_invalid');
@@ -126,7 +131,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   const code=error.message,status=['operator_not_configured','operator_unavailable'].includes(code)?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate','facts_recheck_busy','presentation_changed','category_changed'].includes(code)?409:['decision_transaction_failed','facts_transaction_failed','category_transaction_failed'].includes(code)?503:422;
   const known=/^(assisted_|category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
   if(request.method==='GET'&&['/','/index.html'].includes(new URL(request.url).pathname)&&['authentication_required','authentication_invalid'].includes(code))return authenticationPage(security);
-  return json({error:known?code:'operator_unavailable'},known?status:503);
+  return json({error:known?code:'operator_unavailable',...(/^[a-f0-9]{64}$/.test(error.pendingCandidateId||'')?{pendingCandidateId:error.pendingCandidateId,phase:'saved_pending'}:{})},known?status:503);
  }
 }
 export default {fetch:(request,env)=>handleOperatorRequest(request,env)};
