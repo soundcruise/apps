@@ -84,3 +84,12 @@ test('automatic assessment is an authenticated bounded GET, has no write verb or
  const result=await call(env,'/api/automatic-assessment',token);assert.equal(result.status,200);assert.equal(result.headers.get('Cache-Control'),'no-store');const body=await result.json();assert.equal(body.readOnly,true);assert.equal(body.items.length,1);assert.equal(body.items[0].eligible,false);assert(body.items[0].reasons.length);assert.equal(body.items[0].ruleVersion,'structured-human-v3');
  assert.equal(JSON.stringify(await s.candidates()),before);for(const table of ['news_decision_ledger','news_shadow_evaluations','news_operator_feedback'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+table).first()).n,0);
 });
+
+test('Web visibility endpoint uses human Access/Origin/CSRF and does not mutate formal NEWS',async()=>{
+ const {env,s}=await environment();env.NEWS_WEB_ENABLED='true';const {saveHint,listWebHints}=await import('../src/web-discovery.js');const url='https://gibson.jp/news-events/fixture';await saveHint(s.db,{url,title:'アコギ限定モデルの発表',provider:'exa',searchedAt:now},now);
+ const token=await jwt(),session=await(await call(env,'/api/session',token)).json(),hint=(await listWebHints(env,now)).items[0],input={url,action:'later',snapshot:hint.snapshot,requestId:'web-visibility-http-001'},body=JSON.stringify(input),headers={Origin:origin,'Content-Type':'application/json','X-News-CSRF':session.csrf};
+ assert.equal((await call(env,'/api/web-hints/review',null,{method:'POST',headers,body})).status,401);assert.equal((await call(env,'/api/web-hints/review',token,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body})).status,403);assert.equal((await call(env,'/api/web-hints/review',token,{method:'POST',headers:{...headers,Origin:'https://evil.test'},body})).status,403);
+ assert.equal((await call(env,'/api/web-hints/review',token,{method:'POST',headers,body})).status,200);assert.equal((await call(env,'/api/web-hints/review',token,{method:'POST',headers,body})).status,200);
+ assert.equal((await call(env,'/api/web-hints/review',token,{method:'POST',headers,body:JSON.stringify({...input,requestId:'web-visibility-http-002'})})).status,409);
+ for(const table of ['candidate_items','news_decision_ledger','news_shadow_evaluations'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+table).first()).n,0);
+});

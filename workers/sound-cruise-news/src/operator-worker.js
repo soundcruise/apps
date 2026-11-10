@@ -1,3 +1,4 @@
+import {setWebHintReview} from './web-review.js';
 import {assessAutomaticCandidates} from './automatic.js';
 import {confirmAgmBookFacts} from './agm-fact-confirmation.js';
 import {confirmCanonicalFacts} from './canonical-confirmation.js';
@@ -51,9 +52,10 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    else{const keys=[...url.searchParams.keys()];if(keys.some(k=>!['limit','cursor'].includes(k))||new Set(keys).size!==keys.length)throw Error('operator_query_invalid');const text=url.searchParams.get('limit')||'10',cursor=url.searchParams.get('cursor');if(!/^(?:[1-9]|1[0-9]|20)$/.test(text)||(cursor!==null&&!/^[a-f0-9]{64}$/.test(cursor)))throw Error('operator_query_invalid');output=await dotReader.list({limit:Number(text),cursor});if(!Array.isArray(output?.items)||output.items.length>Number(text)||output.items.some(x=>x.validation?.ready!==false||x.validation?.formalFacts!==false))throw Error('operator_query_invalid');}
    if(new TextEncoder().encode(JSON.stringify(output)).length>65536)throw Error('operator_query_invalid');return json(output);
   }
+  if(request.method==='POST'&&url.pathname==='/api/web-hints/review'){if(env.NEWS_WEB_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);return json(await setWebHintReview(store,await inputJSON(request),now,identity.actor));}
   if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,webClock()));
   if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,webClock(),{...options.webDiscoveryDependencies,clock:webClock},true));}
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.61.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.62.0'});
   if(request.method==='GET'&&url.pathname==='/api/automatic-assessment'){if(url.search)throw Error('operator_query_invalid');return json({readOnly:true,items:await assessAutomaticCandidates(store,registry,now,env.NEWS_HEADLINE_PEPPER)});}
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
@@ -129,7 +131,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   return json({error:'not_found'},404);
  }catch(error){
   const code=error.message,status=['operator_not_configured','operator_unavailable'].includes(code)?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate','facts_recheck_busy','presentation_changed','category_changed'].includes(code)?409:['decision_transaction_failed','facts_transaction_failed','category_transaction_failed'].includes(code)?503:422;
-  const known=/^(assisted_|category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
+  const known=/^(web_review_|assisted_|category_|presentation_|publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
   if(request.method==='GET'&&['/','/index.html'].includes(new URL(request.url).pathname)&&['authentication_required','authentication_invalid'].includes(code))return authenticationPage(security);
   return json({error:known?code:'operator_unavailable',...(/^[a-f0-9]{64}$/.test(error.pendingCandidateId||'')?{pendingCandidateId:error.pendingCandidateId,phase:'saved_pending'}:{})},known?status:503);
  }

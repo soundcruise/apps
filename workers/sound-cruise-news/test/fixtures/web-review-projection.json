@@ -1,0 +1,340 @@
+{
+  "note": "Public URL/title and saved unverified AI estimates projected from 2026-11-11 read-only records. Not formal provenance. No article bodies or operator identities.",
+  "at": "2026-11-10T23:01:40.014Z",
+  "hints": [
+    {
+      "url": "https://vethel.media/archives/20596/",
+      "title": "歌声もギターも、ありのままの響きで ── ヤマハがシンガーソングライターのための新型アンプ「Acompass 60」を発表 – Vethel",
+      "estimate_json": "{\"category\":\"product_launch\",\"brand\":\"ヤマハ\",\"product\":\"Acompass 60\",\"event\":\"新型アンプの発表\",\"value\":\"high\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"possible\",\"reason\":\"新型アンプの発表に関するニュース。日付は検証が必要。\"}",
+      "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-equipment\",\"rank\":4,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-07T08:35:22.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794219041584,\"registrationAllowed\":false,\"path\":\"C\",\"reason\":\"source_not_registered\",\"nextAction\":\"operator_source_permission\",\"confirmationUrl\":\"https://vethel.media/archives/20596/\"}}",
+      "status": "hold",
+      "reason": "publication_verification_pending",
+      "searched_at": 1794219041584
+    },
+    {
+      "url": "https://www.deviser.co.jp/information/626551",
+      "title": "進化を続ける国産Bacchusフラッグシップモデル【ディバイザーワンデイ2026】 | Deviser ｜株式会社ディバイザー｜長野県松本市のギターメーカー",
+      "estimate_json": "{\"category\":\"unknown\",\"brand\":\"Bacchus\",\"product\":\"Bacchusフラッグシップモデル\",\"event\":\"ディバイザーワンデイ2026\",\"value\":\"medium\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"イベント情報。詳細な発表内容の確認が必要。\"}",
+      "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-edition\",\"rank\":2,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-06T09:00:00.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794219041584,\"registrationAllowed\":false,\"sourceId\":\"deviser\",\"confirmationUrl\":\"https://www.deviser.co.jp/information/626551\",\"path\":\"C\",\"reason\":\"source_collection_unavailable\",\"nextAction\":\"operator_source_review\"}}",
+      "status": "hold",
+      "reason": "publication_verification_pending",
+      "searched_at": 1794219041584
+    },
+    {
+      "url": "https://www.sankei.com/pressrelease/prtimes/RSJW4JMPMJKSJGHUTJXZE2MBOE/",
+      "title": "シンガーソングライターの歌声とアコースティックギターの自然な響きを忠実に再現　ヤマハ アコースティックギターアンプ『Acompass 60』 - 産経ニュース",
+      "estimate_json": "{\"category\":\"product_launch\",\"brand\":\"ヤマハ\",\"product\":\"Acompass 60\",\"event\":\"新型アンプの発表\",\"value\":\"high\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"possible\",\"reason\":\"1件目と同一製品の発表ニュース。日付は検証が必要。\"}",
+      "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-acoustic\",\"rank\":5,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-06T01:15:54.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794219041584,\"registrationAllowed\":false,\"path\":\"C\",\"reason\":\"source_not_registered\",\"nextAction\":\"operator_source_permission\",\"confirmationUrl\":\"https://www.sankei.com/pressrelease/prtimes/RSJW4JMPMJKSJGHUTJXZE2MBOE/\"}}",
+      "status": "hold",
+      "reason": "publication_verification_pending",
+      "searched_at": 1794219041584
+    },
+    {
+      "url": "https://www.yamaha.com/ja/news_release/2026/26110601/",
+      "title": "シンガーソングライターの歌声とアコースティックギターの自然な響きを忠実に再現するアコースティックギターアンプ『Acompass 60』を発売 - ニュースリリース - ヤマハ株式会社",
+      "estimate_json": "{\"category\":\"news_hint\",\"brand\":\"ヤマハ\",\"product\":\"Acompass 60\",\"event\":\"新製品発売\",\"value\":\"high\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新製品の発売に関するニュースリリースであり、日付も最近のため。\"}",
+      "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-equipment\",\"rank\":1,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-06T01:00:00.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794219041584,\"registrationAllowed\":false,\"sourceId\":\"yamaha-newsroom\",\"confirmationUrl\":\"https://www.yamaha.com/ja/news_release/2026/26110601/\",\"path\":\"C\",\"reason\":\"permission_required\",\"nextAction\":\"operator_source_permission\"}}",
+      "status": "hold",
+      "reason": "publication_verification_pending",
+      "searched_at": 1794219041584
+    },
+    {
+      "url": "https://youngguitar.jp/gear/hi-end-music-infinite",
+      "title": "大阪から全国、そして世界へ…！ 気鋭のギター・ブランド：Infiniteの全貌に ...",
+      "estimate_json": "{\"category\":\"music\",\"brand\":\"Infinite\",\"product\":\"guitar\",\"event\":\"brand launch\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新ブランドの発表\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "新ブランドの発表",
+      "searched_at": 1793998829555
+    },
+    {
+      "url": "https://guitarmagazine.jp/news/2025-0901-epiphone-inspired-by-gibson-custom-ag-2/",
+      "title": "エピフォンのInspired By Gibson Customシリーズより、ギブソンの名器を再現した6つのアコースティック・ギターが登場 | ギター・マガジンWEB｜Guitar magazine",
+      "estimate_json": "{\"category\":\"music_instrument\",\"brand\":\"エピフォン\",\"product\":\"アコースティック・ギター\",\"event\":\"新製品発表\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新製品発表のため\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "新製品発表のため",
+      "searched_at": 1793912428344
+    },
+    {
+      "url": "https://acousticguitarmagazine.jp/gears/eastman-1/",
+      "title": "革新のEastman、Bourgeois Guitarsとともに feat.矢後憲太 | アコースティック・ギター・マガジンWEB",
+      "estimate_json": "{\"category\":\"music\",\"brand\":\"Eastman\",\"product\":\"Bourgeois Guitars\",\"event\":\"collaboration\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"ブランドコラボの発表\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "ブランドコラボの発表",
+      "searched_at": 1793826028987
+    },
+    {
+      "url": "https://archive.deviser.co.jp/en/seventyseven/content/2020422",
+      "title": "SeventySeven Guitars新シリーズ発売間近！！ | Deviser ｜株式会社ディバイザー｜長野県松本市のギターメーカー",
+      "estimate_json": "{\"category\":\"music\",\"brand\":\"SeventySeven Guitars\",\"product\":\"new series\",\"event\":\"release\",\"value\":\"medium\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"新シリーズ発売予定\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "新シリーズ発売予定",
+      "searched_at": 1793826028987
+    },
+    {
+      "url": "https://nihon-meisho.com/3718/",
+      "title": "2026年10月に登場したアコギ新製品まとめ - アコースティックギター博士",
+      "estimate_json": "{\"category\":\"music\",\"brand\":\"unknown\",\"product\":\"acoustic guitar\",\"event\":\"new product\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"2026年製品まとめ\"}",
+      "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-edition\",\"rank\":4,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-02T03:56:54.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794219041584,\"registrationAllowed\":false,\"path\":\"C\",\"reason\":\"source_not_registered\",\"nextAction\":\"operator_source_permission\",\"confirmationUrl\":\"https://nihon-meisho.com/3718/\"}}",
+      "status": "excluded",
+      "reason": "2026年製品まとめ",
+      "searched_at": 1793826028987
+    },
+    {
+      "url": "https://guitarsele.com/article/news/gibson-hata-motohiro-j-45-20251016/",
+      "title": "秦 基博×Gibson J-45｜モンタナ工房が手掛ける特別な100本限定シグネチャー | ギタセレ（Guitar Selection）",
+      "estimate_json": "{\"category\":\"Guitar\",\"brand\":\"Gibson\",\"product\":\"J-45\",\"event\":\"限定シグネチャー\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"限定モデル発売\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "限定モデル発売",
+      "searched_at": 1793739628514
+    },
+    {
+      "url": "https://note.com/dolphin_guitars/n/n9d6a578958ce",
+      "title": "\"FUJII GUITARS\"という哲学｜きっかけは\"弾けなかった1本のギター。\"『余計なことをしない』という設計思想｜ドルフィンギターズの中の人たち",
+      "estimate_json": "{\"category\":\"Guitar\",\"brand\":\"FUJII Guitars\",\"product\":\"Guitars\",\"event\":\"設計思想\",\"value\":\"medium\",\"priority\":\"medium\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"設計思想紹介\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "設計思想紹介",
+      "searched_at": 1793739628514
+    },
+    {
+      "url": "https://www.shimamura.co.jp/update/shops/hakata/guitar-bass/36609/",
+      "title": "「アコギと出会う。」製作家工房訪問記 Vol.1【Mukae Guitars】 ｜ アミュプラザ博多店 - 島村楽器 Update!",
+      "estimate_json": "{\"category\":\"Guitar\",\"brand\":\"Mukae Guitars\",\"product\":\"Acoustic Guitar\",\"event\":\"工房訪問\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"low\",\"duplicate\":\"unknown\",\"reason\":\"工房訪問記\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "工房訪問記",
+      "searched_at": 1793739628514
+    },
+    {
+      "url": "https://news.mynavi.jp/article/20260919-4990579/",
+      "title": "ヤマハ、アコギ/エレアコの新モデル「FG7/FS7」シリーズを発表",
+      "estimate_json": "{\"category\":\"Guitar\",\"brand\":\"ヤマハ\",\"product\":\"FG7/FS7\",\"event\":\"新モデル発表\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"possible\",\"reason\":\"未来の日付のため新鮮さ確認が必要\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "未来の日付のため新鮮さ確認が必要",
+      "searched_at": 1793653228039
+    },
+    {
+      "url": "https://shop.jeugia.co.jp/c/gr2/gr3/gr6/4580393205665-49",
+      "title": "【限定100本】K.Yairi RF-65 sen-saiヤイリ アコースティックギター センサイ スタビライズド・ウッド【Stage-Guitar】 フォークギター 日本製 国産 | JEUGIA",
+      "estimate_json": "{\"category\":\"Guitar\",\"brand\":\"K.Yairi\",\"product\":\"RF-65 sen-sai\",\"event\":\"限定販売\",\"value\":\"medium\",\"priority\":\"medium\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"限定モデルのため中程度\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "限定モデルのため中程度",
+      "searched_at": 1793653228039
+    },
+    {
+      "url": "https://www.deviser.co.jp/feature/2026-special-collections/momose",
+      "title": "Momose | Deviser ｜株式会社ディバイザー｜長野県松本市のギターメーカー",
+      "estimate_json": "{\"category\":\"Guitar\",\"brand\":\"Momose\",\"product\":\"不明\",\"event\":\"企業紹介\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"企業紹介のため中程度\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "企業紹介のため中程度",
+      "searched_at": 1793653228039
+    },
+    {
+      "url": "https://www.shimamura.co.jp/update/shops/hamakita/guitar-bass/80633/",
+      "title": "【アコースティックギター】Martin 浜田省吾シグネチャーモデル発売！ご予約受付中です。 ｜ プレ葉ウォーク浜北店 - 島村楽器 Update!",
+      "estimate_json": "{\"category\":\"acoustic guitar\",\"brand\":\"Martin\",\"product\":\"signature model\",\"event\":\"release\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"発売日不明のため新鮮さ確認が必要\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "発売日不明のため新鮮さ確認が必要",
+      "searched_at": 1793653228039
+    },
+    {
+      "url": "https://acousticguitarmagazine.jp/2025-0926-bromo-guitars/",
+      "title": "ブロモ・ギターズが、ビンテージ味のあるパーラーや木目の美しいミニ・ジャンボなど、新モデル4種をリリース | アコースティック・ギター・マガジンWEB",
+      "estimate_json": "{\"category\":\"acoustic_guitar\",\"brand\":\"Bromo\",\"product\":\"4種\",\"event\":\"new_model_release\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新モデル4種のリリース\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "新モデル4種のリリース",
+      "searched_at": 1793566828270
+    },
+    {
+      "url": "https://guitarmagazine.jp/news/2026-0824-kikuchi-guitars-jf15/",
+      "title": "Kikuchi Guitars、フレイム・メイプル・ボディとカスタム・ハムバッカーを採用したフルアコを2機種発売 | ギター・マガジンWEB｜Guitar magazine",
+      "estimate_json": "{\"category\":\"acoustic_guitar\",\"brand\":\"Kikuchi\",\"product\":\"2機種\",\"event\":\"new_model_release\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"2機種の発売\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "2機種の発売",
+      "searched_at": 1793566828270
+    },
+    {
+      "url": "https://jp.yamaha.com/musical-instruments/guitars-basses-amps/products/acoustic-guitars/fg-series/fg-7/lineup.html",
+      "title": "ヤマハ | FG/FS7シリーズ - 製品ラインアップ - FG/FSシリーズ - アコースティックギター - 製品情報 - ギター・ベース・アンプ - 楽器",
+      "estimate_json": "{\"category\":\"acoustic_guitar\",\"brand\":\"Yamaha\",\"product\":\"FG/FS7シリーズ\",\"event\":\"product_lineup\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"製品ラインアップの掲載\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "製品ラインアップの掲載",
+      "searched_at": 1793566828270
+    },
+    {
+      "url": "https://www.mikigakki.com/shop/g/gsa260113ll56ctm200/",
+      "title": "LL56 Custom ARE -MIKI 200th Anniversary-: アコースティックギター｜三木楽器公式通販サイト",
+      "estimate_json": "{\"category\":\"アコースティックギター\",\"brand\":\"MIKI\",\"product\":\"LL56 Custom ARE\",\"event\":\"200th Anniversary\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"possible\",\"reason\":\"200周年記念モデルの発売\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "200周年記念モデルの発売",
+      "searched_at": 1793566828270
+    },
+    {
+      "url": "https://www.watanabe-mi.com/shopping.php/list/c1289/?page=1&s_o=4",
+      "title": "日本製 アコースティックギター 在庫有ります！ ★",
+      "estimate_json": "{\"category\":\"アコースティックギター\",\"brand\":\"unknown\",\"product\":\"日本製 アコースティックギター\",\"event\":\"unknown\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"在庫情報の掲載\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "在庫情報の掲載",
+      "searched_at": 1793566828270
+    },
+    {
+      "url": "https://www.yamaha.com/ja/news_release/2026/26091801/",
+      "title": "シンガーソングライターの演奏表現を支える新たなハイエンドモデル　ヤマハ アコースティックギター『FG7』『FS7』 - ニュースリリース - ヤマハ株式会社",
+      "estimate_json": "{\"category\":\"アコースティックギター\",\"brand\":\"Yamaha\",\"product\":\"FG7, FS7\",\"event\":\"新ハイエンドモデル発売\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新ハイエンドモデル発売\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "新ハイエンドモデル発売",
+      "searched_at": 1793566828270
+    },
+    {
+      "url": "https://acousticguitarmagazine.jp/2025-1016-stafford-sad-2000/",
+      "title": "プロからも愛されたスタッフォードのSAD-2000が数量限定で復刻！ | アコースティック・ギター・マガジンWEB",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Stafford\",\"product\":\"SAD-2000\",\"event\":\"Limited Edition Reissue\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"数量限定復刻モデルの発表\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "数量限定復刻モデルの発表",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://archive.yamaha.com/ja/news_release/2012/12030101.html",
+      "title": "明快なサウンドと贅沢な装飾を再現　ヤマハ アコースティックギター『L-53 CUSTOM復刻モデル』 - ニュースリリース - ヤマハ株式会社",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Yamaha\",\"product\":\"L-53 CUSTOM\",\"event\":\"Reissue Announcement\",\"value\":\"medium\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"過去のモデル復刻の発表\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "過去のモデル復刻の発表",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://gibson.jp/news-events/27491",
+      "title": "ギブソン・カスタムから、 フラットトップ・アコースティック製作開始から100周年を記念し、 クレモナ・バースト仕上げの限定アニバーサリー・モデル５種がリリース | Gibson Japan",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Gibson\",\"product\":\"Anniversary Model\",\"event\":\"100th Anniversary Limited Edition\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"100周年記念限定モデル発表\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "100周年記念限定モデル発表",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://guitarmagazine.jp/news/2025-1121-kikuchi-guitars-archtop/",
+      "title": "Kikuchi Guitarsより、アーチトップ・ギターのシリーズが登場初回生産分のボディにはエキゾチック・ウッドを採用 | ギター・マガジンWEB｜Guitar magazine",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Kikuchi Guitars\",\"product\":\"Archtop Series\",\"event\":\"New Series Launch\",\"value\":\"medium\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"アーチトップギター新シリーズ発売\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "アーチトップギター新シリーズ発売",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://guitarsele.com/article/news/epiphone-inspired-by-gibson-custom-20250820/",
+      "title": "Epiphone『Inspired By Gibson Custom』新作6モデル登場 ― ヴィンテージの名機を忠実に再現 | ギタセレ（Guitar Selection）",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Epiphone\",\"product\":\"Inspired By Gibson Custom\",\"event\":\"New Model Release\",\"value\":\"high\",\"priority\":\"medium\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"ヴィンテージモデル再現新作発表\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "ヴィンテージモデル再現新作発表",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/l-51_custom/index.html",
+      "title": "ヤマハ | L-51 CUSTOM - アコースティックギター - 概要",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Yamaha\",\"product\":\"L-51 CUSTOM\",\"event\":\"Product Page\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"製品ページの公開\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "製品ページの公開",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://www.chunichi.co.jp/article/839468",
+      "title": "70年代のギター復刻版第2弾、大府の鈴木バイオリン　「上品な高音、深みある低音」：中日新聞Web",
+      "estimate_json": "{\"category\":\"Musical Instruments\",\"brand\":\"Suzuki Violins\",\"product\":\"70s Guitar Reissue\",\"event\":\"Reissue Announcement\",\"value\":\"medium\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"70年代ギター復刻版発表\"}",
+      "search_meta_json": null,
+      "status": "classified",
+      "reason": "70年代ギター復刻版発表",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://www.deviser.co.jp/information/137977",
+      "title": "1月15日は「HD-115の日」 | Deviser ｜株式会社ディバイザー｜長野県松本市のギターメーカー",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Deviser\",\"product\":\"HD-115\",\"event\":\"Commemorative Day\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"medium\",\"duplicate\":\"unknown\",\"reason\":\"HD-115の日の記念\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "HD-115の日の記念",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://www.dolphin-gt.co.jp/luthier/syezo-acoustics/",
+      "title": "Syezo Acoustics - ドルフィンギターズ",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Syezo Acoustics\",\"product\":\"Company Website\",\"event\":\"Website Launch\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"low\",\"duplicate\":\"unknown\",\"reason\":\"会社情報サイトの公開\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "会社情報サイトの公開",
+      "searched_at": 1793490556122
+    },
+    {
+      "url": "https://www.syezo-acoustics.com/about",
+      "title": "ABOUT | Syezo Acoustics シェゾアコースティックス",
+      "estimate_json": "{\"category\":\"Acoustic Guitar\",\"brand\":\"Syezo Acoustics\",\"product\":\"About Page\",\"event\":\"Website Update\",\"value\":\"low\",\"priority\":\"low\",\"relevance\":\"low\",\"duplicate\":\"unknown\",\"reason\":\"会社概要ページの公開\"}",
+      "search_meta_json": null,
+      "status": "excluded",
+      "reason": "会社概要ページの公開",
+      "searched_at": 1793490556122
+    }
+  ],
+  "known": [
+    {
+      "id": "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+      "source_id": "yamaha",
+      "source_url": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+      "normalized_url": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+      "review_status": "approved",
+      "published_at": "2026-09-17T15:00:00.000Z",
+      "product_facts": "{\"headlineQuality\":{\"schemaVersion\":1,\"scope\":\"published_admin_quality\",\"candidateId\":\"953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1\",\"sourceUrl\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"kind\":\"product\",\"brand\":\"Yamaha\",\"product\":\"FG7 / FS7\",\"productType\":\"acoustic_guitar\",\"action\":\"scheduled_release\",\"date\":\"2026-10\",\"evidence\":[{\"url\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"basis\":\"official_product_review\",\"verifiedAt\":1791239248299,\"fields\":[\"identity\",\"productType\",\"action\",\"date\"]}]}}",
+      "facts_provenance": "[{\"sourceId\":\"yamaha\",\"sourceUrl\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"verifiedAt\":1791239977709,\"extractionMethod\":\"authorized_published_primary_review\",\"parserVersion\":\"published-headline-1\",\"factField\":\"headlineQuality\",\"evidence\":[{\"url\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"basis\":\"official_product_review\",\"verifiedAt\":1791239248299,\"fields\":[\"identity\",\"productType\",\"action\",\"date\"]}]}]",
+      "label": "Yamaha、アコースティックギター「FG7 / FS7」を10月に発売予定"
+    },
+    {
+      "id": "6bbdb1c5a704c2764d4672e02dfb8931fac5a53a52f04e8af6bbd76ec93de0dd",
+      "source_id": "ikebe",
+      "source_url": "https://www.ikebe-gakki-pb.com/new_product/172734/",
+      "normalized_url": "https://www.ikebe-gakki-pb.com/new_product/172734/",
+      "review_status": "approved",
+      "published_at": "2026-10-04T15:00:00.000Z",
+      "product_facts": "{\"brand\":\"Yamaha\",\"product\":\"YAMAHAFG7\",\"version\":null,\"category\":\"acoustic_guitar\",\"identifierBasis\":\"explicit_model_code\",\"headlineQuality\":{\"schemaVersion\":1,\"scope\":\"published_admin_quality\",\"candidateId\":\"6bbdb1c5a704c2764d4672e02dfb8931fac5a53a52f04e8af6bbd76ec93de0dd\",\"sourceUrl\":\"https://www.ikebe-gakki-pb.com/new_product/172734/\",\"kind\":\"product\",\"brand\":\"Yamaha\",\"product\":\"FG7\",\"productType\":\"acoustic_guitar\",\"action\":\"arrival\",\"evidence\":[{\"url\":\"https://www.ikebe-gakki-pb.com/new_product/172734/\",\"basis\":\"primary_article_review\",\"verifiedAt\":1791238578985,\"responseHash\":\"a428943ec40e6e545d9c2c05e02736d233d49ee30047f443f171d4ca6cb9f0c9\",\"fields\":[\"identity\",\"productType\",\"action\"]},{\"url\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"basis\":\"official_product_review\",\"verifiedAt\":1791239248300,\"fields\":[\"identity\",\"productType\"]}]}}",
+      "facts_provenance": "[{\"sourceId\":\"ikebe\",\"sourceUrl\":\"https://www.ikebe-gakki-pb.com/new_product/172734/\",\"verifiedAt\":1791239977709,\"extractionMethod\":\"authorized_published_primary_review\",\"parserVersion\":\"published-headline-1\",\"factField\":\"headlineQuality\",\"evidence\":[{\"url\":\"https://www.ikebe-gakki-pb.com/new_product/172734/\",\"basis\":\"primary_article_review\",\"verifiedAt\":1791238578985,\"responseHash\":\"a428943ec40e6e545d9c2c05e02736d233d49ee30047f443f171d4ca6cb9f0c9\",\"fields\":[\"identity\",\"productType\",\"action\"]},{\"url\":\"https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html\",\"basis\":\"official_product_review\",\"verifiedAt\":1791239248300,\"fields\":[\"identity\",\"productType\"]}]}]",
+      "label": "Yamaha、アコースティックギター「FG7」の入荷情報"
+    },
+    {
+      "id": "b61076026651c3dd3e333b846876456d830bf3dad54d7ba991f68b98d85562a9",
+      "source_id": "agm",
+      "source_url": "https://acousticguitarmagazine.jp/2026-0918-yamaha-fg7-fs7-sahashi/",
+      "normalized_url": "https://acousticguitarmagazine.jp/2026-0918-yamaha-fg7-fs7-sahashi/",
+      "review_status": "approved",
+      "published_at": "2026-09-18T10:00:00.000Z",
+      "product_facts": "{\"brand\":\"Yamaha\",\"product\":\"FG7\",\"version\":null,\"category\":\"acoustic_guitar\",\"identifierBasis\":\"explicit_model_code\"}",
+      "facts_provenance": "null",
+      "label": "Yamaha、FG7を発表"
+    },
+    {
+      "id": "15683558e2a1e02e4ce4dcc23b508b5cf12566aae4d31896e452800427538616",
+      "source_id": "yamaha-newsroom",
+      "source_url": "https://www.yamaha.com/ja/news_release/2026/26110601/",
+      "normalized_url": "https://www.yamaha.com/ja/news_release/2026/26110601/",
+      "review_status": "approved",
+      "published_at": "2026-11-05T15:00:00.000Z",
+      "product_facts": "{\"typeEvidence\":{\"version\":1,\"method\":\"human_type_selection\",\"phrase\":\"ギターアンプ\",\"productType\":\"guitar_amp\",\"usageTargets\":[],\"accessories\":[]},\"kind\":\"assisted_notice\",\"brand\":\"ヤマハ\",\"product\":\"Acompass 60\",\"models\":[\"Acompass 60\"],\"version\":null,\"productType\":\"guitar_amp\",\"category\":\"amps_effects\",\"action\":\"announcement\"}",
+      "facts_provenance": "{\"method\":\"human_public_facts_confirmation\",\"permissionRef\":\"human-facts-conditions-v1:yamaha-newsroom\",\"verifiedAt\":1794313180052,\"publisherHttpRequests\":0,\"usageBasis\":\"public_facts_conditions_review\",\"conditionsConfirmed\":true,\"independentFactsOnly\":true}",
+      "label": "ヤマハ、ギターアンプ「Acompass 60」を発表"
+    }
+  ]
+}
