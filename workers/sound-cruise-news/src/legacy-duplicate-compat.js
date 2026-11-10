@@ -4,7 +4,7 @@ const columns=['id','source_id','source_url','published_at','label','product_fac
 const legacyFilter=a=>`${a}.review_status='approved' AND json_type(CASE WHEN json_valid(${a}.product_facts) THEN ${a}.product_facts ELSE '{}' END,'$.headlineQuality')='object'`;
 const assistedFilter=a=>`${a}.review_status='approved' AND ${a}.origin='operator_assisted'`;
 export async function withLegacyDuplicates(store,row,facts,now,base){
- const assisted=facts?.kind==='assisted_notice'&&row.source_id==='yamaha',identity=assisted?assistedProductIdentity(facts):legacyProductIdentity(row,now);
+ const assisted=facts?.kind==='assisted_notice',identity=assisted?assistedProductIdentity(facts):legacyProductIdentity(row,now);
  if(!identity)return {...base,fenceSql:'1',fenceArgs:[]};
  const filter=assisted?legacyFilter:assistedFilter;
  const peers=(await store.db.prepare(`SELECT ${columns.map(c=>'x.'+c).join(',')}${assisted?'':',x.origin'} FROM candidate_items x WHERE ${filter('x')} ORDER BY x.id LIMIT 513`).all()).results;

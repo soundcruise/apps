@@ -183,3 +183,11 @@ test('canonical confirmation UI sends only bounded human facts with CSRF and nev
 test('AGM book input is explicit human confirmation, optional publisher, no prefilled guesses and no automatic POST',async()=>{const candidate={...row('book-confirm',false,['facts_incomplete'],null),agmBookReview:{confirmationAvailable:true}};const u=ui([candidate]);await settle();u.run('api=async()=>items[0]');await u.ids.list.children[0].children.at(-2).events.click();await settle();const nodes=walk(u.ids.list),texts=nodes.map(n=>n.textContent);assert(texts.includes('書籍発売を原記事で確認して事実を入力'));assert(texts.some(t=>t.includes('これは人間の一次確認')));assert(nodes.find(n=>n.textContent==='確認した書籍の事実を保存・掲載条件を検証').disabled);assert.equal(nodes.find(n=>n.attributes['aria-label']==='出版社（明示がある場合のみ・任意）').required,false);assert.equal(u.requests.filter(x=>x.path==='/api/agm-book-facts-confirm').length,0);});
 
 function desc(node){return (node.children||[]).flatMap(x=>[x,...desc(x)]);}
+
+test('conditional human facts need separate unchecked conditions; URL/source changes invalidate them',async()=>{
+ const u=ui([]);await settle();u.run("assistedConfig={sources:[{id:'yamaha',name:'ヤマハ',basis:'publisher_permission'},{id:'yamaha-newsroom',name:'ヤマハ',basis:'public_facts_conditions_review'}]};assistedInputs.sourceId.value='yamaha-newsroom';updateAssistedConditions();");
+ assert.equal(u.run('assistedConditionsLabel.hidden'),false);assert.equal(u.run('assistedConditions.checked===true'),false);assert.equal(u.run('assistedPayload().conditionsConfirmed===true'),false);
+ u.run("assistedConditions.checked=true;assistedConfirm.checked=true;assistedReady=true;assistedSave.disabled=false;assistedInputs.url.value='https://www.yamaha.com/ja/news_release/2026/26110601/';assistedInputs.url.events.input()");
+ assert.equal(u.run('assistedConditions.checked'),false);assert.equal(u.run('assistedConfirm.checked'),false);assert.equal(u.run('assistedSave.disabled'),true);
+ u.run("assistedInputs.sourceId.value='yamaha';assistedInputs.sourceId.events.change()");assert.equal(u.run('assistedConditionsLabel.hidden'),true);assert.equal(u.run("'conditionsConfirmed' in assistedPayload()"),false);
+});

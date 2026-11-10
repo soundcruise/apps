@@ -143,7 +143,7 @@ function standardDuplicatePredicate(row,facts,alias='d'){
  return {sql:`${alias}.review_status='approved' AND ${alias}.id<>? AND (${clauses.join(' OR ')})${variantFence}`,args:[row.id,...args,...(variants?[row.normalized_url,row.source_url,variants]:[row.normalized_url,row.source_url])]};
 }
 export async function publicationValidation(store,row,now,registry,pepper){
- const assisted=row.origin===ASSISTED_ORIGIN,verifiedAssisted=assisted&&await assistedProof(store,row,now);
+ const assisted=row.origin===ASSISTED_ORIGIN,verifiedAssisted=assisted&&await assistedProof(store,row,now,registry);
  const errors=[],source=registry.find(s=>s.id===row.source_id),facts=parseFacts(row),label=verifiedAssisted?row.label:factualLabel(facts,row.event_type),controls=await store.controls(),state=await store.state(row.source_id),health=(await store.sourceHealth()).find(h=>h.source_id===row.source_id);
  if(row.publication_decision==='REJECT')errors.push('publication_policy_rejected');
  const sourceGate=legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0,backoffUntil:0,failures:0},now,'production',registry);
