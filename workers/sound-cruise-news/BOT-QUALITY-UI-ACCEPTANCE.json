@@ -1,0 +1,44 @@
+{
+  "version": "0.58.0",
+  "baseMain": "68fa3140d6d704f2f8c3cc4e6426e6b160a21d86",
+  "scope": "Offline development and acceptance only; no production writes, deployment, editorial decisions or paid API calls.",
+  "kikutani": {
+    "exampleUrl": "https://www.kikutani.co.jp/news/sfida-sps10/",
+    "observedProductionState": "Detected 2026-11-10; facts/provenance NULL, pending. Still unchanged in production by this work.",
+    "cause": "Controlled listing extraction covered guitars and maintenance tools, but not pedal power supplies. Legacy pending refresh could also save facts without provenance.",
+    "editorialScope": "Guitar-related peripheral equipment in the existing amps_effects category, not an acoustic guitar or a new category. Publication usefulness remains an operator judgment.",
+    "implementation": "Extract one explicit brand/model and pedal-bound power-supply type from one controlled new-product listing card. Reuse pedal_power_supply. No inferred output count, price or release date. Ambiguous variants/limited colors/reissues remain incomplete.",
+    "recovery": "The normal permitted listing can fill an existing entirely empty, undecided, same-date/same-fingerprint collector shell via the existing news_facts_rechecks trigger. Full candidate CAS, Ledger absence, source controls and takedown guards apply. No new HTTP surface or extra scheduled execution.",
+    "offlineEvidence": "Public title/URL replay plus synthetic card layout/proof/hash/local pepper. Initial formal validation and empty-shell recovery pass locally, including workerd/D1 concurrency and audit-failure rollback.",
+    "productionUnproven": "Requires a future authorized listing response containing the same valid card and matching fingerprint. No synthetic hash or local PASS is production evidence."
+  },
+  "shimamura": {
+    "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/gs-699881/",
+    "verification": "Automated article check returned403; no retry or bypass. Operator opened the original page and supplied the title. Read-only inspection of that already-open document confirmed self-canonical and product-news category.",
+    "subject": "Sleep Token IV / III signature instruments from Jackson / Charvel",
+    "publishedAt": "2026-11-01",
+    "modifiedAt": "2026-11-05",
+    "releaseTimingCaveat": "Article's expected release period is late August2026; neither the update date nor the URL establishes a November product launch.",
+    "cause": "Numeric-only article URL grammar silently omitted a valid gs-numeric product-news card.",
+    "implementation": "Admit numeric or gs-numeric IDs in the existing three approved year/month article families. Reuse the same gate for existing primary-product validation. Card binding, dates, category, editorial exclusions, robots and budgets remain in force.",
+    "offlineResult": "Structured listing replay creates one pending candidate using the real URL and article publication date. It does not fabricate one identity from the two brands/models or assert formal READY.",
+    "productionUnproven": "New normal-listing receipt and candidate creation. Human browser observations are not substituted for machine receipt/provenance."
+  },
+  "otherSources": {
+    "savedAudit": "2026-11-10 06:00 JST observation: Ikebe/Shimamura/AGM/Morris/Kikutani healthy; Morris Nov6 backoff recovered Nov7.",
+    "unchanged": "Ikebe, AGM and Morris parsers/acquisition paths unchanged. Shared store change branches only for Kikutani empty shells. Source registry, permissions, HTTP intervals, budgets, cron, publication decision/automatic policy and migrations unchanged.",
+    "limits": "No new direct observation of all publisher websites or updates after the saved morning collection. No claim that absence of observed URLs proves absence of news."
+  },
+  "operator": {
+    "queues": ["掲載可", "人間の事実確認が必要", "技術的な再確認待ち", "編集・非掲載の判断"],
+    "changes": "Always-visible counts filter the existing review list. Publish/reject remain direct. Category editor is one disclosure deep; available rechecks are direct. Technical guidance is optional. Web discoveries are one separate closed group, preserving AI drafts and human confirmation links.",
+    "importantWarnings": "Configured, unexplained source stops and errors are visible outside disclosures. Recognized intentional pauses and unrelated historical sources do not flood the home page. No source-health records are changed.",
+    "comparison": "0.54.0 assets and new assets used the same isolated0.58 backend, same two candidates and same70 saved hints; not a recreation of the old backend.",
+    "desktop1280": {"oldFirstCardTop": 940.09, "newFirstCardTop": 705.69},
+    "mobile390": {"oldFirstCardTop": 1122.42, "newFirstCardTop": 932.48, "documentWidth": 375},
+    "browserAcceptance": ["Queue count/filter", "One-level category read", "Publish dialog starts unchecked and disabled", "Synthetic article approval through existing local Ledger", "Nonpublication dialog and cancel", "Zero-pending home", "Web70 group open/close", "Acompass and Deviser draft route; date blank, checks false, save disabled"],
+    "localExternalHttpAttempts": 0,
+    "productionEditorialWrites": 0
+  },
+  "nextAcceptance": "Separate approval is required to merge/deploy both0.58 Workers. Keep Web/manual/B-to-A/automatic OFF. No migration. Verify immutable data and actual Access UI, then use the next normal permitted collection to validate SPS-10 recovery and gs-article discovery; do not force public approval or bypass publisher403."
+}

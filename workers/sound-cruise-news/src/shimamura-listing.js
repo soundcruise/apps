@@ -10,7 +10,9 @@ function visibleText(node){if(hidden(node))return '';if(node.type==='text')retur
 const text=n=>visibleText(n).replace(/\s+/g,' ').trim();
 export function listingArticleUrl(raw){
  try{const u=new URL(raw,SHIMAMURA_LISTING_URL);if(u.origin!=='https://www.shimamura.co.jp'||u.username||u.password||u.port||u.search||u.hash)return null;
-  if(!/^\/update\/(guitar-bass|amp-effector|dtm-recording)\/20\d{2}\/(0[1-9]|1[0-2])\/[0-9]+\/$/i.test(u.pathname))return null;return u.href;
+  // Both numeric and gs-numeric editorial articles occur in the same approved
+  // product-news listing. Card/date/category checks below still apply.
+  if(!/^\/update\/(guitar-bass|amp-effector|dtm-recording)\/20\d{2}\/(0[1-9]|1[0-2])\/(?:[0-9]+|gs-[1-9][0-9]*)\/$/i.test(u.pathname))return null;return u.href;
  }catch{return null;}
 }
 export function listingDate(value){

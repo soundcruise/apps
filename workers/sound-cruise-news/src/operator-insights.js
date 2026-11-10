@@ -3,6 +3,8 @@ import {DECISION_POLICY_VERSION,parseFacts} from './decision-policy.js';
 import {validatedProductEvent} from './product-event.js';
 import {morrisDiagnosticsHealth} from './morris-diagnostics.js';
 import {discoverySummary} from './discovery-work.js';
+import {intentionalSourceStop} from './source-health.js';
+import {getSource} from './registry.js';
 export const INSIGHTS_VERSION='structured-human-v1';
 export const MINIMUM_EVIDENCE=5;
 // These verdicts describe a particular evidence/duplicate/policy problem, not
@@ -93,11 +95,17 @@ export async function humanDecisions(store,now,{includeFuture=false}={}){
  return (await store.db.prepare(`SELECT decision_id,candidate_id,verdict,reason,actor_type,decided_at,created_at,candidate_revision,candidate_snapshot,source_id,category,decision_features_json,policy_version,success_state FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? ${includeFuture?'':'AND decided_at<=?'} ORDER BY decided_at DESC,decision_id DESC`).bind(now-365*DAY,...(includeFuture?[]:[now])).all()).results;
 }
 export async function similarDecisions(store,row,validation,now){return evaluateDecisions(await retainedDecisionProfile(row,validation,now),await humanDecisions(store,now),{now,candidateId:row.id,validation});}
-export async function dashboardSummary(store,now){
+export async function dashboardSummary(store,now,{sourceIds=null}={}){
  const rows=(await store.db.prepare('SELECT review_status,COUNT(*) AS n FROM candidate_items GROUP BY review_status').all()).results,counts=Object.fromEntries(rows.map(r=>[r.review_status,r.n]));
  const human=await store.db.prepare("SELECT COUNT(*) AS n FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? AND decided_at<=?").bind(now-365*DAY,now).first();
  const controls=await store.controls(),health=await store.db.prepare("SELECT status FROM source_health WHERE source_id='collection'").first();
- return {operationalState:!controls.collection_enabled?'stopped':health?.status==='healthy'?'normal':'attention',published:counts.approved||0,pending:(counts.pending||0)+(counts.reopened||0),rejected:counts.rejected||0,humanDecisions:human.n,generatedAt:now,publishedBasis:'approved_status',humanRetentionDays:365,parserDiagnostics:await morrisDiagnosticsHealth(store,now),discovery:await discoverySummary(store,now)};
+ const sourceWarnings=[];
+ for(const h of await store.sourceHealth()){
+  if(h.status==='healthy'||h.source_id==='collection'||sourceIds&&!sourceIds.includes(h.source_id)&&h.source_id!=='retention')continue;
+  if(h.status==='paused'&&await intentionalSourceStop(store,h.source_id))continue;
+  sourceWarnings.push({source:getSource(h.source_id)?.name||h.source_id,status:h.status});
+ }
+ return {operationalState:!controls.collection_enabled?'stopped':health?.status==='healthy'?'normal':'attention',sourceWarnings,published:counts.approved||0,pending:(counts.pending||0)+(counts.reopened||0),rejected:counts.rejected||0,humanDecisions:human.n,generatedAt:now,publishedBasis:'approved_status',humanRetentionDays:365,parserDiagnostics:await morrisDiagnosticsHealth(store,now),discovery:await discoverySummary(store,now)};
 }
 export async function humanDecisionHistory(store,now,{offset=0}={}){
  const rows=(await store.db.prepare("SELECT decision_id,candidate_id,source_id,category,verdict,reason,decided_at,policy_version FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? AND decided_at<=? ORDER BY decided_at DESC,decision_id DESC LIMIT 51 OFFSET ?").bind(now-365*DAY,now,offset).all()).results;

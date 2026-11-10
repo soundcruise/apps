@@ -34,5 +34,5 @@ export function renderWebDiscovery(document,data){
  if(!data.items.length){const p=document.createElement('p');p.textContent='発見候補はまだありません';section.append(p);}return section;
 }
 if(typeof document!=='undefined'){
- fetch('/api/web-discovery',{credentials:'same-origin',cache:'no-store'}).then(async r=>{if(!r.ok)throw Error();return r.json();}).then(data=>{if(data.enabled)document.querySelector('main').append(renderWebDiscovery(document,data));}).catch(()=>{const p=document.createElement('p');p.setAttribute('role','alert');p.textContent='Web発見を読み込めません。通常の審査は利用できます。';document.querySelector('main').append(p);});
+ fetch('/api/web-discovery',{credentials:'same-origin',cache:'no-store'}).then(async r=>{if(!r.ok)throw Error();return r.json();}).then(data=>{if(data.enabled){const group=document.createElement('details'),summary=document.createElement('summary');group.id='web-discovery-workspace';summary.textContent='Webで見つかった記事（'+data.items.length+'件）';group.append(summary,renderWebDiscovery(document,data));group.open=!!data.manualEnabled||!!data.manualAuthorization?.flagsEnabled;document.querySelector('main').append(group);}}).catch(()=>{const p=document.createElement('p');p.setAttribute('role','alert');p.textContent='Web発見を読み込めません。通常の審査は利用できます。';document.querySelector('main').append(p);});
 }

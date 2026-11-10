@@ -27,3 +27,15 @@ section[aria-label="Web発見"] article>a{display:inline-block;margin:8px 16px 8
 section[aria-label="Web発見"] details{margin-top:12px}section[aria-label="Web発見"] details p{color:#b2c2cf}
 .account-detail{margin:8px 0}input,textarea{max-width:100%}main,article,section,details{min-width:0}
 @media(max-width:480px){#dashboard{padding:16px}#dashboard .summary-count{display:flex;margin:8px 0}section[aria-label="Web発見"] article{padding:16px}.decision-actions button{flex:1 1 120px}}
+
+/* Actionable queues stay visible; evidence and administration remain available. */
+main{max-width:1040px}header{display:grid;grid-template-columns:1fr auto;gap:4px 16px;padding-bottom:12px}header p{margin:4px 0}header .eyebrow,header h1{grid-column:1}header .account-detail{grid-column:2;grid-row:1 / span 2;align-self:start;margin:0}header #refresh-status{grid-column:2;align-self:center}
+#dashboard{display:grid;grid-template-columns:1fr auto;gap:8px 16px}#dashboard .system-state{grid-column:1;grid-row:1}#dashboard>p:nth-child(2){grid-column:1;grid-row:2;margin:0}#dashboard>details{grid-column:2;grid-row:1 / span 2;margin:0}#dashboard>details[open]{grid-column:1/-1;grid-row:auto}#dashboard>.blocker{grid-column:1/-1;margin:0}
+.review-counts{display:grid;grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:8px}
+#dashboard .review-counts .summary-count{display:flex;min-width:0;margin:0;text-align:left;width:100%}
+#dashboard .review-counts strong{color:#edf3f6}.review-counts button:focus-visible{outline-offset:2px}
+.next-action{font-weight:500}.facts-guidance{margin:8px 0}.facts-guidance[open]{border-left:2px solid #526575;padding-left:12px}
+.card>.category-editor{border-top:0;margin:4px 0}.decision-actions button{min-width:130px}.decision-actions button:first-child:not(:disabled){background:#21473c;border-color:#79bc9d}
+#web-discovery-workspace{border-top:1px solid #354b5c;margin-top:24px;padding-top:12px}
+@media(max-width:680px){.review-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){header{grid-template-columns:minmax(0,1fr)}header .account-detail{grid-column:1;grid-row:auto}header #refresh-status{grid-column:1}#dashboard{grid-template-columns:minmax(0,1fr)}#dashboard>details{grid-column:1;grid-row:auto}.review-counts{gap:8px}#dashboard .review-counts .summary-count{padding:10px}.review-counts span{font-size:.85rem}.card>.category-editor{margin:4px 0}.decision-actions button{min-width:0}}
