@@ -46,7 +46,7 @@ export function renderWebReviewCard(document,item,{change}={}){
  const guidance=item.webReview?.queue==='judgment'?'確認が必要：'+[...new Set([...missing,'原記事の事実','紹介条件'])].join('、')+'。AI案は未確認です。':reviewReasons[item.webReview?.reason]||'原記事と関連性を確認してください。';
  card.append(el('p',guidance,'next-action'));
  const actions=el('div',undefined,'actions');card.append(actions);
- const support=el('section');support.hidden=true;support.append(el('p','この出典は現在の人間確認による正式保存に未対応です。原記事で公開日・出来事と紹介条件を確認してください。確認結果だけで自動登録・公開はしません。','blocker'));card.append(support);
+ const support=el('section');support.hidden=true;const policy=item.articleDraft?.sourceReview;support.append(el('p',policy?.reason||'この出典は現在の人間確認による正式保存に未対応です。原記事で公開日・出来事と紹介条件を確認してください。確認結果だけで自動登録・公開はしません。','blocker'));if(policy?.termsUrl){const a=el('a','出典の利用条件');a.href=policy.termsUrl;a.target='_blank';a.rel='noopener noreferrer';support.append(a);}card.append(support);
  if(item.webReview?.queue==='judgment'){
   if(item.humanEntry){const a=el('a','記事を確認して判断','button-link');a.href='/?assistedUrl='+encodeURIComponent(item.humanEntry.url);actions.append(a);}
   else{const b=el('button','記事を確認して判断');b.type='button';b.setAttribute('aria-expanded','false');b.addEventListener('click',()=>{support.hidden=!support.hidden;b.setAttribute('aria-expanded',String(!support.hidden));});actions.append(b);}

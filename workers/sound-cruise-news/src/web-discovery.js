@@ -1,7 +1,7 @@
 import {draftFieldHints} from './draft-field-hints.js';
 import {addWebReview,webHintSnapshot} from './web-review.js';
 import {draftDate} from './draft-assistance.js';
-import {assistedSource,assistedUrl,assistedLabel,assistedTypes} from './assisted-facts.js';
+import {assistedSource,assistedSourceReview,assistedUrl,assistedLabel,assistedTypes} from './assisted-facts.js';
 import {manualPermit,manualAvailability} from './web-manual-permit.js';
 import {scheduledWebPermit} from './web-schedule.js';
 import {webVerification} from './web-verification.js';
@@ -108,7 +108,7 @@ export function webArticleDraft(row){
  const fieldSources=Object.fromEntries(Object.entries(fields).filter(([k,v])=>v&&!['url','sourceId'].includes(k)).map(([k])=>[k,{kind:k==='publishedAt'?'search_publication_hint':'saved_ai_estimate',reference:row.url,inputField:k==='publishedAt'?'search_meta_json.publishedAtHint':k,confirmed:false}]));
  Object.assign(fieldSources,hints.fieldSources);
  if(label)fieldSources.label={kind:'generated_from_draft',confirmed:false};
- return {basis:'saved_ai_estimate_unverified',headline:brand&&product?`${brand}「${product}」${event?' — '+event:'（出来事は未確認）'}`:'記事の対象・出来事の確認が必要です',fields:{...fields,...(label?{label}:{})},fieldSources,formalFacts:false,humanConfirmed:false,warnings:hints.warnings,missing:['publishedAt','brand','product','productType','action',...(action==='variant_introduction'?['qualifier']:[])].filter(k=>!fields[k]),relevance:e.relevance,duplicate:e.duplicate,registrationAllowed:!!assistedUrl(row.url),usageBasis:assistedSource(row.url)?.basis||null,requiredConfirmation:'原記事の事実・公開日・利用条件。AI推定は正式証拠ではありません。'};
+ return {basis:'saved_ai_estimate_unverified',headline:brand&&product?`${brand}「${product}」${event?' — '+event:'（出来事は未確認）'}`:'記事の対象・出来事の確認が必要です',fields:{...fields,...(label?{label}:{})},fieldSources,formalFacts:false,humanConfirmed:false,warnings:hints.warnings,missing:['publishedAt','brand','product','productType','action',...(action==='variant_introduction'?['qualifier']:[])].filter(k=>!fields[k]),relevance:e.relevance,duplicate:e.duplicate,registrationAllowed:!!assistedUrl(row.url),usageBasis:assistedSource(row.url)?.basis||null,sourceReview:assistedSourceReview(row.url),requiredConfirmation:'原記事の事実・公開日・利用条件。AI推定は正式証拠ではありません。'};
 }
 export async function savedWebDraft(db,url,now){
  if(typeof url!=='string'||url.length>2048)return null;

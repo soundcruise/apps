@@ -1,3 +1,4 @@
+import {AGM_PERMISSION_REF} from './agm-sections.js';
 import {productTypes,validTypeEvidence,labelMatchesType} from './assisted-product-type.js';
 // Human observation permission is independent of Bot acquisition permission.
 export const ASSISTED_ORIGIN='operator_assisted';
@@ -6,9 +7,23 @@ export const ASSISTED_PERMISSION='yamaha-human-facts-20261028';
 export const assistedSources=[
  {id:'yamaha',name:'ヤマハ / ヤマハミュージックジャパン',automatic:'not_allowed',manual:'permitted_topics_only',basis:'publisher_permission',permissionRef:ASSISTED_PERMISSION,origin:'https://jp.yamaha.com',articlePattern:'^/musical-instruments/guitars-basses-amps/explore/topics/20[0-9]{2}/[a-zA-Z0-9_-]+\\.html$'},
  {id:'yamaha-newsroom',name:'ヤマハ / ヤマハミュージックジャパン',automatic:'not_allowed',manual:'conditions_review_required',basis:'public_facts_conditions_review',permissionRef:'human-facts-conditions-v1:yamaha-newsroom',origin:'https://www.yamaha.com',articlePattern:'^/ja/news_release/20[0-9]{2}/[0-9]{8}/$'},
+ {id:'agm',name:'ACOUSTIC GUITAR MAGAZINE WEB',automatic:'unchanged',manual:'publisher_conditions_required',basis:'publisher_permission',permissionRef:AGM_PERMISSION_REF,origin:'https://acousticguitarmagazine.jp',articlePattern:'^/(?:(?:gears|interview|column|beginners|lesson)/(?!feed/|page/|tag/|author/)[a-zA-Z0-9_-]+|20[0-9]{2}[-_][a-zA-Z0-9_-]+)/$'},
+ {id:'shimamura',name:'島村楽器',automatic:'unchanged',manual:'conditions_review_required',basis:'public_facts_conditions_review',permissionRef:'human-facts-conditions-v1:shimamura-shops',origin:'https://www.shimamura.co.jp',articlePattern:'^/update/shops/[a-z0-9-]+/(?:guitar-bass|acoustic-guitar|dtm-recording|amp-effector)/[0-9]+/$'},
  {id:'deviser',name:'Deviser',automatic:'unchanged',manual:'conditions_review_required',basis:'public_facts_conditions_review',permissionRef:'human-facts-conditions-v1:deviser',origin:'https://www.deviser.co.jp',articlePattern:'^/information/[0-9]+/?$'}
 ];
 export function assistedSource(raw){try{const u=new URL(raw);if(u.href!==raw||u.search||u.hash||u.username||u.password||u.port)return null;return assistedSources.find(s=>u.origin===s.origin&&new RegExp(s.articlePattern).test(u.pathname))||null;}catch{return null;}}
+// Reviewed human-introduction limits only. These records never grant Bot access
+// or add an unreviewed source to the collector registry.
+const pendingHumanSources={
+ 'gibson.jp':{reason:'利用規約はリンク先をトップページ等に限定しています。個別記事への直接リンクを伴う紹介条件の確認が必要です。',termsUrl:'https://gibson.jp/support/terms'},
+ 'www.mikigakki.com':{reason:'通販規約のコンテンツ利用条件と、客観的事実の独自紹介・記事への直接リンクへの適用範囲が未確認です。',termsUrl:'https://www.mikigakki.com/shop/pages/terms.aspx'},
+ 'shop.jeugia.co.jp':{reason:'商品ページの利用・リンク条件が未確認です。記事公開日と新しい出来事も原記事で確認してください。'},
+ 'www.chunichi.co.jp':{reason:'非営利目的等のリンク条件について、Pro版を併設する本サービスへの適用確認が必要です。',termsUrl:'https://www.chunichi.co.jp/policy/link'}
+};
+export function assistedSourceReview(raw){
+ if(assistedSource(raw))return null;
+ try{const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||u.port)return null;const policy=pendingHumanSources[u.hostname];return policy?{...policy,registrationAllowed:false,confirmationUrl:raw}:null;}catch{return null;}
+}
 export const assistedTypes={...productTypes,guitar_accessory:['ギター関連アクセサリー','acoustic_guitar']};
 export const assistedActions={preview:'を先行紹介',variant_introduction:'の特別仕様を紹介',announcement:'を発表',release:'を発売',introduction:'を紹介',event_announcement:'の開催を案内',interview:'を公開'};
 export function assistedUrl(raw){return assistedSource(raw)?raw:null;}

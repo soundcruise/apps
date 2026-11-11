@@ -46,7 +46,7 @@ test('paste parsing is authenticated, CSRF-protected, bounded and read-only; out
  const saved=await(await call(env,'/api/assisted-save',{body:{...p.fields,confirmed:true,requestId:'two-input-authenticated-save-001'},csrf:session.csrf})).json();assert(saved.validation.valid);assert.equal((await s.candidates())[0].review_status,'pending');assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
  assert.equal((await call(env,'/api/assisted-parse',{body:{...body,information:'a'.repeat(9000)},csrf:session.csrf})).status,422);assert.equal(publisherHttpAttempts,0);
 });
-test('human scopes are explicit and the existing Topics start link never fetches a response',async()=>{const {env}=await environment(),d=await(await call(env,'/api/assisted')).json();assert.deepEqual(d.sources.map(s=>s.id),['yamaha','yamaha-newsroom','deviser']);assert.equal(d.sources[0].id,'yamaha');assert.equal(d.sources[0].startUrl,'https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/index.html');assert.equal(publisherHttpAttempts,0);});
+test('human scopes are explicit and the existing Topics start link never fetches a response',async()=>{const {env}=await environment(),d=await(await call(env,'/api/assisted')).json();assert.deepEqual(d.sources.map(s=>s.id),['yamaha','yamaha-newsroom','agm','shimamura','deviser']);assert.equal(d.sources[0].id,'yamaha');assert.equal(d.sources[0].startUrl,'https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/index.html');assert.equal(publisherHttpAttempts,0);});
 
 test('Web handoff separates Topics grant from newsroom conditions review',async()=>{
  const {listWebHints,saveHint}=await import('../src/web-discovery.js');
