@@ -1,7 +1,7 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.29.2';
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.27.1';
-import { createPortAccountJoin } from './port-account-join.js?v=1.25.1';
+import { createPortAccountJoin } from './port-account-join.js?v=1.29.2';
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 
 export function createSyncCenterOrchestrator({
@@ -54,10 +54,13 @@ export function createSyncCenterOrchestrator({
             } catch (_) { return Object.freeze({ ok: false, code: 'local_data_unconfirmed' }); }
         }
         if (!canSync()) return Object.freeze({ ok: true, locked: true });
-        if (typeof portSync?.ensure !== 'function') return Object.freeze({ ok: true });
+        if (!portSync) return Object.freeze({ ok: true });
+        if (typeof portSync.resumeAutomatically !== 'function') return Object.freeze({ ok: false, code: 'port_sync_unavailable' });
         try {
-            const result = await portSync.ensure();
-            return Object.freeze({ ok: result?.ok !== false });
+            // Account setup/recovery/refresh is not consent to merge this device's
+            // retained data. Reuse the controller's Account-scoped automatic path.
+            const result = await portSync.resumeAutomatically();
+            return Object.freeze({ ok: result?.ok !== false, ...(result?.code ? { code: result.code } : {}) });
         } catch (_) {
             // Account/Port-Join authority has already committed at this point.
             // Structured Port sync is reconciled independently and must never
@@ -121,8 +124,7 @@ export function createSyncCenterOrchestrator({
             }
             const recovered = await client.resumePendingRecovery?.();
             if (recovered?.status === 'committed') {
-                await portSync?.clearCloudState?.();
-                if (canSync()) await portSync?.ensure?.();
+                await settlePortSync();
                 return summary();
             }
             const detached = await client.resumePendingDetach?.();
@@ -162,7 +164,6 @@ export function createSyncCenterOrchestrator({
                 recoverySaved
             });
             recoveryMaterial = null;
-            try { await portSync?.clearCloudState?.(); } catch (_) {}
             const portSyncState = await settlePortSync();
             return Object.freeze({ ...result, portSyncState });
         },

@@ -1,5 +1,5 @@
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.29.2';
 
 export function createPortAccountJoin({
     client,

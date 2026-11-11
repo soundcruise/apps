@@ -329,3 +329,126 @@ test('failed initial asset preparation prevents bootstrap and retains Account-sc
   assert.equal(h.databases.get('A').outbox[0].operationId,'retained');
   h.controller.dispose();
 });
+
+// Journal + actual domain stores + actual adapter. No runtime is required to save anchors.
+async function journalHarness({ seedUnknown = false, canSync = () => true } = {}) {
+ const { PortDatasetRepository, PORT_DATASET_META } = await import('./port-dataset-repository.js');
+ const { registerPortRepository } = await import('./port-dataset-storage.js?v=1.29.2');
+ const history = await import('./practice-menu-history-store.js');
+ const progress = await import('./practice-menu-progress-store.js');
+ const { commitPracticeActivity } = await import('./practice-dataset-writes.js');
+ const h=harness({canSync}), s=await connected(h), values=new Map();
+ const storage={fail:()=>false,getItem:k=>values.get(k)??null,setItem(k,v){if(this.fail(k,v))throw Error('disk-full');values.set(k,String(v));},removeItem:k=>values.delete(k)};
+ Object.assign(h.context,{crypto:webcrypto,TextEncoder,URL,localStorage:storage});
+ vm.runInNewContext(fs.readFileSync(new URL('./port-sync-adapter.js',import.meta.url),'utf8'),h.context);
+ const repo=new PortDatasetRepository({storage,locks:h.context.navigator.locks,accountStorage:h.context.SoundCruiseSyncAccount.storage,
+   prepareLocalSync:r=>h.context.SoundCruisePortSync.prepareLocalCommit(r)});
+ registerPortRepository(storage,repo);h.context.SoundCruisePortSync.portRepository=()=>repo;
+ const event=history.createManualPracticeRecord({localDate:'2026-11-08',practiceId:'synthetic-menu',practiceName:'PRIVATE SYNTHETIC TEXT',durationMinutes:15},new Date('2026-11-08T00:00:00Z'));
+ const activity={...history.createEmptyPracticeHistory(),events:[event]};
+ if(seedUnknown)storage.setItem('cruisePort.practiceHistory',JSON.stringify(activity));
+ const cycle=progress.createEmptyPracticeProgress(new Date('2026-11-08T00:00:00Z'));
+ return {...h,s,repo,values,storage,meta:()=>JSON.parse(storage.getItem(PORT_DATASET_META)||'null'),
+  save:()=>{progress.loadPracticeProgress(storage);history.loadPracticeHistory(storage);return commitPracticeActivity(cycle,activity,storage);},
+  async restart(account='A'){
+    h.controller.dispose();const fresh=h.create();h.controller=fresh;
+    // New host, same persistent local dataset and same Account store, as after a reload.
+    fresh.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});
+    for(let i=0;i<100;i++){await new Promise(r=>setImmediate(r));if(!fresh.getCachedStatus().checking)break;}
+    return fresh;
+  }};
+}
+
+test('journal: activity save without a runtime atomically persists only Account-bound anchors and cold resumes',async()=>{
+ const h=await journalHarness();assert.equal(h.controller.runtime,null);assert.equal((await h.save()).ok,true);
+ assert.equal(h.meta().pendingSync.records.length,2);assert.equal(h.s.data.outbox.length,0);
+ const text=JSON.stringify(h.meta());assert.doesNotMatch(text,/PRIVATE SYNTHETIC TEXT|sca1\.|scd1\.|secret/);
+ const before=JSON.stringify([...h.values]);const c=await h.restart();
+ assert.ok(c.runtime);assert.equal(h.network.length,0,'never provisions');assert.equal(h.deviceReads.length,1);
+ assert.equal(JSON.stringify([...h.values]),before,'resume does not modify dataset/journal');c.dispose();
+});
+test('journal: pagehide immediately after successful save retains evidence for pageshow',async()=>{
+ const h=await journalHarness();await h.controller.ensure();assert.equal((await h.save()).ok,true);
+ h.controller.bindAutoResume({assets:{status:async()=>({known:true,pendingCount:0})}});
+ h.window.dispatchEvent(new Event('pagehide'));h.window.dispatchEvent(new Event('pageshow'));
+ for(let i=0;i<10;i++)await new Promise(r=>setImmediate(r));
+ assert.ok(h.controller.runtime);assert.equal(h.meta().pendingSync.records.length,2);h.controller.dispose();
+});
+test('journal: final metadata failure rolls back dataset and evidence; no successful partial save',async()=>{
+ const h=await journalHarness(), before=JSON.stringify([...h.values]);let final=false;
+ h.storage.fail=(k,v)=>k==='cruisePort.datasetRepository.v1'&&!JSON.parse(v).pending&&!final&&(final=true);
+ assert.equal((await h.save()).ok,false);assert.equal(JSON.stringify([...h.values]),before);h.controller.dispose();
+});
+test('journal: existing unknown history is not retrospectively stamped; cold resume stays blocked',async()=>{
+ const h=await journalHarness({seedUnknown:true});assert.equal((await h.save()).ok,true);
+ assert.equal(h.meta().pendingSync,undefined);const c=await h.restart();assert.equal(c.runtime,null);
+ assert.equal((await c.status()).autoResumeCode,'local_data_unconfirmed');c.dispose();
+});
+test('journal: Account replacement and a new AppDevice cannot reuse old anchors',async()=>{
+ for(const mode of ['B','replacement-device']){
+  const h=await journalHarness();assert.equal((await h.save()).ok,true);
+  if(mode==='B'){h.changeAccount('B');await connected(h,'B');}
+  else await h.s.setMeta('credential','scd1.new-device.secret');
+  const c=await h.restart();assert.equal(c.runtime,null);assert.equal(h.deviceReads.length,0);c.dispose();
+ }
+});
+test('journal: Account mutation during async proof preparation refuses the entire local commit',async()=>{
+ const h=await journalHarness();
+ // createStore returns fresh wrappers over the same persistent maps; gate the native Account read instead.
+ const get=h.context.SoundCruiseSyncAccount.storage.getAccount;let n=0;
+ h.context.SoundCruiseSyncAccount.storage.getAccount=async()=>{const value=await get();if(++n===3)h.changeAccount('B');return value;};
+ assert.equal((await h.save()).ok,false);assert.equal(h.values.size,0);h.controller.dispose();
+});
+test('journal: Pro reauthentication with the same native Account preserves anchors without allowing Pro refusal',async()=>{
+ let pro=true;const h=await journalHarness({canSync:()=>pro});assert.equal((await h.save()).ok,true);
+ pro=false;let c=await h.restart();assert.equal(c.runtime,null);
+ pro=true;c=await h.restart();assert.ok(c.runtime);c.dispose();
+});
+test('journal: unexpected mutation after commit cannot borrow an earlier saved hash',async()=>{
+ const h=await journalHarness();assert.equal((await h.save()).ok,true);
+ const history=JSON.parse(h.storage.getItem('cruisePort.practiceHistory'));history.events[0].practiceName='UNATTRIBUTED CHANGE';
+ h.storage.setItem('cruisePort.practiceHistory',JSON.stringify(history));
+ const c=await h.restart();assert.equal(c.runtime,null);assert.equal((await c.status()).autoResumeCode,'local_data_unconfirmed');c.dispose();
+});
+test('journal: an active pending transaction is never evidence of a successful save',async()=>{
+ const h=await journalHarness();let count=0;
+ const remove=h.storage.removeItem;h.storage.removeItem=()=>{throw Error('rollback-failed');};
+ h.storage.fail=()=>++count>1; // pending journal persists; both commit and rollback fail
+ assert.equal((await h.save()).ok,false);h.storage.fail=()=>false;h.storage.removeItem=remove;
+ assert.throws(()=>h.repo.inspect(),/recovery-required/);const c=await h.restart();assert.equal(c.runtime,null);c.dispose();
+});
+test('journal: local save during Pro reauthentication preserves Account proof without granting network permission',async()=>{
+ let pro=false;const h=await journalHarness({canSync:()=>pro});assert.equal((await h.save()).ok,true);
+ assert.equal(h.meta().pendingSync.records.length,2);let c=await h.restart();assert.equal(c.runtime,null);assert.equal(h.deviceReads.length,0);
+ pro=true;c=await h.restart();assert.ok(c.runtime);c.dispose();
+});
+
+test('automatic Account entry cannot bypass native asset readiness or adopt an unowned dataset', async () => {
+ for (const mode of ['unknown-assets', 'pending-assets', 'unowned', 'new-account']) {
+  const h = harness();
+  await connected(h);
+  h.context.navigator.onLine = false;
+  h.controller.bindAutoResume({assets:{status:async()=>({known:mode!=='unknown-assets',pendingCount:mode==='pending-assets'?1:0})}});
+  await settled();
+  if (mode === 'unowned') h.setLocal([row]);
+  if (mode === 'new-account') { h.setLocal([row]); h.changeAccount('recreated-A'); }
+  h.context.navigator.onLine = true;
+  const result = await h.controller.resumeAutomatically();
+  assert.equal(result.ok, false, mode);
+  assert.equal(h.runtimes.length, 0, mode);
+  assert.equal(h.network.length, 0, mode);
+  h.controller.dispose();
+ }
+});
+test('Account replacement during automatic readiness does not provision or transmit either Account', async () => {
+ const h = harness(), gate = deferred();
+ await connected(h);
+ h.context.navigator.onLine = false;
+ h.controller.bindAutoResume({assets:{status:async()=>{await gate.promise;return {known:true,pendingCount:0};}}});
+ await settled(); h.context.navigator.onLine = true;
+ const task = h.controller.resumeAutomatically(); await settled();
+ h.changeAccount('B'); gate.resolve();
+ await assert.rejects(task, /account_generation_changed/);
+ assert.equal(h.runtimes.length, 0); assert.equal(h.network.length, 0);
+ h.controller.dispose();
+});

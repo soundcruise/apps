@@ -1,4 +1,4 @@
-import { AI_SUPPORT_COPY, AI_SUPPORT_LIMITS, charCount, containsSensitive } from './ai-support-client.js?v=1.24.24';
+import { AI_SUPPORT_COPY, AI_SUPPORT_LIMITS, charCount, containsSensitive } from './ai-support-client.js?v=1.29.2';
 
 // The 「AIに相談」 panel inside Sync Center's support section (AI1-C). It lives outside the rows
 // that Sync Center re-renders, so a conversation survives a status refresh but not a page reload:
@@ -16,6 +16,7 @@ export const AI_PANEL_COPY = Object.freeze({
   privacy: '送信すると、相談内容・直近の会話・同期状態の要約・同期先の表示名などを、Cloudflare Workers AI で処理します。4桁の番号や復旧コードなどが含まれる場合は、自動で検出してAIへ送りません。',
   privacyLink: 'プライバシーポリシー',
   memory: 'Cruiseは相談内容をサーバーにも端末にも保存しません。ページを閉じたり更新したりすると会話は消えます。AIの回答は誤ることがあります。',
+  limits: 'AI相談にはAccountごとの日次・月次の回数上限と、全体の費用上限があります。上限管理と品質確認のため、本文を含まない利用件数・トークン数・エラー区分などを記録します。上限に達しても通常のクラウド同期は利用できます。',
   inputLabel: '相談内容',
   codesWarning: '復旧コード・接続コードなどは入力しないでください。',
   placeholder: '例：コードクルーズが「確認が必要」になっています',
@@ -92,7 +93,8 @@ export function createAiSupportPanel({
   privacyLink.rel = 'noopener';
   privacy.append(' ', privacyLink);
   const memory = node('p', 'sync-center-ai-memory', AI_PANEL_COPY.memory);
-  details.append(node('p', 'sync-center-ai-summary-text', AI_PANEL_COPY.summary), privacy, memory);
+  details.append(node('p', 'sync-center-ai-summary-text', AI_PANEL_COPY.summary), privacy, memory,
+    node('p', 'sync-center-ai-limits', AI_PANEL_COPY.limits));
   const log = node('div', 'sync-center-ai-log');
   log.setAttribute('role', 'log');
   log.setAttribute('aria-live', 'polite');
@@ -270,7 +272,7 @@ export function createAiSupportPanel({
       // The unanswered message stays visible, is not part of the history, and is offered again.
       bubble.append(node('span', 'sync-center-ai-unsent', AI_PANEL_COPY.unsent));
       if (!input.value) input.value = message;
-      showError(AI_SUPPORT_COPY[result.kind] || AI_SUPPORT_COPY.failed);
+      showError(result.message || AI_SUPPORT_COPY[result.kind] || AI_SUPPORT_COPY.failed);
     }
     refreshControls();
     // Back to the input for the next question (preventScroll, so the reply stays at the top). On
