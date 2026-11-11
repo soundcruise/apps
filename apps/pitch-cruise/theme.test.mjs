@@ -141,9 +141,9 @@ test('theme writer: out of LOCAL_ONLY_SETTINGS; explicit theme sent, unset never
   assert(!api.LOCAL_ONLY_SETTINGS.includes('theme'), 'theme is no longer device-only');
   assert.deepEqual([...api.LOCAL_ONLY_SETTINGS], ['baseHz', 'sustainTime']);
   assert.deepEqual([...api.SYNC_OPTIONAL_SETTINGS], ['theme']);
-  assert.deepEqual([...api.SYNC_CAPABILITIES], ['settings_theme_v1']);
+  assert.deepEqual([...api.SYNC_CAPABILITIES], ['settings_theme_v1', 'settings_theme_v2']);
   assert(!api.SYNC_SETTINGS.includes('theme'), 'theme has no default, so it stays out of the DEFAULT_SETTINGS rebuild');
-  assert.deepEqual([...new api.PitchSyncAdapter({ storage: memory({}).storage }).syncCapabilities], ['settings_theme_v1']);
+  assert.deepEqual([...new api.PitchSyncAdapter({ storage: memory({}).storage }).syncCapabilities], ['settings_theme_v1', 'settings_theme_v2']);
   const sent = (settings) => api.normalizeLocalSnapshot(api.readLocalSnapshot(memory(settings).storage))
     .records.find((record) => record.recordType === 'settings')?.payload.values;
   const base = { instrument: 'piano', notationStyle: 'cde' };

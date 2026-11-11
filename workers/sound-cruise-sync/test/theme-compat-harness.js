@@ -161,18 +161,18 @@ export function world(appId) {
   };
   // A capable writer device, driven through the raw protocol (used before the writer clients exist).
   const rawWriter = (deviceId) => ({
-    async put(values) {
+    async put(values, capabilities = [CAPABILITY]) {
       const current = stored();
       const op = { operationId: webcrypto.randomUUID(), recordType: 'settings', recordId: 'settings', schemaVersion: 1,
         baseRevision: current?.revision || 0, payload: values ? { id: 'settings', values } : null, payloadHash: '', deleted: !values };
       op.payloadHash = await hashRecord({ ...op }, webcrypto, appId);
       const response = await fetchFor(deviceId)(`${ENDPOINT}/v1/sync/push`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId, mode: 'sync', operations: [op], capabilities: [CAPABILITY] }) });
+        body: JSON.stringify({ appId, mode: 'sync', operations: [op], capabilities }) });
       return response.json();
     },
     async snapshot(capable = true) {
-      const response = await fetchFor(deviceId)(`${ENDPOINT}/v1/sync/snapshot?appId=${appId}${capable ? `&capabilities=${CAPABILITY}` : ''}`);
+      const response = await fetchFor(deviceId)(`${ENDPOINT}/v1/sync/snapshot?appId=${appId}${capable ? `&capabilities=${Array.isArray(capable) ? capable.join(",") : CAPABILITY}` : ''}`);
       return response.json();
     }
   });
@@ -189,7 +189,9 @@ export function device(w, which, values) {
   const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
   context.localStorage = storage;
   const fixture = item.current.split('/').pop() + '.fixture';
-  const source = which === 'old' ? fs.readFileSync(new URL(item.old, OLD_DIR), 'utf8')
+  const source = which === 'published' ? fs.readFileSync(new URL('./fixtures/published-v1/' + fixture, import.meta.url), 'utf8')
+    : which === 'v1' ? fs.readFileSync(new URL('./fixtures/pre-midnight/' + fixture, import.meta.url), 'utf8')
+    : which === 'old' ? fs.readFileSync(new URL(item.old, OLD_DIR), 'utf8')
     : which === 'reader' ? fs.readFileSync(new URL(fixture, READER_DIR), 'utf8')
       : fs.readFileSync(new URL(item.current, APPS_DIR), 'utf8');
   vm.runInNewContext(source, context);

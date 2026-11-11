@@ -195,10 +195,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.28.0';
+} from './app-version.js?v=1.30.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
-import { initTuner } from './tuner-app.js?v=1.28.0';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.30.0';
+import { initTuner } from './tuner-app.js?v=1.30.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -6553,8 +6553,8 @@ if (syncCenterController.enabled) {
         }
     });
 }
-async function updateDisplaySettings(next) {
-    const saveResult = (await saveSettings(next));
+async function updateDisplaySettings(next, options) {
+    const saveResult = (await saveSettings(next, undefined, options));
     homeSettings = saveResult.settings;
     applyDisplaySettings();
     renderSettings({
@@ -6570,7 +6570,7 @@ async function updateDisplaySettings(next) {
 }));
 // Only an explicit tap stores the theme (including Dark).
 elements.themeChoices.forEach((button) => button.addEventListener('click', async () => {
-    (await updateDisplaySettings({ ...homeSettings, theme: button.dataset.themeChoice }));
+    (await updateDisplaySettings({ ...homeSettings, theme: button.dataset.themeChoice }, { themeChanged: true }));
     button.focus({ preventScroll: true });
 }));
 for (const choices of [elements.settingsChoices, elements.fontChoices, elements.themeChoices]) choices.forEach((button, index) => button.addEventListener('keydown', (event) => {
@@ -6593,7 +6593,7 @@ elements.sectionOrder.addEventListener('click', async (event) => {
 });
 elements.settingsReset.addEventListener('click', async () => {
     if (!window.confirm('表示設定をすべてデフォルトに戻しますか？\n練習メニューやMy Appsなどのデータは削除されません。')) return;
-    const saved = (await updateDisplaySettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME }));
+    const saved = (await updateDisplaySettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME }, { themeChanged: true }));
     elements.orderStatus.textContent = saved ? '表示設定をデフォルトに戻しました。' : '保存できませんでした。デフォルトは今回の表示だけに反映しています。';
     elements.settingsReset.focus({ preventScroll: true });
 });

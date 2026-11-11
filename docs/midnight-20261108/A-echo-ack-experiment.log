@@ -1,0 +1,58 @@
+[
+  {
+    "app": "pitch",
+    "first": {
+      "ok": true,
+      "recordCount": 1,
+      "manifestHash": "8547676ac40d681c76d22d6d5de57dac824b9ab160262f5c8d23f0668a6944b7"
+    },
+    "firstLocal": "dark",
+    "conflict": {
+      "ok": false,
+      "code": "conflict",
+      "conflicts": 1
+    },
+    "local": {
+      "ok": false,
+      "code": "resolution_verify_failed"
+    }
+  },
+  {
+    "app": "fretboard",
+    "first": {
+      "ok": true,
+      "recordCount": 1,
+      "manifestHash": "e71c4b4b43aa6d715ac9ed1370b98aa058983f9a9e57ff1ae4e3b8fdb5d1d590"
+    },
+    "firstLocal": "dark",
+    "conflict": {
+      "ok": false,
+      "code": "conflict",
+      "conflicts": 1
+    },
+    "local": {
+      "ok": false,
+      "code": "resolution_verify_failed"
+    }
+  },
+  {
+    "app": "rhythm",
+    "first": {
+      "ok": true,
+      "recordCount": 1,
+      "manifestHash": "4aad2d21db44ae4be4546742e8bc5c014b6ccc0ef17f66eb27bf391f02c8357f"
+    },
+    "firstLocal": "dark",
+    "conflict": {
+      "ok": false,
+      "code": "conflict",
+      "conflicts": 1
+    },
+    "local": {
+      "ok": false,
+      "code": "resolution_verify_failed"
+    }
+  }
+]
+(node:35810) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
