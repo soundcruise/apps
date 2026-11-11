@@ -1,7 +1,7 @@
+import {draftFieldHints} from './draft-field-hints.js';
 import {addWebReview,webHintSnapshot} from './web-review.js';
-import {resolveProductType} from './assisted-product-type.js';
 import {draftDate} from './draft-assistance.js';
-import {assistedSource,assistedUrl,assistedLabel} from './assisted-facts.js';
+import {assistedSource,assistedUrl,assistedLabel,assistedTypes} from './assisted-facts.js';
 import {manualPermit,manualAvailability} from './web-manual-permit.js';
 import {scheduledWebPermit} from './web-schedule.js';
 import {webVerification} from './web-verification.js';
@@ -101,18 +101,14 @@ export function webArticleDraft(row){
  let e;try{e=validateEstimate(JSON.parse(row.estimate_json));}catch{return null;}
  const safe=v=>typeof v==='string'&&v.length>=2&&v.length<=100&&!/[<>\x00-\x1f]/.test(v)&&!/^(unknown|不明|未確認)$/i.test(v)?v:'';
  const brand=safe(e.brand),product=safe(e.product),event=safe(e.event);
- // Exact AI category aliases are draft hints only; broad "guitar"/"amp" stays unknown.
- const typeAliases={acoustic_guitar:'アコースティックギター','acoustic guitar':'アコースティックギター',electro_acoustic:'エレアコ','electro-acoustic guitar':'エレアコ',guitar_amp:'ギターアンプ','guitar amplifier':'ギターアンプ','guitar pickup':'ギター用ピックアップ'};
- const type=resolveProductType(typeAliases[e.category.toLowerCase().trim()]||e.category),productType=type.resolved?type.productType:'';
- // Variant/reissue claims cannot silently become a normal-model launch.
- const variant=/新色|限定|復刻|再発売|仕様変更|limited|reissue/i.test(event+' '+row.title);
- const action=variant?'':/発売|release/i.test(event)?'release':/発表|announcement/i.test(event)?'announcement':/紹介|introduction/i.test(event)?'introduction':/インタビュー/i.test(event)?'interview':'';
+ const hints=draftFieldHints(row,e),productType=hints.fields.productType||'',action=hints.fields.action||'';
  let metadata;try{metadata=JSON.parse(row.search_meta_json);}catch{}
- const fields={sourceId:assistedSource(row.url)?.id||'',url:row.url,brand,product,productType,action,publishedAt:draftDate(metadata?.publishedAtHint)};
- const label=assistedLabel({kind:'assisted_notice',brand,product,productType,category:type.resolved?type.category:null,action});
- const fieldSources=Object.fromEntries(Object.entries(fields).filter(([k,v])=>v&&!['url','sourceId'].includes(k)).map(([k])=>[k,{kind:k==='publishedAt'?'search_publication_hint':'saved_ai_estimate',confirmed:false}]));
+ const fields={sourceId:assistedSource(row.url)?.id||'',url:row.url,brand,product,productType,action,...hints.fields,publishedAt:draftDate(metadata?.publishedAtHint)};
+ const label=assistedLabel({kind:'assisted_notice',brand,product:hints.fields.product||product,productType,category:assistedTypes[productType]?.[1],action,qualifier:hints.fields.qualifier});
+ const fieldSources=Object.fromEntries(Object.entries(fields).filter(([k,v])=>v&&!['url','sourceId'].includes(k)).map(([k])=>[k,{kind:k==='publishedAt'?'search_publication_hint':'saved_ai_estimate',reference:row.url,inputField:k==='publishedAt'?'search_meta_json.publishedAtHint':k,confirmed:false}]));
+ Object.assign(fieldSources,hints.fieldSources);
  if(label)fieldSources.label={kind:'generated_from_draft',confirmed:false};
- return {basis:'saved_ai_estimate_unverified',headline:brand&&product?`${brand}「${product}」${event?' — '+event:'（出来事は未確認）'}`:'記事の対象・出来事の確認が必要です',fields:{...fields,...(label?{label}:{})},fieldSources,formalFacts:false,humanConfirmed:false,missing:['publishedAt','brand','product','productType','action'].filter(k=>!fields[k]),relevance:e.relevance,duplicate:e.duplicate,registrationAllowed:!!assistedUrl(row.url),usageBasis:assistedSource(row.url)?.basis||null,requiredConfirmation:'原記事の事実・公開日・利用条件。AI推定は正式証拠ではありません。'};
+ return {basis:'saved_ai_estimate_unverified',headline:brand&&product?`${brand}「${product}」${event?' — '+event:'（出来事は未確認）'}`:'記事の対象・出来事の確認が必要です',fields:{...fields,...(label?{label}:{})},fieldSources,formalFacts:false,humanConfirmed:false,warnings:hints.warnings,missing:['publishedAt','brand','product','productType','action',...(action==='variant_introduction'?['qualifier']:[])].filter(k=>!fields[k]),relevance:e.relevance,duplicate:e.duplicate,registrationAllowed:!!assistedUrl(row.url),usageBasis:assistedSource(row.url)?.basis||null,requiredConfirmation:'原記事の事実・公開日・利用条件。AI推定は正式証拠ではありません。'};
 }
 export async function savedWebDraft(db,url,now){
  if(typeof url!=='string'||url.length>2048)return null;

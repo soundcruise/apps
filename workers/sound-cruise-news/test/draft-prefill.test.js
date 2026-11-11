@@ -1,0 +1,34 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile}from'node:fs/promises';
+import{webArticleDraft}from'../src/web-discovery.js';import{assistedDraftWithInformation}from'../src/draft-assistance.js';import{prepareAssisted,saveAssisted}from'../src/assisted-entry.js';import{operatorDecision,candidateSnapshot}from'../src/operator-review.js';import{handleNewsRequest}from'../src/worker.js';import{SOURCES}from'../src/registry.js';import{store,pepper}from'./helpers.js';import{assessAutomatic}from'../src/automatic.js';
+const info=JSON.parse(await readFile(new URL('./fixtures/deviser-draft-information.json',import.meta.url))),projection=JSON.parse(await readFile(new URL('./fixtures/web-review-projection.json',import.meta.url))),hint=projection.hints.find(r=>r.url===info.url),now=Date.parse('2026-11-11T00:00:00Z'),actor={type:'human_operator',id:'local-draft-confirmation'};
+let http=0;globalThis.fetch=async()=>{http++;throw Error('no publisher or paid HTTP');};
+test('Deviser user-sourced overlay fills all main fields, preserves raw AI and does not claim article acquisition',()=>{
+ const raw=webArticleDraft(hint),before=JSON.stringify(raw),d=assistedDraftWithInformation(raw,info);assert.equal(JSON.stringify(raw),before);assert.equal(raw.fields.publishedAt,'');assert.equal(raw.fields.action,'');
+ for(const key of ['brand','product','productType','action','publishedAt','label'])assert(d.fields[key]);assert.equal(d.fields.productType,'electric_guitar_bass');assert.equal(d.fields.action,'preview');assert.equal(d.fields.publishedAt,'2026-11-06');assert(d.fields.label.includes('Handmade Series／Unique Series'));assert(d.fields.label.includes('One Day Guitar Show 2026'));assert(d.fields.label.includes('先行紹介'));assert(!d.fields.label.includes('発売'));
+ assert.equal(d.fieldSources.publishedAt.kind,'provided_information');assert.equal(d.fieldSources.label.kind,'generated_from_draft');assert(Object.values(d.fieldSources).every(s=>s.confirmed===false));assert.equal(d.formalFacts,false);assert.equal(d.humanConfirmed,false);
+});
+test('saved hints resolve editorial/edition meaning without inventing dates, brands or new releases',()=>{
+ const get=text=>webArticleDraft(projection.hints.find(r=>r.title.includes(text)));
+ assert.equal(get('Eastman').fields.productType,'guitar_article');assert.equal(get('Eastman').fields.action,'introduction');assert.equal(get('Mukae').fields.productType,'guitar_article');
+ assert.equal(get('LL56').fields.brand,'MIKI');assert.equal(get('LL56').fields.qualifier,'200周年記念');assert.equal(get('100周年').fields.action,'variant_introduction');assert.equal(get('浜田省吾').fields.product,'浜田省吾シグネチャーモデル');
+ for(const row of projection.hints){const d=webArticleDraft({...row,search_meta_json:JSON.stringify({lastModifiedHint:'2026-11-11'})});assert.equal(d.fields.publishedAt,'');assert.equal(d.formalFacts,false);assert.equal(d.humanConfirmed,false);}
+ const ambiguous=webArticleDraft({...hint,title:'アコースティックギターとエレキギターの紹介'});assert.equal(ambiguous.fields.productType,'');assert(ambiguous.warnings.length);
+});
+test('new classifications cannot force an informational article into product launch or erase edition identity',async()=>{
+ const s=await store(),d=assistedDraftWithInformation(webArticleDraft(hint),info),base={...d.fields,confirmed:true,conditionsConfirmed:true};assert.equal((await prepareAssisted(s,{...base,productType:'guitar_article'},now,SOURCES,pepper)).valid,false);
+ assert.equal((await prepareAssisted(s,{...base,action:'release'},now,SOURCES,pepper)).valid,false);assert.equal((await prepareAssisted(s,{...base,action:'variant_introduction',qualifier:''},now,SOURCES,pepper)).valid,false);
+ assert.throws(()=>assistedDraftWithInformation(webArticleDraft(hint),{...info,fields:{...info.fields,confirmed:true}}),/assisted_draft_invalid/);
+});
+test('local Deviser E2E: explicit final confirmation -> formal candidate -> Ledger/API, automatic still excludes it',async()=>{
+ const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();const d=assistedDraftWithInformation(webArticleDraft(hint),info),input={...d.fields,confirmed:true,conditionsConfirmed:true,requestId:'deviser-draft-prefill-001'};
+ assert.equal((await prepareAssisted(s,{...input,confirmed:false},now,SOURCES,pepper)).valid,false);assert.equal((await prepareAssisted(s,{...input,conditionsConfirmed:false},now,SOURCES,pepper)).valid,false);
+ const out=await saveAssisted(s,input,now,SOURCES,pepper,actor);assert(out.validation.valid,JSON.stringify(out));assert((await saveAssisted(s,input,now,SOURCES,pepper,actor)).replayed);const row=(await s.candidates())[0];assert.equal(row.event_type,'product_article');assert.equal(row.category,'electric_guitar_bass');assert.equal(JSON.parse(row.product_facts).qualifier,info.fields.qualifier);assert.equal(JSON.parse(row.facts_provenance).publisherHttpRequests,0);
+ assert.equal((await assessAutomatic(s,row,SOURCES,now,pepper)).eligible,false);
+ await operatorDecision(s,{id:row.id,action:'approve',reason:'useful_product',requestId:'deviser-draft-decision-001',revision:row.review_revision,snapshot:await candidateSnapshot(row),label:out.validation.publishableLabel,category:row.category,publishedAt:row.published_at,checks:{factsChecked:true,relevanceChecked:true,duplicateChecked:true,independentLabelChecked:true}},now,SOURCES,pepper,actor);
+ const api=await handleNewsRequest(new Request('https://local.test/v1/news'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:SOURCES,cache:null});assert.equal((await api.json()).items.length,1);assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,1);assert.equal(http,0);
+});
+test('same preview is duplicated but a different qualified event is not silently collapsed',async()=>{
+ const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();const d=assistedDraftWithInformation(webArticleDraft(hint),info),input={...d.fields,confirmed:true,conditionsConfirmed:true,requestId:'qualified-preview-save-001'};const a=await saveAssisted(s,input,now,SOURCES,pepper,actor),row=(await s.candidates())[0];await operatorDecision(s,{id:row.id,action:'approve',reason:'useful_product',requestId:'qualified-preview-approve-001',revision:row.review_revision,snapshot:await candidateSnapshot(row),label:a.validation.publishableLabel,category:row.category,publishedAt:row.published_at,checks:{factsChecked:true,relevanceChecked:true,duplicateChecked:true,independentLabelChecked:true}},now,SOURCES,pepper,actor);
+ const other={...input,url:'https://www.deviser.co.jp/information/999111',requestId:'qualified-preview-save-002'};assert.equal((await prepareAssisted(s,other,now,SOURCES,pepper)).duplicates.length,1);
+ assert.equal((await prepareAssisted(s,{...other,qualifier:'別の展示会の特別仕様'},now,SOURCES,pepper)).duplicates.length,0);
+});

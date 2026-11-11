@@ -13,8 +13,9 @@ export function validateDraftAssistance(input,url){
  if(!record(input)||Object.keys(input).some(k=>!['version','url','source','fields','notes'].includes(k))||input.version!==1||input.url!==url)fail();
  if(!record(input.source)||Object.keys(input.source).some(k=>!['label','url'].includes(k))||!text(input.source.label,100)||!text(input.source.url,500))fail();
  try{const u=new URL(input.source.url);if(u.protocol!=='https:'||u.username||u.password||u.hash)fail();}catch{fail();}
- const fields=input.fields;if(!record(fields)||!Object.keys(fields).length||Object.keys(fields).some(k=>!['brand','product','productType','action','publishedAt','label','eventDate','venue'].includes(k)))fail();
+ const fields=input.fields;if(!record(fields)||!Object.keys(fields).length||Object.keys(fields).some(k=>!['brand','product','productType','action','publishedAt','label','eventDate','venue','qualifier'].includes(k)))fail();
  for(const [k,v]of Object.entries(fields)){
+  if(k==='qualifier'&&v==='')continue;
   if(!text(v,k==='label'?160:100))fail();
   if(['publishedAt','eventDate'].includes(k)&&(!draftDate(v)||v.length!==10))fail();
   if(k==='productType'&&(!assistedTypes[v]||v==='guitar_accessory'))fail();
@@ -34,5 +35,5 @@ export function assistedDraftWithInformation(draft,input){
  const fieldSources={...draft.fieldSources};
  for(const k of Object.keys(info.fields))fieldSources[k]={kind:'provided_information',label:info.source.label,reference:info.source.url,confirmed:false};
  if(!info.fields.label&&generated)fieldSources.label={kind:'generated_from_draft',confirmed:false};
- return {...draft,headline:fields.label||draft.headline,fields,fieldSources,notes:info.notes,assistanceSource:info.source,missing:['publishedAt','brand','product','productType','action'].filter(k=>!fields[k]),formalFacts:false,humanConfirmed:false};
+ return {...draft,headline:fields.label||draft.headline,fields,fieldSources,notes:info.notes,assistanceSource:info.source,missing:['publishedAt','brand','product','productType','action',...(fields.action==='variant_introduction'?['qualifier']:[])].filter(k=>!fields[k]),formalFacts:false,humanConfirmed:false};
 }
