@@ -170,7 +170,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('#sc-project-select').selectOption(b.projectId);await retainDrafts(page);
             assert.deepEqual(await snapshot(page), b);
             await page.locator('#sc-project-select').selectOption(a.projectId);await retainDrafts(page);
-            await page.locator('#sc-goto-pre-dtm').click();await retainDrafts(page);
+            assert(await page.locator('#sc-goto-pre-dtm').isHidden());await page.locator('.studio-nav [data-workspace=preDtm]').click();await retainDrafts(page);
             assert(await page.locator('#pd-content').isVisible());
             const download = page.waitForEvent('download');
             await page.locator('#pd-export-json').click();
@@ -201,7 +201,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('#sc-redo').click();
             assert.equal((await snapshot(page)).performance.formBindings.length, 1);
             await page.locator('#sc-chord-forms').click();
-            await page.locator('#sc-goto-pre-dtm').click();await retainDrafts(page);
+            assert(await page.locator('#sc-goto-pre-dtm').isHidden());await page.locator('.studio-nav [data-workspace=preDtm]').click();await retainDrafts(page);
             const download = page.waitForEvent('download');
             await page.locator('#pd-export-midi').click();
             const midi = fs.readFileSync(await (await download).path());
