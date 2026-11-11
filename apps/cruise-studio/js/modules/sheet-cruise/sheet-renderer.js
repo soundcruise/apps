@@ -197,41 +197,22 @@
 
     /* ══════════ 歌詞段（F2a / ADR-028: tick配置対応） ══════════ */
 
-    /**
-     * 歌詞段のDOMを作る。互換仕様: tick:0の単一イベントだけの小節（または歌詞なし）は
-     * 従来どおり全文を1つのspanで表示する（既存プロジェクトの見た目・自動保存し直しをしない）。
-     * それ以外（複数イベント、またはtick!==0を含む）は、小節の必要解像度に合わせた
-     * 時間軸グリッドへ、各イベントのtick位置ごとに配置する。
-     */
-    function buildLyricsRow(bar, resolution, barTicksLen) {
-        var events = Array.isArray(bar.lyrics) ? bar.lyrics : [];
-        var isLegacySingleFull = events.length <= 1 && (events.length === 0 || events[0].tick === 0);
-        if (isLegacySingleFull) {
-            return el('span', 'sheet-bar-lyrics sheet-bar-row', CS().model.getBarLyricsText(bar));
-        }
-
-        var slotTicks = barTicksLen / resolution;
-        var cells = [];
-        for (var i = 0; i < resolution; i++) cells.push('');
-        events.slice().sort(function (a, b) { return a.tick - b.tick; }).forEach(function (ev) {
-            if (!ev || typeof ev.tick !== 'number') return;
-            var idx = Math.floor(ev.tick / slotTicks);
-            if (idx < 0) idx = 0;
-            if (idx >= resolution) idx = resolution - 1;
-            cells[idx] += ev.text || '';
-        });
-
-        var row = el('span', 'sheet-bar-lyrics sheet-bar-row sheet-bar-lyrics--timed');
-        row.style.gridTemplateColumns = 'repeat(' + resolution + ', 1fr)';
-        cells.forEach(function (text) {
-            row.appendChild(el('span', null, text));
-        });
+    // All text rows share the displayed time grid; rendering never edits event timing.
+    function buildTimedTextRow(className,events,resolution,barTicksLen){
+        var row=el('span',className+' sheet-bar-row');
+        Object.assign(row.style,{display:'grid',gridTemplateColumns:'repeat('+resolution+',minmax(0,1fr))',gap:'0',marginLeft:'calc(-1 * var(--sheet-bar-pad-x))',marginRight:'calc(-1 * var(--sheet-bar-pad-x))',fontSize:'13.5px',fontWeight:'600',letterSpacing:'0',minHeight:'1.5em'});
+        var texts=Array(resolution).fill('');
+        events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i]+=e.text;});
+        texts.forEach(function(text,i){var cell=el('span','sheet-timed-cell',text);cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'center',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
         return row;
+    }
+    function buildLyricsRow(bar,resolution,barTicksLen){
+        return buildTimedTextRow('sheet-bar-lyrics sheet-bar-lyrics--timed',(bar.lyrics||[]).map(function(e){return {tick:e.tick,text:e.text||''};}),resolution,barTicksLen);
     }
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -244,6 +225,7 @@
         // （F2a / ADR-028: 見えないグリッド線であっても歌詞の列位置が基準からズレないように）
         var timeRes = (show.gridResolution === 16 || barNeedsSixteenth(bar, strum && strum.slots) ||
             (strum && strum.needs16)) ? 16 : 8;
+        if(viewResolution===8||viewResolution===16)timeRes=viewResolution;
 
         if (show.timingGrid) {
             cell.appendChild(buildTimingGrid(beats, timeRes));
@@ -256,13 +238,9 @@
         // CSS（.sheet-bar-row + .sheet-bar-row）が引く。将来ストローク段を
         // 追加するときも、同じく .sheet-bar-row を付ければ区切り線が自動で付く
         if (show.chords) {
-            var chord = el('span', 'sheet-bar-chord sheet-bar-row');
-            chord.style.position='relative';chord.style.minHeight='1.4em';
-            (bar.chords||[]).forEach(function(event){
-                var symbol=el('span','sheet-chord-event',event.symbol);
-                symbol.style.position='absolute';symbol.style.left=(event.tick/(beats*model.TICKS_PER_BEAT)*100)+'%';
-                chord.appendChild(symbol);
-            });
+            var chord=buildTimedTextRow('sheet-bar-chord',(bar.chords||[]).map(function(e){return {tick:e.tick,text:e.symbol};}),timeRes,beats*model.TICKS_PER_BEAT);
+            chord.style.fontSize='17.5px';chord.style.fontWeight='800';
+            chord.querySelectorAll('.sheet-timed-cell').forEach(function(e){if(e.textContent)e.classList.add('sheet-chord-event');});
             cell.appendChild(chord);
         }
 
@@ -277,12 +255,10 @@
         }
 
         if (hasVocal && show.doremi) {
-            var doremi = el('span', 'sheet-bar-doremi sheet-bar-row');
-            theory.melodyEventsToDoremiTokens(bar.melody || []).forEach(function (token) {
-                var note = el('span', 'sheet-doremi-note' +
-                    (token.octave > 0 ? ' is-high' : (token.octave < 0 ? ' is-low' : '')), token.text);
-                doremi.appendChild(note);
-            });
+            var tokens=theory.melodyEventsToDoremiTokens((bar.melody||[]).map(function(e){return Object.assign({},e,{durationTicks:1});}));
+            var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
+            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){return {tick:e.tick,text:tokens[i].text};}),timeRes,beats*model.TICKS_PER_BEAT);
+            doremi.style.color='var(--paper-doremi)';
             cell.appendChild(doremi);
         }
         return cell;
@@ -294,7 +270,7 @@
      * StudioProject をA4紙面DOMとしてレンダリングし、container を置き換える。
      * @returns {HTMLElement} 生成した .sheet-page（複数ページ化する将来は配列先頭）
      */
-    function render(project, container) {
+    function render(project, container, options) {
         if(project.schemaVersion===2) project=CS().model.toStructureView(project);
         else if(project.schemaVersion!==1&&project.purpose!=='structure-read') throw Error('unsupported-schema');
         var model = CS().model;
@@ -326,7 +302,7 @@
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
                     var strum = show.strum ? resolveBarStrum(project, bar) : null;
-                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum));
+                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null));
                 });
                 // 行末まで小節線を揃えるための空セル
                 for (var pad = lineBars.length; pad < cols; pad++) {

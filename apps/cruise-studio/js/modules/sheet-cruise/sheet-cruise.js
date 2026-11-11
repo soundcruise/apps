@@ -831,7 +831,7 @@
         if(!state.project){renderInvalidProject();return;}
         if (preserveInputs) state.overlayRefreshRequested = false;
         if (staffStyle === 'melody') staffRequest();
-        else CS().sheetRenderer.render(state.project, els.scaleBox);
+        else CS().sheetRenderer.render(state.project, els.scaleBox, {resolutionForBar:getStrumGridResolution});
         updateSheetScale();
         syncSheetSelection(preserveInputs);
         // 画面切替直後は clientWidth が 0 のことがあるため、表示後にもう一度合わせる
@@ -842,13 +842,27 @@
      * A4紙面（794px幅）をプレビューペインの幅に合わせて縮小表示する。
      * transform はレイアウト寸法に影響しないため、ビューポートの高さはJSで確保する。
      */
+    var sheetZoom=1;
+    function mountSheetZoom(){
+        var controls=document.createElement('div');controls.id='sc-zoom-controls';controls.style.display='flex';controls.style.gap='8px';controls.style.alignItems='center';
+        function button(id,label,change){var b=document.createElement('button');b.type='button';b.id=id;b.className='btn-ghost btn-compact';b.textContent=label;b.onclick=function(){sheetZoom=change(sheetZoom);updateSheetScale();};controls.appendChild(b);return b;}
+        button('sc-zoom-out','縮小 −',function(z){return Math.max(.5,z-.25);});
+        button('sc-zoom-reset','100%',function(){return 1;}).title='画面幅に合わせた表示へ戻す';
+        button('sc-zoom-in','拡大 ＋',function(z){return Math.min(2,z+.25);});
+        (els.toolbar.querySelector('.sheet-toolbar-actions')||els.toolbar).appendChild(controls);
+    }
     function updateSheetScale() {
         if (!els.preview || !els.scaleBox) return;
         var available = els.preview.clientWidth;
         if (!available) return;
-        var scale = Math.min(1, available / 794);
+        if(window.matchMedia('print').matches)return;
+        var scale = Math.min(1, available / 794)*sheetZoom;
+        els.preview.style.overflowX=sheetZoom>1?'auto':'hidden';
+        var label=q('sc-zoom-reset');if(label)label.textContent=Math.round(sheetZoom*100)+'%';
+        if(q('sc-zoom-out'))q('sc-zoom-out').disabled=sheetZoom<=.5;
+        if(q('sc-zoom-in'))q('sc-zoom-in').disabled=sheetZoom>=2;
         els.scaleBox.style.transform = 'scale(' + scale + ')';
-        els.preview.style.height = Math.ceil(els.scaleBox.offsetHeight * scale) + 'px';
+        els.preview.style.height = (Math.ceil(els.scaleBox.offsetHeight * scale)+(sheetZoom>1?20:0)) + 'px';
         positionSlotOverlay();
     }
 
@@ -1060,7 +1074,8 @@
             var events=source[collection].filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});
             var exact=events.length===1&&events[0].onsetTick===tick?events[0]:null, batch=kind==='doremi'&&autoCellGroup(events,tick,span);
             var input=document.createElement('input');input.type='text';input.className='slot-overlay-input';
-            input.style.minWidth='0';input.style.width='100%';input.style.padding='6px';input.style.boxSizing='border-box';
+            input.style.minWidth='0';input.style.width='100%';input.style.padding='0 3px';input.style.boxSizing='border-box';input.style.textAlign='center';
+            if(kind==='doremi'){input.style.fontFamily='var(--paper-font)';input.style.fontSize='max(11px, calc(13px * var(--bar-loupe-scale, 1)))';input.style.fontWeight='600';input.style.letterSpacing='0';}
             input.dataset.overlayField=kind;input.dataset.slotTick=tick;input.setAttribute('aria-label',bar.barNumber+'小節目の'+(kind==='chord'?'コード':'ドレミ')+' '+(tick/480+1)+'拍');
             input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):((exact&&exact.kind==='note')||batch?CS().model.getBarDoremiText({melody:bar.melody.filter(function(e){return e.tick>=tick&&e.tick<tick+span;})}):'');
             if(events.length && !exact && !batch){input.readOnly=true;input.value='…';input.title='この範囲には細かな位置のイベントがあります。元の時間情報を保持しています';}
@@ -1561,12 +1576,12 @@
             focusStrumCellByIndex(index - 1);
             return;
         }
-        if (key === 'd' || key === 'D') {
+        if (key === 'ArrowDown' || key === 'd' || key === 'D') {
             event.preventDefault();
             applyStrumCellAction(bar, res, index, 'down');
             return;
         }
-        if (key === 'u' || key === 'U') {
+        if (key === 'ArrowUp' || key === 'u' || key === 'U') {
             event.preventDefault();
             applyStrumCellAction(bar, res, index, 'up');
             return;
@@ -1615,6 +1630,8 @@
                 timelineBoundaryClass(boundary, res, slotsPerBeat);
             cell.textContent = STRUM_GLYPHS[action] || '・';
             cell.dataset.cellIndex = String(index);
+            cell.addEventListener('focus',function(){cell.style.boxShadow='inset 0 0 0 2px var(--slot-focus)';cell.style.position='relative';cell.style.zIndex='1';});
+            cell.addEventListener('blur',function(){cell.style.boxShadow='';cell.style.zIndex='';});
             cell.setAttribute('aria-label', bar.barNumber + '小節目 ストローク ' +
                 (index + 1) + 'マス目（' + (STRUM_GLYPHS[action] || '・') + '）');
             cell.addEventListener('click', function (event) {
@@ -1965,6 +1982,7 @@
         input.type = 'text';
         input.className = 'dock-lyrics-cell ' + boundaryClass +
             (cellInfo.text ? ' has-content' : '') + (cellInfo.isMulti ? ' is-multi' : '');
+        input.style.letterSpacing='0';input.style.boxSizing='border-box';
         input.value = cellInfo.text;
         input._initialValue = cellInfo.text; // G2a: 無変更commit防止用の表示済み初期値
         input.dataset.slotTick = String(slotTick);
@@ -3301,6 +3319,7 @@
 
     function init() {
         resolveElements();
+        mountSheetZoom();
         fillKeySelect(els.originalKey);
         fillKeySelect(els.playKey);
 
@@ -3470,7 +3489,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.88.3-dev.2',
+        developmentVersion: '0.88.4-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
