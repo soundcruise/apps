@@ -1,0 +1,111 @@
+{
+  "note": "Own public NEWS API, read-only 2026-11-11. Article dates are source publication dates, not NEWS approval times. No publisher bodies or user data. Offline replay, not production deployment.",
+  "at": "2026-11-11T05:35:27.018Z",
+  "items": [
+    {
+      "id": "8b94b410210244318481a3824a9b38729c256c2f1a20b9a15f533fbcc47fbfa1",
+      "label": "アコースティック・ギターの試奏・レビュー記事を公開",
+      "sourceName": "ACOUSTIC GUITAR MAGAZINE WEB",
+      "sourceUrl": "https://acousticguitarmagazine.jp/gears/2026-1110-new-gear-sound-check-110/",
+      "publishedAt": "2026-11-10T10:00:00.000Z",
+      "category": "media_other",
+      "publishable": true
+    },
+    {
+      "id": "410a199f295681977aa7079fe1d5d29498ee62692f698abb9d4bd4927dd25db4",
+      "label": "Universal Audio、プラグイン「UAD Capitol Studios」が登場",
+      "sourceName": "島村楽器",
+      "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/110427/",
+      "publishedAt": "2026-11-09T15:00:00.000Z",
+      "category": "dtm_software",
+      "publishable": true
+    },
+    {
+      "id": "2363bdec93ca50b6e7c3f3bd8f7e38fd4a4bd6e0abfe2dcafe05b8e98e386343",
+      "label": "Sfidaのペダル用電源「SPS-10」が登場",
+      "sourceName": "キクタニ",
+      "sourceUrl": "https://www.kikutani.co.jp/news/sfida-sps10/",
+      "publishedAt": "2026-11-08T15:00:00.000Z",
+      "category": "amps_effects",
+      "publishable": true
+    },
+    {
+      "id": "bd17b6a238942d7b6997de154c6923cd9c3ba303862102d061e106fcd218f9da",
+      "label": "沖仁の教則本『沖仁 フラメンコ・ギター・アレンジ術』、12月15日の発売情報",
+      "sourceName": "ACOUSTIC GUITAR MAGAZINE WEB",
+      "sourceUrl": "https://acousticguitarmagazine.jp/2026-1106-okijin-flamenco/",
+      "publishedAt": "2026-11-06T10:00:00.000Z",
+      "category": "media_other",
+      "publishable": true,
+      "hot": false,
+      "displayOrder": 1
+    },
+    {
+      "id": "15683558e2a1e02e4ce4dcc23b508b5cf12566aae4d31896e452800427538616",
+      "label": "ヤマハ、ギターアンプ「Acompass 60」を発表",
+      "sourceName": "ヤマハ / ヤマハミュージックジャパン",
+      "sourceUrl": "https://www.yamaha.com/ja/news_release/2026/26110601/",
+      "publishedAt": "2026-11-05T15:00:00.000Z",
+      "category": "amps_effects",
+      "publishable": true,
+      "hot": true,
+      "displayOrder": 0
+    },
+    {
+      "id": "c157e6ae1e8afa79a720179ec3cd32c0a1c265809f3c5b418e30aa7590673a52",
+      "label": "Fender Made in Japan、エレキギター「Limited Edition F Hole Telecaster Thinline / Limited Edition F Hole Telecaster Thinline HH」に新色が登場",
+      "sourceName": "池部楽器",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/173912/",
+      "publishedAt": "2026-11-05T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "publishable": true,
+      "hot": false,
+      "displayOrder": 2
+    },
+    {
+      "id": "ff9b8092f94d5f2dafa17439a59584cbee167b67092a4eec6ce4b1708fb46a98",
+      "label": "Fender、ギター「Fender x MusicNomad Tool Kit」が登場",
+      "sourceName": "島村楽器",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/108267/",
+      "publishedAt": "2026-11-05T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "publishable": true,
+      "hot": false,
+      "displayOrder": 3
+    },
+    {
+      "id": "14dd8b4065691c0937c5b0f6060e3437c1c95b9d2092e3b46d0d13a3ed201440",
+      "label": "Steinbergの音楽制作ソフトウェア「Cubase 16」、11月5日発売と案内",
+      "sourceName": "島村楽器",
+      "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/108008/",
+      "publishedAt": "2026-11-04T15:00:00.000Z",
+      "category": "dtm_software",
+      "publishable": true
+    },
+    {
+      "id": "daf80ab117cf943dc8749c54f5d73c4617f413e8426b48803378eeb74423b2c7",
+      "label": "Morris Guitars、「塗装作業を伴う修理受付の再開（2026年11月9日）」の修理・メンテナンス情報を案内",
+      "sourceName": "Morris Guitars",
+      "sourceUrl": "https://www.morris-guitar.com/information/2026/1104_01.html",
+      "publishedAt": "2026-11-03T15:00:00.000Z",
+      "category": "media_other",
+      "publishable": true
+    },
+    {
+      "id": "f43aeab364da2103e49560538e80e1c76f501a3a75333d163587d27d77df087d",
+      "label": "Behringerのデジタルミキサー「WING-BK / WING COMPACT / WING RACK」の発売を案内",
+      "sourceName": "島村楽器",
+      "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/107512/",
+      "publishedAt": "2026-11-03T15:00:00.000Z",
+      "category": "recording_audio",
+      "publishable": true
+    }
+  ],
+  "previousTickerIds": [
+    "15683558e2a1e02e4ce4dcc23b508b5cf12566aae4d31896e452800427538616",
+    "8b94b410210244318481a3824a9b38729c256c2f1a20b9a15f533fbcc47fbfa1",
+    "410a199f295681977aa7079fe1d5d29498ee62692f698abb9d4bd4927dd25db4",
+    "2363bdec93ca50b6e7c3f3bd8f7e38fd4a4bd6e0abfe2dcafe05b8e98e386343",
+    "bd17b6a238942d7b6997de154c6923cd9c3ba303862102d061e106fcd218f9da"
+  ]
+}

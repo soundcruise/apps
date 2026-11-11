@@ -6,14 +6,14 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.24.24';
+import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.30.5';
 import './feature-help.js?v=1.21.2';
-import { bindSyncProLock } from './sync-pro-lock.js?v=1.24.26';
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.30.5';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.24.24';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.24.24';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
-import { requestToolPro } from './tool-capabilities.js?v=1.24.24';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.30.5';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.30.5';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
+import { requestToolPro } from './tool-capabilities.js?v=1.30.5';
 import {
     LIMITS,
     createPracticeMenu,
@@ -23,7 +23,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=1.24.24';
+} from './practice-menu-store.js?v=1.30.5';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
@@ -36,18 +36,18 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.27.1';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.27.1';
+} from './sync-center-controller.js?v=1.33.0';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.33.0';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
-import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.24.24';
-import { createAiSupportPanel } from './ai-support-ui.js?v=1.24.24';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.30.5';
+import { createAiSupportPanel } from './ai-support-ui.js?v=1.30.5';
 import { createPortSyncStatus, portSyncActionError } from './port-sync-status.js?v=1.25.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.27.1';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.33.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=1.25.1';
+} from './sync-center-navigation.js?v=1.33.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -61,7 +61,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=1.24.24';
+} from './practice-menu-progress-store.js?v=1.30.5';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -81,7 +81,7 @@ import {
     savePracticeHistory,
     toLocalDateKey,
     updatePracticeHistoryRecord
-} from './practice-menu-history-store.js?v=1.24.24';
+} from './practice-menu-history-store.js?v=1.30.5';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -96,7 +96,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=1.24.24';
+} from './practice-menu-calendar-store.js?v=1.30.5';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -113,12 +113,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=1.24.24';
+} from './practice-menu-attachment-store.js?v=1.30.5';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=1.24.24';
+} from './practice-menu-pending-attachments.js?v=1.30.5';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -129,7 +129,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.24.24';
+} from './practice-menu-app-resolver.js?v=1.30.5';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -144,7 +144,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=1.24.24';
+} from './my-apps-store.js?v=1.30.5';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -165,7 +165,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.24.24';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.30.5';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -183,22 +183,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=1.24.24';
+} from './my-apps-icon-workflow.js?v=1.30.5';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=1.24.24';
+import { initMetronome } from './metronome-app.js?v=1.30.5';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.28.0';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.24.24';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.24.24';
-import { initTuner } from './tuner-app.js?v=1.28.0';
+} from './app-version.js?v=1.34.0';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.30.5';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.30.5';
+import { initTuner } from './tuner-app.js?v=1.34.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -216,7 +216,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=1.24.24';
+} from './gear-list-store.js?v=1.30.5';
 import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.59.3';
 import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.59.3';
 import { createGearListPng } from './gear-list-image-export.js?v=0.59.3';
@@ -228,10 +228,10 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=1.24.24';
-import { createGearPhotoStore } from './gear-photo-store.js?v=1.24.24';
-import { PortAssetSync } from './port-asset-sync.js?v=1.26.2';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.24.24';
+} from './gear-category-store.js?v=1.30.5';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.30.5';
+import { PortAssetSync } from './port-asset-sync.js?v=1.30.5';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.30.5';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
     addPracticeMenuToSets,
@@ -246,7 +246,7 @@ import {
     reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.24.24';
+} from './practice-menu-sets-store.js?v=1.30.5';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -255,7 +255,7 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=1.24.24';
+} from './gear-photo-workflow.js?v=1.30.5';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -2165,10 +2165,10 @@ async function renderNewsSafely() {
     document.getElementById('news-entry').hidden = false;
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.24.20');
+        const news = await import('./news-ui.js?v=1.34.0');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadNewsPresentation } = await import('./news-provider.js?v=1.24.20');
+        const { loadNewsPresentation } = await import('./news-provider.js?v=1.34.0');
         const result = await loadNewsPresentation();
         if (revision === newsLoadRevision) news.renderNews({ ...result, category: document.getElementById('news-category')?.value ?? '' });
     } catch (error) {
@@ -4441,7 +4441,7 @@ async function renderSyncCenterView({ activate = false, refreshAccount = true } 
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
         onAppAction: syncCenterActions?.onAppAction,
-        onResolveApp: syncCenterActions?.resolveApp, onResolvePort: syncCenterActions?.resolvePort,
+        onResolveApp: syncCenterActions?.resolveApp,
         onRestartDeletedAccount: async mode => {
             await syncCenterController.releaseDeletedAccount();
             try {
@@ -6553,8 +6553,8 @@ if (syncCenterController.enabled) {
         }
     });
 }
-async function updateDisplaySettings(next) {
-    const saveResult = (await saveSettings(next));
+async function updateDisplaySettings(next, options) {
+    const saveResult = (await saveSettings(next, undefined, options));
     homeSettings = saveResult.settings;
     applyDisplaySettings();
     renderSettings({
@@ -6570,14 +6570,18 @@ async function updateDisplaySettings(next) {
 }));
 // Only an explicit tap stores the theme (including Dark).
 elements.themeChoices.forEach((button) => button.addEventListener('click', async () => {
-    (await updateDisplaySettings({ ...homeSettings, theme: button.dataset.themeChoice }));
+    (await updateDisplaySettings({ ...homeSettings, theme: button.dataset.themeChoice }, { themeChanged: true }));
     button.focus({ preventScroll: true });
 }));
 for (const choices of [elements.settingsChoices, elements.fontChoices, elements.themeChoices]) choices.forEach((button, index) => button.addEventListener('keydown', (event) => {
     if (!['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
-    const next = choices[(index + offset + choices.length) % choices.length];
+    const visibleChoices = choices === elements.themeChoices
+        ? choices.filter((choice) => getComputedStyle(choice).display !== 'none')
+        : choices;
+    const currentIndex = visibleChoices.indexOf(button);
+    const next = visibleChoices[(currentIndex + offset + visibleChoices.length) % visibleChoices.length];
     next.click();
 }));
 elements.sectionOrder.addEventListener('click', async (event) => {
@@ -6593,7 +6597,7 @@ elements.sectionOrder.addEventListener('click', async (event) => {
 });
 elements.settingsReset.addEventListener('click', async () => {
     if (!window.confirm('表示設定をすべてデフォルトに戻しますか？\n練習メニューやMy Appsなどのデータは削除されません。')) return;
-    const saved = (await updateDisplaySettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME }));
+    const saved = (await updateDisplaySettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME }, { themeChanged: true }));
     elements.orderStatus.textContent = saved ? '表示設定をデフォルトに戻しました。' : '保存できませんでした。デフォルトは今回の表示だけに反映しています。';
     elements.settingsReset.focus({ preventScroll: true });
 });

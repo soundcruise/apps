@@ -1,9 +1,8 @@
-import { getAttentionGuide } from './sync-attention-ui.mjs?v=1.26.1';
 import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-sync-status.js?v=1.25.1';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.27.1';
-import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.33.0';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.33.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
 
@@ -101,48 +100,15 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
         appendText(targets, 'h3', 'sync-center-app-info-heading', '同期先');
         if (detail.notice) appendText(targets, 'p', 'sync-center-app-info-notice', detail.notice);
         if (detail.targets?.length) {
-            const list = document.createElement('ul');
-            list.className = 'sync-center-app-info-targets';
-            list.replaceChildren(...detail.targets.map((target) => {
-                const item = document.createElement('li');
-                item.className = `sync-center-app-info-target sync-center-app-info-target--${target.tone}`;
-                item.dataset.syncTargetState = target.state;
-                const mark = appendText(item, 'span', 'sync-center-app-info-mark', target.mark);
-                mark.setAttribute('aria-hidden', 'true');
-                const copy = document.createElement('div');
-                copy.className = 'sync-center-app-info-target-copy';
-                appendText(copy, 'strong', '', target.name);
-                if (target.secondary) appendText(copy, 'small', 'sync-center-app-info-meta', target.secondary);
-                appendText(copy, 'span', 'sync-center-app-info-state', target.stateText);
-                if (target.countText) appendText(copy, 'span', 'sync-center-app-info-state', target.countText);
-                if (target.meta.length) appendText(copy, 'small', 'sync-center-app-info-meta', target.meta.join('・'));
-                item.append(copy);
-                if (target.id && renameEnabled) {
-                    const actions = document.createElement('div');
-                    actions.className = 'sync-center-app-info-target-actions';
-                    actions.append(createRenameButton({ kind: 'app', id: target.id, appId: app.id, context: app.name,
-                        userLabel: target.userLabel, registeredLabel: target.registeredLabel,
-                        shortId: target.shortId, name: target.name }));
-                    // Same data attributes as the target-management 解除, so the same named confirmation
-                    // (and the same device-ID revoke) is used; nothing is removed without confirming.
-                    const revoke = document.createElement('button');
-                    revoke.type = 'button';
-                    revoke.className = 'sync-center-target-revoke';
-                    revoke.textContent = '解除';
-                    revoke.setAttribute('aria-label', `${target.name}を解除`);
-                    revoke.dataset.syncAppEnvironmentRevoke = target.id;
-                    revoke.dataset.syncAppEnvironmentApp = app.id;
-                    revoke.dataset.syncTargetLabel = describeTargetForConfirm(target, app.name);
-                    actions.append(revoke);
-                    item.append(actions);
-                }
-                return item;
-            }));
+            const list = createEnvironmentDetails({ entry: app, portEnvironments: [],
+                renameEnabled, listId: `info-${app.id}` });
+            list.hidden = false;
             targets.append(list);
         } else if (detail.emptyText) {
             appendText(targets, 'p', 'sync-center-app-info-text', detail.emptyText);
         }
         for (const text of detail.guidance || []) appendText(targets, 'p', 'sync-center-app-info-guidance', text);
+        if (app.status === 'synced') appendText(targets, 'p', 'sync-center-app-info-guidance', SYNC_DETAIL_COPY.reconnect);
         if (detail.footnote) appendText(targets, 'p', 'sync-center-app-info-footnote', detail.footnote);
         panel.append(targets);
     }
@@ -178,13 +144,14 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
 export const RECOVERY_IMPACT = '復旧を確定すると、現在接続されているすべてのCruise Portと各Cruiseアプリ（ホーム画面版・ブラウザ版を含む）で再接続が必要になります。クラウド上の同期データは残ります。';
 // 「同期済み」 here is the target app's own sync status, not Port's 「✓ 同期済み」 product status.
 export const SYNC_DETACH_NOTE = 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。';
+const SYNC_DETACH_SUCCESS = '接続を解除しました。対象アプリは未接続です。同期が完了したという意味ではありません。再び使う場合は同期コードで再接続してください。';
 const LINKED_APPS = 'このCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。';
 
 export function describeLifecycleAction(kind, { appName = 'このアプリ', lastPort = false, current = false,
     targetLabel = null } = {}) {
     if (kind === 'app-environment') {
         return Object.freeze({ title: '選択した同期先を解除', severity: 'normal', syncNote: true,
-            summary: `${targetLabel ? `${targetLabel}の同期だけを解除します。` : '選択した同期先1件だけの同期を解除します。'}同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。` });
+            summary: `${targetLabel ? `${targetLabel}の同期だけを解除します。` : '選択した同期先1件だけの同期を解除します。'}対象アプリは未接続になり、同期コードで再接続するまで同期しません。これは同期の修復・完了ではありません。同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。` });
     }
     if (kind === 'current-environment') {
         return Object.freeze({ title: 'このCruise Portの接続を解除', severity: 'caution', syncNote: true,
@@ -201,7 +168,7 @@ export function describeLifecycleAction(kind, { appName = 'このアプリ', las
     }
     if (kind === 'detach') {
         return Object.freeze({ title: `${appName}の同期を解除`, severity: 'caution', syncNote: true,
-            summary: `${appName}の同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。解除後は同期コードからいつでも再接続できます。` });
+            summary: `${appName}の同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。対象アプリは未接続になり、同期コードで再接続するまで同期しません。これは同期の修復・完了ではありません。` });
     }
     return null;
 }
@@ -259,11 +226,12 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         chip.textContent = visibleStatus;
         detail.append(chip);
         let infoPanel = null;
+        let targetsToggle = null;
         if (appHasSyncDetail(app, presentation.kind)) {
             infoPanel = createSyncInfoPanel(app, describeAppSyncDetail(app, {
                 kind: presentation.kind, devicesState: presentation.devicesState
             }), { onRecheck, aiSupport, renameEnabled: orchestrationEnabled && presentation.accountState === 'active' });
-            const toggle = createSyncTargetsTab({ name: app.name,
+            const toggle = targetsToggle = createSyncTargetsTab({ name: app.name,
                 count: appTargetCount(app, presentation.devicesState), panelId: infoPanel.id });
             toggle.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -277,57 +245,35 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         actions.className = 'sync-center-app-row-actions';
         const needsInitialConnection = ['unset', 'prepared', 'detached'].includes(app.status);
         const accountReady = presentation.accountState === 'active';
-        const canRemoveAppSync = Number(app.activeAppDeviceCount || 0) > 0 &&
-            app.status !== 'deleting' && orchestrationEnabled;
-        const action = document.createElement(needsInitialConnection
-            ? (accountReady && !orchestrationEnabled ? 'a' : 'button')
-            : canRemoveAppSync ? 'button' : 'span');
-        action.className = canRemoveAppSync
-            ? 'sync-center-app-action sync-center-app-remove'
-            : 'sync-center-app-action';
-        if (needsInitialConnection && accountReady && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
-        else if (needsInitialConnection && accountReady) {
-            action.type = 'button';
-            action.dataset.syncAppAction = app.id;
-            if (typeof onAppAction === 'function') {
-                action.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    void onAppAction(action);
-                });
+        if (needsInitialConnection) {
+            const action = document.createElement(accountReady && !orchestrationEnabled ? 'a' : 'button');
+            action.className = 'sync-center-app-action';
+            if (accountReady && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
+            else if (accountReady) {
+                action.type = 'button';action.dataset.syncAppAction = app.id;
+                action.addEventListener('click', event => {event.stopPropagation();void onAppAction?.(action);});
             }
-        }
-        if (needsInitialConnection && app.deleteGrace) {
-            action.dataset.syncAppDeleteGrace = 'true';
-            action.dataset.syncAppName = app.name;
-        }
-        if (canRemoveAppSync) {
-            action.type = 'button';
-            action.dataset.syncAppDetach = app.id;
-            action.dataset.syncAppName = app.name;
-        }
-        // Prepared memberships use the same launch callback as normal rows, but
-        // opening them issues the initial connection code. Keep that callback
-        // contract intact while making the next action clear in the UI.
-        const actionLabel = needsInitialConnection && !accountReady
-            ? '先にアカウントを作成または接続してください'
-            : needsInitialConnection ? '同期コード' : canRemoveAppSync ? '同期を解除' : app.statusLabel;
-        action.textContent = actionLabel;
-        // The screen reader hears the same status as the visible chip, never the membership label.
-        action.dataset.syncAriaBase = `${app.name}で${actionLabel}`;
-        action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（${visibleStatus}）`);
-        if (needsInitialConnection && !accountReady) {
-            action.disabled = true;
-            action.setAttribute('aria-disabled', 'true');
-        } else if (app.action === 'none' || (!needsInitialConnection && !canRemoveAppSync)) {
-            action.removeAttribute('href');
-            action.setAttribute('aria-disabled', 'true');
+            if (app.deleteGrace) {action.dataset.syncAppDeleteGrace='true';action.dataset.syncAppName=app.name;}
+            action.textContent = accountReady ? '同期コード' : '先にアカウントを作成または接続してください';
+            action.dataset.syncAriaBase = `${app.name}で${action.textContent}`;
+            action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（${visibleStatus}）`);
+            if (!accountReady) {action.disabled=true;action.setAttribute('aria-disabled','true');}
+            actions.append(action);
         }
         if (presentationStatus.state === 'attention' || presentationStatus.state === 'recheck') {
             const review = document.createElement('button');review.type='button';review.className='sync-center-app-action secondary';
-            review.textContent='解決方法を確認';review.dataset.syncResolveApp=app.id;review.dataset.syncAriaBase=app.name+'の解決方法を確認';review.setAttribute('aria-label',review.dataset.syncAriaBase+'（'+visibleStatus+'）');
-            review.addEventListener('click',()=>{void onResolveApp?.(app);});actions.append(review);
+            const recheck = presentationStatus.state === 'recheck';
+            const openApp = presentation.accountState === 'active' && canOpenReportedApp(app, presentation);
+            review.textContent=recheck?'もう一度確認':openApp?'アプリを開く':'同期先を確認';review.dataset.syncResolveApp=app.id;
+            review.dataset.syncAriaBase=app.name+(recheck?'の報告を再確認':openApp?'を開く（別画面）':'の同期先を確認');
+            review.setAttribute('aria-label',review.dataset.syncAriaBase+'（'+visibleStatus+'）');
+            if (!recheck && !openApp) review.setAttribute('aria-controls', infoPanel.id);
+            review.addEventListener('click',()=>{
+                if (recheck) void onRecheck?.();
+                else if (openApp) void onResolveApp?.(app);
+                else { infoPanel.hidden=false;targetsToggle.setAttribute('aria-expanded','true'); }
+            });actions.append(review);
         }
-        actions.append(action);
         row.append(image, copy, actions);
         if (infoPanel) row.append(infoPanel);
         return row;
@@ -336,26 +282,19 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
 }
 
 
-// Count each app's authoritative summary once; device reports describe the same items.
+// Membership-level reports, not a count of live local conflicts.
 export function syncAttentionItems(presentation) {
     if(presentation.kind!=='ready'||presentation.accountState!=='active')return [];
-    const apps=(presentation.apps||[]).filter(a=>appSyncStatusPresentation(a).state==='attention').map(a=>({id:a.id,
-        count:Math.max(1,a.attentionCount||0),key:JSON.stringify([a.id,a.status,a.removalSafety,a.attentionCount,
-            (a.environments||[]).filter(e=>['attention','error'].includes(e.lastReport?.state)).map(e=>[e.id,e.lastReport.state,e.lastReport.attentionCount])]),app:a}));
-    if(presentation.portStatus?.state==='attention')apps.unshift({id:'port',count:Math.max(1,presentation.portConflictCount||0),
-        key:JSON.stringify(['port',presentation.portStatus.state,presentation.portConflictCount,presentation.portStatus.detail]),port:true});
+    const apps=(presentation.apps||[]).filter(a=>appSyncStatusPresentation(a).state==='attention').map(a=>({id:a.id}));
+    if(presentation.portStatus?.state==='attention')apps.unshift({id:'port'});
     return apps;
 }
-function renderAttentionGuidance(root,presentation,{onResolveApp,onResolvePort}) {
+function renderAttentionSummary(root,presentation) {
     let overall=root.querySelector('#sync-center-overall-status');
     if(!overall){overall=document.createElement('span');overall.id='sync-center-overall-status';overall.className='sync-center-app-status-chip';overall.setAttribute('role','status');
         root.querySelector('.sync-center-account-status-row')?.append(overall);}
-    const issues=syncAttentionItems(presentation),count=issues.reduce((n,i)=>n+i.count,0);
-    if(overall){overall.hidden=presentation.kind!=='ready';overall.textContent=count?'要確認'+count+'件':'同期の確認事項なし';overall.dataset.syncOverallCount=String(count);}
-    const guide=getAttentionGuide();
-    for(const i of issues){const open=i.port?()=>onResolvePort?.({automatic:true,runtimeActive:presentation.portRuntimeActive}):typeof onResolveApp==='function'?()=>onResolveApp(i.app):null;if(typeof open!=='function')continue;
-        void guide.open({key:JSON.stringify([presentation.accountDisplayId||presentation.accountState,i.key]),open,
-            canOpen:()=>!root.closest('[hidden]')&&!document.querySelector('dialog[open]')},true).catch(()=>{});}
+    const count=syncAttentionItems(presentation).length;
+    if(overall){overall.hidden=presentation.kind!=='ready';overall.textContent=count?'確認事項のあるアプリ '+count+'件':'接続中の同期先に確認報告なし';overall.dataset.syncOverallCount=String(count);}
 }
 
 // 「Pixel」（コードクルーズ・EDAE） / 登録名「Chord Cruise」（コードクルーズ・B91C） / 同期先 B91C（コードクルーズ）
@@ -372,6 +311,7 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
         details.id = `sync-center-environment-details-${listId}`;
         details.hidden = true;
         const targetNames = describeSyncTargetNames(entry.environments);
+        const reports = entry.id === 'port' ? [] : describeAppSyncDetail(entry).targets || [];
         const environmentRows = entry.environments.map((environment, index) => {
             const naming = targetNames[index];
             const item = document.createElement('li');
@@ -391,6 +331,12 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
             const lastSeen = environment.lastSeenAt == null ? '不明' : new Date(environment.lastSeenAt).toLocaleString('ja-JP');
             metadata.textContent = `最終利用 ${lastSeen}`;
             copy.append(metadata);
+            const report = reports.find((target) => target.id === environment.id);
+            if (report) {
+                appendText(copy, 'small', 'sync-center-app-info-state', report.stateText);
+                if (report.countText) appendText(copy, 'small', 'sync-center-app-info-state', report.countText);
+                for (const text of report.meta) appendText(copy, 'small', 'sync-center-app-info-meta', text);
+            }
             item.append(copy);
             if (environment.id && renameEnabled) {
                 const rename = createRenameButton({ kind: entry.id === 'port' ? 'account' : 'app', id: environment.id,
@@ -484,6 +430,15 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         else add.dataset.syncAppAddEnvironment = entry.id;
         const details = createEnvironmentDetails({ entry, portEnvironments,
             renameEnabled: orchestrationEnabled && activeAccount, listId: entry.id });
+        if (entry.id !== 'port' && orchestrationEnabled && activeAccount && entry.status !== 'deleting' &&
+            Number(entry.activeAppDeviceCount || 0) > 0 && entry.environments.length) {
+            const item = document.createElement('li');
+            const detach = document.createElement('button');
+            detach.type='button';detach.className='action-button secondary-action';
+            detach.textContent='このアプリの全接続を解除';
+            detach.dataset.syncAppDetach=entry.id;detach.dataset.syncAppName=entry.name;
+            item.append(detach);details.append(item);
+        }
         row.append(primary, add, count, details);
         return row;
     });
@@ -701,7 +656,7 @@ function confirmDeleteCancellation(root, appName) {
 }
 
 export function renderSyncCenter(root, presentation, {
-    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false, onResolveApp = null, onResolvePort = null, onRestartDeletedAccount = null
+    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false, onResolveApp = null, onRestartDeletedAccount = null
 } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
@@ -776,7 +731,7 @@ export function renderSyncCenter(root, presentation, {
     renderPortStatus(root, presentation, onRecheck);
     renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
     renderDangerActions(root, presentation);
-    renderAttentionGuidance(root, presentation, {onResolveApp,onResolvePort});
+    renderAttentionSummary(root, presentation);
 }
 
 function bindSectionHelp(root) {
@@ -1465,6 +1420,7 @@ export function bindSyncCenterActions(root, {
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();
+                setText(root, '#sync-center-action-status', SYNC_DETACH_SUCCESS);
                 return;
             }
             if (lifecycleAction.kind === 'current-environment') {
@@ -1479,6 +1435,7 @@ export function bindSyncCenterActions(root, {
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();
+                setText(root, '#sync-center-action-status', SYNC_DETACH_SUCCESS);
                 return;
             }
             if (lifecycleDialog.dataset.syncPhase === 'review') {
@@ -1507,11 +1464,7 @@ export function bindSyncCenterActions(root, {
         if(orchestrator?.qaAdmissionRequired)url.searchParams.set('sound-cruise-qa','1');
         location.assign(url.href);
     }
-    return Object.freeze({ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp, resolvePort: ({automatic=false,runtimeActive=false} = {}) => {
-        const conflict=root.querySelector('#sync-center-port-conflicts-open');
-        if(conflict&&!conflict.hidden&&(!automatic||runtimeActive))return onPortConflictOpen();
-        root.querySelector('#port-sync-activate:not([hidden]), #sync-center-account-recheck:not([hidden])')?.focus();
-    } });
+    return Object.freeze({ ensureQaAdmission, onAppAction: issueAppJoin, resolveApp });
 }
 
 export const bindSyncCenterUnavailableActions = bindSyncCenterActions;

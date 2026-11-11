@@ -5,14 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#090806">
     <script>
-        // Port color theme before first paint. Reads only cruisePort.settings; anything else is Dark.
+        // Port color theme before first paint. Port-local settings and Midnight overlay; never reads another app.
         (function () {
-            var colors = { dark: '#090806', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' };
+            var colors = { dark: '#090806', midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' };
             var theme = 'dark';
             try {
                 var saved = JSON.parse(localStorage.getItem('cruisePort.settings') || 'null');
-                if (saved && (saved.theme === 'charcoal' || saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
-            } catch (_) { theme = 'dark'; }
+                if (saved && (saved.theme === 'midnight' || saved.theme === 'charcoal' || saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
+                var overlay = JSON.parse(localStorage.getItem('cruisePort.midnightTheme.v1') || 'null');
+                if (overlay && overlay.version === 1 && overlay.theme === 'midnight' &&
+                    overlay.baseTheme === ((saved && colors[saved.theme]) ? saved.theme : null)) theme = 'midnight';
+                var pending = JSON.parse(localStorage.getItem('cruisePort.midnightTheme.pending.v1') || 'null');
+                var baseTheme = (saved && colors[saved.theme]) ? saved.theme : null;
+                if (pending && pending.version === 1 && (pending.beforeTheme === null || colors[pending.beforeTheme]) &&
+                    (baseTheme === pending.baseTheme || baseTheme === pending.nextBaseTheme)) theme = pending.beforeTheme || 'dark';
+            } catch (_) { /* Keep the ordinary theme if the overlay is malformed. */ }
             document.documentElement.setAttribute('data-theme', theme);
             var meta = document.querySelector('meta[name="theme-color"]');
             if (meta) meta.setAttribute('content', colors[theme]);
@@ -24,7 +31,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=1.0.1">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=10">
-    <link rel="stylesheet" href="../style.css?v=1.28.0">
+    <link rel="stylesheet" href="../style.css?v=1.30.6">
     <link rel="stylesheet" href="../feature-help.css?v=1.21.2">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=23">
@@ -44,14 +51,14 @@
     <script defer src="../../shared/sync-account/sync-account-client.js?v=17"></script>
     <script defer src="../../shared/sync-account/sync-app-backup.js?v=3"></script>
     <script defer src="../../shared/sync-account/multi-app-sync-db.js?v=6"></script>
-    <script defer src="../../shared/sync-account/multi-app-sync-runtime.js?v=33"></script>
+    <script defer src="../../shared/sync-account/multi-app-sync-runtime.js?v=38"></script>
     <script defer src="../../shared/sync-account/multi-app-conflict-ui.js?v=10"></script>
     <script defer src="../port-sync-adapter.js?v=1.24.22"></script>
-    <script defer src="../port-sync-controller.js?v=1.27.1"></script>
+    <script defer src="../port-sync-controller.js?v=1.30.5"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=16"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="../pro-app-boot.js?v=1.28.0"></script>
+    <script type="module" src="../pro-app-boot.js?v=1.34.0"></script>
     <link rel="stylesheet" href="../news-article.css?v=1.16.0">
     <link rel="stylesheet" href="../pro-access.css?v=1.19.2">
     <link rel="stylesheet" href="../sync-pro-lock.css?v=1.19.2">
@@ -202,6 +209,7 @@
                     <h2 id="color-theme-title">カラーテーマ</h2>
                     <div class="settings-choices" role="radiogroup" aria-label="カラーテーマ">
                         <button type="button" class="settings-choice" data-theme-choice="dark" role="radio" aria-checked="true">ダーク</button>
+                        <button type="button" class="settings-choice" data-theme-choice="midnight" role="radio" aria-label="ミッドナイト" aria-checked="false"><span aria-hidden="true">ミッド<br>ナイト</span></button>
                         <button type="button" class="settings-choice" data-theme-choice="charcoal" role="radio" aria-checked="false">チャコール</button>
                         <button type="button" class="settings-choice" data-theme-choice="gray" role="radio" aria-checked="false">グレー</button>
                         <button type="button" class="settings-choice" data-theme-choice="light" role="radio" aria-checked="false">ライト</button>
@@ -288,7 +296,7 @@
                     </div>
                     <div id="sync-center-apps-help" hidden>
                         <p class="sync-center-section-help-copy">音感・指板・リズム・コードの各Cruiseアプリで保存したデータをクラウドに同期します。未接続のアプリは「同期コード」から接続できます。</p>
-                        <div class="sync-center-section-help-copy"><h3>「✓ 同期済み」について</h3><p>「✓ 同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。各端末やブラウザのアプリがすべて最新であることまでは示しません。同期先ごとの最後の報告は、各アプリの「同期先」から確認できます。</p><h3>Home画面から削除する前に</h3><p>削除するアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。Cruise Portの「✓ 同期済み」だけでは、その端末の変更がすべて同期されたかは分かりません。同期済みのデータは、ホーム画面のアプリを削除したあともCruise Portから再び利用できます。端末固有の設定や、まだ同期されていない変更は対象外です。</p></div>
+                        <div class="sync-center-section-help-copy"><h3>同期表示について</h3><p>Cruise Portの「✓ 同期済み」は、Port自身の同期状態です。4アプリの「✓ 同期済み」は、接続中の同期先すべての前回報告で同期成功を確認できた状態です。現在の端末内データとの一致を保証する表示ではありません。「クラウド利用可」は、同期先の成功報告をまだ確認できない状態です。解除した端末のアプリは、同期コードで再接続するまで同期しません。同期先ごとの前回報告は、各アプリの「同期先」から確認できます。</p><h3>Home画面から削除する前に</h3><p>削除するアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。Cruise Portの「✓ 同期済み」だけでは、その端末の変更がすべて同期されたかは分かりません。同期済みのデータは、ホーム画面のアプリを削除したあともCruise Portから再び利用できます。端末固有の設定や、まだ同期されていない変更は対象外です。</p></div>
                     </div>
                     <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
                 </section>
@@ -306,6 +314,7 @@
                     <ul id="sync-center-add-environments" class="sync-center-apps" aria-live="polite"></ul>
                     <button id="sync-center-app-environments-toggle" class="sync-center-advanced-toggle" type="button" aria-expanded="false" aria-controls="sync-center-app-environments-advanced">Cruiseアプリの同期先を管理</button>
                     <div id="sync-center-app-environments-advanced" hidden>
+                        <p>使わなくなった接続を管理する操作です。解除は同期の修復ではなく、対象アプリが未接続になります。使い続けるアプリは、先にアプリ内の再試行・競合確認を利用してください。</p>
                         <ul id="sync-center-app-environments" class="sync-center-apps" aria-live="polite"></ul>
                     </div>
                 </section>

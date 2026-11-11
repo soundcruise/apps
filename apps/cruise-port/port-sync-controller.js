@@ -6,6 +6,48 @@
   const defaultFetch = (...args) => global.fetch(...args);
   const defaultLabel = () => 'Cruise Port';
   const defaultCanSync = () => namespace.canSync?.() === true;
+  // Same Account-scoped evidence check for cold resume and the BEFORE side of a local commit.
+  // Journal anchors use the same record hash/deletion identity as an existing Outbox entry.
+  async function attributable(probe, local, shadow, outbox, conflicts, wait) {
+    const key = r => `${r.recordType}/${r.recordId}`, deleted = r => r == null || r.deleted === true || r.deletedAt != null;
+    const localMap = new Map(local.map(r => [key(r), r])), shadowMap = new Map(shadow.map(r => [key(r), r]));
+    const intents = JSON.parse(probe.storage?.getItem('cruisePort.syncDeletionIntent.v1') || '{}');
+    // Incremental queueDiff can delete only a missing local record against a
+    // live shadow. Orphan/already-deleted intents do not generate operations;
+    // retain them, but do not require an Outbox operation that cannot exist.
+    if (Object.entries(intents).some(([k, intent]) => deleted(localMap.get(k)) && !deleted(shadowMap.get(k)) &&
+        !outbox.some(r => key(r) === k && deleted(r) &&
+          typeof intent?.generation === 'string' && r.deleteIntentGeneration === intent.generation))) {
+      return false;
+    }
+    // Native applyRemoteSnapshot materializes gear_order as zero-based item
+    // ranks (and defaults an absent manufacturer). Compare that exact local
+    // representation too; do not ignore order/content or mutate the shadow.
+    const restoredGear = [];
+    if (typeof probe.deserializeRecords === 'function') for (const r of shadow) {
+      if (r.recordType !== 'gear_item' || deleted(r)) continue;
+      const item = r.payload?.value?.item;
+      const order = shadow.find(o => !deleted(o) && o.recordType === 'gear_order' && o.recordId === item?.status);
+      const rank = order?.payload?.value?.indexOf(r.recordId) ?? -1;
+      if (rank < 0) continue;
+      const snapshot = probe.deserializeRecords([r]);
+      const restored = snapshot.records[0].payload.value.item;
+      restored.order = rank; restored.manufacturer ??= '';
+      restoredGear.push(...await wait(() => probe.serializeRecords(snapshot)));
+    }
+    const candidates = new Map();
+    for (const r of [...shadow, ...restoredGear, ...outbox, ...conflicts.map(c => c.localRecord).filter(Boolean)]) {
+      const k = key(r); if (!candidates.has(k)) candidates.set(k, []); candidates.get(k).push(r);
+    }
+    for (const k of new Set([...localMap.keys(), ...shadow.map(key)])) {
+      const current = localMap.get(k);
+      if (!(candidates.get(k) || []).some(r => deleted(current) ? deleted(r) : !deleted(r) && current.payloadHash === r.payloadHash)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function bindingKey(config, admissionMode) {
     return JSON.stringify({ enabled: config.enabled === true, endpoint: config.endpoint?.replace(/\/$/, '') || null,
       admissionMode, lifecycle: 'explicit-owner-v1' });
@@ -104,14 +146,88 @@
         else resume('resume');
       });
       // pagehide tears down the owner; pageshow may resume only a proven connection.
-      listen(global, 'pagehide', stop);
+      if (!autoLifecycle.length) listen(global, 'pagehide', stop);
       poll = global.setInterval?.(() => resume('poll'), 60_000) ?? null;
+    }
+    async function journalBinding(account, credential, membership) {
+      const text = JSON.stringify([account.accountId, account.accountDeviceId ?? null,
+        account.accountCredential, credential, membership.id ?? null]);
+      const bytes = await global.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
+    }
+    async function journalRecords(journal, account, credential, membership) {
+      if (journal?.version !== 1 || journal.binding !== await journalBinding(account, credential, membership) ||
+          !Array.isArray(journal.records) || journal.records.some(r =>
+            !['practice_cycle', 'practice_history_event'].includes(r?.recordType) || r.schemaVersion !== 1 ||
+            typeof r.recordId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(r.recordId) ||
+            (r.deleted === true ? typeof r.deleteIntentGeneration !== 'string' : !/^[a-f0-9]{64}$/.test(r.payloadHash)))) return [];
+      return journal.records;
+    }
+    async function prepareLocalCommit({ before, after, changed }) {
+      // No owner, no adoption. Ordinary local-only saving keeps its existing behavior.
+      if (!binding || !owners || disposed) return before.pendingSync;
+      if (!changed.some(k => ['cruisePort.practiceHistory', 'cruisePort.practiceProgress'].includes(k))) return before.pendingSync;
+      const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
+      // Saving local evidence grants no Pro/network permission. Keep Account fences, but
+      // do not make an offline/local save fail merely because Pro needs reauthentication.
+      const guard = () => {
+        if (disposed || epoch !== generation || accountGeneration !== accountRoot.storage.getGeneration?.()) {
+          const error = new Error('account_generation_changed'); error.code = 'account_generation_changed'; throw error;
+        }
+      };
+      const wait = async fn => { guard(); const value = await fn(); guard(); return value; };
+      const account = await wait(() => accountRoot.storage.getAccount());
+      if (!accountRoot.core.validAccountCredential(account?.accountCredential)) return null;
+      const pending = await wait(() => Promise.all(['getPendingStart','getPendingConsume','getPendingBridge',
+        'getPendingRecovery','getPendingDetach','getPendingDelete','getPendingEnvironmentDetach'].map(k => accountRoot.storage[k]?.())));
+      if (pending.some(Boolean)) return null;
+      const candidate = syncRoot.dataStorage.createStore('port', { accountId: account.accountId || account.accountCredential.split('.')[1], assertCurrent: guard });
+      try {
+        const [credential,membership,migration,dataset,lastSync,inspected,provision,state] = await wait(() => Promise.all(
+          ['credential','membership','migrationState','datasetState','lastSyncAt','legacyInspected','pendingProvision','runtimeState'].map(k => candidate.readMeta(k))));
+        if (!accountRoot.core.validAppCredential(credential) || membership?.state !== 'active' || migration !== 'complete' ||
+            dataset !== 'ready' || !Number.isFinite(lastSync) || lastSync <= 0 || inspected !== true || provision || state === 'credential_invalid') return null;
+        const previous = await wait(() => journalRecords(before.pendingSync, account, credential, membership));
+        const privateProbe = values => new namespace.PortSyncAdapter({ storage: {
+          getItem: k => values[k] ?? null, setItem() { throw new Error('save-proof-read-only'); }, removeItem() { throw new Error('save-proof-read-only'); }
+        } });
+        const probe = privateProbe(before.values);
+        const [local,shadow,outbox,conflicts] = await wait(() => Promise.all([
+          probe.serializeRecords(probe.normalizeLocalSnapshot(probe.readLocalSnapshot())),candidate.listShadow(),candidate.listOutbox(),candidate.listConflicts()]));
+        // Do not certify existing unowned records, even when this Account has synced before.
+        if (!await attributable(probe, local, shadow, [...outbox, ...previous], conflicts, wait)) return previous.length ? before.pendingSync : null;
+        const nextProbe = privateProbe(after);
+        const next = await wait(() => nextProbe.serializeRecords(nextProbe.normalizeLocalSnapshot(nextProbe.readLocalSnapshot())));
+        const key = r => `${r.recordType}/${r.recordId}`, old = new Map(local.map(r => [key(r), r])), current = new Map(next.map(r => [key(r), r]));
+        const entries = new Map(previous.map(r => [key(r), r]));
+        // Prune acknowledged anchors at the next ordinary save, not by a timer or a new cleanup service.
+        for (const r of shadow) if (entries.get(key(r))?.payloadHash === r.payloadHash && r.deletedAt == null) entries.delete(key(r));
+        const intents = JSON.parse(after['cruisePort.syncDeletionIntent.v1'] || '{}');
+        for (const k of new Set([...old.keys(), ...current.keys()])) {
+          const left = old.get(k), right = current.get(k), type = (right || left).recordType;
+          if (!['practice_cycle','practice_history_event'].includes(type) || left?.payloadHash === right?.payloadHash) continue;
+          const anchor = right ? { recordType:type, recordId:right.recordId, schemaVersion:right.schemaVersion, payloadHash:right.payloadHash }
+            : { recordType:type, recordId:left.recordId, schemaVersion:left.schemaVersion, deleted:true, deleteIntentGeneration:intents[k]?.generation };
+          entries.set(k, anchor);
+        }
+        const fingerprint = await wait(() => journalBinding(account, credential, membership));
+        return entries.size ? { version:1, binding:fingerprint, records:[...entries.values()] } : null;
+      } finally { candidate.dispose?.(); }
     }
     async function activate({ resumeOnly = false } = {}) {
       const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
       if (!global.navigator?.locks?.request) throw new Error('sync_locks_unavailable');
       const guard = () => check(epoch, accountGeneration);
       const wait = async operation => { guard(); const value = await operation(); guard(); return value; };
+      // All automatic callers, including Account recovery, need the same
+      // native attachment readiness as lifecycle resume. Explicit merge is separate.
+      if (resumeOnly) {
+        const assets = await wait(() => autoAssets?.status?.());
+        if (!assets?.known || assets.pendingCount || assets.error) {
+          autoResumeCode = 'local_data_unconfirmed'; await wait(() => readLocalStatus());
+          return { ok: false, code: autoResumeCode };
+        }
+      }
       const account = await wait(() => accountRoot.storage.getAccount());
       if (!accountRoot.core.validAccountCredential(account?.accountCredential)) {
         publish({ known: true, state: 'local-only', connected: false, credentialState: 'unknown' });
@@ -155,44 +271,11 @@
         const [local, shadow, outbox, conflicts] = await wait(() => Promise.all([
           probe.serializeRecords(probe.normalizeLocalSnapshot(probe.readLocalSnapshot())),
           candidate.listShadow(), candidate.listOutbox(), candidate.listConflicts()]));
-        const key = r => `${r.recordType}/${r.recordId}`, deleted = r => r == null || r.deleted === true || r.deletedAt != null;
-        const localMap = new Map(local.map(r => [key(r), r])), shadowMap = new Map(shadow.map(r => [key(r), r]));
-        const intents = JSON.parse(probe.storage?.getItem('cruisePort.syncDeletionIntent.v1') || '{}');
-        // Incremental queueDiff can delete only a missing local record against a
-        // live shadow. Orphan/already-deleted intents do not generate operations;
-        // retain them, but do not require an Outbox operation that cannot exist.
-        if (Object.entries(intents).some(([k, intent]) => deleted(localMap.get(k)) && !deleted(shadowMap.get(k)) &&
-            !outbox.some(r => key(r) === k && deleted(r) &&
-              typeof intent?.generation === 'string' && r.deleteIntentGeneration === intent.generation))) {
+        const journal = namespace.portRepository?.().inspect().pendingSync;
+        const evidence = journal ? await journalRecords(journal, account, credential, membership) : [];
+        if (!await attributable(probe, local, shadow, [...outbox, ...evidence], conflicts, wait)) {
           autoResumeCode = 'local_data_unconfirmed'; await wait(() => readLocalStatus());
           return { ok: false, code: autoResumeCode };
-        }
-        // Native applyRemoteSnapshot materializes gear_order as zero-based item
-        // ranks (and defaults an absent manufacturer). Compare that exact local
-        // representation too; do not ignore order/content or mutate the shadow.
-        const restoredGear = [];
-        if (typeof probe.deserializeRecords === 'function') for (const r of shadow) {
-          if (r.recordType !== 'gear_item' || deleted(r)) continue;
-          const item = r.payload?.value?.item;
-          const order = shadow.find(o => !deleted(o) && o.recordType === 'gear_order' && o.recordId === item?.status);
-          const rank = order?.payload?.value?.indexOf(r.recordId) ?? -1;
-          if (rank < 0) continue;
-          const snapshot = probe.deserializeRecords([r]);
-          const restored = snapshot.records[0].payload.value.item;
-          restored.order = rank; restored.manufacturer ??= '';
-          restoredGear.push(...await wait(() => probe.serializeRecords(snapshot)));
-        }
-        const candidates = new Map();
-        for (const r of [...shadow, ...restoredGear, ...outbox, ...conflicts.map(c => c.localRecord).filter(Boolean)]) {
-          const k = key(r); if (!candidates.has(k)) candidates.set(k, []); candidates.get(k).push(r);
-        }
-        for (const k of new Set([...localMap.keys(), ...shadow.map(key)])) {
-          const current = localMap.get(k);
-          if (!(candidates.get(k) || []).some(r => deleted(current) ? deleted(r) : !deleted(r) && current.payloadHash === r.payloadHash)) {
-            autoResumeCode = 'local_data_unconfirmed';
-            await wait(() => readLocalStatus());
-            return { ok: false, code: autoResumeCode };
-          }
         }
         const client = new accountRoot.AccountClient({ endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage,
           core: accountRoot.core, admissionMode, qaScope: 'port', assertCurrent: guard, signal: lifetime.signal });
@@ -362,6 +445,9 @@
       listen(global, 'focus', resume, autoLifecycle);
       listen(global, 'online', resume, autoLifecycle);
       listen(global, 'pageshow', resume, autoLifecycle);
+      // Fence even an activation that has not yet reached bindPolicy.
+      listen(global, 'pagehide', stop, autoLifecycle);
+      listen(global, 'cruise-port-local-data-changed', event => { if (event.detail?.source === 'local') resume(); }, autoLifecycle);
       listen(global.document, 'visibilitychange', resume, autoLifecycle);
       resume();
     }
@@ -414,7 +500,7 @@
       return Object.freeze({ enabled: true, get restricted() { return !canSync(); },
         get runtime() { return released ? null : runtime; }, get store() { return released ? null : store; },
         get identity() { return runtime?.identity || null; },
-        getCachedStatus: () => released ? unknown() : cachedStatus(), status: requireConsumer(readLocalStatus), readLocalStatus: requireConsumer(readLocalStatus), ensure: requireConsumer(() => ensure()), bindAutoResume: requireConsumer(bindAutoResume),
+        getCachedStatus: () => released ? unknown() : cachedStatus(), status: requireConsumer(readLocalStatus), readLocalStatus: requireConsumer(readLocalStatus), ensure: requireConsumer(() => ensure()), resumeAutomatically: requireConsumer(() => ensure({ resumeOnly: true })), bindAutoResume: requireConsumer(bindAutoResume),
         subscribe(listener) { if (released) return () => {}; ownSubscriptions.add(listener); subscriptions.add(listener);
           return () => { ownSubscriptions.delete(listener); subscriptions.delete(listener); }; },
         sync: requireConsumer((reason = 'manual') => run('sync', reason)), resume: requireConsumer(() => run('sync', 'resume')),
@@ -437,8 +523,9 @@
         }), release, dispose: release
       });
     }
-    return { acquire, bindOwner };
+    return { acquire, bindOwner, prepareLocalCommit };
   }
+  namespace.prepareLocalCommit = request => hosts.get('port')?.prepareLocalCommit(request) ?? request.before.pendingSync;
   namespace.createPortSyncController = createPortSyncController;
   namespace.createPortSyncReader = options => createPortSyncController({ ...options, readOnly: true });
 })(globalThis);

@@ -1,4 +1,4 @@
-import { CRUISE_PORT_APP_VERSION } from './app-version.js?v=1.28.0';
+import { CRUISE_PORT_APP_VERSION } from './app-version.js?v=1.34.0';
 import { createTunerAudioController } from './tuner-audio.js?v=1.28.0';
 import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.12.3';
 import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.59.3';
@@ -11,7 +11,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=1.24.24';
+} from './tuner-store.js?v=1.30.5';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,
@@ -420,8 +420,8 @@ function diagnosticDeviceLabel(navigatorObject) {
     return 'Browser';
 }
 
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.24.24';
-import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.24.24';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
+import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.30.5';
 
 export function initTuner(root, {
     capabilities = getCapabilities(),

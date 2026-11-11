@@ -18,8 +18,8 @@ const UNCONFIRMED_STATES = new Set(['pending', 'none']);
 const INFO_APP_STATUSES = new Set(['synced', 'attention', 'connecting', 'initial', 'deleting']);
 
 export const SYNC_DETAIL_COPY = Object.freeze({
-    // 「✓ 同期済み」 is a product status, not a per-target guarantee (see appSyncStatusPresentation).
-    synced: '「同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。',
+    // Cloud availability is not a per-target connection or completion guarantee.
+    synced: 'クラウドデータは利用できます。解除したアプリの同期完了を示す表示ではありません。',
     reportedError: '前回の同期報告でエラーが報告されています。',
     reportedAttention: '前回の同期報告に確認事項があります。',
     membershipAttention: '同期の状態に確認が必要な点があります。時間をおいて、もう一度確認してください。',
@@ -35,7 +35,9 @@ export const SYNC_DETAIL_COPY = Object.freeze({
     devicesUnavailable: '同期先の詳細情報を取得できませんでした',
     mismatch: '状態を確定できませんでした。最新情報をもう一度確認してください。',
     noDevices: '同期先はありません',
-    footnote: '各同期先のアプリから届いた、最後の報告を表示しています。',
+    footnote: '各同期先から届いた最後の報告です。現在の未送信変更や競合を読み取った結果ではありません。',
+    openScope: '確認事項を報告した同期先で、アプリの同期画面を確認してください。別の端末・ブラウザ・ホーム画面版を、ここから指定して開くことはできません。',
+    reconnect: 'アプリが「未接続」の場合は、同期先管理の「同期先を追加」から同期コードを発行し、アプリの「Cruise Portと接続」に入力してください。',
     current: 'このCruise Portから接続',
     support: '解決しない場合は、画面下の「クラウド同期で困ったときは」からお知らせください。'
 });
@@ -59,6 +61,18 @@ function reportState(target) {
         ? report.state : 'unknown';
 }
 
+// isCurrent is the existing authenticated Port connection binding, not an inference from
+// a target name or timestamp. Ambiguous/missing reports and multiple current targets stay in Port.
+export function canOpenReportedApp(app, { kind = 'ready', devicesState = 'ready' } = {}) {
+    if (kind !== 'ready' || devicesState !== 'ready' || app?.status !== 'synced' ||
+        app.snapshot !== 'aligned') return false;
+    const targets = app.environments || [];
+    const problems = targets.filter(target => PROBLEM_STATES.has(reportState(target)));
+    return targets.filter(target => target.isCurrent === true).length === 1 && problems.length > 0 &&
+        problems.every(target => target.isCurrent === true && typeof target.id === 'string' && target.id.length > 0 &&
+            Number.isSafeInteger(target.lastReport?.reportedAt));
+}
+
 function defaultFormatTime(value) {
     try {
         return new Date(value).toLocaleString('ja-JP', {
@@ -80,7 +94,8 @@ function describeTargets(app, formatTime) {
             target.lastReport.attentionCount > 0 ? target.lastReport.attentionCount : 0;
         const reportedAt = Number.isSafeInteger(target.lastReport?.reportedAt) ? target.lastReport.reportedAt : null;
         const meta = [];
-        if (reportedAt != null && formatTime(reportedAt)) meta.push(`最終報告 ${formatTime(reportedAt)}`);
+        meta.push(reportedAt != null && formatTime(reportedAt)
+            ? `最終報告 ${formatTime(reportedAt)}` : '最終報告時刻は未取得');
         if (target.createdAt != null && formatTime(target.createdAt)) meta.push(`追加 ${formatTime(target.createdAt)}`);
         if (target.isCurrent) meta.push(SYNC_DETAIL_COPY.current);
         return Object.freeze({
@@ -185,6 +200,7 @@ export function describeAppSyncDetail(app, { kind = 'ready', devicesState = 'rea
         statusText: statusTextFor(app, presentationState, rows),
         cloudText,
         targets: Object.freeze(rows),
+        notice: reportedAttention ? SYNC_DETAIL_COPY.openScope : null,
         emptyText: rows.length ? null : SYNC_DETAIL_COPY.noDevices,
         guidance: Object.freeze(guidanceFor(app, rows, reportedAttention)),
         footnote: rows.length ? SYNC_DETAIL_COPY.footnote : null,
