@@ -13,3 +13,17 @@ for (const button of document.querySelectorAll('button[data-workspace],button[da
 }
 document.getElementById('studio-shell').inert = false;
 document.documentElement.dataset.studioEntry = 'ready';
+
+// Local integration of B's requestLeave contract. Production Shell remains A-owned.
+let replayingNavigation = false;
+document.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (replayingNavigation || !button || button.disabled || !C.sheetCruise.requestLeave) return;
+    if (!button.matches('[data-workspace],[data-home-workspace],.workspace-back,.workspace-home')) return;
+    if (button.dataset.workspace === C.shellHost.getActiveWorkspace()) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    C.sheetCruise.requestLeave(() => {
+        replayingNavigation = true;
+        try { button.click(); } finally { replayingNavigation = false; }
+    });
+}, true);

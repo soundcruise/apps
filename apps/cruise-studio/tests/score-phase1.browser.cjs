@@ -11,6 +11,7 @@ const studio = path.join(root, 'apps/cruise-studio');
 const origin = 'https://score-phase1.fixture.invalid';
 const output = process.env.STUDIO_SCORE_QA_OUT;
 const snapshot = page => page.evaluate(() => CruiseStudio.sheetCruise.getSession().workingSnapshot());
+const retainDrafts = async page => {const b=page.getByRole('button',{name:'保存せず続行',exact:true});if(await b.count())await b.click();};
 const settle = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
 test('Phase 1 score editor in an isolated synthetic browser', async t => {
@@ -61,7 +62,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         try {
             await page.goto(origin + '/');
             await page.locator('#open-sheet-cruise').click();
-            await page.locator('#sc-new-project').click();
+            await page.locator('#sc-new-project').click();await retainDrafts(page);
             await settle(page);
             await fn(page, context);
         } finally { await context.close(); }
@@ -169,15 +170,15 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.equal((await snapshot(page)).bars.length, a.bars.length + 1);
             await page.locator('#sc-undo').click();
             assert.deepEqual(await snapshot(page), a);
-            await page.locator('#sc-new-project').click();
+            await page.locator('#sc-new-project').click();await retainDrafts(page);
             const b = await snapshot(page);
             assert.notEqual(a.projectId, b.projectId);
-            await page.locator('#sc-project-select').selectOption(a.projectId);
+            await page.locator('#sc-project-select').selectOption(a.projectId);await retainDrafts(page);
             assert.deepEqual(await snapshot(page), a);
-            await page.locator('#sc-project-select').selectOption(b.projectId);
+            await page.locator('#sc-project-select').selectOption(b.projectId);await retainDrafts(page);
             assert.deepEqual(await snapshot(page), b);
-            await page.locator('#sc-project-select').selectOption(a.projectId);
-            await page.locator('#sc-goto-pre-dtm').click();
+            await page.locator('#sc-project-select').selectOption(a.projectId);await retainDrafts(page);
+            await page.locator('#sc-goto-pre-dtm').click();await retainDrafts(page);
             assert(await page.locator('#pd-content').isVisible());
             const download = page.waitForEvent('download');
             await page.locator('#pd-export-json').click();
@@ -208,7 +209,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('#sc-redo').click();
             assert.equal((await snapshot(page)).performance.formBindings.length, 1);
             await page.locator('#sc-chord-forms').click();
-            await page.locator('#sc-goto-pre-dtm').click();
+            await page.locator('#sc-goto-pre-dtm').click();await retainDrafts(page);
             const download = page.waitForEvent('download');
             await page.locator('#pd-export-midi').click();
             const midi = fs.readFileSync(await (await download).path());
