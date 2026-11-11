@@ -124,3 +124,10 @@ test('whole-song projection has gapless bar boundaries and keeps the working Pro
 test('typed-note matching preserves repeated existing notes while identifying a new inserted token',()=>{
  const a=source.indexOf('    function matchTypedNotes('),b=source.indexOf('    // Each field owns',a),match=vm.runInNewContext(source.slice(a,b)+';matchTypedNotes;');const n=step=>({step,alter:0,octave:0});assert.deepEqual(Array.from(match([n(0),n(1)],[n(0),n(2),n(1)])),[0,-1,1]);assert.deepEqual(Array.from(match([n(0),n(0)],[n(0),n(0),n(0)])),[0,1,-1]);
 });
+
+test('editor range projection compiles only the requested consecutive bars and inherits preceding harmony without slicing the Project',()=>{
+ const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),build=vm.runInNewContext(source.slice(a,b)+';buildSongPreviewPlan;');
+ const p={songInfo:{bpm:120},bars:[{melody:[],chords:[{id:'chord',symbol:'C',onsetTick:0}]},...Array.from({length:3},(_,i)=>({melody:[{id:'n'+i,kind:'note',onsetTick:0,durationTicks:240,pitch:60+i}],chords:[]}))]},original=JSON.stringify(p);
+ const result=build(p,{pitchMidi:n=>n,parseChord:()=>({root:'C',quality:'',bass:null}),notePc:()=>0,qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}},rhythm:()=>({encoding:'studio-strum-v1',slots:[{tick:0,action:'down',durationTicks:240}]})},1,2);
+ assert.deepEqual(Array.from(result.spans,s=>s.index),[1,2]);assert(Math.abs(result.duration-4.03)<1e-8);assert.equal(result.events.length,8);assert(result.events.some(e=>e.barIndex===2&&Math.abs(e.start-2.03)<1e-8));assert(result.events.every(e=>[1,2].includes(e.barIndex)));assert.equal(JSON.stringify(p),original);
+});
