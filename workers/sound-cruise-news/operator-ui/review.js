@@ -246,9 +246,9 @@ let assistedEdit=null,assistedReady=false,assistedBusy=false,assistedRequest=nul
 
 const assistedMode=el('button','詳細入力に切り替え');assistedMode.type='button';assistedMode.setAttribute('aria-expanded','false');
 const assistedSimple=el('div',undefined,'assisted-simple'),assistedAdvanced=el('div',undefined,'assisted-advanced');assistedAdvanced.hidden=true;
-for(const [key,label,type]of [['sourceId','情報源','select'],['url','記事URL','url'],['publishedAt','記事公開日','date'],['brand','ブランド・主催者・人物','text'],['product','製品・イベント・インタビューの対象名','text'],['productType','製品・記事種別','select'],['action','出来事','select'],['eventDate','開催日（イベントのみ）','date'],['venue','会場（イベントのみ）','text'],['label','独自見出し（空欄なら自動生成／編集可能）','text']]){
+for(const [key,label,type]of [['sourceId','情報源','select'],['url','記事URL','url'],['publishedAt','記事公開日','date'],['brand','ブランド・主催者・人物','text'],['product','製品・イベント・インタビューの対象名','text'],['productType','製品・記事種別','select'],['action','出来事','select'],['qualifier','限定仕様・関連する発表（必要な場合）','text'],['eventDate','開催日（イベントのみ）','date'],['venue','会場（イベントのみ）','text'],['label','独自見出し（空欄なら自動生成／編集可能）','text']]){
  const wrap=el('label',label),field=el(type==='select'?'select':'input');if(type!=='select')field.type=type;field.id='assisted-'+key;field.maxLength=key==='url'?500:160;wrap.htmlFor=field.id;wrap.append(field);(key==='url'?assistedFields:assistedAdvanced).append(wrap);assistedInputs[key]=field;assistedWraps[key]=wrap;
- const changed=()=>{invalidateAssisted();if(assistedAiDraft&&['brand','product','productType','action','eventDate','venue'].includes(key)&&assistedGeneratedLabel&&assistedInputs.label.value===assistedGeneratedLabel){assistedInputs.label.value='';assistedGeneratedLabel=null;assistedProposal.querySelector('h3').textContent='修正中の確認用案（内容確認で見出しを生成）';}if(assistedAiDraft&&key==='productType')for(const k of ['eventDate','venue'])assistedWraps[k].hidden=field.value!=='event';if(['url','sourceId'].includes(key)){assistedConditions.checked=false;assistedConfirm.checked=false;updateAssistedConditions();assistedAiDraft=null;assistedProposal.hidden=true;assistedQuickMode(false);assistedParsed=null;assistedMissing=[];showAssistedFields([]);}};field.addEventListener('input',changed);field.addEventListener('change',changed);
+ const changed=()=>{invalidateAssisted();if(assistedAiDraft){assistedAiDraft.fieldSources ||= {};assistedAiDraft.fieldSources[key]={kind:'operator_edit',confirmed:false};}if(key==='label'){assistedGeneratedLabel=null;clearTimeout(assistedHeadlineTimer);if(assistedAiDraft)assistedProposal.querySelector('h3').textContent=field.value||'見出し案は未確認です';}if(key==='action'){assistedWraps.qualifier.hidden=!['preview','variant_introduction'].includes(field.value);if(assistedWraps.qualifier.hidden)assistedInputs.qualifier.value='';}if(assistedAiDraft&&['brand','product','productType','action','qualifier','eventDate','venue'].includes(key)&&(assistedInputs.label.value===''||assistedGeneratedLabel&&assistedInputs.label.value===assistedGeneratedLabel)){assistedInputs.label.value='';assistedGeneratedLabel=null;assistedProposal.querySelector('h3').textContent='修正中の確認用案（見出しを更新しています）';scheduleAssistedHeadline();}if(assistedAiDraft&&key==='productType')for(const k of ['eventDate','venue'])assistedWraps[k].hidden=field.value!=='event';if(['url','sourceId'].includes(key)){assistedConditions.checked=false;assistedConfirm.checked=false;updateAssistedConditions();assistedAiDraft=null;assistedProposal.hidden=true;assistedQuickMode(false);assistedParsed=null;assistedMissing=[];showAssistedFields([]);}};field.addEventListener('input',changed);field.addEventListener('change',changed);
 }
 const assistedText=el('textarea');assistedText.id='assisted-information';assistedText.maxLength=2000;assistedText.rows=7;assistedText.placeholder='記事公開日と、誰が・何を・どうしたかが分かる部分を貼り付けてください。記事全文や画像は不要です。';
 const assistedTextLabel=el('label','人間が確認した記事の必要な情報');assistedTextLabel.htmlFor=assistedText.id;assistedTextLabel.append(assistedText);
@@ -277,12 +277,12 @@ function showExistingAssisted(row){
  assistedStatus.textContent=row.status==='approved'?'掲載判断済みです。再登録・再公開はしません。':row.status==='rejected'?'非掲載判断済みです。判断は変更しません。':row.validation.valid?'保存済みの正式候補を利用して判断します。':row.validation.errors.map(displayError).join('。');
 }
 async function confirmAssisted(verdict){
- if(busy||assistedBusy)return;const fields=assistedPayload(),names={publishedAt:'公開日',brand:'主体',product:'対象名',productType:'種別',action:'出来事',eventDate:'開催日',venue:'会場'};
- const keys=['publishedAt','brand','product','productType','action',...(fields.productType==='event'?['eventDate','venue']:[])],missing=keys.filter(k=>!fields[k]);
+ if(busy||assistedBusy)return;const fields=assistedPayload(),names={publishedAt:'公開日',brand:'主体',product:'対象名',productType:'種別',action:'出来事',eventDate:'開催日',venue:'会場',qualifier:'特別仕様・発表の区別'};
+ const keys=['publishedAt','brand','product','productType','action',...(fields.productType==='event'?['eventDate','venue']:[]),...(fields.action==='variant_introduction'?['qualifier']:[])],missing=keys.filter(k=>!fields[k]);
  if(missing.length){assistedCorrections.open=true;assistedStatus.textContent='不足項目を確認してください：'+missing.map(k=>names[k]).join('、');assistedInputs[missing[0]].focus();return;}
  const generation=assistedGeneration;assistedBusy=true;
  try{
-  const values=Object.fromEntries(Object.entries(fields).filter(([k,v])=>['brand','product','productType','action','publishedAt','label','eventDate','venue'].includes(k)&&v));
+  const values=Object.fromEntries(Object.entries(fields).filter(([k,v])=>['brand','product','productType','action','publishedAt','label','eventDate','venue','qualifier'].includes(k)&&v));
   const draft=(await assistedCall('/api/assisted-draft',{url:fields.url,information:{version:1,url:fields.url,source:{label:'画面で確認する記事案（最終確認前）',url:fields.url},fields:values}})).draft;
   if(generation!==assistedGeneration)return;
   if(!draft.fields.label){assistedStatus.textContent='見出しと必要な事実を確認してください。';assistedCorrections.open=true;return;}
@@ -307,9 +307,21 @@ async function sendAssistedDecision(operation){
 assistedFields.append(assistedCheck,assistedConditionsLabel,assistedPreview,assistedDraft,assistedSave,assistedNew);
 function invalidateAssisted(){if(assistedBusy)assistedStatus.textContent='入力が変わりました。記事案を作り直してください。';assistedGeneration++;assistedRequest=null;assistedReady=false;assistedSave.disabled=true;assistedDraft.hidden=true;}
 assistedText.addEventListener('input',()=>{invalidateAssisted();assistedParsed=null;assistedMissing=[];showAssistedFields([]);});
-function showAssistedFields(keys){for(const [k,w]of Object.entries(assistedWraps))if(k!=='url')w.hidden=!assistedSimple.hidden&&!keys.includes(k);assistedAdvanced.hidden=!assistedSimple.hidden&&!keys.length;}
+function showAssistedFields(keys){for(const [k,w]of Object.entries(assistedWraps))if(k!=='url')w.hidden=!assistedSimple.hidden&&!keys.includes(k);assistedAdvanced.hidden=!assistedSimple.hidden&&!keys.length;if(assistedWraps.qualifier)assistedWraps.qualifier.hidden=!['preview','variant_introduction'].includes(assistedInputs.action.value);}
 assistedMode.addEventListener('click',()=>{if(assistedBusy)return;invalidateAssisted();assistedSimple.hidden=!assistedSimple.hidden;if(!assistedSimple.hidden){assistedAiDraft=null;assistedProposal.hidden=true;assistedQuickMode(false);}assistedMode.textContent=assistedSimple.hidden?'簡易入力に戻る':'詳細入力に切り替え';assistedMode.setAttribute('aria-expanded',String(assistedSimple.hidden));showAssistedFields(assistedMissing);});
-const assistedPayload=()=>({...Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>f.value||!['eventDate','venue','label'].includes(k)).map(([k,f])=>[k,f.value])),confirmed:assistedConfirm.checked,...(!assistedConditionsLabel.hidden?{conditionsConfirmed:assistedConditions.checked}:{}),...((assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence)?.productType===assistedInputs.productType.value?{typeEvidence:assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence}:{}),...(assistedEdit?{id:assistedEdit.id,snapshot:assistedEdit.snapshot}:{})});
+let assistedHeadlineTimer=null;
+function scheduleAssistedHeadline(){
+ clearTimeout(assistedHeadlineTimer);const generation=assistedGeneration;
+ if(!['brand','product','productType','action'].every(k=>assistedInputs[k].value)){assistedProposal.querySelector('h3').textContent='不足する項目を確認してください（見出し未確定）';return;}
+ assistedHeadlineTimer=setTimeout(async()=>{
+  if(generation!==assistedGeneration)return;
+  const fields=Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>['brand','product','productType','action','publishedAt','eventDate','venue','qualifier'].includes(k)&&(f.value||k==='qualifier')).map(([k,f])=>[k,f.value]));
+  try{const {draft}=await assistedCall('/api/assisted-draft',{url:assistedInputs.url.value,information:{version:1,url:assistedInputs.url.value,source:{label:'画面で修正した確認用案（未確認）',url:assistedInputs.url.value},fields,notes:assistedAiDraft?.notes||[]}});
+   if(generation!==assistedGeneration||assistedInputs.label.value)return;assistedInputs.label.value=draft.fields.label||'';assistedGeneratedLabel=draft.fields.label||null;if(assistedAiDraft&&draft.fieldSources.label)assistedAiDraft.fieldSources.label=draft.fieldSources.label;paintAssistedProposal({...draft,fieldSources:{...assistedAiDraft?.fieldSources,...(draft.fieldSources.label?{label:draft.fieldSources.label}:{})}});
+  }catch(e){if(generation===assistedGeneration)assistedStatus.textContent='見出し案を更新できません。内容確認で再生成できます。'+e.message;}
+ },250);
+}
+const assistedPayload=()=>({...Object.fromEntries(Object.entries(assistedInputs).filter(([k,f])=>f.value||!['eventDate','venue','label','qualifier'].includes(k)).map(([k,f])=>[k,f.value])),confirmed:assistedConfirm.checked,...(!assistedConditionsLabel.hidden?{conditionsConfirmed:assistedConditions.checked}:{}),...((assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence)?.productType===assistedInputs.productType.value?{typeEvidence:assistedParsed?.fields?.typeEvidence||assistedEdit?.typeEvidence}:{}),...(assistedEdit?{id:assistedEdit.id,snapshot:assistedEdit.snapshot}:{})});
 assistedConfirm.addEventListener('change',invalidateAssisted);assistedConditions.addEventListener('change',invalidateAssisted);
 async function assistedCall(path,payload){session=await api('/api/session');return api(path,{method:'POST',headers:{'Content-Type':'application/json','X-News-CSRF':session.csrf},body:JSON.stringify(payload)});}
 function paintAssistedDraft(p){
@@ -353,11 +365,13 @@ const assistedIncoming=typeof location==='undefined'?null:new URL(location.href)
 function paintAssistedProposal(draft){
  assistedProposal.replaceChildren(el('h3',draft.fields.label||draft.headline),originalLink(draft.fields.url),el('p','入力済みの値は確認用の下書きです。原記事を読み、誤り・不足がある項目だけ訂正してください。','meta'));
  const source=assistedConfig.sources.find(s=>s.id===draft.fields.sourceId);assistedProposal.append(el('p','出典：'+(source?.name||draft.fields.sourceId)+' · 公開日候補：'+(draft.fields.publishedAt||'未確認')));
+ assistedProposal.append(el('p','種別：'+(assistedConfig.types[draft.fields.productType]?.[0]||'未確認')+' · 出来事：'+(assistedConfig.actions[draft.fields.action]||'未確認')));
+ for(const warning of draft.warnings||[])assistedProposal.append(el('p','確認：'+warning,'blocker'));
  for(const note of draft.notes||[])assistedProposal.append(el('p',note.label+'：'+note.value+'（確認用・正式factsには未保存）','meta'));
  const detail=el('details'),summary=el('summary','読み込み時の入力元・元のAI案');detail.append(summary);
  if(draft.assistanceSource)detail.append(el('p','提供元：'+draft.assistanceSource.label),originalLink(draft.assistanceSource.url));
  detail.append(el('p','AI推定・検索の公開日候補・提供情報は、人間の最終確認と区別します。更新日時は公開日に使いません。','meta'));
- for(const [key,info]of Object.entries(draft.fieldSources||{}))detail.append(el('p',key+'：'+({saved_ai_estimate:'保存済みAI推定',search_publication_hint:'検索の公開日候補',provided_information:'提供された確認用情報',generated_from_draft:'既存の見出し生成'})[info.kind]+'（未確認）','meta'));
+ for(const [key,info]of Object.entries(draft.fieldSources||{}))detail.append(el('p',key+'：'+({search_title_hint:'検索見出しからの分類案',operator_edit:'画面で修正した情報',saved_ai_estimate:'保存済みAI推定',search_publication_hint:'検索の公開日候補',provided_information:'提供された確認用情報',generated_from_draft:'既存の見出し生成'})[info.kind]+'（未確認）'+(info.inputField?' · 入力元 '+info.inputField:'')+(info.reference?' · '+info.reference:''),'meta'));
  if(draft.assistanceSource)detail.append(el('p','元の保存済みAI案：'+assistedAiDraft.headline,'meta'));
  assistedProposal.append(detail);assistedProposal.hidden=false;
 }

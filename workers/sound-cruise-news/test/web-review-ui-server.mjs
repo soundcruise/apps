@@ -3,7 +3,9 @@
 import {createServer} from 'node:http';import {readFile} from 'node:fs/promises';
 import {SignJWT,generateKeyPair,exportJWK,createLocalJWKSet} from 'jose';
 import {store,pepper} from './helpers.js';import {handleOperatorRequest} from '../src/operator-worker.js';import {saveHint} from '../src/web-discovery.js';
-const fixture=JSON.parse(await readFile(new URL('./fixtures/web-review-projection.json',import.meta.url))),now=Date.parse(fixture.at),s=await store(),origin='https://isolated-operator.test',issuer='https://isolated.cloudflareaccess.com',aud='a'.repeat(64);
+const fixture=JSON.parse(await readFile(new URL('./fixtures/web-review-projection.json',import.meta.url))),now=Math.floor(Date.parse(fixture.at)/1000)*1000,s=await store(),origin='https://isolated-operator.test',issuer='https://isolated.cloudflareaccess.com',aud='a'.repeat(64);
+// Explicit publication switch for this in-memory end-to-end fixture only.
+await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();
 for(const h of fixture.hints){await saveHint(s.db,{url:h.url,title:h.title,provider:'exa',searchedAt:now},now);await s.db.prepare('UPDATE news_web_hints SET estimate_json=?,search_meta_json=?,status=?,reason=? WHERE url=?').bind(h.estimate_json,h.search_meta_json,h.status,h.reason,h.url).run();}
 // Existing-published URL identity, NOT reconstructed formal proof or a public article.
 for(const k of fixture.known)await s.db.prepare('INSERT INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,title_fingerprint,review_status,review_reason,expires_at,product_facts,facts_provenance) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(k.id,k.source_id,k.source_id,k.source_url,k.normalized_url,k.published_at,'acoustic_guitar',k.label,k.id,new Date(now).toISOString(),'fixture',k.review_status,'fixture_projection',now+86400000,k.product_facts,k.facts_provenance).run();
