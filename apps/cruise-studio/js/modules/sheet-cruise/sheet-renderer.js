@@ -224,7 +224,7 @@
         events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i].push(e);
             if(e.durationTicks&&e.octave!==undefined)for(var n=i+1;n<resolution&&n*barTicksLen/resolution<e.tick+e.durationTicks;n++)texts[n].push({text:'〜',octave:e.octave});
         });
-        texts.forEach(function(items,i){var cell=el('span','sheet-timed-cell');items.forEach(function(e){var token=el('span','',e.text);if(e.restTicks){token.replaceChildren(createStrumRestSymbol(e.restTicks));token.style.color='#746e65';}if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}cell.appendChild(token);});cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'center',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
+        texts.forEach(function(items,i){var cell=el('span','sheet-timed-cell'),unit=items.length===1&&items[0].durationTicks?items[0].durationTicks:barTicksLen/resolution;function gcd(a,b){while(b){var r=a%b;a=b;b=r;}return a;}items.forEach(function(e){if(e.durationTicks)unit=gcd(unit,e.durationTicks);});items.forEach(function(e){var suffix=e.durationTicks&&e.durationTicks<=barTicksLen/resolution?'〜'.repeat(Math.min(16,Math.max(e.held?1:0,e.durationTicks/unit-1))):'';var token=el('span','',e.text+suffix);if(e.restTicks){token.replaceChildren(createStrumRestSymbol(e.restTicks));token.style.color='#746e65';}if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}cell.appendChild(token);});cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'center',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
         return row;
     }
     function buildLyricsRow(bar,resolution,barTicksLen){
@@ -233,7 +233,7 @@
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests,heldForNote) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -278,7 +278,7 @@
         if (hasVocal && show.doremi) {
             var tokens=theory.melodyEventsToDoremiTokens((bar.melody||[]).map(function(e){return Object.assign({},e,{durationTicks:1});}));
             var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
-            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave,durationTicks:e.durationTicks};}).concat((rests||[]).map(function(e){return {tick:e.onsetTick,restTicks:e.durationTicks};})),timeRes,beats*model.TICKS_PER_BEAT);
+            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave,durationTicks:e.durationTicks,held:!!heldForNote&&heldForNote(bar.barNumber,e.tick)};}).concat((rests||[]).map(function(e){return {tick:e.onsetTick,restTicks:e.durationTicks};})),timeRes,beats*model.TICKS_PER_BEAT);
             doremi.style.color='var(--paper-doremi)';
             cell.appendChild(doremi);
         }
@@ -293,6 +293,7 @@
      */
     function render(project, container, options) {
         var canonical=project.schemaVersion===2?project:null;
+        var heldForNote=options?.heldForNote||function(number,tick){var e=canonical?.bars[number-1].melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';};
         var restsForBar=options&&options.restsForBar?options.restsForBar:function(number){return canonical?canonical.bars[number-1].melody.filter(function(e){return e.kind==='rest';}):[];};
         if(project.schemaVersion===2) project=CS().model.toStructureView(project);
         else if(project.schemaVersion!==1&&project.purpose!=='structure-read') throw Error('unsupported-schema');
@@ -325,7 +326,7 @@
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
                     var strum = show.strum ? resolveBarStrum(project, bar) : null;
-                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber)));
+                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote));
                 });
                 // 行末まで小節線を揃えるための空セル
                 for (var pad = lineBars.length; pad < cols; pad++) {

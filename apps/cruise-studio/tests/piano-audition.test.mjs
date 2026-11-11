@@ -24,7 +24,7 @@ function fixture({pending=false,samplePending=false,sampleFailure=false}={}){
   createGain(){const n={gain:{values:[],setValueAtTime(v,t){this.values.push([v,t]);},linearRampToValueAtTime(v,t){this.values.push([v,t]);},exponentialRampToValueAtTime(v,t){this.values.push([v,t]);}},connect(){},disconnect(){}};this.gains.push(n);return n;}
  }
  const runtime=create({coordinator:audio,createContext:()=>new Context(),setTimer:fn=>{timers.set(++nextTimer,fn);return nextTimer;},clearTimer:id=>timers.delete(id),loadSample:async(ctx,midi)=>{if(sampleGate)await sampleGate;if(sampleFailure)throw Error('synthetic decode failure');return {midi:Math.round((midi-21)/3)*3+21,buffer:{duration:4}};}});
- return {audio,runtime,contexts,decode:()=>resolveSample?.(),resolve:()=>resolveResume?.(),idle:async()=>{for(const fn of [...timers.values()])fn();timers.clear();await flush();}};
+ return {audio,runtime,contexts,pulse:async()=>{const pending=[...timers.values()];timers.clear();for(const fn of pending)fn();await flush();},decode:()=>resolveSample?.(),resolve:()=>resolveResume?.(),idle:async()=>{for(const fn of [...timers.values()])fn();timers.clear();await flush();}};
 }
 test('audition uses the exact MIDI frequency, a recorded sample and bounded release envelope, and releases after ending',async()=>{
  const f=fixture(),r=await f.runtime.play(69,()=>true);assert(r.ok);assert.equal(r.frequency,440);const ctx=f.contexts[0],osc=ctx.oscillators[0];assert.equal(osc.playbackRate.value,1);assert.equal(osc.buffer.duration,4);assert.deepEqual(osc.starts,[10]);assert.deepEqual(osc.stops,[11.6]);assert.equal(ctx.gains[0].gain.values[1][0],.45);
@@ -105,4 +105,22 @@ test('native Rhythm sustain does not retrigger and implicit harmony carries to a
 });
 test('silent bars keep an audio clock for their playhead and release after Stop',async()=>{
  const f=fixture();assert((await f.runtime.playEvents([],()=>true,2)).ok);assert.equal(f.runtime.snapshot().elapsedSeconds,0);f.contexts[0].currentTime=10.7;assert(Math.abs(f.runtime.snapshot().elapsedSeconds-.7)<1e-8);assert.equal(f.contexts[0].oscillators.length,0);assert.equal(f.audio.snapshot()[0].resourceType,'audio-output/session');await f.runtime.stop();assert.equal(f.audio.snapshot()[0].contextCount,0);
+});
+
+test('whole-song playback schedules a short window at an audio-clock origin, including events after 61 seconds',async()=>{
+ const f=fixture(),events=[0,1.5,65].map(start=>({midi:60,part:'piano',start,duration:.2,gain:.3}));assert((await f.runtime.playEvents(events,()=>true,67,true)).ok);assert.equal(f.runtime.snapshot().mode,'song');const ctx=f.contexts[0];assert.equal(ctx.oscillators.length,1);assert.equal(ctx.oscillators[0].starts[0],10);
+ ctx.currentTime=10.75;await f.pulse();assert.equal(ctx.oscillators.length,2);assert.equal(ctx.oscillators[1].starts[0],11.5);ctx.currentTime=74;await f.pulse();assert.equal(ctx.oscillators.length,3);assert.equal(ctx.oscillators[2].starts[0],75);ctx.currentTime=77;await f.pulse();assert.equal(f.audio.snapshot()[0].resourceType,null);assert(!f.runtime.snapshot().playing);await f.runtime.stop();assert.equal(f.audio.snapshot()[0].contextCount,0);
+});
+test('cancelled stream and stale pump callbacks never schedule later notes or revoke a new audition',async()=>{
+ const f=fixture(),events=[0,8].map(start=>({midi:60,part:'piano',start,duration:.2,gain:.3}));await f.runtime.playEvents(events,()=>true,9,true);await f.runtime.stop();f.contexts[0].currentTime=18;await f.pulse();assert.equal(f.contexts[0].oscillators.length,1);assert((await f.runtime.play(69,()=>true)).ok);await f.pulse();assert.equal(f.audio.snapshot()[0].resourceType,'audio-output/session');await f.runtime.stop();
+});
+test('late stream scheduling fails closed, and pending stream decode is revoked by global Stop',async()=>{
+ const f=fixture();await f.runtime.playEvents([{midi:60,part:'piano',start:2,duration:.2,gain:.3}],()=>true,3,true);f.contexts[0].currentTime=12.2;await f.pulse();assert.equal(f.contexts[0].oscillators.length,0);assert(!f.runtime.snapshot().playing);await f.runtime.stop();
+ const g=fixture({samplePending:true}),pending=g.runtime.playEvents([{midi:60,part:'piano',start:0,duration:.2,gain:.3}],()=>true,70,true);await flush();await g.audio.stopAll();g.decode();assert(!(await pending).ok);assert.equal(g.contexts[0].oscillators.length,0);assert.equal(g.audio.snapshot()[0].contextCount,0);
+});
+test('whole-song projection has gapless bar boundaries and keeps the working Project unchanged',()=>{
+ const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),build=vm.runInNewContext(source.slice(a,b)+';buildSongPreviewPlan;');const p={songInfo:{bpm:120},bars:Array.from({length:40},(_,i)=>({melody:[{id:'n'+i,kind:'note',onsetTick:0,durationTicks:240,pitch:60}],chords:[]}))};const original=JSON.stringify(p),r=build(p,{melodyOnly:true,pitchMidi:n=>n});assert.equal(r.spans.length,40);assert(Math.abs(r.duration-80.03)<1e-8);assert(Math.abs(r.events[1].start-2.03)<1e-8);assert(Math.abs(r.events[39].start-78.03)<1e-8);assert.equal(JSON.stringify(p),original);
+});
+test('typed-note matching preserves repeated existing notes while identifying a new inserted token',()=>{
+ const a=source.indexOf('    function matchTypedNotes('),b=source.indexOf('    // Each field owns',a),match=vm.runInNewContext(source.slice(a,b)+';matchTypedNotes;');const n=step=>({step,alter:0,octave:0});assert.deepEqual(Array.from(match([n(0),n(1)],[n(0),n(2),n(1)])),[0,-1,1]);assert.deepEqual(Array.from(match([n(0),n(0)],[n(0),n(0),n(0)])),[0,1,-1]);
 });

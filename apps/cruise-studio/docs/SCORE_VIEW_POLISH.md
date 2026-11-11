@@ -1,3 +1,37 @@
+# 鍵盤の開閉・直接入力オクターブ・全曲試聴
+
+候補 0.97.0-dev.1。00a80658までの成果を保持。
+
+- 再生ヘッドを濃いネイビー、再生中の枠と背景をスチールブルーへ変更した。印刷では再生表示を出さない。
+- ドレミ行の下に「鍵盤を開く／鍵盤を閉じる」を同じ位置で切り替えるボタンを配置し、「ドレミ入力」見出しと右端の閉じるを撤去した。同じ帯の←・オクターブ選択・→は、鍵盤を閉じていても利用できる。初期値は既存のtonic octave、範囲は0〜8。モードはSessionごとの一時的なUI設定で、Projectや保存領域に項目を増やさない。
+- 直接入力では、新しく入力する音だけに選択オクターブを適用する。既存の文字を残して追加すると、既存音のpitchと安定IDを保持する。全文選択して同じ文字を打ち直した場合は選択オクターブへ変更できる。従来のド↑／ド↓記法は選択オクターブ基準で利用でき、紙面は色だけで識別する。鍵盤で選んだ絶対音高に入力モードを二重適用しない。混在する音高を文字列だけから復元しないため、ドレミの⌘Z／⌘⇧Zは鍵盤・直接入力とも既存Session履歴へ統一した。他の文字入力のnative履歴は維持する。
+- 〜は、隣接する前音がある入力済み音を選択した場合、その選択音を前音の伸ばしへ置換する方式とした。例：ド・レ・ミのレを選択して〜ならド〜ミ。選択したレの時間範囲を前のドへ接続し、ドのID・開始位置と残りの音を保持する。既存の空マスへの延長も維持する。ボタンのtitleで置換を説明し、Undoで戻せる。今回の動作判断であり、利用者から置換方式への回答は未受領。休符・別音への重なり・小節越えを勝手に補修せず、適用できない場合は押した後にも理由を表示する。音数の削除前にdurationを更新し、既存のdetached-draft-reference保護に従う。表示は既存duration／provenanceから〜を導出し、schema2の項目は追加しない。
+- 固定カードに「▶ 全曲再生／■ 全曲停止」と再生中の小節番号を追加した。既存のコード×有効ストローク＋Canonicalメロディの小節試聴投影を全小節へ連続して適用する。編集小節や音の選択・Project・履歴を再生で変更しない。コードは引き続き参考ボイシングであり、確認済みフォームへ採用しない。未入力ストローク、未対応の形式・タイ・コードの扱いは既存の試聴条件を維持する。
+- 全曲音声は同じAudio Coordinator owner／leaseで、使用する録音だけを先にdecodeし、AudioContext時計を基準に先1秒を短い間隔でscheduleする。61秒を超える曲にも対応し、全曲分のAudioNodeを一度に作らない。停止・編集・Project／Workspace移動・非表示で取り消し、遅延して到着したdecodeや古いtimerから再開させない。scheduleが遅れた場合はずれた演奏を続けず停止する。
+- WebKitでは入力から再生ボタンへのfocus移動によるカード更新でclickが失われていた。再生ボタンのprimary pointerdownでfocusを維持し、実18874でも再生開始を確認した。キーボードによるボタン操作は維持する。
+- 固定カードの小節操作を文字ラベルに変更し余白を確保。移調は「移調」にまとめ、固定フォーム・未解決コードがある場合は既存の拒否条件に合わせて無効化する。移調成功時に既存Sessionから紙面を更新する。コードフォームは選択小節にコードがある時だけ有効、五線更新は五線表示時だけ表示する。重複する5つの右側ツール起動記号を譜面ツールバーから非表示にし、通常のサイドバー入口は維持。「♫」は「伴奏確認」へ変更した。Studio Shell／template／公開HTMLは変更しない。
+
+検証：Chrome／WebKitで表示・鍵盤・拍入力各55件PASS。既存UI／実18874は22件PASS。本番認証／Cloud／外部通信0件。実18874のHTTP 200、候補meta、CSP connect-src none、host拒否、公開入口へのアクセス拒否、JSON・保存再読込・印刷PDFを確認した。物理スピーカー・実Safariアプリ・日本語IME実機は利用者確認待ち。
+
+広域Nodeは全*.test.mjsを実行し2046 PASS／39 FAIL／5 SKIP。変更前00a80658を一時的な独立worktreeへ展開して同じコマンドを実行すると2041 PASS／39 FAIL／5 SKIPで、失敗した39件の名前が完全一致した。今回追加した試聴・全曲投影・入力照合5件はPASS。前回の選択した試験集合より実行範囲を広げているため、前回の既存4 FAILという数とは対象範囲が異なる。全リポジトリPASSとは判定しない。基線の失敗を隠すためのテスト変更は行わない。
+
+コマンド（worktreeのルートから）：
+
+```sh
+NODE_PATH=/private/tmp/studio-score-phase1-runtime/node_modules node --test apps/cruise-studio/tests/score-view.browser.cjs apps/cruise-studio/tests/beat-input.browser.cjs
+NODE_PATH=/private/tmp/studio-score-phase1-runtime/node_modules SCORE_ENGINE=webkit node --test apps/cruise-studio/tests/score-view.browser.cjs apps/cruise-studio/tests/beat-input.browser.cjs
+NODE_PATH=/private/tmp/studio-score-phase1-runtime/node_modules node --test apps/cruise-studio/tests/score-feedback.browser.cjs apps/cruise-studio/tests/score-phase1.browser.cjs apps/cruise-studio/tests/local-ui.browser.cjs
+node --test apps/cruise-studio/tests/*.test.mjs
+```
+
+schema2・Music Model基本構造・Repository CAS・Session保存契約・本番認証・Account・Sync・Coming soon・127.0.0.1:18874の安全境界を維持。実ユーザーのProjectやブラウザを試験に使用せず、ユーザーの開いたタブを再読込していない。サーバー再起動・保存領域変更・main merge・本番公開・pushは行わない。Draft PR #268は未更新。
+
+確認URL: http://127.0.0.1:18874/ 。未保存分を保存してから再読込し、0.97.0-dev.1を確認。鍵盤を閉じてオクターブを切り替え、新しいマスへドレミ入力。鍵盤を開いてドレミのうち2音目を選び〜、Undo／Redo。固定カードで全曲再生・停止と再生位置を確認する。
+
+---
+
+以下は前回までの記録。
+
 # マス内の音選択・Delete・ストローク再生と再生位置
 
 候補 0.96.0-dev.1。33fa25c5までの成果を保持。
