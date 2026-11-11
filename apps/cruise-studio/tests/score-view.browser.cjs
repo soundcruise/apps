@@ -90,7 +90,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
     try {
         await t.test('stroke selection is visible for pointer and Up Down x keyboard input',()=>fresh(async page=>{
             await select(page);let first=page.locator('.dock-strum-cell').first();await first.click();await settle(page);assert.notEqual(await first.evaluate(e=>getComputedStyle(e).boxShadow),'none');
-            for(const [key,glyph] of [['ArrowUp','↑'],['ArrowDown','↓'],['x','x']]){await first.press(key);await settle(page);assert.equal(await first.innerText(),glyph);assert.notEqual(await first.evaluate(e=>getComputedStyle(e).boxShadow),'none');}
+            for(const [key,glyph] of [['u','↑'],['d','↓'],['x','x']]){await first.press(key);await settle(page);assert.equal(await first.innerText(),glyph);assert.notEqual(await first.evaluate(e=>getComputedStyle(e).boxShadow),'none');}
             await first.press('ArrowRight');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'1');assert.notEqual(await page.locator('.dock-strum-cell').nth(1).evaluate(e=>getComputedStyle(e).boxShadow),'none');
         }));
         await t.test('lyrics and solfege use matching centers and font metrics; paper cells center all rows',()=>fresh(async page=>{
@@ -106,11 +106,67 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.deepEqual(await snapshot(page),before);
         }));
         await t.test('zoom changes only screen geometry and print stays A4',()=>fresh(async page=>{
+            await page.locator('#sc-editor-drawer').evaluate(e=>e.open=false);await settle(page);
             const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());const paper=page.locator('.sheet-page').first(),base=(await paper.boundingBox()).width;
-            await page.locator('#sc-zoom-in').click();await settle(page);assert((await paper.boundingBox()).width>base*1.2);assert.equal(await page.locator('#sc-zoom-reset').innerText(),'125%');
+            await page.locator('#sc-zoom-in').click();await settle(page);assert((await paper.boundingBox()).width>base*1.2);
+            const viewport=page.locator('#sc-preview');assert(Math.abs((await viewport.boundingBox()).width-(await paper.boundingBox()).width)<2);
+            for(let i=0;i<3;i++)await page.locator('#sc-zoom-in').click();await settle(page);
+            assert(Math.abs((await viewport.boundingBox()).width-base*2)<2);
+            const geometry=await viewport.evaluate(e=>{const p=e.parentElement,box=e.querySelector('.sheet-page').getBoundingClientRect(),v=e.getBoundingClientRect();p.scrollLeft=p.scrollWidth;return {inside:box.right<=v.right+1,scroll:p.scrollLeft,overflow:getComputedStyle(p).overflowX};});
+            assert(geometry.inside);assert(geometry.scroll>0);assert.equal(geometry.overflow,'auto');
+            await viewport.scrollIntoViewIfNeeded();if(output)await page.screenshot({path:path.join(output,'zoom-200.png')});
+            await page.locator('#sc-zoom-reset').click();await page.locator('#sc-zoom-in').click();await settle(page);assert.equal(await page.locator('#sc-zoom-reset').innerText(),'125%');
+            await viewport.scrollIntoViewIfNeeded();if(output)await page.screenshot({path:path.join(output,'zoom-125-paper.png')});
             await page.locator('#sc-zoom-reset').click();await page.locator('#sc-zoom-out').click();await settle(page);assert((await paper.boundingBox()).width<base*.8);assert.equal(await page.locator('#sc-zoom-reset').innerText(),'75%');
+            await page.setViewportSize({width:390,height:900});await page.locator('#sc-zoom-reset').click();await page.locator('#sc-zoom-in').click();await settle(page);assert(Math.abs((await viewport.boundingBox()).width-(await paper.boundingBox()).width)<2);
             await page.emulateMedia({media:'print'});assert.equal(await page.locator('#sc-zoom-controls').evaluate(e=>getComputedStyle(e.closest('.sheet-toolbar')).display),'none');assert(Math.abs((await paper.boundingBox()).width-210*96/25.4)<2);await page.emulateMedia({media:'screen'});
             assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
+        }));
+        await t.test('stroke arrows cycle; wave extends the preceding stroke and survives history/save',()=>fresh(async page=>{
+            await select(page);const cells=page.locator('.dock-strum-cell');
+            for(const [key,glyphs] of [['ArrowDown',['↓','↑','x','・']],['ArrowUp',['↑','↓','x','・']]]){
+                for(const glyph of glyphs){await cells.first().press(key);await settle(page);assert.equal(await cells.first().innerText(),glyph);}
+            }
+            const empty=await snapshot(page);await cells.first().press('~');await settle(page);assert.deepEqual(await snapshot(page),empty);
+            await cells.first().press('d');await settle(page);
+            for(const key of ['~','〜','～']){if(key==='~')await cells.nth(1).press(key);else await cells.nth(1).dispatchEvent('keydown',{key});await settle(page);assert.equal(await cells.nth(1).innerText(),'〜');}
+            const extended=await snapshot(page);await page.locator('#sc-undo').click();assert.notDeepEqual(await snapshot(page),extended);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),extended);
+            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await cells.nth(1).innerText(),'〜');assert.deepEqual(await snapshot(page),saved);
+        }));
+        await t.test('per-beat lyric subdivision matches solfege without changing data or history',()=>fresh(async page=>{
+            await select(page);await page.locator('.dock-lyrics-cell').first().fill('あい');await settle(page);await page.locator('[data-overlay-field=doremi]').first().fill('ドレ');await page.locator('[data-overlay-field=doremi]').first().press('Tab');await settle(page);const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
+            const button=page.locator('.dock-lyrics-beat-res-btn').first();
+            for(const count of [10,8,8]){
+                await button.click();await settle(page);assert.equal(await page.locator('[data-overlay-field=doremi]').count(),count);
+                const metrics=await page.evaluate(()=>{const lyric=[...document.querySelectorAll('.dock-lyrics-cell')],note=[...document.querySelectorAll('[data-overlay-field=doremi]')];return lyric.map((l,i)=>{const a=l.getBoundingClientRect(),b=note[i].getBoundingClientRect();return {tick:l.dataset.slotTick,other:note[i].dataset.slotTick,delta:Math.abs(a.x-b.x)+Math.abs(a.width-b.width)};});});
+                for(const m of metrics){assert.equal(m.tick,m.other);assert(m.delta<2);}
+                if(output&&count===10)await page.screenshot({path:path.join(output,'mixed-subdivision.png')});
+            }
+            assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
+            const note=page.locator('[data-overlay-field=doremi]').first();await note.fill('不正');await button.click();await settle(page);assert.equal(await page.locator('[data-overlay-field=doremi]').count(),8);assert.equal(await note.inputValue(),'不正');assert.equal(await note.getAttribute('aria-invalid'),'true');
+            await note.fill('ドレ');await note.dispatchEvent('compositionstart');await button.click();await settle(page);assert.equal(await page.locator('[data-overlay-field=doremi]').count(),8);assert(await note.evaluate(e=>e.classList.contains('is-composing')));await note.dispatchEvent('compositionend');await settle(page);assert.deepEqual(await snapshot(page),before);
+        }));
+        await t.test('vertical row movement keeps tick; stroke Shift arrows navigate without editing',()=>fresh(async page=>{
+            await select(page);await page.locator('.dock-lyrics-beat-res-btn').first().click();await settle(page);
+            const fields=page.locator('[data-overlay-field=doremi]');await fields.nth(1).focus();const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
+            async function expectCell(row,tick){await settle(page);assert.deepEqual(await page.evaluate(()=>{const e=document.activeElement;return [e.dataset.overlayField||e.closest('[data-overlay-field]')?.dataset.overlayField,e.dataset.slotTick];}),[row,String(tick)]);}
+            await page.keyboard.press('ArrowUp');await expectCell('lyrics',120);
+            await page.keyboard.press('Shift+ArrowUp');await expectCell('strum',0);
+            await page.keyboard.press('Shift+ArrowUp');await expectCell('chord',0);
+            await page.keyboard.press('ArrowDown');await expectCell('strum',0);
+            await page.keyboard.press('Shift+ArrowDown');await expectCell('lyrics',0);
+            await page.keyboard.press('ArrowDown');await expectCell('doremi',0);
+            assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
+            await fields.first().fill('不正');await fields.first().press('ArrowUp');await expectCell('doremi',0);assert.equal(await fields.first().getAttribute('aria-invalid'),'true');
+        }));
+        await t.test('Enter ends every row at the next bar, but never adds a final bar',()=>fresh(async page=>{
+            await select(page);
+            for(const selector of ['[data-overlay-field=chord]','.dock-strum-cell','.dock-lyrics-cell','[data-overlay-field=doremi]']){
+                const count=(await snapshot(page)).bars.length;await page.locator(selector).last().press('Enter');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[2]);
+                await page.locator('.sheet-bar').last().focus();await page.keyboard.press('Enter');await settle(page);await page.locator(selector).last().press('Enter');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[count]);assert.equal((await snapshot(page)).bars.length,count);await select(page);
+            }
+            const last=page.locator('[data-overlay-field=doremi]').last();await last.fill('不正');await last.press('Enter');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+            await last.fill('ド');await last.dispatchEvent('keydown',{key:'Enter',isComposing:true,keyCode:229});await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
         }));
         await t.test('console and external requests remain clean',()=>{assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);assert.deepEqual(missing,[])});
     }finally{await browser.close();}

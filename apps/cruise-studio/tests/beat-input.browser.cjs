@@ -88,16 +88,16 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await select(page);
     }
     try {
-        await t.test('Enter advances each row by an eighth slot and stays in the same bar',()=>fresh(async page=>{
+        await t.test('Enter advances by an eighth slot, then the next bar at the row end',()=>fresh(async page=>{
             await select(page);
             for(const kind of ['chord','doremi']){
                 const cells=page.locator('[data-overlay-field='+kind+']');assert.equal(await cells.count(),8);
                 await cells.nth(0).fill(kind==='chord'?'C':'ド');await cells.nth(0).press('Enter');
                 assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');
                 await cells.nth(1).fill(kind==='chord'?'G':'レ');await cells.nth(1).press('Enter');assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'480');
-                await cells.last().press('Enter');assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+                await cells.last().press('Enter');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[2]);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'0');await select(page);
             }
-            const lyric=page.locator('.dock-lyrics-cell');await lyric.first().fill('夜');await lyric.first().press('Enter');assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');await lyric.last().press('Enter');assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+            const lyric=page.locator('.dock-lyrics-cell');await lyric.first().fill('夜');await lyric.first().press('Enter');assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');await lyric.last().press('Enter');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[2]);await select(page);
             const strokes=page.locator('.dock-strum-cell');await strokes.first().click();await settle(page);await strokes.first().press('Enter');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'1');
             const song=await snapshot(page);assert.deepEqual(song.bars[0].chords.map(e=>e.onsetTick),[0,240]);assert.deepEqual(song.bars[0].melody.map(e=>e.onsetTick),[0,240]);assert(song.bars[0].melody.every(e=>!e.provenance.timing.duration.confirmed));
             assert.equal(await page.locator('.sheet-bar[data-bar-number="1"] .sheet-chord-event').count(),2);
