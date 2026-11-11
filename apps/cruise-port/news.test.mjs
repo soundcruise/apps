@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.24.20'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.34.0'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {
@@ -84,7 +84,7 @@ test('rich independent duplicate wins and low-value bulk stays below useful tick
  assert.equal(prepareNews([generic,rich],{now})[0].id,'rich');
  const bulk=Array.from({length:12},(_,i)=>make(0,{id:'low'+i,topicKey:'low'+i,label:'合成メーカーの製品情報'}));
  const useful=make(3,{id:'useful',topicKey:'useful',label:'Xotic、XXP-1を発表'});
- assert.equal(tickerNews([...bulk,useful],now)[0].id,'useful');
+ assert.ok(tickerNews([...bulk,useful],now).some(i=>i.id==='useful')); // latest slot + ranked remainder
  assert.equal(tickerNews([make(15,{label:rich.label})],now).length,0);
 });
 

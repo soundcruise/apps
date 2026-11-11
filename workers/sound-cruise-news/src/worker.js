@@ -1,7 +1,7 @@
 import {runWebDiscovery} from './web-discovery.js';
 import {WEB_DISCOVERY_CRON} from './web-schedule.js';
 import {assistedPredicate} from './assisted-facts.js';
-import {compareTicker} from '../../../apps/cruise-port/news-quality.js';
+import {selectTicker} from '../../../apps/cruise-port/news-quality.js';
 import {preferredIndependentLabel} from './label-quality.js';
 import {manualPredicate} from './manual-sources.js';
 import {legacyPredicate} from './legacy.js';
@@ -35,7 +35,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
  if(request.method==='OPTIONS')return finish(new Response(null,{status:204}));
  if(request.method!=='GET')return finish(json({error:'method_not_allowed'},405));
  if(url.pathname==='/health'){
-  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.64.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
+  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.65.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
   catch{return finish(json({ok:false,error:'news_unavailable'},503));}
  }
  if(!['/v1/news','/v1/news/ticker'].includes(url.pathname))return finish(json({error:'not_found'},404));
@@ -63,7 +63,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
    AND COALESCE(s.publication_blocked,0)=0 AND COALESCE(s.takedown,0)=0 AND ${eligible}`).bind(now,now,now,...activeBindings).first();
   const validUntil=Math.min(now+300000,boundary?.deadline==null?Infinity:boundary.deadline+1);
   // Read controls before cache. Every takedown changes revision atomically, invalidating all old keys.
-  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),category:category||'',format:'category-editor-1',revision:String(controls.revision),sources:active.join(','),manual:manualPredicate(now),bucket:String(Math.floor(now/300000))}));
+  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),category:category||'',format:'category-editor-2-fresh-slot',revision:String(controls.revision),sources:active.join(','),manual:manualPredicate(now),bucket:String(Math.floor(now/300000))}));
   const hit=await cache?.match(key);if(hit&&Number(hit.headers.get('X-News-Valid-Until'))>now)return finish(hit);
   const ticker=url.pathname.endsWith('/ticker');
   const select=async(days,count,start)=>{
@@ -83,8 +83,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
   let rows=await select(ticker?7:90,ticker?100:limit+1,ticker?0:offset);
   if(ticker&&!rows.length)rows=await select(14,100,0);
   rows=rows.map(i=>{const preferences=i.presentation_json?JSON.parse(i.presentation_json):[],rank=preferences.findIndex(p=>p.id===i.id);return {...i,label:preferredIndependentLabel(i),original_category:i.category,category:i.effective_category,...(rank>=0?{hot:preferences[rank].hot,displayOrder:rank}:{})};});
-  if(ticker)rows.sort((a,b)=>compareTicker(a,b,now));
-  if(ticker)rows=rows.slice(0,5);
+  if(ticker)rows=selectTicker(rows,now);
   const more=!ticker&&rows.length>limit;
   const nextOffset=more&&!cursor?offset+limit:null;
   if(!ticker)rows=rows.slice(0,limit);
