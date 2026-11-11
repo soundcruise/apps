@@ -182,7 +182,10 @@
         svg.setAttribute('viewBox','0 0 16 24');svg.setAttribute('width','.75em');svg.setAttribute('height','1.1em');svg.setAttribute('data-strum-arrow',direction);svg.setAttribute('aria-hidden','true');
         path.setAttribute('d',direction==='up'?'M8 21V3M3 8L8 3L13 8':'M8 3V21M3 16L8 21L13 16');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','1.65');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');svg.appendChild(path);return svg;
     }
-    function octaveColor(octave){return ['#555c66','#526478','#23685f','#245b91','#435ca0','#76539a','#92552c','#99434f','#754561'][Math.max(0,Math.min(8,octave))];}
+    var defaultOctaveColors=['#555c66','#526478','#1686a0','#245b91','#c43c39','#c8498a','#92552c','#99434f','#754561'],octaveColors=defaultOctaveColors.slice();
+    function setOctaveColors(colors){octaveColors=defaultOctaveColors.map(function(color,i){return Array.isArray(colors)&&/^#[0-9a-f]{6}$/i.test(colors[i])?colors[i]:color;});}
+    function getOctaveColors(){return octaveColors.slice();}
+    function octaveColor(octave){return octaveColors[Math.max(0,Math.min(8,octave))];}
 
     // Empty = no event, rest = explicit rest + duration, sustain = previous stroke duration.
     function buildStrumRow(slots, barTicks, viewResolution) {
@@ -270,7 +273,7 @@
         if (hasVocal && show.doremi) {
             var tokens=theory.melodyEventsToDoremiTokens((bar.melody||[]).map(function(e){return Object.assign({},e,{durationTicks:1});}));
             var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
-            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text,octave:octave};}),timeRes,beats*model.TICKS_PER_BEAT);
+            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave};}),timeRes,beats*model.TICKS_PER_BEAT);
             doremi.style.color='var(--paper-doremi)';
             cell.appendChild(doremi);
         }
@@ -338,6 +341,8 @@
         createStrumRestSymbol: createStrumRestSymbol,
         createStrumArrow: createStrumArrow,
         octaveColor: octaveColor,
+        setOctaveColors: setOctaveColors,
+        getOctaveColors: getOctaveColors,
         strumNeedsSixteenth: strumNeedsSixteenth
     };
 })();
