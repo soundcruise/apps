@@ -1048,18 +1048,22 @@
 
     // Each field owns an exact onset; no lossy whole-bar text reconstruction.
     function buildBeatTextRow(kind,bar,res) {
+        function autoCellGroup(events,tick,span){
+            var end=tick;
+            return events.length>0&&events.every(function(e){var valid=e.kind==='note'&&e.onsetTick===end&&e.provenance.timing.onset.origin==='auto-assigned'&&e.provenance.timing.duration.origin==='auto-assigned'&&!e.provenance.timing.onset.confirmed&&!e.provenance.timing.duration.confirmed;end=e.onsetTick+e.durationTicks;return valid;})&&end===tick+span;
+        }
         var canonical=state.session.draft, source=canonical.bars[bar.barNumber-1];
         if(canonical.schemaVersion!==2)return buildOverlayInput({id:kind,label:kind==='chord'?'コード':'ドレミ'},bar);
         var wrap=document.createElement('div');wrap.style.display='grid';wrap.style.gridTemplateColumns='repeat('+res+',minmax(0,1fr))';wrap.style.width='100%';
         var collection=kind==='chord'?'chords':'melody', span=1920/res, owner=state.session;
         for(var index=0;index<res;index++)(function(tick){
             var events=source[collection].filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});
-            var exact=events.length===1&&events[0].onsetTick===tick?events[0]:null;
+            var exact=events.length===1&&events[0].onsetTick===tick?events[0]:null, batch=kind==='doremi'&&autoCellGroup(events,tick,span);
             var input=document.createElement('input');input.type='text';input.className='slot-overlay-input';
             input.style.minWidth='0';input.style.width='100%';input.style.padding='6px';input.style.boxSizing='border-box';
             input.dataset.overlayField=kind;input.dataset.slotTick=tick;input.setAttribute('aria-label',bar.barNumber+'小節目の'+(kind==='chord'?'コード':'ドレミ')+' '+(tick/480+1)+'拍');
-            input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):(exact&&exact.kind==='note'?CS().model.getBarDoremiText({melody:bar.melody.filter(function(e){return e.tick===tick;})}):'');
-            if(events.length && !exact){input.readOnly=true;input.value='…';input.title='この範囲には細かな位置のイベントがあります。元の時間情報を保持しています';}
+            input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):((exact&&exact.kind==='note')||batch?CS().model.getBarDoremiText({melody:bar.melody.filter(function(e){return e.tick>=tick&&e.tick<tick+span;})}):'');
+            if(events.length && !exact && !batch){input.readOnly=true;input.value='…';input.title='この範囲には細かな位置のイベントがあります。元の時間情報を保持しています';}
             var composing=false,justComposed=false,nativeHistory=false,initial=input.value;
             function apply(composition){
                 if(input.readOnly||!input.isConnected||state.session!==owner||owner.draft.bars[bar.barNumber-1]?.id!==source.id||composing)return {ok:false};
@@ -1068,8 +1072,8 @@
                 var raw=input.value.trim();
                 var result=(composition?owner.runCompositionTextOperation:owner.runTextOperation)(JSON.stringify(['beat',kind,source.id,tick]),'拍位置の'+kind+'入力',function(p){
                     var b=p.bars.find(function(b){return b.id===source.id;}), list=b[collection], old=list.find(function(e){return e.onsetTick===tick;});
-                    if(list.some(function(e){return e.onsetTick>tick&&e.onsetTick<tick+span;}))throw Error('細かな時間位置を持つイベントはこのセルで置換できません');
-                    if(!raw){b[collection]=list.filter(function(e){return e!==old;});if(kind==='chord'&&old)p.performance.formBindings=p.performance.formBindings.filter(function(f){return f.chordEventId!==old.id;});return;}
+                    if(kind==='chord'&&list.some(function(e){return e.onsetTick>tick&&e.onsetTick<tick+span;}))throw Error('細かな時間位置を持つイベントはこのセルで置換できません');
+                    if(!raw){var clearing=list.filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});if(kind==='doremi'&&clearing.length>1&&!autoCellGroup(clearing,tick,span))throw Error('既存の細かな時間情報を保持しています');b[collection]=list.filter(function(e){return !clearing.includes(e);});if(kind==='chord'&&old)p.performance.formBindings=p.performance.formBindings.filter(function(f){return f.chordEventId!==old.id;});return;}
                     var api=CS().model.schema2;
                     if(kind==='chord'){
                         if(!CS().theory.parseBasicChordSymbol(raw))throw Error('コード名を確認してください');
@@ -1078,17 +1082,29 @@
                         if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
                         if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
                     }else{
-                        var parsed=CS().theory.parseDoremiString(raw);if(parsed.warnings.length||parsed.notes.length!==1||parsed.notes[0].extensions)throw Error('1マスにドレミを1音入力してください。音価の変更はメロディ編集で行えます');
-                        var note=parsed.notes[0],tonic=p.solfege.tonic,key=tonic.step+window.ChordCruise.theory.formatAccidental(tonic.alter);
-                        var scale=window.ChordCruise.theory.spellScaleNotes({tonicPc:CS().theory.keyToSemitone(key),tonicName:key,scaleId:'major'}),spelled=scale[note.step];
-                        var midi=api.pitchMidi(tonic)+[0,2,4,5,7,9,11][note.step]+note.alter+12*note.octave,alter=spelled.accidental+note.alter;
-                        var pitch={step:spelled.letter,alter:alter,octave:(midi-({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[spelled.letter])-alter)/12-1};
-                        if(old){old.kind='note';old.pitch=pitch;}else{
-                            if(list.some(function(e){return e.onsetTick<tick+span&&e.onsetTick+e.durationTicks>tick;}))throw Error('既存の音価・休符と重なります。元の時間情報を保持しました');
-                            list.push({id:api.newId(),kind:'note',onsetTick:tick,durationTicks:span,pitch:pitch,provenance:api.timing('auto-assigned',false)});
-                        }
+                        var parsed=CS().theory.parseDoremiString(raw);
+                        if(parsed.warnings.length||!parsed.notes.length)throw Error('ドレミの表記を確認してください');
+                        var units=parsed.notes.reduce(function(n,e){return n+1+e.extensions;},0);
+                        if(units>span)throw Error('1マスに入力する音数が多すぎます。元の音を保持しました');
+                        var cellEvents=list.filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});
+                        if(cellEvents.length>1&&!autoCellGroup(cellEvents,tick,span))throw Error('既存の細かな時間情報を保持しています');
+                        if(units>1&&old&&!autoCellGroup(cellEvents,tick,span))throw Error('既存の音価を変更するまとめ入力は適用できません。1音ずつ編集してください');
+                        var tonic=p.solfege.tonic,key=tonic.step+window.ChordCruise.theory.formatAccidental(tonic.alter),scale=window.ChordCruise.theory.spellScaleNotes({tonicPc:CS().theory.keyToSemitone(key),tonicName:key,scaleId:'major'});
+                        var cursor=tick,usedUnits=0;
+                        var generated=parsed.notes.map(function(note,i){
+                            var existing=cellEvents[i];
+                            var keepTiming=parsed.notes.length===cellEvents.length&&cellEvents.every(function(e){return e.kind==='note'||e.kind==='rest';})&&parsed.notes.every(function(n){return !n.extensions;});
+                            var duration=keepTiming?existing.durationTicks:Math.floor(span*(usedUnits+1+note.extensions)/units)-Math.floor(span*usedUnits/units);usedUnits+=1+note.extensions;
+                            var spelled=scale[note.step],midi=api.pitchMidi(tonic)+[0,2,4,5,7,9,11][note.step]+note.alter+12*note.octave,alter=spelled.accidental+note.alter;
+                            var pitch={step:spelled.letter,alter:alter,octave:(midi-({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[spelled.letter])-alter)/12-1};
+                            var value=existing?JSON.parse(JSON.stringify(existing)):{id:api.newId(),provenance:api.timing('auto-assigned',false)};
+                            value.kind='note';value.onsetTick=keepTiming?existing.onsetTick:cursor;value.durationTicks=duration;value.pitch=pitch;if(!keepTiming)value.provenance=api.timing('auto-assigned',false);cursor+=duration;return value;
+                        });
+                        var untouched=list.filter(function(e){return !cellEvents.includes(e);});
+                        if(generated.some(function(a){return untouched.some(function(e){return e.onsetTick<a.onsetTick+a.durationTicks&&e.onsetTick+e.durationTicks>a.onsetTick;});}))throw Error('隣の音・休符と重なります。元の時間情報を保持しました');
+                        b.melody=untouched.concat(generated).sort(function(a,b){return a.onsetTick-b.onsetTick;});
                     }
-                    list.sort(function(a,b){return a.onsetTick-b.onsetTick;});
+                    if(kind==='chord')list.sort(function(a,b){return a.onsetTick-b.onsetTick;});
                 });
                 input.setAttribute('aria-invalid',result.ok?'false':'true');input.classList.toggle('is-invalid',!result.ok);input.title=result.ok?'':result.error||'入力を確認してください';
                 var diagnostics=textDiagnostics.get(owner);if(!diagnostics){diagnostics=new Map();textDiagnostics.set(owner,diagnostics);}
@@ -1104,10 +1120,13 @@
             input.addEventListener('keydown',function(e){
                 if(routeLocalSave(e)||routeLocalEscape(e))return;e.stopPropagation();
                 if(e.altKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();if(apply(false).ok)moveSelectedBar(e.key==='ArrowLeft'?-1:1,{focusRowId:kind});return;}
-                if(e.key!=='Enter')return;e.preventDefault();
-                if(e.isComposing||e.keyCode===229||composing||justComposed||owner.inputPending||input.readOnly)return;
-                var result=apply(false);if(!result.ok||input.getAttribute('aria-invalid')==='true')return;
-                owner.finishTextGroup();var next=wrap.querySelector('[data-slot-tick="'+(tick+span)+'"]');if(next)next.focus();
+                if(!['Enter','ArrowRight','ArrowLeft','Tab'].includes(e.key))return;e.preventDefault();
+                if(e.isComposing||e.keyCode===229||composing||justComposed||owner.inputPending)return;
+                var result=input.readOnly?{ok:true}:apply(false);if(!result.ok||input.getAttribute('aria-invalid')==='true')return;
+                owner.finishTextGroup();var direction=e.key==='ArrowLeft'||(e.key==='Tab'&&e.shiftKey)?-1:1;
+                var nextTick=Math.max(0,Math.min(1920-span,tick+direction*span));
+                if(kind==='doremi'&&CS().theory.parseDoremiString(input.value).notes.length>1){renderSlotOverlayContent();queueEditorFrame(function(){var next=els.slotOverlay.querySelector('[data-overlay-field="'+kind+'"][data-slot-tick="'+nextTick+'"]');if(next)next.focus();});}
+                else{var next=wrap.querySelector('[data-slot-tick="'+nextTick+'"]');if(next)next.focus();}
             });
             wrap.appendChild(input);
         })(index*span);
@@ -1573,7 +1592,8 @@
             focusStrumCellAfterRender(index + 1);
             return;
         }
-        // Tab / Shift+Tab はブラウザ標準のフォーカス移動に任せる（セルはbuttonなので隣へ自然に移る）
+        if(key==='Tab'){event.preventDefault();focusStrumCellAfterRender(index+(event.shiftKey?-1:1));return;}
+        // Keep cell navigation within this row.
         event.stopPropagation();
     }
 
@@ -3450,7 +3470,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.88.3-dev.1',
+        developmentVersion: '0.88.3-dev.2',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,

@@ -14,7 +14,7 @@ for(const engine of ['chrome','webkit'])test('real local UI server '+engine,asyn
  await p.locator('[data-local-ui-banner]').waitFor();await p.locator('#open-sheet-cruise').click();await p.locator('#sc-new-project').click();await p.getByRole('button',{name:'保存せず続行',exact:true}).click();
  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-title').fill('LOCAL UI Original');await p.locator('#sc-bpm').fill('106');await p.locator('#sc-bpm').press('Tab');await p.locator('#sc-editor-drawer').evaluate(e=>e.open=false);
  await p.locator('.sheet-bar').first().focus();await p.keyboard.press('Enter');
- await p.locator('[data-overlay-field=chord]').first().fill('C');await p.locator('.dock-lyrics-cell').first().fill('夜');await p.locator('[data-overlay-field=doremi]').first().fill('ド');await p.locator('[data-overlay-field=doremi]').first().press('Tab');await p.locator('.dock-strum-cell').first().click();
+ await p.locator('[data-overlay-field=chord]').first().fill('C');await p.locator('.dock-lyrics-cell').first().fill('夜');await p.locator('[data-overlay-field=doremi]').first().fill('ドレミ');await p.locator('[data-overlay-field=doremi]').first().press('Tab');await p.locator('.dock-strum-cell').first().click();
  const snap=()=>p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());const before=await snap();
  await p.locator('[data-bar-operation=duplicateBar]').click();assert.equal((await snap()).bars.length,before.bars.length+1);await p.locator('#sc-undo').click();assert.deepEqual(await snap(),before);await p.locator('#sc-redo').click();await p.locator('#sc-save').click();
  await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty&&!CruiseStudio.sheetCruise.getSession().commitInFlight);

@@ -103,6 +103,23 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.equal(await page.locator('.sheet-bar[data-bar-number="1"] .sheet-chord-event').count(),2);
             if(process.env.SCORE_DIALOG_SCREENSHOTS)await page.screenshot({path:process.env.SCORE_DIALOG_SCREENSHOTS+'/beat-editor.png'});
         }));
+        await t.test('Right and Tab move within each row; Shift Tab and Left move back',()=>fresh(async page=>{
+            await select(page);
+            for(const selector of ['[data-overlay-field=chord]','[data-overlay-field=doremi]','.dock-lyrics-cell']){
+                const fields=page.locator(selector);await fields.first().focus();await fields.first().press('ArrowRight');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');
+                await page.keyboard.press('Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'480');await page.keyboard.press('Shift+Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');await page.keyboard.press('ArrowLeft');assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'0');
+                await fields.last().press('Tab');assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+            }
+            await page.locator('.dock-strum-cell').first().focus();await page.keyboard.press('ArrowRight');await page.keyboard.press('Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'2');await page.keyboard.press('Shift+Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'1');
+        }));
+        await t.test('Doremi stays grouped in one cell; navigation and persistence preserve neighbouring notes',()=>fresh(async page=>{
+            await select(page);const before=await snapshot(page);let cells=page.locator('[data-overlay-field=doremi]');await cells.first().fill('ドレミ');assert.equal(await cells.first().getAttribute('aria-invalid'),'false');await cells.first().press('Enter');await settle(page);
+            assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');assert.equal(await cells.first().inputValue(),'ドレミ');assert.deepEqual((await snapshot(page)).bars[0].melody.map(e=>e.onsetTick),[0,80,160]);assert((await snapshot(page)).bars[0].melody.every(e=>!e.provenance.timing.duration.confirmed));
+            await cells.nth(1).fill('ファ');assert.equal(await cells.nth(1).getAttribute('aria-invalid'),'false',await cells.nth(1).getAttribute('title'));await cells.nth(1).press('Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'480');const neighbour=(await snapshot(page)).bars[0].melody.at(-1);
+            await cells.first().fill('ソラ');await cells.first().press('ArrowRight');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');assert.deepEqual((await snapshot(page)).bars[0].melody.at(-1),neighbour);assert.equal(await cells.first().inputValue(),'ソラ');
+            const changed=await snapshot(page);await page.locator('#sc-undo').click();await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),changed);
+            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();assert.deepEqual(await snapshot(page),saved);await select(page);assert.equal(await page.locator('[data-overlay-field=doremi]').first().inputValue(),'ソラ');
+        }));
         await t.test('save/reload/JSON and Undo retain beat timing and IDs',()=>fresh(async page=>{
             await select(page);const chords=page.locator('[data-overlay-field=chord]');await chords.first().fill('C');await chords.first().press('Enter');const before=await snapshot(page);await chords.nth(1).fill('G');await chords.nth(1).press('Tab');const after=await snapshot(page);
             await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),before);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),after);
