@@ -13,3 +13,6 @@ test('dismiss/defer only call visibility action; uncertain response reuses reque
  const restore=all(renderWebReviewCard(doc,{...base,webReview:{queue:'low',reason:'operator_deferred'}},{change:async i=>calls.push(i)})).find(n=>n.textContent==='審査へ戻す');await restore.events.click();assert.equal(calls.at(-1).action,'review');
  const blocked=all(renderWebReviewCard(doc,{...base,webReview:{queue:'low',reason:'candidate_takedown',blocked:true}},{change:()=>assert.fail()}));assert(!blocked.some(n=>n.textContent==='審査へ戻す'));
 });
+test('unresolved publisher conditions show their specific reason and terms without a save/publish route',()=>{
+ const reason='個別記事リンクの条件が未確認です',nodes=all(renderWebReviewCard(doc,{...base,articleDraft:{...base.articleDraft,sourceReview:{reason,termsUrl:'https://publisher.example/terms'}}}));nodes.find(n=>n.textContent==='記事を確認して判断').events.click();assert(nodes.some(n=>n.textContent===reason));assert.equal(nodes.find(n=>n.textContent==='出典の利用条件').href,'https://publisher.example/terms');assert(!nodes.some(n=>n.textContent==='掲載する'));
+});

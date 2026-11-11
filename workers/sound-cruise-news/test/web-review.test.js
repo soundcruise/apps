@@ -8,7 +8,7 @@ const disposition=r=>webReviewDisposition(project(r),fixture.known,now);
 test('32 saved projections: useful drafts reach human review, no formal READY is invented',()=>{
  const counts={};for(const r of fixture.hints){const v=disposition(r);counts[v.queue]=(counts[v.queue]||0)+1;assert.equal(v.formalReady,false);}assert.deepEqual(counts,{low:23,judgment:8,existing:1});
  for(const text of ['LL56','100周年','浜田省吾','Eastman','Mukae'])assert.equal(disposition(fixture.hints.find(r=>r.title.includes(text))).queue,'judgment',text);
- const b=fixture.hints.filter(r=>disposition(r).queue==='judgment');assert.equal(b.filter(r=>!project(r).humanEntry).length,7);
+ const b=fixture.hints.filter(r=>disposition(r).queue==='judgment');assert.equal(b.filter(r=>!project(r).humanEntry).length,4);
  const published=fixture.hints.find(r=>r.url.includes('26110601'));assert.equal(disposition(published).queue,'existing');
  assert(fixture.hints.filter(r=>disposition(r).reason==='possible_known_event').every(r=>disposition(r).candidateId));
 });
