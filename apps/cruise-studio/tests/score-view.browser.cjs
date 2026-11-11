@@ -135,7 +135,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         }));
         await t.test('per-beat lyric subdivision matches solfege without changing data or history',()=>fresh(async page=>{
             await select(page);await page.locator('.dock-lyrics-cell').first().fill('あい');await settle(page);await page.locator('[data-overlay-field=doremi]').first().fill('ドレ');await page.locator('[data-overlay-field=doremi]').first().press('Tab');await settle(page);const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
-            const button=page.locator('.dock-lyrics-beat-res-btn').first();
+            const button=page.locator('[data-resolution-row=lyrics]').first();
             for(const count of [10,8,8]){
                 await button.click();await settle(page);assert.equal(await page.locator('[data-overlay-field=doremi]').count(),count);
                 const metrics=await page.evaluate(()=>{const lyric=[...document.querySelectorAll('.dock-lyrics-cell')],note=[...document.querySelectorAll('[data-overlay-field=doremi]')];return lyric.map((l,i)=>{const a=l.getBoundingClientRect(),b=note[i].getBoundingClientRect();return {tick:l.dataset.slotTick,other:note[i].dataset.slotTick,delta:Math.abs(a.x-b.x)+Math.abs(a.width-b.width)};});});
@@ -147,7 +147,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await note.fill('ドレ');await note.dispatchEvent('compositionstart');await button.click();await settle(page);assert.equal(await page.locator('[data-overlay-field=doremi]').count(),8);assert(await note.evaluate(e=>e.classList.contains('is-composing')));await note.dispatchEvent('compositionend');await settle(page);assert.deepEqual(await snapshot(page),before);
         }));
         await t.test('vertical row movement keeps tick; stroke Shift arrows navigate without editing',()=>fresh(async page=>{
-            await select(page);await page.locator('.dock-lyrics-beat-res-btn').first().click();await settle(page);
+            await select(page);await page.locator('[data-resolution-row=lyrics]').first().click();await settle(page);
             const fields=page.locator('[data-overlay-field=doremi]');await fields.nth(1).focus();const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
             async function expectCell(row,tick){await settle(page);assert.deepEqual(await page.evaluate(()=>{const e=document.activeElement;return [e.dataset.overlayField||e.closest('[data-overlay-field]')?.dataset.overlayField,e.dataset.slotTick];}),[row,String(tick)]);}
             await page.keyboard.press('ArrowUp');await expectCell('lyrics',120);
@@ -167,6 +167,71 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             }
             const last=page.locator('[data-overlay-field=doremi]').last();await last.fill('不正');await last.press('Enter');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
             await last.fill('ド');await last.dispatchEvent('keydown',{key:'Enter',isComposing:true,keyCode:229});await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+        }));
+        await t.test('both arrow cycles include a real sustain with canonical duration and JSON persistence',()=>fresh(async page=>{
+            await select(page);const cells=page.locator('.dock-strum-cell');await cells.first().press('d');await settle(page);
+            for(const [key,glyphs] of [['ArrowDown',['↓','↑','x','〜','・']],['ArrowUp',['↑','↓','x','〜','・']]]){
+                for(const glyph of glyphs){await cells.nth(1).press(key);await settle(page);assert.equal(await cells.nth(1).innerText(),glyph);
+                    if(glyph==='〜'){
+                        const p=await snapshot(page),id=p.performance.barRhythms.find(x=>x.barId===p.bars[0].id).materialId;
+                        const slots=p.materials.rhythms.find(x=>x.id===id).snapshot.slots;assert.equal(slots[0].durationTicks,480);assert.equal(slots.length,1);
+                    }
+                }
+            }
+            await cells.nth(1).press('~');await settle(page);const stretched=await snapshot(page);
+            await page.locator('#sc-undo').click();assert.notDeepEqual(await snapshot(page),stretched);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),stretched);
+            const download=page.waitForEvent('download');await page.locator('#sc-export-json').click();const file=await download;assert.deepEqual(JSON.parse(fs.readFileSync(await file.path(),'utf8')),stretched);
+            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await cells.nth(1).innerText(),'〜');assert.deepEqual(await snapshot(page),saved);
+        }));
+        await t.test('chord and stroke beat buttons are independent and boundaries align at both resolutions',()=>fresh(async page=>{
+            await select(page);const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
+            await page.locator('[data-resolution-row=chord]').first().click();await settle(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),10);assert.equal(await page.locator('.dock-strum-cell').count(),8);assert.equal(await page.locator('[data-overlay-field=doremi]').count(),8);
+            await page.locator('[data-resolution-row=strum]').first().click();await settle(page);assert.equal(await page.locator('.dock-strum-cell').count(),10);assert.equal(await page.locator('.dock-lyrics-cell').count(),8);
+            for(const width of [1440,390]){
+                await page.setViewportSize({width,height:1000});await settle(page);
+                const pairs=await page.evaluate(()=>[...document.querySelectorAll('[data-overlay-field=chord]')].map((e,i)=>{const other=document.querySelectorAll('.dock-strum-cell')[i],a=e.getBoundingClientRect(),b=other.getBoundingClientRect(),s=getComputedStyle(e);return {tick:e.dataset.slotTick,other:other.dataset.slotTick,delta:Math.abs(a.x-b.x)+Math.abs(a.width-b.width),border:s.borderRightWidth,color:s.borderRightColor};}));
+                for(const p of pairs){assert.equal(p.tick,p.other);assert(p.delta<2);assert.equal(p.border,'1px');assert.notEqual(p.color,'rgba(0, 0, 0, 0)');}
+            }
+            assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
+            await page.locator('#sc-new-project').click();await page.getByRole('dialog').getByRole('button',{name:'保存せず続行',exact:true}).click();await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),8);assert.equal(await page.locator('.dock-strum-cell').count(),8);
+            await page.locator('#sc-project-select').selectOption(before.projectId);await page.getByRole('dialog').getByRole('button',{name:'保存せず続行',exact:true}).click();await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),10);assert.equal(await page.locator('.dock-strum-cell').count(),10);assert.deepEqual(await snapshot(page),before);
+        }));
+        await t.test('coarse display protects fine events and editing another stroke retains exact durations and accents',()=>fresh(async page=>{
+            await page.evaluate(()=>{
+                const s=CruiseStudio.sheetCruise.getSession();const result=s.runOperation('Synthetic shared fine rhythm',p=>{
+                    const id=crypto.randomUUID();p.materials.rhythms.push({id,encoding:'studio-strum-v1',provenance:{origin:'user-set'},snapshot:{name:'synthetic',lengthTicks:1920,slots:[{id:crypto.randomUUID(),tick:0,action:'down',durationTicks:60,accent:true},{id:crypto.randomUUID(),tick:120,action:'up',durationTicks:120,accent:false},{id:crypto.randomUUID(),tick:960,action:'mute',durationTicks:180,accent:true,tieToNext:false}]}});
+                    p.performance.barRhythms=[{id:crypto.randomUUID(),barId:p.bars[0].id,materialId:id},{id:crypto.randomUUID(),barId:p.bars[1].id,materialId:id}];
+                    p.bars[0].chords=[0,120].map((onsetTick,i)=>({id:crypto.randomUUID(),onsetTick,symbol:i?'G':'C',unresolved:false,provenance:{origin:'user-set'}}));
+                });if(!result.ok)throw Error(result.error);
+            });
+            await select(page);const before=await snapshot(page),binding=before.performance.barRhythms[0],material=before.materials.rhythms.find(m=>m.id===binding.materialId);
+            for(const row of ['chord','strum']){await page.locator('[data-resolution-row='+row+']').first().click();await settle(page);}
+            assert.equal(await page.locator('[data-overlay-field=chord]').first().getAttribute('readonly'),'');assert.equal(await page.locator('.dock-strum-cell').first().innerText(),'…');
+            await page.locator('.dock-strum-cell').first().press('ArrowDown');await settle(page);assert.deepEqual(await snapshot(page),before);
+            await page.locator('.dock-strum-cell[data-slot-tick="480"]').press('d');await settle(page);const edited=await snapshot(page);
+            assert.deepEqual(edited.bars,before.bars);assert.deepEqual(edited.performance.barRhythms[1],before.performance.barRhythms[1]);assert.deepEqual(edited.materials.rhythms.find(m=>m.id===material.id),material);
+            const current=edited.materials.rhythms.find(m=>m.id===edited.performance.barRhythms.find(b=>b.barId===edited.bars[0].id).materialId);
+            for(const old of material.snapshot.slots){const newer=current.snapshot.slots.find(e=>e.tick===old.tick);const {id,...a}=old,{id:otherId,...b}=newer;assert.deepEqual(b,a);}
+            await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),before);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),edited);
+        }));
+        await t.test('left and right cross bar edges in every row, keeping the same row and correct end',()=>fresh(async page=>{
+            await select(page);
+            for(const selector of ['[data-overlay-field=chord]','.dock-strum-cell','.dock-lyrics-cell','[data-overlay-field=doremi]']){
+                const cells=page.locator(selector),expected=selector.includes('chord')?'chord':selector.includes('strum')?'strum':selector.includes('lyrics')?'lyrics':'doremi';await cells.first().press('ArrowLeft');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+                await cells.last().press('ArrowRight');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[2]);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'0');assert.equal(await page.evaluate(()=>{const e=document.activeElement;return e.dataset.overlayField||e.closest('[data-overlay-field]')?.dataset.overlayField;}),expected);
+                await cells.first().press('ArrowLeft');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'1680');
+                const count=(await snapshot(page)).bars.length;await page.locator('.sheet-bar').last().focus();await page.keyboard.press('Enter');await settle(page);await cells.last().press('ArrowRight');await settle(page);assert.equal((await snapshot(page)).bars.length,count);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[count]);await select(page);
+            }
+            const field=page.locator('[data-overlay-field=chord]').last();await field.fill('invalid!');await field.press('ArrowRight');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+        }));
+        await t.test('resizing the actual handle scales buttons, row names, beat labels and resolution controls',()=>fresh(async page=>{
+            await select(page);await page.locator('[data-resolution-row=chord]').first().click();await settle(page);
+            const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
+            async function metrics(){return page.evaluate(()=>{const root=document.querySelector('#sc-slot-overlay');const selectors=['.slot-overlay-title','.slot-overlay-section','.slot-overlay-nav-btn','.slot-overlay-res-btn','.slot-overlay-bulk-toggle','.slot-overlay-close','.slot-overlay-row-label','.slot-overlay-ruler-cell','.dock-lyrics-beat-res-btn'];return {width:root.getBoundingClientRect().width,fonts:selectors.map(s=>parseFloat(getComputedStyle(root.querySelector(s)).fontSize)),button:root.querySelector('.dock-lyrics-beat-res-btn').getBoundingClientRect().width};});}
+            const small=await metrics(),handle=await page.locator('.slot-overlay-resize-handle').boundingBox();await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+handle.width/2+220,handle.y+handle.height/2,{steps:8});await page.mouse.up();await settle(page);const large=await metrics(),ratio=large.width/small.width;assert(ratio>1.15);
+            small.fonts.forEach((size,i)=>assert(Math.abs(large.fonts[i]/size-ratio)<.02));assert(Math.abs(large.button/small.button-ratio)<.02);
+            const boxes=await page.locator('.dock-lyrics-beat-res-btn').evaluateAll(elements=>elements.map(e=>{const a=e.getBoundingClientRect(),b=e.parentElement.getBoundingClientRect();return a.left>=b.left-1&&a.right<=b.right+1&&a.bottom<=b.bottom+1;}));assert(boxes.every(Boolean));
+            if(output)await page.screenshot({path:path.join(output,'loupe-enlarged.png')});assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
         }));
         await t.test('console and external requests remain clean',()=>{assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);assert.deepEqual(missing,[])});
     }finally{await browser.close();}

@@ -31,13 +31,12 @@
     // プレビューの1行あたり小節数は sheetSettings.barsPerLine（既定2）。
     // 歌詞もドレミもないセクション（前奏などのコードのみ）は2倍詰めで表示する。
 
-    // D3a/F2a: ドックの行順とラベル（コードは1小節1セル、ストローク/歌詞はセル編集、
-    // ドレミは通常の文字列入力）
+    // 編集行の順序。セルは絶対tickで対応させ、表示の分割だけを拍別に切り替える。
     var DOCK_ROW_ORDER = ['chord', 'strum', 'lyrics', 'doremi'];
     var DOCK_ROW_LABELS = { chord: 'コード', strum: 'ストローク', lyrics: '歌詞', doremi: 'ドレミ' };
 
     // D3a: ストロークセルのクリック循環順（空/restから開始）
-    var STRUM_CELL_CYCLE = ['down', 'up', 'mute', 'rest'];
+    var STRUM_CELL_CYCLE = ['down', 'up', 'mute', 'sustain', 'rest'];
     var STRUM_GLYPHS = { down: '↓', up: '↑', mute: 'x', rest: '・', sustain: '〜' };
 
     // F1: フローティング小節ルーペのサイズ定数（docs/DECISIONS.md ADR-027）
@@ -843,6 +842,34 @@
      * transform はレイアウト寸法に影響しないため、ビューポートの高さはJSで確保する。
      */
     var sheetZoom=1;
+    // B-owned editor styling; no Studio Shell/public stylesheet changes.
+    function mountEditorStyles(){
+        if(document.getElementById('sc-editor-interaction-style'))return;
+        var style=document.createElement('style');style.id='sc-editor-interaction-style';
+        style.textContent=`
+#sc-slot-overlay {gap:calc(6px * var(--bar-loupe-scale,1));padding:calc(8px * var(--bar-loupe-scale,1)) calc(20px * var(--bar-loupe-scale,1)) calc(16px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-head {gap:calc(14px * var(--bar-loupe-scale,1));padding-bottom:calc(6px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-head-main,#sc-slot-overlay .slot-overlay-head-actions {gap:calc(8px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-section {font-size:calc(11px * var(--bar-loupe-scale,1));padding:calc(2px * var(--bar-loupe-scale,1)) calc(10px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-nav {gap:calc(4px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-nav-btn,#sc-slot-overlay .slot-overlay-res-btn,#sc-slot-overlay .slot-overlay-reset-btn,#sc-slot-overlay .slot-overlay-bulk-toggle {font-size:calc(12px * var(--bar-loupe-scale,1));padding:calc(5px * var(--bar-loupe-scale,1)) calc(10px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-nav-btn {min-width:calc(56px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-hint,#sc-slot-overlay .slot-overlay-row-label {font-size:calc(10.5px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-close {font-size:calc(13px * var(--bar-loupe-scale,1));width:calc(26px * var(--bar-loupe-scale,1));height:calc(26px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-ruler,#sc-slot-overlay .slot-overlay-row {gap:calc(8px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-ruler-label,#sc-slot-overlay .slot-overlay-row-label {flex-basis:calc(62px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-ruler {min-height:calc(16px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-ruler-cell {font-size:calc(9.5px * var(--bar-loupe-scale,1));padding-left:calc(2px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-ruler-cell.is-offbeat-dot::after {width:calc(3px * var(--bar-loupe-scale,1));height:calc(3px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-grid {gap:calc(3px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .dock-lyrics-beat-cells {padding-bottom:calc(12px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .dock-lyrics-beat-res-btn {width:calc(24px * var(--bar-loupe-scale,1));min-height:calc(12px * var(--bar-loupe-scale,1));font-size:calc(8px * var(--bar-loupe-scale,1));gap:calc(1.5px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .dock-lyrics-beat-res-btn.is-local::before {width:calc(6.5px * var(--bar-loupe-scale,1));height:calc(6.5px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-row-note {font-size:calc(10px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .slot-overlay-resize-handle {width:calc(24px * var(--bar-loupe-scale,1));height:calc(24px * var(--bar-loupe-scale,1));}
+`;
+        document.head.appendChild(style);
+    }
     function mountSheetZoom(){
         var controls=document.createElement('div');controls.id='sc-zoom-controls';controls.style.display='flex';controls.style.gap='8px';controls.style.alignItems='center';
         function button(id,label,change){var b=document.createElement('button');b.type='button';b.id=id;b.className='btn-ghost btn-compact';b.textContent=label;b.onclick=function(){sheetZoom=change(sheetZoom);updateSheetScale();};controls.appendChild(b);return b;}
@@ -1065,6 +1092,31 @@
         return input;
     }
 
+    function editorCellRanges(bar,globalRes,rowId){
+        var beats=getBeats(state.project),beatTicks=CS().model.getBarLengthTicks(state.project)/beats,ranges=[];
+        for(var beat=0;beat<beats;beat++){
+            var res=getLyricBeatEffectiveRes(bar,globalRes,beat,rowId==='doremi'?'lyrics':rowId);
+            var count=res/beats,span=beatTicks/count;
+            for(var slot=0;slot<count;slot++)ranges.push({tick:beat*beatTicks+slot*span,span:span,beat:beat,slot:slot,count:count,res:res});
+        }
+        ranges.forEach(function(r,i){r.previousTick=i?ranges[i-1].tick:null;});
+        return ranges;
+    }
+
+    function editorBeatGroups(wrap,bar,globalRes,rowId,ranges){
+        wrap.classList.add('beat-groups');
+        var groups=[];
+        for(var beat=0;beat<getBeats(state.project);beat++){
+            var group=document.createElement('div');group.className='beat-group dock-lyrics-beat-group';group.dataset.beatIndex=beat;
+            var cells=document.createElement('div');cells.className='dock-lyrics-beat-cells';
+            cells.style.gridTemplateColumns='repeat('+ranges.filter(function(r){return r.beat===beat;}).length+',minmax(0,1fr))';
+            group.appendChild(cells);
+            if(rowId!=='doremi')group.appendChild(buildLyricBeatResButton(bar,beat,globalRes,rowId));
+            wrap.appendChild(group);groups.push(cells);
+        }
+        return groups;
+    }
+
     // Each field owns an exact onset; no lossy whole-bar text reconstruction.
     function buildBeatTextRow(kind,bar,res) {
         function autoCellGroup(events,tick,span){
@@ -1073,21 +1125,18 @@
         }
         var canonical=state.session.draft, source=canonical.bars[bar.barNumber-1];
         if(canonical.schemaVersion!==2)return buildOverlayInput({id:kind,label:kind==='chord'?'コード':'ドレミ'},bar);
-        var wrap=document.createElement('div');wrap.style.display='grid';wrap.style.width='100%';
-        var collection=kind==='chord'?'chords':'melody', owner=state.session, ranges=[];
-        var beats=getBeats(state.project),beatTicks=1920/beats;
-        for(var b=0;b<beats;b++){
-            var beatRes=kind==='doremi'?getLyricBeatEffectiveRes(bar,res,b):res;
-            var count=beatRes/beats,span=beatTicks/count;
-            for(var s=0;s<count;s++)ranges.push({tick:b*beatTicks+s*span,span:span});
-        }
-        wrap.style.gridTemplateColumns=ranges.map(function(r){return 'minmax(0,'+r.span+'fr)';}).join(' ');
+        var wrap=document.createElement('div');
+        var collection=kind==='chord'?'chords':'melody', owner=state.session, ranges=editorCellRanges(bar,res,kind);
+        var groups=editorBeatGroups(wrap,bar,res,kind,ranges);
         ranges.forEach(function(range,index){var tick=range.tick,span=range.span;
             var events=source[collection].filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});
             var exact=events.length===1&&events[0].onsetTick===tick?events[0]:null, batch=kind==='doremi'&&autoCellGroup(events,tick,span);
             var input=document.createElement('input');input.type='text';input.className='slot-overlay-input';
             input.style.minWidth='0';input.style.width='100%';input.style.padding='0 3px';input.style.boxSizing='border-box';input.style.textAlign='center';
-            if(kind==='doremi'&&index<ranges.length-1)input.style.borderRight='1px solid rgba(90, 100, 110, 0.2)';
+            input.style.minHeight=kind==='chord'?'max(26px, calc(30px * var(--bar-loupe-scale,1)))':'max(28px, calc(34px * var(--bar-loupe-scale,1)))';
+            var boundary=lyricLocalBoundaryClass(range.slot,range.count,range.res,range.beat===getBeats(state.project)-1);
+            input.classList.add(boundary);
+            input.style.borderRight='1px solid var('+(boundary==='is-beat'?'--paper-line-beat':boundary==='is-8th'?'--paper-line-eighth':boundary==='is-16th'?'--paper-line-sixteenth':'--slot-border')+')';
             if(kind==='doremi'){input.style.fontFamily='var(--paper-font)';input.style.fontSize='max(11px, calc(13px * var(--bar-loupe-scale, 1)))';input.style.fontWeight='600';input.style.letterSpacing='0';}
             input.dataset.overlayField=kind;input.dataset.slotTick=tick;input.dataset.slotTicks=span;input.setAttribute('aria-label',bar.barNumber+'小節目の'+(kind==='chord'?'コード':'ドレミ')+' '+(tick/480+1)+'拍');
             input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):((exact&&exact.kind==='note')||batch?CS().model.getBarDoremiText({melody:bar.melody.filter(function(e){return e.tick>=tick&&e.tick<tick+span;})}):'');
@@ -1153,13 +1202,14 @@
                 var result=input.readOnly?{ok:true}:apply(false);if(!result.ok||input.getAttribute('aria-invalid')==='true')return;
                 owner.finishTextGroup();
                 if(e.key==='ArrowUp'||e.key==='ArrowDown'){focusAdjacentRow(kind,tick,e.key==='ArrowUp'?-1:1);return;}
-                if(e.key==='Enter'&&index===ranges.length-1){moveSelectedBar(1,{focusRowId:kind});return;}
+                if((e.key==='Enter'||e.key==='ArrowRight')&&index===ranges.length-1){moveSelectedBar(1,{focusRowId:kind});return;}
+                if(e.key==='ArrowLeft'&&index===0){moveSelectedBar(-1,{focusRowId:kind,focusLast:true});return;}
                 var direction=e.key==='ArrowLeft'||(e.key==='Tab'&&e.shiftKey)?-1:1;
                 var nextTick=ranges[Math.max(0,Math.min(ranges.length-1,index+direction))].tick;
                 if(kind==='doremi'&&CS().theory.parseDoremiString(input.value).notes.length>1){renderSlotOverlayContent();queueEditorFrame(function(){var next=els.slotOverlay.querySelector('[data-overlay-field="'+kind+'"][data-slot-tick="'+nextTick+'"]');if(next)next.focus();});}
                 else{var next=wrap.querySelector('[data-slot-tick="'+nextTick+'"]');if(next)next.focus();}
             });
-            wrap.appendChild(input);
+            groups[range.beat].appendChild(input);
         });
         return wrap;
     }
@@ -1193,24 +1243,12 @@
         return state.project.bars[nextIndex] || null;
     }
 
-    function focusOverlayField(rowId) {
+    function focusOverlayField(rowId,last) {
         if (!rowId || !els.slotOverlay) return;
         queueEditorFrame(function () {
-            var field = els.slotOverlay.querySelector('[data-overlay-field="' + rowId + '"]');
-            if (!field) return;
-            if (rowId === 'strum') {
-                // strum行はinputではなくセルグリッド（.dock-strum-grid）。先頭セルへフォーカスする
-                var firstCell = field.querySelector('.dock-strum-cell');
-                if (firstCell) firstCell.focus({ preventScroll: true });
-                return;
-            }
-            if (rowId === 'lyrics') {
-                // 歌詞行はinputではなくセルグリッド（.dock-lyrics-grid）。先頭セルへフォーカスする
-                var firstLyricCell = field.querySelector('.dock-lyrics-cell');
-                if (firstLyricCell) firstLyricCell.focus({ preventScroll: true });
-                return;
-            }
-            field.focus({ preventScroll: true });
+            var selector=rowId==='strum'?'.dock-strum-cell':rowId==='lyrics'?'.dock-lyrics-cell':'[data-overlay-field="'+rowId+'"]';
+            var cells=els.slotOverlay.querySelectorAll(selector),cell=cells[last?cells.length-1:0];
+            if(cell)cell.focus({preventScroll:true});
         });
     }
 
@@ -1222,7 +1260,7 @@
         state.overlayWarnings = {};
         state.overlayBulkMessage = null;
         syncSheetSelection();
-        if (options && options.focusRowId) focusOverlayField(options.focusRowId);
+        if (options && options.focusRowId) focusOverlayField(options.focusRowId,options.focusLast);
     }
 
     function commitActiveOverlayInput(options) {
@@ -1381,41 +1419,44 @@
        2) ヘッダーの全体8分/16分設定（getStrumGridResolution）。歌詞データのtickを
        理由に自動的に16分へ昇格する処理は行わない（「自動」は必ず全体設定に追従する）。 */
 
+    // Existing UI-only Session/bar store, namespaced by row. Lyrics and solfege share numeric beat keys.
+    // Chord/strum settings never enter Project, JSON, Repository or Undo history.
     function lyricBeatStore(bar) {
         if(!bar.sourceId)return {store:state.lyricBeatRes,key:bar};
         var store=state.lyricBeatResV2.get(state.session);
         if(!store){store=new Map();state.lyricBeatResV2.set(state.session,store);}
         return {store:store,key:bar.sourceId};
     }
-    function getLyricBeatLocalRes(bar, beatIndex) {
+    function getLyricBeatLocalRes(bar, beatIndex, rowId) {
         var owner=lyricBeatStore(bar),map=owner.store.get(owner.key);
         if (!map) return null;
-        var v = map.get(beatIndex);
+        var v = map.get(rowId&&rowId!=='lyrics'?rowId+':'+beatIndex:beatIndex);
         return (v === 8 || v === 16) ? v : null;
     }
 
     /**
      * res が null なら自動へ戻す（Mapからローカル指定を削除する）。
      */
-    function setLyricBeatLocalRes(bar, beatIndex, res) {
+    function setLyricBeatLocalRes(bar, beatIndex, res, rowId) {
+        var key=rowId&&rowId!=='lyrics'?rowId+':'+beatIndex:beatIndex;
         var owner=lyricBeatStore(bar),map=owner.store.get(owner.key);
         if (res !== 8 && res !== 16) {
-            if (map) map.delete(beatIndex);
+            if (map) map.delete(key);
             return;
         }
         if (!map) {
             map = new Map();
             owner.store.set(owner.key, map);
         }
-        map.set(beatIndex, res);
+        map.set(key, res);
     }
 
     /**
      * 拍beatIndexの実効解像度。ローカル指定があればそれを、無ければ全体設定
      * （globalRes）を返す。
      */
-    function getLyricBeatEffectiveRes(bar, globalRes, beatIndex) {
-        var local = getLyricBeatLocalRes(bar, beatIndex);
+    function getLyricBeatEffectiveRes(bar, globalRes, beatIndex, rowId) {
+        var local = getLyricBeatLocalRes(bar, beatIndex, rowId);
         return local || globalRes;
     }
 
@@ -1492,57 +1533,25 @@
         if (snapshot) restoreLyricCellFocusAfterRender(snapshot, expectedBarNumber);
     }
 
-    /**
-     * 実効ストロークslots（override優先、無ければ基本継承）を、指定解像度のセル配列へ変換する。
-     * 各要素は 'rest' | 'down' | 'up' | 'mute' | 'sustain'（直前セルの伸ばし継続）。
-     */
-    function buildStrumGridActions(bar, res) {
-        var model = CS().model;
-        var barTicks = model.getBarLengthTicks(state.project);
-        var slotTicks = barTicks / res;
-        var slots = model.getBarEffectiveStrumSlots(state.project, bar.barNumber) || [];
-        var actions = [];
-        for (var i = 0; i < res; i++) actions.push('rest');
-        slots.forEach(function (ev) {
-            var idx = Math.round(ev.tick / slotTicks);
-            if (idx < 0 || idx >= res) return;
-            if (ev.action === 'down' || ev.action === 'up' || ev.action === 'mute') actions[idx] = ev.action;
-            var len = Math.max(1, Math.round((ev.durationTicks || slotTicks) / slotTicks));
-            for (var e = 1; e < len && idx + e < res; e++) {
-                if (actions[idx + e] === 'rest') actions[idx + e] = 'sustain';
-            }
-        });
-        return actions;
+    function effectiveStrumSlots(bar){
+        return CS().model.getBarEffectiveStrumSlots(state.project,bar.barNumber)||[];
     }
-
-    /**
-     * セル配列から保存用のslots配列を作る。連続する'sustain'は直前の実音セルの
-     * durationTicksを延長する（既存のテキスト入力パーサーと同じ「直前を伸ばす」思想）。
-     */
-    function buildStrumSlotsFromActions(res, actions) {
-        var barTicks = CS().model.getBarLengthTicks(state.project);
-        var slotTicks = barTicks / res;
-        var slots = [];
-        var i = 0;
-        while (i < res) {
-            var action = actions[i];
-            if (action === 'down' || action === 'up' || action === 'mute') {
-                var dur = slotTicks;
-                var j = i + 1;
-                while (j < res && actions[j] === 'sustain') { dur += slotTicks; j++; }
-                slots.push({ tick: i * slotTicks, action: action, accent: false, durationTicks: dur });
-                i = j;
-            } else {
-                i++;
-            }
-        }
-        return slots;
+    function strumCellState(bar,range){
+        var slots=effectiveStrumSlots(bar),end=range.tick+range.span;
+        var starts=slots.filter(function(e){return e.tick>=range.tick&&e.tick<end;});
+        var previous=slots.filter(function(e){return e.tick<range.tick;}).pop();
+        var exact=starts.find(function(e){return e.tick===range.tick;});
+        return {
+            action:exact?exact.action:previous&&previous.action!=='rest'&&previous.tick+(previous.durationTicks||1)>range.tick?'sustain':'rest',
+            protected:starts.some(function(e){return e.tick!==range.tick;}),
+            canSustain:!!(previous&&previous.action!=='rest'&&(previous.tick+(previous.durationTicks||1)>=range.tick||(previous.durationTicks===undefined&&previous.tick===range.previousTick)))
+        };
     }
-
-    function nextStrumCellAction(current) {
-        var idx = STRUM_CELL_CYCLE.indexOf(current);
-        if (idx === -1) return 'down'; // rest / sustain / 未設定 は down から開始
-        return STRUM_CELL_CYCLE[(idx + 1) % STRUM_CELL_CYCLE.length];
+    function nextStrumCellAction(current,canSustain,up){
+        var cycle=up?['up','down','mute','sustain','rest']:STRUM_CELL_CYCLE;
+        var next=cycle[(cycle.indexOf(current)+1)%cycle.length];
+        // A stretch needs a preceding stroke; never invent one or get stuck here.
+        return next==='sustain'&&!canSustain?'rest':next;
     }
 
     function focusStrumCellAfterRender(index) {
@@ -1568,17 +1577,36 @@
      * 小節は、現在の継承内容を丸ごとコピーしたうえで1セルだけ変えた形で
      * setBarStrumSlots() に渡す＝これが「最初の編集で小節専用override化」になる。
      */
-    function applyStrumCellAction(bar, res, index, action, focusIndex) {
-        var actions = buildStrumGridActions(bar, res);
-        if (index < 0 || index >= actions.length) return;
-        if(action==='sustain'&&(index===0||actions[index-1]==='rest')){
+    function applyStrumCellAction(bar, ranges, index, action, focusIndex) {
+        var range=ranges[index];if(!range)return;
+        var cell=strumCellState(bar,range);
+        if(cell.protected){setSaveStatus('細かな位置のストロークを保持しています。16分表示で編集してください。',true);return;}
+        if(action==='sustain'&&!cell.canSustain){
             setSaveStatus('「〜」は直前のストロークを伸ばすマスに入力してください。');return;
         }
-        actions[index] = action;
-        var slots = buildStrumSlotsFromActions(res, actions);
+        // Work on exact legacy slots; do not quantize or reconstruct the whole bar.
+        // The existing structure operation owns canonical publication and history.
+        var slots=JSON.parse(JSON.stringify(effectiveStrumSlots(bar)));
+        var old=slots.find(function(e){return e.tick===range.tick;});
+        var previous=slots.filter(function(e){return e.tick<range.tick;}).pop();
+        var previousEnd=previous?previous.tick+(previous.durationTicks||1):0;
+        slots=slots.filter(function(e){return e!==old;});
+        if(action==='sustain'){
+            previous.durationTicks=Math.max(previousEnd,range.tick+range.span,old?old.tick+(old.durationTicks||1):0)-previous.tick;
+            if(old&&old.tieToNext)previous.tieToNext=true;
+        }else{
+            if(previousEnd>range.tick){previous.durationTicks=range.tick-previous.tick;delete previous.tieToNext;}
+            if(action!=='rest'){
+                var value=old||{tick:range.tick,accent:false};
+                value.action=action;
+                if(!old)value.durationTicks=Math.max(range.tick+range.span,previousEnd)-range.tick;
+                slots.push(value);
+            }
+        }
+        slots.sort(function(a,b){return a.tick-b.tick;});
+        if(JSON.stringify(slots)===JSON.stringify(effectiveStrumSlots(bar)))return;
         if (!runStructureOperation('strum', { barNumber: bar.barNumber, slots: slots }).ok) return;
-        markDirty();
-        renderPreview();
+        markDirty();renderPreview();
         focusStrumCellAfterRender(typeof focusIndex === 'number' ? focusIndex : index);
     }
 
@@ -1592,14 +1620,14 @@
         renderPreview();
     }
 
-    function onStrumCellKeydown(event, bar, res, index, currentAction) {
+    function onStrumCellKeydown(event, bar, ranges, index, currentAction) {
         if (routeLocalHistory(event)) return;
         if (routeLocalSave(event) || routeLocalEscape(event)) return;
         if (event.isComposing || event.keyCode === 229 || CS().shellHost.keyboard.isIMEBlocked({})) return;
         var key = event.key;
         event.stopPropagation();
         if(event.shiftKey&&(key==='ArrowUp'||key==='ArrowDown')){
-            event.preventDefault();focusAdjacentRow('strum',index*1920/res,key==='ArrowUp'?-1:1);return;
+            event.preventDefault();focusAdjacentRow('strum',ranges[index].tick,key==='ArrowUp'?-1:1);return;
         }
 
         if (event.altKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
@@ -1609,48 +1637,46 @@
         }
         if (key === 'ArrowRight') {
             event.preventDefault();
-            focusStrumCellByIndex(index + 1);
+            if(index===ranges.length-1)moveSelectedBar(1,{focusRowId:'strum'});else focusStrumCellByIndex(index + 1);
             return;
         }
         if (key === 'ArrowLeft') {
             event.preventDefault();
-            focusStrumCellByIndex(index - 1);
+            if(index===0)moveSelectedBar(-1,{focusRowId:'strum',focusLast:true});else focusStrumCellByIndex(index - 1);
             return;
         }
         if (key === 'ArrowDown' || key === 'd' || key === 'D') {
             event.preventDefault();
-            var downCycle=['rest','down','up','mute'];
-            applyStrumCellAction(bar, res, index, key==='ArrowDown'?downCycle[(downCycle.indexOf(currentAction)+1)%downCycle.length]:'down');
+            applyStrumCellAction(bar,ranges,index,key==='ArrowDown'?nextStrumCellAction(currentAction,strumCellState(bar,ranges[index]).canSustain,false):'down');
             return;
         }
         if (key === 'ArrowUp' || key === 'u' || key === 'U') {
             event.preventDefault();
-            var upCycle=['rest','up','down','mute'];
-            applyStrumCellAction(bar, res, index, key==='ArrowUp'?upCycle[(upCycle.indexOf(currentAction)+1)%upCycle.length]:'up');
+            applyStrumCellAction(bar,ranges,index,key==='ArrowUp'?nextStrumCellAction(currentAction,strumCellState(bar,ranges[index]).canSustain,true):'up');
             return;
         }
         if (key === 'x' || key === 'X') {
             event.preventDefault();
-            applyStrumCellAction(bar, res, index, 'mute');
+            applyStrumCellAction(bar, ranges, index, 'mute');
             return;
         }
         if(key==='〜'||key==='～'||key==='~'){
-            event.preventDefault();applyStrumCellAction(bar,res,index,'sustain');return;
+            event.preventDefault();applyStrumCellAction(bar,ranges,index,'sustain');return;
         }
         if (key === ' ' || key === 'Spacebar') {
             // ネイティブのbutton click（=セル循環）を誘発しないよう、rest確定はこちらで処理する
             event.preventDefault();
-            applyStrumCellAction(bar, res, index, 'rest');
+            applyStrumCellAction(bar, ranges, index, 'rest');
             return;
         }
         if (key === 'Delete' || key === 'Backspace') {
             event.preventDefault();
-            applyStrumCellAction(bar, res, index, 'rest');
+            applyStrumCellAction(bar, ranges, index, 'rest');
             return;
         }
         if (key === 'Enter') {
             event.preventDefault();
-            if(index===res-1)moveSelectedBar(1,{focusRowId:'strum'});
+            if(index===ranges.length-1)moveSelectedBar(1,{focusRowId:'strum'});
             else focusStrumCellAfterRender(index + 1);
             return;
         }
@@ -1660,37 +1686,24 @@
     }
 
     function buildStrumGridRow(bar, res) {
-        var actions = buildStrumGridActions(bar, res);
-        var inherited = !bar.strumOverride; // 基本ストローク継承中（override未作成）はゴースト表示
-
-        var wrap = document.createElement('div');
-        wrap.className = 'dock-strum-grid beat-groups' + (inherited ? ' is-inherited' : '');
-        wrap.dataset.overlayField = 'strum';
-        wrap.title = getStrumGridStatusText(bar);
-
-        populateBeatGroups(wrap, res, function (index, slotsPerBeat) {
-            var action = actions[index];
-            var cell = document.createElement('button');
-            cell.type = 'button';
-            var boundary = index + 1;
-            cell.className = 'dock-strum-cell is-' + action + ' ' +
-                timelineBoundaryClass(boundary, res, slotsPerBeat);
-            cell.textContent = STRUM_GLYPHS[action] || '・';
-            cell.dataset.cellIndex = String(index);
-            cell.dataset.slotTick = String(index*1920/res);
+        var ranges=editorCellRanges(bar,res,'strum');
+        var wrap=document.createElement('div');wrap.className='dock-strum-grid'+(!bar.strumOverride?' is-inherited':'');
+        wrap.dataset.overlayField='strum';wrap.title=getStrumGridStatusText(bar);
+        var groups=editorBeatGroups(wrap,bar,res,'strum',ranges);
+        ranges.forEach(function(range,index){
+            var value=strumCellState(bar,range),action=value.action;
+            var cell=document.createElement('button');cell.type='button';
+            cell.className='dock-strum-cell is-'+action+' '+lyricLocalBoundaryClass(range.slot,range.count,range.res,range.beat===getBeats(state.project)-1);
+            cell.textContent=value.protected?'…':STRUM_GLYPHS[action]||'・';
+            if(value.protected){cell.setAttribute('aria-readonly','true');cell.title='この範囲の細かなストロークを保持しています。16分表示で編集してください。';}
+            cell.dataset.cellIndex=index;cell.dataset.slotTick=range.tick;cell.dataset.slotTicks=range.span;
             cell.addEventListener('focus',function(){cell.style.boxShadow='inset 0 0 0 2px var(--slot-focus)';cell.style.position='relative';cell.style.zIndex='1';});
             cell.addEventListener('blur',function(){cell.style.boxShadow='';cell.style.zIndex='';});
-            cell.setAttribute('aria-label', bar.barNumber + '小節目 ストローク ' +
-                (index + 1) + 'マス目（' + (STRUM_GLYPHS[action] || '・') + '）');
-            cell.addEventListener('click', function (event) {
-                event.stopPropagation();
-                applyStrumCellAction(bar, res, index, nextStrumCellAction(action));
-            });
-            cell.addEventListener('mousedown', function (event) { event.stopPropagation(); });
-            cell.addEventListener('keydown', function (event) {
-                onStrumCellKeydown(event, bar, res, index, action);
-            });
-            return cell;
+            cell.setAttribute('aria-label',bar.barNumber+'小節目 ストローク '+(index+1)+'マス目（'+cell.textContent+'）');
+            cell.addEventListener('click',function(event){event.stopPropagation();applyStrumCellAction(bar,ranges,index,nextStrumCellAction(action,value.canSustain,false));});
+            cell.addEventListener('mousedown',function(event){event.stopPropagation();});
+            cell.addEventListener('keydown',function(event){onStrumCellKeydown(event,bar,ranges,index,action);});
+            groups[range.beat].appendChild(cell);
         });
         return wrap;
     }
@@ -2000,12 +2013,16 @@
         }
         if (key === 'ArrowRight') {
             event.preventDefault();
-            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
+            if(cells[cells.length-1]===input){
+                if(commitLyricCell(bar,input,slotTick,{skipRender:true}))moveSelectedBar(1,{focusRowId:'lyrics'});
+            }else commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
             return;
         }
         if (key === 'ArrowLeft') {
             event.preventDefault();
-            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, -1));
+            if(cells[0]===input){
+                if(commitLyricCell(bar,input,slotTick,{skipRender:true}))moveSelectedBar(-1,{focusRowId:'lyrics',focusLast:true});
+            }else commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, -1));
             return;
         }
         if (key === 'Backspace') {
@@ -2090,13 +2107,15 @@
      * クリックサイクル・安全処理（IME中は無操作・編集中セルの保全）は
      * nextLyricBeatResState() / prepareLyricResolutionChange() を参照。
      */
-    function buildLyricBeatResButton(bar, beatIndex, globalRes) {
-        var local = getLyricBeatLocalRes(bar, beatIndex);
+    function buildLyricBeatResButton(bar, beatIndex, globalRes, rowId) {
+        rowId=rowId||'lyrics';
+        var local = getLyricBeatLocalRes(bar, beatIndex, rowId);
         var isAuto = (local === null);
         var effectiveRes = local || globalRes;
 
         var btn = document.createElement('button');
         btn.type = 'button';
+        btn.dataset.resolutionRow=rowId;
         btn.className = 'dock-lyrics-beat-res-btn' + (isAuto ? ' is-auto' : ' is-local');
         // v0.22.3後修正: ユーザー最終決定により、表示テキストは常に有効解像度の数字
         // だけ（自動「自8/自16」・固定「固8/固16」という接頭辞文字は廃止）にする。
@@ -2113,13 +2132,13 @@
         var nextText = (next === null) ?
             'クリックすると、自動追従へ戻します' :
             ('クリックすると、この拍だけ' + next + '分に固定します');
-        var label = (beatIndex + 1) + '拍目の歌詞・ドレミセル解像度: ' + stateText + '。' + nextText;
+        var label = (beatIndex + 1) + '拍目の'+(rowId==='lyrics'?'歌詞・ドレミ':DOCK_ROW_LABELS[rowId])+'セル解像度: ' + stateText + '。' + nextText;
         btn.title = label;
         btn.setAttribute('aria-label', label);
 
         btn.addEventListener('click', function (event) {
             event.stopPropagation();
-            switchLyricBeatResolution(bar, beatIndex);
+            switchLyricBeatResolution(bar, beatIndex, rowId);
         });
         btn.addEventListener('mousedown', function (event) { event.stopPropagation(); });
         // G2b: pointerdown preventDefaultで編集中セルの先行blurを止める
@@ -2136,15 +2155,15 @@
      * 拍別ローカル解像度ボタンのクリック処理本体（G2b）。安全処理→状態変更→
      * 1回だけ再描画→フォーカス復元、の順を厳守する。
      */
-    function switchLyricBeatResolution(bar, beatIndex) {
+    function switchLyricBeatResolution(bar, beatIndex, rowId) {
         var prep = prepareLyricResolutionChange(bar);
         if (!prep.ok) return; // IME変換中は何もしない
 
         var globalRes = getStrumGridResolution(bar);
-        var local = getLyricBeatLocalRes(bar, beatIndex);
+        var local = getLyricBeatLocalRes(bar, beatIndex, rowId);
         var isAuto = (local === null);
         var next = nextLyricBeatResState(isAuto, local, globalRes);
-        setLyricBeatLocalRes(bar, beatIndex, next);
+        setLyricBeatLocalRes(bar, beatIndex, next, rowId);
 
         finishLyricResolutionChange(bar, prep.snapshot);
     }
@@ -3377,6 +3396,7 @@
 
     function init() {
         resolveElements();
+        mountEditorStyles();
         mountSheetZoom();
         fillKeySelect(els.originalKey);
         fillKeySelect(els.playKey);
@@ -3547,7 +3567,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.89.0-dev.1',
+        developmentVersion: '0.90.0-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
