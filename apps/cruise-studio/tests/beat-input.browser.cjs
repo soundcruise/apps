@@ -108,7 +108,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             for(const selector of ['[data-overlay-field=chord]','[data-overlay-field=doremi]','.dock-lyrics-cell']){
                 const fields=page.locator(selector);await fields.first().focus();await fields.first().press('ArrowRight');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');
                 await page.keyboard.press('Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'480');await page.keyboard.press('Shift+Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'240');await page.keyboard.press('ArrowLeft');assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'0');
-                await fields.last().press('Tab');assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+                await fields.last().press('Tab');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[2]);await select(page);
             }
             await page.locator('.dock-strum-cell').first().focus();await page.keyboard.press('ArrowRight');await page.keyboard.press('Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'2');await page.keyboard.press('Shift+Tab');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'1');
         }));

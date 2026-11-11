@@ -10,6 +10,7 @@ const root = path.resolve(__dirname, '../../..');
 const studio = path.join(root, 'apps/cruise-studio');
 const origin = 'https://score-phase1.fixture.invalid';
 const output = process.env.STUDIO_SCORE_QA_OUT;
+async function glyphOf(cell){const svg=cell.locator('[data-rest-ticks]');if(await svg.count()){assert((await svg.locator('path').getAttribute('d')).length>50);return await svg.getAttribute('data-rest-ticks')==='120'?'𝄿':'𝄾';}return cell.innerText();}
 const snapshot = page => page.evaluate(() => CruiseStudio.sheetCruise.getSession().workingSnapshot());
 const settle = page => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
@@ -124,14 +125,14 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         }));
         await t.test('stroke arrows cycle; wave extends the preceding stroke and survives history/save',()=>fresh(async page=>{
             await select(page);const cells=page.locator('.dock-strum-cell');
-            for(const [key,glyphs] of [['ArrowDown',['↓','↑','x','・']],['ArrowUp',['↑','↓','x','・']]]){
-                for(const glyph of glyphs){await cells.first().press(key);await settle(page);assert.equal(await cells.first().innerText(),glyph);}
+            for(const [key,glyphs] of [['ArrowDown',['↓','↑','x','𝄾','']],['ArrowUp',['↑','↓','x','𝄾','']]]){
+                for(const glyph of glyphs){await cells.first().press(key);await settle(page);assert.equal(await glyphOf(cells.first()),glyph);}
             }
             const empty=await snapshot(page);await cells.first().press('~');await settle(page);assert.deepEqual(await snapshot(page),empty);
             await cells.first().press('d');await settle(page);
-            for(const key of ['~','〜','～']){if(key==='~')await cells.nth(1).press(key);else await cells.nth(1).dispatchEvent('keydown',{key});await settle(page);assert.equal(await cells.nth(1).innerText(),'〜');}
+            for(const key of ['~','〜','～']){if(key==='~')await cells.nth(1).press(key);else await cells.nth(1).dispatchEvent('keydown',{key});await settle(page);assert.equal(await glyphOf(cells.nth(1)),'〜');}
             const extended=await snapshot(page);await page.locator('#sc-undo').click();assert.notDeepEqual(await snapshot(page),extended);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),extended);
-            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await cells.nth(1).innerText(),'〜');assert.deepEqual(await snapshot(page),saved);
+            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await glyphOf(cells.nth(1)),'〜');assert.deepEqual(await snapshot(page),saved);
         }));
         await t.test('per-beat lyric subdivision matches solfege without changing data or history',()=>fresh(async page=>{
             await select(page);await page.locator('.dock-lyrics-cell').first().fill('あい');await settle(page);await page.locator('[data-overlay-field=doremi]').first().fill('ドレ');await page.locator('[data-overlay-field=doremi]').first().press('Tab');await settle(page);const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
@@ -170,8 +171,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         }));
         await t.test('both arrow cycles include a real sustain with canonical duration and JSON persistence',()=>fresh(async page=>{
             await select(page);const cells=page.locator('.dock-strum-cell');await cells.first().press('d');await settle(page);
-            for(const [key,glyphs] of [['ArrowDown',['↓','↑','x','〜','・']],['ArrowUp',['↑','↓','x','〜','・']]]){
-                for(const glyph of glyphs){await cells.nth(1).press(key);await settle(page);assert.equal(await cells.nth(1).innerText(),glyph);
+            for(const [key,glyphs] of [['ArrowDown',['↓','↑','x','〜','𝄾','']],['ArrowUp',['↑','↓','x','〜','𝄾','']]]){
+                for(const glyph of glyphs){await cells.nth(1).press(key);await settle(page);assert.equal(await glyphOf(cells.nth(1)),glyph);
                     if(glyph==='〜'){
                         const p=await snapshot(page),id=p.performance.barRhythms.find(x=>x.barId===p.bars[0].id).materialId;
                         const slots=p.materials.rhythms.find(x=>x.id===id).snapshot.slots;assert.equal(slots[0].durationTicks,480);assert.equal(slots.length,1);
@@ -181,7 +182,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await cells.nth(1).press('~');await settle(page);const stretched=await snapshot(page);
             await page.locator('#sc-undo').click();assert.notDeepEqual(await snapshot(page),stretched);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),stretched);
             const download=page.waitForEvent('download');await page.locator('#sc-export-json').click();const file=await download;assert.deepEqual(JSON.parse(fs.readFileSync(await file.path(),'utf8')),stretched);
-            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await cells.nth(1).innerText(),'〜');assert.deepEqual(await snapshot(page),saved);
+            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await glyphOf(cells.nth(1)),'〜');assert.deepEqual(await snapshot(page),saved);
         }));
         await t.test('chord and stroke beat buttons are independent and boundaries align at both resolutions',()=>fresh(async page=>{
             await select(page);const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
@@ -232,6 +233,42 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             small.fonts.forEach((size,i)=>assert(Math.abs(large.fonts[i]/size-ratio)<.02));assert(Math.abs(large.button/small.button-ratio)<.02);
             const boxes=await page.locator('.dock-lyrics-beat-res-btn').evaluateAll(elements=>elements.map(e=>{const a=e.getBoundingClientRect(),b=e.parentElement.getBoundingClientRect();return a.left>=b.left-1&&a.right<=b.right+1&&a.bottom<=b.bottom+1;}));assert(boxes.every(Boolean));
             if(output)await page.screenshot({path:path.join(output,'loupe-enlarged.png')});assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
+        }));
+        await t.test('explicit rests, blanks and stretches differ on screen, in JSON and after reload',()=>fresh(async page=>{
+            await page.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession();const r=s.runOperation('Synthetic nonempty basic rhythm',p=>CruiseStudio.model.setBasicStrumText(p,'↓'));if(!r.ok)throw Error(r.error);});
+            await select(page);const cells=page.locator('.dock-strum-cell');assert.equal(await glyphOf(cells.first()),'↓');await cells.first().press('r');await settle(page);assert.equal(await glyphOf(cells.first()),'𝄾');assert.equal(await cells.first().getAttribute('data-strum-state'),'rest');
+            let p=await snapshot(page),binding=p.performance.barRhythms.find(b=>b.barId===p.bars[0].id),slots=p.materials.rhythms.find(m=>m.id===binding.materialId).snapshot.slots;assert.equal(slots[0].action,'rest');assert.equal(slots[0].durationTicks,240);await page.emulateMedia({media:'print'});assert((await page.locator('.sheet-bar').first().locator('[data-rest-ticks]').first().boundingBox()).height>5);await page.emulateMedia({media:'screen'});assert.equal(await glyphOf(page.locator('.sheet-bar').first().locator('[data-strum-state=rest]').first()),'𝄾');
+            await page.locator('[data-resolution-row=strum]').first().click();await settle(page);assert.equal(await glyphOf(cells.first()),'𝄿');assert.equal(await glyphOf(cells.nth(1)),'𝄿');assert.deepEqual(await snapshot(page),p);
+            await cells.nth(1).press('Delete');await settle(page);assert.equal(await cells.nth(1).getAttribute('data-strum-state'),'empty');p=await snapshot(page);binding=p.performance.barRhythms.find(b=>b.barId===p.bars[0].id);slots=p.materials.rhythms.find(m=>m.id===binding.materialId).snapshot.slots;assert.equal(slots[0].durationTicks,120);
+            await cells.first().press('Delete');await settle(page);const empty=await snapshot(page);assert.deepEqual(await page.evaluate(()=>Array.from(CruiseStudio.model.getBarEffectiveStrumSlots(CruiseStudio.sheetCruise.getSession().draft,1))),[]);assert(await page.getByRole('button',{name:'基本に戻す',exact:true}).isVisible());
+            await page.locator('#sc-undo').click();await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),empty);await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await glyphOf(cells.first()),'');assert.deepEqual(await snapshot(page),saved);
+            await page.getByRole('button',{name:'基本に戻す',exact:true}).click();await settle(page);assert.equal(await glyphOf(cells.first()),'↓');await cells.first().press('d');await cells.nth(1).press('~');await settle(page);assert.equal(await cells.nth(1).getAttribute('data-strum-state'),'sustain');await cells.nth(2).press('r');await settle(page);assert.equal(await glyphOf(cells.nth(2)),'𝄾');await cells.nth(3).press('r');await settle(page);await cells.nth(3).press('Delete');await settle(page);assert.equal(await glyphOf(cells.nth(3)),'');
+            const current=await snapshot(page),download=page.waitForEvent('download');await page.locator('#sc-export-json').click();const file=await download;assert.deepEqual(JSON.parse(fs.readFileSync(await file.path(),'utf8')),current);
+            if(output)await page.screenshot({path:path.join(output,'rest-empty-stretch.png')});
+        }));
+        await t.test('Tab and Shift Tab cross every row at boundaries and stop at the song ends',()=>fresh(async page=>{
+            await select(page);
+            for(const selector of ['[data-overlay-field=chord]','.dock-strum-cell','.dock-lyrics-cell','[data-overlay-field=doremi]']){
+                const cells=page.locator(selector);await cells.first().press('Shift+Tab');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);await cells.last().press('Tab');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[2]);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'0');await cells.first().press('Shift+Tab');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'1680');
+            }
+            const last=page.locator('[data-overlay-field=doremi]').last();await last.fill('不正');await last.press('Tab');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
+        }));
+        await t.test('lyrics share the input color, keep IME feedback, and Loupe may overlap the Project toolbar',()=>fresh(async page=>{
+            await select(page);await page.locator('.dock-lyrics-cell').first().fill('あい');await settle(page);await page.locator('[data-overlay-field=doremi]').first().focus();await settle(page);
+            const colors=await page.evaluate(()=>{const a=getComputedStyle(document.querySelector('.dock-lyrics-cell')),b=getComputedStyle(document.querySelector('[data-overlay-field=chord]'));return [a.backgroundColor,b.backgroundColor,getComputedStyle(document.querySelector('.dock-lyrics-grid')).backgroundColor,getComputedStyle(document.querySelector('.slot-overlay-row--chord .slot-overlay-row-body')).backgroundColor];});assert.equal(colors[0],colors[1]);assert.equal(colors[2],colors[3]);
+            const before=await snapshot(page),head=page.locator('.slot-overlay-head'),r=await head.boundingBox();await page.mouse.move(r.x+r.width-6,r.y+4);await page.mouse.down();await page.mouse.move(r.x+r.width-6,80,{steps:8});await page.mouse.up();await settle(page);
+            const geometry=await page.evaluate(()=>{const card=document.querySelector('#sc-slot-overlay').getBoundingClientRect(),toolbar=document.querySelector('.sheet-toolbar').getBoundingClientRect(),nav=document.querySelector('#screen-sheet-cruise .workspace-local-nav').getBoundingClientRect();return {y:card.y,bottom:toolbar.bottom,navBottom:nav.bottom};});assert(geometry.y<geometry.bottom-20);assert(geometry.y>=geometry.navBottom+7);assert.deepEqual(await snapshot(page),before);
+            const lyric=page.locator('.dock-lyrics-cell').first();await lyric.focus();await lyric.dispatchEvent('compositionstart');assert(await lyric.evaluate(e=>e.classList.contains('is-composing')));await lyric.dispatchEvent('compositionend');await settle(page);
+            if(output)await page.screenshot({path:path.join(output,'toolbar-overlap.png')});
+        }));
+        await t.test('clearing inside an explicit rest preserves silence on both sides and rejects an orphan stretch',()=>fresh(async page=>{
+            await page.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession();const result=s.runOperation('Synthetic long explicit rest',p=>CruiseStudio.model.setBarStrumSlots(p,1,[{tick:0,action:'rest',durationTicks:720,accent:false}]));if(!result.ok)throw Error(result.error);});await select(page);
+            await page.locator('[data-resolution-row=strum]').first().click();await settle(page);const before=await snapshot(page);await page.locator('.dock-strum-cell[data-slot-tick="240"]').press('Delete');await settle(page);const after=await snapshot(page),binding=after.performance.barRhythms.find(b=>b.barId===after.bars[0].id),slots=after.materials.rhythms.find(m=>m.id===binding.materialId).snapshot.slots;
+            assert.deepEqual(slots.map(e=>[e.tick,e.durationTicks,e.action]),[[0,240,'rest'],[360,360,'rest']]);await page.locator('.dock-strum-cell[data-slot-tick="240"]').press('~');await settle(page);assert.deepEqual(await snapshot(page),after);await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),before);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),after);
+        }));
+        await t.test('current text entry already preserves explicit high and low octaves with timing and IDs',()=>fresh(async page=>{
+            await select(page);const field=page.locator('[data-overlay-field=doremi]').first();await field.fill('ド↑');await field.press('Tab');await settle(page);let note=(await snapshot(page)).bars[0].melody[0];assert.deepEqual(note.pitch,{step:'C',alter:0,octave:5});const original=note;
+            await field.fill('ド↓');await field.press('Tab');await settle(page);note=(await snapshot(page)).bars[0].melody[0];assert.deepEqual(note.pitch,{step:'C',alter:0,octave:3});assert.equal(note.id,original.id);assert.equal(note.durationTicks,original.durationTicks);assert.deepEqual(note.provenance,original.provenance);
         }));
         await t.test('console and external requests remain clean',()=>{assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);assert.deepEqual(missing,[])});
     }finally{await browser.close();}

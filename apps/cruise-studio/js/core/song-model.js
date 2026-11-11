@@ -672,7 +672,7 @@
         if (!bar) return null;
         if (bar.strumOverride) {
             var pattern = findStrumPattern(project, bar.strumOverride);
-            if (pattern && Array.isArray(pattern.slots) && pattern.slots.length > 0) {
+            if (pattern && Array.isArray(pattern.slots)) {
                 return pattern.slots;
             }
         }
@@ -683,11 +683,12 @@
      * 小節のストロークを slots 配列で直接設定する（D3aのセル編集が使う低レベルAPI）。
      * 小節専用パターンID管理（allocate/衝突回避/未参照掃除）はここに共通化してあり、
      * setBarStrumText() もこの関数の上に薄いパーサとして乗る。
-     * slots が空配列なら override を外し、基本ストロークへ継承を戻す。
+     * slots が空配列なら既定では基本へ戻す。keepEmpty=true は明示的な未入力overrideを保持する。
      * @param {Array<{tick:number, action:string, accent?:boolean, durationTicks?:number}>} slots
+     * @param {{keepEmpty?:boolean}} [options] 未入力overrideを保持する（既定false）
      * @returns {{inherited: boolean, patternId: string|null}}
      */
-    function setBarStrumSlots(project, barNumber, slots) {
+    function setBarStrumSlots(project, barNumber, slots, options) {
         var bar = findBar(project, barNumber);
         if (!bar) return { inherited: true, patternId: null };
         if (!Array.isArray(project.strumPatterns)) project.strumPatterns = [];
@@ -697,7 +698,7 @@
         var beats = getBeats(project);
         var cleanSlots = Array.isArray(slots) ? slots.filter(Boolean) : [];
 
-        if (cleanSlots.length === 0) {
+        if (cleanSlots.length === 0 && !(options && options.keepEmpty)) {
             bar.strumOverride = null;
             if (isManagedBarStrumId(previousId) && !isStrumPatternReferenced(project, previousId)) {
                 removeStrumPatternById(project, previousId);

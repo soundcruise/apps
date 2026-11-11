@@ -36,8 +36,9 @@
     var DOCK_ROW_LABELS = { chord: 'コード', strum: 'ストローク', lyrics: '歌詞', doremi: 'ドレミ' };
 
     // D3a: ストロークセルのクリック循環順（空/restから開始）
-    var STRUM_CELL_CYCLE = ['down', 'up', 'mute', 'sustain', 'rest'];
-    var STRUM_GLYPHS = { down: '↓', up: '↑', mute: 'x', rest: '・', sustain: '〜' };
+    var STRUM_CELL_CYCLE = ['down', 'up', 'mute', 'sustain', 'rest', 'empty'];
+    var STRUM_GLYPHS = { down: '↓', up: '↑', mute: 'x', empty: '', sustain: '〜' };
+    function strumRestGlyph(ticks){return ticks===120?'𝄿':ticks===240?'𝄾':'休';}
 
     // F1: フローティング小節ルーペのサイズ定数（docs/DECISIONS.md ADR-027）
     var LOUPE_BASE_WIDTH = 960;     // --bar-loupe-scale = 現在幅 / この値
@@ -865,6 +866,13 @@
 #sc-slot-overlay .dock-lyrics-beat-cells {padding-bottom:calc(12px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .dock-lyrics-beat-res-btn {width:calc(24px * var(--bar-loupe-scale,1));min-height:calc(12px * var(--bar-loupe-scale,1));font-size:calc(8px * var(--bar-loupe-scale,1));gap:calc(1.5px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .dock-lyrics-beat-res-btn.is-local::before {width:calc(6.5px * var(--bar-loupe-scale,1));height:calc(6.5px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .dock-strum-grid.is-inherited {opacity:1;}
+#sc-slot-overlay .strum-state-legend {font-size:calc(10px * var(--bar-loupe-scale,1));color:var(--slot-muted);margin:calc(4px * var(--bar-loupe-scale,1)) 0 0;}
+#sc-slot-overlay .dock-lyrics-grid {background:var(--slot-input-surface);}
+#sc-slot-overlay .dock-strum-cell.is-rest {color:var(--paper-strum-stroke);}
+#sc-slot-overlay .dock-lyrics-cell.has-content {background:transparent;}
+#sc-slot-overlay .dock-lyrics-cell.is-composing {background:rgba(74,101,126,.30);}
+#sc-slot-overlay .dock-lyrics-cell:focus {background:var(--slot-input-surface);}
 #sc-slot-overlay .slot-overlay-row-note {font-size:calc(10px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-resize-handle {width:calc(24px * var(--bar-loupe-scale,1));height:calc(24px * var(--bar-loupe-scale,1));}
 `;
@@ -1202,8 +1210,8 @@
                 var result=input.readOnly?{ok:true}:apply(false);if(!result.ok||input.getAttribute('aria-invalid')==='true')return;
                 owner.finishTextGroup();
                 if(e.key==='ArrowUp'||e.key==='ArrowDown'){focusAdjacentRow(kind,tick,e.key==='ArrowUp'?-1:1);return;}
-                if((e.key==='Enter'||e.key==='ArrowRight')&&index===ranges.length-1){moveSelectedBar(1,{focusRowId:kind});return;}
-                if(e.key==='ArrowLeft'&&index===0){moveSelectedBar(-1,{focusRowId:kind,focusLast:true});return;}
+                if((e.key==='Enter'||e.key==='ArrowRight'||(e.key==='Tab'&&!e.shiftKey))&&index===ranges.length-1){moveSelectedBar(1,{focusRowId:kind});return;}
+                if((e.key==='ArrowLeft'||(e.key==='Tab'&&e.shiftKey))&&index===0){moveSelectedBar(-1,{focusRowId:kind,focusLast:true});return;}
                 var direction=e.key==='ArrowLeft'||(e.key==='Tab'&&e.shiftKey)?-1:1;
                 var nextTick=ranges[Math.max(0,Math.min(ranges.length-1,index+direction))].tick;
                 if(kind==='doremi'&&CS().theory.parseDoremiString(input.value).notes.length>1){renderSlotOverlayContent();queueEditorFrame(function(){var next=els.slotOverlay.querySelector('[data-overlay-field="'+kind+'"][data-slot-tick="'+nextTick+'"]');if(next)next.focus();});}
@@ -1542,13 +1550,13 @@
         var previous=slots.filter(function(e){return e.tick<range.tick;}).pop();
         var exact=starts.find(function(e){return e.tick===range.tick;});
         return {
-            action:exact?exact.action:previous&&previous.action!=='rest'&&previous.tick+(previous.durationTicks||1)>range.tick?'sustain':'rest',
+            action:exact?exact.action:previous&&previous.tick+(previous.durationTicks||1)>range.tick?(previous.action==='rest'?'rest':'sustain'):'empty',
             protected:starts.some(function(e){return e.tick!==range.tick;}),
             canSustain:!!(previous&&previous.action!=='rest'&&(previous.tick+(previous.durationTicks||1)>=range.tick||(previous.durationTicks===undefined&&previous.tick===range.previousTick)))
         };
     }
     function nextStrumCellAction(current,canSustain,up){
-        var cycle=up?['up','down','mute','sustain','rest']:STRUM_CELL_CYCLE;
+        var cycle=up?['up','down','mute','sustain','rest','empty']:STRUM_CELL_CYCLE;
         var next=cycle[(cycle.indexOf(current)+1)%cycle.length];
         // A stretch needs a preceding stroke; never invent one or get stuck here.
         return next==='sustain'&&!canSustain?'rest':next;
@@ -1591,21 +1599,30 @@
         var previous=slots.filter(function(e){return e.tick<range.tick;}).pop();
         var previousEnd=previous?previous.tick+(previous.durationTicks||1):0;
         slots=slots.filter(function(e){return e!==old;});
+        var end=range.tick+range.span;
+        // A rest split preserves confirmed silence outside the edited interval.
+        function restTail(event){
+            var tailEnd=event&&event.action==='rest'?event.tick+(event.durationTicks||1):0;
+            if(tailEnd>end){var tail=JSON.parse(JSON.stringify(event));tail.tick=end;tail.durationTicks=tailEnd-end;slots.push(tail);}
+        }
+        restTail(old);
+        if(previous&&previous.action==='rest'&&previousEnd>range.tick){restTail(previous);previous.durationTicks=range.tick-previous.tick;}
         if(action==='sustain'){
-            previous.durationTicks=Math.max(previousEnd,range.tick+range.span,old?old.tick+(old.durationTicks||1):0)-previous.tick;
-            if(old&&old.tieToNext)previous.tieToNext=true;
+            previous.durationTicks=Math.max(previousEnd,end,old&&old.action!=='rest'?old.tick+(old.durationTicks||1):0)-previous.tick;
+            if(old&&old.action!=='rest'&&old.tieToNext)previous.tieToNext=true;
         }else{
-            if(previousEnd>range.tick){previous.durationTicks=range.tick-previous.tick;delete previous.tieToNext;}
-            if(action!=='rest'){
+            if(previous&&previous.action!=='rest'&&previousEnd>range.tick){previous.durationTicks=range.tick-previous.tick;delete previous.tieToNext;}
+            if(action!=='empty'){
                 var value=old||{tick:range.tick,accent:false};
                 value.action=action;
-                if(!old)value.durationTicks=Math.max(range.tick+range.span,previousEnd)-range.tick;
+                if(action==='rest') {value.durationTicks=range.span;value.accent=false;delete value.tieToNext;}
+                else if(!old||cell.action==='rest')value.durationTicks=Math.max(end,previous&&previous.action!=='rest'?previousEnd:0)-range.tick;
                 slots.push(value);
             }
         }
         slots.sort(function(a,b){return a.tick-b.tick;});
         if(JSON.stringify(slots)===JSON.stringify(effectiveStrumSlots(bar)))return;
-        if (!runStructureOperation('strum', { barNumber: bar.barNumber, slots: slots }).ok) return;
+        if (!runStructureOperation('strum', { barNumber: bar.barNumber, slots: slots,keepEmpty:true }).ok) return;
         markDirty();renderPreview();
         focusStrumCellAfterRender(typeof focusIndex === 'number' ? focusIndex : index);
     }
@@ -1663,7 +1680,7 @@
         if(key==='〜'||key==='～'||key==='~'){
             event.preventDefault();applyStrumCellAction(bar,ranges,index,'sustain');return;
         }
-        if (key === ' ' || key === 'Spacebar') {
+        if (key === ' ' || key === 'Spacebar' || key==='r' || key==='R') {
             // ネイティブのbutton click（=セル循環）を誘発しないよう、rest確定はこちらで処理する
             event.preventDefault();
             applyStrumCellAction(bar, ranges, index, 'rest');
@@ -1671,7 +1688,7 @@
         }
         if (key === 'Delete' || key === 'Backspace') {
             event.preventDefault();
-            applyStrumCellAction(bar, ranges, index, 'rest');
+            applyStrumCellAction(bar, ranges, index, 'empty');
             return;
         }
         if (key === 'Enter') {
@@ -1680,7 +1697,7 @@
             else focusStrumCellAfterRender(index + 1);
             return;
         }
-        if(key==='Tab'){event.preventDefault();focusStrumCellAfterRender(index+(event.shiftKey?-1:1));return;}
+        if(key==='Tab'){event.preventDefault();if(!event.shiftKey&&index===ranges.length-1)moveSelectedBar(1,{focusRowId:'strum'});else if(event.shiftKey&&index===0)moveSelectedBar(-1,{focusRowId:'strum',focusLast:true});else focusStrumCellAfterRender(index+(event.shiftKey?-1:1));return;}
         // Keep cell navigation within this row.
         event.stopPropagation();
     }
@@ -1694,12 +1711,16 @@
             var value=strumCellState(bar,range),action=value.action;
             var cell=document.createElement('button');cell.type='button';
             cell.className='dock-strum-cell is-'+action+' '+lyricLocalBoundaryClass(range.slot,range.count,range.res,range.beat===getBeats(state.project)-1);
-            cell.textContent=value.protected?'…':STRUM_GLYPHS[action]||'・';
+            cell.textContent=value.protected?'…':action==='rest'?strumRestGlyph(range.span):STRUM_GLYPHS[action]||'';
+            cell.dataset.strumState=action;
+            if(action==='rest'&&!value.protected){cell.textContent='';cell.appendChild(CS().sheetRenderer.createStrumRestSymbol(range.span));}
             if(value.protected){cell.setAttribute('aria-readonly','true');cell.title='この範囲の細かなストロークを保持しています。16分表示で編集してください。';}
             cell.dataset.cellIndex=index;cell.dataset.slotTick=range.tick;cell.dataset.slotTicks=range.span;
             cell.addEventListener('focus',function(){cell.style.boxShadow='inset 0 0 0 2px var(--slot-focus)';cell.style.position='relative';cell.style.zIndex='1';});
             cell.addEventListener('blur',function(){cell.style.boxShadow='';cell.style.zIndex='';});
-            cell.setAttribute('aria-label',bar.barNumber+'小節目 ストローク '+(index+1)+'マス目（'+cell.textContent+'）');
+            var meaning=action==='empty'?'未入力':action==='rest'?(range.span===120?'16分休符の表示区間':'8分休符の表示区間'):action==='sustain'?'直前のストロークを伸ばす':cell.textContent;
+            cell.setAttribute('aria-label',bar.barNumber+'小節目 ストローク '+(index+1)+'マス目（'+meaning+'）');
+            if(!value.protected)cell.title=meaning+' / R／Space:休符 / Delete:未入力';
             cell.addEventListener('click',function(event){event.stopPropagation();applyStrumCellAction(bar,ranges,index,nextStrumCellAction(action,value.canSustain,false));});
             cell.addEventListener('mousedown',function(event){event.stopPropagation();});
             cell.addEventListener('keydown',function(event){onStrumCellKeydown(event,bar,ranges,index,action);});
@@ -2008,7 +2029,9 @@
         if (key === 'Tab') {
             event.preventDefault();
             var dir = event.shiftKey ? -1 : 1;
-            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, dir));
+            if((dir===1&&cells[cells.length-1]===input)||(dir===-1&&cells[0]===input)){
+                if(commitLyricCell(bar,input,slotTick,{skipRender:true}))moveSelectedBar(dir,{focusRowId:'lyrics',focusLast:dir===-1});
+            }else commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, dir));
             return;
         }
         if (key === 'ArrowRight') {
@@ -2387,40 +2410,15 @@
         return Math.round(Math.max(minX, Math.min(maxX, v)));
     }
 
-    /**
-     * v0.22.4後修正: ルーペ上端の下限Y座標。画面上部に重なりうる固定/sticky UIの
-     * 実際の下端＋小余白を、固定値LOUPE_TOP_MARGINより優先して使う。
-     * - #app-nav（画面左上固定の「← 戻る」/「🏠 TOP」。position:fixed）
-     * - .sheet-toolbar（プロジェクト選択・新規・保存・印刷・JSON関連。
-     *   position:stickyでスクロール前は通常のフロー位置にあるが、画面幅の
-     *   ほぼ全体を占めるため、フローターの通常の配置とほぼ確実に水平方向で
-     *   重なる。スクロールしてstickyが固定化された状態（CSS上のtop値＋
-     *   要素自身の高さ）を安全側の下端として常に想定する。これによりスクロール
-     *   位置を監視するような複雑な仕組みを増やさずに済む
-     * いずれも実際に表示されている（getBoundingClientRect().height > 0）
-     * 要素だけを候補にし、最も下にある候補＋余白を採用する。非表示
-     * （display:none等）の要素はheightが0になるため自動的に候補から外れ、
-     * 既存のLOUPE_TOP_MARGINへフォールバックする。
-     */
+    // Overlap with the Project toolbar is allowed. Keep global navigation usable.
     function readDefaultLoupeSafeArea() {
         var candidates = [LOUPE_TOP_MARGIN];
 
-        var nav = els.nav;
+        var nav = els.nav || (els.root && els.root.querySelector('.workspace-local-nav'));
         if (nav) {
             var navRect = nav.getBoundingClientRect();
             if (navRect.height > 0) {
                 candidates.push(Math.round(navRect.bottom) + 8);
-            }
-        }
-
-        var toolbar = els.toolbar;
-        if (toolbar) {
-            var toolbarRect = toolbar.getBoundingClientRect();
-            if (toolbarRect.height > 0) {
-                var stickyTop = parseFloat(getComputedStyle(toolbar).top);
-                if (!isFinite(stickyTop)) stickyTop = 0;
-                var stickyBottom = stickyTop + toolbarRect.height;
-                candidates.push(Math.round(stickyBottom) + 8);
             }
         }
 
@@ -3070,6 +3068,7 @@
         });
 
         els.slotOverlay.appendChild(grid);
+        var legend=document.createElement('p');legend.className='strum-state-legend';legend.textContent='ストローク：空欄＝未入力 ／ 休符記号＝休符 ／ 〜＝伸ばし　R／Space：休符　Delete：未入力';els.slotOverlay.appendChild(legend);
 
         if (state.dockBulkOpen) {
             els.slotOverlay.appendChild(buildBulkInputPanel());
@@ -3567,7 +3566,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.90.0-dev.1',
+        developmentVersion: '0.91.0-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,

@@ -49,7 +49,7 @@
         (project.strumPatterns || []).forEach(function (pat) {
             if (pat.id === project.basicStrumPatternId) name = pat.name;
         });
-        return name;
+        return /^[↓↑xX・.．〜～\s]+$/.test(name)?name.replace(/[・.．]/g,' ').trim():name;
     }
 
     function resolveBarStrum(project, bar) {
@@ -159,38 +159,44 @@
         });
     }
 
-    /**
-     * ストローク段（↓↑x・〜の文字表示）を作る。
-     * マス数はパターン自身の粒度（8 or 16）で決める。グリッド線が16分でも
-     * 8分ストロークは8マスのまま表示する（同じ幅の等分なので拍位置は揃う）。
-     * 正しい休符記号・タイ曲線の記譜描画は将来フェーズ（VexFlow導入時）。
-     */
-    function strumGlyphClass(text) {
-        if (text === '・') return 'is-rest';
-        if (text === '〜') return 'is-sustain';
-        if (text === 'x') return 'is-mute';
-        return 'is-stroke';
+    // Use the bundled Bravura outlines: no OS music-font or network dependency.
+    var restOutlines={};
+    function createStrumRestSymbol(ticks){
+        var VF=window.Vex&&window.Vex.Flow;
+        if(!VF||![120,240].includes(ticks))return el('span','strum-rest-label',ticks===120?'16分休符':ticks===240?'8分休符':'休符');
+        if(!restOutlines[ticks]){
+            var glyph=new VF.Glyph(ticks===120?'rest16th':'rest8th',60),m=glyph.getMetrics(),commands=[];
+            var pen={beginPath:function(){},moveTo:function(x,y){commands.push('M'+x+' '+y);},lineTo:function(x,y){commands.push('L'+x+' '+y);},quadraticCurveTo:function(a,b,x,y){commands.push('Q'+a+' '+b+' '+x+' '+y);},bezierCurveTo:function(a,b,c,d,x,y){commands.push('C'+a+' '+b+' '+c+' '+d+' '+x+' '+y);},fill:function(){}};
+            VF.Glyph.renderOutline(pen,m.outline,m.scale,0,0);
+            var box=VF.Glyph.getOutlineBoundingBox(m.outline,m.scale,0,0);
+            restOutlines[ticks]={path:commands.join(' '),box:[box.getX()-1,box.getY()-1,box.getW()+2,box.getH()+2].join(' ')};
+        }
+        var ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),path=document.createElementNS(ns,'path');
+        svg.setAttribute('viewBox',restOutlines[ticks].box);svg.setAttribute('width','.9em');svg.setAttribute('height','1.3em');svg.style.verticalAlign='middle';
+        svg.setAttribute('data-rest-ticks',ticks);svg.setAttribute('role','img');svg.setAttribute('aria-label',ticks===120?'16分休符':'8分休符');
+        path.setAttribute('d',restOutlines[ticks].path);path.setAttribute('fill','currentColor');svg.appendChild(path);return svg;
     }
 
-    function buildStrumRow(slots, barTicks) {
-        var res = strumNeedsSixteenth(slots) ? 16 : 8;
-        var slotTicks = barTicks / res;
-        var glyphs = { down: '↓', up: '↑', mute: 'x' };
-
-        var cells = [];
-        for (var c = 0; c < res; c++) cells.push('・');
-        slots.forEach(function (ev) {
-            var idx = Math.round(ev.tick / slotTicks);
-            if (idx < 0 || idx >= res) return;
-            cells[idx] = glyphs[ev.action] || '・';
-            var len = Math.max(1, Math.round((ev.durationTicks || slotTicks) / slotTicks));
-            for (var e = 1; e < len && idx + e < res; e++) cells[idx + e] = '〜';
+    // Empty = no event, rest = explicit rest + duration, sustain = previous stroke duration.
+    function buildStrumRow(slots, barTicks, viewResolution) {
+        var res=Math.max(strumNeedsSixteenth(slots)?16:8,viewResolution===16?16:8);
+        var slotTicks=barTicks/res,glyphs={down:'↓',up:'↑',mute:'x'};
+        var cells=Array.from({length:res},function(){return {text:'',state:'empty'};});
+        slots.forEach(function(ev){
+            var idx=Math.round(ev.tick/slotTicks);if(idx<0||idx>=res)return;
+            var len=Math.max(1,Math.round((ev.durationTicks||slotTicks)/slotTicks));
+            for(var n=0;n<len&&idx+n<res;n++){
+                var rest=ev.action==='rest';
+                cells[idx+n]=rest?{text:slotTicks===120?'𝄿':'𝄾',state:'rest'}:n?{text:'〜',state:'sustain'}:{text:glyphs[ev.action]||'',state:ev.action};
+            }
         });
-
-        var row = el('span', 'sheet-bar-strum sheet-bar-row sheet-bar-strum--' + res);
-        row.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
-        cells.forEach(function (text) {
-            row.appendChild(el('span', strumGlyphClass(text), text));
+        var row=el('span','sheet-bar-strum sheet-bar-row sheet-bar-strum--'+res);
+        row.style.gridTemplateColumns='repeat('+res+',1fr)';
+        cells.forEach(function(value){
+            var cell=el('span','is-'+value.state+(['down','up'].includes(value.state)?' is-stroke':''),value.state==='rest'?'':value.text);cell.dataset.strumState=value.state;
+            cell.title=value.state==='empty'?'未入力':value.state==='rest'?'休符':value.state==='sustain'?'伸ばし':value.text;
+            if(value.state==='rest'){cell.style.color='var(--paper-strum-stroke)';cell.appendChild(createStrumRestSymbol(slotTicks));}
+            row.appendChild(cell);
         });
         return row;
     }
@@ -247,7 +253,7 @@
         // ストローク段: コード段の直下。小節別上書きがあればそれを優先し、
         // なければユーザー入力済みの基本ストロークを継承する
         if (strum && strum.slots) {
-            cell.appendChild(buildStrumRow(strum.slots, strum.barTicks));
+            cell.appendChild(buildStrumRow(strum.slots, strum.barTicks, timeRes));
         }
 
         if (hasVocal && show.lyrics) {
@@ -322,6 +328,7 @@
         resolveShowSettings: resolveShowSettings,
         // D3a: 下部ドックのタイムグリッド解像度判定（8分/16分）が紙面と同じ基準を使うための公開。
         // ロジック自体は無変更（紙面のストローク段描画とドックのセル表示解像度の両方から使う）
+        createStrumRestSymbol: createStrumRestSymbol,
         strumNeedsSixteenth: strumNeedsSixteenth
     };
 })();

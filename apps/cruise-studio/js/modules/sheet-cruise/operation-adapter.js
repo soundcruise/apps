@@ -99,7 +99,7 @@
                 case 'barCount': model.setSectionBarCount(draft, args.sectionId, args.count); break;
                 case 'strum': case 'resetStrum':
                     if (!draft.bars.some(function (b) { return b.barNumber === args.barNumber; })) throw Error('小節が見つかりません');
-                    model.setBarStrumSlots(draft, args.barNumber, kind === 'resetStrum' ? [] : args.slots); break;
+                    model.setBarStrumSlots(draft, args.barNumber, kind === 'resetStrum' ? [] : args.slots, {keepEmpty:kind==='strum'&&args.keepEmpty===true}); break;
                 case 'bulkChord': case 'bulkDoremi':
                     var start = draft.bars.findIndex(function (b) { return b.barNumber === args.barNumber; });
                     if (start < 0) throw Error('小節が見つかりません');
