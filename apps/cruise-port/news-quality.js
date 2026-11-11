@@ -15,5 +15,15 @@ export function tickerRank(item,now){
  return labelInformationScore(item.label)+Math.max(0,1-age/7);
 }
 export function compareTicker(a,b,now){return tickerRank(b,now)-tickerRank(a,now)||(b.publishedAt||b.published_at).localeCompare(a.publishedAt||a.published_at)||a.id.localeCompare(b.id);}
+// Callers still own visibility, takedown and 7/14-day eligibility. Reserve the
+// first slot for the newest JST day (respecting that day's manual order), then
+// retain the established importance ranking. Reduced-motion users see slot 1.
+export function selectTicker(items,now){
+ if(!items.length)return [];
+ const stamp=i=>i.publishedAt||i.published_at;
+ const day=i=>new Date(Date.parse(stamp(i))+9*3600000).toISOString().slice(0,10);
+ const latest=[...items].sort((a,b)=>day(b).localeCompare(day(a))||(a.displayOrder??100000)-(b.displayOrder??100000)||stamp(b).localeCompare(stamp(a))||a.id.localeCompare(b.id))[0];
+ return [latest,...items.filter(i=>i!==latest).sort((a,b)=>compareTicker(a,b,now)).slice(0,4)];
+}
 export const validEventDeadline=value=>value==null||(Number.isSafeInteger(value)&&value>=0);
 export function eventVisible(item,now){return validEventDeadline(item.eventEndsAt)&&(item.eventEndsAt==null||item.eventEndsAt>=now);}

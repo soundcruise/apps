@@ -1,6 +1,6 @@
 import { articlePath } from './news-articles.js?v=1.16.1';
-import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.11.1';
-export {labelInformationScore} from './news-quality.js?v=1.11.1';
+import {labelInformationScore,selectTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.34.0';
+export {labelInformationScore} from './news-quality.js?v=1.34.0';
 // Manual ingestion boundary. No collector, persistence or network access.
 export const NEWS_MODE = 'beta';
 export const NEWS_CATEGORIES = Object.freeze({
@@ -82,7 +82,7 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
 export function tickerNews(items, now = Date.now()) {
     const recent = days => items.filter(item => saleVisible(item, now) && eventVisible(item, now) && now - Date.parse(item.publishedAt) >= 0 && now - Date.parse(item.publishedAt) <= days * DAY);
     const week = recent(7);
-    return (week.length ? week : recent(14)).sort((a, b) => compareTicker(a, b, now)).slice(0, 5);
+    return selectTicker(week.length ? week : recent(14), now);
 }
 export function groupNews(items, category = '', now = Date.now()) {
     const groups = new Map();
