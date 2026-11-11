@@ -38,6 +38,7 @@ for(const engine of ['chrome','webkit'])test('real local UI server '+engine,asyn
  await p.emulateMedia({media:'screen'});
  await p.locator('.sheet-bar').first().focus();await p.keyboard.press('Enter');await p.locator('[data-overlay-field=doremi]').last().focus();await p.locator('[data-piano-toggle]').click();await p.locator('[data-piano-midi="69"]').click();
  await p.waitForFunction(()=>__localPiano.starts===1);assert.equal(await p.evaluate(()=>__localPiano.decoded),1);assert.equal(await p.locator('.piano-selected-cell').count(),1);await p.evaluate(()=>CruiseStudio.audio.stopAll());assert((await p.evaluate(()=>CruiseStudio.audio.snapshot())).every(s=>s.contextCount===0&&s.resourceType===null));
+ const beforePreview=await snap();await p.locator('[data-bar-preview]').click();await p.waitForFunction(()=>__localPiano.starts>1&&document.querySelector('[data-bar-preview]').textContent==='■ 停止');assert(await p.evaluate(()=>!!CruiseStudio.guitarSamples));await p.evaluate(()=>CruiseStudio.audio.stopAll());assert.deepEqual(await snap(),beforePreview);assert((await p.evaluate(()=>CruiseStudio.audio.snapshot())).every(s=>s.contextCount===0&&s.resourceType===null));
  // Explicit hostile calls must fail before leaving the browser; no route mocks.
  const blocked=await p.evaluate(async()=>{try{await fetch('https://sound-cruise-sync.cruise-port-requests.workers.dev/v2/pro-auth/verify',{method:'POST',body:'{}'});return false}catch{return true}});assert(blocked);
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.deepEqual(backend,[]);

@@ -1,3 +1,26 @@
+# カード上端移動・休符と伸ばし・小節試聴
+
+候補 0.95.0-dev.1。2f2fa36eまでの成果を保持。
+
+- B側のLoupe上端をviewportの0pxに変更。戻る／ホームに重ねて移動できる。左右境界・下端・Inspectorの制約は維持し、ShellのsafeArea provider本体は変更しない。ヘッダーの「基本に戻す」「Alt+←/→で移動」を削除し、キー操作・既存reset command／保存仕様は維持する。
+- ＋の隣に前／次のマスボタンを追加し、休符・〜・⌫を同じ並びへ移動。既存のセルキー操作を経由し、小節境界でも同じ行へ進む。IME・不正入力・古い対象のガードを維持する。
+- 休符はCanonicalには存在しても既存Structure投影のmelodyから除外されるため、紙面に出ていなかった。B側の表示callbackでCanonicalの休符を渡し、編集セル・紙面・印刷へ控えめなSVG音楽記号を表示する。全／2分／4分／8分／16分／32分／64分と付点、既存Notation segmentで表現できる複合音価に対応。表現できない特殊音価は「?」と説明で未対応を明示し、既知の音価へ置換しない。schema2や投影の保存契約は変更しない。
+- 従来の〜ボタンは選択音のdurationを伸ばしていたが、空の次マスからは使えず、紙面のdurationを表示時に1tickへ縮めたため延長も見えなかった。隣接する前の音を選択中の空マスへ伸ばし、継続するマスに〜を表示する。元の音ID・開始位置は維持。別の音／休符・小節末尾への重なりは拒否し、空欄から孤立した〜を生成しない。鍵盤編集モードでは~／〜／～キーも同じ操作へ委譲し、IMEと通常のテキスト編集は維持する。
+- C5初期色をオレンジへ変更。C6は紫、C7はピンク、C1は緑、C8は茶として周辺音域の初期色を区別した。C2・C3・C4と利用者が保存した色設定は維持する。🎨で変更可能。
+- カード上部の▶再生で、選択中の1小節のコード開始位置とメロディをBPMどおり試聴する。メロディはCanonicalのpitch・onset・duration、休符は無音。コードは既存Chord Cruiseのquality interval定義から参考ボイシングを一時生成し、Iowa／N. P. Brosowskyのアコギ録音で軽く分散して鳴らす。確認済みフォーム・MIDI出力・Projectへ採用せず、未対応コードは説明して省く。現在はコード開始位置での試聴であり、ストローク行を演奏へ反映する機能や全曲再生は含まない。
+- 既存のピアノ試聴owner／Audio Coordinatorを共有してポリフォニーをscheduleする。連打・試聴への切替・編集時のcancel・自動終了・手動停止・全停止・小節／Project／Workspace移動・非表示で停止する。準備中の停止後にdecodeが完了しても鳴らさず、停止失敗時のlease保持を維持する。Audio Coordinator本体やStudio Shellには変更を加えない。
+- アコギ13音をCC BY 3.0のtonejs-instruments固定commit 622c2f1c32c8cfce4158ddc3eb26e518ddef37e5から同梱。原音MP3・base64・checksum・原文license/source inventory・再生成コマンドをvendor/guitarとscripts/build-guitar-bank.pyへ保持する。Runtimeは同一originのJSだけを読み込み、CSP connect-src none・外部API遮断・公開package allowlistは不変更。
+
+検証：Chrome／WebKitで表示・鍵盤・拍操作各46件PASS。既存UI／実18874の22件PASS。実18874で実MP3のピアノ・アコギdecodeと再生開始を両エンジンで確認した。実Web Audio OfflineAudioContextで両音源の混合信号と末尾の無音を確認。試聴／小節preview／音源15件＋Audio Coordinator21件を含む広域Nodeは1092 PASS／既存4 FAIL／1 SKIP。既存4件は前回までと同じ固定import／version検査3件と旧Structure redraw正規表現で、リポジトリ全体PASSとは判定しない。
+
+上端0pxへの実drag、ボタンの同一行配置、小節境界の前後移動、不正入力保持、全休符だけの小節とUndo/Redo、印刷SVG、〜の音ID／durationと保存・再読込、自然終了と編集時停止、snapshot／履歴／フォーム採用が試聴で変わらないことを確認。細かな保存タイミングを丸めず、未入力を休符に置換しない。schema2・Music Model基本構造・Repository CAS・本番認証・Account・Sync・Coming soon・サーバー・origin・保存領域は不変更。本番認証／Cloud通信0件。実Safariアプリ・物理スピーカーでの音色は利用者確認待ち。
+
+確認URL: http://127.0.0.1:18874/ 。未保存分を保存して再読込。カードを上端へドラッグし、＋横の←→、空の次マスで〜、休符／消去、▶再生／■停止を確認する。保存データの移行・サーバー再起動・main merge・公開・pushは行わない。
+
+---
+
+以下は前回までの記録。
+
 # グランドピアノ試聴・マス内選択・オクターブ表示色
 
 候補 0.94.0-dev.1。8e86b6acまでの成果を保持。

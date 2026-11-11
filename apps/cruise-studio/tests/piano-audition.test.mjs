@@ -67,3 +67,25 @@ test('bundled grand samples retain original MP3 checksums, attribution and cover
  for(let midi=21;midi<=108;midi++)assert(Math.min(...bank.samples.map(s=>Math.abs(s.midi-midi)))<=1);
  const notice=readFileSync(new URL('../vendor/piano/NOTICE.md',import.meta.url),'utf8');assert(notice.includes('Alexander Holm'));assert(notice.includes('https://creativecommons.org/licenses/by/3.0/'));assert(!RELEASE_FILES.some(p=>p.startsWith('vendor/piano/')));
 });
+
+test('polyphonic bar scheduling uses both samples, onset and duration; cancel cannot revoke a subsequent audition',async()=>{
+ const f=fixture(),events=[{midi:48,part:'guitar',start:.03,duration:1,gain:.075},{midi:52,part:'guitar',start:.042,duration:.988,gain:.075},{midi:72,part:'piano',start:.53,duration:.25,gain:.32}];
+ assert((await f.runtime.playEvents(events,()=>true,2)).ok);assert.equal(f.runtime.snapshot().mode,'bar');const ctx=f.contexts[0];assert.equal(ctx.oscillators.length,3);assert.deepEqual(ctx.oscillators.map(n=>n.starts[0]),[10.03,10.042,10.53]);assert(Math.abs(ctx.oscillators[2].stops[0]-10.78)<.00001);
+ for(const n of ctx.oscillators)n.onended();assert.equal(f.audio.snapshot()[0].resourceType,'audio-output/session');
+ f.runtime.cancel();assert.equal(f.audio.snapshot()[0].resourceType,null);assert(!f.runtime.snapshot().playing);assert((await f.runtime.play(69,()=>true)).ok);assert.equal(f.contexts.length,1);assert.equal(f.audio.snapshot()[0].resourceType,'audio-output/session');await f.runtime.stop();assert.equal(f.audio.snapshot()[0].contextCount,0);
+});
+test('a stopped pending bar decode never starts and invalid schedules allocate no context',async()=>{
+ const f=fixture({samplePending:true}),events=[{midi:60,part:'piano',start:0,duration:1,gain:.3}],pending=f.runtime.playEvents(events,()=>true,2);await flush();await f.audio.stopAll();f.decode();assert(!(await pending).ok);assert.equal(f.contexts[0].oscillators.length,0);
+ const g=fixture();for(const events of [[{midi:60,part:'guitar',start:-1,duration:1,gain:.3}],[{midi:60,part:'guitar',start:0,duration:100,gain:.3}],[{midi:60,part:'unknown',start:0,duration:1,gain:.3}]])assert(!(await g.runtime.playEvents(events,()=>true,2)).ok);assert(!(await g.runtime.playEvents([{midi:60,part:'piano',start:0,duration:1,gain:.3}],()=>true,Infinity)).ok);assert.equal(g.contexts.length,0);
+});
+test('bar preview reads exact melody pitches and reference chord tones without changing any project or timing qualification',()=>{
+ const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),plan=vm.runInNewContext(source.slice(a,b)+';buildBarPreviewPlan;');
+ const p={songInfo:{bpm:120},instrument:{capo:2},performance:{formBindings:[]},bars:[{melody:[{id:'note',kind:'note',onsetTick:240,durationTicks:120,pitch:{midi:72},provenance:{timing:{duration:{confirmed:false}}}},{kind:'rest',onsetTick:360,durationTicks:240}],chords:[{symbol:'D',onsetTick:0},{symbol:'H?',unresolved:true,onsetTick:960}]}]};
+ const before=JSON.stringify(p),r=plan(p,0,{pitchMidi:p=>p.midi,parseChord:s=>({root:s,quality:'',bass:null}),notePc:()=>2,qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}}});assert.equal(JSON.stringify(p),before);assert.equal(r.duration,2.03);assert.equal(r.events.filter(e=>e.part==='piano').length,1);const note=r.events.find(e=>e.part==='piano');assert.equal(note.midi,72);assert.equal(note.start,.28);assert.equal(note.duration,.125);assert(r.events.filter(e=>e.part==='guitar').every(e=>[42,50,54,57].includes(e.midi)));assert.equal(r.warnings.length,1);assert.equal(p.performance.formBindings.length,0);
+});
+test('acoustic guitar bank retains source hashes and attribution and is excluded from the public package',()=>{
+ const window={CruiseStudio:{}};vm.runInNewContext(readFileSync(new URL('../vendor/guitar/acoustic-bank.js',import.meta.url),'utf8'),{window});const bank=window.CruiseStudio.guitarSamples;assert.equal(bank.samples.length,13);assert.equal(bank.license,'CC BY 3.0');
+ for(const sample of bank.samples)assert.equal(createHash('sha256').update(Buffer.from(sample.mp3,'base64')).digest('hex'),sample.sha256);
+ for(let midi=40;midi<=74;midi++)assert(Math.min(...bank.samples.map(s=>Math.abs(s.midi-midi)))<=1);
+ assert(readFileSync(new URL('../vendor/guitar/NOTICE.md',import.meta.url),'utf8').includes('University of Iowa'));assert(!RELEASE_FILES.some(p=>p.startsWith('vendor/guitar/')));
+});

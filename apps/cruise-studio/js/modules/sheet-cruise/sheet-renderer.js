@@ -163,9 +163,12 @@
     var restOutlines={};
     function createStrumRestSymbol(ticks){
         var VF=window.Vex&&window.Vex.Flow;
-        if(!VF||![120,240].includes(ticks))return el('span','strum-rest-label',ticks===120?'16分休符':ticks===240?'8分休符':'休符');
+        var names={1920:['restWhole','全休符'],960:['restHalf','2分休符'],480:['restQuarter','4分休符'],240:['rest8th','8分休符'],120:['rest16th','16分休符'],60:['rest32nd','32分休符'],30:['rest64th','64分休符']};
+        var dotted=!names[ticks]&&names[ticks/1.5],definition=names[ticks]||dotted;
+        if(!definition){var parts=CS().melodyNotation?.segment(0,ticks);if(parts?.ok){var group=el('span','music-rest-group');parts.segments.forEach(function(part){group.appendChild(createStrumRestSymbol(part.durationTicks));});return group;}var unknown=el('span','strum-rest-label','?');unknown.title='休符（表示未対応の音価：'+ticks+'tick）';return unknown;}
+        if(!VF){var fallback=el('span','strum-rest-label',({restWhole:'𝄻',restHalf:'𝄼',restQuarter:'𝄽',rest8th:'𝄾',rest16th:'𝄿',rest32nd:'𝅀',rest64th:'𝅁'})[definition[0]]+(dotted?'·':''));fallback.setAttribute('aria-label',definition[1]);return fallback;}
         if(!restOutlines[ticks]){
-            var glyph=new VF.Glyph(ticks===120?'rest16th':'rest8th',60),m=glyph.getMetrics(),commands=[];
+            var glyph=new VF.Glyph(definition[0],60),m=glyph.getMetrics(),commands=[];
             var pen={beginPath:function(){},moveTo:function(x,y){commands.push('M'+x+' '+y);},lineTo:function(x,y){commands.push('L'+x+' '+y);},quadraticCurveTo:function(a,b,x,y){commands.push('Q'+a+' '+b+' '+x+' '+y);},bezierCurveTo:function(a,b,c,d,x,y){commands.push('C'+a+' '+b+' '+c+' '+d+' '+x+' '+y);},fill:function(){}};
             VF.Glyph.renderOutline(pen,m.outline,m.scale,0,0);
             var box=VF.Glyph.getOutlineBoundingBox(m.outline,m.scale,0,0);
@@ -173,8 +176,8 @@
         }
         var ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),path=document.createElementNS(ns,'path');
         svg.setAttribute('viewBox',restOutlines[ticks].box);svg.setAttribute('width','.65em');svg.setAttribute('height','.85em');svg.style.verticalAlign='middle';
-        svg.setAttribute('data-rest-ticks',ticks);svg.setAttribute('role','img');svg.setAttribute('aria-label',ticks===120?'16分休符':'8分休符');
-        path.setAttribute('d',restOutlines[ticks].path);path.setAttribute('fill','currentColor');svg.appendChild(path);return svg;
+        svg.setAttribute('data-rest-ticks',ticks);svg.setAttribute('role','img');svg.setAttribute('aria-label',(dotted?'付点':'')+definition[1]);
+        path.setAttribute('d',restOutlines[ticks].path);path.setAttribute('fill','currentColor');svg.appendChild(path);if(dotted){var group=el('span','music-rest-dotted');group.append(svg,el('span','','·'));return group;}return svg;
     }
 
     function createStrumArrow(direction){
@@ -182,7 +185,7 @@
         svg.setAttribute('viewBox','0 0 16 24');svg.setAttribute('width','.75em');svg.setAttribute('height','1.1em');svg.setAttribute('data-strum-arrow',direction);svg.setAttribute('aria-hidden','true');
         path.setAttribute('d',direction==='up'?'M8 21V3M3 8L8 3L13 8':'M8 3V21M3 16L8 21L13 16');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','1.65');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');svg.appendChild(path);return svg;
     }
-    var defaultOctaveColors=['#555c66','#526478','#1686a0','#245b91','#c43c39','#c8498a','#92552c','#99434f','#754561'],octaveColors=defaultOctaveColors.slice();
+    var defaultOctaveColors=['#555c66','#287a43','#1686a0','#245b91','#c43c39','#b96a08','#8055ad','#bb4583','#845b3b'],octaveColors=defaultOctaveColors.slice();
     function setOctaveColors(colors){octaveColors=defaultOctaveColors.map(function(color,i){return Array.isArray(colors)&&/^#[0-9a-f]{6}$/i.test(colors[i])?colors[i]:color;});}
     function getOctaveColors(){return octaveColors.slice();}
     function octaveColor(octave){return octaveColors[Math.max(0,Math.min(8,octave))];}
@@ -218,8 +221,10 @@
         var row=el('span',className+' sheet-bar-row');
         Object.assign(row.style,{display:'grid',gridTemplateColumns:'repeat('+resolution+',minmax(0,1fr))',gap:'0',marginLeft:'calc(-1 * var(--sheet-bar-pad-x))',marginRight:'calc(-1 * var(--sheet-bar-pad-x))',fontSize:'13.5px',fontWeight:'600',letterSpacing:'0',minHeight:'1.5em'});
         var texts=Array.from({length:resolution},function(){return [];});
-        events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i].push(e);});
-        texts.forEach(function(items,i){var cell=el('span','sheet-timed-cell');items.forEach(function(e){var token=el('span','',e.text);if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}cell.appendChild(token);});cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'center',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
+        events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i].push(e);
+            if(e.durationTicks&&e.octave!==undefined)for(var n=i+1;n<resolution&&n*barTicksLen/resolution<e.tick+e.durationTicks;n++)texts[n].push({text:'〜',octave:e.octave});
+        });
+        texts.forEach(function(items,i){var cell=el('span','sheet-timed-cell');items.forEach(function(e){var token=el('span','',e.text);if(e.restTicks){token.replaceChildren(createStrumRestSymbol(e.restTicks));token.style.color='#746e65';}if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}cell.appendChild(token);});cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'center',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
         return row;
     }
     function buildLyricsRow(bar,resolution,barTicksLen){
@@ -228,7 +233,7 @@
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -273,7 +278,7 @@
         if (hasVocal && show.doremi) {
             var tokens=theory.melodyEventsToDoremiTokens((bar.melody||[]).map(function(e){return Object.assign({},e,{durationTicks:1});}));
             var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
-            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave};}),timeRes,beats*model.TICKS_PER_BEAT);
+            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave,durationTicks:e.durationTicks};}).concat((rests||[]).map(function(e){return {tick:e.onsetTick,restTicks:e.durationTicks};})),timeRes,beats*model.TICKS_PER_BEAT);
             doremi.style.color='var(--paper-doremi)';
             cell.appendChild(doremi);
         }
@@ -287,6 +292,8 @@
      * @returns {HTMLElement} 生成した .sheet-page（複数ページ化する将来は配列先頭）
      */
     function render(project, container, options) {
+        var canonical=project.schemaVersion===2?project:null;
+        var restsForBar=options&&options.restsForBar?options.restsForBar:function(number){return canonical?canonical.bars[number-1].melody.filter(function(e){return e.kind==='rest';}):[];};
         if(project.schemaVersion===2) project=CS().model.toStructureView(project);
         else if(project.schemaVersion!==1&&project.purpose!=='structure-read') throw Error('unsupported-schema');
         var model = CS().model;
@@ -307,7 +314,7 @@
             // 歌詞もドレミも出ないセクション（前奏など）は2倍詰めのコード段にする
             var hasVocal = bars.some(function (bar) {
                 return (show.lyrics && bar.lyrics && bar.lyrics.length > 0) ||
-                    (show.doremi && bar.melody && bar.melody.length > 0);
+                    (show.doremi && ((bar.melody && bar.melody.length > 0)||restsForBar(bar.barNumber).length>0));
             });
             var cols = hasVocal ? show.barsPerLine : show.barsPerLine * 2;
 
@@ -318,7 +325,7 @@
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
                     var strum = show.strum ? resolveBarStrum(project, bar) : null;
-                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo));
+                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber)));
                 });
                 // 行末まで小節線を揃えるための空セル
                 for (var pad = lineBars.length; pad < cols; pad++) {
