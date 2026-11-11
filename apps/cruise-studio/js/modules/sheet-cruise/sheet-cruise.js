@@ -428,7 +428,7 @@
             '[data-history-bar="' + focused.dataset.historyBar + '"]';
         else if (local && !structureChanged && focused.classList.contains('dock-lyrics-cell')) selector = '.dock-lyrics-cell[data-slot-tick="' + focused.dataset.slotTick + '"]';
         else if (local && !structureChanged && focused.classList.contains('dock-strum-cell')) selector = '.dock-strum-cell[data-cell-index="' + focused.dataset.cellIndex + '"]';
-        else if (local && !structureChanged && focused.dataset.overlayField) selector = '[data-overlay-field="' + focused.dataset.overlayField + '"]';
+        else if (local && !structureChanged && focused.dataset.overlayField) selector = '[data-overlay-field="' + focused.dataset.overlayField + '"]'+(focused.dataset.slotTick!==undefined?'[data-slot-tick="'+focused.dataset.slotTick+'"]':'');
         var start = local ? focused.selectionStart : null, end = local ? focused.selectionEnd : null;
         var scroll = CS().scroll ? CS().scroll.getPosition('sheetCruise') : null;
         if (state.selectedBarNumber && !getSelectedBar()) { state.selectedBarNumber = null; selectionDeleted = true; }
@@ -542,6 +542,7 @@
         var body=document.createElement('div'),message=document.createElement('p'),actions=document.createElement('div');
         actions.style.display='flex';actions.style.flexWrap='wrap';actions.style.gap='12px';actions.style.padding='4px';
         message.style.overflowWrap='anywhere';
+        body.style.padding='12px';message.style.margin='0 0 24px';message.style.lineHeight='1.7';actions.style.gap='16px';actions.style.padding='4px';
         message.textContent='未保存のProject: '+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。保存せず続行しても画面内のdraftは保持しますが、ブラウザ終了や再読込で失われる可能性があります。';body.appendChild(message);
         var buttons=[],record={active:true,saving:false};leavePending=record;
         function current(){return record.active&&leavePending===record&&state.session===owner&&CS().shellHost.getActiveWorkspace()===workspace&&CS().entryAuth.isAuthorized();}
@@ -1045,6 +1046,74 @@
         return input;
     }
 
+    // Each field owns an exact onset; no lossy whole-bar text reconstruction.
+    function buildBeatTextRow(kind,bar,res) {
+        var canonical=state.session.draft, source=canonical.bars[bar.barNumber-1];
+        if(canonical.schemaVersion!==2)return buildOverlayInput({id:kind,label:kind==='chord'?'コード':'ドレミ'},bar);
+        var wrap=document.createElement('div');wrap.style.display='grid';wrap.style.gridTemplateColumns='repeat('+res+',minmax(0,1fr))';wrap.style.width='100%';
+        var collection=kind==='chord'?'chords':'melody', span=1920/res, owner=state.session;
+        for(var index=0;index<res;index++)(function(tick){
+            var events=source[collection].filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});
+            var exact=events.length===1&&events[0].onsetTick===tick?events[0]:null;
+            var input=document.createElement('input');input.type='text';input.className='slot-overlay-input';
+            input.style.minWidth='0';input.style.width='100%';input.style.padding='6px';input.style.boxSizing='border-box';
+            input.dataset.overlayField=kind;input.dataset.slotTick=tick;input.setAttribute('aria-label',bar.barNumber+'小節目の'+(kind==='chord'?'コード':'ドレミ')+' '+(tick/480+1)+'拍');
+            input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):(exact&&exact.kind==='note'?CS().model.getBarDoremiText({melody:bar.melody.filter(function(e){return e.tick===tick;})}):'');
+            if(events.length && !exact){input.readOnly=true;input.value='…';input.title='この範囲には細かな位置のイベントがあります。元の時間情報を保持しています';}
+            var composing=false,justComposed=false,nativeHistory=false,initial=input.value;
+            function apply(composition){
+                if(input.readOnly||!input.isConnected||state.session!==owner||owner.draft.bars[bar.barNumber-1]?.id!==source.id||composing)return {ok:false};
+                if(input.value===initial){input.setAttribute('aria-invalid','false');input.classList.remove('is-invalid');var prior=textDiagnostics.get(owner);if(prior)prior.delete(input);return {ok:true};}
+                if(!operationEligible()&&!composition)return {ok:false};
+                var raw=input.value.trim();
+                var result=(composition?owner.runCompositionTextOperation:owner.runTextOperation)(JSON.stringify(['beat',kind,source.id,tick]),'拍位置の'+kind+'入力',function(p){
+                    var b=p.bars.find(function(b){return b.id===source.id;}), list=b[collection], old=list.find(function(e){return e.onsetTick===tick;});
+                    if(list.some(function(e){return e.onsetTick>tick&&e.onsetTick<tick+span;}))throw Error('細かな時間位置を持つイベントはこのセルで置換できません');
+                    if(!raw){b[collection]=list.filter(function(e){return e!==old;});if(kind==='chord'&&old)p.performance.formBindings=p.performance.formBindings.filter(function(f){return f.chordEventId!==old.id;});return;}
+                    var api=CS().model.schema2;
+                    if(kind==='chord'){
+                        if(!CS().theory.parseBasicChordSymbol(raw))throw Error('コード名を確認してください');
+                        var symbol=api.chord(raw,p.instrument.capo);if(symbol===null)throw Error('コード名を確認してください');
+                        // An explicitly inserted chord establishes a new harmony boundary. Keep IDs and make this one undoable edit.
+                        if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
+                        if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
+                    }else{
+                        var parsed=CS().theory.parseDoremiString(raw);if(parsed.warnings.length||parsed.notes.length!==1||parsed.notes[0].extensions)throw Error('1マスにドレミを1音入力してください。音価の変更はメロディ編集で行えます');
+                        var note=parsed.notes[0],tonic=p.solfege.tonic,key=tonic.step+window.ChordCruise.theory.formatAccidental(tonic.alter);
+                        var scale=window.ChordCruise.theory.spellScaleNotes({tonicPc:CS().theory.keyToSemitone(key),tonicName:key,scaleId:'major'}),spelled=scale[note.step];
+                        var midi=api.pitchMidi(tonic)+[0,2,4,5,7,9,11][note.step]+note.alter+12*note.octave,alter=spelled.accidental+note.alter;
+                        var pitch={step:spelled.letter,alter:alter,octave:(midi-({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[spelled.letter])-alter)/12-1};
+                        if(old){old.kind='note';old.pitch=pitch;}else{
+                            if(list.some(function(e){return e.onsetTick<tick+span&&e.onsetTick+e.durationTicks>tick;}))throw Error('既存の音価・休符と重なります。元の時間情報を保持しました');
+                            list.push({id:api.newId(),kind:'note',onsetTick:tick,durationTicks:span,pitch:pitch,provenance:api.timing('auto-assigned',false)});
+                        }
+                    }
+                    list.sort(function(a,b){return a.onsetTick-b.onsetTick;});
+                });
+                input.setAttribute('aria-invalid',result.ok?'false':'true');input.classList.toggle('is-invalid',!result.ok);input.title=result.ok?'':result.error||'入力を確認してください';
+                var diagnostics=textDiagnostics.get(owner);if(!diagnostics){diagnostics=new Map();textDiagnostics.set(owner,diagnostics);}
+                if(result.ok)diagnostics.delete(input);else diagnostics.set(input,input.title);
+                if(result.ok){initial=input.value;renderPreview(true);}else setSaveStatus(input.title,true);
+                return result;
+            }
+            input.addEventListener('compositionstart',function(){composing=true;owner.finishTextGroup();});
+            input.addEventListener('compositionend',function(){composing=false;justComposed=true;apply(true);setTimeout(function(){justComposed=false;},0);});
+            input.addEventListener('beforeinput',function(e){nativeHistory=e.inputType==='historyUndo'||e.inputType==='historyRedo';if(nativeHistory)owner.finishTextGroup();});
+            input.addEventListener('input',function(e){if(!e.isComposing&&!composing&&!justComposed)apply(false);if(nativeHistory){owner.finishTextGroup();nativeHistory=false;}});
+            input.addEventListener('blur',function(){owner.finishTextGroup();});
+            input.addEventListener('keydown',function(e){
+                if(routeLocalSave(e)||routeLocalEscape(e))return;e.stopPropagation();
+                if(e.altKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();if(apply(false).ok)moveSelectedBar(e.key==='ArrowLeft'?-1:1,{focusRowId:kind});return;}
+                if(e.key!=='Enter')return;e.preventDefault();
+                if(e.isComposing||e.keyCode===229||composing||justComposed||owner.inputPending||input.readOnly)return;
+                var result=apply(false);if(!result.ok||input.getAttribute('aria-invalid')==='true')return;
+                owner.finishTextGroup();var next=wrap.querySelector('[data-slot-tick="'+(tick+span)+'"]');if(next)next.focus();
+            });
+            wrap.appendChild(input);
+        })(index*span);
+        return wrap;
+    }
+
     function getSelectedBarIndex() {
         if (!state.project || !state.selectedBarNumber) return -1;
         for (var i = 0; i < state.project.bars.length; i++) {
@@ -1455,7 +1524,7 @@
     function onStrumCellKeydown(event, bar, res, index, currentAction) {
         if (routeLocalHistory(event)) return;
         if (routeLocalSave(event) || routeLocalEscape(event)) return;
-        if (event.isComposing) return;
+        if (event.isComposing || event.keyCode === 229 || CS().shellHost.keyboard.isIMEBlocked({})) return;
         var key = event.key;
 
         if (event.altKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
@@ -1501,7 +1570,7 @@
         }
         if (key === 'Enter') {
             event.preventDefault();
-            applyStrumCellAction(bar, res, index, nextStrumCellAction(currentAction), index + 1);
+            focusStrumCellAfterRender(index + 1);
             return;
         }
         // Tab / Shift+Tab はブラウザ標準のフォーカス移動に任せる（セルはbuttonなので隣へ自然に移る）
@@ -1825,11 +1894,7 @@
             // G4: 小節全体の最終セル（DOM順=tick昇順で最後）でのEnterだけ次小節へ移動する。
             // 各拍の最後ではなく、getOrderedLyricCells()が返す実際の最終DOM要素で判定する
             // ため、mixed resolutionでもセル数・tickのハードコードは不要。
-            if (cells.length > 0 && cells[cells.length - 1] === input) {
-                commitLyricCellAndMoveToNextBar(bar, input, slotTick);
-            } else {
-                commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
-            }
+            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
             return;
         }
         if (key === 'Tab') {
@@ -2881,14 +2946,9 @@
                 lyricsWrap.appendChild(buildLyricsGridRow(bar, res));
                 row.appendChild(lyricsWrap);
             } else {
-                // コード/ドレミは引き続き小節1入力のまま。背面へG1の拍/8分/16分縦線だけを
-                // 装飾として敷く（setBarChord()/setBarDoremiText()経路・入力単位は無変更）
                 var rowBody = document.createElement('div');
                 rowBody.className = 'slot-overlay-row-body';
-                rowBody.appendChild(buildTimelineBackground(res));
-                rowBody.appendChild(buildOverlayInput(rowDef, bar));
-                var note = buildOverlayNote(rowId, bar);
-                if (note) rowBody.appendChild(note);
+                rowBody.appendChild(buildBeatTextRow(rowId,bar,res));
                 row.appendChild(rowBody);
             }
             grid.appendChild(row);
@@ -3390,7 +3450,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.88.2-dev.4',
+        developmentVersion: '0.88.3-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,

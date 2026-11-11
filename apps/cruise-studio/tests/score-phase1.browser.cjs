@@ -109,8 +109,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await t.test('chord input, Undo/Redo, local save/reload and JSON retain exact timing', async () => fresh(async page => {
             await timedChord(page);
             const before = (await snapshot(page)).bars[0].chords[0];
-            await page.locator('[data-overlay-field=chord]').fill('Dm7');
-            await page.locator('[data-overlay-field=chord]').press('Tab');
+            await page.locator('[data-overlay-field=chord][data-slot-tick="480"]').fill('Dm7');
+            await page.locator('[data-overlay-field=chord][data-slot-tick="480"]').press('Tab');
             const edited = (await snapshot(page)).bars[0].chords[0];
             assert.equal(edited.symbol, 'Dm7');
             for (const field of ['id', 'onsetTick', 'durationTicks']) assert.equal(edited[field], before[field]);
@@ -131,17 +131,9 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.waitForFunction(() => document.getElementById('sc-save-status').textContent.includes('読み込'));
             assert.deepEqual(await snapshot(page), saved);
         }));
-        await t.test('multi-chord text input and bulk replacement preserve the complete draft', async () => fresh(async page => {
-            await timedChord(page, true);
-            const before = await snapshot(page);
-            await page.locator('[data-overlay-field=chord]').fill('Dm7');
-            assert.deepEqual(await snapshot(page), before);
-            assert.match(await page.locator('#sc-save-status').innerText(), /複数コード/);
-            await page.getByRole('button', {name: 'まとめて入力', exact: true}).click();
-            await page.locator('.slot-overlay-bulk-text').fill('F Am');
-            await page.locator('.slot-overlay-bulk-apply').click();
-            assert.deepEqual(await snapshot(page), before);
-            assert.match(await page.locator('#sc-save-status').innerText(), /複数コード/);
+        await t.test('beat chord edit preserves neighbouring events and bulk replacement remains guarded',async()=>fresh(async page=>{
+            await timedChord(page,true);const before=await snapshot(page);await page.locator('[data-overlay-field=chord][data-slot-tick="480"]').fill('Dm7');const changed=await snapshot(page);assert.equal(changed.bars[0].chords[0].id,before.bars[0].chords[0].id);assert.equal(changed.bars[0].chords[0].symbol,'Dm7');assert.deepEqual(changed.bars[0].chords[1],before.bars[0].chords[1]);
+            await page.getByRole('button',{name:'まとめて入力',exact:true}).click();await page.locator('.slot-overlay-bulk-text').fill('F Am');await page.locator('.slot-overlay-bulk-apply').click();assert.deepEqual(await snapshot(page),changed);assert.match(await page.locator('#sc-save-status').innerText(),/複数コード/);
         }));
         await t.test('project switching, sections, bars, lyrics and strum share one working Project', async () => fresh(async page => {
             await page.locator('#sc-editor-drawer').evaluate(e => e.open = true);
@@ -158,10 +150,10 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('.section-name-input').last().press('Tab');
             assert.equal((await snapshot(page)).sections.at(-1).name, 'Aメロ');
             await select(page);
-            await page.locator('[data-overlay-field=chord]').fill('C');
+            await page.locator('[data-overlay-field=chord]').first().fill('C');
             await page.locator('.dock-lyrics-cell').first().fill('夜');
-            await page.locator('[data-overlay-field=doremi]').fill('ド レ ミ');
-            await page.locator('[data-overlay-field=doremi]').press('Tab');
+            await page.locator('[data-overlay-field=doremi]').first().fill('ド');
+            await page.locator('[data-overlay-field=doremi]').first().press('Tab');
             await page.locator('.dock-strum-cell').first().click();
             const a = await snapshot(page);
             assert.equal(a.songInfo.bpm, 106);
@@ -190,8 +182,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         }));
         await t.test('confirmed chord form adoption and MIDI use the same canonical Project', async () => fresh(async page => {
             await select(page);
-            await page.locator('[data-overlay-field=chord]').fill('C');
-            await page.locator('[data-overlay-field=chord]').press('Tab');
+            await page.locator('[data-overlay-field=chord]').first().fill('C');
+            await page.locator('[data-overlay-field=chord]').first().press('Tab');
             await page.locator('#sc-chord-forms').click();
             await page.locator('#form-event').selectOption({index: 1});
             await page.locator('#form-open').click();
@@ -218,8 +210,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         }));
         await t.test('melody Inspector edits exact durations and rests without moving following notes', async () => fresh(async page => {
             await select(page);
-            await page.locator('[data-overlay-field=doremi]').fill('ド レ ミ');
-            await page.locator('[data-overlay-field=doremi]').press('Tab');
+            await page.locator('[data-overlay-field=doremi]').first().fill('ド');
+            await page.locator('[data-overlay-field=doremi]').first().press('Tab');
             const before = await snapshot(page), event = before.bars[0].melody[0];
             assert.equal(event.provenance.timing.duration.confirmed, false);
             await page.locator('#sc-score-style').selectOption('melody');
@@ -273,10 +265,10 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('#sc-title').fill('夜の航路 Original');
             await page.locator('#sc-title').press('Tab');
             await select(page);
-            await page.locator('[data-overlay-field=chord]').fill('C');
+            await page.locator('[data-overlay-field=chord]').first().fill('C');
             await page.locator('.dock-lyrics-cell').first().fill('夜');
-            await page.locator('[data-overlay-field=doremi]').fill('ド レ ミ');
-            await page.locator('[data-overlay-field=doremi]').press('Tab');
+            await page.locator('[data-overlay-field=doremi]').first().fill('ド');
+            await page.locator('[data-overlay-field=doremi]').first().press('Tab');
             const before = await snapshot(page);
             assert(before.bars[0].lyrics.length && before.bars[0].melody.length);
             for (const width of [1440, 390]) {

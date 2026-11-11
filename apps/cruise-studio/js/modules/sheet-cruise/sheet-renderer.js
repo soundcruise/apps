@@ -256,8 +256,13 @@
         // CSS（.sheet-bar-row + .sheet-bar-row）が引く。将来ストローク段を
         // 追加するときも、同じく .sheet-bar-row を付ければ区切り線が自動で付く
         if (show.chords) {
-            var chord = el('span', 'sheet-bar-chord sheet-bar-row',
-                (bar.chords[0] && bar.chords[0].symbol) || '');
+            var chord = el('span', 'sheet-bar-chord sheet-bar-row');
+            chord.style.position='relative';chord.style.minHeight='1.4em';
+            (bar.chords||[]).forEach(function(event){
+                var symbol=el('span','sheet-chord-event',event.symbol);
+                symbol.style.position='absolute';symbol.style.left=(event.tick/(beats*model.TICKS_PER_BEAT)*100)+'%';
+                chord.appendChild(symbol);
+            });
             cell.appendChild(chord);
         }
 
