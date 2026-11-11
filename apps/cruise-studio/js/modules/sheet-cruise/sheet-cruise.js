@@ -250,7 +250,16 @@
         });
         input.addEventListener('blur', finishTextInputs);
         input.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter' && !event.isComposing && !info.composing && !info.justComposed) finishTextInputs();
+            if (event.key !== 'Enter' || event.isComposing || event.keyCode===229 || info.composing || info.justComposed) return;
+            if(['chord','doremi'].includes(target.kind)){
+                if(input.dataset.overlayField)return;
+                event.preventDefault();
+                if(input.classList.contains('is-invalid')||CS().shellHost.keyboard.isIMEBlocked({}))return;
+                var result=applyTextInput(input,event);if(!result.ok||result.deferred)return;
+                finishTextInputs();
+                var next=els.root.querySelector('.bar-'+target.kind+'-input[data-history-bar="'+(target.barNumber+1)+'"]');
+                if(next)next.focus();
+            }else finishTextInputs();
         });
     }
     function applyTextInput(input, event) {
@@ -466,6 +475,7 @@
             dockManualRes: state.dockManualRes, overlayWarnings: state.overlayWarnings,
             scroll: CS().scroll ? CS().scroll.getPosition('sheetCruise') : null
         });
+        selectedBarIds = []; rangeAnchor = null;
         state.session = session;
         structureIdentity = CS().structureOperations.structureKey(session.draft);
         publishedBars = session.draft.bars;
@@ -510,7 +520,48 @@
     }
 
     function createNewProject() {
-        setProject(CS().model.createEmptyProject(), { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
+        var names = new Set(CS().storage.listProjects().map(function(p){return p.title;}));
+        CS().sessions.listSessions().forEach(function(s){names.add(s.draft.songInfo.title);});
+        var number=1;while(names.has('無題のプロジェクト '+number))number++;
+        var project=CS().model.createEmptyProject();project.songInfo.title='無題のプロジェクト '+number;
+        setProject(project, { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
+        els.editorDrawer.open=true;els.title.focus();els.title.select();
+    }
+
+    var leavePending = null;
+    // B-owned continuation contract. Shell must call this before changing workspace.
+    function requestLeave(continueAction) {
+        if(leavePending || typeof continueAction!=='function')return false;
+        var sessions=CS().sessions.listSessions(), owner=state.session, workspace=CS().shellHost.getActiveWorkspace();
+        if(sessions.some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;}) || textDiagnostic(owner)) {
+            setSaveStatus('入力・保存結果・競合を解決してから移動してください',true);return false;
+        }
+        var dirty=sessions.filter(function(s){return s.dirty;});
+        if(!dirty.length){continueAction();return true;}
+        var modal=CS().shellHost.modal;if(modal.getActive())return false;
+        var body=document.createElement('div'),message=document.createElement('p');
+        message.textContent='未保存のProject: '+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。保存せず続行しても画面内のdraftは保持しますが、ブラウザ終了や再読込で失われる可能性があります。';body.appendChild(message);
+        var buttons=[],record={active:true,saving:false};leavePending=record;
+        function current(){return record.active&&leavePending===record&&state.session===owner&&CS().shellHost.getActiveWorkspace()===workspace&&CS().entryAuth.isAuthorized();}
+        function proceed(){if(!current())return;if(CS().sessions.listSessions().some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;})){message.textContent='入力・保存結果・競合を解決してください。移動せずdraftを保持しています';return;}modal.close();continueAction();}
+        function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;body.appendChild(b);buttons.push(b);}
+        button('保存して続行',async function(){
+            if(!current()||record.saving)return;record.saving=true;buttons.forEach(function(b){b.disabled=true;});
+            try {
+                for(var session of CS().sessions.listSessions().filter(function(s){return s.dirty;})){
+                    if(!current())return;
+                    var result=await commitSession(session);
+                    if(!result.ok||session.dirty||session.externalUpdatePending||session.conflict)throw Error(result.error||'保存完了を確認できませんでした');
+                }
+                if(CS().sessions.listSessions().some(function(s){return s.dirty||s.inputPending||s.commitInFlight||s.conflict||s.externalUpdatePending;}))throw Error('保存対象の状態が変わりました');
+                proceed();
+            }catch(error){if(current())message.textContent=error.message+'。移動せずdraftを保持しています';}
+            finally{record.saving=false;buttons.forEach(function(b){b.disabled=false;});}
+        });
+        button('保存せず続行',function(){if(!record.saving)proceed();});
+        button('キャンセル',function(){if(!record.saving)modal.close();});
+        modal.open({title:'未保存の変更を確認',content:body,onClose:function(){record.active=false;if(leavePending===record)leavePending=null;}});
+        return false;
     }
 
     /* ══════════ 曲情報フォーム ══════════ */
@@ -969,6 +1020,14 @@
             if (routeLocalSave(event) || routeLocalEscape(event)) return;
             event.stopPropagation();
             if (event.isComposing || state.overlayComposingRowId === rowDef.id) return;
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                var info=textControls.get(input);
+                if(event.keyCode===229 || (info&&info.justComposed) || CS().shellHost.keyboard.isIMEBlocked({}) || input.classList.contains('is-invalid'))return;
+                var result=applyTextInput(input,event);
+                if(!result.ok||result.deferred||input.getAttribute('aria-invalid')==='true')return;
+                moveSelectedBar(1,{focusRowId:rowDef.id});return;
+            }
             if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
             event.preventDefault();
             applyOverlayFieldChange(rowDef.id, input, { skipRender: true });
@@ -3174,9 +3233,10 @@
         els.projectSelect.addEventListener('change', function () {
             var selectedId = els.projectSelect.value;
             if (state.project && selectedId === state.project.projectId) return;
-            openProject(selectedId);
+            refreshProjectSelect();
+            requestLeave(function(){openProject(selectedId);});
         });
-        els.newProjectBtn.addEventListener('click', createNewProject);
+        els.newProjectBtn.addEventListener('click', function(){requestLeave(createNewProject);});
         els.scaleBox.addEventListener('dragstart',function(e){var cell=e.target.closest('.sheet-bar[data-bar-number]');if(!cell||!operationEligible()){e.preventDefault();return;}var bar=state.session.draft.bars[Number(cell.dataset.barNumber)-1];dragFrame={ticket:CS().structureOperations.capture(state.session),ids:selectedBarIds.includes(bar.id)?selectedBarIds.slice():[bar.id]};e.dataTransfer.setData('text/plain','Studio bars');e.dataTransfer.effectAllowed='move';});
         els.scaleBox.addEventListener('dragover',function(e){if(dragFrame&&e.target.closest('.sheet-bar[data-bar-number]'))e.preventDefault();});
         els.scaleBox.addEventListener('drop',function(e){var cell=e.target.closest('.sheet-bar[data-bar-number]'),frame=dragFrame;dragFrame=null;if(!cell||!frame||!operationEligible()||!CS().structureOperations.isCurrent(frame.ticket,state.session))return;e.preventDefault();var bar=state.session.draft.bars[Number(cell.dataset.barNumber)-1];moveSelectedBars({barIds:frame.ids,beforeId:bar.id});});
@@ -3215,7 +3275,7 @@
         q('sc-goto-pre-dtm').addEventListener('click', function () {
             if (state.session && state.session.inputPending) { setSaveStatus('入力の確定を待ってください', true); return; }
             finishTextInputs();
-            CS().shellHost.navigate('preDtm');
+            requestLeave(function(){CS().shellHost.navigate('preDtm');});
         });
         [els.undoBtn, els.redoBtn].forEach(function (button) {
             button.addEventListener('pointerdown', function (event) {
@@ -3267,7 +3327,7 @@
             }
             publishedBars = session.draft.bars;
             structureIdentity = nextStructure;
-            if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)) redrawSession(structureChanged);
+            if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind) || (kind === 'operation' && structureChanged)) redrawSession(structureChanged);
             refreshSessionStatus();
             publishSelection();
             staffRequest();
@@ -3327,7 +3387,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.88.2-dev.1',
+        developmentVersion: '0.88.2-dev.3',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
@@ -3348,6 +3408,7 @@
         getStaffMetrics: function () { return staffView ? staffView.metrics() : null; },
         commitSession: commitSession,
         refreshProjects: refreshProjectSelect,
+        requestLeave: requestLeave,
         canLeave: canLeave
     };
 })();
