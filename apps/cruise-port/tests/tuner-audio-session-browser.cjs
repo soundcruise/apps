@@ -73,6 +73,9 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
                 };
             }, { theme, supported });
             const page = await context.newPage();
+            const failedResources = [];
+            page.on('response', response => { if (response.status() >= 400) failedResources.push(response.status() + ' ' + response.url()); });
+            page.on('console', message => { if (message.type() === 'error') failedResources.push(message.text()); });
             page.on('pageerror', (error) => result.pageErrors.push(error.message));
             await page.route('**/*', (route) => {
                 const url = new URL(route.request().url());
@@ -85,7 +88,14 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
             assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
             await page.waitForFunction(() => document.getElementById('tuner-tuning')?.options.length > 0);
             await page.locator('#tuner-card').click();
-            await page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
+            try {
+                await page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
+            } catch (error) {
+                const diagnostic = await page.evaluate(() => ({ status: document.getElementById('tuner-status')?.textContent,
+                    error: document.getElementById('tuner-error')?.textContent, hash: location.hash, events: window.phaseA?.events }));
+                console.error(`${kind} ${JSON.stringify(diagnostic)} pageErrors ${JSON.stringify(result.pageErrors)} resources ${JSON.stringify(failedResources)}`);
+                throw error;
+            }
             return { context, page, base };
         }
         const state = (page) => page.evaluate(() => ({ type: phaseA.type, events: [...phaseA.events], live: phaseA.streams.flatMap((stream) => stream.getTracks()).filter((track) => track.readyState === 'live').length }));
