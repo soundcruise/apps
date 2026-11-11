@@ -139,6 +139,22 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('#open-sheet-cruise').click();if(await page.getByRole('button',{name:'保存せず続行',exact:true}).count())await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.deepEqual(await snapshot(page),before);
             await page.locator('.studio-nav [data-workspace=preDtm]').click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();await page.locator('#screen-pre-dtm .workspace-back').click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.deepEqual(await snapshot(page),before);
         }));
+        await t.test('unsaved dialog actions stay separated and usable at narrow widths and long titles',()=>fresh(async page=>{
+            await page.locator('#sc-title').fill('検証用の長いプロジェクト名'.repeat(16));
+            await page.locator('#sc-new-project').click();
+            const dialog=page.getByRole('dialog',{name:'未保存の変更を確認'});
+            for(const width of [320,390,768,1440]){
+                await page.setViewportSize({width,height:800});await settle(page);
+                const sizes=await dialog.evaluate(e=>({width:e.clientWidth,scroll:e.scrollWidth,buttons:[...e.querySelectorAll('button')].map(b=>{const r=b.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom}})}));
+                assert(sizes.scroll<=sizes.width+1,'dialog horizontal overflow at '+width);
+                for(let i=0;i<sizes.buttons.length;i++)for(let j=i+1;j<sizes.buttons.length;j++){
+                    const a=sizes.buttons[i],b=sizes.buttons[j];
+                    assert(a.right+7<=b.x||b.right+7<=a.x||a.bottom+7<=b.y||b.bottom+7<=a.y,'buttons or focus outlines overlap at '+width);
+                }
+                if(process.env.SCORE_DIALOG_SCREENSHOTS)await page.screenshot({path:process.env.SCORE_DIALOG_SCREENSHOTS+'/dialog-'+width+'.png'});
+            }
+            await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.equal(await dialog.count(),0);
+        }));
         await t.test('no external requests or runtime errors',()=>{assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);assert.deepEqual(missing,[])});
     } finally { await browser.close(); }
 });

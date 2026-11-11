@@ -539,12 +539,14 @@
         var dirty=sessions.filter(function(s){return s.dirty;});
         if(!dirty.length){continueAction();return true;}
         var modal=CS().shellHost.modal;if(modal.getActive())return false;
-        var body=document.createElement('div'),message=document.createElement('p');
+        var body=document.createElement('div'),message=document.createElement('p'),actions=document.createElement('div');
+        actions.style.display='flex';actions.style.flexWrap='wrap';actions.style.gap='12px';actions.style.padding='4px';
+        message.style.overflowWrap='anywhere';
         message.textContent='未保存のProject: '+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。保存せず続行しても画面内のdraftは保持しますが、ブラウザ終了や再読込で失われる可能性があります。';body.appendChild(message);
         var buttons=[],record={active:true,saving:false};leavePending=record;
         function current(){return record.active&&leavePending===record&&state.session===owner&&CS().shellHost.getActiveWorkspace()===workspace&&CS().entryAuth.isAuthorized();}
         function proceed(){if(!current())return;if(CS().sessions.listSessions().some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;})){message.textContent='入力・保存結果・競合を解決してください。移動せずdraftを保持しています';return;}modal.close();continueAction();}
-        function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;body.appendChild(b);buttons.push(b);}
+        function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;b.style.maxWidth='100%';actions.appendChild(b);buttons.push(b);}
         button('保存して続行',async function(){
             if(!current()||record.saving)return;record.saving=true;buttons.forEach(function(b){b.disabled=true;});
             try {
@@ -560,6 +562,7 @@
         });
         button('保存せず続行',function(){if(!record.saving)proceed();});
         button('キャンセル',function(){if(!record.saving)modal.close();});
+        body.appendChild(actions);
         modal.open({title:'未保存の変更を確認',content:body,onClose:function(){record.active=false;if(leavePending===record)leavePending=null;}});
         return false;
     }
@@ -3387,7 +3390,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.88.2-dev.3',
+        developmentVersion: '0.88.2-dev.4',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
