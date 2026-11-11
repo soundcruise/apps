@@ -165,7 +165,7 @@
         var VF=window.Vex&&window.Vex.Flow;
         var names={1920:['restWhole','全休符'],960:['restHalf','2分休符'],480:['restQuarter','4分休符'],240:['rest8th','8分休符'],120:['rest16th','16分休符'],60:['rest32nd','32分休符'],30:['rest64th','64分休符']};
         var dotted=!names[ticks]&&names[ticks/1.5],definition=names[ticks]||dotted;
-        if(!definition){var parts=CS().melodyNotation?.segment(0,ticks);if(parts?.ok){var group=el('span','music-rest-group');parts.segments.forEach(function(part){group.appendChild(createStrumRestSymbol(part.durationTicks));});return group;}var unknown=el('span','strum-rest-label','?');unknown.title='休符（表示未対応の音価：'+ticks+'tick）';return unknown;}
+        if(!definition){var parts=CS().melodyNotation?.segment(0,ticks);if(parts?.ok){var group=el('span','music-rest-group');parts.segments.forEach(function(part){group.appendChild(createStrumRestSymbol(part.durationTicks));});return group;}var unknown=el('span','strum-rest-label','');unknown.title='休符（音価の譜面表記は未確定：'+ticks+'tick）';unknown.setAttribute('aria-label',unknown.title);unknown.dataset.unresolvedRestTicks=ticks;unknown.style.display='inline-block';unknown.style.minWidth='.4em';unknown.style.height='.6em';return unknown;}
         if(!VF){var fallback=el('span','strum-rest-label',({restWhole:'𝄻',restHalf:'𝄼',restQuarter:'𝄽',rest8th:'𝄾',rest16th:'𝄿',rest32nd:'𝅀',rest64th:'𝅁'})[definition[0]]+(dotted?'·':''));fallback.setAttribute('aria-label',definition[1]);return fallback;}
         if(!restOutlines[ticks]){
             var glyph=new VF.Glyph(definition[0],60),m=glyph.getMetrics(),commands=[];
@@ -185,7 +185,7 @@
         svg.setAttribute('viewBox','0 0 16 24');svg.setAttribute('width','.75em');svg.setAttribute('height','1.1em');svg.setAttribute('data-strum-arrow',direction);svg.setAttribute('aria-hidden','true');
         path.setAttribute('d',direction==='up'?'M8 21V3M3 8L8 3L13 8':'M8 3V21M3 16L8 21L13 16');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','1.65');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');svg.appendChild(path);return svg;
     }
-    var defaultOctaveColors=['#555c66','#287a43','#1686a0','#245b91','#c43c39','#b96a08','#8055ad','#bb4583','#845b3b'],octaveColors=defaultOctaveColors.slice();
+    var defaultOctaveColors=['#50555f','#8a633c','#197547','#245b91','#c43c39','#b96a08','#7747b2','#bf3b8a','#087d99'],octaveColors=defaultOctaveColors.slice();
     function setOctaveColors(colors){octaveColors=defaultOctaveColors.map(function(color,i){return Array.isArray(colors)&&/^#[0-9a-f]{6}$/i.test(colors[i])?colors[i]:color;});}
     function getOctaveColors(){return octaveColors.slice();}
     function octaveColor(octave){return octaveColors[Math.max(0,Math.min(8,octave))];}
@@ -205,8 +205,8 @@
         });
         var row=el('span','sheet-bar-strum sheet-bar-row sheet-bar-strum--'+res);
         row.style.gridTemplateColumns='repeat('+res+',1fr)';
-        cells.forEach(function(value){
-            var cell=el('span','is-'+value.state+(['down','up'].includes(value.state)?' is-stroke':''),['rest','down','up'].includes(value.state)?'':value.text);cell.dataset.strumState=value.state;
+        cells.forEach(function(value,index){
+            var cell=el('span','is-'+value.state+(['down','up'].includes(value.state)?' is-stroke':''),['rest','down','up'].includes(value.state)?'':value.text);cell.dataset.strumState=value.state;cell.dataset.slotTick=index*slotTicks;cell.dataset.slotTicks=slotTicks;
             cell.title=value.state==='empty'?'未入力':value.state==='rest'?'休符':value.state==='sustain'?'伸ばし':value.text;
             if(value.state==='rest'){cell.style.color='#746e65';cell.appendChild(createStrumRestSymbol(slotTicks));}else if(['down','up'].includes(value.state))cell.appendChild(createStrumArrow(value.state));
             row.appendChild(cell);

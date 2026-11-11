@@ -15,6 +15,7 @@ for(const engine of ['chrome','webkit'])test('real local UI server '+engine,asyn
    async resume(){this.state='running';}async close(){this.state='closed';}
    async decodeAudioData(bytes){const buffer=await this.offline.decodeAudioData(bytes);__localPiano.decoded++;return buffer;}
    createGain(){return this.offline.createGain();}
+   createBuffer(...args){return this.offline.createBuffer(...args);}
    createBufferSource(){const source=this.offline.createBufferSource(),start=source.start.bind(source);source.start=(...args)=>{__localPiano.starts++;return start(...args);};return source;}
   };
  });
