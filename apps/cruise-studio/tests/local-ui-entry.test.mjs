@@ -27,7 +27,8 @@ test('both public products retain coming soon and real authentication; neither p
  assert(config.includes('  - apps/cruise-studio/scripts'));
 });
 test('adapter fails closed for wrong scheme, host, port or missing local marker',()=>{
- const adapter=read('scripts/local-ui-adapter.js');
+ // The imported generated module only defines owner presentation functions.
+ const adapter=read('scripts/local-ui-adapter.js').replace(/^import .*;\n/gm,'');
  for(const location of [{protocol:'https:',hostname:'127.0.0.1',port:'18874'},{protocol:'http:',hostname:'soundcruise.jp',port:'18874'},{protocol:'http:',hostname:'127.0.0.1',port:'18873'}])assert.throws(()=>vm.runInNewContext(adapter,{location,document:{querySelector:()=>true}}),/refused/);
  assert.throws(()=>vm.runInNewContext(adapter,{location:{protocol:'http:',hostname:'127.0.0.1',port:'18874'},document:{querySelector:()=>null}}),/refused/);
 });

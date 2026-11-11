@@ -1,9 +1,11 @@
 /* Test-only dependency injection. Excluded from both release packaging paths. */
+import {createOwnerUI,ownerCSS,exportBookmarklet} from './.local-chord-owner.mjs';
 if (location.protocol !== 'http:' || location.hostname !== '127.0.0.1' || location.port !== '18874' ||
     !document.querySelector('meta[name="local-ui-fixture"]') || !document.querySelector('[data-local-ui-banner]')) {
     throw Error('Local UI fixture refused outside its dedicated origin');
 }
 const C = window.CruiseStudio;
+C.localChordOwner = Object.freeze({createOwnerUI,ownerCSS,exportBookmarklet});
 C.entryAuth = Object.freeze({isAuthorized: () => true, check: async () => true,
     read: () => ({phase: 'ready', accountId: null})});
 // Keep native Account, Sync and embedded application surfaces out of this fixture.

@@ -975,6 +975,8 @@
 #sc-slot-overlay .editor-row-disclosure{line-height:1;}
 #sc-slot-overlay .editor-row-disclosure{font:inherit;font-size:max(11px,calc(11px * var(--bar-loupe-scale,1)))!important;padding:1px 3px!important;border:0!important;border-radius:3px!important;background:transparent!important;color:#435b81!important;text-decoration:none!important;cursor:pointer;}
 #sc-slot-overlay .editor-row-disclosure[aria-expanded=true]{background:#dfe7f0!important;}
+#sc-slot-overlay .score-owner-chord-picker{position:relative;z-index:auto;min-width:0;margin:0 0 8px var(--editor-label-offset);flex-shrink:0;}
+#sc-slot-overlay .slot-overlay-grid:has(.score-owner-chord-picker) > [data-score-playhead]{display:none;}
 #sc-slot-overlay .score-chord-picker{position:relative;z-index:5;margin:0 0 8px var(--editor-label-offset);padding:12px;background:#f8faff;color:var(--slot-text);border:1px solid #9baac2;border-radius:8px;flex-shrink:0;}
 #sc-slot-overlay input.chord-selected-cell{box-shadow:inset 0 0 0 2px #6b8199!important;background:#e7ecf2!important;}
 #sc-slot-overlay .score-chord-picker:empty,[data-chord-picker][hidden]{display:none!important;}
@@ -1695,10 +1697,10 @@
     function buildChordPickerPanel(){var root=document.createElement('section');root.dataset.chordPicker='';root.hidden=!chordPicker.open||collapsedEditorRows.has('chord');if(!root.hidden)populateChordPicker(root);return root;}
     function refreshChordPicker(){syncEditorDisclosures();var root=els.slotOverlay?.querySelector('[data-chord-picker]');if(root&&!root.hidden)populateChordPicker(root);}
     function populateChordPicker(root){
-        var owner=state.session,bar=owner.draft.bars[state.selectedBarNumber-1];if(!bar)return;
+        var owner=state.session,bar=owner.draft.bars[state.selectedBarNumber-1];if(!bar)return;root._disposeOwnerChord?.();
         if(chordPicker.owner!==owner||chordPicker.barId!==bar.id){chordPicker.owner=owner;chordPicker.barId=bar.id;chordPicker.tick=0;}
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.102.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.103.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol){
@@ -3656,6 +3658,7 @@
      */
     function renderSlotOverlayContent() {
         if (!els.slotOverlay) return;
+        els.slotOverlay.querySelectorAll('[data-chord-picker]').forEach(function(root){root._disposeOwnerChord?.();});
         els.slotOverlay.innerHTML = '';
 
         var bar = getSelectedBar();
@@ -4179,7 +4182,7 @@
         });
         els.root.addEventListener('keydown', routeLocalSave);
         document.addEventListener('keydown',onPlaybackSpace);
-        els.slotOverlay.tabIndex=-1;els.slotOverlay.addEventListener('pointerdown',function(e){if(!e.target.closest('button,input,textarea,select,a,[contenteditable],[data-piano-event],.slot-overlay-resize-handle')&&editorCanMove())els.slotOverlay.focus({preventScroll:true});});
+        els.slotOverlay.tabIndex=-1;els.slotOverlay.addEventListener('pointerdown',function(e){if(e.composedPath().some(function(node){return node?.matches?.('[data-chord-picker]');}))return;if(!e.target.closest('button,input,textarea,select,a,[contenteditable],[data-piano-event],.slot-overlay-resize-handle')&&editorCanMove())els.slotOverlay.focus({preventScroll:true});});
         document.addEventListener('focusin', function () { focusEpoch++; finishTextInputs(); }, true);
         // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
         els.root.addEventListener('compositionstart', function (event) {
@@ -4284,7 +4287,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.102.0-dev.1',
+        developmentVersion: '0.103.0-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
