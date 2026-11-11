@@ -172,10 +172,17 @@
             restOutlines[ticks]={path:commands.join(' '),box:[box.getX()-1,box.getY()-1,box.getW()+2,box.getH()+2].join(' ')};
         }
         var ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),path=document.createElementNS(ns,'path');
-        svg.setAttribute('viewBox',restOutlines[ticks].box);svg.setAttribute('width','.9em');svg.setAttribute('height','1.3em');svg.style.verticalAlign='middle';
+        svg.setAttribute('viewBox',restOutlines[ticks].box);svg.setAttribute('width','.65em');svg.setAttribute('height','.85em');svg.style.verticalAlign='middle';
         svg.setAttribute('data-rest-ticks',ticks);svg.setAttribute('role','img');svg.setAttribute('aria-label',ticks===120?'16分休符':'8分休符');
         path.setAttribute('d',restOutlines[ticks].path);path.setAttribute('fill','currentColor');svg.appendChild(path);return svg;
     }
+
+    function createStrumArrow(direction){
+        var ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),path=document.createElementNS(ns,'path');
+        svg.setAttribute('viewBox','0 0 16 24');svg.setAttribute('width','.75em');svg.setAttribute('height','1.1em');svg.setAttribute('data-strum-arrow',direction);svg.setAttribute('aria-hidden','true');
+        path.setAttribute('d',direction==='up'?'M8 21V3M3 8L8 3L13 8':'M8 3V21M3 16L8 21L13 16');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','1.65');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');svg.appendChild(path);return svg;
+    }
+    function octaveColor(octave){return ['#555c66','#526478','#23685f','#245b91','#435ca0','#76539a','#92552c','#99434f','#754561'][Math.max(0,Math.min(8,octave))];}
 
     // Empty = no event, rest = explicit rest + duration, sustain = previous stroke duration.
     function buildStrumRow(slots, barTicks, viewResolution) {
@@ -193,9 +200,9 @@
         var row=el('span','sheet-bar-strum sheet-bar-row sheet-bar-strum--'+res);
         row.style.gridTemplateColumns='repeat('+res+',1fr)';
         cells.forEach(function(value){
-            var cell=el('span','is-'+value.state+(['down','up'].includes(value.state)?' is-stroke':''),value.state==='rest'?'':value.text);cell.dataset.strumState=value.state;
+            var cell=el('span','is-'+value.state+(['down','up'].includes(value.state)?' is-stroke':''),['rest','down','up'].includes(value.state)?'':value.text);cell.dataset.strumState=value.state;
             cell.title=value.state==='empty'?'未入力':value.state==='rest'?'休符':value.state==='sustain'?'伸ばし':value.text;
-            if(value.state==='rest'){cell.style.color='var(--paper-strum-stroke)';cell.appendChild(createStrumRestSymbol(slotTicks));}
+            if(value.state==='rest'){cell.style.color='#746e65';cell.appendChild(createStrumRestSymbol(slotTicks));}else if(['down','up'].includes(value.state))cell.appendChild(createStrumArrow(value.state));
             row.appendChild(cell);
         });
         return row;
@@ -207,9 +214,9 @@
     function buildTimedTextRow(className,events,resolution,barTicksLen){
         var row=el('span',className+' sheet-bar-row');
         Object.assign(row.style,{display:'grid',gridTemplateColumns:'repeat('+resolution+',minmax(0,1fr))',gap:'0',marginLeft:'calc(-1 * var(--sheet-bar-pad-x))',marginRight:'calc(-1 * var(--sheet-bar-pad-x))',fontSize:'13.5px',fontWeight:'600',letterSpacing:'0',minHeight:'1.5em'});
-        var texts=Array(resolution).fill('');
-        events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i]+=e.text;});
-        texts.forEach(function(text,i){var cell=el('span','sheet-timed-cell',text);cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'center',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
+        var texts=Array.from({length:resolution},function(){return [];});
+        events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i].push(e);});
+        texts.forEach(function(items,i){var cell=el('span','sheet-timed-cell');items.forEach(function(e){var token=el('span','',e.text);if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}cell.appendChild(token);});cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'center',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
         return row;
     }
     function buildLyricsRow(bar,resolution,barTicksLen){
@@ -218,7 +225,7 @@
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -263,7 +270,7 @@
         if (hasVocal && show.doremi) {
             var tokens=theory.melodyEventsToDoremiTokens((bar.melody||[]).map(function(e){return Object.assign({},e,{durationTicks:1});}));
             var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
-            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){return {tick:e.tick,text:tokens[i].text};}),timeRes,beats*model.TICKS_PER_BEAT);
+            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text,octave:octave};}),timeRes,beats*model.TICKS_PER_BEAT);
             doremi.style.color='var(--paper-doremi)';
             cell.appendChild(doremi);
         }
@@ -308,7 +315,7 @@
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
                     var strum = show.strum ? resolveBarStrum(project, bar) : null;
-                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null));
+                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo));
                 });
                 // 行末まで小節線を揃えるための空セル
                 for (var pad = lineBars.length; pad < cols; pad++) {
@@ -329,6 +336,8 @@
         // D3a: 下部ドックのタイムグリッド解像度判定（8分/16分）が紙面と同じ基準を使うための公開。
         // ロジック自体は無変更（紙面のストローク段描画とドックのセル表示解像度の両方から使う）
         createStrumRestSymbol: createStrumRestSymbol,
+        createStrumArrow: createStrumArrow,
+        octaveColor: octaveColor,
         strumNeedsSixteenth: strumNeedsSixteenth
     };
 })();
