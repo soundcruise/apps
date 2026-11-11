@@ -310,7 +310,7 @@
             var bars = model.getSectionBars(project, sec.id);
             if (bars.length === 0) return;
 
-            page.appendChild(el('div', 'sheet-section-label', sec.name));
+            var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.tabIndex=0;label.setAttribute('role','button');label.setAttribute('aria-pressed','false');label.title=sec.name+'を選択して、ここから再生';page.appendChild(label);
 
             // 歌詞もドレミも出ないセクション（前奏など）は2倍詰めのコード段にする
             var hasVocal = bars.some(function (bar) {

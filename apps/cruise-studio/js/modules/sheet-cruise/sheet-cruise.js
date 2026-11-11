@@ -107,6 +107,22 @@
     });
     var staffStyle = 'code', staffView = null;
     var editorBars=1,editorAnchorId=null,editorPlacement='floating',collapsedEditorRows=new Set();
+    var sectionPlaybackSelection=null;
+    function selectedPlaybackSection(){var choice=sectionPlaybackSelection;if(!choice)return null;if(choice.owner!==state.session){sectionPlaybackSelection=null;return null;}var section=state.session.draft.sections.find(function(s){return s.id===choice.id;});if(!section||!state.session.draft.bars.some(function(b){return b.sectionId===choice.id;})){sectionPlaybackSelection=null;return null;}return section;}
+    function selectPlaybackSection(id,toggle){
+        if(!editorCanMove())return false;var current=selectedPlaybackSection(),section=state.session.draft.sections.find(function(s){return s.id===id;});if(!section)return false;
+        stopPianoAudition();finishTextInputs();selectedBarIds=[];deselectBar();sectionPlaybackSelection=toggle&&current?.id===id?null:{owner:state.session,id:id};syncSheetSelection(true);updateBarPlayButton();return true;
+    }
+    function onPlaybackSpace(event){
+        if(event.defaultPrevented||event.key!==' '||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey||event.isComposing||event.keyCode===229||!state.active||!operationEligible()||!CS().entryAuth?.isAuthorized())return;
+        var target=event.target;if(!(target===document.body||els.root.contains(target)||els.slotOverlay.contains(target)))return;
+        if(target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.dock-strum-cell,[data-piano-event]'))return;
+        var button=target.closest('button,a,[role="button"]');if(button&&!button.matches('[data-bar-preview],[data-melody-preview],#sc-song-preview,.sheet-section-label'))return;
+        event.preventDefault();event.stopPropagation();if(event.repeat)return;
+        if(barPreviewPhase!=='idle'){stopPianoAudition();return;}
+        var section=target.closest('.sheet-section-label');if(section&&selectedPlaybackSection()?.id!==section.dataset.sectionId&&!selectPlaybackSection(section.dataset.sectionId,false))return;
+        startPreview(!els.slotOverlay.classList.contains('hidden')?(piano.open?'melody':'all'):'song');
+    }
     function editorRoot(){return els.slotOverlay?.querySelector('.editor-measure[data-bar-number="'+state.selectedBarNumber+'"]')||els.slotOverlay;}
     function editorStartIndex(project){var index=project.bars.findIndex(function(b){return b.id===editorAnchorId;});return index>=0?index:Math.max(0,state.selectedBarNumber-1);}
     function revealEditorCell(target){var viewport=els.slotOverlay.querySelector('.editor-score-scroll');if(!viewport||!target)return;var area=viewport.getBoundingClientRect(),box=target.getBoundingClientRect();if(box.right>area.right-8)viewport.scrollLeft+=box.right-area.right+8;else if(box.left<area.left+8)viewport.scrollLeft+=box.left-area.left-8;}
@@ -918,6 +934,9 @@
 #sc-slot-overlay .solfege-cell:focus-within .solfege-colors {visibility:hidden;}
 #sc-slot-overlay .solfege-cell.piano-color-mode input {color:transparent!important;caret-color:transparent;}
 #sc-slot-overlay .solfege-cell.piano-color-mode:focus-within .solfege-colors {visibility:visible;}
+#sc-sheet-scale-box .sheet-section-label{cursor:pointer;}
+#sc-sheet-scale-box .sheet-section-label.is-selected-section{background:#e7ecf2;outline:2px solid #6b8199;outline-offset:3px;}
+@media print{#sc-sheet-scale-box .sheet-section-label.is-selected-section{background:transparent;outline:none;}}
 #sc-slot-overlay .slot-overlay-grid {position:relative;overflow:visible;}
 #sc-slot-overlay .editor-score-scroll{overflow-y:hidden;}
 #sc-slot-overlay .sc-playing-cell,#sc-sheet-scale-box .sc-playing-cell {box-shadow:inset 0 0 0 2px #6b8199!important;background-color:#e7ecf2!important;}
@@ -1407,7 +1426,7 @@
         [els.slotOverlay,els.scaleBox].forEach(function(root){if(!root)return;root.querySelectorAll('.sc-playing-cell,.sc-playing-note').forEach(function(e){e.classList.remove('sc-playing-cell','sc-playing-note');});root.querySelectorAll('[data-score-playhead]').forEach(function(e){e.remove();});});
     }
     function updateBarPlayButton(){
-        var whole=q('sc-song-preview');if(whole){var active=barPreviewPhase!=='idle'&&barPreviewScope==='song';whole.textContent=active?(barPreviewPhase==='loading'?'■ 準備中':'■ 全曲停止'):'▶ 全曲再生';whole.setAttribute('aria-pressed',String(active));}
+        var whole=q('sc-song-preview');if(whole){var active=barPreviewPhase!=='idle'&&barPreviewScope==='song';var section=selectedPlaybackSection();whole.textContent=active?(barPreviewPhase==='loading'?'■ 準備中':'■ 全曲停止'):section?'▶ ここから再生':'▶ 全曲再生';whole.title=section?section.name+'から曲末まで再生（Spaceで再生／停止）':'全曲再生（Spaceで再生／停止）';whole.setAttribute('aria-pressed',String(active));}
         var position=q('sc-song-position');if(position&&(barPreviewPhase==='idle'||barPreviewScope!=='song'))position.textContent='';
         if(!els.slotOverlay)return;
         els.slotOverlay.querySelectorAll('[data-bar-preview],[data-melody-preview]').forEach(function(button){var scope=button.hasAttribute('data-melody-preview')?'melody':'all',active=barPreviewPhase!=='idle'&&barPreviewScope===scope;button.textContent=active?(barPreviewPhase==='loading'?'■ 準備中':'■ 停止'):scope==='melody'?'▶ メロディ':'▶ 再生';button.setAttribute('aria-pressed',String(active));});
@@ -1492,7 +1511,7 @@
         if(barPreviewPhase!=='idle'&&barPreviewScope===scope){stopPianoAudition();return;}
         finishTextInputs();var owner=state.session,c=scope==='song'?null:pianoContext();
         if(!owner||owner.draft.schemaVersion!==2||!operationEligible()||owner.inputPending||owner.commitInFlight||owner.conflict||owner.externalUpdatePending||textDiagnostic(owner)||(scope!=='song'&&pianoBlocked(c))){pianoMessage('未確定の入力・保存・競合を確認してください');return;}
-        try{var project=owner.workingSnapshot(),deps=previewDependencies(project,scope==='melody'),plan=scope==='song'?buildSongPreviewPlan(project,deps):editorBars===2?buildSongPreviewPlan(project,deps,editorStartIndex(project),2):buildBarPreviewPlan(project,state.selectedBarNumber-1,deps);
+        try{var project=owner.workingSnapshot(),deps=previewDependencies(project,scope==='melody'),plan=scope==='song'?buildSongPreviewPlan(project,deps,selectedPlaybackSection()?project.bars.findIndex(function(b){return b.sectionId===selectedPlaybackSection().id;}):0):editorBars===2?buildSongPreviewPlan(project,deps,editorStartIndex(project),2):buildBarPreviewPlan(project,state.selectedBarNumber-1,deps);
             piano.message='';if(plan.warnings.length)pianoMessage(plan.warnings.join('／'));var frame=contentFrame();previewFrame=frame;previewSpans=plan.spans||null;previewSecondsPerTick=plan.secondsPerTick;barPreviewScope=scope;
             void ensureAudition().playEvents(plan.events,function(){return currentFrame(frame)&&state.active&&!document.hidden&&(!CS().entryAuth||CS().entryAuth.isAuthorized());},plan.duration,scope==='song'||plan.spans?.length>1).then(function(r){if(!r.ok&&r.error&&currentFrame(frame))pianoMessage(r.error);}).catch(function(){if(currentFrame(frame))pianoMessage('試聴を開始できませんでした');});
         }catch(e){pianoMessage(e.message);}
@@ -3705,6 +3724,7 @@
             state.selectedBarNumber = null;
             selectionDeleted = true;
         }
+        var section=selectedPlaybackSection();els.scaleBox.querySelectorAll('.sheet-section-label[data-section-id]').forEach(function(label){var selected=label.dataset.sectionId===section?.id;label.classList.toggle('is-selected-section',selected);label.setAttribute('aria-pressed',String(selected));});
         if (!preserveInputs) renderSlotOverlayContent();
         positionSlotOverlay();
         maybeAutoScrollToSelection();
@@ -3797,6 +3817,7 @@
         if (state.selectedBarNumber !== barNumber) {
             state.overlayBulkMessage = null;
         }
+        sectionPlaybackSelection=null;
         state.selectedBarNumber = barNumber;
         editorAnchorId=state.session.draft.bars[barNumber-1].id;
         selectionDeleted = false;
@@ -3814,13 +3835,15 @@
         var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
     }
     function onPreviewClick(event) {
+        var section=event.target.closest?.('.sheet-section-label[data-section-id]');if(section){selectPlaybackSection(section.dataset.sectionId,true);return;}
         var cell = event.target.closest && event.target.closest('.sheet-bar[data-bar-number]');
         if (!cell || cell.classList.contains('sheet-bar--empty')) return;
         selectBarRange(parseInt(cell.dataset.barNumber, 10), event.shiftKey);
     }
 
     function onPreviewKeydown(event) {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
+        if (event.key !== 'Enter'||event.isComposing||event.keyCode===229) return;
+        var section=event.target.closest?.('.sheet-section-label[data-section-id]');if(section){event.preventDefault();selectPlaybackSection(section.dataset.sectionId,true);return;}
         var cell = event.target.closest && event.target.closest('.sheet-bar[data-bar-number]');
         if (!cell || cell.classList.contains('sheet-bar--empty')) return;
         event.preventDefault();
@@ -4078,6 +4101,8 @@
             });
         });
         els.root.addEventListener('keydown', routeLocalSave);
+        document.addEventListener('keydown',onPlaybackSpace);
+        els.slotOverlay.tabIndex=-1;els.slotOverlay.addEventListener('pointerdown',function(e){if(!e.target.closest('button,input,textarea,select,a,[contenteditable],[data-piano-event],.slot-overlay-resize-handle')&&editorCanMove())els.slotOverlay.focus({preventScroll:true});});
         document.addEventListener('focusin', function () { focusEpoch++; finishTextInputs(); }, true);
         // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
         els.root.addEventListener('compositionstart', function (event) {
@@ -4182,7 +4207,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.100.0-dev.1',
+        developmentVersion: '0.101.0-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
