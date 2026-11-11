@@ -1,10 +1,12 @@
 {
   "name": "sound-cruise-sync",
-  "version": "0.1.5",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "test:ai-support": "node --test test/ai-support*.test.js",
+    "test:ai-usage:local": "node scripts/check-ai-usage-local.mjs",
     "check": "npm test && wrangler deploy --dry-run",
     "dev": "wrangler dev --local",
     "migrate:local": "wrangler d1 migrations apply SYNC_DB --local",

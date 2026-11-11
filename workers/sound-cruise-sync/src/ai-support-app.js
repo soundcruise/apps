@@ -12,7 +12,8 @@
 // → QA (read-only) → Account (read-only, AI1-A) → beta entitlement → per-Account limit → the
 // Account's known IDs (read-only, for the egress guard only) → one turn,
 // whose every provider call passes the egress guard (ai-support-chat.js). Every D1 access on this
-// path is a SELECT; nothing is stored. The gate is AI-specific (AI_SUPPORT_MODE, default off) and
+// path to SYNC_DB is a SELECT. A separate AI_SUPPORT_USAGE_DB stores counters only, never text.
+// The gate is AI-specific (AI_SUPPORT_MODE, default off) and
 // never shares a sync gate, so the AI can be stopped alone:
 //   off (or anything else) → nobody;
 //   beta → a valid Pro credential + an Account credential + that Account in the
@@ -26,7 +27,8 @@ import { inspectProCredentialReadOnly } from './pro-auth-app.js';
 import { AI_SUPPORT_LIMITS, FALLBACK_REPLIES, SECRET_REFUSAL } from './ai-support-policy.js';
 import { containsSensitive } from './secret-detector.js';
 import { AI_SUPPORT_MODELS, AiProviderError, DEFAULT_AI_SUPPORT_MODEL, createWorkersAiProvider } from './ai-support-provider.js';
-import { runSupportTurn } from './ai-support-chat.js';
+import { createSupportStats, runSupportTurn } from './ai-support-chat.js';
+import { AiContextLimitError, AiUsageError, reserveAiUsage } from './ai-support-usage.js';
 import { isJsonContentType, readBodyWithLimit } from './validation.js';
 
 export const AI_SUPPORT_ROUTE = '/v2/ai-support/chat';
@@ -201,22 +203,38 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
   }
   if (limited?.success !== true) return fail(429, 'rate_limited', origin, { 'Retry-After': '60' });
 
+  let usage;
+  try { usage = await reserveAiUsage(env, opened.scopeKey, modelKey); }
+  catch { return fail(503, 'ai_support_accounting_unavailable', origin); }
+  if (!usage.ok) return respond(429, { ok: false, code: usage.code, resetAt: usage.resetAt }, origin,
+    { 'Retry-After': String(usage.retryAfter) });
+  const started = Date.now();
+  const stats = createSupportStats();
+  const finish = async (outcome, response) => {
+    try { await usage.finish({ outcome, durationMs: Date.now() - started, repair: stats.repairAttempted, fallback: stats.fallback }); }
+    catch { return fail(503, 'ai_support_accounting_unavailable', origin); }
+    return response;
+  };
   // The Account's raw IDs, for the egress guard only (compared, never sent). If they cannot be read,
   // no model is called (fail closed) and the fixed diagnostics-unavailable reply is returned.
   let knownIds;
   try { knownIds = await opened.diagnostics.knownIds(); } catch {
-    return respond(200, { ok: true, reply: FALLBACK_REPLIES.diagnosticsUnavailable }, origin);
+    stats.fallback = true;
+    return finish('diagnostics_error', respond(200, { ok: true, reply: FALLBACK_REPLIES.diagnosticsUnavailable }, origin));
   }
-  const provider = (dependencies.createProvider || createWorkersAiProvider)({ ai: env.AI, modelKey,
-    maxOutputTokens: AI_SUPPORT_LIMITS.maxOutputTokens, knownIds });
   try {
-    const turn = await runSupportTurn({ provider, diagnostics: opened.diagnostics, history, message, knownIds });
+    const provider = (dependencies.createProvider || createWorkersAiProvider)({ ai: env.AI, modelKey,
+      maxOutputTokens: AI_SUPPORT_LIMITS.maxOutputTokens, knownIds, usageMeter: usage });
+    const turn = await runSupportTurn({ provider, diagnostics: opened.diagnostics, history, message, knownIds, stats });
     if (turn.egressBlocked) {
-      return respond(400, { ok: false, code: 'ai_support_secret_detected', message: SECRET_REFUSAL }, origin);
+      return finish('secret_blocked', respond(400, { ok: false, code: 'ai_support_secret_detected', message: SECRET_REFUSAL }, origin));
     }
-    return respond(200, { ok: true, reply: turn.reply }, origin);
+    if (turn.diagnosticsFailed) stats.fallback = true;
+    return finish(turn.diagnosticsFailed ? 'diagnostics_error' : 'ok', respond(200, { ok: true, reply: turn.reply }, origin));
   } catch (error) {
-    if (error instanceof AiProviderError) return fail(503, 'ai_provider_unavailable', origin);
-    return fail(503, 'ai_support_unavailable', origin);
+    if (error instanceof AiUsageError) return fail(503, 'ai_support_accounting_unavailable', origin);
+    if (error instanceof AiContextLimitError) return finish('context_limit', fail(400, error.code, origin));
+    if (error instanceof AiProviderError) return finish('provider_error', fail(503, 'ai_provider_unavailable', origin));
+    return finish('support_error', fail(503, 'ai_support_unavailable', origin));
   }
 }

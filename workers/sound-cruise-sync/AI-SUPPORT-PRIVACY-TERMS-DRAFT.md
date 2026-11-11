@@ -1,5 +1,9 @@
 # AI相談（Cloud Sync UX 2.0 AI1）— プライバシーポリシー・利用規約
 
+一般Pro公開候補0.2.0の追加計数・保持期間・別DB境界は
+[AI-SUPPORT-PRO-ROLLOUT.md](AI-SUPPORT-PRO-ROLLOUT.md)を参照。
+以下は初期実装時の記録。現行候補でも会話本文は保存せず、追加するのは独立DBの利用計数だけ。
+
 状態：AI1-C Security / Privacy Blocker Fix で `apps/cruise-port/privacy.html#ai-support` と
 `apps/cruise-port/terms.html#ai-support` に反映済み（ローカルのみ・未公開）。本文の正はこの2ページで、
 このファイルは根拠と公開前チェックの記録。
@@ -12,7 +16,7 @@
 | 相談内容・直近の会話・同期状態の要約・同期先の表示名（または短い識別子） | `runSupportTurn` の messages（system / history / message）と `getSyncOverview` / `getAppSyncTargets` のツール結果。ID は最大8文字の shortId か会話内の T 参照 |
 | 同期データの中身・完全な ID は送らない | `ai-diagnostics.js` の射影（テスト：provider request に ID・credential・payload が無い） |
 | 認証情報の自動検出・遮断 | `secret-detector.js` + `ai-support-egress.js`（全 provider 呼び出しの直前に検査、該当時は送信しない）。番号らしい同期先名は使わず次の名前にフォールバック |
-| Cruise は D1・ブラウザ保存領域に保存しない | ルートは SELECT のみ（D1 byte-identical テスト）。Port は会話をクロージャ内のメモリにのみ保持 |
+| Cruise は会話本文を D1・ブラウザ保存領域に保存しない | Sync DBはSELECTのみ（byte-identicalテスト）。独立AI DBは利用計数のみ。Portの会話はクロージャ内のメモリだけに保持 |
 | Cloudflare の条件 | 「Cloudflareのサービス条件・データ利用方針に従います」とだけ記載。Cloudflare 側の保存・学習について独自の断定はしない |
 | 送信回数の一時的な計数 | `AI_SUPPORT_RATE_LIMITER`（Account 単位）/ `AI_SUPPORT_IP_RATE_LIMITER`（IP 単位）。相談内容は含まない |
 | 回答は誤り得る・画面表示が優先・メール窓口 | パネルの注記、ガード＋修正1回＋固定フォールバック、フッターのメールリンク |

@@ -15,7 +15,7 @@ const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 const PREVIOUS_RELEASE_MODULES = Object.freeze(["news-external-link.js", "pro-prompt.js", "pro-access-content.js", "ai-support-client.js", "ai-support-ui.js", "app-version.js", "cruise-port-capabilities.js", "gear-category-store.js", "gear-list-store.js", "gear-photo-store.js", "gear-photo-workflow.js", "home-display.js", "metronome-app.js", "metronome-presets-store.js", "metronome-store.js", "metronome-timing.js", "my-apps-capabilities.js", "my-apps-icon-store.js", "my-apps-icon-workflow.js", "my-apps-store.js", "port-account-join.js", "port-asset-sync.js", "port-sync-status.js", "sync-center-refresh.js", "sync-center-controller.js", "sync-center-navigation.js", "port-dataset-repository.js", "port-dataset-storage.js", "port-sync-local-validation.js", "practice-capabilities.js", "practice-dataset-writes.js", "practice-menu-app-resolver.js", "practice-menu-attachment-store.js", "practice-menu-calendar-store.js", "practice-menu-history-store.js", "practice-menu-pending-attachments.js", "practice-menu-progress-store.js", "practice-menu-sets-store.js", "practice-menu-store.js", "settings-store.js", "sync-center-orchestrator.js", "sync-center-ui.js", "sync-pro-lock.js", "tool-capabilities.js", "tuner-app.js", "tuner-store.js"]);
 // Only changed implementation modules and their boot/version cache edges advance.
 const PREVIOUS_PATCH_MODULES = Object.freeze(["ai-support-client.js", "ai-support-ui.js", "app-version.js", "cruise-port-capabilities.js", "gear-category-store.js", "gear-list-store.js", "gear-photo-store.js", "gear-photo-workflow.js", "home-display.js", "metronome-app.js", "metronome-presets-store.js", "metronome-store.js", "metronome-timing.js", "my-apps-capabilities.js", "my-apps-icon-store.js", "my-apps-icon-workflow.js", "my-apps-store.js", "port-account-join.js", "port-asset-sync.js", "port-dataset-repository.js", "port-dataset-storage.js", "port-sync-local-validation.js", "practice-capabilities.js", "practice-dataset-writes.js", "practice-menu-app-resolver.js", "practice-menu-attachment-store.js", "practice-menu-calendar-store.js", "practice-menu-history-store.js", "practice-menu-pending-attachments.js", "practice-menu-progress-store.js", "practice-menu-sets-store.js", "practice-menu-store.js", "settings-store.js", "sync-center-orchestrator.js", "sync-center-ui.js", "sync-pro-lock.js", "tool-capabilities.js", "tuner-app.js", "tuner-store.js"]);
-const RELEASE_MODULES = Object.freeze(["app-version.js", "tuner-engine.js", "tuner-audio.js", "tuner-app.js"]);
+const RELEASE_MODULES = Object.freeze(["app-version.js", "ai-support-client.js", "ai-support-ui.js", "tuner-app.js"]);
 // NEWS UI gets this release key for publisher tracking; its provider keeps its reviewed key.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
 // Other modules retain the cache key of their last real change.
@@ -51,12 +51,14 @@ const UNCHANGED_KEYS = Object.freeze(Object.fromEntries(Object.entries({
 ,...Object.fromEntries(['sync-center-controller.js','sync-center-ui.js','sync-center-orchestrator.js','sync-center-navigation.js','port-sync-status.js','port-account-join.js'].map(name=>[name,'1.25.1']))
 ,'sync-pro-lock.js':'1.24.26'
 ,...Object.fromEntries(['sync-center-ui.js','sync-center-controller.js','sync-center-orchestrator.js'].map(name=>[name,'1.27.1']))
+// Prior tuner modules are unchanged by the AI usage release.
+,...Object.fromEntries(['tuner-engine.js','tuner-audio.js','tuner-app.js'].map(name=>[name,'1.28.0']))
 // Sync implementations are unchanged; keep their last released cache identity.
 ,'port-asset-sync.js':'1.26.2'
 }).filter(([name]) => !RELEASE_MODULES.includes(name))));
 
-test('the tuner diagnosis release is 1.28.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.28.0');
+test('the AI usage release is 1.29.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.29.0');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -86,8 +88,8 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.28.0');
-  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.28.0');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.29.0');
+  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.29.0');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.28.0');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
   assert.equal(key('practice-menu-app.js', 'settings-store.js'), '1.24.24');
@@ -103,7 +105,7 @@ test('the exact release edges: entry → app → UI, unchanged modules keep thei
     assert.equal(key('practice-menu-app.js', name), '1.25.1');
   }
   assert.equal(key('practice-menu-app.js', 'practice-menu-history-store.js'), '1.24.24');
-  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '1.24.24');
+  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '1.29.0');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-history-store.js'), '1.24.24');
   assert.equal(key('practice-menu-app.js', 'port-sync-local-validation.js'), '1.24.24');
   for (const [name, previous] of Object.entries(UNCHANGED_KEYS)) {
