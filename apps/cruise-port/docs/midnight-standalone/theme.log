@@ -1,0 +1,358 @@
+TAP version 13
+# Subtest: theme values, Dark default and the unchanged settings schema version
+ok 1 - theme values, Dark default and the unchanged settings schema version
+  ---
+  duration_ms: 0.692167
+  type: 'test'
+  ...
+# Subtest: normalize keeps only an explicit valid theme; missing or invalid stays absent
+ok 2 - normalize keeps only an explicit valid theme; missing or invalid stays absent
+  ---
+  duration_ms: 0.117583
+  type: 'test'
+  ...
+# Subtest: loading old settings never writes a theme back (no mass Cloud Sync updates)
+ok 3 - loading old settings never writes a theme back (no mass Cloud Sync updates)
+  ---
+  duration_ms: 0.377083
+  type: 'test'
+  ...
+# Subtest: saving other settings without a theme keeps the exact previous stored shape
+ok 4 - saving other settings without a theme keeps the exact previous stored shape
+  ---
+  duration_ms: 0.156834
+  type: 'test'
+  ...
+# Subtest: an explicit choice saves dark, gray and light and reloads as saved
+ok 5 - an explicit choice saves dark, gray and light and reloads as saved
+  ---
+  duration_ms: 0.352333
+  type: 'test'
+  ...
+# Subtest: reset returns the theme to Dark explicitly, within the existing display-settings reset
+ok 6 - reset returns the theme to Dark explicitly, within the existing display-settings reset
+  ---
+  duration_ms: 0.198875
+  type: 'test'
+  ...
+# Subtest: only an explicit tap stores the theme and the choice applies without reload
+ok 7 - only an explicit tap stores the theme and the choice applies without reload
+  ---
+  duration_ms: 0.697292
+  type: 'test'
+  ...
+# Subtest: Settings UI: カラーテーマ radiogroup reuses the existing choices, right after フォント
+ok 8 - Settings UI: カラーテーマ radiogroup reuses the existing choices, right after フォント
+  ---
+  duration_ms: 0.246208
+  type: 'test'
+  ...
+# Subtest: startup bootstrap applies the saved theme before the stylesheet, Dark for anything else
+ok 9 - startup bootstrap applies the saved theme before the stylesheet, Dark for anything else
+  ---
+  duration_ms: 4.264208
+  type: 'test'
+  ...
+# Subtest: Cloud Sync carries the theme inside settings/global without any Worker or adapter change
+ok 10 - Cloud Sync carries the theme inside settings/global without any Worker or adapter change
+  ---
+  duration_ms: 2.287541
+  type: 'test'
+  ...
+# Subtest: the theme is Port-only: other Cruise app settings are never read or written
+ok 11 - the theme is Port-only: other Cruise app settings are never read or written
+  ---
+  duration_ms: 1.211
+  type: 'test'
+  ...
+# Subtest: CSS: Dark is the attribute-free default; Gray/Light only override tokens under data-theme
+not ok 12 - CSS: Dark is the attribute-free default; Gray/Light only override tokens under data-theme
+  ---
+  duration_ms: 3.673333
+  type: 'test'
+  location: '/private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:294:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    general CSS after the theme marker is the NEWS badge
+    + actual - expected
+
+      [
+        '.news-hot',
+    +   '.diagnostic-actions',
+    +   '.diagnostic-actions .diagnostic-copy',
+    +   '.diagnostic-advice',
+    +   '.diagnostic-details',
+    +   '.diagnostic-details summary',
+    +   '.tuner-input-tools > .tuner-diagnostic'
+      ]
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '.news-hot'
+  actual:
+    0: '.news-hot'
+    1: '.diagnostic-actions'
+    2: '.diagnostic-actions .diagnostic-copy'
+    3: '.diagnostic-advice'
+    4: '.diagnostic-details'
+    5: '.diagnostic-details summary'
+    6: '.tuner-input-tools > .tuner-diagnostic'
+  operator: 'deepStrictEqual'
+  stack: |-
+    assertThemeStructure (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:99:12)
+    TestContext.<anonymous> (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:300:21)
+    Test.runInAsyncScope (node:async_hooks:228:14)
+    Test.run (node:internal/test_runner/test:1118:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    Test.postRun (node:internal/test_runner/test:1247:19)
+    Test.run (node:internal/test_runner/test:1175:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+  ...
+# Subtest: Dark CSS is byte-identical to the 1.12.0 production Dark apart from explicit theme-button and NEWS-label rules
+not ok 13 - Dark CSS is byte-identical to the 1.12.0 production Dark apart from explicit theme-button and NEWS-label rules
+  ---
+  duration_ms: 0.785667
+  type: 'test'
+  location: '/private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:323:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + '76b6d5ab47f465fc00d41bb3457607ec42b05820fe5bc3d6e52e254203eb87c7'
+    - '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360'
+  actual: '76b6d5ab47f465fc00d41bb3457607ec42b05820fe5bc3d6e52e254203eb87c7'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:330:12)
+    Test.runInAsyncScope (node:async_hooks:228:14)
+    Test.run (node:internal/test_runner/test:1118:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    Test.postRun (node:internal/test_runner/test:1247:19)
+    Test.run (node:internal/test_runner/test:1175:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+  ...
+# Subtest: Gray/Light rules only change colors: no sizing, spacing or layout property is themed
+not ok 14 - Gray/Light rules only change colors: no sizing, spacing or layout property is themed
+  ---
+  duration_ms: 1.704583
+  type: 'test'
+  location: '/private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:333:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    general CSS after the theme marker is the NEWS badge
+    + actual - expected
+
+      [
+        '.news-hot',
+    +   '.diagnostic-actions',
+    +   '.diagnostic-actions .diagnostic-copy',
+    +   '.diagnostic-advice',
+    +   '.diagnostic-details',
+    +   '.diagnostic-details summary',
+    +   '.tuner-input-tools > .tuner-diagnostic'
+      ]
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '.news-hot'
+  actual:
+    0: '.news-hot'
+    1: '.diagnostic-actions'
+    2: '.diagnostic-actions .diagnostic-copy'
+    3: '.diagnostic-advice'
+    4: '.diagnostic-details'
+    5: '.diagnostic-details summary'
+    6: '.tuner-input-tools > .tuner-diagnostic'
+  operator: 'deepStrictEqual'
+  stack: |-
+    assertThemeStructure (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:99:12)
+    TestContext.<anonymous> (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:334:20)
+    Test.runInAsyncScope (node:async_hooks:228:14)
+    Test.run (node:internal/test_runner/test:1118:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    Test.postRun (node:internal/test_runner/test:1247:19)
+    Test.run (node:internal/test_runner/test:1175:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+  ...
+# Subtest: NEWS is structurally a general rule and retains its complete badge style
+not ok 15 - NEWS is structurally a general rule and retains its complete badge style
+  ---
+  duration_ms: 1.321209
+  type: 'test'
+  location: '/private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:342:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    general CSS after the theme marker is the NEWS badge
+    + actual - expected
+
+      [
+        '.news-hot',
+    +   '.diagnostic-actions',
+    +   '.diagnostic-actions .diagnostic-copy',
+    +   '.diagnostic-advice',
+    +   '.diagnostic-details',
+    +   '.diagnostic-details summary',
+    +   '.tuner-input-tools > .tuner-diagnostic'
+      ]
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: '.news-hot'
+  actual:
+    0: '.news-hot'
+    1: '.diagnostic-actions'
+    2: '.diagnostic-actions .diagnostic-copy'
+    3: '.diagnostic-advice'
+    4: '.diagnostic-details'
+    5: '.diagnostic-details summary'
+    6: '.tuner-input-tools > .tuner-diagnostic'
+  operator: 'deepStrictEqual'
+  stack: |-
+    assertThemeStructure (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:99:12)
+    TestContext.<anonymous> (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:343:21)
+    Test.runInAsyncScope (node:async_hooks:228:14)
+    Test.run (node:internal/test_runner/test:1118:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    Test.postRun (node:internal/test_runner/test:1247:19)
+    Test.run (node:internal/test_runner/test:1175:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+  ...
+# Subtest: theme structural guard rejects inline themed width after NEWS
+ok 16 - theme structural guard rejects inline themed width after NEWS
+  ---
+  duration_ms: 1.178083
+  type: 'test'
+  ...
+# Subtest: theme structural guard rejects inline themed spacing
+ok 17 - theme structural guard rejects inline themed spacing
+  ---
+  duration_ms: 0.578334
+  type: 'test'
+  ...
+# Subtest: theme structural guard rejects mixed scoped and unscoped selector
+ok 18 - theme structural guard rejects mixed scoped and unscoped selector
+  ---
+  duration_ms: 0.482959
+  type: 'test'
+  ...
+# Subtest: theme structural guard rejects extra themed radius
+ok 19 - theme structural guard rejects extra themed radius
+  ---
+  duration_ms: 0.478917
+  type: 'test'
+  ...
+# Subtest: theme structural guard rejects unaccounted general layout rule
+ok 20 - theme structural guard rejects unaccounted general layout rule
+  ---
+  duration_ms: 0.394334
+  type: 'test'
+  ...
+# Subtest: theme structural guard rejects missing general NEWS rule
+ok 21 - theme structural guard rejects missing general NEWS rule
+  ---
+  duration_ms: 0.416625
+  type: 'test'
+  ...
+# Subtest: theme structural guard rejects changed NEWS layout
+not ok 22 - theme structural guard rejects changed NEWS layout
+  ---
+  duration_ms: 0.503167
+  type: 'test'
+  location: '/private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:356:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /NEWS remains/. Input:
+
+    'AssertionError [ERR_ASSERTION]: general CSS after the theme marker is the NEWS badge\n' +
+      '+ actual - expected\n' +
+      '\n' +
+      '  [\n' +
+      "    '.news-hot',\n" +
+      "+   '.diagnostic-actions',\n" +
+      "+   '.diagnostic-actions .diagnostic-copy',\n" +
+      "+   '.diagnostic-advice',\n" +
+      "+   '.diagnostic-details',\n" +
+      "+   '.diagnostic-details summary',\n" +
+      "+   '.tuner-input-tools > .tuner-diagnostic'\n" +
+      '  ]\n'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: |-
+    general CSS after the theme marker is the NEWS badge
+    + actual - expected
+
+      [
+        '.news-hot',
+    +   '.diagnostic-actions',
+    +   '.diagnostic-actions .diagnostic-copy',
+    +   '.diagnostic-advice',
+    +   '.diagnostic-details',
+    +   '.diagnostic-details summary',
+    +   '.tuner-input-tools > .tuner-diagnostic'
+      ]
+
+  stack: |-
+    assertThemeStructure (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:99:12)
+    file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:357:25
+    getActual (node:assert:611:5)
+    strict.throws (node:assert:759:24)
+    TestContext.<anonymous> (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:357:12)
+    Test.runInAsyncScope (node:async_hooks:228:14)
+    Test.run (node:internal/test_runner/test:1118:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    Test.postRun (node:internal/test_runner/test:1247:19)
+    Test.run (node:internal/test_runner/test:1175:12)
+  operator: 'throws'
+  stack: |-
+    TestContext.<anonymous> (file:///private/tmp/cruise-port-midnight-standalone-20261108/apps/cruise-port/theme.test.mjs:357:12)
+    Test.runInAsyncScope (node:async_hooks:228:14)
+    Test.run (node:internal/test_runner/test:1118:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    Test.postRun (node:internal/test_runner/test:1247:19)
+    Test.run (node:internal/test_runner/test:1175:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+  ...
+# Subtest: Tool and My Apps icons sit on a Dark plate in Gray/Light with the exact production Dark tokens
+ok 23 - Tool and My Apps icons sit on a Dark plate in Gray/Light with the exact production Dark tokens
+  ---
+  duration_ms: 0.336209
+  type: 'test'
+  ...
+# Subtest: the tuner is no longer Dark-fixed in Gray/Light and follows the theme
+ok 24 - the tuner is no longer Dark-fixed in Gray/Light and follows the theme
+  ---
+  duration_ms: 0.183459
+  type: 'test'
+  ...
+# Subtest: Gray/Light tuner tokens: dark neutral accent, semantic green and readable contrast
+ok 25 - Gray/Light tuner tokens: dark neutral accent, semantic green and readable contrast
+  ---
+  duration_ms: 1.238709
+  type: 'test'
+  ...
+# Subtest: Charcoal: one token block between Dark and Gray; Dark-scheme, bright gold kept, no Gray/Light-only rules
+ok 26 - Charcoal: one token block between Dark and Gray; Dark-scheme, bright gold kept, no Gray/Light-only rules
+  ---
+  duration_ms: 0.309042
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 21
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 67.823583
