@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {renderNews} from './news-ui.js';
+import {readFileSync} from 'node:fs';
 
 class Node {
     constructor(tag) { this.tagName=tag;this.children=[];this.textContent='';this.className='';this.attrs={}; }
@@ -41,4 +42,15 @@ test('non-HOT cards have no badge placeholder; same-day manual order and ticker 
     assert.equal(cards[1].all().some(n=>n.className==='news-hot'),false);
     assert.ok(doc['news-ticker'].all().some(n=>n.textContent==='🔥 '+data[1].label));
     assert.deepEqual(data,before);
+});
+
+test('reduced-motion first-only presentation retains the newest day, not only an older hot item',()=>{
+    const data=[{...item('old',true,0),label:'旧モデルの限定仕様を発表',publishedAt:'2026-10-20T15:00:00Z'},
+        {...item('new',false,1),label:'ギターの試奏記事を公開',publishedAt:'2026-10-22T15:00:00Z'}];
+    const doc=render(data),track=doc['news-ticker'].all().find(n=>n.className==='news-ticker-track');
+    assert.equal(track.children[0].textContent,'ギターの試奏記事を公開');
+    assert.equal(track.children[1].textContent,'🔥 旧モデルの限定仕様を発表');
+    const css=readFileSync(new URL('./style.css',import.meta.url),'utf8');
+    assert.match(css,/@media \(prefers-reduced-motion: reduce\) \{\s*\.news-ticker-track \{ animation: none;/);
+    assert.match(css,/\.news-ticker-track > span:not\(:first-child\) \{ display: none; \}/);
 });

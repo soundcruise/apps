@@ -1,4 +1,4 @@
-import { isProAccessReady } from './cruise-port-capabilities.js?v=1.24.24';
+import { isProAccessReady } from './cruise-port-capabilities.js?v=1.30.5';
 
 // Do not initialize tools, storage controllers or routes underneath a locked
 // Pro gate. Shared authentication/legacy/offline rules remain unchanged.
