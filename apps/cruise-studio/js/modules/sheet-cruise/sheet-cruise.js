@@ -406,8 +406,8 @@
         if(!els.toolbar||!CS().localPaperLayout||q('sc-paper-settings'))return;
         var visibility=els.toolbar.querySelector('.sc-paper-visibility'),actions=els.toolbar.querySelector('.sheet-toolbar-actions');
         if(visibility){
-            [['showNumbers','小節番号','sc-show-numbers'],['showParts','パート名','sc-show-parts']].forEach(function(item){var label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.id=item[2];input.checked=CS().localPaperLayout.value[item[0]];input.addEventListener('change',function(){if(!editorCanMove()){input.checked=CS().localPaperLayout.value[item[0]];return;}stopPianoAudition();CS().localPaperLayout.set({[item[0]]:input.checked});});label.append(input,document.createTextNode(' '+item[1]));visibility.appendChild(label);});
-            var settings=document.createElement('button');settings.type='button';settings.id='sc-paper-settings';settings.className='btn-ghost btn-compact';settings.textContent='表示設定';settings.title='見本を見ながら小節数・行の高さ・文字サイズを調整';settings.addEventListener('click',function(){if(!editorCanMove())return;finishTextInputs();stopPianoAudition();CS().localPaperLayout.open(els.root);refreshToolbarActions();});actions.appendChild(settings);
+            [['showNumbers','小節番号','sc-show-numbers'],['showParts','セクション名','sc-show-parts']].forEach(function(item){var label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.id=item[2];input.checked=CS().localPaperLayout.value[item[0]];input.addEventListener('change',function(){if(!editorCanMove()){input.checked=CS().localPaperLayout.value[item[0]];return;}stopPianoAudition();CS().localPaperLayout.set({[item[0]]:input.checked});});label.append(input,document.createTextNode(' '+item[1]));visibility.appendChild(label);});
+            var settings=document.createElement('button');settings.type='button';settings.id='sc-paper-settings';settings.className='btn-ghost btn-compact';settings.textContent='表示設定';settings.title='見本を見ながら小節数・行の高さ・文字サイズを調整';settings.addEventListener('click',function(){if(!editorCanMove())return;finishTextInputs();stopPianoAudition();CS().localPaperLayout.open(els.root,{project:state.session.workingSnapshot(),selectedBarNumber:state.selectedBarNumber||1,showForms:!!paperFormSessions.get(state.session)});refreshToolbarActions();});var head=document.createElement('div');head.className='sc-score-toolbar-head';var projects=els.toolbar.querySelector('.sheet-toolbar-project');els.toolbar.prepend(head);if(projects)head.appendChild(projects);head.appendChild(settings);
             CS().localPaperLayout.onChange(function(){renderPreview(true);['showNumbers','showParts'].forEach(function(name){var input=q(name==='showNumbers'?'sc-show-numbers':'sc-show-parts');if(input)input.checked=CS().localPaperLayout.value[name];});});
         }
         CS().localPaperLayout.apply(els.scaleBox);if(state.session)renderPreview(true);
@@ -912,7 +912,7 @@
         if(!state.project){renderInvalidProject();return;}
         state.overlayRefreshRequested = false;
         if (staffStyle === 'melody') staffRequest();
-        else {var paperForms=paperFormSessions.get(state.session)&&CS().localPaperForms?.view(state.session.workingSnapshot());CS().sheetRenderer.render(state.project, els.scaleBox, {hasFormsForBar:paperForms?paperForms.has:null,formsForBar:paperForms?paperForms.row:null,barsPerLine:CS().localPaperLayout?.value.barsPerLine,resolutionForBar:getStrumGridResolution,heldForNote:function(number,tick){var e=state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';},restsForBar:function(number){return state.session.draft.bars[number-1]?.melody.filter(function(e){return e.kind==='rest';})||[];},octaveForNote:function(number,tick){return state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick&&e.kind==='note';})?.pitch.octave;}});}
+        else {var paperForms=paperFormSessions.get(state.session)&&CS().localPaperForms?.view(state.session.workingSnapshot());CS().sheetRenderer.render(state.project, els.scaleBox, {hasFormsForBar:paperForms?paperForms.has:null,formsForBar:paperForms?paperForms.row:null,...CS().localPaperLayout?.renderOptions(state.session.workingSnapshot()),resolutionForBar:getStrumGridResolution,heldForNote:function(number,tick){var e=state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';},restsForBar:function(number){return state.session.draft.bars[number-1]?.melody.filter(function(e){return e.kind==='rest';})||[];},octaveForNote:function(number,tick){return state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick&&e.kind==='note';})?.pitch.octave;}});}
         CS().localPaperLayout?.apply(els.scaleBox);
         updateSheetScale();
         syncSheetSelection(preserveInputs);
@@ -934,6 +934,9 @@
         var style=document.createElement('style');style.id='sc-editor-interaction-style';
         style.textContent=`
 
+#screen-sheet-cruise .sc-score-toolbar-head{padding-right:52px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-basis:100%;width:100%;}
+#screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:auto;}
+#screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
 #screen-sheet-cruise .sc-paper-visibility{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--studio-border-default);}
 #screen-sheet-cruise .sc-paper-visibility label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
 #screen-sheet-cruise .sc-paper-visibility input{width:16px;height:16px;accent-color:var(--studio-accent);}
@@ -1777,7 +1780,7 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.116.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.117.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
@@ -4034,17 +4037,22 @@
         event.preventDefault();event.stopPropagation();if(event.repeat)return;(key==='c'?copySelectedBar:pasteSelectedBar)();
     }
     function onPreviewClick(event) {
+        if(event.defaultPrevented)return;
         var edit=event.target.closest?.('[data-edit-selected-bar]');if(edit){event.stopPropagation();editSelectedBar();return;}
         var section=event.target.closest?.('.sheet-section-label[data-section-id]');if(section){selectPlaybackSection(section.dataset.sectionId,true);return;}
         var cell=event.target.closest?.('.sheet-bar[data-bar-number]');if(!cell||cell.classList.contains('sheet-bar--empty'))return;
         var form=event.target.closest('.sheet-form-event'),code=event.target.closest('.sheet-chord-event');if(form||code){openPaperForm(cell,form?.dataset.formEvent,Number(code?.dataset.slotTick));return;}
-        if(!editorCanMove())return;closePaperForm();editorOpen=false;selectBarRange(Number(cell.dataset.barNumber),event.shiftKey);cell.focus({preventScroll:true});
+        if(!editorCanMove())return;var number=Number(cell.dataset.barNumber);if(!event.shiftKey&&!editorOpen&&state.selectedBarNumber===number&&selectedBarIds.length<=1){editSelectedBar();return;}closePaperForm();editorOpen=false;selectBarRange(number,event.shiftKey);cell.focus({preventScroll:true});
     }
     function onPaperNavigationKey(event){
-        if(event.defaultPrevented||!['ArrowLeft','ArrowRight'].includes(event.key)||event.isComposing||event.keyCode===229||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||editorOpen||!els.slotOverlay.classList.contains('hidden')||!editorCanMove())return;
+        if(event.defaultPrevented||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||event.isComposing||event.keyCode===229||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||editorOpen||!els.slotOverlay.classList.contains('hidden')||!editorCanMove())return;
         var target=event.target;if(!(target===document.body||els.root.contains(target))||target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.sheet-form-event,a,button:not(#sc-copy-bar):not(#sc-paste-bar),[role="button"]:not(.sheet-bar)'))return;
         var number=Number(target.closest('.sheet-bar[data-bar-number]')?.dataset.barNumber)||state.selectedBarNumber;if(!number)return;
-        event.preventDefault();event.stopPropagation();var next=number+(event.key==='ArrowLeft'?-1:1);if(next<1||next>state.session.draft.bars.length)return;selectBarRange(next,false);getSheetBarByNumber(next)?.focus({preventScroll:true});
+        event.preventDefault();event.stopPropagation();var next;
+        if(event.key==='ArrowUp'||event.key==='ArrowDown'){
+            var current=getSheetBarByNumber(number),line=current?.closest('.sheet-line');if(!line)return;var lines=Array.from(els.scaleBox.querySelectorAll('.sheet-line')),index=lines.indexOf(line),other=lines[index+(event.key==='ArrowUp'?-1:1)];if(!other)return;var column=Array.from(line.children).indexOf(current),bars=Array.from(other.querySelectorAll('.sheet-bar[data-bar-number]'));if(!bars.length)return;next=Number(bars[Math.min(column,bars.length-1)].dataset.barNumber);
+        }else next=number+(event.key==='ArrowLeft'?-1:1);
+        if(next<1||next>state.session.draft.bars.length)return;selectBarRange(next,false);getSheetBarByNumber(next)?.focus({preventScroll:true});
     }
     function onPreviewKeydown(event) {
         if(event.isComposing||event.keyCode===229)return;
@@ -4416,7 +4424,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.116.0-dev.1',
+        developmentVersion: '0.117.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,

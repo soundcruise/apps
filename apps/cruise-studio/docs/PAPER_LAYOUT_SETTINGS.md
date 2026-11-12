@@ -1,5 +1,7 @@
 # 譜面の余白・表示設定 — 0.116.0-dev.1
 
+続く再クリック編集・行配置・現在譜面プレビューは [PAPER_ROW_LAYOUT.md](PAPER_ROW_LAYOUT.md) を参照。以下は0.116時点の記録。
+
 2026-11-12。PR #274の6d57c5ceをbaseとした独立ローカル候補。前の記録は [SCORE_SELECTION_CHECKPOINT.md](SCORE_SELECTION_CHECKPOINT.md)。
 
 ## 変更
