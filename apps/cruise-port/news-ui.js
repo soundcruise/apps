@@ -20,6 +20,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
     const doc = documentObject;
     stopNewsUpdates(doc);
     const ticker = doc.getElementById('news-ticker');
+    const controls = doc.getElementById('news-ticker-controls');
     const entry = doc.getElementById('news-entry');
     const content = doc.getElementById('news-content');
     const node = (tag, text, className) => {
@@ -29,6 +30,8 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
         return result;
     };
     ticker.hidden = true;
+    if (controls) { controls.hidden = true; controls.replaceChildren(); }
+    let stopManualTicker = () => {};
     entry.hidden = mode === 'off';
     content.replaceChildren();
     if (mode === 'off') {
@@ -48,6 +51,41 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             ticker.append(viewport);
             ticker.setAttribute('aria-label', `ニュース一覧へ。${recent[0].label}`);
             ticker.hidden = false;
+            const motion = doc.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)');
+            if (controls && motion) {
+                let current = 0;
+                const previous = node('button', '‹'), next = node('button', '›');
+                previous.type = next.type = 'button';
+                previous.setAttribute('aria-label', '前のニュース');
+                next.setAttribute('aria-label', '次のニュース');
+                const position = node('span', undefined, 'news-ticker-position');
+                position.setAttribute('role', 'status');
+                position.setAttribute('aria-live', 'polite');
+                controls.append(previous, position, next);
+                const update = () => {
+                    controls.hidden = !motion.matches || recent.length < 2;
+                    Array.from(track.children).forEach((child, index) => child.setAttribute('data-current', String(index === current)));
+                    position.textContent = `${current + 1}/${recent.length}`;
+                    ticker.setAttribute('aria-label', `ニュース一覧へ。${motion.matches ? `${current + 1}/${recent.length}。${recent[current].label}` : recent[0].label}`);
+                    viewport.scrollLeft = 0;
+                };
+                const move = step => { if (motion.matches) { current = (current + step + recent.length) % recent.length; update(); } };
+                previous.addEventListener('click', () => move(-1));
+                next.addEventListener('click', () => move(1));
+                const key = event => {
+                    if (!motion.matches || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                    event.preventDefault();
+                    if (event.key === 'Home') current = 0;
+                    else if (event.key === 'End') current = recent.length - 1;
+                    else current = (current + (event.key === 'ArrowRight' ? 1 : -1) + recent.length) % recent.length;
+                    update();
+                };
+                ticker.addEventListener('keydown', key);
+                controls.addEventListener('keydown', key);
+                motion.addEventListener('change', update);
+                update();
+                stopManualTicker = () => { motion.removeEventListener('change', update); ticker.removeEventListener('keydown', key); controls.removeEventListener('keydown', key); };
+            }
         }
         if (mode === 'on') content.append(node('p', '毎朝6:00更新（日本時間）', 'news-beta-note'));
         if (notice) content.append(node('p', notice, 'news-beta-note'));
@@ -103,12 +141,15 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             doc.addEventListener?.('visibilitychange', wake);
             view.addEventListener?.('pageshow', wake);
             renderCleanup.set(doc, () => {
+                stopManualTicker();
                 if (timer !== null) view.clearTimeout(timer);
                 doc.removeEventListener?.('visibilitychange', wake);
                 view.removeEventListener?.('pageshow', wake);
             });
         }
     } catch {
+        stopManualTicker();
+        if (controls) controls.hidden = true;
         ticker.hidden = true;
         content.replaceChildren(node('p', 'ニュースを読み込めませんでした。'));
     }

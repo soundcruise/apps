@@ -31,7 +31,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=1.0.1">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=10">
-    <link rel="stylesheet" href="../style.css?v=1.30.6">
+    <link rel="stylesheet" href="../style.css?v=1.35.0">
     <link rel="stylesheet" href="../feature-help.css?v=1.21.2">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=23">
@@ -79,7 +79,10 @@
                 <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
             </header>
         <div class="news-home">
-            <a id="news-ticker" class="news-ticker" href="#news" hidden></a>
+            <div class="news-ticker-row">
+                <a id="news-ticker" class="news-ticker" href="#news" hidden></a>
+                <div id="news-ticker-controls" class="news-ticker-controls" role="group" aria-label="ニュースの手動切り替え" hidden></div>
+            </div>
             <a id="news-entry" class="news-entry" href="#news">ニュース</a>
         </div>
 

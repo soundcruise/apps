@@ -56,13 +56,14 @@ test('non-HOT cards have no badge placeholder; same-day manual order and ticker 
     assert.deepEqual(data,before);
 });
 
-test('reduced-motion first-only presentation retains the newest day, not only an older hot item',()=>{
+test('reduced-motion stops animation without permanently hiding the four later articles',()=>{
     const data=[{...item('old',true,0),label:'旧モデルの限定仕様を発表',publishedAt:'2026-10-20T15:00:00Z'},
         {...item('new',false,1),label:'ギターの試奏記事を公開',publishedAt:'2026-10-22T15:00:00Z'}];
     const doc=render(data),track=doc['news-ticker'].all().find(n=>n.className==='news-ticker-track');
     assert.equal(track.children[0].textContent,'ギターの試奏記事を公開');
     assert.equal(track.children[1].textContent,'🔥 旧モデルの限定仕様を発表');
     const css=readFileSync(new URL('./style.css',import.meta.url),'utf8');
-    assert.match(css,/@media \(prefers-reduced-motion: reduce\) \{\s*\.news-ticker-track \{ animation: none;/);
-    assert.match(css,/\.news-ticker-track > span:not\(:first-child\) \{ display: none; \}/);
+    assert.match(css,/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.news-ticker-track \{ animation: none;/);
+    assert.doesNotMatch(css,/\.news-ticker-track > span:not\(:first-child\)/);
+    assert.match(css,/\.news-ticker-track > span\[data-current="false"\] \{ display: none; \}/);
 });
