@@ -32,7 +32,7 @@
             }
             if (!Object.hasOwn(labels, kind)) return { ok: false, code: 'unsupported-operation' };
             args = args || {};
-            var before = structureKey(session.draft), warnings = [];
+            var before = structureKey(session.draft), warnings = [],formBefore=options.afterEdit?JSON.parse(JSON.stringify(session.draft)):null;
             var result = session.runOperation(labels[kind], function (canonical) {
                 if (['addBar','deleteBar','duplicateBar','moveBar','moveBars','transpose'].includes(kind)) {
                     if (canonical.schemaVersion !== 2) throw Error('この操作はschema2の曲で使用できます');
@@ -55,7 +55,7 @@
                         var delta=Number(args.semitones);
                         if (!Number.isInteger(delta)||Math.abs(delta)>12) throw Error('移調は半音単位で±12以内です');
                         if (!delta) return;
-                        if (canonical.performance.formBindings.length || canonical.bars.some(function(b){return b.chords.some(function(c){return c.unresolved;});})) throw Error('固定フォームまたは未解決コードがあります。フォームとコードを確認してから移調してください');
+                        if ((canonical.performance.formBindings.some(function(b){return b.mode!=='auto';})||canonical.performance.formBindings.length&&!options.afterEdit) || canonical.bars.some(function(b){return b.chords.some(function(c){return c.unresolved;});})) throw Error('固定フォームまたは未解決コードがあります。フォームとコードを確認してから移調してください');
                         function shifted(p) { var midi=api.pitchMidi(p)+delta;if(midi<0||midi>127)throw Error('移調後の音域が範囲外です');var names=['C','C','D','D','E','F','F','G','G','A','A','B'];return {step:names[midi%12],alter:[1,3,6,8,10].includes(midi%12)?1:0,octave:Math.floor(midi/12)-1}; }
                         canonical.bars.forEach(function(b){b.melody.forEach(function(e){if(e.kind==='note')e.pitch=shifted(e.pitch);});b.chords.forEach(function(e){var value=api.chord(e.symbol,delta);if(value===null)throw Error('解釈できないコードがあるため移調できません');e.symbol=value;});});
                         canonical.solfege.tonic=shifted(canonical.solfege.tonic);
@@ -83,10 +83,10 @@
                         }
                         if(kind==='moveBar') {var j=i+args.direction;if(![-1,1].includes(args.direction)||j<0||j>=canonical.bars.length)throw Error('これ以上移動できません');var sectionId=canonical.bars[j].sectionId, moved=JSON.parse(JSON.stringify(canonical.bars[i]));moved.sectionId=sectionId;canonical.bars.splice(i,1);canonical.bars.splice(j,0,moved);}
                     }
-                    var check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
+                    if(options.afterEdit)options.afterEdit(canonical,formBefore);var check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
                     return;
                 }
-                return (model.editLegacy || function(p,fn){return fn(p);})(canonical,function(draft){
+                var applied=(model.editLegacy || function(p,fn){return fn(p);})(canonical,function(draft){
                 if (['removeSection', 'renameSection', 'barCount'].includes(kind) &&
                     !draft.sections.some(function (s) { return s.id === args.sectionId; })) throw Error('セクションが見つかりません');
                 switch (kind) {
@@ -119,6 +119,7 @@
                     break;
                 }
                 },{kind:kind,...(args.sectionId?{sectionId:args.sectionId}:{}),barIds:canonical.schemaVersion===2?canonical.bars.slice(Math.max(0,args.barNumber-1),['bulkChord','bulkDoremi'].includes(kind)?args.barNumber-1+args.values.length:args.barNumber).map(function(b){return b.id;}):[]});
+                if(options.afterEdit)options.afterEdit(canonical,formBefore);return applied;
             },{requireUndo: session.draft.schemaVersion===2});
             return Object.assign({}, result, { warnings: warnings,
                 structureChanged: result.ok && before !== structureKey(session.draft) });

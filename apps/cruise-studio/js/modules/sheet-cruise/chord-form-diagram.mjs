@@ -1,6 +1,6 @@
 // Adapt saved coordinates to the original Chord Cruise renderer. No SVG or
 // finger/role design is reimplemented here; no form is adopted by displaying it.
-export function drawChordForm(fretboard, container, snapshot, chord, explore) {
+export function drawChordForm(fretboard, container, snapshot, chord, explore, monochrome=true) {
     container.replaceChildren();
     if (!snapshot) { container.textContent = 'フォーム候補がありません'; return () => {}; }
     const notes = snapshot.strings.filter(n => n.kind === 'note');
@@ -11,6 +11,7 @@ export function drawChordForm(fretboard, container, snapshot, chord, explore) {
     if (start === 1 || notes.some(n => n.relativeFret === 0)) frets.push(0);
     for (let fret = start; fret <= end; fret++) frets.push(fret);
     const options = {
+        monochrome,
         frets,
         markers: notes.map(n => {
             const midi = snapshot.tuningMidi[n.string - 1] + snapshot.capo + n.relativeFret;

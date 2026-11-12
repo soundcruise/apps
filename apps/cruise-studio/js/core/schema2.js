@@ -68,7 +68,8 @@
     function standardTuning(t){return Array.isArray(t)&&same(t,STANDARD_TUNING);}
     function formMaterial(m){
         formKeys(m,['id','encoding','snapshot','provenance']);
-        insist(m.encoding==='studio-chord-form-v1','unsupported-form-encoding');
+        var v2=m.encoding==='studio-chord-form-v2';
+        insist(v2||m.encoding==='studio-chord-form-v1','unsupported-form-encoding');
         var s=m.snapshot;formKeys(s,['capo','tuningMidi','maxAbsoluteFret','strings','barres','playability','ownerWarning']);
         insist(integer(s.capo)&&s.capo>=0&&s.capo<=11&&standardTuning(s.tuningMidi),'invalid-form-instrument');
         insist(integer(s.maxAbsoluteFret)&&s.maxAbsoluteFret>=s.capo&&s.maxAbsoluteFret<=36,'invalid-form-fret-bound');
@@ -90,8 +91,10 @@
         });
         insist([null,'standard','advanced','limited','unknown'].includes(s.playability)&&(s.ownerWarning===null||typeof s.ownerWarning==='string'),'invalid-form-playability');
         var v=m.provenance;formKeys(v,['origin','ownerApp','ownerVersion','adapterVersion','sourceSymbol','shape','recommendationSource','generation','externalMaterialId']);
-        insist(v.origin==='owner-recommendation'&&v.ownerApp==='chord-cruise'&&typeof v.ownerVersion==='string'&&/^\d+\.\d+\.\d+$/.test(v.ownerVersion)&&v.adapterVersion==='2','invalid-form-owner');
-        insist(typeof v.sourceSymbol==='string'&&v.sourceSymbol.length>0&&v.sourceSymbol.length<=64&&['C','A','G','E','D'].includes(v.shape)&&['common','recommended'].includes(v.recommendationSource)&&v.externalMaterialId===null,'invalid-form-provenance');
+        insist((v2?['owner-recommendation','manual','bookshelf'].includes(v.origin):v.origin==='owner-recommendation')&&v.ownerApp==='chord-cruise'&&typeof v.ownerVersion==='string'&&/^\d+\.\d+\.\d+$/.test(v.ownerVersion)&&v.adapterVersion===(v2?'3':'2'),'invalid-form-owner');
+        insist(typeof v.sourceSymbol==='string'&&v.sourceSymbol.length>0&&v.sourceSymbol.length<=64&&(v2?[null,'C','A','G','E','D']:['C','A','G','E','D']).includes(v.shape)&&(v2?[null,'common','recommended']:['common','recommended']).includes(v.recommendationSource),'invalid-form-provenance');
+        insist(v2&&v.origin==='bookshelf'?typeof v.externalMaterialId==='string'&&v.externalMaterialId.length>0&&v.externalMaterialId.length<=128:v.externalMaterialId===null,'invalid-form-external-id');
+        if(v2&&v.origin==='owner-recommendation')insist(v.shape!==null&&v.recommendationSource!==null,'invalid-form-recommendation');
         formKeys(v.generation,['minRelativeFret','maxRelativeFret']);var g=v.generation;
         insist(integer(g.minRelativeFret)&&integer(g.maxRelativeFret)&&g.minRelativeFret>=0&&g.maxRelativeFret>=g.minRelativeFret&&g.maxRelativeFret+s.capo<=s.maxAbsoluteFret,'invalid-form-generation');
         insist(s.strings.every(function(n){return n.kind==='muted'||n.relativeFret>=g.minRelativeFret&&n.relativeFret<=g.maxRelativeFret;}),'form-outside-generation');
@@ -219,7 +222,7 @@
                 var formTargets=new Set();p.performance.formBindings.forEach(function(b){
                     formKeys(b,['id','chordEventId','materialId','playedStrings','mode','confirmation']);unique(b.id);
                     insist(chordIds.has(b.chordEventId)&&forms.has(b.materialId)&&!formTargets.has(b.chordEventId),'invalid-form-binding-reference');formTargets.add(b.chordEventId);
-                    insist(b.mode==='fixed','unsupported-form-mode');var m=p.materials.forms.find(function(m){return m.id===b.materialId;});
+                    var m=p.materials.forms.find(function(m){return m.id===b.materialId;});insist(b.mode==='fixed'||b.mode==='auto'&&m.encoding==='studio-chord-form-v2'&&m.provenance.origin==='owner-recommendation','unsupported-form-mode');
                     insist(Array.isArray(b.playedStrings)&&b.playedStrings.length>0&&new Set(b.playedStrings).size===b.playedStrings.length&&b.playedStrings.every(function(i){return integer(i)&&i>=1&&i<=6&&m.snapshot.strings[i-1].kind==='note';}),'invalid-form-played-strings');
                     formKeys(b.confirmation,['status','basisKey']);insist(['confirmed','unconfirmed'].includes(b.confirmation.status)&&(b.confirmation.basisKey===null||typeof b.confirmation.basisKey==='string'&&b.confirmation.basisKey.length>0)&& (b.confirmation.status!=='confirmed'||typeof b.confirmation.basisKey==='string'),'invalid-form-confirmation');
                 });

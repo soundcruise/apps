@@ -17,7 +17,8 @@
                 var key = JSON.stringify([target.kind, target.field, target.sectionId, target.barNumber, target.tick, target.ticks]);
                 var run = mode === 'composition' ? s.runCompositionTextOperation : s.runTextOperation;
                 var result = run(key, '文字入力: ' + (target.field || target.kind), function (canonical) {
-                return (model.editLegacy || function(p,fn){return fn(p);})(canonical,function(draft){
+                var before=options.afterEdit?JSON.parse(JSON.stringify(canonical)):null;
+                var applied=(model.editLegacy || function(p,fn){return fn(p);})(canonical,function(draft){
                     if (target.kind === 'song') {
                         var si = draft.songInfo, field = target.field;
                         if (field === 'title') si.title = String(value).trim() || '無題のプロジェクト';
@@ -41,6 +42,7 @@
                         } else throw Error('Unknown text field');
                     }
                     },{kind:target.kind,...(target.field?{field:target.field}:{}),barIds:canonical.schemaVersion===2&&canonical.bars[target.barNumber-1]?[canonical.bars[target.barNumber-1].id]:[]});
+                if(options.afterEdit)options.afterEdit(canonical,before);return applied;
                 });
                 if (mode === 'native' || mode === 'composition' || mode === 'discrete') s.finishTextGroup();
                 return Object.assign({}, result, { warnings: warnings });

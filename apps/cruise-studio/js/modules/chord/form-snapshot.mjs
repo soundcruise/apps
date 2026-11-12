@@ -1,4 +1,10 @@
 // Self-contained adopted data. No storage, UI, owner recommendation or implicit mutation.
+// Owner aliases (notably dim displayed as m♭5) share the same interval definition.
+export function ownerQuality(theory,quality){
+    const normalize=s=>String(s).replaceAll('♭','b').replaceAll('♯','#');
+    return Object.keys(theory.QUALITIES).find(k=>[k,theory.QUALITIES[k].symbolSuffix,theory.QUALITIES[k].romanSuffix].some(s=>s!==undefined&&normalize(s)===normalize(quality)));
+}
+
 const clone = x => JSON.parse(JSON.stringify(x));
 const pc = n => (n % 12 + 12) % 12;
 export function freezeData(x) { if (x && typeof x === 'object') { Object.values(x).forEach(freezeData); Object.freeze(x); } return x; }
@@ -55,7 +61,7 @@ export function evaluateBinding(project, binding, { schema, chordTheory, parseCh
         parsed = parseChordSymbol(event.symbol);
         root = chordTheory.parseSpelledNoteName(parsed.root).pc;
         bass = parsed.bass ? chordTheory.parseSpelledNoteName(parsed.bass).pc : root;
-        const q = ['maj','m','7','maj7','m7','6','m6','sus4'].find(k => k === parsed.quality || chordTheory.QUALITIES[k]?.symbolSuffix === parsed.quality);
+        const q = material.encoding==='studio-chord-form-v2'?ownerQuality(chordTheory,parsed.quality):['maj','m','7','maj7','m7','6','m6','sus4'].find(k => k === parsed.quality || chordTheory.QUALITIES[k]?.symbolSuffix === parsed.quality);
         definition = chordTheory.QUALITIES[q];
         if (!definition) return invalid('unsupported-quality');
     } catch { return invalid('unsupported-symbol'); }

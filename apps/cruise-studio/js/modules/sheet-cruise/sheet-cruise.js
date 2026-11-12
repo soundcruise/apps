@@ -188,7 +188,8 @@
     function runStructureOperation(kind, args, expected) {
         finishTextInputs();
         if (!operationAdapter) operationAdapter = CS().structureOperations.create({ model: CS().model,
-            getSession: function () { return state.session; }, isEligible: operationEligible });
+            getSession: function () { return state.session; }, isEligible: operationEligible, afterEdit:CS().localChordForms?CS().localChordForms.reconcile:null });
+        if(CS().localChordForms&&['bulkChord','transpose'].includes(kind)&&!CS().localChordForms.authorize(state.session))return {ok:false,error:'楽器条件の確認をキャンセルしました'};
         var result = operationAdapter.execute(kind, args, expected);
         if (!result.ok) { q('sc-edit-error').textContent = result.error || '編集を適用できませんでした'; setSaveStatus(result.error || '編集を適用できませんでした', true); return result; }
         q('sc-edit-error').textContent = '';
@@ -301,7 +302,8 @@
         var info = textControls.get(input);
         if (!info || !input.isConnected || (info.session && info.session !== state.session) ||
             info.composing || (event && event.isComposing)) return { ok: true, deferred: true, warnings: [] };
-        if (!textAdapter) textAdapter = CS().structureText.create({ model: CS().model,
+        if(CS().localChordForms&&info.target.kind==='chord'&&input.value.trim()&&!CS().localChordForms.authorize(state.session)){var pending=textDiagnostics.get(state.session);if(!pending){pending=new Map();textDiagnostics.set(state.session,pending);}pending.set(input,'楽器条件の確認待ちです');input.setAttribute('aria-invalid','true');refreshSessionStatus();return {ok:false,error:'楽器条件の確認をキャンセルしました'};}
+        if (!textAdapter) textAdapter = CS().structureText.create({ model: CS().model,afterEdit:CS().localChordForms?CS().localChordForms.reconcile:null,
             getSession: function () { return state.session; },
             isEligible: function () { return state.active && !(CS().shellHost && CS().shellHost.getCommandContext().activeModal); } });
         var mode = event && event.composition ? 'composition' : info.native ? 'native' : input.tagName === 'SELECT' ? 'discrete' : null;
@@ -396,7 +398,7 @@
         if(!els.toolbar)return;var owner=state.session,bars=Array.isArray(owner?.draft.bars)?owner.draft.bars:[],bar=bars[state.selectedBarNumber-1],eligible=!!owner&&owner.draft.schemaVersion===2&&!schemaViewError&&operationEligible()&&!owner.inputPending&&!owner.commitInFlight&&!owner.conflict&&!owner.externalUpdatePending&&!textDiagnostic(owner);
         els.toolbar.querySelectorAll('[data-bar-operation]').forEach(function(b){var kind=b.dataset.barOperation,dir=Number(b.dataset.direction);b.disabled=!eligible||!bar||(kind==='deleteBar'&&owner.draft.bars.length<=1)||(kind==='moveBar'&&(state.selectedBarNumber-1+dir<0||state.selectedBarNumber-1+dir>=owner.draft.bars.length));if(!bar)b.title='編集する小節を選択してください';});
         var forms=q('sc-chord-forms');if(forms)forms.disabled=!eligible||!bar||!bar.chords.length;
-        var blocked=owner?.draft.performance?.formBindings?.length||bars.some(function(b){return Array.isArray(b.chords)&&b.chords.some(function(c){return c.unresolved;});});
+        var blocked=owner?.draft.performance?.formBindings?.some(function(b){return b.mode!=='auto'||!CS().localChordForms;})||bars.some(function(b){return Array.isArray(b.chords)&&b.chords.some(function(c){return c.unresolved;});});
         ['sc-transpose-down','sc-transpose-up'].forEach(function(id){var b=q(id);if(b){b.disabled=!eligible||!!blocked;b.title=blocked?'固定フォームや未解決コードを確認してから移調してください':'全曲の実音を半音移調します。カポは変更しません';}});
         var staff=q('sc-staff-refresh');if(staff)staff.hidden=staffStyle!=='melody';var play=q('sc-song-preview');if(play)play.disabled=!eligible&&!(barPreviewScope==='song'&&barPreviewPhase!=='idle');updateBarPlayButton();
     }
@@ -580,6 +582,7 @@
         CS().sessions.listSessions().forEach(function(s){names.add(s.draft.songInfo.title);});
         var number=1;while(names.has('無題のプロジェクト '+number))number++;
         var project=CS().model.createEmptyProject();project.songInfo.title='無題のプロジェクト '+number;
+        if(CS().localChordForms)CS().localChordForms.initialize(project);
         setProject(project, { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
         els.editorDrawer.open=true;els.title.focus();els.title.select();
     }
@@ -975,7 +978,7 @@
 #sc-slot-overlay .editor-row-disclosure{line-height:1;}
 #sc-slot-overlay .editor-row-disclosure{font:inherit;font-size:max(11px,calc(11px * var(--bar-loupe-scale,1)))!important;padding:1px 3px!important;border:0!important;border-radius:3px!important;background:transparent!important;color:#435b81!important;text-decoration:none!important;cursor:pointer;}
 #sc-slot-overlay .editor-row-disclosure[aria-expanded=true]{background:#dfe7f0!important;}
-#sc-slot-overlay .score-owner-chord-picker{position:relative;z-index:auto;min-width:0;margin:0 0 8px var(--editor-label-offset);flex-shrink:0;}
+#sc-slot-overlay .score-owner-chord-picker{box-sizing:border-box;position:relative;z-index:auto;min-width:0;width:calc(100% - var(--editor-label-offset));max-width:calc(100% - var(--editor-label-offset));margin:0 0 8px var(--editor-label-offset);padding:18px;flex-shrink:0;}
 #sc-slot-overlay .slot-overlay-grid:has(.score-owner-chord-picker) > [data-score-playhead]{display:none;}
 #sc-slot-overlay .score-chord-picker{position:relative;z-index:5;margin:0 0 8px var(--editor-label-offset);padding:12px;background:#f8faff;color:var(--slot-text);border:1px solid #9baac2;border-radius:8px;flex-shrink:0;}
 #sc-slot-overlay input.chord-selected-cell{box-shadow:inset 0 0 0 2px #6b8199!important;background:#e7ecf2!important;}
@@ -1700,11 +1703,11 @@
         var owner=state.session,bar=owner.draft.bars[state.selectedBarNumber-1];if(!bar)return;root._disposeOwnerChord?.();
         if(chordPicker.owner!==owner||chordPicker.barId!==bar.id){chordPicker.owner=owner;chordPicker.barId=bar.id;chordPicker.tick=0;}
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.105.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.106.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
-            module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol){
-                if(!currentFrame(frame)||!editorCanMove())return false;var field=editorRoot().querySelector('[data-overlay-field="chord"][data-slot-tick="'+tick+'"]');if(!field||field.readOnly)return false;return field._applyBeatValue(symbol).ok;
+            module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial){
+                if(!currentFrame(frame)||!editorCanMove())return false;var field=editorRoot().querySelector('[data-overlay-field="chord"][data-slot-tick="'+tick+'"]');if(!field||field.readOnly)return false;return field._applyBeatValue(symbol,formMaterial).ok;
             },changed:function(){renderPreview(true);renderSlotOverlayContent();}});
         }).catch(function(){if(root.isConnected)root.textContent='コード入力画面を読み込めませんでした。開き直してください。';});
     }
@@ -1832,12 +1835,15 @@
             input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):((exact&&exact.kind==='note')||batch?cellDoremiText(events,span,canonical):'');
             if(events.length && !exact && !batch){input.readOnly=true;input.value='…';input.title='この範囲には細かな位置のイベントがあります。元の時間情報を保持しています';}
             var composing=false,justComposed=false,nativeHistory=false,replacingAll=false,initial=input.value;
-            function apply(composition,absoluteTokens){
+            function apply(composition,absoluteTokens,formMaterial){
                 if(input.readOnly||!input.isConnected||state.session!==owner||owner.draft.bars[bar.barNumber-1]?.id!==source.id||composing)return {ok:false};
-                if(input.value===initial&&!replacingAll){input.setAttribute('aria-invalid','false');input.classList.remove('is-invalid');var prior=textDiagnostics.get(owner);if(prior)prior.delete(input);return {ok:true};}
+                if(input.value===initial&&!replacingAll&&!formMaterial){input.setAttribute('aria-invalid','false');input.classList.remove('is-invalid');var prior=textDiagnostics.get(owner);if(prior)prior.delete(input);return {ok:true};}
                 if(!operationEligible()&&!composition)return {ok:false};
                 var raw=input.value.trim();
+                var priorChord=owner.draft.bars.find(function(b){return b.id===source.id;})?.chords.find(function(e){return e.onsetTick===tick;}),fixedForm=priorChord&&owner.draft.performance.formBindings.some(function(b){return b.chordEventId===priorChord.id&&b.mode==='fixed';});
+                var formAllowed=kind!=='chord'||!raw||!CS().localChordForms||fixedForm&&!formMaterial||CS().localChordForms.authorize(owner);
                 var result=(composition?owner.runCompositionTextOperation:owner.runTextOperation)(JSON.stringify(['beat',kind,source.id,tick]),'拍位置の'+kind+'入力',function(p){
+                    if(!formAllowed)throw Error('楽器条件の確認をキャンセルしました。入力内容は保存されていません');
                     var b=p.bars.find(function(b){return b.id===source.id;}), list=b[collection], old=list.find(function(e){return e.onsetTick===tick;});
                     if(kind==='chord'&&list.some(function(e){return e.onsetTick>tick&&e.onsetTick<tick+span;}))throw Error('細かな時間位置を持つイベントはこのセルで置換できません');
                     if(!raw){var clearing=list.filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});if(kind==='doremi'&&clearing.length>1&&!autoCellGroup(clearing,tick,span))throw Error('既存の細かな時間情報を保持しています');b[collection]=list.filter(function(e){return !clearing.includes(e);});if(kind==='chord'&&old)p.performance.formBindings=p.performance.formBindings.filter(function(f){return f.chordEventId!==old.id;});return;}
@@ -1848,6 +1854,7 @@
                         // An explicitly inserted chord establishes a new harmony boundary. Keep IDs and make this one undoable edit.
                         if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
                         if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
+                        if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,'fixed');}else CS().localChordForms.syncEvent(p,chordEvent);}
                     }else{
                         var parsed=CS().theory.parseDoremiString(raw);
                         if(parsed.warnings.length||!parsed.notes.length)throw Error('ドレミの表記を確認してください');
@@ -1927,7 +1934,7 @@
                 input._applyBeatValue=function(value){input.value=value;return apply(false,true);};input._refreshColors=refreshColors;
                 ['beforeinput','input','compositionstart'].forEach(function(type){input.addEventListener(type,function(){host.classList.remove('piano-color-mode');});});
                 input.addEventListener('focus',function(){bindPianoCell(owner,source.id,tick,span);if(piano.open)host.classList.add('piano-color-mode');});host.append(input,colors);refreshColors();groups[range.beat].appendChild(host);
-            }else {input._applyBeatValue=function(value){input.value=value;return apply(false);};input.addEventListener('focus',function(){bindChordCell(owner,source.id,tick);});groups[range.beat].appendChild(input);}
+            }else {input._applyBeatValue=function(value,formMaterial){input.value=value;return apply(false,false,formMaterial);};input.addEventListener('focus',function(){bindChordCell(owner,source.id,tick);});groups[range.beat].appendChild(input);}
         });
         return wrap;
     }
@@ -4287,7 +4294,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.105.0-dev.1',
+        developmentVersion: '0.106.0-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
