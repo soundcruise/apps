@@ -6,7 +6,7 @@ export function createMockAccountBookshelf(location,marked){
         strings:frets.map((f,i)=>f===null?{string:i+1,kind:'muted'}:{string:i+1,kind:'note',relativeFret:f,finger:fingers[i],fingeringWarning:false}),
         barres,playability:'standard',ownerWarning:null});
     const catalogue={format:'sound-cruise/chord-forms',version:1,sourceApp:'chord-cruise',
-        folders:[{id:'mock-basic',name:'基本コード（模擬）'},{id:'mock-forms',name:'別フォーム（模擬）'}],
+        folders:[{id:'mock-basic',name:'未分類'},{id:'mock-forms',name:'テスト'}],
         chords:[
             {id:'mock-C-open',folderId:'mock-basic',name:'C',form:form([0,1,0,2,3,null],[null,1,null,2,3,null])},
             {id:'mock-G7',folderId:'mock-basic',name:'G7',form:form([1,0,0,0,2,3],[1,null,null,null,2,3])},
