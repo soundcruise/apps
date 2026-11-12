@@ -10,7 +10,7 @@ export function renderOwnerBundle(){
         if(name==='ui/explore.js'){
             const anchor='setScaleType: setScaleType';
             if(source.split(anchor).length!==2)throw Error('Owner explore export changed; review local integration');
-            source=source.replace(anchor,anchor+',\n        readSelectedChord: selectedChord, readCurrentForm: currentForm');
+            source=source.replace(anchor,anchor+',\n        readSelectedChord: selectedChord, readCurrentForm: currentForm,\n        readFingerLabel: function(finger){ return FINGER_LABELS[finger] || ""; }, readMarkerRole: roleForChordInterval');
         }
         return '// Original owner: '+name+'\n'+source;
     });

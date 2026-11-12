@@ -53,12 +53,15 @@ export function createOwnerChordPicker(C,base){
         if(memory.identity!==identity){memory.identity=identity;if(canonical)setChord(canonical.symbol);else{owner.state.exploreCustomChord=null;owner.state.exploreSelectedChordIndex=0;}}
         body.className='score-chord-layout';
         const basic=node('section',undefined,body,'score-chord-basic');
-        basic.setAttribute('aria-label','小節内のコードフォーム');
-        const section=node('section');section.id='cc-screen-explore';
+        basic.setAttribute('aria-label','選択中のコードフォームとダイアトニック');
+        const basicLayout=node('div',undefined,basic,'score-chord-basic-layout');
+        const formView=node('figure',undefined,basicLayout,'score-chord-selected-form');
+        const formName=node('figcaption','',formView),diagram=node('div',undefined,formView,'score-chord-diagram');
         const actions=node('div',undefined,body,'cc-control-row score-chord-actions');
         const advanced=button('コードクルーズ',()=>{memory.advanced=!memory.advanced;setAdvanced();},actions,{title:'任意コードやコードフォームの編集','aria-expanded':false,'data-chord-advanced':''});
         function setAdvanced(){host.classList.toggle('score-chord-advanced',!!memory.advanced);advanced.setAttribute('aria-expanded',String(!!memory.advanced));}
         setAdvanced();
+        const section=node('section');section.id='cc-screen-explore';
         const status=node('p','',body,'cc-fb-hint');status.setAttribute('role','status');
         owner.ui.toast={show:message=>{status.textContent=message;}};
         function write(name){
@@ -69,30 +72,19 @@ export function createOwnerChordPicker(C,base){
         const shelf=node('section',undefined,body,'cc-card score-name-transfer');node('h3','コード本棚から入力',shelf,'cc-card-heading');
         const tools=node('div',undefined,shelf,'cc-control-row');const label=node('label','コード名JSONを読み込む',tools,'cc-btn cc-btn-secondary');const file=node('input',undefined,label);file.type='file';file.accept='.json,application/json';file.dataset.chordNamesImport='';
         node('p','取込みは一時一覧です。フォームは取り込まず、選んだコード名だけをマスへ入力します。',shelf,'cc-fb-hint');const items=node('div',undefined,shelf,'cc-chord-grid');
-        function catalogue(){items.replaceChildren();for(const chord of memory.catalogue?.chords||[]){const folder=memory.catalogue.folders.find(f=>f.id===chord.folderId);button(chord.name,()=>{if(!setChord(chord.name)){status.textContent='この名前はコードとして解釈できません。元のマスを保持しています。';return;}owner.ui.explore.render();status.textContent=folder.name+' ／ '+chord.name+'を選択しました。「このマスに入力」で確定します。';},items,{'data-transfer-chord':chord.id,'aria-label':chord.name+' ／ '+folder.name,title:folder.name+' ／ '+chord.id});}}
+        function catalogue(){items.replaceChildren();for(const chord of memory.catalogue?.chords||[]){const folder=memory.catalogue.folders.find(f=>f.id===chord.folderId);button(chord.name,()=>{if(!setChord(chord.name)){status.textContent='この名前はコードとして解釈できません。元のマスを保持しています。';return;}write(chord.name);},items,{'data-transfer-chord':chord.id,'aria-label':chord.name+' ／ '+folder.name,title:folder.name+' ／ '+chord.id});}}
         file.addEventListener('change',async()=>{const selected=file.files[0],epoch=++importEpoch;if(!selected||!eligible())return;try{if(selected.size>MAX_BYTES)throw Error('JSONファイルが大きすぎます');const text=await selected.text();if(epoch!==importEpoch||!file.isConnected||!eligible())return;const parsed=parseChordNames(text);memory.catalogue=parsed;catalogue();status.textContent=parsed.chords.length+'件を読み込みました。譜面はまだ変更していません。';}catch(e){if(current())status.textContent=e.message;}finally{if(file.isConnected)file.value='';}});catalogue();
         const help=node('details',undefined,shelf);node('summary','本棚からJSONを書き出す',help);node('p','下のボタンをブックマークバーへドラッグして登録し、通常のコードクルーズProで本棚を開いてから、そのブックマークを押してください。選んだコード名だけをファイルへ書き出します。本棚への書込みや外部通信はありません。',help,'cc-fb-hint');const link=node('a','本棚のコード名をJSON書出し',help,'cc-btn cc-btn-secondary');link.href=source.exportBookmarklet;link.dataset.chordExportBookmarklet='';link.addEventListener('click',e=>{e.preventDefault();status.textContent='このリンクをブックマークバーへ登録し、コードクルーズProの本棚上で使ってください。';});
         const formArea=node('section',undefined,body,'cc-card score-chord-adoption');formArea.setAttribute('aria-label','譜面へのフォーム採用');const formStatus=node('p','',formArea,'cc-fb-hint');
+        let disposeDiagram=()=>{};
         function refreshDiagram(){
             const chord=owner.ui.explore.readSelectedChord();if(!chord)return;
-            basic.replaceChildren();const track=node('div',undefined,basic,'score-chord-form-track');
-            const slots=target.slots?.length?target.slots:[0];
-            track.style.gridTemplateColumns=slots.map((start,i)=>(slots[i+1]??1920)-start+'fr').join(' ');
-            for(const [i,start]of slots.entries()){
-                const cell=button('',()=>target.select?.(start),track,{'data-chord-diagram-tick':start,'aria-label':(start/480+1)+'拍目のコードを選択','aria-pressed':start===tick});cell.className='score-chord-form-cell';
-                node('small',Number.isInteger(start/480)?(start/480+1)+'拍':'',cell);
-                const events=bar.chords.filter(e=>e.onsetTick>=start&&e.onsetTick<(slots[i+1]??1920));
-                // Previewing a diatonic choice never replaces the saved form or chord.
-                const preview=start===tick&&canonical?.symbol!==chord.symbol;
-                const shown=preview?[{symbol:chord.symbol}]:events;
-                for(const event of shown){
-                    const binding=event.id&&project.performance.formBindings.find(b=>b.chordEventId===event.id),material=binding&&project.materials.forms.find(m=>m.id===binding.materialId);
-                    let snapshot=material?.snapshot;
-                    if(!snapshot){const r=adapter.resolve({symbol:event.symbol,capo:project.instrument.capo,tuningMidi:[64,59,55,50,45,40],maxAbsoluteFret:project.instrument.maxAbsoluteFret??22});if(r.display.possible){const f=r.form;snapshot={strings:[1,2,3,4,5,6].map(string=>{const n=f.notes.find(n=>n.string===string);return n?{...n,kind:'note'}:{string,kind:f.mutedStrings.includes(string)?'muted':'unknown'};}),barres:f.barres||[]};}}
-                    node('strong',event.symbol,cell);const diagram=node('div',undefined,cell,'score-chord-diagram');if(material)diagram.dataset.formMaterial=material.id;drawChordForm(document,diagram,snapshot,event.symbol);
-                    node('small',material?'登録フォームを保持':preview?'入力前の候補':'おすすめ・未登録',cell);
-                }
-            }
+            const binding=canonical?.symbol===chord.symbol&&project.performance.formBindings.find(b=>b.chordEventId===canonical.id),material=binding&&project.materials.forms.find(m=>m.id===binding.materialId);
+            let snapshot=material?.snapshot;
+            if(!snapshot){const r=adapter.resolve({symbol:chord.symbol,capo:project.instrument.capo,tuningMidi:[64,59,55,50,45,40],maxAbsoluteFret:project.instrument.maxAbsoluteFret??22});if(r.display.possible){const f=r.form;snapshot={capo:r.request.capo,tuningMidi:r.request.tuningMidi,strings:[1,2,3,4,5,6].map(string=>{const n=f.notes.find(n=>n.string===string);return n?{...n,kind:'note'}:{string,kind:f.mutedStrings.includes(string)?'muted':'unknown'};}),barres:f.barres||[]};}}
+            formName.textContent=chord.symbol;diagram.setAttribute('aria-label',chord.symbol+'のコードフォーム');
+            diagram.dataset.chordDiagramTick=tick;if(material)diagram.dataset.formMaterial=material.id;else delete diagram.dataset.formMaterial;
+            disposeDiagram();disposeDiagram=drawChordForm(owner.ui.fretboard,diagram,snapshot,chord,owner.ui.explore);
         }
         function refreshAdoption(){
             formArea.querySelectorAll('label,button').forEach(n=>n.remove());const chord=owner.ui.explore.readSelectedChord(),form=owner.ui.explore.readCurrentForm();if(!chord||!form){formStatus.textContent='CAGED型を選ぶと、既存の検証条件でフォーム採用を確認できます。';return;}
@@ -101,12 +93,12 @@ export function createOwnerChordPicker(C,base){
             for(let min=0;min<=max-capo&&!candidate;min++)for(const width of [4,5,13]){const generation={minRelativeFret:min,maxRelativeFret:Math.min(min+width,max-capo)},r=adapter.resolve({symbol:chord.symbol,capo,tuningMidi:[64,59,55,50,45,40],maxAbsoluteFret:max,generation,playedStrings:played});if(r.performance.voicingUsable&&r.form?.shape===shape&&JSON.stringify(r.form.notes.map(n=>[n.string,n.relativeFret]).sort())===JSON.stringify(form.notes.map(n=>[n.string,n.fret]).sort())){candidate={generation,r};break;}}
             if(!candidate){formStatus.textContent='表示した型は、現在のカポ・楽器・既存の採用条件を満たす候補と一致しないため表示のみです。';return;}
             const l=node('label',undefined,formArea),check=node('input',undefined,l);check.type='checkbox';check.dataset.chordInstrument='';l.append(' 標準6弦チューニングと物理フレット上限 '+max+' を確認');
-            const adopt=button('このコードにフォームを採用',()=>{if(!check.checked||canonical?.symbol!==chord.symbol)return;session.finishTextGroup();const h=service.prepare({barId:bar.id,chordEventId:canonical.id,instrument:{confirmed:true,tuningMidi:[64,59,55,50,45,40],maxAbsoluteFret:max},playedStrings:played,generation:candidate.generation}),result=h.ok?service.apply(h):h;if(result.ok)target.changed();else formStatus.textContent='採用できませんでした。元の内容を保持しています。';},formArea,{'data-chord-adopt':''});adopt.disabled=true;check.addEventListener('change',()=>{adopt.disabled=!eligible()||!check.checked||canonical?.symbol!==chord.symbol;});formStatus.textContent=canonical?.symbol===chord.symbol?'このコードだけに採用します。保存は「保存」から。':'先に「このマスに入力」でコードを確定してください。';
+            const adopt=button('このコードにフォームを採用',()=>{if(!check.checked||canonical?.symbol!==chord.symbol)return;session.finishTextGroup();const h=service.prepare({barId:bar.id,chordEventId:canonical.id,instrument:{confirmed:true,tuningMidi:[64,59,55,50,45,40],maxAbsoluteFret:max},playedStrings:played,generation:candidate.generation}),result=h.ok?service.apply(h):h;if(result.ok)target.changed();else formStatus.textContent='採用できませんでした。元の内容を保持しています。';},formArea,{'data-chord-adopt':''});adopt.disabled=true;check.addEventListener('change',()=>{adopt.disabled=!eligible()||!check.checked||canonical?.symbol!==chord.symbol;});formStatus.textContent=canonical?.symbol===chord.symbol?'このコードだけに採用します。保存は「保存」から。':'コード欄に入力したコードを選択してください。';
         }
         function sync(){
             if(!current())return;
-            const old=shadow.getElementById('cc-save-form-btn');if(old&&!old.hasAttribute('data-chord-insert')){const replacement=old.cloneNode(false);replacement.dataset.chordInsert='';replacement.textContent='このマスに入力';replacement.addEventListener('pointerdown',e=>e.preventDefault());replacement.addEventListener('click',()=>{const chord=owner.ui.explore.readSelectedChord();if(chord)write(chord.symbol);});old.remove();actions.prepend(replacement);}
-            const insert=shadow.querySelector('[data-chord-insert]');if(insert)insert.disabled=!owner.ui.explore.readSelectedChord();
+            // The source's bookshelf save button has no local capability.
+            shadow.getElementById('cc-save-form-btn')?.remove();
             for(const button of shadow.querySelectorAll('.cc-chord-btn')){const chord=base.theory.getDiatonicChords(owner.state.settings.selectedKey,owner.state.settings.scaleType,owner.state.settings.chordToneMode)[Number(button.dataset.index)];if(chord)button.dataset.chordSymbol=chord.symbol;}
             for(const [id,value]of [['cc-tone-3','3'],['cc-tone-7','7']])shadow.getElementById(id)?.setAttribute('data-chord-tones',value);
             shadow.getElementById('cc-custom-chord-btn')?.setAttribute('data-chord-custom','');for(const b of shadow.querySelectorAll('[data-shape]'))b.dataset.chordShape=b.dataset.shape;
@@ -115,11 +107,17 @@ export function createOwnerChordPicker(C,base){
         }
         doc.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault();});
         doc.addEventListener('click',e=>{if(!eligible()){e.preventDefault();e.stopImmediatePropagation();}},true);
+        // These are explicit musical choices, after the owner handlers updated
+        // selectedChord. Opening, mounting, scale/key changes never insert a code.
+        doc.addEventListener('click',e=>{if(e.target.closest('#cc-custom-chord-btn')){const apply=shadow.getElementById('cc-builder-apply');if(apply)apply.textContent='コード欄に入力';}if(e.target.closest('.cc-chord-btn,.cc-note-chip--link,#cc-builder-apply')){const chord=owner.ui.explore.readSelectedChord();if(chord)write(chord.symbol);}});
         doc.addEventListener('keydown',e=>{if(!((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'))e.stopPropagation();});
         doc.addEventListener('compositionstart',()=>{composing=true;host.classList.add('is-composing');session.setInputPending(true);});doc.addEventListener('compositionend',()=>{composing=false;host.classList.remove('is-composing');session.setInputPending(false);});
         // Owner popups remain inside this editor. Neither global IDs nor Shell theme are changed.
-        owner.ui.explore.render();sync();const observer=new MutationObserver(sync);observer.observe(section,{childList:true,subtree:true});
-        host._disposeOwnerChord=()=>{disposed=true;importEpoch++;events.abort();observer.disconnect();unsubscribeTheme();if(composing){composing=false;session.setInputPending(false);}host.classList.remove('is-composing');};
+        owner.ui.explore.render();
+        const diatonic=shadow.getElementById('cc-chord-grid').closest('.cc-card');diatonic.classList.add('score-chord-diatonic');basicLayout.append(diatonic);
+        shadow.querySelector('.cc-explore-controls').append(shadow.querySelector('.cc-custom-chord-row'));
+        sync();const observer=new MutationObserver(sync);for(const scope of [section,diatonic])observer.observe(scope,{childList:true,subtree:true});
+        host._disposeOwnerChord=()=>{disposed=true;importEpoch++;events.abort();observer.disconnect();disposeDiagram();unsubscribeTheme();if(composing){composing=false;session.setInputPending(false);}host.classList.remove('is-composing');};
         return owner;
     }};
 }
@@ -131,8 +129,7 @@ const layoutCSS=`
 #cc-explore-content{display:grid;grid-template-columns:minmax(210px,1fr) minmax(0,2fr);gap:14px;}
 #cc-explore-content>.cc-card{margin:0;min-width:0;}
 .cc-explore-controls{grid-column:1;grid-row:1;}
-#cc-explore-content>.cc-card:nth-child(2){grid-column:1;grid-row:2;}
-.cc-fb-card{grid-column:2;grid-row:1/span 2;}
+.cc-fb-card{grid-column:2;grid-row:1;}
 .cc-explore-home-row{display:none!important;}
 .score-name-transfer{margin-top:14px;}
 .score-name-transfer input[type=file]{display:none;}
@@ -141,26 +138,19 @@ const layoutCSS=`
 .score-chord-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start;}
 .score-chord-layout>p,.score-chord-layout>.score-chord-actions,.score-chord-layout>.score-name-transfer,.score-chord-layout>.score-chord-adoption{grid-column:1/-1;margin:0;}
 .score-chord-layout>p:empty{display:none;}
-.score-chord-basic{overflow:auto;min-width:0;}
-.score-chord-form-track{display:grid;min-width:640px;}
-.score-chord-form-cell{display:flex;flex-direction:column;align-items:center;justify-content:start;min-width:0;padding:4px 1px;gap:2px;cursor:pointer;background:transparent;border:0;border-right:1px solid var(--cc-border);border-radius:0;color:var(--cc-text);font:inherit;}
-.score-chord-form-cell[aria-pressed=true]{background:var(--studio-selected-bg);box-shadow:inset 0 0 0 2px var(--studio-selected-border);}
-.score-chord-form-cell:focus-visible{outline:2px solid var(--studio-focus);outline-offset:-2px;}
-.score-chord-form-cell>small:first-child{min-height:16px;line-height:16px;}
-.score-chord-basic strong{color:var(--cc-accent-text);font-size:20px;}
-.score-chord-basic small{font-size:11px;color:var(--cc-text-muted);}
-.score-chord-diagram{width:100%;max-width:112px;font-size:10px;}
-.score-chord-diagram svg{display:block;width:100%;height:auto;}
-:host(:not(.score-chord-advanced)) #cc-explore-content{display:block;}
-:host(:not(.score-chord-advanced)) :is(.cc-explore-controls,.cc-fb-card,.cc-custom-chord-row,.score-name-transfer,.score-chord-adoption){display:none;}
-:host(:not(.score-chord-advanced)) #cc-explore-content>.cc-card{padding:12px;}
-:host(:not(.score-chord-advanced)) #cc-chord-grid{grid-template-columns:repeat(7,minmax(0,1fr));}
-:host(:not(.score-chord-advanced)) .cc-diatonic-head{margin-bottom:8px;}
+.score-chord-basic{container-type:inline-size;min-width:0;}
+.score-chord-basic-layout{display:grid;grid-template-columns:minmax(200px,340px) minmax(0,1fr);gap:16px;align-items:center;}
+.score-chord-selected-form{margin:0;min-width:0;}
+.score-chord-selected-form figcaption{font-size:24px;font-weight:700;text-align:center;color:var(--cc-accent-text);margin-bottom:8px;}
+.score-chord-diagram{width:100%;overflow:hidden;}
+.score-chord-diagram .cc-fb-scroll{overflow:hidden;}
+.score-chord-diatonic{margin:0;padding:12px;min-width:0;}
+.score-chord-diatonic .cc-diatonic-head{margin-bottom:8px;}
 .score-chord-actions{display:flex;flex-wrap:wrap;gap:10px;}
 .score-chord-actions button{min-height:36px;padding:8px 14px;font-size:14px;border-radius:8px;}
-.score-chord-actions>[data-chord-insert]{width:auto;}
 .score-chord-actions [data-chord-advanced]{margin-left:auto;}
-:host(.score-chord-advanced) .score-chord-basic{display:none;}
+:host(:not(.score-chord-advanced)) :is(#cc-screen-explore,.cc-custom-chord-row,.score-name-transfer,.score-chord-adoption){display:none;}
 :host(.score-chord-advanced) #cc-screen-explore{grid-column:1/-1;}
-@container(max-width:700px){:host(:not(.score-chord-advanced)) #cc-chord-grid{grid-template-columns:repeat(4,minmax(0,1fr));}}
+#cc-save-btn-row{display:none!important;}
+@container(max-width:580px){.score-chord-basic-layout{grid-template-columns:minmax(0,1fr);}.score-chord-selected-form{width:100%;max-width:340px;justify-self:center;}}
 `;
