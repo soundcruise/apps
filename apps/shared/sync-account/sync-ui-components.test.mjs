@@ -25,7 +25,8 @@ test('four Pro apps load one renderer and one card stylesheet contract', () => {
   assert.doesNotMatch(css, /sound-cruise-sync-settings-card--testing|sound-cruise-sync-settings-testing-badge/);
   assert.doesNotMatch(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
-  for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=25/);
+  for (const html of appHtml.slice(1, 3)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=26/);
+  assert.match(appHtml[3], /multi-app-sync-bootstrap\.js\?v=25/, 'accepted Rhythm entry stays unchanged');
   assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v25/);
   assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-auth-s2a/);
   assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v12/);
