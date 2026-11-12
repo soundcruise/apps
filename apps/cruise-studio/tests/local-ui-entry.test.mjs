@@ -21,7 +21,9 @@ test('both public products retain coming soon and real authentication; neither p
   assert(!h.includes('local-ui-'));
  }
  assert(renderProEntry(source).includes('shared/pro-gate.js'));
- assert(RELEASE_FILES.every(p=>!p.startsWith('scripts/')&&!p.includes('local-ui')));
+ assert(RELEASE_FILES.every(p=>!p.startsWith('scripts/')&&!p.includes('local-ui')&&!p.includes('book-source')&&!p.includes('owner-chord-panel')));
+ for(const p of RELEASE_FILES.filter(p=>/\.(?:js|mjs|html)$/.test(p)))assert(!read(p).includes('mock-account-bookshelf'));
+ assert(read('scripts/local-ui-adapter.js').includes('createMockAccountBookshelf'));
  for(const p of RELEASE_FILES.filter(p=>/\.(?:js|mjs|html)$/.test(p)))assert(!read(p).includes('local-ui-adapter'));
  const config=fs.readFileSync(new URL('../../../_config.yml',import.meta.url),'utf8');
  assert(config.includes('  - apps/cruise-studio/scripts'));
