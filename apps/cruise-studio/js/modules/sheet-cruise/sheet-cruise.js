@@ -1709,11 +1709,11 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.108.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.109.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
-            module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial){
-                if(!currentFrame(frame)||!editorCanMove())return false;var field=editorRoot().querySelector('[data-overlay-field="chord"][data-slot-tick="'+tick+'"]');if(!field||field.readOnly)return false;return field._applyBeatValue(symbol,formMaterial).ok;
+            module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
+                if(!currentFrame(frame)||!editorCanMove())return false;var field=editorRoot().querySelector('[data-overlay-field="chord"][data-slot-tick="'+tick+'"]');if(!field||field.readOnly)return false;return field._applyBeatValue(symbol,formMaterial,formMode).ok;
             },changed:function(){renderPreview(true);}});
             if(preserved){root.style.minHeight=preserved.minHeight;var board=root.shadowRoot?.querySelector('#cc-fretboard-host .cc-fb-scroll');if(board&&Number.isFinite(preserved.boardX))board.scrollLeft=preserved.boardX;preserved.positions.forEach(function(p){if(p.node.isConnected){p.node.scrollLeft=p.x;p.node.scrollTop=p.y;}});if(window.scrollX!==preserved.x||window.scrollY!==preserved.y)window.scrollTo(preserved.x,preserved.y);}
         }).catch(function(){if(root.isConnected)root.textContent='コード入力画面を読み込めませんでした。開き直してください。';});
@@ -1842,9 +1842,9 @@
             input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):((exact&&exact.kind==='note')||batch?cellDoremiText(events,span,canonical):'');
             if(events.length && !exact && !batch){input.readOnly=true;input.value='…';input.title='この範囲には細かな位置のイベントがあります。元の時間情報を保持しています';}
             var composing=false,justComposed=false,nativeHistory=false,replacingAll=false,initial=input.value;
-            function apply(composition,absoluteTokens,formMaterial){
+            function apply(composition,absoluteTokens,formMaterial,formMode){
                 if(input.readOnly||!input.isConnected||state.session!==owner||owner.draft.bars[bar.barNumber-1]?.id!==source.id||composing)return {ok:false};
-                if(input.value===initial&&!replacingAll&&!formMaterial){input.setAttribute('aria-invalid','false');input.classList.remove('is-invalid');var prior=textDiagnostics.get(owner);if(prior)prior.delete(input);return {ok:true};}
+                if(input.value===initial&&!replacingAll&&!formMaterial&&formMode!=='auto'){input.setAttribute('aria-invalid','false');input.classList.remove('is-invalid');var prior=textDiagnostics.get(owner);if(prior)prior.delete(input);return {ok:true};}
                 if(!operationEligible()&&!composition)return {ok:false};
                 var raw=input.value.trim();
                 var priorChord=owner.draft.bars.find(function(b){return b.id===source.id;})?.chords.find(function(e){return e.onsetTick===tick;}),fixedForm=priorChord&&owner.draft.performance.formBindings.some(function(b){return b.chordEventId===priorChord.id&&b.mode==='fixed';});
@@ -1861,7 +1861,7 @@
                         // An explicitly inserted chord establishes a new harmony boundary. Keep IDs and make this one undoable edit.
                         if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
                         if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
-                        if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,'fixed');}else CS().localChordForms.syncEvent(p,chordEvent);}
+                        if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,formMode==='auto'?'auto':'fixed');}else{if(formMode==='auto')p.performance.formBindings=p.performance.formBindings.filter(function(b){return b.chordEventId!==chordEvent.id;});CS().localChordForms.syncEvent(p,chordEvent);}}
                     }else{
                         var parsed=CS().theory.parseDoremiString(raw);
                         if(parsed.warnings.length||!parsed.notes.length)throw Error('ドレミの表記を確認してください');
@@ -1941,7 +1941,7 @@
                 input._applyBeatValue=function(value){input.value=value;return apply(false,true);};input._refreshColors=refreshColors;
                 ['beforeinput','input','compositionstart'].forEach(function(type){input.addEventListener(type,function(){host.classList.remove('piano-color-mode');});});
                 input.addEventListener('focus',function(){bindPianoCell(owner,source.id,tick,span);if(piano.open)host.classList.add('piano-color-mode');});host.append(input,colors);refreshColors();groups[range.beat].appendChild(host);
-            }else {input._applyBeatValue=function(value,formMaterial){input.value=value;return apply(false,false,formMaterial);};input.addEventListener('focus',function(){bindChordCell(owner,source.id,tick);});groups[range.beat].appendChild(input);}
+            }else {input._applyBeatValue=function(value,formMaterial,formMode){input.value=value;return apply(false,false,formMaterial,formMode);};input.addEventListener('focus',function(){bindChordCell(owner,source.id,tick);});groups[range.beat].appendChild(input);}
         });
         return wrap;
     }
@@ -4301,7 +4301,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.108.0-dev.1',
+        developmentVersion: '0.109.0-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,

@@ -11,9 +11,10 @@ export function drawChordForm(fretboard,container,snapshot,chord,explore,monochr
     const notes=snapshot.strings.filter(n=>n.kind==='note'),fretsOfNotes=notes.map(n=>n.relativeFret),includesOpen=fretsOfNotes.includes(0);
     const range=saveRange||{min:fretsOfNotes.length?Math.min(...fretsOfNotes):1,max:Math.max(includesOpen?3:1,...fretsOfNotes),includesOpen};
     const frets=[];if(range.includesOpen)frets.push(0);for(let f=Math.max(1,range.min);f<=range.max;f++)frets.push(f);
-    const options=formDiagramOptions(snapshot,chord,explore,{monochrome,frets});
+    const hasOpenColumn=frets[0]===0,offset=hasOpenColumn||snapshot.barres.some(b=>b.relativeFret===1)||notes.some(n=>n.string===6);
+    const options=formDiagramOptions(snapshot,chord,explore,{monochrome,frets,openStringNutOnly:monochrome&&hasOpenColumn,monochromeViewportLeftCrop:monochrome&&hasOpenColumn?12:0,monochromeRightPadding:monochrome&&hasOpenColumn?18:0,monochromeFretNumberYOffset:monochrome&&offset?(snapshot.barres.some(b=>b.fromString===6||b.toString===6)?10:5):0});
     const board=container.ownerDocument.createElement('div');board.className='score-chord-diagram-board';container.append(board);fretboard.render(board,options);
-    const width=fretboard.createModel(options).width;board.style.width=width+'px';board.style.transformOrigin='0 0';
-    function fit(){const usable=Math.max(0,container.clientWidth-32),scale=Math.min(1,usable/Math.max(width,4*fretboard.FRET_W)),left=(usable-width*scale)/2;board.style.transform='translateX('+left+'px) scale('+scale+')';container.style.height=board.offsetHeight*scale+24+'px';}
+    const width=board.querySelector('.cc-fb-stage').offsetWidth;board.style.width=width+'px';board.style.transformOrigin='0 0';
+    function fit(){const usable=Math.max(0,container.clientWidth-32),scale=Math.min(1,usable/Math.max(width,4*fretboard.FRET_W+6)),left=(usable-width*scale)/2;board.style.transform='translateX('+left+'px) scale('+scale+')';container.style.height=board.offsetHeight*scale+24+'px';}
     fit();const observer=new ResizeObserver(fit);observer.observe(container);return ()=>observer.disconnect();
 }

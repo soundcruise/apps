@@ -36,8 +36,10 @@ export function createFormAuthoring(C,base){
         const playedStrings=stored.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string);
         const b={id:prior?.id||schema.newId(),chordEventId:event.id,materialId:stored.id,playedStrings,mode,confirmation:{status:'confirmed',basisKey:basisKey(p,event,stored,playedStrings)}};
         p.performance.formBindings=p.performance.formBindings.filter(x=>x.chordEventId!==event.id);p.performance.formBindings.push(b);
-        const result=evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol});
-        if(!result.ready)b.confirmation={status:'unconfirmed',basisKey:null};
+        // Session draft arrays clone inserted objects; update the attached binding.
+        const installed=p.performance.formBindings.find(x=>x.id===b.id);
+        const result=evaluateBinding(p,installed,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol});
+        if(!result.ready)installed.confirmation={status:'unconfirmed',basisKey:null};
         return result;
     }
     function initialize(p){if(p.instrument.tuning===null)p.instrument.tuning=STANDARD.slice();if(p.instrument.maxAbsoluteFret===undefined)p.instrument.maxAbsoluteFret=22;}
