@@ -233,7 +233,7 @@
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests,heldForNote) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests,heldForNote,formsForBar) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -264,6 +264,8 @@
             chord.querySelectorAll('.sheet-timed-cell').forEach(function(e){if(e.textContent)e.classList.add('sheet-chord-event');});
             cell.appendChild(chord);
         }
+
+        var forms=formsForBar&&formsForBar(bar.barNumber,timeRes);if(forms)cell.appendChild(forms);
 
         // ストローク段: コード段の直下。小節別上書きがあればそれを優先し、
         // なければユーザー入力済みの基本ストロークを継承する
@@ -317,7 +319,8 @@
                 return (show.lyrics && bar.lyrics && bar.lyrics.length > 0) ||
                     (show.doremi && ((bar.melody && bar.melody.length > 0)||restsForBar(bar.barNumber).length>0));
             });
-            var cols = hasVocal ? show.barsPerLine : show.barsPerLine * 2;
+            var hasForms=!!options?.hasFormsForBar&&bars.some(function(b){return options.hasFormsForBar(b.barNumber);});
+            var cols = hasVocal||hasForms ? show.barsPerLine : show.barsPerLine * 2;
 
             // 譜面行（.sheet-line）単位で組む: 印刷時に行の途中で改ページさせない
             for (var i = 0; i < bars.length; i += cols) {
@@ -326,7 +329,7 @@
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
                     var strum = show.strum ? resolveBarStrum(project, bar) : null;
-                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote));
+                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,options&&options.formsForBar));
                 });
                 // 行末まで小節線を揃えるための空セル
                 for (var pad = lineBars.length; pad < cols; pad++) {

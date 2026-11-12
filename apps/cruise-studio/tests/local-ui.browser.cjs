@@ -34,6 +34,7 @@ for(const engine of ['chrome','webkit'])test('real local UI server '+engine,asyn
  const download=p.waitForEvent('download');await p.locator('#sc-export-json').click();const file=JSON.parse(fs.readFileSync(await(await download).path(),'utf8'));assert.deepEqual(file,saved);
  await p.reload();await p.locator('#open-sheet-cruise').click();assert.deepEqual(await snap(),saved);
  await p.locator('#sc-import-json').setInputFiles({name:'local-original.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(file))});await p.waitForFunction(()=>document.getElementById('sc-save-status').textContent.includes('読み込'));assert.deepEqual(await snap(),saved);
+ await p.locator('#sc-show-forms').check();assert.equal(await p.locator('.sheet-form-event svg').count(),2);assert.deepEqual(await snap(),saved);
  await p.emulateMedia({media:'print'});assert.equal(await p.locator('#sc-slot-overlay').evaluate(e=>getComputedStyle(e).display),'none');
  if(engine==='chrome'){const pdf=await p.pdf({preferCSSPageSize:true});assert.equal(pdf.subarray(0,4).toString(),'%PDF');}
  await p.emulateMedia({media:'screen'});

@@ -1,4 +1,4 @@
-import {singleChordPlan,chordProgressionPlan} from './chord-audition.mjs';
+import {singleChordPlan,chordNotes,fillBlankStrums} from './chord-audition.mjs';
 import {readBookSource,bookSourceCurrent} from './book-source.mjs';
 import {openBookPicker} from './book-bridge.mjs';
 import {parseChordNames,MAX_BYTES} from './chord-name-transfer.mjs';
@@ -80,7 +80,7 @@ export function createOwnerChordPicker(C,base){
         function auditionSelected(){const chord=owner.ui.explore.readSelectedChord();if(chord)audition(chord.symbol,(selectedMaterial()||C.localChordForms?.recommend(project,chord.symbol))?.snapshot);}
         button('▶',auditionSelected,formView,{'data-chord-audition':'selected','aria-label':'表示中のコードを試聴',title:'表示中の押さえ方をアコギで試聴'}).classList.add('score-form-play');
         const harmony=node('div',undefined,basicLayout,'score-chord-harmony');
-        const progression=button('▶ コード進行を再生',()=>{try{const range=target.previewRange?.();if(range)target.preview?.(chordProgressionPlan(project,range.startIndex,range.count,soundDeps),'chords');}catch(e){status.textContent=e.message;}},harmony,{'data-chord-progression':'',title:'編集中の1／2小節のコード進行を試聴','aria-pressed':false});
+        const progression=button('▶ コード進行を再生',()=>{try{target.progression?.({notes:chord=>chordNotes(project,chord,soundDeps),fillBlank:fillBlankStrums});}catch(e){status.textContent=e.message;}},harmony,{'data-chord-progression':'',title:'編集中の1／2小節のコードとストロークを試聴。空欄は拍の表とコード変化で発音','aria-pressed':false});
         function refreshPlayback(){const state=target.previewState?.(),active=state?.scope==='chords'&&state.phase!=='idle',text=active?'■ 停止':'▶ コード進行を再生';if(progression.textContent!==text)progression.textContent=text;progression.setAttribute('aria-pressed',String(!!active));}
         const unsubscribePreview=target.subscribePreview?.(refreshPlayback);refreshPlayback();
         const actions=node('div',undefined,basicLayout,'cc-control-row score-chord-actions');
