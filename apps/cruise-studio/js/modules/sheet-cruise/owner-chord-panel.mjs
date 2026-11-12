@@ -1,3 +1,4 @@
+import {readBookSource,bookSourceCurrent} from './book-source.mjs';
 import {openBookPicker} from './book-bridge.mjs';
 import {parseChordNames,MAX_BYTES} from './chord-name-transfer.mjs';
 import {parseChordForms,FORM_FORMAT} from './chord-form-transfer.mjs';
@@ -85,23 +86,75 @@ export function createOwnerChordPicker(C,base){
             if(!C.theory.parseBasicChordSymbol(name)){status.textContent='コード名として入力できない名前です。元のマスを保持しています。';return false;}
             session.finishTextGroup();const ok=target.write(name,formMaterial,formMode);session.finishTextGroup();if(!ok)status.textContent='入力対象・コード表記・保存状態を確認してください。';return ok;
         }
+        const provider=C.localBookSource;
+        if(memory.source&&(memory.sourceProvider!==provider||!bookSourceCurrent(provider,memory.source))){memory.catalogue=null;memory.source=null;memory.folder='';}
         const shelf=node('section',undefined,body,'cc-card score-name-transfer');
-        const shelfToggle=button('コード本棚を開く',()=>{memory.bookOpen=!memory.bookOpen;showBook();if(!memory.bookOpen)bookRequest?.cancel();},shelf,{'data-book-open':'','aria-expanded':false,title:'取り込んだ本棚から、この画面でコードとフォームを選択'});
+        let bookRequest=null,readRequest=null,readEpoch=0,bookDiagrams=[];
+        function cancelRead(){readEpoch++;readRequest?.abort();readRequest=null;}
+        const shelfToggle=button('コード本棚を開く',()=>{memory.bookOpen=!memory.bookOpen;showBook();if(!memory.bookOpen){bookRequest?.cancel();cancelRead();}else if(provider&&!memory.source)loadBook();},actions,{'data-book-open':'','aria-expanded':false,title:'同じ編集カードで本棚のコードとフォームを選択'});
         const shelfPanel=node('div',undefined,shelf,'score-book-panel');shelfPanel.dataset.bookPanel='';
-        const bookHint=node('p','本棚のコピーはこの画面のメモリ内だけで保持します。コードを選ぶと、選択中のマスへ入力します。',shelfPanel,'cc-fb-hint');
-        const importOption=node('label',undefined,shelfPanel);const importForms=node('input',undefined,importOption);importForms.type='checkbox';importForms.dataset.importForms='';importForms.checked=!!memory.withForms;importOption.append(' フォームも取り込み・採用する（カポ0・標準6弦と押さえ方を確認）');
-        const tools=node('div',undefined,shelfPanel,'cc-control-row');let bookRequest=null;
-        button('別タブの本棚から取り込む（従来方式）',()=>{bookRequest?.cancel();const forms=importForms.checked;bookRequest=openBookPicker({catalogue:true,isCurrent:()=>eligible()&&memory.bookOpen&&importForms.checked===forms,onSelect:payload=>{if(!eligible())return false;memory.catalogue=payload;memory.folder='';catalogue();return true;},onStatus:message=>{if(current())status.textContent=message;},withForms:forms});},tools,{'data-book-import':'',title:'初回の読取りだけPro別タブで行い、この画面へコピーする'});
+        const bookHint=node('p','',shelfPanel,'cc-fb-hint');bookHint.setAttribute('role','status');
+        const sourceTools=node('div',undefined,shelfPanel,'cc-control-row');
+        if(provider){node('strong',provider.kind==='mock'?'模擬アカウントの本棚 / 実アカウント未接続':'同期済みの本棚',sourceTools,'score-book-source');}
+        sourceTools.after(bookHint);
+        const update=provider&&button('更新',()=>loadBook(),sourceTools,{'data-book-refresh':'',title:'本棚を読み直す。譜面や元本棚は変更しません'});
+        const legacy=node('details',undefined,shelfPanel);node('summary','従来の取込み方法（予備）',legacy);legacy.open=!provider;legacy.hidden=!!provider;
+        const importOption=node('label',undefined,legacy);const importForms=node('input',undefined,importOption);importForms.type='checkbox';importForms.dataset.importForms='';importForms.checked=!!memory.withForms;importOption.append(' フォームも取り込み・採用する（カポ0・標準6弦と押さえ方を確認）');
+        const tools=node('div',undefined,legacy,'cc-control-row');
+        button('別タブの本棚から取り込む（従来方式）',()=>{if(provider)return;bookRequest?.cancel();const forms=importForms.checked;bookRequest=openBookPicker({catalogue:true,isCurrent:()=>eligible()&&memory.bookOpen&&importForms.checked===forms,onSelect:payload=>{if(!eligible())return false;cancelRead();memory.catalogue=payload;memory.source=null;memory.folder='';catalogue();return true;},onStatus:message=>{if(current())status.textContent=message;},withForms:forms});},tools,{'data-book-import':'',title:'初回の読取りだけPro別タブで行い、この画面へコピーする'});
         importForms.addEventListener('change',()=>{memory.withForms=importForms.checked;bookRequest?.cancel();bookRequest=null;});
-        const filterLabel=node('label','フォルダ ',shelfPanel),filter=node('select',undefined,filterLabel,'cc-select');filter.dataset.bookFolder='';filter.setAttribute('aria-label','取り込んだ本棚のフォルダ');
-        const items=node('div',undefined,shelfPanel,'cc-chord-grid');
-        function chooseChord(chord,withForms=importForms.checked){if(!eligible())return false;if(!setChord(chord.name)){status.textContent='この名前はコードとして解釈できません。元のマスを保持しています。';return false;}let m;if(withForms){if(!chord.form){status.textContent='名前のみの本棚です。「フォームも取り込み・採用する」を選んで取り込み直してください';return false;}const snapshot=JSON.parse(JSON.stringify(chord.form));if(snapshot.capo===null)snapshot.capo=0;if(snapshot.tuningMidi===null)snapshot.tuningMidi=[64,59,55,50,45,40];if(snapshot.maxAbsoluteFret===null)snapshot.maxAbsoluteFret=project.instrument.maxAbsoluteFret??22;snapshot.playability='standard';snapshot.ownerWarning=null;m=C.localChordForms.material(snapshot,C.model.schema2.chord(chord.name,project.instrument.capo),'bookshelf',chord.id);}return write(chord.name,m);}
-        function catalogue(){filter.replaceChildren();const all=node('option','すべてのフォルダ',filter);all.value='';for(const folder of memory.catalogue?.folders||[]){const option=node('option',folder.name,filter);option.value=folder.id;}filter.value=memory.folder||'';items.replaceChildren();const chords=memory.catalogue?.chords||[];bookHint.textContent=chords.length?chords.length+'件の本棚から選択。元の本棚は変更しません。コピーは再読込で消えます。':'この開発版は同期アカウントの本棚に未接続です。下は従来の別タブ取込みです。';for(const chord of chords){if(memory.folder&&chord.folderId!==memory.folder)continue;const folder=memory.catalogue.folders.find(f=>f.id===chord.folderId);button(chord.name,()=>chooseChord(chord),items,{'data-transfer-chord':chord.id,'aria-label':chord.name+' ／ '+folder.name,title:folder.name+' ／ '+chord.id+(chord.form?'（フォーム付き）':'（名前のみ）')});}}
+        const filterLabel=node('label','フォルダ ',shelfPanel),filter=node('select',undefined,filterLabel,'cc-select');filter.dataset.bookFolder='';filter.setAttribute('aria-label','本棚のフォルダ');
+        const items=node('div',undefined,shelfPanel,'score-book-grid');
+        function clearSource(){cancelRead();if(update)update.disabled=false;shelfPanel.removeAttribute('aria-busy');memory.catalogue=null;memory.source=null;memory.folder='';catalogue();bookHint.textContent='本棚の接続・内容が変わりました。更新して選び直してください。';}
+        async function loadBook(){
+            cancelRead();bookRequest?.cancel();memory.catalogue=null;memory.source=null;catalogue();
+            const controller=new AbortController(),epoch=readEpoch,version=session.snapshotVersion;readRequest=controller;
+            update.disabled=true;shelfPanel.setAttribute('aria-busy','true');bookHint.textContent='本棚を読み込んでいます…';
+            try{
+                const result=await readBookSource(provider,{signal:controller.signal,isCurrent:()=>C.localBookSource===provider&&eligible()&&memory.bookOpen&&epoch===readEpoch&&session.snapshotVersion===version});
+                memory.sourceProvider=provider;memory.catalogue=result.catalogue;memory.source={generation:result.generation,revision:result.revision};memory.folder='';catalogue();
+            }catch{if(current()&&epoch===readEpoch){memory.catalogue=null;memory.source=null;catalogue();bookHint.textContent='本棚を読み込めませんでした。接続・編集先を確認し、更新してください。';}}
+            finally{if(current()&&epoch===readEpoch){update.disabled=false;shelfPanel.removeAttribute('aria-busy');readRequest=null;}}
+        }
+        function chooseChord(chord,withForms=memory.source?true:importForms.checked){
+            if(!eligible())return false;
+            if(memory.source&&(C.localBookSource!==provider||memory.sourceProvider!==provider||!bookSourceCurrent(provider,memory.source))){clearSource();return false;}
+            if(!C.theory.parseBasicChordSymbol(chord.name)){status.textContent='コード名として入力できない名前です。元のマスを保持しています。';return false;}
+            let m;
+            try{if(withForms){if(!chord.form){status.textContent='名前のみの本棚です。「フォームも取り込み・採用する」を選んで取り込み直してください';return false;}
+                const snapshot=JSON.parse(JSON.stringify(chord.form));if(snapshot.capo===null)snapshot.capo=0;if(snapshot.tuningMidi===null)snapshot.tuningMidi=[64,59,55,50,45,40];if(snapshot.maxAbsoluteFret===null)snapshot.maxAbsoluteFret=project.instrument.maxAbsoluteFret??22;snapshot.playability='standard';snapshot.ownerWarning=null;
+                m=C.localChordForms.material(snapshot,C.model.schema2.chord(chord.name,project.instrument.capo),'bookshelf',chord.id);
+            }
+            }catch{status.textContent='フォームの名前・楽器条件を確認してください。元のマスを保持しています。';return false;}
+            if(!setChord(chord.name)){status.textContent='この名前はコードとして解釈できません。元のマスを保持しています。';return false;}
+            return write(chord.name,m);
+        }
+        function catalogue(){
+            bookDiagrams.forEach(dispose=>dispose());bookDiagrams=[];
+            filter.replaceChildren();const all=node('option','すべてのフォルダ',filter);all.value='';
+            for(const folder of memory.catalogue?.folders||[]){const option=node('option',folder.name,filter);option.value=folder.id;}
+            filter.value=memory.folder||'';items.replaceChildren();const chords=memory.catalogue?.chords||[];
+            bookHint.textContent=chords.length?chords.length+'件。コード図を選ぶと、選択中のマスへ名前とフォームを入力します。元本棚は変更しません。':provider?'模擬本棚は「更新」で読み込めます。実アカウントには接続しません。':'この開発版は同期アカウントの本棚に未接続です。予備の取込み方法を利用できます。';
+            let visible=0;
+            for(const chord of chords){
+                if(memory.folder&&chord.folderId!==memory.folder)continue;
+                visible++;const folder=memory.catalogue.folders.find(f=>f.id===chord.folderId);
+                const card=button('',()=>chooseChord(chord),items,{'data-transfer-chord':chord.id,'aria-label':chord.name+' ／ '+folder.name,title:folder.name+' ／ '+chord.id+(chord.form?'（フォーム付き）':'（名前のみ）')});card.classList.add('score-book-chord');
+                node('strong',chord.name,card);const preview=node('div',undefined,card,'score-book-diagram');preview.setAttribute('aria-hidden','true');
+                const parsed=C.theory.parseBasicChordSymbol(chord.name),root=parsed&&base.theory.parseSpelledNoteName(parsed.root);
+                if(chord.form&&root){const snapshot=JSON.parse(JSON.stringify(chord.form));snapshot.capo??=0;snapshot.tuningMidi??=[64,59,55,50,45,40];bookDiagrams.push(drawChordForm(owner.ui.fretboard,preview,snapshot,{rootPc:root.pc},owner.ui.explore));}
+                else preview.textContent='コード名のみ';
+                node('small',folder.name,card);
+            }
+            if(chords.length&&!visible)node('p','このフォルダにはコードがありません。',items,'cc-fb-hint');
+        }
         filter.addEventListener('change',()=>{memory.folder=filter.value;catalogue();});
-        function showBook(){shelfPanel.hidden=!memory.bookOpen;shelfToggle.textContent=memory.bookOpen?'コード本棚を閉じる':'コード本棚を開く';shelfToggle.setAttribute('aria-expanded',String(!!memory.bookOpen));}showBook();
-        const fallback=node('details',undefined,shelfPanel);node('summary','JSONファイルから読み込む（予備）',fallback);const label=node('label','JSONファイルを選ぶ',fallback,'cc-btn cc-btn-secondary');const file=node('input',undefined,label);file.type='file';file.accept='.json,application/json';file.dataset.chordNamesImport='';
-        file.addEventListener('change',async()=>{const selected=file.files[0],epoch=++importEpoch;if(!selected||!eligible())return;try{if(selected.size>MAX_BYTES)throw Error('JSONファイルが大きすぎます');const text=await selected.text();if(epoch!==importEpoch||!file.isConnected||!eligible())return;const parsed=JSON.parse(text)?.format===FORM_FORMAT?parseChordForms(text):parseChordNames(text);memory.catalogue=parsed;memory.folder='';memory.bookOpen=true;showBook();catalogue();status.textContent=parsed.chords.length+'件を読み込みました。譜面はまだ変更していません。';}catch(e){if(current())status.textContent=e.message;}finally{if(file.isConnected)file.value='';}});catalogue();
-        const help=node('details',undefined,shelfPanel);node('summary','読取り専用ブックマークを登録',help);node('p','リンクをブックマークバーへドラッグして登録してください。初回だけ「本棚を取り込む／更新」からProを通常認証し、本棚でブックマークを実行します。選んだ本棚のコピーをこの画面に受け渡します。元の本棚への書込みはありません。',help,'cc-fb-hint');const link=node('a','本棚から譜面へ（読取り専用）',help,'cc-btn cc-btn-secondary');link.href=source.exportBookmarklet;link.dataset.chordExportBookmarklet='';link.addEventListener('click',e=>{e.preventDefault();status.textContent='このリンクをブックマークバーへ登録し、コードクルーズProの本棚上で使ってください。';});
+        function showBook(){shelf.hidden=!memory.bookOpen;shelfToggle.textContent=memory.bookOpen?'コード本棚を閉じる':'コード本棚を開く';shelfToggle.setAttribute('aria-expanded',String(!!memory.bookOpen));if(!memory.bookOpen){shelfPanel.removeAttribute('aria-busy');if(update)update.disabled=false;}}showBook();
+        const fallback=node('details',undefined,legacy);node('summary','JSONファイルから読み込む（予備）',fallback);const label=node('label','JSONファイルを選ぶ',fallback,'cc-btn cc-btn-secondary');const file=node('input',undefined,label);file.type='file';file.accept='.json,application/json';file.dataset.chordNamesImport='';
+        file.addEventListener('change',async()=>{const selected=file.files[0],epoch=++importEpoch;if(!selected||!eligible())return;try{if(selected.size>MAX_BYTES)throw Error('JSONファイルが大きすぎます');const text=await selected.text();if(epoch!==importEpoch||!file.isConnected||!eligible())return;const parsed=JSON.parse(text)?.format===FORM_FORMAT?parseChordForms(text):parseChordNames(text);cancelRead();memory.source=null;memory.catalogue=parsed;memory.folder='';memory.bookOpen=true;showBook();catalogue();status.textContent=parsed.chords.length+'件を読み込みました。譜面はまだ変更していません。';}catch(e){if(current())status.textContent=e.message;}finally{if(file.isConnected)file.value='';}});catalogue();
+        const help=node('details',undefined,legacy);node('summary','読取り専用ブックマークを登録',help);node('p','従来方式を使う場合だけ、リンクをブックマークバーへ登録し、別タブのコード本棚で実行します。',help,'cc-fb-hint');const link=node('a','本棚から譜面へ（読取り専用）',help,'cc-btn cc-btn-secondary');link.href=source.exportBookmarklet;link.dataset.chordExportBookmarklet='';link.addEventListener('click',e=>{e.preventDefault();status.textContent='このリンクをブックマークバーへ登録し、コードクルーズProの本棚上で使ってください。';});
+        shelfPanel.append(legacy);
+        const unsubscribeBook=provider?.subscribe?.(()=>{if(current())clearSource();});
         let disposeDiagram=()=>{};
         function refreshDiagram(){
             const chord=owner.ui.explore.readSelectedChord();if(!chord)return;
@@ -201,8 +254,9 @@ export function createOwnerChordPicker(C,base){
         shadow.querySelector('.cc-explore-controls').append(shadow.querySelector('.cc-custom-chord-row'));
         const formHelp=node('details',undefined,shadow.querySelector('.cc-fb-head'),'score-form-help');const helpButton=node('summary','?',formHelp);helpButton.title='指板の編集方法';helpButton.setAttribute('aria-label','指板の編集方法');helpButton.dataset.formHelp='';node('p','運指表示で指をクリックすると指を変更。空いた位置をクリックすると、その弦の位置を変更します。CAGEDを選ぶとフォームを切り替えます。元に戻す／やり直すが使えます。',formHelp);
         shadow.querySelector('.cc-fb-head .cc-card-heading').after(formHelp);
+        if(memory.bookOpen&&provider&&!memory.catalogue)loadBook();
         sync();const observer=new MutationObserver(sync);for(const scope of [section,diatonic])observer.observe(scope,{childList:true,subtree:true});
-        host._disposeOwnerChord=()=>{disposed=true;importEpoch++;events.abort();bookRequest?.cancel();observer.disconnect();viewportObserver.disconnect();disposeDiagram();unsubscribeTheme();if(composing){composing=false;session.setInputPending(false);}host.classList.remove('is-composing');};
+        host._disposeOwnerChord=()=>{disposed=true;importEpoch++;events.abort();cancelRead();unsubscribeBook?.();bookDiagrams.forEach(dispose=>dispose());bookRequest?.cancel();observer.disconnect();viewportObserver.disconnect();disposeDiagram();unsubscribeTheme();if(composing){composing=false;session.setInputPending(false);}host.classList.remove('is-composing');};
         return owner;
     }};
 }
@@ -236,7 +290,7 @@ const layoutCSS=`
 .score-chord-actions{grid-column:2;grid-row:2;align-self:start;display:flex;flex-wrap:wrap;gap:10px;margin-top:-24px;}
 .score-chord-actions button{min-height:36px;padding:8px 14px;font-size:14px;border-radius:8px;}
 .score-chord-actions [data-chord-advanced]{margin-left:auto;}
-:host(:not(.score-chord-advanced)) :is(#cc-screen-explore,.cc-custom-chord-row,.score-name-transfer){display:none;}
+:host(:not(.score-chord-advanced)) :is(#cc-screen-explore,.cc-custom-chord-row){display:none;}
 :host(.score-chord-advanced) #cc-screen-explore{grid-column:1/-1;}
 #cc-save-btn-row{display:none!important;}
 .score-chord-diatonic #cc-chord-grid{grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;}
@@ -249,6 +303,22 @@ const layoutCSS=`
 .score-form-help{position:relative;margin-left:8px;margin-right:auto;}
 .score-form-help summary{list-style:none;display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--cc-border-strong);border-radius:50%;cursor:pointer;}
 .score-form-help p{position:absolute;z-index:2;left:0;top:32px;width:min(280px,60vw);padding:12px;border:1px solid var(--cc-border);border-radius:10px;background:var(--cc-surface-raised);font-size:13px;line-height:1.7;box-shadow:0 5px 20px #0004;}
+.score-name-transfer{grid-column:1/-1;margin:0;padding:16px;min-width:0;}
+.score-name-transfer[hidden]{display:none;}
 .score-name-transfer label{line-height:1.7;}
+.score-book-panel{display:grid;gap:14px;min-width:0;}
+.score-book-panel>.cc-fb-hint,.score-book-panel>.cc-control-row{margin:0;}
+.score-book-source{font-size:13px;color:var(--cc-ink);}
+.score-book-panel>details{font-size:12px;}
+.score-book-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;align-items:start;}
+.score-book-chord.cc-btn{display:flex;flex-direction:column;gap:8px;min-width:0;padding:12px;border-radius:12px;text-align:center;white-space:normal;}
+.score-book-chord:focus-visible{outline:3px solid var(--cc-accent);outline-offset:3px;}
+.score-book-chord strong{font-size:18px;}
+.score-book-chord small{font-size:11px;font-weight:400;}
+.score-book-diagram{width:100%;box-sizing:border-box;overflow:hidden;background:#fff;border-radius:6px;color:#111;}
+.score-book-diagram .cc-fb-scroll{overflow:hidden;}
+.score-book-diagram .cc-fb-stage{pointer-events:none;}
+.score-book-diagram .cc-fb-stage button{pointer-events:none;}
+
 @container(max-width:680px){.score-chord-basic-layout{grid-template-columns:minmax(0,1fr);}.score-chord-selected-form{grid-row:1;grid-column:1;width:252px;justify-self:center;}.score-chord-diatonic{grid-column:1;grid-row:2;}.score-chord-actions{grid-column:1;grid-row:3;margin-top:0;}}
 `;

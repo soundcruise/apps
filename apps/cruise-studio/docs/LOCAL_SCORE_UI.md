@@ -1,5 +1,7 @@
 # 譜面クルーズ ローカルUI検証
 
+現在の模擬Account本棚の操作・起動手順は [MOCK_ACCOUNT_BOOKSHELF.md](MOCK_ACCOUNT_BOOKSHELF.md) を参照。以下は初期入口の記録。
+
 PR #265の1721d190を維持するローカル専用候補0.88.2-dev.2。
 通常のSafari／Chromeで開ける。正規Pro認証のテストではない。
 
