@@ -15,6 +15,6 @@ export function drawChordForm(fretboard,container,snapshot,chord,explore,monochr
     const options=formDiagramOptions(snapshot,chord,explore,{monochrome,frets,openStringNutOnly:monochrome&&hasOpenColumn,monochromeViewportLeftCrop:monochrome&&hasOpenColumn?12:0,monochromeRightPadding:monochrome&&hasOpenColumn?18:0,monochromeFretNumberYOffset:monochrome&&offset?(snapshot.barres.some(b=>b.fromString===6||b.toString===6)?10:5):0});
     const board=container.ownerDocument.createElement('div');board.className='score-chord-diagram-board';container.append(board);fretboard.render(board,options);
     const width=board.querySelector('.cc-fb-stage').offsetWidth;board.style.width=width+'px';board.style.transformOrigin='0 0';
-    function fit(){const usable=Math.max(0,container.clientWidth-32),scale=Math.min(1,usable/Math.max(width,4*fretboard.FRET_W+6)),left=(usable-width*scale)/2;board.style.transform='translateX('+left+'px) scale('+scale+')';container.style.height=board.offsetHeight*scale+24+'px';}
+    function fit(){const usable=Math.max(0,container.clientWidth-32),scale=Math.min(1,usable/Math.max(width,4*fretboard.FRET_W+6)),left=(usable-width*scale)/2;board.style.transform='translateX('+left+'px) scale('+scale+')';container.style.height=board.offsetHeight*scale+16+'px';}
     fit();const observer=new ResizeObserver(fit);observer.observe(container);return ()=>observer.disconnect();
 }

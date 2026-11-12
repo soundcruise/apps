@@ -1,3 +1,21 @@
+# 指板タイトルと詳細設定の余白・テンション候補
+
+候補0.110.0-dev.1。e4f50c4aまでの成果を保持。branch：codex/score-tension-candidates-layout。
+
+- 白黒図の上paddingを12→6px、見出し後の余白8→2px、図上の余白12→4pxへ縮める。3/4列の同じ高さと番号の非交差は維持する。
+- 詳細設定を図とダイアトニックのgrid内へ移し、図の下端より上の右側へ配置する。独立したボタン行をなくして下のカードを上げる。狭幅では重ねず縦に並べる。
+- Cadd9 / Gadd9は、最初から原本Exploreと同じテンション候補をカラー指板へ表示する。実際に保存される押弦snapshotと表示だけの候補を分離し、クリックするまで候補を保存・再生対象へ入れない。CAGED選択・Undo/Redo・保存再読込でも候補表示を維持する。add9表記は元のChord Modelのspecへ復元するが、Projectへ新しい項目は足さない。
+- 原本の開放弦欠落は、テンション候補を確定押弦と同じ競合判定で扱っていたことが原因。Exploreの明示オプションで候補だけを分け、実際の押弦による開放／ミュート抑制は維持する。原本側は84766e44・専用branch codex/chord-tension-open-stringへ分離して保全。開発候補1.23.1-dev.1、正式版1.23.0／公開HTMLは変更せず公開しない。
+- 同期Account本棚の希望は既存Studioの認証・同期を使う直接連携として再整理。JSON方式の追加実装は止め、[設計調査と実接続前の判断](ACCOUNT_CHORD_LIBRARY_INTEGRATION.md)を提示。現在の18874は本番Account/Syncへ未接続であり、目的が完成したとは判定しない。
+
+検証：Chrome／WebKitの編集・拍入力各99 PASS。Cadd9の作成直後とCAGED切替後の候補一致、原本Exploreとの一致、1／3弦開放保持、候補の明示採用・Undo/Redo・保存再読込、余白と詳細設定の位置を確認。既存UI・実18874の回帰22 PASS。Chord原本の競合／テンション／ベース／保存関連7試験PASS。Node全体2119件は2075 PASS／39既存FAIL／5 SKIPで失敗名は0.109と同じ。依存原本修正は先に独立commitへ保全し、既存の未保全ファイル境界試験を緩めない。
+
+本番認証・Account/Sync・Coming soon・18874のCSP/API遮断・保存契約は変更しない。実Pro／実Safariアプリ、実Account本棚の接続はHOLD。main merge・本番公開なし。
+
+---
+
+以下は以前の記録。
+
 # 白黒指板の原本一致・明示選択の反映
 
 候補0.109.0-dev.1。eab18d99までの成果を保持。branch：codex/score-chord-choice-display。
