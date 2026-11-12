@@ -1,5 +1,7 @@
 # 編集画面UIの区切り — 0.113.0-dev.1
 
+続く譜面UI・再生の変更は [PAPER_UI_CHECKPOINT.md](PAPER_UI_CHECKPOINT.md) を参照。以下は0.113時点の記録。
+
 2026-11-12。対象はローカル18874の編集画面。保存契約・Music Model・本番認証・Account/Sync・Coming soon・外部設定は変更していない。
 
 ## 今回の動作
