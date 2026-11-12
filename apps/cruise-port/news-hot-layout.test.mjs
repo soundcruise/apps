@@ -13,9 +13,9 @@ class Node {
 }
 const now=Date.parse('2026-10-23T00:00:00Z');
 const item=(id,hot,displayOrder)=>({id,topicKey:id,hot,displayOrder,label:'長い独自見出し：アコースティックギターの製品と演奏について紹介',sourceName:'長い出典名のテスト公式サイト',sourceUrl:'https://example.invalid/'+id,publishedAt:'2026-10-21T15:00:00Z',createdAt:'2026-10-22T00:00:00Z',updatedAt:'2026-10-22T00:00:00Z',category:'acoustic_guitar',sourceKind:'official',sourceSafety:'safe',manualReviewStatus:'approved'});
-function render(items) {
+function render(items,at=now) {
     const ids=Object.fromEntries(['news-ticker','news-entry','news-content'].map(id=>[id,new Node('div')]));
-    renderNews({documentObject:{getElementById:id=>ids[id],createElement:tag=>new Node(tag)},items,mode:'on',now});
+    renderNews({documentObject:{getElementById:id=>ids[id],createElement:tag=>new Node(tag)},items,mode:'on',now:at});
     return ids;
 }
 
@@ -34,6 +34,18 @@ test('HOT follows source and publication date in the footer; category and headli
     assert.deepEqual(data,before,'render does not mutate publication data');
 });
 
+test('current public replay renders five chronological home headlines and keeps Acompass HOT in the full NEWS list',()=>{
+    const replay=JSON.parse(readFileSync(new URL('./test-fixtures/news-home-20261112.json',import.meta.url)));
+    const data=replay.items.map(i=>({...i,topicKey:i.id,createdAt:i.publishedAt,updatedAt:i.publishedAt,sourceSafety:'safe',sourceKind:'official',manualReviewStatus:'approved'}));
+    const before=structuredClone(data),doc=render(data,Date.parse(replay.at));
+    const track=doc['news-ticker'].all().find(n=>n.className==='news-ticker-track');
+    assert.deepEqual(track.children.map(n=>n.textContent),data.slice(0,5).map(i=>i.label));
+    const acompass=doc['news-content'].all().find(n=>n.className==='news-card'&&n.href===data[5].sourceUrl);
+    assert.equal(acompass.children[1].textContent,data[5].label);
+    assert.equal(acompass.all().find(n=>n.className==='news-hot').textContent,'🔥 ホット');
+    assert.deepEqual(data,before);
+});
+
 test('non-HOT cards have no badge placeholder; same-day manual order and ticker HOT remain',()=>{
     const data=[item('plain',false,1),item('hot',true,0)],before=structuredClone(data),doc=render(data);
     const cards=doc['news-content'].all().filter(n=>n.className==='news-card');
@@ -44,13 +56,14 @@ test('non-HOT cards have no badge placeholder; same-day manual order and ticker 
     assert.deepEqual(data,before);
 });
 
-test('reduced-motion first-only presentation retains the newest day, not only an older hot item',()=>{
+test('reduced-motion stops animation without permanently hiding the four later articles',()=>{
     const data=[{...item('old',true,0),label:'旧モデルの限定仕様を発表',publishedAt:'2026-10-20T15:00:00Z'},
         {...item('new',false,1),label:'ギターの試奏記事を公開',publishedAt:'2026-10-22T15:00:00Z'}];
     const doc=render(data),track=doc['news-ticker'].all().find(n=>n.className==='news-ticker-track');
     assert.equal(track.children[0].textContent,'ギターの試奏記事を公開');
     assert.equal(track.children[1].textContent,'🔥 旧モデルの限定仕様を発表');
     const css=readFileSync(new URL('./style.css',import.meta.url),'utf8');
-    assert.match(css,/@media \(prefers-reduced-motion: reduce\) \{\s*\.news-ticker-track \{ animation: none;/);
-    assert.match(css,/\.news-ticker-track > span:not\(:first-child\) \{ display: none; \}/);
+    assert.match(css,/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.news-ticker-track \{ animation: none;/);
+    assert.doesNotMatch(css,/\.news-ticker-track > span:not\(:first-child\)/);
+    assert.match(css,/\.news-ticker-track > span\[data-current="false"\] \{ display: none; \}/);
 });

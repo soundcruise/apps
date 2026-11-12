@@ -1,6 +1,6 @@
 import { articlePath } from './news-articles.js?v=1.16.1';
-import {labelInformationScore,selectTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.34.0';
-export {labelInformationScore} from './news-quality.js?v=1.34.0';
+import {labelInformationScore,selectTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
+export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
 export const NEWS_MODE = 'beta';
 export const NEWS_CATEGORIES = Object.freeze({

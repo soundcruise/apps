@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.34.0'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.35.0'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {
@@ -78,13 +78,13 @@ test('real manual fixture is valid, unique, safe-source only and fact-label only
 });
 
 
-test('rich independent duplicate wins and low-value bulk stays below useful ticker news',()=>{
+test('rich independent duplicate wins; ticker follows publication time regardless of label value',()=>{
  const rich=make(2,{label:'BOSS EX-4 Effects Expander、年内発売予定',id:'rich',sourceKind:'retailer_editorial'});
  const generic=make(1,{label:'BOSS、EX-4の製品情報',id:'generic',sourceKind:'official'});
  assert.equal(prepareNews([generic,rich],{now})[0].id,'rich');
  const bulk=Array.from({length:12},(_,i)=>make(0,{id:'low'+i,topicKey:'low'+i,label:'合成メーカーの製品情報'}));
  const useful=make(3,{id:'useful',topicKey:'useful',label:'Xotic、XXP-1を発表'});
- assert.ok(tickerNews([...bulk,useful],now).some(i=>i.id==='useful')); // latest slot + ranked remainder
+ assert.deepEqual(tickerNews([...bulk,useful],now).map(i=>i.id),['low0','low1','low10','low11','low2']);
  assert.equal(tickerNews([make(15,{label:rich.label})],now).length,0);
 });
 

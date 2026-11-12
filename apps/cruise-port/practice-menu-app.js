@@ -195,10 +195,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.34.0';
+} from './app-version.js?v=1.35.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.30.5';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.30.5';
-import { initTuner } from './tuner-app.js?v=1.34.0';
+import { initTuner } from './tuner-app.js?v=1.35.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -2165,10 +2165,10 @@ async function renderNewsSafely() {
     document.getElementById('news-entry').hidden = false;
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.34.0');
+        const news = await import('./news-ui.js?v=1.35.0');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadNewsPresentation } = await import('./news-provider.js?v=1.34.0');
+        const { loadNewsPresentation } = await import('./news-provider.js?v=1.35.0');
         const result = await loadNewsPresentation();
         if (revision === newsLoadRevision) news.renderNews({ ...result, category: document.getElementById('news-category')?.value ?? '' });
     } catch (error) {
