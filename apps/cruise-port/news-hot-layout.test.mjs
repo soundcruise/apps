@@ -13,9 +13,9 @@ class Node {
 }
 const now=Date.parse('2026-10-23T00:00:00Z');
 const item=(id,hot,displayOrder)=>({id,topicKey:id,hot,displayOrder,label:'長い独自見出し：アコースティックギターの製品と演奏について紹介',sourceName:'長い出典名のテスト公式サイト',sourceUrl:'https://example.invalid/'+id,publishedAt:'2026-10-21T15:00:00Z',createdAt:'2026-10-22T00:00:00Z',updatedAt:'2026-10-22T00:00:00Z',category:'acoustic_guitar',sourceKind:'official',sourceSafety:'safe',manualReviewStatus:'approved'});
-function render(items) {
+function render(items,at=now) {
     const ids=Object.fromEntries(['news-ticker','news-entry','news-content'].map(id=>[id,new Node('div')]));
-    renderNews({documentObject:{getElementById:id=>ids[id],createElement:tag=>new Node(tag)},items,mode:'on',now});
+    renderNews({documentObject:{getElementById:id=>ids[id],createElement:tag=>new Node(tag)},items,mode:'on',now:at});
     return ids;
 }
 
@@ -32,6 +32,18 @@ test('HOT follows source and publication date in the footer; category and headli
     assert.equal(hot.attrs['aria-label'],'注目記事');
     assert.equal(card.href,data[0].sourceUrl);assert.equal(card.target,'_blank');
     assert.deepEqual(data,before,'render does not mutate publication data');
+});
+
+test('current public replay renders five chronological home headlines and keeps Acompass HOT in the full NEWS list',()=>{
+    const replay=JSON.parse(readFileSync(new URL('./test-fixtures/news-home-20261112.json',import.meta.url)));
+    const data=replay.items.map(i=>({...i,topicKey:i.id,createdAt:i.publishedAt,updatedAt:i.publishedAt,sourceSafety:'safe',sourceKind:'official',manualReviewStatus:'approved'}));
+    const before=structuredClone(data),doc=render(data,Date.parse(replay.at));
+    const track=doc['news-ticker'].all().find(n=>n.className==='news-ticker-track');
+    assert.deepEqual(track.children.map(n=>n.textContent),data.slice(0,5).map(i=>i.label));
+    const acompass=doc['news-content'].all().find(n=>n.className==='news-card'&&n.href===data[5].sourceUrl);
+    assert.equal(acompass.children[1].textContent,data[5].label);
+    assert.equal(acompass.all().find(n=>n.className==='news-hot').textContent,'🔥 ホット');
+    assert.deepEqual(data,before);
 });
 
 test('non-HOT cards have no badge placeholder; same-day manual order and ticker HOT remain',()=>{
