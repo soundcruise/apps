@@ -4,7 +4,7 @@ export const STANDARD=[64,59,55,50,45,40];
 const clone=x=>JSON.parse(JSON.stringify(x));
 // Explicitly installed by the isolated local entry. All edits use the active Session.
 export function createFormAuthoring(C,base){
-    const schema=C.model.schema2,ownerVersion=getAppVersion('chord-cruise');
+    const schema=C.model.schema2,ownerVersion=getAppVersion('chord-cruise'),instrumentConsent=new WeakMap();
     function material(snapshot,symbol,origin='manual',externalMaterialId=null,shape=null,recommendationSource=null){
         return {encoding:'studio-chord-form-v2',snapshot:clone(snapshot),provenance:{origin,ownerApp:'chord-cruise',ownerVersion,adapterVersion:'3',sourceSymbol:symbol,shape,recommendationSource,generation:{minRelativeFret:0,maxRelativeFret:snapshot.maxAbsoluteFret-snapshot.capo},externalMaterialId}};
     }
@@ -41,7 +41,15 @@ export function createFormAuthoring(C,base){
         return result;
     }
     function initialize(p){if(p.instrument.tuning===null)p.instrument.tuning=STANDARD.slice();if(p.instrument.maxAbsoluteFret===undefined)p.instrument.maxAbsoluteFret=22;}
-    function authorize(session){return session.draft.instrument.tuning!==null&&session.draft.instrument.maxAbsoluteFret!==undefined||session.baseRevision===null||window.confirm('このProjectの楽器条件は未確認です。標準6弦・22フレットを初期条件として使用しますか？ 既存のフォームは保持し、条件が変わったものは要確認になります。');}
+    function authorize(session){
+        const i=session.draft.instrument;if(i.tuning!==null&&i.maxAbsoluteFret!==undefined||session.baseRevision===null)return true;
+        // Consent is scoped to this Session and the exact unresolved conditions.
+        // Never persist a new setting or mutate the Project just to hide a prompt.
+        const key=JSON.stringify([session.draft.projectId,i.capo,i.tuning,i.maxAbsoluteFret??null]);if(instrumentConsent.get(session)===key)return true;
+        const defaults=[i.tuning===null?'標準6弦':null,i.maxAbsoluteFret===undefined?'22フレット':null].filter(Boolean).join('・');
+        if(!window.confirm('このProjectの未登録の楽器条件に、'+defaults+'を使いますか？ 既存の設定・フォームは保持します。'))return false;
+        instrumentConsent.set(session,key);return true;
+    }
     function syncEvent(p,event){
         const previous=p.performance.formBindings.find(b=>b.chordEventId===event.id);if(previous&&previous.mode!=='auto')return;
         const m=event.unresolved?null:recommend(p,event.symbol);
@@ -50,9 +58,9 @@ export function createFormAuthoring(C,base){
     function reconcile(p,before){if(p.schemaVersion!==2)return;const old=new Map(before.bars.flatMap(b=>b.chords).map(e=>[e.id,e.symbol]));for(const e of p.bars.flatMap(b=>b.chords)){const exists=p.performance.formBindings.some(b=>b.chordEventId===e.id);if(old.has(e.id)?old.get(e.id)!==e.symbol:!exists)syncEvent(p,e);}}
     function adopt(session,barId,eventId,m){
         try{
-            if(!authorize(session))throw Error('楽器条件の確認をキャンセルしました');
             const c=C.shellHost.getCommandContext(),raw=C.repository.readRevision(session.target);
             if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||c.activeModal||C.shellHost.modal.getActive()||C.shellHost.keyboard.isIMEBlocked({})||!raw.ok||raw.revision!==session.baseRevision)throw Error('編集対象・保存状態を確認してください');
+            if(!authorize(session))throw Error('楽器条件の確認をキャンセルしました');
             schema.assertJson(m);const copy=clone(m);session.finishTextGroup();
             return session.runOperation('コードフォームを固定',p=>{const e=p.bars.find(b=>b.id===barId)?.chords.find(e=>e.id===eventId);if(!e||e.symbol!==copy.provenance.sourceSymbol)throw Error('コードの選択が変わりました');
                 initialize(p);if(p.instrument.capo!==copy.snapshot.capo||JSON.stringify(p.instrument.tuning)!==JSON.stringify(copy.snapshot.tuningMidi)||p.instrument.maxAbsoluteFret!==copy.snapshot.maxAbsoluteFret)throw Error('フォームとProjectの楽器条件が一致しません');

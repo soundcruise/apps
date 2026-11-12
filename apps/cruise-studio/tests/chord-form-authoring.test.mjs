@@ -3,6 +3,10 @@ import {fixture,clone,state} from './helpers/chord-form-fixture.mjs';
 import {createFormAuthoring} from '../js/modules/chord/form-authoring.mjs';
 import {makeChordForms,parseChordForms,savedChordForm} from '../js/modules/sheet-cruise/chord-form-transfer.mjs';
 const ok=r=>assert(r.ok,JSON.stringify(r));
+test('instrument consent is memory-only per Session and exact unresolved conditions; cancellation is never cached',()=>{
+ const {f,a}=setup(),s=f.s();s.draft.instrument.tuning=null;delete s.draft.instrument.maxAbsoluteFret;let calls=0,accept=true;const prior=globalThis.window;globalThis.window={confirm:()=>{calls++;return accept;}};
+ try{const before=state(f);assert(a.authorize(s));assert(a.authorize(s));assert.equal(calls,1);assert.equal(state(f),before);s.draft.instrument.capo=1;accept=false;assert(!a.authorize(s));assert(!a.authorize(s));assert.equal(calls,3);accept=true;assert(a.authorize(s));assert(a.authorize(s));assert.equal(calls,4);const second=fixture().s();second.draft.instrument.tuning=null;delete second.draft.instrument.maxAbsoluteFret;assert(a.authorize(second));assert.equal(calls,5);}finally{if(prior===undefined)delete globalThis.window;else globalThis.window=prior;}
+});
 function setup(){const f=fixture(),a=createFormAuthoring(f.C,f.realm.window.ChordCruise);return {f,a};}
 function enter(f,a,name){return f.s().runOperation('Synthetic code entry',p=>{const e=p.bars[0].chords[0];e.symbol=name;a.syncEvent(p,e);});}
 test('opening old Project does not migrate forms, instrument, draft or raw storage',()=>{const f=fixture(),before=state(f);createFormAuthoring(f.C,f.realm.window.ChordCruise);assert.equal(state(f),before);ok(f.api.validate(f.s().draft));});

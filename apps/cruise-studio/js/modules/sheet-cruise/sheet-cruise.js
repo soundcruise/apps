@@ -1700,15 +1700,22 @@
     function buildChordPickerPanel(){var root=document.createElement('section');root.dataset.chordPicker='';root.hidden=!chordPicker.open||collapsedEditorRows.has('chord');if(!root.hidden)populateChordPicker(root);return root;}
     function refreshChordPicker(){syncEditorDisclosures();var root=els.slotOverlay?.querySelector('[data-chord-picker]');if(root&&!root.hidden)populateChordPicker(root);}
     function populateChordPicker(root){
-        var owner=state.session,bar=owner.draft.bars[state.selectedBarNumber-1];if(!bar)return;root._disposeOwnerChord?.();
+        var owner=state.session,bar=owner.draft.bars[state.selectedBarNumber-1];if(!bar)return;
         if(chordPicker.owner!==owner||chordPicker.barId!==bar.id){chordPicker.owner=owner;chordPicker.barId=bar.id;chordPicker.tick=0;}
+        var symbol=bar.chords.find(function(c){return c.onsetTick===chordPicker.tick;})?.symbol||'';
+        var preserved=null;if(root._chordOwner===owner&&root._chordBarId===bar.id&&root._chordTick===chordPicker.tick&&root._chordSymbol===symbol){
+            var positions=[];for(var ancestor=root.parentElement;ancestor;ancestor=ancestor.parentElement)positions.push({node:ancestor,x:ancestor.scrollLeft,y:ancestor.scrollTop});
+            var board=root.shadowRoot?.querySelector('#cc-fretboard-host .cc-fb-scroll');preserved={positions:positions,x:window.scrollX,y:window.scrollY,boardX:board?.scrollLeft,minHeight:root.style.minHeight};root.style.minHeight=root.offsetHeight+'px';
+        }
+        root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.107.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.108.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial){
                 if(!currentFrame(frame)||!editorCanMove())return false;var field=editorRoot().querySelector('[data-overlay-field="chord"][data-slot-tick="'+tick+'"]');if(!field||field.readOnly)return false;return field._applyBeatValue(symbol,formMaterial).ok;
-            },changed:function(){renderPreview(true);renderSlotOverlayContent();}});
+            },changed:function(){renderPreview(true);}});
+            if(preserved){root.style.minHeight=preserved.minHeight;var board=root.shadowRoot?.querySelector('#cc-fretboard-host .cc-fb-scroll');if(board&&Number.isFinite(preserved.boardX))board.scrollLeft=preserved.boardX;preserved.positions.forEach(function(p){if(p.node.isConnected){p.node.scrollLeft=p.x;p.node.scrollTop=p.y;}});if(window.scrollX!==preserved.x||window.scrollY!==preserved.y)window.scrollTo(preserved.x,preserved.y);}
         }).catch(function(){if(root.isConnected)root.textContent='コード入力画面を読み込めませんでした。開き直してください。';});
     }
     function buildPianoPanel(){
@@ -4294,7 +4301,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.107.0-dev.1',
+        developmentVersion: '0.108.0-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,

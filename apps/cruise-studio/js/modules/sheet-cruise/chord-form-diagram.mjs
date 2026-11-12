@@ -14,6 +14,6 @@ export function drawChordForm(fretboard,container,snapshot,chord,explore,monochr
     const options=formDiagramOptions(snapshot,chord,explore,{monochrome,frets});
     const board=container.ownerDocument.createElement('div');board.className='score-chord-diagram-board';container.append(board);fretboard.render(board,options);
     const width=fretboard.createModel(options).width;board.style.width=width+'px';board.style.transformOrigin='0 0';
-    function fit(){const scale=Math.min(1,container.clientWidth/Math.max(width,4*fretboard.FRET_W)),left=(container.clientWidth-width*scale)/2;board.style.transform='translateX('+left+'px) scale('+scale+')';container.style.height=board.offsetHeight*scale+'px';}
+    function fit(){const usable=Math.max(0,container.clientWidth-32),scale=Math.min(1,usable/Math.max(width,4*fretboard.FRET_W)),left=(usable-width*scale)/2;board.style.transform='translateX('+left+'px) scale('+scale+')';container.style.height=board.offsetHeight*scale+24+'px';}
     fit();const observer=new ResizeObserver(fit);observer.observe(container);return ()=>observer.disconnect();
 }
