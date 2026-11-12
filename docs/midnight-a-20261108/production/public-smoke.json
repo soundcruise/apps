@@ -1,0 +1,66 @@
+[
+  {
+    "app": "pitch",
+    "edition": "standard",
+    "versionVisible": true,
+    "proGateVisible": false,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  },
+  {
+    "app": "pitch",
+    "edition": "pro",
+    "versionVisible": true,
+    "proGateVisible": true,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  },
+  {
+    "app": "fretboard",
+    "edition": "standard",
+    "versionVisible": true,
+    "proGateVisible": false,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  },
+  {
+    "app": "fretboard",
+    "edition": "pro",
+    "versionVisible": true,
+    "proGateVisible": true,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  },
+  {
+    "app": "rhythm",
+    "edition": "standard",
+    "versionVisible": true,
+    "proGateVisible": false,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  },
+  {
+    "app": "rhythm",
+    "edition": "pro",
+    "versionVisible": true,
+    "proGateVisible": true,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  },
+  {
+    "app": "chord",
+    "edition": "standard",
+    "versionVisible": true,
+    "proGateVisible": false,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  },
+  {
+    "app": "chord",
+    "edition": "pro",
+    "versionVisible": true,
+    "proGateVisible": true,
+    "pageErrors": [],
+    "midnightCandidateVisibleCount": 0
+  }
+]

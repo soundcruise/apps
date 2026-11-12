@@ -868,3 +868,6 @@ body.test-mode-enabled .stage-clear-mark {
     font-weight: 700;
 }
 
+
+/* Temporarily suspend new Midnight selection; retain saved values and Studio projection. */
+:root:not([data-studio-theme]) [data-theme-choice="midnight"] { display: none !important; }

@@ -1,0 +1,17 @@
+{
+  "workerNumber": 162,
+  "versionId": "d0251d67-a342-4c60-a3ef-bcd909d43365",
+  "deploymentId": "c3f20c69-bdee-46f9-a848-e0a24361eb85",
+  "percentage": 100,
+  "functionalSettingsUnchanged": true,
+  "bindingCount": 70,
+  "secretBindingCount": 19,
+  "aiMode": "off",
+  "changedModules": [
+    "production-v148.mjs"
+  ],
+  "unchangedModuleCount": 4,
+  "health": 200,
+  "aiOffResponse": 404,
+  "authenticatedAcceptance": "PASS: isolated real Account/Pro credentials on iPhone"
+}

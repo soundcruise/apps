@@ -1,0 +1,118 @@
+{
+  "productFiles": [
+    {
+      "path": "apps/chord-cruise/js/app.js",
+      "matches": true
+    },
+    {
+      "path": "apps/chord-cruise/js/sync/sync-bootstrap.js",
+      "matches": true
+    },
+    {
+      "path": "apps/chord-cruise/js/sync/sync-client.js",
+      "matches": true
+    },
+    {
+      "path": "apps/chord-cruise/pro_k7m4q9v2x8/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/chord-cruise/standard/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/fretboard_cruise/script.js",
+      "matches": true
+    },
+    {
+      "path": "apps/fretboard_cruise/standard/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/fretboard_cruise/sync/fretboard-sync-adapter.js",
+      "matches": true
+    },
+    {
+      "path": "apps/pitch-cruise/beta/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/pitch-cruise/pro_x9v7q2m8/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/pitch-cruise/script.js",
+      "matches": true
+    },
+    {
+      "path": "apps/pitch-cruise/standard/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/pitch-cruise/sync/pitch-sync-adapter.js",
+      "matches": true
+    },
+    {
+      "path": "apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/rhythm-cruise/script.js",
+      "matches": true
+    },
+    {
+      "path": "apps/rhythm-cruise/standard/index.html",
+      "matches": true
+    },
+    {
+      "path": "apps/rhythm-cruise/sync/rhythm-sync-adapter.js",
+      "matches": true
+    },
+    {
+      "path": "apps/shared/sync-account/multi-app-sync-runtime.js",
+      "matches": true
+    }
+  ],
+  "versionedReferences": [
+    {
+      "url": "https://soundcruise.jp/apps/chord-cruise/js/sync/sync-bootstrap.js?v=1.23.4",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/chord-cruise/js/app.js?v=1.23.4",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/fretboard_cruise/sync/fretboard-sync-adapter.js?v=10",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/shared/sync-account/multi-app-sync-runtime.js?v=37",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/fretboard_cruise/script.js?v=2.27.4",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/pitch-cruise/script.js?v=2.32.2",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/pitch-cruise/sync/pitch-sync-adapter.js?v=12",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/rhythm-cruise/sync/rhythm-sync-adapter.js?v=9",
+      "matches": true
+    },
+    {
+      "url": "https://soundcruise.jp/apps/rhythm-cruise/script.js?v=1.23.3",
+      "matches": true
+    }
+  ]
+}

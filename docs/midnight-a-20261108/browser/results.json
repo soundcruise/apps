@@ -1,0 +1,314 @@
+[
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "A: persisted Outbox, reload, v2 same operation ID",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "B: interrupted old resolution → local",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "B: interrupted old resolution → remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "C: old/new tabs share IDB and preserve projected Midnight",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "E: Account switch/revocation preserves A pending operation",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "F: revoked Device retains pending data across restart",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "G: a genuine revision advance invalidates old intent",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "pitch",
+    "name": "H: concurrent old/new tasks preserve cloud and converge after review",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "A: persisted Outbox, reload, v2 same operation ID",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "B: interrupted old resolution → local",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "B: interrupted old resolution → remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "C: old/new tabs share IDB and preserve projected Midnight",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "E: Account switch/revocation preserves A pending operation",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "F: revoked Device retains pending data across restart",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "G: a genuine revision advance invalidates old intent",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "fretboard",
+    "name": "H: concurrent old/new tasks preserve cloud and converge after review",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "A: persisted Outbox, reload, v2 same operation ID",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "B: interrupted old resolution → local",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "B: interrupted old resolution → remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "C: old/new tabs share IDB and preserve projected Midnight",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "E: Account switch/revocation preserves A pending operation",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "F: revoked Device retains pending data across restart",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "G: a genuine revision advance invalidates old intent",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "rhythm",
+    "name": "H: concurrent old/new tasks preserve cloud and converge after review",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor local",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "A: persisted Outbox, reload, v2 same operation ID",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "B: interrupted old resolution → local",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "B: interrupted old resolution → remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "C: old/new tabs share IDB and preserve projected Midnight",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "E: Account switch/revocation preserves A pending operation",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "F: revoked Device retains pending data across restart",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "G: a genuine revision advance invalidates old intent",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "pitch",
+    "name": "H: concurrent old/new tasks preserve cloud and converge after review",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "A: persisted Outbox, reload, v2 same operation ID",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "B: interrupted old resolution → local",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "B: interrupted old resolution → remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "C: old/new tabs share IDB and preserve projected Midnight",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "E: Account switch/revocation preserves A pending operation",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "F: revoked Device retains pending data across restart",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "G: a genuine revision advance invalidates old intent",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "fretboard",
+    "name": "H: concurrent old/new tasks preserve cloud and converge after review",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "A: persisted Outbox, reload, v2 same operation ID",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "B: interrupted old resolution → local",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "B: interrupted old resolution → remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "C: old/new tabs share IDB and preserve projected Midnight",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "E: Account switch/revocation preserves A pending operation",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "F: revoked Device retains pending data across restart",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "G: a genuine revision advance invalidates old intent",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "rhythm",
+    "name": "H: concurrent old/new tasks preserve cloud and converge after review",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor local",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor remote",
+    "result": "PASS"
+  }
+]

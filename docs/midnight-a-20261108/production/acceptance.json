@@ -1,0 +1,59 @@
+{
+  "dateJST": "2026-11-08",
+  "inputHead": "30a67e1688663c2d77d1b825669e8432dfeac321",
+  "releaseCommit": "b8d278c9eb60e7cb0bf0d734ea0fde85add30c98",
+  "workerNumber": 162,
+  "workerAcceptance": "PASS",
+  "clientAcceptance": "PASS (limited production acceptance)",
+  "newMidnightSelection": "hidden; not re-enabled",
+  "iPhone": {
+    "os": "iOS 27.2",
+    "storageIsolation": "new MIDNIGHT249 Safari profile; initial Account absent, only fresh Pro keys, practice attachments 0, SW 0",
+    "backend": "real production Worker; formal Account/join/delete APIs; operator-entered Pro gate",
+    "method": "product sync modules and Chord pairing UI executed in isolated Safari page via USB Web Inspector; no full app/PWA acceptance claim",
+    "checks": {
+      "v1FourThemes": true,
+      "v2MidnightWriteRead": true,
+      "v1DarkProjection": true,
+      "v1ExplicitLight": true,
+      "v1MidnightHeldBeforeCommit": true,
+      "heldOutboxShadowCursorPreserved": true,
+      "sameOperationIdReplay": true,
+      "shadowCloudHashMatch": true,
+      "outboxAndConflictsZero": true,
+      "oldNewRuntimeMidnightConvergence": true,
+      "localAdoption": true,
+      "cloudFieldAdoption": true,
+      "chordPendingReviewToSynced": true,
+      "chordCursorHeldUntilReview": true,
+      "accountBRecordsZero": true,
+      "accountAPendingPreserved": true
+    },
+    "limits": [
+      "Production version transition used dynamic loading of published v2 modules over retained v1 modules, not PWA close/relaunch.",
+      "Production mixed-version check used two retained runtime instances in one isolated page. Actual multi-tab/reload cases reuse prior Chromium/WebKit 52 PASS.",
+      "Account check used formal test Account APIs, real Account storage and guarded runtime; Port recovery UI was not repeated. Existing Port acceptance and unchanged Port files are reused."
+    ]
+  },
+  "cleanup": {
+    "accountA": "deleting; old credentials 410; active Account/App devices 0; synthetic records 6 retained per 7-day contract",
+    "accountB": "deleting; old credentials 410; active Account/App devices 0; records 0",
+    "localProCredentialRemoved": true,
+    "localStorageBeforeProfileRemoval": 0,
+    "indexedDBBeforeProfileRemoval": {
+      "deleted": 9,
+      "blocked": 2
+    },
+    "isolatedProfileRemoved": true,
+    "originalProfilesRetained": [
+      "個人用",
+      "SYNC-P7-A",
+      "SYNC-P7-B"
+    ],
+    "temporaryPublicPathCreated": false,
+    "testPWACreated": false,
+    "physicalCloudPurgeConfirmed": false
+  },
+  "productCodeAddedThisDeployment": false,
+  "personalAccountAndUnknown12": "not opened or modified on iPhone"
+}

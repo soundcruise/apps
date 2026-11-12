@@ -1,0 +1,32 @@
+{
+  "base": "fed3985f5",
+  "sourcePR237": "6766b40adf40a3390120981da05de9a4e6614e5c",
+  "publicPort": "1.30.5",
+  "publicCommit": "10449b7d21b2871ea3ae9a04c1b55765bf5842de",
+  "workerVersion": 161,
+  "aiMode": "off",
+  "related": {
+    "pass": 128,
+    "fail": 0,
+    "skip": 0
+  },
+  "clients": {
+    "pass": 69,
+    "fail": 0
+  },
+  "theme": {
+    "pass": 15,
+    "fail": 0
+  },
+  "authority": {
+    "pass": 21,
+    "fail": 0
+  },
+  "chordThemeKnownPublicFailure": 1,
+  "newAStateFlags": 0,
+  "reusedChordMetaKeys": 1,
+  "newDBs": 0,
+  "studioNewsPortProductDiffs": 0,
+  "realBrowserAcceptance": "not run",
+  "productionWrites": 0
+}

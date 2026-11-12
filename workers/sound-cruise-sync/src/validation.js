@@ -221,6 +221,14 @@ export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
       !isRecordTypeAllowed(payload.appId, input.recordType, capabilities)
       ? { ok: false, code: 'capability_required' }
       : await validateOperation(input, cryptoImpl, payload.appId);
+    // v1 is shared by four-theme and Midnight readers. Never commit a value
+    // whose ACK/snapshot would be projected differently for that same request.
+    if (result.ok && ['pitch', 'fretboard', 'rhythm'].includes(payload.appId) &&
+        !capabilities.has('settings_theme_v2') && input.recordType === 'settings' &&
+        input.payload?.values?.theme === 'midnight') {
+      operations.push({ ok: false, operationId: input.operationId, index, code: 'settings_theme_upgrade_required' });
+      continue;
+    }
     operations.push(result.ok
       ? { ok: true, operation: result.operation, index }
       : {

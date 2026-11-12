@@ -1,0 +1,26 @@
+[
+  {
+    "engine": "chromium",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor local",
+    "result": "PASS"
+  },
+  {
+    "engine": "chromium",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor remote",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor local",
+    "result": "PASS"
+  },
+  {
+    "engine": "webkit",
+    "app": "chord",
+    "name": "D: pending UI and reviewed recovery with persisted cursor remote",
+    "result": "PASS"
+  }
+]

@@ -1,0 +1,46 @@
+sync-pilot-client: OFF isolation, outbox gap repair, shadow reconciliation, failures, and credential storage passed
+✔ apps/chord-cruise/tests/sync-pilot-client.test.js (68.734083ms)
+sync-pilot-p4-client: preview, stale guard, backup, local verify, response-loss resume, and crash rollback passed
+✔ apps/chord-cruise/tests/sync-pilot-p4-client.test.js (95.419459ms)
+(node:20326) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ published runtime fixture remains fixed (1.20875ms)
+✔ pitch: frozen v1 Midnight operation is not committed; same Outbox resumes after v2 update (76.23225ms)
+✔ pitch: existing failed v1 resolution resumes with local choice after upgrade (47.18575ms)
+✔ pitch: existing failed v1 resolution resumes with remote choice after upgrade (49.024917ms)
+✔ pitch: simultaneous old and updated tab cannot leak Midnight to four-theme reader (52.178167ms)
+✔ fretboard: frozen v1 Midnight operation is not committed; same Outbox resumes after v2 update (43.302167ms)
+✔ fretboard: existing failed v1 resolution resumes with local choice after upgrade (42.637125ms)
+✔ fretboard: existing failed v1 resolution resumes with remote choice after upgrade (53.922291ms)
+✔ fretboard: simultaneous old and updated tab cannot leak Midnight to four-theme reader (60.026666ms)
+✔ rhythm: frozen v1 Midnight operation is not committed; same Outbox resumes after v2 update (43.5065ms)
+✔ rhythm: existing failed v1 resolution resumes with local choice after upgrade (42.22075ms)
+✔ rhythm: existing failed v1 resolution resumes with remote choice after upgrade (44.3805ms)
+✔ rhythm: simultaneous old and updated tab cannot leak Midnight to four-theme reader (47.682209ms)
+✔ Chord C: persisted cursor/snapshot validation/pending operations remain recoverable (38.737583ms)
+✔ pitch: pre-gate committed Midnight verification failure recovers via local (44.926584ms)
+✔ pitch: pre-gate committed Midnight verification failure recovers via remote (45.982125ms)
+✔ fretboard: pre-gate committed Midnight verification failure recovers via local (44.055833ms)
+✔ fretboard: pre-gate committed Midnight verification failure recovers via remote (44.158792ms)
+✔ rhythm: pre-gate committed Midnight verification failure recovers via local (42.887166ms)
+✔ rhythm: pre-gate committed Midnight verification failure recovers via remote (42.616208ms)
+✔ pitch: old/new tabs sharing the durable store re-read without cursor reset (52.859917ms)
+✔ pitch: updating reader capability cannot grant foreign Account outbox authority (41.262458ms)
+✔ pitch: genuine revision advance invalidates the saved intent, never treated as projection-only (42.749041ms)
+✔ fretboard: old/new tabs sharing the durable store re-read without cursor reset (74.658125ms)
+✔ fretboard: updating reader capability cannot grant foreign Account outbox authority (40.02175ms)
+✔ fretboard: genuine revision advance invalidates the saved intent, never treated as projection-only (49.955625ms)
+✔ rhythm: old/new tabs sharing the durable store re-read without cursor reset (51.083459ms)
+✔ rhythm: updating reader capability cannot grant foreign Account outbox authority (39.142166ms)
+✔ rhythm: genuine revision advance invalidates the saved intent, never treated as projection-only (44.36725ms)
+✔ pitch: first migration with saved Midnight resumes the existing migration Outbox after update (39.094792ms)
+✔ fretboard: first migration with saved Midnight resumes the existing migration Outbox after update (39.069333ms)
+✔ rhythm: first migration with saved Midnight resumes the existing migration Outbox after update (41.394959ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1512.620583

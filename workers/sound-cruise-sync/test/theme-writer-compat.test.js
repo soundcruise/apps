@@ -134,7 +134,7 @@ for (const kind of ['old', 'reader']) for (const appId of Object.keys(APPS)) {
 
 // ── Writer clients (current adapters that declare settings_theme_v1) ──────────────────────────────────
 const isWriter = (appId) => fs.readFileSync(new URL(`../../../apps/${APPS[appId].current}`, import.meta.url), 'utf8')
-  .includes("'settings_theme_v1'");
+  .match(/settings_theme_v[12]/);
 const themeOf = (d) => APPS[d.item ? Object.keys(APPS).find((id) => APPS[id] === d.item) : 'pitch'].theme(d.settings());
 const setTheme = (d, theme) => d.change((settings) => { settings.theme = theme; });
 

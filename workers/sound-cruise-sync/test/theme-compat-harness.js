@@ -61,7 +61,7 @@ export const APPS = {
   }
 };
 
-export function loadRuntime() {
+export function loadRuntime(runtimeSource = null) {
   const events = new EventTarget();
   const documentEvents = new EventTarget();
   class CustomEventPolyfill extends Event { constructor(type, init = {}) { super(type); this.detail = init.detail; } }
@@ -83,7 +83,7 @@ export function loadRuntime() {
   };
   context.globalThis = context;
   vm.runInNewContext(fs.readFileSync(new URL('settings-field-merge.js', SHARED), 'utf8'), context);
-  vm.runInNewContext(fs.readFileSync(new URL('multi-app-sync-runtime.js', SHARED), 'utf8'), context);
+  vm.runInNewContext(runtimeSource || fs.readFileSync(new URL('multi-app-sync-runtime.js', SHARED), 'utf8'), context);
   return { Runtime: context.SoundCruiseMultiAppSync.MultiAppSyncRuntime, context };
 }
 
@@ -161,18 +161,18 @@ export function world(appId) {
   };
   // A capable writer device, driven through the raw protocol (used before the writer clients exist).
   const rawWriter = (deviceId) => ({
-    async put(values) {
+    async put(values, capabilities = [CAPABILITY]) {
       const current = stored();
       const op = { operationId: webcrypto.randomUUID(), recordType: 'settings', recordId: 'settings', schemaVersion: 1,
         baseRevision: current?.revision || 0, payload: values ? { id: 'settings', values } : null, payloadHash: '', deleted: !values };
       op.payloadHash = await hashRecord({ ...op }, webcrypto, appId);
       const response = await fetchFor(deviceId)(`${ENDPOINT}/v1/sync/push`, { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appId, mode: 'sync', operations: [op], capabilities: [CAPABILITY] }) });
+        body: JSON.stringify({ appId, mode: 'sync', operations: [op], capabilities }) });
       return response.json();
     },
     async snapshot(capable = true) {
-      const response = await fetchFor(deviceId)(`${ENDPOINT}/v1/sync/snapshot?appId=${appId}${capable ? `&capabilities=${CAPABILITY}` : ''}`);
+      const response = await fetchFor(deviceId)(`${ENDPOINT}/v1/sync/snapshot?appId=${appId}${capable ? `&capabilities=${Array.isArray(capable) ? capable.join(",") : CAPABILITY}` : ''}`);
       return response.json();
     }
   });
@@ -180,16 +180,18 @@ export function world(appId) {
 }
 
 // A real app device: shared runtime + an app sync adapter (old fixture, current, or a given source).
-export function device(w, which, values) {
+export function device(w, which, values, runtimeSource = null) {
   const item = APPS[w.appId];
   const deviceId = w.addDevice();
-  const { Runtime, context } = loadRuntime();
+  const { Runtime, context } = loadRuntime(runtimeSource);
   context.navigator.locks = w.locks;
   const data = new Map(Object.entries(values ?? item.seed()));
   const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
   context.localStorage = storage;
   const fixture = item.current.split('/').pop() + '.fixture';
-  const source = which === 'old' ? fs.readFileSync(new URL(item.old, OLD_DIR), 'utf8')
+  const source = which === 'published' ? fs.readFileSync(new URL('./fixtures/published-v1/' + fixture, import.meta.url), 'utf8')
+    : which === 'v1' ? fs.readFileSync(new URL('./fixtures/pre-midnight/' + fixture, import.meta.url), 'utf8')
+    : which === 'old' ? fs.readFileSync(new URL(item.old, OLD_DIR), 'utf8')
     : which === 'reader' ? fs.readFileSync(new URL(fixture, READER_DIR), 'utf8')
       : fs.readFileSync(new URL(item.current, APPS_DIR), 'utf8');
   vm.runInNewContext(source, context);

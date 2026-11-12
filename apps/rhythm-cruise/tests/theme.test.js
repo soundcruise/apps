@@ -127,7 +127,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
         Event: function (type) { this.type = type; }, dispatchEvent: function (event) { events.push(event.type); } });
     vm.runInContext(source, context);
     var api = context.SoundCruiseRhythmSync;
-    assert.deepStrictEqual(Array.from(api.SYNC_CAPABILITIES), ['settings_theme_v1']);
+    assert.deepStrictEqual(Array.from(api.SYNC_CAPABILITIES), ['settings_theme_v1', 'settings_theme_v2']);
     assert.deepStrictEqual(Array.from(api.SYNC_OPTIONAL_SETTINGS), ['theme']);
     assert(api.SYNC_SETTINGS.indexOf('theme') < 0, 'theme has no default, so it stays out of the default-based list');
     var mem = function (settings) {
@@ -139,7 +139,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
         var record = api.normalizeLocalSnapshot(api.readLocalSnapshot(mem(settings).storage)).records.find(function (r) { return r.recordType === 'settings'; });
         return record ? record.payload.values : undefined;
     };
-    assert.deepStrictEqual(Array.from(new api.RhythmSyncAdapter({ storage: mem({}).storage }).syncCapabilities), ['settings_theme_v1']);
+    assert.deepStrictEqual(Array.from(new api.RhythmSyncAdapter({ storage: mem({}).storage }).syncCapabilities), ['settings_theme_v1', 'settings_theme_v2']);
     assert.strictEqual(sent({ theme: 'charcoal', tapLayout: 'ud' }).theme, 'charcoal');
     assert.strictEqual(sent({ theme: 'dark', tapLayout: 'ud' }).theme, 'dark', 'an explicit Dark (after reset) is sent');
     assert.strictEqual(sent({ tapLayout: 'ud' }).theme, undefined, 'unset is never sent as dark');

@@ -1,0 +1,82 @@
+{
+  "base": "9de564e955aa6581dfce8e87deff1c206dd1c8b0",
+  "candidate": "30a67e1688663c2d77d1b825669e8432dfeac321",
+  "files": [
+    {
+      "path": "apps/chord-cruise/js/app.js",
+      "sha256": "3bc228251906b45ff241b8e4d137c8b2a9d803a004da671fb170db6a563fe18a"
+    },
+    {
+      "path": "apps/chord-cruise/js/sync/sync-bootstrap.js",
+      "sha256": "c76fd0c82605d73394ff860e8a49275943c09f8679018672081152c455f7a7f4"
+    },
+    {
+      "path": "apps/chord-cruise/js/sync/sync-client.js",
+      "sha256": "0ac4e48110b1b7a0768f141a16fb5baab289e2b4177eaad137d2c5dd21dfcfc7"
+    },
+    {
+      "path": "apps/chord-cruise/pro_k7m4q9v2x8/index.html",
+      "sha256": "0f7789403c4c99202968651210dd7c26f910e341621b65be3f6630b2c3bcb532"
+    },
+    {
+      "path": "apps/chord-cruise/standard/index.html",
+      "sha256": "79bc2ac6b185da4006a9ee9e94e25ee6854c73f5f82b429bf200f481b455e6e2"
+    },
+    {
+      "path": "apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html",
+      "sha256": "db2613a1e738d212e4aa6f4151d300b15467b1f95b186d7d6f1b7ac3fbea4e8e"
+    },
+    {
+      "path": "apps/fretboard_cruise/script.js",
+      "sha256": "b5d5898fb080a4340884ef544035bd2085e57e540257ec7998125398bd1bf154"
+    },
+    {
+      "path": "apps/fretboard_cruise/standard/index.html",
+      "sha256": "462f2cce5c8f12664eb15f57b221e367380c01d12fd37ee99da3fd90d9f45c36"
+    },
+    {
+      "path": "apps/fretboard_cruise/sync/fretboard-sync-adapter.js",
+      "sha256": "62001312b6568ea0cc89c46266e6e6f50236dc2dea701cfdeaec4500ecc446f1"
+    },
+    {
+      "path": "apps/pitch-cruise/beta/index.html",
+      "sha256": "936668ef4a1dedcc01e2bfc52c06903aaf35364827b075b41ad05bc53b14f345"
+    },
+    {
+      "path": "apps/pitch-cruise/pro_x9v7q2m8/index.html",
+      "sha256": "0c653b25c009671c85c91a1c3e8ed175ce085e14f7443297b87c05c540c0469c"
+    },
+    {
+      "path": "apps/pitch-cruise/script.js",
+      "sha256": "f8bdaaea3cebae6aa5ee11fbb4e91690fd85edce7a7452fa74f0b3ef096e76f3"
+    },
+    {
+      "path": "apps/pitch-cruise/standard/index.html",
+      "sha256": "8dae4b09079f5edfcd93f327dda2e4144779fab8b8b01dd89a9b2b301fba11cf"
+    },
+    {
+      "path": "apps/pitch-cruise/sync/pitch-sync-adapter.js",
+      "sha256": "672e337f5157eb3ba7db8faebe74706ec3c561ab4d3243b1013ffa3c356650e7"
+    },
+    {
+      "path": "apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html",
+      "sha256": "c04e67f36a6278c05508190cdec3f9631a32e6b0a08ea95136458379dbd00a9c"
+    },
+    {
+      "path": "apps/rhythm-cruise/script.js",
+      "sha256": "34f35f2e6692b736ba1bb12d30183618c748c879f8341ca038c69a0ef5eeb8d9"
+    },
+    {
+      "path": "apps/rhythm-cruise/standard/index.html",
+      "sha256": "734b5b20a06df89c5bc3558a374242f5f83bf1d0fcfa5f92c17b11ebeb94349a"
+    },
+    {
+      "path": "apps/rhythm-cruise/sync/rhythm-sync-adapter.js",
+      "sha256": "99122a27f866d4234eb0a8cba76a5b77885c0e04d4b240d508b4cbbba0e80842"
+    },
+    {
+      "path": "apps/shared/sync-account/multi-app-sync-runtime.js",
+      "sha256": "1a23d8390b27abf8978a955dcde8dd1b940247e8b88eab22471d8c922bfb392d"
+    }
+  ]
+}

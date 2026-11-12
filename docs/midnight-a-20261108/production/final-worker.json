@@ -1,0 +1,22 @@
+{
+  "number": 162,
+  "versionId": "d0251d67-a342-4c60-a3ef-bcd909d43365",
+  "deploymentId": "c3f20c69-bdee-46f9-a848-e0a24361eb85",
+  "percentage": 100,
+  "moduleHashesMatch": 5,
+  "functionalSettingsUnchanged": true,
+  "aiOff": true,
+  "cron": {
+    "schedules": [
+      {
+        "cron": "15 3 * * *",
+        "created_on": "2026-09-12T05:06:46.77435Z",
+        "modified_on": "2026-10-04T12:59:58.337458Z"
+      }
+    ]
+  },
+  "subdomain": {
+    "enabled": true,
+    "previews_enabled": false
+  }
+}
