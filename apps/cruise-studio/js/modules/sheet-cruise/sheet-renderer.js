@@ -323,19 +323,15 @@
             var cols = [1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms ? show.barsPerLine : show.barsPerLine * 2;
 
             // 譜面行（.sheet-line）単位で組む: 印刷時に行の途中で改ページさせない
-            for (var i = 0; i < bars.length; i += cols) {
-                var line = el('div', 'sheet-line' + (hasVocal ? '' : ' sheet-line--compact'));
-                line.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-                var lineBars = bars.slice(i, i + cols);
-                lineBars.forEach(function (bar) {
-                    var strum = show.strum ? resolveBarStrum(project, bar) : null;
-                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum, options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,options&&options.formsForBar));
-                });
-                // 行末まで小節線を揃えるための空セル
-                for (var pad = lineBars.length; pad < cols; pad++) {
-                    line.appendChild(el('div', 'sheet-bar sheet-bar--empty'));
-                }
-                page.appendChild(line);
+            for (var i = 0; i < bars.length;) {
+                var rule=options?.lineLayoutForBar?.(bars[i].barNumber),capacity=rule&&Number.isInteger(rule.columns)&&rule.columns>=1&&rule.columns<=8?rule.columns:cols,used=rule&&Number.isInteger(rule.used)&&rule.used>0?Math.min(rule.used,capacity):capacity;
+                var line=el('div','sheet-line'+(hasVocal?'':' sheet-line--compact'));line.style.gridTemplateColumns='repeat('+capacity+', 1fr)';line.dataset.lineStart=bars[i].barNumber;line.dataset.lineCapacity=capacity;if(rule)line.dataset.lineCustom='';
+                var lineBars=bars.slice(i,i+used);line.dataset.lineUsed=lineBars.length;
+                var lineShow=Object.assign({},show,{lyrics:show.lyrics&&lineBars.some(function(b){return b.lyrics?.length;}),doremi:show.doremi&&lineBars.some(function(b){return b.melody?.length||restsForBar(b.barNumber).length;})});
+                var lineHasVocal=!!(lineShow.lyrics||lineShow.doremi);line.classList.toggle('sheet-line--compact',!lineHasVocal);
+                lineBars.forEach(function(bar){var strum=show.strum?resolveBarStrum(project,bar):null;line.appendChild(buildBarCell(bar,lineShow,lineHasVocal,beats,strum,options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,options&&options.formsForBar));});
+                for(var pad=lineBars.length;pad<capacity;pad++){var empty=el('div','sheet-bar sheet-bar--empty');empty.setAttribute('role','img');empty.setAttribute('aria-label','レイアウト用の空き枠（編集・再生なし）');line.appendChild(empty);}
+                page.appendChild(line);i+=lineBars.length;
             }
         });
 
