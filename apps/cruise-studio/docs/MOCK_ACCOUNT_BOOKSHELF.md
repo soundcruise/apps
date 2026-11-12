@@ -1,6 +1,8 @@
 # 同じ編集カード内の模擬Account本棚
 
-候補 `0.112.0-dev.1`。実Account接続の前段として、既存Sessionへの選択・フォーム採用だけを模擬データで検証する。構成案は [ACCOUNT_CHORD_LIBRARY_INTEGRATION.md](ACCOUNT_CHORD_LIBRARY_INTEGRATION.md)。
+現在の編集UI・試聴・残課題は [EDITOR_UI_CHECKPOINT.md](EDITOR_UI_CHECKPOINT.md)（0.113.0-dev.1）を参照。
+
+本棚の2段階UIの基準候補 `0.112.0-dev.1`。実Account接続の前段として、既存Sessionへの選択・フォーム採用だけを模擬データで検証する。構成案は [ACCOUNT_CHORD_LIBRARY_INTEGRATION.md](ACCOUNT_CHORD_LIBRARY_INTEGRATION.md)。
 
 ## 利用手順
 
