@@ -1,5 +1,7 @@
 # 譜面UI・再生 — 0.114.0-dev.1
 
+次の小節選択・コピー・フォーム拡大の変更は [SCORE_SELECTION_CHECKPOINT.md](SCORE_SELECTION_CHECKPOINT.md) を参照。以下は0.114時点の記録。
+
 2026-11-12。0.113.0-dev.1（45fc8f49）からの独立したローカル候補。対象は譜面クルーズのみ。
 
 ## 動作
