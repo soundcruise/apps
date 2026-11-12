@@ -320,7 +320,7 @@
                     (show.doremi && ((bar.melody && bar.melody.length > 0)||restsForBar(bar.barNumber).length>0));
             });
             var hasForms=!!options?.hasFormsForBar&&bars.some(function(b){return options.hasFormsForBar(b.barNumber);});
-            var cols = hasVocal||hasForms ? show.barsPerLine : show.barsPerLine * 2;
+            var cols = [1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms ? show.barsPerLine : show.barsPerLine * 2;
 
             // 譜面行（.sheet-line）単位で組む: 印刷時に行の途中で改ページさせない
             for (var i = 0; i < bars.length; i += cols) {
