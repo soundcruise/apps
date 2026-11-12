@@ -5,7 +5,7 @@
     else (root.CruiseStudio = root.CruiseStudio || {}).structureOperations = api;
 }(typeof window !== 'undefined' ? window : globalThis, function () {
     'use strict';
-    var labels = Object.freeze({ addBar:'小節を追加', deleteBar:'小節を削除', duplicateBar:'小節を複製', moveBar:'小節を移動', moveBars:'複数小節を移動', transpose:'実音を移調', addSection: 'セクションを追加', removeSection: 'セクションを削除',
+    var labels = Object.freeze({ addBar:'小節を追加', deleteBar:'小節を削除', duplicateBar:'小節を複製', pasteBar:'小節の内容を貼り付け', moveBar:'小節を移動', moveBars:'複数小節を移動', transpose:'実音を移調', addSection: 'セクションを追加', removeSection: 'セクションを削除',
         renameSection: 'セクション名を変更', barCount: 'セクションの小節数を変更',
         strum: 'ストロークセルを変更', resetStrum: '基本ストロークへ戻す',
         bulkChord: 'コードをまとめて適用', bulkDoremi: 'ドレミをまとめて適用', display: '譜面表示設定を変更' });
@@ -22,6 +22,43 @@
             frame.sessionId === session.sessionId && frame.projectId === session.target.projectId &&
             frame.version === session.snapshotVersion);
     }
+    // Same-Project memory copy, using the existing canonical duplicate intent.
+    // Destination identity/section/layout survive; source and immutable materials do not change.
+    function pasteBar(model, canonical, args) {
+        var api=model.schema2, source=args.source, check=source&&api.validate(source);
+        if(!check?.ok||source.projectId!==canonical.projectId)throw Error('同じProjectの小節をコピーしてください');
+        if(JSON.stringify(source.instrument)!==JSON.stringify(canonical.instrument))throw Error('楽器条件が変わりました。小節をコピーし直してください');
+        var destination=canonical.bars.findIndex(function(b){return b.id===args.barId;});
+        if(destination<0)throw Error('貼り付け先の小節を選択してください');
+        var staged=JSON.parse(JSON.stringify(source));
+        // The temporary copy needs only the source bar. Do not consume an extra
+        // bar in the real Project or fail merely because it already has 2048 bars.
+        staged.bars=staged.bars.filter(function(b){return b.id===args.sourceBarId;});
+        if(!staged.bars.length)throw Error('コピーした小節が見つかりません');
+        var sourceChords=new Set(staged.bars[0].chords.map(function(c){return c.id;}));
+        staged.performance.formBindings=staged.performance.formBindings.filter(function(b){return sourceChords.has(b.chordEventId);});
+        staged.performance.barRhythms=staged.performance.barRhythms.filter(function(b){return b.barId===args.sourceBarId;});
+        staged.notation.lineBreakAfter=staged.notation.lineBreakAfter.filter(function(id){return id===args.sourceBarId;});
+        var newId=api.duplicateBar(staged,args.sourceBarId),bar=staged.bars.find(function(b){return b.id===newId;}),target=canonical.bars[destination];
+        var oldChords=new Set(target.chords.map(function(c){return c.id;})),newChords=new Set(bar.chords.map(function(c){return c.id;}));
+        var forms=staged.performance.formBindings.filter(function(b){return newChords.has(b.chordEventId);});
+        function retain(kind,id){
+            var material=staged.materials[kind].find(function(m){return m.id===id;}),existing=canonical.materials[kind].find(function(m){return m.id===id;});
+            if(!material||existing&&JSON.stringify(existing)!==JSON.stringify(material))throw Error('コピーした素材を確認できません。コピーし直してください');
+            if(!existing)canonical.materials[kind].push(JSON.parse(JSON.stringify(material)));
+            return material;
+        }
+        forms.forEach(function(b){retain('forms',b.materialId);});
+        var originalRhythm=staged.performance.barRhythms.find(function(b){return b.barId===newId;}),material=retain('rhythms',originalRhythm?originalRhythm.materialId:source.performance.basicRhythmId),materialId=material.id;
+        if(material.encoding==='studio-strum-v1'){
+            var independent=JSON.parse(JSON.stringify(material));independent.id=api.newId();independent.provenance.legacyId='strum_bar_'+independent.id;
+            independent.snapshot.slots.forEach(function(e){e.id=api.newId();});canonical.materials.rhythms.push(independent);materialId=independent.id;
+        }
+        bar.id=target.id;bar.sectionId=target.sectionId;canonical.bars[destination]=bar;
+        canonical.performance.formBindings=canonical.performance.formBindings.filter(function(b){return !oldChords.has(b.chordEventId);}).concat(forms);
+        canonical.performance.barRhythms=canonical.performance.barRhythms.filter(function(b){return b.barId!==target.id;}).concat([{id:api.newId(),barId:target.id,materialId:materialId}]);
+        check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
+    }
     function create(options) {
         var model = options.model;
         return Object.freeze({ execute: function (kind, args, expected) {
@@ -34,6 +71,7 @@
             args = args || {};
             var before = structureKey(session.draft), warnings = [],formBefore=options.afterEdit?JSON.parse(JSON.stringify(session.draft)):null;
             var result = session.runOperation(labels[kind], function (canonical) {
+                if(kind==='pasteBar'){if(canonical.schemaVersion!==2)throw Error('この操作はschema2の曲で使用できます');pasteBar(model,canonical,args);return;}
                 if (['addBar','deleteBar','duplicateBar','moveBar','moveBars','transpose'].includes(kind)) {
                     if (canonical.schemaVersion !== 2) throw Error('この操作はschema2の曲で使用できます');
                     var api=model.schema2, i=canonical.bars.findIndex(function(b){return b.id===args.barId;});
