@@ -21,7 +21,7 @@ test('both public products retain coming soon and real authentication; neither p
   assert(!h.includes('local-ui-'));
  }
  assert(renderProEntry(source).includes('shared/pro-gate.js'));
- assert(RELEASE_FILES.every(p=>!p.startsWith('scripts/')&&!p.includes('local-ui')&&!p.includes('book-source')&&!p.includes('owner-chord-panel')&&!p.includes('paper-forms')&&!p.includes('.local-chord-owner')));
+ assert(RELEASE_FILES.every(p=>!p.startsWith('scripts/')&&!p.includes('local-ui')&&!p.includes('book-source')&&!p.includes('owner-chord-panel')&&!p.includes('paper-forms')&&!p.includes('paper-layout')&&!p.includes('.local-chord-owner')));
  for(const p of RELEASE_FILES.filter(p=>/\.(?:js|mjs|html)$/.test(p)))assert(!read(p).includes('mock-account-bookshelf'));
  assert(read('scripts/local-ui-adapter.js').includes('createMockAccountBookshelf'));
  for(const p of RELEASE_FILES.filter(p=>/\.(?:js|mjs|html)$/.test(p)))assert(!read(p).includes('local-ui-adapter'));

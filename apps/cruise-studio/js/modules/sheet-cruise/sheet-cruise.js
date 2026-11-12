@@ -182,7 +182,7 @@
             CS().documents.isSelected(frame.ticket) && frame.barNumber === state.selectedBarNumber);
     }
     function operationEligible() {
-        return state.active && !formDialog?.open && !(CS().shellHost && CS().shellHost.getCommandContext().activeModal) &&
+        return state.active && !formDialog?.open && !CS().localPaperLayout?.isOpen && !(CS().shellHost && CS().shellHost.getCommandContext().activeModal) &&
             !(CS().shellHost && CS().shellHost.keyboard.isIMEBlocked({})) &&
             state.overlayComposingRowId === null && !state.overlayBulkComposing &&
             state.lyricComposingTick === null && !state.lyricJustComposed;
@@ -398,8 +398,19 @@
         var formsLabel=document.createElement('label');formsLabel.className='pd-check';var check=document.createElement('input');check.type='checkbox';check.id='sc-show-forms';check.title='登録済みコードフォームを紙面に表示';formsLabel.append(check,document.createTextNode(' フォーム'));els.showChords.closest('label').after(formsLabel);els.showForms=check;
         check.addEventListener('change',function(){if(!state.session||!editorCanMove()){renderDisplayToggles();return;}paperFormSessions.set(state.session,check.checked);renderPreview(true);});
         els.toolbar.appendChild(visibility);
+        mountPaperLayoutControls();
         [['sc-copy-bar','コピー',copySelectedBar],['sc-paste-bar','貼り付け',pasteSelectedBar]].forEach(function(item){var b=document.createElement('button');b.type='button';b.id=item[0];b.className='btn btn-secondary btn-compact';b.textContent=item[1];b.title=item[1]+'（⌘ / Ctrl + '+(item[0]==='sc-copy-bar'?'C':'V')+'、同じProjectの1小節）';b.addEventListener('click',item[2]);actions.querySelector('.sheet-bar-actions').appendChild(b);});
         els.undoBtn.title='元に戻す（⌘Z / Ctrl+Z）。ドレミは既存の音符履歴を使います';els.redoBtn.title='やり直す（⌘⇧Z / Ctrl+Shift+Z）';
+    }
+    function mountPaperLayoutControls(){
+        if(!els.toolbar||!CS().localPaperLayout||q('sc-paper-settings'))return;
+        var visibility=els.toolbar.querySelector('.sc-paper-visibility'),actions=els.toolbar.querySelector('.sheet-toolbar-actions');
+        if(visibility){
+            [['showNumbers','小節番号','sc-show-numbers'],['showParts','パート名','sc-show-parts']].forEach(function(item){var label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.id=item[2];input.checked=CS().localPaperLayout.value[item[0]];input.addEventListener('change',function(){if(!editorCanMove()){input.checked=CS().localPaperLayout.value[item[0]];return;}stopPianoAudition();CS().localPaperLayout.set({[item[0]]:input.checked});});label.append(input,document.createTextNode(' '+item[1]));visibility.appendChild(label);});
+            var settings=document.createElement('button');settings.type='button';settings.id='sc-paper-settings';settings.className='btn-ghost btn-compact';settings.textContent='表示設定';settings.title='見本を見ながら小節数・行の高さ・文字サイズを調整';settings.addEventListener('click',function(){if(!editorCanMove())return;finishTextInputs();stopPianoAudition();CS().localPaperLayout.open(els.root);refreshToolbarActions();});actions.appendChild(settings);
+            CS().localPaperLayout.onChange(function(){renderPreview(true);['showNumbers','showParts'].forEach(function(name){var input=q(name==='showNumbers'?'sc-show-numbers':'sc-show-parts');if(input)input.checked=CS().localPaperLayout.value[name];});});
+        }
+        CS().localPaperLayout.apply(els.scaleBox);if(state.session)renderPreview(true);
     }
     function refreshToolbarActions(){
         if(!els.toolbar)return;var owner=state.session,bars=Array.isArray(owner?.draft.bars)?owner.draft.bars:[],bar=bars[state.selectedBarNumber-1],eligible=!!owner&&owner.draft.schemaVersion===2&&!schemaViewError&&operationEligible()&&!owner.inputPending&&!owner.commitInFlight&&!owner.conflict&&!owner.externalUpdatePending&&!textDiagnostic(owner);
@@ -408,6 +419,7 @@
         var blocked=owner?.draft.performance?.formBindings?.some(function(b){return b.mode!=='auto'||!CS().localChordForms;})||bars.some(function(b){return Array.isArray(b.chords)&&b.chords.some(function(c){return c.unresolved;});});
         ['sc-transpose-down','sc-transpose-up'].forEach(function(id){var b=q(id);if(b){b.disabled=!eligible||!!blocked;b.title=blocked?'固定フォームや未解決コードを確認してから移調してください':'全曲の実音を半音移調します。カポは変更しません';}});
         if(els.showForms){els.showForms.disabled=!eligible||staffStyle!=='code'||!CS().localPaperForms;}
+        ['sc-show-numbers','sc-show-parts','sc-paper-settings'].forEach(function(id){if(q(id))q(id).disabled=!eligible;});
         var single=eligible&&bar&&selectedBarIds.length<=1&&editorCanMove();if(q('sc-copy-bar'))q('sc-copy-bar').disabled=!single;if(q('sc-paste-bar'))q('sc-paste-bar').disabled=!single||!barClipboards.has(owner);
         var staff=q('sc-staff-refresh');if(staff)staff.hidden=staffStyle!=='melody';var play=q('sc-song-preview');if(play)play.disabled=!eligible&&!(barPreviewScope==='song'&&barPreviewPhase!=='idle');updateBarPlayButton();
     }
@@ -535,7 +547,7 @@
     }
 
     function showSession(session, message) {
-        stopPianoAudition();closePaperForm();editorOpen=false;
+        stopPianoAudition();closePaperForm();CS().localPaperLayout?.close();editorOpen=false;
         finishTextInputs();
         if (state.session) projectViews.set(state.session.sessionId, {
             selectedBarNumber: state.selectedBarNumber, structureIdentity: structureIdentity, loupe: Object.assign({}, state.loupe),
@@ -900,7 +912,8 @@
         if(!state.project){renderInvalidProject();return;}
         state.overlayRefreshRequested = false;
         if (staffStyle === 'melody') staffRequest();
-        else {var paperForms=paperFormSessions.get(state.session)&&CS().localPaperForms?.view(state.session.workingSnapshot());CS().sheetRenderer.render(state.project, els.scaleBox, {hasFormsForBar:paperForms?paperForms.has:null,formsForBar:paperForms?paperForms.row:null,resolutionForBar:getStrumGridResolution,heldForNote:function(number,tick){var e=state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';},restsForBar:function(number){return state.session.draft.bars[number-1]?.melody.filter(function(e){return e.kind==='rest';})||[];},octaveForNote:function(number,tick){return state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick&&e.kind==='note';})?.pitch.octave;}});}
+        else {var paperForms=paperFormSessions.get(state.session)&&CS().localPaperForms?.view(state.session.workingSnapshot());CS().sheetRenderer.render(state.project, els.scaleBox, {hasFormsForBar:paperForms?paperForms.has:null,formsForBar:paperForms?paperForms.row:null,barsPerLine:CS().localPaperLayout?.value.barsPerLine,resolutionForBar:getStrumGridResolution,heldForNote:function(number,tick){var e=state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';},restsForBar:function(number){return state.session.draft.bars[number-1]?.melody.filter(function(e){return e.kind==='rest';})||[];},octaveForNote:function(number,tick){return state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick&&e.kind==='note';})?.pitch.octave;}});}
+        CS().localPaperLayout?.apply(els.scaleBox);
         updateSheetScale();
         syncSheetSelection(preserveInputs);
         if(preserveInputs){refreshPiano();refreshChordPicker();}
@@ -925,12 +938,12 @@
 #screen-sheet-cruise .sc-paper-visibility label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
 #screen-sheet-cruise .sc-paper-visibility input{width:16px;height:16px;accent-color:var(--studio-accent);}
 #sc-sheet-scale-box .sheet-bar-forms{position:relative;margin:0 calc(-1 * var(--sheet-bar-pad-x));overflow:hidden;min-height:0;}
-#sc-sheet-scale-box .sheet-form-event{position:absolute;height:auto;aspect-ratio:345 / 269;display:block;overflow:hidden;cursor:zoom-in;}
+#sc-sheet-scale-box .sheet-form-event{position:absolute;transform:translateY(-50%);height:auto;aspect-ratio:345 / 269;display:block;overflow:hidden;cursor:zoom-in;}
 #sc-sheet-scale-box .sheet-form-event svg{display:block;width:100%;height:100%;}
 #sc-sheet-scale-box .sheet-bar-num{min-height:24px;}
 #sc-sheet-scale-box [data-edit-selected-bar]{position:absolute;right:6px;top:4px;z-index:6;border:1px solid #8c7949;border-radius:6px;padding:4px 9px;background:#fffcf3;color:#544626;font:600 11px sans-serif;cursor:pointer;}
 #sc-sheet-scale-box .sheet-chord-event{cursor:zoom-in;}
-.sc-form-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;width:min(440px,calc(100vw - 40px));max-height:85vh;padding:18px;border:1px solid #8e98a4;border-radius:14px;background:#fff;color:#171b20;box-shadow:0 20px 60px #0006;}
+.sc-form-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;width:min(300px,calc(100vw - 40px));max-height:85vh;padding:14px;border:1px solid #8e98a4;border-radius:14px;background:#fff;color:#171b20;box-shadow:0 20px 60px #0006;}
 .sc-form-dialog::backdrop{background:#10182066;}
 .sc-form-dialog header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:6px;}
 .sc-form-dialog h2{margin:0;font-size:24px;}
@@ -1764,7 +1777,7 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.115.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.116.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
@@ -4027,9 +4040,16 @@
         var form=event.target.closest('.sheet-form-event'),code=event.target.closest('.sheet-chord-event');if(form||code){openPaperForm(cell,form?.dataset.formEvent,Number(code?.dataset.slotTick));return;}
         if(!editorCanMove())return;closePaperForm();editorOpen=false;selectBarRange(Number(cell.dataset.barNumber),event.shiftKey);cell.focus({preventScroll:true});
     }
+    function onPaperNavigationKey(event){
+        if(event.defaultPrevented||!['ArrowLeft','ArrowRight'].includes(event.key)||event.isComposing||event.keyCode===229||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||editorOpen||!els.slotOverlay.classList.contains('hidden')||!editorCanMove())return;
+        var target=event.target;if(!(target===document.body||els.root.contains(target))||target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.sheet-form-event,a,button:not(#sc-copy-bar):not(#sc-paste-bar),[role="button"]:not(.sheet-bar)'))return;
+        var number=Number(target.closest('.sheet-bar[data-bar-number]')?.dataset.barNumber)||state.selectedBarNumber;if(!number)return;
+        event.preventDefault();event.stopPropagation();var next=number+(event.key==='ArrowLeft'?-1:1);if(next<1||next>state.session.draft.bars.length)return;selectBarRange(next,false);getSheetBarByNumber(next)?.focus({preventScroll:true});
+    }
     function onPreviewKeydown(event) {
         if(event.isComposing||event.keyCode===229)return;
         var form=event.target.closest?.('.sheet-form-event');if(form&&['Enter',' '].includes(event.key)){event.preventDefault();event.stopPropagation();openPaperForm(form.closest('.sheet-bar'),form.dataset.formEvent);return;}
+        onPaperNavigationKey(event);if(event.defaultPrevented)return;
         if(event.key!=='Enter'||event.target.closest('[data-edit-selected-bar]'))return;
         var section=event.target.closest?.('.sheet-section-label[data-section-id]');if(section){event.preventDefault();selectPlaybackSection(section.dataset.sectionId,true);return;}
         var cell=event.target.closest?.('.sheet-bar[data-bar-number]');if(!cell||cell.classList.contains('sheet-bar--empty')||!editorCanMove())return;
@@ -4183,7 +4203,7 @@
     }
 
     function deactivate() {
-        stopPianoAudition();closePaperForm();
+        stopPianoAudition();closePaperForm();CS().localPaperLayout?.close();
         if(editorPlacement==='right')CS().localEditorPane?.unmount(els.slotOverlay);
         if (!state.active) return;
         finishTextInputs();
@@ -4290,6 +4310,7 @@
         els.root.addEventListener('keydown', routeLocalSave);
         document.addEventListener('keydown',onPlaybackSpace);
         document.addEventListener('keydown',onBarClipboardKey);
+        document.addEventListener('keydown',onPaperNavigationKey);
         els.slotOverlay.tabIndex=-1;els.slotOverlay.addEventListener('pointerdown',function(e){if(e.composedPath().some(function(node){return node?.matches?.('[data-chord-picker]');}))return;if(!e.target.closest('button,input,textarea,select,a,[contenteditable],[data-piano-event],.slot-overlay-resize-handle')&&editorCanMove())els.slotOverlay.focus({preventScroll:true});});
         document.addEventListener('focusin', function () { focusEpoch++; finishTextInputs(); }, true);
         // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
@@ -4395,7 +4416,8 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.115.0-dev.1',
+        developmentVersion: '0.116.0-dev.1',
+        connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,
