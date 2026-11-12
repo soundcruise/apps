@@ -143,3 +143,10 @@ assert.strictEqual(markerLayer.children.filter(function (element) { return eleme
 assert.strictEqual(markerLayer.children.filter(function (element) { return element.className.indexOf('cc-fb-marker') === 0; }).length, 1, 'HTML render keeps the active open marker');
 
 console.log('open-string-conflict: active fretted/open markers suppress same-string mute display across HTML/SVG/PNG');
+
+var tensionOpenOptions = {frets:[0,1,2,3], markers:[marker(1,0,'E'),marker(1,2,'candidate',{isOverlay:true,isTensionCandidate:true})], preserveOpenTensionCandidates:true};
+assert.deepStrictEqual(fretboard.createModel(tensionOpenOptions).markers.map(function(m){return [m.string,m.fret];}),[[1,0],[1,2]],'a selectable tension candidate must not erase the real open note');
+assert.deepStrictEqual(fretboard.createModel(Object.assign({},tensionOpenOptions,{markers:[marker(1,0,'E'),marker(1,2,'chosen',{isTensionCandidate:true})]})).markers.map(function(m){return [m.string,m.fret];}),[[1,2]],'a chosen fretted note still suppresses a same-string open note');
+assert.deepStrictEqual(fretboard.createModel(Object.assign({},tensionOpenOptions,{preserveOpenTensionCandidates:false})).markers.map(function(m){return [m.string,m.fret];}),[[1,2]],'without the explicit Explore option conflict behavior remains unchanged');
+
+assert.deepStrictEqual(fretboard.createModel({frets:[0,1,2,3], markers:[marker(1,2,'actual'),marker(1,0,'candidate',{isOverlay:true,isTensionCandidate:true})],preserveOpenTensionCandidates:true}).markers.map(function(m){return [m.string,m.fret];}),[[1,2],[1,0]],'an open tension choice remains selectable next to the currently fretted form');

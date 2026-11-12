@@ -1298,6 +1298,7 @@
             animateScroll: animateFretboardScroll && !!form && scrollToFret !== null,
             initialScroll: animateFretboardScroll ? prevScroll : null,
             preserveOpenBassCandidates: true,
+            preserveOpenTensionCandidates: true,
             markerLabelSize: getSettings().fretboardMarkerLabelSize
         });
         setFbHint(hint);

@@ -11,6 +11,8 @@
 
     var CHORD_CRUISE_APP_VERSION = '1.23.0';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
+    // Unreleased local renderer candidate; formal/public version remains unchanged.
+    window.CHORD_CRUISE_DEVELOPMENT_VERSION = '1.23.1-dev.1';
 
     var SCREENS = ['home', 'explore', 'library'];
 

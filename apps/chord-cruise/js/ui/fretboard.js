@@ -353,11 +353,13 @@
             if (marker.fret <= 0 || marker.pendingDelete) return;
             frettedStrings[marker.string] = true;
             var alternativeBassOverlay = opts.preserveOpenBassCandidates === true && marker.isOverlay && marker.isBassCandidate;
-            if (!alternativeBassOverlay) openConflictStrings[marker.string] = true;
+            var alternativeTensionOverlay = opts.preserveOpenTensionCandidates === true && marker.isOverlay && marker.isTensionCandidate;
+            if (!alternativeBassOverlay && !alternativeTensionOverlay) openConflictStrings[marker.string] = true;
         });
         markers = markers.filter(function (marker) {
             var preserveOpenBassCandidate = opts.preserveOpenBassCandidates === true && marker.isBassCandidate;
-            return !(marker.fret === 0 && openConflictStrings[marker.string] && !preserveOpenBassCandidate);
+            var preserveOpenTensionCandidate = opts.preserveOpenTensionCandidates === true && marker.isOverlay && marker.isTensionCandidate;
+            return !(marker.fret === 0 && openConflictStrings[marker.string] && !preserveOpenBassCandidate && !preserveOpenTensionCandidate);
         });
 
         // 同一弦の有効な0Fマーカーとmute ×も同時には描画しない。
