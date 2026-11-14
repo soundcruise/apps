@@ -72,7 +72,6 @@
         overlayWarnings: {},
         dockManualRes: {},     // D3a: barNumber → 16（ユーザーが一時的に選んだ16分表示。保存しない）
         dockBulkOpen: false,   // D3a: まとめて入力ポップオーバーの開閉状態（UI一時状態）
-        lastAutoScrollBar: null, // D3a: 自動スクロールを選択が変わった時だけ行うための直前値
         lyricComposingTick: null,  // G2a: IME変換中の歌詞セルslotTick（同時に1つだけの想定。F2a時点はindexで管理していた）
         lyricJustComposed: false,  // F2a: compositionend直後のEnter誤爆ガード（Safari対策）
         // G2b: 歌詞の拍別ローカル解像度（UI一時状態。ADR-030）。bar objectをキーにした
@@ -1780,7 +1779,7 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.117.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.118.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
@@ -3145,40 +3144,6 @@
         return wrap;
     }
 
-    /* ══════════ D3a: 自動スクロール（選択小節がドック裏へ隠れないようにする） ══════════ */
-
-    function scrollSelectedBarIntoDockView(barNumber) {
-        var cell = getSheetBarByNumber(barNumber);
-        if (!cell || !els.slotOverlay || els.slotOverlay.classList.contains('hidden')||editorPlacement==='right') return;
-        var dockRect = els.slotOverlay.getBoundingClientRect();
-        var cellRect = cell.getBoundingClientRect();
-        var margin = 16;
-        var scroll = CS().scroll;
-        var viewportTop = scroll ? scroll.getViewportTop('sheetCruise') : 0;
-        var scrollBy = function (options) {
-            if (scroll) scroll.scrollBy('sheetCruise', options);
-            else window.scrollBy(options);
-        };
-        if (cellRect.bottom > dockRect.top - margin) {
-            scrollBy({ top: cellRect.bottom - (dockRect.top - margin), behavior: 'smooth' });
-        } else if (cellRect.top < viewportTop) {
-            scrollBy({ top: cellRect.top - viewportTop - margin, behavior: 'smooth' });
-        }
-    }
-
-    /**
-     * 選択小節が変わった時だけ自動スクロールする（入力中の再描画毎には行わない）。
-     */
-    function maybeAutoScrollToSelection() {
-        if (state.selectedBarNumber === state.lastAutoScrollBar) return;
-        state.lastAutoScrollBar = state.selectedBarNumber;
-        if (!state.selectedBarNumber) return;
-        var barNumber = state.selectedBarNumber;
-        queueEditorFrame(function () {
-            scrollSelectedBarIntoDockView(barNumber);
-        });
-    }
-
     /* ══════════ F1: フローティング小節ルーペの位置・サイズ（docs/DECISIONS.md ADR-027） ══════════
        「選択小節そのものを拡大した、紙面の上に浮かぶもう一枚の紙」。
        position: fixed のまま bottom固定をやめ、x/y座標で自由配置する。
@@ -3901,7 +3866,6 @@
         var section=selectedPlaybackSection();els.scaleBox.querySelectorAll('.sheet-section-label[data-section-id]').forEach(function(label){var selected=label.dataset.sectionId===section?.id;label.classList.toggle('is-selected-section',selected);label.setAttribute('aria-pressed',String(selected));});
         if (!preserveInputs) renderSlotOverlayContent();
         positionSlotOverlay();
-        maybeAutoScrollToSelection();
         publishSelection();
     }
 
@@ -4044,15 +4008,25 @@
         var form=event.target.closest('.sheet-form-event'),code=event.target.closest('.sheet-chord-event');if(form||code){openPaperForm(cell,form?.dataset.formEvent,Number(code?.dataset.slotTick));return;}
         if(!editorCanMove())return;var number=Number(cell.dataset.barNumber);if(!event.shiftKey&&!editorOpen&&state.selectedBarNumber===number&&selectedBarIds.length<=1){editSelectedBar();return;}closePaperForm();editorOpen=false;selectBarRange(number,event.shiftKey);cell.focus({preventScroll:true});
     }
+    // Paper surroundings are neutral surfaces, never editor controls or dialogs.
+    function onPaperMarginClick(event){
+        if(event.defaultPrevented||!editorOpen||!editorCanMove()||els.slotOverlay.contains(event.target))return;
+        var preview=els.preview.closest('.sheet-preview');
+        if(!preview?.contains(event.target)||event.target.closest('button,a,input,textarea,select,[role="button"],[contenteditable]:not([contenteditable="false"])'))return;
+        var page=event.target.closest('.sheet-page'),content=page?.querySelector('.sheet-line');
+        var box=(content||els.preview).getBoundingClientRect();
+        if(event.clientX>=box.left&&event.clientX<=box.right)return;
+        deselectBar();els.root.focus({preventScroll:true});
+    }
     function onPaperNavigationKey(event){
-        if(event.defaultPrevented||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||event.isComposing||event.keyCode===229||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||editorOpen||!els.slotOverlay.classList.contains('hidden')||!editorCanMove())return;
-        var target=event.target;if(!(target===document.body||els.root.contains(target))||target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.sheet-form-event,a,button:not(#sc-copy-bar):not(#sc-paste-bar),[role="button"]:not(.sheet-bar)'))return;
+        if(event.defaultPrevented||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||event.isComposing||event.keyCode===229||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||!editorCanMove())return;
+        var target=event.target;if(!(target===document.body||els.root.contains(target)||els.slotOverlay.contains(target))||target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],.dock-strum-cell,[data-piano-event],.sheet-form-event,a,button:not(#sc-copy-bar):not(#sc-paste-bar),[role="button"]:not(.sheet-bar)'))return;
         var number=Number(target.closest('.sheet-bar[data-bar-number]')?.dataset.barNumber)||state.selectedBarNumber;if(!number)return;
         event.preventDefault();event.stopPropagation();var next;
         if(event.key==='ArrowUp'||event.key==='ArrowDown'){
             var current=getSheetBarByNumber(number),line=current?.closest('.sheet-line');if(!line)return;var lines=Array.from(els.scaleBox.querySelectorAll('.sheet-line')),index=lines.indexOf(line),other=lines[index+(event.key==='ArrowUp'?-1:1)];if(!other)return;var column=Array.from(line.children).indexOf(current),bars=Array.from(other.querySelectorAll('.sheet-bar[data-bar-number]'));if(!bars.length)return;next=Number(bars[Math.min(column,bars.length-1)].dataset.barNumber);
         }else next=number+(event.key==='ArrowLeft'?-1:1);
-        if(next<1||next>state.session.draft.bars.length)return;selectBarRange(next,false);getSheetBarByNumber(next)?.focus({preventScroll:true});
+        if(next<1||next>state.session.draft.bars.length)return;selectBarRange(next,false);(editorOpen?els.slotOverlay:getSheetBarByNumber(next))?.focus({preventScroll:true});
     }
     function onPreviewKeydown(event) {
         if(event.isComposing||event.keyCode===229)return;
@@ -4349,7 +4323,7 @@
                 selectionDeleted = !!(state.selectedBarNumber && (selectedId ? !session.draft.bars.some(function(b){return b.id===selectedId;}) : !getSelectedBar()));
                 selectedBarIds = [];
                 state.selectedBarNumber = null; state.dockManualRes = {}; state.overlayWarnings = {};
-                state.lastAutoScrollBar = null; state.dockBulkOpen = false;
+                state.dockBulkOpen = false;
                 syncSheetSelection();
             }
             if (kind === 'operation' && structureIdentity === nextStructure && publishedBars) {
@@ -4398,6 +4372,7 @@
         window.addEventListener('resize', function () { scheduleOverlayPosition(false); });
         observeWorkspaceSize();
         els.preview.addEventListener('click', onPreviewClick);
+        els.preview.closest('.sheet-preview').addEventListener('click', onPaperMarginClick);
         els.preview.addEventListener('keydown', onPreviewKeydown);
 
         // D1: ドロワー開閉でプレビュー領域の高さが変わり、overlay位置がズレうるため再計算する
@@ -4424,7 +4399,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.117.0-dev.1',
+        developmentVersion: '0.118.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,
