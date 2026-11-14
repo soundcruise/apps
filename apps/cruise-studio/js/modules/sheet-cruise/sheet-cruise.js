@@ -406,7 +406,7 @@
         var visibility=els.toolbar.querySelector('.sc-paper-visibility'),actions=els.toolbar.querySelector('.sheet-toolbar-actions');
         if(visibility){
             [['showNumbers','小節番号','sc-show-numbers'],['showParts','セクション名','sc-show-parts']].forEach(function(item){var label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.id=item[2];input.checked=CS().localPaperLayout.value[item[0]];input.addEventListener('change',function(){if(!editorCanMove()){input.checked=CS().localPaperLayout.value[item[0]];return;}stopPianoAudition();CS().localPaperLayout.set({[item[0]]:input.checked});});label.append(input,document.createTextNode(' '+item[1]));visibility.appendChild(label);});
-            var settings=document.createElement('button');settings.type='button';settings.id='sc-paper-settings';settings.className='btn-ghost btn-compact';settings.textContent='表示設定';settings.title='見本を見ながら小節数・行の高さ・文字サイズを調整';settings.addEventListener('click',function(){if(!editorCanMove())return;finishTextInputs();stopPianoAudition();CS().localPaperLayout.open(els.root,{project:state.session.workingSnapshot(),selectedBarNumber:state.selectedBarNumber||1,showForms:!!paperFormSessions.get(state.session)});refreshToolbarActions();});var head=document.createElement('div');head.className='sc-score-toolbar-head';var projects=els.toolbar.querySelector('.sheet-toolbar-project');els.toolbar.prepend(head);if(projects)head.appendChild(projects);head.appendChild(settings);
+            var settings=document.createElement('button');settings.type='button';settings.id='sc-paper-settings';settings.className='btn-ghost btn-compact';settings.textContent='表示設定';settings.title='見本を見ながら小節数・行の高さ・文字サイズを調整';settings.addEventListener('click',function(){if(!editorCanMove())return;finishTextInputs();stopPianoAudition();var project=state.session.workingSnapshot();CS().localPaperLayout.open(els.root,{project:project,selectedBarNumber:state.selectedBarNumber||1,renderOptions:paperRenderOptions(project)});refreshToolbarActions();});var head=document.createElement('div');head.className='sc-score-toolbar-head';var projects=els.toolbar.querySelector('.sheet-toolbar-project');els.toolbar.prepend(head);if(projects)head.appendChild(projects);head.appendChild(settings);
             CS().localPaperLayout.onChange(function(){renderPreview(true);['showNumbers','showParts'].forEach(function(name){var input=q(name==='showNumbers'?'sc-show-numbers':'sc-show-parts');if(input)input.checked=CS().localPaperLayout.value[name];});});
         }
         CS().localPaperLayout.apply(els.scaleBox);if(state.session)renderPreview(true);
@@ -906,12 +906,23 @@
 
     /* ══════════ A4紙面プレビュー（sheet-renderer.js が紙面DOMを構築。ADR-016） ══════════ */
 
+    // Both the paper and its settings preview use the same snapshot and display choices.
+    function paperRenderOptions(project){
+        var forms=paperFormSessions.get(state.session)&&CS().localPaperForms?.view(project);
+        var resolutions=new Map(state.project.bars.map(function(bar){return [bar.barNumber,getStrumGridResolution(bar)];}));
+        return {hasFormsForBar:forms?forms.has:null,formsForBar:forms?forms.row:null,...CS().localPaperLayout?.renderOptions(project),
+            resolutionForBar:function(bar){return resolutions.get(bar.barNumber);},
+            heldForNote:function(number,tick){var e=project.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';},
+            restsForBar:function(number){return project.bars[number-1]?.melody.filter(function(e){return e.kind==='rest';})||[];},
+            octaveForNote:function(number,tick){return project.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick&&e.kind==='note';})?.pitch.octave;}};
+    }
+
     function renderPreview(preserveInputs) {
         closePaperForm();
         if(!state.project){renderInvalidProject();return;}
         state.overlayRefreshRequested = false;
         if (staffStyle === 'melody') staffRequest();
-        else {var paperForms=paperFormSessions.get(state.session)&&CS().localPaperForms?.view(state.session.workingSnapshot());CS().sheetRenderer.render(state.project, els.scaleBox, {hasFormsForBar:paperForms?paperForms.has:null,formsForBar:paperForms?paperForms.row:null,...CS().localPaperLayout?.renderOptions(state.session.workingSnapshot()),resolutionForBar:getStrumGridResolution,heldForNote:function(number,tick){var e=state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';},restsForBar:function(number){return state.session.draft.bars[number-1]?.melody.filter(function(e){return e.kind==='rest';})||[];},octaveForNote:function(number,tick){return state.session.draft.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick&&e.kind==='note';})?.pitch.octave;}});}
+        else {var project=state.session.workingSnapshot();CS().sheetRenderer.render(project,els.scaleBox,paperRenderOptions(project));}
         CS().localPaperLayout?.apply(els.scaleBox);
         updateSheetScale();
         syncSheetSelection(preserveInputs);
@@ -1779,7 +1790,7 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.118.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.119.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
@@ -2342,7 +2353,7 @@
     function finishLyricResolutionChange(bar, snapshot) {
         var expectedBarNumber = bar.barNumber;
         renderSlotOverlayContent();
-        positionSlotOverlay();
+        renderPreview(true);
         if (snapshot) restoreLyricCellFocusAfterRender(snapshot, expectedBarNumber);
     }
 
@@ -4399,7 +4410,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.118.0-dev.1',
+        developmentVersion: '0.119.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,
