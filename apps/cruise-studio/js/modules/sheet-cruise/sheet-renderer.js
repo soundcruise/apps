@@ -253,7 +253,8 @@
         }
 
         cell.appendChild(el('span', 'sheet-bar-num', String(bar.barNumber)));
-        if(strum&&strum.unsupported){cell.appendChild(el('div','sheet-bar-row',strum.name+'：採用リズムの印刷は未対応'));strum=null;}
+        var unsupportedStrum=!!strum?.unsupported;
+        if(unsupportedStrum){cell.appendChild(el('div','sheet-bar-row',strum.name+'：採用リズムの印刷は未対応'));strum=null;}
 
         // 各段に共通クラス .sheet-bar-row を付ける。段と段の間の区切り横線は
         // CSS（.sheet-bar-row + .sheet-bar-row）が引く。将来ストローク段を
@@ -269,8 +270,10 @@
 
         // ストローク段: コード段の直下。小節別上書きがあればそれを優先し、
         // なければユーザー入力済みの基本ストロークを継承する
-        if (strum && strum.slots) {
-            cell.appendChild(buildStrumRow(strum.slots, strum.barTicks, timeRes));
+        // Keep the empty stroke band so lyrics/notes align with neighboring bars.
+        // This adds no rhythm events; blank-stroke playback remains a projection.
+        if (show.strum && !unsupportedStrum) {
+            cell.appendChild(buildStrumRow(strum?.slots || [], strum?.barTicks || beats * model.TICKS_PER_BEAT, timeRes));
         }
 
         if (hasVocal && show.lyrics) {
