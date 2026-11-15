@@ -1,6 +1,6 @@
 // Browser-local presentation preferences. Never edits a Project or its Session.
-export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:2,formScale:100,titleSize:26,metaSize:11,chordSize:18,strumSize:15,lyricsSize:14,doremiSize:14,partSize:13,numberSize:9,showNumbers:true,showParts:true});
-const ranges={formScale:[60,140],titleSize:[18,40],metaSize:[9,18],chordSize:[12,28],strumSize:[10,24],lyricsSize:[10,24],doremiSize:[10,24],partSize:[10,22],numberSize:[8,16]};
+export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:2,formScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:18,strumSize:15,lyricsSize:14,doremiSize:14,partSize:13,numberSize:9,showNumbers:true,showParts:true});
+const ranges={formScale:[60,140],titleSize:[18,40],artistSize:[10,26],metaSize:[9,18],chordSize:[12,28],strumSize:[10,24],lyricsSize:[10,24],doremiSize:[10,24],partSize:[10,22],numberSize:[8,16]};
 export function normalizeLayout(value){const out={...DEFAULT_LAYOUT},v=value&&typeof value==='object'?value:{};for(const [key,[min,max]] of Object.entries(ranges))if(typeof v[key]==='number'&&Number.isFinite(v[key]))out[key]=Math.max(min,Math.min(max,v[key]));if([0,1,2,3,4].includes(v.barsPerLine))out.barsPerLine=v.barsPerLine;for(const key of ['showNumbers','showParts'])if(typeof v[key]==='boolean')out[key]=v[key];return out;}
 export function normalizeLineRules(rows){
     const result=new Map();if(!Array.isArray(rows)||rows.length>2048)return [];
@@ -11,22 +11,32 @@ export const FONT_KEYS=Object.freeze(Object.keys(ranges).filter(key=>key.endsWit
 function presetName(name){return typeof name==='string'?name.trim().replace(/[\u0000-\u001f\u007f]/g,'').slice(0,40):'';}
 export function normalizeFontPresets(records){
     const names=new Map();if(!Array.isArray(records)||records.length>20)return [];
-    for(const record of records){const name=presetName(record?.name),fonts=record?.fonts;if(!name||!fonts||!FONT_KEYS.every(key=>typeof fonts[key]==='number'&&Number.isFinite(fonts[key])))continue;
-        const normalized=normalizeLayout(fonts);names.set(name,{name,fonts:Object.fromEntries(FONT_KEYS.map(key=>[key,normalized[key]]))});}
+    for(const record of records){const name=presetName(record?.name),fonts=record?.fonts;if(!name||!fonts||!FONT_KEYS.filter(key=>key!=='artistSize').every(key=>typeof fonts[key]==='number'&&Number.isFinite(fonts[key]))||(fonts?.artistSize!==undefined&&!Number.isFinite(fonts.artistSize)))continue;
+        const normalized=normalizeLayout(fonts);names.set(name,{name,fonts:Object.fromEntries(FONT_KEYS.filter(key=>fonts[key]!==undefined).map(key=>[key,normalized[key]]))});}
     return Array.from(names.values());
 }
+export function normalizeDisplayPresets(records){
+    if(!Array.isArray(records)||records.length>20)return [];
+    const result=new Map();for(const record of records){
+        if(record?.type!=='display-settings-v1'){for(const legacy of normalizeFontPresets([record]))result.set(legacy.name,legacy);continue;}
+        const name=presetName(record.name);if(!name||!record.layout||!Array.isArray(record.rows)||record.rows.length>2048)continue;
+        const rows=record.rows.filter(r=>r&&Number.isInteger(r.barNumber)&&r.barNumber>=1&&r.barNumber<=2048&&Number.isInteger(r.columns)&&r.columns>=1&&r.columns<=8&&Number.isInteger(r.used)&&r.used>=1&&r.used<=r.columns).map(r=>({barNumber:r.barNumber,columns:r.columns,used:r.used}));
+        result.set(name,{name,type:'display-settings-v1',layout:normalizeLayout(record.layout),rows});
+    }return Array.from(result.values());
+}
+const copy=x=>JSON.parse(JSON.stringify(x));
 export function createPaperLayout(C,doc=document){
     const key='scorePaperLayoutV1',displayKey='scorePaperDisplayV2';let value=normalizeLayout(C.storage.getAppSetting(key)),dialog=null,changed=()=>{},refreshSample=()=>{},editing=null;
-    const presetKey='scorePaperFontPresetsV1';let presets=normalizeFontPresets(C.storage.getAppSetting(presetKey));
+    const presetKey='scorePaperFontPresetsV1';let presets=normalizeDisplayPresets(C.storage.getAppSetting(presetKey));
     const rowKey='scorePaperRowsV1',rowProjects=new Map();
     const savedRows=C.storage.getAppSetting(rowKey);if(Array.isArray(savedRows))for(const record of savedRows)if(record&&typeof record.projectId==='string'&&record.projectId.length<=160)rowProjects.set(record.projectId,normalizeLineRules(record.rows));
     function revision(){return JSON.stringify([C.storage.getAppSetting(displayKey),C.storage.getAppSetting(key),C.storage.getAppSetting(rowKey),C.storage.getAppSetting(presetKey)]);}
-    function restoreStored(){const saved=C.storage.getAppSetting(displayKey),modern=saved?.version===2;value=normalizeLayout(modern?saved.layout:C.storage.getAppSetting(key));presets=normalizeFontPresets(modern?saved.presets:C.storage.getAppSetting(presetKey));rowProjects.clear();const records=modern?saved.rows:C.storage.getAppSetting(rowKey);if(Array.isArray(records))for(const row of records)if(typeof row?.projectId==='string')rowProjects.set(row.projectId,normalizeLineRules(row.rows));}
+    function restoreStored(){const saved=C.storage.getAppSetting(displayKey),modern=saved?.version===2;value=normalizeLayout(modern?saved.layout:C.storage.getAppSetting(key));presets=normalizeDisplayPresets(modern?saved.presets:C.storage.getAppSetting(presetKey));rowProjects.clear();const records=modern?saved.rows:C.storage.getAppSetting(rowKey);if(Array.isArray(records))for(const row of records)if(typeof row?.projectId==='string')rowProjects.set(row.projectId,normalizeLineRules(row.rows));}
     restoreStored();let storedRevision=revision();
-    function bundle(){return {version:2,layout:{...value},rows:Array.from(rowProjects,([projectId,rows])=>({projectId,rows})),presets:presets.map(p=>({name:p.name,fonts:{...p.fonts}}))};}
+    function bundle(){return {version:2,layout:{...value},rows:Array.from(rowProjects,([projectId,rows])=>({projectId,rows})),presets:copy(presets)};}
     function persist(){if(editing)return {ok:true,staged:true};if(revision()!==storedRevision)return {ok:false,error:'表示設定が別の画面で変更されています'};const result=C.storage.setAppSetting(displayKey,bundle());if(result?.ok!==false)storedRevision=revision();return result;}
     function begin(){if(editing)return false;if(revision()!==storedRevision){restoreStored();storedRevision=revision();}editing={before:JSON.parse(JSON.stringify(bundle())),revision:storedRevision};return true;}
-    function cancel(){if(!editing)return;const before=editing.before;editing=null;value=normalizeLayout(before.layout);presets=normalizeFontPresets(before.presets);rowProjects.clear();for(const row of before.rows)rowProjects.set(row.projectId,row.rows);refreshSample();changed();}
+    function cancel(){if(!editing)return;const before=editing.before;editing=null;value=normalizeLayout(before.layout);presets=normalizeDisplayPresets(before.presets);rowProjects.clear();for(const row of before.rows)rowProjects.set(row.projectId,row.rows);refreshSample();changed();}
     function commit(){
         if(!editing)return {ok:false,error:'表示設定が開かれていません'};
         if(revision()!==editing.revision)return {ok:false,error:'別の画面で表示設定が変更されました。キャンセルして開き直してください'};
@@ -35,6 +45,7 @@ export function createPaperLayout(C,doc=document){
     }
     if(!doc.getElementById('sc-paper-layout-style')){const style=doc.createElement('style');style.id='sc-paper-layout-style';style.textContent=`
 .sc-paper-layout .sheet-title{font-size:var(--sc-titleSize)!important;}
+.sc-paper-layout .sheet-artist{font-size:var(--sc-artistSize)!important;}
 .sc-paper-layout .sheet-meta{font-size:var(--sc-metaSize)!important;}
 .sc-paper-layout .sheet-section-label{font-size:var(--sc-partSize)!important;}
 .sc-paper-layout.sc-hide-parts .sheet-section-label{display:none!important;}
@@ -52,6 +63,9 @@ export function createPaperLayout(C,doc=document){
 .sc-paper-layout .sheet-bar-forms{display:flex;align-items:center;justify-content:center;padding:5px 0!important;}
 .sc-paper-layout .sheet-form-lane{flex:0 0 100%;min-width:0;}
 .sc-paper-layout .sheet-form-lane{position:relative;width:100%;}
+.sc-paper-layout .sheet-line{grid-template-rows:repeat(var(--sheet-row-count),max-content);align-items:stretch;}
+.sc-paper-layout .sheet-line>.sheet-bar{display:grid;grid-template-rows:subgrid;min-width:0;min-height:0;row-gap:0;align-content:stretch;}
+.sc-paper-layout .sheet-bar-row{align-items:center;}
 .sc-layout-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;width:min(1080px,calc(100vw - 32px));max-height:90vh;overflow:auto;padding:20px;border:1px solid #798b9a;border-radius:14px;background:#1e2832;color:#f7f4ec;}
 .sc-layout-dialog::backdrop{background:#10182088;}
 .sc-layout-dialog header{position:sticky;top:0;z-index:2;background:#1e2832;padding:4px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px;box-shadow:0 -20px 0 0 #1e2832;}
@@ -74,7 +88,7 @@ export function createPaperLayout(C,doc=document){
 .sc-layout-actions{display:flex;gap:8px;}.sc-layout-actions [data-layout-save]{background:#cdb275;color:#151c24;border-color:#cdb275;font-weight:700;}
 .sc-layout-presets{border-top:1px solid #ffffff25;padding-top:12px;margin-top:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .sc-layout-presets select,.sc-layout-presets input{min-width:0;max-width:100%;box-sizing:border-box;flex:1 1 180px;font:inherit;font-size:13px;padding:7px 10px;border:1px solid #7e8a94;border-radius:6px;background:#16212b;color:#fff;}
-.sc-layout-presets button{white-space:nowrap;}.sc-layout-presets [hidden]{display:none!important;}
+.sc-layout-presets button{white-space:nowrap;}.sc-preset-create{flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.sc-layout-presets [hidden]{display:none!important;}
 @media(max-width:700px){.sc-layout-body{grid-template-columns:1fr;}.sc-layout-example{position:static;}.sc-layout-controls fieldset{grid-column:1/-1;}.sc-layout-controls{grid-template-columns:1fr 1fr;}.sc-layout-dialog{padding:14px;}.sc-layout-example-viewport{max-height:48vh;}}
 @media print{.sc-layout-dialog,.sc-layout-dialog::backdrop{display:none!important;}.sc-paper-layout .sheet-bar-num{min-height:0!important;}.sc-paper-layout.sc-hide-numbers .sheet-bar-num{display:none!important;}}
 `;doc.head.appendChild(style);}
@@ -90,10 +104,23 @@ export function createPaperLayout(C,doc=document){
         const previous=presets;presets=next;const result=persist();if(result?.ok===false)presets=previous;if(result?.ok===false)return {ok:false,error:'プリセットを保存できませんでした。既存のプリセットは保持しています'};
         presets=next;return {ok:true,name,updated:existing};
     }
-    function loadFontPreset(name){const preset=presets.find(p=>p.name===name);if(!preset)return {ok:false,error:'呼び出すプリセットを選択してください'};return set(preset.fonts);}
+    function loadFontPreset(name){const preset=presets.find(p=>p.name===name);if(!preset?.fonts)return {ok:false,error:'呼び出す文字サイズプリセットを選択してください'};return set(preset.fonts);}
     function deleteFontPreset(name){
         if(!presets.some(p=>p.name===name))return {ok:false,error:'削除するプリセットを選択してください'};
         const next=presets.filter(p=>p.name!==name),previous=presets;presets=next;const result=persist();if(result?.ok===false)presets=previous;if(result?.ok===false)return {ok:false,error:'プリセットを削除できませんでした。内容を保持しています'};presets=next;return {ok:true};
+    }
+    function saveDisplayPreset(name,project){
+        name=presetName(name);if(!name)return {ok:false,error:'プリセット名を入力してください'};
+        if(presets.some(p=>p.name===name))return {ok:false,error:'同じ名前があります。別の名前を入力してください'};
+        if(presets.length>=20)return {ok:false,error:'プリセットは20個まで保存できます'};
+        const rows=(rowProjects.get(project.projectId)||[]).flatMap(r=>{const index=project.bars.findIndex(b=>b.id===r.barId);return index<0?[]:[{barNumber:index+1,columns:r.columns,used:r.used}];});
+        const previous=presets;presets=presets.concat({name,type:'display-settings-v1',layout:{...value},rows});const result=persist();if(result?.ok===false){presets=previous;return {ok:false,error:'プリセットを保存できませんでした'};}return {ok:true,name};
+    }
+    function loadDisplayPreset(name,project){
+        const preset=presets.find(p=>p.name===name);if(!preset)return {ok:false,error:'プリセットを選択してください'};
+        if(preset.fonts)return loadFontPreset(name);
+        const rows=preset.rows.flatMap(r=>project.bars[r.barNumber-1]?[{barId:project.bars[r.barNumber-1].id,columns:r.columns,used:r.used}]:[]);
+        rowProjects.set(project.projectId,rows);return set(preset.layout);
     }
     function renderOptions(project){const rules=new Map((rowProjects.get(project.projectId)||[]).map(r=>[r.barId,r]));return {barsPerLine:value.barsPerLine,lineLayoutForBar(number){return rules.get(project.bars[number-1]?.id)||null;}};}
     function setLine(project,barId,columns,used){
@@ -107,8 +134,8 @@ export function createPaperLayout(C,doc=document){
         if(dialog||!options.project)return;
         if(!begin())return;const sample=options.project,previous=doc.activeElement;
         let selectedNumber=options.selectedBarNumber||1,activeSetting=null;
-        const targetSelectors={barsPerLine:'.sheet-line:not([data-line-custom])',formScale:'.sheet-bar-forms',titleSize:'.sheet-title',metaSize:'.sheet-meta',chordSize:'.sheet-bar-chord',strumSize:'.sheet-bar-strum',lyricsSize:'.sheet-bar-lyrics',doremiSize:'.sheet-bar-doremi',partSize:'.sheet-section-label',numberSize:'.sheet-bar-num',rowLayout:'.sc-selected-layout-line'};
-        const names={barsPerLine:'1行の小節数',formScale:'フォームの大きさ',titleSize:'曲名',metaSize:'曲情報',chordSize:'コード',strumSize:'ストローク',lyricsSize:'歌詞',doremiSize:'ドレミ',partSize:'セクション名',numberSize:'小節番号',rowLayout:'選択した行の配置'};
+        const targetSelectors={barsPerLine:'.sheet-line:not([data-line-custom])',titleSize:'.sheet-title',artistSize:'.sheet-artist',metaSize:'.sheet-meta',partSize:'.sheet-section-label',numberSize:'.sheet-bar-num',chordSize:'.sheet-bar-chord',formScale:'.sheet-bar-forms',strumSize:'.sheet-bar-strum',lyricsSize:'.sheet-bar-lyrics',doremiSize:'.sheet-bar-doremi',rowLayout:'.sc-selected-layout-line'};
+        const names={barsPerLine:'1行の小節数',titleSize:'曲名',artistSize:'アーティスト名',metaSize:'曲情報',partSize:'セクション名',numberSize:'小節番号',chordSize:'コード',formScale:'フォームの大きさ',strumSize:'ストローク',lyricsSize:'歌詞',doremiSize:'ドレミ',rowLayout:'選択した行の配置'};
         dialog=doc.createElement('dialog');dialog.className='sc-layout-dialog';dialog.dataset.paperLayout='';dialog.setAttribute('aria-label','譜面の表示設定');
         const header=doc.createElement('header'),title=doc.createElement('h2'),dismiss=doc.createElement('button'),accept=doc.createElement('button'),actions=doc.createElement('div');title.textContent='譜面の表示設定';dismiss.type=accept.type='button';dismiss.textContent='キャンセル';accept.textContent='保存';accept.dataset.layoutSave='';dismiss.dataset.layoutCancel='';actions.className='sc-layout-actions';actions.append(dismiss,accept);header.append(title,actions);dialog.appendChild(header);
         const body=doc.createElement('div'),controls=doc.createElement('div'),preview=doc.createElement('div'),caption=doc.createElement('p'),feedback=doc.createElement('p'),viewport=doc.createElement('div'),frame=doc.createElement('div'),paper=doc.createElement('div');
@@ -126,14 +153,16 @@ export function createPaperLayout(C,doc=document){
         const inputs=[];
         function field(name,label,parent=controls){const row=doc.createElement('label'),text=doc.createElement('span');row.dataset.layoutField=name;text.textContent=label;row.appendChild(text);parent.appendChild(row);row.addEventListener('focusin',()=>activate(name));row.addEventListener('pointerdown',()=>activate(name));return row;}
         const presetGroup=doc.createElement('div');presetGroup.className='sc-layout-presets';presetGroup.dataset.layoutPresets='';
-        const presetSelect=doc.createElement('select');presetSelect.dataset.fontPresetSelect='';presetSelect.setAttribute('aria-label','保存した文字サイズ');
+        const presetSelect=doc.createElement('select');presetSelect.dataset.fontPresetSelect='';presetSelect.setAttribute('aria-label','表示プリセット');
+        const presetNew=doc.createElement('button');presetNew.type='button';presetNew.textContent='新規保存';presetNew.dataset.presetNew='';
+        const createPanel=doc.createElement('div');createPanel.dataset.presetCreate='';createPanel.hidden=true;createPanel.className='sc-preset-create';
         const presetInput=doc.createElement('input');presetInput.type='text';presetInput.maxLength=40;presetInput.dataset.fontPresetName='';presetInput.placeholder='プリセット名';presetInput.setAttribute('aria-label','プリセット名');
-        const presetSave=doc.createElement('button'),presetDelete=doc.createElement('button');presetSave.type=presetDelete.type='button';presetSave.textContent='プリセットに保存';presetDelete.textContent='削除';presetSave.dataset.fontPresetAction='save';presetDelete.dataset.fontPresetAction='delete';
-        presetGroup.append(presetSelect,presetInput,presetSave,presetDelete);
-        function syncPresets(selected=presetSelect.value){presetSelect.replaceChildren();const empty=doc.createElement('option');empty.value='';empty.textContent='文字サイズのプリセット';presetSelect.appendChild(empty);for(const preset of presets){const o=doc.createElement('option');o.value=preset.name;o.textContent=preset.name;presetSelect.appendChild(o);}presetSelect.value=presets.some(p=>p.name===selected)?selected:'';presetDelete.hidden=!presetSelect.value;}
-        presetSelect.addEventListener('change',()=>{if(presetSelect.value){presetInput.value=presetSelect.value;loadFontPreset(presetSelect.value);status('プリセットを呼び出しました。保存で反映します');}syncPresets();});
-        presetSave.addEventListener('click',()=>{const result=saveFontPreset(presetInput.value);if(result.ok){presetInput.value=result.name;syncPresets(result.name);}status(result.ok?'プリセットを'+(result.updated?'更新':'追加')+'しました。保存で確定します':result.error);});
-        presetDelete.addEventListener('click',()=>{const result=deleteFontPreset(presetSelect.value);if(result.ok){syncPresets('');presetInput.value='';}status(result.ok?'プリセットを削除しました。保存で確定します':result.error);});syncPresets();
+        const presetSave=doc.createElement('button'),presetAbort=doc.createElement('button'),presetDelete=doc.createElement('button');presetSave.type=presetAbort.type=presetDelete.type='button';presetSave.textContent='登録';presetAbort.textContent='やめる';presetDelete.textContent='選択中を削除';presetSave.dataset.fontPresetAction='save';presetDelete.dataset.fontPresetAction='delete';presetAbort.dataset.presetAbort='';createPanel.append(presetInput,presetSave,presetAbort,presetDelete);presetGroup.append(presetSelect,presetNew,createPanel);
+        function syncPresets(selected=presetSelect.value){presetSelect.replaceChildren();const empty=doc.createElement('option');empty.value='';empty.textContent='プリセットを選択';presetSelect.appendChild(empty);for(const preset of presets){const o=doc.createElement('option');o.value=preset.name;o.textContent=preset.name+(preset.fonts?'（文字サイズのみ）':'');presetSelect.appendChild(o);}presetSelect.value=presets.some(p=>p.name===selected)?selected:'';presetDelete.hidden=!presetSelect.value;}
+        presetNew.addEventListener('click',()=>{createPanel.hidden=false;presetInput.value='';presetInput.focus({preventScroll:true});dialog.scrollTop=dialog.scrollHeight;});presetAbort.addEventListener('click',()=>{createPanel.hidden=true;presetNew.focus({preventScroll:true});});
+        presetSelect.addEventListener('change',()=>{if(presetSelect.value){loadDisplayPreset(presetSelect.value,sample);status('表示プリセットを呼び出しました。保存で反映します');}createPanel.hidden=true;syncPresets();});
+        presetSave.addEventListener('click',()=>{const result=saveDisplayPreset(presetInput.value,sample);if(result.ok){syncPresets(result.name);createPanel.hidden=true;presetNew.focus({preventScroll:true});}status(result.ok?'表示設定のプリセットを追加しました。保存で確定します':result.error);});
+        presetDelete.addEventListener('click',()=>{const result=deleteFontPreset(presetSelect.value);if(result.ok){syncPresets('');createPanel.hidden=true;}status(result.ok?'プリセットを削除しました。保存で確定します':result.error);});syncPresets();
         const row=field('barsPerLine','全体：1行の小節数'),select=doc.createElement('select');select.dataset.layoutSetting='barsPerLine';for(const [n,text] of [[0,'自動'],[1,'1小節'],[2,'2小節'],[3,'3小節'],[4,'4小節']]){const option=doc.createElement('option');option.value=n;option.textContent=text;select.appendChild(option);}select.value=value.barsPerLine;select.addEventListener('change',()=>{activeSetting='barsPerLine';set({barsPerLine:Number(select.value)});});row.appendChild(select);inputs.push(()=>select.value=value.barsPerLine);
         const lineGroup=doc.createElement('fieldset'),legend=doc.createElement('legend'),lineHelp=doc.createElement('p');legend.textContent='選択した行';legend.dataset.layoutLineTitle='';lineGroup.appendChild(legend);controls.appendChild(lineGroup);
         const colsRow=field('rowLayout','横に並べる枠',lineGroup),colsInput=doc.createElement('select'),usedRow=field('rowLayout','この行に置く小節',lineGroup),usedInput=doc.createElement('select');colsInput.dataset.lineColumns='';usedInput.dataset.layoutLineUsed='';for(let n=1;n<=8;n++){const o=doc.createElement('option');o.value=n;o.textContent=n+'枠';colsInput.appendChild(o);}colsRow.appendChild(colsInput);usedRow.appendChild(usedInput);
@@ -148,5 +177,5 @@ export function createPaperLayout(C,doc=document){
         paper.addEventListener('click',e=>{const line=e.target.closest('.sheet-line');if(!line)return;selectedNumber=Number(line.dataset.lineStart);syncLine();activate('rowLayout');});
         reset.addEventListener('click',()=>{value={...DEFAULT_LAYOUT};rowProjects.delete(sample.projectId);refreshSample();changed();save();});dismiss.addEventListener('click',()=>close());accept.addEventListener('click',()=>close(true));dialog.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close();}});dialog.addEventListener('close',()=>{const old=dialog;if(!old)return;dialog=null;old.remove();refreshSample=()=>{};if(editing)cancel();else changed();if(previous?.isConnected)previous.focus({preventScroll:true});});const observer=new ResizeObserver(resize);observer.observe(viewport);dialog.addEventListener('close',()=>observer.disconnect(),{once:true});dialog.addEventListener('cancel',e=>{e.preventDefault();close();});dialog.showModal();refreshSample();
     }
-    return {renderOptions,setLine,begin,commit,cancel,saveFontPreset,loadFontPreset,deleteFontPreset,get presets(){return presets.map(p=>({name:p.name,fonts:{...p.fonts}}));},get value(){return {...value};},get isOpen(){return !!dialog?.open;},apply,set,open,close,onChange(fn){changed=fn;}};
+    return {renderOptions,setLine,begin,commit,cancel,saveDisplayPreset,loadDisplayPreset,saveFontPreset,loadFontPreset,deleteFontPreset,get presets(){return copy(presets);},get value(){return {...value};},get isOpen(){return !!dialog?.open;},apply,set,open,close,onChange(fn){changed=fn;}};
 }

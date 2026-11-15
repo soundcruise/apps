@@ -27,12 +27,12 @@ export function createPaperForms(renderer,doc=document){
                 }
                 return groups.flatMap(group=>group.entries.map(e=>({...e,depth:group.ends.length})));
             });
-            const levels=layouts.reduce((max,entries)=>entries.reduce((max,e)=>Math.max(max,e.depth),max),1);
             return {
                 has:number=>!!rows[number-1]?.length,
                 row(number){
                     const entries=layouts[number-1];
-                    if(!entries?.length)return null;
+                    if(!entries)return null;
+                    const levels=entries.reduce((max,e)=>Math.max(max,e.depth),1);
                     const row=doc.createElement('div');row.className='sheet-bar-row sheet-bar-forms';row.dataset.formResolution=columns;const lane=doc.createElement('div');lane.className='sheet-form-lane';row.appendChild(lane);
                     for(const e of entries){const level=e.level;
                         const box=doc.createElement('span');box.className='sheet-form-event';box.dataset.formEvent=e.eventId;box.dataset.formMaterial=e.materialId;box.dataset.slotTick=e.tick;box.setAttribute('role','button');box.tabIndex=0;box.setAttribute('aria-haspopup','dialog');box.setAttribute('aria-label',e.symbol+'の登録フォーム');
