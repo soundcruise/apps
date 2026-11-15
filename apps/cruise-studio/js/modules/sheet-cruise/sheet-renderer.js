@@ -303,7 +303,7 @@
         if(project.schemaVersion===2) project=CS().model.toStructureView(project);
         else if(project.schemaVersion!==1&&project.purpose!=='structure-read') throw Error('unsupported-schema');
         var model = CS().model;
-        var show = resolveShowSettings(project);
+        var show = Object.assign(resolveShowSettings(project),options?.visibility||{});
         var ts = project.songInfo && project.songInfo.timeSignature;
         var beats = (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
 
