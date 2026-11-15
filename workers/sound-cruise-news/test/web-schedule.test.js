@@ -19,6 +19,48 @@ test('finite plan: at most three ordered UTC dates within one week, exact Gemma 
  assert.equal(scheduledWebPermit(env,at,at-1).effective,false);assert.equal(scheduledWebPermit(env,at,at+WEB_RUN_WINDOW).effective,false);assert.equal(scheduledWebPermit(env,at+86400000,at+86400000).effective,false);
 });
 
+test('production scheduledTime seconds match only the planned minute without extending the deadline',()=>{
+ const env=envFor(null),observed=1794526241397,started=1794526242066;
+ assert.equal(new Date(observed).toISOString(),'2026-11-12T23:30:41.397Z');
+ assert.equal(scheduledWebPermit(env,observed,started).expiresAt,at+WEB_RUN_WINDOW);
+ for(const slot of slots){const planned=Date.parse(slot);
+  for(const offset of [0,41397,59999]){
+   assert(scheduledWebPermit(env,planned+offset,planned+offset).effective);
+   assert(scheduledWebPermit(env,planned+offset,planned+WEB_RUN_WINDOW-1).effective);
+   assert.equal(scheduledWebPermit(env,planned+offset,planned+WEB_RUN_WINDOW).reason,'web_schedule_window_closed');
+  }
+  for(const offset of [-1,60000,86400000])assert.equal(scheduledWebPermit(env,planned+offset,planned+offset).reason,'web_schedule_not_planned');
+ }
+ for(const value of [String(observed),observed/1000,NaN,Infinity,observed+.5])assert.equal(scheduledWebPermit(env,value,started).reason,'web_schedule_not_planned');
+ assert.equal(scheduledWebPermit(env,observed,observed-1).reason,'web_schedule_window_closed');
+ assert.equal(scheduledWebPermit(env,observed,Date.parse(slots[1])).reason,'web_schedule_window_closed');
+});
+
+test('observed first delivery and a jittered second slot create normal rows; duplicate delivery never pays again',async()=>{
+ const s=await store(),env=envFor(s.db),before=await snapshot(s.db);let searches=0,models=0;
+ for(const [planned,offset] of [[at,41397],[Date.parse(slots[1]),59999]]){
+  const now=planned+offset+669;
+  const result=await worker.scheduled({cron:WEB_DISCOVERY_CRON,scheduledTime:planned+offset},env,{},now,{webDiscoveryDependencies:{clock:()=>now,search:async()=>batch(searches++),classify:async hs=>{models++;return hs.map(()=>estimate);}}});
+  assert.equal(result.webDiscovery.searches,3);assert.equal(result.webDiscovery.ai_calls,5);
+  assert.equal(result.webDiscovery.expiresAt,planned+WEB_RUN_WINDOW);
+  const row=await s.db.prepare('SELECT * FROM news_web_runs WHERE day=?').bind(new Date(planned).toISOString().slice(0,10)).first();
+  assert.equal(row.searches,3);assert.equal(row.ai_calls,5);assert.equal(row.errors,0);assert.equal(row.lock_until,0);
+  const replay=await worker.scheduled({cron:WEB_DISCOVERY_CRON,scheduledTime:planned+12345},env,{},now,{webDiscoveryDependencies:{clock:()=>now,search:noCall,classify:noCall}});
+  assert.equal(replay.webDiscovery.reason,'busy_or_already_run');
+ }
+ assert.equal(searches,6);assert.equal(models,10);assert.equal(await snapshot(s.db),before);
+});
+
+test('jitter does not bypass locks or hide a pre-claim Worker exception',async()=>{
+ const s=await store(),env=envFor(s.db),observed=at+41397,now=at+42066;
+ await s.db.prepare('INSERT INTO news_web_runs(day,lock_until) VALUES(?,?)').bind('2026-11-11',now+60000).run();
+ const locked=await worker.scheduled({cron:WEB_DISCOVERY_CRON,scheduledTime:observed},env,{},now,{webDiscoveryDependencies:{search:noCall,classify:noCall}});
+ assert.equal(locked.webDiscovery.reason,'busy_or_already_run');
+ assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_web_runs WHERE day=?').bind('2026-11-12').first()).n,0);
+ const failed=await worker.scheduled({cron:WEB_DISCOVERY_CRON,scheduledTime:observed},envFor({prepare:()=>{throw Error('fixture database unavailable');}}),{},now,{webDiscoveryDependencies:{search:noCall,classify:noCall}});
+ assert.equal(failed.webDiscovery.stopped,'web_run_failed');
+});
+
 test('OFF, missing plan, old model and unplanned cron never touch D1 or providers',async()=>{
  for(const patch of [{NEWS_WEB_ENABLED:'false'},{NEWS_WEB_SCHEDULE:''},{NEWS_WEB_MODEL:'@cf/qwen/qwen3-30b-a3b-fp8'}])await worker.scheduled({cron:WEB_DISCOVERY_CRON,scheduledTime:at},{...envFor({prepare:noCall}),...patch},{},at,{webDiscoveryDependencies:{search:noCall,classify:noCall}});
  await worker.scheduled({cron:WEB_DISCOVERY_CRON,scheduledTime:at+86400000},envFor({prepare:noCall}),{},at+86400000,{webDiscoveryDependencies:{search:noCall,classify:noCall}});
@@ -74,4 +116,23 @@ test('dedicated Web Cron bypasses normal collectors; normal daily Cron no longer
 test('real local workerd/D1 retains the consumed day across restart; no migration required',async()=>{
  const {localDatabase}=await import('../scripts/local-db.mjs'),dir=await mkdtemp(join(tmpdir(),'web-three-slots-'));let runtime;
  try{runtime=await localDatabase(dir);let calls=0;await run(envFor(runtime.db),at,{search:async()=>{calls++;return [];}});assert.equal(calls,3);await runtime.mf.dispose();runtime=await localDatabase(dir);assert((await run(envFor(runtime.db),at,{search:noCall})).skipped);assert.equal((await runtime.db.prepare('SELECT COUNT(*) n FROM news_web_runs').first()).n,1);}finally{await runtime?.mf.dispose();await rm(dir,{recursive:true,force:true});}
+});
+
+test('native workerd ScheduledController preserves the observed nonzero seconds and milliseconds',async()=>{
+ const {Miniflare,convertV4MiniflareOptions}=await import('miniflare');
+ const source=(await readFile(new URL('../src/web-schedule.js',import.meta.url),'utf8')).replace(/^export /gm,'');
+ // Match the installed runtime's supported date, like local-db.mjs. Production
+ // runs 2026-09-30; this asserts the native controller contract, not cloud parity.
+ const mf=new Miniflare(convertV4MiniflareOptions({name:'offline-cron-contract',compatibilityDate:'2026-09-18',unsafeTriggerHandlers:true,modules:true,bindings:{...envFor(null),TEST_NOW:1794526242066},script:source+`
+ let observed;export default{
+  scheduled(event,env){observed={type:typeof event.scheduledTime,scheduledAt:event.scheduledTime,cron:event.cron,permit:scheduledWebPermit(env,event.scheduledTime,env.TEST_NOW)};},
+  fetch(){return Response.json(observed||{});}
+ };`}));
+ try{
+  const response=await mf.dispatchFetch('http://localhost/cdn-cgi/local/scheduled?time=1794526241397&cron=30%2023%20*%20*%20*&format=json');
+  assert.equal((await response.json()).outcome,'ok');
+  const observed=await (await mf.dispatchFetch('http://localhost/')).json();
+  assert.equal(observed.type,'number');assert.equal(observed.scheduledAt,1794526241397);assert.equal(observed.cron,WEB_DISCOVERY_CRON);
+  assert.equal(observed.permit.effective,true);assert.equal(observed.permit.expiresAt,at+WEB_RUN_WINDOW);
+ }finally{await mf.dispose();}
 });

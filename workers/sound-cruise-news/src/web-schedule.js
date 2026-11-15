@@ -10,7 +10,12 @@ export function scheduledWebPermit(env,scheduledAt,now){
  const starts=p.starts.map(x=>typeof x==='string'?Date.parse(x):NaN);
  if(starts.some((x,i)=>!Number.isSafeInteger(x)||new Date(x).toISOString()!==p.starts[i]||new Date(x).toISOString().slice(11)!=='23:30:00.000Z'||i&&x<=starts[i-1])||new Set(starts.map(x=>new Date(x).toISOString().slice(0,10))).size!==starts.length||starts.at(-1)-starts[0]>=7*86400000)return deny('web_schedule_invalid');
  if(env.NEWS_WEB_MODEL!==SCHEDULED_WEB_MODEL)return deny('web_schedule_model_mismatch');
- if(!Number.isSafeInteger(scheduledAt)||!Number.isSafeInteger(now)||!starts.includes(scheduledAt))return deny('web_schedule_not_planned');
- if(now<scheduledAt||now>=scheduledAt+WEB_RUN_WINDOW)return deny('web_schedule_window_closed');
- return {effective:true,reason:'available',expiresAt:scheduledAt+WEB_RUN_WINDOW,days:starts.map(x=>new Date(x).toISOString().slice(0,10)),maxSearches:3,maxAiCalls:5};
+ // Production ScheduledController includes seconds/milliseconds (observed +41.397s).
+ // Match only the configured Cron minute; keep the deadline anchored to the plan,
+ // never to delivery time, so this cannot catch up an old slot or extend its TTL.
+ if(!Number.isSafeInteger(scheduledAt)||!Number.isSafeInteger(now))return deny('web_schedule_not_planned');
+ const plannedAt=Math.floor(scheduledAt/60000)*60000;
+ if(!starts.includes(plannedAt))return deny('web_schedule_not_planned');
+ if(now<scheduledAt||now>=plannedAt+WEB_RUN_WINDOW)return deny('web_schedule_window_closed');
+ return {effective:true,reason:'available',expiresAt:plannedAt+WEB_RUN_WINDOW,days:starts.map(x=>new Date(x).toISOString().slice(0,10)),maxSearches:3,maxAiCalls:5};
 }
