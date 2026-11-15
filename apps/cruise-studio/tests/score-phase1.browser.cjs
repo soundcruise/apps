@@ -1,4 +1,4 @@
-const {toolbarControl}=require('./helpers/score-toolbar.cjs');
+const {toolbarControl,dismissNewSongSettings}=require('./helpers/score-toolbar.cjs');
 /* Synthetic editor integration only. No real credential, user profile or backend.
    The real localhost development entry keeps its unmodified Pro gate. */
 const test = require('node:test');
@@ -63,7 +63,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         try {
             await page.goto(origin + '/');
             await page.locator('#open-sheet-cruise').click();
-            await (await toolbarControl(page,'#sc-new-project')).click();await retainDrafts(page);
+            await (await toolbarControl(page,'#sc-new-project')).click();await retainDrafts(page);await dismissNewSongSettings(page);
+            await page.locator('#sc-editor-drawer').evaluate(e=>e.open=true);
             await settle(page);
             await fn(page, context);
         } finally { await context.close(); }
@@ -163,7 +164,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.equal((await snapshot(page)).bars.length, a.bars.length + 1);
             await page.locator('#sc-undo').click();
             assert.deepEqual(await snapshot(page), a);
-            await (await toolbarControl(page,'#sc-new-project')).click();await retainDrafts(page);
+            await (await toolbarControl(page,'#sc-new-project')).click();await retainDrafts(page);await dismissNewSongSettings(page);
             const b = await snapshot(page);
             assert.notEqual(a.projectId, b.projectId);
             await page.locator('#sc-project-select').selectOption(a.projectId);await retainDrafts(page);

@@ -1,0 +1,117 @@
+{
+  "date": "2026-11-16",
+  "candidate": "0.131.0-dev.1",
+  "baseCommit": "f54c0c32",
+  "branch": "codex/score-toolbar-ui",
+  "productionVersionUnchanged": "0.88.1",
+  "localOnly": true,
+  "committed": false,
+  "pushed": false,
+  "suites": [
+    {
+      "suite": "score-view Chrome",
+      "counts": {
+        "tests": 122,
+        "pass": 122,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "score-view-guidance.log"
+    },
+    {
+      "suite": "score-feedback + score-guidance + score-toolbar Chrome/WebKit",
+      "counts": {
+        "tests": 37,
+        "pass": 37,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "score-guidance-acceptance.log"
+    },
+    {
+      "suite": "local-ui-entry + score-slots-range + bar-paste Node",
+      "counts": {
+        "tests": 26,
+        "pass": 26,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "score-guidance-node.log"
+    },
+    {
+      "suite": "historical score-phase1 baseline",
+      "counts": {
+        "tests": 11,
+        "pass": 8,
+        "fail": 3,
+        "skipped": 0
+      },
+      "log": "score-guidance-phase1-baseline.log"
+    },
+    {
+      "suite": "historical score-phase1 current",
+      "counts": {
+        "tests": 11,
+        "pass": 8,
+        "fail": 3,
+        "skipped": 0
+      },
+      "log": "score-guidance-phase1-final.log"
+    },
+    {
+      "suite": "local-ui Chrome/WebKit",
+      "counts": {
+        "tests": 2,
+        "pass": 2,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "score-guidance-regressions.log"
+    },
+    {
+      "suite": "mock-bookshelf Chrome/WebKit",
+      "counts": {
+        "tests": 16,
+        "pass": 16,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "score-guidance-regressions.log"
+    },
+    {
+      "suite": "score-range-loop Chrome/WebKit",
+      "counts": {
+        "tests": 14,
+        "pass": 14,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "score-guidance-regressions.log"
+    }
+  ],
+  "passingBrowserAcceptanceTestsIncludingParents": 191,
+  "nodeScope": "related tests only; full Node suite not rerun",
+  "historicalFailures": [
+    "confirmed chord form adoption and MIDI use the same canonical Project",
+    "print hides editing chrome and produces a PDF without changing the draft"
+  ],
+  "limits": [
+    "WebKit is automated testing, not user Safari profile",
+    "Native bar move handlers tested with DataTransfer dispatch; range dragging uses actual mouse events",
+    "OS print dialog and real account bookshelf not tested",
+    "Legacy active-document/editing-session harness was attempted at local synthetic entry, found incompatible, stopped; not counted as acceptance evidence"
+  ],
+  "finalChecks": {
+    "gitDiffCheck": "pass",
+    "onlyCruiseStudioChanged": true,
+    "indexEmpty": true,
+    "headUnchanged": "f54c0c32",
+    "originTrackingRefUnchanged": "f54c0c32",
+    "localHttpStatus": 200,
+    "finalScreenshotDedicatedSuite": {
+      "tests": 14,
+      "pass": 14,
+      "fail": 0
+    }
+  }
+}

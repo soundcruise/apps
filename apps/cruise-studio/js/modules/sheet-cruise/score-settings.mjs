@@ -60,7 +60,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   current.addEventListener('compositionstart',()=>{composing=true;apply.disabled=true;});current.addEventListener('compositionend',()=>{composing=false;apply.disabled=false;});
   current.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing||composing)return;if(e.key==='Escape'){e.preventDefault();current.close();}else if(e.key==='Enter'&&e.target.matches('input:not([type=checkbox])')){e.preventDefault();commit();}});
   current.addEventListener('close',()=>{if(parked){parked.parent.insertBefore(parked.node,parked.next?.parentNode===parked.parent?parked.next:null);parked=null;}if(dialog===current)dialog=null;current.remove();closed();if(previous?.isConnected)previous.focus({preventScroll:true});});
-  doc.getElementById('screen-sheet-cruise').appendChild(current);current.showModal();current.querySelector('input:not([type=checkbox]),select')?.focus({preventScroll:true});
+  doc.getElementById('screen-sheet-cruise').appendChild(current);current.showModal();const initial=current.querySelector('input:not([type=checkbox]),select');initial?.focus({preventScroll:true});if(args.selectTitle&&initial?.dataset.scoreField==='title')initial.select();
  }
  return {open,close,get isOpen(){return !!dialog?.open&&!applying;}};
 }

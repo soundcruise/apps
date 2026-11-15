@@ -1,4 +1,4 @@
-const {toolbarControl}=require('./helpers/score-toolbar.cjs');
+const {toolbarControl,dismissNewSongSettings}=require('./helpers/score-toolbar.cjs');
 /* Synthetic editor integration only. No real credential, user profile or backend.
    The real localhost development entry keeps its unmodified Pro gate. */
 const test = require('node:test');
@@ -95,7 +95,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.equal((await snapshot(page)).songInfo.title,'無題のプロジェクト '+(n-1));
                 await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();
                 const p=await snapshot(page);assert.equal(p.songInfo.title,'無題のプロジェクト '+n);assert.notEqual(p.projectId,first.projectId);
-                assert.equal(await page.evaluate(()=>document.activeElement.id),'sc-title');assert.equal(await page.locator('#sc-title').inputValue(),p.songInfo.title);assert(await page.locator('#sc-slot-overlay').evaluate(e=>e.classList.contains('hidden')));
+                assert.equal(await page.evaluate(()=>document.activeElement.dataset.scoreField),'title');assert.equal(await page.locator('[data-score-field=title]').inputValue(),p.songInfo.title);await dismissNewSongSettings(page);assert(await page.locator('#sc-slot-overlay').evaluate(e=>e.classList.contains('hidden')));
             }
             await page.locator('#sc-project-select').selectOption(first.projectId);assert.match(await page.getByRole('dialog',{name:'未保存の変更を確認'}).innerText(),/プロジェクト 1.*プロジェクト 2.*プロジェクト 3/);
             await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().target.projectId===id,first.projectId);assert.equal((await snapshot(page)).projectId,first.projectId);
@@ -141,7 +141,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('.studio-nav [data-workspace=preDtm]').click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();await page.locator('#screen-pre-dtm .workspace-back').click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.deepEqual(await snapshot(page),before);
         }));
         await t.test('unsaved dialog actions stay separated and usable at narrow widths and long titles',()=>fresh(async page=>{
-            await page.locator('#sc-title').fill('検証用の長いプロジェクト名'.repeat(16));
+            await page.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await page.locator('#sc-title').fill('検証用の長いプロジェクト名'.repeat(16));await page.locator('#sc-title').press('Tab');await settle(page);
             await (await toolbarControl(page,'#sc-new-project')).click();
             const dialog=page.getByRole('dialog',{name:'未保存の変更を確認'});
             for(const width of [320,390,768,1440]){

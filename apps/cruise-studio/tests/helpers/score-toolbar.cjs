@@ -6,4 +6,10 @@ async function toolbarControl(page,selector){
  for(const selector of parents){const menu=page.locator(selector);if(await menu.getAttribute('open')===null)await menu.locator(':scope > summary').click();}
  return target;
 }
-module.exports={toolbarControl};
+// Explicitly cancel staged song settings when a regression only needs a blank fixture.
+async function dismissNewSongSettings(page){
+ const dialog=page.locator('[data-score-dialog=settings]');
+ await dialog.waitFor();await dialog.locator('[data-score-cancel]').click();
+ await dialog.waitFor({state:'detached'});
+}
+module.exports={toolbarControl,dismissNewSongSettings};
