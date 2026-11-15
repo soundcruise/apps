@@ -36,8 +36,10 @@ export function createPaperForms(renderer,doc=document){
                     const row=doc.createElement('div');row.className='sheet-bar-row sheet-bar-forms';row.dataset.formResolution=columns;const lane=doc.createElement('div');lane.className='sheet-form-lane';row.appendChild(lane);
                     for(const e of entries){const level=e.level;
                         const box=doc.createElement('span');box.className='sheet-form-event';box.dataset.formEvent=e.eventId;box.dataset.formMaterial=e.materialId;box.dataset.slotTick=e.tick;box.setAttribute('role','button');box.tabIndex=0;box.setAttribute('aria-haspopup','dialog');box.setAttribute('aria-label',e.symbol+'の登録フォーム');
-                        Object.assign(box.style,{left:'calc('+e.left+'% + 2px)',top:(level+.5+(levels-e.depth)/2)/levels*100+'%',width:'calc('+100/columns+'% - 4px)'});box.innerHTML=svg(e.snapshot,false);lane.appendChild(box);
+                        Object.assign(box.style,{left:'calc('+e.left+'% + 2px)',top:'calc('+((level+.5+(levels-e.depth)/2)/levels*100)+'% + '+(4-8*(level+.5+(levels-e.depth)/2)/levels)+'px)',width:'calc('+100/columns+'% - 4px)'});box.innerHTML=svg(e.snapshot,false);lane.appendChild(box);
                     }
+                    // The lane only reserves height. Absolute diagram coordinates belong to the
+                    // whole shared form row, not a flex item's baseline or intrinsic height.
                     lane.style.aspectRatio=(columns*345)+' / '+(levels*269);return row;
                 }
             };
