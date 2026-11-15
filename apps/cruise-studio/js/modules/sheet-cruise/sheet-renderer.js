@@ -73,7 +73,7 @@
         var titleRow = el('div', 'sheet-title-row');
         titleRow.appendChild(el('span', 'sheet-title', si.title || '無題'));
         if (si.artist) {
-            titleRow.appendChild(el('span', 'sheet-artist', '/ ' + si.artist));
+            var artist=el('span','sheet-artist');artist.appendChild(el('span','sheet-artist-separator','/ '));artist.appendChild(document.createTextNode(si.artist));titleRow.appendChild(artist);
         }
         header.appendChild(titleRow);
 
