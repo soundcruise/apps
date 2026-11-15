@@ -2,8 +2,8 @@ import {bookFields} from './agm-book-evidence.js';
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {performanceFields} from './agm-performance-evidence.js';
 import {musicReleaseFields} from './agm-music-release.js';
-export const AGM_ARTICLE_PARSER='agm-article-7';
-export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-6','agm-article-5','agm-article-4']);
+export const AGM_ARTICLE_PARSER='agm-article-8';
+export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-7','agm-article-6','agm-article-5','agm-article-4']);
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
 import {agmArticleLabel,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
@@ -31,6 +31,20 @@ export function agmEvidenceMetadata(html,url,section){
 function nameFrom(title,intro,tags,old){
  const named=title.match(/^(?:ギタリスト|シンガー[・]?ソングライター|アーティスト)(?:の)?([^が、。の]{2,35})(?:が|、)/)?.[1];
  if(factName(named)&&intro.includes(named))return named;
+ // Some interview headlines prefix the person with their group without a
+ // separator. Resolve only an explicit membership in the first sentence, and
+ // require that same sentence to name the exact headline person. Neither a
+ // related card nor a later incidental group/name can establish this identity.
+ const firstSentence=intro.split(/[。!?！？]/)[0];
+ const memberships=[...firstSentence.matchAll(/(?:グループ|バンド|ユニット)[“「『]([^”」』]{2,35})[”」』]のメンバー/g)];
+ if(memberships.length===1){
+  const group=memberships[0][1];
+  if(title.startsWith(group)){
+   const person=title.slice(group.length).match(/^([一-龯々ぁ-んァ-ヶー・]{2,35})が語る/)?.[1];
+   const afterMembership=firstSentence.slice(memberships[0].index+memberships[0][0].length);
+   if(factName(person)&&afterMembership.endsWith(person))return person;
+  }
+ }
  const candidates=[old,...tags];
  for(const v of candidates)if(factName(v)&&v.length<=35&&title.includes(v)&&intro.includes(v)&&!/(ギター|アコギ|グラミー|コンクール|ピックアップ|インタビュー)/.test(v))return v;
  // Only subject-bearing headline positions corroborated by the article introduction.
