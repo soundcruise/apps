@@ -1,3 +1,4 @@
+const {toolbarControl}=require('./helpers/score-toolbar.cjs');
 // Fresh loopback contexts and synthetic data only; never uses the user's profile.
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {pathToFileURL}=require('node:url'),{chromium,webkit}=require('playwright');
@@ -19,7 +20,7 @@ for(const engine of ['chrome','webkit'])test('long score style updates keep pape
   await context.route('**/*',r=>{if(new URL(r.request().url()).origin!==origin){external.push(r.request().url());return r.abort();}return r.continue();});
   const p=await context.newPage();p.setDefaultTimeout(30000);p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
   await p.goto(origin);await p.locator('#open-sheet-cruise').click();await p.locator('#sc-import-json').setInputFiles({name:'long.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(project))});
-  await p.waitForFunction(()=>CruiseStudio.sheetCruise.getSession().draft.bars.length===128);await p.locator('#sc-show-forms').check();
+  await p.waitForFunction(()=>CruiseStudio.sheetCruise.getSession().draft.bars.length===128);await (await toolbarControl(p,'#sc-show-forms')).check();
   const before=await p.evaluate(()=>({project:CruiseStudio.sheetCruise.getSession().workingSnapshot(),history:CruiseStudio.sheetCruise.getSession().getHistory()}));
   await p.locator('#sc-paper-settings').click();
   await p.evaluate(()=>{window.__retained=[document.querySelector('#sc-sheet-scale-box .sheet-page'),document.querySelector('.sc-layout-example-paper .sheet-page'),document.querySelector('.sc-layout-example-paper .sheet-form-event svg')];window.__renders=0;const render=CruiseStudio.sheetRenderer.render;CruiseStudio.sheetRenderer.render=(...args)=>{__renders++;return render(...args);};});

@@ -71,9 +71,9 @@
         var header = el('div', 'sheet-header');
 
         var titleRow = el('div', 'sheet-title-row');
-        titleRow.appendChild(el('span', 'sheet-title', si.title || '無題'));
-        if (si.artist) {
-            var artist=el('span','sheet-artist');artist.appendChild(el('span','sheet-artist-separator','/ '));artist.appendChild(document.createTextNode(si.artist));titleRow.appendChild(artist);
+        var title=el('span','sheet-title',si.title||'無題');title.dataset.paperEdit='title';titleRow.appendChild(title);
+        {
+            var artist=el('span','sheet-artist'+(si.artist?'':' sheet-artist--empty'));artist.appendChild(el('span','sheet-artist-separator','/ '));var artistValue=el('span','sheet-artist-value',si.artist||'アーティスト名を追加');artistValue.dataset.paperEdit='artist';artist.appendChild(artistValue);titleRow.appendChild(artist);
         }
         header.appendChild(titleRow);
 
@@ -90,7 +90,7 @@
         items.forEach(function (pair) {
             var item = el('span', 'sheet-meta-item');
             item.appendChild(el('span', 'sheet-meta-label', pair[0] + ': '));
-            item.appendChild(el('span', 'sheet-meta-value', pair[1]));
+            var value=el('span','sheet-meta-value',pair[1]);value.dataset.paperEdit=({'ORGキー':'instrument','Playキー':'instrument','カポ':'instrument','BPM':'bpm','基本ストローク':'rhythm'})[pair[0]]||'';item.appendChild(value);
             meta.appendChild(item);
         });
         header.appendChild(meta);
@@ -313,28 +313,25 @@
 
         project.sections.forEach(function (sec) {
             var bars = model.getSectionBars(project, sec.id);
-            if (bars.length === 0) return;
 
-            var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.tabIndex=0;label.setAttribute('role','button');label.setAttribute('aria-pressed','false');label.title=sec.name+'を選択して、ここから再生';page.appendChild(label);
 
-            // Track visibility, rather than empty content, determines the shared row layout.
-            var hasVocal = show.lyrics || show.doremi;
-            var hasForms=!!options?.formsForBar;
-            var cols = [1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms ? show.barsPerLine : show.barsPerLine * 2;
-
-            // 譜面行（.sheet-line）単位で組む: 印刷時に行の途中で改ページさせない
-            for (var i = 0; i < bars.length;) {
-                var rule=options?.lineLayoutForBar?.(bars[i].barNumber),capacity=rule&&Number.isInteger(rule.columns)&&rule.columns>=1&&rule.columns<=8?rule.columns:cols,used=rule&&Number.isInteger(rule.used)&&rule.used>0?Math.min(rule.used,capacity):capacity;
-                var line=el('div','sheet-line'+(hasVocal?'':' sheet-line--compact'));line.style.gridTemplateColumns='repeat('+capacity+', 1fr)';line.dataset.lineStart=bars[i].barNumber;line.dataset.lineCapacity=capacity;if(rule)line.dataset.lineCustom='';
-                var lineBars=bars.slice(i,i+used);line.dataset.lineUsed=lineBars.length;
-                var formRows=options?.formsForBar?lineBars.map(function(bar){return options.formsForBar(bar.barNumber);}):[];
-                var lineShow=Object.assign({},show,{forms:!!options?.formsForBar});
-                var rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);
-                line.style.setProperty('--sheet-row-count',rowCount);
-                var lineHasVocal=!!(lineShow.lyrics||lineShow.doremi);line.classList.toggle('sheet-line--compact',!lineHasVocal);
-                lineBars.forEach(function(bar,index){var strum=show.strum?resolveBarStrum(project,bar):null;line.appendChild(buildBarCell(bar,lineShow,lineHasVocal,beats,strum,options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]));});
-                for(var pad=lineBars.length;pad<capacity;pad++){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.setAttribute('role','img');empty.setAttribute('aria-label','レイアウト用の空き枠（編集・再生なし）');line.appendChild(empty);}
-                page.appendChild(line);i+=lineBars.length;
+            var slots=canonical&&CS().structureOperations?.scoreSlots?CS().structureOperations.scoreSlots(canonical,sec.id):bars.map(function(b){return {id:'bar-'+b.barNumber,barNumber:b.barNumber,sectionId:sec.id};});
+            var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.dataset.paperEdit='section';label.tabIndex=0;label.setAttribute('role','button');label.title='セクション名を編集';
+            var sectionHead=el('div','sheet-section-heading');sectionHead.appendChild(label);if(options?.editableSlots){var play=el('button','sheet-section-play','▶ ここから');play.type='button';play.dataset.playSection=sec.id;play.setAttribute('aria-label',sec.name+'から再生');sectionHead.appendChild(play);}page.appendChild(sectionHead);
+            var hasVocal=show.lyrics||show.doremi,hasForms=!!options?.formsForBar;
+            var cols=[1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms?show.barsPerLine:show.barsPerLine*2;
+            for(var i=0;i<slots.length||i===0;){
+                var first=slots[i],firstReal=slots.slice(i).find(function(s){return !s.empty;}),rule=options?.lineLayoutForSlot?.(first?.id,firstReal?.barNumber)||options?.lineLayoutForBar?.(firstReal?.barNumber),capacity=rule?.columns>=1&&rule.columns<=8?rule.columns:cols,baseUsed=rule?.used>0?Math.min(rule.used,capacity):capacity;
+                var fill=canonical?.extensions?.scoreLayoutV1?.fills.find(function(f){return f.anchorId===first?.id&&f.columns===capacity&&f.baseUsed===baseUsed;}),used=fill?fill.used:baseUsed;
+                var line=el('div','sheet-line'+(hasVocal?'':' sheet-line--compact'));line.style.gridTemplateColumns='repeat('+capacity+', 1fr)';line.dataset.lineStart=firstReal?.barNumber||0;line.dataset.lineAnchor=first?.id||'empty-'+sec.id;line.dataset.lineCapacity=capacity;line.dataset.lineBaseUsed=baseUsed;if(rule)line.dataset.lineCustom='';
+                var lineSlots=slots.slice(i,i+used);line.dataset.lineUsed=lineSlots.length;
+                var formRows=options?.formsForBar?lineSlots.map(function(s){return s.empty?null:options.formsForBar(s.barNumber);}):[];
+                var lineShow=Object.assign({},show,{forms:!!options?.formsForBar}),rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);line.style.setProperty('--sheet-row-count',rowCount);
+                var nextReal=slots.slice(i+lineSlots.length).find(function(s){return !s.empty;});
+                function emptyCell(descriptor){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.dataset.emptySlot=JSON.stringify(descriptor);empty.setAttribute('role',options?.editableSlots?'button':'img');empty.setAttribute('aria-label','空き枠（再生なし。編集開始・貼り付けで小節に戻す）');if(options?.editableSlots){empty.tabIndex=0;empty.dataset.editableEmpty='';}return empty;}
+                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=show.strum?resolveBarStrum(project,bar):null;line.appendChild(buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.resolutionForBar?options.resolutionForBar(bar):null,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]));});
+                for(var pad=lineSlots.length;pad<capacity;pad++)line.appendChild(emptyCell({sectionId:sec.id,beforeBarId:nextReal?nextReal.barId:null,anchorId:first?.id||null,columns:capacity,baseUsed:baseUsed,liveUsed:lineSlots.length,padIndex:pad-lineSlots.length,precedingHoleIds:slots.slice(0,i+lineSlots.length).filter(function(s){return s.empty;}).map(function(s){return s.id;})}));
+                page.appendChild(line);i+=Math.max(1,lineSlots.length);
             }
         });
 

@@ -163,6 +163,18 @@
             if(delta===0)return symbol;
             return theory.transposeNote(match[1],delta)+match[2]+(match[3]?'/'+theory.transposeNote(match[3],delta):'');
         }
+        // Optional, versioned score spacing. Holes never enter the musical bar timeline.
+        function reconcileScoreLayout(p,before){
+            var layout=p.extensions?.scoreLayoutV1;if(!layout)return;
+            var live=new Map(p.bars.map(function(b){return [b.id,b];})),sections=new Set(p.sections.map(function(s){return s.id;}));
+            layout.holes=layout.holes.filter(function(h){return sections.has(h.sectionId);}).map(function(h){
+                if(h.beforeBarId!==null&&(!live.has(h.beforeBarId)||live.get(h.beforeBarId).sectionId!==h.sectionId)){
+                    var index=before.bars.findIndex(function(b){return b.id===h.beforeBarId;}),next=before.bars.slice(Math.max(0,index+1)).find(function(b){return b.sectionId===h.sectionId&&live.get(b.id)?.sectionId===h.sectionId;});h.beforeBarId=next?next.id:null;
+                }return h;
+            });
+            var anchors=new Set(p.bars.map(function(b){return b.id;}).concat(layout.holes.map(function(h){return h.id;})));
+            layout.fills=(layout.fills||[]).filter(function(r){return anchors.has(r.anchorId);});
+        }
         function validate(p){return checkProject(p,null);}
         function checkProject(p,nativeResults){
             try{
@@ -230,6 +242,13 @@
                 arrangement(p.performance.arrangement);
                 keys(p.notation,['settings','lineBreakAfter']);insist(object(p.notation.settings)&&Array.isArray(p.notation.lineBreakAfter)&&new Set(p.notation.lineBreakAfter).size===p.notation.lineBreakAfter.length&&p.notation.lineBreakAfter.every(function(x){return bars.has(x);}), 'invalid-notation');
                 settings(p.notation.settings);
+                var layout=p.extensions?.scoreLayoutV1;
+                if(layout!==undefined){
+                    keys(layout,['version','holes','fills']);insist(layout.version===1&&Array.isArray(layout.holes)&&layout.holes.length<=2048&&Array.isArray(layout.fills)&&layout.fills.length<=2048,'invalid-score-layout');
+                    layout.holes.forEach(function(h){keys(h,['id','sectionId','beforeBarId']);unique(h.id);insist(sections.has(h.sectionId)&&(h.beforeBarId===null||p.bars.some(function(b){return b.id===h.beforeBarId&&b.sectionId===h.sectionId;})),'invalid-score-hole');});
+                    var anchors=new Set(p.bars.map(function(b){return b.id;}).concat(layout.holes.map(function(h){return h.id;}))),filled=new Set();
+                    layout.fills.forEach(function(r){keys(r,['anchorId','columns','baseUsed','used']);insist(anchors.has(r.anchorId)&&!filled.has(r.anchorId)&&integer(r.columns)&&r.columns>=1&&r.columns<=8&&integer(r.baseUsed)&&r.baseUsed>=1&&r.baseUsed<=r.columns&&integer(r.used)&&r.used>=r.baseUsed&&r.used<=r.columns,'invalid-score-fill');filled.add(r.anchorId);});
+                }
                 keys(p.provenance,['migrationVersion','legacySource','legacyPitchBasis']);
                 insist(p.provenance.migrationVersion==='studio-schema2-m1','unsupported-migration');
                 keys(p.provenance.legacyPitchBasis,['playKey','originalKey','capo']);insist(theory.keyToSemitone(p.provenance.legacyPitchBasis.playKey)!==null&&theory.keyToSemitone(p.provenance.legacyPitchBasis.originalKey)!==null&&integer(p.provenance.legacyPitchBasis.capo)&&p.provenance.legacyPitchBasis.capo>=0&&p.provenance.legacyPitchBasis.capo<=11,'invalid-legacy-basis');
@@ -458,6 +477,7 @@
             }
             var liveChords=new Set();next.bars.forEach(function(b){b.chords.forEach(function(e){liveChords.add(e.id);});});next.performance.formBindings=next.performance.formBindings.filter(function(b){return liveChords.has(b.chordEventId);});
             next.performance.arrangement=copy(view.arrangement);next.notation={settings:copy(view.sheetSettings),lineBreakAfter:breaks};
+            reconcileScoreLayout(next,project);
             var check=validate(next);insist(check.ok,check.errors.join('/'));
             Object.keys(project).forEach(function(k){if(!Object.hasOwn(next,k))delete project[k];});Object.keys(next).forEach(function(k){project[k]=next[k];});
             return outcome;
@@ -474,7 +494,7 @@
             check=validate(next);insist(check.ok,check.errors.join('/'));Object.keys(next).forEach(function(k){project[k]=next[k];});return bar.id;
         }
         function reconcileChord(bar,events){if(!legacyBars.has(bar))return;if(bar.chords.length>1){insist(!boundLegacyBars.has(bar),'ambiguous-chord-mapping');replacementBars.add(bar);return;}if(bar.chords.length&&events.length){var source=legacyChords.get(bar.chords[0]);insist(source,'ambiguous-chord-mapping');legacyChords.set(events[0],source);}}
-        return Object.freeze({readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
+        return Object.freeze({readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
     }
     return Object.freeze({create:create,pitchMidi:pitchMidi,maxBytes:MAX_BYTES,timing:timing});
 });

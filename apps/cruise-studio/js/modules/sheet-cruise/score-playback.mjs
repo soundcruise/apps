@@ -89,3 +89,12 @@ export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
     });
     return finishPlan({events, cuts, spans, duration: offset + .03, secondsPerTick: 60 / project.songInfo.bpm / 480, warnings});
 }
+
+// Repeat the musical duration, excluding the initial Web Audio attack offset.
+// The source Project and its inherited harmony remain unchanged.
+export function buildRangeLoopPlan(project, deps, startIndex, count) {
+    if (!Number.isInteger(startIndex) || startIndex < 0 || !Number.isInteger(count) || count < 2 || startIndex + count > project.bars.length)
+        throw Error('連続する複数小節を選択してください');
+    const plan = buildSongPreviewPlan(project, deps, startIndex, count);
+    return {...plan, loopPeriod: plan.spans.at(-1).end};
+}

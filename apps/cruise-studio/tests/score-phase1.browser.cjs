@@ -1,3 +1,4 @@
+const {toolbarControl}=require('./helpers/score-toolbar.cjs');
 /* Synthetic editor integration only. No real credential, user profile or backend.
    The real localhost development entry keeps its unmodified Pro gate. */
 const test = require('node:test');
@@ -62,7 +63,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         try {
             await page.goto(origin + '/');
             await page.locator('#open-sheet-cruise').click();
-            await page.locator('#sc-new-project').click();await retainDrafts(page);
+            await (await toolbarControl(page,'#sc-new-project')).click();await retainDrafts(page);
             await settle(page);
             await fn(page, context);
         } finally { await context.close(); }
@@ -121,7 +122,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.waitForFunction(() => !CruiseStudio.sheetCruise.getSession().dirty && !CruiseStudio.sheetCruise.getSession().commitInFlight);
             const saved = await snapshot(page);
             const download = page.waitForEvent('download');
-            await page.locator('#sc-export-json').click();
+            await (await toolbarControl(page,'#sc-export-json')).click();
             const file = JSON.parse(fs.readFileSync(await (await download).path(), 'utf8'));
             assert.deepEqual(file, saved);
             await page.reload();
@@ -162,7 +163,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.equal((await snapshot(page)).bars.length, a.bars.length + 1);
             await page.locator('#sc-undo').click();
             assert.deepEqual(await snapshot(page), a);
-            await page.locator('#sc-new-project').click();await retainDrafts(page);
+            await (await toolbarControl(page,'#sc-new-project')).click();await retainDrafts(page);
             const b = await snapshot(page);
             assert.notEqual(a.projectId, b.projectId);
             await page.locator('#sc-project-select').selectOption(a.projectId);await retainDrafts(page);
@@ -184,7 +185,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await select(page);
             await page.locator('[data-overlay-field=chord]').first().fill('C');
             await page.locator('[data-overlay-field=chord]').first().press('Tab');
-            await page.locator('#sc-chord-forms').click();
+            await (await toolbarControl(page,'#sc-chord-forms')).click();
             await page.locator('#form-event').selectOption({index: 1});
             await page.locator('#form-open').click();
             await page.locator('#form-instrument').check();
@@ -200,7 +201,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.equal((await snapshot(page)).performance.formBindings.length, 0);
             await page.locator('#sc-redo').click();
             assert.equal((await snapshot(page)).performance.formBindings.length, 1);
-            await page.locator('#sc-chord-forms').click();
+            await (await toolbarControl(page,'#sc-chord-forms')).click();
             assert(await page.locator('#sc-goto-pre-dtm').isHidden());await page.locator('.studio-nav [data-workspace=preDtm]').click();await retainDrafts(page);
             const download = page.waitForEvent('download');
             await page.locator('#pd-export-midi').click();
@@ -214,8 +215,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('[data-overlay-field=doremi]').first().press('Tab');
             const before = await snapshot(page), event = before.bars[0].melody[0];
             assert.equal(event.provenance.timing.duration.confirmed, false);
-            await page.locator('#sc-score-style').selectOption('melody');
-            await page.locator('#sc-staff-refresh').click();
+            await (await toolbarControl(page,'#sc-score-style')).selectOption('melody');
+            await (await toolbarControl(page,'#sc-staff-refresh')).click();
             await page.locator('[data-melody-target][data-event-id="' + event.id + '"]').first().click();
             await page.locator('#sc-melody-duration').selectOption('120');
             const changed = await snapshot(page);

@@ -5,7 +5,7 @@
     else (root.CruiseStudio = root.CruiseStudio || {}).structureOperations = api;
 }(typeof window !== 'undefined' ? window : globalThis, function () {
     'use strict';
-    var labels = Object.freeze({ addBar:'小節を追加', deleteBar:'小節を削除', duplicateBar:'小節を複製', pasteBar:'小節の内容を貼り付け', moveBar:'小節を移動', moveBars:'複数小節を移動', transpose:'実音を移調', addSection: 'セクションを追加', removeSection: 'セクションを削除',
+    var labels = Object.freeze({basicRhythm:'基本ストロークを変更',deleteBars:'選択小節を削除',pasteBars:'選択小節を貼り付け',duplicateBars:'選択小節を複製',restoreSlot:'空き枠を小節に戻す',songInfo:'曲情報を変更',instrument:'キー・カポを変更',moveSection:'セクションを移動', addBar:'小節を追加', deleteBar:'小節を削除', duplicateBar:'小節を複製', pasteBar:'小節の内容を貼り付け', moveBar:'小節を移動', moveBars:'複数小節を移動', transpose:'実音を移調', addSection: 'セクションを追加', removeSection: 'セクションを削除',
         renameSection: 'セクション名を変更', barCount: 'セクションの小節数を変更',
         strum: 'ストロークセルを変更', resetStrum: '基本ストロークへ戻す',
         bulkChord: 'コードをまとめて適用', bulkDoremi: 'ドレミをまとめて適用', display: '譜面表示設定を変更' });
@@ -30,7 +30,7 @@
         if(JSON.stringify(source.instrument)!==JSON.stringify(canonical.instrument))throw Error('楽器条件が変わりました。小節をコピーし直してください');
         var destination=canonical.bars.findIndex(function(b){return b.id===args.barId;});
         if(destination<0)throw Error('貼り付け先の小節を選択してください');
-        var staged=JSON.parse(JSON.stringify(source));
+        var staged=JSON.parse(JSON.stringify(source));if(staged.extensions)delete staged.extensions.scoreLayoutV1;
         // The temporary copy needs only the source bar. Do not consume an extra
         // bar in the real Project or fail merely because it already has 2048 bars.
         staged.bars=staged.bars.filter(function(b){return b.id===args.sourceBarId;});
@@ -59,6 +59,80 @@
         canonical.performance.barRhythms=canonical.performance.barRhythms.filter(function(b){return b.barId!==target.id;}).concat([{id:api.newId(),barId:target.id,materialId:materialId}]);
         check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
     }
+    function scoreLayout(p,create){
+        if(create){if(!p.extensions)p.extensions={};if(!p.extensions.scoreLayoutV1)p.extensions.scoreLayoutV1={version:1,holes:[],fills:[]};}
+        return p.extensions?.scoreLayoutV1||{version:1,holes:[],fills:[]};
+    }
+    function scoreSlots(p,sectionId){
+        var holes=scoreLayout(p).holes,result=[],numbers=new Map(p.bars.map(function(b,i){return [b.id,i+1];}));
+        p.bars.filter(function(b){return b.sectionId===sectionId;}).forEach(function(b){
+            holes.filter(function(h){return h.sectionId===sectionId&&h.beforeBarId===b.id;}).forEach(function(h){result.push({id:h.id,sectionId:sectionId,empty:true});});
+            result.push({id:b.id,barId:b.id,sectionId:sectionId,barNumber:numbers.get(b.id)});
+        });
+        holes.filter(function(h){return h.sectionId===sectionId&&h.beforeBarId===null;}).forEach(function(h){result.push({id:h.id,sectionId:sectionId,empty:true});});return result;
+    }
+    function selectedPositions(p,ids){
+        if(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length)throw Error('小節を選択してください');
+        var positions=ids.map(function(id){return p.bars.findIndex(function(b){return b.id===id;});}).sort(function(a,b){return a-b;});
+        if(positions.some(function(n,i){return n<0||i&&n!==positions[0]+i;}))throw Error('連続する小節を選択してください');return positions;
+    }
+    function removeBars(p,ids,keep){
+        selectedPositions(p,ids);var removed=new Set(ids),chords=new Set(p.bars.filter(function(b){return removed.has(b.id);}).flatMap(function(b){return b.chords.map(function(c){return c.id;});}));
+        if(keep){var layout=scoreLayout(p,true),holes=[];p.sections.forEach(function(section){var slots=scoreSlots(p,section.id);slots.forEach(function(slot,i){if(slot.empty||removed.has(slot.id)){var next=slots.slice(i+1).find(function(s){return !s.empty&&!removed.has(s.id);});holes.push({id:slot.id,sectionId:section.id,beforeBarId:next?next.id:null});}});});layout.holes=holes;}
+        p.bars=p.bars.filter(function(b){return !removed.has(b.id);});p.performance.formBindings=p.performance.formBindings.filter(function(b){return !chords.has(b.chordEventId);});p.performance.barRhythms=p.performance.barRhythms.filter(function(b){return !removed.has(b.barId);});p.notation.lineBreakAfter=p.notation.lineBreakAfter.filter(function(id){return !removed.has(id);});
+    }
+    function restoreSlot(model,p,slot){
+        var api=model.schema2,layout=scoreLayout(p,true),hole=slot.id&&layout.holes.find(function(h){return h.id===slot.id;}),sectionId=hole?hole.sectionId:slot.sectionId,beforeId=hole?hole.beforeBarId:slot.beforeBarId;
+        if(slot.id&&!hole)throw Error('空き枠の選択が変わりました');if(!p.sections.some(function(s){return s.id===sectionId;}))throw Error('セクションが見つかりません');
+        if(beforeId!==null&&!p.bars.some(function(b){return b.id===beforeId&&b.sectionId===sectionId;}))throw Error('挿入位置が変わりました');
+        var index=beforeId===null?p.bars.reduce(function(n,b,i){return b.sectionId===sectionId?i+1:n;},-1):p.bars.findIndex(function(b){return b.id===beforeId;});
+        if(index<0){var order=p.sections.findIndex(function(s){return s.id===sectionId;}),later=new Set(p.sections.slice(order+1).map(function(s){return s.id;}));index=p.bars.findIndex(function(b){return later.has(b.sectionId);});if(index<0)index=p.bars.length;}
+        var id=hole?hole.id:api.newId();p.bars.splice(index,0,{id:id,sectionId:sectionId,melody:[],lyrics:[],chords:[]});
+        if(hole){var position=layout.holes.indexOf(hole);layout.holes.slice(0,position).filter(function(h){return h.sectionId===sectionId&&h.beforeBarId===beforeId;}).forEach(function(h){h.beforeBarId=id;});layout.holes.splice(position,1);layout.fills.forEach(function(f){if(f.anchorId===hole.id)f.anchorId=id;});}
+        else {
+            layout.holes.filter(function(h){return (slot.precedingHoleIds||[]).includes(h.id)&&h.sectionId===sectionId&&h.beforeBarId===beforeId;}).forEach(function(h){h.beforeBarId=id;});
+            var pad=slot.padIndex||0;if(!Number.isInteger(pad)||pad<0||pad>7)throw Error('空き枠の位置が不正です');
+            for(var i=0;i<pad;i++)layout.holes.push({id:api.newId(),sectionId:sectionId,beforeBarId:id});
+            if(slot.columns&&slot.baseUsed<slot.columns){var used=slot.liveUsed+pad+1;if(used>slot.columns)throw Error('行の空き枠が変わりました');layout.fills=layout.fills.filter(function(f){return f.anchorId!==slot.anchorId;});layout.fills.push({anchorId:slot.anchorId,columns:slot.columns,baseUsed:slot.baseUsed,used:used});}
+        }
+        return id;
+    }
+    function writeRestoredBar(model,p,id,values){
+        var index=p.bars.findIndex(function(b){return b.id===id;})+1;
+        [['chord',values.chord],['lyrics',values.lyrics],['doremi',values.doremi],['strum',values.strum]].forEach(function(pair){if(!pair[1]?.trim())return;model.editLegacy(p,function(view){var result;
+            if(pair[0]==='chord')result=model.setBarChord(view,index,pair[1],{symbolOnly:true});
+            if(pair[0]==='doremi')result=model.setBarDoremiText(view,index,pair[1]);
+            if(pair[0]==='lyrics')result=model.setBarLyricSlot(view,index,0,240,pair[1]);
+            if(pair[0]==='strum')result=model.setBarStrumText(view,index,pair[1]);
+            if(result?.ok===false||result?.warnings?.length)throw Error(result.error||result.warnings.join('/'));
+        },{kind:pair[0],barIds:[id]});});
+    }
+    function pasteRange(model,p,args){
+        var ids=args.sourceBarIds||[args.sourceBarId];ids=selectedPositions(args.source,ids).map(function(i){return args.source.bars[i].id;});
+        var targets=[],targetId,start;
+        if(args.insert){
+            targetId=args.slot?restoreSlot(model,p,args.slot):args.barId;start=p.bars.findIndex(function(b){return b.id===targetId;});if(start<0)throw Error('貼り付け先を選択してください');
+            var section=p.bars[start].sectionId;for(var i=args.slot?1:0;i<ids.length;i++)p.bars.splice(start+i,0,{id:model.schema2.newId(),sectionId:section,melody:[],lyrics:[],chords:[]});
+            targets=p.bars.slice(start,start+ids.length).map(function(b){return b.id;});
+        }else if(args.targetSlots){
+            // The UI supplies adjacent visible cells, including implicit line padding.
+            // Resolve each empty cell once; never skip it and overwrite the next live bar.
+            if(args.targetSlots.length!==ids.length)throw Error('貼り付け先の枠が足りません。「挿入して貼り付け」を使ってください');
+            var consumed=new Map();
+            args.targetSlots.forEach(function(cell){
+                if(cell.barId){if(!p.bars.some(function(b){return b.id===cell.barId;}))throw Error('貼り付け先が変わりました');targets.push(cell.barId);return;}
+                var slot=Object.assign({},cell);
+                if(!slot.id){var key=slot.anchorId||slot.sectionId,prior=consumed.get(key)||0;slot.padIndex-=prior;slot.liveUsed+=prior;if(slot.padIndex<0)throw Error('空き枠の選択が重複しています');consumed.set(key,prior+slot.padIndex+1);}
+                targets.push(restoreSlot(model,p,slot));
+            });targetId=targets[0];
+        }else{
+            targetId=args.slot?restoreSlot(model,p,args.slot):args.barId;
+            var slots=p.sections.flatMap(function(section){return scoreSlots(p,section.id);}),index=slots.findIndex(function(s){return s.id===targetId;});
+            if(index<0||index+ids.length>slots.length)throw Error('貼り付け先の枠が足りません。「挿入して貼り付け」を使ってください');
+            targets=slots.slice(index,index+ids.length).map(function(s){return s.empty?restoreSlot(model,p,{id:s.id}):s.id;});
+        }
+        ids.forEach(function(id,i){pasteBar(model,p,{source:args.source,sourceBarId:id,barId:targets[i]});});return targetId;
+    }
     function create(options) {
         var model = options.model;
         return Object.freeze({ execute: function (kind, args, expected) {
@@ -69,8 +143,41 @@
             }
             if (!Object.hasOwn(labels, kind)) return { ok: false, code: 'unsupported-operation' };
             args = args || {};
-            var before = structureKey(session.draft), warnings = [],formBefore=options.afterEdit?JSON.parse(JSON.stringify(session.draft)):null;
+            var before = structureKey(session.draft), warnings = [],formBefore=options.afterEdit||session.draft.extensions?.scoreLayoutV1?JSON.parse(JSON.stringify(session.draft)):null;
             var result = session.runOperation(labels[kind], function (canonical) {
+                if(['deleteBars','pasteBars','duplicateBars','restoreSlot','songInfo','instrument','moveSection','basicRhythm'].includes(kind)){
+                    if(canonical.schemaVersion!==2)throw Error('この操作はschema2の曲で使用できます');
+                    var api=model.schema2;
+                    if(kind==='deleteBars')removeBars(canonical,args.barIds,args.keepSlots!==false);
+                    if(kind==='pasteBars')pasteRange(model,canonical,args);
+                    if(kind==='duplicateBars'){var selected=selectedPositions(canonical,args.barIds),source=JSON.parse(JSON.stringify(canonical)),last=selected.at(-1),section=canonical.bars[last].sectionId,target={id:api.newId(),sectionId:section,chords:[],lyrics:[],melody:[]};canonical.bars.splice(last+1,0,target);pasteRange(model,canonical,{source:source,sourceBarIds:args.barIds,barId:target.id,insert:true,slot:null});canonical.bars.splice(last+1+args.barIds.length,1);}
+                    if(kind==='restoreSlot'){if(args.activateEmpty!==true&&!Object.values(args.values||{}).some(function(v){return typeof v==='string'&&v.trim();}))throw Error('入力してから確定してください');var restored=restoreSlot(model,canonical,args.slot);writeRestoredBar(model,canonical,restored,args.values);}
+                    if(kind==='basicRhythm')model.editLegacy(canonical,function(view){var r=model.setBasicStrumText(view,args.text);if(r.warnings.length)throw Error(r.warnings.join('/'));},{kind:'basicStrum'});
+                    if(kind==='songInfo'){var values=args.values;for(var field of Object.keys(values)){if(!['title','artist','bpm','originalKey'].includes(field))throw Error('曲情報の項目が不正です');if(field==='bpm'){if(!Number.isFinite(values[field])||values[field]<20||values[field]>400)throw Error('BPMは20〜400で入力してください');canonical.songInfo.bpm=values.bpm;}else{if(typeof values[field]!=='string'||values[field].length>1000)throw Error('入力を確認してください');canonical.songInfo[field]=values[field].trim();}}}
+                    if(kind==='songInfo'&&args.sections){
+                        var rows=args.sections;if(!Array.isArray(rows)||!rows.length||rows.length>128||new Set(rows.map(function(s){return s.id;})).size!==rows.length)throw Error('セクション構成を確認してください');
+                        var oldSections=new Map(canonical.sections.map(function(s){return [s.id,s];})),retained=new Set(rows.map(function(s){return s.id;}));
+                        for(var r of rows)if(typeof r.name!=='string'||r.name.length>200||!r.name.trim()||!oldSections.has(r.id)&&r.isNew!==true)throw Error('セクション名を確認してください');
+                        var remove=canonical.bars.filter(function(b){return !retained.has(b.sectionId);}).map(function(b){return b.id;});for(var id of remove)removeBars(canonical,[id],false);
+                        canonical.sections=rows.map(function(r){return oldSections.has(r.id)?Object.assign({},oldSections.get(r.id),{name:r.name.trim()}):{id:r.id,name:r.name.trim(),lyricsHidden:false};});
+                        for(var row of rows)if(!oldSections.has(row.id))for(var n=0;n<4;n++)canonical.bars.push({id:api.newId(),sectionId:row.id,chords:[],melody:[],lyrics:[]});
+                        var order=new Map(rows.map(function(r,i){return [r.id,i];}));canonical.bars.sort(function(a,b){return order.get(a.sectionId)-order.get(b.sectionId);});
+                    }
+                    if(kind==='moveSection'){var i=canonical.sections.findIndex(function(s){return s.id===args.sectionId;}),j=i+args.direction;if(i<0||![-1,1].includes(args.direction)||j<0||j>=canonical.sections.length)throw Error('これ以上移動できません');var item=canonical.sections.splice(i,1)[0];canonical.sections.splice(j,0,item);var order=new Map(canonical.sections.map(function(s,i){return [s.id,i];}));canonical.bars.sort(function(a,b){return order.get(a.sectionId)-order.get(b.sectionId);});}
+                    if(kind==='instrument'){
+                        if(!['preserve','transpose'].includes(args.mode))throw Error('変更方法を確認してください');
+                        if(!Number.isInteger(args.capo)||args.capo<0||args.capo>11)throw Error('カポは0〜11で指定してください');
+                        var delta=0;if(args.mode==='transpose'){var root=function(key){var m=/^([A-G])([#b♯♭]?)$/.exec(key);if(!m)throw Error('キーを確認してください');return (['C','D','E','F','G','A','B'].indexOf(m[1])<0?0:{C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]])+(m[2]==='#'||m[2]==='♯'?1:m[2]?-1:0);};delta=((root(args.originalKey)-root(canonical.songInfo.originalKey)+18)%12)-6;}
+                        var maximum=args.maxAbsoluteFret??canonical.instrument.maxAbsoluteFret;
+                        if(maximum!==undefined&&(!Number.isInteger(maximum)||maximum<args.capo||maximum>36))throw Error('フレット上限はカポ位置以上・36以下で指定してください');
+                        var changed=delta!==0||args.capo!==canonical.instrument.capo||maximum!==canonical.instrument.maxAbsoluteFret;
+                        if(changed&&canonical.performance.formBindings.length&&!options.afterEdit)throw Error('フォームの更新処理を準備できませんでした。開き直してください');
+                        if(delta){if(canonical.bars.some(function(b){return b.chords.some(function(c){return c.unresolved;});}))throw Error('未解決コードを確認してから移調してください');var shift=function(p){var midi=api.pitchMidi(p)+delta;if(midi<0||midi>127)throw Error('移調後の音域を確認してください');var steps=['C','C','D','D','E','F','F','G','G','A','A','B'];return {step:steps[midi%12],alter:[1,3,6,8,10].includes(midi%12)?1:0,octave:Math.floor(midi/12)-1};};canonical.bars.forEach(function(b){b.melody.forEach(function(e){if(e.kind==='note')e.pitch=shift(e.pitch);});b.chords.forEach(function(c){var symbol=api.chord(c.symbol,delta);if(symbol===null)throw Error('コードの移調を確認してください');c.symbol=symbol;});});canonical.solfege.tonic=shift(canonical.solfege.tonic);canonical.songInfo.originalKey=args.originalKey;}
+                        if(args.mode==='transpose')canonical.songInfo.originalKey=args.originalKey;
+                        canonical.instrument.capo=args.capo;if(maximum!==undefined)canonical.instrument.maxAbsoluteFret=maximum;if(changed)canonical.performance.formBindings=[];
+                    }
+                    api.reconcileScoreLayout(canonical,formBefore||canonical);if(options.afterEdit)options.afterEdit(canonical,formBefore);var checked=api.validate(canonical);if(!checked.ok)throw Error(checked.errors.join('/'));return;
+                }
                 if(kind==='pasteBar'){if(canonical.schemaVersion!==2)throw Error('この操作はschema2の曲で使用できます');pasteBar(model,canonical,args);return;}
                 if (['addBar','deleteBar','duplicateBar','moveBar','moveBars','transpose'].includes(kind)) {
                     if (canonical.schemaVersion !== 2) throw Error('この操作はschema2の曲で使用できます');
@@ -86,7 +193,7 @@
                         canonical.bars=canonical.bars.filter(function(b){return !ids.includes(b.id);});
                         var destination=canonical.bars.findIndex(function(b){return b.id===targetId;})+(after?1:0);
                         canonical.bars.splice.apply(canonical.bars,[destination,0].concat(movedBars));
-                        var movedCheck=api.validate(canonical);if(!movedCheck.ok)throw Error(movedCheck.errors.join('/'));
+                        api.reconcileScoreLayout(canonical,formBefore||canonical);var movedCheck=api.validate(canonical);if(!movedCheck.ok)throw Error(movedCheck.errors.join('/'));
                         return;
                     }
                     if (kind==='transpose') {
@@ -121,7 +228,7 @@
                         }
                         if(kind==='moveBar') {var j=i+args.direction;if(![-1,1].includes(args.direction)||j<0||j>=canonical.bars.length)throw Error('これ以上移動できません');var sectionId=canonical.bars[j].sectionId, moved=JSON.parse(JSON.stringify(canonical.bars[i]));moved.sectionId=sectionId;canonical.bars.splice(i,1);canonical.bars.splice(j,0,moved);}
                     }
-                    if(options.afterEdit)options.afterEdit(canonical,formBefore);var check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
+                    api.reconcileScoreLayout(canonical,formBefore||canonical);if(options.afterEdit)options.afterEdit(canonical,formBefore);var check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
                     return;
                 }
                 var applied=(model.editLegacy || function(p,fn){return fn(p);})(canonical,function(draft){
@@ -163,5 +270,5 @@
                 structureChanged: result.ok && before !== structureKey(session.draft) });
         } });
     }
-    return Object.freeze({ create: create, capture: capture, isCurrent: isCurrent, structureKey: structureKey });
+    return Object.freeze({ create: create, capture: capture, isCurrent: isCurrent, structureKey: structureKey,scoreSlots:scoreSlots,scoreLayout:scoreLayout });
 }));

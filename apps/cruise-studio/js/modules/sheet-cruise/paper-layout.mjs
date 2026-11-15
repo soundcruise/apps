@@ -21,7 +21,7 @@ export function normalizeDisplayPresets(records){
     const result=new Map();for(const record of records){
         if(record?.type!=='display-settings-v1'){for(const legacy of normalizeFontPresets([record]))result.set(legacy.name,legacy);continue;}
         const name=presetName(record.name);if(!name||!record.layout||!Array.isArray(record.rows)||record.rows.length>2048)continue;
-        const rows=record.rows.filter(r=>r&&Number.isInteger(r.barNumber)&&r.barNumber>=1&&r.barNumber<=2048&&Number.isInteger(r.columns)&&r.columns>=1&&r.columns<=8&&Number.isInteger(r.used)&&r.used>=1&&r.used<=r.columns).map(r=>({barNumber:r.barNumber,columns:r.columns,used:r.used}));
+        const rows=record.rows.filter(r=>r&&Number.isInteger(r.barNumber)&&r.barNumber>=1&&r.barNumber<=2048&&Number.isInteger(r.columns)&&r.columns>=1&&r.columns<=8&&Number.isInteger(r.used)&&r.used>=1&&r.used<=r.columns).map(r=>({barNumber:r.barNumber,columns:r.columns,used:r.used,...(Number.isInteger(r.slotNumber)&&r.slotNumber>=1&&r.slotNumber<=4096?{slotNumber:r.slotNumber}:{})}));
         result.set(name,{name,type:'display-settings-v1',layout:normalizeLayout(record.layout),rows});
     }return Array.from(result.values());
 }
@@ -78,7 +78,7 @@ export function createPaperLayout(C,doc=document){
 .sc-layout-dialog header{position:sticky;top:0;z-index:2;background:#1e2832;padding:4px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px;box-shadow:0 -20px 0 0 #1e2832;}
 .sc-layout-dialog h2{font-size:20px;margin:0;}.sc-layout-dialog p{font-size:12px;margin:6px 0 12px;color:#bfcad2;}
 .sc-layout-dialog button,.sc-layout-dialog select{font:inherit;font-size:13px;border:1px solid #7e8a94;border-radius:6px;padding:6px 10px;background:#2d3944;color:#fff;}
-.sc-paper-layout .sheet-bar--empty{background:repeating-linear-gradient(-45deg,transparent,transparent 6px,rgba(122,116,108,.06) 6px,rgba(122,116,108,.06) 7px)!important;pointer-events:none;}
+.sc-paper-layout .sheet-bar--empty{background:repeating-linear-gradient(-45deg,transparent,transparent 6px,rgba(122,116,108,.06) 6px,rgba(122,116,108,.06) 7px)!important;}
 .sc-layout-example [data-layout-highlight]{background:#c9e2ed88!important;box-shadow:inset 0 0 0 2px #408aa7!important;}
 .sc-layout-example .sc-selected-layout-line{outline:1px dashed #81959b;outline-offset:2px;}
 .sc-layout-controls label{border-left:3px solid transparent;padding-left:7px;}
@@ -129,22 +129,23 @@ export function createPaperLayout(C,doc=document){
         if(!presets.some(p=>p.name===name))return {ok:false,error:'削除するプリセットを選択してください'};
         const next=presets.filter(p=>p.name!==name),previous=presets;presets=next;const result=persist();if(result?.ok===false)presets=previous;if(result?.ok===false)return {ok:false,error:'プリセットを削除できませんでした。内容を保持しています'};presets=next;return {ok:true};
     }
+    function projectSlots(project){return C.structureOperations?.scoreSlots&&project.sections?project.sections.flatMap(s=>C.structureOperations.scoreSlots(project,s.id)):project.bars;}
     function saveDisplayPreset(name,project,visibility){
         name=presetName(name);if(!name)return {ok:false,error:'プリセット名を入力してください'};
         if(presets.some(p=>p.name===name))return {ok:false,error:'同じ名前があります。別の名前を入力してください'};
         if(presets.length>=20)return {ok:false,error:'プリセットは20個まで保存できます'};
-        const rows=(rowProjects.get(project.projectId)||[]).flatMap(r=>{const index=project.bars.findIndex(b=>b.id===r.barId);return index<0?[]:[{barNumber:index+1,columns:r.columns,used:r.used}];});
+        const slots=projectSlots(project),rows=(rowProjects.get(project.projectId)||[]).flatMap(r=>{const hole=project.extensions?.scoreLayoutV1?.holes.find(h=>h.id===r.barId),index=project.bars.findIndex(b=>b.id===(hole?hole.beforeBarId:r.barId)),slotIndex=hole?slots.findIndex(s=>s.id===r.barId):-1;return index<0&&slotIndex<0?[]:[{barNumber:Math.max(1,index+1),columns:r.columns,used:r.used,...(slotIndex>=0?{slotNumber:slotIndex+1}:{})}];});
         const layout=copy(value);if(visibility)layout.appearance.visibility={...visibility,...layout.appearance.visibility};const previous=presets;presets=presets.concat({name,type:'display-settings-v1',layout,rows});const result=persist();if(result?.ok===false){presets=previous;return {ok:false,error:'プリセットを保存できませんでした'};}return {ok:true,name};
     }
     function loadDisplayPreset(name,project){
         const preset=presets.find(p=>p.name===name);if(!preset)return {ok:false,error:'プリセットを選択してください'};
         if(preset.fonts)return loadFontPreset(name);
-        const rows=preset.rows.flatMap(r=>project.bars[r.barNumber-1]?[{barId:project.bars[r.barNumber-1].id,columns:r.columns,used:r.used}]:[]);
+        const slots=projectSlots(project),rows=preset.rows.flatMap(r=>{const anchor=r.slotNumber?slots[r.slotNumber-1]:project.bars[r.barNumber-1];return anchor?[{barId:anchor.id,columns:r.columns,used:r.used}]:[];});
         rowProjects.set(project.projectId,rows);return set(preset.layout);
     }
-    function renderOptions(project){const rules=new Map((rowProjects.get(project.projectId)||[]).map(r=>[r.barId,r]));return {visibility:{...value.appearance.visibility},barsPerLine:value.barsPerLine,lineLayoutForBar(number){return rules.get(project.bars[number-1]?.id)||null;}};}
+    function renderOptions(project){const rules=new Map((rowProjects.get(project.projectId)||[]).map(r=>[r.barId,r]));return {visibility:{...value.appearance.visibility},barsPerLine:value.barsPerLine,lineLayoutForSlot(id,number){return rules.get(id)||rules.get(project.bars[number-1]?.id)||null;},lineLayoutForBar(number){return rules.get(project.bars[number-1]?.id)||null;}};}
     function setLine(project,barId,columns,used){
-        if(!project.bars.some(b=>b.id===barId))return {ok:false};
+        if(!project.bars.some(b=>b.id===barId)&&!project.extensions?.scoreLayoutV1?.holes.some(h=>h.id===barId))return {ok:false};
         let rows=(rowProjects.get(project.projectId)||[]).filter(r=>r.barId!==barId);
         if(columns!==null){const checked=normalizeLineRules([{barId,columns,used}]);if(!checked.length)return {ok:false};rows.push(checked[0]);}
         rowProjects.set(project.projectId,rows);notify();return saveRows();
@@ -189,9 +190,9 @@ export function createPaperLayout(C,doc=document){
         const lineGroup=doc.createElement('fieldset'),legend=doc.createElement('legend');legend.textContent='選択した行';legend.dataset.layoutLineTitle='';lineGroup.appendChild(legend);custom.appendChild(lineGroup);
         const colsRow=field('rowLayout','横に並べる枠',lineGroup),colsInput=doc.createElement('select'),usedRow=field('rowLayout','この行に置く小節',lineGroup),usedInput=doc.createElement('select');colsInput.dataset.lineColumns='';colsInput.setAttribute('aria-label','横に並べる枠');usedInput.dataset.layoutLineUsed='';usedInput.setAttribute('aria-label','この行に置く小節');for(let n=1;n<=8;n++){const o=doc.createElement('option');o.value=n;o.textContent=n+'枠';colsInput.appendChild(o);}colsRow.appendChild(colsInput);usedRow.appendChild(usedInput);
         const lineReset=doc.createElement('button');lineReset.type='button';lineReset.textContent='この行を自動に戻す';lineReset.dataset.lineReset='';lineGroup.append(lineReset);
-        function syncLine(){const line=selectedLine();custom.hidden=!line;paper.querySelectorAll('.sheet-line').forEach(e=>e.classList.toggle('sc-selected-layout-line',e===line));if(!line)return;const number=Number(line.dataset.lineStart),bar=sample.bars[number-1],rule=(rowProjects.get(sample.projectId)||[]).find(r=>r.barId===bar.id),columns=Number(line.dataset.lineCapacity);legend.textContent=number+'小節目からの行';colsInput.value=columns;usedInput.replaceChildren();for(let n=1;n<=columns;n++){const o=doc.createElement('option');o.value=n;o.textContent=n+'小節';usedInput.appendChild(o);}usedInput.value=rule?rule.used:Number(line.dataset.lineUsed);paper.querySelectorAll('.sheet-line').forEach(e=>e.classList.toggle('sc-selected-layout-line',e===line));}
-        function changeLine(){const line=selectedLine();if(!line)return;activeSetting='rowLayout';selectedNumber=Number(line.dataset.lineStart);const columns=Number(colsInput.value),used=Math.min(Number(usedInput.value)||columns,columns),id=sample.bars[Number(line.dataset.lineStart)-1].id;setLine(sample,id,columns,used);}
-        colsInput.addEventListener('change',changeLine);usedInput.addEventListener('change',changeLine);lineReset.addEventListener('click',()=>{const line=selectedLine();if(line)setLine(sample,sample.bars[Number(line.dataset.lineStart)-1].id,null);});
+        function syncLine(){const line=selectedLine();custom.hidden=!line;paper.querySelectorAll('.sheet-line').forEach(e=>e.classList.toggle('sc-selected-layout-line',e===line));if(!line)return;const number=Number(line.dataset.lineStart),bar=sample.bars[number-1],rule=(rowProjects.get(sample.projectId)||[]).find(r=>r.barId===line.dataset.lineAnchor||r.barId===bar.id),columns=Number(line.dataset.lineCapacity);legend.textContent=number+'小節目からの行';colsInput.value=columns;usedInput.replaceChildren();for(let n=1;n<=columns;n++){const o=doc.createElement('option');o.value=n;o.textContent=n+'小節';usedInput.appendChild(o);}usedInput.value=rule?rule.used:Number(line.dataset.lineUsed);paper.querySelectorAll('.sheet-line').forEach(e=>e.classList.toggle('sc-selected-layout-line',e===line));}
+        function changeLine(){const line=selectedLine();if(!line)return;activeSetting='rowLayout';selectedNumber=Number(line.dataset.lineStart);const columns=Number(colsInput.value),used=Math.min(Number(usedInput.value)||columns,columns),id=line.dataset.lineAnchor;setLine(sample,id,columns,used);}
+        colsInput.addEventListener('change',changeLine);usedInput.addEventListener('change',changeLine);lineReset.addEventListener('click',()=>{const line=selectedLine();if(line)setLine(sample,line.dataset.lineAnchor,null);});
         function currentVisibility(){return {...(options.getVisibility?.()||{}),...value.appearance.visibility};}
         function visible(flag){return flag.startsWith('show')?value[flag]:currentVisibility()[flag]!==false;}
         function toggle(flag,checked){if(flag.startsWith('show'))set({[flag]:checked});else set({appearance:{...value.appearance,visibility:{...value.appearance.visibility,[flag]:checked}}});}
@@ -210,9 +211,9 @@ export function createPaperLayout(C,doc=document){
         let resizeFrame=null;
         function scheduleResize(){if(resizeFrame===null)resizeFrame=requestAnimationFrame(()=>{resizeFrame=null;resize();});}
         function resize(){if(!dialog||!paper.isConnected)return;const scale=Math.min(1,viewport.clientWidth/794);paper.style.transform='scale('+scale+')';frame.style.height=Math.ceil(paper.offsetHeight*scale)+'px';mark(true);}
-        refreshSample=(structural=true)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample)});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(structural)syncLine();mark();scheduleResize();};
+        refreshSample=(structural=true)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample),editableSlots:false});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(structural)syncLine();mark();scheduleResize();};
         function clearHighlight(){activeSetting=null;feedback.textContent='';mark();}
-        preview.addEventListener('click',e=>{const line=e.target.closest('.sheet-line');selectedNumber=line?Number(line.dataset.lineStart):null;syncLine();clearHighlight();});
+        preview.addEventListener('click',e=>{const line=e.target.closest('.sheet-line');selectedNumber=line&&Number(line.dataset.lineStart)>0?Number(line.dataset.lineStart):null;syncLine();clearHighlight();});
         dialog.addEventListener('click',e=>{if(e.target.closest('[data-layout-field],[data-layout-custom]'))return;clearHighlight();if(!e.target.closest('.sheet-line,button,input,select,summary')){selectedNumber=null;syncLine();}});
         reset.addEventListener('click',()=>{const forms=visible('forms');selectedNumber=null;value=normalizeLayout(DEFAULT_LAYOUT);value.appearance.visibility.forms=forms;rowProjects.delete(sample.projectId);notify();save();});dismiss.addEventListener('click',()=>close());accept.addEventListener('click',()=>close(true));dialog.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close();}});dialog.addEventListener('close',()=>{const old=dialog;if(!old)return;dialog=null;old.remove();refreshSample=()=>{};if(editing)cancel();else notify();if(previous?.isConnected)previous.focus({preventScroll:true});});const observer=new ResizeObserver(scheduleResize);observer.observe(viewport);dialog.addEventListener('close',()=>{observer.disconnect();if(resizeFrame!==null)cancelAnimationFrame(resizeFrame);},{once:true});dialog.addEventListener('cancel',e=>{e.preventDefault();close();});dialog.showModal();refreshSample();
     }

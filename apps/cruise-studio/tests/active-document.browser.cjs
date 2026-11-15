@@ -1,3 +1,4 @@
+const {toolbarControl}=require('./helpers/score-toolbar.cjs');
 /* Normal Studio document/output regression; disposable Chrome, no auth probes. */
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
 const { chromium } = require('playwright');
@@ -8,13 +9,13 @@ test('Active Document alignment real Chrome', async t => {
     await context.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
     const p = await context.newPage(); p.setDefaultTimeout(8000); p.on('dialog', d => d.accept());
     const nav = async id => { await p.click('.studio-nav [data-workspace="' + id + '"]'); await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); };
-    const download = async selector => { const pending = p.waitForEvent('download'); await p.click(selector); return fs.readFileSync(await (await pending).path()); };
+    const download = async selector => { const pending = p.waitForEvent('download'); await (await toolbarControl(p,selector)).click(); return fs.readFileSync(await (await pending).path()); };
     try {
         await p.goto(url); await p.waitForFunction(() => !!CruiseStudio.shellHost);
         await p.evaluate(async () => { const CS = CruiseStudio, project = CS.model.createSampleProject(); project.projectId = 'A'; project.songInfo.title = 'Song A'; await CS.repository.save({ target: { type: 'project', projectId: 'A' }, snapshot: project, baseRevision: null }); CS.storage.setCurrentProjectId('A'); });
         await t.test('counterexample A → Pre-DTM → new dirty B → Pre-DTM exports B', async () => {
             await nav('sheetCruise'); await nav('preDtm'); assert.equal(JSON.parse(await download('#pd-export-json')).projectId, 'A');
-            await nav('sheetCruise'); await p.click('#sc-new-project');
+            await nav('sheetCruise'); await (await toolbarControl(p,'#sc-new-project')).click();
             await p.locator('#sc-editor-drawer').evaluate(e => e.open = true); await p.locator('#sc-title').fill('Unsaved B'); await p.locator('#sc-editor-drawer').evaluate(e => e.open = false);
             const before = await p.evaluate(() => { const s = CruiseStudio.sheetCruise.getSession(); return { id: s.target.projectId, base: s.baseRevision, draft: JSON.stringify(s.draft) }; });
             await nav('preDtm'); const json = JSON.parse(await download('#pd-export-json'));
@@ -43,7 +44,7 @@ test('Active Document alignment real Chrome', async t => {
             page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); }); page.on('response', r => { if (r.status() === 404) missing.push(r.url()); });
             const go = async id => { await page.click('.studio-nav [data-workspace="' + id + '"]'); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); };
             const get = () => page.evaluate(() => { const s = CruiseStudio.sheetCruise.getSession(); return { id: s?.target.projectId, draft: s && JSON.stringify(s.draft), base: s?.baseRevision, dirty: s?.dirty, pending: s?.externalUpdatePending }; });
-            const dl = async selector => { const d = page.waitForEvent('download'); await page.click(selector); return fs.readFileSync(await (await d).path()); };
+            const dl = async selector => { const d = page.waitForEvent('download'); await (await toolbarControl(page,selector)).click(); return fs.readFileSync(await (await d).path()); };
             try {
                 await page.goto(url); await page.waitForFunction(() => !!CruiseStudio.documents);
                 if (!empty) {

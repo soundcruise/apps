@@ -57,7 +57,7 @@ export function createFormAuthoring(C,base){
         const m=event.unresolved?null:recommend(p,event.symbol);
         if(m){initialize(p);install(p,event,m,'auto');}else p.performance.formBindings=p.performance.formBindings.filter(b=>b.chordEventId!==event.id);
     }
-    function reconcile(p,before){if(p.schemaVersion!==2)return;const old=new Map(before.bars.flatMap(b=>b.chords).map(e=>[e.id,e.symbol]));for(const e of p.bars.flatMap(b=>b.chords)){const exists=p.performance.formBindings.some(b=>b.chordEventId===e.id);if(old.has(e.id)?old.get(e.id)!==e.symbol:!exists)syncEvent(p,e);}}
+    function reconcile(p,before){if(p.schemaVersion!==2)return;const instrumentChanged=JSON.stringify(p.instrument)!==JSON.stringify(before.instrument);const old=new Map(before.bars.flatMap(b=>b.chords).map(e=>[e.id,e.symbol]));for(const e of p.bars.flatMap(b=>b.chords)){const exists=p.performance.formBindings.some(b=>b.chordEventId===e.id);if(instrumentChanged||(old.has(e.id)?old.get(e.id)!==e.symbol:!exists))syncEvent(p,e);}}
     function adopt(session,barId,eventId,m){
         try{
             const c=C.shellHost.getCommandContext(),raw=C.repository.readRevision(session.target);
@@ -69,5 +69,12 @@ export function createFormAuthoring(C,base){
                 install(p,e,copy,'fixed');const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));},{requireUndo:true,preserveAppliedUndo:true});
         }catch(e){return {ok:false,error:e.message};}
     }
-    return Object.freeze({material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
+    function configureStrings(session,barId,eventId,playedStrings,remove=false){
+        try{const c=C.shellHost.getCommandContext(),raw=C.repository.readRevision(session.target);if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||c.activeModal||C.shellHost.modal.getActive()||C.shellHost.keyboard.isIMEBlocked({})||!raw.ok||raw.revision!==session.baseRevision)throw Error('編集対象・入力状態を確認してください');
+            return session.runOperation(remove?'コードフォームを解除':'鳴らす弦を変更',p=>{const event=p.bars.find(b=>b.id===barId)?.chords.find(e=>e.id===eventId),binding=p.performance.formBindings.find(b=>b.chordEventId===eventId);if(!event||!binding)throw Error('対象コードのフォームが変わりました');if(remove){p.performance.formBindings=p.performance.formBindings.filter(b=>b.id!==binding.id);return;}
+                const m=p.materials.forms.find(m=>m.id===binding.materialId);binding.playedStrings=playedStrings.slice();binding.confirmation={status:'unconfirmed',basisKey:null};const key=basisKey(p,event,m,playedStrings);binding.confirmation={status:'confirmed',basisKey:key};const result=evaluateBinding(p,binding,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol});if(!result.ready)binding.confirmation={status:'unconfirmed',basisKey:null};const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));
+            },{requireUndo:true});
+        }catch(e){return {ok:false,error:e.message};}
+    }
+    return Object.freeze({configureStrings,material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
 }

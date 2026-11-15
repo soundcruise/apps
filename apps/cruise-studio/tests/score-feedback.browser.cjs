@@ -1,3 +1,4 @@
+const {toolbarControl}=require('./helpers/score-toolbar.cjs');
 /* Synthetic editor integration only. No real credential, user profile or backend.
    The real localhost development entry keeps its unmodified Pro gate. */
 const test = require('node:test');
@@ -91,8 +92,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await t.test('new projects are unique, active, focused and drafts survive cancellation and switching',()=>fresh(async page=>{
             const first=await snapshot(page);assert.equal(first.songInfo.title,'無題のプロジェクト 1');
             for(const n of [2,3]){
-                await page.locator('#sc-new-project').click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.equal((await snapshot(page)).songInfo.title,'無題のプロジェクト '+(n-1));
-                await page.locator('#sc-new-project').click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();
+                await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.equal((await snapshot(page)).songInfo.title,'無題のプロジェクト '+(n-1));
+                await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();
                 const p=await snapshot(page);assert.equal(p.songInfo.title,'無題のプロジェクト '+n);assert.notEqual(p.projectId,first.projectId);
                 assert.equal(await page.evaluate(()=>document.activeElement.id),'sc-title');assert.equal(await page.locator('#sc-title').inputValue(),p.songInfo.title);assert(await page.locator('#sc-slot-overlay').evaluate(e=>e.classList.contains('hidden')));
             }
@@ -116,21 +117,21 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.deepEqual(after.bars[1].melody.map(e=>e.provenance),before.bars[0].melody.map(e=>e.provenance));assert(after.performance.barRhythms.some(r=>r.barId===after.bars[1].id));
             await page.locator('[data-overlay-field=chord]').first().fill('Dm7');await page.locator('[data-overlay-field=chord]').first().press('Tab');assert.equal((await snapshot(page)).bars[0].chords[0].symbol,'C');await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),after);await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),before);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),after);
             await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);
-            const d=page.waitForEvent('download');await page.locator('#sc-export-json').click();assert.deepEqual(JSON.parse(fs.readFileSync(await(await d).path(),'utf8')),saved);
+            const d=page.waitForEvent('download');await (await toolbarControl(page,'#sc-export-json')).click();assert.deepEqual(JSON.parse(fs.readFileSync(await(await d).path(),'utf8')),saved);
             await page.reload();await page.locator('#open-sheet-cruise').click();assert.deepEqual(await snapshot(page),saved);assert.equal(await page.locator('.sheet-bar[data-bar-number="2"] .sheet-bar-chord').innerText(),'C');
         }));
         await t.test('save failure never continues or discards draft; repeated request cannot duplicate modal',()=>fresh(async page=>{
-            const before=await snapshot(page);await page.locator('#sc-new-project').click();await page.evaluate(()=>{CruiseStudio.sheetCruise.requestLeave(()=>{throw Error('duplicate continuation')});const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='cruiseStudio.projects.index')throw Error('synthetic quota');return original.call(this,k,v)};});
+            const before=await snapshot(page);await (await toolbarControl(page,'#sc-new-project')).click();await page.evaluate(()=>{CruiseStudio.sheetCruise.requestLeave(()=>{throw Error('duplicate continuation')});const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='cruiseStudio.projects.index')throw Error('synthetic quota');return original.call(this,k,v)};});
             assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),1);await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.getByText(/移動せずdraftを保持しています/).waitFor();assert.deepEqual(await snapshot(page),before);await page.getByRole('button',{name:'キャンセル',exact:true}).click();
         }));
         await t.test('pending input, external conflict and UNKNOWN block continuations',async()=>{
             await fresh(async page=>{
-                const before=await snapshot(page);await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().setInputPending(true));await page.locator('#sc-new-project').click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),0);assert.deepEqual(await snapshot(page),before);
+                const before=await snapshot(page);await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().setInputPending(true));await (await toolbarControl(page,'#sc-new-project')).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),0);assert.deepEqual(await snapshot(page),before);
                 await page.evaluate(async()=>{const C=CruiseStudio,s=C.sheetCruise.getSession();s.setInputPending(false);const p=JSON.parse(JSON.stringify(s.workingSnapshot()));p.songInfo.title='External original';await C.repository.save({target:s.target,snapshot:p,baseRevision:s.baseRevision});});
-                await page.locator('#sc-new-project').click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),0);assert.deepEqual(await snapshot(page),before);
+                await (await toolbarControl(page,'#sc-new-project')).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),0);assert.deepEqual(await snapshot(page),before);
             });
             await fresh(async page=>{
-                const before=await snapshot(page);await page.locator('#sc-new-project').click();await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('synthetic failure')};Storage.prototype.removeItem=function(){throw Error('synthetic rollback failure')};});await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.getByText(/移動せずdraftを保持しています/).waitFor();assert.deepEqual(await snapshot(page),before);await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),1);
+                const before=await snapshot(page);await (await toolbarControl(page,'#sc-new-project')).click();await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('synthetic failure')};Storage.prototype.removeItem=function(){throw Error('synthetic rollback failure')};});await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.getByText(/移動せずdraftを保持しています/).waitFor();assert.deepEqual(await snapshot(page),before);await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),1);
             });
         });
         await t.test('local Shell home/back navigation asks first and preserves drafts',()=>fresh(async page=>{
@@ -141,7 +142,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         }));
         await t.test('unsaved dialog actions stay separated and usable at narrow widths and long titles',()=>fresh(async page=>{
             await page.locator('#sc-title').fill('検証用の長いプロジェクト名'.repeat(16));
-            await page.locator('#sc-new-project').click();
+            await (await toolbarControl(page,'#sc-new-project')).click();
             const dialog=page.getByRole('dialog',{name:'未保存の変更を確認'});
             for(const width of [320,390,768,1440]){
                 await page.setViewportSize({width,height:800});await settle(page);

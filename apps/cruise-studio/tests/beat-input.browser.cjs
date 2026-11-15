@@ -1,3 +1,4 @@
+const {toolbarControl}=require('./helpers/score-toolbar.cjs');
 /* Synthetic editor integration only. No real credential, user profile or backend.
    The real localhost development entry keeps its unmodified Pro gate. */
 const test = require('node:test');
@@ -123,7 +124,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await t.test('save/reload/JSON and Undo retain beat timing and IDs',()=>fresh(async page=>{
             await select(page);const chords=page.locator('[data-overlay-field=chord]');await chords.first().fill('C');await chords.first().press('Enter');const before=await snapshot(page);await chords.nth(1).fill('G');await chords.nth(1).press('Tab');const after=await snapshot(page);
             await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),before);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),after);
-            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);const d=page.waitForEvent('download');await page.locator('#sc-export-json').click();assert.deepEqual(JSON.parse(fs.readFileSync(await(await d).path(),'utf8')),saved);await page.reload();await page.locator('#open-sheet-cruise').click();assert.deepEqual(await snapshot(page),saved);
+            await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);const d=page.waitForEvent('download');await (await toolbarControl(page,'#sc-export-json')).click();assert.deepEqual(JSON.parse(fs.readFileSync(await(await d).path(),'utf8')),saved);await page.reload();await page.locator('#open-sheet-cruise').click();assert.deepEqual(await snapshot(page),saved);
         }));
         await t.test('IME confirmation does not navigate and invalid notes stay in place',()=>fresh(async page=>{
             await select(page);const field=page.locator('[data-overlay-field=doremi]').first();await field.evaluate(e=>{e.focus();e.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));e.value='ド';e.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}));e.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));});assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'0');
@@ -136,7 +137,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await select(page);await page.getByRole('button',{name:'16分',exact:true}).click();const cells=page.locator('[data-overlay-field=chord]');assert.equal(await cells.count(),16);await cells.first().press('Enter');assert.equal(await page.evaluate(()=>document.activeElement.dataset.slotTick),'120');
         }));
         await t.test('dialog has breathing room and readable actions at 390 and 1440',()=>fresh(async page=>{
-            await page.locator('#sc-new-project').click();const d=page.getByRole('dialog',{name:'未保存の変更を確認'});
+            await (await toolbarControl(page,'#sc-new-project')).click();const d=page.getByRole('dialog',{name:'未保存の変更を確認'});
             for(const width of [390,1440]){await page.setViewportSize({width,height:900});await settle(page);const sizes=await d.evaluate(e=>{const p=e.querySelector('p').getBoundingClientRect(),buttons=[...e.querySelectorAll('button')].map(b=>{const r=b.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom}});return {gap:Math.min(...buttons.map(b=>b.y))-p.bottom,buttons,width:e.clientWidth,scroll:e.scrollWidth}});assert(sizes.gap>=24);assert(sizes.scroll<=sizes.width+1);for(let i=0;i<2;i++){const a=sizes.buttons[i],b=sizes.buttons[i+1];assert(a.right+12<=b.x||a.bottom+12<=b.y);}if(process.env.SCORE_DIALOG_SCREENSHOTS)await page.screenshot({path:process.env.SCORE_DIALOG_SCREENSHOTS+'/beat-dialog-'+width+'.png'});}
         }));
         await t.test('runtime and external requests remain clean',()=>{assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);assert.deepEqual(missing,[])});

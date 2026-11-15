@@ -1,3 +1,4 @@
+const {toolbarControl}=require('./helpers/score-toolbar.cjs');
 // Fresh contexts + synthetic JSON only; real local Web Audio, no account/network APIs.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {pathToFileURL}=require('node:url'),{chromium,webkit}=require('playwright');
@@ -59,14 +60,14 @@ test('explicit JSON/Print reject invalid and composing text, then export correct
   await p.evaluate(()=>{window.__prints=0;window.print=()=>{window.__prints++;};});
   await p.locator('.sheet-bar').first().focus();await p.keyboard.press('Enter');const field=p.locator('[data-overlay-field=doremi]').first();
   await field.fill('ド');await field.press('Tab');const before=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
-  await field.fill('不正');await field.press('Tab');await p.locator('#sc-export-json').click();await p.locator('#sc-print').click();
+  await field.fill('不正');await field.press('Tab');await (await toolbarControl(p,'#sc-export-json')).click();await (await toolbarControl(p,'#sc-print')).click();
   assert.match(await p.locator('#sc-save-status').innerText(),/出力を中止/);assert.equal(await field.inputValue(),'不正');
   assert.deepEqual(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),before);
   await field.fill('レ');await field.press('Tab');await field.dispatchEvent('compositionstart');
-  await p.locator('#sc-export-json').click();await p.locator('#sc-print').click();assert.equal(downloads.length,0);assert.equal(await p.evaluate(()=>__prints),0);
+  await (await toolbarControl(p,'#sc-export-json')).click();await (await toolbarControl(p,'#sc-print')).click();assert.equal(downloads.length,0);assert.equal(await p.evaluate(()=>__prints),0);
   await field.dispatchEvent('compositionend');await p.evaluate(()=>new Promise(r=>setTimeout(r,0)));
-  const event=p.waitForEvent('download');await p.locator('#sc-export-json').click();const output=JSON.parse(fs.readFileSync(await(await event).path(),'utf8'));
+  const event=p.waitForEvent('download');await (await toolbarControl(p,'#sc-export-json')).click();const output=JSON.parse(fs.readFileSync(await(await event).path(),'utf8'));
   assert.deepEqual(output,await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()));assert.notDeepEqual(output.bars[0].melody,before.bars[0].melody);
-  await p.locator('#sc-print').click();assert.equal(await p.evaluate(()=>__prints),1);
+  await (await toolbarControl(p,'#sc-print')).click();assert.equal(await p.evaluate(()=>__prints),1);
  }finally{await browser.close();}
 });
