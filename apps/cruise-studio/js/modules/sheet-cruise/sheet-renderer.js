@@ -233,7 +233,7 @@
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests,heldForNote,formsForBar) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests,heldForNote,formRow) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -252,9 +252,9 @@
             cell.appendChild(buildTimingGrid(beats, timeRes));
         }
 
-        cell.appendChild(el('span', 'sheet-bar-num', String(bar.barNumber)));
+        var rowIndex=1;function appendRow(row){row.style.gridRow=String(rowIndex++);cell.appendChild(row);}
+        appendRow(el('span', 'sheet-bar-num', String(bar.barNumber)));
         var unsupportedStrum=!!strum?.unsupported;
-        if(unsupportedStrum){cell.appendChild(el('div','sheet-bar-row',strum.name+'：採用リズムの印刷は未対応'));strum=null;}
 
         // 各段に共通クラス .sheet-bar-row を付ける。段と段の間の区切り横線は
         // CSS（.sheet-bar-row + .sheet-bar-row）が引く。将来ストローク段を
@@ -263,21 +263,21 @@
             var chord=buildTimedTextRow('sheet-bar-chord',(bar.chords||[]).map(function(e){return {tick:e.tick,text:e.symbol};}),timeRes,beats*model.TICKS_PER_BEAT);
             chord.style.fontSize='17.5px';chord.style.fontWeight='800';
             chord.querySelectorAll('.sheet-timed-cell').forEach(function(e){if(e.textContent)e.classList.add('sheet-chord-event');});
-            cell.appendChild(chord);
+            appendRow(chord);
         }
 
-        var forms=formsForBar&&formsForBar(bar.barNumber,timeRes);if(forms)cell.appendChild(forms);
+        if(show.forms)appendRow(formRow||el('div','sheet-bar-row sheet-bar-forms'));
 
         // ストローク段: コード段の直下。小節別上書きがあればそれを優先し、
         // なければユーザー入力済みの基本ストロークを継承する
         // Keep the empty stroke band so lyrics/notes align with neighboring bars.
         // This adds no rhythm events; blank-stroke playback remains a projection.
-        if (show.strum && !unsupportedStrum) {
-            cell.appendChild(buildStrumRow(strum?.slots || [], strum?.barTicks || beats * model.TICKS_PER_BEAT, timeRes));
+        if (show.strum) {
+            appendRow(unsupportedStrum?el('div','sheet-bar-row sheet-bar-strum',strum.name+'：採用リズムの印刷は未対応'):buildStrumRow(strum?.slots || [], strum?.barTicks || beats * model.TICKS_PER_BEAT, timeRes));
         }
 
         if (hasVocal && show.lyrics) {
-            cell.appendChild(buildLyricsRow(bar, timeRes, beats * model.TICKS_PER_BEAT));
+            appendRow(buildLyricsRow(bar, timeRes, beats * model.TICKS_PER_BEAT));
         }
 
         if (hasVocal && show.doremi) {
@@ -285,9 +285,9 @@
             var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
             var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave,durationTicks:e.durationTicks,held:!!heldForNote&&heldForNote(bar.barNumber,e.tick)};}).concat((rests||[]).map(function(e){return {tick:e.onsetTick,restTicks:e.durationTicks};})),timeRes,beats*model.TICKS_PER_BEAT);
             doremi.style.color='var(--paper-doremi)';
-            cell.appendChild(doremi);
+            appendRow(doremi);
         }
-        return cell;
+        cell.style.gridRow='1 / span '+(rowIndex-1);return cell;
     }
 
     /* ══════════ 本体 ══════════ */
@@ -317,12 +317,9 @@
 
             var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.tabIndex=0;label.setAttribute('role','button');label.setAttribute('aria-pressed','false');label.title=sec.name+'を選択して、ここから再生';page.appendChild(label);
 
-            // 歌詞もドレミも出ないセクション（前奏など）は2倍詰めのコード段にする
-            var hasVocal = bars.some(function (bar) {
-                return (show.lyrics && bar.lyrics && bar.lyrics.length > 0) ||
-                    (show.doremi && ((bar.melody && bar.melody.length > 0)||restsForBar(bar.barNumber).length>0));
-            });
-            var hasForms=!!options?.hasFormsForBar&&bars.some(function(b){return options.hasFormsForBar(b.barNumber);});
+            // Track visibility, rather than empty content, determines the shared row layout.
+            var hasVocal = show.lyrics || show.doremi;
+            var hasForms=!!options?.formsForBar;
             var cols = [1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms ? show.barsPerLine : show.barsPerLine * 2;
 
             // 譜面行（.sheet-line）単位で組む: 印刷時に行の途中で改ページさせない
@@ -330,10 +327,13 @@
                 var rule=options?.lineLayoutForBar?.(bars[i].barNumber),capacity=rule&&Number.isInteger(rule.columns)&&rule.columns>=1&&rule.columns<=8?rule.columns:cols,used=rule&&Number.isInteger(rule.used)&&rule.used>0?Math.min(rule.used,capacity):capacity;
                 var line=el('div','sheet-line'+(hasVocal?'':' sheet-line--compact'));line.style.gridTemplateColumns='repeat('+capacity+', 1fr)';line.dataset.lineStart=bars[i].barNumber;line.dataset.lineCapacity=capacity;if(rule)line.dataset.lineCustom='';
                 var lineBars=bars.slice(i,i+used);line.dataset.lineUsed=lineBars.length;
-                var lineShow=Object.assign({},show,{lyrics:show.lyrics&&lineBars.some(function(b){return b.lyrics?.length;}),doremi:show.doremi&&lineBars.some(function(b){return b.melody?.length||restsForBar(b.barNumber).length;})});
+                var formRows=options?.formsForBar?lineBars.map(function(bar){return options.formsForBar(bar.barNumber);}):[];
+                var lineShow=Object.assign({},show,{forms:!!options?.formsForBar});
+                var rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);
+                line.style.setProperty('--sheet-row-count',rowCount);
                 var lineHasVocal=!!(lineShow.lyrics||lineShow.doremi);line.classList.toggle('sheet-line--compact',!lineHasVocal);
-                lineBars.forEach(function(bar){var strum=show.strum?resolveBarStrum(project,bar):null;line.appendChild(buildBarCell(bar,lineShow,lineHasVocal,beats,strum,options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,options&&options.formsForBar));});
-                for(var pad=lineBars.length;pad<capacity;pad++){var empty=el('div','sheet-bar sheet-bar--empty');empty.setAttribute('role','img');empty.setAttribute('aria-label','レイアウト用の空き枠（編集・再生なし）');line.appendChild(empty);}
+                lineBars.forEach(function(bar,index){var strum=show.strum?resolveBarStrum(project,bar):null;line.appendChild(buildBarCell(bar,lineShow,lineHasVocal,beats,strum,options&&options.resolutionForBar?options.resolutionForBar(bar):null,options&&options.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]));});
+                for(var pad=lineBars.length;pad<capacity;pad++){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.setAttribute('role','img');empty.setAttribute('aria-label','レイアウト用の空き枠（編集・再生なし）');line.appendChild(empty);}
                 page.appendChild(line);i+=lineBars.length;
             }
         });
