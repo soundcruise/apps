@@ -1,8 +1,9 @@
 import {chordVoicing, strumVoices} from './chord-audition.mjs';
+import {createHarmonyTimeline} from './score-harmony.mjs';
 
 // Pure, read-only score -> audio projection. Times are seconds from one audio clock.
 // A blank cell is not a rest: recorded strings ring until a physical interruption.
-function barPlan(project, index, deps) {
+function barPlan(project, index, deps, harmony) {
     const bar = project.bars[index], seconds = 60 / project.songInfo.bpm / 480, total = 1920 * seconds;
     if (!bar || !Number.isFinite(total) || total <= 0 || total > 60) throw Error('BPMや小節を確認してください');
     const events = [], warnings = [], cuts = [];
@@ -30,19 +31,6 @@ function barPlan(project, index, deps) {
             cuts.push(.03 + chord.onsetTick * seconds);
             if (chord.durationTicks !== undefined) cuts.push(.03 + (chord.onsetTick + chord.durationTicks) * seconds);
         }
-        function chordAt(tick) {
-            const found = chords.filter(c => c.onsetTick <= tick).at(-1);
-            if (found) return found.durationTicks !== undefined && tick >= found.onsetTick + found.durationTicks ? null : found;
-            for (let b = index - 1; b >= 0; b--) {
-                const previous = project.bars[b].chords.slice().sort((a, b) => a.onsetTick - b.onsetTick);
-                if (previous.length) {
-                    const last = previous.at(-1);
-                    if (previous.filter(c => c.onsetTick === last.onsetTick).length > 1) throw Error('同じ位置の複数コードは試聴未対応です');
-                    return last.durationTicks === undefined ? last : null;
-                }
-            }
-            return null;
-        }
         if (!slots.length && chords.length) warnings.push('ストローク未入力のためコードは鳴りません');
         slots.forEach((slot, i) => {
             const end = Math.min(1920, slot.tick + (slot.durationTicks ?? fallback), slots[i + 1]?.tick ?? 1920);
@@ -55,7 +43,7 @@ function barPlan(project, index, deps) {
                     tick: slot.tick, stroke: 'mute'}); return;
             }
             try {
-                const chord = chordAt(slot.tick);
+                const chord = harmony.at(index,slot.tick);
                 if (!chord) throw Error('コード未入力のストロークは鳴らせません');
                 if (chords.includes(chord) && chords.filter(c => c.onsetTick === chord.onsetTick).length > 1)
                     throw Error('同じ位置の複数コードは試聴未対応です');
@@ -88,12 +76,12 @@ function finishPlan(plan) {
     plan.events = ordered.filter(e => e.duration > .0001 && e.start < plan.duration);
     return plan;
 }
-export function buildBarPreviewPlan(project, index, deps) { return finishPlan(barPlan(project, index, deps)); }
+export function buildBarPreviewPlan(project, index, deps) { return finishPlan(barPlan(project, index, deps,createHarmonyTimeline(project))); }
 export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
-    const events = [], cuts = [], spans = [], warnings = []; let offset = 0;
+    const events = [], cuts = [], spans = [], warnings = [], harmony=createHarmonyTimeline(project); let offset = 0;
     project.bars.slice(startIndex, count === undefined ? undefined : startIndex + count).forEach((bar, n) => {
         const index = startIndex + n;
-        let plan; try { plan = barPlan(project, index, deps); } catch (e) { throw Error((index + 1) + '小節目：' + e.message); }
+        let plan; try { plan = barPlan(project, index, deps,harmony); } catch (e) { throw Error((index + 1) + '小節目：' + e.message); }
         plan.events.forEach(e => events.push({...e, start: e.start + offset, ...(e.attackStart === undefined ? {} : {attackStart: e.attackStart + offset}), barIndex: index}));
         plan.cuts.forEach(t => cuts.push(t + offset));
         spans.push({index, start: offset, end: offset + plan.duration - .03}); offset += plan.duration - .03;

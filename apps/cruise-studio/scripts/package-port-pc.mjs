@@ -46,6 +46,7 @@ export const RELEASE_FILES=Object.freeze([
  'js/modules/sheet-cruise/text-adapter.js',
  'js/modules/pre-dtm-cruise/arrangement-engine.js',
  'js/modules/pre-dtm-cruise/guitar-voicing.mjs',
+ 'js/modules/sheet-cruise/score-harmony.mjs',
  'js/modules/pre-dtm-cruise/midi-export.js',
  'js/modules/pre-dtm-cruise/pre-dtm.js',
  'js/modules/chord/form-adapter.mjs',

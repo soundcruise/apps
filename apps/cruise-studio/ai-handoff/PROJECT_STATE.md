@@ -1,3 +1,7 @@
+# Studio local 0.127.1-dev.1 — 継続コードMIDI・表示設定の高速化（未公開）
+
+基準ad76a408。継続コードの確認済みフォームをPre-DTM MIDIへ引き継ぎ、音声と同じ和声境界を使用する。表示設定の文字/色/罫線は既存DOMへ反映し、フォームSVGを上限付きで再利用。256小節の文字サイズ操作中央値403→70ms。Chrome/WebKitのMIDI実ダウンロードと設定保存/取消を確認。全Node2,126成功・既存同名39失敗・5skip、新規失敗なし。正式0.88.1、本番配信・実Account/Sync・公開HTML・既存アプリは無変更。初回/構造変更の全体描画は未最適化。詳細: [修正・検証記録](../docs/midi-layout-fixes-20261115/README.md)。以下は履歴。
+
 # Studio 0.86.1 — 正式アイコン・指板表示統合候補（未公開）
 
 PR #220の承認済みProアイコンとPR #221の指板viewport修正を統合。Standard原本はsource-only、ProのID・URL・保存契約を維持。関連Node 31件PASS。認証済みStudioでの限定UI確認とPages配布差分の最終確認が必要。main merge・公開なし。

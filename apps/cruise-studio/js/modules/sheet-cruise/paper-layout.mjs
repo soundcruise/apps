@@ -1,4 +1,4 @@
-import {TEXT_FIELDS,LINE_FIELDS,normalizeAppearance,applyAppearance,APPEARANCE_CSS,addTextTools} from './paper-appearance.mjs';
+import {setPresentationProperty,togglePresentationClass,TEXT_FIELDS,LINE_FIELDS,normalizeAppearance,applyAppearance,APPEARANCE_CSS,addTextTools} from './paper-appearance.mjs';
 // Browser-local presentation preferences. Never edits a Project or its Session.
 export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:4,formScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:16,strumSize:15,lyricsSize:14,doremiSize:12,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,appearance:Object.freeze({text:Object.freeze({}),lines:Object.freeze({}),visibility:Object.freeze({})})});
 const ranges={formScale:[60,140],titleSize:[18,40],artistSize:[10,26],metaSize:[9,18],chordSize:[12,28],strumSize:[10,24],lyricsSize:[10,24],doremiSize:[10,24],partSize:[10,22],numberSize:[8,16]};
@@ -34,10 +34,14 @@ export function createPaperLayout(C,doc=document){
     function revision(){return JSON.stringify([C.storage.getAppSetting(displayKey),C.storage.getAppSetting(key),C.storage.getAppSetting(rowKey),C.storage.getAppSetting(presetKey)]);}
     function restoreStored(){const saved=C.storage.getAppSetting(displayKey),modern=saved?.version===2;value=normalizeLayout(modern?saved.layout:C.storage.getAppSetting(key));presets=normalizeDisplayPresets(modern?saved.presets:C.storage.getAppSetting(presetKey));rowProjects.clear();const records=modern?saved.rows:C.storage.getAppSetting(rowKey);if(Array.isArray(records))for(const row of records)if(typeof row?.projectId==='string')rowProjects.set(row.projectId,normalizeLineRules(row.rows));}
     restoreStored();let storedRevision=revision();
+    // Typography/ink update existing rows; only geometry/track changes rebuild nodes.
+    function structureKey(){return JSON.stringify([value.barsPerLine,value.formScale,value.appearance.visibility,Array.from(rowProjects)]);}
+    let lastStructure=structureKey();
+    function notify(){const next=structureKey(),structural=next!==lastStructure;lastStructure=next;refreshSample(structural);changed({structural});}
     function bundle(){return {version:2,layout:{...value},rows:Array.from(rowProjects,([projectId,rows])=>({projectId,rows})),presets:copy(presets)};}
     function persist(){if(editing)return {ok:true,staged:true};if(revision()!==storedRevision)return {ok:false,error:'表示設定が別の画面で変更されています'};const result=C.storage.setAppSetting(displayKey,bundle());if(result?.ok!==false)storedRevision=revision();return result;}
     function begin(){if(editing)return false;if(revision()!==storedRevision){restoreStored();storedRevision=revision();}editing={before:JSON.parse(JSON.stringify(bundle())),revision:storedRevision};return true;}
-    function cancel(){if(!editing)return;const before=editing.before;editing=null;value=normalizeLayout(before.layout);presets=normalizeDisplayPresets(before.presets);rowProjects.clear();for(const row of before.rows)rowProjects.set(row.projectId,row.rows);refreshSample();changed();}
+    function cancel(){if(!editing)return;const before=editing.before;editing=null;value=normalizeLayout(before.layout);presets=normalizeDisplayPresets(before.presets);rowProjects.clear();for(const row of before.rows)rowProjects.set(row.projectId,row.rows);notify();}
     function commit(){
         if(!editing)return {ok:false,error:'表示設定が開かれていません'};
         if(revision()!==editing.revision)return {ok:false,error:'別の画面で表示設定が変更されました。キャンセルして開き直してください'};
@@ -97,11 +101,22 @@ export function createPaperLayout(C,doc=document){
 @media(max-width:700px){.sc-layout-body{grid-template-columns:1fr;}.sc-layout-example{position:static;}.sc-layout-controls fieldset{grid-column:1/-1;}.sc-layout-controls{grid-template-columns:1fr 1fr;}.sc-layout-dialog{padding:14px;}.sc-layout-example-viewport{max-height:48vh;}}
 @media print{.sc-layout-dialog,.sc-layout-dialog::backdrop{display:none!important;}.sc-paper-layout .sheet-bar-num{min-height:0!important;}.sc-paper-layout.sc-hide-numbers .sheet-bar-num{display:none!important;}}
 `;doc.head.appendChild(style);}
-    function apply(host){applyAppearance(host,value);host.classList.add('sc-paper-layout');for(const [key,name] of [['showTitle','title'],['showArtist','artist'],['showMeta','meta']])host.classList.toggle('sc-hide-'+name,!value[key]);host.classList.toggle('sc-hide-numbers',!value.showNumbers);host.classList.toggle('sc-hide-parts',!value.showParts);for(const name of Object.keys(ranges))host.style.setProperty('--sc-'+name,value[name]+'px');}
+    const appliedSizes=new WeakMap();
+    function apply(host){
+        applyAppearance(host,value);togglePresentationClass(host,'sc-paper-layout',true);
+        for(const [key,name] of [['showTitle','title'],['showArtist','artist'],['showMeta','meta']])togglePresentationClass(host,'sc-hide-'+name,!value[key]);
+        togglePresentationClass(host,'sc-hide-numbers',!value.showNumbers);togglePresentationClass(host,'sc-hide-parts',!value.showParts);
+        const old=appliedSizes.get(host),sizes=old?.page===host.firstElementChild?old.sizes:{};
+        for(const name of Object.keys(ranges)){
+            if(TEXT_FIELDS[name]){if(sizes[name]!==value[name]){host.querySelectorAll(TEXT_FIELDS[name][2]).forEach(row=>setPresentationProperty(row,'--sc-'+name,value[name]+'px'));sizes[name]=value[name];}}
+            else setPresentationProperty(host,'--sc-'+name,value[name]+'px');
+        }
+        appliedSizes.set(host,{page:host.firstElementChild,sizes});
+    }
     function status(text){if(dialog)dialog.querySelector('[role=status]').textContent=text;}
     function save(){const result=persist();status(result?.ok===false?'設定を保存できませんでした。':'調整中です。保存で反映します');return result;}
     function saveRows(){return save();}
-    function set(patch,persist=true){value=normalizeLayout({...value,...patch});refreshSample();changed();return persist?save():{ok:true};}
+    function set(patch,persist=true){value=normalizeLayout({...value,...patch});notify();return persist?save():{ok:true};}
     function saveFontPreset(name){
         name=presetName(name);if(!name)return {ok:false,error:'プリセット名を入力してください'};
         const existing=presets.some(p=>p.name===name);if(!existing&&presets.length>=20)return {ok:false,error:'プリセットは20個まで保存できます'};
@@ -132,7 +147,7 @@ export function createPaperLayout(C,doc=document){
         if(!project.bars.some(b=>b.id===barId))return {ok:false};
         let rows=(rowProjects.get(project.projectId)||[]).filter(r=>r.barId!==barId);
         if(columns!==null){const checked=normalizeLineRules([{barId,columns,used}]);if(!checked.length)return {ok:false};rows.push(checked[0]);}
-        rowProjects.set(project.projectId,rows);refreshSample();changed();return saveRows();
+        rowProjects.set(project.projectId,rows);notify();return saveRows();
     }
     function close(saveChanges=false){if(!dialog)return;if(saveChanges){const result=commit();if(!result.ok){status(result.error);return;}}else cancel();dialog.close(saveChanges?'save':'cancel');}
     function open(host,options={}){
@@ -147,9 +162,10 @@ export function createPaperLayout(C,doc=document){
         body.className='sc-layout-body';controls.className='sc-layout-controls';preview.className='sc-layout-example';caption.textContent='現在編集中の譜面（表示専用）。行をクリックすると、その行だけの配置を調整できます。';feedback.className='sc-layout-feedback';feedback.dataset.layoutFeedback='';viewport.className='sc-layout-example-viewport';paper.className='sc-layout-example-paper';viewport.appendChild(frame);frame.appendChild(paper);preview.append(caption,feedback,viewport);body.append(controls,preview);dialog.appendChild(body);
         function selectedLine(){if(selectedNumber===null)return null;return Array.from(paper.querySelectorAll('.sheet-line')).find(line=>line.querySelector('.sheet-bar[data-bar-number="'+selectedNumber+'"]'))||null;}
         function mark(reveal=false){
-            paper.querySelectorAll('[data-layout-highlight]').forEach(e=>e.removeAttribute('data-layout-highlight'));
+            const targets=activeSetting?Array.from(paper.querySelectorAll(targetSelectors[activeSetting])):[],kept=new Set(targets);
+            paper.querySelectorAll('[data-layout-highlight]').forEach(e=>{if(!kept.has(e))e.removeAttribute('data-layout-highlight');});
             controls.querySelectorAll('[data-layout-field]').forEach(e=>e.classList.toggle('is-layout-active',e.dataset.layoutField===activeSetting));
-            if(!activeSetting)return;const targets=paper.querySelectorAll(targetSelectors[activeSetting]);targets.forEach(e=>e.dataset.layoutHighlight=activeSetting);
+            if(!activeSetting)return;targets.forEach(e=>{if(e.dataset.layoutHighlight!==activeSetting)e.dataset.layoutHighlight=activeSetting;});
             const visible=Array.from(targets).filter(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden');feedback.textContent=names[activeSetting]+'を調整中'+(visible.length?'':'（現在は表示されていません）');
             const line=selectedLine(),target=visible.find(e=>line?.contains(e))||visible[0];
             if(reveal&&target){const a=viewport.getBoundingClientRect(),b=target.getBoundingClientRect();if(b.top<a.top+4)viewport.scrollTop+=b.top-a.top-8;else if(b.bottom>a.bottom-4)viewport.scrollTop+=b.bottom-a.bottom+8;}
@@ -191,12 +207,14 @@ export function createPaperLayout(C,doc=document){
             const row=doc.createElement('div'),title=doc.createElement('span'),ink=doc.createElement('input'),style=doc.createElement('select'),weight=doc.createElement('input'),out=doc.createElement('output');row.className='sc-line-settings';row.dataset.layoutField=name+'Line';title.textContent=label;ink.type='color';ink.dataset.lineColor=name;ink.setAttribute('aria-label',label+'の色');weight.type='range';weight.min=0;weight.max=4;weight.step=.25;weight.dataset.lineWidth=name;weight.setAttribute('aria-label',label+'の太さ');style.dataset.lineStyle=name;style.setAttribute('aria-label',label+'の線種');for(const [id,text] of [['solid','実線'],['dashed','破線'],['dotted','点線']]){const o=doc.createElement('option');o.value=id;o.textContent=text;style.appendChild(o);}const patch=p=>{activeSetting=name+'Line';set({appearance:{...value.appearance,lines:{...value.appearance.lines,[name]:{color:'',width,style:defaultStyle,...value.appearance.lines[name],...p}}}});};ink.addEventListener('input',()=>patch({color:ink.value}));weight.addEventListener('input',()=>patch({width:Number(weight.value)}));style.addEventListener('change',()=>patch({style:style.value}));row.addEventListener('focusin',()=>activate(name+'Line'));inputs.push(()=>{const l=value.appearance.lines[name];ink.value=l?.color||color;weight.value=l?.width??width;style.value=l?.style||defaultStyle;out.textContent=(l?.width??width)+'px';});row.append(title,ink,style,weight,out);lines.appendChild(row);
         }
         const footer=doc.createElement('footer'),reset=doc.createElement('button'),statusText=doc.createElement('span');reset.type='button';reset.textContent='おすすめに戻す';reset.dataset.layoutReset='';statusText.setAttribute('role','status');footer.append(reset,statusText);controls.append(footer,presetGroup);host.appendChild(dialog);
+        let resizeFrame=null;
+        function scheduleResize(){if(resizeFrame===null)resizeFrame=requestAnimationFrame(()=>{resizeFrame=null;resize();});}
         function resize(){if(!dialog||!paper.isConnected)return;const scale=Math.min(1,viewport.clientWidth/794);paper.style.transform='scale('+scale+')';frame.style.height=Math.ceil(paper.offsetHeight*scale)+'px';mark(true);}
-        refreshSample=()=>{if(!dialog)return;inputs.forEach(fn=>fn());C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample)});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});apply(paper);syncLine();mark();requestAnimationFrame(resize);};
+        refreshSample=(structural=true)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample)});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(structural)syncLine();mark();scheduleResize();};
         function clearHighlight(){activeSetting=null;feedback.textContent='';mark();}
         preview.addEventListener('click',e=>{const line=e.target.closest('.sheet-line');selectedNumber=line?Number(line.dataset.lineStart):null;syncLine();clearHighlight();});
         dialog.addEventListener('click',e=>{if(e.target.closest('[data-layout-field],[data-layout-custom]'))return;clearHighlight();if(!e.target.closest('.sheet-line,button,input,select,summary')){selectedNumber=null;syncLine();}});
-        reset.addEventListener('click',()=>{const forms=visible('forms');selectedNumber=null;value=normalizeLayout(DEFAULT_LAYOUT);value.appearance.visibility.forms=forms;rowProjects.delete(sample.projectId);refreshSample();changed();save();});dismiss.addEventListener('click',()=>close());accept.addEventListener('click',()=>close(true));dialog.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close();}});dialog.addEventListener('close',()=>{const old=dialog;if(!old)return;dialog=null;old.remove();refreshSample=()=>{};if(editing)cancel();else changed();if(previous?.isConnected)previous.focus({preventScroll:true});});const observer=new ResizeObserver(resize);observer.observe(viewport);dialog.addEventListener('close',()=>observer.disconnect(),{once:true});dialog.addEventListener('cancel',e=>{e.preventDefault();close();});dialog.showModal();refreshSample();
+        reset.addEventListener('click',()=>{const forms=visible('forms');selectedNumber=null;value=normalizeLayout(DEFAULT_LAYOUT);value.appearance.visibility.forms=forms;rowProjects.delete(sample.projectId);notify();save();});dismiss.addEventListener('click',()=>close());accept.addEventListener('click',()=>close(true));dialog.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close();}});dialog.addEventListener('close',()=>{const old=dialog;if(!old)return;dialog=null;old.remove();refreshSample=()=>{};if(editing)cancel();else notify();if(previous?.isConnected)previous.focus({preventScroll:true});});const observer=new ResizeObserver(scheduleResize);observer.observe(viewport);dialog.addEventListener('close',()=>{observer.disconnect();if(resizeFrame!==null)cancelAnimationFrame(resizeFrame);},{once:true});dialog.addEventListener('cancel',e=>{e.preventDefault();close();});dialog.showModal();refreshSample();
     }
     return {renderOptions,setLine,begin,commit,cancel,saveDisplayPreset,loadDisplayPreset,saveFontPreset,loadFontPreset,deleteFontPreset,get presets(){return copy(presets);},get value(){return copy(value);},get isOpen(){return !!dialog?.open;},apply,set,open,close,onChange(fn){changed=fn;}};
 }

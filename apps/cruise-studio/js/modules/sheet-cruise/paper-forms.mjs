@@ -4,15 +4,19 @@ export function registeredPaperForms(project){
     return project.bars.map(bar=>bar.chords.flatMap(chord=>{const material=materials.get(bindings.get(chord.id));return material?.snapshot?.strings.some(n=>n.kind==='note')?[{eventId:chord.id,tick:chord.onsetTick,symbol:chord.symbol,snapshot:material.snapshot,materialId:material.id}]:[];}).sort((a,b)=>a.tick-b.tick));
 }
 export function createPaperForms(renderer,doc=document){
+    const svgCache=new Map();
     const labels={1:'人',2:'中',3:'薬',4:'小',T:'親'};
     function svg(snapshot,fingers){
+        const key=JSON.stringify([snapshot,fingers]);
+        if(svgCache.has(key)){const cached=svgCache.get(key);svgCache.delete(key);svgCache.set(key,cached);return cached;}
         const notes=snapshot.strings.filter(n=>n.kind==='note'),fretsOf=notes.map(n=>n.relativeFret),open=fretsOf.includes(0),min=open?0:Math.min(...fretsOf),max=Math.max(open?3:min,...fretsOf),frets=[];
         if(open)frets.push(0);for(let f=Math.max(1,min);f<=max;f++)frets.push(f);
         const options={monochrome:true,frets,openStringNutOnly:open,monochromeViewportLeftCrop:open?12:0,monochromeFretNumberYOffset:10,
             markers:notes.map(n=>({string:n.string,fret:n.relativeFret,label:fingers?(labels[n.finger]||(n.fingeringWarning?'⚠':'')):'',role:'root'})),
             mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:snapshot.barres.map(b=>({...b,fret:b.relativeFret})),markerLabelFontSize:18,fretNumberScale:19/13};
         const width=renderer.createModel(options).width,crop=open?12:0,pad=Math.max(10,(345-width+crop)/2);
-        return renderer.buildStaticSvg({...options,svgPadding:{left:pad,right:pad,top:8,bottom:20,fillMonochromeBackground:true}}).replace(/(<text x="[^"]+" y=")([^"]+)(" text-anchor="middle")(?=[^>]*style="font-family:Arial,sans-serif;font-size:18px)/g,(_,before,y,after)=>before+(Number(y)-4)+after+' dominant-baseline="central"');
+        const result=renderer.buildStaticSvg({...options,svgPadding:{left:pad,right:pad,top:8,bottom:20,fillMonochromeBackground:true}}).replace(/(<text x="[^"]+" y=")([^"]+)(" text-anchor="middle")(?=[^>]*style="font-family:Arial,sans-serif;font-size:18px)/g,(_,before,y,after)=>before+(Number(y)-4)+after+' dominant-baseline="central"');
+        svgCache.set(key,result);if(svgCache.size>256)svgCache.delete(svgCache.keys().next().value);return result;
     }
     return {
         detail(project,eventId){const entry=registeredPaperForms(project).flat().find(e=>e.eventId===eventId);return entry?{symbol:entry.symbol,svg:svg(entry.snapshot,true)}:null;},

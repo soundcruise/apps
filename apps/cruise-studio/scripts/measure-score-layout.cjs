@@ -1,7 +1,7 @@
 // Isolated synthetic UI measurement. No project or preference is written in a user profile.
 const fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url'),{randomUUID}=require('node:crypto');
 const {chromium}=require('playwright'),root=path.resolve(__dirname,'../../..');
-const output=path.join(root,'apps/cruise-studio/docs/acoustic-review-20261115');
+const output=process.env.SCORE_LAYOUT_METRICS_OUT||path.join(root,'apps/cruise-studio/docs/acoustic-review-20261115');
 (async()=>{
  const {createUITestProject}=await import(pathToFileURL(path.join(root,'apps/cruise-studio/scripts/create-ui-test-project.mjs')));
  const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});

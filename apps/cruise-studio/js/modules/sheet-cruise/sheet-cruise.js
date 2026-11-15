@@ -408,7 +408,7 @@
             [['showTitle','曲名','sc-show-title'],['showArtist','アーティスト名','sc-show-artist'],['showMeta','曲情報','sc-show-meta'],['showParts','セクション名','sc-show-parts'],['showNumbers','小節番号','sc-show-numbers']].forEach(function(item){var label=document.createElement('label'),input=document.createElement('input');label.className='pd-check';input.type='checkbox';input.id=item[2];input.checked=CS().localPaperLayout.value[item[0]];input.addEventListener('change',function(){if(!editorCanMove()){input.checked=CS().localPaperLayout.value[item[0]];return;}stopPianoAudition();CS().localPaperLayout.set({[item[0]]:input.checked});});label.append(input,document.createTextNode(' '+item[1]));visibility.appendChild(label);});
             ['title','artist','meta','parts','numbers','chords','forms','strum','lyrics','doremi'].forEach(function(name){var input=q('sc-show-'+name);if(input)visibility.appendChild(input.closest('label'));});
             var settings=document.createElement('button');settings.type='button';settings.id='sc-paper-settings';settings.className='btn-ghost btn-compact';settings.textContent='表示設定';settings.title='見本を見ながら小節数・フォーム・文字サイズを調整';settings.addEventListener('click',function(){if(!editorCanMove())return;finishTextInputs();stopPianoAudition();var project=state.session.workingSnapshot();CS().localPaperLayout.open(els.root,{project:project,selectedBarNumber:state.selectedBarNumber||1,getVisibility:function(){return effectivePaperVisibility(project);},getRenderOptions:function(){return paperRenderOptions(project);}});refreshToolbarActions();});var head=document.createElement('div');head.className='sc-score-toolbar-head';var projects=els.toolbar.querySelector('.sheet-toolbar-project');els.toolbar.prepend(head);if(projects)head.appendChild(projects);head.appendChild(settings);
-            CS().localPaperLayout.onChange(function(){renderPreview(true);if(state.project)renderDisplayToggles();[['showTitle','title'],['showArtist','artist'],['showMeta','meta'],['showNumbers','numbers'],['showParts','parts']].forEach(function(pair){var name=pair[0],input=q('sc-show-'+pair[1]);if(input)input.checked=CS().localPaperLayout.value[name];});});
+            CS().localPaperLayout.onChange(function(change){if(change?.structural===false){CS().localPaperLayout.apply(els.scaleBox);updateSheetScale();refreshToolbarActions();}else renderPreview(true);if(state.project)renderDisplayToggles();[['showTitle','title'],['showArtist','artist'],['showMeta','meta'],['showNumbers','numbers'],['showParts','parts']].forEach(function(pair){var name=pair[0],input=q('sc-show-'+pair[1]);if(input)input.checked=CS().localPaperLayout.value[name];});});
         }
         CS().localPaperLayout.apply(els.scaleBox);if(state.session)renderPreview(true);
     }
@@ -1594,7 +1594,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=import('./score-playback.mjs?v=0.127.0-dev.1').then(function(m){scorePlayback=m;}).catch(function(){scorePlaybackPending=null;});
+        if(!scorePlaybackPending)scorePlaybackPending=import('./score-playback.mjs?v=0.127.1-dev.1').then(function(m){scorePlayback=m;}).catch(function(){scorePlaybackPending=null;});
     }
     function buildBarPreviewPlan(project,index,deps){
         if(!scorePlayback){prepareScorePlayback();throw Error('再生の準備中です。もう一度押してください');}
@@ -1779,7 +1779,7 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.127.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.127.1-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
@@ -4412,7 +4412,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.127.0-dev.1',
+        developmentVersion: '0.127.1-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,
