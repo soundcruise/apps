@@ -1,3 +1,4 @@
+import {buildBarPreviewPlan,buildSongPreviewPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -79,9 +80,9 @@ test('a stopped pending bar decode never starts and invalid schedules allocate n
  const g=fixture();for(const events of [[{midi:60,part:'guitar',start:-1,duration:1,gain:.3}],[{midi:60,part:'guitar',start:0,duration:100,gain:.3}],[{midi:60,part:'unknown',start:0,duration:1,gain:.3}]])assert(!(await g.runtime.playEvents(events,()=>true,2)).ok);assert(!(await g.runtime.playEvents([{midi:60,part:'piano',start:0,duration:1,gain:.3}],()=>true,Infinity)).ok);assert.equal(g.contexts.length,0);
 });
 test('bar preview reads exact melody pitches and reference chord tones without changing any project or timing qualification',()=>{
- const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),plan=vm.runInNewContext(source.slice(a,b)+';buildBarPreviewPlan;');
+ const plan=buildBarPreviewPlan;
  const p={songInfo:{bpm:120},instrument:{capo:2},performance:{formBindings:[]},bars:[{melody:[{id:'note',kind:'note',onsetTick:240,durationTicks:120,pitch:{midi:72},provenance:{timing:{duration:{confirmed:false}}}},{kind:'rest',onsetTick:360,durationTicks:240}],chords:[{symbol:'D',onsetTick:0},{symbol:'H?',unresolved:true,onsetTick:960}]}]};
- const before=JSON.stringify(p),r=plan(p,0,{pitchMidi:p=>p.midi,parseChord:s=>({root:s,quality:'',bass:null}),notePc:()=>2,rhythm:()=>({encoding:'studio-strum-v1',slots:[{tick:0,action:'down',durationTicks:240},{tick:960,action:'down',durationTicks:240}]}),qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}}});assert.equal(JSON.stringify(p),before);assert.equal(r.duration,2.03);assert.equal(r.events.filter(e=>e.part==='piano').length,1);const note=r.events.find(e=>e.part==='piano');assert.equal(note.midi,72);assert.equal(note.start,.28);assert.equal(note.duration,.125);assert(r.events.filter(e=>e.part==='guitar').every(e=>[42,50,54,57].includes(e.midi)));assert.equal(r.warnings.length,1);assert.equal(p.performance.formBindings.length,0);
+ const before=JSON.stringify(p),r=plan(p,0,{pitchMidi:p=>p.midi,parseChord:s=>({root:s,quality:'',bass:null}),notePc:()=>2,rhythm:()=>({encoding:'studio-strum-v1',slots:[{tick:0,action:'down',durationTicks:240},{tick:960,action:'down',durationTicks:240}]}),qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}}});assert.equal(JSON.stringify(p),before);assert.equal(r.duration,2.03);assert.equal(r.events.filter(e=>e.part==='piano').length,1);const note=r.events.find(e=>e.part==='piano');assert.equal(note.midi,72);assert.equal(note.start,.28);assert.equal(note.duration,.125);assert(r.events.filter(e=>e.part==='guitar').every(e=>[42,50,54,57].includes(e.midi)));assert.equal(r.warnings.length,2);assert(r.warnings.some(w=>w.includes('参考和音')));assert.equal(p.performance.formBindings.length,0);
 });
 test('acoustic guitar bank retains source hashes and attribution and is excluded from the public package',()=>{
  const window={CruiseStudio:{}};vm.runInNewContext(readFileSync(new URL('../vendor/guitar/acoustic-bank.js',import.meta.url),'utf8'),{window});const bank=window.CruiseStudio.guitarSamples;assert.equal(bank.samples.length,13);assert.equal(bank.license,'CC BY 3.0');
@@ -91,7 +92,7 @@ test('acoustic guitar bank retains source hashes and attribution and is excluded
 });
 
 test('stroke plan respects exact attacks, direction, accent, rests, mute and sustain without confirming source timing',()=>{
- const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),plan=vm.runInNewContext(source.slice(a,b)+';buildBarPreviewPlan;');
+ const plan=buildBarPreviewPlan;
  const p={songInfo:{bpm:120},bars:[{melody:[{id:'m',kind:'note',onsetTick:120,durationTicks:80,pitch:72}],chords:[{id:'c',symbol:'C',onsetTick:0},{id:'g',symbol:'G',onsetTick:960}]}]},slots=[{tick:0,action:'down',durationTicks:480,accent:true},{tick:480,action:'rest',durationTicks:240},{tick:720,action:'up',durationTicks:120},{tick:960,action:'up',durationTicks:480},{tick:1440,action:'mute',durationTicks:120}];
  const deps={pitchMidi:n=>n,parseChord:s=>({root:s,quality:'',bass:null}),notePc:n=>n==='C'?0:7,qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}},rhythm:()=>({encoding:'studio-strum-v1',slots})},before=JSON.stringify({p,slots}),r=plan(p,0,deps),at=t=>r.events.filter(e=>e.tick===t&&e.part==='guitar');
  assert.deepEqual(Array.from(at(0),e=>e.midi),[48,52,55]);assert(at(0).every(e=>Math.abs(e.start+e.duration-.53)<1e-8));assert.equal(r.events.filter(e=>e.tick===240||e.tick===480).length,0);assert.deepEqual(Array.from(at(720),e=>e.midi),[55,52,48]);assert.deepEqual(Array.from(at(960),e=>e.midi),[62,59,55,43]);assert(at(0)[0].gain>at(720)[0].gain);assert.equal(r.events.find(e=>e.tick===1440).part,'mute');assert.equal(r.events.find(e=>e.part==='piano').duration,80/960);assert.equal(JSON.stringify({p,slots}),before);
@@ -99,7 +100,7 @@ test('stroke plan respects exact attacks, direction, accent, rests, mute and sus
  slots[0].tieToNext=true;assert.throws(()=>plan(p,0,deps),/タイ/);
 });
 test('native Rhythm sustain does not retrigger and implicit harmony carries to a following bar',()=>{
- const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),plan=vm.runInNewContext(source.slice(a,b)+';buildBarPreviewPlan;');
+ const plan=buildBarPreviewPlan;
  const p={songInfo:{bpm:120},bars:[{melody:[],chords:[{symbol:'C',onsetTick:0}]},{melody:[],chords:[]}]},deps={pitchMidi:()=>60,parseChord:s=>({root:s,quality:'',bass:null}),notePc:()=>0,qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}},rhythm:()=>({encoding:'rhythm-owner-cells-v1',projection:{rhythmResolved:true,performanceReady:false,events:[{sound:'attack',direction:'down',onsetTick:0,notationDurationTicks:480},{sound:'sustain',onsetTick:240},{sound:'rest',onsetTick:480,notationDurationTicks:1440}]}})};
  const r=plan(p,1,deps);assert.equal(r.events.length,3);assert(r.events.every(e=>e.tick===0));assert(r.events.every(e=>Math.abs(e.start+e.duration-.53)<1e-8));p.bars[0].chords[0].durationTicks=1920;assert.equal(plan(p,1,deps).events.length,0);
 });
@@ -119,14 +120,14 @@ test('late stream scheduling fails closed, and pending stream decode is revoked 
  const g=fixture({samplePending:true}),pending=g.runtime.playEvents([{midi:60,part:'piano',start:0,duration:.2,gain:.3}],()=>true,70,true);await flush();await g.audio.stopAll();g.decode();assert(!(await pending).ok);assert.equal(g.contexts[0].oscillators.length,0);assert.equal(g.audio.snapshot()[0].contextCount,0);
 });
 test('whole-song projection has gapless bar boundaries and keeps the working Project unchanged',()=>{
- const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),build=vm.runInNewContext(source.slice(a,b)+';buildSongPreviewPlan;');const p={songInfo:{bpm:120},bars:Array.from({length:40},(_,i)=>({melody:[{id:'n'+i,kind:'note',onsetTick:0,durationTicks:240,pitch:60}],chords:[]}))};const original=JSON.stringify(p),r=build(p,{melodyOnly:true,pitchMidi:n=>n});assert.equal(r.spans.length,40);assert(Math.abs(r.duration-80.03)<1e-8);assert(Math.abs(r.events[1].start-2.03)<1e-8);assert(Math.abs(r.events[39].start-78.03)<1e-8);assert.equal(JSON.stringify(p),original);
+ const build=buildSongPreviewPlan;const p={songInfo:{bpm:120},bars:Array.from({length:40},(_,i)=>({melody:[{id:'n'+i,kind:'note',onsetTick:0,durationTicks:240,pitch:60}],chords:[]}))};const original=JSON.stringify(p),r=build(p,{melodyOnly:true,pitchMidi:n=>n});assert.equal(r.spans.length,40);assert(Math.abs(r.duration-80.03)<1e-8);assert(Math.abs(r.events[1].start-2.03)<1e-8);assert(Math.abs(r.events[39].start-78.03)<1e-8);assert.equal(JSON.stringify(p),original);
 });
 test('typed-note matching preserves repeated existing notes while identifying a new inserted token',()=>{
  const a=source.indexOf('    function matchTypedNotes('),b=source.indexOf('    // Each field owns',a),match=vm.runInNewContext(source.slice(a,b)+';matchTypedNotes;');const n=step=>({step,alter:0,octave:0});assert.deepEqual(Array.from(match([n(0),n(1)],[n(0),n(2),n(1)])),[0,-1,1]);assert.deepEqual(Array.from(match([n(0),n(0)],[n(0),n(0),n(0)])),[0,1,-1]);
 });
 
 test('editor range projection compiles only the requested consecutive bars and inherits preceding harmony without slicing the Project',()=>{
- const a=source.indexOf('    function buildBarPreviewPlan('),b=source.indexOf('    function buildBarPlayButton(',a),build=vm.runInNewContext(source.slice(a,b)+';buildSongPreviewPlan;');
+ const build=buildSongPreviewPlan;
  const p={songInfo:{bpm:120},bars:[{melody:[],chords:[{id:'chord',symbol:'C',onsetTick:0}]},...Array.from({length:3},(_,i)=>({melody:[{id:'n'+i,kind:'note',onsetTick:0,durationTicks:240,pitch:60+i}],chords:[]}))]},original=JSON.stringify(p);
  const result=build(p,{pitchMidi:n=>n,parseChord:()=>({root:'C',quality:'',bass:null}),notePc:()=>0,qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}},rhythm:()=>({encoding:'studio-strum-v1',slots:[{tick:0,action:'down',durationTicks:240}]})},1,2);
  assert.deepEqual(Array.from(result.spans,s=>s.index),[1,2]);assert(Math.abs(result.duration-4.03)<1e-8);assert.equal(result.events.length,8);assert(result.events.some(e=>e.barIndex===2&&Math.abs(e.start-2.03)<1e-8));assert(result.events.every(e=>[1,2].includes(e.barIndex)));assert.equal(JSON.stringify(p),original);

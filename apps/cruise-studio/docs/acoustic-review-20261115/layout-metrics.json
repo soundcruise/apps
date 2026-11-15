@@ -1,0 +1,52 @@
+{
+  "engine": "Chrome",
+  "viewport": [
+    1440,
+    1000
+  ],
+  "note": "Synchronous input + forced layout, 5 consecutive values; single-machine observation, not a mobile benchmark.",
+  "rows": [
+    {
+      "bars": 12,
+      "timesMs": [
+        24.5,
+        23.100000001490116,
+        23.199999999254942,
+        22.199999999254942,
+        21.900000002235174
+      ],
+      "domNodes": 5401,
+      "formSVGs": 48,
+      "localNotice": false,
+      "visibleButtons": 19
+    },
+    {
+      "bars": 128,
+      "timesMs": [
+        205.39999999850988,
+        198.60000000149012,
+        211.80000000074506,
+        194.89999999850988,
+        208.30000000074506
+      ],
+      "domNodes": 46361,
+      "formSVGs": 510,
+      "localNotice": false,
+      "visibleButtons": 19
+    },
+    {
+      "bars": 256,
+      "timesMs": [
+        402.70000000298023,
+        394.19999999925494,
+        422.69999999925494,
+        382.0999999977648,
+        413.69999999925494
+      ],
+      "domNodes": 91641,
+      "formSVGs": 1022,
+      "localNotice": false,
+      "visibleButtons": 19
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema": true,
+  "ready": true,
+  "bars": [
+    {
+      "guitarStrokes": 6,
+      "guitarMidi": 30
+    },
+    {
+      "guitarStrokes": 6,
+      "guitarMidi": 0
+    }
+  ],
+  "unchanged": true
+}

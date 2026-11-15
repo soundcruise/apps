@@ -1,0 +1,11 @@
+{
+  "state": {
+    "value": "不正",
+    "invalid": "slot-overlay-input is-8th is-invalid",
+    "disabled": false,
+    "pending": false
+  },
+  "exportedSameAsBefore": true,
+  "status": "JSONファイルへ書き出しました",
+  "fieldAfter": "不正"
+}

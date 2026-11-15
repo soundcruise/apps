@@ -1,4 +1,4 @@
-import {singleChordPlan,chordNotes,fillBlankStrums} from './chord-audition.mjs';
+import {singleChordPlan,fillBlankStrums} from './chord-audition.mjs';
 import {readBookSource,bookSourceCurrent} from './book-source.mjs';
 import {openBookPicker} from './book-bridge.mjs';
 import {parseChordNames,MAX_BYTES} from './chord-name-transfer.mjs';
@@ -77,10 +77,15 @@ export function createOwnerChordPicker(C,base){
         const formName=node('figcaption','',formView),diagram=node('div',undefined,formView,'score-chord-diagram');
         const soundDeps={parseChord:C.theory.parseBasicChordSymbol,qualities:base.theory.QUALITIES,notePc:C.theory.keyToSemitone};
         function audition(name,snapshot){if(!eligible())return;try{target.preview?.(singleChordPlan(project,{symbol:name},soundDeps,snapshot),'chord');}catch(e){status.textContent=e.message;}}
-        function auditionSelected(){const chord=owner.ui.explore.readSelectedChord();if(chord)audition(chord.symbol,(selectedMaterial()||C.localChordForms?.recommend(project,chord.symbol))?.snapshot);}
+        function auditionSelected(){
+            const chord=owner.ui.explore.readSelectedChord();if(!chord||!eligible())return;
+            const binding=canonical?.symbol===chord.symbol&&!pickedShape&&project.performance.formBindings.find(b=>b.chordEventId===canonical.id);
+            if(binding){try{target.preview?.(singleChordPlan(project,canonical,soundDeps),'chord');}catch(e){status.textContent=e.message;}return;}
+            audition(chord.symbol,(selectedMaterial()||C.localChordForms?.recommend(project,chord.symbol))?.snapshot);
+        }
         button('▶',auditionSelected,formView,{'data-chord-audition':'selected','aria-label':'表示中のコードを試聴',title:'表示中の押さえ方をアコギで試聴'}).classList.add('score-form-play');
         const harmony=node('div',undefined,basicLayout,'score-chord-harmony');
-        const progression=button('▶ コード進行を再生',()=>{try{target.progression?.({notes:chord=>chordNotes(project,chord,soundDeps),fillBlank:fillBlankStrums});}catch(e){status.textContent=e.message;}},harmony,{'data-chord-progression':'',title:'編集中の1／2小節のコードとストロークを試聴。空欄は拍の表とコード変化で発音','aria-pressed':false});
+        const progression=button('▶ コード進行を再生',()=>{try{target.progression?.({fillBlank:fillBlankStrums});}catch(e){status.textContent=e.message;}},harmony,{'data-chord-progression':'',title:'編集中の1／2小節のコードとストロークを試聴。空欄は拍の表とコード変化で発音','aria-pressed':false});
         function refreshPlayback(){const state=target.previewState?.(),active=state?.scope==='chords'&&state.phase!=='idle',text=active?'■ 停止':'▶ コード進行を再生';if(progression.textContent!==text)progression.textContent=text;progression.setAttribute('aria-pressed',String(!!active));}
         const unsubscribePreview=target.subscribePreview?.(refreshPlayback);refreshPlayback();
         const actions=node('div',undefined,basicLayout,'cc-control-row score-chord-actions');
