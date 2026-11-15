@@ -1521,22 +1521,22 @@
     }
     var chordPreviewListeners=new Set();
     var pianoAudition=null,barPreviewPhase='idle',barPreviewScope='all',previewFrame=null,previewSecondsPerTick=0,previewRAF=null,previewSpans=null,previewLastBar=null,previewSelectOnStop=false;
-    // Playback following is a UI lease. Any manual scroll suspends it until the next play.
+    // Manual scrolling owns the current bar; the next bar resumes playback following.
     var playbackFollow=null;
     function endPlaybackFollow(){if(playbackFollow){playbackFollow.dispose();playbackFollow=null;}}
     function beginPlaybackFollow(){
         endPlaybackFollow();if(barPreviewScope!=='song')return;
         var root=CS().scroll?.getRoot('sheetCruise')||window;
         function position(){return root===window?{x:window.scrollX,y:window.scrollY}:{x:root.scrollLeft,y:root.scrollTop};}
-        var follow={root:root,expected:position(),lastBar:null,paused:false};
-        function pause(){follow.paused=true;}
+        var follow={root:root,expected:position(),lastBar:null,pausedBar:null};
+        function pause(){follow.pausedBar=previewLastBar;}
         function onScroll(){var p=position();if(Math.abs(p.x-follow.expected.x)>1||Math.abs(p.y-follow.expected.y)>1)pause();}
         function onKey(e){if(['PageUp','PageDown','Home','End','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)&&!e.target.closest('input,textarea,select,[contenteditable],button,[role="button"]'))pause();}
         root.addEventListener('scroll',onScroll,{passive:true});root.addEventListener('wheel',pause,{passive:true});root.addEventListener('touchstart',pause,{passive:true});root.addEventListener('keydown',onKey);
         follow.position=position;follow.dispose=function(){root.removeEventListener('scroll',onScroll);root.removeEventListener('wheel',pause);root.removeEventListener('touchstart',pause);root.removeEventListener('keydown',onKey);};playbackFollow=follow;
     }
     function followPlaybackBar(paper,number){
-        var follow=playbackFollow;if(!follow||follow.paused||!paper||follow.lastBar===number)return;follow.lastBar=number;
+        var follow=playbackFollow;if(!follow||!paper||follow.pausedBar===number||follow.lastBar===number)return;follow.pausedBar=null;follow.lastBar=number;
         var root=follow.root,area=root===window?{top:0,bottom:innerHeight,left:0,right:innerWidth}:root.getBoundingClientRect(),toolbar=els.root.querySelector('.sheet-toolbar')?.getBoundingClientRect(),box=paper.getBoundingClientRect();
         var top=Math.max(0,area.top,toolbar&&toolbar.bottom>area.top&&toolbar.top<area.bottom?toolbar.bottom:0)+16,bottom=Math.min(innerHeight,area.bottom)-16,left=Math.max(0,area.left)+16,right=Math.min(innerWidth,area.right)-16;
         var dy=box.height>bottom-top||box.top<top?box.top-top:box.bottom>bottom?box.bottom-bottom:0,dx=box.width>right-left||box.left<left?box.left-left:box.right>right?box.right-right:0;
@@ -1813,7 +1813,7 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.125.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.126.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
@@ -4438,7 +4438,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line patch candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.125.0-dev.1',
+        developmentVersion: '0.126.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,
