@@ -40,10 +40,10 @@ export function renderWebReviewCard(document,item,{change}={}){
  const card=el('article',undefined,'card web-review-card');card.dataset.webUrl=item.url;
  card.append(el('h3',item.articleDraft?.fields?.label||item.articleDraft?.headline||item.title));if(/^(?:signature model|anniversary model|acoustic guitar|guitars?|new series|70s guitar reissue)$/i.test(item.articleDraft?.fields?.product||''))card.append(el('p','検索で見つかった記事：'+item.title,'meta'));
  let hostname='出典未確認';try{hostname=new URL(item.url).hostname;}catch{}
- card.append(el('p',hostname+' · 公開日 '+(item.searchMetadata?.publishedAtHint?'要確認（検索ヒントあり）':'未確認'),'meta'),el('span',item.webReview?.queue==='judgment'?'要判断 · Web記事案':'低優先・保留','status-pill'));
+ card.append(el('p',hostname+' · 公開日 '+(item.searchMetadata?.publishedAtHint?'要確認（検索ヒントあり）':'未確認'),'meta'),el('span',item.reviewPresentation?({approvable:'本人確認後に掲載可能',human_facts:'人間確認待ち',technical:'技術・出典対応待ち',editorial:'編集判断・見送り候補'})[item.reviewPresentation.group]:item.webReview?.queue==='judgment'?'要判断 · Web記事案':'低優先・保留','status-pill'));
  try{const u=new URL(item.url);if(u.protocol==='https:'&&!u.username&&!u.password){const a=el('a','原記事を開く');a.href=u.href;a.target='_blank';a.rel='noopener noreferrer';card.append(a);}}catch{}
  const missing=(item.articleDraft?.missing||[]).map(k=>({publishedAt:'公開日',brand:'主体',product:'対象名',productType:'製品・記事種別',action:'出来事'})[k]||'イベント情報');
- const guidance=item.webReview?.queue==='judgment'?'確認が必要：'+[...new Set([...missing,'原記事の事実','紹介条件'])].join('、')+'。AI案は未確認です。':reviewReasons[item.webReview?.reason]||'原記事と関連性を確認してください。';
+ const guidance=item.reviewPresentation?.reason||(item.webReview?.queue==='judgment'?'確認が必要：'+[...new Set([...missing,'原記事の事実','紹介条件'])].join('、')+'。AI案は未確認です。':reviewReasons[item.webReview?.reason]||'原記事と関連性を確認してください。');
  card.append(el('p',guidance,'next-action'));
  const actions=el('div',undefined,'actions');card.append(actions);
  const support=el('section');support.hidden=true;const policy=item.articleDraft?.sourceReview;support.append(el('p',policy?.reason||'この出典は現在の人間確認による正式保存に未対応です。原記事で公開日・出来事と紹介条件を確認してください。確認結果だけで自動登録・公開はしません。','blocker'));if(policy?.termsUrl){const a=el('a','出典の利用条件');a.href=policy.termsUrl;a.target='_blank';a.rel='noopener noreferrer';support.append(a);}card.append(support);

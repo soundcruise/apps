@@ -1,11 +1,14 @@
 // Reuse the existing assisted facts contract for an existing candidate. No fetch,
 // inference, new candidate or publication authority is created by this projection.
 import {assistedSource,assistedTypes,assistedLabel} from './assisted-facts.js';
+import {reviewInformation} from './review-presentation.js';
+import {assistedDraftWithInformation} from './draft-assistance.js';
 import {savedWebDraft} from './web-discovery.js';
 export async function candidateHumanReview(store,row,now,registry){
  const source=assistedSource(row.source_url),registered=registry.find(s=>s.id===row.source_id),state=await store.state(row.source_id);
  const allowed=source?.id===row.source_id&&registered&&!['DO_NOT_USE','PROHIBITED'].includes(registered.legalStatus)&&!registered.humanFactsProhibited;
- const stopped=state.disabled||state.publicationBlocked||await store.db.prepare('SELECT 1 FROM news_takedowns WHERE item_id=?').bind(row.id).first();
+ const controls=await store.controls();
+ const stopped=!controls.publication_enabled||state.disabled||state.takedown||state.publicationBlocked||await store.db.prepare('SELECT 1 FROM news_takedowns WHERE item_id=?').bind(row.id).first();
  const decided=await store.db.prepare('SELECT 1 FROM news_decision_ledger WHERE candidate_id=?').bind(row.id).first();
  const available=!!allowed&&!stopped&&!decided&&['pending','reopened'].includes(row.review_status)&&row.expires_at>now&&row.origin!=='legacy_fixture_backfill';
  return {available,reason:!allowed?'この出典・URLの人間確認条件は未対応または未確認です':stopped?'出典停止・takedownを確認してください':decided?'既存判断を維持します':row.expires_at<=now?'保持期間・掲載期限を確認してください':'原記事の事実と紹介条件を確認して、既存候補を補完できます',url:row.source_url};
@@ -21,7 +24,11 @@ export async function candidateAssistedDraft(store,row,now){
  if(facts.kind==='assisted_notice'){offer('action',facts.action);offer('qualifier',facts.qualifier);offer('label',row.label);}
  const label=assistedLabel({kind:'assisted_notice',...fields,category:assistedTypes[fields.productType]?.[1]},{draft:true});
  if(label&&!fields.label){fields.label=label;fieldSources.label={kind:'generated_from_draft',confirmed:false};}
- return {...base,headline:fields.label||'原記事で対象と出来事を確認してください',fields,fieldSources,formalFacts:false,humanConfirmed:false,registrationAllowed:true,usageBasis:source.basis,warnings:['既存候補の補完です。入力値は本人の最終確認まで正式証拠にしません。'],missing:['brand','product','productType','action','publishedAt'].filter(k=>!fields[k])};
+ const draft={...base,headline:fields.label||(fields.product?fields.product+'（確認用下書き）':'原記事で対象と出来事を確認してください'),fields,fieldSources,formalFacts:false,humanConfirmed:false,registrationAllowed:true,usageBasis:source.basis,warnings:['既存候補の補完です。入力値は本人の最終確認まで正式証拠にしません。'],missing:['brand','product','productType','action','publishedAt'].filter(k=>!fields[k])};
+ // Reuse the same supplied, unconfirmed input as the existing operational links.
+ // Never replace facts already extracted or confirmed on the candidate.
+ const info=!Object.keys(facts).length&&reviewInformation(row.source_url);
+ return info?assistedDraftWithInformation(draft,info):draft;
 }
 export async function assistedDraftForUrl(store,url,now){
  const row=await store.db.prepare("SELECT * FROM candidate_items WHERE normalized_url=? AND review_status IN ('pending','reopened')").bind(url||'').first();

@@ -1,3 +1,4 @@
+import {webPresentation} from './review-presentation.js';
 import {hash} from './policy.js';
 import {publicSearchUrl,generalPage,searchDate,knownProductOverlap} from './web-discovery-quality.js';
 import {SOURCES} from './registry.js';
@@ -44,6 +45,7 @@ export async function addWebReview(db,items,now){
   // A Bot collection stop alone does not revoke an approved human-entry scope.
   item.reviewBlocked=tombstones.has(await hash(item.url))?'candidate_takedown':source&&(source.humanFactsProhibited||['DO_NOT_USE','PROHIBITED'].includes(source.legalStatus))?'source_prohibited':state&&(state.takedown||state.publication_blocked||state.disabled&&!item.humanEntry)?'source_stopped':null;
   item.webReview=webReviewDisposition(item,known,now);
+  item.reviewPresentation=webPresentation(item,now);
  }
  return items;
 }
