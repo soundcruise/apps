@@ -96,6 +96,16 @@ export async function humanDecisions(store,now,{includeFuture=false}={}){
  return (await store.db.prepare(`SELECT decision_id,candidate_id,verdict,reason,actor_type,decided_at,created_at,candidate_revision,candidate_snapshot,source_id,category,decision_features_json,policy_version,success_state FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? ${includeFuture?'':'AND decided_at<=?'} ORDER BY decided_at DESC,decision_id DESC`).bind(now-365*DAY,...(includeFuture?[]:[now])).all()).results;
 }
 export async function similarDecisions(store,row,validation,now){return evaluateDecisions(await retainedDecisionProfile(row,validation,now),await humanDecisions(store,now),{now,candidateId:row.id,validation});}
+// Presentation only: an old paused health row is not the current stop switch.
+async function resumedAwaitingCollection(store,health,now){
+ if(health.status!=='paused'||!['source_disabled','source_auto_disabled'].includes(health.reason_code))return false;
+ const state=await store.state(health.source_id);
+ if(state.disabled!==false||state.publicationBlocked!==false)return false;
+ const latest=await store.db.prepare("SELECT action,occurred_at FROM news_admin_audit WHERE target=? AND action IN ('source-collection-stop','source-disable','source-delete','source-enable','source-resume') ORDER BY occurred_at DESC,rowid DESC LIMIT 1").bind(health.source_id).first();
+ if(!latest||!['source-enable','source-resume'].includes(latest.action)||latest.occurred_at>now||latest.occurred_at<=health.last_checked_at||health.last_successful_run_at>=latest.occurred_at||state.lastPublisherRequestAt>=latest.occurred_at)return false;
+ const run=await store.db.prepare('SELECT collected_at FROM collection_runs WHERE source_id=? ORDER BY collected_at DESC,rowid DESC LIMIT 1').bind(health.source_id).first();
+ return !run||run.collected_at<latest.occurred_at;
+}
 export async function dashboardSummary(store,now,{sourceIds=null}={}){
  const rows=(await store.db.prepare('SELECT review_status,COUNT(*) AS n FROM candidate_items GROUP BY review_status').all()).results,counts=Object.fromEntries(rows.map(r=>[r.review_status,r.n]));
  const human=await store.db.prepare("SELECT COUNT(*) AS n FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? AND decided_at<=?").bind(now-365*DAY,now).first();
@@ -104,7 +114,8 @@ export async function dashboardSummary(store,now,{sourceIds=null}={}){
  for(const h of await store.sourceHealth()){
   if(h.status==='healthy'||h.source_id==='collection'||sourceIds&&!sourceIds.includes(h.source_id)&&h.source_id!=='retention')continue;
   if(h.status==='paused'&&await intentionalSourceStop(store,h.source_id))continue;
-  sourceWarnings.push({source:getSource(h.source_id)?.name||h.source_id,status:h.status});
+  const resumed=!!controls.collection_enabled&&await resumedAwaitingCollection(store,h,now);
+  sourceWarnings.push({source:getSource(h.source_id)?.name||h.source_id,status:h.status,...(resumed?{displayState:'resumed_waiting'}:{})});
  }
  return {operationalState:!controls.collection_enabled?'stopped':health?.status==='healthy'?'normal':'attention',sourceWarnings,published:counts.approved||0,pending:(counts.pending||0)+(counts.reopened||0),rejected:counts.rejected||0,humanDecisions:human.n,generatedAt:now,publishedBasis:'approved_status',humanRetentionDays:365,parserDiagnostics:await morrisDiagnosticsHealth(store,now),discovery:await discoverySummary(store,now)};
 }

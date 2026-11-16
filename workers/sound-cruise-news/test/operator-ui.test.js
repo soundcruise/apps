@@ -310,3 +310,8 @@ test('deep-link reference does not reappear in unrelated filters, and source-pre
  const r={...row('alternative',true),reviewPresentation:{group:'approvable',readiness:'formal'},sourcePreference:{role:'alternative',preferredId:'ikebe'}};const u=ui([r]);await settle();u.context.reference=row('already-approved',true);u.context.reference.status='approved';u.run('inspectedArticle=reference;renderList()');assert(u.ids.list.children.some(e=>e.dataset?.candidateId==='already-approved'));
  u.ids.mode.value='approvable';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,0);u.ids.mode.value='editorial';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,1);
 });
+
+test('audited resume waiting is distinct from a real stop and remains a visible warning',async()=>{
+ const u=ui([]);await settle();u.run("dashboardView({published:0,pending:0,operationalState:'attention',sourceWarnings:[{source:'池部楽器 Events',status:'paused',displayState:'resumed_waiting'},{source:'実停止の出典',status:'paused'},{source:'取得失敗の出典',status:'error'}]})");
+ const alerts=u.ids.dashboard.children.filter(n=>n.attributes.role==='alert').map(n=>n.textContent);assert(alerts.includes('池部楽器 Events：停止解除済み・次回収集待ち（再開後の取得は未確認）'));assert(!alerts.includes('池部楽器 Events：収集停止中'));assert(alerts.includes('実停止の出典：収集停止中'));assert(alerts.includes('取得失敗の出典：収集状態の確認が必要です'));assert(u.requests.every(r=>!r.options?.method));
+});
