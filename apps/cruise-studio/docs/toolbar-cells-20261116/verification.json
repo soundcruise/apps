@@ -1,0 +1,70 @@
+{
+  "candidate": "0.142.0-dev.1",
+  "base": "97b3a0ba2d049aa4978b86156c03f17d7487a172",
+  "localURL": "http://127.0.0.1:18874/",
+  "productionChanged": false,
+  "realAccountOrSyncChanged": false,
+  "commitCreated": false,
+  "pushed": false,
+  "results": {
+    "node": {
+      "tests": 2221,
+      "pass": 2220,
+      "fail": 0,
+      "skipped": 1,
+      "log": "/private/tmp/score142-node-final.log"
+    },
+    "scoreChrome": {
+      "tests": 122,
+      "pass": 122,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score142-view-final.log"
+    },
+    "cellsChromeWebKit": {
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score142-cells-final.log"
+    },
+    "fivePointAndCells": {
+      "tests": 32,
+      "pass": 32,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score142-final.log"
+    },
+    "phase1": {
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score142-phase1-final.log"
+    },
+    "layoutFocused": {
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score142-layout-final.log"
+    },
+    "earlierRelated": {
+      "log": "/private/tmp/score142-regression.log",
+      "toolbarChromeWebKit": 14,
+      "formToolbar141ChromeWebKit": 16,
+      "note": "These suites passed. This first combined run exposed Cancel/Undo state and a legacy hidden staff-selector test; both were fixed and the affected suites passed again."
+    }
+  },
+  "manualNotDone": [
+    "Safari実機",
+    "OS印刷",
+    "聴感評価"
+  ],
+  "screenshots": [
+    "toolbar-chrome-1440.png",
+    "toolbar-chrome-390.png",
+    "cell-entry-chrome.png",
+    "centered-form-chrome.png"
+  ]
+}

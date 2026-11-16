@@ -200,9 +200,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.equal(automatic.performance.formBindings.length,1);
             await page.locator('[data-chord-advanced]').click();
             await page.locator('[data-chord-shape="C"]').click();
-            await page.locator('[data-form-performance] summary').click();
-            for(const n of [1,2,3,4,5])await page.locator('[data-played-string="'+n+'"]').check();
-            await page.locator('[data-apply-played-strings]').click();
+            assert.equal(await page.locator('[data-form-performance]').count(),0);
             const confirmed=await snapshot(page);
             assert.equal(confirmed.performance.formBindings[0].mode,'fixed');
             assert.equal(confirmed.performance.formBindings[0].confirmation.status,'confirmed');
@@ -225,8 +223,9 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('[data-overlay-field=doremi]').first().press('Tab');
             const before = await snapshot(page), event = before.bars[0].melody[0];
             assert.equal(event.provenance.timing.duration.confirmed, false);
-            await (await toolbarControl(page,'#sc-score-style')).selectOption('melody');
-            await (await toolbarControl(page,'#sc-staff-refresh')).click();
+            // Legacy staff remains covered internally after its visible style selector was retired.
+            await page.locator('#sc-score-style').evaluate(e=>{e.value='melody';e.dispatchEvent(new Event('change',{bubbles:true}));});
+            await page.locator('#sc-staff-refresh').evaluate(e=>e.click());
             await page.locator('[data-melody-target][data-event-id="' + event.id + '"]').first().click();
             await page.locator('#sc-melody-duration').selectOption('120');
             const changed = await snapshot(page);

@@ -1,0 +1,39 @@
+{
+  "candidate": "0.143.0-dev.1",
+  "base": "97b3a0ba",
+  "localURL": "http://127.0.0.1:18874/",
+  "productionChanged": false,
+  "realAccountOrSyncChanged": false,
+  "committed": false,
+  "pushed": false,
+  "results": {
+    "cellsChromeWebKit": {
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score143-browser.log"
+    },
+    "toolbarChromeWebKit": {
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score143-toolbar.log"
+    },
+    "editorChrome": {
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score143-editor.log"
+    },
+    "nodeRelated": {
+      "tests": 45,
+      "pass": 45,
+      "fail": 0,
+      "skipped": 0,
+      "log": "/private/tmp/score143-node.log"
+    }
+  }
+}

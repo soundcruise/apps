@@ -359,7 +359,7 @@ const layoutCSS=`
 .score-chord-basic{container-type:inline-size;min-width:0;}
 .score-chord-basic-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:14px;align-items:center;}
 .score-chord-selected-form{position:relative;grid-column:1;grid-row:1/3;align-self:start;margin:0;min-width:0;max-width:196px;width:100%;box-sizing:border-box;padding-top:4px;border-radius:6px;background:#fff;}
-.score-chord-selected-form figcaption{display:flex;align-items:center;justify-content:center;gap:8px;font-size:26px;font-weight:700;line-height:1.05;text-align:center;color:#111;margin:0;}
+.score-chord-selected-form figcaption{position:relative;display:block;min-height:27px;font-size:26px;font-weight:700;line-height:1.05;text-align:center;color:#111;margin:0;}
 .score-chord-diagram{box-sizing:border-box;padding:0 12px 8px;width:100%;overflow:hidden;background:#fff;border-radius:6px;}
 .score-chord-diagram .cc-fb-scroll{overflow:visible;}
 .score-chord-diatonic{grid-column:2;grid-row:1;margin:0;padding:14px;min-width:0;}
@@ -410,7 +410,7 @@ const layoutCSS=`
 .score-book-chord{position:relative;min-width:0;border:1px solid var(--cc-border-strong);border-radius:12px;padding-bottom:34px;overflow:hidden;}
 .score-book-choose.cc-btn{display:flex;flex-direction:column;gap:8px;width:100%;min-width:0;padding:12px;border:0;border-radius:0;background:transparent;text-align:center;white-space:normal;}
 .score-form-play.cc-btn{position:absolute;left:6px;bottom:4px;padding:4px 7px;min-width:28px;min-height:26px;font-size:13px;line-height:1;border-radius:6px;background:#fff;color:#304755;border-color:#8998a4;}
-.score-chord-selected-form .score-form-play.cc-btn{position:static;padding:3px 6px;min-height:25px;min-width:26px;}.score-form-instruction{font-size:10px;line-height:1.4;text-align:center;color:#666;margin:1px 4px 7px;}.score-chord-close.cc-btn{position:absolute;right:12px;top:7px;font-size:12px;padding:4px 10px;min-height:28px;border-radius:7px;}
+.score-chord-selected-form [data-selected-chord-name]{display:inline-block;max-width:132px;overflow-wrap:anywhere;}.score-chord-selected-form .score-form-play.cc-btn{position:absolute;left:auto;right:6px;top:50%;bottom:auto;transform:translateY(-50%);margin:0;padding:3px 5px;min-height:25px;min-width:24px;font-size:12px;border:1px solid #cbd2d8;background:transparent;color:#687781;}.score-chord-selected-form .score-form-play.cc-btn:hover{background:#f0f3f4;color:#344f6b;}.score-form-instruction{font-size:10px;line-height:1.4;text-align:center;color:#666;margin:1px 4px 7px;}.score-chord-close.cc-btn{position:absolute;right:12px;top:7px;font-size:12px;padding:4px 10px;min-height:28px;border-radius:7px;}
 .score-custom-notice{font-size:13px;line-height:1.6;color:var(--cc-danger-text);margin:8px 0 0;}
 .score-custom-notice[hidden]{display:none;}
 :is(.score-chord-diagram,.score-book-diagram,#cc-fretboard-host[data-score-finger-mode=true]) .cc-fb-marker{--cc-fb-marker-label-size:18px;}
