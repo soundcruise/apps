@@ -47,3 +47,33 @@ test('excluding the newest technical verdict never revives an older approval for
  const result=evaluate(rows);assert.equal(result.evidenceCount,4);assert.equal(result.recommendation,'NO_RECOMMENDATION');
  assert.equal(result.excludedTeacherCounts.technical_only,1);
 });
+
+async function resumedSource(){
+ const s=await setup();await s.db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('ikebe-event',0)").run();
+ await s.recordHealth({sourceId:'ikebe-event',status:'paused',reasonCode:'source_disabled',checkedAt:now-2000,successfulAt:now-86400000});
+ await s.db.prepare("INSERT INTO news_admin_audit VALUES('resume-fixture','source-enable','ikebe-event',?,'review_complete')").bind(now-1000).run();
+ return s;
+}
+const eventsWarning=async s=>(await dashboardSummary(s,now)).sourceWarnings.find(w=>w.source==='池部楽器 Events');
+test('audited resume after stale disabled health is displayed as awaiting collection without rewriting state or history',async()=>{
+ const s=await resumedSource(),tables=['source_state','source_health','source_health_alerts','news_admin_audit','collection_runs','news_controls','candidate_items','news_decision_ledger'];
+ const snapshot=()=>Object.fromEntries(tables.map(t=>[t,s.db.raw.prepare('SELECT * FROM '+t+' ORDER BY rowid').all()])),before=snapshot();
+ assert.deepEqual(await eventsWarning(s),{source:'池部楽器 Events',status:'paused',displayState:'resumed_waiting'});assert.deepEqual(snapshot(),before);
+});
+for(const reason of ['disabled','publication_blocked','takedown','no_audit','older_enable','later_stop','later_run','publisher_request_after_resume','new_health_error','robots_stop','future_enable','global_stop'])test('resume message cannot hide '+reason,async()=>{
+ const s=await resumedSource();
+ if(['disabled','publication_blocked','takedown'].includes(reason))await s.db.prepare('UPDATE source_state SET '+reason+'=1').run();
+ if(reason==='no_audit')await s.db.prepare('DELETE FROM news_admin_audit WHERE id=?').bind('resume-fixture').run();
+ if(reason==='older_enable'||reason==='future_enable')await s.db.prepare('UPDATE news_admin_audit SET occurred_at=? WHERE id=?').bind(reason==='older_enable'?now-3000:now+1000,'resume-fixture').run();
+ if(reason==='later_stop')await s.db.prepare("INSERT INTO news_admin_audit VALUES('stop-fixture','source-disable','ikebe-event',?,'review_complete')").bind(now-500).run();
+ if(reason==='publisher_request_after_resume')await s.db.prepare('UPDATE source_state SET last_publisher_request_at=?').bind(now-500).run();
+ if(reason==='later_run')await s.db.prepare("INSERT INTO collection_runs VALUES('run-fixture','ikebe-event',?,0,0,0,0,0,'redirect_blocked',0,'scheduled')").bind(now-500).run();
+ if(reason==='new_health_error')await s.recordHealth({sourceId:'ikebe-event',status:'error',reasonCode:'collector_repeated_failure',checkedAt:now-500});
+ if(reason==='robots_stop')await s.recordHealth({sourceId:'ikebe-event',status:'paused',reasonCode:'robots_disallow',checkedAt:now-2000});
+ if(reason==='global_stop')await s.db.prepare('UPDATE news_controls SET collection_enabled=0').run();
+ const warning=await eventsWarning(s);assert.notEqual(warning?.displayState,'resumed_waiting');if(reason!=='later_stop')assert(warning,'a real or unexplained problem remains visible');
+});
+test('successful ordinary collection removes the stale warning; resume alone never reports healthy',async()=>{
+ const s=await resumedSource();assert.equal((await eventsWarning(s)).status,'paused');
+ await s.recordHealth({sourceId:'ikebe-event',status:'healthy',reasonCode:'ok',checkedAt:now-100,successfulAt:now-100});assert.equal(await eventsWarning(s),undefined);
+});
