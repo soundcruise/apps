@@ -30,7 +30,7 @@ for(const engine of ['chrome','webkit'])test('long score style updates keep pape
   assert.equal(await p.evaluate(()=>__renders),0);assert(await p.evaluate(()=>__retained.every(e=>e.isConnected)));
   for(const host of ['#sc-sheet-scale-box','.sc-layout-example-paper'])assert.equal(await p.locator(host+' .sheet-bar-chord').first().evaluate(e=>getComputedStyle(e).fontSize),'24px');
   for(const host of ['#sc-sheet-scale-box','.sc-layout-example-paper']){assert.equal(await p.locator(host+' .sheet-bar-lyrics').first().evaluate(e=>getComputedStyle(e).color),'rgb(18, 52, 86)');assert.equal(await p.locator(host+' .sheet-line').first().evaluate(e=>getComputedStyle(e).borderLeftWidth),'3px');}
-  await p.locator('[data-layout-setting=barsPerLine]').selectOption('2');assert.equal(await p.evaluate(()=>__renders),2);assert(await p.evaluate(()=>!__retained[0].isConnected));
+  await p.locator('[data-layout-setting=barsPerLine]').selectOption('2');assert.equal(await p.evaluate(()=>__renders),2);assert(await p.evaluate(()=>__retained.every(e=>e.isConnected)));
   await p.locator('[data-layout-cancel]').click();assert.equal(await p.locator('#sc-sheet-scale-box .sheet-bar-chord').first().evaluate(e=>getComputedStyle(e).fontSize),'16px');
   await openPaperSettings(p);await range('[data-layout-setting=chordSize]',22);await p.locator('[data-layout-save]').click();
   await openPaperSettings(p);assert.equal(await p.locator('[data-layout-setting=chordSize]').inputValue(),'22');await p.locator('[data-layout-cancel]').click();

@@ -1,0 +1,96 @@
+{
+  "scope": "256 bars; six form-scale and five column changes; V8 sample self times",
+  "unit": "ms",
+  "hotspots": [
+    {
+      "function": "updateSheetScale",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/modules/sheet-cruise/sheet-cruise.js?v=0.88.1",
+      "line": 1417,
+      "sampledSelfMs": 1281.8
+    },
+    {
+      "function": "(program)",
+      "source": "",
+      "line": 0,
+      "sampledSelfMs": 1011.9
+    },
+    {
+      "function": "getClientRects",
+      "source": "",
+      "line": 0,
+      "sampledSelfMs": 896.7
+    },
+    {
+      "function": "jsonValue",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/core/schema2.js?v=0.88.1",
+      "line": 38,
+      "sampledSelfMs": 381.6
+    },
+    {
+      "function": "row",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/modules/sheet-cruise/paper-forms.mjs",
+      "line": 43,
+      "sampledSelfMs": 380.0
+    },
+    {
+      "function": "appendChild",
+      "source": "",
+      "line": 0,
+      "sampledSelfMs": 280.5
+    },
+    {
+      "function": "render",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/modules/sheet-cruise/sheet-renderer.js?v=0.88.1",
+      "line": 300,
+      "sampledSelfMs": 201.7
+    },
+    {
+      "function": "checkProject",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/core/schema2.js?v=0.88.1",
+      "line": 179,
+      "sampledSelfMs": 190.5
+    },
+    {
+      "function": "",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/modules/sheet-cruise/sheet-renderer.js?v=0.88.1",
+      "line": 228,
+      "sampledSelfMs": 135.8
+    },
+    {
+      "function": "",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/core/schema2.js?v=0.88.1",
+      "line": 314,
+      "sampledSelfMs": 111.3
+    },
+    {
+      "function": "getBoundingClientRect",
+      "source": "",
+      "line": 0,
+      "sampledSelfMs": 94.0
+    },
+    {
+      "function": "querySelectorAll",
+      "source": "",
+      "line": 0,
+      "sampledSelfMs": 88.9
+    },
+    {
+      "function": "buildTimedTextRow",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/modules/sheet-cruise/sheet-renderer.js?v=0.88.1",
+      "line": 221,
+      "sampledSelfMs": 65.1
+    },
+    {
+      "function": "(garbage collector)",
+      "source": "",
+      "line": 0,
+      "sampledSelfMs": 57.5
+    },
+    {
+      "function": "el",
+      "source": "http://127.0.0.1:18874/apps/cruise-studio/js/modules/sheet-cruise/sheet-renderer.js?v=0.88.1",
+      "line": 22,
+      "sampledSelfMs": 50.0
+    }
+  ]
+}

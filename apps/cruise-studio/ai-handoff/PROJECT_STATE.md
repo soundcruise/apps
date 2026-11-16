@@ -1,3 +1,7 @@
+# Studio local 0.143.2-dev.1 — 長い曲の描画計測・幾何変更の高速化（未公開）
+
+基準cd5c54a4（push済み）、codex/score-toolbar-ui。合成12/128/256小節・各3回・Chrome/WebKitを順番に計測。256小節の中央値は初回333→314ms/528→488ms、設定を開く339→260ms/617→504ms、フォーム拡縮495→210ms/818→402ms、小節数変更494→301ms/839→522ms。フォームは位置/幅/段数だけ更新。行配置は曲ID・snapshotVersionが同じ場合だけ小節/ヘッダーを再利用。完全なSVGのテンプレート複製、不要な再投影とハイライト寸法読み取りの削減を適用。SVG参照共有の試作はWebKitの遅延により不採用。全Node2,222成功・既存backend1skip、譜面Chrome122・WebKit122、関連90成功。画面6組と64小節PDF全3ページの比較はピクセル一致。Project/履歴/選択、取消/保存、トラック変更・Undo・斜線枠も確認。正式0.88.1、本番配信・公開HTML・実Account/Sync・認証・Worker・shared・他アプリ無変更。2026-11-16にユーザー承認でローカルcommit。未push。既存localhost:18874を継続。[計測条件・全サンプル・変更と検証](../docs/long-score-geometry-20261116/README.md)。以下は履歴。
+
 # Studio local 0.143.1-dev.1 — 実操作確認と不具合修正（未公開）
 
 基準bc9fea49（作業ブランチへpush済み）、codex/score-toolbar-ui。JSON読み込みを通常buttonへ変更しキーボードとSafariのアクセシビリティに対応。小節選択後の古い案内を復元。WebKitで右側フォーム編集時にメロディカードの中間描画が親scrollTopを33px制限する問題は、既存の位置保持をその前に開始して修正。古い試験の×左端/ズーム後無条件Escapeの前提も更新。譜面通しChrome122・WebKit122、追加回帰を含むツールバー34、移動/範囲/ミキサー56、保存/MIDI/印刷Chrome5・WebKit3、関連Node125成功。Safari実機は新規private内の合成曲で日本語貼付/確定/保存/再読込と読み込みbutton認識を確認。かなキーはツール未対応、OS印刷は状態変更検知で操作停止のため未確認。正式0.88.1、本番・公開HTML・認証・実Account/Sync・Worker・shared・他アプリ無変更。2026-11-16にユーザー承認でローカルcommit。未push。既存localhost:18874を継続。[修正・確認範囲・残件](../docs/actual-use-20261116/README.md)。以下は履歴。

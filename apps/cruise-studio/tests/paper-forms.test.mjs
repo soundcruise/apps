@@ -20,3 +20,17 @@ test('simultaneous registered forms remain distinct and stack at their original 
 test('paper diagrams span one beat even with fine onsets, stay inside the last beat and stack colliding spans without changing source timing',async()=>{const p=await fixture();p.bars[0].chords[1].onsetTick=120;p.bars[0].chords.push({id:'last',symbol:'C',onsetTick:1800});p.performance.formBindings.push({chordEventId:'g',materialId:'m'},{chordEventId:'last',materialId:'m'});const before=JSON.stringify(p),view=createPaperForms(createFormRenderer({ChordCruise:{ui:{},state:{settings:{}}}},doc),doc).view(p),row=view.row(1,16).children[0];assert(row.children.every(b=>b.style.width==='calc(25% - 4px)'));assert.notEqual(row.children[0].style.top,row.children[1].style.top);assert.equal(row.children[2].style.left,'calc(75% + 2px)');assert.equal(row.children[2].dataset.slotTick,1800);assert.equal(JSON.stringify(p),before);});
 test('form scaling preserves source and centers isolated diagrams even when another beat needs stacked forms',async()=>{const p=await fixture();p.bars[0].chords[1].onsetTick=120;p.performance.formBindings.push({chordEventId:'g',materialId:'m'},{chordEventId:'other',materialId:'m'});const before=JSON.stringify(p),render=createPaperForms(createFormRenderer({ChordCruise:{ui:{},state:{settings:{}}}},doc),doc),normal=render.view(p),separate=normal.row(2).children[0].children[0];assert.equal(separate.style.top,'calc(50% + 0px)');const small=render.view(p,{scale:60}).row(2).children[0].children[0];assert.equal(small.style.width,'calc(15% - 4px)');assert.equal(small.style.left,'calc(5% + 2px)');assert.equal(small.style.top,'calc(50% + 0px)');assert.equal(JSON.stringify(p),before);});
 test('muted played strings appear as crosses without changing the adopted frets or source material',async()=>{const p=await fixture(),binding=p.performance.formBindings[0];binding.playedStrings=[2,3,4,5];const before=JSON.stringify(p),rows=registeredPaperForms(p),view=rows[0][0];assert.equal(view.snapshot.strings[0].kind,'muted');assert.equal(p.materials.forms[0].snapshot.strings[0].kind,'note');assert.equal(JSON.stringify(p),before);});
+
+test('in-place scaling matches independent full layouts for overlapping, terminal and isolated diagrams while retaining their artwork',async()=>{
+ const p=await fixture();p.songInfo={timeSignature:{beats:4}};
+ p.bars[0].chords[1].onsetTick=120;p.bars[0].chords.push({id:'last',symbol:'C',onsetTick:1800});
+ p.performance.formBindings.push({chordEventId:'g',materialId:'m'},{chordEventId:'last',materialId:'m'},{chordEventId:'other',materialId:'m'});
+ const before=JSON.stringify(p),api=createPaperForms(createFormRenderer({ChordCruise:{ui:{},state:{settings:{}}}},doc),doc);
+ const rows=p.bars.map((_,i)=>api.view(p).row(i+1)),images=rows.map(row=>row.children[0].children.map(box=>box.innerHTML)),host={querySelectorAll:()=>rows};
+ for(const beats of [4,3,6]){p.songInfo.timeSignature.beats=beats;rows.forEach(row=>row.dataset.formBeats=beats);
+  for(const scale of [60,80,100,140,100]){api.resize(host,scale);const rebuilt=api.view(p,{scale});
+   rows.forEach((row,i)=>{const expected=rebuilt.row(i+1);assert.equal(row.children[0].style.aspectRatio,expected.children[0].style.aspectRatio);assert.deepEqual(row.children[0].children.map(box=>box.style),expected.children[0].children.map(box=>box.style));assert.deepEqual(row.children[0].children.map(box=>box.innerHTML),images[i]);});
+  }
+ }
+ p.songInfo.timeSignature.beats=4;assert.equal(JSON.stringify(p),before);
+});

@@ -1,0 +1,7 @@
+{
+  "js/modules/sheet-cruise/paper-forms.mjs": "3d89fa8bd5cf70564c1dbe9581a3f9e793444fb05cb21c4eb9f48274d6e9b232",
+  "js/modules/sheet-cruise/paper-layout.mjs": "ff505a59ec74e7b4d51815986794b60a8c0e12bcd0ea8dc617716a24d6832f6a",
+  "js/modules/sheet-cruise/sheet-cruise.js": "012a37725b35d2077ae8873cc4d25d8f5e07d3f476ca461c758cdbe862349ecb",
+  "js/modules/sheet-cruise/sheet-renderer.js": "419362673ebec3ad6e99c1e0f5ba29f3e41ccda4bf1440922bd07b8b78f98b56",
+  "scripts/local-ui-entry.mjs": "3c2ff2aca218d5f13f28ae86ff629afae1047991c5df0e20e95ecb993e453be8"
+}

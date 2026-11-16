@@ -37,9 +37,10 @@ export function createPaperLayout(C,doc=document){
     function restoreStored(){const saved=C.storage.getAppSetting(displayKey),modern=saved?.version===2;value=normalizeLayout(modern?saved.layout:C.storage.getAppSetting(key));presets=normalizeDisplayPresets(modern?saved.presets:C.storage.getAppSetting(presetKey));rowProjects.clear();const records=modern?saved.rows:C.storage.getAppSetting(rowKey);if(Array.isArray(records))for(const row of records)if(typeof row?.projectId==='string')rowProjects.set(row.projectId,normalizeLineRules(row.rows));}
     restoreStored();let storedRevision=revision();
     // Typography/ink update existing rows; only geometry/track changes rebuild nodes.
-    function structureKey(){return JSON.stringify([value.barsPerLine,value.formScale,value.timingGrid,value.gridResolution,value.appearance.visibility,Array.from(rowProjects)]);}
-    let lastStructure=structureKey();
-    function notify(){const next=structureKey(),structural=next!==lastStructure;lastStructure=next;refreshSample(structural);changed({structural});}
+    function structureKey(){return JSON.stringify([value.barsPerLine,value.timingGrid,value.gridResolution,value.appearance.visibility,Array.from(rowProjects)]);}
+    function tracksKey(){return JSON.stringify([value.timingGrid,value.gridResolution,value.appearance.visibility]);}
+    let lastStructure=structureKey(),lastTracks=tracksKey();
+    function notify(){const next=structureKey(),tracks=tracksKey(),structural=next!==lastStructure,reflowOnly=structural&&tracks===lastTracks;lastStructure=next;lastTracks=tracks;refreshSample(structural,reflowOnly);changed({structural,reflowOnly});}
     function bundle(){return {version:2,layout:{...value},rows:Array.from(rowProjects,([projectId,rows])=>({projectId,rows})),presets:copy(presets)};}
     function persist(){if(editing)return {ok:true,staged:true};if(revision()!==storedRevision)return {ok:false,error:'表示設定が別の画面で変更されています'};const result=C.storage.setAppSetting(displayKey,bundle());if(result?.ok!==false)storedRevision=revision();return result;}
     function begin(){if(editing)return false;if(revision()!==storedRevision){restoreStored();storedRevision=revision();}editing={before:JSON.parse(JSON.stringify(bundle())),revision:storedRevision};return true;}
@@ -118,6 +119,7 @@ export function createPaperLayout(C,doc=document){
             if(TEXT_FIELDS[name]){if(sizes[name]!==value[name]){host.querySelectorAll(TEXT_FIELDS[name][2]).forEach(row=>setPresentationProperty(row,'--sc-'+name,value[name]+'px'));sizes[name]=value[name];}}
             else setPresentationProperty(host,'--sc-'+name,value[name]+'px');
         }
+        if(sizes.formScale!==value.formScale){C.localPaperForms?.resize(host,value.formScale);sizes.formScale=value.formScale;}
         const metaItems=host.querySelectorAll('[data-meta-field]');
         metaItems.forEach(item=>{const f=value.metaFields[item.dataset.metaField]||{};item.hidden=f.visible===false;setPresentationProperty(item,'--sc-meta-field-size',f.size===undefined?'inherit':f.size+'px');setPresentationProperty(item,'--sc-meta-field-font',FONTS[f.font||'default'][1]);setPresentationProperty(item,'--sc-meta-field-color',f.color||'inherit');item.toggleAttribute('data-meta-ink',!!f.color);});
         togglePresentationClass(host,'sc-meta-empty',metaItems.length>0&&[...metaItems].every(item=>item.hidden));
@@ -172,13 +174,14 @@ export function createPaperLayout(C,doc=document){
         const body=doc.createElement('div'),controls=doc.createElement('div'),preview=doc.createElement('div'),caption=doc.createElement('p'),feedback=doc.createElement('p'),viewport=doc.createElement('div'),frame=doc.createElement('div'),paper=doc.createElement('div');
         body.className='sc-layout-body';controls.className='sc-layout-controls';preview.className='sc-layout-example';caption.textContent='現在編集中の譜面（表示専用）。行をクリックすると、その行だけの配置を調整できます。';feedback.className='sc-layout-feedback';feedback.dataset.layoutFeedback='';viewport.className='sc-layout-example-viewport';paper.className='sc-layout-example-paper';viewport.appendChild(frame);frame.appendChild(paper);preview.append(caption,feedback,viewport);body.append(controls,preview);dialog.appendChild(body);
         function selectedLine(){if(selectedNumber===null)return null;return Array.from(paper.querySelectorAll('.sheet-line')).find(line=>line.querySelector('.sheet-bar[data-bar-number="'+selectedNumber+'"]'))||null;}
-        function mark(reveal=false){
+        function mark(reveal=false,measure=true){
             const targets=activeSetting?Array.from(paper.querySelectorAll(targetSelectors[activeSetting])):[],kept=new Set(targets);
             paper.querySelectorAll('[data-layout-highlight]').forEach(e=>{if(!kept.has(e))e.removeAttribute('data-layout-highlight');});
             controls.querySelectorAll('[data-layout-field]').forEach(e=>e.classList.toggle('is-layout-active',e.dataset.layoutField===activeSetting));
             if(!activeSetting)return;targets.forEach(e=>{if(e.dataset.layoutHighlight!==activeSetting)e.dataset.layoutHighlight=activeSetting;});
-            const visible=Array.from(targets).filter(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden');feedback.textContent=names[activeSetting]+'を調整中'+(visible.length?'':'（現在は表示されていません）');
-            const line=selectedLine(),target=visible.find(e=>line?.contains(e))||visible[0];
+            if(!measure)return;
+            const line=selectedLine(),visible=e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden';
+            const target=targets.find(e=>line?.contains(e)&&visible(e))||targets.find(visible);feedback.textContent=names[activeSetting]+'を調整中'+(target?'':'（現在は表示されていません）');
             if(reveal&&target){const a=viewport.getBoundingClientRect(),b=target.getBoundingClientRect();if(b.top<a.top+4)viewport.scrollTop+=b.top-a.top-8;else if(b.bottom>a.bottom-4)viewport.scrollTop+=b.bottom-a.bottom+8;}
         }
         function activate(name){activeSetting=name;mark(true);}
@@ -233,7 +236,7 @@ export function createPaperLayout(C,doc=document){
         let resizeFrame=null;
         function scheduleResize(){if(resizeFrame===null)resizeFrame=requestAnimationFrame(()=>{resizeFrame=null;resize();});}
         function resize(){if(!dialog||!paper.isConnected)return;const scale=Math.min(1,viewport.clientWidth/794);paper.style.transform='scale('+scale+')';frame.style.height=Math.ceil(paper.offsetHeight*scale)+'px';mark(true);}
-        refreshSample=(structural=true)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample),editableSlots:false});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(structural)syncLine();mark();scheduleResize();};
+        refreshSample=(structural=true,reflowOnly=false)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample),editableSlots:false,reuseBars:reflowOnly});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(structural)syncLine();mark(false,false);scheduleResize();};
         function clearHighlight(){activeSetting=null;feedback.textContent='';mark();}
         preview.addEventListener('click',e=>{const line=e.target.closest('.sheet-line');selectedNumber=line&&Number(line.dataset.lineStart)>0?Number(line.dataset.lineStart):null;syncLine();clearHighlight();});
         dialog.addEventListener('click',e=>{if(e.target.closest('[data-layout-field],[data-layout-custom]'))return;clearHighlight();if(!e.target.closest('.sheet-line,button,input,select,summary')){selectedNumber=null;syncLine();}});

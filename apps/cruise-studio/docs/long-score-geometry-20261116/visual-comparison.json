@@ -1,0 +1,83 @@
+[
+  {
+    "before": "chrome-before-100.png",
+    "after": "chrome-after-100.png",
+    "size": [
+      681,
+      169
+    ],
+    "identical": true
+  },
+  {
+    "before": "chrome-before-140.png",
+    "after": "chrome-after-140.png",
+    "size": [
+      681,
+      182
+    ],
+    "identical": true
+  },
+  {
+    "before": "chrome-before-60.png",
+    "after": "chrome-after-60.png",
+    "size": [
+      681,
+      156
+    ],
+    "identical": true
+  },
+  {
+    "before": "print-before-1.png",
+    "after": "print-after-1.png",
+    "size": [
+      849,
+      1200
+    ],
+    "identical": true
+  },
+  {
+    "before": "print-before-2.png",
+    "after": "print-after-2.png",
+    "size": [
+      849,
+      1200
+    ],
+    "identical": true
+  },
+  {
+    "before": "print-before-3.png",
+    "after": "print-after-3.png",
+    "size": [
+      849,
+      1200
+    ],
+    "identical": true
+  },
+  {
+    "before": "webkit-before-100.png",
+    "after": "webkit-after-100.png",
+    "size": [
+      680,
+      168
+    ],
+    "identical": true
+  },
+  {
+    "before": "webkit-before-140.png",
+    "after": "webkit-after-140.png",
+    "size": [
+      680,
+      181
+    ],
+    "identical": true
+  },
+  {
+    "before": "webkit-before-60.png",
+    "after": "webkit-after-60.png",
+    "size": [
+      680,
+      154
+    ],
+    "identical": true
+  }
+]

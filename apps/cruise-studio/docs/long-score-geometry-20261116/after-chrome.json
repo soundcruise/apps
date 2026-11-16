@@ -1,0 +1,1432 @@
+{
+  "node": "v24.14.0",
+  "fixture": "repeated synthetic score, four contiguous sections",
+  "sourceRef": "working-tree",
+  "engine": "chrome",
+  "browser": "157.0.8103.78",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "rounds": 3,
+  "counts": [
+    12,
+    128,
+    256
+  ],
+  "results": [
+    {
+      "bars": 12,
+      "round": 0,
+      "first": {
+        "settledMs": 47.70000000298023,
+        "mainNodes": 2136
+      },
+      "open": {
+        "syncMs": 12.700000002980232,
+        "settledMs": 22.600000001490116,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 2.2000000029802322
+          }
+        ],
+        "mainNodes": 2136,
+        "sampleNodes": 2132
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 8,
+          "settledMs": 21.899999998509884,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 6.5,
+          "settledMs": 32.29999999701977,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 120,
+          "syncMs": 7.399999998509884,
+          "settledMs": 32.899999998509884,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 140,
+          "syncMs": 7.5,
+          "settledMs": 32.100000001490116,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 60,
+          "syncMs": 7,
+          "settledMs": 31.599999994039536,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 6.299999997019768,
+          "settledMs": 31.700000002980232,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 10.699999995529652,
+          "settledMs": 32.399999998509884,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 1.1000000014901161
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 10.300000004470348,
+          "settledMs": 29,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.8999999985098839
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 3,
+          "syncMs": 10.100000001490116,
+          "settledMs": 31.799999997019768,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.8999999985098839
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2132,
+          "sampleNodes": 2128
+        },
+        {
+          "value": 1,
+          "syncMs": 10.299999997019768,
+          "settledMs": 32.399999998509884,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.8000000044703484
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 0.8999999985098839
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 10,
+          "settledMs": 31.899999998509884,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.8000000044703484
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ]
+    },
+    {
+      "bars": 12,
+      "round": 1,
+      "first": {
+        "settledMs": 48.100000001490116,
+        "mainNodes": 2136
+      },
+      "open": {
+        "syncMs": 12.700000002980232,
+        "settledMs": 23.100000001490116,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 2.3000000044703484
+          }
+        ],
+        "mainNodes": 2136,
+        "sampleNodes": 2132
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 8.5,
+          "settledMs": 23.5,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 6.4000000059604645,
+          "settledMs": 32.400000005960464,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 120,
+          "syncMs": 7.5,
+          "settledMs": 32.399999998509884,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 140,
+          "syncMs": 7.600000001490116,
+          "settledMs": 32.29999999701977,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 60,
+          "syncMs": 7.199999995529652,
+          "settledMs": 31.69999999552965,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 6.5999999940395355,
+          "settledMs": 31.399999998509884,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 11,
+          "settledMs": 32.399999998509884,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 1.1000000014901161
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 0.8999999985098839
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 10.5,
+          "settledMs": 31.5,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.8999999985098839
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 3,
+          "syncMs": 10.600000001490116,
+          "settledMs": 31.5,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.7999999970197678
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2132,
+          "sampleNodes": 2128
+        },
+        {
+          "value": 1,
+          "syncMs": 10.899999998509884,
+          "settledMs": 32.399999998509884,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 1
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1.1000000014901161
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 10.600000001490116,
+          "settledMs": 31.400000005960464,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 1
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1.2000000029802322
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ]
+    },
+    {
+      "bars": 12,
+      "round": 2,
+      "first": {
+        "settledMs": 47.899999998509884,
+        "mainNodes": 2136
+      },
+      "open": {
+        "syncMs": 12.600000001490116,
+        "settledMs": 23.100000001490116,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 2.5
+          }
+        ],
+        "mainNodes": 2136,
+        "sampleNodes": 2132
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 8.200000002980232,
+          "settledMs": 21.900000005960464,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 6.799999997019768,
+          "settledMs": 31.799999997019768,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 120,
+          "syncMs": 7.300000004470348,
+          "settledMs": 33,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 140,
+          "syncMs": 7.699999995529652,
+          "settledMs": 32.100000001490116,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 60,
+          "syncMs": 7.199999995529652,
+          "settledMs": 31.899999998509884,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 6.600000001490116,
+          "settledMs": 31.100000001490116,
+          "renders": [],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 11,
+          "settledMs": 32.900000005960464,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 1.0999999940395355
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1.0999999940395355
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 10.5,
+          "settledMs": 31.100000001490116,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.9000000059604645
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1.1000000014901161
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 3,
+          "syncMs": 10.799999997019768,
+          "settledMs": 32.19999999552965,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.8999999985098839
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2132,
+          "sampleNodes": 2128
+        },
+        {
+          "value": 1,
+          "syncMs": 11,
+          "settledMs": 31.899999998509884,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 1
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 11,
+          "settledMs": 32.100000001490116,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 0.8999999985098839
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 1.0999999940395355
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ]
+    },
+    {
+      "bars": 128,
+      "round": 0,
+      "first": {
+        "settledMs": 181.60000000149012,
+        "mainNodes": 22316
+      },
+      "open": {
+        "syncMs": 58,
+        "settledMs": 139.60000000149012,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 20.700000002980232
+          }
+        ],
+        "mainNodes": 22316,
+        "sampleNodes": 22312
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 70,
+          "settledMs": 116.10000000149012,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 63.399999998509884,
+          "settledMs": 108.69999999552965,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 120,
+          "syncMs": 68.60000000149012,
+          "settledMs": 112.19999999552965,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 140,
+          "syncMs": 69.70000000298023,
+          "settledMs": 114.10000000149012,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 60,
+          "syncMs": 70.19999999552965,
+          "settledMs": 120,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 62.79999999701977,
+          "settledMs": 107.79999999701977,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 113.5,
+          "settledMs": 155.19999999552965,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 10.5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.299999997019768
+            }
+          ],
+          "mainNodes": 22348,
+          "sampleNodes": 22344
+        },
+        {
+          "value": 4,
+          "syncMs": 103.5,
+          "settledMs": 158.10000000149012,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.700000002980232
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.599999994039536
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 3,
+          "syncMs": 101,
+          "settledMs": 150.10000000149012,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.600000001490116
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.100000001490116
+            }
+          ],
+          "mainNodes": 22332,
+          "sampleNodes": 22328
+        },
+        {
+          "value": 1,
+          "syncMs": 104,
+          "settledMs": 141.10000000149012,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.899999998509884
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.899999998509884
+            }
+          ],
+          "mainNodes": 22412,
+          "sampleNodes": 22408
+        },
+        {
+          "value": 4,
+          "syncMs": 105.20000000298023,
+          "settledMs": 159.70000000298023,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.800000004470348
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.800000004470348
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ]
+    },
+    {
+      "bars": 128,
+      "round": 1,
+      "first": {
+        "settledMs": 180.89999999850988,
+        "mainNodes": 22316
+      },
+      "open": {
+        "syncMs": 57,
+        "settledMs": 137.89999999850988,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 20.200000002980232
+          }
+        ],
+        "mainNodes": 22316,
+        "sampleNodes": 22312
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 70.39999999850988,
+          "settledMs": 115.5,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 63.80000000447035,
+          "settledMs": 108,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 120,
+          "syncMs": 67.70000000298023,
+          "settledMs": 112.89999999850988,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 140,
+          "syncMs": 69,
+          "settledMs": 113.29999999701977,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 60,
+          "syncMs": 70,
+          "settledMs": 118.70000000298023,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 63.599999994039536,
+          "settledMs": 109,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 114.39999999850988,
+          "settledMs": 156.79999999701977,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 10.599999994039536
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.100000001490116
+            }
+          ],
+          "mainNodes": 22348,
+          "sampleNodes": 22344
+        },
+        {
+          "value": 4,
+          "syncMs": 101.39999999850988,
+          "settledMs": 155.39999999850988,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.100000001490116
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 3,
+          "syncMs": 98.5,
+          "settledMs": 145.90000000596046,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 10.799999997019768
+            }
+          ],
+          "mainNodes": 22332,
+          "sampleNodes": 22328
+        },
+        {
+          "value": 1,
+          "syncMs": 104.89999999850988,
+          "settledMs": 142.80000000447035,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 10.300000004470348
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.899999998509884
+            }
+          ],
+          "mainNodes": 22412,
+          "sampleNodes": 22408
+        },
+        {
+          "value": 4,
+          "syncMs": 107,
+          "settledMs": 161.30000000447035,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 10
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 12.399999998509884
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ]
+    },
+    {
+      "bars": 128,
+      "round": 2,
+      "first": {
+        "settledMs": 181,
+        "mainNodes": 22316
+      },
+      "open": {
+        "syncMs": 57.79999999701977,
+        "settledMs": 139,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 20.5
+          }
+        ],
+        "mainNodes": 22316,
+        "sampleNodes": 22312
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 69.89999999850988,
+          "settledMs": 114.80000000447035,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 64.20000000298023,
+          "settledMs": 108.90000000596046,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 120,
+          "syncMs": 68.19999999552965,
+          "settledMs": 110.59999999403954,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 140,
+          "syncMs": 68.89999999850988,
+          "settledMs": 112.39999999850988,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 60,
+          "syncMs": 67.79999999701977,
+          "settledMs": 115.70000000298023,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 63.399999998509884,
+          "settledMs": 108.70000000298023,
+          "renders": [],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 114.5,
+          "settledMs": 157.80000000447035,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 10.399999998509884
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.800000004470348
+            }
+          ],
+          "mainNodes": 22348,
+          "sampleNodes": 22344
+        },
+        {
+          "value": 4,
+          "syncMs": 104.39999999850988,
+          "settledMs": 159.39999999850988,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.799999997019768
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.600000001490116
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 3,
+          "syncMs": 101,
+          "settledMs": 150.20000000298023,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.399999998509884
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 10.799999997019768
+            }
+          ],
+          "mainNodes": 22332,
+          "sampleNodes": 22328
+        },
+        {
+          "value": 1,
+          "syncMs": 103.5,
+          "settledMs": 140.79999999701977,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.799999997019768
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.799999997019768
+            }
+          ],
+          "mainNodes": 22412,
+          "sampleNodes": 22408
+        },
+        {
+          "value": 4,
+          "syncMs": 106.70000000298023,
+          "settledMs": 163.70000000298023,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 9.900000005960464
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 11.799999997019768
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ]
+    },
+    {
+      "bars": 256,
+      "round": 0,
+      "first": {
+        "settledMs": 297.3999999985099,
+        "mainNodes": 44636
+      },
+      "open": {
+        "syncMs": 110.20000000298023,
+        "settledMs": 283.70000000298023,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 39.5
+          }
+        ],
+        "mainNodes": 44636,
+        "sampleNodes": 44632
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 132.60000000149012,
+          "settledMs": 205.5,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 130.5,
+          "settledMs": 206.20000000298023,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 120,
+          "syncMs": 129.69999999552965,
+          "settledMs": 199.89999999850988,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 140,
+          "syncMs": 130,
+          "settledMs": 199.10000000149012,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 60,
+          "syncMs": 133.60000000149012,
+          "settledMs": 209.39999999850988,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 124.69999999552965,
+          "settledMs": 196.10000000149012,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 209.30000000447035,
+          "settledMs": 285.80000000447035,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 20.899999998509884
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 28.799999997019768
+            }
+          ],
+          "mainNodes": 44700,
+          "sampleNodes": 44696
+        },
+        {
+          "value": 4,
+          "syncMs": 209.60000000149012,
+          "settledMs": 295,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 20.899999998509884
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 30.299999997019768
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 3,
+          "syncMs": 210.70000000298023,
+          "settledMs": 289.1000000014901,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 21.19999999552965
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 28.899999998509884
+            }
+          ],
+          "mainNodes": 44668,
+          "sampleNodes": 44664
+        },
+        {
+          "value": 1,
+          "syncMs": 233.39999999850988,
+          "settledMs": 305.79999999701977,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 20.799999997019768
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 30.19999999552965
+            }
+          ],
+          "mainNodes": 44828,
+          "sampleNodes": 44824
+        },
+        {
+          "value": 4,
+          "syncMs": 211.5,
+          "settledMs": 300.1000000014901,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 20.69999999552965
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 31
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ]
+    },
+    {
+      "bars": 256,
+      "round": 1,
+      "first": {
+        "settledMs": 314.3999999985099,
+        "mainNodes": 44636
+      },
+      "open": {
+        "syncMs": 110.10000000149012,
+        "settledMs": 257.8999999985099,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 41.600000001490116
+          }
+        ],
+        "mainNodes": 44636,
+        "sampleNodes": 44632
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 142.20000000298023,
+          "settledMs": 217.70000000298023,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 129.89999999850988,
+          "settledMs": 209.79999999701977,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 120,
+          "syncMs": 137,
+          "settledMs": 214.20000000298023,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 140,
+          "syncMs": 140.70000000298023,
+          "settledMs": 217,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 60,
+          "syncMs": 135.79999999701977,
+          "settledMs": 213,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 132.5,
+          "settledMs": 208.79999999701977,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 235.10000000149012,
+          "settledMs": 318.80000000447035,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 23.100000001490116
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 29.099999994039536
+            }
+          ],
+          "mainNodes": 44700,
+          "sampleNodes": 44696
+        },
+        {
+          "value": 4,
+          "syncMs": 220.60000000149012,
+          "settledMs": 312.70000000298023,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 23.299999997019768
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 30.399999998509884
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 3,
+          "syncMs": 210.89999999850988,
+          "settledMs": 301.29999999701977,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 22.30000000447035
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 28.19999999552965
+            }
+          ],
+          "mainNodes": 44668,
+          "sampleNodes": 44664
+        },
+        {
+          "value": 1,
+          "syncMs": 221.70000000298023,
+          "settledMs": 300.5,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 22.69999999552965
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 30.200000002980232
+            }
+          ],
+          "mainNodes": 44828,
+          "sampleNodes": 44824
+        },
+        {
+          "value": 4,
+          "syncMs": 228.5,
+          "settledMs": 326,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 23.19999999552965
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 31.100000001490116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ]
+    },
+    {
+      "bars": 256,
+      "round": 2,
+      "first": {
+        "settledMs": 315.19999999552965,
+        "mainNodes": 44636
+      },
+      "open": {
+        "syncMs": 113.70000000298023,
+        "settledMs": 259.70000000298023,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 39.899999998509884
+          }
+        ],
+        "mainNodes": 44636,
+        "sampleNodes": 44632
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 142.89999999850988,
+          "settledMs": 217.89999999850988,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 127.10000000149012,
+          "settledMs": 206.19999999552965,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 120,
+          "syncMs": 151.69999999552965,
+          "settledMs": 229.29999999701977,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 140,
+          "syncMs": 134.60000000149012,
+          "settledMs": 212.70000000298023,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 60,
+          "syncMs": 130.29999999701977,
+          "settledMs": 214.70000000298023,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 129.79999999701977,
+          "settledMs": 209.59999999403954,
+          "renders": [],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 221.30000000447035,
+          "settledMs": 307.30000000447035,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 21.5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 30.899999998509884
+            }
+          ],
+          "mainNodes": 44700,
+          "sampleNodes": 44696
+        },
+        {
+          "value": 4,
+          "syncMs": 217.10000000149012,
+          "settledMs": 305.1000000014901,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 21.69999999552965
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 32.70000000298023
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 3,
+          "syncMs": 215.5,
+          "settledMs": 298.80000000447035,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 20.799999997019768
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 30
+            }
+          ],
+          "mainNodes": 44668,
+          "sampleNodes": 44664
+        },
+        {
+          "value": 1,
+          "syncMs": 220.60000000149012,
+          "settledMs": 295.6000000014901,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 20.799999997019768
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 31.899999998509884
+            }
+          ],
+          "mainNodes": 44828,
+          "sampleNodes": 44824
+        },
+        {
+          "value": 4,
+          "syncMs": 221.70000000298023,
+          "settledMs": 323.90000000596046,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 21.799999997019768
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 33.20000000298023
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ]
+    }
+  ]
+}

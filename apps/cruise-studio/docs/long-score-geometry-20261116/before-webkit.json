@@ -1,0 +1,1915 @@
+{
+  "engine": "webkit",
+  "browser": "26.0",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "rounds": 3,
+  "counts": [
+    12,
+    128,
+    256
+  ],
+  "results": [
+    {
+      "bars": 12,
+      "round": 0,
+      "first": {
+        "settledMs": 80,
+        "mainNodes": 2136
+      },
+      "open": {
+        "syncMs": 17.999999999999943,
+        "settledMs": 69.99999999999994,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 5
+          }
+        ],
+        "mainNodes": 2136,
+        "sampleNodes": 2132
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 42,
+          "settledMs": 58,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 41,
+          "settledMs": 52.00000000000006,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 120,
+          "syncMs": 40.99999999999994,
+          "settledMs": 55.99999999999994,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 140,
+          "syncMs": 41.000000000000114,
+          "settledMs": 56,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 60,
+          "syncMs": 41,
+          "settledMs": 53,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 40,
+          "settledMs": 51.000000000000114,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 38.999999999999886,
+          "settledMs": 56.999999999999886,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 40,
+          "settledMs": 51,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 5
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 3,
+          "syncMs": 41.999999999999886,
+          "settledMs": 52.999999999999886,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 7
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2132,
+          "sampleNodes": 2128
+        },
+        {
+          "value": 1,
+          "syncMs": 42,
+          "settledMs": 57,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 40,
+          "settledMs": 51,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6.000000000000114
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ]
+    },
+    {
+      "bars": 12,
+      "round": 1,
+      "first": {
+        "settledMs": 67,
+        "mainNodes": 2136
+      },
+      "open": {
+        "syncMs": 18.000000000000057,
+        "settledMs": 57,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 5.000000000000057
+          }
+        ],
+        "mainNodes": 2136,
+        "sampleNodes": 2132
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 43,
+          "settledMs": 66,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 40,
+          "settledMs": 52,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6.000000000000057
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 7
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 120,
+          "syncMs": 41,
+          "settledMs": 57,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 5.999999999999943
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 140,
+          "syncMs": 41,
+          "settledMs": 58.000000000000114,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 60,
+          "syncMs": 41.999999999999886,
+          "settledMs": 53.999999999999886,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 5.999999999999886
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 40,
+          "settledMs": 52,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 41,
+          "settledMs": 59,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6.000000000000114
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 41,
+          "settledMs": 53,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 5
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 3,
+          "syncMs": 40,
+          "settledMs": 52,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2132,
+          "sampleNodes": 2128
+        },
+        {
+          "value": 1,
+          "syncMs": 41,
+          "settledMs": 56,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 40.000000000000114,
+          "settledMs": 52.000000000000114,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ]
+    },
+    {
+      "bars": 12,
+      "round": 2,
+      "first": {
+        "settledMs": 76,
+        "mainNodes": 2136
+      },
+      "open": {
+        "syncMs": 18,
+        "settledMs": 55,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 5.999999999999943
+          }
+        ],
+        "mainNodes": 2136,
+        "sampleNodes": 2132
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 42,
+          "settledMs": 64,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 39,
+          "settledMs": 51,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 5
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 120,
+          "syncMs": 40,
+          "settledMs": 55,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 140,
+          "syncMs": 42,
+          "settledMs": 57,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 60,
+          "syncMs": 41,
+          "settledMs": 53,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 100,
+          "syncMs": 40,
+          "settledMs": 52,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 41,
+          "settledMs": 58,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 40,
+          "settledMs": 52,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 5
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        },
+        {
+          "value": 3,
+          "syncMs": 41.000000000000114,
+          "settledMs": 52,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6.000000000000114
+            }
+          ],
+          "mainNodes": 2132,
+          "sampleNodes": 2128
+        },
+        {
+          "value": 1,
+          "syncMs": 42,
+          "settledMs": 57,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2140,
+          "sampleNodes": 2136
+        },
+        {
+          "value": 4,
+          "syncMs": 41.000000000000114,
+          "settledMs": 54.000000000000114,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 6
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 6
+            }
+          ],
+          "mainNodes": 2136,
+          "sampleNodes": 2132
+        }
+      ]
+    },
+    {
+      "bars": 128,
+      "round": 0,
+      "first": {
+        "settledMs": 272,
+        "mainNodes": 22316
+      },
+      "open": {
+        "syncMs": 118,
+        "settledMs": 325,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 45
+          }
+        ],
+        "mainNodes": 22316,
+        "sampleNodes": 22312
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 360,
+          "settledMs": 396,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 366.0000000000002,
+          "settledMs": 401,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57.00000000000023
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 120,
+          "syncMs": 354,
+          "settledMs": 391,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 140,
+          "syncMs": 365,
+          "settledMs": 404,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 59
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 60,
+          "syncMs": 352,
+          "settledMs": 389,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 55
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 55.000000000000455
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 374.00000000000045,
+          "settledMs": 423,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 64
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 375,
+          "settledMs": 417,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 58
+            }
+          ],
+          "mainNodes": 22348,
+          "sampleNodes": 22344
+        },
+        {
+          "value": 4,
+          "syncMs": 362.99999999999955,
+          "settledMs": 409.00000000000045,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 54.999999999999545
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 3,
+          "syncMs": 372,
+          "settledMs": 414,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 68
+            }
+          ],
+          "mainNodes": 22332,
+          "sampleNodes": 22328
+        },
+        {
+          "value": 1,
+          "syncMs": 371.9999999999991,
+          "settledMs": 404.9999999999991,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 59
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 56
+            }
+          ],
+          "mainNodes": 22412,
+          "sampleNodes": 22408
+        },
+        {
+          "value": 4,
+          "syncMs": 354,
+          "settledMs": 390,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57.00000000000091
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 56
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ]
+    },
+    {
+      "bars": 128,
+      "round": 1,
+      "first": {
+        "settledMs": 287,
+        "mainNodes": 22316
+      },
+      "open": {
+        "syncMs": 110,
+        "settledMs": 314,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 45
+          }
+        ],
+        "mainNodes": 22316,
+        "sampleNodes": 22312
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 368,
+          "settledMs": 403,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 62.00000000000023
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 354.0000000000002,
+          "settledMs": 391,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56.00000000000023
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 56
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 120,
+          "syncMs": 359,
+          "settledMs": 414,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 62
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 54.99999999999977
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 140,
+          "syncMs": 359,
+          "settledMs": 403,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 58
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 60,
+          "syncMs": 361.99999999999955,
+          "settledMs": 409.99999999999955,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56.000000000000455
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 58
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 359,
+          "settledMs": 403,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 59
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 56
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 396.00000000000045,
+          "settledMs": 432.00000000000045,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 58
+            }
+          ],
+          "mainNodes": 22348,
+          "sampleNodes": 22344
+        },
+        {
+          "value": 4,
+          "syncMs": 364,
+          "settledMs": 399,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 56.999999999999545
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 3,
+          "syncMs": 372,
+          "settledMs": 411,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57.99999999999909
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 59
+            }
+          ],
+          "mainNodes": 22332,
+          "sampleNodes": 22328
+        },
+        {
+          "value": 1,
+          "syncMs": 365.9999999999991,
+          "settledMs": 392.9999999999991,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57
+            }
+          ],
+          "mainNodes": 22412,
+          "sampleNodes": 22408
+        },
+        {
+          "value": 4,
+          "syncMs": 374,
+          "settledMs": 414,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 65.00000000000091
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ]
+    },
+    {
+      "bars": 128,
+      "round": 2,
+      "first": {
+        "settledMs": 281,
+        "mainNodes": 22316
+      },
+      "open": {
+        "syncMs": 120,
+        "settledMs": 327,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 45
+          }
+        ],
+        "mainNodes": 22316,
+        "sampleNodes": 22312
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 358,
+          "settledMs": 396,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56.999999999999886
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 367,
+          "settledMs": 405,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57.99999999999977
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 120,
+          "syncMs": 358,
+          "settledMs": 397,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 56.99999999999977
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 140,
+          "syncMs": 367,
+          "settledMs": 408,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 60
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 60,
+          "syncMs": 358.00000000000045,
+          "settledMs": 396,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 55
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 56
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 100,
+          "syncMs": 372,
+          "settledMs": 414,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58.999999999999545
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 64
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 353,
+          "settledMs": 386,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 55
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57.000000000000455
+            }
+          ],
+          "mainNodes": 22348,
+          "sampleNodes": 22344
+        },
+        {
+          "value": 4,
+          "syncMs": 376,
+          "settledMs": 417,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 58
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 65.00000000000045
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        },
+        {
+          "value": 3,
+          "syncMs": 365,
+          "settledMs": 431,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 55
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 56.99999999999909
+            }
+          ],
+          "mainNodes": 22332,
+          "sampleNodes": 22328
+        },
+        {
+          "value": 1,
+          "syncMs": 361,
+          "settledMs": 402,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 57
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 57
+            }
+          ],
+          "mainNodes": 22412,
+          "sampleNodes": 22408
+        },
+        {
+          "value": 4,
+          "syncMs": 401,
+          "settledMs": 451,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 59
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 58
+            }
+          ],
+          "mainNodes": 22316,
+          "sampleNodes": 22312
+        }
+      ]
+    },
+    {
+      "bars": 256,
+      "round": 0,
+      "first": {
+        "settledMs": 526,
+        "mainNodes": 44636
+      },
+      "open": {
+        "syncMs": 215,
+        "settledMs": 616.0000000000002,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 89
+          }
+        ],
+        "mainNodes": 44636,
+        "sampleNodes": 44632
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 752.9999999999998,
+          "settledMs": 817.9999999999998,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 118
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 125
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 739,
+          "settledMs": 806,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 116
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 115
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 120,
+          "syncMs": 724.9999999999995,
+          "settledMs": 789.9999999999995,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 122
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 140,
+          "syncMs": 749,
+          "settledMs": 844,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 60,
+          "syncMs": 735,
+          "settledMs": 1264,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 121.00000000000091
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 754.9999999999991,
+          "settledMs": 830,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 121.00000000000091
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 122.00000000000091
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 790.9999999999991,
+          "settledMs": 865.9999999999991,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 135
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 122.99999999999909
+            }
+          ],
+          "mainNodes": 44700,
+          "sampleNodes": 44696
+        },
+        {
+          "value": 4,
+          "syncMs": 748,
+          "settledMs": 821,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 124
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 124
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 3,
+          "syncMs": 747,
+          "settledMs": 817,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 117
+            }
+          ],
+          "mainNodes": 44668,
+          "sampleNodes": 44664
+        },
+        {
+          "value": 1,
+          "syncMs": 758,
+          "settledMs": 825,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 117
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 120
+            }
+          ],
+          "mainNodes": 44828,
+          "sampleNodes": 44824
+        },
+        {
+          "value": 4,
+          "syncMs": 822,
+          "settledMs": 909,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 125
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 120
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ]
+    },
+    {
+      "bars": 256,
+      "round": 1,
+      "first": {
+        "settledMs": 528,
+        "mainNodes": 44636
+      },
+      "open": {
+        "syncMs": 216,
+        "settledMs": 617,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 87.99999999999989
+          }
+        ],
+        "mainNodes": 44636,
+        "sampleNodes": 44632
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 749,
+          "settledMs": 812,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 117
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 126
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 736,
+          "settledMs": 803,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 119
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 120,
+          "syncMs": 747.0000000000005,
+          "settledMs": 812.9999999999995,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 126
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 140,
+          "syncMs": 744,
+          "settledMs": 836,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 116
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 60,
+          "syncMs": 728,
+          "settledMs": 1256,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 113
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 124
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 748.9999999999991,
+          "settledMs": 823.9999999999991,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 118
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 123
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 795,
+          "settledMs": 869,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 136
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 126
+            }
+          ],
+          "mainNodes": 44700,
+          "sampleNodes": 44696
+        },
+        {
+          "value": 4,
+          "syncMs": 753.9999999999991,
+          "settledMs": 828.9999999999991,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 122.99999999999909
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 125
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 3,
+          "syncMs": 750,
+          "settledMs": 821,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 116
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 117.00000000000182
+            }
+          ],
+          "mainNodes": 44668,
+          "sampleNodes": 44664
+        },
+        {
+          "value": 1,
+          "syncMs": 754,
+          "settledMs": 821,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115.99999999999818
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 117.99999999999818
+            }
+          ],
+          "mainNodes": 44828,
+          "sampleNodes": 44824
+        },
+        {
+          "value": 4,
+          "syncMs": 823,
+          "settledMs": 902,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 123
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 123
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ]
+    },
+    {
+      "bars": 256,
+      "round": 2,
+      "first": {
+        "settledMs": 528,
+        "mainNodes": 44636
+      },
+      "open": {
+        "syncMs": 216,
+        "settledMs": 624.0000000000002,
+        "renders": [
+          {
+            "host": "sc-layout-example-paper",
+            "ms": 88
+          }
+        ],
+        "mainNodes": 44636,
+        "sampleNodes": 44632
+      },
+      "scaling": [
+        {
+          "value": 80,
+          "syncMs": 749.9999999999998,
+          "settledMs": 815.9999999999998,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 117
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 126
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 747,
+          "settledMs": 818,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 117
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 120,
+          "syncMs": 739.0000000000005,
+          "settledMs": 808,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 125
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 140,
+          "syncMs": 749.9999999999995,
+          "settledMs": 817.9999999999995,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 60,
+          "syncMs": 747,
+          "settledMs": 1306,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 115
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 116
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 100,
+          "syncMs": 749,
+          "settledMs": 824,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 117.99999999999909
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 126
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ],
+      "columns": [
+        {
+          "value": 2,
+          "syncMs": 760.0000000000009,
+          "settledMs": 834,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 123
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 124
+            }
+          ],
+          "mainNodes": 44700,
+          "sampleNodes": 44696
+        },
+        {
+          "value": 4,
+          "syncMs": 754,
+          "settledMs": 839,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 133.0000000000009
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 124
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        },
+        {
+          "value": 3,
+          "syncMs": 769,
+          "settledMs": 851.9999999999982,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 125
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 126
+            }
+          ],
+          "mainNodes": 44668,
+          "sampleNodes": 44664
+        },
+        {
+          "value": 1,
+          "syncMs": 822,
+          "settledMs": 894,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 124
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 118
+            }
+          ],
+          "mainNodes": 44828,
+          "sampleNodes": 44824
+        },
+        {
+          "value": 4,
+          "syncMs": 815,
+          "settledMs": 893,
+          "renders": [
+            {
+              "host": "sc-layout-example-paper sc-paper-layout",
+              "ms": 133
+            },
+            {
+              "host": "sc-sheet-scale-box",
+              "ms": 135.99999999999818
+            }
+          ],
+          "mainNodes": 44636,
+          "sampleNodes": 44632
+        }
+      ]
+    }
+  ]
+}

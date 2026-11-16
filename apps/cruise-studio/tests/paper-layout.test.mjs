@@ -47,3 +47,12 @@ test('individual metadata is allowlisted, inherited by default and saved atomica
  assert.deepEqual(normalizeMetaFields({originalKey:{size:Infinity,font:'url(evil)',color:'red',visible:'false'},capo:{visible:false,size:100,font:'serif',color:'#abcdef'},unknown:{size:20}}),{originalKey:{},capo:{visible:false,size:24,font:'serif',color:'#abcdef'}});
  const f=presetFixture(),l=f.layout,p={projectId:'meta',bars:[]},before=l.value;l.begin();l.set({metaFields:{originalKey:{size:18,font:'serif',color:'#123456'},capo:{visible:false}}});l.saveDisplayPreset('metadata',p);l.cancel();assert.deepEqual(l.value,before);assert.equal(l.presets.length,0);l.begin();l.set({metaFields:{playKey:{size:16},bpm:{visible:false}}});l.saveDisplayPreset('metadata',p);assert(l.commit().ok);const reload=createPaperLayout(f.C,f.doc),saved=reload.value;reload.set({metaFields:{}});assert(reload.loadDisplayPreset('metadata',p).ok);assert.deepEqual(reload.value,saved);assert.equal(normalizeLayout({metaSize:16}).metaFields.playKey,undefined);
 });
+
+test('only line arrangement changes request bar reuse; form size is geometry and track changes rebuild content',()=>{
+ const f=presetFixture(),layout=f.layout,changes=[];layout.onChange(change=>changes.push(change));
+ layout.set({formScale:140});assert.deepEqual(changes.pop(),{structural:false,reflowOnly:false});
+ layout.set({barsPerLine:2});assert.deepEqual(changes.pop(),{structural:true,reflowOnly:true});
+ layout.set({gridResolution:16});assert.deepEqual(changes.pop(),{structural:true,reflowOnly:false});
+ layout.set({appearance:{visibility:{forms:false}}});assert.deepEqual(changes.pop(),{structural:true,reflowOnly:false});
+ layout.set({barsPerLine:4});assert.deepEqual(changes.pop(),{structural:true,reflowOnly:true});
+});
