@@ -1,3 +1,47 @@
+# Studio local 0.141.0-dev.1 — フォーム編集・FM7共通ルール・上部カード整理（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.140未commit差分を保持。ミュートのpointer-eventsと0F列を修正し、倍率補正した空き位置クリックで実音追加。白黒/拡大/詳細図の指・ミュート・バレーとSession保存を連動。コード名の右へ試聴、フォーム下に説明。CAGEDは旧位置から目的位置までsmooth scroll、初期は運指。コード/メロディカード右上に閉じる。表示→詳細設定へ統合、ズームは外、譜面スタイル入口を非表示。曲メニューを保存/曲設定/ファイルへ分け、既存コマンドの上書き保存を追加。ユーザー明示承認のChord共通getFormでFM7 E型の頻出xx3210を採用し、正式なE型との切替を同じExplore注意枠へ追加。正式型を保存/reload/Undoしても案内を実フォームへ合わせる。正式release-boundary関数は維持、作業中の境界試験だけ正確な承認ファイルを除外。全Studio Node2,220成功・既存専用backend1skip、譜面Chrome122、専用/関連Chrome・WebKit34/30、最終10、鍵盤関連12、最新Node関連125件成功。Chord全97件中91成功、既存6失敗は変更前HEADでも同じassertionを再現。Studio正式0.88.1/Chord正式1.23.0・公開HTML・本番配信・実Account/Sync・shared・他アプリ無変更。2026-11-16にユーザー承認でローカルコミット。未push。[操作・画像・検証](../docs/form-toolbar-20261116/README.md)。以下は履歴。
+
+# Studio local 0.140.0-dev.1 — 範囲表示・フォーム詳細・履歴プレビュー・曲情報の個別表示（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.139の未commit差分を保持。範囲ループ中は全選択小節の青い表示を維持し棒だけ移動。CAGED明示選択だけSession再描画後に実フォームへ再センタリング、指変更時の位置保持と区別。詳細のCAGED/説明/コード再生/表示モードを整理し、白黒フォームを196pxへ縮小、同じSession指サイクルで直接変更。履歴はドラッグ移動・読み取り専用の実譜面プレビュー・取消/決定・警告後の明示復元に変更。確認時だけ後続履歴を破棄し、通常Undo/Redoは維持。新しいSession.previewHistoryとrestoreHistoryの明示discardFuture、古いticket/外部更新/保存中/IME/連打を保護。曲情報の「さらに詳細」でORG/Play/カポ/BPM/拍子/基本ストロークを個別に表示/書体/色/サイズ調整。継承と完全プリセット、取消/保存/reload/印刷CSSへ反映。全Node2,218成功・失敗0・既存専用backend E2E1skip。譜面Chrome122、専用/範囲/履歴Chrome・WebKit54、既存再生等68、最終確認6件成功。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作・検証・画像](../docs/range-detail-history-20261116/README.md)。以下は履歴。
+
+# Studio local 0.139.0-dev.1 — 履歴・別名保存・フォームの指サイクル（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.138未commit差分を保持。再生説明を「？」へ集約し、再生対象/通常操作結果を上部から非表示。直近20変更程度の履歴から1回で任意位置へ復元し、保存metadataとRedoを維持。最新保存済みなら保存をグレー化。名前をつけて保存は原本/未保存Sessionを残し別ProjectへRepositoryで保存、フォームbasisKeyを新IDに適合。グリッドはブラウザ内表示設定へ移動。拡大フォームの閲覧/編集をカード内だけに限定、既存ownerと一致する指→注意→ミュートのクリックサイクルと描画を共通化。全Node2,213成功・失敗0・既存専用backend E2E1skip。専用Chrome/WebKit22、譜面Chrome122、WebKit6、既存再生28、関連74、印刷3、表示最終6件成功。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作と検証](../docs/history-save-form-20261116/README.md)。以下は履歴。
+
+# Studio local 0.138.0-dev.1 — 直接フォーム変更・再生ミキサー・上部カード整理（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.137未commit差分を保持。拡大フォーム内で指と弾く/ミュート弦だけを変更し、反映時に既存adopt/Sessionで対象コードへ一括適用。別の編集画面には移動しない。Undo/Save/JSON・拍内ID・immutable素材を維持。再生設定へコード/メロディ/拍音の独立音量とカウントイン/メトロノームを集約。同一Contextの3系統GainNodeで再生中にも反映する。上部からチェック2種を外し、ズームを「表示」へ集約。全Node2,207成功・失敗0・既存専用backend E2E1skip。譜面Chrome122、専用Chrome/WebKit14、既存再生/カウント32、カード/範囲/DnD56、関連31、印刷3件成功。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作と検証](../docs/direct-form-playback-20261116/README.md)。以下は履歴。
+
+# Studio local 0.137.0-dev.1 — メトロノーム・滑らかな追従・拡大フォーム編集（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.136未commit差分を保持。上部に独立したメトロノームON/OFFと▶再生を追加。同一AudioContextでカウント後も毎拍鳴り、範囲ループへ追従する。譜面はBPMに応じ小刻みに中央へ追従し、手動スクロール/停止を尊重。拡大フォームの編集は既存owner編集とeventId/adoptへ集約し、拍内コードも指変更・Undo/Save/JSONへ反映。カード外クリックで閉じる。空欄ストロークの拍/コード変更補完と再生警告の残留を修正。専用Chrome/WebKit14、譜面Chrome122、WebKit追加7、関連77、印刷3件成功。全Node2,202成功・失敗0・既存専用backend E2E1skip。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作と検証](../docs/playback-forms-20261116/README.md)。以下は履歴。
+
+# Studio local 0.136.0-dev.1 — 譜面再生のカウントイン（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.135.1未commit差分を保持。再生の隣に任意の1小節カウントインを追加し、ブラウザ設定へ保存。曲tick/Project/JSON/MIDIは無変更。同じAudioContext/lease/時計で初回4拍だけ鳴らし、範囲ループの周期は維持。カウント中の現在地/追従を抑制し、停止/遅い読込/画面切替/未保存確認/IMEを保護。専用Chrome/WebKit18、譜面Chrome122、関連45、印刷4件成功。全Node2,200成功・失敗0・既存専用backend E2E1skip。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作と検証](../docs/count-in-20261116/README.md)。以下は履歴。
+
+# Studio local 0.135.1-dev.1 — 既存試験整理・印刷の行分断修正（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.135未commit差分を保持。既存Node39失敗の旧仕様／固定版／件数前提を現行契約へ更新。Node2,191成功・失敗0・専用backend E2E1skip（通常ランタイムの5skipのうちfake-IDB4件も別途実行済み）。Chrome譜面122、現行編集/保存/JSON/MIDI/印刷12、Chrome/WebKit関連23、印刷メディア最終各4件成功。PDF画像で発見した行分断は、印刷時のcontainer-type:size解除で修正。フォーカス枠残りも除外。短い曲1ページ、長い曲全28小節の行単位改ページを確認。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[分類と検証](../docs/test-maintenance-20261116/README.md)。以下は履歴。
+
+# Studio local 0.135.0-dev.1 — 隣への小節移動・余白からの範囲選択（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132〜0.134差分を保持。小節の左右半分で前/後へ挿入し、線と確定位置を統一。afterIdで曲末/セクション末を正しく扱う。余白からの範囲選択は移動線分を調べ、高速操作・右→左・選択済みからの選び直しに対応。ドラッグ中のカード高さ固定とmouseup後click抑制で選択のずれ/消失を防ぐ。専用Chrome/WebKit28＋回帰48、Node45件成功。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作と検証](../docs/bar-drop-marker-20261116/adjacent-and-range-fix.md)。以下は履歴。
+
+# Studio local 0.134.0-dev.1 — 小節ドラッグの挿入位置を表示（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132/0.133未commit差分を保持。小節のドラッグ先に青い縦線と「第○小節の前へ」を表示し、複数選択なら小節数を添える。移動元を薄くし、無効位置/キャンセル/画面切替/古いSessionを保護。従来の前挿入・単一Undo・範囲選択を維持。Chrome/WebKit実マウスDnDを含む専用14、関連ブラウザ48、関連Node42件成功。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作と検証](../docs/bar-drop-marker-20261116/README.md)。以下は履歴。
+
+# Studio local 0.133.0-dev.1 — 保存先の明示・編集操作ガイド（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。先行0.132.0差分を保持し、ステップ1を実装。表示設定上部/プリセットにブラウザ保存・JSON/同期対象外を明示。編集カードの「？」でSpace/移動/ストローク/保存のガイドを開く。入力/カーソル復帰、IME/不正入力/遅い読込/画面離脱の保護、読み取り専用のキー所有、再生停止を検証。専用Chrome/WebKit14＋関連56、Node44件成功。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリ無変更。未commit・未push。[操作と検証](../docs/editor-help-storage-20261116/README.md)。以下は履歴。
+
+# Studio local 0.132.0-dev.1 — 曲メニューの直接入口・カポ移調（未公開）
+
+基準7f69b433、codex/score-toolbar-ui。未commit・未push。曲メニューから曲情報/キー・カポ/基本ストローク/セクションを直接開く。旧設定2タブと移調サブメニューは撤去/非表示。移調モードのカポ変更はPlayキーを保ち、全曲の実音をカポ差分だけ上下する。実音保持モードを維持。変更前/後のキー・カポ表、単一Undo・登録フォーム自動更新・明示Save、メニューへのフォーカス復帰を確認。専用Chrome/WebKit14、関連ブラウザ59、関連Node66件成功。正式0.88.1、本番配信・公開HTML・実Account/Sync・他アプリは無変更。[操作と検証](../docs/key-capo-menu-20261116/README.md)。以下は履歴。
+
 # Studio local 0.131.2-dev.1 — 操作案内を自然な文章へ（未公開）
 
 「ドラッグ：範囲選択」などの省略をやめ、何をするとどうなるかを短い文で案内。未選択・選択中・空き枠の各状態を更新。Chrome/WebKitの操作・表示14件成功。0.131.0〜0.131.2の差分をユーザー承認により作業ブランチへまとめてコミット。pushは未実施。以下の「未commit」は各検証時点の記録。本番配信・公開HTML・実Account/Syncは無変更。

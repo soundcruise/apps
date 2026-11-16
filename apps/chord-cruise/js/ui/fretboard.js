@@ -37,7 +37,10 @@
             });
             frets.sort(function (a, b) { return a - b; });
         }
-        if (frets.length) return frets;
+        if (frets.length) {
+            if ((opts.mutedStrings || []).length && frets[0] !== 0) frets.unshift(0);
+            return frets;
+        }
 
         var startFret = typeof opts.startFret === 'number' ? opts.startFret : 0;
         var endFret = typeof opts.endFret === 'number'
@@ -46,6 +49,7 @@
         if (endFret < startFret) endFret = startFret;
         var fret;
         for (fret = startFret; fret <= endFret; fret++) frets.push(fret);
+        if ((opts.mutedStrings || []).length && frets[0] !== 0) frets.unshift(0);
         return frets;
     }
 
@@ -647,6 +651,7 @@
             el.style.left = model.muteX + 'px';
             el.style.top = stringY(s, model.monochrome) + 'px';
             el.setAttribute('aria-hidden', 'true');
+            el.dataset.string = String(s);
             markerLayer.appendChild(el);
         });
 
@@ -683,6 +688,7 @@
             markerLayer.appendChild(el);
         });
 
+        if (typeof opts.onEmptySlotTap === 'function') markerLayer.style.pointerEvents = 'auto';
         if (typeof opts.onSlotTap === 'function' || typeof opts.onEmptySlotTap === 'function') {
             function activateMarker(marker, fromKeyboard) {
                 var stringNum = parseInt(marker.dataset.string, 10);
@@ -730,8 +736,10 @@
     function slotAtPointer(event, stage, model, compactOpenStringColumn, viewportLeftCrop) {
         if (!event || !stage || !model || !Array.isArray(model.frets)) return null;
         var rect = stage.getBoundingClientRect();
-        var x = event.clientX - rect.left + (Number(viewportLeftCrop) || 0);
-        var y = event.clientY - rect.top;
+        var scaleX = rect.width ? stage.offsetWidth / rect.width : 1;
+        var scaleY = rect.height ? stage.offsetHeight / rect.height : 1;
+        var x = (event.clientX - rect.left) * scaleX + (Number(viewportLeftCrop) || 0);
+        var y = (event.clientY - rect.top) * scaleY;
         var layout = createFretLayout(model.frets, model.monochrome && compactOpenStringColumn);
         var fret = null;
         var index;
@@ -806,7 +814,7 @@
     function centerOnFret(host, fret, options) {
         var scroll = host ? host.querySelector('.cc-fb-scroll') : null;
         if (!scroll) return null;
-        return setScrollCenter(scroll, normalizeFrets(options || {}), fret);
+        return setScrollCenter(scroll, normalizeFrets(options || {}), fret, options);
     }
 
     function getScrollLeft(host) {

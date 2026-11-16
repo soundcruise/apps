@@ -1,0 +1,69 @@
+{
+  "date": "2026-11-16",
+  "candidate": "0.134.0-dev.1",
+  "baseCommit": "7f69b433",
+  "branch": "codex/score-toolbar-ui",
+  "carriedUncommittedCandidates": [
+    "0.132.0-dev.1",
+    "0.133.0-dev.1"
+  ],
+  "committed": false,
+  "pushed": false,
+  "localOnly": true,
+  "formalVersionUnchanged": "0.88.1",
+  "browserPassIncludingParents": 62,
+  "relatedNodePass": 42,
+  "suites": [
+    {
+      "suite": "bar-drop marker Chrome/WebKit including real mouse drags",
+      "counts": {
+        "tests": 14,
+        "pass": 14,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "bar-drop-final.log"
+    },
+    {
+      "suite": "guidance/range-loop/five-point Chrome/WebKit",
+      "counts": {
+        "tests": 48,
+        "pass": 48,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "bar-drop-regressions-final.log"
+    },
+    {
+      "suite": "score-slots-range and structure-operation Node",
+      "counts": {
+        "tests": 42,
+        "pass": 42,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "bar-drop-node.log"
+    }
+  ],
+  "contracts": [
+    "existing before-target insertion retained",
+    "single/range move previews do not mutate Project or history",
+    "real mouse drags in both Chrome and WebKit land at marked position",
+    "invalid/no-op/self/hatched/external drops ignored",
+    "pending input and stale sessions blocked; dragend/Escape/Project changes clear marker",
+    "geometry follows zoom/scroll; labels fit 390/768/1440px; print CSS excludes marker",
+    "exact Undo and chord/form/lyric/note data retained"
+  ],
+  "relatedTestUpdate": "Range-loop capo assertions aligned with already approved 0.132 transpose semantics; preserve mode still unchanged.",
+  "limits": [
+    "Safari user-profile and touch reordering not tested",
+    "OS print dialog not tested",
+    "Full Node and full score-view suites not rerun"
+  ],
+  "scopeChecks": {
+    "studioOnly": true,
+    "indexEmpty": true,
+    "headUnchanged": "7f69b433",
+    "productionHtmlAuthAndDeploymentUnchanged": true
+  }
+}

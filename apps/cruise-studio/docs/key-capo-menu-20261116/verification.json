@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-16",
+  "candidate": "0.132.0-dev.1",
+  "baseCommit": "7f69b433",
+  "branch": "codex/score-toolbar-ui",
+  "committed": false,
+  "pushed": false,
+  "localOnly": true,
+  "formalVersionUnchanged": "0.88.1",
+  "browserPassIncludingParents": 73,
+  "relatedNodePass": 66,
+  "suites": [
+    {
+      "suite": "key-capo Chrome/WebKit",
+      "counts": {
+        "tests": 14,
+        "pass": 14,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "key-capo-interval-final.log"
+    },
+    {
+      "suite": "five-point + guidance + toolbar Chrome/WebKit",
+      "counts": {
+        "tests": 48,
+        "pass": 48,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "key-capo-regressions.log"
+    },
+    {
+      "suite": "score-view targeted Chrome",
+      "counts": {
+        "tests": 11,
+        "pass": 11,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "key-capo-score-targeted.log"
+    },
+    {
+      "suite": "instrument/structure/forms/paste/safety/local-entry Node",
+      "counts": {
+        "tests": 66,
+        "pass": 66,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "key-capo-node.log"
+    }
+  ],
+  "checkedCapoIntervals": [
+    2,
+    6,
+    7,
+    11,
+    -2,
+    -6,
+    -7,
+    -11
+  ],
+  "contracts": [
+    "preserve keeps sounding chords and notes",
+    "transpose capo keeps Play key and shifts sounding chords, melody and tonic by exact interval",
+    "forms rebuilt with one Undo; Save/JSON/reload checked",
+    "invalid input, IME and stale/pending Session blocked",
+    "manual original-key changes recompute Play; subsequent capo changes retain that Play key"
+  ],
+  "limits": [
+    "Full Node and full score-view suites not rerun",
+    "WebKit automation is not Safari user-profile verification",
+    "No real Account/Sync, production deployment, OS print or acoustic listening review"
+  ],
+  "scopeChecks": {
+    "studioOnly": true,
+    "indexEmpty": true,
+    "headUnchanged": "7f69b433",
+    "productionHtmlAuthAndDeploymentUnchanged": true
+  }
+}

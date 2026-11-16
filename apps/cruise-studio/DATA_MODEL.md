@@ -199,7 +199,8 @@ ADR-009で見込んでいたとおり、`lyrics` は同じイベント形のま�
 | `cruiseStudio.project.<projectId>` | StudioProject 本体（JSON文字列） |
 | `cruiseStudio.currentProjectId` | 最後に開いていたプロジェクトのID（画面再読み込み時の復元用） |
 | `cruiseStudio.appSettings` | アプリ側設定のJSONオブジェクト。`preDtmSettings`（伴奏設定: ADR-014）など。曲データは入れない |
-| `cruiseStudio.appSettings` | アプリ側設定（将来。proSettings 相当もここ。曲データに入れない） |
+
+ローカル候補0.136.0以降では、同オブジェクトの`scoreCountIn`（boolean、欠損時false）に譜面再生の1小節カウントイン設定を保存する。Project/schema2・曲JSON・MIDI・Account/Syncの対象ではない。曲のtickやBPMを変更しない。既存の他設定を保持し、設定の原文が破損・配列・nullの場合は書き換えず、この画面内だけに適用する。
 
 JSONファイル書き出しは StudioProject をそのまま整形出力する。
 読み込み時は `migrateProject()` → `validateProject()` の順に通す。
@@ -229,3 +230,20 @@ legacy由来の保存値やUI自動割当をユーザー確認済みと扱わず
 未確定voicing/string-fret/使用弦/運指はnull、Rhythm/Chord実接続とTAB描画は後続。五線は[Melody Staff Preview](docs/MELODY_STAFF_PREVIEW.md)としてmemory-only表示する。
 変換予算・immutable output・readonly readiness・古いresult拒否は正式契約参照。
 将来の演奏snapshot永続化は別schema/migration契約で行い、表示専用fieldの例外を流用しない。
+
+ローカル候補0.137.0以降は、同じAppSettingの`scoreMetronome`（boolean、欠損時false）で譜面再生中の拍音を切り替える。カウントインとは独立し、同じAudioContextで楽曲に追従する。範囲ループでも毎拍鳴るが、Project・JSON・MIDIには追加しない。破損した設定原文を上書きしない方針も同じ。フォーム拡大からの編集は既存SessionのformBindingsとimmutable materialを使い、対象コードのeventIdに対する既存adopt操作へ集約する。
+
+ローカル候補0.138.0以降の`scorePlaybackMix`は、AppSetting内の`{chords, melody, metronome}`という0〜100の音量百分率。欠損・不正値は各100として読み、文字列を数値へ変換しない。カウントインとクリックはmetronomeを共用する。変更は再生中の3系統GainNodeへ反映し、Project/JSON/MIDIやBPMを書き換えない。ガイドのON/OFFも従来の`scoreCountIn`/`scoreMetronome`を再利用する。
+
+拡大フォームの直接変更は確定前のローカルdraftに留め、「譜面に反映」で既存adoptを1回実行する。指はsnapshotへ、ミュートは既存binding.playedStringsへ反映する。既知の押弦位置は保持し、元からミュートで位置がない弦を有効にする明示操作では開放弦を登録する。1本以上のplayedStringsが必要というschema2の契約を維持。紙面のミュート図はplayedStringsから派生する表示であり、元素材を上書きしない。新しい保存形式やmigrationは導入しない。
+
+ローカル候補0.139.0では、既存Sessionの保持履歴を`restoreHistory(cursor,{sessionId,epoch,snapshotVersion})`で1回の検証・公開により復元できる。base/revision/保存metadataは復元対象にしない。履歴はブラウザ再読込後へ永続化しない。名前をつけて保存は新しいprojectIdを持つ別ProjectをRepositoryへ保存する。内部参照IDを保ち、元の確認済みフォームのbasisKeyを新Project IDに合わせる。元Projectや元の未保存Sessionを書き換えない。
+
+同候補のブラウザ表示設定に`timingGrid`（booleanまたはnull）と`gridResolution`（8/16またはnull）を追加。nullは既存Project.notationの値を使う。明示したグリッド設定は表示プリセットを含むAppSettingで扱い、曲JSONやnotationデータを書き換えない。新しいProject schemaやmigrationは導入しない。
+
+
+### ローカル候補0.140.0 — 履歴プレビューと明示的な後続破棄
+
+`Session.previewHistory(cursor,ticket)`は現在の保存metadataを維持した不変snapshotを返し、Project・dirty・履歴位置を変更しない。履歴パレットの決定→警告→確認を経て`restoreHistory(cursor,ticket,{discardFuture:true})`を実行した場合だけ、選択点以後の履歴とbyte会計を破棄する。通常Undo/Redoおよびオプションを付けないrestoreHistoryは後続履歴を保持する。古いticket・保存中・入力中・外部更新待ち・検証失敗時は復元/破棄とも実行しない。
+
+曲情報の各表示設定は`scorePaperDisplayV2.layout.metaFields`の許可された6項目のみ。`visible/font/color/size`を正規化し、未指定は親の曲情報表示を継承する。完全な表示プリセットに含み、Project/JSON/Account/Syncへ追加しない。

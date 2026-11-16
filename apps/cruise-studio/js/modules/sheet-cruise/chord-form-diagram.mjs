@@ -7,15 +7,28 @@ export function formDiagramOptions(snapshot,chord,explore,{monochrome=false,mode
         return {string:n.string,fret:n.relativeFret,label,role:explore.readMarkerRole(chord,interval),fingeringWarning:mode==='finger'&&!!n.fingeringWarning,tappable:!!onSlotTap&&mode==='finger',ariaLabel:n.string+'弦 '+n.relativeFret+'フレット、'+(label||'指未指定')+'。クリックで指を変更'};
     }),mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:snapshot.barres.map(b=>({...b,fret:b.relativeFret})),markerLabelSize:'medium',onSlotTap:mode==='finger'?onSlotTap:undefined,onEmptySlotTap:mode==='finger'?onEmptySlotTap:undefined};
 }
-export function drawChordForm(fretboard,container,snapshot,chord,explore,monochrome=true,saveRange=null){
+export function drawChordForm(fretboard,container,snapshot,chord,explore,monochrome=true,saveRange=null,interaction={}){
     container.replaceChildren();if(!snapshot){container.textContent='フォーム候補がありません';return ()=>{};}
     const notes=snapshot.strings.filter(n=>n.kind==='note'),fretsOfNotes=notes.map(n=>n.relativeFret),includesOpen=fretsOfNotes.includes(0);
     const range=saveRange||{min:fretsOfNotes.length?Math.min(...fretsOfNotes):1,max:Math.max(includesOpen?3:1,...fretsOfNotes),includesOpen};
-    const frets=[];if(range.includesOpen)frets.push(0);for(let f=Math.max(1,range.min);f<=range.max;f++)frets.push(f);
+    const frets=[];if(range.includesOpen||snapshot.strings.some(n=>n.kind==='muted')||interaction.onEmptySlotTap)frets.push(0);for(let f=Math.max(1,range.min);f<=range.max;f++)frets.push(f);
     const hasOpenColumn=frets[0]===0,offset=hasOpenColumn||snapshot.barres.some(b=>b.relativeFret===1)||notes.some(n=>n.string===6);
-    const options=formDiagramOptions(snapshot,chord,explore,{monochrome,frets,openStringNutOnly:monochrome&&hasOpenColumn,monochromeViewportLeftCrop:monochrome&&hasOpenColumn?12:0,monochromeRightPadding:monochrome&&hasOpenColumn?18:0,monochromeFretNumberYOffset:monochrome&&offset?(snapshot.barres.some(b=>b.fromString===6||b.toString===6)?10:5):0});
+    const options=formDiagramOptions(snapshot,chord,explore,{...interaction,monochrome,frets,openStringNutOnly:monochrome&&hasOpenColumn,monochromeViewportLeftCrop:monochrome&&hasOpenColumn?12:0,monochromeRightPadding:monochrome&&hasOpenColumn?18:0,monochromeFretNumberYOffset:monochrome&&offset?(snapshot.barres.some(b=>b.fromString===6||b.toString===6)?10:5):0});
     const board=container.ownerDocument.createElement('div');board.className='score-chord-diagram-board';container.append(board);fretboard.render(board,options);
+    if(interaction.onMutedTap)wireMutedStrings(board,snapshot,interaction.onMutedTap);
     const width=board.querySelector('.cc-fb-stage').offsetWidth;board.style.width=width+'px';board.style.transformOrigin='0 0';
     function fit(){const css=getComputedStyle(container),padding=(side)=>parseFloat(css.getPropertyValue('padding-'+side))||0,usable=Math.max(0,container.clientWidth-padding('left')-padding('right')),scale=Math.min(1,usable/Math.max(width,4*fretboard.FRET_W+6)),left=(usable-width*scale)/2;board.style.transform='translateX('+left+'px) scale('+scale+')';container.style.height=board.offsetHeight*scale+padding('top')+padding('bottom')+'px';}
     fit();const observer=new ResizeObserver(fit);observer.observe(container);return ()=>observer.disconnect();
+}
+
+// The native renderer hides mute marks from AT; editing makes them real controls.
+export function wireMutedStrings(root,snapshot,activate){
+    const strings=snapshot.strings.filter(n=>n.kind==='muted');
+    [...root.querySelectorAll('.cc-fb-mute')].forEach((mute,i)=>{
+        const string=Number(mute.dataset.string)||strings[i]?.string;if(!string)return;
+        mute.removeAttribute('aria-hidden');mute.setAttribute('role','button');mute.tabIndex=0;
+        mute.style.pointerEvents='auto';mute.dataset.string=string;mute.setAttribute('aria-label',string+'弦のミュートを開放弦へ変更');
+        const run=e=>{e.preventDefault();e.stopPropagation();activate(string);};
+        mute.addEventListener('click',run);mute.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')run(e);});
+    });
 }

@@ -32,3 +32,14 @@ test('visible implicit destination cells are each filled once without extra hole
 test('explicit editor launch activates an empty slot immediately and is a single undo without invented events',()=>{
  const{f,s,a}=setup(),before=s.workingSnapshot(),id=before.bars[0].id;ok(a.execute('deleteBars',{barIds:[id]}));const empty=s.workingSnapshot(),cursor=s.getHistory().cursor;ok(a.execute('restoreSlot',{slot:{id},values:{},activateEmpty:true}));assert.deepEqual(s.draft.bars[0],{id,sectionId:before.bars[0].sectionId,melody:[],lyrics:[],chords:[]});assert.equal(s.getHistory().cursor,cursor+1);assert.equal(f.C.arrangement.generateArrangement(s.workingSnapshot()).bars.length,before.bars.length);ok(s.undo());assert.deepEqual(s.workingSnapshot(),empty);
 });
+
+test('explicit after-target movement swaps adjacent bars and appends at the end with exact Undo',()=>{
+ const{f,s,a}=setup(),before=s.workingSnapshot(),ids=before.bars.map(b=>b.id);ok(a.execute('moveBars',{barIds:[ids[0]],afterId:ids[1]}));assert.deepEqual(s.draft.bars.map(b=>b.id),[ids[1],ids[0],...ids.slice(2)]);assert.equal(s.getHistory().cursor,1);ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);
+ ok(a.execute('moveBars',{barIds:ids.slice(0,2),afterId:ids.at(-1)}));assert.deepEqual(s.draft.bars.map(b=>b.id),[...ids.slice(2),...ids.slice(0,2)]);assert(s.draft.bars.slice(-2).every(b=>b.sectionId===before.bars.at(-1).sectionId));ok(f.api.validate(s.workingSnapshot()));ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);
+});
+test('after a section-ending bar keeps the target section even when the next bar belongs to another section',()=>{
+ const{f,s,a}=setup();ok(a.execute('addSection'));s.clearHistory();const before=s.workingSnapshot(),source=before.bars.at(-1),target=before.bars.filter(b=>b.sectionId===before.sections[0].id).at(-1);ok(a.execute('moveBars',{barIds:[source.id],afterId:target.id}));const index=s.draft.bars.findIndex(b=>b.id===target.id);assert.equal(s.draft.bars[index+1].id,source.id);assert.equal(s.draft.bars[index+1].sectionId,target.sectionId);assert.equal(s.draft.bars[index+2].sectionId,before.sections[1].id);ok(f.api.validate(s.workingSnapshot()));ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);
+});
+test('ambiguous, missing, self and noncontiguous after-target moves reject atomically',()=>{
+ const{f,s,a}=setup(),before=s.workingSnapshot(),ids=before.bars.map(b=>b.id),raw=state(f);for(const args of [{barIds:[ids[0]],beforeId:ids[1],afterId:ids[2]},{barIds:[ids[0]],afterId:''},{barIds:[ids[0]],afterId:null},{barIds:[ids[0]],afterId:'missing'},{barIds:[ids[0]],afterId:ids[0]},{barIds:[ids[0],ids[2]],afterId:ids.at(-1)}]){assert(!a.execute('moveBars',args).ok);assert.equal(state(f),raw);}
+});

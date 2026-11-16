@@ -1,0 +1,77 @@
+{
+  "date": "2026-11-16",
+  "candidate": "0.133.0-dev.1",
+  "baseCommit": "7f69b433",
+  "branch": "codex/score-toolbar-ui",
+  "carriedUncommittedCandidate": "0.132.0-dev.1",
+  "committed": false,
+  "pushed": false,
+  "localOnly": true,
+  "formalVersionUnchanged": "0.88.1",
+  "browserPassIncludingParents": 70,
+  "relatedNodePass": 44,
+  "suites": [
+    {
+      "suite": "editor help/storage Chrome and WebKit",
+      "counts": {
+        "tests": 14,
+        "pass": 14,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "editor-help-final-acceptance.log"
+    },
+    {
+      "suite": "targeted score/editor Chrome",
+      "counts": {
+        "tests": 12,
+        "pass": 12,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "editor-help-score-regressions.log"
+    },
+    {
+      "suite": "key/capo, guidance, toolbar and 128-bar layout Chrome/WebKit",
+      "counts": {
+        "tests": 44,
+        "pass": 44,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "editor-help-regressions.log"
+    },
+    {
+      "suite": "paper-layout, keyboard-modal and local-ui-entry Node",
+      "counts": {
+        "tests": 44,
+        "pass": 44,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "editor-help-node.log"
+    }
+  ],
+  "contracts": [
+    "display settings/presets disclose browser-only storage and exclusion from Project JSON/cloud sync",
+    "existing Save/Cancel/reload and preset contracts retained",
+    "help does not change Project, dirty/base revision or semantic Undo entries; standard focus movement may finish a text group",
+    "invalid input retained; IME blocks opening; caret/focus and editor selection restored",
+    "modal owns Tab/Escape/shortcuts and prevents Backspace navigation",
+    "opening help stops playback without resuming automatically",
+    "late import, workspace leave, Project switch, floating/right and two-bar editors covered",
+    "320/390/768/1440px and print CSS checked"
+  ],
+  "limits": [
+    "Full Node and full score-view suites not rerun",
+    "WebKit is not Safari user-profile testing",
+    "OS print dialog and screen reader not verified",
+    "No production or real Account/Sync connection"
+  ],
+  "scopeChecks": {
+    "onlyCruiseStudioChanged": true,
+    "indexEmpty": true,
+    "headUnchanged": "7f69b433",
+    "localHttpStatus": 200
+  }
+}

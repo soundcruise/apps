@@ -15,7 +15,7 @@ export function createFormAuthoring(C,base){
         const capo=p.instrument.capo,max=p.instrument.maxAbsoluteFret??22,formRoot=(root.pc-capo+12)%12;
         const min=generation?.minRelativeFret??0,end=Math.min(generation?.maxRelativeFret??13,max-capo);if(!Number.isInteger(min)||!Number.isInteger(end)||min<0||end<min)return null;
         const recommendation=base.caged.getCommonForm(quality,formRoot,end,min);if(!recommendation&&!shape)return null;
-        const selected=shape||recommendation.shape,raw=base.caged.getForm(selected,quality,formRoot,end,min);if(!raw?.available)return null;
+        const selected=shape||recommendation.shape,raw=base.caged.getForm(selected,quality,formRoot,end,min,{variant:generation?.formVariant});if(!raw?.available)return null;
         // Explicit owner warnings are removed from this candidate, never silently played.
         // Missing strings must have an explicit owner mute, not an invented state.
         const notes=raw.notes.filter(n=>!n.fingeringWarning),removed=raw.notes.filter(n=>n.fingeringWarning).map(n=>n.string);
@@ -23,17 +23,17 @@ export function createFormAuthoring(C,base){
         const snapshot={capo,tuningMidi:(p.instrument.tuning||STANDARD).slice(),maxAbsoluteFret:max,
             strings:[1,2,3,4,5,6].map(string=>{const n=notes.find(n=>n.string===string);return n?{string,kind:'note',relativeFret:n.fret,finger:n.finger??null,fingeringWarning:false}:{string,kind:'muted'};}),
             barres:base.caged.detectBarres(notes).map(b=>({finger:b.finger,relativeFret:b.fret,fromString:b.fromString,toString:b.toString})),
-            playability:raw.playability??'unknown',ownerWarning:raw.warning||null};
+            playability:raw.playability??'unknown',ownerWarning:raw.formVariant==='fm7-open'?null:(raw.warning||null)};
         if(removed.length)snapshot.ownerWarning='注意付きの弦を省略。構成音と演奏条件は要確認';
         if(raw.hasOutOfRangeNotes!==false||raw.omittedNoteCount!==0||!Array.isArray(raw.outOfRangeNotes)||raw.outOfRangeNotes.length)snapshot.ownerWarning='元フォームに範囲外または未確認の音があります';
         const overridden=shape&&shape!==recommendation?.shape;
         const result=material(snapshot,symbol,overridden?'manual':'owner-recommendation',null,selected,overridden?null:recommendation?.source||'recommended');
         result.provenance.generation={minRelativeFret:min,maxRelativeFret:end};return result;
     }
-    function install(p,event,m,mode='fixed'){
+    function install(p,event,m,mode='fixed',selectedStrings){
         const prior=p.performance.formBindings.find(b=>b.chordEventId===event.id),key=contentKey(m);
         let stored=p.materials.forms.find(x=>contentKey(x)===key);if(!stored){stored={id:schema.newId(),...clone(m)};p.materials.forms.push(stored);}
-        const playedStrings=stored.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string);
+        const playedStrings=selectedStrings===undefined?stored.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string):selectedStrings.slice();
         const b={id:prior?.id||schema.newId(),chordEventId:event.id,materialId:stored.id,playedStrings,mode,confirmation:{status:'confirmed',basisKey:basisKey(p,event,stored,playedStrings)}};
         p.performance.formBindings=p.performance.formBindings.filter(x=>x.chordEventId!==event.id);p.performance.formBindings.push(b);
         // Session draft arrays clone inserted objects; update the attached binding.
@@ -58,7 +58,7 @@ export function createFormAuthoring(C,base){
         if(m){initialize(p);install(p,event,m,'auto');}else p.performance.formBindings=p.performance.formBindings.filter(b=>b.chordEventId!==event.id);
     }
     function reconcile(p,before){if(p.schemaVersion!==2)return;const instrumentChanged=JSON.stringify(p.instrument)!==JSON.stringify(before.instrument);const old=new Map(before.bars.flatMap(b=>b.chords).map(e=>[e.id,e.symbol]));for(const e of p.bars.flatMap(b=>b.chords)){const exists=p.performance.formBindings.some(b=>b.chordEventId===e.id);if(instrumentChanged||(old.has(e.id)?old.get(e.id)!==e.symbol:!exists))syncEvent(p,e);}}
-    function adopt(session,barId,eventId,m){
+    function adopt(session,barId,eventId,m,selectedStrings){
         try{
             const c=C.shellHost.getCommandContext(),raw=C.repository.readRevision(session.target);
             if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||c.activeModal||C.shellHost.modal.getActive()||C.shellHost.keyboard.isIMEBlocked({})||!raw.ok||raw.revision!==session.baseRevision)throw Error('編集対象・保存状態を確認してください');
@@ -66,7 +66,7 @@ export function createFormAuthoring(C,base){
             schema.assertJson(m);const copy=clone(m);session.finishTextGroup();
             return session.runOperation('コードフォームを固定',p=>{const e=p.bars.find(b=>b.id===barId)?.chords.find(e=>e.id===eventId);if(!e||e.symbol!==copy.provenance.sourceSymbol)throw Error('コードの選択が変わりました');
                 initialize(p);if(p.instrument.capo!==copy.snapshot.capo||JSON.stringify(p.instrument.tuning)!==JSON.stringify(copy.snapshot.tuningMidi)||p.instrument.maxAbsoluteFret!==copy.snapshot.maxAbsoluteFret)throw Error('フォームとProjectの楽器条件が一致しません');
-                install(p,e,copy,'fixed');const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));},{requireUndo:true,preserveAppliedUndo:true});
+                install(p,e,copy,'fixed',selectedStrings);const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));},{requireUndo:true,preserveAppliedUndo:true});
         }catch(e){return {ok:false,error:e.message};}
     }
     function configureStrings(session,barId,eventId,playedStrings,remove=false){

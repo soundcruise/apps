@@ -17,7 +17,9 @@ const runtimeSource = read('../js/core/color-theme.js');
 const html = read('../index.html');
 const legacyCss = read('../theme.css');
 const printCss = read('../print.css');
+// Four Port projections remain byte-exact; Midnight is a Studio-owned override.
 const ids = ['dark', 'charcoal', 'gray', 'light'];
+const studioIds = ['dark', 'midnight', 'charcoal', 'gray', 'light'];
 const names = [
     'app-bg','surface','surface-deep','panel','panel-alt','panel-deep','elevated',
     'text-primary','text-muted','border-default','accent','accent-bright','accent-text',
@@ -57,22 +59,27 @@ function documentStub() {
 }
 const token = name => projection.tokens.find(entry => entry.semanticToken === '--studio-' + name);
 
-test('four IDs, Dark default, frozen metadata agree with Port settings', () => {
-    assert.deepEqual(contract.listColorThemes().map(theme => theme.id), ids);
+test('five Studio IDs and Midnight default extend the four unchanged Port themes', () => {
+    assert.deepEqual(contract.listColorThemes().map(theme => theme.id), studioIds);
     const portIds = portSettings.match(/export const THEMES = Object.freeze\(\[([^\]]+)\]\)/)[1].match(/'([^']+)'/g).map(s=>s.slice(1,-1));
     assert.deepEqual(portIds, ids);
-    assert.equal(contract.DEFAULT_THEME, 'dark');
+    assert.equal(contract.DEFAULT_THEME, 'midnight');
     assert.match(portSettings, /export const DEFAULT_THEME = 'dark'/);
     assert.ok(Object.isFrozen(contract.listColorThemes()));
     assert.ok(contract.listColorThemes().every(Object.isFrozen));
 });
-test('resolver: supported values only; invalid input resolves to Dark', () => {
-    for (const id of ids) assert.equal(contract.resolveColorTheme(id), id);
-    for (const value of [null,undefined,'Dark','LIGHT','system','',1,true,{},['light']]) assert.equal(contract.resolveColorTheme(value),'dark');
+test('resolver: supported values only; invalid input resolves to Midnight', () => {
+    for (const id of studioIds) assert.equal(contract.resolveColorTheme(id), id);
+    for (const value of [null,undefined,'Dark','LIGHT','system','',1,true,{},['light']]) assert.equal(contract.resolveColorTheme(value),'midnight');
 });
 test('all 39 tokens and 156 projections have exact source selector/property/literal/value', () => validate(projection));
 test('CSS artifact is exactly the verified projection, without Port variables', () => {
-    assert.equal(projectionCss, renderProjectionCss(projection));
+    const midnight = projectionCss.match(/:root\[data-theme="midnight"\] \{[\s\S]*?\n\}\n\n/)[0];
+    assert.equal(projectionCss.replace(midnight,''), renderProjectionCss(projection));
+    const overrides = parseRules(midnight)[0].properties;
+    assert.deepEqual(overrides, {'--studio-app-bg':'#10151c','--studio-surface':'#1d2631','--studio-surface-deep':'#151d26','--studio-panel':'#1d2631','--studio-panel-alt':'#252f3b','--studio-panel-deep':'#10151c','--studio-elevated':'#39434f','--studio-control':'#252f3b','--studio-control-hover':'#39434f','--studio-control-active':'#303c49','--studio-field':'#10151c'});
+    assert(Object.keys(overrides).every(name=>names.includes(name)));
+    assert.equal(rootPalette(parseRules(projectionCss).flatMap(rule=>rule.selector.split(',').map(selector=>({...rule,selector:selector.trim()}))),'midnight')['--studio-text-primary'], token('text-primary').values.dark);
     assert.doesNotMatch(projectionCss, /--port-|--paper-|@import/);
     for (const rule of parseRules(projectionCss)) {
         assert.ok(rule.selector.startsWith(':root'));
@@ -136,10 +143,11 @@ test('shadow geometries and theme alpha agree with card/panel/dialog sources', (
     assert.throws(()=>validate(projection,portCss.replace('0 22px 60px rgba(0, 0, 0, 0.48)','0 22px 60px rgba(0, 0, 0, 0.40)')),/source drift/);
 });
 test('theme-color agrees with Port runtime and both first-paint bootstraps', () => {
-    for (const theme of contract.listColorThemes()) {
+    for (const theme of contract.listColorThemes().filter(t=>ids.includes(t.id))) {
         const pattern = new RegExp(theme.id+": '"+theme.themeColor+"'");
         for (const source of [portSettings,portStandard,portPro]) assert.match(source,pattern);
     }
+    assert.equal(contract.listColorThemes().find(t=>t.id==='midnight').themeColor,'#10151c');
     assert.match(html, /<meta name="theme-color" content="#090806">/);
 });
 test('color-scheme agrees with Port, and is not globally imposed on legacy native controls', () => {
@@ -152,7 +160,7 @@ test('load keeps appSettings, Port, projects and absent/invalid theme unchanged'
     for (const value of [null,'{}','{"colorTheme":"blue"}','{"colorTheme":"light","barLoupe":{"x":20}}','[]','null','{bad']) {
         const storage=store(value), before=[...storage.data];
         const runtime=contract.createColorThemeRuntime({storage});
-        assert.equal(runtime.getColorTheme(),value?.includes('"light"')?'light':'dark');
+        assert.equal(runtime.getColorTheme(),value?.includes('"light"')?'light':'midnight');
         assert.deepEqual(storage.writes,[]); assert.deepEqual([...storage.data],before);
         assert.deepEqual(storage.reads,[contract.STORAGE_KEY]);
     }
@@ -167,15 +175,15 @@ test('explicit save changes only colorTheme and preserves latest Loupe / Pre-DTM
     assert.equal(storage.writes.length,1);
     assert.equal(storage.writes[0][0],contract.STORAGE_KEY);
 });
-test('absent settings can be saved without a new storage key; invalid ID saves Dark', () => {
+test('absent settings can be saved without a new storage key; invalid ID saves Midnight', () => {
     const storage=store(),runtime=contract.createColorThemeRuntime({storage});
-    assert.deepEqual(runtime.setColorTheme('system'),{ok:true,theme:'dark',error:null});
-    assert.deepEqual([...storage.data],[[contract.STORAGE_KEY,'{"colorTheme":"dark"}']]);
+    assert.deepEqual(runtime.setColorTheme('system'),{ok:true,theme:'midnight',error:null});
+    assert.deepEqual([...storage.data],[[contract.STORAGE_KEY,'{"colorTheme":"midnight"}']]);
 });
-test('read failure / blocked storage getter resolve to Dark without writes', () => {
+test('read failure / blocked storage getter resolve to Midnight without writes', () => {
     const storage=store(null,'read');
-    assert.equal(contract.createColorThemeRuntime({storage}).getColorTheme(),'dark');
-    assert.equal(contract.createColorThemeRuntime({getStorage(){throw new Error('denied');}}).getColorTheme(),'dark');
+    assert.equal(contract.createColorThemeRuntime({storage}).getColorTheme(),'midnight');
+    assert.equal(contract.createColorThemeRuntime({getStorage(){throw new Error('denied');}}).getColorTheme(),'midnight');
     assert.deepEqual(storage.writes,[]);
 });
 test('save failure is reported; this runtime applies theme without damaging persisted settings', () => {
@@ -200,8 +208,8 @@ test('apply sets only data-theme/meta, normalizes invalid IDs and never saves', 
     const runtime=contract.createColorThemeRuntime({storage,document});
     assert.equal(runtime.applyColorTheme('light'),'light');
     assert.equal(document.meta.content,'#f7f6f2');
-    assert.equal(runtime.applyColorTheme({}),'dark');
-    assert.equal(document.attributes['data-theme'],'dark');
+    assert.equal(runtime.applyColorTheme({}),'midnight');
+    assert.equal(document.attributes['data-theme'],'midnight');
     assert.deepEqual(storage.reads,[]); assert.deepEqual(storage.writes,[]);
 });
 test('subscriptions fire for changes only, isolate subscribers, and unsubscribe', () => {
@@ -221,10 +229,11 @@ test('script registration has no storage / DOM / timer / network / audio side ef
     assert.equal(context.CruiseStudio.colorTheme.resolveColorTheme('light'),'light');
 });
 test('actual entry bootstrap runs before stylesheets with exactly the runtime resolver', () => {
-    const src=html.indexOf('src="js/core/color-theme.js?v=0.47.17"');
+    const script=html.match(/<script src="js\/core\/color-theme\.js\?v=[^"]+"><\/script>/)?.[0];
+    assert(script);const src=html.indexOf(script);
     const inline=html.match(/<script>\s*(CruiseStudio\.colorTheme[\s\S]*?)<\/script>/)[1];
     assert.ok(src>0 && html.indexOf(inline)<html.indexOf('rel="stylesheet"'));
-    for (const value of [null,'{}',...ids.map(id=>JSON.stringify({colorTheme:id})),'{"colorTheme":"invalid"}','{bad','[]']) {
+    for (const value of [null,'{}',...studioIds.map(id=>JSON.stringify({colorTheme:id})),'{"colorTheme":"invalid"}','{bad','[]']) {
         const storage=store(value),document=documentStub();
         const context={localStorage:storage,document};vm.runInNewContext(runtimeSource,context);
         vm.runInNewContext(inline,context);
@@ -238,8 +247,8 @@ test('bootstrap and runtime also agree when storage cannot be accessed', () => {
     const document=documentStub(),context={document};Object.defineProperty(context,'localStorage',{get(){throw new Error('blocked');}});
     vm.runInNewContext(runtimeSource,context);
     vm.runInNewContext(html.match(/<script>\s*(CruiseStudio\.colorTheme[\s\S]*?)<\/script>/)[1],context);
-    assert.equal(document.attributes['data-theme'],'dark');
-    assert.equal(context.CruiseStudio.colorTheme.getColorTheme(),'dark');
+    assert.equal(document.attributes['data-theme'],'midnight');
+    assert.equal(context.CruiseStudio.colorTheme.getColorTheme(),'midnight');
 });
 test('paper palette is theme-independent and keeps legacy music/paper values', () => {
     const rules=parseRules(legacyCss),root=rootPalette(rules,'dark');
@@ -268,8 +277,8 @@ test('print remains white A4, hides Shell/Loupe/selection and has no Shell token
 test('Theme does not couple to Feature Metadata / Port runtime / Sync / project data', () => {
     assert.doesNotMatch(runtimeSource,/cruisePort\.settings|feature-registry|component-metadata|SoundCruise|fetch\(|matchMedia\(|\.reload\(/);
     for (const file of ['../js/core/feature-registry.mjs','../js/core/component-metadata.mjs']) assert.doesNotMatch(read(file),/color-theme|theme-projection/);
-    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.84.0'/);
-    assert.match(read('../js/core/song-model.js'),/SCHEMA_VERSION = 1/);
+    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '\d+\.\d+\.\d+'/);
+    assert.match(read('../js/core/song-model.js'),/SCHEMA_VERSION = 2/);
 });
 test('Port source verification is read-only', () => {
     validate(projection);

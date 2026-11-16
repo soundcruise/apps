@@ -1,24 +1,31 @@
+import {playedSnapshot} from './form-cycle.mjs';
 // Read-only registered forms, rendered with the owner's static SVG (no title/UI).
 export function registeredPaperForms(project){
-    const materials=new Map(project.materials.forms.map(m=>[m.id,m])),bindings=new Map(project.performance.formBindings.map(b=>[b.chordEventId,b.materialId]));
-    return project.bars.map(bar=>bar.chords.flatMap(chord=>{const material=materials.get(bindings.get(chord.id));return material?.snapshot?.strings.some(n=>n.kind==='note')?[{eventId:chord.id,tick:chord.onsetTick,symbol:chord.symbol,snapshot:material.snapshot,materialId:material.id}]:[];}).sort((a,b)=>a.tick-b.tick));
+    const materials=new Map(project.materials.forms.map(m=>[m.id,m])),bindings=new Map(project.performance.formBindings.map(b=>[b.chordEventId,b]));
+    return project.bars.map(bar=>bar.chords.flatMap(chord=>{const binding=bindings.get(chord.id),material=materials.get(binding?.materialId);if(!material?.snapshot?.strings.some(n=>n.kind==='note'))return [];
+        const snapshot=playedSnapshot(material.snapshot,binding.playedStrings);
+        return [{eventId:chord.id,tick:chord.onsetTick,symbol:chord.symbol,snapshot,materialId:material.id}];}).sort((a,b)=>a.tick-b.tick));
 }
 export function createPaperForms(renderer,doc=document){
     const svgCache=new Map();
     const labels={1:'人',2:'中',3:'薬',4:'小',T:'親'};
-    function svg(snapshot,fingers){
-        const key=JSON.stringify([snapshot,fingers]);
-        if(svgCache.has(key)){const cached=svgCache.get(key);svgCache.delete(key);svgCache.set(key,cached);return cached;}
-        const notes=snapshot.strings.filter(n=>n.kind==='note'),fretsOf=notes.map(n=>n.relativeFret),open=fretsOf.includes(0),min=open?0:Math.min(...fretsOf),max=Math.max(open?3:min,...fretsOf),frets=[];
+    function optionsFor(snapshot,fingers,showZero=false){
+        const notes=snapshot.strings.filter(n=>n.kind==='note'),fretsOf=notes.map(n=>n.relativeFret),openNote=fretsOf.includes(0),open=showZero||openNote||snapshot.strings.some(n=>n.kind==='muted'),min=openNote?0:Math.min(...fretsOf,notes.length?Infinity:1),max=Math.max(openNote?3:min,...fretsOf),frets=[];
         if(open)frets.push(0);for(let f=Math.max(1,min);f<=max;f++)frets.push(f);
         const options={monochrome:true,frets,openStringNutOnly:open,monochromeViewportLeftCrop:open?12:0,monochromeFretNumberYOffset:10,
             markers:notes.map(n=>({string:n.string,fret:n.relativeFret,label:fingers?(labels[n.finger]||(n.fingeringWarning?'⚠':'')):'',role:'root'})),
             mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:snapshot.barres.map(b=>({...b,fret:b.relativeFret})),markerLabelFontSize:18,fretNumberScale:19/13};
+        return options;
+    }
+    function svg(snapshot,fingers,showZero=false){
+        const key=JSON.stringify([snapshot,fingers,showZero]);if(svgCache.has(key))return svgCache.get(key);
+        const options=optionsFor(snapshot,fingers,showZero),open=options.frets.includes(0);
         const width=renderer.createModel(options).width,crop=open?12:0,pad=Math.max(10,(345-width+crop)/2);
         const result=renderer.buildStaticSvg({...options,svgPadding:{left:pad,right:pad,top:8,bottom:20,fillMonochromeBackground:true}}).replace(/(<text x="[^"]+" y=")([^"]+)(" text-anchor="middle")(?=[^>]*style="font-family:Arial,sans-serif;font-size:18px)/g,(_,before,y,after)=>before+(Number(y)-4)+after+' dominant-baseline="central"');
         svgCache.set(key,result);if(svgCache.size>256)svgCache.delete(svgCache.keys().next().value);return result;
     }
     return {
+        diagram(snapshot){const opts=optionsFor(snapshot,true,true);return {svg:svg(snapshot,true,true),slots:opts.frets.flatMap(fret=>renderer.createModel({...opts,mutedStrings:[],markers:[1,2,3,4,5,6].map(string=>({string,fret}))}).markers),model:renderer.createModel(opts),rows:renderer.createModel({...opts,markers:[1,2,3,4,5,6].map(string=>({string,fret:opts.frets[0]}))}).markers};},
         detail(project,eventId){const entry=registeredPaperForms(project).flat().find(e=>e.eventId===eventId);return entry?{symbol:entry.symbol,svg:svg(entry.snapshot,true)}:null;},
         view(project,options={}){
             const rows=registeredPaperForms(project),beats=project.songInfo?.timeSignature?.beats||4,scale=Number.isFinite(options.scale)?Math.max(60,Math.min(140,options.scale))/100:1,columns=beats/scale,span=100/columns;

@@ -1,4 +1,4 @@
-import {chordVoicing, strumVoices} from './chord-audition.mjs';
+import {chordVoicing, strumVoices, fillBlankStrums} from './chord-audition.mjs';
 import {createHarmonyTimeline} from './score-harmony.mjs';
 
 // Pure, read-only score -> audio projection. Times are seconds from one audio clock.
@@ -44,6 +44,7 @@ function barPlan(project, index, deps, harmony) {
             }
             try {
                 const chord = harmony.at(index,slot.tick);
+                if (!chord && slot.fallback) return;
                 if (!chord) throw Error('コード未入力のストロークは鳴らせません');
                 if (chords.includes(chord) && chords.filter(c => c.onsetTick === chord.onsetTick).length > 1)
                     throw Error('同じ位置の複数コードは試聴未対応です');
@@ -97,4 +98,28 @@ export function buildRangeLoopPlan(project, deps, startIndex, count) {
         throw Error('連続する複数小節を選択してください');
     const plan = buildSongPreviewPlan(project, deps, startIndex, count);
     return {...plan, loopPeriod: plan.spans.at(-1).end};
+}
+
+// A pre-roll on the same audio clock, separate from score ticks and loop events.
+export function buildCountIn(project) {
+    const {bpm,timeSignature}=project.songInfo;
+    if(!Number.isFinite(bpm)||bpm<20||bpm>400||timeSignature?.beats!==4||timeSignature?.beatUnit!==4)
+        throw Error('カウントインのBPM・拍子を確認してください');
+    const beatSeconds=60/bpm,beats=4;
+    return {duration:beats*beatSeconds,beatSeconds,beats,events:Array.from({length:beats},(_,i)=>({
+        part:'count',midi:i===0?84:72,start:.03+i*beatSeconds,duration:.055,gain:i===0?.16:.12
+    }))};
+}
+
+export {fillBlankStrums};
+// Clicks are a playback projection. They never enter chord/form/MIDI data.
+export function withMetronome(project,plan){
+    const {beatSeconds}=buildCountIn(project),clicks=[];
+    for(const span of plan.spans||[]){
+        for(let beat=0;beat<4;beat++)clicks.push({part:'click',midi:beat===0?84:72,
+            start:span.start+.03+beat*beatSeconds,duration:.055,gain:beat===0?.1:.075,
+            barIndex:span.index,tick:beat*480});
+    }
+    if(plan.events.length+clicks.length>524288)throw Error('メトロノームを含めた再生音が多すぎます');
+    return {...plan,events:[...plan.events,...clicks].sort((a,b)=>a.start-b.start)};
 }

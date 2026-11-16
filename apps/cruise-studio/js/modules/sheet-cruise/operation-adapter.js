@@ -168,6 +168,8 @@
                         if(!['preserve','transpose'].includes(args.mode))throw Error('変更方法を確認してください');
                         if(!Number.isInteger(args.capo)||args.capo<0||args.capo>11)throw Error('カポは0〜11で指定してください');
                         var delta=0;if(args.mode==='transpose'){var root=function(key){var m=/^([A-G])([#b♯♭]?)$/.exec(key);if(!m)throw Error('キーを確認してください');return (['C','D','E','F','G','A','B'].indexOf(m[1])<0?0:{C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]])+(m[2]==='#'||m[2]==='♯'?1:m[2]?-1:0);};delta=((root(args.originalKey)-root(canonical.songInfo.originalKey)+18)%12)-6;}
+                        // Capo edits retain the full interval; legacy key-only requests keep the shortest shift.
+                        if(args.transposeSemitones!==undefined){var shift=args.transposeSemitones;if(args.mode!=='transpose'||!Number.isInteger(shift)||Math.abs(shift)>24||((shift-delta)%12+12)%12!==0)throw Error('移調する音程とキーを確認してください');delta=shift;}
                         var maximum=args.maxAbsoluteFret??canonical.instrument.maxAbsoluteFret;
                         if(maximum!==undefined&&(!Number.isInteger(maximum)||maximum<args.capo||maximum>36))throw Error('フレット上限はカポ位置以上・36以下で指定してください');
                         var changed=delta!==0||args.capo!==canonical.instrument.capo||maximum!==canonical.instrument.maxAbsoluteFret;
@@ -183,12 +185,13 @@
                     if (canonical.schemaVersion !== 2) throw Error('この操作はschema2の曲で使用できます');
                     var api=model.schema2, i=canonical.bars.findIndex(function(b){return b.id===args.barId;});
                     if (kind==='moveBars') {
-                        if(!args.beforeId&&![-1,1].includes(args.direction))throw Error('移動方向が不正です');
+                        if((args.afterId!==undefined&&(typeof args.afterId!=='string'||!args.afterId))||(args.beforeId&&args.afterId))throw Error('移動先を1つ指定してください');
+                        if(!args.beforeId&&!args.afterId&&![-1,1].includes(args.direction))throw Error('移動方向が不正です');
                         var ids=args.barIds, positions=ids.map(function(id){return canonical.bars.findIndex(function(b){return b.id===id;});}).sort(function(a,b){return a-b;});
                         if(!ids.length||new Set(ids).size!==ids.length||positions.some(function(n,k){return n<0||(k&&n!==positions[0]+k);}))throw Error('連続する小節を選択してください');
-                        var target=args.beforeId?canonical.bars.find(function(b){return b.id===args.beforeId;}):canonical.bars[args.direction===-1?positions[0]-1:positions[positions.length-1]+1];
+                        var anchorId=args.beforeId||args.afterId,target=anchorId?canonical.bars.find(function(b){return b.id===anchorId;}):canonical.bars[args.direction===-1?positions[0]-1:positions[positions.length-1]+1];
                         if(!target||ids.includes(target.id))throw Error('移動先が選択範囲内または範囲外です');
-                        var targetId=target.id,section=target.sectionId,after=!args.beforeId&&args.direction===1;
+                        var targetId=target.id,section=target.sectionId,after=!!args.afterId||(!anchorId&&args.direction===1);
                         var movedBars=canonical.bars.filter(function(b){return ids.includes(b.id);}).map(function(b){var copy=JSON.parse(JSON.stringify(b));copy.sectionId=section;return copy;});
                         canonical.bars=canonical.bars.filter(function(b){return !ids.includes(b.id);});
                         var destination=canonical.bars.findIndex(function(b){return b.id===targetId;})+(after?1:0);

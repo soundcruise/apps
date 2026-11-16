@@ -1,0 +1,80 @@
+{
+  "candidate": "0.138.0-dev.1",
+  "formalVersion": "0.88.1",
+  "head": "7f69b433b0846758fd43d17c2f5594f64dfc6b8c",
+  "commitPerformed": false,
+  "pushPerformed": false,
+  "productionDeployed": false,
+  "realAccountConnected": false,
+  "node": {
+    "tests": 2208,
+    "pass": 2207,
+    "fail": 0,
+    "skipped": 1
+  },
+  "scoreChrome": {
+    "tests": 122,
+    "pass": 122,
+    "fail": 0
+  },
+  "dedicatedChromeWebKit": {
+    "tests": 14,
+    "pass": 14,
+    "fail": 0
+  },
+  "priorCountAndPlaybackChromeWebKit": {
+    "tests": 32,
+    "pass": 32,
+    "fail": 0
+  },
+  "toolbarRangeDnDChromeWebKit": {
+    "tests": 56,
+    "pass": 56,
+    "fail": 0
+  },
+  "helpAcousticGuidanceChromeWebKit": {
+    "tests": 31,
+    "pass": 31,
+    "fail": 0
+  },
+  "printChrome": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0
+  },
+  "checks": {
+    "stagedFormChanges": true,
+    "onlyTargetChordAffected": true,
+    "undoRedoSaveJsonReload": true,
+    "fineTimedChordRetained": true,
+    "immutableMaterialsRetained": true,
+    "staleAndDetachedControlsRejected": true,
+    "fretLocationsUnchangedByFingerOrKnownStringMute": true,
+    "unknownMutedStringEnableIsOpen": true,
+    "singleContextDuringLiveVolumeChange": true,
+    "independentVolumePercentagesTested": {
+      "chords": 25,
+      "melody": 60,
+      "metronome": 0
+    },
+    "countAndClickShareBus": true,
+    "volumeSmoothingSeconds": 0.015,
+    "settingsAreBrowserOnly": true,
+    "malformedStoragePreserved": true,
+    "screenWidthsTested": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "projectSchemaChanged": false,
+    "metronomeInMidiOrProject": false
+  },
+  "notVerified": [
+    "Safari application and human listening",
+    "Dedicated backend recovery E2E (existing skip)",
+    "Real Account/Sync and bookshelf"
+  ],
+  "server": "http://127.0.0.1:18874/",
+  "serverStarted": false
+}

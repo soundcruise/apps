@@ -49,10 +49,9 @@ test('failed context close retains lease until explicit retry; Global Stop close
     fail = false; assert((await f.reference.stop()).ok); assert(await f.reference.play({ targetFrequency: 220 }));
     assert((await f.coordinator.stopAll()).every(result => result.ok)); assert.equal(f.coordinator.snapshot()[0].contextCount, 0); await f.reference.dispose();
 });
-test('UI keeps advanced metronome disabled, explicit drafts and owner code without persistence imports', () => {
+test('native tool surfaces own controls; retained reference synthesis has no persistence imports', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.match(read('../index.html'), /class="metronome-advanced" disabled/);
-    assert.match(read('../index.html'), /id="tuner-apply"/); assert.match(read('../index.html'), /id="tuner-cancel"/);
+    for(const id of ['tuner','metronome'])assert.match(read('../index.html'),new RegExp('id="port-'+id+'-surface"'));assert.doesNotMatch(read('../index.html'),/id="studio-metronome"|class="metronome-advanced"|id="tuner-apply"/);
     const source = read('../js/modules/tuner/reference.mjs'); assert.match(source, /synthesizeReferencePluck/);
     assert.doesNotMatch(source, /localStorage|indexedDB|fetch\(|tuner-store|sync-account/);
 });

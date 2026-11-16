@@ -1,0 +1,62 @@
+{
+  "candidate": "0.140.0-dev.1",
+  "formalVersion": "0.88.1",
+  "baseCommit": "7f69b433",
+  "branch": "codex/score-toolbar-ui",
+  "scope": "local only; no deployment, real Account/Sync, commit or push",
+  "validation": {
+    "node": {
+      "tests": 2219,
+      "passed": 2218,
+      "failed": 0,
+      "skipped": 1,
+      "skipReason": "existing dedicated backend recovery E2E"
+    },
+    "scoreChrome": {
+      "tests": 122,
+      "passed": 122,
+      "failed": 0
+    },
+    "rangeDetailHistoryAndMetadataPlusExistingRangeAndHistory": {
+      "engines": [
+        "Chrome",
+        "WebKit"
+      ],
+      "tests": 54,
+      "passed": 54,
+      "failed": 0
+    },
+    "existingPlaybackFormsMixCountInAndHistory": {
+      "engines": [
+        "Chrome",
+        "WebKit"
+      ],
+      "tests": 68,
+      "passed": 68,
+      "failed": 0
+    },
+    "finalConfirmationRepeatAndMetadataPrintChecks": {
+      "engines": [
+        "Chrome",
+        "WebKit"
+      ],
+      "tests": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "gitDiffCheck": "passed"
+  },
+  "limits": [
+    "WebKit is not a manual run in user Safari",
+    "OS print dialog not exercised",
+    "No new speaker listening evaluation"
+  ],
+  "screenshots": [
+    "compact-detail-chrome.png",
+    "compact-detail-webkit.png",
+    "history-preview-chrome.png",
+    "history-preview-webkit.png",
+    "meta-details-chrome.png",
+    "meta-details-webkit.png"
+  ]
+}

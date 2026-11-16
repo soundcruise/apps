@@ -350,6 +350,34 @@
                 publishContent(prepared, direction < 0 ? 'undo' : 'redo');
                 return { ok: true, entryId: entry.entryId };
             }
+            // A preview never changes tracker, cursor, dirty state or saved metadata.
+            function historyTarget(cursor,ticket){
+                var blocked=historyBlocked();if(blocked||flight||openGroup||pending||conflict)return reject(blocked||(pending||conflict?'external-update':'busy'));
+                if(!ticket||ticket.sessionId!==sessionId||ticket.epoch!==history.epoch||ticket.snapshotVersion!==session.snapshotVersion)return reject('stale-history');
+                if(!Number.isSafeInteger(cursor)||cursor<0||cursor>history.entries.length)return reject('invalid-history-position');
+                var current=history.cursor?history.entries[history.cursor-1]:history.entries[0];
+                if(!current||!expected(current,history.cursor?'after':'before'))return reject('stale-history');
+                var entry=cursor?history.entries[cursor-1]:history.entries[0];
+                return {ok:true,entry:entry,content:cursor?entry.after:entry.before};
+            }
+            function previewHistory(cursor,ticket){
+                try{var target=historyTarget(cursor,ticket);if(!target.ok)return target;
+                    var value=restoreContent(target.content,tracker.raw),check=options.validate(value);
+                    return check.ok?{ok:true,snapshot:freeze(value)}:{ok:false,code:'validation'};
+                }catch(error){return {ok:false,code:'validation',error:error.message||String(error)};}
+            }
+            // Normal Undo/Redo retains its future. Confirmed history replacement
+            // may explicitly discard it, after the same complete validation.
+            function restoreHistory(cursor,ticket,options){
+                var target=historyTarget(cursor,ticket);if(!target.ok)return target;
+                var discard=options&&options.discardFuture===true;
+                if(cursor===history.cursor&&(!discard||cursor===history.entries.length))return {ok:true,unchanged:true};
+                var prepared=prepareContent(target.content);if(!prepared.ok)return prepared;
+                var direction=cursor<history.cursor?'undo':'redo';finishTextGroup();
+                if(discard){history.entries=history.entries.slice(0,cursor);history.bytes=history.entries.reduce(function(n,e){return n+e.bytes;},0);history.status=history.entries.length?'ready':'empty';history.reason=null;}
+                history.cursor=cursor;publishContent(prepared,direction);
+                return {ok:true,entryId:cursor?target.entry.entryId:null};
+            }
             function validIncoming(update) {
                 return update.target && key(domain, update.target) === key(domain, target) &&
                     (update.deleted || (update.snapshot && update.snapshot.projectId === target.projectId && typeof update.revision === 'string'));
@@ -403,6 +431,8 @@
             });
             Object.assign(session, {
                 canCommit: function () { return !destroyed && !closing && !flight && !deleted && !pending && !inputPending && !openGroup && repository.canWrite(); },
+                restoreHistory: restoreHistory,
+                previewHistory: previewHistory,
                 getHistory: function () {
                     return Object.freeze({ epoch: history.epoch, entries: Object.freeze(history.entries.slice()), cursor: history.cursor,
                         openGroup: openGroup ? openGroup.handle.operationId : null,

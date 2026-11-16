@@ -1,0 +1,363 @@
+{
+  "date": "2026-11-16",
+  "candidate": "0.135.1-dev.1",
+  "baseHead": "7f69b433b0846758fd43d17c2f5594f64dfc6b8c",
+  "productionReady": false,
+  "commitPerformed": false,
+  "pushPerformed": false,
+  "realAccountConnected": false,
+  "initialNode": {
+    "tests": 2192,
+    "pass": 2148,
+    "fail": 39,
+    "skipped": 5
+  },
+  "finalNode": {
+    "tests": 2192,
+    "pass": 2191,
+    "fail": 0,
+    "skipped": 1
+  },
+  "defaultRuntimeNode": {
+    "tests": 2192,
+    "pass": 2187,
+    "fail": 0,
+    "skipped": 5
+  },
+  "browser": {
+    "scoreViewChrome": {
+      "tests": 122,
+      "pass": 122,
+      "fail": 0,
+      "skipped": 0
+    },
+    "phase1Chrome": {
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "skipped": 0
+    },
+    "printChromeFinal": {
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0
+    },
+    "printWebKit": {
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "skipped": 0
+    },
+    "localChromeWebKit": {
+      "tests": 23,
+      "pass": 23,
+      "fail": 0,
+      "skipped": 0
+    }
+  },
+  "initialFailures": [
+    {
+      "location": "apps/cruise-studio/tests/chord-form-adapter.test.mjs:177:1",
+      "name": "adapter stays pure and the product explicitly connects only owner CAGED plus form UI",
+      "classification": "stale-test-expectation",
+      "reason": "旧フォームUIの固定キャッシュ版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/chord-form-ui.test.mjs:13:1",
+      "name": "product owner dependency is pure, ordered and exactly versioned, with no UI/storage/gate imports",
+      "classification": "stale-test-expectation",
+      "reason": "CAGED owner参照の固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/chord-presentation.test.mjs:43:1",
+      "name": "HTML imports only owner pure modules; no Chord UI/storage/feature or Pro gate import",
+      "classification": "stale-test-expectation",
+      "reason": "画像までscriptとみなす参照抽出とowner固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:60:1",
+      "name": "four IDs, Dark default, frozen metadata agree with Port settings",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:69:1",
+      "name": "resolver: supported values only; invalid input resolves to Dark",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:74:1",
+      "name": "CSS artifact is exactly the verified projection, without Port variables",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:138:1",
+      "name": "theme-color agrees with Port runtime and both first-paint bootstraps",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:151:1",
+      "name": "load keeps appSettings, Port, projects and absent/invalid theme unchanged",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:170:1",
+      "name": "absent settings can be saved without a new storage key; invalid ID saves Dark",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:175:1",
+      "name": "read failure / blocked storage getter resolve to Dark without writes",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:198:1",
+      "name": "apply sets only data-theme/meta, normalizes invalid IDs and never saves",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:223:1",
+      "name": "actual entry bootstrap runs before stylesheets with exactly the runtime resolver",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:237:1",
+      "name": "bootstrap and runtime also agree when storage cannot be accessed",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/color-theme.test.mjs:268:1",
+      "name": "Theme does not couple to Feature Metadata / Port runtime / Sync / project data",
+      "classification": "stale-test-expectation",
+      "reason": "Studio Midnight追加・既定値とPortの4色投影の区別、bootstrap/モデル固定旧版"
+    },
+    {
+      "location": "apps/cruise-studio/tests/domain-undo-ui.test.mjs:54:1",
+      "name": "Structure redraw covers both history notices and structural selection guard",
+      "classification": "stale-test-expectation",
+      "reason": "構造変更operationも再描画する現行の分岐へ追従していない静的検査"
+    },
+    {
+      "location": "apps/cruise-studio/tests/feature-metadata.test.mjs:83:1",
+      "name": "all version projections and the imported Port value equal current source text",
+      "classification": "stale-test-expectation",
+      "reason": "APP_VERSION固定旧版（schemaVersionとは別に現行source/metadataを照合）"
+    },
+    {
+      "location": "apps/cruise-studio/tests/feature-metadata.test.mjs:256:1",
+      "name": "storage schema refs are distinct from app versions, cache keys, Sync/API/build versions",
+      "classification": "stale-test-expectation",
+      "reason": "APP_VERSION固定旧版（schemaVersionとは別に現行source/metadataを照合）"
+    },
+    {
+      "location": "apps/cruise-studio/tests/git-safety.test.mjs:111:1",
+      "name": "actual Git reader keeps NEWS hashes and detects rename/index changes in a disposable fixture",
+      "classification": "stale-test-expectation",
+      "reason": "隔離Git fixture内で実行するfeature-metadata試験の同じ固定旧版による連鎖失敗"
+    },
+    {
+      "location": "apps/cruise-studio/tests/git-safety.test.mjs:202:17",
+      "name": "actual feature-metadata boundary runs against linked topic Git directory",
+      "classification": "stale-test-expectation",
+      "reason": "隔離Git fixture内で実行するfeature-metadata試験の同じ固定旧版による連鎖失敗"
+    },
+    {
+      "location": "apps/cruise-studio/tests/install-metadata.test.mjs:4:1",
+      "name": "stable Pro-only manifest and browser names come from the canonical source",
+      "classification": "stale-test-expectation",
+      "reason": "Standard/Pro分離前の生成元、Standard manifest不存在、旧承認アイコンhash"
+    },
+    {
+      "location": "apps/cruise-studio/tests/install-metadata.test.mjs:8:1",
+      "name": "approved originals preserved byte-for-byte, only Pro outputs have exact PNG dimensions",
+      "classification": "stale-test-expectation",
+      "reason": "Standard/Pro分離前の生成元、Standard manifest不存在、旧承認アイコンhash"
+    },
+    {
+      "location": "apps/cruise-studio/tests/library-presentation.test.mjs:46:1",
+      "name": "real navigation/4-theme styling and print exclusion retain existing workspaces",
+      "classification": "stale-test-expectation",
+      "reason": "readonly旧画面からnative Port画面への入口変更"
+    },
+    {
+      "location": "apps/cruise-studio/tests/pc-home-news.test.mjs:68:1",
+      "name": "NEWS and Home markup owns no save/Account mutation and prints no new screen",
+      "classification": "stale-test-expectation",
+      "reason": "旧news/practiceの入口名"
+    },
+    {
+      "location": "apps/cruise-studio/tests/pc-shell-layout.test.mjs:23:1",
+      "name": "Metronome entry controls same Dock, not workspace or second runtime",
+      "classification": "stale-test-expectation",
+      "reason": "旧metronome Dock/所有境界、旧CSS前提と旧navigate分岐"
+    },
+    {
+      "location": "apps/cruise-studio/tests/pc-shell-layout.test.mjs:24:1",
+      "name": "Dock primary BPM/toggle/beats precede optional duplicate actions; status remains outside details",
+      "classification": "stale-test-expectation",
+      "reason": "旧metronome Dock/所有境界、旧CSS前提と旧navigate分岐"
+    },
+    {
+      "location": "apps/cruise-studio/tests/pc-shell-layout.test.mjs:27:1",
+      "name": "polish uses screen media and semantic colors, Print keeps A4 and hides chrome",
+      "classification": "stale-test-expectation",
+      "reason": "旧metronome Dock/所有境界、旧CSS前提と旧navigate分岐"
+    },
+    {
+      "location": "apps/cruise-studio/tests/pc-shell-layout.test.mjs:28:1",
+      "name": "focus/IME/Modal ownership and read-only host boundaries remain connected",
+      "classification": "stale-test-expectation",
+      "reason": "旧metronome Dock/所有境界、旧CSS前提と旧navigate分岐"
+    },
+    {
+      "location": "apps/cruise-studio/tests/pc-tools.test.mjs:52:1",
+      "name": "UI keeps advanced metronome disabled, explicit drafts and owner code without persistence imports",
+      "classification": "stale-test-expectation",
+      "reason": "廃止済みローカルtool UIの存在を要求"
+    },
+    {
+      "location": "apps/cruise-studio/tests/practice-presentation.test.mjs:38:1",
+      "name": "semantic four-theme styling, print exclusion and native readonly controls",
+      "classification": "stale-test-expectation",
+      "reason": "readonly旧画面からnative Port画面への入口変更"
+    },
+    {
+      "location": "apps/cruise-studio/tests/release-license.test.mjs:6:1",
+      "name": "the actual published sprite contains the complete original Lucide notice and Feather permission, not an excluded filename",
+      "classification": "stale-test-expectation",
+      "reason": "releaseファイル件数81の固定値（実在/重複/権利文の検査は維持）"
+    },
+    {
+      "location": "apps/cruise-studio/tests/rhythm-official-adapter.test.mjs:37:1",
+      "name": "real pinned R3 API lists exactly 5 eighth and 4 sixteenth; version evidence is separate from production mirror",
+      "classification": "stale-test-expectation",
+      "reason": "固定oracleと本体mirrorを混同した旧本体版の要求"
+    },
+    {
+      "location": "apps/cruise-studio/tests/shell.test.mjs:19:1",
+      "name": "four Shell regions and two logical Dock slots exist once",
+      "classification": "stale-test-expectation",
+      "reason": "retired Dock/旧nav全件一致、UIラベルを音声処理と誤判定、sidebar保存とtheme保存の混同、旧geometry/CSS前提"
+    },
+    {
+      "location": "apps/cruise-studio/tests/shell.test.mjs:23:1",
+      "name": "Navigation IDs resolve to real workspaces including retained Home/Apps",
+      "classification": "stale-test-expectation",
+      "reason": "retired Dock/旧nav全件一致、UIラベルを音声処理と誤判定、sidebar保存とtheme保存の混同、旧geometry/CSS前提"
+    },
+    {
+      "location": "apps/cruise-studio/tests/shell.test.mjs:50:1",
+      "name": "Dock toggles independently of workspace/pane and has no audio effects",
+      "classification": "stale-test-expectation",
+      "reason": "retired Dock/旧nav全件一致、UIラベルを音声処理と誤判定、sidebar保存とtheme保存の混同、旧geometry/CSS前提"
+    },
+    {
+      "location": "apps/cruise-studio/tests/shell.test.mjs:57:1",
+      "name": "Shell colors use semantic tokens, with no palette literals or Port import",
+      "classification": "stale-test-expectation",
+      "reason": "retired Dock/旧nav全件一致、UIラベルを音声処理と誤判定、sidebar保存とtheme保存の混同、旧geometry/CSS前提"
+    },
+    {
+      "location": "apps/cruise-studio/tests/shell.test.mjs:61:1",
+      "name": "four themes use the existing runtime, save failure is visible",
+      "classification": "stale-test-expectation",
+      "reason": "retired Dock/旧nav全件一致、UIラベルを音声処理と誤判定、sidebar保存とtheme保存の混同、旧geometry/CSS前提"
+    },
+    {
+      "location": "apps/cruise-studio/tests/shell.test.mjs:67:1",
+      "name": "safe area uses actual Main bounds and leaves collapsed Dock out",
+      "classification": "stale-test-expectation",
+      "reason": "retired Dock/旧nav全件一致、UIラベルを音声処理と誤判定、sidebar保存とtheme保存の混同、旧geometry/CSS前提"
+    },
+    {
+      "location": "apps/cruise-studio/tests/unified-release.test.mjs:10:1",
+      "name": "one Studio package publishes the guarded client and read-only legacy compatibility resources",
+      "classification": "stale-test-expectation",
+      "reason": "release/互換資源件数108/90の固定値（完全な名前一覧・hash・除外境界を検査）"
+    },
+    {
+      "name": "W1 worktree contracts: real isolated main/topic checkout, policy counterexamples and integration evidence",
+      "classification": "cascading-parent-failure",
+      "reason": "git-safetyの子試験失敗による集約。直接失敗38件と合わせてrunnerのfail 39件。"
+    }
+  ],
+  "remainingSkip": "studio-session-recovery.test.mjs: Dedicated disposable runtime/output required (isolated backend E2E; not real Account)",
+  "realBugs": [
+    {
+      "area": "print-pagination",
+      "cause": "Screen .studio-main container-type:size implies layout containment; it prevents row break avoidance in paged media.",
+      "fix": "Reset container-type and contain only in print.css; retain grid/subgrid and section heading break rules."
+    },
+    {
+      "area": "print-focus",
+      "cause": "Print excluded selected fill/shadow, but left focus-visible outline and selected-number emphasis.",
+      "fix": "Exclude keyboard focus outline and number selection emphasis in paged output."
+    }
+  ],
+  "limitations": [
+    "WebKit print-media CSS verified, not OS Safari print/PDF",
+    "One disposable backend E2E not run",
+    "No real Account/bookshelf synchronization tested"
+  ],
+  "protectedPathsUnchanged": [
+    "apps/shared",
+    "workers",
+    "other native apps",
+    "Studio public HTML/template/manifests",
+    "Studio js/cloud",
+    "Studio authentication/production configuration"
+  ],
+  "pdf": {
+    "shortPagesAtWidths": {
+      "1440": 1,
+      "390": 1
+    },
+    "longPages": 2,
+    "longPrintedBarLabelsByPage": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      [
+        25,
+        26,
+        27,
+        28
+      ]
+    ],
+    "visualReview": "All rows intact, no focus outline; both PNG pages and form-bearing short score inspected using Poppler."
+  },
+  "priorUncommittedPatchesPreserved": true
+}

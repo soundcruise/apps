@@ -89,6 +89,7 @@
         if (strum) items.push(['基本ストローク', strum]);
         items.forEach(function (pair) {
             var item = el('span', 'sheet-meta-item');
+            item.dataset.metaField=({'ORGキー':'originalKey','Playキー':'playKey','カポ':'capo','BPM':'bpm','拍子':'timeSignature','基本ストローク':'basicStrum'})[pair[0]];
             item.appendChild(el('span', 'sheet-meta-label', pair[0] + ': '));
             var value=el('span','sheet-meta-value',pair[1]);value.dataset.paperEdit=({'ORGキー':'instrument','Playキー':'instrument','カポ':'instrument','BPM':'bpm','基本ストローク':'rhythm'})[pair[0]]||'';item.appendChild(value);
             meta.appendChild(item);

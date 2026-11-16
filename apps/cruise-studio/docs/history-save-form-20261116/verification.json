@@ -1,0 +1,75 @@
+{
+  "candidate": "0.139.0-dev.1",
+  "formalVersion": "0.88.1",
+  "head": "7f69b433b0846758fd43d17c2f5594f64dfc6b8c",
+  "commitPerformed": false,
+  "pushPerformed": false,
+  "productionDeployed": false,
+  "realAccountConnected": false,
+  "node": {
+    "tests": 2214,
+    "pass": 2213,
+    "fail": 0,
+    "skipped": 1
+  },
+  "dedicatedChromeWebKit": {
+    "tests": 22,
+    "pass": 22,
+    "fail": 0
+  },
+  "scoreChrome": {
+    "tests": 122,
+    "pass": 122,
+    "fail": 0
+  },
+  "scoreWebKitTargeted": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0
+  },
+  "priorPlaybackChromeWebKit": {
+    "tests": 28,
+    "pass": 28,
+    "fail": 0
+  },
+  "relatedChromeWebKit": {
+    "tests": 74,
+    "pass": 74,
+    "fail": 0
+  },
+  "printChrome": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0
+  },
+  "finalVisualTarget": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0
+  },
+  "checks": {
+    "historyAtomicSinglePublication": true,
+    "historyMetadataAndRedoPreserved": true,
+    "historyWindowMaxChanges": 20,
+    "staleHistoryRejected": true,
+    "saveDisabledWhenClean": true,
+    "saveAsCreatesAnotherProject": true,
+    "originalRawAndDirtySessionPreserved": true,
+    "saveAsConfirmedFormBasisRebased": true,
+    "saveAsCancelQuotaAndImeProtected": true,
+    "gridPreferencesStagedWithoutProjectWrites": true,
+    "cycleMatchesActualChordOwner": true,
+    "popupEditingScopedAndResetOnClose": true,
+    "mutedMarkersAbsentInEditorAndPaper": true,
+    "editorDiagramOpensSamePopup": true,
+    "formalVersionAndProjectSchemaUnchanged": true,
+    "existingPlayedStringsOnlyMuteHasNoStaleMarkers": true
+  },
+  "notVerified": [
+    "Safari application and human listening",
+    "Dedicated backend recovery E2E (existing skip)",
+    "Real Account/Sync and bookshelf"
+  ],
+  "server": "http://127.0.0.1:18874/",
+  "serverStarted": false
+}

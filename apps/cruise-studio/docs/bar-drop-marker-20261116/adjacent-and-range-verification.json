@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-16",
+  "candidate": "0.135.0-dev.1",
+  "baseCommit": "7f69b433",
+  "branch": "codex/score-toolbar-ui",
+  "carriedUncommittedCandidates": [
+    "0.132.0-dev.1",
+    "0.133.0-dev.1",
+    "0.134.0-dev.1"
+  ],
+  "committed": false,
+  "pushed": false,
+  "localOnly": true,
+  "formalVersionUnchanged": "0.88.1",
+  "browserPassIncludingParents": 76,
+  "relatedNodePass": 45,
+  "suites": [
+    {
+      "suite": "adjacent move and outside range Chrome/WebKit including real mouse",
+      "counts": {
+        "tests": 28,
+        "pass": 28,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "adjacent-outside-final.log"
+    },
+    {
+      "suite": "guidance/range-loop/five-point Chrome/WebKit",
+      "counts": {
+        "tests": 48,
+        "pass": 48,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "adjacent-outside-regressions.log"
+    },
+    {
+      "suite": "score-slots-range and structure-operation Node",
+      "counts": {
+        "tests": 45,
+        "pass": 45,
+        "fail": 0,
+        "skipped": 0
+      },
+      "log": "adjacent-outside-node-final.log"
+    }
+  ],
+  "contracts": [
+    "left half inserts before and right half inserts after; preview and drop use identical hit testing",
+    "adjacent swaps and range-after insertions verified with real mouse in Chrome/WebKit",
+    "explicit afterId retains section membership at section end and permits song-end insertion",
+    "ambiguous/self/missing/noncontiguous targets reject atomically",
+    "outside-to-outside high-speed pointer movement includes first and last real bars crossed",
+    "existing selection can be replaced from blank paper margins without moving musical bars",
+    "toolbar height frozen during range selection; release click does not clear completed range",
+    "pending input/stale frames/interactive controls remain protected; plain margin click still clears selection",
+    "project/schema/music data and exact Undo preserved"
+  ],
+  "limits": [
+    "Safari user profile, touch reordering and OS print dialog not tested",
+    "Full Node and full score-view suites not rerun"
+  ],
+  "scopeChecks": {
+    "studioOnly": true,
+    "indexEmpty": true,
+    "headUnchanged": "7f69b433",
+    "productionHtmlAuthAndDeploymentUnchanged": true
+  }
+}

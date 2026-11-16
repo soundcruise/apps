@@ -1,0 +1,65 @@
+{
+  "candidate": "0.136.0-dev.1",
+  "formalVersion": "0.88.1",
+  "head": "7f69b433b0846758fd43d17c2f5594f64dfc6b8c",
+  "commitPerformed": false,
+  "pushPerformed": false,
+  "productionDeployed": false,
+  "realAccountConnected": false,
+  "node": {
+    "tests": 2201,
+    "pass": 2200,
+    "fail": 0,
+    "skipped": 1
+  },
+  "dedicatedBrowser": {
+    "tests": 18,
+    "pass": 18,
+    "fail": 0,
+    "skipped": 0
+  },
+  "scoreViewChrome": {
+    "tests": 122,
+    "pass": 122,
+    "fail": 0,
+    "skipped": 0
+  },
+  "relatedChromeWebKit": {
+    "tests": 45,
+    "pass": 45,
+    "fail": 0,
+    "skipped": 0
+  },
+  "printChrome": {
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "skipped": 0
+  },
+  "audioChecks": {
+    "contextsPerPlayback": 1,
+    "countClicksPerLoopSession": 4,
+    "bpm400CountSeconds": 0.6,
+    "bpm400TwoBarLoopPeriodSeconds": 1.2,
+    "delayedDecodeCannotRevivePlayback": true,
+    "workspaceLeavePromptStopsAudio": true,
+    "clickBuffersDistinctAccent": true
+  },
+  "scope": {
+    "songPlaybackAndSpace": true,
+    "editorOneTwoBarPreviews": false,
+    "individualChordPreview": false,
+    "midiExportCountIn": false,
+    "projectSchemaChanged": false,
+    "settingKey": "cruiseStudio.appSettings.scoreCountIn",
+    "default": false
+  },
+  "notVerified": [
+    "Safari application / OS audio and screen reader",
+    "Human listening evaluation",
+    "Dedicated backend recovery E2E (existing skip)",
+    "Real Account/Sync and real bookshelf"
+  ],
+  "server": "http://127.0.0.1:18874/",
+  "serverStarted": false
+}

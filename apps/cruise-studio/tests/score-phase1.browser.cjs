@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
-const {chromium} = require('playwright');
+const {chromium,webkit} = require('playwright');
 const root = path.resolve(__dirname, '../../..');
 const studio = path.join(root, 'apps/cruise-studio');
 const origin = 'https://score-phase1.fixture.invalid';
@@ -17,9 +17,11 @@ const settle = page => page.evaluate(() => new Promise(r => requestAnimationFram
 
 test('Phase 1 score editor in an isolated synthetic browser', async t => {
     const {renderDevelopmentEntry} = await import(pathToFileURL(path.join(studio, 'scripts/generate-development-entry.mjs')));
-    const entry = renderDevelopmentEntry(fs.readFileSync(path.join(studio, 'studio-template.html'), 'utf8'));
-    const browser = await chromium.launch({headless: true,
-        executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+    const entry = renderDevelopmentEntry(fs.readFileSync(path.join(studio, 'studio-template.html'), 'utf8')).replace('<head>','<head><link rel="stylesheet" href="/apps/cruise-studio/assets/chord-owner/fonts.css">');
+    const {ensureOwnerBundle}=await import(pathToFileURL(path.join(studio,'scripts/generate-local-chord-owner.mjs')));ensureOwnerBundle();
+    const engine=process.env.SCORE_ENGINE||'chrome';
+    const browser = await (engine==='webkit'?webkit.launch({headless:true}):chromium.launch({headless: true,
+        executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}));
     const errors = [], missing = [], blocked = [];
     if (output) fs.mkdirSync(output, {recursive: true});
     async function fresh(fn) {
@@ -40,6 +42,10 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 return route.fulfill({contentType: 'text/javascript', body: '/* isolated editor fixture */'});
             if (pathname === '/apps/cruise-studio/js/core/studio-entry.mjs')
                 return route.fulfill({contentType: 'text/javascript', body: `
+                    import {createOwnerUI,ownerCSS,exportBookmarklet,createFormRenderer} from '/apps/cruise-studio/scripts/.local-chord-owner.mjs'; CruiseStudio.localChordOwner={createOwnerUI,ownerCSS,exportBookmarklet,createFormRenderer};
+                    import {createPaperForms} from '/apps/cruise-studio/js/modules/sheet-cruise/paper-forms.mjs';CruiseStudio.localPaperForms=createPaperForms(createFormRenderer({ChordCruise:{ui:{},state:{settings:{}}}},document));
+                    import {createPaperLayout} from '/apps/cruise-studio/js/modules/sheet-cruise/paper-layout.mjs';CruiseStudio.localPaperLayout=createPaperLayout(CruiseStudio);CruiseStudio.sheetCruise?.connectPaperLayout();
+                    import {createFormAuthoring} from "/apps/cruise-studio/js/modules/chord/form-authoring.mjs"; CruiseStudio.localChordForms=createFormAuthoring(CruiseStudio,ChordCruise);
                     CruiseStudio.entryAuth = Object.freeze({isAuthorized: () => true, check: async () => true,
                         read: () => ({phase: 'ready', accountId: null})});
                     document.getElementById('studio-shell').inert = false;
@@ -49,7 +55,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             if (!file.startsWith(root + path.sep)) return route.abort();
             try {
                 const contentType = {'.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
-                    '.html': 'text/html', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png'}[path.extname(file)] || 'application/octet-stream';
+                    '.woff2':'font/woff2', '.html': 'text/html', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png'}[path.extname(file)] || 'application/octet-stream';
                 return route.fulfill({contentType, body: fs.readFileSync(file)});
             } catch {
                 missing.push(pathname);
@@ -89,6 +95,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await select(page);
     }
     try {
+        if(process.env.SCORE_CASE){const run=t.test.bind(t),pattern=new RegExp(process.env.SCORE_CASE);t.test=(name,fn)=>pattern.test(name)?run(name,fn):Promise.resolve();}
         await t.test('pointer can apply bulk input outside the Loupe, including narrow screens', async () => fresh(async page => {
             for (const width of [1440, 768, 390]) {
                 await page.setViewportSize({width, height: 900});
@@ -186,23 +193,25 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await select(page);
             await page.locator('[data-overlay-field=chord]').first().fill('C');
             await page.locator('[data-overlay-field=chord]').first().press('Tab');
-            await (await toolbarControl(page,'#sc-chord-forms')).click();
-            await page.locator('#form-event').selectOption({index: 1});
-            await page.locator('#form-open').click();
-            await page.locator('#form-instrument').check();
-            await page.locator('#form-max-fret').fill('24');
-            await page.locator('#form-preview').click();
-            assert((await page.locator('#form-position option').count()) > 1);
-            for (const n of [1, 2, 3, 4, 5]) await page.locator('[data-form-string="' + n + '"]').check();
-            await page.locator('#form-adopt').click();
-            await page.waitForFunction(() => CruiseStudio.sheetCruise.getSession().draft.performance.formBindings.length === 1);
+            await page.locator('[data-overlay-field=chord]').first().focus();
+            await page.locator('[data-chord-toggle]').click();
+            await page.locator('[data-chord-symbol="C"]').click();
+            const automatic=await snapshot(page);
+            assert.equal(automatic.performance.formBindings.length,1);
+            await page.locator('[data-chord-advanced]').click();
+            await page.locator('[data-chord-shape="C"]').click();
+            await page.locator('[data-form-performance] summary').click();
+            for(const n of [1,2,3,4,5])await page.locator('[data-played-string="'+n+'"]').check();
+            await page.locator('[data-apply-played-strings]').click();
+            const confirmed=await snapshot(page);
+            assert.equal(confirmed.performance.formBindings[0].mode,'fixed');
+            assert.equal(confirmed.performance.formBindings[0].confirmation.status,'confirmed');
             const voiced = await page.evaluate(() => CruiseStudio.arrangement.generateArrangement(CruiseStudio.documents.getSession().workingSnapshot()).bars[0].guitarNotes);
             assert.deepEqual([...new Set(voiced.map(n => n.midi))].sort((a,b) => a-b), [48, 52, 55, 60, 64]);
             await page.locator('#sc-undo').click();
-            assert.equal((await snapshot(page)).performance.formBindings.length, 0);
+            assert.deepEqual(await snapshot(page),automatic);
             await page.locator('#sc-redo').click();
-            assert.equal((await snapshot(page)).performance.formBindings.length, 1);
-            await (await toolbarControl(page,'#sc-chord-forms')).click();
+            assert.deepEqual(await snapshot(page),confirmed);
             assert(await page.locator('#sc-goto-pre-dtm').isHidden());await page.locator('.studio-nav [data-workspace=preDtm]').click();await retainDrafts(page);
             const download = page.waitForEvent('download');
             await page.locator('#pd-export-midi').click();
@@ -262,7 +271,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('.slot-overlay-bulk-text').press('Escape');
             assert.equal(await page.locator('.slot-overlay-bulk-popover').count(), 0);
         }));
-        await t.test('print hides editing chrome and produces a PDF without changing the draft', async () => fresh(async page => {
+        await t.test('print hides editing chrome without changing the draft; Chromium exports a one-page short score', async () => fresh(async page => {
             await page.locator('#sc-editor-drawer').evaluate(e => e.open = true);
             await page.locator('#sc-title').fill('夜の航路 Original');
             await page.locator('#sc-title').press('Tab');
@@ -271,18 +280,53 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await page.locator('.dock-lyrics-cell').first().fill('夜');
             await page.locator('[data-overlay-field=doremi]').first().fill('ド');
             await page.locator('[data-overlay-field=doremi]').first().press('Tab');
+            await (await toolbarControl(page,'#sc-show-forms')).check();
+            assert(await page.locator('#sc-sheet-scale-box .sheet-form-event svg').count()>0);
+            const full = await snapshot(page);
+            assert.equal(full.bars.length,28,'the default new project is deliberately multi-section');
+            await page.evaluate(()=>{const C=CruiseStudio,s=C.sheetCruise.getSession(),r=s.runOperation('Short print fixture',p=>{p.bars=p.bars.slice(0,4);p.sections=p.sections.slice(0,1);});if(!r.ok)throw Error(r.error);});
             const before = await snapshot(page);
             assert(before.bars[0].lyrics.length && before.bars[0].melody.length);
             for (const width of [1440, 390]) {
                 await page.setViewportSize({width, height: 1000});
                 await page.emulateMedia({media: 'print'});
                 assert.equal(await page.locator('#sc-slot-overlay').evaluate(e => getComputedStyle(e).display), 'none');
-                const pdf = await page.pdf({...(output ? {path: path.join(output, 'original-' + width + '.pdf')} : {}), preferCSSPageSize: true});
-                assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
-                assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 1);
+                if(output)fs.writeFileSync(path.join(output,'geometry-'+width+'.json'),JSON.stringify(await page.locator('.sheet-page').evaluate(e=>({height:e.getBoundingClientRect().height,lines:[...e.querySelectorAll('.sheet-line')].map(n=>({top:n.offsetTop,height:n.offsetHeight,breakInside:getComputedStyle(n).breakInside}))})),null,2));
+                if(engine==='chrome'){
+                    const pdf = await page.pdf({...(output ? {path: path.join(output, 'original-' + width + '.pdf')} : {}), preferCSSPageSize: true});
+                    assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
+                    assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 1);
+                }
                 await page.emulateMedia({media: 'screen'});
                 assert.deepEqual(await snapshot(page), before);
             }
+        }));
+        await t.test('long score print retains all bars and hides selection, playback and editor controls',()=>fresh(async page=>{
+            const before=await snapshot(page);
+            assert.equal(before.bars.length,28);
+            await select(page);
+            await page.locator('[data-chord-toggle]').click();
+            // Put a unique label in every bar so omitted bars can be detected in the PDF.
+            await page.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession(),r=s.runOperation('Long print fixture',p=>{p.bars.forEach((b,i)=>b.lyrics=[{id:crypto.randomUUID(),onsetTick:0,text:'BAR'+(i+1),provenance:{origin:'user-set'}}]);});if(!r.ok)throw Error(r.error);});
+            await page.locator('#sc-undo').click();await page.locator('#sc-redo').click();await settle(page);
+            const draft=await snapshot(page);
+            assert.equal((await page.locator('#sc-sheet-scale-box .sheet-bar-lyrics').first().innerText()).trim(),'BAR1');
+            await page.locator('#sc-sheet-scale-box .sheet-bar').first().focus();
+            await page.emulateMedia({media:'print'});
+            for(const selector of ['.sheet-toolbar','#sc-slot-overlay']){
+                assert.equal(await page.locator(selector).first().evaluate(e=>getComputedStyle(e).display),'none');
+            }
+            assert(await page.locator('[data-edit-selected-bar]').evaluateAll(nodes=>nodes.every(e=>getComputedStyle(e).display==='none')));
+            assert.equal(await page.locator('#sc-sheet-scale-box .sheet-bar').count(),28);
+            assert.equal(await page.locator('#sc-sheet-scale-box .sheet-bar').first().evaluate(e=>getComputedStyle(e).outlineStyle),'none');
+            assert.equal(await page.locator('.studio-main').evaluate(e=>getComputedStyle(e).containerType),'normal');
+            assert(await page.locator('#sc-sheet-scale-box .sheet-line').evaluateAll(nodes=>nodes.every(e=>getComputedStyle(e).breakInside==='avoid')));
+            if(engine==='chrome'){
+                const pdf=await page.pdf({...(output?{path:path.join(output,'long-score.pdf')}:{}),preferCSSPageSize:true});
+                assert((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length>1,'long scores are allowed to paginate');
+            }
+            assert.deepEqual(await snapshot(page),draft);
+            if(output)fs.writeFileSync(path.join(output,'long-geometry.json'),JSON.stringify(await page.locator('.sheet-page').evaluate(e=>({height:e.getBoundingClientRect().height,lines:[...e.querySelectorAll('.sheet-line')].map(n=>({top:n.offsetTop,height:n.offsetHeight,breakInside:getComputedStyle(n).breakInside}))})),null,2));
         }));
         await t.test('no script errors, missing local assets or external requests', () => {
             assert.deepEqual(errors, []);

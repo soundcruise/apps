@@ -1,0 +1,83 @@
+{
+  "candidate": "0.137.0-dev.1",
+  "formalVersion": "0.88.1",
+  "head": "7f69b433b0846758fd43d17c2f5594f64dfc6b8c",
+  "commitPerformed": false,
+  "pushPerformed": false,
+  "productionDeployed": false,
+  "realAccountConnected": false,
+  "node": {
+    "tests": 2203,
+    "pass": 2202,
+    "fail": 0,
+    "skipped": 1
+  },
+  "dedicatedBrowserChromeWebKit": {
+    "tests": 14,
+    "pass": 14,
+    "fail": 0,
+    "skipped": 0
+  },
+  "scoreViewChrome": {
+    "tests": 122,
+    "pass": 122,
+    "fail": 0,
+    "skipped": 0
+  },
+  "scoreViewWebKitTargeted": {
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 0
+  },
+  "relatedChromeWebKit": {
+    "tests": 77,
+    "pass": 77,
+    "fail": 0,
+    "skipped": 0,
+    "note": "63 cases from count-in, help/storage, acoustic, range and toolbar; 14 guidance cases rerun after awaiting resize layout and scrolling the pointer fixture into view."
+  },
+  "printChrome": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "skipped": 0
+  },
+  "schedulerNodeFinal": {
+    "tests": 11,
+    "pass": 11,
+    "fail": 0,
+    "skipped": 0
+  },
+  "checks": {
+    "metronomeDefault": false,
+    "metronomeSetting": "cruiseStudio.appSettings.scoreMetronome",
+    "bpm400BeatIntervalSeconds": 0.15,
+    "bpm400CountDurationSeconds": 0.6,
+    "bpm400TwoBarLoopSeconds": 1.2,
+    "contextsPerPlayback": 1,
+    "sameClockForCountClicksAndMusic": true,
+    "countInRepeats": false,
+    "metronomeRepeats": true,
+    "blankStrumsFillBeatsAndChanges": true,
+    "explicitRestsPreserved": true,
+    "playbackNoticeClearedOnStop": true,
+    "popupEditTargetsStableChordId": true,
+    "fineTimedChordFingerEditSupported": true,
+    "unrelatedBindingsAndImmutableMaterialsPreserved": true,
+    "undoRedoSaveJsonReload": true,
+    "manualScrollHasPriorityInCurrentBar": true,
+    "noScrollAfterStop": true,
+    "projectSchemaChanged": false,
+    "metronomeInMidiOrProject": false,
+    "phone390ToolbarOverflow": false
+  },
+  "notVerified": [
+    "Safari application and OS audio",
+    "Human listening evaluation",
+    "Dedicated backend recovery E2E (existing skip)",
+    "Real Account/Sync and real bookshelf"
+  ],
+  "server": "http://127.0.0.1:18874/",
+  "serverStarted": false
+}

@@ -988,7 +988,14 @@
         };
     }
 
-    function getForm(shapeKey, qualityKey, rootPc, maxFret, minFret) {
+    function getForm(shapeKey, qualityKey, rootPc, maxFret, minFret, options) {
+        // Operator-approved FM7 exception; retain the movable E form explicitly.
+        var fm7Open = shapeKey === 'E' && qualityKey === 'maj7' && ((rootPc % 12) + 12) % 12 === 5 && (minFret || 0) === 0 && (maxFret === undefined || maxFret >= 3);
+        if (fm7Open && (!options || options.variant !== 'formal')) {
+            var formal = getForm(shapeKey, qualityKey, rootPc, maxFret, minFret, {variant:'formal'});
+            var notes = [{string:4,fret:3,interval:0,finger:3,fingeringWarning:false},{string:3,fret:2,interval:4,finger:2,fingeringWarning:false},{string:2,fret:1,interval:7,finger:1,fingeringWarning:false},{string:1,fret:0,interval:11,finger:null,fingeringWarning:false}];
+            return Object.assign({}, formal, {notes:notes,mutedStrings:[5,6],playability:'standard',fingeringStatus:'defined',usedOpenFingers:true,hasOutOfRangeNotes:false,omittedNoteCount:0,outOfRangeNotes:[],fretRange:{min:0,max:3,includesOpen:true},displayRange:getFormDisplayRange(notes,{maxFret:maxFret === undefined ? 13 : maxFret}),formVariant:'fm7-open',fm7Alternative:true,warning:'',formNotice:'FM7のE型は頻出の開放フォーム（4弦3F・3弦2F・2弦1F・1弦開放）を採用しています。'});
+        }
         var shape = FORMS[shapeKey];
         // 6thは専用FORMを持たず、Major / Minor FORMを基底に追加markerを重ねる。
         var baseQualityKey = qualityKey === '6' ? 'maj' : (qualityKey === 'm6' ? 'm' : qualityKey);
@@ -1102,6 +1109,8 @@
 
         return {
             available: true,
+            fm7Alternative: fm7Open,
+            formVariant: fm7Open ? 'formal' : null,
             shape: shapeKey,
             qualityKey: qualityKey,
             playability: def.playability || 'standard',
@@ -1195,6 +1204,8 @@
         }).filter(Boolean);
         if (!candidates.length) return null;
 
+        var openFM7 = candidates.filter(function(c){return c.form.formVariant === 'fm7-open';})[0];
+        if(openFM7)return {shape:'E',source:'common',label:'一般的なフォーム',metrics:openFM7.metrics};
         var overrideShape = COMMON_FORM_OVERRIDES[qualityKey] && COMMON_FORM_OVERRIDES[qualityKey][normalizedRoot];
         if (overrideShape) {
             var override = candidates.filter(function (candidate) { return candidate.shape === overrideShape; })[0];

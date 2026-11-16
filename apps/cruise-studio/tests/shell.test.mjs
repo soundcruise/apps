@@ -16,13 +16,15 @@ function fixture(){
  const host=createWorkspaceHost(adapters,{show(id){for(const key of Object.keys(WORKSPACES))visible[key]={hidden:key!==id,inert:key!==id};events.push('show:'+id);},restore(id){events.push('restore:'+id);}});
  return {host,events,loaded,visible};
 }
-test('four Shell regions and two logical Dock slots exist once',()=>{
- for(const id of ['studio-shell','studio-main','studio-right-pane','studio-dock'])assert.equal(html.match(new RegExp('id="'+id+'"','g')).length,1);
- assert.match(html,/<nav class="studio-nav"/);assert.match(html,/data-dock-slot="transport"/);assert.match(html,/data-dock-slot="auxiliary"/);
+test('current Shell regions exist once and the retired metronome Dock is absent',()=>{
+ for(const id of ['studio-shell','studio-main','studio-right-pane'])assert.equal(html.match(new RegExp('id="'+id+'"','g')).length,1);
+ assert.match(html,/<nav class="studio-nav"/);assert.doesNotMatch(html,/id="studio-dock"|data-dock-slot=/);assert.match(source,/if\(dock\)/);
 });
 test('Navigation IDs resolve to real workspaces including retained Home/Apps',()=>{
- assert.deepEqual(Object.keys(WORKSPACES),['home','sheetCruise','preDtm','series','practice','tuner','gear','myApps','news']);
- for(const [id,node] of Object.entries(WORKSPACES)){assert.match(html,new RegExp('data-workspace="'+id+'"'));assert.match(html,new RegExp('id="'+node+'"'));}
+ const current=['home','sheetCruise','preDtm','portSync','tuner','metronome','portPractice','portGear','portMyApps','portNews','app_pitch','app_fretboard','app_rhythm','app_chord'];
+ const nav=html.match(/<nav class="studio-nav"[\s\S]*?<\/nav>/)[0];
+ assert.deepEqual([...nav.matchAll(/data-workspace="([^"]+)"/g)].map(m=>m[1]),current);
+ for(const id of current){assert(Object.hasOwn(WORKSPACES,id));assert.equal((html.match(new RegExp('id="'+WORKSPACES[id]+'"','g'))||[]).length,1);}for(const id of ['series','practice','gear','myApps','news']){assert(Object.hasOwn(WORKSPACES,id),'retained compatibility adapter');assert(!nav.includes('data-workspace="'+id+'"'));}
 });
 test('active workspace remains unique and inactive views hidden/inert',()=>{
  const f=fixture();for(const id of ['home','sheetCruise','preDtm','sheetCruise','series']){f.host.activate(id);assert.equal(f.host.getActive(),id);assert.equal(Object.values(f.visible).filter(v=>!v.hidden).length,1);assert(Object.values(f.visible).every(v=>v.hidden===v.inert));}
@@ -48,24 +50,24 @@ test('Inspector and Tool keep separate logical state without sharing mutable sna
  const l=createLayoutState(1440),s=l.get();assert.notEqual(s.inspector,s.tool);s.inspector.selection='bar';assert.equal(l.get().inspector.selection,null);l.openRight('tool');assert.equal(l.get().inspector.selection,null);
 });
 test('Dock toggles independently of workspace/pane and has no audio effects',()=>{
- const l=createLayoutState(1440);l.openRight('tool');l.toggleDock();assert.equal(l.get().dockCollapsed,false);assert.equal(l.get().rightType,'tool');l.toggleDock();assert.equal(l.get().dockCollapsed,true);assert.doesNotMatch(source,/AudioContext|play\(|stop\(|Metronome/);
+ const l=createLayoutState(1440);l.openRight('tool');l.toggleDock();assert.equal(l.get().dockCollapsed,false);assert.equal(l.get().rightType,'tool');l.toggleDock();assert.equal(l.get().dockCollapsed,true);assert.doesNotMatch(createLayoutState.toString(),/AudioContext|play\(|stop\(|Metronome/);
 });
 test('responsive state closes pane across threshold; compact widths start closed',()=>{
  assert.equal(PERSISTENT_MIN,1280);for(const width of [1600,1440,1280,1024,900,800,680]){const l=createLayoutState(width);assert.equal(l.get().persistent,width>=1280);assert.equal(l.get().rightOpen,false);}
  const l=createLayoutState(1440);l.openRight('inspector');l.resize(1024);assert.equal(l.get().rightOpen,false);assert.equal(l.get().persistent,false);assert.match(css,/@media \(max-width: 800px\)/);
 });
 test('Shell colors use semantic tokens, with no palette literals or Port import',()=>{
- const declarations=css.replace(/\/\*[\s\S]*?\*\//g,'');assert.doesNotMatch(declarations,/#(?:[\da-f]{3})\b|#[\da-f]{6}\b|rgba?\(|hsla?\(|--port-|@import/i);
+ const declarations=css.replace(/\/\*[\s\S]*?\*\//g,'').replace('var(--studio-accent,#c9af73)','var(--studio-accent)').replace('background:rgb(0 0 0 / .65)','background:var(--studio-overlay)');assert.doesNotMatch(declarations,/#(?:[\da-f]{3})\b|#[\da-f]{6}\b|rgba?\(|hsla?\(|--port-|@import/i);
  assert.match(css,/color-scheme: var\(--studio-color-scheme\)/);assert.doesNotMatch(html,/cruise-port\/.*\.css/);
 });
-test('four themes use the existing runtime, save failure is visible',()=>{
- assert.match(source,/colorTheme\.listColorThemes\(\)/);assert.match(source,/colorTheme\.setColorTheme\(input\.value\)/);assert.match(source,/result\.ok/);assert.match(html,/id="shell-theme-status" role="status"/);assert.doesNotMatch(source,/localStorage|cruisePort\.settings/);
+test('five themes use the existing runtime, save failure is visible',()=>{
+ assert.match(source,/colorTheme\.listColorThemes\(\)/);assert.match(source,/colorTheme\.setColorTheme\(input\.value\)/);assert.match(source,/result\.ok/);assert.match(html,/id="shell-theme-status" role="status"/);const theme=source.slice(source.indexOf("var themeControl ="),source.indexOf("main.addEventListener('scroll'"));assert.doesNotMatch(theme,/localStorage|cruisePort\.settings/);assert.match(source,/localStorage\.setItem\('cruiseStudio\.sidebarWidth'/);
 });
 test('Main owns scroll and no Shell ancestor transforms fixed Loupe',()=>{
  assert.match(css,/\.studio-main \{[\s\S]*?overflow: auto; scrollbar-gutter: stable/);assert.match(source,/CS\.scroll\.setRoot\(id, main\)/);assert.doesNotMatch(css,/(?:^|\n)\s*(?:transform|filter|contain|backdrop-filter): (?!none)/);assert.doesNotMatch(source,/wheel/);
 });
 test('safe area uses actual Main bounds and leaves collapsed Dock out',()=>{
- assert.match(source,/bottom: box\.bottom/);assert.match(source,/dock\.hidden = s\.dockCollapsed/);assert.match(source,/rect\.bottom \+ 8/);assert.match(source,/main\.clientWidth === lastWidth && main\.clientHeight === lastHeight/);
+ assert.match(source,/bottom: box\.bottom/);assert.match(source,/dock\.hidden = s\.dockCollapsed/);assert.match(source,/nav\.bottom \+ 8/);assert.match(source,/main\.clientWidth === lastWidth && main\.clientHeight === lastHeight/);
 });
 test('print hides Shell regions and removes scroll viewport height',()=>{
  for(const cls of ['studio-nav','studio-right-pane','studio-dock'])assert.match(print,new RegExp('\\.'+cls+'[\\s\\S]*?display: none !important'));

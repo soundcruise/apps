@@ -12,8 +12,9 @@ test('one Studio package publishes the guarded client and read-only legacy compa
  try{
   assert.equal(packageProjectCanary,packagePortPC,'the old command has no separate product builder');
   const manifest=packagePortPC(out),names=Object.keys(manifest.files);
-  assert.equal(names.filter(n=>n.startsWith('apps/cruise-studio/')).length,108);
-  assert.equal(names.filter(n=>n.startsWith('apps/cruise-studio-canary/')).length,90);
+  assert.deepEqual(names.filter(n=>n.startsWith('apps/cruise-studio/')).sort(),[...RELEASE_FILES,'index.html','manifest.webmanifest'].map(n=>'apps/cruise-studio/'+n).sort());
+  const legacyRoot=new URL('../../cruise-studio-canary/',import.meta.url);
+  assert.deepEqual(names.filter(n=>n.startsWith('apps/cruise-studio-canary/')).sort(),fs.readdirSync(legacyRoot,{recursive:true}).filter(n=>fs.statSync(new URL(n,legacyRoot)).isFile()).map(n=>'apps/cruise-studio-canary/'+n).sort());
   assert(RELEASE_FILES.includes('js/cloud/studio-session-adapter.mjs'));
   assert.equal(manifest.productionReady,false);assert.equal(manifest.channel,'single-studio-operator-owner');
   for(const [name,hash] of Object.entries(manifest.files))assert.equal(createHash('sha256').update(fs.readFileSync(path.join(out,name))).digest('hex'),hash);

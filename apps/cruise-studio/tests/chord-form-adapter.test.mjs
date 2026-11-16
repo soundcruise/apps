@@ -178,7 +178,7 @@ test('adapter stays pure and the product explicitly connects only owner CAGED pl
     const source = read('../js/modules/chord/form-adapter.mjs');
     assert.doesNotMatch(source, /\b(?:localStorage|indexedDB|fetch|XMLHttpRequest|navigator|document|window)\b|^import /m);
     assert.match(read('../index.html'), /caged-forms.js\?v=1.23.0/);
-    assert.match(read('../index.html'), /form-panel.mjs\?v=0.84.0/);
+    assert.match(read('../index.html'), /form-panel\.mjs\?v=0\.88\.1/);
     assert.doesNotMatch(read('../js/modules/chord/form-panel.mjs'), /\b(?:localStorage|indexedDB|fetch|saveChord|featureAccess)\b/);
 });
 
@@ -249,7 +249,7 @@ test('P2-2 released owner catalogue retains every available full-range diagram',
             checked++; barreCount += r.form.barres.length;
         }
     }
-    assert.equal(checked, 480); assert.equal(barreCount, 259);
+    assert.equal(checked, 480); assert.equal(barreCount, 257) /* approved FM7 open E form replaces two barres */;
 });
 
 // Independent concert-pitch expectations, not computed from adapter output.

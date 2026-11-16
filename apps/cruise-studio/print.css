@@ -181,3 +181,26 @@ html, body, #studio-shell, .studio-main {
 
 /* Modal host is UI only, including native dialog's top-layer backdrop. */
 .studio-modal, .studio-modal::backdrop { display: none !important; }
+
+.sheet-section-heading {
+    break-inside: avoid;
+    break-after: avoid;
+    page-break-after: avoid;
+}
+/* Keyboard focus and selected numbers are screen affordances, like the fill. */
+.sheet-bar:focus-visible, .sheet-bar:focus {
+    outline: none !important;
+}
+.sheet-bar.is-selected .sheet-bar-num,
+.sheet-bar.sc-playing-bar .sheet-bar-num {
+    color: var(--paper-faint) !important;
+    font-weight: 400 !important;
+}
+
+/* Screen container queries establish size/layout containment, which makes the
+   entire score a monolithic overflow box for paged output. Release that shell
+   boundary so row-level break avoidance can take effect. */
+.studio-main {
+    container-type: normal !important;
+    contain: none !important;
+}

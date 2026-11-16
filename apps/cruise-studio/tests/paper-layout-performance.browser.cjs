@@ -1,3 +1,4 @@
+async function openPaperSettings(page){return (await require('./helpers/score-toolbar.cjs').toolbarControl(page,'#sc-paper-settings')).click();}
 const {toolbarControl}=require('./helpers/score-toolbar.cjs');
 // Fresh loopback contexts and synthetic data only; never uses the user's profile.
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
@@ -22,7 +23,7 @@ for(const engine of ['chrome','webkit'])test('long score style updates keep pape
   await p.goto(origin);await p.locator('#open-sheet-cruise').click();await p.locator('#sc-import-json').setInputFiles({name:'long.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(project))});
   await p.waitForFunction(()=>CruiseStudio.sheetCruise.getSession().draft.bars.length===128);await (await toolbarControl(p,'#sc-show-forms')).check();
   const before=await p.evaluate(()=>({project:CruiseStudio.sheetCruise.getSession().workingSnapshot(),history:CruiseStudio.sheetCruise.getSession().getHistory()}));
-  await p.locator('#sc-paper-settings').click();
+  await openPaperSettings(p);
   await p.evaluate(()=>{window.__retained=[document.querySelector('#sc-sheet-scale-box .sheet-page'),document.querySelector('.sc-layout-example-paper .sheet-page'),document.querySelector('.sc-layout-example-paper .sheet-form-event svg')];window.__renders=0;const render=CruiseStudio.sheetRenderer.render;CruiseStudio.sheetRenderer.render=(...args)=>{__renders++;return render(...args);};});
   async function range(selector,value){await p.locator(selector).evaluate((e,v)=>{e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));},value);await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));}
   await range('[data-layout-setting=chordSize]',24);await range('[data-text-color=lyrics]','#123456');await range('[data-line-width=bar]',3);
@@ -31,8 +32,8 @@ for(const engine of ['chrome','webkit'])test('long score style updates keep pape
   for(const host of ['#sc-sheet-scale-box','.sc-layout-example-paper']){assert.equal(await p.locator(host+' .sheet-bar-lyrics').first().evaluate(e=>getComputedStyle(e).color),'rgb(18, 52, 86)');assert.equal(await p.locator(host+' .sheet-line').first().evaluate(e=>getComputedStyle(e).borderLeftWidth),'3px');}
   await p.locator('[data-layout-setting=barsPerLine]').selectOption('2');assert.equal(await p.evaluate(()=>__renders),2);assert(await p.evaluate(()=>!__retained[0].isConnected));
   await p.locator('[data-layout-cancel]').click();assert.equal(await p.locator('#sc-sheet-scale-box .sheet-bar-chord').first().evaluate(e=>getComputedStyle(e).fontSize),'16px');
-  await p.locator('#sc-paper-settings').click();await range('[data-layout-setting=chordSize]',22);await p.locator('[data-layout-save]').click();
-  await p.locator('#sc-paper-settings').click();assert.equal(await p.locator('[data-layout-setting=chordSize]').inputValue(),'22');await p.locator('[data-layout-cancel]').click();
+  await openPaperSettings(p);await range('[data-layout-setting=chordSize]',22);await p.locator('[data-layout-save]').click();
+  await openPaperSettings(p);assert.equal(await p.locator('[data-layout-setting=chordSize]').inputValue(),'22');await p.locator('[data-layout-cancel]').click();
   assert.deepEqual(await p.evaluate(()=>({project:CruiseStudio.sheetCruise.getSession().workingSnapshot(),history:CruiseStudio.sheetCruise.getSession().getHistory()})),before);
   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
  }finally{await browser.close();}
