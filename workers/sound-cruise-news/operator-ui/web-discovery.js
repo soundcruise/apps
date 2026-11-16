@@ -48,7 +48,7 @@ export function renderWebReviewCard(document,item,{change}={}){
  const actions=el('div',undefined,'actions');card.append(actions);
  const support=el('section');support.hidden=true;const policy=item.articleDraft?.sourceReview;support.append(el('p',policy?.reason||'この出典は現在の人間確認による正式保存に未対応です。原記事で公開日・出来事と紹介条件を確認してください。確認結果だけで自動登録・公開はしません。','blocker'));if(policy?.termsUrl){const a=el('a','出典の利用条件');a.href=policy.termsUrl;a.target='_blank';a.rel='noopener noreferrer';support.append(a);}card.append(support);
  if(item.webReview?.queue==='judgment'){
-  if(item.humanEntry){const a=el('a','記事を確認して判断','button-link');a.href='/?assistedUrl='+encodeURIComponent(item.humanEntry.url);actions.append(a);}
+  if(item.humanEntry){const ready=item.reviewPresentation?.group==='approvable',a=el('a',ready?'掲載する':'記事を確認して判断','button-link');a.href='/?assistedUrl='+encodeURIComponent(item.humanEntry.url);if(ready)a.addEventListener('click',event=>{event.preventDefault();document.dispatchEvent(new CustomEvent('news-assisted-review',{detail:{url:item.humanEntry.url}}));});actions.append(a);}
   else{const b=el('button','記事を確認して判断');b.type='button';b.setAttribute('aria-expanded','false');b.addEventListener('click',()=>{support.hidden=!support.hidden;b.setAttribute('aria-expanded',String(!support.hidden));});actions.append(b);}
  }
  if(item.webReview?.candidateId){const a=el('a','既存NEWSを確認');a.href='/?candidate='+encodeURIComponent(item.webReview.candidateId);card.append(a);}
