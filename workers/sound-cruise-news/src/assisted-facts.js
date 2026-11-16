@@ -9,9 +9,12 @@ export const assistedSources=[
  {id:'yamaha-newsroom',name:'ヤマハ / ヤマハミュージックジャパン',automatic:'not_allowed',manual:'conditions_review_required',basis:'public_facts_conditions_review',permissionRef:'human-facts-conditions-v1:yamaha-newsroom',origin:'https://www.yamaha.com',articlePattern:'^/ja/news_release/20[0-9]{2}/[0-9]{8}/$'},
  {id:'agm',name:'ACOUSTIC GUITAR MAGAZINE WEB',automatic:'unchanged',manual:'publisher_conditions_required',basis:'publisher_permission',permissionRef:AGM_PERMISSION_REF,origin:'https://acousticguitarmagazine.jp',articlePattern:'^/(?:(?:gears|interview|column|beginners|lesson)/(?!feed/|page/|tag/|author/)[a-zA-Z0-9_-]+|20[0-9]{2}[-_][a-zA-Z0-9_-]+)/$'},
  {id:'shimamura',name:'島村楽器',automatic:'unchanged',manual:'conditions_review_required',basis:'public_facts_conditions_review',permissionRef:'human-facts-conditions-v1:shimamura-shops',origin:'https://www.shimamura.co.jp',articlePattern:'^/update/(?:shops/[a-z0-9-]+/(?:guitar-bass|acoustic-guitar|dtm-recording|amp-effector)/[0-9]+|(?:guitar-bass|amp-effector|dtm-recording)/20[0-9]{2}/[0-9]{2}/(?:gs-)?[1-9][0-9]*)/$'},
- {id:'deviser',name:'Deviser',automatic:'unchanged',manual:'conditions_review_required',basis:'public_facts_conditions_review',permissionRef:'human-facts-conditions-v1:deviser',origin:'https://www.deviser.co.jp',articlePattern:'^/information/[0-9]+/?$'}
+ {id:'deviser',name:'Deviser',automatic:'unchanged',manual:'conditions_review_required',basis:'public_facts_conditions_review',permissionRef:'human-facts-conditions-v1:deviser',origin:'https://www.deviser.co.jp',articlePattern:'^/information/[0-9]+/?$'},
+ {id:'ikebe',name:'池部楽器',automatic:'unchanged',manual:'existing_candidate_only',existingCandidateOnly:true,basis:'publisher_permission',permissionRef:'ikebe-human-facts-20261015',origin:'https://www.ikebe-gakki-pb.com',articlePattern:'^/new_product/[1-9][0-9]*/$'},
+ {id:'ikebe-event',name:'池部楽器 Events',automatic:'unchanged',manual:'existing_candidate_only',existingCandidateOnly:true,basis:'publisher_permission',permissionRef:'ikebe-human-facts-20261015',origin:'https://www.ikebe-gakki.com',articlePattern:'^/blog/[0-9]{8}-eg-workshop/$'}
 ];
 export function assistedSource(raw){try{const u=new URL(raw);if(u.href!==raw||u.search||u.hash||u.username||u.password||u.port)return null;return assistedSources.find(s=>u.origin===s.origin&&new RegExp(s.articlePattern).test(u.pathname))||null;}catch{return null;}}
+export function assistedExistingAllowed(source,row){if(!source?.existingCandidateOnly)return true;if(!row)return false;if(row.origin==='automatic_collection')return true;try{return row.origin===ASSISTED_ORIGIN&&JSON.parse(row.product_facts)?.confirmationContext?.discoveryOrigin==='automatic_collection';}catch{return false;}}
 // Reviewed human-introduction limits only. These records never grant Bot access
 // or add an unreviewed source to the collector registry.
 const pendingHumanSources={
@@ -26,7 +29,7 @@ export function assistedSourceReview(raw){
 }
 export const assistedTypes={...productTypes,guitar_accessory:['ギター関連アクセサリー','acoustic_guitar']};
 export const assistedActions={preview:'を先行紹介',variant_introduction:'の特別仕様を紹介',announcement:'を発表',release:'を発売',introduction:'を紹介',event_announcement:'の開催を案内',interview:'を公開'};
-export function assistedUrl(raw){return assistedSource(raw)?raw:null;}
+export function assistedUrl(raw){const s=assistedSource(raw);return s&&!s.existingCandidateOnly?raw:null;}
 const safe=s=>typeof s==='string'&&s===s.trim()&&s.length>=2&&s.length<=100&&!/[<>\x00-\x1f]|https?:/.test(s);
 // Draft formatting is not type evidence. Formal callers retain the strict default.
 export function assistedLabel(f,{draft=false}={}){if(f?.kind!=='assisted_notice'||!safe(f.brand)||!safe(f.product)||!assistedTypes[f.productType]||!assistedActions[f.action]||f.category!==assistedTypes[f.productType][1])return null;

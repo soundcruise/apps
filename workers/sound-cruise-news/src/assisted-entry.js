@@ -1,5 +1,5 @@
 import {typeEvidence,validTypeEvidence,labelMatchesType} from './assisted-product-type.js';
-import {ASSISTED_ORIGIN,assistedTypes,assistedLabel,assistedProof,assistedSource,assistedProvenance} from './assisted-facts.js';
+import {ASSISTED_ORIGIN,assistedTypes,assistedLabel,assistedProof,assistedSource,assistedExistingAllowed,assistedProvenance} from './assisted-facts.js';
 import {hash,DAY} from './policy.js';
 import {fingerprint} from './fingerprint.js';
 import {publicationValidation,resolvedDuplicatePredicate} from './decision-policy.js';
@@ -14,6 +14,7 @@ export async function prepareAssisted(store,input,now,registry,pepper){
  if(existing&&(existing.source_id!==input.sourceId||existing.source_url!==input.url||existing.normalized_url!==input.url||existing.origin==='legacy_fixture_backfill'))errors.push('既存候補の出典・URLは変更できません');
  if(input.id&&(!existing||input.id!==existing.id||input.snapshot!==await candidateSnapshot(existing)||repair&&(!['pending','reopened'].includes(existing.review_status)||input.revision!==existing.review_revision||await store.db.prepare('SELECT 1 FROM news_decision_ledger WHERE candidate_id=?').bind(existing.id).first())))errors.push('既存候補または人間判断が変更されています。開き直してください');
  if(repair&&existing.expires_at<=now)errors.push('掲載期限が終了しています。新しい公開日を推測して通すことはできません');
+ if(source?.existingCandidateOnly&&(!assistedExistingAllowed(source,existing)||input.id!==existing.id))errors.push('許諾済み収集で作成された既存候補から確認してください。新規URLの登録は行いません');
  const state=source?await store.state(source.id):{};if(converted&&state.disabled)errors.push('停止中の出典は人間確認でも再開しません');
  if(!source||source.id!==input.sourceId||!registered||['DO_NOT_USE','PROHIBITED'].includes(registered.legalStatus)||registered.humanFactsProhibited===true)errors.push('人間による事実紹介の対象範囲外、または掲載禁止の出典です');
  const stamp=/^20\d{2}-\d\d-\d\d$/.test(input.publishedAt||'')?Date.parse(input.publishedAt+'T00:00:00+09:00'):NaN;if(!Number.isFinite(stamp)||new Date(stamp+9*3600000).toISOString().slice(0,10)!==input.publishedAt||stamp>now||now-stamp>=90*DAY)errors.push('90日以内の正しい記事公開日が必要です');

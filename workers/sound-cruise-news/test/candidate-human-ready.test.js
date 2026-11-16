@@ -31,7 +31,7 @@ test('111613 supplied draft reaches final confirmation, then existing validation
  assert((await decideAssisted(s,op,now,SOURCES,pepper,actor)).completed);assert((await decideAssisted(s,op,now,SOURCES,pepper,actor)).replayed);
  const current=(await s.candidates())[0];assert.equal(current.id,row.id);assert.equal(current.review_status,'approved');assert.equal((await reviewDetail(s,row.id,now,SOURCES,pepper)).validation.valid,true);assert.equal(await count(s,'candidate_items'),1);assert.equal(await count(s,'news_decision_ledger'),1);assert.equal((await assessAutomatic(s,current,SOURCES,now,pepper)).eligible,false);
 });
-test('unknown manufacturer is not replaced by character, source name or a guessed fact',async()=>{const {s,row,input}=await setup(humanReadyCases[4]);const d=await candidateAssistedDraft(s,row,now);assert(!d.fields.brand);const out=await saveAssisted(s,input,now,SOURCES,pepper,actor);assert.equal(out.valid,false);assert.equal(await count(s,'news_assisted_edits'),0);assert.equal((await s.candidates())[0].product_facts,null);});
+test('unknown manufacturer is not replaced by character, source name or a guessed fact',async()=>{const {s,row,input}=await setup({...humanReadyCases[4],url:humanReadyCases[4].url.replace('110532','999532')});const d=await candidateAssistedDraft(s,row,now);assert(!d.fields.brand);const out=await saveAssisted(s,input,now,SOURCES,pepper,actor);assert.equal(out.valid,false);assert.equal(await count(s,'news_assisted_edits'),0);assert.equal((await s.candidates())[0].product_facts,null);});
 test('low relevance drum microphone may be rejected by its owner without invented guitar facts',async()=>{const {s,row}=await setup(humanReadyCases[5]);await operatorDecision(s,{id:row.id,action:'reject',reason:'not_relevant',requestId:crypto.randomUUID(),snapshot:await candidateSnapshot(row),revision:row.review_revision},now,SOURCES,pepper,actor);assert.equal((await s.candidates())[0].product_facts,null);assert.equal((await s.candidates())[0].review_status,'rejected');const api=await handleNewsRequest(new Request('https://news.internal/v1/news'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:SOURCES,cache:null});assert.equal((await api.json()).items.length,0);});
 for(const change of ['missing_confirmation','conditions','stale','source_stop','takedown','other_url','prior_judgment'])test('existing human repair protects '+change,async()=>{const {s,row,input}=await setup(change==='conditions'?humanReadyCases[1]:humanReadyCases[0]);if(change==='missing_confirmation')input.confirmed=false;if(change==='conditions')input.conditionsConfirmed=false;if(change==='stale')input.revision++;if(change==='other_url')input.url='https://acousticguitarmagazine.jp/2026-1114-other/';if(change==='source_stop')await s.db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('agm',1)").run();if(change==='takedown')await s.db.prepare('INSERT INTO news_takedowns(item_id,expires_at) VALUES(?,?)').bind(row.id,now+86400000).run();if(change==='prior_judgment')await s.db.prepare("UPDATE candidate_items SET review_status='rejected' WHERE id=?").bind(row.id).run();let result;try{result=await saveAssisted(s,input,now,SOURCES,pepper,actor);}catch{}assert(!result?.saved);assert.equal(await count(s,'news_assisted_edits'),0);assert.equal((await s.candidates())[0].product_facts,null);});
 
@@ -45,7 +45,7 @@ test('real local workerd/D1 executes existing-candidate repair and publication o
 for(const f of humanReadyCases)test('review grouping and ordinary confirmation link reuse the same unconfirmed input: '+f.key,async()=>{
  const {s,row}=await setup(f),before=await s.db.prepare('SELECT * FROM candidate_items').all();
  const view=await reviewDetail(s,row.id,now,SOURCES,pepper),draft=await candidateAssistedDraft(s,row,now);
- const group=f.key==='110532'?'human_facts':f.key==='111462'?'editorial':'approvable';
+ const group=f.key==='111462'?'editorial':'approvable';
  assert.equal(view.reviewPresentation.group,group,JSON.stringify(view.reviewPresentation));assert.equal(view.validation.valid,false);assert.notEqual(view.preparationState,'READY');
  if(group==='approvable'){
   assert.equal(view.reviewPresentation.readiness,'human_confirmation');assert.equal(view.reviewPresentation.formalReady,false);assert.equal(draft.missing.length,0);assert(draft.fields.label);assert.equal(draft.humanConfirmed,false);assert.equal(draft.formalFacts,false);
@@ -54,7 +54,7 @@ for(const f of humanReadyCases)test('review grouping and ordinary confirmation l
   assert.equal((await prepareAssisted(s,input,now,SOURCES,pepper)).valid,false);
   const p=await prepareAssisted(s,{...input,confirmed:true,conditionsConfirmed:true},now,SOURCES,pepper);assert.equal(p.valid,true,JSON.stringify(p.errors));
  }
- if(f.key==='110532')assert(view.reviewPresentation.missing.includes('brand'));
+ if(f.key==='110532')assert.equal(draft.fields.brand,'キョーリツコーポレーション');
  assert.deepEqual(await s.db.prepare('SELECT * FROM candidate_items').all(),before);for(const t of ['news_assisted_edits','news_decision_ledger','news_shadow_evaluations'])assert.equal(await count(s,t),0);
 });
 test('display routing refreshes on human facts, final decision, source stop and takedown without fabricating READY',async()=>{

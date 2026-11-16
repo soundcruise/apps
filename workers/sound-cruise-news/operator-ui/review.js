@@ -445,7 +445,7 @@ async function loadAssistedReview(c,incoming,fromLink=false){
 }
 }
 
-const assistedConfigReady=api('/api/assisted'+(assistedIncoming?'?hintUrl='+encodeURIComponent(assistedIncoming):'')).then(async c=>{assistedConfig=c;for(const [k,options]of [['sourceId',c.sources.map(s=>[s.id,s.name+(s.id==='yamaha-newsroom'?'（ニュースリリース）':s.id==='yamaha'?'（Topics）':'')])],['productType',Object.entries(c.types).map(([k,v])=>[k,v[0]])],['action',Object.entries(c.actions)]]){if(k!=='sourceId'){const empty=el('option','確認してください');empty.value='';assistedInputs[k].append(empty);}for(const [value,label]of options){const o=el('option',label);o.value=value;assistedInputs[k].append(o);}assistedInputs[k].value=k==='sourceId'?c.sources[0]?.id||'':'';}
+const assistedConfigReady=api('/api/assisted'+(assistedIncoming?'?hintUrl='+encodeURIComponent(assistedIncoming):'')).then(async c=>{assistedConfig=c;for(const [k,options]of [['sourceId',c.sources.map(s=>[s.id,s.name+(s.id==='yamaha-newsroom'?'（ニュースリリース）':s.id==='yamaha'?'（Topics）':s.existingCandidateOnly?'（既存候補のみ）':'')])],['productType',Object.entries(c.types).map(([k,v])=>[k,v[0]])],['action',Object.entries(c.actions)]]){if(k!=='sourceId'){const empty=el('option','確認してください');empty.value='';assistedInputs[k].append(empty);}for(const [value,label]of options){const o=el('option',label);o.value=value;assistedInputs[k].append(o);}assistedInputs[k].value=k==='sourceId'?c.sources[0]?.id||'':'';}
  showAssistedFields([]);updateAssistedConditions();
  if(assistedIncoming)await loadAssistedReview(c,assistedIncoming,true);return c;
 }).catch(e=>{assistedStatus.textContent=e.message;return null;});

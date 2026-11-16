@@ -1,5 +1,5 @@
 import {candidatePresentation} from './review-presentation.js';
-import {candidateAssistedDraft,candidateHumanReview} from './candidate-draft.js';
+import {candidateAssistedDraft,candidateHumanReview,draftKnownEvent} from './candidate-draft.js';
 import {agmBookAnchor,AGM_BOOK_CHECKS} from './agm-human-evidence.js';
 import {safeFactDiagnostics} from './facts-failure.js';
 import {canonicalReview} from './canonical-confirmation.js';
@@ -42,6 +42,7 @@ export async function reviewDetail(store,id,now,registry,pepper){
  const lifecycle=await lifecycleView(store,row,now);
  const agmBookReview=row.source_id==='agm'&&(!row.product_facts||row.product_facts==='null')?{confirmationAvailable:['pending','reopened'].includes(row.review_status)&&!validation.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e))&&!!await agmBookAnchor(store,row,now,pepper),checks:AGM_BOOK_CHECKS}:null;
  const humanFactsReview=await candidateHumanReview(store,row,now,registry),draft=humanFactsReview.available&&!validation.valid?await candidateAssistedDraft(store,row,now):null;
+ if(draft)humanFactsReview.possibleKnownEvent=await draftKnownEvent(store,row,draft,now);
  const canonical=await canonicalReview(store,row,validation,source,now);
  const reviewPresentation=candidatePresentation(row,validation,{...humanFactsReview,alternativeAvailable:!!(morrisReview?.confirmationAvailable||agmBookReview?.confirmationAvailable||canonical)},draft,now);
  return {reviewPresentation,humanFactsReview,agmBookReview,canonicalReview:canonical,preparationState:preparationState(row,validation,lifecycle),assistedEditable:row.origin===ASSISTED_ORIGIN,systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle,factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};

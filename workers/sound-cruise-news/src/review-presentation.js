@@ -1,10 +1,13 @@
 // Read-only routing for the operator. These groups grant no facts or authority.
-import information from '../docs/human-ready-20261116/review-information.json' with {type:'json'};
+import previousInformation from '../docs/human-ready-20261116/review-information.json' with {type:'json'};
+import currentInformation from '../docs/readiness-20261117/review-information.json' with {type:'json'};
+const information=[...currentInformation,...previousInformation];
 import guidance from '../docs/operator-review-groups-20261116/editorial-guidance.json' with {type:'json'};
 import {assistedLabel,assistedTypes} from './assisted-facts.js';
 import {labelMatchesType} from './assisted-product-type.js';
 import {draftDate} from './draft-assistance.js';
 export const reviewInformation=url=>information.find(r=>r.information.url===url)?.information;
+export const primaryReviewInformation=url=>information.find(r=>r.discoveryUrls?.includes(url))?.information;
 const editorial=url=>guidance.find(r=>r.url===url);
 const result=(group,reason,extra={})=>({group,reason,formalReady:false,...extra});
 export function draftRequirements(draft,now=Date.now()){
@@ -28,6 +31,7 @@ export function candidatePresentation(row,validation,humanReview,draft,now){
  if(errors.some(e=>['duplicate','expired_candidate','publication_policy_rejected'].includes(e)))return result('editorial','重複・期限・既存方針を確認して判断してください。');
  if(validation.valid&&row.origin!=='operator_assisted'&&validation.relevance?.status==='REVIEW')return result('editorial','事実の検証は完了しています。掲載価値・関連性を判断してください。');
  if(validation.valid)return result('approvable','正式検証済みです。掲載するか判断してください。',{formalReady:true,readiness:'formal'});
+ if(humanReview.possibleKnownEvent)return result('editorial','入力済み案が掲載済みの同一出来事と一致する可能性があります。重複を確認してください。',{possibleKnownEvent:humanReview.possibleKnownEvent});
  const note=editorial(row.source_url);if(note)return result('editorial',note.reason,{reference:note.reference,headline:draft?.fields?.label||draft?.fields?.product||null});
  if(humanReview.available&&draft?.registrationAllowed){
   // An approved human URL scope may replace Bot-only validation gates.
@@ -43,6 +47,6 @@ export function webPresentation(item,now){
  if(item.webReview?.queue!=='judgment')return null;
  if(item.reviewBlocked)return result('technical','出典停止・利用条件を確認する必要があります。');
  const note=editorial(item.url);if(note)return result('editorial',note.reason,{reference:note.reference});
- if(!item.humanEntry||!item.articleDraft?.registrationAllowed)return result('technical',item.articleDraft?.sourceReview?.reason||'この出典・URLは人間確認による正式保存が未対応です。出典条件と対応経路の確認が必要です。');
- return humanPresentation(item.url,item.articleDraft,now);
+ if(!item.humanEntry||!(item.primaryReview?.draft||item.articleDraft)?.registrationAllowed)return result('technical',item.articleDraft?.sourceReview?.reason||'この出典・URLは人間確認による正式保存が未対応です。出典条件と対応経路の確認が必要です。');
+ return humanPresentation(item.humanEntry.url,item.primaryReview?.draft||item.articleDraft,now);
 }

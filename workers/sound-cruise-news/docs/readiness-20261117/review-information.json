@@ -1,0 +1,212 @@
+[
+  {
+    "key": "chiikawa-shimamura",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/110532/",
+      "source": {
+        "label": "2026-11-16 一次発表・原記事の通常閲覧による確認用情報（本人未確認）",
+        "url": "https://kyoritsu-group.com/news/news_products/96301/"
+      },
+      "fields": {
+        "brand": "キョーリツコーポレーション",
+        "product": "ちいかわ クリップチューナー",
+        "productType": "tuner",
+        "action": "announcement",
+        "publishedAt": "2026-11-13"
+      },
+      "notes": [
+        {
+          "label": "販売主体",
+          "value": "キョーリツコーポレーションの公式新製品発表。製造工場の特定ではなく、発表・販売主体として確認してください。"
+        },
+        {
+          "label": "発売予定",
+          "value": "2026年11月20日。記事公開日11月13日、更新日11月16日とは別です。発売済みにはしません。"
+        },
+        {
+          "label": "対象",
+          "value": "CKCC-CH／CKCC-HW／CKCC-USの3種類。ギターモードを含むクリップチューナー。既存候補IDを維持します。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "chiikawa-ikebe",
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/173981/",
+      "source": {
+        "label": "2026-11-17 原記事の通常閲覧と保存済み収集日による確認用情報（本人未確認）",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/173981/"
+      },
+      "fields": {
+        "brand": "キョーリツコーポレーション",
+        "product": "ちいかわ クリップチューナー",
+        "productType": "tuner",
+        "action": "announcement",
+        "publishedAt": "2026-11-16"
+      },
+      "notes": [
+        {
+          "label": "同一出来事",
+          "value": "島村110532と同じCKCC-CH/HW/USのクリップチューナーです。二重に掲載せず、どちらかを判断してください。"
+        },
+        {
+          "label": "日付",
+          "value": "池部記事の公開日は11月16日。一次発表11月13日、発売予定11月20日とは区別します。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "mxr",
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174006/",
+      "source": {
+        "label": "2026-11-17 原記事の通常閲覧と保存済み収集日による確認用情報（本人未確認）",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174006/"
+      },
+      "fields": {
+        "brand": "MXR",
+        "product": "EVH・M400・YJM308Gの3製品",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-16"
+      },
+      "notes": [
+        {
+          "label": "複数製品",
+          "value": "EVH MODERN HIGH GAIN PEDAL、M400 TURBO TUNER、YJM308G BLACK/GOLDの紹介。単一の新製品発売ではありません。"
+        },
+        {
+          "label": "限定仕様",
+          "value": "BLACK/GOLDの限定仕様はYJM308Gのみに関する情報です。EVHは2015年開発と記載されています。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "baby-dolphin",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1116-parlor-dolphin-guitars-baby-dolphin-chippoke/",
+      "source": {
+        "label": "2026-11-17 原記事の通常閲覧と保存済み収集日による確認用情報（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1116-parlor-dolphin-guitars-baby-dolphin-chippoke/"
+      },
+      "fields": {
+        "brand": "Dolphin Guitars",
+        "product": "Baby Dolphinの大橋ちっぽけによる試奏",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-16"
+      },
+      "notes": [
+        {
+          "label": "記事種別",
+          "value": "ミニ・アコースティックギターの試奏・PR記事。新製品発売とは扱いません。"
+        },
+        {
+          "label": "公開日候補",
+          "value": "11月16日は保存済みcollectorの日付です。原記事の表示・配信日との照合を本人が行ってください。URL中の日付から確定していません。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "bourgeois-review",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1116-new-gear-110-bourgeois/",
+      "source": {
+        "label": "2026-11-17 原記事の通常閲覧と保存済み収集日による確認用情報（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1116-new-gear-110-bourgeois/"
+      },
+      "fields": {
+        "brand": "BOURGEOIS",
+        "product": "Touchstone Series LDB-O The Standardの試奏",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-16"
+      },
+      "notes": [
+        {
+          "label": "記事種別",
+          "value": "井草聖二の演奏・試奏を含むPR記事。新製品の発売日を確認した証拠ではありません。"
+        },
+        {
+          "label": "公開日候補",
+          "value": "11月16日は保存済みcollectorの日付です。原記事の表示・配信日との照合を本人が行ってください。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "abe-workshop",
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki.com/blog/20261120-eg-workshop/",
+      "source": {
+        "label": "2026-11-17 原記事の通常閲覧と保存済み収集日による確認用情報（本人未確認）",
+        "url": "https://www.ikebe-gakki.com/blog/20261120-eg-workshop/"
+      },
+      "fields": {
+        "brand": "阿部学",
+        "product": "B’z「Brotherhood」アルペジオ・ワークショップ",
+        "productType": "event",
+        "action": "event_announcement",
+        "publishedAt": "2026-10-27",
+        "eventDate": "2026-11-20",
+        "venue": "イケシブPOPUP SPACE（渋谷）"
+      },
+      "notes": [
+        {
+          "label": "日時",
+          "value": "開催11月20日19:00〜21:00（18:30開場）。申込締切11月19日20:00。"
+        },
+        {
+          "label": "新着性・関連性",
+          "value": "記事公開10月27日、今回検出11月17日。エレキ中心の実技講座なので、アコギ弾き語りNEWSとしての採否は本人が判断します。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "headway-primary",
+    "discoveryUrls": [
+      "https://piakakeprivatelesson.com/article/e1efa16d-af94-4c8d-bd28-3bafd16f0bf7"
+    ],
+    "information": {
+      "version": 1,
+      "url": "https://www.deviser.co.jp/information/634291",
+      "source": {
+        "label": "2026-11-16 メーカー一次記事の通常閲覧による確認用情報（本人未確認）",
+        "url": "https://www.deviser.co.jp/information/634291"
+      },
+      "fields": {
+        "brand": "Headway",
+        "product": "One Day Guitar Show 2026出展予定アコースティックギター",
+        "productType": "acoustic_guitar",
+        "action": "preview",
+        "qualifier": "Y’s Concept・F’s Concept・冬桜2026などの限定モデル",
+        "publishedAt": "2026-11-04"
+      },
+      "notes": [
+        {
+          "label": "発表段階",
+          "value": "複数の限定モデル製作の先行紹介。11月22日詳細公開予定。全機種発売済み・単一モデルの新発売とは扱いません。"
+        },
+        {
+          "label": "既存掲載との区別",
+          "value": "既存NEWSの四季桜2026は9月公開の別記事です。今回はConcept・冬桜等を含む展示会向け先行紹介。同一の桜モデルを新製品として再紹介しないでください。"
+        },
+        {
+          "label": "出典の切替",
+          "value": "未対応の二次ヒントURLは変更・削除しません。既存対応済みDeviserの一次記事から本人確認・掲載判断します。"
+        }
+      ]
+    }
+  }
+]
