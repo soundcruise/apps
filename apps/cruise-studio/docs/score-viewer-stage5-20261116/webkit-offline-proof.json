@@ -1,0 +1,15 @@
+{
+  "serverPortOpen": false,
+  "browserRestarted": false,
+  "freshPage": true,
+  "sourceHash": "71cdf5a585f1508918927a8d6f9343160b83d15edfc289fa30901d6eef01f0d7",
+  "pdfPNG": "0dba59b9bb51a0ec8326908510f2fb60ea07593694cc6d706526d9b5769b4934",
+  "parts": {
+    "guitar": 5,
+    "piano": 2,
+    "click": 0,
+    "mute": 0,
+    "count": 0
+  },
+  "worker": "http://127.0.0.1:18874/apps/score-viewer/local/sw.js"
+}

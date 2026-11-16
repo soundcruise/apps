@@ -12,6 +12,9 @@ test('local entry replaces auth dependencies and labels synthetic identity expli
  assert(h.includes('LOCAL DEVELOPMENT / 本番認証の検証対象外'));
  assert(h.includes('scripts/local-ui-adapter.js'));
  assert(h.includes('scripts/development-features.js'));
+ assert(h.includes('id="open-score-viewer"'));
+ assert(h.includes('id="screen-score-viewer"'));
+ assert(h.indexOf('scripts/local-viewer-bootstrap.js')>0&&h.indexOf('scripts/local-viewer-bootstrap.js')<h.indexOf('js/shell.js'));
  assert(!/<script[^>]*src="[^"]*(?:pro-gate|pro-device-session|sync-account-|studio-entry\.mjs|port-sync-status|cloud\/canary-entry)/.test(h));
 });
 test('both public products retain coming soon and real authentication; neither packages local adapters',()=>{
@@ -19,6 +22,7 @@ test('both public products retain coming soon and real authentication; neither p
   assert(h.includes('data-coming-soon'));
   assert(h.includes('js/core/release-features.js'));
   assert(!h.includes('local-ui-'));
+  assert(!h.includes('local-viewer-')&&!h.includes('id="screen-score-viewer"')&&!h.includes('id="open-score-viewer"'));
  }
  assert(renderProEntry(source).includes('shared/pro-gate.js'));
  assert(RELEASE_FILES.every(p=>!p.startsWith('scripts/')&&!p.includes('local-ui')&&!p.includes('book-source')&&!p.includes('owner-chord-panel')&&!p.includes('paper-forms')&&!p.includes('paper-layout')&&!p.includes('paper-appearance')&&!p.includes('.local-chord-owner')));

@@ -298,6 +298,7 @@
      * @returns {HTMLElement} 生成した .sheet-page（複数ページ化する将来は配列先頭）
      */
     function render(project, container, options) {
+        var readOnly=options?.readOnly===true;
         var canonical=project.schemaVersion===2?project:null;
         var heldForNote=options?.heldForNote||function(number,tick){var e=canonical?.bars[number-1].melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';};
         var restsForBar=options&&options.restsForBar?options.restsForBar:function(number){return canonical?canonical.bars[number-1].melody.filter(function(e){return e.kind==='rest';}):[];};
@@ -311,7 +312,7 @@
         // Reflow is opt-in for browser-local line geometry changes only. Editing,
         // project switching and track changes still build new bar contents.
         var retained=options?.reuseBars?new Map(Array.from(container.querySelectorAll('.sheet-bar[data-bar-number]'),function(node){return [Number(node.dataset.barNumber),node];})):null;
-        var canReuse=!!retained&&!!options.contentKey&&container.firstElementChild?._sourceKey===options.contentKey&&retained.size===project.bars.length&&project.bars.every(function(bar){return retained.has(bar.barNumber);});
+        var canReuse=!!retained&&!!options.contentKey&&container.firstElementChild?._sourceKey===options.contentKey&&container.firstElementChild?._readOnly===readOnly&&retained.size===project.bars.length&&project.bars.every(function(bar){return retained.has(bar.barNumber);});
         var heads=new Map(),page;
         if(canReuse){
             page=container.firstElementChild;
@@ -320,6 +321,7 @@
             Array.from(page.children).forEach(function(node){if(!node.classList.contains('sheet-header'))node.remove();});
         }else{container.innerHTML='';page=el('div','sheet-page');page.appendChild(buildHeader(project));}
         page._sourceKey=options?.contentKey;
+        page._readOnly=readOnly;
 
         project.sections.forEach(function (sec) {
             var bars = model.getSectionBars(project, sec.id);
@@ -327,7 +329,7 @@
 
             var slots=canonical&&CS().structureOperations?.scoreSlots?CS().structureOperations.scoreSlots(canonical,sec.id):bars.map(function(b){return {id:'bar-'+b.barNumber,barNumber:b.barNumber,sectionId:sec.id};});
             var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.dataset.paperEdit='section';label.tabIndex=0;label.setAttribute('role','button');label.title='セクション名を編集';
-            var sectionHead=heads.get(sec.id)||el('div','sheet-section-heading');if(!heads.has(sec.id))sectionHead.appendChild(label);if(options?.editableSlots&&!heads.has(sec.id)){var play=el('button','sheet-section-play','▶ ここから');play.type='button';play.dataset.playSection=sec.id;play.setAttribute('aria-label',sec.name+'から再生');sectionHead.appendChild(play);}page.appendChild(sectionHead);
+            var sectionHead=heads.get(sec.id)||el('div','sheet-section-heading');if(!heads.has(sec.id))sectionHead.appendChild(label);if(!readOnly&&options?.editableSlots&&!heads.has(sec.id)){var play=el('button','sheet-section-play','▶ ここから');play.type='button';play.dataset.playSection=sec.id;play.setAttribute('aria-label',sec.name+'から再生');sectionHead.appendChild(play);}page.appendChild(sectionHead);
             var hasVocal=show.lyrics||show.doremi,hasForms=!!options?.formsForBar;
             var cols=[1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms?show.barsPerLine:show.barsPerLine*2;
             for(var i=0;i<slots.length||i===0;){
@@ -345,6 +347,18 @@
             }
         });
 
+        if(readOnly){
+            // A separate viewer never inherits the editor's activation attributes.
+            // Do not reuse editable nodes when changing mode, even with the same key.
+            page.setAttribute('data-score-readonly','true');
+            page.querySelectorAll('.sheet-artist--empty').forEach(function(node){node.remove();});
+            page.querySelectorAll('[data-paper-edit],[data-editable-empty],[data-empty-slot],[tabindex],[contenteditable],[draggable],[aria-haspopup]').forEach(function(node){
+                ['data-paper-edit','data-editable-empty','data-empty-slot','tabindex','contenteditable','draggable','aria-haspopup'].forEach(function(name){node.removeAttribute(name);});
+            });
+            page.querySelectorAll('[role="button"]').forEach(function(node){node.setAttribute('role','group');node.removeAttribute('title');});
+            page.querySelectorAll('.sheet-bar[data-bar-number]').forEach(function(node){node.setAttribute('aria-label',node.dataset.barNumber+'小節目');});
+            page.querySelectorAll('.sheet-bar--empty').forEach(function(node){node.setAttribute('role','img');node.setAttribute('aria-label','空き枠（再生なし）');});
+        }
         if(page.parentNode!==container)container.appendChild(page);
         return page;
     }

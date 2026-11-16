@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111820"><meta name="local-viewer" content="0.149.0-dev.1"><meta name="apple-mobile-web-app-capable" content="yes"><title>譜面ビューワー · ローカル</title>
+<link rel="manifest" href="./manifest.webmanifest"><link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="/apps/cruise-studio/theme-projection.css"><link rel="stylesheet" href="/apps/cruise-studio/theme.css"><link rel="stylesheet" href="../ui/viewer.css"><link rel="stylesheet" href="./local.css"></head>
+<body class="sv-standalone"><header class="sv-local-header"><a id="viewer-return" href="./port.html">← Port</a><h1>譜面ビューワー <small>LOCAL</small></h1><details class="sv-device-options"><summary>準備・設定</summary><div>
+<button type="button" id="viewer-offline-prepare">オフラインの準備</button><p id="viewer-offline-status" role="status">オフライン未準備</p><p>端末に保存した譜面・PDFと音源を、通信なしで使う準備をします。</p>
+<label><input id="viewer-wake-enabled" type="checkbox" checked>再生・自動送り中の画面ロック防止</label><p id="viewer-wake-status" role="status"></p><button type="button" id="viewer-wake-retry" hidden>もう一度試す</button>
+<button type="button" id="viewer-mock-sync">模擬Sync</button><p>このローカル版は実アカウント・Syncに接続しません。</p></div></details></header>
+<p id="viewer-network" role="status"></p><main id="score-viewer-host"></main><p id="viewer-boot-status" role="status">読み込んでいます…</p>
+<script>window.addEventListener('error',function(){if(!window.CruiseViewer)document.getElementById('viewer-boot-status').textContent='必要なファイルを読み込めませんでした。通信を戻して再読み込みし、オフライン準備をやり直してください。';},true);</script>
+<script src="/apps/cruise-studio/js/core/music-theory.js"></script><script src="/apps/chord-cruise/js/core/music-theory.js"></script><script src="/apps/cruise-studio/js/core/rhythm-snapshot.js"></script><script src="/apps/cruise-studio/js/core/schema2.js"></script><script src="/apps/cruise-studio/js/core/song-model.js"></script><script src="/apps/cruise-studio/js/modules/sheet-cruise/operation-adapter.js"></script><script src="/apps/cruise-studio/js/modules/sheet-cruise/sheet-renderer.js"></script><script src="/apps/cruise-studio/js/core/audio-coordinator.js"></script><script src="/apps/chord-cruise/js/ui/fretboard.js"></script>
+<script type="module" src="./boot.mjs"></script></body></html>

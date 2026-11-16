@@ -1,0 +1,1 @@
+{"id":"/apps/score-viewer/local/","name":"譜面ビューワー · ローカル","short_name":"譜面Viewer","start_url":"./index.html?from=port","scope":"./","display":"standalone","orientation":"any","background_color":"#111820","theme_color":"#111820","icons":[{"src":"./icon-192.png","sizes":"192x192","type":"image/png"},{"src":"./icon-512.png","sizes":"512x512","type":"image/png"}]}

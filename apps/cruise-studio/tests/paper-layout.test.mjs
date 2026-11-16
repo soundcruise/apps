@@ -56,3 +56,11 @@ test('only line arrangement changes request bar reuse; form size is geometry and
  layout.set({appearance:{visibility:{forms:false}}});assert.deepEqual(changes.pop(),{structural:true,reflowOnly:false});
  layout.set({barsPerLine:4});assert.deepEqual(changes.pop(),{structural:true,reflowOnly:true});
 });
+test('viewer export captures safe full presentation and current row IDs without changing the Project or saved settings',()=>{
+ const f=presetFixture(),l=f.layout,p={projectId:'export',bars:[{id:'a'},{id:'b'}]},before=JSON.stringify(p);
+ l.set({artistSize:20,formScale:120,appearance:{text:{lyrics:{font:'serif',color:'#123456'}},visibility:{forms:true}}});l.setLine(p,'a',4,3);l.setLine(p,'b',2,1);
+ p.bars.pop();const stored=JSON.stringify([...f.saved]),view=l.exportPresentation(p,{chords:true,lyrics:false,forms:false,timingGrid:false,gridResolution:16});
+ assert.equal(view.layout.formScale,120);assert.equal(view.layout.artistSize,20);assert.equal(view.layout.appearance.visibility.forms,true);assert.equal(view.layout.appearance.visibility.lyrics,false);
+ assert.equal(view.layout.gridResolution,16);assert.equal(view.layout.timingGrid,false);assert.equal(view.layout.appearance.visibility.gridResolution,undefined);assert.deepEqual(view.rows,[{barId:'a',columns:4,used:3}]);
+ view.layout.artistSize=10;assert.equal(l.value.artistSize,20);assert.equal(JSON.stringify([...f.saved]),stored);assert.equal(JSON.stringify(p),JSON.stringify({...JSON.parse(before),bars:[{id:'a'}]}));
+});

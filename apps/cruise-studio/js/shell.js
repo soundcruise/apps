@@ -5,7 +5,7 @@
     else root.CruiseStudio.shell = factory();
 })(typeof globalThis === 'object' ? globalThis : this, function () {
     'use strict';
-    var WORKSPACES = Object.freeze({ app_pitch:'screen-app-pitch',app_fretboard:'screen-app-fretboard',app_rhythm:'screen-app-rhythm',app_chord:'screen-app-chord', home: 'screen-home', portSync:'screen-port-sync', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', portPractice: 'screen-port-practice', practice: 'screen-practice', tuner: 'screen-tuner', metronome: 'screen-metronome', portGear: 'screen-port-gear', gear: 'screen-gear', portMyApps: 'screen-port-my-apps', myApps: 'screen-my-apps', portNews: 'screen-port-news', news: 'screen-news' });
+    var WORKSPACES = Object.freeze({ app_pitch:'screen-app-pitch',app_fretboard:'screen-app-fretboard',app_rhythm:'screen-app-rhythm',app_chord:'screen-app-chord', home: 'screen-home', portSync:'screen-port-sync', scoreViewer: 'screen-score-viewer', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', portPractice: 'screen-port-practice', practice: 'screen-practice', tuner: 'screen-tuner', metronome: 'screen-metronome', portGear: 'screen-port-gear', gear: 'screen-gear', portMyApps: 'screen-port-my-apps', myApps: 'screen-my-apps', portNews: 'screen-port-news', news: 'screen-news' });
     var PERSISTENT_MIN = 1280;
 
     function createWorkspaceHost(workspaces, view) {
@@ -67,7 +67,7 @@
         var positions = Object.create(null), focus = Object.create(null);
         var visitHistory = [];
         var workspaceIds = Object.keys(WORKSPACES).filter(function(id){return !!doc.getElementById(WORKSPACES[id]);});
-        var adapters = { home: {}, portSync:CS.portSync, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, portPractice: CS.portPractice, practice: CS.practice, tuner: CS.tuner, metronome: CS.portMetronome, portGear: CS.portGear, gear: CS.gear, portMyApps: CS.portMyApps, myApps: CS.myApps, portNews: CS.portNews, news: CS.news };
+        var adapters = { home: {}, scoreViewer:CS.scoreViewer, portSync:CS.portSync, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, portPractice: CS.portPractice, practice: CS.practice, tuner: CS.tuner, metronome: CS.portMetronome, portGear: CS.portGear, gear: CS.gear, portMyApps: CS.portMyApps, myApps: CS.myApps, portNews: CS.portNews, news: CS.news };
         ['pitch','fretboard','rhythm','chord'].forEach(function(id){adapters['app_'+id]=CS.seriesApps[id];});
         Object.keys(adapters).forEach(function(id){if(!workspaceIds.includes(id))delete adapters[id];});
         var nodes = {}, dockedTool = null;

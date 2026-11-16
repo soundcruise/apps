@@ -1,0 +1,9 @@
+{
+  "initial200ms": 193,
+  "atZoom3": {
+    "canvases": 4,
+    "pixels": 15996396,
+    "pages": 200
+  },
+  "workers": 1
+}

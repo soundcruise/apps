@@ -1,0 +1,183 @@
+import {insist} from './json.mjs';
+
+export function normalizePlayback(value={},originalBpm=100){
+    const bpm=Number.isFinite(value.bpm)&&value.bpm>=20&&value.bpm<=400?value.bpm:originalBpm;
+    return {bpm,countIn:value.countIn===true,metronome:value.metronome===true,
+        mix:Object.fromEntries(['chords','melody','metronome'].map(k=>[k,Number.isFinite(value.mix?.[k])?Math.max(0,Math.min(100,value.mix[k])):100]))};
+}
+export function pickOffset(event,bpm){
+    return event.part==='guitar'&&event.travelSpan>0?event.offsetSeconds*Math.min(1,(event.attackWindowTicks*60/bpm/480)*.28/event.travelSpan):event.offsetSeconds||0;
+}
+export function tickTime(sample,tick){return Math.max(sample.time,sample.anchorTime??sample.time)+(tick-sample.tick)*60/sample.bpm/480;}
+export function musicalEnd(event,plan,sample,attackTime){
+    if(event.part==='piano')return tickTime(sample,event.tick+event.durationTicks);
+    if(event.part==='guitar'){
+        const next=event.nextIndex===null?null:plan.events[event.nextIndex];
+        return Math.min(attackTime+4,tickTime(sample,event.boundaryTick),next?tickTime(sample,next.tick)+pickOffset(next,sample.bpm):Infinity);
+    }
+    return attackTime+Math.min(event.naturalSeconds,event.attackWindowTicks?event.attackWindowTicks*60/sample.bpm/480:Infinity);
+}
+
+// Audio ownership is injected. No DOM, editor, storage, network or independent
+// musical timer here. A short timer only feeds reservations from the beat clock.
+export function createViewerPlayer({plan,createClock,createContext,loadSample,coordinator,
+    settings={},originalBpm=100,setTimer=setTimeout,clearTimer=clearTimeout,onState=()=>{},sessionId}){
+    insist(plan.events.length<=524288,'too-many-playback-events');
+    let options=normalizePlayback(settings,originalBpm),phase='paused',reason=null,clock=null,context=null,handle=null,lease=null;
+    let token=0,timer=null,tick=0,scan=0,countEnd=0,countBeat=0,hasStarted=false,disposed=false,closing=null;
+    let buffers=new Map(),buses={},issued=new Set(),carry=[],nodes=new Set();
+    const ordered=plan.events.slice().sort((a,b)=>a.tick-b.tick||a.offsetSeconds-b.offsetSeconds||a.index-b.index);
+    const stats={created:0,cancelledFuture:0,peakNodes:0,parts:{guitar:0,piano:0,click:0,mute:0,count:0}};
+    function sample(){return clock?clock.snapshot():{status:phase,tick,time:0,bpm:options.bpm,totalTicks:plan.totalTicks,barIndex:Math.max(0,Math.min(Math.ceil(plan.totalTicks/1920)-1,Math.floor(tick/1920))),tickInBar:tick%1920};}
+    function snapshot(){const s=sample();return {...s,phase,reason,settings:{...options,mix:{...options.mix}},nodes:nodes.size,contextState:context?.state||'closed',
+        stats:{...stats,parts:{...stats.parts}},warnings:plan.warnings||[],countBeat:phase==='counting'?countBeat:0};}
+    function notify(){onState(snapshot());}
+    function cancelTimer(){if(timer!==null)clearTimer(timer);timer=null;}
+    function forget(voice){voice.source.onended=null;try{voice.source.disconnect();voice.gain.disconnect();}catch{}nodes.delete(voice);}
+    function cancel(voice){try{voice.source.stop(context.currentTime);}catch{}forget(voice);}
+    function silence(){for(const voice of [...nodes])cancel(voice);}
+    function setMix(mix){options={...options,mix:normalizePlayback({mix},options.bpm).mix};if(context)for(const [key,bus]of Object.entries(buses))bus.gain.setTargetAtTime(options.mix[key]/100,context.currentTime,.015);}
+    function releaseLease(){if(lease){coordinator.release(handle,lease);lease=null;}}
+    function resetScan(position){scan=0;while(scan<ordered.length&&ordered[scan].tick<position-1e-7)scan++;}
+    function pause(cause='user'){
+        if(disposed)return;
+        token++;cancelTimer();if(phase!=='paused')carry=[];
+        if(clock){const s=clock.pause(cause);tick=s.tick;
+            for(const voice of nodes)if(voice.start>context.currentTime){
+                issued.delete(voice.event.index);
+                if(phase==='playing'&&voice.event.tick<tick)carry.push({index:voice.event.index,offset:0,delay:voice.start-context.currentTime,age:context.currentTime-voice.attack});
+            }
+            if(phase==='playing')for(const voice of nodes)if(voice.start<=context.currentTime&&voice.end>context.currentTime&&['guitar','piano'].includes(voice.event.part))
+                carry.push({index:voice.event.index,offset:voice.offset+(context.currentTime-voice.start)*voice.rate,age:context.currentTime-voice.attack});
+        }
+        silence();releaseLease();phase=tick>=plan.totalTicks?'ended':'paused';reason=cause;notify();
+    }
+    async function closeContext(){
+        if(closing)return closing;
+        if(!context)return;
+        const old=context;context=null;clock?.dispose();clock=null;buffers=new Map();buses={};
+        closing=Promise.resolve(old.state==='closed'?undefined:old.close()).then(()=>{insist(old.state==='closed','audio-close-incomplete');coordinator.forgetContext(handle,old);}).finally(()=>{closing=null;});
+        return closing;
+    }
+    async function cleanup(cause){pause(cause);await closeContext();}
+    function register(){if(!handle)handle=coordinator.register({sessionId,ownerFeatureId:'scoreViewer',cleanup,
+        notify:()=>{void cleanup('interruption').catch(()=>{});}});}
+    function output(part){return buses[part==='piano'?'melody':['click','count'].includes(part)?'metronome':'chords'];}
+    function envelope(voice,end,retime=false){
+        const now=context.currentTime,start=retime?now:voice.start,duration=end-start;
+        if(duration<=.0001){cancel(voice);return;}
+        const gain=voice.gain.gain,release=Math.min(voice.event.part==='guitar'?.045:.35,duration*.35);
+        if(retime){
+            const level=now>voice.end-voice.release?voice.event.gain*Math.exp(Math.log(.0001/voice.event.gain)*Math.max(0,(now-(voice.end-voice.release))/Math.max(.001,voice.release))):voice.event.gain;
+            gain.cancelScheduledValues(now);gain.setValueAtTime(Math.max(.0001,level),now);
+            gain.setValueAtTime(Math.max(.0001,level),Math.max(now,end-release));gain.exponentialRampToValueAtTime(.0001,end);
+        }else{
+            gain.setValueAtTime(voice.offset?voice.event.gain:0,start);
+            gain.linearRampToValueAtTime(voice.event.gain,start+Math.min(.005,duration/4));gain.setValueAtTime(voice.event.gain,Math.max(start,end-release));gain.exponentialRampToValueAtTime(.0001,end);
+        }
+        voice.end=end;voice.release=release;voice.source.stop(end);
+    }
+    function schedule(event,s,held,pendingAttack){
+        if(event.part==='click'&&!options.metronome)return;
+        const sourceSample=buffers.get(event.part+':'+event.midi);insist(sourceSample,'missing-decoded-sample');
+        const attack=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)-held.age:pendingAttack??tickTime(s,event.tick);
+        const start=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)+(held.delay||0):attack+pickOffset(event,s.bpm);
+        if(start<context.currentTime-.08)throw Error('playback-interrupted');
+        const rate=Math.pow(2,(event.midi-sourceSample.midi)/12),offset=held?.offset||0;
+        const end=Math.min(musicalEnd(event,plan,s,attack),start+(sourceSample.buffer.duration-offset)/rate);
+        if(end<=start+.0001)return;
+        insist(nodes.size<2048,'too-many-audio-nodes');
+        const source=context.createBufferSource(),gain=context.createGain();source.buffer=sourceSample.buffer;source.playbackRate.setValueAtTime(rate,start);
+        source.connect(gain);gain.connect(output(event.part));
+        const voice={source,gain,event,start,attack,rate,offset,end,release:0};nodes.add(voice);
+        source.onended=()=>forget(voice);source.start(Math.max(context.currentTime,start),offset);envelope(voice,end);
+        stats.created++;stats.parts[event.part]++;stats.peakNodes=Math.max(stats.peakNodes,nodes.size);
+    }
+    function pump(){
+        timer=null;if(disposed||!['playing','counting'].includes(phase))return;
+        if(context?.state!=='running'||!coordinator.isLeaseCurrent(handle,lease)){pause('interruption');return;}
+        try{
+            if(phase==='counting'){
+                const step=60/options.bpm;countBeat=Math.max(1,Math.min(4,Math.floor((context.currentTime-(countEnd-4*step))/step)+1));
+                if(context.currentTime>=countEnd-.03){phase='playing';clock.play({delay:Math.max(0,countEnd-context.currentTime)});notify();}
+            }
+            if(phase==='playing'){
+                const s=clock.snapshot();tick=s.tick;
+                if(s.status==='ended'){pause('end');return;}
+                while(scan<ordered.length){const e=ordered[scan];if(tickTime(s,e.tick)>context.currentTime+.12)break;scan++;
+                    if(issued.has(e.index))continue;issued.add(e.index);schedule(e,s);
+                }
+            }
+        }catch{pause('interruption');return;}
+        timer=setTimer(pump,25);
+    }
+    async function play(){
+        if(disposed||['playing','counting','loading'].includes(phase)||tick>=plan.totalTicks)return false;
+        if(closing){reason='audio-closing';notify();return false;}
+        register();const next=coordinator.request(handle,'audio-output/session');if(!next){reason='audio-busy';notify();return false;}
+        lease=next;const attempt=++token;reason=null;phase='loading';notify();
+        try{
+            if(!context||context.state==='closed'){
+                context=createContext();coordinator.ownContext(handle,next,context);
+                clock=createClock({now:()=>context.currentTime,bpm:options.bpm});clock.seek(tick);
+                for(const key of ['chords','melody','metronome']){const bus=context.createGain();bus.gain.setValueAtTime(options.mix[key]/100,context.currentTime);bus.connect(context.destination);buses[key]=bus;}
+            }
+            const ctx=context,resume=ctx.state==='running'?Promise.resolve():ctx.resume(); // user gesture, before any await
+            await resume;
+            if(attempt!==token||disposed||context!==ctx)return false;
+            insist(ctx.state==='running'&&coordinator.isLeaseCurrent(handle,next),'audio-interrupted');
+            const needed=new Map();for(const e of plan.events){const key=e.part+':'+e.midi;if(!needed.has(key))needed.set(key,loadSample(ctx,e.midi,e.part));}
+            for(const midi of [72,84])needed.set('count:'+midi,loadSample(ctx,midi,'count'));
+            const entries=await Promise.all([...needed].map(async([key,value])=>[key,await value]));
+            if(attempt!==token||disposed||context!==ctx)return false;
+            insist(coordinator.grant(handle,next),'audio-interrupted');buffers=new Map(entries);resetScan(tick);
+            if(!hasStarted&&options.countIn){
+                phase='counting';const step=60/options.bpm,start=ctx.currentTime+.03;countEnd=start+step*4;countBeat=1;
+                for(let i=0;i<4;i++){const e={part:'count',midi:i===0?84:72,gain:i===0?.16:.12,tick:i*480,naturalSeconds:.055};
+                    schedule(e,{time:start,tick:0,bpm:options.bpm});}
+            }else{
+                phase='playing';clock.play({delay:.03});const s=clock.snapshot();
+                for(const held of carry){const e=plan.events[held.index];schedule(e,s,held);issued.add(e.index);}carry=[];
+            }
+            hasStarted=true;notify();pump();return true;
+        }catch(error){if(attempt===token){pause('audio-error');reason='audio-error';notify();}return false;}
+    }
+    function setTempo(value){
+        insist(Number.isFinite(value)&&value>=20&&value<=400,'invalid-practice-bpm');
+        insist(!['loading','counting'].includes(phase),'wait-for-count-in');
+        if(clock)clock.setTempo(value);options={...options,bpm:value};
+        const now=context?.currentTime||0;
+        if(phase==='playing'){
+            const s=clock.snapshot(),partialStroke=[];
+            for(const voice of [...nodes])if(voice.start>now){
+                // A stroke's beat may already have passed while its later
+                // strings are still waiting for the physical pick sweep.
+                if(voice.event.tick<s.tick)partialStroke.push({event:voice.event,attack:voice.attack});
+                issued.delete(voice.event.index);stats.cancelledFuture++;cancel(voice);
+            }
+            resetScan(s.tick);
+            for(const voice of [...nodes])envelope(voice,Math.min(musicalEnd(voice.event,plan,s,voice.attack),voice.start+(voice.source.buffer.duration-voice.offset)/voice.rate),true);
+            for(const pending of partialStroke){schedule(pending.event,s,null,pending.attack);issued.add(pending.event.index);}
+            cancelTimer();pump();
+        }
+        notify();
+    }
+    function configure(value){
+        const next=normalizePlayback({...options,...value,mix:value.mix||options.mix},options.bpm),oldMetronome=options.metronome;
+        setMix(next.mix);options={...next,bpm:options.bpm};
+        if(oldMetronome!==options.metronome){const tick=sample().tick;for(const e of ordered)if(e.part==='click'&&e.tick>tick)issued.delete(e.index);}
+        if(oldMetronome!==options.metronome&&phase==='playing'){
+            for(const voice of [...nodes])if(voice.event.part==='click'&&voice.start>context.currentTime){issued.delete(voice.event.index);cancel(voice);}
+            const s=clock.snapshot();for(const e of ordered)if(e.part==='click'&&e.tick>=s.tick)issued.delete(e.index);resetScan(s.tick);cancelTimer();pump();
+        }
+        notify();
+    }
+    function seek(value){
+        insist(Number.isFinite(value)&&value>=0&&value<=plan.totalTicks,'invalid-seek');
+        pause('seek');tick=value;clock?.seek(value);carry=[];issued.clear();resetScan(value);hasStarted=false;phase=value===plan.totalTicks?'ended':'paused';notify();
+    }
+    return Object.freeze({play,pause,setTempo,configure,seek,snapshot,
+        async suspend(reason='visibility'){await cleanup(reason);},
+        async dispose(){if(disposed)return;await cleanup('dispose');disposed=true;if(handle)await coordinator.disposeSession(handle);}
+    });
+}

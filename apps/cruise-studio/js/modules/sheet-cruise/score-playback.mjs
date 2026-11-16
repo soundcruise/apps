@@ -40,7 +40,7 @@ function barPlan(project, index, deps, harmony) {
             if (slot.action === 'rest') return;
             if (slot.action === 'mute') {
                 events.push({part: 'mute', midi: 60, start, duration: Math.min(.085, duration), gain: slot.accent ? .18 : .14,
-                    tick: slot.tick, stroke: 'mute'}); return;
+                    tick: slot.tick, stroke: 'mute',...(deps.tickPlan?{attackWindowTicks:end-slot.tick}:{})}); return;
             }
             try {
                 const chord = harmony.at(index,slot.tick);
@@ -50,8 +50,9 @@ function barPlan(project, index, deps, harmony) {
                     throw Error('同じ位置の複数コードは試聴未対応です');
                 const voicing = chordVoicing(project, chord, deps);
                 if (voicing.fallback) warnings.push('登録フォームなし：コード名からの参考和音です');
-                events.push(...strumVoices(voicing, {start, duration: 4, attackWindow: duration, tick: slot.tick,
-                    id: chord.id, direction: slot.action, accent: slot.accent}));
+                const voices=strumVoices(voicing, {start, duration: 4, attackWindow: duration, tick: slot.tick,
+                    id: chord.id, direction: slot.action, accent: slot.accent});
+                events.push(...(deps.tickPlan?voices.map(e=>({...e,attackWindowTicks:end-slot.tick})):voices));
             } catch (e) { warnings.push(e.message); cuts.push(start); }
         });
     }
@@ -122,4 +123,41 @@ export function withMetronome(project,plan){
     }
     if(plan.events.length+clicks.length>524288)throw Error('メトロノームを含めた再生音が多すぎます');
     return {...plan,events:[...plan.events,...clicks].sort((a,b)=>a.start-b.start)};
+}
+
+// Musical boundaries remain ticks; physical pick travel and natural decay stay
+// seconds. No schema mutation and no AudioNodes. The existing seconds projection
+// above remains the independent oracle for fixed-tempo rendering/audition.
+export function buildSongTickPlan(project,deps){
+    const reference={...project,songInfo:{...project.songInfo,bpm:20}},spt=60/20/480;
+    const harmony=createHarmonyTimeline(reference),events=[],cuts=[project.bars.length*1920],warnings=[];
+    reference.bars.forEach((bar,index)=>{
+        const p=barPlan(reference,index,{...deps,tickPlan:true},harmony),base=index*1920;
+        p.cuts.forEach(t=>cuts.push(base+Math.round((t-.03)/spt)));
+        p.events.forEach(e=>{
+            const {start,duration,attackStart,tick,...rest}=e;
+            events.push({...rest,tick:base+tick,barIndex:index,offsetSeconds:Math.max(0,start-(.03+tick*spt)),
+                ...(e.part==='piano'?{durationTicks:Math.round(duration/spt)}:{naturalSeconds:e.part==='guitar'?4:.085})});
+        });
+        p.warnings.forEach(w=>{if(!warnings.includes(w)&&warnings.length<8)warnings.push(w);});
+    });
+    const orderedCuts=[...new Set(cuts)].sort((a,b)=>a-b),groups=new Map();
+    for(const e of events)if(e.part==='guitar'){
+        const key=[e.barIndex,e.tick,e.sourceEventId,e.stroke].join(':');
+        groups.set(key,Math.max(groups.get(key)||0,e.offsetSeconds));e.group=key;
+    }
+    events.sort((a,b)=>a.tick-b.tick||a.offsetSeconds-b.offsetSeconds);
+    const next=new Map();
+    for(let i=events.length-1;i>=0;i--){const e=events[i];e.index=i;
+        if(e.part!=='guitar')continue;
+        e.travelSpan=groups.get(e.group)||0;delete e.group;
+        let lo=0,hi=orderedCuts.length;while(lo<hi){const mid=(lo+hi)>>>1;if(orderedCuts[mid]<=e.tick)lo=mid+1;else hi=mid;}
+        e.boundaryTick=orderedCuts[lo]??project.bars.length*1920;
+        const key=e.string===null?'fallback:'+e.midi:'string:'+e.string;
+        e.nextIndex=next.get(key)??null;next.set(key,i);
+    }
+    // Clicks are always available; enabling them never changes the music plan.
+    for(let tick=0;tick<project.bars.length*1920;tick+=480)events.push({part:'click',midi:tick%1920===0?84:72,tick,
+        offsetSeconds:0,naturalSeconds:.055,gain:tick%1920===0?.1:.075,index:events.length});
+    return {events,totalTicks:project.bars.length*1920,warnings};
 }

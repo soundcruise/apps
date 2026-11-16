@@ -20,7 +20,7 @@ C.entryAuth = Object.freeze({isAuthorized: () => true, check: async () => true,
 // Keep native Account, Sync and embedded application surfaces out of this fixture.
 for (const button of document.querySelectorAll('button[data-workspace],button[data-home-workspace],[data-open-tool],#home-cruise-sync,[data-open-calendar]')) {
     const id = button.dataset.workspace || button.dataset.homeWorkspace;
-    if (!['home', 'sheetCruise', 'preDtm'].includes(id)) button.disabled = true;
+    if (!['home', 'sheetCruise', 'preDtm', 'scoreViewer'].includes(id)) button.disabled = true;
 }
 document.getElementById('studio-shell').inert = false;
 document.documentElement.dataset.studioEntry = 'ready';
