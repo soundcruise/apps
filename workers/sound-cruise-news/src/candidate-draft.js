@@ -19,7 +19,7 @@ export async function candidateAssistedDraft(store,row,now){
  offer('brand',facts.brand||facts.person);offer('product',facts.product);
  if(assistedTypes[facts.productType])offer('productType',facts.productType);
  if(facts.kind==='assisted_notice'){offer('action',facts.action);offer('qualifier',facts.qualifier);offer('label',row.label);}
- const label=assistedLabel({kind:'assisted_notice',...fields,category:assistedTypes[fields.productType]?.[1]});
+ const label=assistedLabel({kind:'assisted_notice',...fields,category:assistedTypes[fields.productType]?.[1]},{draft:true});
  if(label&&!fields.label){fields.label=label;fieldSources.label={kind:'generated_from_draft',confirmed:false};}
  return {...base,headline:fields.label||'原記事で対象と出来事を確認してください',fields,fieldSources,formalFacts:false,humanConfirmed:false,registrationAllowed:true,usageBasis:source.basis,warnings:['既存候補の補完です。入力値は本人の最終確認まで正式証拠にしません。'],missing:['brand','product','productType','action','publishedAt'].filter(k=>!fields[k])};
 }

@@ -104,7 +104,7 @@ export function webArticleDraft(row){
  const hints=draftFieldHints(row,e),productType=hints.fields.productType||'',action=hints.fields.action||'';
  let metadata;try{metadata=JSON.parse(row.search_meta_json);}catch{}
  const fields={sourceId:assistedSource(row.url)?.id||'',url:row.url,brand,product,productType,action,...hints.fields,publishedAt:draftDate(metadata?.publishedAtHint)};
- const label=assistedLabel({kind:'assisted_notice',brand,product:hints.fields.product||product,productType,category:assistedTypes[productType]?.[1],action,qualifier:hints.fields.qualifier});
+ const label=assistedLabel({kind:'assisted_notice',brand,product:hints.fields.product||product,productType,category:assistedTypes[productType]?.[1],action,qualifier:hints.fields.qualifier},{draft:true});
  const fieldSources=Object.fromEntries(Object.entries(fields).filter(([k,v])=>v&&!['url','sourceId'].includes(k)).map(([k])=>[k,{kind:k==='publishedAt'?'search_publication_hint':'saved_ai_estimate',reference:row.url,inputField:k==='publishedAt'?'search_meta_json.publishedAtHint':k,confirmed:false}]));
  Object.assign(fieldSources,hints.fieldSources);
  if(label)fieldSources.label={kind:'generated_from_draft',confirmed:false};

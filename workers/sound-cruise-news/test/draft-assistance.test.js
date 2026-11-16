@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {generateKeyPair,exportJWK,createLocalJWKSet,SignJWT} from 'jose';
 import {draftDate,assistedDraftWithInformation} from '../src/draft-assistance.js';
+import {assistedLabel} from '../src/assisted-facts.js';
 import {webArticleDraft,saveHint,savedWebDraft} from '../src/web-discovery.js';
 import {prepareAssisted,saveAssisted} from '../src/assisted-entry.js';
 import {handleOperatorRequest} from '../src/operator-worker.js';
@@ -14,6 +15,16 @@ const estimate={category:'amp',brand:'ヤマハ',product:'Acompass 60',event:'�
 const hint={url,title:'Acompass 60 ニュース',estimate_json:JSON.stringify(estimate)};
 const information={version:1,url,source:{label:'運営者提供の確認用情報（未確認）',url},fields:{brand:'ヤマハ',product:'Acompass 60',productType:'guitar_amp',action:'announcement',publishedAt:'2026-11-06'},notes:[{label:'発売予定',value:'2026年12月上旬'},{label:'定格出力',value:'60W'}]};
 const actor={type:'human_operator',id:'isolated-fixture-confirmation'};
+test('draft accessory headlines do not require or invent formal human type evidence',()=>{
+ const fields={brand:'Animals Pedal',product:'Custom Illustrated RRF 甘春わすれ #01',productType:'effect',action:'variant_introduction',qualifier:'限定アートワーク'};
+ const facts={kind:'assisted_notice',...fields,category:'amps_effects'};
+ assert.equal(assistedLabel(facts),null);
+ const draft=assistedDraftWithInformation({registrationAllowed:true,fields:{url},fieldSources:{}},{...information,fields:{...fields,publishedAt:'2026-11-05'}});
+ assert.equal(draft.fields.label,'Animals Pedal、Custom Illustrated RRF 甘春わすれ #01の特別仕様を紹介（限定アートワーク）');
+ assert.equal(draft.fields.typeEvidence,undefined);assert.equal(draft.formalFacts,false);assert.equal(draft.humanConfirmed,false);assert.equal(draft.fieldSources.productType.confirmed,false);assert.equal(draft.fieldSources.label.confirmed,false);
+ assert.equal(assistedLabel({...facts,typeEvidence:{version:1,method:'invented'}} ,{draft:true}),null);
+ assert.equal(assistedLabel({...facts,qualifier:''},{draft:true}),null);
+});
 let externalCalls=0;globalThis.fetch=async()=>{externalCalls++;throw Error('no external HTTP in draft acceptance');};
 async function setup(){const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();await saveHint(s.db,{url,title:hint.title,provider:'exa',searchedAt:now},now);await s.db.prepare('UPDATE news_web_hints SET estimate_json=? WHERE url=?').bind(hint.estimate_json,url).run();return s;}
 test('all supplied Acompass fields are draft inputs; saved AI estimate remains release, new headline is announcement',()=>{
