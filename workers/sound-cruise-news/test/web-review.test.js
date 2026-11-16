@@ -64,3 +64,11 @@ test('workerd D1: authenticated-view snapshot supports concurrent audited visibi
  const after=(await listWebHints({NEWS_DB:s.db,NEWS_WEB_ENABLED:'true'},now)).items[0];assert.equal(after.webReview.queue,'low');assert.notEqual(item.snapshot,after.snapshot);assert.equal((await s.db.prepare("SELECT COUNT(*) n FROM news_admin_audit WHERE action='web-hint-visibility'").first()).n,1);for(const table of ['candidate_items','news_decision_ledger','news_shadow_evaluations','news_takedowns'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+table).first()).n,0);
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });
+
+test('old eight Web drafts become editorial advice without changing hint visibility or creating decisions',async()=>{
+ const s=await store();for(const r of fixture.hints){await saveHint(s.db,{url:r.url,title:r.title,provider:'exa',searchedAt:now},now);await s.db.prepare('UPDATE news_web_hints SET estimate_json=?,search_meta_json=? WHERE url=?').bind(r.estimate_json,r.search_meta_json||null,r.url).run();}
+ const before=(await s.db.prepare('SELECT * FROM news_web_hints ORDER BY url').all()).results;
+ const items=await addWebReview(s.db,fixture.hints.map(project),now),judgment=items.filter(i=>i.reviewPresentation?.group==='editorial');
+ assert.equal(judgment.length,8);assert(judgment.every(i=>i.webReview.queue==='judgment'&&i.reviewPresentation.formalReady===false));
+ assert.deepEqual((await s.db.prepare('SELECT * FROM news_web_hints ORDER BY url').all()).results,before);for(const table of ['news_decision_ledger','news_shadow_evaluations','news_admin_audit']){const rows=await s.db.prepare('SELECT * FROM '+table).all();if(table==='news_admin_audit')assert(!rows.results.some(r=>r.action==='web-hint-visibility'));else assert.equal(rows.results.length,0);}
+});

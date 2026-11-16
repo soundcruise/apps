@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://gibson.jp/news-events/27491",
+    "reason": "2026年7月の100周年モデル発表。新着性と記事紹介条件を確認して掲載価値を判断してください。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://www.mikigakki.com/shop/g/gsa260113ll56ctm200/",
+    "reason": "LL56三木楽器200周年モデルの旧発売・販売ページ。新しい出来事と紹介条件の確認が必要です。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://www.shimamura.co.jp/update/shops/hamakita/guitar-bass/80633/",
+    "reason": "Martin浜田省吾モデルは既存掲載と同一出来事の疑いがあります。新しい発表か確認してください。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://acousticguitarmagazine.jp/gears/eastman-1/",
+    "reason": "2023年誌面由来の特集。新着ニュースとしての掲載は推奨しません。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://www.shimamura.co.jp/update/shops/hakata/guitar-bass/36609/",
+    "reason": "2026年3月の工房訪問記事。新着性を確認して掲載価値を判断してください。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://shop.jeugia.co.jp/c/gr2/gr3/gr6/4580393205665-49",
+    "reason": "RF-65の旧発売・販売ページ。新しい出来事と紹介条件の確認が必要です。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://www.chunichi.co.jp/article/839468",
+    "reason": "2024年のThree S記事。新着性と紹介条件の確認が必要です。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://www.deviser.co.jp/information/626551",
+    "reason": "限定モデルの先行紹介ですがエレキギター・ベース中心です。アコギ弾き語りへの関連性を判断してください。",
+    "reference": "docs/news-home-20261111/ACCEPTANCE.md"
+  },
+  {
+    "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/111462/",
+    "reason": "ドラム収音用マイクキットです。アコギ弾き語りへの関連性を判断してください。",
+    "reference": "docs/human-ready-20261116/review-information.json"
+  }
+]
