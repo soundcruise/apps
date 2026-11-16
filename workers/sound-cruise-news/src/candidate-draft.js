@@ -32,5 +32,10 @@ export async function candidateAssistedDraft(store,row,now){
 }
 export async function assistedDraftForUrl(store,url,now){
  const row=await store.db.prepare("SELECT * FROM candidate_items WHERE normalized_url=? AND review_status IN ('pending','reopened')").bind(url||'').first();
- return row?candidateAssistedDraft(store,row,now):savedWebDraft(store.db,url,now);
+ if(row)return candidateAssistedDraft(store,row,now);
+ const saved=await savedWebDraft(store.db,url,now);if(saved)return saved;
+ // A reviewed human URL scope does not require a search-service record. This
+ // empty input shell grants no facts, confirmation, acquisition or publication.
+ const source=assistedSource(url);if(!source)return null;
+ return {basis:'unconfirmed_input',headline:'原記事の事実を確認してください',fields:{url,sourceId:source.id},fieldSources:{},formalFacts:false,humanConfirmed:false,registrationAllowed:true,usageBasis:source.basis,notes:[],missing:['brand','product','productType','action','publishedAt']};
 }

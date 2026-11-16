@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/110532/",
+  "source": {
+    "label": "2026-11-16 一次発表・原記事の通常閲覧による確認用情報（本人未確認）",
+    "url": "https://kyoritsu-group.com/news/news_products/96301/"
+  },
+  "fields": {
+    "brand": "キョーリツコーポレーション",
+    "product": "ちいかわ クリップチューナー",
+    "productType": "tuner",
+    "action": "announcement",
+    "publishedAt": "2026-11-13"
+  },
+  "notes": [
+    {
+      "label": "販売主体",
+      "value": "キョーリツコーポレーションの公式新製品発表。製造工場の特定ではなく、発表・販売主体として確認してください。"
+    },
+    {
+      "label": "発売予定",
+      "value": "2026年11月20日。記事公開日11月13日、更新日11月16日とは別です。発売済みにはしません。"
+    },
+    {
+      "label": "対象",
+      "value": "CKCC-CH／CKCC-HW／CKCC-USの3種類。ギターモードを含むクリップチューナー。既存候補IDを維持します。"
+    }
+  ]
+}
