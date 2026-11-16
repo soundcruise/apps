@@ -1,4 +1,4 @@
-async function zoomControl(p,id){const control=p.locator(id);if(!await control.isVisible())await p.click('#sc-display-menu-toggle');await control.click();await p.keyboard.press('Escape');}
+async function zoomControl(p,id){const control=p.locator(id),inMenu=!await control.isVisible();if(inMenu)await p.click('#sc-display-menu-toggle');await control.click();if(inMenu)await p.keyboard.press('Escape');}
 // Loopback, isolated storage, synthetic score. Never connects to Account/Sync.
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
 const{pathToFileURL}=require('node:url'),{chromium,webkit}=require('playwright');

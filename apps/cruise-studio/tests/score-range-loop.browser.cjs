@@ -1,4 +1,4 @@
-async function zoomControl(p,id){const control=p.locator(id);if(!await control.isVisible())await p.click('#sc-display-menu-toggle');await control.click();await p.keyboard.press('Escape');}
+async function zoomControl(p,id){const control=p.locator(id),inMenu=!await control.isVisible();if(inMenu)await p.click('#sc-display-menu-toggle');await control.click();if(inMenu)await p.keyboard.press('Escape');}
 // Actual loopback UI and Web Audio in fresh contexts. No user storage or accounts.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {pathToFileURL}=require('node:url'),{chromium,webkit}=require('playwright');
