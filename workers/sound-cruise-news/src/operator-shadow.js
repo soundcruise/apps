@@ -2,7 +2,7 @@ import {hash,DAY} from './policy.js';
 import {DECISION_POLICY_VERSION,publicationValidation,parseFacts} from './decision-policy.js';
 import {humanDecisions,retainedDecisionProfile,evaluateDecisions} from './operator-insights.js';
 import {validatedProductEvent} from './product-event.js';
-export const SHADOW_RULE_VERSION='structured-human-v3';
+export const SHADOW_RULE_VERSION='structured-human-v4';
 export const SHADOW_CONTRACT_VERSION='shadow-v1';
 const canonical=value=>JSON.stringify(sort(value));
 function sort(value){return Array.isArray(value)?value.map(sort):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,sort(value[k])])):value;}
@@ -13,7 +13,7 @@ export const comparison=(recommendation,verdict)=>({RECOMMEND_APPROVE:{approve:'
 // to fill it into an older evaluation.
 export function shadowEvidenceContext(row,validation,teachers,now){
  const facts=parseFacts(row);let fields=[];try{fields=JSON.parse(row.facts_provenance);}catch{}if(!Array.isArray(fields))fields=[];
- const human=facts?.kind==='human_product_notice'||/human/.test(facts?.evidence||'')||/human/.test(facts?.identifierBasis||'')||fields.some(p=>['verificationMethod','extractionMethod'].some(k=>/^human[_-]/.test(p?.[k]||'')));
+ const human=row.origin==='operator_assisted'||facts?.kind==='human_product_notice'||/human/.test(facts?.evidence||'')||/human/.test(facts?.identifierBasis||'')||fields.some(p=>['verificationMethod','extractionMethod'].some(k=>/^human[_-]/.test(p?.[k]||'')));
  const structured=validation.valid&&fields.length>0&&fields.every(p=>p?.sourceId===row.source_id&&p.sourceUrl===row.source_url&&/^explicit_/.test(p.extractionMethod||'')&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now);
  return {version:'shadow-evidence-1',evidenceOrigin:human?'human_confirmation':structured?'publisher_structured':'unknown',relevanceStatus:['PASS','REVIEW'].includes(validation.relevance?.status)?validation.relevance.status:'UNKNOWN',publicationDateVerified:validation.valid&&Number.isFinite(Date.parse(row.published_at)),identityScope:!facts?.scopeUncertain&&facts?.brand&&facts?.productType&&Array.isArray(facts.models)&&facts.models.length>0?'explicit_models':'unconfirmed',productAction:validatedProductEvent(facts?.productEvent)?facts.productEvent.action:'not_recorded',priorHumanDecision:teachers.some(d=>d.candidate_id===row.id)};
 }

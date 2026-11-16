@@ -9,7 +9,7 @@ export const FINAL_CONFIRMATION='reviewed-and-decided-v1';
 // the audited pending candidate; it is never presented as a completed decision.
 export async function decideAssisted(store,input,now,registry,pepper,actor){
  if(actor?.type!=='human_operator')throw Error('operator_denied');
- if(!input||Object.keys(input).some(k=>!['entry','action','reason','requestId','confirmation'].includes(k))||!['approve','reject'].includes(input.action)||!REASONS[input.action].includes(input.reason)||!/^[-a-zA-Z0-9_]{16,64}$/.test(input.requestId||'')||!input.entry||typeof input.entry!=='object'||Array.isArray(input.entry)||['id','snapshot','requestId'].some(k=>Object.hasOwn(input.entry,k)))throw Error('assisted_decision_invalid');
+ if(!input||Object.keys(input).some(k=>!['entry','action','reason','requestId','confirmation'].includes(k))||!['approve','reject'].includes(input.action)||!REASONS[input.action].includes(input.reason)||!/^[-a-zA-Z0-9_]{16,64}$/.test(input.requestId||'')||!input.entry||typeof input.entry!=='object'||Array.isArray(input.entry)||Object.hasOwn(input.entry,'requestId'))throw Error('assisted_decision_invalid');
  if(input.confirmation!==FINAL_CONFIRMATION||input.entry.confirmed!==true)throw Error('assisted_decision_confirmation_required');
  const saveId=input.requestId+'-'+input.action+'-'+input.reason,decisionId=input.requestId+'-decision';
  const saved=await saveAssisted(store,{...input.entry,requestId:saveId},now,registry,pepper,actor);
@@ -27,7 +27,7 @@ export async function decideAssisted(store,input,now,registry,pepper,actor){
   }
   const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(saved.id).first(),source=assistedSource(input.entry.url);
   if(row&&!['pending','reopened'].includes(row.review_status))return {completed:false,existingId:row.id,existingStatus:row.review_status,errors:['既に判断済みです。既存の判断は変更していません。']};
-  if(!row||row.source_url!==audit.source_url||row.published_at!==audit.published_at||row.product_facts!==audit.facts_json||row.label!==audit.label||row.facts_provenance!==assistedProvenance(source,saveId,audit.verified_at,actor.id)||await effectiveCategory(store,row)!==JSON.parse(audit.facts_json).category)throw Error('assisted_decision_changed');
+  if(!row||row.source_url!==audit.source_url||row.published_at!==audit.published_at||row.product_facts!==audit.facts_json||row.label!==audit.label||row.facts_provenance!==assistedProvenance(source,saveId,audit.verified_at,actor.id,JSON.parse(audit.facts_json).confirmationContext)||await effectiveCategory(store,row)!==JSON.parse(audit.facts_json).category)throw Error('assisted_decision_changed');
   const validation=input.action==='approve'?await publicationValidation(store,row,now,registry,pepper):null;
   if(validation&&!validation.valid)throw Error(validation.errors[0]);
   const decision={id:row.id,action:input.action,reason:input.reason,requestId:decisionId,snapshot:await candidateSnapshot(row),revision:row.review_revision,...(validation?{label:validation.publishableLabel,category:await effectiveCategory(store,row),publishedAt:row.published_at,checks}:{})};

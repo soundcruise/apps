@@ -17,7 +17,7 @@ function change(d,fn){const f=JSON.parse(d.decision_features_json);fn(f);return 
 const evaluate=(rows,p=profile,validation={valid:true,errors:[]})=>evaluateDecisions(p,rows,{now,candidateId:'target',validation});
 
 test('compatibility is per retained decision; an old version name alone grants no evidence',()=>{
- assert.equal(SHADOW_RULE_VERSION,'structured-human-v3');assert.equal(policyCompatibility('operator-publication-1'),'OBSOLETE');
+ assert.equal(SHADOW_RULE_VERSION,'structured-human-v4');assert.equal(policyCompatibility('operator-publication-1'),'OBSOLETE');
  const d=legacy(1);assert.equal(editorialCompatibility(d).status,'COMPATIBLE');assert.equal(policyCompatibility(d.policy_version,d),'COMPATIBLE');
  assert.equal(editorialCompatibility({...d,policy_version:'unknown'}).status,'OBSOLETE');
  for(const mutate of [f=>{delete f.insightsProfile;},f=>{delete f.shadowEvaluation;},f=>{f.operation='human_takedown';},f=>{f.shadowEvaluation.candidateRevision++;},f=>{f.shadowEvaluation.candidateSnapshot=hex(1);},f=>{f.shadowEvaluation.generatedAt=stamp+1;},f=>{f.shadowEvaluation.generatedAt=stamp-1800001;},f=>{f.shadowEvaluation.publicationValidation.valid=false;},f=>{f.shadowEvaluation.publicationValidation.errors=['facts_provenance_invalid'];},f=>{f.insightsProfile.source='other';},f=>{f.hasDate=false;},f=>{f.shadowEvaluation.profile={...f.insightsProfile,productAction:'new_color'};}])assert.equal(editorialCompatibility(change(d,mutate)).status,'OBSOLETE');

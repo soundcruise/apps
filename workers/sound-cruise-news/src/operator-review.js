@@ -1,3 +1,4 @@
+import {candidateHumanReview} from './candidate-draft.js';
 import {agmBookAnchor,AGM_BOOK_CHECKS} from './agm-human-evidence.js';
 import {safeFactDiagnostics} from './facts-failure.js';
 import {canonicalReview} from './canonical-confirmation.js';
@@ -39,7 +40,7 @@ export async function reviewDetail(store,id,now,registry,pepper){
  try{if(work?.diagnostics_json)factsReview.diagnostics=safeFactDiagnostics(JSON.parse(work.diagnostics_json));}catch{}
  const lifecycle=await lifecycleView(store,row,now);
  const agmBookReview=row.source_id==='agm'&&(!row.product_facts||row.product_facts==='null')?{confirmationAvailable:['pending','reopened'].includes(row.review_status)&&!validation.errors.some(e=>!['facts_incomplete','facts_provenance_invalid'].includes(e))&&!!await agmBookAnchor(store,row,now,pepper),checks:AGM_BOOK_CHECKS}:null;
- return {agmBookReview,canonicalReview:await canonicalReview(store,row,validation,source,now),preparationState:preparationState(row,validation,lifecycle),assistedEditable:row.origin===ASSISTED_ORIGIN,systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle,factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
+ return {humanFactsReview:await candidateHumanReview(store,row,now,registry),agmBookReview,canonicalReview:await canonicalReview(store,row,validation,source,now),preparationState:preparationState(row,validation,lifecycle),assistedEditable:row.origin===ASSISTED_ORIGIN,systemDisposition:row.review_status==='rejected'&&['system_policy','source_policy'].includes(row.reviewed_by)?{actor:row.reviewed_by,reason:row.review_reason}:null,reviewReference:await reviewReference(store,row),morrisReview,lifecycle,factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:await effectiveCategory(store,row),publishedAt:row.published_at,eventType:row.event_type,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
 }
 export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  const rows=(await store.candidates()).filter(i=>i.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(i.review_status));
@@ -94,7 +95,7 @@ export async function operatorDecision(store,input,now,registry,pepper,actor,{au
  ${approve?`AND c.expires_at>${stampSql} AND (c.sale_ends_at IS NULL OR c.sale_ends_at>=${stampSql}) AND (c.event_ends_at IS NULL OR c.event_ends_at>=${stampSql})
  AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1)
  ${row.origin===ASSISTED_ORIGIN?'AND '+assistedPredicate():"AND EXISTS(SELECT 1 FROM source_health WHERE source_id=c.source_id AND "+publicationHealthSQL+" AND last_successful_run_at=?)"}
- AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND (${row.origin===ASSISTED_ORIGIN?'':'disabled=1 OR '}takedown=1 OR publication_blocked=1))
+ AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=c.source_id AND (${row.origin===ASSISTED_ORIGIN&&!parseFacts(row)?.confirmationContext?.discoveryOrigin?'':'disabled=1 OR '}takedown=1 OR publication_blocked=1))
  AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=c.id)
  AND NOT EXISTS(SELECT 1 FROM candidate_items d WHERE ${predicate.sql}) AND ${predicate.fenceSql} ${parseFacts(row)?.kind==='human_product_notice'?'AND '+canonicalReceiptFence():''}`:''}
  ${automatic?'AND '+authorization.fenceSql:''}`)

@@ -1,3 +1,4 @@
+import {candidateAssistedDraft,assistedDraftForUrl} from './candidate-draft.js';
 import {setWebHintReview} from './web-review.js';
 import {assessAutomaticCandidates} from './automatic.js';
 import {confirmAgmBookFacts} from './agm-fact-confirmation.js';
@@ -55,7 +56,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='POST'&&url.pathname==='/api/web-hints/review'){if(env.NEWS_WEB_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);return json(await setWebHintReview(store,await inputJSON(request),now,identity.actor));}
   if(request.method==='GET'&&url.pathname==='/api/web-discovery')return json(await listWebHints(env,webClock()));
   if(request.method==='POST'&&url.pathname==='/api/web-discovery/run'){if(env.NEWS_WEB_ENABLED!=='true'||env.NEWS_WEB_MANUAL_ENABLED!=='true')throw Error('operator_not_configured');await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(Object.keys(input).length)throw Error('operator_query_invalid');return json(await runWebDiscovery(env,webClock(),{...options.webDiscoveryDependencies,clock:webClock},true));}
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.66.1'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.67.0'});
   if(request.method==='GET'&&url.pathname==='/api/automatic-assessment'){if(url.search)throw Error('operator_query_invalid');return json({readOnly:true,items:await assessAutomaticCandidates(store,registry,now,env.NEWS_HEADLINE_PEPPER)});}
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
@@ -64,14 +65,14 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
    return json(await saveShadowEvaluation(store,input,now,registry,env.NEWS_HEADLINE_PEPPER));
   }
   if(request.method==='GET'&&url.pathname==='/api/assisted'){
-   const hintUrl=url.searchParams.get('hintUrl'),existing=hintUrl?await store.db.prepare('SELECT id FROM candidate_items WHERE normalized_url=?').bind(hintUrl).first():null;
-   return json({existing:existing?await reviewDetail(store,existing.id,now,registry,env.NEWS_HEADLINE_PEPPER):null,draft:await savedWebDraft(env.NEWS_DB,hintUrl,now),sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:Object.fromEntries(Object.entries(assistedTypes).filter(([id])=>id!=='guitar_accessory')),actions:assistedActions});
+   const hintUrl=url.searchParams.get('hintUrl'),existing=hintUrl?await store.db.prepare('SELECT * FROM candidate_items WHERE normalized_url=?').bind(hintUrl).first():null;
+   return json({existing:existing?await reviewDetail(store,existing.id,now,registry,env.NEWS_HEADLINE_PEPPER):null,draft:await assistedDraftForUrl(store,hintUrl,now),sources:assistedSources.map(s=>({...s,startUrl:s.id==='yamaha'?YAMAHA_TOPICS_START:undefined})),types:Object.fromEntries(Object.entries(assistedTypes).filter(([id])=>id!=='guitar_accessory')),actions:assistedActions});
   }
   if(request.method==='POST'&&url.pathname==='/api/assisted-decision'){await verifyCsrf(request,identity,env,now);return json(await decideAssisted(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));}
   if(request.method==='POST'&&url.pathname==='/api/assisted-draft'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
    if(Object.keys(input).some(k=>!['url','information'].includes(k)))throw Error('assisted_draft_invalid');
-   return json({draft:assistedDraftWithInformation(await savedWebDraft(env.NEWS_DB,input.url,now),input.information),readOnly:true});
+   return json({draft:assistedDraftWithInformation(await assistedDraftForUrl(store,input.url,now),input.information),readOnly:true});
   }
   if(request.method==='POST'&&url.pathname==='/api/assisted-parse'){await verifyCsrf(request,identity,env,now);return json(parseAssistedPaste(await inputJSON(request)));}
   if(request.method==='POST'&&['/api/assisted-preview','/api/assisted-save'].includes(url.pathname)){await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);const p=url.pathname.endsWith('-save')?await saveAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor):await prepareAssisted(store,input,now,registry,env.NEWS_HEADLINE_PEPPER);return json({...p,row:undefined,existing:undefined});}
@@ -97,7 +98,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(request.method==='POST'&&url.pathname==='/api/presentation'){await verifyCsrf(request,identity,env,now);return json(await savePresentation(store,await inputJSON(request),env,now,registry,identity.actor));}
   if(request.method==='GET'&&url.pathname==='/api/system-exclusions')return json({items:(await store.db.prepare("SELECT id,source_url,label,review_reason,review_revision FROM candidate_items WHERE review_status='rejected' AND reviewed_by IN ('system_policy','source_policy') ORDER BY reviewed_at DESC LIMIT 100").all()).results});
   if(request.method==='POST'&&url.pathname==='/api/system-restore'){await verifyCsrf(request,identity,env,now);return json(await restoreSystemResolution(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));}
-  if(request.method==='GET'&&url.pathname==='/api/discovery-exceptions')return json({items:(await store.db.prepare("SELECT source_id,normalized_url,reason_code,processing_state,next_action,first_seen_at,updated_at FROM news_discovery_work WHERE candidate_id IS NULL AND processing_state IN ('evidence_insufficient','parser_failed') ORDER BY first_seen_at LIMIT 100").all()).results});
+  if(request.method==='GET'&&url.pathname==='/api/discovery-exceptions')return json({items:(await store.db.prepare("SELECT source_id,normalized_url,reason_code,processing_state,next_action,first_seen_at,updated_at FROM news_discovery_work WHERE candidate_id IS NULL AND processing_state IN ('evidence_insufficient','parser_failed') ORDER BY first_seen_at LIMIT 100").all()).results,expiredItems:(await store.db.prepare("SELECT target,occurred_at,reason_code FROM news_admin_audit WHERE action='retention-reference' AND occurred_at>? ORDER BY occurred_at DESC LIMIT 100").bind(now-365*86400000).all()).results.map(r=>({id:r.target,at:r.occurred_at,...JSON.parse(r.reason_code)}))});
   if(request.method==='GET'&&url.pathname==='/api/pending')return json({items:await reviewQueue(store,{now,registry,pepper:env.NEWS_HEADLINE_PEPPER})});
   if(request.method==='GET'&&/^\/api\/candidates\/[a-zA-Z0-9_-]{1,128}$/.test(url.pathname))return json(await reviewDetail(store,url.pathname.split('/').at(-1),now,registry,env.NEWS_HEADLINE_PEPPER));
   if(request.method==='POST'&&url.pathname==='/api/publish-interest'){

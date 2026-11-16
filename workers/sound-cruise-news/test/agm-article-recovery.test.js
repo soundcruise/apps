@@ -27,3 +27,43 @@ test('real recovery path: two bounded requests, cached repeat, pending READY, no
 test('autonomous recheck invokes article recovery and preserves source one-per-day budget',async()=>{const {s,a,r,item}=await setup(),calls=[];const out=await runPendingRechecks(s,now,[a],pepper,{fetcher:async u=>{calls.push(u);return new Response(u===a.robotsUrl?robot:html(r,'合成奏者が語る弾き語り','<p>合成奏者の弾き語り。</p>'),{headers:{'Content-Type':'text/html'}});},sleep:async()=>{}});assert.equal(out.recovered,1);assert.equal(out.newlyReady,1);assert.equal(calls.length,2);assert.equal((await s.candidates())[0].review_status,'pending');assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);});
 test('News discovery can reuse an already fetched article without a new request',async()=>{const r=row('news'),title='合成奏者が新アルバムをリリース',body='<p>シンガー・ソングライターの合成奏者がアルバム『朝の空』をリリースする。</p>',a={...source,enabled:true,productionEnabled:true};const recovered=parse(r,title,body);const {item}=await candidateFrom({url:r.source_url,title,date,agmSection:'news',articleRecovery:recovered},a,{isAllowed:()=>true},now,pepper);assert.equal(item.productFacts.action,'music_release');assert.equal(item.publicationDecision,'PUBLISH_REVIEW');assert.match(item.label,/朝の空/);const bad=await candidateFrom({url:r.source_url,title,date,agmSection:'news',articleRecovery:{...recovered,publishedAt:'2026-10-02T10:00:00.000Z'}},a,{isAllowed:()=>true},now,pepper);assert.equal(bad.item.productFacts,null);});
 test('concrete primary subject and credited author replace a generic column theme; incidental AI cannot choose focus',()=>{const r=row('column'),a=parse(r,'音楽制作のAI by 合成著者 第7回','<p>文＝合成著者 イラスト＝合成画家</p><p>音楽制作におけるAIを考えます。</p><h2>AIとの付き合い方</h2><p>音楽制作での使い方。</p>');assert.equal(a.productFacts.author,'合成著者');assert.equal(a.productFacts.focus,'ai_music');assert.equal(agmArticleLabel(a.productFacts,'agm_editorial'),'合成著者、音楽制作でのAIとの付き合い方を解説');const b=parse(r,'音楽制作の話題','<p>音楽制作について。</p><aside><h2>AIとの付き合い方</h2></aside><p>AIの話もあります。</p>');assert.equal(b.productFacts.focus,undefined);assert.equal(b.productFacts.author,undefined);});
+
+// Synthetic articles reproduce the observed group-prefixed interview structure;
+// they are not production acquisition receipts or evidence of publication.
+const memberTitle='SAMPLE合成奏者が語る、アコギと作曲のこだわり';
+const memberIntro='男女グループ“SAMPLE”のメンバーで、作曲家としても活動している合成奏者。アコギを使った普段の作曲方法を語る。';
+test('group-prefixed interview subject is corroborated by explicit first-sentence membership',()=>{
+ const r=row(),f=parse(r,memberTitle,`<p>${memberIntro}</p>`);
+ assert.equal(f.productFacts.person,'合成奏者');assert.equal(f.eventType,'agm_editorial');
+ assert.equal(f.productFacts.articleType,'interview');assert.equal(f.productFacts.category,'artist_guitar');
+ assert.equal(f.publishedAt,date);assert.equal(f.productFacts.action,undefined);
+ assert.equal(agmArticleLabel(f.productFacts,f.eventType),'合成奏者、アコースティック・ギターについて語るインタビュー');
+});
+test('membership recovery rejects unrelated, ambiguous, later, hidden and uncorroborated names',()=>{
+ for(const body of [
+  '<p>グループ“OTHER”のメンバーである合成奏者。アコギの話。</p>',
+  '<p>グループ“SAMPLE”のメンバーである別の奏者。合成奏者もアコギを使う。</p>',
+  '<p>アコギの話。</p><p>グループ“SAMPLE”のメンバーである合成奏者。</p>',
+  '<p>グループ“SAMPLE”のメンバーとバンド“OTHER”のメンバーである合成奏者。アコギの話。</p>',
+  `<aside><p>${memberIntro}</p></aside><p>アコギの話。</p>`,
+  `<p hidden>${memberIntro}</p><p>アコギの話。</p>`,
+  '<p>グループ“SAMPLE”のメンバー。アコギの作曲方法。</p>'
+ ])assert.throws(()=>parse(row(),memberTitle,body),/facts_not_recovered/);
+});
+test('group membership supports other band names without artist or URL exceptions',()=>{
+ const f=parse(row(),'OTHER別奏者が語る弾き語り','<p>バンド「OTHER」のメンバーとして活動する別奏者。弾き語りを語る。</p>');
+ assert.equal(f.productFacts.person,'別奏者');assert.equal(f.productFacts.topic,'singing');
+});
+test('group-prefixed interview recovery uses existing CAS/audit/provenance and creates no judgment',async()=>{
+ const {s,a,r,item}=await setup(),before=(await s.candidates())[0];
+ const d=await reviewDetail(s,item.id,now,[a],pepper),input={id:d.id,revision:d.revision,snapshot:d.snapshot,requestId:crypto.randomUUID()};
+ let calls=0;const out=await recheckFacts(s,input,now,[a],pepper,{type:'system_repair',id:'test'},{fetcher:async u=>{calls++;return new Response(u===a.robotsUrl?robot:html(r,memberTitle,`<p>${memberIntro}</p>`),{headers:{'Content-Type':'text/html'}});},sleep:async()=>{}});
+ assert.equal(out.validation.valid,true);assert.equal(calls,2);
+ const saved=(await s.candidates())[0];assert.equal(saved.id,before.id);assert.equal(saved.review_status,'pending');
+ assert.equal(saved.review_revision,before.review_revision+1);assert.equal(JSON.parse(saved.product_facts).person,'合成奏者');
+ assert.ok(JSON.parse(saved.facts_provenance).every(p=>p.verificationMethod!=='human_primary_confirmation'));
+ assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+ assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_facts_rechecks WHERE candidate_id=?').bind(saved.id).first()).n,1);
+ assert.equal((await recheckFacts(s,input,now,[a],pepper,{type:'system_repair',id:'test'},{fetcher:()=>{throw Error('duplicate fetch');}})).replayed,true);
+ const stale={...input,requestId:crypto.randomUUID()};await assert.rejects(recheckFacts(s,stale,now,[a],pepper,{type:'system_repair',id:'test'},{fetcher:()=>{throw Error('stale fetch');}}),/candidate_changed/);
+});

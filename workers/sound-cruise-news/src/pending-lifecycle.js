@@ -57,7 +57,9 @@ export async function initializePending(store,now,pepper){
 
  // A verified old-parser cache miss is not a reason to postpone its replacement
  // parser. Acquisition still atomically limits this to one source upgrade/day.
- const agmPending=pepper?(await store.db.prepare("SELECT c.*,l.next_recheck_at FROM candidate_items c JOIN news_pending_lifecycle l ON l.candidate_id=c.id WHERE c.source_id='agm' AND c.review_status IN ('pending','reopened') AND c.product_facts IS NULL AND c.expires_at>? AND l.lease_until<=? ORDER BY c.collected_at LIMIT 20").bind(now,now).all()).results:[];
+ // Metadata-only partial facts without provenance need the same upgrade path as
+ // null facts; they must not postpone a replacement parser or count as evidence.
+ const agmPending=pepper?(await store.db.prepare("SELECT c.*,l.next_recheck_at FROM candidate_items c JOIN news_pending_lifecycle l ON l.candidate_id=c.id WHERE c.source_id='agm' AND c.review_status IN ('pending','reopened') AND (c.product_facts IS NULL OR c.facts_provenance IS NULL) AND c.expires_at>? AND l.lease_until<=? ORDER BY c.collected_at LIMIT 20").bind(now,now).all()).results:[];
  for(const row of agmPending){const cached=await inspectAgmArticle(store,getSource('agm'),row.source_url,now,pepper,{expectedPublishedAt:row.published_at});if(cached.parserUpgrade)await store.db.prepare('UPDATE news_pending_lifecycle SET next_recheck_at=? WHERE candidate_id=? AND next_recheck_at IS ? AND lease_until<=?').bind(Math.min(row.next_recheck_at??now,now),row.id,row.next_recheck_at,now).run();}
  await store.db.prepare(`INSERT OR IGNORE INTO news_pending_lifecycle(candidate_id,next_recheck_at,recheck_policy_version)
  SELECT id,?,? FROM candidate_items WHERE review_status IN ('pending','reopened') AND origin<>'legacy_fixture_backfill' AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=candidate_items.source_id AND s.disabled=1)`).bind(now,RECHECK_POLICY).run();
