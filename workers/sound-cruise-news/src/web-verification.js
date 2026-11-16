@@ -28,7 +28,7 @@ export function webVerification(env,now,{registry=SOURCES}={}){
   // the separate Bot collection policy is OFF. This grants no new registration.
   if(assistedUrl(url)){
    const existing=await store.db.prepare("SELECT * FROM candidate_items WHERE source_id=? AND (source_url=? OR normalized_url=?) LIMIT 2").bind(assistedSource(url).id,url,url).all();
-   if(existing.results.length===1){const row=existing.results[0],ref={...base,candidateId:row.id,revision:row.review_revision,sourceId:assistedSource(url).id,confirmationUrl:url};
+   if(existing.results.length===1&&existing.results[0].origin==='operator_assisted'){const row=existing.results[0],ref={...base,candidateId:row.id,revision:row.review_revision,sourceId:assistedSource(url).id,confirmationUrl:url};
     if(!['pending','reopened'].includes(row.review_status))return {...ref,path:'C',reason:'existing_decision_preserved',nextAction:'operator_candidate_review'};
     const validation=env.NEWS_HEADLINE_PEPPER&&formalChecks++<10&&await publicationValidation(store,row,now,sources,env.NEWS_HEADLINE_PEPPER);
     return {...ref,path:validation?.valid?'A':'C',reason:validation?.valid?'existing_formal_evidence':'existing_candidate_verification',nextAction:'operator_candidate_review',publishedAt:validation?.valid?row.published_at:null};

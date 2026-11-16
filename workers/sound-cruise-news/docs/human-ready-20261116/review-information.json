@@ -1,0 +1,154 @@
+[
+  {
+    "key": "koike",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/interview/2026-1112-koike-ryuki-cipher/",
+      "source": {
+        "label": "2026年11月16日 原記事の通常閲覧に基づく確認用情報（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/interview/2026-1112-koike-ryuki-cipher/"
+      },
+      "fields": {
+        "brand": "小池竜暉",
+        "product": "アコースティック・ギターと作曲",
+        "productType": "interview",
+        "action": "interview",
+        "label": "小池竜暉、アコースティック・ギターと作曲を語るインタビューを公開",
+        "publishedAt": "2026-11-12"
+      },
+      "notes": []
+    }
+  },
+  {
+    "key": "wild-dog",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/2026-1113-wild-dog-stomp/",
+      "source": {
+        "label": "2026年11月16日 原記事の通常閲覧に基づく確認用情報（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/2026-1113-wild-dog-stomp/"
+      },
+      "fields": {
+        "brand": "WILD DOG STOMP",
+        "product": "フット・ストンプ8機種",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "label": "WILD DOG STOMP、弾き語り向けフット・ストンプ8機種の発売情報",
+        "publishedAt": "2026-11-13"
+      },
+      "notes": [
+        {
+          "label": "対象",
+          "value": "複数のフット・ストンプを紹介する記事。単一のギター新製品ではありません。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "110413",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/110413/",
+      "source": {
+        "label": "2026年11月16日 原記事の通常閲覧に基づく確認用情報（本人未確認）",
+        "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/110413/"
+      },
+      "fields": {
+        "brand": "strandberg*",
+        "product": "Boden Essential 6 PBL EX-LTD",
+        "productType": "electric_guitar_bass",
+        "action": "variant_introduction",
+        "qualifier": "島村限定カラーPrussian Blue",
+        "publishedAt": "2026-11-12",
+        "label": "strandberg*、Boden Essential 6 PBL EX-LTDの特別仕様を紹介（島村限定カラーPrussian Blue）"
+      },
+      "notes": []
+    }
+  },
+  {
+    "key": "111613",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/111613/",
+      "source": {
+        "label": "2026年11月16日 原記事の通常閲覧に基づく確認用情報（本人未確認）",
+        "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/111613/"
+      },
+      "fields": {
+        "brand": "Animals Pedal",
+        "product": "Custom Illustrated RRF 甘春わすれ #01",
+        "productType": "effect",
+        "action": "variant_introduction",
+        "qualifier": "限定アートワーク",
+        "publishedAt": "2026-11-05"
+      },
+      "notes": []
+    }
+  },
+  {
+    "key": "110561",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/110561/",
+      "source": {
+        "label": "2026年11月16日 原記事の通常閲覧に基づく確認用情報（本人未確認）",
+        "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/110561/"
+      },
+      "fields": {
+        "brand": "E.D.GEAR",
+        "product": "AG・EG・EBアクセサリーセット2027",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "label": "E.D.GEAR、AG・EG・EBアクセサリーセット2027の刷新を紹介",
+        "publishedAt": "2026-11-11"
+      },
+      "notes": []
+    }
+  },
+  {
+    "key": "110532",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/110532/",
+      "source": {
+        "label": "2026年11月16日 原記事の通常閲覧に基づく確認用情報（本人未確認）",
+        "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/110532/"
+      },
+      "fields": {
+        "product": "ちいかわ クリップチューナー",
+        "productType": "tuner",
+        "action": "announcement",
+        "publishedAt": "2026-11-13"
+      },
+      "notes": [
+        {
+          "label": "不足",
+          "value": "メーカー／販売主体は未確認。キャラクター名や出典名をメーカーに代用しません。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "111462",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/111462/",
+      "source": {
+        "label": "2026年11月16日 原記事の通常閲覧に基づく確認用情報（本人未確認）",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/111462/"
+      },
+      "fields": {
+        "brand": "Earthworks Audio",
+        "product": "DK3 | Drumeo Edition",
+        "action": "announcement",
+        "publishedAt": "2026-11-15"
+      },
+      "notes": [
+        {
+          "label": "関連性",
+          "value": "ドラム収音用マイクキット。掲載数目的でギター用途に変換しません。"
+        }
+      ]
+    }
+  }
+]

@@ -10,6 +10,7 @@ export const MINIMUM_EVIDENCE=5;
 // These verdicts describe a particular evidence/duplicate/policy problem, not
 // an editorial preference against other news with the same coarse profile.
 export function decisionLearningUse(row){
+ if(parse(row.decision_features_json).shadowEvaluation?.evidenceContext?.evidenceOrigin==='human_confirmation')return 'human_confirmed_only';
  if(row.verdict!=='reject')return 'editorial';
  if(['facts_identifier_missing','date_uncertain','category_uncertain'].includes(row.reason))return 'technical_only';
  if(row.reason==='duplicate')return 'duplicate_only';

@@ -62,7 +62,7 @@ export class NewsStore {
    return false; // An existing candidate was repaired, never newly registered.
   }
   if(i.productFacts&&i.sourceId!=='morris'){await this.db.prepare(`UPDATE candidate_items SET product_facts=?,label=?,category=?,event_type=?,title_fingerprint=?,publication_decision=?,decision_reason=?,review_reason=?,event_ends_at=?
-   WHERE id=? AND review_status='pending' AND source_url=? AND decision_reason<>'maintenance_recovery_review'
+   WHERE id=? AND origin<>'operator_assisted' AND review_status='pending' AND source_url=? AND decision_reason<>'maintenance_recovery_review'
    AND NOT(COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.evidence'),'') IN ('agm_explicit_article_v1','agm_human_book_v1','guitar_exhibition_article_v1','explicit_named_workshop_v1') OR COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.identifierBasis'),'') IN ('explicit_kikutani_listing_product','verified_primary_announcement','verified_product_article_fields','explicit_article_product_fields','explicit_article_component_fields','explicit_shimamura_product_fields'))
    AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1)
    AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
@@ -100,8 +100,13 @@ export class NewsStore {
   await this.db.prepare('DELETE FROM news_agm_article_cache WHERE attempted_at<=? AND lease_until<=?').bind(now-90*DAY,now).run();
   await this.db.batch([this.db.prepare('DELETE FROM news_presentation_days WHERE day<?').bind(new Date(now-90*DAY).toISOString().slice(0,10)),this.db.prepare('DELETE FROM news_presentation_requests WHERE created_at<=?').bind(now-365*DAY)]);
   await this.db.batch([this.db.prepare('DELETE FROM news_facts_rechecks WHERE checked_at<=?').bind(now-90*DAY),this.db.prepare('DELETE FROM news_facts_sources WHERE checked_at<=? AND lease_until<=?').bind(now-DAY,now)]);
+  // Keep a bounded audit pointer after content retention ends. No article text,
+  // inferred rejection or Ledger decision is recorded. Unjudged articles get
+  // their full deadline, rather than disappearing in the one-hour purge lead.
+  const expiryWhere="(expires_at<=? OR (expires_at<=? AND review_status NOT IN ('pending','reopened')))";
+  await this.db.prepare("INSERT OR IGNORE INTO news_admin_audit(id,action,target,occurred_at,reason_code) SELECT 'retention-reference:'||id||':'||expires_at,'retention-reference',id,?,json_object('sourceId',source_id,'url',source_url,'status',review_status,'expiresAt',expires_at,'reason','content_retention_ended') FROM candidate_items WHERE NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=candidate_items.id) AND "+expiryWhere).bind(now,now,now+leadMs).run();
   const result=await this.db.batch([
-   this.db.prepare('DELETE FROM candidate_items WHERE expires_at <= ?').bind(now+leadMs),
+   this.db.prepare('DELETE FROM candidate_items WHERE '+expiryWhere).bind(now,now+leadMs),
    this.db.prepare('DELETE FROM collection_runs WHERE collected_at <= ?').bind(now-90*DAY),
    this.db.prepare('DELETE FROM news_admin_audit WHERE occurred_at <= ?').bind(now-365*DAY),
    this.db.prepare('DELETE FROM news_takedowns WHERE expires_at <= ?').bind(now),

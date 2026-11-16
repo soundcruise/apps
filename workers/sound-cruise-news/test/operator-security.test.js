@@ -81,7 +81,7 @@ test('automatic assessment is an authenticated bounded GET, has no write verb or
  assert.equal((await call(env,'/api/automatic-assessment',token,{headers:{Origin:'https://evil.fixture.test'}})).status,403);
  assert.equal((await call(env,'/api/automatic-assessment?limit=100',token)).status,422);assert.equal((await call(env,'/api/automatic-assessment',token,{method:'POST'})).status,404);
  const prepare=s.db.prepare.bind(s.db);s.db.prepare=sql=>{assert.match(sql,/^SELECT\b/);return prepare(sql);};
- const result=await call(env,'/api/automatic-assessment',token);assert.equal(result.status,200);assert.equal(result.headers.get('Cache-Control'),'no-store');const body=await result.json();assert.equal(body.readOnly,true);assert.equal(body.items.length,1);assert.equal(body.items[0].eligible,false);assert(body.items[0].reasons.length);assert.equal(body.items[0].ruleVersion,'structured-human-v3');
+ const result=await call(env,'/api/automatic-assessment',token);assert.equal(result.status,200);assert.equal(result.headers.get('Cache-Control'),'no-store');const body=await result.json();assert.equal(body.readOnly,true);assert.equal(body.items.length,1);assert.equal(body.items[0].eligible,false);assert(body.items[0].reasons.length);assert.equal(body.items[0].ruleVersion,'structured-human-v4');
  assert.equal(JSON.stringify(await s.candidates()),before);for(const table of ['news_decision_ledger','news_shadow_evaluations','news_operator_feedback'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+table).first()).n,0);
 });
 
