@@ -23,7 +23,7 @@ function finalActionFixture(existing=null){
 test('Web publish has one dialog, no implicit checks, and no write until its explicit final button',async()=>{
  const u=finalActionFixture();await settle();u.context.proposal=u.draft;u.context.calls=[];u.run("api=async(path,options)=>{calls.push({path,options});if(path==='/api/session')return {csrf:'test'};if(path==='/api/assisted-draft')return {draft:proposal};if(path==='/api/assisted-decision')return {completed:true,action:'approve'};return {};};refresh=async()=>{};");
  assert.equal(u.run('assistedCorrections.open'),false);assert.equal(u.run('assistedLegacy.open'),false);await u.run('confirmAssisted("approve")');assert.equal(u.ids.confirm.open,true);assert.equal(u.ids.checks.hidden,true);assert.equal(u.run('assistedConfirm.checked===true||assistedConditions.checked===true'),false);assert(!u.context.calls.some(c=>c.path==='/api/assisted-decision'));
- u.ids.submit.events.click();await settle();const call=u.context.calls.find(c=>c.path==='/api/assisted-decision'),body=JSON.parse(call.options.body);assert.equal(body.entry.confirmed,true);assert.equal(body.entry.conditionsConfirmed,true);assert.equal(body.confirmation,'reviewed-and-decided-v1');assert.equal(u.memory.size,0);assert(u.ids.notice.textContent.includes('判断を保存しました'));
+ u.ids.submit.events.click();await settle();const call=u.context.calls.find(c=>c.path==='/api/assisted-decision'),body=JSON.parse(call.options.body);assert.equal(body.entry.confirmed,true);assert.equal(body.entry.conditionsConfirmed,true);assert.equal(body.confirmation,'reviewed-and-decided-v1');assert.equal(u.memory.has('news-operator-unconfirmed-decision-v1'),false);assert(u.ids.notice.textContent.includes('判断を保存しました'));
 });
 test('missing draft fields stay editable without write or invented confirmations',async()=>{
  const u=finalActionFixture();await settle();u.run('assistedInputs.publishedAt.value=""');const before=u.requests.length;await u.run('confirmAssisted("approve")');assert.equal(u.requests.length,before);assert.equal(u.run('assistedCorrections.open'),true);assert(u.run('assistedStatus.textContent').includes('公開日'));assert.equal(u.run('assistedInputs.product.value'),'AC-200');assert.equal(u.run('assistedConfirm.checked===true'),false);
@@ -38,7 +38,7 @@ test('bot READY approval uses the same single final confirmation; incomplete bot
 test('partial-save failure never reports publication, and explicit retry sends the same operation',async()=>{
  const u=finalActionFixture();await settle();u.context.proposal=u.draft;u.context.calls=[];u.run("api=async(path,options)=>{if(path==='/api/session')return {csrf:'test'};if(path==='/api/assisted-draft')return {draft:proposal};if(path==='/api/assisted-decision'){calls.push(options.body);if(calls.length===1)throw Object.assign(Error('DB unavailable'),{status:503,pendingCandidateId:'a'.repeat(64)});return {completed:true,action:'approve'};}return {};};refresh=async()=>{};");
  await u.run('confirmAssisted("approve")');u.ids.submit.events.click();await settle();assert.equal(u.ids.retry.hidden,false);assert(u.run('assistedStatus.textContent').includes('今回の判断完了は未確認'));assert(!u.ids.notice.textContent.includes('判断を保存しました'));assert.equal(u.memory.size,1);
- u.ids.retry.events.click();await settle();assert.equal(u.context.calls[0],u.context.calls[1]);assert.equal(u.memory.size,0);assert(u.ids.notice.textContent.includes('判断を保存しました'));
+ u.ids.retry.events.click();await settle();assert.equal(u.context.calls[0],u.context.calls[1]);assert.equal(u.memory.has('news-operator-unconfirmed-decision-v1'),false);assert(u.ids.notice.textContent.includes('判断を保存しました'));
 });
 test('assisted success releases decision lock before rendering remaining bot candidates',async()=>{
  const u=finalActionFixture();await settle();u.context.ready=row('remaining',true);u.run('items=[ready];api=async()=>({completed:true,action:"approve"});refresh=async()=>renderList()');
@@ -303,7 +303,7 @@ test('exclusive review groups count formal READY and human-confirmable publicati
  const u=ui(rows);await settle();u.context.webData={items:[{url:'https://news.example/new',webReview:{queue:'judgment'},reviewPresentation:{group:'technical'}},{url:'https://news.example/old',webReview:{queue:'judgment'},reviewPresentation:{group:'editorial'}},{url:'https://news.example/later',webReview:{queue:'low'}}],renderCard:item=>new Element('article',item.url)};u.run('receiveWebReview(webData)');
  let counts=u.ids.dashboard.children.find(e=>e.className==='review-counts');assert.deepEqual(counts.children.map(e=>e.children[1].textContent),['2','1','1','2']);
  for(const [i,mode,n] of [[0,'approvable',2],[1,'human_facts',1],[2,'technical',1],[3,'editorial',2]]){counts.children[i].events.click();assert.equal(u.ids.mode.value,mode);assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,n);assert(u.ids.count.textContent.includes(n+'件（全6件）'));}
- u.ids.mode.value='approvable';u.run('renderList()');const nodes=walk(u.ids.list);assert(nodes.some(e=>e.textContent==='正式READY'));assert(nodes.some(e=>e.textContent==='本人確認後に掲載可能'));assert(nodes.some(e=>e.tagName==='a'&&e.textContent==='掲載する'&&e.href.includes('assistedUrl')));assert.equal(u.requests.filter(r=>r.options?.method==='POST').length,0);
+ u.ids.mode.value='approvable';u.run('renderList()');const nodes=walk(u.ids.list);assert(nodes.some(e=>e.textContent==='正式READY'));assert(nodes.some(e=>e.textContent==='本人確認後に掲載可能'));assert(nodes.some(e=>e.tagName==='button'&&e.textContent==='掲載する'&&e.disabled!==true));assert.equal(u.requests.filter(r=>r.options?.method==='POST').length,0);
  rows.shift();await u.run('refresh()');counts=u.ids.dashboard.children.find(e=>e.className==='review-counts');assert.equal(counts.children[0].children[1].textContent,'1');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,1);
 });
 test('deep-link reference does not reappear in unrelated filters, and source-preference alternatives stay editorial',async()=>{
@@ -314,4 +314,51 @@ test('deep-link reference does not reappear in unrelated filters, and source-pre
 test('audited resume waiting is distinct from a real stop and remains a visible warning',async()=>{
  const u=ui([]);await settle();u.run("dashboardView({published:0,pending:0,operationalState:'attention',sourceWarnings:[{source:'池部楽器 Events',status:'paused',displayState:'resumed_waiting'},{source:'実停止の出典',status:'paused'},{source:'取得失敗の出典',status:'error'}]})");
  const alerts=u.ids.dashboard.children.filter(n=>n.attributes.role==='alert').map(n=>n.textContent);assert(alerts.includes('池部楽器 Events：停止解除済み・次回収集待ち（再開後の取得は未確認）'));assert(!alerts.includes('池部楽器 Events：収集停止中'));assert(alerts.includes('実停止の出典：収集停止中'));assert(alerts.includes('取得失敗の出典：収集状態の確認が必要です'));assert(u.requests.every(r=>!r.options?.method));
+});
+
+function inlineQueueFixture(){
+ const url='https://www.shimamura.co.jp/update/guitar-bass/2026/11/901234/',candidate={...row('inline-human',false,['facts_incomplete']),sourceId:'shimamura',sourceUrl:url,snapshot:'a'.repeat(64),revision:3,humanFactsReview:{available:true},reviewPresentation:{group:'approvable',readiness:'human_confirmation'}};
+ const draft={registrationAllowed:true,fields:{url,sourceId:'shimamura',brand:'Fixture',product:'AC-300',productType:'guitar_amp',action:'announcement',publishedAt:'2026-11-16',label:'Fixture、ギターアンプ「AC-300」を発表'},fieldSources:{},missing:[]};
+ const memory=new Map(),storage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
+ const config={existing:candidate,draft,sources:[{id:'shimamura',name:'島村楽器',basis:'public_facts_conditions_review'}],types:{guitar_amp:['ギターアンプ','amps_effects']},actions:{announcement:'を発表'}};
+ const u=ui([candidate],{location:'https://operator.test/',config,draftReply:{draft},storage});return {...u,candidate,draft,config,memory,storage};
+}
+test('one card click opens the existing final dialog in place with fresh CAS and unchecked confirmation',async()=>{
+ const u=inlineQueueFixture();await settle();u.ids.mode.value='approvable';u.ids.mode.events.change();u.ids.source.value='shimamura';u.ids.source.events.change();
+ const controls=u.ids.list.children[0].children.find(n=>n.className==='actions decision-actions');assert.equal(controls.children[0].tagName,'button');await controls.children[0].events.click();
+ assert.equal(u.ids.confirm.open,true);assert.equal(u.run('assistedEdit.id'),'inline-human');assert.equal(u.run('assistedEdit.revision'),3);assert.equal(u.run('assistedInputs.product.value'),'AC-300');assert.equal(u.run('assistedConfirm.checked===true||assistedConditions.checked===true'),false);assert.equal(u.run('location.href'),'https://operator.test/');assert.equal(u.ids.mode.value,'approvable');assert.equal(u.ids.source.value,'shimamura');assert(!u.requests.some(r=>['/api/decision','/api/assisted-decision'].includes(r.path)));
+ u.ids.confirm.close();u.ids.confirm.events.close();assert.equal(u.ids.mode.value,'approvable');assert.equal(u.ids.source.value,'shimamura');assert.equal(JSON.parse(u.memory.get('news-operator-review-view-v1')).mode,'approvable');
+});
+test('view filters survive reload and an empty selected source, without persisting confirmations',async()=>{
+ const u=inlineQueueFixture();await settle();u.ids.mode.value='approvable';u.ids.mode.events.change();u.ids.source.value='shimamura';u.ids.source.events.change();
+ const next=ui([],{storage:u.storage});await settle();assert.equal(next.ids.mode.value,'approvable');assert.equal(next.ids.source.value,'shimamura');assert(next.ids.source.options.some(o=>o.value==='shimamura'));assert.equal(next.run('assistedConfirm.checked===true||assistedConditions.checked===true'),false);assert.deepEqual(Object.keys(JSON.parse(u.memory.get('news-operator-review-view-v1'))).sort(),['mode','position','source']);
+});
+test('confirmed assisted publication removes only that row and keeps filters even when queue refresh fails',async()=>{
+ const u=inlineQueueFixture();await settle();u.context.other={...row('other',true),sourceId:'shimamura'};u.run('items.push(other)');u.ids.mode.value='approvable';u.ids.mode.events.change();u.ids.source.value='shimamura';u.ids.source.events.change();
+ u.run('api=async path=>{if(path==="/api/session")return {csrf:"fixture"};if(path==="/api/assisted-decision")return {id:"inline-human",completed:true,action:"approve"};throw Error("queue offline");}');await u.run('sendAssistedDecision({kind:"assisted",entry:{id:"inline-human",url:items[0].sourceUrl},action:"approve"})');
+ assert.equal(u.run('items.length'),1);assert.equal(u.run('items[0].id'),'other');assert.equal(u.ids.mode.value,'approvable');assert.equal(u.ids.source.value,'shimamura');assert(u.ids.count.textContent.includes('1件'));assert(u.ids['refresh-status'].textContent.includes('更新に失敗'));assert(u.ids.notice.textContent.includes('判断を保存しました'));
+});
+test('CAS/validation rejection leaves the same card and filters for a fresh in-page confirmation',async()=>{
+ const u=inlineQueueFixture();await settle();u.ids.mode.value='approvable';u.ids.mode.events.change();u.ids.source.value='shimamura';u.ids.source.events.change();
+ u.run('api=async()=>({completed:false,errors:["既存候補が変更されています"]})');await u.run('sendAssistedDecision({kind:"assisted",entry:{id:"inline-human"},action:"approve"})');assert.equal(u.run('items.length'),1);assert(u.ids.notice.textContent.includes('今回の操作は完了していません'));assert(!u.ids.notice.textContent.includes('判断を保存しました'));assert.equal(u.ids.source.value,'shimamura');
+ u.context.fresh={...u.config,existing:{...u.candidate,snapshot:'b'.repeat(64),revision:4}};u.context.proposal=u.draft;u.run('api=async path=>path.startsWith("/api/assisted?")?fresh:{draft:proposal}');await u.run('startAssistedReview(items[0])');assert.equal(u.ids.confirm.open,true);assert.equal(u.run('assistedEdit.revision'),4);assert.equal(u.run('assistedConfirm.checked===true'),false);
+});
+test('uncertain response blocks a new card decision; retry retains the original operation and filters',async()=>{
+ const u=inlineQueueFixture();await settle();u.ids.mode.value='approvable';u.ids.mode.events.change();u.context.calls=[];
+ u.run('api=async(path,options)=>{if(path==="/api/session")return {csrf:"fixture"};calls.push({path,options});throw Object.assign(Error("network unavailable"),{status:503});}');
+ u.run('sessionStorage.setItem(outboxKey,JSON.stringify({kind:"assisted",requestId:"same-operation"}))');await u.run('sendAssistedDecision({kind:"assisted",entry:{id:"inline-human"},requestId:"same-operation"})');const n=u.context.calls.length;await u.run('startAssistedReview(items[0])');assert.equal(u.context.calls.length,n);assert.equal(u.run('items.length'),1);assert.equal(u.ids.mode.value,'approvable');assert.equal(u.ids.retry.hidden,false);assert(u.ids.notice.textContent.includes('前回の判断結果'));
+});
+test('replaying an older completed operation never hides a now-reopened candidate',async()=>{
+ const u=inlineQueueFixture();await settle();u.run('api=async()=>({completed:true,action:"approve",replayed:true,currentStatus:"reopened"});refresh=async()=>true');await u.run('sendAssistedDecision({kind:"assisted",entry:{id:"inline-human"}})');assert.equal(u.run('items.length'),1);assert(u.ids.notice.textContent.includes('現在の状態が変わっています'));
+});
+
+test('formal READY uses one final dialog and ignores a double submit while preserving the selected queue',async()=>{
+ const ready={...row('formal-first',true),sourceId:'shimamura',revision:2,snapshot:'c'.repeat(64)},next={...row('formal-next',true),sourceId:'shimamura'};
+ const memory=new Map(),storage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)},u=ui([ready,next],{storage});await settle();u.ids.mode.value='approvable';u.ids.mode.events.change();u.ids.source.value='shimamura';u.ids.source.events.change();
+ u.context.ready=ready;u.context.sent=[];let release;u.context.pending=new Promise(r=>{release=r;});u.run('api=async(path,options)=>{if(path.startsWith("/api/candidates/"))return ready;if(path==="/api/session")return {csrf:"fixture"};if(path==="/api/decision"){sent.push(JSON.parse(options.body));return pending;}return {};};refresh=async()=>true');
+ const action=u.ids.list.children[0].children.find(n=>n.className==='actions decision-actions').children.find(n=>n.textContent==='掲載する');await action.events.click();assert.equal(u.ids.confirm.open,true);u.ids.submit.events.click();u.ids.submit.events.click();await settle();assert.equal(u.context.sent.length,1);assert.equal(u.context.sent[0].snapshot,ready.snapshot);release({id:ready.id,action:'approve'});await settle();assert.equal(u.run('items.length'),1);assert.equal(u.run('items[0].id'),'formal-next');assert.equal(u.ids.mode.value,'approvable');assert.equal(u.ids.source.value,'shimamura');
+});
+
+for(const change of ['already_decided','source_stopped'])test('in-page review respects fresh '+change+' without opening confirmation or writing',async()=>{
+ const u=inlineQueueFixture();await settle();u.context.changed={...u.config,existing:{...u.candidate,status:change==='already_decided'?'approved':'pending',humanFactsReview:{available:false}}};u.context.writes=[];u.run('api=async(path,options)=>{if(options?.method==="POST")writes.push(path);return changed;};refresh=async()=>true');await u.run('startAssistedReview(items[0])');assert.notEqual(u.ids.confirm.open,true);assert.equal(u.context.writes.length,0);assert(u.ids.notice.textContent.includes('判断済み、または出典・掲載条件'));
 });

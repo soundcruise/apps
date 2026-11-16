@@ -16,3 +16,8 @@ test('dismiss/defer only call visibility action; uncertain response reuses reque
 test('unresolved publisher conditions show their specific reason and terms without a save/publish route',()=>{
  const reason='個別記事リンクの条件が未確認です',nodes=all(renderWebReviewCard(doc,{...base,articleDraft:{...base.articleDraft,sourceReview:{reason,termsUrl:'https://publisher.example/terms'}}}));nodes.find(n=>n.textContent==='記事を確認して判断').events.click();assert(nodes.some(n=>n.textContent===reason));assert.equal(nodes.find(n=>n.textContent==='出典の利用条件').href,'https://publisher.example/terms');assert(!nodes.some(n=>n.textContent==='掲載する'));
 });
+
+test('publishable Web card starts the same in-page flow instead of navigating or confirming facts',()=>{
+ const events=[],document={...doc,dispatchEvent:e=>events.push(e)},nodes=all(renderWebReviewCard(document,{...base,humanEntry:{url:base.url},reviewPresentation:{group:'approvable'}}));let prevented=false;
+ nodes.find(n=>n.textContent==='掲載する').events.click({preventDefault:()=>{prevented=true;}});assert.equal(prevented,true);assert.equal(events.length,1);assert.equal(events[0].type,'news-assisted-review');assert.deepEqual(events[0].detail,{url:base.url});assert(!nodes.some(n=>n.checked));
+});

@@ -1,3 +1,5 @@
+import {saveAssisted} from '../src/assisted-entry.js';
+import {candidateSnapshot} from '../src/operator-review.js';
 import {humanReadyCases} from './fixtures/human-ready-november.js';
 import {SOURCES} from '../src/registry.js';import {hash} from '../src/policy.js';import {fingerprint} from '../src/fingerprint.js';
 // Isolated UI acceptance only: binds localhost, in-memory DB, fixture identity.
@@ -9,6 +11,11 @@ const snapshot=process.env.NEWS_ACCEPTANCE_REVIEW_SNAPSHOT?JSON.parse(await read
 const now=Date.parse(snapshot?.at||(process.env.NEWS_ACCEPTANCE_CANDIDATES==='true'?'2026-11-16T10:00:00+09:00':'2026-10-28T19:00:00+09:00')),s=await store(),origin='https://isolated-operator.test',issuer='https://isolated.cloudflareaccess.com',aud='a'.repeat(64);
 await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();await s.db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('yamaha',1)").run();
 if(process.env.NEWS_ACCEPTANCE_CANDIDATES==='true')for(const f of humanReadyCases){const id=await hash(f.url);await s.recordHealth({sourceId:f.source,status:'healthy',reasonCode:'ok',checkedAt:now,successfulAt:now});await s.put({id,sourceId:f.source,sourceName:SOURCES.find(x=>x.id===f.source).name,sourceUrl:f.url,normalizedUrl:f.url,publishedAt:f.date,category:'media_other',label:'審査待ち（対象確認が必要）',topicKey:id,collectedAt:new Date(now).toISOString(),titleFingerprint:JSON.stringify(await fingerprint('合成した発見見出し',pepper)),productFacts:null,eventType:'other',publicationDecision:'PUBLISH_REVIEW',decisionReason:'collection_human_review',reviewReason:'structured_review_required'});}
+if(process.env.NEWS_ACCEPTANCE_CONTINUOUS==='true'){
+ const f=humanReadyCases[0],row=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(await hash(f.url)).first();
+ const r=await saveAssisted(s,{...f.fields,url:f.url,sourceId:f.source,publishedAt:'2026-11-13',id:row.id,snapshot:await candidateSnapshot(row),revision:row.review_revision,confirmed:true,conditionsConfirmed:true,requestId:crypto.randomUUID()},now,SOURCES,pepper,{type:'human_operator',id:'isolated-fixture'});
+ if(!r.saved)throw Error('formal_READY_fixture_failed');
+}
 if(snapshot){
  // Load historical rows without replaying transitions; restore every trigger before serving.
  const triggers=s.db.raw.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'").all();
