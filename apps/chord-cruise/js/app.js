@@ -9,7 +9,7 @@
 (function () {
     'use strict';
 
-    var CHORD_CRUISE_APP_VERSION = '1.23.5';
+    var CHORD_CRUISE_APP_VERSION = '1.24.0';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
 
     var SCREENS = ['home', 'explore', 'library'];

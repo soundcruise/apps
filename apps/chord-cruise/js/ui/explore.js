@@ -336,6 +336,7 @@
                 return;
             }
             getState().exploreShape = shape;
+            getState().exploreFormVariant = null;
             getState().exploreAnimateFretboardScroll = !!shape;
             resetCagedNotice();
             updateCagedButtons();
@@ -423,6 +424,15 @@
         toggle.setAttribute('aria-expanded', cagedNoticeExpanded[kind] ? 'true' : 'false');
         chevron.textContent = cagedNoticeExpanded[kind] ? '⌃' : '⌄';
         detail.textContent = cagedNoticeState[kind].text;
+        var form = kind === 'fingering' ? currentForm() : null;
+        if (form && form.fm7Alternative) {
+            var alternative = document.createElement('button');alternative.type='button';alternative.className='cc-btn cc-btn-secondary';alternative.dataset.fm7Variant=form.formVariant === 'formal' ? 'common' : 'formal';
+            alternative.style.display='block';alternative.style.marginTop='8px';
+            alternative.textContent=form.formVariant === 'formal' ? '頻出の開放フォームに戻す' : '正式なE型に切り替える';
+            alternative.addEventListener('click',function(){getState().exploreFormVariant=alternative.dataset.fm7Variant;getState().exploreAnimateFretboardScroll=true;renderFretboard();});detail.appendChild(alternative);
+        }
+
+        if(form && form.fm7Alternative && label)label.textContent='FM7のフォーム';
         detail.hidden = !cagedNoticeExpanded[kind];
     }
 
@@ -666,6 +676,7 @@
      */
     function selectRecommendedFretboardPresentation() {
         var state = getState();
+        state.exploreFormVariant = null;
         var chord = selectedChord();
         var range = fretWindow();
         var featureAccess = window.ChordCruise.featureAccess;
@@ -897,7 +908,7 @@
             return null;
         }
         var range = fretWindow();
-        var form = window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start);
+        var form = window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start, {variant:getState().exploreFormVariant});
         return form.available ? form : null;
     }
 
@@ -1189,7 +1200,7 @@
             hint = 'このコードのCAGEDフォームはPro版で利用できます。';
             cagedProRequired = true;
         } else if (shape) {
-            var result = caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start);
+            var result = caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start, {variant:getState().exploreFormVariant});
             if (result.available) {
                 form = result;
                 var displayRange = form.displayRange || form.fretRange;
@@ -1205,6 +1216,7 @@
                 scrollToFret = displayRange.includesOpen
                     ? displayRange.viewportStart
                     : Math.round((form.fretRange.min + form.fretRange.max) / 2);
+                if(form.fm7Alternative){noticeType='standard';noticeText=form.formNotice || 'FM7の正式なE型を表示しています。頻出の開放フォームにも切り替えられます。';}
                 hint = shape + '型 ' + chord.symbol + '（' + caged.formatFretRange(displayRange) + '）';
                 if (form.fingeringStatus === 'undefined') {
                     noticeType = 'undefined';
