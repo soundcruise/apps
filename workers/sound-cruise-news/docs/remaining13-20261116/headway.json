@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "url": "https://www.deviser.co.jp/information/634291",
+  "source": {
+    "label": "2026-11-16 メーカー一次記事の通常閲覧による確認用情報（本人未確認）",
+    "url": "https://www.deviser.co.jp/information/634291"
+  },
+  "fields": {
+    "brand": "Headway",
+    "product": "One Day Guitar Show 2026出展予定アコースティックギター",
+    "productType": "acoustic_guitar",
+    "action": "preview",
+    "qualifier": "Y’s Concept・F’s Concept・冬桜2026などの限定モデル",
+    "publishedAt": "2026-11-04"
+  },
+  "notes": [
+    {
+      "label": "発表段階",
+      "value": "複数の限定モデル製作の先行紹介。11月22日詳細公開予定。全機種発売済み・単一モデルの新発売とは扱いません。"
+    },
+    {
+      "label": "既存掲載との区別",
+      "value": "既存NEWSの四季桜2026は9月公開の別記事です。今回はConcept・冬桜等を含む展示会向け先行紹介。同一の桜モデルを新製品として再紹介しないでください。"
+    },
+    {
+      "label": "出典の切替",
+      "value": "未対応の二次ヒントURLは変更・削除しません。既存対応済みDeviserの一次記事から本人確認・掲載判断します。"
+    }
+  ]
+}

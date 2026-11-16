@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {store,pepper} from './helpers.js';
+import {SOURCES} from '../src/registry.js';
+import {assistedDraftForUrl} from '../src/candidate-draft.js';
+import {assistedDraftWithInformation} from '../src/draft-assistance.js';
+import {saveAssisted,prepareAssisted} from '../src/assisted-entry.js';
+import {candidateSnapshot,operatorDecision,reviewDetail} from '../src/operator-review.js';
+import {decideAssisted} from '../src/assisted-decision.js';
+import {handleNewsRequest} from '../src/worker.js';
+import {assessAutomatic} from '../src/automatic.js';
+import {hash} from '../src/policy.js';
+import {fingerprint} from '../src/fingerprint.js';
+import {saveHint} from '../src/web-discovery.js';
+const infos=await Promise.all(['chiikawa','headway'].map(async k=>JSON.parse(await readFile(new URL('../docs/remaining13-20261116/'+k+'.json',import.meta.url),'utf8'))));
+const now=Date.parse('2026-11-16T14:00:00Z'),actor={type:'human_operator',id:'isolated-primary-handoff'};
+const count=async(s,t)=>(await s.db.prepare('SELECT COUNT(*) n FROM '+t).first()).n;
+async function seed(s){const url=infos[0].url,id=await hash(url);await s.put({id,sourceId:'shimamura',sourceName:'島村楽器',sourceUrl:url,normalizedUrl:url,publishedAt:'2026-11-12T15:00:00.000Z',category:'amps_effects',label:'審査待ち（製品名と出来事の確認が必要）',topicKey:id,collectedAt:'2026-11-15T21:00:00Z',titleFingerprint:JSON.stringify(await fingerprint('隔離試験用の発見',pepper)),productFacts:null,eventType:'other',publicationDecision:'PUBLISH_REVIEW',decisionReason:'collection_human_review',reviewReason:'structured_review_required'});return s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(id).first();}
+async function draft(s,info){return assistedDraftWithInformation(await assistedDraftForUrl(s,info.url,now),info);}
+function entry(d,row){return {...d.fields,...(row?{id:row.id,revision:row.review_revision,snapshot:undefined}:{}),fieldSources:d.fieldSources,confirmed:true,conditionsConfirmed:true};}
+const api=async s=>(await (await handleNewsRequest(new Request('https://isolated.test/v1/news'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:SOURCES,cache:null})).json()).items;
+test('reviewed source without saved hint has an empty unconfirmed shell; every other scope remains closed',async()=>{
+ const s=await store(),d=await assistedDraftForUrl(s,infos[1].url,now);assert(d.registrationAllowed);assert.deepEqual(Object.keys(d.fields).sort(),['sourceId','url']);assert.equal(d.formalFacts,false);assert.equal(d.humanConfirmed,false);assert.equal(d.missing.length,5);
+ for(const url of ['https://audient.com/news/2026/11/12/id-desktop-launch/','https://recordingking.co/news/rk-standard-series/','https://piakakeprivatelesson.com/article/2c717ad2-99be-4b94-a79c-e5800a791206','https://www.deviser.co.jp/shop/634291','https://www.deviser.co.jp/information/634291?x=1','https://www.deviser.co.jp.evil.test/information/634291'])assert.equal(await assistedDraftForUrl(s,url,now),null);
+ assert.equal(await count(s,'candidate_items'),0);assert.equal(await count(s,'news_web_hints'),0);
+});
+test('provided primary information is not a search estimate, receipt, confirmation or database write',async()=>{
+ const s=await store(),row=await seed(s);for(const info of infos){const d=await draft(s,info);assert.equal(d.missing.length,0);assert(d.fields.label.includes(info.fields.product));assert.equal(d.formalFacts,false);assert.equal(d.humanConfirmed,false);assert(Object.values(d.fieldSources).every(f=>f.confirmed===false));assert.equal(d.fieldSources.publishedAt.reference,info.source.url);assert.equal(d.fields.confirmed,undefined);assert.deepEqual(d.notes,info.notes);const e=entry(d,info===infos[0]?row:null);if(e.id)e.snapshot=await candidateSnapshot(row);assert.equal((await prepareAssisted(s,{...e,confirmed:false,conditionsConfirmed:false},now,SOURCES,pepper)).valid,false);}
+ assert.equal(await count(s,'news_assisted_edits'),0);assert.equal(await count(s,'news_decision_ledger'),0);assert.deepEqual(await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first(),row);
+});
+test('saved AI estimate still takes precedence over the empty shell and is never overwritten',async()=>{
+ const s=await store();await saveHint(s.db,{url:infos[1].url,title:'隔離検索ヒント',provider:'exa',searchedAt:now},now);const estimate={category:'acoustic_guitar',brand:'Headway',product:'Saved Estimate',event:'preview',value:'medium',priority:'low',relevance:'high',duplicate:'unknown',reason:'未確認'};await s.db.prepare('UPDATE news_web_hints SET estimate_json=?').bind(JSON.stringify(estimate)).run();const before=await s.db.prepare('SELECT * FROM news_web_hints').first();assert.equal((await assistedDraftForUrl(s,infos[1].url,now)).fields.product,'Saved Estimate');await draft(s,infos[1]);assert.deepEqual(await s.db.prepare('SELECT * FROM news_web_hints').first(),before);
+});
+test('local workerd/D1: both prepared real identities reach human READY, one Ledger each and public API; no publisher HTTP',async()=>{
+ const {mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{localDatabase}=await import('../scripts/local-db.mjs');const path=await mkdtemp(join(tmpdir(),'primary-handoff-'));let rt;const original=globalThis.fetch;globalThis.fetch=async()=>{throw Error('publisher HTTP forbidden');};
+ try{rt=await localDatabase(path);const s=await store(rt.db);await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();const old=await seed(s);
+ for(const info of infos){const d=await draft(s,info),row=info===infos[0]?old:null,e=entry(d,row);if(row)e.snapshot=await candidateSnapshot(row);const input={...e,requestId:crypto.randomUUID()};const saved=await saveAssisted(s,input,now,SOURCES,pepper,actor);assert(saved.saved,JSON.stringify(saved));assert(saved.validation.valid,JSON.stringify(saved.validation));assert.equal(saved.publisherHttpRequests,0);const r=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(saved.id).first();assert.equal(r.review_status,'pending');assert.equal((await reviewDetail(s,r.id,now,SOURCES,pepper)).preparationState,'READY');if(row){assert.equal(r.id,old.id);assert.equal(r.collected_at,old.collected_at);}
+ assert.equal((await assessAutomatic(s,r,SOURCES,now,pepper)).eligible,false);const before=await count(s,'news_decision_ledger');assert.equal((await api(s)).length,before);await operatorDecision(s,{id:r.id,revision:r.review_revision,snapshot:await candidateSnapshot(r),label:r.label,category:r.category,publishedAt:r.published_at,action:'approve',reason:'useful_product',requestId:crypto.randomUUID(),checks:{factsChecked:true,relevanceChecked:true,duplicateChecked:true,independentLabelChecked:true}},now,SOURCES,pepper,actor);assert.equal(await count(s,'news_decision_ledger'),before+1);assert.equal((await api(s)).length,before+1);assert((await saveAssisted(s,input,now,SOURCES,pepper,actor)).replayed);assert.equal((await prepareAssisted(s,{...e,requestId:crypto.randomUUID()},now,SOURCES,pepper)).valid,false);}
+ assert.equal(await count(s,'candidate_items'),2);assert.equal(await count(s,'news_web_hints'),0);assert.equal(await count(s,'news_decision_ledger'),2);const rows=(await s.db.prepare('SELECT * FROM candidate_items').all()).results;assert(rows.every(r=>JSON.parse(r.facts_provenance).method==='human_public_facts_confirmation'));
+ }finally{globalThis.fetch=original;await rt?.mf.dispose();await rm(path,{recursive:true,force:true});}
+});
+for(const stop of ['publication_blocked','takedown'])test('empty input shell never bypasses existing source '+stop,async()=>{const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();await s.db.prepare('INSERT INTO source_state(source_id,'+stop+") VALUES('deviser',1)").run();const d=await draft(s,infos[1]);await assert.rejects(saveAssisted(s,{...entry(d),requestId:crypto.randomUUID()},now,SOURCES,pepper,actor),/assisted_source_stopped/);assert.equal(await count(s,'candidate_items'),0);});
+test('two-click primary entry reuses existing composition and replay key, with no second article',async()=>{const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();const d=await draft(s,infos[1]),op={entry:entry(d),action:'approve',reason:'useful_product',requestId:crypto.randomUUID(),confirmation:'reviewed-and-decided-v1'};assert((await decideAssisted(s,op,now,SOURCES,pepper,actor)).completed);assert((await decideAssisted(s,op,now,SOURCES,pepper,actor)).replayed);assert.equal(await count(s,'candidate_items'),1);assert.equal(await count(s,'news_decision_ledger'),1);});
