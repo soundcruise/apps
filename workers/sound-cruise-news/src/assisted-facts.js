@@ -28,9 +28,10 @@ export const assistedTypes={...productTypes,guitar_accessory:['ギター関連�
 export const assistedActions={preview:'を先行紹介',variant_introduction:'の特別仕様を紹介',announcement:'を発表',release:'を発売',introduction:'を紹介',event_announcement:'の開催を案内',interview:'を公開'};
 export function assistedUrl(raw){return assistedSource(raw)?raw:null;}
 const safe=s=>typeof s==='string'&&s===s.trim()&&s.length>=2&&s.length<=100&&!/[<>\x00-\x1f]|https?:/.test(s);
-export function assistedLabel(f){if(f?.kind!=='assisted_notice'||!safe(f.brand)||!safe(f.product)||!assistedTypes[f.productType]||!assistedActions[f.action]||f.category!==assistedTypes[f.productType][1])return null;
+// Draft formatting is not type evidence. Formal callers retain the strict default.
+export function assistedLabel(f,{draft=false}={}){if(f?.kind!=='assisted_notice'||!safe(f.brand)||!safe(f.product)||!assistedTypes[f.productType]||!assistedActions[f.action]||f.category!==assistedTypes[f.productType][1])return null;
  if(f.typeEvidence&&!validTypeEvidence(f.typeEvidence,f.productType))return null;
- if(!f.typeEvidence&&!['acoustic_guitar','electro_acoustic','pickup','guitar_amp','guitar_accessory','interview','event','electric_guitar_bass','guitar_article'].includes(f.productType))return null;
+ if(!draft&&!f.typeEvidence&&!['acoustic_guitar','electro_acoustic','pickup','guitar_amp','guitar_accessory','interview','event','electric_guitar_bass','guitar_article'].includes(f.productType))return null;
  if(f.productType==='event'&&(f.action!=='event_announcement'||!/^20\d{2}-\d\d-\d\d$/.test(f.eventDate||'')||!safe(f.venue)))return null;
  if(f.productType==='interview'&&f.action!=='interview'||!['event','interview'].includes(f.productType)&&!['announcement','release','introduction','preview','variant_introduction'].includes(f.action))return null;
  if(f.productType==='guitar_article'&&f.action!=='introduction')return null;

@@ -30,7 +30,7 @@ export function assistedDraftWithInformation(draft,input){
  const info=validateDraftAssistance(input,draft.fields.url),fields={...draft.fields,...info.fields};
  // A changed subject/event must never retain an older generated headline.
  if(!Object.hasOwn(info.fields,'label'))delete fields.label;
- const generated=assistedLabel({kind:'assisted_notice',...fields,category:assistedTypes[fields.productType]?.[1]});
+ const generated=assistedLabel({kind:'assisted_notice',...fields,category:assistedTypes[fields.productType]?.[1]},{draft:true});
  if(!fields.label&&generated)fields.label=generated;
  const fieldSources={...draft.fieldSources};
  for(const k of Object.keys(info.fields))fieldSources[k]={kind:'provided_information',label:info.source.label,reference:info.source.url,confirmed:false};
