@@ -26,7 +26,7 @@ export function mountMockSync({button,view,contract,library,indexedDB=window.ind
     let content,notice,renderSequence=0;
     function message(text,error=false){status=text;statusError=error;if(notice){notice.textContent=text;notice.dataset.error=String(error);}}
     async function work(run){if(working)return;working=true;try{await render();await run();}catch(error){message(errors[error.message]||(error.name==='QuotaExceededError'?'端末の保存容量が不足しています。受信完了にはしていません。':'模擬Syncを完了できませんでした。現在の譜面は保持しています。接続を確認し、再試行してください。'),true);}finally{working=false;try{await render();}catch{message('受信記録を読み出せませんでした。このカードを閉じ、保存先を確認してから開き直してください。',true);}}}
-    async function localRows(){const files=await library.list(),presets=await library.listPresets();locals=[...files.map(row=>({key:'file:'+row.documentId,kind:row.kind==='pdf'?'viewer_pdf':'viewer_score',row,title:row.title})),...presets.map(row=>({key:'preset:'+row.name,kind:'viewer_preset',row,title:row.name}))];}
+    async function localRows(){const files=await library.list(),presets=await library.listPresets();locals=[...files.map(row=>({key:'file:'+(row.entryId||row.documentId),kind:row.kind==='pdf'?'viewer_pdf':'viewer_score',row,title:row.title})),...presets.map(row=>({key:'preset:'+row.name,kind:'viewer_preset',row,title:row.name}))];}
     async function render(){
         if(!dialog?.open)return;const d=dialog,sequence=++renderSequence,panel=doc.createDocumentFragment();
         for(const e of content.querySelectorAll('button,input,select'))e.disabled=true;
@@ -42,7 +42,7 @@ export function mountMockSync({button,view,contract,library,indexedDB=window.ind
         destination.value=target;if(destination.value!==target)target='';destination.disabled=working||!source;destination.onchange=()=>{target=destination.value;};
         const send=action('送る','publish',localBox,async()=>{
             const source=locals.find(l=>l.key===selected);if(!source)return;const current=rows.find(r=>r.descriptor.recordId===target);
-            let bytes;if(source.kind==='viewer_preset')bytes=source.row.text;else bytes=(await library.read(source.row.documentId,source.row.revisionId)).bytes;
+            let bytes;if(source.kind==='viewer_preset')bytes=source.row.text;else bytes=(await library.read(source.row.entryId||source.row.documentId,source.row.revisionId)).bytes;
             const result=await sync.publish({bytes,title:source.title,kind:source.kind,recordId:current?.descriptor.recordId,baseVersion:current?.version||0});
             rows=await sync.refresh();target=result.descriptor.recordId;message('模擬ストアに送りました。別のブラウザでは「一覧を更新」→「受信」で取得できます。');
         });send.disabled=working||!source;

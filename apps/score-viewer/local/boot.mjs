@@ -15,7 +15,7 @@ const mock=mountMockSync({button:document.getElementById('viewer-mock-sync'),vie
 offline=mountOfflineControls({button:document.getElementById('viewer-offline-prepare'),status:document.getElementById('viewer-offline-status')});
 mountCompactToolbars(document.getElementById('score-viewer-host'));
 const destination=new URLSearchParams(location.search).get('from')==='studio'?'studio':'port',back=document.getElementById('viewer-return');back.href=destination==='studio'?'/':'./port.html';back.textContent=destination==='studio'?'← Studio':'← Port';
-back.onclick=()=>{view.deactivate();void wake.dispose();};
+back.onclick=e=>{if(view.requestLeave(()=>back.click())){e.preventDefault();return;}view.deactivate();void wake.dispose();};
 lock.onchange=()=>{wake.setEnabled(lock.checked);void view.saveDeviceSettings({wakeEnabled:lock.checked}).catch(()=>{lockStatus.textContent+=' 設定は今回のみ有効です。';});};retry.onclick=()=>wake.retry();
 document.addEventListener('visibilitychange',()=>wake.visibilityChanged());window.addEventListener('pagehide',()=>{view.deactivate();void wake.dispose();});
 window.addEventListener('pageshow',e=>{if(e.persisted){location.reload();}});

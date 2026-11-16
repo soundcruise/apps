@@ -13,9 +13,10 @@ for(const engine of ['chrome','webkit'])test('viewer stage 2: '+engine,async t=>
     async function fresh(fn,{large=false}={}){
         const c=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),p=await c.newPage(),errors=[],external=[];p.setDefaultTimeout(15000);p.on('pageerror',e=>errors.push(e.message));
         await c.route('**/*',r=>{if(new URL(r.request().url()).origin!==origin){external.push(r.request().url());return r.abort();}return r.continue();});
-        try{await p.goto(origin);await p.click('#open-score-viewer');await p.locator('[data-viewer-action=open]').waitFor();await p.locator('[data-viewer-file]').setInputFiles({name:'stage2.cruise-score.json',mimeType:'application/json',buffer:Buffer.from((large?long:file).text)});await p.locator('.sv-paper .sheet-title').waitFor();await fn(p,c);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);}finally{await c.close();}
+        await require('./helpers/viewer-regression-choices.cjs').discardTemporaryViewerFiles(c);
+        try{await p.goto(origin);await p.click('#open-score-viewer');await p.locator('[data-viewer-action=open]').waitFor({state:'attached'});await p.locator('[data-viewer-file]').setInputFiles({name:'stage2.cruise-score.json',mimeType:'application/json',buffer:Buffer.from((large?long:file).text)});await p.locator('.sv-paper .sheet-title').waitFor();await fn(p,c);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);}finally{await c.close();}
     }
-    async function settings(p){await p.click('[data-viewer-action=playback-settings]');await p.getByRole('dialog',{name:'再生設定',exact:true}).waitFor();}
+    async function settings(p){await p.click('[data-viewer-action=playback-settings]');await p.getByRole('dialog',{name:'音設定',exact:true}).waitFor();}
     async function done(p){await p.getByRole('button',{name:'完了',exact:true}).click();await p.getByRole('dialog').waitFor({state:'detached'});}
     async function mute(p){await settings(p);for(const key of ['chords','melody','metronome'])await range(p,'[data-viewer-volume='+key+']',0);await done(p);}
     async function tempo(p,value){await p.locator('[data-viewer-tempo]').fill(String(value));await p.locator('[data-viewer-tempo]').press('Tab');}
@@ -106,7 +107,7 @@ for(const engine of ['chrome','webkit'])test('viewer stage 2: '+engine,async t=>
             await p.click('[data-viewer-action=play]');await waitState(p,s=>s.phase==='counting');const count=await state(p);assert.equal(count.tick,0);assert.equal(count.stats.parts.count,4,JSON.stringify(count));
             await waitState(p,s=>s.phase==='playing');await p.waitForTimeout(180);assert((await state(p)).stats.parts.click>0);await paused(p);
             const base=(await state(p)).tick;await p.locator('[data-viewer-tempo]').focus();await p.keyboard.press('Space');assert.equal((await state(p)).phase,'paused');assert.equal((await state(p)).tick,base);
-            await p.click('[data-viewer-action=start]');await p.locator('.sv-paper .sheet-bar[data-bar-number="2"]').click({position:{x:10,y:10}});assert(await p.locator('[data-viewer-action=here]').isVisible());await p.click('[data-viewer-action=here]');await waitState(p,s=>s.phase==='playing');assert((await state(p)).tick>=1920);
+            await p.locator('.sheet-bar[data-bar-number="1"]').click({position:{x:5,y:5}});await p.locator('.sv-paper .sheet-bar[data-bar-number="2"]').click({position:{x:10,y:10}});assert((await p.locator('[data-viewer-selection]').innerText()).includes('2小節'));await p.click('[data-viewer-action=play]');await waitState(p,s=>s.phase==='playing');assert((await state(p)).tick>=1920);
             await p.locator('#screen-score-viewer .workspace-home').click();await p.waitForFunction(()=>CruiseStudio.shellHost.getActiveWorkspace()==='home');assert.equal((await state(p)).nodes,0);assert.equal((await state(p)).contextState,'closed');
         }));
         await t.test('global stop revokes a delayed sample load so it can never start afterwards',()=>fresh(async(p,c)=>{

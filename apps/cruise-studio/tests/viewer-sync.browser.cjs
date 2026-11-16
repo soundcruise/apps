@@ -18,6 +18,7 @@ for(const engine of ['chrome','webkit'])test('local mock Sync two isolated profi
  const browser=await(engine==='webkit'?webkit.launch():chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}));
  const contexts=await Promise.all([browser.newContext({viewport:{width:1100,height:850}}),browser.newContext({viewport:{width:390,height:844},hasTouch:true})]),[a,b]=await Promise.all(contexts.map(c=>c.newPage())),errors=[],external=[];
  for(const p of [a,b]){p.setDefaultTimeout(30000);p.on('pageerror',e=>errors.push(e.message));p.on('request',r=>{const u=new URL(r.url());if(u.origin!==origin&&!['data:','blob:'].includes(u.protocol)||/\/cloud\/|sync-account|\/v2\/|pro-auth/.test(u.pathname))external.push(r.url());});await p.goto(base);await p.waitForFunction(()=>!!window.CruiseViewer);await p.evaluate(()=>localStorage.setItem('cruiseStudio.editor.sync-proof','unchanged'));}
+ for(const c of contexts)await require('./helpers/viewer-regression-choices.cjs').discardTemporaryViewerFiles(c);
  let remote;
  try{
   await t.test('UI transfers original score bytes only after receive and explicit apply, keeping device settings',async()=>{

@@ -54,8 +54,8 @@ export function createViewerSettings({host,read,change,playback,configure,begin,
         d.showModal();void refresh();cancel.focus();
     }
     function audio(trigger){
-        if(!read())return;const ui=shell('再生設定',trigger);if(!ui)return;const {d,node,button,header,active}=ui;
-        const help=button('?',header);help.setAttribute('aria-label','再生設定の説明');help.setAttribute('aria-expanded','false');const done=button('完了',header);done.onclick=()=>d.close();
+        if(!read())return;const ui=shell('音設定',trigger);if(!ui)return;const {d,node,button,header,active}=ui;
+        const help=button('?',header);help.setAttribute('aria-label','音設定の説明');help.setAttribute('aria-expanded','false');const done=button('完了',header);done.onclick=()=>d.close();
         const explanation=node('p','コード・メロディ・拍音は別々に音量を変えられます。0%で消音です。表示を隠しても音は消えません。カウントインは明示的な開始前の1小節で、一時停止からの再開では繰り返しません。設定はこのブラウザだけに保存します。');explanation.hidden=true;help.onclick=()=>{explanation.hidden=!explanation.hidden;help.setAttribute('aria-expanded',String(!explanation.hidden));};
         for(const [key,label]of [['chords','コード'],['melody','メロディ'],['metronome','メトロノーム・カウントイン']]){const row=node('label',label),range=node('input',undefined,row),out=node('output',playback().settings.mix[key]+'%',row);range.type='range';range.min=0;range.max=100;range.value=playback().settings.mix[key];range.dataset.viewerVolume=key;range.setAttribute('aria-label',label+'の音量');range.oninput=()=>{if(active()){out.textContent=range.value+'%';configure({mix:{...playback().settings.mix,[key]:Number(range.value)}});}};}
         for(const [key,label]of [['countIn','カウントイン'],['metronome','メトロノーム']]){const row=node('label',label),check=node('input',undefined,row);check.type='checkbox';check.checked=playback().settings[key];check.dataset.viewerPlayback=key;check.onchange=()=>{if(active())configure({[key]:check.checked});};}

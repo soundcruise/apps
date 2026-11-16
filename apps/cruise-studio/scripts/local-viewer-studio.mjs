@@ -1,3 +1,4 @@
+import {chooseExportName,exportComplete} from '../../score-viewer/ui/export-dialogs.mjs';
 import {createStudioViewerContract} from '../js/modules/sheet-cruise/viewer-contract.mjs';
 import {createViewerLibrary} from '../../score-viewer/core/library.mjs';
 import {mountViewer} from '../../score-viewer/ui/viewer.mjs';
@@ -16,7 +17,7 @@ export function mountStudioViewer(C,host=document.getElementById('score-viewer-h
         // A separate in-memory presentation owner shares CSS/geometry only. It
         // never reads or writes the editor's AppSettings or row configuration.
         let local=layouts.get(host);
-        if(!local){const surface=document.createElement('div');surface.className='sv-sheet';host.append(surface);local={surface,layout:createPaperLayout({storage:{getAppSetting:()=>null,setAppSetting:()=>({ok:true})},localPaperForms:C.localPaperForms},document)};layouts.set(host,local);}
+        if(!local){const surface=host.ownerDocument.createElement('div');surface.className='sv-sheet';host.append(surface);local={surface,layout:createPaperLayout({storage:{getAppSetting:()=>null,setAppSetting:()=>({ok:true})},localPaperForms:C.localPaperForms},host.ownerDocument)};layouts.set(host,local);}
         const {surface,layout}=local;
         surface.style.width=paperWidth+'px';surface.style.transform='scale('+p.zoom+')';
         layout.set(p.layout,false);
@@ -39,3 +40,17 @@ export function mountStudioViewer(C,host=document.getElementById('score-viewer-h
     }
     return mountViewer({host,contract,library,renderPaper,createPlayback,...options});
 }
+
+export async function saveToViewerLibrary(C,bytes,{isCurrent=()=>true}={}){
+    const contract=createStudioViewerContract({schema:C.model.schema2}),library=createViewerLibrary({indexedDB:window.indexedDB,codec:contract.codec});
+    try{const decoded=await contract.codec.decode(bytes),name=decoded.document.score.songInfo.title||'無題';
+        for(let attempt=0;attempt<3;attempt++){
+            const [entries,folders]=await Promise.all([library.list(),library.listFolders()]);if(!isCurrent())throw Error('viewer-export-stale');
+            const options=await chooseExportName(document,{name,entries,folders});if(!options)return null;
+            try{return await library.save(bytes,{select:false,canSave:isCurrent,...options,requireUniqueName:options.newEntry===true});}
+            catch(error){if(!['viewer-name-conflict','viewer-entry-conflict'].includes(error.message))throw error;}
+        }throw Error('viewer-entry-conflict');
+    }finally{await library.close();}
+}
+export async function showViewerExportComplete(C,row){if(await exportComplete(document,row.title))return C.scoreViewer.openEntry(row.entryId);return false;}
+export async function readViewerEntry(C,entryId){const contract=createStudioViewerContract({schema:C.model.schema2}),library=createViewerLibrary({indexedDB:window.indexedDB,codec:contract.codec});try{return await library.read(entryId);}finally{await library.close();}}

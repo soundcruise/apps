@@ -51,7 +51,7 @@ test('device wake preference survives reopen without touching the file, position
 });
 test('corrupt library metadata rejects cleanly while the original revision stays readable',options,async()=>{
     const f=setup(),file=await f.contract.codec.encode(f.score,f.metadata);await f.library.save(file.text);
-    await new Promise((resolve,reject)=>{const open=f.indexedDB.open('cruiseStudio.viewer.library.v1');open.onsuccess=()=>{const d=open.result,tx=d.transaction('documents','readwrite'),store=tx.objectStore('documents'),r=store.get(f.metadata.documentId);r.onsuccess=()=>{r.result.savedAt={broken:true};store.put(r.result);};tx.oncomplete=()=>{d.close();resolve();};tx.onabort=()=>reject(tx.error);};});
+    await new Promise((resolve,reject)=>{const open=f.indexedDB.open('cruiseStudio.viewer.library.v1');open.onsuccess=()=>{const d=open.result,tx=d.transaction('entries','readwrite'),store=tx.objectStore('entries'),r=store.get(f.metadata.documentId);r.onsuccess=()=>{r.result.savedAt={broken:true};store.put(r.result);};tx.oncomplete=()=>{d.close();resolve();};tx.onabort=()=>reject(tx.error);};});
     await assert.rejects(f.library.list(),/viewer-stored-file-corrupt/);assert.equal((await f.library.read(f.metadata.documentId,'revision-1')).decoded.byteHash,file.byteHash);await f.library.close();
 });
 test('aborted quota transaction retains the preceding file and never publishes the new index',options,async()=>{
@@ -85,4 +85,43 @@ test('version 1 library upgrades without changing saved bytes, revisions, prefer
     assert.deepEqual(await next.listPresets(),[{name:'演奏用',text:'test preset'}]);
     await assert.rejects(next.savePreset('演奏用','replacement'),e=>e.name==='ConstraintError');
     assert.deepEqual(await next.listPresets(),[{name:'演奏用',text:'test preset'}]);assert.equal((await next.read(documentId)).decoded.byteHash,file.byteHash);await next.close();
+});
+
+test('direct export veto immediately before commit keeps the old revision and library selection',options,async()=>{
+ const f=setup(),old=await f.contract.codec.encode(f.score,f.metadata);await f.library.save(old.text);
+ const next=await f.contract.codec.encode(f.score,{...f.metadata,revisionId:'cancelled-export'});await assert.rejects(f.library.save(next.text,{select:false,canSave:()=>false}),/viewer-export-stale/);
+ assert.equal((await f.library.read(f.metadata.documentId)).decoded.byteHash,old.byteHash);assert.equal((await f.library.getLast()).revisionId,f.metadata.revisionId);await f.library.close();
+});
+test('folders, metadata edits and duplicates never rewrite music; copies pin their own old revision',options,async()=>{
+ const f=setup(),first=await f.contract.codec.encode(f.score,f.metadata),row=await f.library.save(first.text),a=await f.library.createFolder('演奏'),b=await f.library.createFolder('来週',a.folderId);
+ const moved=await f.library.organize({kind:'entry',id:row.entryId,name:'ライブ用',parentId:b.folderId,expectedVersion:row.version});assert.equal(moved.folderId,b.folderId);
+ const copy=await f.library.duplicate(moved.entryId);await f.library.savePreferences(copy.entryId,copy.revisionId,{copyOnly:true});assert.equal(await f.library.readPreferences(row.entryId,row.revisionId),null);
+ const changed=structuredClone(f.score);changed.songInfo.title='new music';const next=await f.contract.codec.encode(changed,{...f.metadata,revisionId:'replacement'});await f.library.save(next.text,{entryId:row.entryId,name:'ライブ用',expectedVersion:moved.version});
+ assert.equal((await f.library.read(copy.entryId)).decoded.byteHash,first.byteHash);assert.equal((await f.library.read(row.entryId)).decoded.byteHash,next.byteHash);
+ await assert.rejects(f.library.organize({kind:'folder',id:a.folderId,parentId:b.folderId}),/folder-cycle/);await assert.rejects(f.library.remove('folder',b.folderId),/folder-not-empty/);
+ await f.library.remove('entry',row.entryId);assert.equal((await f.library.list()).length,1);assert.equal((await f.library.read(copy.entryId)).decoded.byteHash,first.byteHash);await f.library.close();
+});
+test('same-name export is CAS guarded, quota safe and accepts an explicit distinct entry name',options,async()=>{
+ const f=setup(),file=await f.contract.codec.encode(f.score,f.metadata),first=await f.library.save(file.text,{entryId:'entry-1',name:'演奏',newEntry:true,requireUniqueName:true});
+ await assert.rejects(f.library.save(file.text,{entryId:'entry-2',name:'演奏',newEntry:true,requireUniqueName:true}),/viewer-name-conflict/);await f.library.save(file.text,{entryId:'entry-2',name:'演奏 別名',newEntry:true,requireUniqueName:true});
+ await f.library.organize({kind:'entry',id:first.entryId,name:'他の変更'});await assert.rejects(f.library.save(file.text,{entryId:first.entryId,expectedVersion:first.version,name:'演奏'}),/viewer-entry-conflict/);assert.equal((await f.library.list()).length,2);await f.library.close();
+});
+test('v2 upgrade creates independent library entries but preserves bytes, preferences, last state and presets',options,async()=>{
+ const f=setup(),file=await f.contract.codec.encode(f.score,f.metadata),documentId=f.metadata.documentId,revisionId=f.metadata.revisionId;
+ await new Promise((resolve,reject)=>{const r=f.indexedDB.open('cruiseStudio.viewer.library.v1',2);r.onupgradeneeded=()=>{for(const [name,keyPath]of [['documents','documentId'],['revisions',['documentId','revisionId']],['preferences',['documentId','revisionId']],['state','key'],['presets','name']])r.result.createObjectStore(name,{keyPath});};r.onsuccess=()=>{const db=r.result,tx=db.transaction(['documents','revisions','preferences','state','presets'],'readwrite');tx.objectStore('documents').put({documentId,revisionId,title:'元の譜面',artist:'',bars:f.score.bars.length,savedAt:f.metadata.exportedAt,byteHash:file.byteHash});tx.objectStore('revisions').put({documentId,revisionId,bytes:new TextEncoder().encode(file.text),byteHash:file.byteHash});tx.objectStore('preferences').put({documentId,revisionId,value:{old:true}});tx.objectStore('state').put({key:'last',documentId,revisionId});tx.objectStore('presets').put({name:'旧',text:'preset'});tx.oncomplete=()=>{db.close();resolve();};tx.onabort=()=>reject(tx.error);};});
+ const rows=await f.library.list();assert.equal(rows[0].entryId,documentId);assert.equal(rows[0].folderId,'');assert.equal((await f.library.read(documentId)).decoded.byteHash,file.byteHash);assert.deepEqual(await f.library.readPreferences(documentId,revisionId),{old:true});assert.equal((await f.library.getLast()).documentId,documentId);assert.deepEqual(await f.library.listPresets(),[{name:'旧',text:'preset'}]);await f.library.close();
+});
+test('PDF duplicate has independent name, folder and settings while both retain exact original bytes',options,async()=>{
+ const {readFileSync}=await import('node:fs'),f=setup(),bytes=new Uint8Array(readFileSync(new URL('./fixtures/viewer-pdf/mixed.pdf',import.meta.url))),row=await f.library.savePDF(bytes,{name:'原本.pdf',pages:3});
+ const copy=await f.library.duplicate(row.entryId),second=await f.library.duplicate(row.entryId);assert.notEqual(copy.title,second.title);const folder=await f.library.createFolder('PDF');await f.library.organize({kind:'entry',id:copy.entryId,name:'演奏用.pdf',parentId:folder.folderId});await f.library.savePreferences(copy.entryId,copy.revisionId,{version:1,zoom:1.5});assert.equal(await f.library.readPreferences(row.entryId,row.revisionId),null);
+ await f.library.remove('entry',row.entryId);assert.equal(await f.library.getLast(),null);const file=await f.library.read(copy.entryId);assert.deepEqual(file.bytes,bytes);assert.equal(file.name,'演奏用.pdf');assert.equal((await f.library.list()).length,2);await f.library.close();
+});
+test('a quota failure in entry publication rolls back both bytes and document head',options,async()=>{
+ const f=setup(),old=await f.contract.codec.encode(f.score,f.metadata);await f.library.save(old.text);await f.library.close();
+ const factory={open(...args){const r=f.indexedDB.open(...args);r.addEventListener('success',()=>{const db=r.result,transaction=db.transaction.bind(db);db.transaction=(...a)=>{const tx=transaction(...a);if(a[1]==='readwrite'){const objectStore=tx.objectStore.bind(tx);tx.objectStore=name=>{const s=objectStore(name);if(name==='entries')s.put=()=>{throw new DOMException('quota','QuotaExceededError');};return s;};}return tx;};});return r;}};
+ const l=createViewerLibrary({indexedDB:factory,codec:f.contract.codec}),next=await f.contract.codec.encode(f.score,{...f.metadata,revisionId:'entry-quota'});await assert.rejects(l.save(next.text),e=>e.name==='QuotaExceededError');assert.equal((await l.read(f.metadata.documentId)).decoded.byteHash,old.byteHash);await assert.rejects(l.read(f.metadata.documentId,'entry-quota'),/viewer-file-missing/);assert.equal((await l.getLast()).revisionId,f.metadata.revisionId);await l.close();
+});
+test('explicit overwrite from another source changes only the selected entry and keeps raw historical revisions readable',options,async()=>{
+ const f=setup(),a=await f.contract.codec.encode(f.score,f.metadata),row=await f.library.save(a.text),copy=await f.library.duplicate(row.entryId),b=await f.contract.codec.encode(f.score,{...f.metadata,documentId:'other-source',revisionId:'other-revision'});
+ await f.library.save(b.text,{entryId:row.entryId,name:row.title,expectedVersion:row.version});assert.equal((await f.library.read(row.entryId)).decoded.byteHash,b.byteHash);assert.equal((await f.library.read(copy.entryId)).decoded.byteHash,a.byteHash);assert.equal((await f.library.read(f.metadata.documentId,f.metadata.revisionId)).decoded.byteHash,a.byteHash);await f.library.close();
 });

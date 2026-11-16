@@ -377,5 +377,9 @@ test('released owner boundaries reject other apps/shared/Workers while NEWS deve
     // 2026-11-16: explicit operator request for local shared FM7/renderer fixes.
     // Keep the released-boundary function strict; allow only these reviewed local files in this worktree check.
     const localOwnerFixes=new Set(['apps/chord-cruise/js/app.js','apps/chord-cruise/js/core/caged-forms.js','apps/chord-cruise/js/ui/explore.js','apps/chord-cruise/js/ui/fretboard.js','apps/chord-cruise/tests/common-caged-forms.test.js','apps/chord-cruise/tests/fm7-common-form.test.js']);
+    // The separately committed local Viewer is now tracked. This explicit
+    // operator-requested UI work must not widen the released dependency guard,
+    // register a public capability, or allow changes to its pinned vendor files.
+    for(const file of ['core/file-format.mjs','core/library.mjs','local/asset-list.js','local/boot.mjs','local/index.html','local/mock-sync.mjs','core/scroll-speed.mjs','ui/library.mjs','ui/file-menu.mjs','ui/export-dialogs.mjs','ui/pdf-export.mjs','ui/scroll-settings.mjs','ui/settings.mjs','ui/pdf-viewer.mjs','ui/viewer.css','ui/viewer.mjs','ui/interaction.mjs'])localOwnerFixes.add('apps/score-viewer/'+file);
     assert.deepEqual(releasedBoundaryViolations(names.split('\0').filter(path=>path&&!localOwnerFixes.has(path)).map(path => ({ path }))), []);
 });
