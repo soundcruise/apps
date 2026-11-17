@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "purpose": "published_headline_quality_only",
+  "scope": "explicit_targets",
+  "expectedPublished": 201,
+  "entries": [
+    {
+      "id": "eaa0693b0f6707b46498cb209d523de3763fd3ce3b0d0a3debcc47613feb4e7e",
+      "sourceUrl": "https://acousticguitarmagazine.jp/column/2026-1111-sekitori-hana-utatte-nandakke/",
+      "source": "agm",
+      "publishedAt": "2026-11-11T10:00:00.000Z",
+      "category": "media_other",
+      "eventType": "agm_editorial",
+      "before": "ギター弾き語りをテーマにした読みものを公開",
+      "classification": "A",
+      "after": "関取花、弾き語りの歌い方についてQ&A形式で語る",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "eaa0693b0f6707b46498cb209d523de3763fd3ce3b0d0a3debcc47613feb4e7e",
+        "sourceUrl": "https://acousticguitarmagazine.jp/column/2026-1111-sekitori-hana-utatte-nandakke/",
+        "kind": "editorial",
+        "person": "関取花",
+        "theme": "singing_technique",
+        "action": "qa",
+        "evidence": [
+          {
+            "url": "https://acousticguitarmagazine.jp/column/2026-1111-sekitori-hana-utatte-nandakke/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1794891600000,
+            "fields": [
+              "identity",
+              "theme",
+              "action"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
