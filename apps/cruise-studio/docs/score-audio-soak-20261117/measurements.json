@@ -1,0 +1,574 @@
+{
+  "seconds": 1800,
+  "elapsed": 1800.429,
+  "runs": [
+    {
+      "editor": true,
+      "samples": 1800,
+      "scheduledSources": 45044,
+      "peakLiveSources": 37,
+      "missingSamples": 0,
+      "medianSignedPhaseErrorMs": -8.166893406443943,
+      "p95AbsolutePhaseErrorMs": 16.099822306447685,
+      "maxAbsolutePhaseErrorMs": 19.100222716975978,
+      "first5minMedianMs": -6.733144326715013,
+      "last5minMedianMs": -10.416696455083198,
+      "minuteWindows": [
+        {
+          "minute": 1,
+          "medianErrorMs": -14.767885143505799,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            57222739,
+            89884185
+          ]
+        },
+        {
+          "minute": 2,
+          "medianErrorMs": -1.7667225407700937,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            57278043,
+            58059831
+          ]
+        },
+        {
+          "minute": 3,
+          "medianErrorMs": -3.916695880990473,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            57290934,
+            58047303
+          ]
+        },
+        {
+          "minute": 4,
+          "medianErrorMs": -6.733356415662362,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50632949,
+            58030089
+          ]
+        },
+        {
+          "minute": 5,
+          "medianErrorMs": -10.216836251409012,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50644184,
+            51382204
+          ]
+        },
+        {
+          "minute": 6,
+          "medianErrorMs": -11.216877103274125,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50663256,
+            51374945
+          ]
+        },
+        {
+          "minute": 7,
+          "medianErrorMs": -13.733053434715314,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50669611,
+            51379236
+          ]
+        },
+        {
+          "minute": 8,
+          "medianErrorMs": -15.050045046886451,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50664798,
+            51390542
+          ]
+        },
+        {
+          "minute": 9,
+          "medianErrorMs": -1.9999482955709302,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50683291,
+            51395649
+          ]
+        },
+        {
+          "minute": 10,
+          "medianErrorMs": -4.433170595665114,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50700396,
+            51418203
+          ]
+        },
+        {
+          "minute": 11,
+          "medianErrorMs": -6.900230951103148,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50686813,
+            51417529
+          ]
+        },
+        {
+          "minute": 12,
+          "medianErrorMs": -9.549802936417716,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50706189,
+            51410938
+          ]
+        },
+        {
+          "minute": 13,
+          "medianErrorMs": -11.466653501069679,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50716069,
+            51434311
+          ]
+        },
+        {
+          "minute": 14,
+          "medianErrorMs": -13.766817653302232,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50718126,
+            51422451
+          ]
+        },
+        {
+          "minute": 15,
+          "medianErrorMs": -10.86685581147917,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50715292,
+            51439561
+          ]
+        },
+        {
+          "minute": 16,
+          "medianErrorMs": -2.3501224180985103,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50712500,
+            51439580
+          ]
+        },
+        {
+          "minute": 17,
+          "medianErrorMs": -4.6333019575443,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50736568,
+            51454509
+          ]
+        },
+        {
+          "minute": 18,
+          "medianErrorMs": -7.05004052880287,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50718193,
+            51443677
+          ]
+        },
+        {
+          "minute": 19,
+          "medianErrorMs": -9.816701066485855,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50737537,
+            51467005
+          ]
+        },
+        {
+          "minute": 20,
+          "medianErrorMs": -11.81667287549809,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50738855,
+            51471609
+          ]
+        },
+        {
+          "minute": 21,
+          "medianErrorMs": -13.833184410349531,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50746083,
+            51433489
+          ]
+        },
+        {
+          "minute": 22,
+          "medianErrorMs": -5.433331482110004,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50741190,
+            51474128
+          ]
+        },
+        {
+          "minute": 23,
+          "medianErrorMs": -2.183300225927054,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50757597,
+            51497188
+          ]
+        },
+        {
+          "minute": 24,
+          "medianErrorMs": -4.8833587172479875,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50750652,
+            51494554
+          ]
+        },
+        {
+          "minute": 25,
+          "medianErrorMs": -7.399997956943349,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50755451,
+            51475080
+          ]
+        },
+        {
+          "minute": 26,
+          "medianErrorMs": -9.250065940710595,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50766971,
+            51503497
+          ]
+        },
+        {
+          "minute": 27,
+          "medianErrorMs": -11.916877295451766,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50762645,
+            51498059
+          ]
+        },
+        {
+          "minute": 28,
+          "medianErrorMs": -13.933477325322851,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50779967,
+            51508290
+          ]
+        },
+        {
+          "minute": 29,
+          "medianErrorMs": -14.550003715916638,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50787961,
+            51513133
+          ]
+        },
+        {
+          "minute": 30,
+          "medianErrorMs": -2.4668188116233614,
+          "peakLiveSources": 34,
+          "heapRangeBytes": [
+            50782155,
+            51502386
+          ]
+        }
+      ]
+    },
+    {
+      "editor": false,
+      "samples": 1800,
+      "scheduledSources": 39909,
+      "peakLiveSources": 15,
+      "missingSamples": 0,
+      "medianSignedPhaseErrorMs": -8.733356555915561,
+      "p95AbsolutePhaseErrorMs": 15.966721788228444,
+      "maxAbsolutePhaseErrorMs": 18.70000481079814,
+      "first5minMedianMs": -5.949965029393045,
+      "last5minMedianMs": -10.966632677944899,
+      "minuteWindows": [
+        {
+          "minute": 1,
+          "medianErrorMs": -13.542036927657763,
+          "peakLiveSources": 11,
+          "heapRangeBytes": [
+            75099432,
+            117157959
+          ]
+        },
+        {
+          "minute": 2,
+          "medianErrorMs": -13.850065804835499,
+          "peakLiveSources": 11,
+          "heapRangeBytes": [
+            75181816,
+            75925888
+          ]
+        },
+        {
+          "minute": 3,
+          "medianErrorMs": -1.4000820838682149,
+          "peakLiveSources": 11,
+          "heapRangeBytes": [
+            75233824,
+            75989252
+          ]
+        },
+        {
+          "minute": 4,
+          "medianErrorMs": -4.01667699245567,
+          "peakLiveSources": 11,
+          "heapRangeBytes": [
+            69070068,
+            76024504
+          ]
+        },
+        {
+          "minute": 5,
+          "medianErrorMs": -6.1999260699849845,
+          "peakLiveSources": 14,
+          "heapRangeBytes": [
+            69059904,
+            69928964
+          ]
+        },
+        {
+          "minute": 6,
+          "medianErrorMs": -8.783186899426422,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69075552,
+            69923140
+          ]
+        },
+        {
+          "minute": 7,
+          "medianErrorMs": -10.766822071950344,
+          "peakLiveSources": 14,
+          "heapRangeBytes": [
+            69074820,
+            69928828
+          ]
+        },
+        {
+          "minute": 8,
+          "medianErrorMs": -13.116713732356233,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69092780,
+            69960252
+          ]
+        },
+        {
+          "minute": 9,
+          "medianErrorMs": -14.149958448699262,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69113364,
+            69922744
+          ]
+        },
+        {
+          "minute": 10,
+          "medianErrorMs": -1.616751703826802,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69105652,
+            69961492
+          ]
+        },
+        {
+          "minute": 11,
+          "medianErrorMs": -3.716726222639799,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69104522,
+            69923692
+          ]
+        },
+        {
+          "minute": 12,
+          "medianErrorMs": -6.700073853201538,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69132444,
+            69945756
+          ]
+        },
+        {
+          "minute": 13,
+          "medianErrorMs": -9.40001105813204,
+          "peakLiveSources": 14,
+          "heapRangeBytes": [
+            69137640,
+            69973420
+          ]
+        },
+        {
+          "minute": 14,
+          "medianErrorMs": -10.966820438280788,
+          "peakLiveSources": 14,
+          "heapRangeBytes": [
+            69136944,
+            69972472
+          ]
+        },
+        {
+          "minute": 15,
+          "medianErrorMs": -13.466700415559863,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69126850,
+            69978016
+          ]
+        },
+        {
+          "minute": 16,
+          "medianErrorMs": -14.799931162019831,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69137680,
+            69977880
+          ]
+        },
+        {
+          "minute": 17,
+          "medianErrorMs": -1.6667082278192802,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69132578,
+            69984320
+          ]
+        },
+        {
+          "minute": 18,
+          "medianErrorMs": -4.433371023476573,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69154708,
+            69959180
+          ]
+        },
+        {
+          "minute": 19,
+          "medianErrorMs": -7.833321542126126,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69145488,
+            69989800
+          ]
+        },
+        {
+          "minute": 20,
+          "medianErrorMs": -9.699936092731454,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69162864,
+            69994032
+          ]
+        },
+        {
+          "minute": 21,
+          "medianErrorMs": -11.783410489559444,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69148782,
+            70004520
+          ]
+        },
+        {
+          "minute": 22,
+          "medianErrorMs": -13.249974558784295,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69163288,
+            69961744
+          ]
+        },
+        {
+          "minute": 23,
+          "medianErrorMs": -14.699936590338691,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69170444,
+            70029584
+          ]
+        },
+        {
+          "minute": 24,
+          "medianErrorMs": -1.916670984208002,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69204592,
+            70035752
+          ]
+        },
+        {
+          "minute": 25,
+          "medianErrorMs": -4.383436463909707,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69214332,
+            70032720
+          ]
+        },
+        {
+          "minute": 26,
+          "medianErrorMs": -7.300011395838357,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69184190,
+            70011364
+          ]
+        },
+        {
+          "minute": 27,
+          "medianErrorMs": -9.516700578480863,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69207192,
+            70066436
+          ]
+        },
+        {
+          "minute": 28,
+          "medianErrorMs": -11.916664249668862,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69204626,
+            70066616
+          ]
+        },
+        {
+          "minute": 29,
+          "medianErrorMs": -13.983333633374395,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69255820,
+            70047520
+          ]
+        },
+        {
+          "minute": 30,
+          "medianErrorMs": -14.10003539736021,
+          "peakLiveSources": 15,
+          "heapRangeBytes": [
+            69232996,
+            70078832
+          ]
+        }
+      ]
+    }
+  ]
+}

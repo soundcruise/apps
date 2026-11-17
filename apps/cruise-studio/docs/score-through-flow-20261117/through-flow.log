@@ -1,0 +1,10 @@
+✔ edit, save, export and perform without losing source: chrome (6915.103875ms)
+✔ edit, save, export and perform without losing source: webkit (5541.431667ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12578.906083

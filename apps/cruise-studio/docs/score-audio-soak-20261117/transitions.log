@@ -1,0 +1,46 @@
+▶ empty slots, neutral selection and repeated range: chrome
+  ✔ empty slot only offers launch or cancel; launch restores a blank playable bar before typing and Undo restores the slot (1168.12725ms)
+  ✔ only paper surroundings clear selection; empty timing cells select the bar and controls retain it (927.83325ms)
+  ✔ neutral drag selects bars without moving them; only that range repeats on one audio context and Stop keeps the range (3677.115083ms)
+  ✔ code labels select/edit bars and never enlarge; form panels alone enlarge (819.88625ms)
+  ✔ every bar track and its blank area selects then edits; only form diagrams zoom, even with hidden bar numbers (1853.803458ms)
+  ✔ both key modes update capo and all forms automatically, in one Undo each (1226.682625ms)
+✔ empty slots, neutral selection and repeated range: chrome (10446.319125ms)
+▶ empty slots, neutral selection and repeated range: webkit
+  ✔ empty slot only offers launch or cancel; launch restores a blank playable bar before typing and Undo restores the slot (1196.335625ms)
+  ✔ only paper surroundings clear selection; empty timing cells select the bar and controls retain it (944.40475ms)
+  ✔ neutral drag selects bars without moving them; only that range repeats on one audio context and Stop keeps the range (3443.442041ms)
+  ✔ code labels select/edit bars and never enlarge; form panels alone enlarge (806.447333ms)
+  ✔ every bar track and its blank area selects then edits; only form diagrams zoom, even with hidden bar numbers (2107.49325ms)
+  ✔ both key modes update capo and all forms automatically, in one Undo each (1211.327291ms)
+✔ empty slots, neutral selection and repeated range: webkit (9885.03375ms)
+▶ viewer stage 2: chrome
+  ✔ display preview cancels atomically; saved toggles/fonts/colors never alter the file (1207.567167ms)
+  ✔ named presets persist locally and export presentation only (1116.565041ms)
+  ✔ a separate profile previews and imports the shared preset; malformed input keeps the current display (911.36425ms)
+  ✔ real banks decode and stream both parts; live tempo, mute, hidden parts and Space keep source immutable (1912.881167ms)
+  ✔ native offline rendering produces real guitar/piano output, independent mixes and the reference waveform (594.000042ms)
+  ✔ saved practice settings and position reopen stopped; repeated workspace exits release audio ownership (2451.38375ms)
+  ✔ continuous row motion follows the beat; manual scroll detaches only the viewport and can rejoin (3778.912292ms)
+  ✔ count-in, metronome and stopped-bar start share one owned context; input/dialog Space is isolated (2457.624209ms)
+  ✔ global stop revokes a delayed sample load so it can never start afterwards (660.252875ms)
+✔ viewer stage 2: chrome (16085.890208ms)
+▶ viewer stage 2: webkit
+  ✔ display preview cancels atomically; saved toggles/fonts/colors never alter the file (1345.839667ms)
+  ✔ named presets persist locally and export presentation only (1112.92125ms)
+  ✔ a separate profile previews and imports the shared preset; malformed input keeps the current display (1046.172292ms)
+  ✔ real banks decode and stream both parts; live tempo, mute, hidden parts and Space keep source immutable (2108.862125ms)
+  ✔ native offline rendering produces real guitar/piano output, independent mixes and the reference waveform (634.714ms)
+  ✔ saved practice settings and position reopen stopped; repeated workspace exits release audio ownership (3014.550084ms)
+  ✔ continuous row motion follows the beat; manual scroll detaches only the viewport and can rejoin (4670.75725ms)
+  ✔ count-in, metronome and stopped-bar start share one owned context; input/dialog Space is isolated (2701.553875ms)
+  ✔ global stop revokes a delayed sample load so it can never start afterwards (790.632917ms)
+✔ viewer stage 2: webkit (17680.081667ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 33892.735833

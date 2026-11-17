@@ -1,0 +1,10 @@
+{"elapsed":60,"progress":[{"editor":true,"samples":60,"created":1544,"live":34,"misses":0},{"editor":false,"samples":59,"created":1335,"live":8,"misses":0}]}
+✔ editor and viewer real-time playback soak (63843.744ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 64099.122375

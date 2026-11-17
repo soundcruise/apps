@@ -1,0 +1,20 @@
+▶ range highlight, compact direct forms and staged history: chrome
+  ✔ history palette drags and previews without changing the Session; Cancel restores the latest paper (852.252375ms)
+  ✔ history commits only after two clicks, drops future redo and rejects stale confirmation (1120.598875ms)
+  ✔ cancelling an older shorter score preview retains the selected new bar and editor (761.428125ms)
+  ✔ individual song information settings preview, cancel, save and full preset reload without song changes (1572.150834ms)
+✔ range highlight, compact direct forms and staged history: chrome (4758.317375ms)
+▶ range highlight, compact direct forms and staged history: webkit
+  ✔ history palette drags and previews without changing the Session; Cancel restores the latest paper (837.455167ms)
+  ✔ history commits only after two clicks, drops future redo and rejects stale confirmation (1147.681667ms)
+  ✔ cancelling an older shorter score preview retains the selected new bar and editor (735.327083ms)
+  ✔ individual song information settings preview, cancel, save and full preset reload without song changes (1551.555ms)
+✔ range highlight, compact direct forms and staged history: webkit (4420.354042ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9301.717625

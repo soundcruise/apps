@@ -73,5 +73,10 @@ test('rest at next bar start damps carry, while melody timing is untouched',()=>
 test('range loop uses the selected musical duration with inherited harmony, no copied bars and no trailing attack gap',async()=>{
  const {buildRangeLoopPlan}=await import('../js/modules/sheet-cruise/score-playback.mjs'),p=fixture();p.bars.push({id:'b3',melody:[],chords:[]});const before=JSON.stringify(p),d=deps(),plan=buildRangeLoopPlan(p,d,1,2);
  assert.deepEqual(plan.spans.map(s=>s.index),[1,2]);assert(Math.abs(plan.loopPeriod-4)<1e-9);assert(Math.abs(plan.duration-4.03)<1e-9);assert(plan.events.length);assert(plan.events.every(e=>[1,2].includes(e.barIndex)));assert(plan.events.every(e=>e.start+e.duration<=plan.duration+1e-9));assert.equal(JSON.stringify(p),before);
- for(const args of [[-1,2],[0,1],[2,2],[0,2.5]])assert.throws(()=>buildRangeLoopPlan(p,d,...args));
+ for(const args of [[-1,2],[0,0],[2,2],[0,2.5]])assert.throws(()=>buildRangeLoopPlan(p,d,...args));
+});
+
+test('single selected bar can repeat without changing the source or adding a second bar',async()=>{
+ const {buildRangeLoopPlan}=await import('../js/modules/sheet-cruise/score-playback.mjs'),p=fixture(),before=JSON.stringify(p),d=deps(),plan=buildRangeLoopPlan(p,d,0,1);
+ assert.equal(plan.spans.length,1);assert.equal(plan.spans[0].index,0);assert(Math.abs(plan.loopPeriod-240/p.songInfo.bpm)<1e-9);assert(plan.events.every(e=>e.barIndex===0));assert.equal(JSON.stringify(p),before);
 });

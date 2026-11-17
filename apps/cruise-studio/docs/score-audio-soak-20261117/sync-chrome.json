@@ -1,0 +1,38 @@
+[
+  {
+    "editor": true,
+    "delay": 0,
+    "p95AbsoluteMs": 0.7000985453913255,
+    "medianSignedMs": -0.5998367697594709
+  },
+  {
+    "editor": true,
+    "delay": 200,
+    "p95AbsoluteMs": 0.799768829598424,
+    "medianSignedMs": -0.5424469437713686
+  },
+  {
+    "editor": true,
+    "delay": -200,
+    "p95AbsoluteMs": 0.7996244080943349,
+    "medianSignedMs": -0.6001516233622439
+  },
+  {
+    "editor": false,
+    "delay": 0,
+    "p95AbsoluteMs": 0.500031053113581,
+    "medianSignedMs": -0.399989904189324
+  },
+  {
+    "editor": false,
+    "delay": 200,
+    "p95AbsoluteMs": 0.8693199519578254,
+    "medianSignedMs": -0.33632048990317465
+  },
+  {
+    "editor": false,
+    "delay": -200,
+    "p95AbsoluteMs": 0.7000564772998707,
+    "medianSignedMs": -0.5000979597191701
+  }
+]

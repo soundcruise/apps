@@ -1,0 +1,39 @@
+{"elapsed":60,"progress":[{"editor":true,"samples":60,"created":1536,"live":30,"misses":0},{"editor":false,"samples":60,"created":1335,"live":8,"misses":0}]}
+{"elapsed":120,"progress":[{"editor":true,"samples":120,"created":3041,"live":33,"misses":0},{"editor":false,"samples":120,"created":2668,"live":8,"misses":0}]}
+{"elapsed":180,"progress":[{"editor":true,"samples":180,"created":4541,"live":32,"misses":0},{"editor":false,"samples":180,"created":3995,"live":8,"misses":0}]}
+{"elapsed":240,"progress":[{"editor":true,"samples":240,"created":6042,"live":32,"misses":0},{"editor":false,"samples":240,"created":5328,"live":7,"misses":0}]}
+{"elapsed":300,"progress":[{"editor":true,"samples":300,"created":7541,"live":31,"misses":0},{"editor":false,"samples":300,"created":6655,"live":7,"misses":0}]}
+{"elapsed":360,"progress":[{"editor":true,"samples":360,"created":9044,"live":34,"misses":0},{"editor":false,"samples":360,"created":7988,"live":7,"misses":0}]}
+{"elapsed":420,"progress":[{"editor":true,"samples":420,"created":10544,"live":34,"misses":0},{"editor":false,"samples":420,"created":9315,"live":7,"misses":0}]}
+{"elapsed":480,"progress":[{"editor":true,"samples":480,"created":12044,"live":34,"misses":0},{"editor":false,"samples":480,"created":10648,"live":7,"misses":0}]}
+{"elapsed":540,"progress":[{"editor":true,"samples":540,"created":13544,"live":34,"misses":0},{"editor":false,"samples":540,"created":11975,"live":7,"misses":0}]}
+{"elapsed":600,"progress":[{"editor":true,"samples":600,"created":15044,"live":34,"misses":0},{"editor":false,"samples":600,"created":13308,"live":7,"misses":0}]}
+{"elapsed":660,"progress":[{"editor":true,"samples":660,"created":16544,"live":34,"misses":0},{"editor":false,"samples":660,"created":14635,"live":7,"misses":0}]}
+{"elapsed":720,"progress":[{"editor":true,"samples":720,"created":18044,"live":34,"misses":0},{"editor":false,"samples":720,"created":15968,"live":7,"misses":0}]}
+{"elapsed":780,"progress":[{"editor":true,"samples":780,"created":19544,"live":34,"misses":0},{"editor":false,"samples":780,"created":17295,"live":7,"misses":0}]}
+{"elapsed":840,"progress":[{"editor":true,"samples":840,"created":21044,"live":34,"misses":0},{"editor":false,"samples":840,"created":18628,"live":7,"misses":0}]}
+{"elapsed":900,"progress":[{"editor":true,"samples":900,"created":22544,"live":34,"misses":0},{"editor":false,"samples":900,"created":19955,"live":6,"misses":0}]}
+{"elapsed":960,"progress":[{"editor":true,"samples":960,"created":24044,"live":34,"misses":0},{"editor":false,"samples":960,"created":21288,"live":6,"misses":0}]}
+{"elapsed":1020,"progress":[{"editor":true,"samples":1020,"created":25544,"live":34,"misses":0},{"editor":false,"samples":1020,"created":22616,"live":7,"misses":0}]}
+{"elapsed":1080,"progress":[{"editor":true,"samples":1080,"created":27044,"live":34,"misses":0},{"editor":false,"samples":1080,"created":23948,"live":6,"misses":0}]}
+{"elapsed":1140,"progress":[{"editor":true,"samples":1140,"created":28544,"live":34,"misses":0},{"editor":false,"samples":1140,"created":25275,"live":6,"misses":0}]}
+{"elapsed":1200,"progress":[{"editor":true,"samples":1200,"created":30044,"live":34,"misses":0},{"editor":false,"samples":1200,"created":26608,"live":6,"misses":0}]}
+{"elapsed":1260,"progress":[{"editor":true,"samples":1260,"created":31544,"live":34,"misses":0},{"editor":false,"samples":1260,"created":27936,"live":7,"misses":0}]}
+{"elapsed":1320,"progress":[{"editor":true,"samples":1320,"created":33044,"live":34,"misses":0},{"editor":false,"samples":1320,"created":29269,"live":7,"misses":0}]}
+{"elapsed":1380,"progress":[{"editor":true,"samples":1380,"created":34544,"live":34,"misses":0},{"editor":false,"samples":1380,"created":30596,"live":7,"misses":0}]}
+{"elapsed":1440,"progress":[{"editor":true,"samples":1440,"created":36044,"live":34,"misses":0},{"editor":false,"samples":1440,"created":31929,"live":7,"misses":0}]}
+{"elapsed":1500,"progress":[{"editor":true,"samples":1500,"created":37544,"live":34,"misses":0},{"editor":false,"samples":1500,"created":33256,"live":7,"misses":0}]}
+{"elapsed":1560,"progress":[{"editor":true,"samples":1560,"created":39044,"live":34,"misses":0},{"editor":false,"samples":1560,"created":34589,"live":7,"misses":0}]}
+{"elapsed":1620,"progress":[{"editor":true,"samples":1620,"created":40544,"live":34,"misses":0},{"editor":false,"samples":1620,"created":35916,"live":7,"misses":0}]}
+{"elapsed":1680,"progress":[{"editor":true,"samples":1680,"created":42044,"live":34,"misses":0},{"editor":false,"samples":1680,"created":37249,"live":7,"misses":0}]}
+{"elapsed":1740,"progress":[{"editor":true,"samples":1740,"created":43544,"live":34,"misses":0},{"editor":false,"samples":1740,"created":38576,"live":7,"misses":0}]}
+{"elapsed":1800,"progress":[{"editor":true,"samples":1800,"created":45044,"live":34,"misses":0},{"editor":false,"samples":1800,"created":39909,"live":7,"misses":0}]}
+✔ editor and viewer real-time playback soak (1803464.89575ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1803580.472

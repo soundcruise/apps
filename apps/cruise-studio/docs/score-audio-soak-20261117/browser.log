@@ -1,0 +1,45 @@
+✔ registered acoustic form through every playback control: chrome (2680.552917ms)
+✔ registered acoustic form through every playback control: webkit (1697.879625ms)
+✔ explicit JSON/Print reject invalid and composing text, then export corrected canonical input (2616.788792ms)
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (797.013084ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1265.967584ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8006.635209ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (990.561917ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4109.120083ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1563.067083ms)
+✔ score controls parity chrome (17898.510292ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (924.708458ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1253.678917ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8191.28625ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1168.479375ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4389.216ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1719.625291ms)
+✔ score controls parity webkit (17840.985916ms)
+✔ edit, save, export and perform without losing source: chrome (6971.773083ms)
+✔ edit, save, export and perform without losing source: webkit (5550.897625ms)
+▶ unified score UI chrome
+  ✔ library management is always available and source bytes survive organize/copy/delete and outside close (761.138667ms)
+  ✔ display menu groups settings, fullscreen, layout and labelled zoom; export is separate; transport groups fit all orientations (716.610834ms)
+  ✔ audio panel can start/pause and adjust live; outside keeps settings and playback; dragging a slider out does not dismiss (745.411542ms)
+  ✔ outside display rolls back previews, scroll keeps live changes, export cancellation is non-destructive (596.662167ms)
+  ✔ PDF settings dismiss outside while preserving the live scrolling preference and source bytes (496.185375ms)
+  ✔ editor audio controls keep stop semantics, share gold and output clock, use one stable composited paper cursor across bars and zoom (1544.714917ms)
+✔ unified score UI chrome (5965.525959ms)
+▶ unified score UI webkit
+  ✔ library management is always available and source bytes survive organize/copy/delete and outside close (731.323084ms)
+  ✔ display menu groups settings, fullscreen, layout and labelled zoom; export is separate; transport groups fit all orientations (745.423ms)
+  ✔ audio panel can start/pause and adjust live; outside keeps settings and playback; dragging a slider out does not dismiss (759.608083ms)
+  ✔ outside display rolls back previews, scroll keeps live changes, export cancellation is non-destructive (601.008417ms)
+  ✔ PDF settings dismiss outside while preserving the live scrolling preference and source bytes (431.262458ms)
+  ✔ editor audio controls keep stop semantics, share gold and output clock, use one stable composited paper cursor across bars and zoom (1636.182375ms)
+✔ unified score UI webkit (5086.406041ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66794.430792

@@ -1,0 +1,28 @@
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (815.296125ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1262.323916ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (7983.825792ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1032.91075ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4915.341583ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1603.181125ms)
+✔ score controls parity chrome (18934.762042ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (962.785625ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1314.566584ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (7942.989458ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1209.373042ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (5164.89ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1738.189791ms)
+✔ score controls parity webkit (18619.126167ms)
+✔ editor explicit repeat, tempo restart and stop: chrome (6375.793167ms)
+✔ editor explicit repeat, tempo restart and stop: webkit (4786.346084ms)
+✔ edit, save, export and perform without losing source: chrome (7081.078083ms)
+✔ edit, save, export and perform without losing source: webkit (5505.79375ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61699.84925

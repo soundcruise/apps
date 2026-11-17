@@ -1,0 +1,42 @@
+▶ score library and presentation chrome
+  ✔ editor menu is first, export selects or creates a folder and completion opens the exact immutable file (986.423208ms)
+  ✔ copy is numbered without an editor; metadata edits use a compact nested sheet and folder tools lead the tree (705.696667ms)
+  ✔ viewer metronome timbres and signed synchronization work live without changing source or transport (713.194584ms)
+  ✔ viewer colors cancel atomically, then save with form catalogue and read-only zoom in both layouts (976.0495ms)
+  ✔ PDF export includes the optional deduplicated appendix without changing the reader (999.076166ms)
+  ✔ editor sound preferences, colors and catalogue remain presentation-only; settings preview and Cancel restore all (1140.453917ms)
+✔ score library and presentation chrome (6171.9355ms)
+▶ score library and presentation webkit
+  ✔ editor menu is first, export selects or creates a folder and completion opens the exact immutable file (1029.038042ms)
+  ✔ copy is numbered without an editor; metadata edits use a compact nested sheet and folder tools lead the tree (629.104625ms)
+  ✔ viewer metronome timbres and signed synchronization work live without changing source or transport (732.579459ms)
+  ✔ viewer colors cancel atomically, then save with form catalogue and read-only zoom in both layouts (980.997125ms)
+  ✔ PDF export includes the optional deduplicated appendix without changing the reader (1051.739875ms)
+  ✔ editor sound preferences, colors and catalogue remain presentation-only; settings preview and Cancel restore all (1327.063209ms)
+✔ score library and presentation webkit (5919.050542ms)
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (807.292875ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1195.794ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8043.722333ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (970.515375ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4074.116875ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1567.177541ms)
+✔ score controls parity chrome (17794.213542ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (942.985125ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1264.240958ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8096.972875ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1151.597667ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4356.871541ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1688.999584ms)
+✔ score controls parity webkit (17678.195583ms)
+✔ two measure units and unified chord entry chrome (5665.485042ms)
+✔ two measure units and unified chord entry webkit (4720.674958ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 58307.731834
