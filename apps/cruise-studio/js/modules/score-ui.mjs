@@ -72,6 +72,13 @@ export function installScoreUI(doc){
 @container(max-width:440px){.score-transport{gap:4px!important;padding:6px!important;min-height:58px}.score-transport .score-transport-main,.score-transport .score-transport-options{gap:4px!important}.score-transport .score-play{min-width:82px!important;padding:8px!important}.score-transport .score-repeat{min-width:36px;width:36px;padding:6px}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{min-width:36px;width:36px;padding:6px}.score-transport .score-tempo{width:64px;min-width:64px;padding:2px 4px;font-size:10px;gap:2px}.score-transport .score-tempo input{width:30px;min-width:30px;padding:0;font-size:12px!important;appearance:textfield;-moz-appearance:textfield}.score-transport .score-tempo input::-webkit-inner-spin-button,.score-transport .score-tempo input::-webkit-outer-spin-button{appearance:none;margin:0}.score-transport .sv-sound-select{display:block!important;width:50px;min-width:50px;padding:3px;font-size:11px}.score-transport .sv-sound-modes{display:none!important}}
 @media(max-width:360px){.score-transport .score-play{min-width:74px!important}.score-transport .score-tempo{width:60px;min-width:60px;padding:2px}.score-transport .sv-sound-select{width:46px;min-width:46px}}
 @container(max-width:360px){.score-transport .score-play{min-width:74px!important}.score-transport .score-tempo{width:60px;min-width:60px;padding:2px}.score-transport .sv-sound-select{width:46px;min-width:46px}}
+/* iOS zooms focused controls with small text. Keep touch input readable
+   without disabling pinch zoom or widening the one-line transport. */
+@media(pointer:coarse){
+.score-transport .score-tempo input,.score-transport .sv-sound-select{font-size:16px!important}
+@container(max-width:440px){.score-transport .score-play{min-width:78px!important}.score-transport .score-tempo{width:60px;min-width:60px}.score-transport .score-tempo input{width:32px;min-width:32px}.score-transport .sv-sound-select{width:58px;min-width:58px}}
+}
+@media(pointer:coarse) and (max-width:440px){.score-transport .score-play{min-width:78px!important}.score-transport .score-tempo{width:60px;min-width:60px}.score-transport .score-tempo input{width:32px;min-width:32px}.score-transport .sv-sound-select{width:58px;min-width:58px}}
 @media print{.score-transport,[data-layout-playhead]{display:none!important}.sc-layout-playing{background:transparent!important;box-shadow:none!important}}
 `;doc.head.append(style);
 }

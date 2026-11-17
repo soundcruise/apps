@@ -1,0 +1,10 @@
+✔ isolated mobile fixture on HTTPS: chrome (3974.968ms)
+✔ isolated mobile fixture on HTTPS: webkit (2010.876ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6101.559333

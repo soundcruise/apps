@@ -1,0 +1,14 @@
+✔ mobile fixture accepts only exact private HTTPS origins and external temporary destinations (0.635084ms)
+✔ generated mobile worker is scoped to its exact test origin; source worker and static assets are verified (65.566291ms)
+✔ one composited cursor moves without changing left layout or replacing its node (0.353042ms)
+✔ refreshing unchanged playback state never replaces button text during a pointer click (0.538208ms)
+✔ editor and viewer derive their score accent from the same scoped palette (0.104958ms)
+✔ highlight transparency changes only the fill and clamps unsafe opacity (0.141208ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 102.0485

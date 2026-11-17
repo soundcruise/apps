@@ -1,0 +1,36 @@
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (946.291625ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1306.795375ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8061.266833ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1021.235583ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4934.312833ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1581.614542ms)
+✔ score controls parity chrome (19148.127333ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (923.937625ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1266.632833ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8078.452708ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1152.551667ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (5188.447709ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1770.226417ms)
+✔ score controls parity webkit (18558.468209ms)
+▶ shared transport and presentation audition chrome
+  ✔ editor bottom bar is visible before scrolling, title matches menu height, save and history stay above (1305.795584ms)
+  ✔ display audition always restarts at the first bar, reflects changes, and disposes audio on Cancel, Save and global stop (3008.445167ms)
+  ✔ closing during sample loading cannot revive the settings preview (986.195625ms)
+  ✔ viewer fits the common bottom controls, shares centered form zoom, and saves catalogue scale plus transparency (1269.443083ms)
+✔ shared transport and presentation audition chrome (7458.06625ms)
+▶ shared transport and presentation audition webkit
+  ✔ editor bottom bar is visible before scrolling, title matches menu height, save and history stay above (1339.072542ms)
+  ✔ display audition always restarts at the first bar, reflects changes, and disposes audio on Cancel, Save and global stop (3156.954291ms)
+  ✔ closing during sample loading cannot revive the settings preview (952.574583ms)
+  ✔ viewer fits the common bottom controls, shares centered form zoom, and saves catalogue scale plus transparency (1395.090584ms)
+✔ shared transport and presentation audition webkit (7039.287084ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 37836.635625

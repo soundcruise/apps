@@ -1,0 +1,22 @@
+▶ viewer mobile: chrome
+  ✔ Port entry loads a minimal read-only host; native and PDF fit touch portrait and short landscape (961.2455ms)
+  ✔ wake acquisition follows native and PDF activity, handles revocation, retry and device preference (1398.318458ms)
+  ✔ complete asset preparation is scoped; corrupt cache never reports ready and can be repaired (2900.084625ms)
+  ✔ real Wake Lock support is reported truthfully, including denial or an unsupported engine (712.937ms)
+✔ viewer mobile: chrome (6844.409125ms)
+▶ viewer mobile: webkit
+  ✔ Port entry loads a minimal read-only host; native and PDF fit touch portrait and short landscape (1034.647834ms)
+  ✔ wake acquisition follows native and PDF activity, handles revocation, retry and device preference (1420.633542ms)
+  ✔ complete asset preparation is scoped; corrupt cache never reports ready and can be repaired (992.870416ms)
+  ✔ real Wake Lock support is reported truthfully, including denial or an unsupported engine (792.507833ms)
+✔ viewer mobile: webkit (4422.3615ms)
+✔ portrait PDF through touch menus: chrome (3536.329958ms)
+✔ portrait PDF through touch menus: webkit (1711.33925ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11386.808667

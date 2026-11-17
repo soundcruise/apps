@@ -1,0 +1,31 @@
+{
+  "elapsedSeconds": 1809.259,
+  "operations": 60,
+  "operationRounds": 30,
+  "screens": [
+    {
+      "editor": true,
+      "samples": 1762,
+      "sourcesScheduled": 48177,
+      "peakConnectedSources": 47,
+      "missingFrames": 0,
+      "contextsCreated": 29,
+      "runningContextsBeforeFinalStop": 1,
+      "medianSignedPhaseErrorMs": -7.933522680251381,
+      "p95AbsolutePhaseErrorMs": 16.000062273302085,
+      "maximumAbsolutePhaseErrorMs": 19.20000011378342
+    },
+    {
+      "editor": false,
+      "samples": 1761,
+      "sourcesScheduled": 46474,
+      "peakConnectedSources": 15,
+      "missingFrames": 0,
+      "contextsCreated": 1,
+      "runningContextsBeforeFinalStop": 1,
+      "medianSignedPhaseErrorMs": -8.841345573964322,
+      "p95AbsolutePhaseErrorMs": 16.09993401887344,
+      "maximumAbsolutePhaseErrorMs": 19.100064233402602
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+✔ mobile fixture accepts only exact private HTTPS origins and external temporary destinations (0.573833ms)
+✔ generated mobile worker is scoped to its exact test origin; source worker and static assets are verified (63.858ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 99.966708

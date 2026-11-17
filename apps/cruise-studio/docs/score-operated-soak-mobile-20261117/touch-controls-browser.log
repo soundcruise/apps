@@ -1,0 +1,10 @@
+✔ touch transport controls retain readable inputs and one row: chrome (2053.638417ms)
+✔ touch transport controls retain readable inputs and one row: webkit (1251.215958ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3427.828416

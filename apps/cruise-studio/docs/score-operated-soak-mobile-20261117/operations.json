@@ -1,0 +1,302 @@
+[
+  {
+    "round": 1,
+    "editor": true,
+    "elapsed": 61.103
+  },
+  {
+    "round": 1,
+    "editor": false,
+    "elapsed": 62.261
+  },
+  {
+    "round": 2,
+    "editor": true,
+    "elapsed": 124.367
+  },
+  {
+    "round": 2,
+    "editor": false,
+    "elapsed": 126.495
+  },
+  {
+    "round": 3,
+    "editor": true,
+    "elapsed": 187.648
+  },
+  {
+    "round": 3,
+    "editor": false,
+    "elapsed": 188.811
+  },
+  {
+    "round": 4,
+    "editor": true,
+    "elapsed": 250.935
+  },
+  {
+    "round": 4,
+    "editor": false,
+    "elapsed": 253.02
+  },
+  {
+    "round": 5,
+    "editor": true,
+    "elapsed": 304.212
+  },
+  {
+    "round": 5,
+    "editor": false,
+    "elapsed": 305.486
+  },
+  {
+    "round": 6,
+    "editor": true,
+    "elapsed": 367.642
+  },
+  {
+    "round": 6,
+    "editor": false,
+    "elapsed": 369.783
+  },
+  {
+    "round": 7,
+    "editor": true,
+    "elapsed": 430.89
+  },
+  {
+    "round": 7,
+    "editor": false,
+    "elapsed": 432.016
+  },
+  {
+    "round": 8,
+    "editor": true,
+    "elapsed": 484.126
+  },
+  {
+    "round": 8,
+    "editor": false,
+    "elapsed": 486.206
+  },
+  {
+    "round": 9,
+    "editor": true,
+    "elapsed": 547.319
+  },
+  {
+    "round": 9,
+    "editor": false,
+    "elapsed": 548.478
+  },
+  {
+    "round": 10,
+    "editor": true,
+    "elapsed": 610.665
+  },
+  {
+    "round": 10,
+    "editor": false,
+    "elapsed": 612.86
+  },
+  {
+    "round": 11,
+    "editor": true,
+    "elapsed": 663.983
+  },
+  {
+    "round": 11,
+    "editor": false,
+    "elapsed": 665.071
+  },
+  {
+    "round": 12,
+    "editor": true,
+    "elapsed": 727.199
+  },
+  {
+    "round": 12,
+    "editor": false,
+    "elapsed": 729.339
+  },
+  {
+    "round": 13,
+    "editor": true,
+    "elapsed": 790.458
+  },
+  {
+    "round": 13,
+    "editor": false,
+    "elapsed": 791.532
+  },
+  {
+    "round": 14,
+    "editor": true,
+    "elapsed": 843.643
+  },
+  {
+    "round": 14,
+    "editor": false,
+    "elapsed": 845.803
+  },
+  {
+    "round": 15,
+    "editor": true,
+    "elapsed": 907.021
+  },
+  {
+    "round": 15,
+    "editor": false,
+    "elapsed": 908.264
+  },
+  {
+    "round": 16,
+    "editor": true,
+    "elapsed": 970.356
+  },
+  {
+    "round": 16,
+    "editor": false,
+    "elapsed": 972.517
+  },
+  {
+    "round": 17,
+    "editor": true,
+    "elapsed": 1023.63
+  },
+  {
+    "round": 17,
+    "editor": false,
+    "elapsed": 1024.762
+  },
+  {
+    "round": 18,
+    "editor": true,
+    "elapsed": 1086.885
+  },
+  {
+    "round": 18,
+    "editor": false,
+    "elapsed": 1088.993
+  },
+  {
+    "round": 19,
+    "editor": true,
+    "elapsed": 1150.073
+  },
+  {
+    "round": 19,
+    "editor": false,
+    "elapsed": 1151.222
+  },
+  {
+    "round": 20,
+    "editor": true,
+    "elapsed": 1203.424
+  },
+  {
+    "round": 20,
+    "editor": false,
+    "elapsed": 1205.635
+  },
+  {
+    "round": 21,
+    "editor": true,
+    "elapsed": 1266.773
+  },
+  {
+    "round": 21,
+    "editor": false,
+    "elapsed": 1267.939
+  },
+  {
+    "round": 22,
+    "editor": true,
+    "elapsed": 1330.024
+  },
+  {
+    "round": 22,
+    "editor": false,
+    "elapsed": 1332.148
+  },
+  {
+    "round": 23,
+    "editor": true,
+    "elapsed": 1383.248
+  },
+  {
+    "round": 23,
+    "editor": false,
+    "elapsed": 1384.341
+  },
+  {
+    "round": 24,
+    "editor": true,
+    "elapsed": 1446.47
+  },
+  {
+    "round": 24,
+    "editor": false,
+    "elapsed": 1448.556
+  },
+  {
+    "round": 25,
+    "editor": true,
+    "elapsed": 1509.749
+  },
+  {
+    "round": 25,
+    "editor": false,
+    "elapsed": 1510.941
+  },
+  {
+    "round": 26,
+    "editor": true,
+    "elapsed": 1563.051
+  },
+  {
+    "round": 26,
+    "editor": false,
+    "elapsed": 1565.137
+  },
+  {
+    "round": 27,
+    "editor": true,
+    "elapsed": 1626.256
+  },
+  {
+    "round": 27,
+    "editor": false,
+    "elapsed": 1627.408
+  },
+  {
+    "round": 28,
+    "editor": true,
+    "elapsed": 1689.514
+  },
+  {
+    "round": 28,
+    "editor": false,
+    "elapsed": 1691.672
+  },
+  {
+    "round": 29,
+    "editor": true,
+    "elapsed": 1742.753
+  },
+  {
+    "round": 29,
+    "editor": false,
+    "elapsed": 1743.825
+  },
+  {
+    "round": 30,
+    "editor": true,
+    "elapsed": 1806.026
+  },
+  {
+    "round": 30,
+    "editor": false,
+    "elapsed": 1808.236
+  }
+]
