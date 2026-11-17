@@ -20,8 +20,8 @@ async function seed(s){const url=infos[0].url,id=await hash(url);await s.put({id
 async function draft(s,info){return assistedDraftWithInformation(await assistedDraftForUrl(s,info.url,now),info);}
 function entry(d,row){return {...d.fields,...(row?{id:row.id,revision:row.review_revision,snapshot:undefined}:{}),fieldSources:d.fieldSources,confirmed:true,conditionsConfirmed:true};}
 const api=async s=>(await (await handleNewsRequest(new Request('https://isolated.test/v1/news'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:SOURCES,cache:null})).json()).items;
-test('reviewed source without saved hint has an empty unconfirmed shell; every other scope remains closed',async()=>{
- const s=await store(),d=await assistedDraftForUrl(s,infos[1].url,now);assert(d.registrationAllowed);assert.deepEqual(Object.keys(d.fields).sort(),['sourceId','url']);assert.equal(d.formalFacts,false);assert.equal(d.humanConfirmed,false);assert.equal(d.missing.length,5);
+test('reviewed primary input is offered without a hint; unknown approved URLs keep an empty shell and other scopes remain closed',async()=>{
+ const s=await store(),d=await assistedDraftForUrl(s,infos[1].url,now);assert(d.registrationAllowed);assert.equal(d.fields.brand,'Headway');assert.equal(d.fields.publishedAt,'2026-11-04');const empty=await assistedDraftForUrl(s,'https://www.deviser.co.jp/information/999999',now);assert.deepEqual(Object.keys(empty.fields).sort(),['sourceId','url']);assert.equal(d.formalFacts,false);assert.equal(d.humanConfirmed,false);assert.equal(d.missing.length,0);assert.equal(empty.missing.length,5);
  for(const url of ['https://audient.com/news/2026/11/12/id-desktop-launch/','https://recordingking.co/news/rk-standard-series/','https://piakakeprivatelesson.com/article/2c717ad2-99be-4b94-a79c-e5800a791206','https://www.deviser.co.jp/shop/634291','https://www.deviser.co.jp/information/634291?x=1','https://www.deviser.co.jp.evil.test/information/634291'])assert.equal(await assistedDraftForUrl(s,url,now),null);
  assert.equal(await count(s,'candidate_items'),0);assert.equal(await count(s,'news_web_hints'),0);
 });

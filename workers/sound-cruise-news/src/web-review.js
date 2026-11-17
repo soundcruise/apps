@@ -1,6 +1,8 @@
-import {webPresentation} from './review-presentation.js';
+import {webPresentation,primaryReviewInformation} from './review-presentation.js';
 import {hash} from './policy.js';
 import {publicSearchUrl,generalPage,searchDate,knownProductOverlap} from './web-discovery-quality.js';
+import {assistedSource} from './assisted-facts.js';
+import {assistedDraftWithInformation} from './draft-assistance.js';
 import {SOURCES} from './registry.js';
 // This is a read-only presentation queue, never a reduced publication validator.
 const visibility=/^web_review:(defer|later|review):[-a-zA-Z0-9_]{16,64}$/;
@@ -44,8 +46,16 @@ export async function addWebReview(db,items,now){
   const state=states.find(s=>s.source_id===(item.humanEntry?.sourceId||source?.id));
   // A Bot collection stop alone does not revoke an approved human-entry scope.
   item.reviewBlocked=tombstones.has(await hash(item.url))?'candidate_takedown':source&&(source.humanFactsProhibited||['DO_NOT_USE','PROHIBITED'].includes(source.legalStatus))?'source_prohibited':state&&(state.takedown||state.publication_blocked||state.disabled&&!item.humanEntry)?'source_stopped':null;
+  // A reviewed relation may offer an already-approved primary source. Keep the
+  // secondary hint and its state intact; never infer equivalence from title text.
+  const info=primaryReviewInformation(item.url),primary=info&&assistedSource(info.url),primaryState=states.find(s=>s.source_id===primary?.id),primaryExisting=info&&known.find(c=>[c.source_url,c.normalized_url].includes(info.url)),registered=SOURCES.find(s=>s.id===primary?.id);
+  if(!item.reviewBlocked&&primary&&!primary.existingCandidateOnly&&registered&&!registered.humanFactsProhibited&&!['DO_NOT_USE','PROHIBITED'].includes(registered.legalStatus)&&!primaryState?.disabled&&!primaryState?.takedown&&!primaryState?.publication_blocked&&!tombstones.has(await hash(info.url))){
+   item.primaryReview={url:info.url,existingCandidate:primaryExisting?{id:primaryExisting.id,status:primaryExisting.review_status}:null,draft:assistedDraftWithInformation({fields:{url:info.url,sourceId:primary.id},fieldSources:{},registrationAllowed:true},info)};
+   if(!primaryExisting)item.humanEntry={sourceId:primary.id,url:info.url,basis:primary.basis,viaPrimary:true};
+  }
   item.webReview=webReviewDisposition(item,known,now);
   item.reviewPresentation=webPresentation(item,now);
+  if(item.primaryReview?.existingCandidate&&item.webReview.queue==='judgment')item.reviewPresentation={group:'editorial',reason:'確認済みの一次記事が既存NEWSにあります。仕様・出来事と既存判断を確認してください。',formalReady:false};
  }
  return items;
 }
