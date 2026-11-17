@@ -3,7 +3,7 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {checkedConfig,remoteSql,sqlLiteral as q} from './remote-db.mjs';
 import {hash} from '../src/policy.js';
-import {publishedHeadline,publishedCorrectionStatements} from '../src/published-headline.js';
+import {publishedHeadline,publishedCorrectionStatements,reviewedPublishedTargets} from '../src/published-headline.js';
 const [mode,manifestPath]=process.argv.slice(2),now=Date.now();
 const path=new URL('../.local/published-headline-backfill-plan.json',import.meta.url);
 if(!['plan','apply'].includes(mode))throw Error('plan <reviewed manifest> | apply');
@@ -17,12 +17,8 @@ const gate=(row,data)=>{
 if(mode==='plan'){
  if(!manifestPath)throw Error('explicit_manifest_required');
  const manifest=JSON.parse(await readFile(manifestPath,'utf8')),data=await snapshot(),rows=data[0].results;
- const approved=rows.filter(r=>r.review_status==='approved');
- if(manifest.schemaVersion!==1||manifest.purpose!=='published_headline_quality_only'||manifest.expectedPublished!==approved.length||manifest.entries.length!==approved.length||approved.length>80||new Set(manifest.entries.map(e=>e.id)).size!==approved.length)throw Error('published_manifest_coverage');
  const plans=[];
- for(const e of manifest.entries){
-  const row=approved.find(r=>r.id===e.id);
-  if(!row||row.source_url!==e.sourceUrl||row.source_id!==e.source||row.published_at!==e.publishedAt||row.category!==e.category||row.event_type!==e.eventType||row.label!==e.before)throw Error('published_manifest_stale');
+ for(const {entry:e,row} of reviewedPublishedTargets(manifest,rows)){
   if(!['A','B','C','D'].includes(e.classification)||e.classification==='D'&&e.headlineQuality)throw Error('published_evidence_class');
   if(!e.headlineQuality)continue;
   gate(row,data);

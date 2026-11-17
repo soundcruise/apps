@@ -35,7 +35,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
  if(request.method==='OPTIONS')return finish(new Response(null,{status:204}));
  if(request.method!=='GET')return finish(json({error:'method_not_allowed'},405));
  if(url.pathname==='/health'){
-  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.70.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
+  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.71.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
   catch{return finish(json({ok:false,error:'news_unavailable'},503));}
  }
  if(!['/v1/news','/v1/news/ticker'].includes(url.pathname))return finish(json({error:'not_found'},404));
@@ -67,7 +67,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
   const hit=await cache?.match(key);if(hit&&Number(hit.headers.get('X-News-Valid-Until'))>now)return finish(hit);
   const ticker=url.pathname.endsWith('/ticker');
   const select=async(days,count,start)=>{
-   const {results}=await env.NEWS_DB.prepare(`SELECT c.id,c.label,c.source_name,c.source_url,c.published_at,c.category,COALESCE(o.category,c.category) AS effective_category,c.expires_at,c.sale_ends_at,c.event_ends_at,c.product_facts,c.event_type,c.review_status,p.items_json AS presentation_json FROM candidate_items c
+   const {results}=await env.NEWS_DB.prepare(`SELECT c.id,c.label,c.source_id,c.source_name,c.source_url,c.published_at,c.category,COALESCE(o.category,c.category) AS effective_category,c.expires_at,c.sale_ends_at,c.event_ends_at,c.product_facts,c.event_type,c.review_status,p.items_json AS presentation_json FROM candidate_items c
     LEFT JOIN news_category_overrides o ON o.candidate_id=c.id
     LEFT JOIN news_presentation_days p ON p.day=strftime('%Y-%m-%d',c.published_at,'+9 hours')
     LEFT JOIN source_state s ON s.source_id=c.source_id

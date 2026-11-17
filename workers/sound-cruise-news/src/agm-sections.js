@@ -1,4 +1,5 @@
-import {agmArticleLabel} from './agm-article-label.js';
+import {agmArticleLabel,specificEditorialLabel} from './agm-article-label.js';
+import {AGM_SPECIFIC_LABEL,normalizePerson,principalPeople} from './agm-editorial-subject.js';
 // Permission-scoped discovery. Publisher text is transient; only bounded facts survive.
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut,sourceUrl} from './policy.js';
@@ -50,15 +51,18 @@ function person(entry,t){
 export function agmEditorialAssessment(entry){
  const section=entry.agmSection;if(!AGM_SECTIONS.includes(section)||!agmArticleUrl(entry.url,section))return {reject:'agm_section_scope'};
  const t=entry.title.normalize('NFKC');if(/クーポン|ポイント|送料無料|グッズ|トートバッグ|生徒募集|求人|中止|延期/.test(t))return {reject:'agm_editorial_scope'};
- const topic=topics.find(([, ,re])=>re.test(t));const artist=person(entry,entry.title);
+ const topic=topics.find(([, ,re])=>re.test(t)),names=(entry.metadataCategories||[]).map(normalizePerson),principal=principalPeople(entry.title,entry.title,{tags:names});const artist=principal.length===1&&names.includes(principal[0])?principal[0]:person(entry,entry.title);
  const kind=section==='interview'?'interview':section==='beginners'?'beginner':section==='lesson'?'lesson':section==='column'?'column':section==='gears'&&/愛用|使用|セレクション/.test(t)?'equipment':section==='gears'&&/SOUND CHECK|試奏|レビュー|体験/.test(t)?'review':null;
  const category=['interview','equipment'].includes(kind)?'artist_guitar':'media_other';
- return {kind,category,facts:kind?{kind:'agm_editorial',section,articleType:kind,...(topic?{topic:topic[0]}:{}),...(artist?{person:artist}:{}),category,articleUrl:entry.url,evidence:'agm_permission_metadata_v1'}:null};
+ return {kind,category,facts:kind?{kind:'agm_editorial',section,articleType:kind,...(topic?{topic:topic[0]}:{}),...(artist?{person:artist}:{}),category,articleUrl:entry.url,evidence:'agm_permission_metadata_v1',labelPolicy:AGM_SPECIFIC_LABEL}:null};
 }
 export function agmEditorialLabel(f,event){if(['agm_explicit_article_v1','agm_human_book_v1'].includes(f?.evidence))return agmArticleUrl(f.articleUrl,f.section)?agmArticleLabel(f,event):null;if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||f.evidence!=='agm_permission_metadata_v1'||!agmArticleUrl(f.articleUrl,f.section))return null;
  const topic=topics.find(([key])=>key===f.topic);if(!topic||!['beginner','lesson','column','interview','equipment','review'].includes(f.articleType)||f.category!==(['interview','equipment'].includes(f.articleType)?'artist_guitar':'media_other'))return null;
  const person=f.person;if(person!==undefined&&(typeof person!=='string'||person.length<2||person.length>35||/[<>\x00-\x1f]/.test(person)))return null;
  if(['interview','equipment'].includes(f.articleType)&&!person)return null;
+ if(f.labelPolicy===AGM_SPECIFIC_LABEL)return specificEditorialLabel(f,topic[1]);
  const suffix={beginner:'の初心者向け解説記事を公開',lesson:'の演奏解説記事を公開',column:'をテーマにした読みものを公開',interview:'について語るインタビュー',equipment:'の使用機材を紹介',review:'の試奏・レビュー記事を公開'}[f.articleType];
  return `${person?person+'、':''}${topic[1]}${suffix}`;
 }
+
+export function specificAgmLabel(f,event){return agmEditorialLabel({...f,labelPolicy:AGM_SPECIFIC_LABEL},event);}

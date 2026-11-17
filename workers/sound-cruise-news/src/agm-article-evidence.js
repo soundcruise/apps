@@ -1,9 +1,10 @@
+import {AGM_SPECIFIC_LABEL,normalizePerson,principalPeople,editorialForm,singingFocus} from './agm-editorial-subject.js';
 import {bookFields} from './agm-book-evidence.js';
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {performanceFields} from './agm-performance-evidence.js';
 import {musicReleaseFields} from './agm-music-release.js';
-export const AGM_ARTICLE_PARSER='agm-article-8';
-export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-7','agm-article-6','agm-article-5','agm-article-4']);
+export const AGM_ARTICLE_PARSER='agm-article-9';
+export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-8','agm-article-7','agm-article-6','agm-article-5','agm-article-4']);
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
 import {agmArticleLabel,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
@@ -22,13 +23,15 @@ export function agmEvidenceMetadata(html,url,section){
  const d=parseDocument(html),canon=find(d,n=>n.name==='link'&&n.attribs.rel==='canonical'),titles=find(d,n=>n.name==='h2'&&classes(n.parent).includes('post-title'));
  const og=find(d,n=>n.name==='meta'&&n.attribs.property==='og:title');
  if(canon.length!==1||canon[0].attribs.href!==url||titles.length!==1||og.length!==1)throw Error('facts_article_structure');
- const title=text(titles[0]),ogTitle=og[0].attribs.content||'';
+ const title=text(titles[0]),ogTitle=(og[0].attribs.content||'').replace(/\s+/g,' ').trim();
  if(!title||title.length>512||!(ogTitle===title||ogTitle.startsWith(title+' | ')))throw Error('facts_article_structure');
  const dates=find(d,n=>n.name==='meta'&&n.attribs.property==='article:published_time').map(n=>n.attribs.content);
  if(dates.length>1||dates.some(v=>!/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(v)||!Number.isFinite(Date.parse(v))))throw Error('facts_date_changed');
  return {title,date:dates.length?new Date(dates[0]).toISOString():null};
 }
 function nameFrom(title,intro,tags,old){
+ const principal=principalPeople(title,intro,{tags});if(principal.length)return principal.join('・');
+ if(/^.{2,75}?[×&＆と].*?(?:に聞く|が語る|が選ぶ)/.test(title))return null;
  const named=title.match(/^(?:ギタリスト|シンガー[・]?ソングライター|アーティスト)(?:の)?([^が、。の]{2,35})(?:が|、)/)?.[1];
  if(factName(named)&&intro.includes(named))return named;
  // Some interview headlines prefix the person with their group without a
@@ -46,9 +49,9 @@ function nameFrom(title,intro,tags,old){
   }
  }
  const candidates=[old,...tags];
- for(const v of candidates)if(factName(v)&&v.length<=35&&title.includes(v)&&intro.includes(v)&&!/(ギター|アコギ|グラミー|コンクール|ピックアップ|インタビュー)/.test(v))return v;
+ for(const v of candidates)if(factName(v)&&v.length<=35&&title.includes(v)&&intro.includes(v)&&/^(?:が|に聞く|が選ぶ|の(?:愛用|使用)|[“「])/.test(title.slice(title.indexOf(v)+v.length))&&!/(ギター|アコギ|グラミー|コンクール|ピックアップ|インタビュー)/.test(v))return v;
  // Only subject-bearing headline positions corroborated by the article introduction.
- for(const re of [/^([^、。！？!?「『“（]{2,35}?)(?=が|、|の(?:最新|愛用|使用|作曲)|[“「])/,/、([^、。！？!?]{2,35}?)の作曲法/]){const v=title.match(re)?.[1]?.trim();if(factName(v)&&intro.includes(v))return v;}
+ for(const re of [/^([^、。！？!?「『“（]{2,35}?)(?=が語る|に聞く|が選ぶ|の(?:最新|愛用|使用|作曲)|[“「])/,/、([^、。！？!?]{2,35}?)の作曲法/]){const v=title.match(re)?.[1]?.trim();if(factName(v)&&intro.includes(v))return v;}
  return null;
 }
 export function parseAgmArticleEvidence(html,source,row){
@@ -70,9 +73,11 @@ export function parseAgmArticleEvidence(html,source,row){
  const intro=ps.slice(0,4).map(text).join(' ').slice(0,2200),headings=hs.map(text),title=D.textContent(parseDocument(meta.title));
  const tags=find(doc,n=>n.name==='a'&&/^https:\/\/acousticguitarmagazine\.jp\/tag\//.test(n.attribs.href||'')).map(text);
  let old={};try{old=JSON.parse(row.product_facts)||{};}catch{}
- let person=nameFrom(title,intro,tags,old.person),type=old.articleType||({beginners:'beginner',lesson:'lesson',column:'column',interview:'interview'}[section]);
+ let person=normalizePerson(nameFrom(title,intro,tags,old.person))||null,type=old.articleType||({beginners:'beginner',lesson:'lesson',column:'column',interview:'interview'}[section]);
  const f={kind:'agm_editorial',section,articleType:type,category:['interview','equipment'].includes(type)?'artist_guitar':'media_other',articleUrl:row.source_url,evidence:'agm_explicit_article_v1'};
  if(person)f.person=person;
+ const people=principalPeople(title,intro,{tags});if(people.length>1)f.people=people;
+ const format=editorialForm(title,intro,headings);if(format)f.format=format;
  // Author credits and the principal section topic must be corroborated in the
  // visible primary article. Related links and incidental body mentions cannot select a focus.
  const credit=ps.slice(0,2).map(text).join(' ').match(/(?:文|執筆|著者)\s*[＝=:：]\s*([^\s、。]{2,35})/)?.[1];
@@ -80,6 +85,8 @@ export function parseAgmArticleEvidence(html,source,row){
  const focuses=[['ai_music',/\bAI\b/,/音楽制作|DTM|宅録/,/AI(?:との|の).{0,12}(?:つき合|付き合|活用|使い方)/],['mic_placement',/マイク/,/録音/,/マイク.{0,10}(?:配置|位置|セッティング)/],['recording_latency',/レイテンシー|遅延/,/録音/,/レイテンシー|遅延/],['headphone_choice',/ヘッドホン|ヘッドフォン/,/音楽制作|録音|DTM/,/選び方|選ぶ|選択/],['chord_transposition',/コード|移調/,/移調|キー/,/移調/],['strumming',/ストローク/,/弾き語り/,/ストローク/],['fingerpicking_basics',/フィンガー/,/基礎|基本|入門/,/フィンガー/]];
  const lead=title+' '+headings.slice(0,3).join(' ');
  const focus=focuses.filter(([,a,b,c])=>a.test(lead)&&b.test(intro)&&c.test(headings.slice(0,3).join(' ')));if(focus.length===1)f.focus=focus[0][0];
+ const vocal=singingFocus(title,intro,headings);if(vocal)f.focus=vocal;
+ if(/弾き語り/.test(title)&&/名盤|アルバム.*(?:選|参考)/.test(title)&&/名盤|アルバム/.test(intro))f.focus='acoustic_records';
  if(/【PR】|\bPR\b|タイアップ|広告企画/.test(intro))f.editorialNotice='advertorial';
  // Explicit model-bearing subsection headings, not related cards or price lists.
  const models=[...new Set(headings.filter(h=>/^[A-Za-z][A-Za-z .&-]{1,35}／[^／]{2,70}$/.test(h)&&/(?:[0-9]|[A-Z]+-[A-Z]+)/.test(h)).map(h=>h.replace('／',' ')))].slice(0,5);
@@ -111,6 +118,7 @@ export function parseAgmArticleEvidence(html,source,row){
    const issue=intro.match(/アコースティック・ギター・マガジン[^』。]{0,50}(Vol\.\d{1,3})/)?.[1];if(issue){f.articleType='publication';f.category='media_other';f.topic='parlor_guitar';f.issue=issue;delete f.person;}
   }
  }
+ if(['column','lesson','beginner','interview','equipment','review'].includes(f.articleType))f.labelPolicy=AGM_SPECIFIC_LABEL;
  const label=agmArticleLabel(f,'agm_editorial');if(!label||!validLabel(label,title))throw Error('facts_not_recovered');
  return {publishedAt:row.published_at,eventType:'agm_editorial',category:f.category,productFacts:f};
 }

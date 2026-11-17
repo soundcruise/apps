@@ -1,6 +1,7 @@
 // Owner-authorized presentation facts for already published articles only.
 // Never rehydrated into extraction/publication facts or learning. A strict
 // read-only legacy adapter may use the verified identity for duplicate checks.
+import {ARTICLE_FOCUS,specificEditorialLabel} from './agm-article-label.js';
 import {attributedProductHeadline} from './product-attribution.js';
 export const PUBLISHED_PRODUCT_TYPES=Object.freeze({
  electric_acoustic_guitar:'エレアコ',truss_rod_tool:'トラスロッド調整工具',fret_sprout_tool:'フレット用バリ取り工具',fret_leveling_tool:'フレットすり合わせ工具',
@@ -47,6 +48,13 @@ export function validPublishedHeadline(h,row){
   if(h.feature!==undefined&&(!text(h.feature,40)||!covered('feature')||h.action!=='spec_change'))return false;
   return !['person','theme','event','exhibit'].some(k=>k in h);
  }
+ if(h.kind==='editorial'){
+  let facts;try{facts=typeof row.product_facts==='string'?JSON.parse(row.product_facts):row.product_facts;}catch{return false;}
+  return row.source_id==='agm'&&facts?.kind==='agm_editorial'&&['column','lesson','beginner'].includes(facts.articleType)&&facts.articleUrl===row.source_url&&
+   text(h.person,40)&&Object.hasOwn(ARTICLE_FOCUS,h.theme)&&['qa','explanation'].includes(h.action)&&covered('theme')&&
+   h.evidence.every(e=>e.url===row.source_url&&e.basis==='primary_article_review')&&
+   !['brand','product','productType','subtypes','qualifier','date','version','feature','event','exhibit'].some(k=>k in h);
+ }
  if(h.kind==='interview')return text(h.person,40)&&Object.hasOwn(themes,h.theme)&&covered('theme')&&!['brand','product','productType','subtypes','qualifier','date','version','feature','event','exhibit'].some(k=>k in h)&&h.action==='interview';
  if(h.kind==='auction')return text(h.person,40)&&h.action==='guitar_collection_auction'&&!['brand','product','productType','subtypes','qualifier','date','version','feature','event','exhibit','theme'].some(k=>k in h);
  if(h.kind==='exhibition')return text(h.brand,60)&&text(h.event,60)&&text(h.exhibit,40)&&h.action==='exhibiting'&&!['person','product','productType','subtypes','qualifier','date','version','feature','theme'].some(k=>k in h);
@@ -58,6 +66,7 @@ function datePhrase(date){
 }
 export function publishedHeadline(h,row){
  if(!validPublishedHeadline(h,row))return null;
+ if(h.kind==='editorial')return specificEditorialLabel({articleType:'column',person:h.person,focus:h.theme,format:h.action});
  if(h.kind==='interview')return `${h.person}、${themes[h.theme]}を語るインタビュー`;
  if(h.kind==='auction')return `${h.person}、ギターなどの個人コレクションを競売へ`;
  if(h.kind==='exhibition')return `${h.brand}、${h.event}に${h.exhibit}を出展`;
@@ -90,4 +99,17 @@ export function publishedCorrectionStatements(row,plan,q){
   // grant or change its identity, digest, source, category or publication date.
   `UPDATE legacy_news_grants SET label=${q(plan.label)} WHERE item_id=${q(row.id)} AND label=${q(row.label)} AND source_id=${q(row.source_id)} AND source_url=${q(row.source_url)} AND published_at=${q(row.published_at)} AND category=${q(row.category)} AND EXISTS(SELECT 1 FROM news_admin_audit WHERE id=${q(plan.requestId)} AND action='headline-quality-backfill' AND target=${q(row.id)}) AND EXISTS(SELECT 1 FROM candidate_items WHERE id=${q(row.id)} AND origin='legacy_fixture_backfill' AND review_status='approved' AND review_revision=${row.review_revision+1} AND label=${q(plan.label)})`
  ];
+}
+
+// Existing full-review mode remains bounded. An explicit small correction need not
+// re-review every unrelated published article. It still fences the total count
+// and each exact target row in the existing expiring plan/CAS apply path.
+export function reviewedPublishedTargets(manifest,rows){
+ const approved=rows.filter(r=>r.review_status==='approved'),entries=manifest.entries;
+ if(manifest.schemaVersion!==1||manifest.purpose!=='published_headline_quality_only'||manifest.expectedPublished!==approved.length||!Array.isArray(entries)||new Set(entries.map(e=>e.id)).size!==entries.length||
+  (manifest.scope==='explicit_targets'?entries.length<1||entries.length>8:manifest.scope!==undefined||entries.length!==approved.length||approved.length>80))throw Error('published_manifest_coverage');
+ return entries.map(e=>{const row=approved.find(r=>r.id===e.id);
+  if(!row||row.source_url!==e.sourceUrl||row.source_id!==e.source||row.published_at!==e.publishedAt||row.category!==e.category||row.event_type!==e.eventType||row.label!==e.before)throw Error('published_manifest_stale');
+  return {entry:e,row};
+ });
 }
