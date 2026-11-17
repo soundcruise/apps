@@ -1,0 +1,24 @@
+✔ row units, colors and fullscreen chrome (3932.210792ms)
+✔ row units, colors and fullscreen webkit (2683.680667ms)
+▶ toolbar placement and direct chord cell entry: chrome
+  ✔ display and zoom retain a shared row and height; narrow toolbars wrap without overflow (1242.944125ms)
+  ✔ each chord cell opens its own time position; direct selection writes only that cell and Undo restores it (1114.533791ms)
+  ✔ two measure view targets the second measure and protects incomplete text and IME from cell shortcuts (999.791083ms)
+  ✔ right two-measure cell buttons support keyboard activation and detached buttons cannot change a different target (873.487833ms)
+  ✔ chord names remain at the diagram card center while the quiet audition stays to their right (1138.574417ms)
+✔ toolbar placement and direct chord cell entry: chrome (6713.950083ms)
+▶ toolbar placement and direct chord cell entry: webkit
+  ✔ display and zoom retain a shared row and height; narrow toolbars wrap without overflow (1081.762ms)
+  ✔ each chord cell opens its own time position; direct selection writes only that cell and Undo restores it (1155.404459ms)
+  ✔ two measure view targets the second measure and protects incomplete text and IME from cell shortcuts (1122.61075ms)
+  ✔ right two-measure cell buttons support keyboard activation and detached buttons cannot change a different target (875.402ms)
+  ✔ chord names remain at the diagram card center while the quiet audition stays to their right (1014.552417ms)
+✔ toolbar placement and direct chord cell entry: webkit (5426.711ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12266.158709

@@ -301,7 +301,7 @@ export function createOwnerChordPicker(C,base){
             if(!current())return;
             // The source's bookshelf save button has no local capability.
             shadow.getElementById('cc-save-form-btn')?.remove();
-            for(const button of shadow.querySelectorAll('.cc-chord-btn')){const chord=base.theory.getDiatonicChords(owner.state.settings.selectedKey,owner.state.settings.scaleType,owner.state.settings.chordToneMode)[Number(button.dataset.index)];if(chord)button.dataset.chordSymbol=chord.symbol;}
+            for(const button of shadow.querySelectorAll('.cc-chord-btn')){const chord=base.theory.getDiatonicChords(owner.state.settings.selectedKey,owner.state.settings.scaleType,owner.state.settings.chordToneMode)[Number(button.dataset.index)];if(chord){button.dataset.chordSymbol=chord.symbol;button.dataset.scoreSelected=String(chord.symbol===owner.ui.explore.readSelectedChord()?.symbol);button.setAttribute('aria-pressed',button.dataset.scoreSelected);}}
             for(const [id,value]of [['cc-tone-3','3'],['cc-tone-7','7']])shadow.getElementById(id)?.setAttribute('data-chord-tones',value);
             shadow.getElementById('cc-custom-chord-btn')?.setAttribute('data-chord-custom','');for(const b of shadow.querySelectorAll('[data-shape]'))b.dataset.chordShape=b.dataset.shape;
             for(const value of ['finger','note','solfege','degree'])shadow.getElementById('cc-fbmode-'+value)?.setAttribute('data-chord-view',value);
@@ -372,10 +372,10 @@ const layoutCSS=`
 :host(:not(.score-chord-advanced)) :is(#cc-screen-explore,.cc-custom-chord-row){display:none;}
 :host(.score-chord-advanced) #cc-screen-explore{grid-column:1/-1;}
 #cc-save-btn-row{display:none!important;}
-.score-chord-diatonic #cc-chord-grid{grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;}
+.score-chord-diatonic #cc-chord-grid{grid-template-columns:repeat(7,minmax(56px,1fr));gap:6px;}
 .score-chord-diatonic{overflow:auto;}
 .score-chord-diatonic .cc-chord-btn{padding:7px 3px;border-radius:9px;}
-.score-chord-diatonic .cc-chord-btn-symbol{font-size:clamp(10px,1.6cqi,14px);white-space:nowrap;}
+.score-chord-diatonic .cc-chord-btn-symbol{font-size:clamp(12px,1.8cqi,16px);white-space:nowrap;}
 .score-chord-diatonic .cc-chord-btn-roman{font-size:10px;}
 .score-chord-diatonic .cc-card-heading{font-size:13px;}
 .score-chord-diatonic .cc-segment-btn{font-size:12px;padding:7px 12px;}
@@ -424,6 +424,20 @@ const layoutCSS=`
 .score-book-diagram .cc-fb-scroll{overflow:visible;}
 .score-book-diagram .cc-fb-stage{pointer-events:none;}
 .score-book-diagram .cc-fb-stage button{pointer-events:none;}
+
+/* Local score chord editor: readable surfaces, gold only for active choices. */
+:host([data-theme]){--cc-bg:#18232e;--cc-surface:#243442;--cc-surface-raised:#304454;--cc-border:#526778;--cc-border-strong:#cdb474;--cc-text:#f4f6f7;--cc-text-muted:#c0ccd5;--cc-text-faint:#bac7d1;--cc-champagne:#ead8a2;--cc-gold:#cdb474;--cc-gold-bright:#e1c98e;--cc-accent-text:#ead8a2;--score-chord-hover:#3b5265;--score-chord-selected:#d3ba7c;--score-chord-selected-text:#241e12;--score-chord-heading:#ead8a2;}
+:host([data-theme=light]),:host([data-theme=gray]){--cc-bg:#f3f1ea;--cc-surface:#ffffff;--cc-surface-raised:#e9edf0;--cc-border:#a5afb7;--cc-border-strong:#8b702f;--cc-text:#263440;--cc-text-muted:#566573;--cc-text-faint:#566573;--cc-champagne:#70551d;--cc-gold:#a7873e;--cc-gold-bright:#8b702f;--cc-accent-text:#70551d;--score-chord-hover:#dde5eb;--score-chord-selected:#e5d3a3;--score-chord-selected-text:#302713;--score-chord-heading:#70551d;}
+.cc-card{background:var(--cc-surface);}
+.cc-card-heading{color:var(--score-chord-heading);}
+.cc-btn-secondary{background:var(--cc-surface-raised);color:var(--cc-text);border-color:var(--cc-border);}
+.cc-btn-secondary:hover{background:var(--score-chord-hover);}
+.score-chord-diatonic .cc-chord-btn{background:var(--cc-surface-raised);color:var(--cc-text);border-color:var(--cc-border);}
+.score-chord-diatonic .cc-chord-btn:hover{background:var(--score-chord-hover);border-color:var(--cc-border-strong);}
+.score-chord-diatonic .cc-chord-btn[data-score-selected=true],.score-chord-diatonic .cc-chord-btn[data-score-selected=true]:hover{background:var(--score-chord-selected);color:var(--score-chord-selected-text);border-color:var(--cc-border-strong);box-shadow:inset 0 0 0 1px var(--cc-border-strong);}
+.score-chord-diatonic .cc-chord-btn[data-score-selected=true] .cc-chord-btn-roman{color:var(--score-chord-selected-text);}
+.score-chord-diatonic .cc-segment-btn--active{background:var(--score-chord-selected);color:var(--score-chord-selected-text);}
+:is(.cc-btn,.cc-chord-btn,.cc-segment-btn):focus-visible{outline:2px solid var(--cc-gold);outline-offset:3px;}
 
 @container(max-width:680px){.score-chord-basic-layout{grid-template-columns:minmax(0,1fr);}.score-chord-selected-form{grid-row:1;grid-column:1;width:196px;justify-self:center;}.score-chord-harmony{grid-column:1;grid-row:2;}.score-chord-diatonic{grid-column:1;grid-row:2;}.score-chord-actions{grid-column:1;grid-row:3;margin-top:0;}}
 `;

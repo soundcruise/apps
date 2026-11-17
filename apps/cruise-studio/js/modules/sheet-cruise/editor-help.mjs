@@ -1,10 +1,16 @@
+import {bindOutsideDismiss} from '../score-ui.mjs';
 // Read-only help. Editing, storage and playback remain owned by the existing editor.
 const TOPICS=[
+ ['入力単位',[
+  ['行の数字','8分 → 16分 → 4分 → 全（小節全体）→ 2分で切り替えます。表示中の1〜2小節のその行へ適用し、既存の音や歌詞は消しません。'],
+  ['拍の右下の数字','その拍だけ細かさを固定します。ロックした拍は行の単位を変えても保持します。全・2分は固定した拍の前後をまとめます。'],
+  ['「コード」横の▼','選んだマスのコード入力・運指画面をコード行のすぐ下に開きます。もう一度押すと閉じます。']
+ ]],
  ['再生とSpace',[
   ['譜面上でSpace','選択中の小節から再生・停止します。複数の小節を選んでいるときは、その範囲を繰り返します。'],
-  ['音量','「再生設定」でコード・メロディ・メトロノームの音量を別々に調整できます。再生中にも反映されます。'],
-  ['メトロノーム','「再生設定」のチェックをオンにすると、譜面の再生中も拍を鳴らします。カウントインとは別に切り替えられます。'],
-  ['カウントイン','「再生設定」のチェックをオンにすると、譜面の再生前に1小節だけ拍を鳴らします。範囲ループでは最初の1回だけです。'],
+  ['音量','「音設定」でコード・メロディ・メトロノームの音量を別々に調整できます。再生中にも反映されます。'],
+  ['メトロノーム','「音設定」のチェックをオンにすると、譜面の再生中も拍を鳴らします。カウントインとは別に切り替えられます。'],
+  ['カウントイン','「音設定」のチェックをオンにすると、譜面の再生前に1小節だけ拍を鳴らします。範囲ループでは最初の1回だけです。'],
   ['編集カードの余白でSpace','表示中の小節を再生・停止します。鍵盤を開いているときは、メロディだけを再生します。'],
   ['ストロークのマスでSpace','そのマスに休符を入力します。'],
   ['文字を入力しているとき','Spaceは文字入力に使われます。再生するときは、再生ボタンを押してください。']
@@ -51,7 +57,7 @@ export function createEditorHelp({document:doc,closed=()=>{}}){
 @media(max-width:480px){.sc-editor-help-dialog{padding:14px;}.sc-editor-help-dialog header{top:-14px;}.sc-editor-help-dialog h2{font-size:17px;}}
 @media print{.sc-editor-help-dialog,.sc-editor-help-dialog::backdrop{display:none!important;}}
 `;doc.head.appendChild(style);}
-  host.appendChild(current);trigger?.setAttribute('aria-expanded','true');current.showModal();body.focus({preventScroll:true});return true;
+  host.appendChild(current);trigger?.setAttribute('aria-expanded','true');bindOutsideDismiss(current,{close});current.showModal();body.focus({preventScroll:true});return true;
  }
  return {open,close,get isOpen(){return !!dialog?.open;}};
 }

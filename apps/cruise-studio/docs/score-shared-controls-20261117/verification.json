@@ -1,0 +1,99 @@
+{
+  "date": "2026-11-17",
+  "studio": "0.158.0-dev.1",
+  "viewer": "0.15.0-dev.1",
+  "head": "82e4e8a7",
+  "branch": "codex/score-toolbar-ui",
+  "node": {
+    "total": 2352,
+    "passed": 2351,
+    "failed": 0,
+    "skipped": 1,
+    "log": "node.log",
+    "audio_unit_tests_included_in_total": 29
+  },
+  "browser": {
+    "passed": 184,
+    "failed": 0,
+    "counting": "Parent cases included; duplicate runs excluded; superseded failures excluded only after corresponding final success.",
+    "groups": [
+      {
+        "suite": "shared parity",
+        "passed": 14,
+        "log": "parity-final.log"
+      },
+      {
+        "suite": "library settings / transport preview / unified UI",
+        "passed": 38,
+        "log": "ui.log",
+        "excluded_duplicate": "parity14"
+      },
+      {
+        "suite": "direct form playback / range / viewer stage2",
+        "passed": 48,
+        "log": "playback.log",
+        "excluded_superseded": "playback-forms14; see final-ui-audio.log"
+      },
+      {
+        "suite": "playback forms / acoustic",
+        "passed": 17,
+        "log": "final-ui-audio.log",
+        "excluded_duplicate": "parity14"
+      },
+      {
+        "suite": "history / mobile",
+        "passed": 32,
+        "log": "final-check.log",
+        "excluded_duplicate": "parity14"
+      },
+      {
+        "suite": "filtered editor regression Chrome / WebKit",
+        "passed": 32,
+        "logs": [
+          "editor-chrome.log",
+          "editor-webkit.log"
+        ]
+      },
+      {
+        "suite": "actual TCP disconnect offline cold",
+        "passed": 3,
+        "log": "cold.log"
+      }
+    ],
+    "additional_duplicate_visual_rerun": {
+      "passed": 6,
+      "log": "spacing-final.log",
+      "added_to_total": false
+    }
+  },
+  "offline": {
+    "version": "0.158.0-dev.1-56bdc6ce5ce7",
+    "files": 265,
+    "bytes": 12342355,
+    "all_hashes_verified": true,
+    "server_restored": "http://127.0.0.1:18874/"
+  },
+  "unchanged": [
+    "production distribution",
+    "real accounts",
+    "authentication and real Sync configuration",
+    "public HTML",
+    "apps/shared",
+    "other apps and news",
+    "formal Studio0.88.1",
+    "score format v1",
+    "preset format v1",
+    "library DBv3"
+  ],
+  "not_tested": [
+    "physical Safari",
+    "physical smartphone",
+    "Bluetooth listening",
+    "OS printing"
+  ],
+  "git": {
+    "staged": false,
+    "committed": false,
+    "pushed": false
+  }
+}

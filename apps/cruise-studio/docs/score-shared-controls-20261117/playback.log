@@ -1,0 +1,120 @@
+▶ direct form popup and playback settings: chrome
+  ✔ popup edits are staged; fingers and played strings affect only the exact chord and share Undo Save JSON reload (1989.922042ms)
+  ✔ fine-timed chords retain their exact timing and a stale popup cannot update the score (1169.978042ms)
+  ✔ volume buses independently adjust active code, melody and metronome/count without restarting playback (3020.889875ms)
+  ✔ settings retain unrelated preferences and malformed raw data; invalid text and IME retain ownership (847.486916ms)
+  ✔ leaving with playback settings open closes the modal and audio without restoring hidden controls (872.591708ms)
+  ✔ settings and direct diagram controls fit phone widths, remain keyboard accessible and disappear in print (1655.396458ms)
+✔ direct form popup and playback settings: chrome (10450.68625ms)
+▶ direct form popup and playback settings: webkit
+  ✔ popup edits are staged; fingers and played strings affect only the exact chord and share Undo Save JSON reload (1959.420292ms)
+  ✔ fine-timed chords retain their exact timing and a stale popup cannot update the score (1273.212333ms)
+  ✔ volume buses independently adjust active code, melody and metronome/count without restarting playback (2887.599417ms)
+  ✔ settings retain unrelated preferences and malformed raw data; invalid text and IME retain ownership (910.622458ms)
+  ✔ leaving with playback settings open closes the modal and audio without restoring hidden controls (1066.739917ms)
+  ✔ settings and direct diagram controls fit phone widths, remain keyboard accessible and disappear in print (2142.105834ms)
+✔ direct form popup and playback settings: webkit (10408.682541ms)
+▶ score metronome, smooth follow and registered form editing: chrome
+  ✔ metronome follows count-in and repeats every beat with the selected range on one context (2500.086375ms)
+  ✖ metronome preference survives reload, stays out of Project and preserves malformed browser settings (1350.007958ms)
+  ✔ blank strokes use beats and chord changes, explicit rests stay silent and old playback notices do not persist (914.271375ms)
+  ✔ form backdrop clicks close only the enlarged card; direct changes target that exact chord and share Undo Save JSON (1594.682417ms)
+  ✔ form finger edits preserve a fine-timed event in a protected chord cell (937.21225ms)
+  ✔ follow centers gradually across frames, yields to manual scrolling and stops immediately with playback (2747.460958ms)
+✖ score metronome, smooth follow and registered form editing: chrome (11527.170375ms)
+▶ score metronome, smooth follow and registered form editing: webkit
+  ✔ metronome follows count-in and repeats every beat with the selected range on one context (2536.316542ms)
+  ✖ metronome preference survives reload, stays out of Project and preserves malformed browser settings (1227.5115ms)
+  ✔ blank strokes use beats and chord changes, explicit rests stay silent and old playback notices do not persist (784.183916ms)
+  ✔ form backdrop clicks close only the enlarged card; direct changes target that exact chord and share Undo Save JSON (1537.671042ms)
+  ✔ form finger edits preserve a fine-timed event in a protected chord cell (905.841167ms)
+  ✔ follow centers gradually across frames, yields to manual scrolling and stops immediately with playback (2831.22175ms)
+✖ score metronome, smooth follow and registered form editing: webkit (9967.340084ms)
+▶ empty slots, neutral selection and repeated range: chrome
+  ✔ empty slot only offers launch or cancel; launch restores a blank playable bar before typing and Undo restores the slot (1056.239333ms)
+  ✔ only paper surroundings clear selection; empty timing cells select the bar and controls retain it (815.285042ms)
+  ✔ neutral drag selects bars without moving them; only that range repeats on one audio context and Stop keeps the range (3610.825458ms)
+  ✔ code labels select/edit bars and never enlarge; form panels alone enlarge (774.204417ms)
+  ✔ every bar track and its blank area selects then edits; only form diagrams zoom, even with hidden bar numbers (1900.726084ms)
+  ✔ both key modes update capo and all forms automatically, in one Undo each (1209.706625ms)
+✔ empty slots, neutral selection and repeated range: chrome (9900.209583ms)
+▶ empty slots, neutral selection and repeated range: webkit
+  ✔ empty slot only offers launch or cancel; launch restores a blank playable bar before typing and Undo restores the slot (1244.751625ms)
+  ✔ only paper surroundings clear selection; empty timing cells select the bar and controls retain it (913.609625ms)
+  ✔ neutral drag selects bars without moving them; only that range repeats on one audio context and Stop keeps the range (3402.956417ms)
+  ✔ code labels select/edit bars and never enlarge; form panels alone enlarge (791.599041ms)
+  ✔ every bar track and its blank area selects then edits; only form diagrams zoom, even with hidden bar numbers (2077.075666ms)
+  ✔ both key modes update capo and all forms automatically, in one Undo each (1166.529334ms)
+✔ empty slots, neutral selection and repeated range: webkit (9779.429792ms)
+▶ viewer stage 2: chrome
+  ✔ display preview cancels atomically; saved toggles/fonts/colors never alter the file (1047.431167ms)
+  ✔ named presets persist locally and export presentation only (1050.939792ms)
+  ✔ a separate profile previews and imports the shared preset; malformed input keeps the current display (895.567625ms)
+  ✔ real banks decode and stream both parts; live tempo, mute, hidden parts and Space keep source immutable (1979.860291ms)
+  ✔ native offline rendering produces real guitar/piano output, independent mixes and the reference waveform (529.032709ms)
+  ✔ saved practice settings and position reopen stopped; repeated workspace exits release audio ownership (2525.565834ms)
+  ✔ continuous row motion follows the beat; manual scroll detaches only the viewport and can rejoin (3683.229166ms)
+  ✔ count-in, metronome and stopped-bar start share one owned context; input/dialog Space is isolated (2385.462833ms)
+  ✔ global stop revokes a delayed sample load so it can never start afterwards (672.313333ms)
+✔ viewer stage 2: chrome (15680.767875ms)
+▶ viewer stage 2: webkit
+  ✔ display preview cancels atomically; saved toggles/fonts/colors never alter the file (1325.351292ms)
+  ✔ named presets persist locally and export presentation only (1136.361792ms)
+  ✔ a separate profile previews and imports the shared preset; malformed input keeps the current display (930.800875ms)
+  ✔ real banks decode and stream both parts; live tempo, mute, hidden parts and Space keep source immutable (2052.713584ms)
+  ✔ native offline rendering produces real guitar/piano output, independent mixes and the reference waveform (577.616584ms)
+  ✔ saved practice settings and position reopen stopped; repeated workspace exits release audio ownership (3016.125959ms)
+  ✔ continuous row motion follows the beat; manual scroll detaches only the viewport and can rejoin (4615.582792ms)
+  ✔ count-in, metronome and stopped-bar start share one owned context; input/dialog Space is isolated (2692.114917ms)
+  ✔ global stop revokes a delayed sample load so it can never start afterwards (781.370666ms)
+✔ viewer stage 2: webkit (17397.0025ms)
+ℹ tests 62
+ℹ suites 0
+ℹ pass 58
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 95651.456375
+
+✖ failing tests:
+
+test at apps/cruise-studio/tests/playback-forms.browser.cjs:27:10
+✖ metronome preference survives reload, stays out of Project and preserves malformed browser settings (1350.007958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert(!await p.evaluate(()=>__plans.at(-1).plan.events.some(e=>e.part==='click')))
+
+      at /Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/playback-forms.browser.cjs:28:1096
+      at async fresh (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/playback-forms.browser.cjs:21:392)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async TestContext.<anonymous> (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/playback-forms.browser.cjs:27:2)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at apps/cruise-studio/tests/playback-forms.browser.cjs:27:10
+✖ metronome preference survives reload, stays out of Project and preserves malformed browser settings (1227.5115ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert(!await p.evaluate(()=>__plans.at(-1).plan.events.some(e=>e.part==='click')))
+
+      at /Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/playback-forms.browser.cjs:28:1096
+      at async fresh (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/playback-forms.browser.cjs:21:392)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async TestContext.<anonymous> (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/playback-forms.browser.cjs:27:2)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

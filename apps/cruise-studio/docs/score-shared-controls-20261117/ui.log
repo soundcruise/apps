@@ -1,0 +1,68 @@
+▶ score library and presentation chrome
+  ✔ editor menu is first, export selects or creates a folder and completion opens the exact immutable file (999.757875ms)
+  ✔ copy is numbered without an editor; metadata edits use a compact nested sheet and folder tools lead the tree (766.276042ms)
+  ✔ viewer metronome timbres and signed synchronization work live without changing source or transport (731.508583ms)
+  ✔ viewer colors cancel atomically, then save with form catalogue and read-only zoom in both layouts (1084.125375ms)
+  ✔ PDF export includes the optional deduplicated appendix without changing the reader (1042.798ms)
+  ✔ editor sound preferences, colors and catalogue remain presentation-only; settings preview and Cancel restore all (1268.181875ms)
+✔ score library and presentation chrome (6940.076791ms)
+▶ score library and presentation webkit
+  ✔ editor menu is first, export selects or creates a folder and completion opens the exact immutable file (1151.409ms)
+  ✔ copy is numbered without an editor; metadata edits use a compact nested sheet and folder tools lead the tree (694.724625ms)
+  ✔ viewer metronome timbres and signed synchronization work live without changing source or transport (824.254ms)
+  ✔ viewer colors cancel atomically, then save with form catalogue and read-only zoom in both layouts (1092.018167ms)
+  ✔ PDF export includes the optional deduplicated appendix without changing the reader (1130.840167ms)
+  ✔ editor sound preferences, colors and catalogue remain presentation-only; settings preview and Cancel restore all (1367.03ms)
+✔ score library and presentation webkit (6464.02425ms)
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (856.197666ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1314.332959ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8162.789125ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (795.980375ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (3829.578416ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1699.6495ms)
+✔ score controls parity chrome (18041.269459ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (943.300875ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1315.33075ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8134.686084ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (933.910958ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4006.99475ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1702.911542ms)
+✔ score controls parity webkit (17242.652167ms)
+▶ shared transport and presentation audition chrome
+  ✔ editor bottom bar is visible before scrolling, title matches menu height, save and history stay above (1178.09325ms)
+  ✔ display audition always restarts at the first bar, reflects changes, and disposes audio on Cancel, Save and global stop (3042.90675ms)
+  ✔ closing during sample loading cannot revive the settings preview (940.166958ms)
+  ✔ viewer fits the common bottom controls, shares centered form zoom, and saves catalogue scale plus transparency (1304.816291ms)
+✔ shared transport and presentation audition chrome (7110.332708ms)
+▶ shared transport and presentation audition webkit
+  ✔ editor bottom bar is visible before scrolling, title matches menu height, save and history stay above (1333.842917ms)
+  ✔ display audition always restarts at the first bar, reflects changes, and disposes audio on Cancel, Save and global stop (3134.980667ms)
+  ✔ closing during sample loading cannot revive the settings preview (906.326334ms)
+  ✔ viewer fits the common bottom controls, shares centered form zoom, and saves catalogue scale plus transparency (1381.988417ms)
+✔ shared transport and presentation audition webkit (6943.987916ms)
+▶ unified score UI chrome
+  ✔ library management is always available and source bytes survive organize/copy/delete and outside close (804.441708ms)
+  ✔ display menu groups settings, fullscreen, layout and labelled zoom; export is separate; transport groups fit all orientations (722.640875ms)
+  ✔ audio panel can start/pause and adjust live; outside keeps settings and playback; dragging a slider out does not dismiss (767.357625ms)
+  ✔ outside display rolls back previews, scroll keeps live changes, export cancellation is non-destructive (624.872375ms)
+  ✔ PDF settings dismiss outside while preserving the live scrolling preference and source bytes (508.024375ms)
+  ✔ editor audio controls keep stop semantics, share gold and output clock, use one stable composited paper cursor across bars and zoom (1613.746083ms)
+✔ unified score UI chrome (6552.451333ms)
+▶ unified score UI webkit
+  ✔ library management is always available and source bytes survive organize/copy/delete and outside close (824.37075ms)
+  ✔ display menu groups settings, fullscreen, layout and labelled zoom; export is separate; transport groups fit all orientations (809.465375ms)
+  ✔ audio panel can start/pause and adjust live; outside keeps settings and playback; dragging a slider out does not dismiss (799.212041ms)
+  ✔ outside display rolls back previews, scroll keeps live changes, export cancellation is non-destructive (704.785458ms)
+  ✔ PDF settings dismiss outside while preserving the live scrolling preference and source bytes (477.644542ms)
+  ✔ editor audio controls keep stop semantics, share gold and output clock, use one stable composited paper cursor across bars and zoom (1659.272834ms)
+✔ unified score UI webkit (5473.011083ms)
+ℹ tests 52
+ℹ suites 0
+ℹ pass 52
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 75274.488875

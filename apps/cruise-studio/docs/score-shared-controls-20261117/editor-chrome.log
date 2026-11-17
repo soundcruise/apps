@@ -1,0 +1,25 @@
+▶ Phase 1 score editor in an isolated synthetic browser
+  ✔ the real Web Audio engine renders a nonzero, correctly pitched, short audition without speaker output (617.331666ms)
+  ✔ code and stroke playback moves an audio-clock playhead; keyboard playback plays melody only and switching releases prior notes (2317.541083ms)
+  ✔ whole-score playback moves through bars without changing editor selection, project or history, and stops cleanly (2788.214542ms)
+  ✔ both editor playback controls span the displayed bars from the first column, preserving editing focus and exact data (4066.046208ms)
+  ✔ playback head stays inside the editor and never changes the gap above the keyboard strip (892.36425ms)
+  ✔ Space toggles whole score, editor or melody according to the open surface, and ignores repeats and text targets (715.432459ms)
+  ✔ whole song follows lower bars, yields to manual scroll in the current bar, resumes on the next, and preserves content and history (3722.271667ms)
+  ✔ Display exposes settings that highlight the active current-score region; hiding numbers removes the whole band (969.565916ms)
+  ✔ settings preview exactly mirrors paper timing notes rests forms fonts and hatching at both display resolutions (1972.828542ms)
+  ✔ compact settings keep presets in the left column, collapse custom rows, use screenshot defaults and toggle headers in paper order (2485.058667ms)
+  ✔ full display presets use a two-step New Save flow and restore layout artist font forms and line rules after reload (2078.411667ms)
+  ✔ settings Save and Cancel stage sizes rows and bottom presets atomically; form scaling stays centered and recommended defaults fit text (2442.841417ms)
+  ✔ settings storage failure keeps the draft open without partial preference writes and Cancel restores the display (733.988833ms)
+  ✔ paper playback highlights whole bars in selection gold while the playhead stays continuous and Space selects the stopped bar (2012.572666ms)
+  ✔ playback bands move continuously within one cell at cell width and vanish on stop or print (926.960333ms)
+✔ Phase 1 score editor in an isolated synthetic browser (45991.584042ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 46120.553833

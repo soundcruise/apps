@@ -1,3 +1,4 @@
+async function setViewerFlow(p,value){const input=p.locator('[aria-label="譜面の配置"]');if(await input.isVisible())await input.selectOption(value);else{const menu=p.locator('.sv-file-menu:visible');await menu.evaluate(e=>e.open=true);await p.locator('[aria-label="メニューの配置"]').selectOption(value);await menu.locator('summary').click();}}
 // Actual loopback UI, disposable profiles and synthetic scores only.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium,webkit}=require('playwright');
@@ -47,19 +48,19 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
             assert.equal(await p.locator('.sv-paper .sheet-bar[data-bar-number]').count(),12);
             assert.equal(await p.locator('.sv-paper .sheet-form-event svg').count(),24);
             assert.deepEqual(await paperText(p,'.sv-paper'),f.sourceText);
-            assert.equal(await p.locator('.sv-paper [data-paper-edit],.sv-paper [role=button],.sv-paper [tabindex]').count(),0);
+            assert.equal(await p.locator('.sv-paper [data-paper-edit],.sv-paper [role=button]:not(.sheet-form-event),.sv-paper [tabindex]:not(.sheet-form-event)').count(),0);
             await p.locator('.sv-paper .sheet-bar-chord').first().dblclick();assert.equal(await p.locator('#sc-slot-overlay:not(.hidden)').count(),0);
             assert.deepEqual(await editorState(p),f.before);
             if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,engine+'-desktop.png')});}
-            await p.locator('[data-viewer-action=save]').click();await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').textContent==='端末に保存済み');
+            await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'viewer');await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').hidden);
             assert(await p.locator('[data-viewer-action=save]').isDisabled());assert.deepEqual(await editorState(p),f.before);
         }));
         await t.test('saved library and last score survive reload; per-viewer display preferences never alter source files',()=>fresh(async p=>{
-            const f=await exported(p);await enter(p);await importBytes(p,f.bytes);await p.locator('[data-viewer-action=save]').click();await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').disabled);
-            await p.selectOption('[aria-label="譜面の配置"]','source');await p.click('[data-viewer-action=zoom-in]');await p.waitForTimeout(300);
+            const f=await exported(p);await enter(p);await importBytes(p,f.bytes);await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'viewer');await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').disabled);
+            await setViewerFlow(p,'source');await p.click('[data-viewer-action=zoom-in]');await p.waitForTimeout(300);
             await p.reload();await p.waitForFunction(()=>document.documentElement.dataset.studioEntry==='ready');await p.click('#open-score-viewer');await p.locator('.sv-paper .sheet-title').waitFor();
             assert.equal(await p.locator('[data-viewer-action=zoom-reset]').innerText(),'110%');assert.equal(await p.locator('[aria-label="譜面の配置"]').inputValue(),'source');
-            assert(await p.locator('[data-viewer-action=save]').isDisabled());await p.locator('.sv-file-menu:visible').evaluate(e=>e.open=true);await p.click('[data-viewer-action=library]');
+            assert(await p.locator('[data-viewer-action=save]').isDisabled());await p.locator('.sv-file-menu:visible').evaluate(e=>e.open=true);await p.click('[data-viewer-action=library]');await p.getByRole('button',{name:'未分類（',exact:false}).click();
             await p.locator('.sv-library [data-viewer-action=library-open]').waitFor();assert.equal(await p.locator('.sv-library [data-viewer-action=library-open]').count(),1);await p.click('[data-viewer-action=library-open]');await settle(p);
             assert.equal(await p.locator('.sv-paper .sheet-title').innerText(),f.file.score.songInfo.title);
             assert.equal(await p.evaluate(async id=>{const {createViewerLibrary}=await import('/apps/score-viewer/core/library.mjs');const {createStudioViewerContract}=await import('/apps/cruise-studio/js/modules/sheet-cruise/viewer-contract.mjs');const l=createViewerLibrary({indexedDB,codec:createStudioViewerContract({schema:CruiseStudio.model.schema2}).codec});const value=await l.read(id);await l.close();return new TextDecoder().decode(value.bytes);},f.file.viewerDocumentId),f.bytes.toString('utf8'));
@@ -74,14 +75,14 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
         await t.test('long score zoom/reflow retains bars and forms and actually magnifies text',()=>fresh(async p=>{
             const f=viewerFixture(),{longProject}=require('../scripts/measure-score-geometry.cjs'),score=longProject(f.score,128);
             const file=await f.contract.codec.encode(score,f.metadata);await p.click('#open-score-viewer');await p.locator('[data-viewer-action=open]').waitFor({state:'attached'});await importBytes(p,Buffer.from(file.text));
-            await p.selectOption('[aria-label="譜面の配置"]','source');
+            await setViewerFlow(p,'source');
             const height=await p.locator('.sv-paper .sheet-title').evaluate(e=>e.getBoundingClientRect().height);
             await p.evaluate(()=>window.__viewerOldBar=document.querySelector('.sv-paper .sheet-bar[data-bar-number]'));
             await p.click('[data-viewer-action=zoom-in]');await settle(p);
             assert(await p.locator('.sv-paper .sheet-title').evaluate((e,h)=>e.getBoundingClientRect().height>h,height));
             assert(await p.evaluate(()=>__viewerOldBar===document.querySelector('.sv-paper .sheet-bar[data-bar-number]')));
             assert.equal(await p.locator('.sv-paper .sheet-bar[data-bar-number]').count(),128);
-            await p.selectOption('[aria-label="譜面の配置"]','responsive');await p.setViewportSize({width:390,height:844});await settle(p);
+            await setViewerFlow(p,'responsive');await p.setViewportSize({width:390,height:844});await settle(p);
             assert(await p.evaluate(()=>__viewerOldBar===document.querySelector('.sv-paper .sheet-bar[data-bar-number]')));
             assert.equal(await p.locator('.sv-paper .sheet-form-event svg').count(),score.performance.formBindings.length);
         }));
@@ -108,12 +109,12 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
             assert(await p.locator('.sv-file-menu:visible summary').isVisible());
             if(out)await p.screenshot({path:path.join(out,engine+'-landscape.png')});
             for(let i=0;i<3;i++){await p.setViewportSize({width:390,height:844});await settle(p);await p.waitForTimeout(40);assert(await p.locator('.sv-viewport').evaluate(e=>{const b=e.querySelector('.sheet-bar[data-bar-number="5"]').getBoundingClientRect(),r=e.getBoundingClientRect();return b.bottom>r.top&&b.top<r.bottom;}));await p.setViewportSize({width:844,height:390});await settle(p);await p.waitForTimeout(40);}
-            await p.locator('[data-viewer-action=save]').click();await p.waitForTimeout(300);await p.reload();await p.waitForFunction(()=>document.documentElement.dataset.studioEntry==='ready');await p.click('#open-score-viewer');await p.locator('.sv-paper .sheet-title').waitFor();await settle(p);
+            await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'viewer');await p.waitForTimeout(300);await p.reload();await p.waitForFunction(()=>document.documentElement.dataset.studioEntry==='ready');await p.click('#open-score-viewer');await p.locator('.sv-paper .sheet-title').waitFor();await settle(p);
             assert(await p.locator('.sv-viewport').evaluate(e=>e.scrollTop>0));
         }));
         await t.test('unavailable storage leaves a working temporary viewer and never reports a successful save',()=>fresh(async p=>{
             const f=viewerFixture(),file=await f.contract.codec.encode(f.score,f.metadata);await p.click('#open-score-viewer');await p.locator('[data-viewer-action=open]').waitFor({state:'attached'});await importBytes(p,Buffer.from(file.text));
-            await p.click('[data-viewer-action=save]');await p.waitForFunction(()=>document.querySelector('[data-viewer-status]').dataset.error==='true');
+            await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'viewer');await p.waitForFunction(()=>document.querySelector('[data-viewer-status]').dataset.error==='true');
             assert(await p.locator('[data-viewer-action=save]').isEnabled());assert.equal(await p.locator('.sv-paper .sheet-bar[data-bar-number]').count(),12);
             assert(!((await p.locator('[data-viewer-status]').innerText()).includes('保存しました')));
         },{noStorage:true}));

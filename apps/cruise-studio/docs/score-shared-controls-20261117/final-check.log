@@ -1,0 +1,60 @@
+▶ history, Save As and scoped form cycling: chrome
+  ✔ playback explanations are collapsed into question help and normal toolbar status takes no visual space (774.005834ms)
+  ✔ history previews before confirmation, discards later changes only after confirmation and follows saved content for dirty status (1241.370709ms)
+  ✔ history rejects stale and detached actions and bounds the displayed range without copying snapshots (1583.406708ms)
+  ✔ Save As stores a separate Project, keeps original raw and dirty Session, and preserves confirmed forms (1593.662708ms)
+  ✔ Save As cancel and failed storage keep the current Project and original raw untouched (872.921708ms)
+  ✔ Save As keeps IME confirmation separate from saving a new document (669.990083ms)
+  ✔ grid controls live in display settings and stage Save/Cancel without modifying the song (1257.240167ms)
+  ✔ each popup starts in view mode; click cycling reaches mute and both editor diagrams use the changed snapshot (1313.756958ms)
+  ✔ existing playedStrings mutes also remove old black markers when opened from the editor (1021.963833ms)
+  ✔ popup cycle agrees with the original owner cycle and dirty edit mode never carries to another form (982.067958ms)
+✔ history, Save As and scoped form cycling: chrome (12020.271917ms)
+▶ history, Save As and scoped form cycling: webkit
+  ✔ playback explanations are collapsed into question help and normal toolbar status takes no visual space (941.267583ms)
+  ✔ history previews before confirmation, discards later changes only after confirmation and follows saved content for dirty status (1157.377958ms)
+  ✔ history rejects stale and detached actions and bounds the displayed range without copying snapshots (1385.939375ms)
+  ✔ Save As stores a separate Project, keeps original raw and dirty Session, and preserves confirmed forms (1107.360834ms)
+  ✔ Save As cancel and failed storage keep the current Project and original raw untouched (839.144042ms)
+  ✔ Save As keeps IME confirmation separate from saving a new document (691.402917ms)
+  ✔ grid controls live in display settings and stage Save/Cancel without modifying the song (1317.550542ms)
+  ✔ each popup starts in view mode; click cycling reaches mute and both editor diagrams use the changed snapshot (1435.922542ms)
+  ✔ existing playedStrings mutes also remove old black markers when opened from the editor (1238.440458ms)
+  ✔ popup cycle agrees with the original owner cycle and dirty edit mode never carries to another form (994.325792ms)
+✔ history, Save As and scoped form cycling: webkit (11296.128917ms)
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (1067.252083ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1500.235ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8156.450458ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1034.902916ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4144.317875ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (2002.21925ms)
+✔ score controls parity chrome (18729.632792ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (1009.32525ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1468.641625ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8085.217042ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1231.456792ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4368.2935ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (1971.999959ms)
+✔ score controls parity webkit (18338.108708ms)
+▶ viewer mobile: chrome
+  ✔ Port entry loads a minimal read-only host; native and PDF fit touch portrait and short landscape (900.085417ms)
+  ✔ wake acquisition follows native and PDF activity, handles revocation, retry and device preference (1390.467ms)
+  ✔ complete asset preparation is scoped; corrupt cache never reports ready and can be repaired (2811.66875ms)
+  ✔ real Wake Lock support is reported truthfully, including denial or an unsupported engine (720.394041ms)
+✔ viewer mobile: chrome (6702.70675ms)
+▶ viewer mobile: webkit
+  ✔ Port entry loads a minimal read-only host; native and PDF fit touch portrait and short landscape (1099.310333ms)
+  ✔ wake acquisition follows native and PDF activity, handles revocation, retry and device preference (1420.240166ms)
+  ✔ complete asset preparation is scoped; corrupt cache never reports ready and can be repaired (944.191625ms)
+  ✔ real Wake Lock support is reported truthfully, including denial or an unsupported engine (826.515625ms)
+✔ viewer mobile: webkit (4490.557ms)
+ℹ tests 46
+ℹ suites 0
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71978.775541

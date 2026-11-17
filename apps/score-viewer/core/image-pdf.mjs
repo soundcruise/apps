@@ -1,0 +1,9 @@
+// Minimal image-only PDF. All text/forms have already been rendered locally.
+// Offsets are byte offsets; raw JPEG streams are never converted to strings.
+export function imagePDF(pages){
+ if(!pages.length||pages.length>512)throw Error('pdf-export-pages');
+ const encoder=new TextEncoder(),parts=[],offsets=[0];let length=0;const write=value=>{const b=typeof value==='string'?encoder.encode(value):value;parts.push(b);length+=b.length;},object=(id,body)=>{offsets[id]=length;write(id+' 0 obj\n');write(body);write('\nendobj\n');};
+ write('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n');object(1,'<< /Type /Catalog /Pages 2 0 R >>');object(2,'<< /Type /Pages /Count '+pages.length+' /Kids ['+pages.map((_,i)=>(3+i*3)+' 0 R').join(' ')+'] >>');
+ pages.forEach((p,i)=>{if(!Number.isInteger(p.width)||p.width<1||!Number.isInteger(p.height)||p.height<1||!(p.jpeg instanceof Uint8Array)||p.jpeg[0]!==255||p.jpeg[1]!==216)throw Error('invalid-pdf-image');const id=3+i*3,w=527.244,h=w*p.height/p.width;object(id,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.276 841.89] /Resources << /XObject << /Im '+(id+1)+' 0 R >> >> /Contents '+(id+2)+' 0 R >>');offsets[id+1]=length;write((id+1)+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+p.width+' /Height '+p.height+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+p.jpeg.length+' >>\nstream\n');write(p.jpeg);write('\nendstream\nendobj\n');const content='q '+w.toFixed(3)+' 0 0 '+h.toFixed(3)+' 34.016 '+(807.874-h).toFixed(3)+' cm /Im Do Q';object(id+2,'<< /Length '+encoder.encode(content).length+' >>\nstream\n'+content+'\nendstream');});
+ const xref=length;write('xref\n0 '+offsets.length+'\n0000000000 65535 f \n');for(const offset of offsets.slice(1))write(String(offset).padStart(10,'0')+' 00000 n \n');write('trailer\n<< /Size '+offsets.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n');if(length>20*1024*1024)throw Error('pdf-export-budget');return new Blob(parts,{type:'application/pdf'});
+}

@@ -1,0 +1,43 @@
+✔ registered acoustic form through every playback control: chrome (2747.805ms)
+✔ registered acoustic form through every playback control: webkit (1757.286209ms)
+✔ explicit JSON/Print reject invalid and composing text, then export corrected canonical input (2652.923916ms)
+▶ score metronome, smooth follow and registered form editing: chrome
+  ✔ metronome follows count-in and repeats every beat with the selected range on one context (2497.08825ms)
+  ✔ metronome preference survives reload, stays out of Project and preserves malformed browser settings (1310.325458ms)
+  ✔ blank strokes use beats and chord changes, explicit rests stay silent and old playback notices do not persist (867.07125ms)
+  ✔ form backdrop clicks close only the enlarged card; direct changes target that exact chord and share Undo Save JSON (1600.886459ms)
+  ✔ form finger edits preserve a fine-timed event in a protected chord cell (924.958459ms)
+  ✔ follow centers gradually across frames, yields to manual scrolling and stops immediately with playback (2702.692ms)
+✔ score metronome, smooth follow and registered form editing: chrome (11339.941708ms)
+▶ score metronome, smooth follow and registered form editing: webkit
+  ✔ metronome follows count-in and repeats every beat with the selected range on one context (2521.275375ms)
+  ✔ metronome preference survives reload, stays out of Project and preserves malformed browser settings (1395.249708ms)
+  ✔ blank strokes use beats and chord changes, explicit rests stay silent and old playback notices do not persist (841.806083ms)
+  ✔ form backdrop clicks close only the enlarged card; direct changes target that exact chord and share Undo Save JSON (1530.168292ms)
+  ✔ form finger edits preserve a fine-timed event in a protected chord cell (919.135083ms)
+  ✔ follow centers gradually across frames, yields to manual scrolling and stops immediately with playback (2888.128875ms)
+✔ score metronome, smooth follow and registered form editing: webkit (10268.59575ms)
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (965.738791ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1346.394542ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8148.040667ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (862.911375ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4152.689792ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (2032.102791ms)
+✔ score controls parity chrome (18231.464709ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (1020.294375ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1488.876958ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8092.879125ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1005.113583ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4403.719584ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (2069.349792ms)
+✔ score controls parity webkit (18271.893542ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65629.864375

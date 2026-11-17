@@ -71,3 +71,9 @@ test('invalid tempo/tick/clock values fail without changing musical position', (
     f.time(1); near(c.snapshot().tick,960); const token = {generation:c.snapshot().generation}; c.dispose(); assert(!c.valid(token));
     assert.throws(() => c.play(),/clock-disposed/);
 });
+
+test('range clock wraps musical ticks with residual time and ends exactly at a selected boundary',()=>{
+ let now=0;const clock=createBeatClock({now:()=>now,bpm:120,barIds:['a','b','c']});clock.setRange(1920,3840,true);clock.seek(1920);clock.play();now=2.25;let s=clock.snapshot();assert.equal(s.iteration,1);assert.equal(s.tick,2160);now=6.5;s=clock.snapshot();assert.equal(s.iteration,3);assert.equal(s.tick,2400);clock.pause();clock.setRange(1920,3840,false);clock.seek(1920);clock.play();now+=2;s=clock.snapshot();assert.equal(s.status,'ended');assert.equal(s.tick,3840);clock.dispose();
+});
+
+test('range reservations never escape the selected end and loop generations renew tickets',()=>{let now=0;const clock=createBeatClock({now:()=>now,bpm:120,barIds:['a','b','c']}),cursor=createEventCursor(clock,[{tick:1920},{tick:3840}]);clock.setRange(1920,3840,true);assert.throws(()=>clock.seek(0));clock.seek(1920);clock.play();const a=cursor.collect();assert.equal(a.length,1);assert.equal(a[0].event.tick,1920);const generation=clock.snapshot().generation;assert.throws(()=>clock.timeAtTick(4000,generation));now=2;const b=cursor.collect();assert.equal(b.length,1);assert.equal(b[0].event.tick,1920);assert.notEqual(b[0].generation,a[0].generation);clock.dispose();});

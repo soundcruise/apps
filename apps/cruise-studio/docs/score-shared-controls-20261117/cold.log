@@ -1,0 +1,12 @@
+▶ received mock Sync files: real TCP disconnect: Chrome disk restart and WebKit new page preserve native/PDF reading and sound
+  ✔ chrome cold native + audio + PDF + Port passed (0.302959ms)
+  ✔ webkit cold native + audio + PDF + Port passed (0.0415ms)
+✔ received mock Sync files: real TCP disconnect: Chrome disk restart and WebKit new page preserve native/PDF reading and sound (10220.34975ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10340.848167

@@ -1,0 +1,26 @@
+▶ editor help and display storage disclosure: chrome
+  ✔ storage explanation accompanies Save and presets; cancel, save and reload keep settings separate from the Project (1633.608ms)
+  ✔ help preserves the editor, caret and history; Space arrows Enter Save Undo and Tab stay inside the help (734.337291ms)
+  ✔ after closing help, Space plays on a neutral surface, enters rests in stroke cells, and Enter/arrows retain movement rules (1211.21ms)
+  ✔ invalid text is retained when help opens; IME cannot lose focus to the guide (832.642834ms)
+  ✔ late help import cannot reopen a closed editor; leaving the workspace closes help without stealing focus back (856.542791ms)
+  ✔ help and storage notes fit floating/right editors and phone widths; help is excluded from print (1695.059708ms)
+✔ editor help and display storage disclosure: chrome (7527.694292ms)
+▶ editor help and display storage disclosure: webkit
+  ✔ storage explanation accompanies Save and presets; cancel, save and reload keep settings separate from the Project (1520.5945ms)
+  ✔ help preserves the editor, caret and history; Space arrows Enter Save Undo and Tab stay inside the help (735.817375ms)
+  ✔ after closing help, Space plays on a neutral surface, enters rests in stroke cells, and Enter/arrows retain movement rules (1170.514125ms)
+  ✔ invalid text is retained when help opens; IME cannot lose focus to the guide (788.935917ms)
+  ✔ late help import cannot reopen a closed editor; leaving the workspace closes help without stealing focus back (884.196167ms)
+  ✔ help and storage notes fit floating/right editors and phone widths; help is excluded from print (1789.922166ms)
+✔ editor help and display storage disclosure: webkit (7040.711208ms)
+✔ two measure units and unified chord entry chrome (6192.355875ms)
+✔ two measure units and unified chord entry webkit (4840.527458ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14691.8285

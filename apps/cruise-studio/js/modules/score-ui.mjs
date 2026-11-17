@@ -1,0 +1,104 @@
+export {outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
+// Presentation helpers shared by the score editor and the read-only viewer.
+// They own no music, transport, storage or account state.
+export const scoreColors=Object.freeze({line:'#967536',border:'#b49a55',fill:'rgba(196,167,91,.18)',ink:'#735721'});
+export function applyScoreTheme(root,colors={}){const valid=c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c),highlight=valid(colors.highlight)?colors.highlight:null;const opacity=typeof colors.opacity==='number'&&Number.isFinite(colors.opacity)?Math.max(0,Math.min(1,colors.opacity)):.18;const fillColor=highlight||scoreColors.border;const fill=highlight||opacity!==.18?fillColor+Math.round(opacity*255).toString(16).padStart(2,'0'):scoreColors.fill;const values={...scoreColors,fill,...(highlight?{border:highlight,ink:highlight}:{}),...(valid(colors.playhead)?{line:colors.playhead}:{})};for(const [key,value]of Object.entries(values))if(root.style.getPropertyValue('--score-'+key)!==value)root.style.setProperty('--score-'+key,value);}
+export function placePlayhead(line,parent,{x,y=0,height}){
+ if(line.parentElement!==parent)parent.append(line);
+ Object.assign(line.style,{left:'0px',top:'0px',bottom:'auto',height:Math.max(0,height)+'px',transform:'translate3d('+x+'px,'+y+'px,0)',willChange:'transform',pointerEvents:'none'});
+}
+export function bindPlaybackButton(button,toggle){button.addEventListener('pointerdown',e=>{if(e.button===0)e.preventDefault();});button.onclick=toggle;}
+export function syncPlaybackButton(button,phase,{stop=false,disabled=false,idle='▶ 再生'}={}){
+ const moving=['playing','counting','loading'].includes(phase),text=phase==='loading'?'■ 中止':phase==='counting'?'■ カウント中':phase==='playing'?(stop?'■ 停止':'Ⅱ 一時停止'):idle;
+ // Replacing unchanged text during pointer focus cancels clicks in WebKit.
+ if(button.textContent!==text)button.textContent=text;if(button.disabled!==disabled)button.disabled=disabled;
+ for(const [key,value]of [['aria-pressed',String(moving)],['aria-label',moving?(stop?'停止':'一時停止'):idle.replace('▶ ','')]])if(button.getAttribute(key)!==value)button.setAttribute(key,value);
+}
+// Both ends of a click must be outside. A slider drag beginning inside never
+// dismisses its panel. Consume the click so it cannot also operate the score.
+export function bindOutsideDismiss(dialog,{close=()=>dialog.close(),canClose=()=>true}={}){
+ const doc=dialog.ownerDocument,events=new doc.defaultView.AbortController();let beganOutside=false;
+ function outside(e){if(e.target!==dialog&&dialog.contains(e.target))return false;const r=dialog.getBoundingClientRect();return !dialog.contains(e.target)||e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;}
+ function eligible(e){return dialog.open&&canClose()&&![...doc.querySelectorAll('dialog[open]')].some(other=>other!==dialog&&other.contains(e.target));}
+ doc.addEventListener('pointerdown',e=>{beganOutside=e.button===0&&eligible(e)&&outside(e);},{capture:true,signal:events.signal});
+ doc.addEventListener('pointercancel',()=>beganOutside=false,{capture:true,signal:events.signal});
+ doc.addEventListener('click',e=>{const dismiss=beganOutside&&eligible(e)&&outside(e);beganOutside=false;if(dismiss){e.preventDefault();e.stopImmediatePropagation();close();}},{capture:true,signal:events.signal});
+ dialog.addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.isComposing&&e.keyCode!==229&&canClose()){e.preventDefault();e.stopPropagation();close();}},{signal:events.signal});
+ dialog.addEventListener('close',()=>events.abort(),{once:true});return ()=>events.abort();
+}
+
+// Shared presentation of optional transport slots; each host keeps its own clock.
+export function installScoreUI(doc){
+ if(!doc.defaultView||doc.getElementById('score-ui-style'))return;
+ const explain=e=>{const el=e.target.closest?.('button,summary,input,select,textarea,[role="button"]');if(!el||el.title||!el.closest('#screen-sheet-cruise,#sc-slot-overlay,.sv-viewer,.sv-settings,.sc-layout-dialog,.sc-form-dialog,.sc-playback-dialog,dialog[class^="sc-"],dialog[class^="sv-"]'))return;const name=el.getAttribute('aria-label')||el.labels?.[0]?.textContent?.trim()||el.textContent?.trim();if(!name)return;const help={'表示':'譜面に表示する項目を選びます。詳しい調整は詳細設定へ','詳細設定':'文字・フォームのサイズや色、線、配置を調整します','音設定':'音量・カウントイン・メトロノーム・音と棒の同期を調整します','ライブラリ':'この端末に保存した譜面を開き、名前やフォルダを整理します','保存':'現在の曲の変更を上書き保存します','履歴':'変更前の譜面を確認し、選んだ時点へ戻します'};el.title=help[name]||name;};
+ doc.addEventListener('pointerover',explain);doc.addEventListener('focusin',explain);
+ const style=doc.createElement('style');style.id='score-ui-style';style.textContent=`
+.score-transport{box-sizing:border-box;display:flex!important;align-items:center!important;justify-content:center!important;flex-wrap:nowrap!important;gap:10px!important;padding:8px 12px!important;min-height:62px;border:1px solid var(--studio-border-default,#62717e);border-radius:10px;background:#1e2832;color:#f5f1e8}
+.score-transport .score-transport-main,.score-transport .score-transport-options{display:flex!important;align-items:center;flex-wrap:nowrap;gap:8px;min-width:0}
+.score-transport .score-play{box-sizing:border-box;min-height:44px!important;min-width:108px;font:650 14px/1.3 system-ui!important;padding:8px 14px!important;border:1px solid #cdb474!important;border-radius:8px!important;background:linear-gradient(135deg,#e6d29b,#cdb474)!important;color:#201b11!important;white-space:nowrap}
+.score-transport .score-audio-button{box-sizing:border-box;display:flex;align-items:center;gap:6px;justify-content:center;min-height:44px;min-width:44px;font:14px system-ui;padding:8px 12px;border:1px solid var(--studio-border-default,#62717e);border-radius:8px;background:var(--studio-control,#25313c);color:inherit;white-space:nowrap}
+.score-transport .score-tempo{box-sizing:border-box;height:44px;padding:8px 12px;display:flex;gap:8px;align-items:center;border:1px solid var(--studio-border-default,#62717e);border-radius:8px;font:13px system-ui;white-space:nowrap}
+.score-form-header{display:grid!important;grid-template-columns:76px minmax(0,1fr) 76px;gap:6px!important;align-items:center!important;margin-bottom:8px!important}
+.score-form-header h2{grid-column:2;grid-row:1;min-width:0;margin:6px 0!important;text-align:center!important;font:650 34px/1.15 system-ui!important;overflow-wrap:anywhere}
+.score-form-header [data-paper-form-edit]{grid-column:1;grid-row:1;justify-self:start}
+.score-form-header [data-form-close],.score-form-header>button:last-child{grid-column:3;grid-row:1;justify-self:end}
+.sc-form-dialog.sc-unified-form{box-sizing:border-box;width:min(400px,calc(100vw - 32px));padding:18px;background:#fffdf7;color:#29251f;border-radius:14px;border:1px solid #8b857a}
+.score-form-header button{font:14px system-ui!important;padding:8px 10px!important;min-height:36px}
+.score-display-menu>div{width:230px;min-width:230px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 130px);overflow:auto;box-sizing:border-box;padding:12px!important;gap:9px!important}.score-display-menu .sc-paper-visibility{display:grid!important;gap:9px!important;margin:0!important;padding:0!important;border:0!important}.score-display-menu .sc-paper-visibility>span{display:none!important}.score-display-menu label{display:flex!important;align-items:center;gap:10px!important;font:13px/1.5 system-ui!important;padding:3px!important;margin:0!important;white-space:nowrap}.score-display-menu input[type=checkbox]{width:16px!important;height:16px!important;margin:0!important;accent-color:#cdb474}.score-display-menu [id=sc-paper-settings]{margin-top:2px;border-top:1px solid #71839066!important;padding-top:12px!important}
+.score-tempo-reset{display:block;margin-top:14px!important}
+.score-metronome-tone{display:flex!important;align-items:center;flex-wrap:wrap;gap:10px 14px!important;margin:16px 0!important;line-height:1.5}
+[data-metronome-sound]{box-sizing:border-box;min-height:44px!important;height:44px!important;min-width:140px;font:14px system-ui!important;padding:8px 12px!important;border:1px solid #718390;border-radius:7px;background:var(--studio-control,#25313c);color:inherit}
+.sc-layout-playing{background:var(--score-fill,rgba(196,167,91,.18))!important;box-shadow:inset 0 0 0 2px var(--score-border,#b49a55)!important}
+[data-layout-playhead]{position:absolute;top:0;left:0;width:2px;background:var(--score-line,#967536);pointer-events:none;z-index:5;will-change:transform}
+@media(max-width:700px){.score-transport{gap:6px!important;padding:6px 8px!important;min-height:58px}.score-transport .score-transport-main,.score-transport .score-transport-options{gap:5px}.score-transport .score-play{min-width:88px;font-size:12px!important;padding:8px!important}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{padding:8px;min-width:38px}.score-transport .score-tempo{font-size:12px;padding:8px}}
+
+.score-transport .sv-sound-modes{display:flex;gap:2px;padding:3px;border:1px solid #71839066;border-radius:9px;white-space:nowrap;align-items:center}
+.score-transport .sv-sound-modes>span{display:none}.score-transport .sv-sound-modes button{min-height:36px!important;height:36px!important;padding:6px 10px!important;font:13px system-ui!important;border:1px solid transparent!important;border-radius:6px;background:transparent;color:inherit;white-space:nowrap}
+.score-transport .sv-sound-modes button[aria-pressed=true]{color:#ead8a2!important;background:#cdb47425!important;border-color:#b49a55!important}
+.score-transport .sv-sound-select{display:none;min-height:44px;border:1px solid #71839066;border-radius:8px;background:var(--studio-control,#25313c);color:inherit;font:12px system-ui;padding:4px;width:68px}
+.score-transport .score-tempo{padding:0 8px 0 12px;gap:6px;font:11px system-ui}.score-transport .score-tempo input{box-sizing:border-box;width:56px;min-height:40px;height:40px;font:14px system-ui!important;padding:4px;border:0;background:transparent;color:inherit}
+.score-transport .score-repeat{display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;height:44px!important;min-width:40px;width:40px;padding:8px;border:1px solid #71839066;border-radius:8px;background:transparent;color:inherit}.score-transport .score-repeat[aria-pressed=true]{border-color:#b49a55;color:#ead8a2;background:#cdb47425}
+.score-fullscreen-exit{position:absolute;right:14px;top:14px;z-index:30;min-height:40px;padding:8px 10px;background:#25313ce8;color:#f5f1e8;border:1px solid #718390;border-radius:8px}
+#screen-sheet-cruise{container-type:inline-size;container-name:score}
+#screen-sheet-cruise.sc-focused{position:fixed!important;inset:0!important;z-index:100000;width:100vw!important;height:100dvh!important;max-width:none;margin:0!important;padding:14px!important;box-sizing:border-box;overflow:auto!important;background:#111b23}
+#screen-sheet-cruise.sc-focused>.screen-header,#screen-sheet-cruise.sc-focused>.workspace-local-nav,#screen-sheet-cruise.sc-focused>.sheet-toolbar,#screen-sheet-cruise.sc-focused>#sc-editor-drawer{display:none!important}
+#screen-sheet-cruise.sc-focused #sc-transport{position:sticky;bottom:0}.score-fullscreen-exit[hidden]{display:none!important}
+#screen-sheet-cruise #sc-fullscreen{min-height:44px;height:44px;width:44px;padding:10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #71839066;border-radius:8px;background:var(--studio-control,#25313c);color:inherit}
+.sc-layout-example-paper>.sv-sheet{position:relative!important;left:auto;top:auto}.sc-layout-example-paper .sv-sheet>.sheet-page{padding:56px}.sc-layout-dialog button,.sc-layout-dialog select{min-height:36px}.sc-layout-controls [data-layout-field=timingGrid]{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px}.sc-layout-controls [data-layout-field=timingGrid]>select{grid-column:1/-1}.sc-layout-controls [data-layout-field=timingGrid] input[type=checkbox]{margin:0}
+.sv-unified-display.sc-layout-dialog{width:min(1080px,calc(100vw - 32px));padding:20px;max-height:90dvh}.sv-unified-display .sc-layout-controls{display:block}.sv-unified-display .sc-layout-field{margin:0 0 14px}.sv-unified-display .sc-layout-field input[type=range]{width:auto!important}.sv-unified-display .sc-text-size input{width:100%!important}.sv-unified-display .sc-layout-actions{display:flex;flex-wrap:nowrap}.sv-unified-display .sc-text-heading details select{width:155px!important}.sv-unified-display .sc-layout-example p{margin:6px 0 12px}.sv-unified-display.sc-layout-dialog .sc-layout-storage-note{font-size:12px}
+@media(max-width:1050px){.score-transport .sv-sound-modes{display:none!important}.score-transport .sv-sound-select{display:block!important}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{padding:8px;min-width:38px}}
+@container(max-width:1050px){.score-transport .sv-sound-modes{display:none!important}.score-transport .sv-sound-select{display:block!important}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{padding:8px;min-width:38px}}
+@media(max-width:440px){.score-transport{gap:4px!important;padding:6px!important;min-height:58px}.score-transport .score-transport-main,.score-transport .score-transport-options{gap:4px!important}.score-transport .score-play{min-width:82px!important;padding:8px!important}.score-transport .score-repeat{min-width:36px;width:36px;padding:6px}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{min-width:36px;width:36px;padding:6px}.score-transport .score-tempo{width:64px;min-width:64px;padding:2px 4px;font-size:10px;gap:2px}.score-transport .score-tempo input{width:30px;min-width:30px;padding:0;font-size:12px!important;appearance:textfield;-moz-appearance:textfield}.score-transport .score-tempo input::-webkit-inner-spin-button,.score-transport .score-tempo input::-webkit-outer-spin-button{appearance:none;margin:0}.score-transport .sv-sound-select{display:block!important;width:50px;min-width:50px;padding:3px;font-size:11px}.score-transport .sv-sound-modes{display:none!important}}
+@container(max-width:440px){.score-transport{gap:4px!important;padding:6px!important;min-height:58px}.score-transport .score-transport-main,.score-transport .score-transport-options{gap:4px!important}.score-transport .score-play{min-width:82px!important;padding:8px!important}.score-transport .score-repeat{min-width:36px;width:36px;padding:6px}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{min-width:36px;width:36px;padding:6px}.score-transport .score-tempo{width:64px;min-width:64px;padding:2px 4px;font-size:10px;gap:2px}.score-transport .score-tempo input{width:30px;min-width:30px;padding:0;font-size:12px!important;appearance:textfield;-moz-appearance:textfield}.score-transport .score-tempo input::-webkit-inner-spin-button,.score-transport .score-tempo input::-webkit-outer-spin-button{appearance:none;margin:0}.score-transport .sv-sound-select{display:block!important;width:50px;min-width:50px;padding:3px;font-size:11px}.score-transport .sv-sound-modes{display:none!important}}
+@media(max-width:360px){.score-transport .score-play{min-width:74px!important}.score-transport .score-tempo{width:60px;min-width:60px;padding:2px}.score-transport .sv-sound-select{width:46px;min-width:46px}}
+@container(max-width:360px){.score-transport .score-play{min-width:74px!important}.score-transport .score-tempo{width:60px;min-width:60px;padding:2px}.score-transport .sv-sound-select{width:46px;min-width:46px}}
+@media print{.score-transport,[data-layout-playhead]{display:none!important}.sc-layout-playing{background:transparent!important;box-shadow:none!important}}
+`;doc.head.append(style);
+}
+export function styleAudioButton(button){button.classList.add('score-audio-button');button.setAttribute('aria-label','音設定');button.title='音設定';button.textContent='';const icon=button.ownerDocument.createElement('span'),label=button.ownerDocument.createElement('span');icon.textContent='♫';icon.setAttribute('aria-hidden','true');label.textContent='音設定';label.className='score-audio-label';button.append(icon,label);}
+
+export function mountScoreFullscreen(host,parent,{className='sv-focused',attribute='viewerFocus'}={}){
+ const doc=host.ownerDocument,win=doc.defaultView;let enabled=false,disposed=false;
+ const button=doc.createElement('button'),exit=doc.createElement('button');button.type=exit.type='button';button.dataset[attribute]='';parent.append(button);exit.className='sv-focus-exit score-fullscreen-exit';exit.hidden=true;host.append(exit);
+ function icon(b,collapse,text){const path=collapse?'M3 8h5V3m13 5h-5V3M8 21v-5H3m13 5v-5h5':'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5';b.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="'+path+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';b.setAttribute('aria-label',text);b.title=text;b.classList.add('sv-icon-button');}
+ function paint(){host.classList.toggle(className,enabled);host.classList.toggle('score-fullscreen',enabled);host.dispatchEvent(new win.Event('scorefullscreenchange'));exit.hidden=!enabled;button.setAttribute('aria-pressed',String(enabled));icon(button,enabled,enabled?'全画面モードを終了':'全画面モード');icon(exit,true,'全画面モードを終了');win.dispatchEvent(new win.Event('resize'));}
+ async function toggle(value){enabled=value;paint();if(value){try{await host.requestFullscreen?.();if(!enabled&&doc.fullscreenElement===host)await doc.exitFullscreen();}catch{}}else if(doc.fullscreenElement===host)try{await doc.exitFullscreen();}catch{}}
+ button.onclick=()=>void toggle(!enabled);exit.onclick=()=>void toggle(false);
+ const key=e=>{if(enabled&&e.key==='Escape'&&!doc.querySelector('dialog[open]')){e.preventDefault();e.stopPropagation();void toggle(false);}},full=()=>{if(!doc.fullscreenElement&&enabled){enabled=false;paint();}};
+ doc.addEventListener('keydown',key,true);doc.addEventListener('fullscreenchange',full);paint();
+ return {button,exit(){if(!disposed)void toggle(false);},dispose(){void toggle(false);disposed=true;doc.removeEventListener('keydown',key,true);doc.removeEventListener('fullscreenchange',full);}};
+}
+
+export function mountSoundModes({parent,button,read,change}){
+    const group=parent.ownerDocument.createElement('div');group.className='sv-sound-modes';group.setAttribute('role','group');group.setAttribute('aria-label','再生する音');parent.append(group);
+    const buttons=new Map(),label=parent.ownerDocument.createElement('span');label.textContent='音';group.append(label);
+    for(const [mode,text]of [['mute','ミュート'],['click','メトロノーム'],['all','全部鳴らす']]){
+        const b=button(text,'sound-'+mode,group);buttons.set(mode,b);b.title=mode==='mute'?'音を鳴らさず画面だけ送る':text;
+        b.onclick=()=>{const s=read();if(!s)return;change({metronome:mode!=='mute',mix:{chords:mode==='all'?100:0,melody:mode==='all'?100:0,metronome:mode==='mute'?0:100}});};
+    }
+    const compact=parent.ownerDocument.createElement('select');compact.className='sv-sound-select';compact.setAttribute('aria-label','再生する音');for(const [value,text]of [['mute','消音'],['click','拍音'],['all','全部']]){const o=parent.ownerDocument.createElement('option');o.value=value;o.textContent=text;compact.append(o);}group.after(compact);compact.onchange=()=>buttons.get(compact.value).click();
+    return ()=>{const s=read(),m=s?.settings.mix;const mode=!m?null:m.chords>0||m.melody>0?'all':s.settings.metronome&&m.metronome>0?'click':'mute';compact.disabled=!s;if(mode)compact.value=mode;for(const [key,b]of buttons){b.disabled=!s;b.setAttribute('aria-pressed',String(key===mode));}};
+}
+
+
+export function styleRepeatButton(button){button.classList.add('score-repeat');button.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m17 2 4 4-4 4M3 11V8a2 2 0 0 1 2-2h16M7 22l-4-4 4-4m14-1v3a2 2 0 0 1-2 2H3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';}

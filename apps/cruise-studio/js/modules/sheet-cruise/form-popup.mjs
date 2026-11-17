@@ -1,3 +1,4 @@
+import {bindOutsideDismiss} from '../score-ui.mjs';
 import {cycleFormNote,playedSnapshot,validBarres} from './form-cycle.mjs';
 const clone=x=>JSON.parse(JSON.stringify(x));
 const labels={1:'人',2:'中',3:'薬',4:'小',T:'親'};
@@ -19,8 +20,9 @@ export function createFormDraft(snapshot,playedStrings,detectBarres){
  };
 }
 export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStrings,symbol,apply,detectBarres}){
+ bindOutsideDismiss(dialog);
  const original=JSON.stringify([playedSnapshot(snapshot,playedStrings),playedStrings.slice().sort((a,b)=>a-b)]),edit=createFormDraft(snapshot,playedStrings,detectBarres),node=(tag,text,parent=dialog)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;parent.appendChild(e);return e;};let editing=false;
- const head=node('header'),title=node('h2',symbol,head),actions=node('div',undefined,head),start=node('button','編集',actions),close=node('button','閉じる',actions);actions.className='sc-form-actions';start.type=close.type='button';start.dataset.paperFormEdit='';close.dataset.formClose='';close.onclick=()=>dialog.close();
+ const head=node('header'),title=node('h2',symbol,head),actions=node('div',undefined,head),start=node('button','編集',actions),close=node('button','閉じる',actions);actions.className='sc-form-actions';head.classList.add('score-form-header');head.replaceChildren(start,title,close);start.type=close.type='button';start.dataset.paperFormEdit='';close.dataset.formClose='';close.onclick=()=>dialog.close();
  const figure=node('div');figure.className='sc-form-touch';const hint=node('p','押さえている位置をクリックすると指が順に変わり、ミュートにもなります。');hint.className='sc-form-hint';
  const status=node('p','');status.setAttribute('role','status');status.className='sc-form-hint';const footer=node('footer'),save=node('button','譜面に反映',footer);save.type='button';save.dataset.formApply='';
  function cycle(string,selector){if(!editing||!dialog.open)return;if(!edit.cycle(string))status.textContent='1音以上、残してください。';else status.textContent='';render(selector);}

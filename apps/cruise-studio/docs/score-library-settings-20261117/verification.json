@@ -1,0 +1,97 @@
+{
+  "node": {
+    "passed": 2344,
+    "failed": 0,
+    "skipped": 1,
+    "log": "/private/tmp/viewer156-node.log"
+  },
+  "finalDependencyBoundary": {
+    "passed": 12,
+    "log": "/private/tmp/viewer156-final-boundary.log",
+    "addedToNodeTotal": false
+  },
+  "pythonMockStore": {
+    "passed": 9,
+    "log": "/private/tmp/viewer156-python.log"
+  },
+  "browser": {
+    "passed": 278,
+    "failed": 0,
+    "includesParentCases": true,
+    "groups": [
+      {
+        "scope": "new export/folders/audio/colors/form catalogue/readonly zoom",
+        "passed": 14,
+        "log": "/private/tmp/viewer156-final-colors.log"
+      },
+      {
+        "scope": "Viewer existing UI, library, performance, PDF export, usability",
+        "passed": 60,
+        "log": "/private/tmp/viewer156-ui-regression.log",
+        "excludeReplacedSuites": [
+          "unified score UI",
+          "books/menu/output UI"
+        ]
+      },
+      {
+        "scope": "unified score UI and books/menu tests with explicit select vs zoom and export confirmation",
+        "passed": 26,
+        "log": "/private/tmp/viewer156-menu-recheck.log"
+      },
+      {
+        "scope": "completed local shell, contract and mobile suites",
+        "passed": 22,
+        "log": "/private/tmp/viewer156-other-regression.log",
+        "excludeIncompleteAndReplacedSuite": "viewer PDF"
+      },
+      {
+        "scope": "PDF final isolated run",
+        "passed": 20,
+        "log": "/private/tmp/viewer156-pdf-final.log"
+      },
+      {
+        "scope": "stage1, stage2 and mock sync after targeted replacements",
+        "passed": 54,
+        "log": "/private/tmp/viewer156-stage-sync-final.log",
+        "replacements": [
+          "/private/tmp/viewer156-stage1-recheck.log",
+          "/private/tmp/viewer156-stage2-recheck.log"
+        ]
+      },
+      {
+        "scope": "editor selected score-view Chrome + WebKit",
+        "passed": 30,
+        "logs": [
+          "/private/tmp/viewer156-editor.log",
+          "/private/tmp/viewer156-editor-webkit.log"
+        ]
+      },
+      {
+        "scope": "editor acoustic + range/detail/history",
+        "passed": 21,
+        "log": "/private/tmp/viewer156-editor-related.log",
+        "excludeReplacedSuites": [
+          "direct form popup and playback settings",
+          "score metronome, smooth follow and registered form editing"
+        ]
+      },
+      {
+        "scope": "editor mixer/forms/metronome after test tagging update",
+        "passed": 28,
+        "log": "/private/tmp/viewer156-mixer-recheck.log"
+      },
+      {
+        "scope": "cold offline native/audio/PDF/Port after real TCP shutdown",
+        "passed": 3,
+        "log": "/private/tmp/viewer156-cold.log"
+      }
+    ]
+  },
+  "assets": {
+    "version": "0.156.0-dev.1-fd8efbcf1863",
+    "files": 265,
+    "bytes": 12318690
+  },
+  "baseHead": "82e4e8a7",
+  "committedOrPushed": false
+}

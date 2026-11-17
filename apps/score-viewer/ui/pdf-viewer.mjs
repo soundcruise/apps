@@ -1,3 +1,6 @@
+import {bindOutsideDismiss,applyScoreTheme,syncPlaybackButton} from '../../cruise-studio/js/modules/score-ui.mjs';
+import {mountFocusMode} from './focus-mode.mjs';
+import {printPDFDocument} from './pdf-print.mjs';
 import {exportIcon} from './pdf-export.mjs';
 import {createLibraryUI} from './library.mjs';
 import {mountFileMenu} from './file-menu.mjs';
@@ -8,7 +11,7 @@ import {createPDFPaper} from './pdf-paper.mjs';
 
 const errors={'pdf-byte-limit':'PDFは20MiB以内で開いてください。','pdf-page-limit':'PDFは200ページまで対応しています。','pdf-password':'パスワード付き・暗号化PDFは未対応です。保護のないPDFを選んでください。','pdf-page-size':'ページの寸法が対応範囲を超えています。','pdf-load-timeout':'PDFの読み込みに時間がかかりすぎたため中止しました。'};
 export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},document:doc=host.ownerDocument}){
-    const win=doc.defaultView,loader=createPDFLoader(),abort=new win.AbortController();host.className='sv-viewer';
+    const win=doc.defaultView,loader=createPDFLoader(),abort=new win.AbortController();host.className='sv-viewer';applyScoreTheme(host);
     const node=(tag,text,parent=host)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;parent.append(e);return e;};
     const toolbar=node('div');toolbar.className='sv-toolbar';
     const button=(label,id,parent=toolbar)=>{const e=node('button',label,parent);e.type='button';e.dataset.pdfAction=id;return e;};
@@ -18,6 +21,7 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     const name=node('strong','',toolbar);name.className='sv-pdf-title';
     const zoomGroup=node('div',undefined,toolbar);zoomGroup.className='sv-zoom';zoomGroup.setAttribute('role','group');zoomGroup.setAttribute('aria-label','PDFの拡大縮小');
     const minus=button('−','zoom-out',zoomGroup),fit=button('幅合わせ','fit',zoomGroup),plus=button('＋','zoom-in',zoomGroup);
+    const focusMode=mountFocusMode(host,toolbar);
     const status=node('p','');status.className='sv-status';status.setAttribute('role','status');status.dataset.pdfStatus='';
     const viewport=node('div');viewport.className='sv-viewport sv-pdf-viewport';viewport.tabIndex=0;viewport.setAttribute('aria-label','閲覧専用のPDF');viewport.setAttribute('role','region');
     const transport=node('div');transport.className='sv-transport';
@@ -27,31 +31,33 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     let selectedPage=null,selectedMarker=null;
     const positionLabel=node('span','',transport);positionLabel.className='sv-selection-label';positionLabel.dataset.pdfSelection='';
     start.hidden=true;start.style.display='none';here.hidden=true;here.style.display='none';
-    const syncExport=exportIcon(doc,transport,()=>{if(current)downloadViewerFile(doc,current.data.bytes,current.libraryTitle,true);});
+    const syncExport=exportIcon(doc,toolbar,()=>{if(current)downloadViewerFile(doc,current.data.bytes,current.libraryTitle,true);});
+    const printButton=button('印刷','print',toolbar);printButton.dataset.pdfPrint='';printButton.onclick=()=>{if(current)printPDFDocument({document:doc,pdf:current.data.pdf,sizes:current.data.sizes,name:current.libraryTitle,notify:notice});};
+    transport.classList.add('sv-centered-transport');const left=node('div',undefined,transport),center=node('div',undefined,transport),right=node('div',undefined,transport);left.className='sv-transport-left sv-pdf-paging';center.className='sv-transport-center';right.className='sv-transport-right';left.append(previous,pageLabel,next,summary);center.append(play);transport.replaceChildren(left,center,right,start,here,positionLabel);fileMenu.group('ファイル',open,fileMenu.mirror(files),fileMenu.mirror(save));const menuZoom=zoomGroup.cloneNode(true);for(const [id,source]of [['zoom-out',minus],['fit',fit],['zoom-in',plus]]){const b=menuZoom.querySelector('[data-pdf-action='+id+']');delete b.dataset.pdfAction;b.onclick=()=>source.click();}fileMenu.group('表示',fileMenu.mirror(focusMode.button,'全画面モード'),fileMenu.field('拡大・縮小',menuZoom));fileMenu.group('再生',settingsButton);fileMenu.group('書き出し',syncExport.element,printButton);fileMenu.group('ページ',fileMenu.mirror(previous,'前のページ'),fileMenu.mirror(next,'次のページ'));follow.remove();
     let current=null,active=false,busy=false,disposed=false,frame=null,scrollFrame=null,resizeFrame=null,saveTimer=null,dialog=null,following=true,lastWidth=0,anchor=null,restoring=false,loadNumber=0,fileTicket=0;
-    const notice=(text,error=false)=>{status.textContent=text;status.dataset.error=error;};
+    let noticeTimer;const notice=(text,error=false)=>{win.clearTimeout(noticeTimer);status.textContent=text;status.dataset.error=error;if(!error&&current?.saved)noticeTimer=win.setTimeout(()=>{status.textContent='';},3000);};
     function viewPosition(){return current?current.paper.positionAt(viewport.scrollTop):0;}
     function capture(){return {position:viewPosition(),x:viewport.scrollLeft/Math.max(1,viewport.scrollWidth-viewport.clientWidth)};}
     function controls(){if(!current)return;const s=current.clock.snapshot(),moving=s.phase==='playing';
-        open.disabled=files.disabled=busy||moving;fileMenu.sync(busy||moving);save.disabled=busy||current.saved||current.saving;save.textContent=current.saved?'端末に保存済み':'この端末に保存';
-        syncExport(true);play.textContent=moving?'Ⅱ 一時停止':'▶ 自動送り';const preview=dialog?.querySelector('[data-pdf-setting-play]');if(preview)preview.textContent=play.textContent;play.disabled=busy||current.paper.hasErrors();minus.disabled=busy||current.zoom<=.5;plus.disabled=busy||current.zoom>=3;
-        fit.textContent=current.zoom===1?'幅合わせ':Math.round(current.zoom*100)+'%';follow.hidden=following||!moving;
+        open.disabled=files.disabled=busy||moving;fileMenu.sync(busy||moving);save.disabled=busy||current.saved||current.saving;save.hidden=current.saved;save.textContent='この端末に保存';
+        syncExport(true);printButton.disabled=busy||moving;syncPlaybackButton(play,s.phase,{disabled:busy||current.paper.hasErrors(),idle:'▶ 自動送り'});const preview=dialog?.querySelector('[data-pdf-setting-play]');if(preview)syncPlaybackButton(preview,s.phase,{disabled:play.disabled,idle:'▶ 自動送り'});play.disabled=busy||current.paper.hasErrors();minus.disabled=busy||current.zoom<=.5;plus.disabled=busy||current.zoom>=3;
+        const resume=dialog?.querySelector('[data-scroll-resume]');if(resume)resume.hidden=!current.autoScroll||following;menuZoom.querySelectorAll('button')[1].textContent=current.zoom===1?'幅合わせ':Math.round(current.zoom*100)+'%';fit.textContent=current.zoom===1?'幅合わせ':Math.round(current.zoom*100)+'%';follow.hidden=following||!moving;
         const page=Math.min(current.data.sizes.length,Math.floor(moving?s.position:anchor?.position??viewPosition())+1);if(doc.activeElement!==pageInput)pageInput.value=page;pageInput.max=current.data.sizes.length;
         const selected=moving?null:current.paper.root.querySelector('[data-pdf-page="'+(s.pageIndex+1)+'"]');if(selected!==selectedPage){selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selected;selectedMarker=null;}if(selectedPage){selectedPage.classList.add('sv-selected');if(!selectedMarker){selectedMarker=node('span','',selectedPage);selectedMarker.className='sv-pdf-selection';}selectedMarker.style.top=(s.position===s.pages?1:s.ratio)*100+'%';}
         positionLabel.textContent=(moving?'送り中：':'選択：')+(s.pageIndex+1)+'ページ';
-        summary.textContent='/ '+current.data.sizes.length+'　PDF・閲覧専用';previous.disabled=page<=1;next.disabled=page>=current.data.sizes.length;
+        summary.textContent='/ '+current.data.sizes.length+'　PDF・閲覧専用';previous.disabled=page<=1;next.disabled=page>=current.data.sizes.length;[minus,fit,plus].forEach((source,i)=>{menuZoom.querySelectorAll('button')[i].disabled=source.disabled;});fileMenu.sync(busy||moving);
     }
     function stopFrame(){if(frame!==null)win.cancelAnimationFrame(frame);frame=null;}
     function scheduleSave(){win.clearTimeout(saveTimer);saveTimer=win.setTimeout(()=>void persist(),180);}
-    async function persist(){if(!current)return;const item=current;try{await library.savePreferences(item.entryId,item.data.hash,{version:1,kind:'pdf',zoom:item.zoom,anchor:anchor||capture(),position:item.clock.snapshot().position,settings:item.clock.snapshot().settings});return true;}catch{if(current===item)notice('PDFの閲覧設定を保存できませんでした。現在の表示はそのまま残しています。',true);return false;}}
+    async function persist(){if(!current)return;const item=current;try{await library.savePreferences(item.entryId,item.data.hash,{version:1,kind:'pdf',zoom:item.zoom,anchor:anchor||capture(),position:item.clock.snapshot().position,autoScroll:item.autoScroll,settings:item.clock.snapshot().settings});return true;}catch{if(current===item)notice('PDFの閲覧設定を保存できませんでした。現在の表示はそのまま残しています。',true);return false;}}
     function pause(){current?.clock.pause();stopFrame();controls();playbackChanged();scheduleSave();}
     function animate(){frame=null;if(!active||!current)return;const s=current.clock.snapshot();if(s.phase!=='playing'){pause();return;}
-        if(following){viewport.scrollTop=current.paper.topAt(s.position);anchor={position:s.position,x:capture().x};}
+        if(following&&current.autoScroll){viewport.scrollTop=current.paper.topAt(s.position);anchor={position:s.position,x:capture().x};}
         current.paper.update(viewport.scrollTop,viewport.clientHeight);controls();frame=win.requestAnimationFrame(animate);
     }
     function restore(value){if(!current)return;restoring=true;anchor=value;viewport.scrollTop=current.paper.topAt(value?.position||0);viewport.scrollLeft=(value?.x||0)*Math.max(0,viewport.scrollWidth-viewport.clientWidth);
         win.requestAnimationFrame(()=>{restoring=false;});}
-    function redraw(){if(!current||!active)return;const s=current.clock.snapshot(),at=s.phase==='playing'&&following?{position:s.position,x:capture().x}:anchor||capture();
+    function redraw(){if(!current||!active)return;const s=current.clock.snapshot(),at=s.phase==='playing'&&following&&current.autoScroll?{position:s.position,x:capture().x}:anchor||capture();
         current.paper.layout(viewport.clientWidth,current.zoom,win.devicePixelRatio);restore(at);current.paper.update(viewport.scrollTop,viewport.clientHeight);controls();}
     async function openBytes(bytes,{name,saved=false,entryId,libraryTitle,isCurrent=()=>true}={}){
         let data=null,paper=null;
@@ -68,17 +74,20 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
             if(Number.isFinite(pref?.position))clock.seek(Math.max(0,Math.min(data.sizes.length,pref.position)));
             if(current)await persist();if(!isCurrent()||disposed){paper.dispose();await data.dispose();return false;}
             stopFrame();closeDialog();if(current){current.paper.dispose();void current.data.dispose().catch(()=>{});}
-            selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selectedMarker=null;current={data,paper,clock,zoom,saved,saving:false,entryId:libraryId,libraryTitle:libraryTitle||data.name};loadNumber++;following=true;nameElement();viewport.replaceChildren(paper.root);anchor=validAnchor(pref?.anchor,data.sizes.length);restore(anchor);controls();
-            notice('ページ上をクリックして開始位置を選べます。送り速度は「送り設定」で調整できます。');viewport.focus({preventScroll:true});return true;
+            selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selectedMarker=null;current={data,paper,clock,zoom,autoScroll:pref?.autoScroll!==false,saved,saving:false,entryId:libraryId,libraryTitle:libraryTitle||data.name};loadNumber++;following=true;nameElement();viewport.replaceChildren(paper.root);anchor=validAnchor(pref?.anchor,data.sizes.length);restore(anchor);controls();
+            notice(saved?'':'PDFを開きました。「この端末に保存」でライブラリに残せます。');viewport.focus({preventScroll:true});return true;
         }catch(error){paper?.dispose();if(data)await data.dispose().catch(()=>{});if(isCurrent()&&!disposed)notice(errors[error.message]||'PDFを開けませんでした。現在の譜面は保持しています。',true);return false;}
     }
     function validAnchor(value,pages){return {position:Number.isFinite(value?.position)?Math.max(0,Math.min(pages,value.position)):0,x:Number.isFinite(value?.x)?Math.max(0,Math.min(1,value.x)):0};}
     function nameElement(){name.textContent=current.libraryTitle;name.title=current.libraryTitle;}
     function closeDialog(){dialog?.close();}
-    function modal(title){if(dialog)return null;const d=node('dialog');dialog=d;d.className='sv-settings';d.setAttribute('aria-label',title);const h=node('header',undefined,d);node('h2',title,h);const close=button('閉じる','dialog-close',h);close.onclick=()=>d.close();d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{if(dialog===d)dialog=null;d.remove();settingsButton.focus({preventScroll:true});});return {d,h};}
+    function modal(title){if(dialog)return null;const d=node('dialog');dialog=d;d.className='sv-settings sv-scroll-settings';d.setAttribute('aria-label',title);const h=node('header',undefined,d);node('h2',title,h);const close=button('閉じる','dialog-close',h);close.onclick=()=>d.close();d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{if(dialog===d)dialog=null;d.remove();settingsButton.focus({preventScroll:true});});return {d,h};}
     function settings(){if(!current)return;const ui=modal('PDFの送り設定');if(!ui)return;const {d,h}=ui;d.classList.add('sv-modeless');d.dataset.viewerNonmodal='';const preview=button('▶ 自動送り','settings-play',h);preview.dataset.pdfSettingPlay='';preview.onclick=()=>play.click();const initial=current.clock.snapshot().settings;
-        const speedLabel=node('label','送り速度',d),speed=node('input',undefined,speedLabel),speedValue=node('output','',speedLabel);speed.type='range';speed.min=0;speed.max=100;speed.dataset.pdfSpeed='';speed.setAttribute('aria-label','PDFの送り速度');const sec=initial.mode==='seconds'?initial.seconds:initial.beats*60/initial.bpm;speed.value=Math.max(0,Math.min(100,100*Math.log(120/sec)/Math.log(16)));const ticks=node('div',undefined,d);ticks.className='sv-speed-ticks';for(const text of ['遅い','普通','速い'])node('span',text,ticks);
-        const advanced=node('details',undefined,d);advanced.dataset.pdfAdvanced='';node('summary','さらに詳細',advanced);const fields=node('div',undefined,advanced);
+        const help=button('?','settings-help',h),note=node('p','自動スクロールをOFFにしても、演奏位置の時計は進みます。手動スクロール後は「スクロール再開」で演奏位置へ戻れます。',d);note.className='sv-settings-note';note.hidden=true;help.setAttribute('aria-label','送り設定のヘルプ');help.setAttribute('aria-expanded','false');help.onclick=()=>{note.hidden=!note.hidden;help.setAttribute('aria-expanded',String(!note.hidden));};
+        const autoLabel=node('label','自動スクロール',d),auto=node('input',undefined,autoLabel);auto.type='checkbox';auto.checked=current.autoScroll;auto.dataset.autoScroll='';autoLabel.className='sv-auto-scroll';autoLabel.prepend(auto);const content=node('div',undefined,d);content.hidden=!current.autoScroll;
+        auto.onchange=()=>{current.autoScroll=auto.checked;following=true;content.hidden=!auto.checked;controls();scheduleSave();};const resume=button('スクロール再開','scroll-resume',d);resume.dataset.scrollResume='';resume.hidden=!current.autoScroll||following;resume.onclick=()=>follow.click();
+        const speedLabel=node('label','送り速度',content),speed=node('input',undefined,speedLabel),speedValue=node('output','',speedLabel);speed.type='range';speed.min=0;speed.max=100;speed.dataset.pdfSpeed='';speed.setAttribute('aria-label','PDFの送り速度');const sec=initial.mode==='seconds'?initial.seconds:initial.beats*60/initial.bpm;speed.value=Math.max(0,Math.min(100,100*Math.log(120/sec)/Math.log(16)));const ticks=node('div',undefined,content);ticks.className='sv-speed-ticks';for(const text of ['遅い','普通','速い'])node('span',text,ticks);
+        const advanced=node('details',undefined,content);advanced.dataset.pdfAdvanced='';node('summary','さらに詳細',advanced);const fields=node('div',undefined,advanced);
         const label=(text)=>node('label',text,fields),mode=node('select',undefined,label('送り方'));
         mode.dataset.pdfMode='';for(const [value,text]of [['seconds','時間で送る'],['beats','拍数で送る']]){const o=node('option',text,mode);o.value=value;}mode.value=initial.mode;
         function number(text,key,min,max,value){const input=node('input',undefined,label(text));input.type='number';input.min=min;input.max=max;input.step='any';input.value=value;input.required=true;input.dataset.pdfSetting=key;return input;}
@@ -90,7 +99,7 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
         apply.onclick=()=>{const visible=mode.value==='seconds'?[seconds]:[bpm,beats,override];if(visible.some(e=>!e.checkValidity())){visible.find(e=>!e.checkValidity()).reportValidity();return;}
             const pageBeats={...initial.pageBeats};if(override.value)pageBeats[at]=Number(override.value);else delete pageBeats[at];
             current.clock.configure(normalizePDFSettings({configured:true,mode:mode.value,seconds:Number(seconds.value),bpm:Number(bpm.value),beats:Number(beats.value),pageBeats},current.data.sizes.length));controls();d.close();void persist().then(ok=>{if(ok)notice('PDFの送り設定をこのブラウザに保存しました。');});};
-        d.show();
+        bindOutsideDismiss(d);d.show();
     }
     open.onclick=()=>input.click();input.onchange=async()=>{const request=++fileTicket,file=input.files[0];input.value='';if(!file)return;if(file.size>MAX_PDF_BYTES){notice('20MiB以内のファイルを選んでください。',true);return;}try{const bytes=new Uint8Array(await file.arrayBuffer());if(request===fileTicket&&active&&!disposed)await requestOpen(bytes,{name:file.name});}catch{if(request===fileTicket&&active)notice('ファイルを読み込めませんでした。',true);}};
     const libraryUI=createLibraryUI({host,library,open:requestOpen,async changed(){if(!current)return;const item=current,row=await library.entry(item.entryId);if(current===item){item.saved=!!row&&row.byteHash===item.data.hash;item.libraryTitle=row?.title||item.libraryTitle;nameElement();controls();}},notify:notice});
@@ -109,12 +118,12 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     host.addEventListener('keydown',e=>{if(!e.isComposing&&(e.ctrlKey||e.metaKey)&&['s','z','y'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();}},{signal:abort.signal});
     const unbindKeys=bindPlaybackKeys(host,{active:()=>active&&!!current,toggle:()=>play.click()});
     viewport.addEventListener('click',e=>{const page=e.target.closest('[data-pdf-page]');if(!page||!current||current.clock.snapshot().phase==='playing')return;const rect=page.getBoundingClientRect(),index=Number(page.dataset.pdfPage)-1,ratio=Math.max(0,Math.min(.999,(e.clientY-rect.top)/rect.height));current.clock.seek(index+ratio);selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=page;page.classList.add('sv-selected');selectedMarker=node('span','',page);selectedMarker.className='sv-pdf-selection';selectedMarker.style.top=ratio*100+'%';following=true;viewport.focus({preventScroll:true});controls();scheduleSave();},{signal:abort.signal});
-    const observer=new win.ResizeObserver(()=>{if(!active||!current||!viewport.clientWidth||lastWidth===viewport.clientWidth)return;lastWidth=viewport.clientWidth;if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);resizeFrame=win.requestAnimationFrame(()=>{resizeFrame=null;redraw();});});observer.observe(viewport);
+    const observer=new win.ResizeObserver(()=>{if(!active||!current||!viewport.clientWidth||lastWidth===viewport.clientWidth)return;lastWidth=viewport.clientWidth;if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);resizeFrame=win.requestAnimationFrame(()=>{resizeFrame=null;redraw();});});
     doc.addEventListener('visibilitychange',()=>{if(doc.visibilityState==='hidden')pause();},{signal:abort.signal});win.addEventListener('pagehide',()=>{pause();void persist();},{signal:abort.signal});
     return {openBytes,notice,saveCurrent,hasUnsaved:()=>!!current&&!current.saved,setBusy(value){busy=value;controls();},cancel:()=>loader.cancel(),
-        activate(){active=true;lastWidth=viewport.clientWidth;redraw();},
-        deactivate(){active=false;fileTicket++;loader.cancel();pause();anchor=current?capture():null;void persist();closeDialog();libraryUI.close();win.clearTimeout(saveTimer);if(scrollFrame!==null)win.cancelAnimationFrame(scrollFrame);if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);scrollFrame=resizeFrame=null;},
-        dispose(){this.deactivate();disposed=true;unbindKeys();abort.abort();observer.disconnect();current?.paper.dispose();void current?.data.dispose().catch(()=>{});host.replaceChildren();},
+        activate(){active=true;if(current)observer.observe(viewport);lastWidth=viewport.clientWidth;redraw();},
+        deactivate(){observer.disconnect();focusMode.exit();active=false;fileTicket++;loader.cancel();pause();anchor=current?capture():null;void persist();closeDialog();libraryUI.close();win.clearTimeout(saveTimer);if(scrollFrame!==null)win.cancelAnimationFrame(scrollFrame);if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);scrollFrame=resizeFrame=null;},
+        dispose(){focusMode.dispose();this.deactivate();disposed=true;win.clearTimeout(noticeTimer);fileMenu.dispose();unbindKeys();abort.abort();observer.disconnect();current?.paper.dispose();void current?.data.dispose().catch(()=>{});host.replaceChildren();},
         read:()=>current?{kind:'pdf',entryId:current.entryId,loadNumber,name:current.data.name,byteHash:current.data.hash,pages:current.data.sizes.length,zoom:current.zoom,anchor:anchor||capture(),stats:current.paper.stats()}:null,
         playback:()=>current?.clock.snapshot()||null};
 }

@@ -13,7 +13,7 @@ assert(start>=0&&end>start);
 // Execute the production factory, with silent injected audio nodes and the real coordinator.
 const create=vm.runInNewContext(source.slice(start,end)+';createPianoAudition;');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-function fixture({pending=false,samplePending=false,sampleFailure=false}={}){
+function fixture({pending=false,samplePending=false,sampleFailure=false,outputDelay=0,metronomeState=null}={}){
  const audio=A.createCoordinator(),contexts=[],timers=new Map();let nextTimer=0,resolveResume,resolveSample;
  const sampleGate=samplePending?new Promise(r=>resolveSample=r):null;
  const gate=pending?new Promise(r=>resolveResume=r):null;
@@ -24,7 +24,7 @@ function fixture({pending=false,samplePending=false,sampleFailure=false}={}){
   createBufferSource(){const n={playbackRate:{value:0,setValueAtTime(v){this.value=v;}},starts:[],stops:[],disconnected:false,connect(){},disconnect(){this.disconnected=true;},start(t){this.starts.push(t);},stop(t){this.stops.push(t);},onended:null};this.oscillators.push(n);return n;}
   createGain(){const n={gain:{values:[],setValueAtTime(v,t){this.values.push([v,t]);},linearRampToValueAtTime(v,t){this.values.push([v,t]);},exponentialRampToValueAtTime(v,t){this.values.push([v,t]);}},connect(){},disconnect(){}};this.gains.push(n);return n;}
  }
- const runtime=create({coordinator:audio,createContext:()=>new Context(),setTimer:fn=>{timers.set(++nextTimer,fn);return nextTimer;},clearTimer:id=>timers.delete(id),loadSample:async(ctx,midi)=>{if(sampleGate)await sampleGate;if(sampleFailure)throw Error('synthetic decode failure');return {midi:Math.round((midi-21)/3)*3+21,buffer:{duration:4}};}});
+ const runtime=create({coordinator:audio,isMetronomeEnabled:metronomeState?()=>metronomeState.enabled:undefined,outputTime:ctx=>Math.max(0,ctx.currentTime-outputDelay),createContext:()=>new Context(),setTimer:fn=>{timers.set(++nextTimer,fn);return nextTimer;},clearTimer:id=>timers.delete(id),loadSample:async(ctx,midi)=>{if(sampleGate)await sampleGate;if(sampleFailure)throw Error('synthetic decode failure');return {midi:Math.round((midi-21)/3)*3+21,buffer:{duration:4}};}});
  return {audio,runtime,contexts,pulse:async()=>{const pending=[...timers.values()];timers.clear();for(const fn of pending)fn();await flush();},decode:()=>resolveSample?.(),resolve:()=>resolveResume?.(),idle:async()=>{for(const fn of [...timers.values()])fn();timers.clear();await flush();}};
 }
 test('audition uses the exact MIDI frequency, a recorded sample and bounded release envelope, and releases after ending',async()=>{
@@ -131,4 +131,24 @@ test('editor range projection compiles only the requested consecutive bars and i
  const p={songInfo:{bpm:120},bars:[{melody:[],chords:[{id:'chord',symbol:'C',onsetTick:0}]},...Array.from({length:3},(_,i)=>({melody:[{id:'n'+i,kind:'note',onsetTick:0,durationTicks:240,pitch:60+i}],chords:[]}))]},original=JSON.stringify(p);
  const result=build(p,{pitchMidi:n=>n,parseChord:()=>({root:'C',quality:'',bass:null}),notePc:()=>0,qualities:{maj:{symbolSuffix:'',intervals:[0,4,7]}},rhythm:()=>({encoding:'studio-strum-v1',slots:[{tick:0,action:'down',durationTicks:240}]})},1,2);
  assert.deepEqual(Array.from(result.spans,s=>s.index),[1,2]);assert(Math.abs(result.duration-4.03)<1e-8);assert.equal(result.events.length,8);assert(result.events.some(e=>e.barIndex===2&&Math.abs(e.start-2.03)<1e-8));assert(result.events.every(e=>[1,2].includes(e.barIndex)));assert.equal(JSON.stringify(p),original);
+});
+
+test('editor output position can lag scheduling without changing any audio reservation',async()=>{const f=fixture({outputDelay:.12});await f.runtime.playEvents([{part:'guitar',midi:60,start:.03,duration:1,gain:.2}],()=>true,2);const c=f.contexts[0],starts=c.oscillators.map(o=>o.starts.slice());c.currentTime+=.5;const s=f.runtime.snapshot();assert(Math.abs(s.elapsedSeconds-.5)<1e-8);assert(Math.abs(s.visualElapsedSeconds-.38)<1e-8);assert.deepEqual(c.oscillators.map(o=>o.starts.slice()),starts);await f.audio.stopAll();assert.equal(f.runtime.snapshot().visualElapsedSeconds,0);});
+
+test('practice restart seeks to a bar head on the original audio clock and rejects invalid offsets',async()=>{
+ const f=fixture(),events=[{part:'piano',midi:60,start:.03,duration:.4,gain:.2},{part:'piano',midi:64,start:1.03,duration:.4,gain:.2},{part:'piano',midi:67,start:2.03,duration:.4,gain:.2}];
+ assert(!(await f.runtime.playEvents(events,()=>true,3.03,true,undefined,null,NaN)).ok);assert.equal(f.contexts.length,0);
+ assert((await f.runtime.playEvents(events,()=>true,3.03,true,3,null,1)).ok);const ctx=f.contexts[0];assert(Math.abs(ctx.oscillators[0].starts[0]-10.03)<1e-8);assert.equal(f.runtime.snapshot().elapsedSeconds,1);assert.equal(ctx.oscillators[0].playbackRate.value,Math.pow(2,(64-(Math.round((64-21)/3)*3+21))/12));await f.audio.stopAll();assert.equal(f.runtime.snapshot().contextCount,0);
+});
+test('live metronome gate mutes beat notes independently while count-in and music retain their volume buses',async()=>{
+ const enabled={enabled:false},f=fixture({metronomeState:enabled});assert((await f.runtime.playEvents([{part:'piano',midi:60,start:.03,duration:1,gain:.2},{part:'click',midi:84,start:.03,duration:.06,gain:.1},{part:'click',midi:84,start:1.2,duration:.06,gain:.1}],()=>true,2,true)).ok);
+ const ctx=f.contexts[0];assert.equal(ctx.oscillators.length,1);enabled.enabled=true;ctx.currentTime=10.5;await f.pulse();assert.equal(ctx.oscillators.length,2);const gate=ctx.gains.at(-1);assert.equal(gate.gain.values[0][0],1);enabled.enabled=false;f.runtime.setMix({chords:100,melody:60,metronome:40});assert.equal(gate.gain.values.at(-1)[0],0);assert(ctx.gains.some(n=>n.gain.values.at(-1)[0]===.4));await f.audio.stopAll();
+});
+
+test('enabling the guide restores an already queued future beat without restarting music or pitch',async()=>{
+ const state={enabled:false},f=fixture({metronomeState:state});await f.runtime.playEvents([{part:'piano',midi:60,start:.03,duration:1,gain:.2},{part:'click',midi:84,start:.8,duration:.06,gain:.1}],()=>true,2,true);const ctx=f.contexts[0],music=ctx.oscillators[0];assert.equal(ctx.oscillators.length,1);ctx.currentTime=10.2;state.enabled=true;f.runtime.setMix({chords:100,melody:100,metronome:100});assert.equal(ctx.oscillators.length,2);assert(Math.abs(ctx.oscillators[1].starts[0]-10.8)<1e-8);assert.equal(ctx.oscillators[0],music);assert.equal(f.contexts.length,1);await f.audio.stopAll();
+});
+
+test('disabled guide events cannot stop the clock across a silent passage; late music still fails closed',async()=>{
+ const state={enabled:false},f=fixture({metronomeState:state}),events=[{part:'piano',midi:60,start:.03,duration:.2,gain:.2},...Array.from({length:100},(_,i)=>({part:'click',midi:84,start:i*.6+.03,duration:.06,gain:.1}))];await f.runtime.playEvents(events,()=>true,60.03,true);f.contexts[0].currentTime=50;await f.pulse();assert.equal(f.runtime.snapshot().playing,true);assert.equal(f.runtime.snapshot().error,null);assert.equal(f.contexts[0].oscillators.length,1);await f.audio.stopAll();
 });

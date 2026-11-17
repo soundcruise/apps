@@ -1,0 +1,88 @@
+▶ editor help and display storage disclosure: chrome
+  ✔ storage explanation accompanies Save and presets; cancel, save and reload keep settings separate from the Project (2143.512375ms)
+  ✔ help preserves the editor, caret and history; Space arrows Enter Save Undo and Tab stay inside the help (824.139084ms)
+  ✔ after closing help, Space plays on a neutral surface, enters rests in stroke cells, and Enter/arrows retain movement rules (1261.288583ms)
+  ✔ invalid text is retained when help opens; IME cannot lose focus to the guide (866.382916ms)
+  ✔ late help import cannot reopen a closed editor; leaving the workspace closes help without stealing focus back (861.537875ms)
+  ✔ help and storage notes fit floating/right editors and phone widths; help is excluded from print (1690.7815ms)
+✔ editor help and display storage disclosure: chrome (8595.84475ms)
+▶ editor help and display storage disclosure: webkit
+  ✔ storage explanation accompanies Save and presets; cancel, save and reload keep settings separate from the Project (1549.496958ms)
+  ✔ help preserves the editor, caret and history; Space arrows Enter Save Undo and Tab stay inside the help (764.483291ms)
+  ✔ after closing help, Space plays on a neutral surface, enters rests in stroke cells, and Enter/arrows retain movement rules (1153.763542ms)
+  ✔ invalid text is retained when help opens; IME cannot lose focus to the guide (809.433042ms)
+  ✔ late help import cannot reopen a closed editor; leaving the workspace closes help without stealing focus back (877.633084ms)
+  ✔ help and storage notes fit floating/right editors and phone widths; help is excluded from print (1798.314ms)
+✔ editor help and display storage disclosure: webkit (7101.696ms)
+CELL FAILURE chrome AssertionError [ERR_ASSERTION]: {"width":768,"m":{"curve":{"x":241,"y":173.375,"right":337.0625,"bottom":217.375,"height":44},"display":{"x":428.765625,"y":225.375,"right":495.796875,"bottom":269.375,"height":44},"zoom":{"x":503.796875,"y":225.375,"right":632,"bottom":269.375,"height":44},"footer":{"x":241,"y":335.375,"right":728,"bottom":369.375,"height":34},"primary":{"x":241,"y":279.375,"right":728,"bottom":315.375,"height":36},"overflow":0}}
+    at /Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:15:638
+    at async fresh (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:12:452)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async TestContext.<anonymous> (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:14:2)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+▶ toolbar placement and direct chord cell entry: chrome
+  ✖ menus and framed zoom share the same row and height on desktop and mobile (1072.792875ms)
+  ✔ each chord cell opens its own time position; direct selection writes only that cell and Undo restores it (1245.427459ms)
+  ✔ two measure view targets the second measure and protects incomplete text and IME from cell shortcuts (1119.799459ms)
+  ✔ right two-measure cell buttons support keyboard activation and detached buttons cannot change a different target (951.086042ms)
+  ✔ chord names remain at the diagram card center while the quiet audition stays to their right (1157.173417ms)
+✖ toolbar placement and direct chord cell entry: chrome (6391.402291ms)
+CELL FAILURE webkit AssertionError [ERR_ASSERTION]: {"width":768,"m":{"curve":{"x":241,"y":173,"right":338.03125,"bottom":217,"height":44},"display":{"x":443.765625,"y":225,"right":510.796875,"bottom":269,"height":44},"zoom":{"x":518.796875,"y":225,"right":647,"bottom":269,"height":44},"footer":{"x":241,"y":335,"right":743,"bottom":369,"height":34},"primary":{"x":241,"y":279,"right":743,"bottom":315,"height":36},"overflow":0}}
+    at /Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:15:638
+    at async fresh (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:12:452)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async TestContext.<anonymous> (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:14:2)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+▶ toolbar placement and direct chord cell entry: webkit
+  ✖ menus and framed zoom share the same row and height on desktop and mobile (819.5845ms)
+  ✔ each chord cell opens its own time position; direct selection writes only that cell and Undo restores it (1244.439792ms)
+  ✔ two measure view targets the second measure and protects incomplete text and IME from cell shortcuts (1108.8145ms)
+  ✔ right two-measure cell buttons support keyboard activation and detached buttons cannot change a different target (921.158167ms)
+  ✔ chord names remain at the diagram card center while the quiet audition stays to their right (1049.457667ms)
+✖ toolbar placement and direct chord cell entry: webkit (5364.0565ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 22
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15863.828917
+
+✖ failing tests:
+
+test at apps/cruise-studio/tests/toolbar-cells142.browser.cjs:14:10
+✖ menus and framed zoom share the same row and height on desktop and mobile (1072.792875ms)
+  AssertionError [ERR_ASSERTION]: {"width":768,"m":{"curve":{"x":241,"y":173.375,"right":337.0625,"bottom":217.375,"height":44},"display":{"x":428.765625,"y":225.375,"right":495.796875,"bottom":269.375,"height":44},"zoom":{"x":503.796875,"y":225.375,"right":632,"bottom":269.375,"height":44},"footer":{"x":241,"y":335.375,"right":728,"bottom":369.375,"height":34},"primary":{"x":241,"y":279.375,"right":728,"bottom":315.375,"height":36},"overflow":0}}
+      at /Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:15:638
+      at async fresh (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:12:452)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async TestContext.<anonymous> (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:14:2)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at apps/cruise-studio/tests/toolbar-cells142.browser.cjs:14:10
+✖ menus and framed zoom share the same row and height on desktop and mobile (819.5845ms)
+  AssertionError [ERR_ASSERTION]: {"width":768,"m":{"curve":{"x":241,"y":173,"right":338.03125,"bottom":217,"height":44},"display":{"x":443.765625,"y":225,"right":510.796875,"bottom":269,"height":44},"zoom":{"x":518.796875,"y":225,"right":647,"bottom":269,"height":44},"footer":{"x":241,"y":335,"right":743,"bottom":369,"height":34},"primary":{"x":241,"y":279,"right":743,"bottom":315,"height":36},"overflow":0}}
+      at /Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:15:638
+      at async fresh (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:12:452)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async TestContext.<anonymous> (/Users/murakamimasakuni/.codex/worktrees/score-feedback-one/Cruise_apps/apps/cruise-studio/tests/toolbar-cells142.browser.cjs:14:2)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

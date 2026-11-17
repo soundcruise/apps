@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {chromium,webkit}=require('playwright');
 const origin='http://127.0.0.1:18874',base=origin+'/apps/score-viewer/local/',out=process.env.VIEWER_SYNC_QA_OUT;
 const read=p=>p.evaluate(()=>CruiseViewer.view.read()),catalog=p=>p.evaluate(()=>CruiseViewer.mock.sync.refresh());
-async function save(p,text){assert(await p.evaluate(t=>CruiseViewer.view.openBytes(t),text));await p.click('[data-viewer-action=save]');await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').textContent==='端末に保存済み');}
+async function save(p,text){assert(await p.evaluate(t=>CruiseViewer.view.openBytes(t),text));await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'viewer');await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').hidden);}
 async function openSync(p){await p.locator('.sv-device-options').evaluate(e=>e.open=true);await p.click('#viewer-mock-sync');await p.locator('.sv-mock-sync').waitFor();await p.waitForFunction(()=>[...document.querySelectorAll('[data-sync-action=refresh]')].some(b=>!b.disabled));}
 const closeSync=p=>p.locator('.sv-mock-sync header button').click();
 async function refresh(p){await p.click('[data-sync-action=refresh]');await p.waitForFunction(()=>document.querySelector('[data-sync-status]').textContent.includes('一覧を取得'));await ready(p);}

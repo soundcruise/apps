@@ -1,0 +1,24 @@
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (1272.6915ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1441.1505ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8179.229916ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1160.854ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4262.631041ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (2206.78525ms)
+✔ score controls parity chrome (19808.255166ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (1168.808958ms)
+  ✔ catalogue displays fingering at 100 percent and above, switches below threshold, and leaves music unchanged (1629.467166ms)
+  ✔ settings Play becomes Stop, Space toggles once, inputs keep Space, stopped playback restarts at the beginning (8368.914833ms)
+  ✔ viewer quick Display only toggles visibility; detailed settings share metadata, lines, row rules, reset and atomic cancellation (1224.270833ms)
+  ✔ editor practice tempo and sound modes do not edit the song; range auto-repeat stays explicit and can play once (4372.313708ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (2033.971708ms)
+✔ score controls parity webkit (19001.2455ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 38940.347875

@@ -21,7 +21,7 @@ export function normalizeViewerPresentation(input, score) {
     insist(rows.every(r => anchors.has(r.barId)), 'missing-presentation-anchor');
     const zoom = input.zoom === undefined ? 1 : input.zoom;
     insist(Number.isFinite(zoom) && zoom >= .5 && zoom <= 3, 'invalid-viewer-zoom');
-    insist(input.flow === undefined || ['responsive','source'].includes(input.flow), 'invalid-viewer-flow');
+    insist(input.flow === undefined || ['responsive','source','horizontal'].includes(input.flow), 'invalid-viewer-flow');
     return {value:{version:1, layout, rows, zoom, flow:input.flow || 'responsive'}, warnings:[...new Set(warnings)]};
 }
 

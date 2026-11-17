@@ -359,6 +359,7 @@
             page.querySelectorAll('.sheet-bar[data-bar-number]').forEach(function(node){node.setAttribute('aria-label',node.dataset.barNumber+'小節目');});
             page.querySelectorAll('.sheet-bar--empty').forEach(function(node){node.setAttribute('role','img');node.setAttribute('aria-label','空き枠（再生なし）');});
         }
+        page.querySelectorAll?.('.sc-form-list').forEach(function(e){e.remove();});if(options?.formsList)page.appendChild(options.formsList);
         if(page.parentNode!==container)container.appendChild(page);
         return page;
     }

@@ -1,0 +1,16 @@
+▶ score controls parity chrome
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (969.441916ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (2043.251208ms)
+✔ score controls parity chrome (4446.639125ms)
+▶ score controls parity webkit
+  ✔ metronome labels have real spacing and both selectors retain readable sizing (1026.536292ms)
+  ✔ both transports share controls at desktop, phone and pane widths and both fullscreen modes keep playback accessible (2010.0965ms)
+✔ score controls parity webkit (3234.440167ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7809.7015

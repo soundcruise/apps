@@ -1,0 +1,64 @@
+{
+  "node": {
+    "passed": 2341,
+    "failed": 0,
+    "skipped": 1,
+    "log": "/private/tmp/viewer155-node.log"
+  },
+  "python": {
+    "passed": 9,
+    "failed": 0,
+    "log": "/private/tmp/viewer155-python.log"
+  },
+  "browser": {
+    "passed": 264,
+    "failed": 0,
+    "groups": [
+      {
+        "name": "Viewer existing suites excluding superseded unified/sync/usability",
+        "passed": 138,
+        "log": "/private/tmp/viewer155-final-browser.log"
+      },
+      {
+        "name": "unified UI including PDF outside dismissal",
+        "passed": 14,
+        "log": "/private/tmp/viewer155-unified-pdf.log"
+      },
+      {
+        "name": "mock Sync and navigation",
+        "passed": 30,
+        "log": "/private/tmp/viewer155-sync-navigation-final.log"
+      },
+      {
+        "name": "editor existing suites excluding superseded playback-forms",
+        "passed": 35,
+        "log": "/private/tmp/viewer155-editor-related.log"
+      },
+      {
+        "name": "editor playback/forms final",
+        "passed": 14,
+        "log": "/private/tmp/viewer155-playback-forms-final.log"
+      },
+      {
+        "name": "selected editor score-view Chrome",
+        "passed": 15,
+        "log": "/private/tmp/viewer155-editor-chrome.log"
+      },
+      {
+        "name": "selected editor score-view WebKit",
+        "passed": 15,
+        "log": "/private/tmp/viewer155-editor-webkit.log"
+      },
+      {
+        "name": "real TCP disconnect offline boot",
+        "passed": 3,
+        "log": "/private/tmp/viewer155-cold.log"
+      }
+    ]
+  },
+  "assetVersion": "0.155.0-dev.1-ba87663f51bb",
+  "assetCount": 265,
+  "assetBytes": 12301728,
+  "head": "82e4e8a7",
+  "commitOrPush": false
+}

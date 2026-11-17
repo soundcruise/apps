@@ -1,3 +1,4 @@
+import {bindOutsideDismiss} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {createMockSync} from '../sync/client.mjs';
 import {createSyncInbox} from '../sync/store.mjs';
 import {createPresetCodec} from '../core/preset.mjs';
@@ -71,7 +72,7 @@ export function mountMockSync({button,view,contract,library,indexedDB=window.ind
         node('p','ローカル検証用です。実アカウントには接続しません。模擬ストアはサーバーを再起動すると消えます。',d);
         notice=node('p','',d);notice.setAttribute('role','status');notice.dataset.syncStatus='';content=node('div',undefined,d);
         d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{dialog=null;content=notice=null;d.remove();button.focus({preventScroll:true});});
-        d.showModal();await work(async()=>{rows=await sync.catalog();await localRows();message('端末の受信記録を表示しています。最新の状態は「一覧を更新」で確認してください。');});
+        bindOutsideDismiss(d);d.showModal();await work(async()=>{rows=await sync.catalog();await localRows();message('端末の受信記録を表示しています。最新の状態は「一覧を更新」で確認してください。');});
     };
     return Object.freeze({sync,async dispose(){dialog?.close();await inbox.close();}});
 }

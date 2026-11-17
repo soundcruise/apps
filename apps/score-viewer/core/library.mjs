@@ -144,8 +144,8 @@ export function createViewerLibrary({indexedDB, codec, now = () => new Date().to
     async function duplicate(entryId,name){
         const named=name!==undefined;if(named)name=title(name);
         return transact(['entries'],'readwrite',(tx,done,fail)=>{const store=tx.objectStore('entries'),r=store.getAll();r.onsuccess=()=>{try{
-            const old=r.result.find(e=>e.entryId===entryId);insist(old,'viewer-file-missing');let nextName=name||old.title.slice(0,160)+' コピー',n=2;
-            const used=value=>r.result.some(e=>e.folderId===old.folderId&&e.title===value);if(named)insist(!used(nextName),'viewer-name-conflict');else while(used(nextName))nextName=old.title.slice(0,160)+' コピー ('+(n++)+')';
+            const old=r.result.find(e=>e.entryId===entryId);insist(old,'viewer-file-missing');const base=old.title.replace(/ \(\d+\)$/,'').slice(0,170);let n=2,nextName=name||base+' (2)';
+            const used=value=>r.result.some(e=>e.folderId===old.folderId&&e.title===value);if(named)insist(!used(nextName),'viewer-name-conflict');else while(used(nextName))nextName=base+' ('+(++n)+')';
             const copy={...old,entryId:crypto.randomUUID(),title:nextName,savedAt:now(),version:1};store.add(copy);done(copy);
         }catch(e){fail(e);}};});
     }

@@ -1,3 +1,4 @@
+import {trimSampleAttack} from '../../../../score-viewer/core/sample-attack.mjs';
 // Same bundled sample banks and synthesis/envelopes as Sheet Cruise. Fixed
 // application URLs only; no sound/font URLs from a viewer file are loaded.
 export function createViewerSamples(C,doc=document){
@@ -26,7 +27,7 @@ export function createViewerSamples(C,doc=document){
         const source=await bank(part),sample=source.samples.reduce((best,s)=>Math.abs(s.midi-midi)<Math.abs(best.midi-midi)?s:best),key=part+':'+sample.midi;
         if(!cache.has(key)){
             const binary=atob(sample.mp3),bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
-            cache.set(key,ctx.decodeAudioData(bytes.buffer).then(buffer=>({midi:sample.midi,buffer})).catch(error=>{cache.delete(key);throw error;}));
+            cache.set(key,ctx.decodeAudioData(bytes.buffer).then(buffer=>({midi:sample.midi,buffer:trimSampleAttack(ctx,buffer)})).catch(error=>{cache.delete(key);throw error;}));
         }
         return cache.get(key);
     };

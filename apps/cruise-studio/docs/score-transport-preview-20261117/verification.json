@@ -1,0 +1,94 @@
+{
+  "candidate": {
+    "studioLocal": "0.157.0-dev.1",
+    "viewer": "0.14.0-dev.1",
+    "head": "82e4e8a7",
+    "branch": "codex/score-toolbar-ui",
+    "formalStudioUnchanged": "0.88.1",
+    "formatVersion": 1,
+    "libraryDBVersion": 3
+  },
+  "node": {
+    "passed": 2347,
+    "failed": 0,
+    "skipped": 1,
+    "log": "/private/tmp/viewer157-node.log"
+  },
+  "finalFocusedNode": {
+    "passed": 84,
+    "failed": 0,
+    "addedToNodeTotal": false,
+    "log": "/private/tmp/viewer157-final-boundary.log"
+  },
+  "browser": {
+    "passed": 171,
+    "failed": 0,
+    "includesParentCases": true,
+    "duplicateRerunsExcluded": true,
+    "groups": [
+      {
+        "scope": "new common transport, settings audition, colors, forms, export, unified UI",
+        "passed": 38,
+        "log": "/private/tmp/viewer157-final-ui.log"
+      },
+      {
+        "scope": "editor playback, Space, preview, typography/presets, staged save/cancel and storage failure",
+        "passed": 32,
+        "logs": [
+          "/private/tmp/viewer157-final-editor-chrome.log",
+          "/private/tmp/viewer157-final-editor-webkit.log"
+        ]
+      },
+      {
+        "scope": "direct form popup and playback settings; metronome/follow; range/detail/history",
+        "passed": 46,
+        "log": "/private/tmp/viewer157-regression.log",
+        "note": "Only these three named top-level suites and their children are counted here. Initial history and Stage2 failures in the same log are superseded by the final logs below."
+      },
+      {
+        "scope": "mobile/Port/wake/offline preparation",
+        "passed": 10,
+        "log": "/private/tmp/viewer157-regression.log",
+        "note": "Only viewer mobile suites and children are counted."
+      },
+      {
+        "scope": "history, Save As, scoped form cycling",
+        "passed": 22,
+        "log": "/private/tmp/viewer157-history.log"
+      },
+      {
+        "scope": "Viewer Stage2 sound/tempo/Space/follow/presets/ownership",
+        "passed": 20,
+        "log": "/private/tmp/viewer157-transport-stage2.log",
+        "note": "Only viewer stage 2 suites and children are counted; the first 10 transport cases are repeated in final UI and excluded here."
+      },
+      {
+        "scope": "real TCP outage, cold offline native/audio/PDF/Port using mock Sync only",
+        "passed": 3,
+        "log": "/private/tmp/viewer157-cold.log"
+      }
+    ]
+  },
+  "offline": {
+    "version": "0.157.0-dev.1-27ce392a22e7",
+    "files": 265,
+    "bytes": 12329711,
+    "restoredURL": "http://127.0.0.1:18874/",
+    "pidFile": "/private/tmp/viewer-stage4-restored-server.pid",
+    "proofDirectory": "/private/tmp/viewer157-cold-qa"
+  },
+  "scope": {
+    "productionChanged": false,
+    "realAccountConnected": false,
+    "authOrSyncConfigChanged": false,
+    "otherAppsChanged": false,
+    "staged": false,
+    "committed": false,
+    "pushed": false
+  },
+  "limits": [
+    "Chrome and automated WebKit, isolated browser contexts and synthetic music.",
+    "No physical-device listening, Bluetooth latency evaluation, native Safari or OS printing this turn.",
+    "Highlight transparency applies to the fill; the border remains visible."
+  ]
+}

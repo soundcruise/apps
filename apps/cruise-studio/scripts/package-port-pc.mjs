@@ -47,6 +47,7 @@ export const RELEASE_FILES=Object.freeze([
  'js/modules/pre-dtm-cruise/arrangement-engine.js',
  'js/modules/pre-dtm-cruise/guitar-voicing.mjs',
  'js/modules/sheet-cruise/score-harmony.mjs',
+ 'js/modules/score-ui.mjs','js/modules/score-audio.mjs',
  'js/modules/sheet-cruise/score-settings.mjs',
  'js/modules/pre-dtm-cruise/midi-export.js',
  'js/modules/pre-dtm-cruise/pre-dtm.js',

@@ -1,0 +1,37 @@
+✔ audition uses the exact MIDI frequency, a recorded sample and bounded release envelope, and releases after ending (2.837792ms)
+✔ rapid notes and pending resume start only the latest note and reuse the owned context (0.272875ms)
+✔ global Stop cancels a pending resume and prevents delayed playback (0.094333ms)
+✔ a changed document or hidden view cannot resume a stale audition (0.111708ms)
+✔ audition never steals microphone/audio ownership or creates an unleased context (0.174208ms)
+✔ failed context closure retains ownership until explicit Stop retries successfully (0.257166ms)
+✔ invalid pitches and inactive UI allocate no resources (0.088167ms)
+✔ an old idle context closing cannot revoke a newer audition lease (1.326917ms)
+✔ global Stop revokes a pending sample decode; rapid decodes play only the latest accepted key (0.356666ms)
+✔ failed sample decoding releases audio and reports failure without a synthetic fallback (0.147083ms)
+✔ bundled grand samples retain original MP3 checksums, attribution and coverage without public package changes (16.711125ms)
+✔ polyphonic bar scheduling uses both samples, onset and duration; cancel cannot revoke a subsequent audition (0.328459ms)
+✔ a stopped pending bar decode never starts and invalid schedules allocate no context (0.519125ms)
+✔ bar preview reads exact melody pitches and reference chord tones without changing any project or timing qualification (0.569042ms)
+✔ acoustic guitar bank retains source hashes and attribution and is excluded from the public package (15.090833ms)
+✔ stroke plan respects exact attacks, direction, accent, rests, mute and sustain without confirming source timing (0.402958ms)
+✔ native Rhythm sustain does not retrigger and implicit harmony carries to a following bar (0.127375ms)
+✔ silent bars keep an audio clock for their playhead and release after Stop (0.113542ms)
+✔ whole-song playback schedules a short window at an audio-clock origin, including events after 61 seconds (0.685417ms)
+✔ cancelled stream and stale pump callbacks never schedule later notes or revoke a new audition (0.223041ms)
+✔ late stream scheduling fails closed, and pending stream decode is revoked by global Stop (0.222792ms)
+✔ whole-song projection has gapless bar boundaries and keeps the working Project unchanged (0.235125ms)
+✔ typed-note matching preserves repeated existing notes while identifying a new inserted token (0.411542ms)
+✔ editor range projection compiles only the requested consecutive bars and inherits preceding harmony without slicing the Project (0.152916ms)
+✔ editor output position can lag scheduling without changing any audio reservation (0.102458ms)
+✔ practice restart seeks to a bar head on the original audio clock and rejects invalid offsets (0.096542ms)
+✔ live metronome gate mutes beat notes independently while count-in and music retain their volume buses (0.453458ms)
+✔ enabling the guide restores an already queued future beat without restarting music or pitch (0.095584ms)
+✔ disabled guide events cannot stop the clock across a silent passage; late music still fails closed (0.313833ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 79.581708

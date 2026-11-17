@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {viewerFixture} from './helpers/viewer-fixture.mjs';
-import {createViewerPlayer,pickOffset,tickTime,musicalEnd} from '../../score-viewer/core/audio-player.mjs';
+import {createViewerPlayer,normalizePlayback,pickOffset,tickTime,musicalEnd} from '../../score-viewer/core/audio-player.mjs';
 import {createScrollMap,smoothFollow} from '../../score-viewer/core/scroll-follow.mjs';
 import {createPresetCodec} from '../../score-viewer/core/preset.mjs';
 const require=createRequire(import.meta.url),{createCoordinator}=require('../js/core/audio-coordinator.js');
@@ -21,12 +21,13 @@ function fake(){
     const param=()=>({value:1,setValueAtTime(v){this.value=v;},linearRampToValueAtTime(v){this.value=v;},exponentialRampToValueAtTime(v){this.value=v;},setTargetAtTime(v){this.value=v;},cancelScheduledValues(){}});
     const createContext=()=>{current={state:'running',currentTime:0,destination:{},sampleRate:48000,
         resume:async()=>{current.state='running';},close:async()=>{current.state='closed';},
+        createBuffer(channels,length,sampleRate){const a=new Float32Array(length);return {duration:length/sampleRate,getChannelData:()=>a};},
         createGain:()=>({gain:param(),connect(){},disconnect(){}}),
         createBufferSource(){const s={playbackRate:param(),buffer:null,started:false,stoppedAt:Infinity,connect(){},disconnect(){},
             start(time,offset=0){this.started=true;this.startTime=time;this.offset=offset;},stop(time){assert(this.started);this.stoppedAt=time;}};sources.push(s);return s;}};contexts.push(current);return current;};
     const player=createViewerPlayer({plan:contract.tickPlan(score),createClock:opts=>contract.createClock(score,opts),createContext,
         coordinator,sessionId:'viewer-test',loadSample:async(ctx,midi)=>{if(delay)await delay;return {midi,buffer:{duration:8,midi}};},
-        setTimer(fn,ms){const key=++id;timers.set(key,{fn,time:current.currentTime+ms/1000});return key;},clearTimer:key=>timers.delete(key),originalBpm:score.songInfo.bpm});
+        setTimer(fn,ms){const key=++id;timers.set(key,{fn,time:current.currentTime+ms/1000});return key;},clearTimer:key=>timers.delete(key),originalBpm:score.songInfo.bpm,settings:{countIn:false,metronome:false}});
     function advance(seconds){const end=current.currentTime+seconds;while(true){const next=[...timers].sort((a,b)=>a[1].time-b[1].time)[0];if(!next||next[1].time>end)break;current.currentTime=next[1].time;for(const s of sources)if(!s.ended&&s.stoppedAt<=current.currentTime){s.ended=true;s.onended?.();}timers.delete(next[0]);next[1].fn();}current.currentTime=end;}
     return {player,sources,contexts,coordinator,advance,timers,get ctx(){return current;},delay:p=>delay=p};
 }
@@ -75,3 +76,23 @@ test('portable presets carry display only, no document IDs, row anchors, tempo, 
     for(const change of [p=>p.bpm=50,p=>p.presentation.mix={},p=>p.formatVersion=2]){const p=JSON.parse(result.text);change(p);assert.throws(()=>codec.decode(JSON.stringify(p),score));}
     assert.throws(()=>codec.decode(new Uint8Array([255]),score));assert.throws(()=>codec.decode(' '.repeat(65537),score));
 });
+
+test('selected ranges stop at their boundary, clip tails, and reject invalid ranges without changing state',async()=>{
+ const f=fake();f.player.setRange(1920,5760,false);f.player.seek(1920);await f.player.play();f.advance(4.9);const s=f.player.snapshot();assert.equal(s.phase,'ended');near(s.tick,5760);assert.equal(s.nodes,0);assert(f.sources.every(n=>n.stoppedAt<=4.831));const before=JSON.stringify(s.range);assert.throws(()=>f.player.setRange(1,2000,true));assert.equal(JSON.stringify(f.player.snapshot().range),before);await f.player.dispose();
+});
+test('range loops reserve the next attack ahead of the boundary and survive tempo/pause without count-in repetition',async()=>{
+ const f=fake();f.player.setRange(1920,3840,true);f.player.seek(1920);await f.player.play();f.advance(2.34);assert(f.sources.some(n=>Math.abs(n.startTime-2.43)<.002),'next loop starts on the exact audio boundary');f.player.setTempo(120);assert(f.sources.some(n=>Math.abs(n.startTime-2.415)<.002&&n.stoppedAt>f.ctx.currentTime),'tempo change replaces the pre-reserved loop attack');f.advance(8);let s=f.player.snapshot();assert.equal(s.phase,'playing');assert(s.iteration>=3);assert(s.tick>=1920&&s.tick<3840);assert(s.nodes<100);f.player.pause();const tick=f.player.snapshot().tick;f.advance(5);await f.player.play();near(f.player.snapshot().tick,tick);f.advance(.2);assert.equal(f.player.snapshot().phase,'playing');assert.equal(f.player.snapshot().stats.parts.count,0);await f.player.dispose();assert.equal(f.timers.size,0);
+});
+test('horizontal presentation persists without changing immutable score bytes',async()=>{const f=viewerFixture(),file=await f.contract.codec.encode(f.score,f.metadata),reader=f.contract.createReader();await reader.open(file.text);const before=reader.read().document.source.scoreDigest;reader.setPresentation({...reader.read().presentation,flow:'horizontal'});assert.equal(reader.read().presentation.flow,'horizontal');assert.equal(reader.read().document.source.scoreDigest,before);reader.dispose();});
+
+test('count-in/metronome default on while explicit saved opt-outs stay off',()=>{assert.equal(normalizePlayback().countIn,true);assert.equal(normalizePlayback().metronome,true);assert.equal(normalizePlayback({countIn:false,metronome:false}).countIn,false);assert.equal(normalizePlayback({countIn:false,metronome:false}).metronome,false);});
+test('many loop iterations keep audio nodes bounded and count in only once',async()=>{const f=fake();f.player.configure({countIn:true,metronome:true});f.player.setTempo(400);f.player.setRange(1920,3840,true);f.player.seek(1920);await f.player.play();assert.equal(f.player.snapshot().phase,'counting');f.advance(120);const s=f.player.snapshot();assert.equal(s.phase,'playing');assert(s.iteration>190);assert.equal(s.stats.parts.count,4);assert(s.stats.peakNodes<100);assert(s.nodes<100);assert(f.timers.size<=1);await f.player.dispose();assert.equal(f.timers.size,0);});
+
+test('changing only Repeat preserves ringing tails and the current tick',async()=>{const f=fake();f.player.setRange(1920,3840,false);f.player.seek(1920);await f.player.play();f.advance(.25);const at=f.player.snapshot().tick,created=f.sources.length;assert(f.player.setRange(1920,3840,true));near(f.player.snapshot().tick,at);await f.player.play();near(f.player.snapshot().tick,at);assert(f.sources.slice(created).some(s=>s.offset>0));f.advance(.2);assert.equal(f.player.snapshot().phase,'playing');await f.player.dispose();});
+
+test('visual snapshot compensates device latency without moving audio reservations or the transport clock',async()=>{
+ const f=fake();await f.player.play();f.ctx.baseLatency=.01;f.ctx.outputLatency=.11;f.advance(.3);const raw=f.player.snapshot(),visual=f.player.visualSnapshot(),starts=f.sources.map(s=>s.startTime);near(raw.tick-visual.tick,96);near(f.player.snapshot().tick,raw.tick);assert.deepEqual(f.sources.map(s=>s.startTime),starts);
+ f.advance(.2);f.player.setTempo(200);f.advance(.05);const after=f.player.visualSnapshot();assert(after.tick<f.player.snapshot().tick);assert(after.tick>=visual.tick);f.player.pause();near(f.player.visualSnapshot().tick,f.player.snapshot().tick);await f.player.dispose();
+});
+
+test('user visual sync offset affects only presentation, persists normalization, and leaves voice reservations unchanged',async()=>{const f=fake();await f.player.play();f.advance(.7);const raw=f.player.snapshot(),starts=f.sources.map(s=>s.startTime);f.player.configure({visualDelayMs:200});near(f.player.snapshot().tick,raw.tick);assert.deepEqual(f.sources.map(s=>s.startTime),starts);near(f.player.snapshot().tick-f.player.visualSnapshot().tick,160);f.player.configure({visualDelayMs:-200});near(f.player.visualSnapshot().tick-f.player.snapshot().tick,160);assert.deepEqual(f.sources.map(s=>s.startTime),starts);assert.equal(normalizePlayback({visualDelayMs:-2000}).visualDelayMs,-1000);f.player.configure({visualDelayMs:0});near(f.player.snapshot().tick,f.player.visualSnapshot().tick);assert.equal(normalizePlayback({visualDelayMs:2000}).visualDelayMs,1000);assert.equal(normalizePlayback({visualDelayMs:NaN}).visualDelayMs,0);await f.player.dispose();});
