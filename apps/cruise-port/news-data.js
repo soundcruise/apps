@@ -1,4 +1,5 @@
-import { articlePath } from './news-articles.js?v=1.16.1';
+import { membersVideoHref } from './news-members-video.js?v=1.36.0';
+import { articlePath } from './news-articles.js?v=1.36.0';
 import {labelInformationScore,selectTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
@@ -50,6 +51,11 @@ export function normalizeNewsItem(input) {
     if(input.hot!==undefined&&typeof input.hot!=='boolean'||input.displayOrder!==undefined&&(!Number.isSafeInteger(input.displayOrder)||input.displayOrder<0||input.displayOrder>99))return null;
     if (input.manualReviewStatus !== 'approved' || input.sourceSafety !== 'safe') return null;
     if (['artist_guitar', 'live_guitar'].includes(input.category) && !GUITAR_EVIDENCE.includes(input.guitarEvidence)) return null;
+    if (input.linkType === 'members_video') {
+        if (!membersVideoHref(input) || !/^20\d{2}-\d{2}-\d{2}$/.test(input.videoPublishedOn || '') || !Number.isFinite(Date.parse(input.videoPublishedOn+'T00:00:00Z')) ||
+            new Date(input.videoPublishedOn + 'T00:00:00Z').toISOString().slice(0,10) !== input.videoPublishedOn) return null;
+        return Object.fromEntries(['id', 'label', 'sourceName', 'sourceUrl', 'publishedAt', 'category', 'topicKey', 'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'linkType', 'videoId', 'videoChannelId', 'videoPublishedOn'].map(key => [key, input[key]]));
+    }
     if (input.linkType === 'internal') {
         if (input.category !== 'cruise_apps' || !articlePath(input.articleId) || input.sourceName !== 'Sound Cruise' || input.sourceKind !== 'official') return null;
         return Object.fromEntries(['id', 'label', 'sourceName', 'publishedAt', 'category', 'topicKey', 'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'linkType', 'articleId'].map(key => [key, input[key]]));

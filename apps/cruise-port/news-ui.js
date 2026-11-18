@@ -1,6 +1,7 @@
-import { articlePath } from './news-articles.js?v=1.16.1';
+import { confirmMembersVideo } from './news-members-video.js?v=1.36.0';
+import { articlePath } from './news-articles.js?v=1.36.0';
 import { newsOriginalArticleHref } from './news-external-link.js?v=1.23.1';
-import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.35.0';
+import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.36.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();
@@ -32,6 +33,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
     ticker.hidden = true;
     if (controls) { controls.hidden = true; controls.replaceChildren(); }
     let stopManualTicker = () => {};
+    let closeMembership = () => {};
     entry.hidden = mode === 'off';
     content.replaceChildren();
     if (mode === 'off') {
@@ -110,8 +112,11 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
                 const section = node('section');
                 section.append(node('h2', day.replaceAll('-', '/'), 'news-day'));
                 for (const item of records) {
-                    const link = node('a', undefined, 'news-card');
-                    if (item.linkType === 'internal') link.href = articlePath(item.articleId);
+                    const link = node(item.linkType === 'members_video' ? 'button' : 'a', undefined, 'news-card');
+                    if (item.linkType === 'members_video') {
+                        link.type = 'button'; link.setAttribute('aria-haspopup', 'dialog');
+                        link.addEventListener('click', () => { closeMembership(); closeMembership = confirmMembersVideo(doc, item, link); });
+                    } else if (item.linkType === 'internal') link.href = articlePath(item.articleId);
                     else {
                         const href = newsOriginalArticleHref(item);
                         if (!href) continue;
@@ -141,14 +146,14 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             doc.addEventListener?.('visibilitychange', wake);
             view.addEventListener?.('pageshow', wake);
             renderCleanup.set(doc, () => {
-                stopManualTicker();
+                stopManualTicker(); closeMembership();
                 if (timer !== null) view.clearTimeout(timer);
                 doc.removeEventListener?.('visibilitychange', wake);
                 view.removeEventListener?.('pageshow', wake);
             });
         }
     } catch {
-        stopManualTicker();
+        stopManualTicker(); closeMembership();
         if (controls) controls.hidden = true;
         ticker.hidden = true;
         content.replaceChildren(node('p', 'ニュースを読み込めませんでした。'));

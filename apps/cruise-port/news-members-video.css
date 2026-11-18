@@ -1,0 +1,7 @@
+/* Official members-only NEWS: the ordinary card layout and native modal. */
+button.news-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+.news-members-dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; overflow: auto; }
+.news-members-dialog h2 { margin: 0 0 16px; font-size: 1.1rem; }
+.news-members-dialog p { line-height: 1.8; overflow-wrap: anywhere; }
+.news-members-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.news-members-actions .action-button { flex: 1 1 140px; min-height: 44px; }
