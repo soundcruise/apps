@@ -1,0 +1,113 @@
+[
+  {
+    "key": "bromo-four-models",
+    "hints": [
+      {
+        "url": "https://guitarmagazine.jp/news/2026-1116-buomo-guitars/",
+        "titleHash": "b7c62164f1fe4b8f27194d5b23b8f4b3a6d0727f044fc33a803496e8512207f8"
+      }
+    ],
+    "observedAt": "2026-11-18",
+    "reference": {
+      "url": "https://guitarmagazine.jp/news/2026-1116-buomo-guitars/",
+      "publishedAt": "2026-11-16",
+      "headline": "Bromo Guitars、BAN1V・BAN2V・BAR2R・BAN4CE bkの国内発売情報",
+      "productKind": "アコギ・エレアコ",
+      "models": [
+        "BAN1V",
+        "BAN2V",
+        "BAR2R",
+        "BAN4CE bk"
+      ],
+      "notes": [
+        "原記事の4型番と既存掲載3記事の4モデルを照合。別仕様・新色の発表は確認できません。",
+        "11月16日は二次記事の公開日です。既存NEWSの記事公開日は10月21日で、製品の初回発売日とは区別します。"
+      ]
+    },
+    "reason": "同じ4モデルを扱う掲載済み記事が3件あります。新情報の有無を比較して判断してください。",
+    "knownArticles": [
+      {
+        "id": "4da6343355cd02f54fe95fe8c908656f229550bfff410731987d96d43995bd15",
+        "url": "https://www.kikutani.co.jp/news/bromo-guitars-ban1v-ban2v/",
+        "brand": "Bromo Guitars",
+        "models": [
+          "BAN1V",
+          "BAN2V"
+        ]
+      },
+      {
+        "id": "546b539e9b18ba861ffa27501ccbde21e9221d73373ecca460fd2c413efa2a7c",
+        "url": "https://www.kikutani.co.jp/news/bromo-guitars-bar2r/",
+        "brand": "Bromo Guitars",
+        "models": [
+          "BAR2R"
+        ]
+      },
+      {
+        "id": "f093cec183b4001690fa53aed7822666a8ec743f5afa7e0ca96fc5c2295e3715",
+        "url": "https://www.kikutani.co.jp/news/bromo-guitars-ban4ce-bk/",
+        "brand": "Bromo Guitars",
+        "models": [
+          "BAN4CE bk"
+        ]
+      }
+    ]
+  },
+  {
+    "key": "audient-primary",
+    "hints": [
+      {
+        "url": "https://www.zaikei.co.jp/releases/3713914/",
+        "titleHash": "87cfdfac8b777c316c88fbd9064f5a2ec689ff88d7b5552fd2346aad691d2eb6"
+      },
+      {
+        "url": "https://computermusic.jp/2026/11/id-desktop/",
+        "titleHash": "594ff7232ae957aa8743ab5232809eb7eb56a3fe0427cb127d27003bfe293cba"
+      }
+    ],
+    "observedAt": "2026-11-18",
+    "reference": {
+      "url": "https://audient.com/news/2026/11/12/id-desktop-launch/",
+      "publishedAt": "2026-11-12",
+      "headline": "Audient、録音向けiD Desktopシリーズ4機種を発表",
+      "productKind": "オーディオインターフェース",
+      "models": [
+        "iD1",
+        "iD2",
+        "iD2+",
+        "iD4+"
+      ],
+      "notes": [
+        "国内2URLは11月13日付でiD2・iD2+・iD4+の3機種を扱います。国内発売日は11月15日。",
+        "メーカー一次発表はiD1も含む4機種。iD1は2027年初頭予定で、国内3機種と混同しません。",
+        "一次・二次URLとも現在の正式保存範囲外。短い独自事実紹介・出典・直リンクの条件と、限定した人間確認scopeの承認が必要です。"
+      ]
+    },
+    "reason": "国内3機種を扱う別URLがあります。一次発表は4機種。一次出典の紹介条件と正式保存範囲が未承認です。"
+  },
+  {
+    "key": "recording-king-primary",
+    "hints": [
+      {
+        "url": "https://piakakeprivatelesson.com/article/2c717ad2-99be-4b94-a79c-e5800a791206",
+        "titleHash": "aa062d1e7a9a2074b54576a0d4d285b34d3c4a4fac3b9810b817dac72a9e36ca"
+      }
+    ],
+    "observedAt": "2026-11-18",
+    "reference": {
+      "url": "https://recordingking.co/news/rk-standard-series/",
+      "publishedAt": "2026-11-02",
+      "headline": "Recording King、オール単板アコギ「RK Standard Series」を発表",
+      "productKind": "アコースティックギター",
+      "models": [
+        "RK Standard Series"
+      ],
+      "notes": [
+        "一次記事の公開日は11月2日。二次記事の掲載日・検索更新日時を発表日にしません。",
+        "メーカー一次記事でオール単板・戦前の設計を意識したシリーズと確認。国内販売日・価格は未確認です。",
+        "現在の正式保存範囲外。一次URLの短い独自事実紹介・出典・直リンク条件と人間確認scopeを承認してから既存経路へ接続します。"
+      ]
+    },
+    "reason": "一次発表は11月2日で、国内販売は未確認です。一次出典の紹介条件と正式保存範囲の承認が必要です。"
+  }
+]

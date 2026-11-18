@@ -1,0 +1,26 @@
+[
+  {
+    "url": "https://piakakeprivatelesson.com/article/2c717ad2-99be-4b94-a79c-e5800a791206",
+    "title": "Recording King「RK Standard Series」、オール単板のアコギを発表　年内は販売店を限定｜ピアカケ 音楽ニュース",
+    "estimate_json": "{\"category\":\"musical instrument\",\"brand\":\"Recording King\",\"product\":\"RK Standard Series\",\"event\":\"New product announcement\",\"value\":\"high\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新製品の発表だが、更新日が数日前であり鮮度の確認が必要。 公開日・新着性は未確認です。\"}",
+    "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-acoustic\",\"rank\":1,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-02T00:00:00.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794958241879,\"registrationAllowed\":false,\"path\":\"C\",\"reason\":\"source_not_registered\",\"nextAction\":\"operator_source_permission\",\"confirmationUrl\":\"https://piakakeprivatelesson.com/article/2c717ad2-99be-4b94-a79c-e5800a791206\"}}"
+  },
+  {
+    "url": "https://computermusic.jp/2026/11/id-desktop/",
+    "title": "デスクトップ・オーディオインターフェースの新製品audient「iD desktopシリーズ」発表！ | Computer Music Japan",
+    "estimate_json": "{\"category\":\"hardware\",\"brand\":\"Audient\",\"product\":\"iD desktop series\",\"event\":\"New product announcement\",\"value\":\"high\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"掲載価値はAI推定です。 公開日・新着性は未確認です。\"}",
+    "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-equipment\",\"rank\":2,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-13T00:31:56.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794958241879,\"registrationAllowed\":false,\"path\":\"C\",\"reason\":\"source_not_registered\",\"nextAction\":\"operator_source_permission\",\"confirmationUrl\":\"https://computermusic.jp/2026/11/id-desktop/\"}}"
+  },
+  {
+    "url": "https://guitarmagazine.jp/news/2026-1116-buomo-guitars/",
+    "title": "インドネシア発のBromo Guitars、ドレッドノートからモダンなエレアコまで個性豊かな新作4モデルを発売 | ギター・マガジンWEB｜Guitar magazine",
+    "estimate_json": "{\"category\":\"product_launch\",\"brand\":\"Bromo Guitars\",\"product\":\"4 new models (dreadnought to modern electro-acoustic)\",\"event\":\"New model release\",\"value\":\"medium\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新作4モデルの発売。日付が不確定なため優先度は中。 公開日・新着性は未確認です。\"}",
+    "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-acoustic\",\"rank\":1,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-16T12:29:31.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794958241879,\"registrationAllowed\":false,\"path\":\"C\",\"reason\":\"source_not_registered\",\"nextAction\":\"operator_source_permission\",\"confirmationUrl\":\"https://guitarmagazine.jp/news/2026-1116-buomo-guitars/\"}}"
+  },
+  {
+    "url": "https://www.zaikei.co.jp/releases/3713914/",
+    "title": "Audient、ルーム補正を本体に内蔵した新「iD Desktop」シリーズ..（株式会社Hotone Japan プレスリリース）",
+    "estimate_json": "{\"category\":\"unknown\",\"brand\":\"Audient\",\"product\":\"iD Desktopシリーズ\",\"event\":\"新製品の発表\",\"value\":\"medium\",\"priority\":\"low\",\"relevance\":\"high\",\"duplicate\":\"unknown\",\"reason\":\"新製品に関するニュースだが、鮮度の確認が必要。 公開日・新着性は未確認です。\"}",
+    "search_meta_json": "{\"version\":\"web-quality-2\",\"queryId\":\"web-quality-2-equipment\",\"rank\":2,\"publishedAtHint\":null,\"dateSource\":\"unknown\",\"lastModifiedHint\":\"2026-11-13T00:00:00.000Z\",\"languageHint\":null,\"verification\":{\"publishedAt\":null,\"checkedAt\":1794958241879,\"registrationAllowed\":false,\"path\":\"C\",\"reason\":\"source_not_registered\",\"nextAction\":\"operator_source_permission\",\"confirmationUrl\":\"https://www.zaikei.co.jp/releases/3713914/\"}}"
+  }
+]

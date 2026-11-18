@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "url": "https://audient.com/news/2026/11/12/id-desktop-launch/",
+  "source": {
+    "label": "2026-11-18 メーカー一次記事の通常閲覧による入力補助（本人未確認・正式保存範囲未承認）",
+    "url": "https://audient.com/news/2026/11/12/id-desktop-launch/"
+  },
+  "fields": {
+    "brand": "Audient",
+    "product": "iD Desktopシリーズ",
+    "productType": "audio_interface",
+    "action": "announcement",
+    "publishedAt": "2026-11-12"
+  },
+  "notes": [
+    {
+      "label": "確認事項1",
+      "value": "国内2URLは11月13日付でiD2・iD2+・iD4+の3機種を扱います。国内発売日は11月15日。"
+    },
+    {
+      "label": "確認事項2",
+      "value": "メーカー一次発表はiD1も含む4機種。iD1は2027年初頭予定で、国内3機種と混同しません。"
+    },
+    {
+      "label": "確認事項3",
+      "value": "一次・二次URLとも現在の正式保存範囲外。短い独自事実紹介・出典・直リンクの条件と、限定した人間確認scopeの承認が必要です。"
+    }
+  ]
+}

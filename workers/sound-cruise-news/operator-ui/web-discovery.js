@@ -63,7 +63,16 @@ export function renderWebReviewCard(document,item,{change}={}){
    finally{delete actions.dataset.busy;for(const c of actions.children)if(c.tagName?.toLowerCase()==='button')c.disabled=false;}
   });}
  }
- const detail=el('details'),summary=el('summary','記事案・出典の詳細');detail.append(summary,el('p','検索の見出し：'+item.title,'meta'),el('p','公開日ヒント：'+(item.searchMetadata?.publishedAtHint||'未確認')+' · 更新日時：'+(item.searchMetadata?.lastModifiedHint||'未確認')+'（公開日ではありません）','meta'));if(item.articleDraft){for(const [key,value]of Object.entries(item.articleDraft.fields||{})){if(!value||['url','sourceId'].includes(key))continue;const origin=item.articleDraft.fieldSources?.[key];detail.append(el('p',({brand:'ブランド',product:'対象',productType:'種別候補',action:'出来事候補',publishedAt:'公開日候補',label:'独自見出し案',qualifier:'特別仕様・発表の区別'})[key]+'：'+value+'（未確認）'+(origin?.kind?' · '+origin.kind:''),'meta'));}for(const warning of item.articleDraft.warnings||[])detail.append(el('p',warning,'blocker'));}if(item.estimate)detail.append(el('p',item.estimate.reason,'meta'));card.append(detail);return card;
+ const detail=el('details'),summary=el('summary','記事案・出典の詳細');detail.append(summary,el('p','検索の見出し：'+item.title,'meta'),el('p','公開日ヒント：'+(item.searchMetadata?.publishedAtHint||'未確認')+' · 更新日時：'+(item.searchMetadata?.lastModifiedHint||'未確認')+'（公開日ではありません）','meta'));if(item.articleDraft){for(const [key,value]of Object.entries(item.articleDraft.fields||{})){if(!value||['url','sourceId'].includes(key))continue;const origin=item.articleDraft.fieldSources?.[key];detail.append(el('p',({brand:'ブランド',product:'対象',productType:'種別候補',action:'出来事候補',publishedAt:'公開日候補',label:'独自見出し案',qualifier:'特別仕様・発表の区別'})[key]+'：'+value+'（未確認）'+(origin?.kind?' · '+origin.kind:''),'meta'));}for(const warning of item.articleDraft.warnings||[])detail.append(el('p',warning,'blocker'));}const reference=policy?.reference;
+ if(reference){
+  const link=(url,label)=>{try{const u=new URL(url,'https://operator.invalid');if(u.protocol!=='https:'||u.username||u.password)return;const a=el('a',label);a.href=url.startsWith('/?candidate=')?url:u.href;a.target='_blank';a.rel='noopener noreferrer';detail.append(a);}catch{}};
+  detail.append(el('p','確認用の独自見出し案：'+reference.headline,'meta'),el('p','原記事閲覧による入力補助（本人未確認） · 公開日候補 '+reference.publishedAt+' · '+reference.productKind,'meta'));
+  link(reference.url,'確認用の出典記事を開く');
+  for(const note of reference.notes||[])detail.append(el('p',note,'meta'));
+  for(const article of policy.knownArticles||[])link('/?candidate='+encodeURIComponent(article.id),'既存NEWS：'+article.label);
+  for(const peer of policy.peers||[])link(peer,'同じ発表を扱う別URLを確認');
+ }
+ if(item.estimate)detail.append(el('p',item.estimate.reason,'meta'));card.append(detail);return card;
 }
 if(typeof document!=='undefined'){
  let latest=null,inFlight=null;

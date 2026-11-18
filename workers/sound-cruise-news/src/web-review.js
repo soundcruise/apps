@@ -4,6 +4,7 @@ import {publicSearchUrl,generalPage,searchDate,knownProductOverlap} from './web-
 import {assistedSource} from './assisted-facts.js';
 import {assistedDraftWithInformation} from './draft-assistance.js';
 import {SOURCES} from './registry.js';
+import {webReviewNotes} from './web-review-notes.js';
 // This is a read-only presentation queue, never a reduced publication validator.
 const visibility=/^web_review:(defer|later|review):[-a-zA-Z0-9_]{16,64}$/;
 export const webVisibility=reason=>visibility.exec(reason||'')?.[1]||null;
@@ -36,7 +37,7 @@ export function webReviewDisposition(item,known,now){
  return result('judgment','human_facts_or_conditions',{needsSourceReview:!item.humanEntry});
 }
 export async function addWebReview(db,items,now){
- const known=(await db.prepare('SELECT id,source_id,source_url,normalized_url,review_status,published_at,label,product_facts,facts_provenance FROM candidate_items LIMIT 5001').all()).results;
+ const known=(await db.prepare('SELECT id,source_id,source_url,normalized_url,review_status,published_at,expires_at,label,product_facts,facts_provenance FROM candidate_items LIMIT 5001').all()).results;
  if(known.length>5000)throw Error('web_review_history_limit');
  const states=(await db.prepare('SELECT source_id,disabled,takedown,publication_blocked FROM source_state').all()).results;
  const tombstones=new Set((await db.prepare('SELECT item_id FROM news_takedowns').all()).results.map(r=>r.item_id));
@@ -53,8 +54,12 @@ export async function addWebReview(db,items,now){
    item.primaryReview={url:info.url,existingCandidate:primaryExisting?{id:primaryExisting.id,status:primaryExisting.review_status}:null,draft:assistedDraftWithInformation({fields:{url:info.url,sourceId:primary.id},fieldSources:{},registrationAllowed:true},info)};
    if(!primaryExisting)item.humanEntry={sourceId:primary.id,url:info.url,basis:primary.basis,viaPrimary:true};
   }
+  // Display observations alongside the saved AI draft; never overwrite its fields.
+  const notes=await webReviewNotes(item,known,states,tombstones,now);
+  if(notes&&item.articleDraft)item.articleDraft={...item.articleDraft,sourceReview:{...item.articleDraft.sourceReview,...notes,registrationAllowed:false}};
   item.webReview=webReviewDisposition(item,known,now);
   item.reviewPresentation=webPresentation(item,now);
+  if(notes?.knownArticles.length&&item.webReview.queue==='judgment')item.reviewPresentation={group:'editorial',reason:notes.reason,formalReady:false};
   if(item.primaryReview?.existingCandidate&&item.webReview.queue==='judgment')item.reviewPresentation={group:'editorial',reason:'確認済みの一次記事が既存NEWSにあります。仕様・出来事と既存判断を確認してください。',formalReady:false};
  }
  return items;
