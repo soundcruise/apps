@@ -10,7 +10,7 @@ test('generic future articles are classified by completeness, never URL exceptio
  for(const error of ['candidate_takedown','unknown_failure'])assert.equal(candidatePresentation(row,{valid:false,errors:[error]},human,draft).group,'technical');
  for(const error of ['operator_source_gate','source_url_invalid'])assert.equal(candidatePresentation(row,{valid:false,errors:[error]},{available:false},draft).group,'technical');
  for(const error of ['duplicate','expired_candidate','publication_policy_rejected'])assert.equal(candidatePresentation(row,{valid:false,errors:[error]},human,draft).group,'editorial');
- assert.equal(candidatePresentation(row,{valid:true,errors:[]},human,draft).readiness,'formal');assert.equal(candidatePresentation(row,{valid:true,errors:[],relevance:{status:'REVIEW'}},human,draft).group,'editorial');assert.equal(candidatePresentation(row,v,{available:false,alternativeAvailable:true},null).group,'human_facts');assert.equal(candidatePresentation(row,v,{available:false,reason:'未対応'},null).group,'technical');
+ assert.equal(candidatePresentation(row,{valid:true,errors:[]},human,draft).readiness,'formal');assert.equal(candidatePresentation(row,{valid:true,errors:[],relevance:{status:'REVIEW'}},human,draft).group,'approvable');assert.equal(candidatePresentation(row,v,{available:false,alternativeAvailable:true},null).group,'human_facts');assert.equal(candidatePresentation(row,v,{available:false,reason:'未対応'},null).group,'technical');
 });
 test('variants, events, invalid dates and incompatible kinds cannot be marked ready for human publication',()=>{
  let d=structuredClone(draft);d.fields.action='variant_introduction';assert(draftRequirements(d).missing.includes('qualifier'));d.fields.qualifier='限定カラー';assert.equal(draftRequirements(d).missing.length,0);
@@ -22,4 +22,21 @@ test('unsupported Web sources are technical, editorial advice is not a Ledger ve
  const item={url,webReview:{queue:'judgment'},articleDraft:draft};assert.equal(webPresentation(item).group,'technical');item.humanEntry={url};assert.equal(webPresentation(item).readiness,'human_confirmation');
  const old={...item,url:'https://gibson.jp/news-events/27491'};assert.equal(webPresentation(old).group,'editorial');assert.equal(old.webReview.queue,'judgment');assert.equal(old.review_status,undefined);
  for(const queue of ['low','existing'])assert.equal(webPresentation({...item,webReview:{queue}}),null);
+});
+
+test('validation-PASS editorial decisions are approvable without changing operational readiness, evidence or decisions',()=>{
+ for(const origin of ['collector','agm_rss',undefined])for(const category of ['media_other','artist_guitar','acoustic_guitar']){
+  const r={...row,origin,category,product_facts:'original evidence',review_revision:2,publication_decision:'PUBLISH_REVIEW'};
+  const validation={valid:true,errors:[],relevance:{status:'REVIEW'},publishableLabel:'確認済みの具体的な記事見出し'};
+  const before=structuredClone({r,validation});const p=candidatePresentation(r,validation,{available:false},null);
+  assert.equal(p.group,'approvable');assert.equal(p.readiness,'editorial_decision');assert.equal(p.formalReady,false);
+  assert.match(p.reason,/本人が判断/);assert.deepEqual({r,validation},before);
+ }
+});
+test('stops, duplicates, missing facts and existing judgments cannot become approvable through editorial routing',()=>{
+ for(const status of ['approved','rejected'])assert.equal(candidatePresentation({...row,review_status:status},{valid:true,errors:[],relevance:{status:'REVIEW'}},human,draft),null);
+ for(const error of ['candidate_takedown','operator_source_gate','source_url_invalid','duplicate','expired_candidate','publication_policy_rejected','facts_incomplete','facts_provenance_invalid']){
+  const p=candidatePresentation(row,{valid:false,errors:[error],relevance:{status:'REVIEW'}},{available:false},null);
+  assert.notEqual(p.group,'approvable');assert.equal(p.formalReady,false);
+ }
 });

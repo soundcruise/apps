@@ -29,7 +29,8 @@ export function candidatePresentation(row,validation,humanReview,draft,now){
  const errors=validation.errors||[];
  if(errors.includes('candidate_takedown')||!humanReview.available&&errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e)))return result('technical','出典停止・掲載条件・URLをシステム側で確認する必要があります。');
  if(errors.some(e=>['duplicate','expired_candidate','publication_policy_rejected'].includes(e)))return result('editorial','重複・期限・既存方針を確認して判断してください。');
- if(validation.valid&&row.origin!=='operator_assisted'&&validation.relevance?.status==='REVIEW')return result('editorial','事実の検証は完了しています。掲載価値・関連性を判断してください。');
+ // Relevance REVIEW is an owner's final editorial judgment, not missing facts.
+ if(validation.valid&&row.origin!=='operator_assisted'&&validation.relevance?.status==='REVIEW')return result('approvable','正式な事実検証は完了しています。掲載価値・関連性を本人が判断してください。',{readiness:'editorial_decision'});
  if(validation.valid)return result('approvable','正式検証済みです。掲載するか判断してください。',{formalReady:true,readiness:'formal'});
  if(humanReview.possibleKnownEvent)return result('editorial','入力済み案が掲載済みの同一出来事と一致する可能性があります。重複を確認してください。',{possibleKnownEvent:humanReview.possibleKnownEvent});
  const note=editorial(row.source_url);if(note)return result('editorial',note.reason,{reference:note.reference,headline:draft?.fields?.label||draft?.fields?.product||null});

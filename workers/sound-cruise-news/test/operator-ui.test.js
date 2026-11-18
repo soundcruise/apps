@@ -1,3 +1,4 @@
+import {candidatePresentation} from '../src/review-presentation.js';
 import {CANONICAL_CHECKS} from '../src/canonical-evidence.js';
 import {MORRIS_REVIEW_TYPES,MORRIS_PRODUCT_TYPES} from '../src/morris-editorial-policy.js';
 import test from 'node:test';
@@ -213,10 +214,11 @@ test('parsed main-type evidence reaches preview and save; usage target is never 
  const html=await readFile(new URL('../operator-ui/index.html',import.meta.url),'utf8');const section=html.split('class="yamaha-check-links"')[1].split('</div>')[0];const urls=[...section.matchAll(/href="([^"]+)"/g)].map(m=>m[1]);assert.deepEqual(urls,['https://www.yamaha.com/ja/news_release/','https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/shops/yage/news.html','https://jp.yamaha.com/musical-instruments/guitars-basses-amps/explore/topics/index.html','https://www.yamaha.com/ja/newsroom/']);assert.equal((section.match(/target="_blank" rel="noopener noreferrer"/g)||[]).length,4);assert(!section.includes('onclick'));assert(!code.includes('assistedStart'));const {assistedUrl}=await import('../src/assisted-facts.js');for(const u of urls)assert.equal(assistedUrl(u),null);assert(assistedUrl(urls[2].replace('index.html','2026/fixture.html')));assert(html.includes('記事登録の許可範囲を広げるものではありません'));
  });
 
-test('operational states separate READY, human relevance, retry and exclusions without labeling published items READY',async()=>{
- const rows=['READY','HUMAN_REVIEW','RETRY','EXCLUDED'].map((preparationState,i)=>({...row('state-'+i,i<2),preparationState})),u=ui(rows);await settle();
- for(const [mode,id]of [['approvable','state-0'],['review','state-1'],['retry','state-2'],['excluded','state-3']]){u.ids.mode.value=mode;u.ids.mode.events.change();assert.equal(u.ids.list.children.length,1);assert.equal(u.ids.list.children[0].dataset.candidateId,id);}
- assert.equal(u.run("statusLabel({status:'approved'})"),'公開中');assert.equal(u.ids.dashboard.children[2].children.slice(1)[1].children[0].textContent,'審査待ち総数');assert.equal(u.ids.dashboard.children[2].children.slice(1)[4].children[1].textContent,'1');assert.equal(u.ids.dashboard.children[2].children.slice(1)[5].children[1].textContent,'1');
+test('operational states stay intact while every validation-PASS article is visible for publication judgment',async()=>{
+ const rows=['READY','HUMAN_REVIEW','RETRY','EXCLUDED'].map((preparationState,i)=>({...row('state-'+i,i<2),preparationState})),before=structuredClone(rows),u=ui(rows);await settle();
+ for(const [mode,ids]of [['approvable',['state-0','state-1']],['review',['state-1']],['retry',['state-2']],['excluded',['state-3']]]){u.ids.mode.value=mode;u.ids.mode.events.change();assert.deepEqual(u.ids.list.children.map(e=>e.dataset.candidateId),ids);}
+ assert.equal(u.run("statusLabel({status:'approved'})"),'公開中');assert.equal(u.run('statusLabel(items[1])'),'正式検証PASS・掲載判断待ち');assert.deepEqual(rows,before);
+ assert.equal(u.ids.dashboard.children[2].children.slice(1)[4].children[1].textContent,'0');assert.equal(u.ids.dashboard.children[2].children.slice(1)[5].children[1].textContent,'1');
 });
 test('system exclusions and pre-candidate gaps are visible; restoration uses CSRF and never publication',async()=>{
  const u=ui([]);await settle();u.run("api=async(path,options)=>{ if(options){globalThis.restoreInput={path,options};return {replayed:false};} if(path==='/api/system-exclusions')return {items:[{id:'fixture',label:'安全な表示',review_reason:'duplicate',source_url:'https://example.com/item'}]};if(path==='/api/discovery-exceptions')return {items:[{source_id:'kikutani',normalized_url:'https://example.com/unparsed',reason_code:'listing_metadata_unparsed'}]};if(path==='/api/candidates/fixture')return {snapshot:'fixture-snapshot'};if(path==='/api/session')return {csrf:'fixture-csrf'};if(path==='/api/assisted')return {sources:[],types:{},actions:{}};return {items:[]};}");
@@ -306,9 +308,9 @@ test('exclusive review groups count formal READY and human-confirmable publicati
  u.ids.mode.value='approvable';u.run('renderList()');const nodes=walk(u.ids.list);assert(nodes.some(e=>e.textContent==='正式READY'));assert(nodes.some(e=>e.textContent==='本人確認後に掲載可能'));assert(nodes.some(e=>e.tagName==='button'&&e.textContent==='掲載する'&&e.disabled!==true));assert.equal(u.requests.filter(r=>r.options?.method==='POST').length,0);
  rows.shift();await u.run('refresh()');counts=u.ids.dashboard.children.find(e=>e.className==='review-counts');assert.equal(counts.children[0].children[1].textContent,'1');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,1);
 });
-test('deep-link reference does not reappear in unrelated filters, and source-preference alternatives stay editorial',async()=>{
+test('deep-link reference stays out of filters; a valid alternative stays approvable with source preference retained',async()=>{
  const r={...row('alternative',true),reviewPresentation:{group:'approvable',readiness:'formal'},sourcePreference:{role:'alternative',preferredId:'ikebe'}};const u=ui([r]);await settle();u.context.reference=row('already-approved',true);u.context.reference.status='approved';u.run('inspectedArticle=reference;renderList()');assert(u.ids.list.children.some(e=>e.dataset?.candidateId==='already-approved'));
- u.ids.mode.value='approvable';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,0);u.ids.mode.value='editorial';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,1);
+ u.ids.mode.value='approvable';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,1);assert.equal(u.ids.list.children[0].dataset.candidateId,'alternative');assert.equal(r.sourcePreference.preferredId,'ikebe');u.ids.mode.value='editorial';u.run('renderList()');assert.equal(u.ids.list.children.filter(e=>e.tagName==='article').length,0);
 });
 
 test('audited resume waiting is distinct from a real stop and remains a visible warning',async()=>{
@@ -361,4 +363,16 @@ test('formal READY uses one final dialog and ignores a double submit while prese
 
 for(const change of ['already_decided','source_stopped'])test('in-page review respects fresh '+change+' without opening confirmation or writing',async()=>{
  const u=inlineQueueFixture();await settle();u.context.changed={...u.config,existing:{...u.candidate,status:change==='already_decided'?'approved':'pending',humanFactsReview:{available:false}}};u.context.writes=[];u.run('api=async(path,options)=>{if(options?.method==="POST")writes.push(path);return changed;};refresh=async()=>true');await u.run('startAssistedReview(items[0])');assert.notEqual(u.ids.confirm.open,true);assert.equal(u.context.writes.length,0);assert(u.ids.notice.textContent.includes('判断済み、または出典・掲載条件'));
+});
+
+test('editorial-PASS cards share the approvable count/filter and final dialog without facts or judgment mutation',async()=>{
+ const rows=['artist-lesson','instrument-review'].map(id=>{const r={...row(id,true),preparationState:'HUMAN_REVIEW'};r.validation.relevance={status:'REVIEW'};r.reviewPresentation=candidatePresentation({review_status:'pending',source_url:r.sourceUrl},r.validation,{available:false},null,Date.now());return r;});
+ const before=structuredClone(rows),u=ui(rows);await settle();
+ const counts=u.ids.dashboard.children.find(e=>e.className==='review-counts');assert.deepEqual(counts.children.map(e=>e.children[1].textContent),['2','0','0','0']);counts.children[0].events.click();
+ assert.equal(u.ids.count.textContent,'掲載可 2件（全2件）');assert.equal(walk(u.ids.list).filter(n=>n.textContent==='正式検証PASS・掲載判断待ち').length,2);
+ assert.equal(walk(u.ids.list).filter(n=>n.textContent==='正式READY').length,0);
+ u.context.fixtureRows=rows;u.run('api=async path=>fixtureRows.find(r=>path.endsWith(r.id))');
+ await walk(u.ids.list.children[0]).find(n=>n.tagName==='button'&&n.textContent==='掲載する').events.click();await settle();
+ assert.equal(u.ids.confirm.open,true);assert.equal(u.ids.submit.disabled,false);assert.equal(u.ids.submit.textContent,'確認して掲載');
+ assert.deepEqual(rows,before);assert.equal(u.requests.filter(r=>r.options?.method==='POST').length,0);
 });
