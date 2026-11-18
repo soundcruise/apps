@@ -1,7 +1,7 @@
 import {mountScorePresets} from './score-presets.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 // Transient editors for the active Project. No storage or account access.
-export function createScoreSettings({C,document:doc,getSession,canEdit,execute,changed,createPreviewAudio,previewPaperOptions,closed=()=>{}}){
+export function createScoreSettings({C,document:doc,getSession,canEdit,execute,changed,createPreviewAudio,loadChordPicker,previewPaperOptions,closed=()=>{}}){
  let dialog=null,applying=false,previous=null,parked=null;
  const node=(tag,text,parent)=>{const el=doc.createElement(tag);if(text!==undefined)el.textContent=text;if(parent)parent.appendChild(el);return el;};
  function close(){if(dialog)dialog.close();}
@@ -49,7 +49,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    collect=()=>{const next=draft();if(!next)throw Error('カポは0〜11で指定してください');return {kind:'instrument',args:{mode:choice.value,originalKey:next.originalKey,capo:next.capo,...(choice.value==='transpose'?{transposeSemitones:next.shift}:{}),...(maximum.value.trim()?{maxAbsoluteFret:Number(maximum.value)}:{}),rebuildForms:true}};};
   }else if(mode==='chordPreset'||mode==='strumPreset'){
    current.classList.add('sc-batch-dialog');body.classList.add('sc-preset-dialog-body');
-   mountPreview=()=>{collect=mountScorePresets({C,doc,node,body,status,apply,project,view,args,mode,navigate,createPreviewAudio,previewPaperOptions});};
+   mountPreview=()=>{collect=mountScorePresets({C,doc,node,body,status,apply,project,view,args,mode,navigate,createPreviewAudio,loadChordPicker,previewPaperOptions});};
   }else if(mode==='rhythm'){
    const value=C.model.getBasicStrumText(view),field=input('基本ストローク',typeof value==='string'?value:'','basicStrum');field.placeholder='例：↓・↓↑・↑↓↑';field.disabled=typeof value!=='string';node('p','↓ ダウン　↑ アップ　・ 休符　〜 伸ばす　x ミュート',body);
    const panel=doc.getElementById('studio-rhythm-panel');if(panel?.childElementCount)button('リズム素材を選ぶ',()=>{if(field.value!==(typeof value==='string'?value:'')){status.textContent='ストロークの変更を適用してから素材を選んでください。';return;}navigate('rhythmMaterials');});

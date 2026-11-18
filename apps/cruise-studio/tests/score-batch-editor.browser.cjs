@@ -244,6 +244,7 @@ for (const engine of ['chrome','webkit']) test('preset auditions, library operat
             const row=name=>page.getByRole('listitem',{name,exact:true});
             const act=(item,name)=>row(item).getByRole('button',{name,exact:true}).click();
             await open();
+            await play('score').waitFor({state:'visible'});
             await page.keyboard.press('Space');
             await waitPlaying('score');
             const cursor=page.locator('.sc-preset-paper [data-layout-playhead]');

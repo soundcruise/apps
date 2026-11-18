@@ -127,7 +127,7 @@ export function compactChordAudition(plan) {
     return {events,duration:end};
 }
 
-export function mountScorePresets({C, doc, node, body, status, apply, project, view, args, mode, navigate, createPreviewAudio, previewPaperOptions}) {
+export function mountScorePresets({C, doc, node, body, status, apply, project, view, args, mode, navigate, createPreviewAudio, loadChordPicker, previewPaperOptions}) {
     const chords = mode === 'chordPreset';
     const storageKey = chords ? 'scoreChordPresetsV1' : 'scoreStrumPresetsV1';
     const saved = C.storage.getAppSetting(storageKey);
@@ -380,7 +380,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         const keys = new Set([view.songInfo.playKey, 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']);
         for (const value of keys) option(key, value, value);
         const cellHost=node('section',undefined,patternArea);cellHost.className='sc-preset-cell-editor';
-        const cells=presetChordCells({C,doc,host:cellHost,read:()=>timedChords,
+        const cells=presetChordCells({C,doc,loadChordPicker,host:cellHost,read:()=>timedChords,
             write:pattern=>{timedChords=pattern;edited=true;update();},
             project:()=>patternProject(true),play:()=>play('pattern'),
             preview:plan=>play('note',{...plan,duration:2,events:plan.events.map(e=>({...e,midi:e.midi+project.instrument.capo}))}),

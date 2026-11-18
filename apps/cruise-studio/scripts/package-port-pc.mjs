@@ -49,6 +49,9 @@ export const RELEASE_FILES=Object.freeze([
  'js/modules/sheet-cruise/score-harmony.mjs',
  'js/modules/score-ui.mjs','js/modules/score-audio.mjs',
  'js/modules/sheet-cruise/score-settings.mjs',
+ 'js/modules/sheet-cruise/score-presets.mjs',
+ 'js/modules/sheet-cruise/preset-chord-cells.mjs',
+ 'js/modules/sheet-cruise/preset-library.mjs',
  'js/modules/pre-dtm-cruise/midi-export.js',
  'js/modules/pre-dtm-cruise/pre-dtm.js',
  'js/modules/chord/form-adapter.mjs',
@@ -75,6 +78,11 @@ export function packagePortPC(output){
   const source=path.join(studio,name),bytes=fs.readFileSync(source),target=path.join(destination,name);
   fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
  }
+ // The preset catalogue uses the same SVG icons as the score viewer.
+ const scoreIcons='apps/score-viewer/ui/icons.mjs';
+ const iconBytes=fs.readFileSync(path.join(repo,scoreIcons)),iconTarget=path.join(out,scoreIcons);
+ fs.mkdirSync(path.dirname(iconTarget),{recursive:true});fs.writeFileSync(iconTarget,iconBytes);
+ files[scoreIcons]=createHash('sha256').update(iconBytes).digest('hex');
  // Generated root Standard entry is independently packaged, never the Pro template.
  for(const [name,bytes] of Object.entries({'index.html':renderStandardEntry(fs.readFileSync(path.join(studio,'studio-template.html'),'utf8')),'manifest.webmanifest':renderStandardManifest('0.88.1')})){
   const target=path.join(destination,name);fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');

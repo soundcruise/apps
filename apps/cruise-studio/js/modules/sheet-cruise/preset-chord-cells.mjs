@@ -1,9 +1,6 @@
-import {createChordPicker} from './chord-picker.mjs';
-
 // The picker writes only to this window's pattern. The score remains owned by OK.
-export function presetChordCells({C,doc,host,read,write,project,play,preview,previewState,subscribePreview,closeAudio,notice}) {
+export function presetChordCells({C,doc,host,read,write,project,play,preview,previewState,subscribePreview,closeAudio,notice,loadChordPicker}) {
     host.tabIndex=-1;
-    const picker=createChordPicker(C,doc.defaultView.ChordCruise);
     const session={snapshotVersion:0,finishTextGroup(){},setInputPending(value){this.inputPending=value;}};
     const grid=doc.createElement('div');grid.className='sc-author-cell-grid';
     const toggle=doc.createElement('button');
@@ -49,18 +46,20 @@ export function presetChordCells({C,doc,host,read,write,project,play,preview,pre
         if(symbol)next[bar].push(event);
         next[bar].sort((a,b)=>a.tick-b.tick);notice('');apply(next);return true;
     }
-    function renderPanel() {
+    async function renderPanel() {
         const ticket=++epoch;
         panel._disposeOwnerChord?.();panel._disposeOwnerChord=null;panel.hidden=!opened;
         toggle.textContent=opened?'▲':'▼';toggle.setAttribute('aria-expanded',String(opened));
         if(!opened)return;
         try{
+            const picker=await loadChordPicker();
+            if(ticket!==epoch||!host.isConnected||host.hidden)return;
             const draft=project(),selected=draft.bars[bar];
             picker.mount(panel,{draftOnly:true,cellKey:[revision,bar,tick].join(':'),session,project:draft,bar:selected,tick,
                 eligible:()=>!session.inputPending,current:()=>host.isConnected && !host.hidden && ticket===epoch,
                 write:(symbol,m)=>setEvent(symbol,m), undo, progression:play,preview,previewState,subscribePreview,
                 close:()=>{opened=false;closeAudio();renderPanel();}});
-        }catch(error){notice(error.message);opened=false;renderPanel();}
+        }catch(error){if(ticket!==epoch||!host.isConnected)return;notice(error.message);opened=false;renderPanel();}
     }
     toggle.onclick=()=>{opened=!opened;renderPanel();};
     function render(){

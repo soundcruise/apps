@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
+import {pathToFileURL} from 'node:url';
 import {packagePortPC,RELEASE_FILES} from '../scripts/package-port-pc.mjs';
 import {PRO_DIRECTORY} from '../scripts/edition-layout.mjs';
 import {packageProjectCanary} from '../scripts/package-project-canary.mjs';
 
-test('one Studio package publishes the guarded client and read-only legacy compatibility resources',()=>{
+test('one Studio package publishes the guarded client and read-only legacy compatibility resources',async()=>{
  const parent=fs.mkdtempSync('/private/tmp/studio-unified-package-test-'),out=path.join(parent,'release');
  try{
   assert.equal(packageProjectCanary,packagePortPC,'the old command has no separate product builder');
@@ -18,6 +19,10 @@ test('one Studio package publishes the guarded client and read-only legacy compa
   assert(RELEASE_FILES.includes('js/cloud/studio-session-adapter.mjs'));
   assert.equal(manifest.productionReady,false);assert.equal(manifest.channel,'single-studio-operator-owner');
   for(const [name,hash] of Object.entries(manifest.files))assert.equal(createHash('sha256').update(fs.readFileSync(path.join(out,name))).digest('hex'),hash);
+  // Resolve transitive imports from the artifact itself, including resources outside Studio.
+  const settings=pathToFileURL(path.join(out,'apps/cruise-studio/js/modules/sheet-cruise/score-settings.mjs'));
+  assert.equal(typeof (await import(settings.href)).createScoreSettings,'function');
+  assert(names.includes('apps/score-viewer/ui/icons.mjs'));
   const html=fs.readFileSync(path.join(out,'apps/cruise-studio',PRO_DIRECTORY,'index.html'),'utf8');assert.match(html,/js\/cloud\/canary-entry\.mjs/);
   assert(!names.some(n=>/workers\/|development\.html|identity-host|tests\//.test(n)));
   for(const name of ['index.html','project-canary.html']){
