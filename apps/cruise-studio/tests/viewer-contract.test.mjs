@@ -27,14 +27,27 @@ test('entering a chord in an inherited pattern only adds a stroke for the target
     basic.snapshot.slots=[{id:schema.newId(),tick:0,durationTicks:480,action:'rest',accent:false},
         {id:schema.newId(),tick:480,durationTicks:480,action:'up',accent:false}];
     const original=clone(basic);
-    for(const tick of [0,240,480,720])assert.equal(schema.addChordDownstroke(p,bar.id,tick),false);
-    assert.equal(schema.addChordDownstroke(p,bar.id,960),true);
+    for(const tick of [0,240,480,720])assert.equal(schema.addChordStroke(p,bar.id,tick),false);
+    assert.equal(schema.addChordStroke(p,bar.id,960),true);
     const binding=p.performance.barRhythms.find(b=>b.barId===bar.id);
     const slots=p.materials.rhythms.find(m=>m.id===binding.materialId).snapshot.slots;
     assert.notEqual(binding.materialId,basic.id);
     assert.deepEqual(basic,original);
-    assert.equal(schema.addChordDownstroke(p,bar.id,960),false);
+    assert.equal(schema.addChordStroke(p,bar.id,960),false);
     assert.deepEqual(slots.map(s=>[s.tick,s.action]),[[0,'rest'],[480,'up'],[960,'down']]);
+    assert.equal(schema.validate(p).ok,true);
+});
+
+test('automatic chord strokes follow eighth and sixteenth note cells', () => {
+    const p=clone(source), bar=p.bars[0], base=p.materials.rhythms.find(m=>m.id===p.performance.basicRhythmId);
+    p.performance.barRhythms=p.performance.barRhythms.filter(binding=>binding.barId!==bar.id);
+    base.snapshot.slots=[];
+    for (const [tick, resolution] of [[0,8],[240,8],[480,16],[600,16],[720,16],[840,16],[1200,undefined]])
+        assert.equal(schema.addChordStroke(p,bar.id,tick,resolution),true);
+    const rhythm=p.performance.barRhythms.find(binding=>binding.barId===bar.id);
+    const actions=p.materials.rhythms.find(material=>material.id===rhythm.materialId).snapshot.slots.map(slot=>slot.action);
+    assert.deepEqual(actions,['down','up','down','up','down','up','up']);
+    assert.deepEqual(base.snapshot.slots,[]);
     assert.equal(schema.validate(p).ok,true);
 });
 

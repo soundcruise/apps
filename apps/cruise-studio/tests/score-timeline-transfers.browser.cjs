@@ -37,6 +37,80 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         assert((await measure.boundingBox()).width < wide - 10);
         await page.getByRole('button',{name:'横方向を100%に戻す'}).click();
         const words = editorBar.locator('.dock-lyrics-cell');
+        const chords = editorBar.locator('[data-overlay-field=chord]');
+        const selected = page.locator('#sc-slot-overlay [data-cell-selected]');
+        await chords.first().dblclick();
+        await chords.nth(1).hover();
+        await page.waitForTimeout(450);
+        assert.equal(await chords.first().evaluate(e=>e.parentElement.hasAttribute('data-cell-editing')),true);
+        assert.equal(await page.locator('.is-lifted').count(),0);
+        await chords.nth(2).click();
+        // A release consumed above the viewport must still end the press.
+        await page.evaluate(() => {
+            for (const type of ['pointerup','lostpointercapture']) {
+                document.addEventListener(type, e=>e.stopPropagation(), {once:true,capture:true});
+            }
+        });
+        await chords.first().click();
+        await page.waitForTimeout(450);
+        assert.equal(await page.locator('.is-lifted').count(),0,'released chord must not float');
+        await chords.nth(4).hover();
+        assert.equal(await selected.count(),1,'hover cannot extend a selection');
+        await chords.nth(4).click();
+        assert.deepEqual(await snapshot(),before,'a new click must not move the old chord');
+        const firstBox = await chords.first().boundingBox();
+        await page.mouse.move(firstBox.x+firstBox.width/2,firstBox.y+firstBox.height/2);
+        await page.mouse.down();
+        await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+        await page.waitForTimeout(450);
+        assert.equal(await page.locator('.is-lifted').count(),0,'interrupted press must not float');
+        await chords.nth(3).hover();
+        await page.mouse.up();
+        assert.deepEqual(await snapshot(),before);
+        // A hover with no primary button is also sufficient to cancel a press
+        // when the browser delivered neither a release nor a capture-loss event.
+        await chords.first().evaluate(input=>input.addEventListener('pointerdown', e=>{
+            input.dataset.testPointerId=e.pointerId;
+        }, {once:true}));
+        await page.mouse.move(firstBox.x+firstBox.width/2,firstBox.y+firstBox.height/2);
+        await page.mouse.down();
+        await chords.first().evaluate(input=>{
+            const other=input.closest('.editor-measure').querySelector('[data-overlay-field=chord][data-slot-tick="480"]');
+            const rect=other.getBoundingClientRect();
+            input.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerId:Number(input.dataset.testPointerId),
+                pointerType:'mouse',buttons:0,clientX:rect.left+rect.width/2,clientY:rect.top+rect.height/2}));
+        });
+        assert.equal(await selected.count(),1);
+        await page.mouse.up();
+        // An intentional long press still moves both the chord and its fingering.
+        await words.nth(2).click();
+        await page.mouse.move(firstBox.x+firstBox.width/2,firstBox.y+firstBox.height/2);
+        await page.mouse.down();
+        await page.locator('[data-range-row=chord].is-lifted').waitFor();
+        const dropBox=await chords.nth(2).boundingBox();
+        await page.mouse.move(dropBox.x+dropBox.width/2,dropBox.y+dropBox.height/2,{steps:8});
+        await page.mouse.up();
+        const movedProject=await snapshot(), originalChord=before.bars[1].chords[0];
+        assert.equal(movedProject.bars[1].chords.find(chord=>chord.id===originalChord.id).onsetTick,480);
+        const fingering=project=>project.performance.formBindings.find(binding=>binding.chordEventId===originalChord.id);
+        assert(fingering(before));
+        assert.deepEqual(fingering(movedProject),fingering(before));
+        await chords.nth(2).press('ControlOrMeta+z');
+        assert.deepEqual(await snapshot(),before);
+        await words.nth(2).click();
+        for (const field of [editorBar.locator('[data-overlay-field=chord]').first(),words.nth(0),editorBar.locator('[data-overlay-field=doremi]').first()]) {
+            const cursor = () => field.evaluate(input => getComputedStyle(input).cursor);
+            assert.equal(await cursor(),'pointer');
+            await field.click();
+            assert.equal(await cursor(),'pointer');
+            await field.click();
+            assert.equal(await cursor(),'text');
+            assert(await field.evaluate(input => document.activeElement === input &&
+                input.selectionStart === input.selectionEnd && getComputedStyle(input).caretColor !== 'rgba(0, 0, 0, 0)'));
+            await field.evaluate(input => input.setSelectionRange(input.value.length,input.value.length));
+            await field.press('ArrowLeft');
+            assert(await field.evaluate(input => document.activeElement === input && input.selectionStart === input.value.length-1));
+        }
         await words.nth(0).click();
         assert.equal(await page.locator('[data-cell-selected]').count(),1);
         assert.equal(await words.first().evaluate(e=>getComputedStyle(e).caretColor),'rgba(0, 0, 0, 0)');
@@ -110,6 +184,99 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
             await cell(480).press('ControlOrMeta+z');
             assert.deepEqual(await snapshot(), before);
         }
+        const stroke = (bar,tick) => page.locator('.editor-measure[data-bar-number="'+bar+'"] .dock-strum-cell[data-slot-tick="'+tick+'"]');
+        const firstStroke = stroke(2,0), secondStroke = stroke(2,240);
+        const upbeatChord = editorBar.locator('[data-overlay-field=chord][data-slot-tick="240"]');
+        await secondStroke.press('Delete');
+        assert.equal(await secondStroke.getAttribute('data-strum-state'),'empty');
+        const blankUpbeat = await snapshot();
+        await upbeatChord.fill('D');
+        await upbeatChord.press('Tab');
+        assert.equal(await secondStroke.getAttribute('data-strum-state'),'up');
+        await upbeatChord.press('ControlOrMeta+z');
+        assert.deepEqual(await snapshot(),blankUpbeat);
+        await secondStroke.press('ControlOrMeta+z');
+        assert.deepEqual(await snapshot(),before);
+
+        const initialStroke = await firstStroke.getAttribute('data-strum-state');
+        await firstStroke.click();
+        assert.deepEqual(await snapshot(),before,'first stroke click only selects');
+        const selectedStroke=page.locator('[data-range-row=strum][data-cell-selected]');
+        assert.equal(await selectedStroke.evaluate(cell=>getComputedStyle(cell).backgroundColor),'rgb(237, 246, 255)');
+        await firstStroke.click();
+        const nextStroke = await firstStroke.getAttribute('data-strum-state');
+        assert.notEqual(nextStroke,initialStroke);
+        await firstStroke.click();
+        assert.notEqual(await firstStroke.getAttribute('data-strum-state'),nextStroke,'third click changes the selected stroke again');
+        await firstStroke.press('ControlOrMeta+z');
+        assert.equal(await firstStroke.getAttribute('data-strum-state'),nextStroke);
+        await firstStroke.press('ControlOrMeta+z');
+        assert.deepEqual(await snapshot(),before);
+        await words.first().click();
+        await firstStroke.click();
+        await secondStroke.click({modifiers:['Shift']});
+        assert.equal(await selectedStroke.count(),2);
+        await page.mouse.move(...await center(firstStroke));await page.mouse.down();
+        await page.locator('.is-lifted').first().waitFor();
+        await page.mouse.move(...await center(stroke(2,480)),{steps:6});await page.mouse.up();
+        assert.equal(await stroke(2,0).getAttribute('data-strum-state'),'empty');
+        assert.equal(await stroke(2,480).getAttribute('data-strum-state'),initialStroke);
+        await stroke(2,480).press('ControlOrMeta+z');
+        assert.deepEqual(await snapshot(),before);
+        await firstStroke.click();
+        await page.mouse.move(...await center(firstStroke));await page.mouse.down();
+        await page.mouse.move(...await center(secondStroke),{steps:6});await page.mouse.up();
+        assert.equal(await selectedStroke.count(),2,'drag selects without moving');
+        const sourceActions=await selectedStroke.locator('button[data-strum-state]').evaluateAll(cells=>cells.map(cell=>cell.dataset.strumState));
+        await firstStroke.press('ControlOrMeta+c');
+        await stroke(3,1680).click();
+        await stroke(3,1680).press('ControlOrMeta+v');
+        assert.equal(await stroke(3,1680).getAttribute('data-strum-state'),sourceActions[0]);
+        assert.equal(await stroke(4,0).getAttribute('data-strum-state'),sourceActions[1]);
+        await stroke(3,1680).press('ControlOrMeta+z');
+        assert.deepEqual(await snapshot(),before);
+
+        await page.getByRole('button',{name:'横方向を100%に戻す'}).click();
+        const practice=page.locator('#sc-practice-tempo');
+        await practice.fill('300');await practice.press('Tab');
+        const play=page.locator('[data-bar-preview]');
+        await play.click();
+        const geometry=await page.evaluate(()=>new Promise((resolve,reject)=>{
+            const overlay=document.querySelector('#sc-slot-overlay'), seen=new Set(), samples=[];
+            const deadline=performance.now()+4500;
+            let cursor;
+            function collect(){
+                const lines=overlay.querySelectorAll('[data-score-playhead]');
+                if(lines.length){
+                    const first=!cursor;cursor ||= lines[0];
+                    const bar=Number(overlay.dataset.playbackBar),tick=Number(overlay.dataset.playbackTick);
+                    const x=lines[0].getBoundingClientRect().left;
+                    const playing=overlay.querySelectorAll('.sc-editor-playing-bar');
+                    const row=playing[0]?.querySelector('.slot-overlay-row--chord .slot-overlay-row-body');
+                    const currentCell=row && Array.from(row.querySelectorAll('[data-slot-tick]')).find(input =>
+                        tick>=Number(input.dataset.slotTick) && tick<Number(input.dataset.slotTick)+Number(input.dataset.slotTicks));
+                    const rect=currentCell?.parentElement.getBoundingClientRect();
+                    const view=overlay.querySelector('.editor-score-scroll'), bounds=view.getBoundingClientRect();
+                    const overflow=view.scrollWidth-view.clientWidth;
+                    const expectedScroll=(bar-2+tick/1920)/4*overflow;
+                    const valid=lines.length===1&&(first||lines[0]===cursor)&&playing.length===1&&
+                        Number(playing[0].dataset.barNumber)===bar&&getComputedStyle(row,'::after').content!=='none'&&
+                        !overlay.querySelector('.sc-playing-cell,.sc-playing-note')&&rect&&x>=rect.left-2&&x<=rect.right+2&&
+                        overflow>20&&Math.abs(view.scrollLeft-expectedScroll)<2&&x>=bounds.left-2&&x<=bounds.right+2;
+                    samples.push({bar,tick,valid,scroll:view.scrollLeft,expectedScroll,overflow});
+                    seen.add(bar);
+                    if(seen.size>=4&&samples.filter(sample=>sample.bar===bar).length>=4)return resolve(samples);
+                }
+                if(performance.now()>deadline)return reject(Error(JSON.stringify(samples.slice(-8))));
+                requestAnimationFrame(collect);
+            }
+            collect();
+        }));
+        assert(geometry.every(sample=>sample.valid),JSON.stringify(geometry.filter(sample=>!sample.valid).slice(0,6)));
+        await play.click();
+        assert.equal(await page.locator('#sc-slot-overlay [data-score-playhead],#sc-slot-overlay .sc-editor-playing-bar').count(),0);
+        assert.deepEqual(await snapshot(),before);
+
         await page.getByRole('button', {name:'小節ルーペを閉じる'}).click();
         for (const action of ['#sc-edit-chord-preset','#sc-edit-rhythm']) {
             await openMenu(action);
@@ -150,6 +317,7 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         assert(positions.slice(0,4).every(top=>top===positions[0]) && positions[4]>positions[0]);
         await page.selectOption('[data-score-preset]',{label:'基本進行'});
         const grid = page.locator('.sc-preset-cell-editor');
+        assert.equal(await grid.locator('[data-active]').evaluate(input=>getComputedStyle(input).backgroundColor),'rgb(237, 246, 255)');
         await grid.locator('.sc-pattern-grip').first().dragTo(grid.locator('[data-preset-chord-cell]').nth(1));
         assert.deepEqual(await grid.locator('[data-preset-chord-cell]').evaluateAll(nodes=>nodes.map(n=>n.value)), ['C','G','C']);
         await grid.press('ControlOrMeta+z');
@@ -225,6 +393,9 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         }
         await page.click('#sc-undo');assert.deepEqual(await snapshot(),applied);
         await openMenu('#sc-edit-rhythm');
+        const presetStroke=page.locator('.sc-strum-preset-grid button').first();
+        await presetStroke.focus();
+        assert.equal(await presetStroke.evaluate(cell=>getComputedStyle(cell).backgroundColor),'rgb(237, 246, 255)');
         await paper.getByRole('button', {name:'4小節目を選択',exact:true}).click();
         assert.equal(await page.getByLabel('適用範囲').inputValue(), 'section');
         assert.deepEqual(await paper.locator('[data-preset-destination]').evaluateAll(nodes => nodes.map(node => Number(node.dataset.barNumber))), [4,5,6,7]);

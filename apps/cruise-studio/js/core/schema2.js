@@ -382,7 +382,7 @@
             });
         }
         // Write only to the receiving bar. Never modify an inherited pattern, a rest or a held stroke.
-        function addChordDownstroke(project,barId,tick) {
+        function addChordStroke(project,barId,tick,resolution) {
             var perf=project.performance, bindings=perf.barRhythms;
             var binding=bindings.find(b=>b.barId===barId);
             var materialId=binding?.materialId||perf.basicRhythmId;
@@ -398,7 +398,11 @@
                 next.snapshot.slots.forEach(s=>{s.id=id();});
             }
             next.snapshot.lengthTicks=Math.max(next.snapshot.lengthTicks,barLength(project));
-            next.snapshot.slots.push({id:id(),tick:tick,action:'down',accent:false});
+            // A sixteenth-note grid alternates within each half beat.
+            var halfBeat=project.songInfo.ticksPerBeat/2;
+            var subdivision=resolution===16||tick%halfBeat!==0?halfBeat/2:halfBeat;
+            var action=Math.floor(tick/subdivision)%2===1?'up':'down';
+            next.snapshot.slots.push({id:id(),tick:tick,action:action,accent:false});
             next.snapshot.slots.sort((a,b)=>a.tick-b.tick);
             if(shared){
                 rhythms.push(next);
@@ -542,7 +546,7 @@
                     const previous=project.bars.find(b=>b.id===barId),bar=next.bars.find(b=>b.id===barId);
                     for(const event of bar?.chords||[]){
                         if(!event.unresolved && !previous?.chords.some(c=>c.onsetTick===event.onsetTick && c.symbol===event.symbol))
-                            addChordDownstroke(next,barId,event.onsetTick);
+                            addChordStroke(next,barId,event.onsetTick);
                     }
                 }
             }
@@ -563,7 +567,7 @@
             check=validate(next);insist(check.ok,check.errors.join('/'));Object.keys(next).forEach(function(k){project[k]=next[k];});return bar.id;
         }
         function reconcileChord(bar,events){if(!legacyBars.has(bar))return;if(bar.chords.length>1){insist(!boundLegacyBars.has(bar),'ambiguous-chord-mapping');replacementBars.add(bar);return;}if(bar.chords.length&&events.length){var source=legacyChords.get(bar.chords[0]);insist(source,'ambiguous-chord-mapping');legacyChords.set(events[0],source);}}
-        return Object.freeze({barLength:barLength,setMeter:setMeter,melodyTieTarget:melodyTieTarget,pruneMelodyTies:pruneMelodyTies,addChordDownstroke:addChordDownstroke,readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(p.songInfo.timeSignature.beats===4,'プレDTMの伴奏出力は4/4に対応しています');insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
+        return Object.freeze({barLength:barLength,setMeter:setMeter,melodyTieTarget:melodyTieTarget,pruneMelodyTies:pruneMelodyTies,addChordStroke:addChordStroke,readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(p.songInfo.timeSignature.beats===4,'プレDTMの伴奏出力は4/4に対応しています');insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
     }
     return Object.freeze({create:create,pitchMidi:pitchMidi,maxBytes:MAX_BYTES,timing:timing});
 });

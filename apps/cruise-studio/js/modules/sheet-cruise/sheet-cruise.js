@@ -107,13 +107,13 @@
     var staffStyle = 'code', staffView = null;
     var paperFormSessions=new WeakMap(),barClipboards=new WeakMap(),formDialog=null,formPopupModule=null,formPopupPending=null,formPopupEpoch=0;
     var sheetActions=null,sheetActionsPending=null,saveAsFlight=false,historyPreview=null;
-    var playbackSettings=null,playbackSettingsPending=null,playbackMix={chords:100,melody:100,metronome:100},playbackVisualDelay=0,metronomeSound='click',previewPaperCursor=null;
+    var playbackSettings=null,playbackSettingsPending=null,playbackMix={chords:100,melody:100,metronome:100},playbackVisualDelay=0,metronomeSound='click',previewPaperCursor=null,previewEditorCursor=null,playingEditorMeasure=null;
     var editorOpen=false;
     var editorHorizontalZoom=100,editorBars=1,editorAnchorId=null,editorPlacement='floating',collapsedEditorRows=new Set();
     var sectionPlaybackSelection=null;
     var scoreSettings=null,scoreSettingsPending=null,emptySlotSelection=null;
     function prepareScoreSettings(){
-        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.173.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
+        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.175.1-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
             emptySlotSelection=null;var oldIds=new Set(change.previous.bars.map(function(b){return b.id;})),added=state.session.draft.bars.findIndex(function(b){return !oldIds.has(b.id);});redrawSession(false);
             if(change.mode==='slot'&&added>=0){editorOpen=true;selectSheetBar(added+1);}refreshSessionStatus();
         }});return scoreSettings;}).catch(function(e){scoreSettingsPending=null;setSaveStatus(e.message||'編集画面を読み込めませんでした',true);});return scoreSettingsPending;
@@ -123,7 +123,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.173.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.175.1-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -1190,8 +1190,7 @@
 #sc-slot-overlay .slot-overlay-row-body,:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-row{position:relative;overflow:hidden;}
 #sc-slot-overlay [data-playback-band],#sc-sheet-scale-box [data-playback-band]{position:absolute;top:0;bottom:0;pointer-events:none;z-index:3;background:var(--score-fill,rgba(196,167,91,.18));box-shadow:inset 0 0 0 1px var(--score-border,#b49a55);will-change:left;}
 @media print{[data-playback-band]{display:none!important;}}
-#sc-slot-overlay .sc-playing-cell,#sc-sheet-scale-box .sc-playing-cell {box-shadow:inset 0 0 0 2px var(--score-border,#b49a55)!important;background-color:var(--score-fill,rgba(196,167,91,.18))!important;}
-#sc-slot-overlay .solfege-colors .sc-playing-note {background:var(--score-fill,rgba(196,167,91,.18));border-radius:3px;}
+#sc-sheet-scale-box .sc-playing-cell {box-shadow:inset 0 0 0 2px var(--score-border,#b49a55)!important;background-color:var(--score-fill,rgba(196,167,91,.18))!important;}
 #sc-sheet-scale-box{--paper-selection-bg:var(--score-fill,rgba(196,167,91,.18));--paper-selection-border:var(--score-border,#b49a55);--paper-selection-number:var(--score-ink,#735721);--paper-selection-shadow-edge:rgba(180,154,85,.12);--paper-focus:var(--score-border,#b49a55);}
 #sc-sheet-scale-box .sheet-bar.sc-playing-bar{background:var(--paper-selection-bg);box-shadow:inset 0 0 0 2px var(--paper-selection-border),0 0 0 1px var(--paper-selection-shadow-edge);}
 #sc-sheet-scale-box.sc-score-playing .sheet-bar{transition:none;}
@@ -1217,7 +1216,7 @@
 #sc-slot-overlay .slot-overlay-head-actions{width:100%;}
 #sc-slot-overlay .editor-size-tabs{display:inline-flex;}
 #sc-slot-overlay .editor-score-scroll{min-width:0;overflow-x:auto;flex-shrink:0;}
-#sc-slot-overlay .editor-measures{display:grid;grid-template-columns:minmax(0,1fr);gap:0;width:var(--editor-horizontal-width,100%);min-width:calc(var(--editor-label-offset) + 16 * var(--editor-min-cell) + 2px);}
+#sc-slot-overlay .editor-measures{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:0;width:var(--editor-horizontal-width,100%);min-width:calc(var(--editor-label-offset) + 16 * var(--editor-min-cell) + 2px);}
 #sc-slot-overlay .editor-measures:not([data-count="1"]){min-width:calc(var(--editor-label-offset) + var(--editor-count) * (16 * var(--editor-min-cell) + 2px));grid-template-columns:calc((100% - var(--editor-label-offset)) / var(--editor-count) + var(--editor-label-offset)) repeat(calc(var(--editor-count) - 1),minmax(0,1fr));}
 #sc-slot-overlay .editor-measures.has-chord-panel{grid-template-rows:auto auto auto auto auto auto;}
 #sc-slot-overlay .editor-measures.has-chord-panel .editor-measure,#sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-grid{display:contents;}
@@ -1228,7 +1227,6 @@
 #sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-row--strum{grid-row:4;}
 #sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-row--lyrics{grid-row:5;}
 #sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-row--doremi{grid-row:6;}
-#sc-slot-overlay .editor-measures.has-chord-panel [data-score-playhead]{display:none;}
 #sc-slot-overlay .editor-measure{min-width:0;border:0;padding:0;border-radius:0;}
 #sc-slot-overlay .editor-measure:not(:first-child) .slot-overlay-row-label,#sc-slot-overlay .editor-measure:not(:first-child) .slot-overlay-ruler-label{display:none;}
 #sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:last-child) .slot-overlay-row-body{border-top-right-radius:0;border-bottom-right-radius:0;border-right-width:2px;}
@@ -1242,10 +1240,9 @@
 #sc-slot-overlay .editor-row-disclosure{line-height:1;}
 #sc-slot-overlay .editor-row-disclosure{font:inherit;font-size:max(11px,calc(11px * var(--bar-loupe-scale,1)))!important;padding:1px 3px!important;border:0!important;border-radius:3px!important;background:transparent!important;color:#435b81!important;text-decoration:none!important;cursor:pointer;}
 #sc-slot-overlay .editor-row-disclosure[aria-expanded=true]{background:#dfe7f0!important;}
-#sc-slot-overlay .score-owner-chord-picker{box-sizing:border-box;position:relative;z-index:auto;min-width:0;width:calc(100% - var(--editor-label-offset));max-width:calc(100% - var(--editor-label-offset));margin:0 0 8px var(--editor-label-offset);padding:18px;flex-shrink:0;}
-#sc-slot-overlay .slot-overlay-grid:has(.score-owner-chord-picker) > [data-score-playhead]{display:none;}
+#sc-slot-overlay .score-owner-chord-picker{box-sizing:border-box;position:relative;z-index:5;min-width:0;width:calc(100% - var(--editor-label-offset));max-width:calc(100% - var(--editor-label-offset));margin:0 0 8px var(--editor-label-offset);padding:18px;flex-shrink:0;}
 #sc-slot-overlay .score-chord-picker{position:relative;z-index:5;margin:0 0 8px var(--editor-label-offset);padding:12px;background:#f8faff;color:var(--slot-text);border:1px solid #9baac2;border-radius:8px;flex-shrink:0;}
-#sc-slot-overlay input.chord-selected-cell{box-shadow:inset 0 0 0 2px var(--score-border)!important;background:var(--score-fill)!important;}
+#sc-slot-overlay input.chord-selected-cell{box-shadow:inset 0 0 0 2px var(--score-cell-selection-edge)!important;background:var(--score-cell-selection-fill)!important;}
 #sc-slot-overlay .score-chord-picker:empty,[data-chord-picker][hidden]{display:none!important;}
 #sc-slot-overlay .score-chord-controls,#sc-slot-overlay .score-chord-choices,#sc-slot-overlay .score-chord-builder{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
 #sc-slot-overlay .score-chord-picker label{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:max(11px,calc(12px * var(--bar-loupe-scale,1)));}
@@ -1532,7 +1529,9 @@
 .sc-author-measure strong{display:block;padding:2px 6px;font-size:12px;}
 .sc-author-beats{display:grid;}
 .sc-song-dialog .sc-author-beats input{min-width:0;padding:3px 1px;height:36px;border-radius:0;border:1px solid #dbd1c2;background:transparent;color:#a13923;font:bold 15px system-ui;text-align:center;}
-.sc-song-dialog .sc-author-beats input[data-active]{background:#efdfb6;outline:2px solid #a88443;outline-offset:-2px;}
+:is(#sc-slot-overlay,.sc-song-dialog){--score-cell-selection-fill:#edf6ff;--score-cell-selection-edge:#92b1cb;}
+.sc-song-dialog .sc-author-beats input[data-active],.sc-song-dialog .sc-strum-preset-grid button:focus{background:var(--score-cell-selection-fill);color:#283845;outline:2px solid var(--score-cell-selection-edge);outline-offset:-2px;}
+.sc-song-dialog .sc-author-beats input[data-active]{color:#b93222;}
 .sc-preset-author .score-owner-chord-picker{max-height:48dvh;overflow:auto;}
 .sc-preset-author .sc-preset-pattern{flex-shrink:0;}
 .sc-preset-author .sc-preset-pattern>section details[open]{max-height:32dvh;overflow:auto;}
@@ -1588,13 +1587,21 @@
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
 #sc-slot-overlay .sc-editor-transfer-cell> :is(.dock-strum-cell,.dock-lyrics-cell){height:100%;width:100%;min-width:0;}
-#sc-slot-overlay [data-range-row] input{touch-action:pan-y;}
-#sc-slot-overlay [data-cell-selected]{box-shadow:inset 0 0 0 2px var(--score-border,#a28448);background:#e8d6a8;}
-#sc-slot-overlay [data-cell-selected] input{caret-color:transparent!important;background:transparent!important;outline:0!important;}
+#sc-slot-overlay .dock-strum-cell > *{pointer-events:none;}
+#sc-slot-overlay [data-range-row] :is(input,button){touch-action:pan-y;}
+#sc-slot-overlay [data-cell-selected]{box-shadow:inset 0 0 0 2px var(--score-cell-selection-edge);background:var(--score-cell-selection-fill);}
+#sc-slot-overlay [data-cell-selected] input{caret-color:transparent!important;background:transparent!important;outline:0!important;box-shadow:none!important;}
+#sc-slot-overlay .dock-strum-cell:focus{background:var(--score-cell-selection-fill);box-shadow:inset 0 0 0 2px var(--score-cell-selection-edge);outline:0;}
+#sc-slot-overlay [data-cell-selected] .dock-strum-cell{background:transparent;box-shadow:none;outline:0;}
+#sc-slot-overlay [data-range-row] > input{cursor:pointer;}
+#sc-slot-overlay [data-cell-editing] > input:focus{cursor:text;}
+#sc-slot-overlay .sc-editor-playing-bar[data-preview-scope=melody] .slot-overlay-row--doremi .slot-overlay-row-body::after,
+#sc-slot-overlay .sc-editor-playing-bar[data-preview-scope=chords] :is(.slot-overlay-row--chord,.slot-overlay-row--strum) .slot-overlay-row-body::after,
+#sc-slot-overlay .sc-editor-playing-bar:is([data-preview-scope=all],[data-preview-scope=song]) .slot-overlay-row-body::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;background:var(--score-fill);box-shadow:inset 0 0 0 1px var(--score-border);}
 #sc-slot-overlay [data-cell-selected] input::selection{background:transparent;color:inherit;}
 #sc-slot-overlay .sc-editor-transfer-cell.is-lifted{z-index:4;transform:translateY(-3px);box-shadow:0 3px 8px #33270740;cursor:grabbing;}
 #sc-slot-overlay .sc-editor-cell-drag-handle{position:absolute;bottom:0;left:0;z-index:2;border:0;background:transparent;color:#536577;padding:1px 3px;font-size:12px;line-height:1;cursor:grab;}
-#sc-slot-overlay .sc-editor-transfer-cell.is-drop-target{outline:2px solid var(--score-border,#a28448);outline-offset:-2px;}
+#sc-slot-overlay .sc-editor-transfer-cell.is-drop-target{outline:2px solid var(--score-cell-selection-edge);outline-offset:-2px;}
 .sc-song-dialog label:has(input[type=checkbox]){flex-direction:row;align-items:flex-start;}
 .sc-song-dialog [role=status]{color:var(--studio-danger);font-size:12px;white-space:pre-line;}
 .sc-song-dialog p{font-size:12px;color:var(--studio-text-secondary);}
@@ -2039,6 +2046,8 @@
         endPlaybackFollow();
         if(previewRAF!==null)cancelAnimationFrame(previewRAF);previewRAF=null;
         els.scaleBox?.classList.remove('sc-score-playing','sc-range-playing');
+        playingEditorMeasure?.classList.remove('sc-editor-playing-bar');
+        playingEditorMeasure=null;
         [els.slotOverlay,els.scaleBox].forEach(function(root){if(!root)return;root.querySelectorAll('.sc-playing-bar').forEach(function(e){e.classList.remove('sc-playing-bar');});root.querySelectorAll('.sc-playing-cell,.sc-playing-note').forEach(function(e){e.classList.remove('sc-playing-cell','sc-playing-note');});root.querySelectorAll('[data-score-playhead],[data-playback-band]').forEach(function(e){e.remove();});});
     }
     function updateBarPlayButton(){
@@ -2049,19 +2058,55 @@
         if(!els.slotOverlay)return;
         els.slotOverlay.querySelectorAll('[data-bar-preview],[data-melody-preview]').forEach(function(button){var scope=button.hasAttribute('data-melody-preview')?'melody':'all',active=barPreviewPhase!=='idle'&&barPreviewScope===scope;button.textContent=active?(barPreviewPhase==='loading'?'■ 準備中':'■ 停止'):scope==='melody'?'▶ メロディ':'▶ 再生';button.setAttribute('aria-pressed',String(active));});
     }
-    function paintBands(root,tick,editor){
-        var barTicks=getBeats(state.project)*480;
-        root.querySelectorAll(editor?'.slot-overlay-row':'.sheet-bar-row').forEach(function(row){
-            var kind=editor?DOCK_ROW_ORDER.find(function(k){return row.classList.contains('slot-overlay-row--'+k);}):row.classList.contains('sheet-bar-chord')?'chord':row.classList.contains('sheet-bar-strum')?'strum':row.classList.contains('sheet-bar-lyrics')?'lyrics':row.classList.contains('sheet-bar-forms')?'forms':'doremi';
-            var body=editor?row.querySelector('.slot-overlay-row-body'):row,allowed=barPreviewScope==='melody'?kind==='doremi':barPreviewScope==='chords'?['chord','strum','forms'].includes(kind):true;
-            if(!body)return;var band=body.querySelector(':scope > [data-playback-band]');
-            if(!allowed||body.hidden||!body.clientWidth){band?.remove();return;}
-            var cells=Array.from(body.querySelectorAll(editor?'.dock-strum-cell,.dock-lyrics-cell,[data-overlay-field]':':scope > [data-slot-tick]')),left,width;
-            if(kind==='forms'){width=body.clientWidth/Number(body.dataset.formResolution||8);left=body.clientWidth*tick/barTicks-width/2;}
-            else{var cell=cells.find(function(e){var start=Number(e.dataset.slotTick),span=Number(e.dataset.slotTicks)||barTicks/cells.length;return tick>=start&&tick<start+span;});if(!cell){band?.remove();return;}var start=Number(cell.dataset.slotTick),span=Number(cell.dataset.slotTicks)||barTicks/cells.length,target=editor&&cell.dataset.overlayField==='doremi'?cell.parentElement:cell,a=body.getBoundingClientRect(),b=target.getBoundingClientRect();if(!a.width)return;width=b.width/a.width*body.clientWidth;left=(b.left-a.left)/a.width*body.clientWidth+width*(tick-start)/span-width/2;}
-            if(!Number.isFinite(left)||!Number.isFinite(width)){band?.remove();return;}
-            if(!band){band=document.createElement('span');band.dataset.playbackBand='';band.dataset.playbackRow=kind;band.setAttribute('aria-hidden','true');body.appendChild(band);}band.style.left=left+'px';band.style.width=width+'px';
+    function paintEditorPlayback(number,tick,barTicks) {
+        var measure=els.slotOverlay.querySelector('.editor-measure[data-bar-number="'+number+'"]');
+        var measures=measure?.closest('.editor-measures');
+        if(measure!==playingEditorMeasure){
+            playingEditorMeasure?.classList.remove('sc-editor-playing-bar');
+            playingEditorMeasure=measure;
+            if(measure){
+                measure.dataset.previewScope=barPreviewScope;
+                measure.classList.add('sc-editor-playing-bar');
+            }
+        }
+        if(!measures){previewEditorCursor?.remove();return;}
+        var rows=[], cursorPosition=null;
+        measure.querySelectorAll('.slot-overlay-row-body:not([hidden])').forEach(function(body){
+            var rect=body.getBoundingClientRect();
+            if(!rect.width||!rect.height)return;
+            rows.push(rect);
+            if(cursorPosition!==null)return;
+            var field=Array.from(body.querySelectorAll('[data-range-row] > [data-slot-tick]')).find(function(input){
+                var start=Number(input.dataset.slotTick);
+                return tick>=start&&tick<start+Number(input.dataset.slotTicks);
+            });
+            if(field){
+                var box=field.parentElement.getBoundingClientRect();
+                cursorPosition=box.left+box.width*(tick-Number(field.dataset.slotTick))/Number(field.dataset.slotTicks);
+            }
         });
+        if(cursorPosition===null){previewEditorCursor?.remove();return;}
+        if(!previewEditorCursor){
+            previewEditorCursor=document.createElement('span');
+            previewEditorCursor.dataset.scorePlayhead='';
+            previewEditorCursor.setAttribute('aria-hidden','true');
+        }
+        var root=measures.getBoundingClientRect(),scaleX=root.width/measures.offsetWidth||1,scaleY=root.height/measures.offsetHeight||1;
+        var top=Math.min(...rows.map(r=>r.top)),bottom=Math.max(...rows.map(r=>r.bottom));
+        var x=Math.max(0,Math.min(measures.clientWidth-2,(cursorPosition-root.left)/scaleX));
+        previewEditorCursor.dataset.playheadBar=number;
+        scoreUI.placePlayhead(previewEditorCursor,measures,{x:x,y:(top-root.top)/scaleY,height:(bottom-top)/scaleY});
+        var viewport=measures.parentElement,overflow=viewport.scrollWidth-viewport.clientWidth;
+        if(overflow>0){
+            // Distribute the entire scroll distance over the visible timeline.
+            // In the stacked right pane each measure has its own horizontal timeline.
+            var progress=tick/barTicks;
+            if(editorPlacement!=='right'){
+                var first=Number(measures.firstElementChild.dataset.barNumber);
+                progress=(number-first+progress)/Number(measures.dataset.count);
+            }
+            viewport.scrollLeft=overflow*progress;
+        }
     }
     var previewLoopPeriod=0,previewCountIn=null,countInEnabled=false,metronomeEnabled=false,playbackNotice=null,practiceBpm=null,practiceOwner=null,editorRepeat=false,autoRangeRepeat=false,lastAutoRange='',previewRangeActive=false,syncSoundModes=null,scoreFullscreen=null,practiceRestart=0,practicePending=null,previewStartOffset=0;
     function paintPlayhead(){
@@ -2071,16 +2116,12 @@
         if(previewCountIn&&elapsed<previewCountIn.duration){var countPosition=q('sc-song-position');if(countPosition)countPosition.textContent='カウント '+Math.min(previewCountIn.beats,Math.floor(elapsed/previewCountIn.beatSeconds)+1)+' / '+previewCountIn.beats;previewRAF=requestAnimationFrame(paintPlayhead);return;}
         elapsed=Math.max(previewStartOffset,elapsed-(previewCountIn?.duration||0));if(previewLoopPeriod)elapsed%=previewLoopPeriod;var span=previewSpans?(previewSpans.find(function(s){return elapsed<s.end;})||previewSpans[previewSpans.length-1]):null;
         var barTicks=getBeats(state.project)*480;
-        var number=span?span.index+1:state.selectedBarNumber,tick=Math.min(barTicks-.001,Math.max(0,(elapsed-(span?span.start:0))/previewSecondsPerTick)),bar=state.session.draft.bars[number-1],cardActive=number===state.selectedBarNumber;
+        var number=span?span.index+1:state.selectedBarNumber,tick=Math.min(barTicks-.001,Math.max(0,(elapsed-(span?span.start:0))/previewSecondsPerTick));
         previewLastBar=number;
         els.slotOverlay.dataset.playbackTick=String(tick);els.slotOverlay.dataset.playbackBar=number;
         var position=q('sc-song-position');if(position&&barPreviewScope==='song')position.textContent=number+' / '+state.session.draft.bars.length+'小節'+(previewLoopPeriod?'（範囲ループ）':'');
 
-        els.slotOverlay.querySelectorAll('[data-piano-event]').forEach(function(e){var note=bar.melody.find(function(n){return n.id===e.dataset.pianoEvent;});e.classList.toggle('sc-playing-note',barPreviewScope!=='chords'&&!!note&&note.kind==='note'&&tick>=note.onsetTick&&tick<note.onsetTick+note.durationTicks);});
-        var playingMeasure=els.slotOverlay.querySelector('.editor-measure[data-bar-number="'+number+'"]'),grid=playingMeasure?.querySelector('.slot-overlay-grid'),body=grid&&Array.from(grid.querySelectorAll('.slot-overlay-row-body')).find(function(e){return !e.hidden;});
-        els.slotOverlay.querySelectorAll('.slot-overlay-grid').forEach(function(g){if(g!==grid){g.querySelector('[data-score-playhead]')?.remove();g.querySelectorAll('[data-playback-band]').forEach(function(e){e.remove();});}});
-        if(playingMeasure)paintBands(playingMeasure,tick,true);
-        if(grid&&body){var line=grid.querySelector('[data-score-playhead]');if(!line){line=document.createElement('span');line.dataset.scorePlayhead='';line.setAttribute('aria-hidden','true');grid.appendChild(line);}var scale=grid.getBoundingClientRect().width/grid.offsetWidth||1,x=(body.getBoundingClientRect().left-grid.getBoundingClientRect().left+body.getBoundingClientRect().width*tick/barTicks)/scale;scoreUI?.placePlayhead(line,grid,{x:Math.max(0,Math.min(grid.clientWidth-2,x)),height:grid.clientHeight});revealEditorCell(line);}
+        paintEditorPlayback(number,tick,barTicks);
         var paper=els.scaleBox.querySelector('.sheet-bar[data-bar-number="'+number+'"]');
         els.scaleBox.classList.add('sc-score-playing');els.scaleBox.classList.toggle('sc-range-playing',barPreviewScope==='song'&&(!!previewLoopPeriod||previewRangeActive));els.scaleBox.querySelectorAll('.sheet-bar').forEach(function(b){b.classList.toggle('sc-playing-bar',b===paper);if(b!==paper){b.querySelector('[data-score-playhead]')?.remove();b.querySelectorAll('[data-playback-band]').forEach(function(e){e.remove();});b.querySelectorAll('.sc-playing-cell').forEach(function(c){c.classList.remove('sc-playing-cell');});}});
         if(paper){if(barPreviewScope==='song')followPlaybackBar(paper,number);if(!previewPaperCursor){previewPaperCursor=document.createElement('span');previewPaperCursor.dataset.scorePlayhead='';previewPaperCursor.setAttribute('aria-hidden','true');}previewPaperCursor.dataset.playheadBar=number;var rootRect=els.scaleBox.getBoundingClientRect(),barRect=paper.getBoundingClientRect(),sx=rootRect.width/els.scaleBox.offsetWidth||1,sy=rootRect.height/els.scaleBox.offsetHeight||sx;scoreUI?.placePlayhead(previewPaperCursor,els.scaleBox,{x:(barRect.left-rootRect.left+barRect.width*tick/barTicks)/sx,y:(barRect.top-rootRect.top)/sy,height:barRect.height/sy});}
@@ -2093,7 +2134,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.173.0-dev.1'),import('../score-ui.mjs?v=0.173.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.175.1-dev.1'),import('../score-ui.mjs?v=0.175.1-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -2324,7 +2365,7 @@
     function buildChordPickerPanel(){var root=document.createElement('section');root.dataset.chordPicker='';root.hidden=!chordPicker.open||collapsedEditorRows.has('chord');if(!root.hidden)populateChordPicker(root);return root;}
     function refreshChordPicker(){syncEditorDisclosures();var root=els.slotOverlay?.querySelector('[data-chord-picker]');if(root&&!root.hidden)populateChordPicker(root);}
     function prepareChordPicker(){
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.173.0-dev.1')
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.175.1-dev.1')
             .then(function(module){return module.createChordPicker(CS(),window.ChordCruise);})
             .catch(function(error){chordPickerModule=null;throw error;});
         return chordPickerModule;
@@ -2463,14 +2504,15 @@
     // Each field owns an exact onset; no lossy whole-bar text reconstruction.
     var editorCellDrag = null, editorClipboard = null;
     var editorClipboardType = 'application/x-cruise-studio-cell';
-    function bindEditorRanges(viewport) {
-        var owner = state.session, anchor = null, extent = null, editing = null, gesture = null;
+    function bindEditorRanges(viewport, previousStrokeStart) {
+        var owner = state.session, anchor = null, extent = null, editing = null, gesture = null, handledStroke = null;
         function cellOf(node) { return node?.closest('[data-range-row]'); }
-        function inputOf(cell) { return cell.querySelector('input[data-slot-tick]'); }
+        function controlOf(cell) { return cell?.firstElementChild; }
         function start(cell) { return Number(cell.dataset.rangeStart); }
-        function end(cell) { return start(cell) + Number(inputOf(cell).dataset.slotTicks); }
+        function end(cell) { return start(cell) + Number(controlOf(cell).dataset.slotTicks); }
         function limits() { return {start:Math.min(start(anchor), start(extent)), end:Math.max(end(anchor), end(extent))}; }
         function mark(first, last) {
+            editing?.removeAttribute('data-cell-editing');
             anchor = first; extent = last; editing = null;
             const range = first && limits();
             viewport.querySelectorAll('[data-range-row]').forEach(cell => {
@@ -2479,91 +2521,167 @@
             });
         }
         function enterText(cell) {
+            if (controlOf(cell).readOnly) return;
             mark(null, null); editing = cell;
+            cell.setAttribute('data-cell-editing','');
+            cell.classList.remove('piano-color-mode');
         }
         function stopGesture() {
             if (!gesture) return;
-            clearTimeout(gesture.timer);
-            if (viewport.hasPointerCapture(gesture.id)) viewport.releasePointerCapture(gesture.id);
-            viewport.querySelectorAll('.is-lifted,.is-drop-target').forEach(cell => cell.classList.remove('is-lifted','is-drop-target'));
+            const press = gesture;
             gesture = null;
+            press.listeners.abort();
+            clearTimeout(press.timer);
+            if (viewport.hasPointerCapture(press.id)) viewport.releasePointerCapture(press.id);
+            viewport.querySelectorAll('.is-lifted,.is-drop-target').forEach(cell => cell.classList.remove('is-lifted','is-drop-target'));
+            if (press.cell.dataset.rangeRow === 'strum') handledStroke = press.cell;
         }
         function transfer(target, args, expected) {
             if (!editorCanMove() || owner !== state.session) return;
             stopPianoAudition();
+            if (args.row === 'chord') {
+                const barTicks = CS().model.getBarLengthTicks(state.project);
+                const firstBar = Math.floor(args.to/barTicks), lastBar = Math.ceil((args.to+args.end-args.start)/barTicks);
+                args.chordGrid = Object.fromEntries(state.project.bars.slice(firstBar,lastBar).map(bar =>
+                    [bar.sourceId,Object.fromEntries(editorCellRanges(bar,getStrumGridResolution(bar),'chord')
+                        .filter(range=>range.res===16).map(range=>[range.tick,range.res]))]));
+            }
             if (!runStructureOperation('rangeTransfer', args, expected).ok) return;
             state.selectedBarNumber = Number(target.closest('.editor-measure').dataset.barNumber);
             selectedBarIds = [];
             redrawSession(false);
-            const field = els.slotOverlay.querySelector('[data-range-row="' + args.row + '"][data-range-start="' + start(target) + '"] input');
+            const targetCell = els.slotOverlay.querySelector('[data-range-row="' + args.row + '"][data-range-start="' + start(target) + '"]');
+            const field = controlOf(targetCell);
             field?.focus({preventScroll:true}); revealEditorCell(field);
         }
         viewport.addEventListener('pointerdown', event => {
+            if (!event.isPrimary) return;
+            stopGesture();
+            handledStroke = null;
             const cell = cellOf(event.target);
-            if (!cell || event.target !== inputOf(cell) || event.button !== 0 || !event.isPrimary || !editorCanMove()) return;
+            const input = controlOf(cell);
+            if (!input?.contains(event.target) || event.button !== 0 || !editorCanMove()) return;
             if (editing === cell && !event.shiftKey) return;
             const wasSelected = cell.hasAttribute('data-cell-selected'), second = anchor === extent && anchor === cell;
             const extend = event.shiftKey && anchor?.dataset.rangeRow === cell.dataset.rangeRow;
-            stopGesture();
             if (extend) mark(anchor, cell);
             else if (!wasSelected) mark(cell, cell);
-            const input = inputOf(cell);
-            if (!second || extend) event.preventDefault();
+            const strum = cell.dataset.rangeRow === 'strum';
+            if (strum || !second || extend) event.preventDefault();
             input.focus({preventScroll:true});
-            if (!second || extend) input.select();
-            gesture = {id:event.pointerId, cell, second:second && !extend, extend, x:event.clientX,y:event.clientY,
-                moved:false,lift:false,frame:CS().structureOperations.capture(owner)};
+            // Collapse the first click's hidden text selection before the browser
+            // places the caret on the second press.
+            if (!second || extend) input.select?.();
+            else if (!strum && !input.readOnly) input.setSelectionRange(input.selectionEnd,input.selectionEnd);
+            if (!viewport.isConnected || !cell.isConnected) return;
+            const press = {id:event.pointerId, cell, second:second && !extend, extend, x:event.clientX,y:event.clientY,
+                moved:false,lift:false,frame:CS().structureOperations.capture(owner),listeners:new AbortController()};
+            gesture = press;
+            const capture = {capture:true,signal:press.listeners.signal};
+            window.addEventListener('pointerup', finishGesture, capture);
+            window.addEventListener('pointercancel', cancelPointer, capture);
+            window.addEventListener('click', stopGesture, capture);
+            window.addEventListener('blur', stopGesture, {signal:press.listeners.signal});
+            if (event.pointerType === 'mouse') window.addEventListener('mouseup', e => {
+                if (!(e.buttons & 1)) stopGesture();
+            }, capture);
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) stopGesture();
+            }, capture);
             viewport.setPointerCapture(event.pointerId);
-            if (!extend && (wasSelected && anchor !== extent || input.value || cell.querySelector('[draggable=true]:not([hidden])'))) {
-                gesture.timer = setTimeout(() => {
-                    if (!viewport.isConnected || !gesture || !editorCanMove()) return;
-                    gesture.lift = true;
+            if (!extend && (wasSelected && anchor !== extent || (!strum && input.value) ||
+                cell.querySelector('[draggable=true]:not([hidden])') || input.dataset.strumState === 'rest')) {
+                press.timer = setTimeout(() => {
+                    if (gesture !== press) return;
+                    if (!cell.isConnected || !editorCanMove()) { stopGesture(); return; }
+                    press.lift = true;
                     viewport.querySelectorAll('[data-cell-selected]').forEach(item => item.classList.add('is-lifted'));
                 }, 380);
             }
         });
-        function hit(event) {
+        function hit(event,source) {
             const target = cellOf(viewport.ownerDocument.elementFromPoint(event.clientX,event.clientY));
-            return target && viewport.contains(target) && target.dataset.rangeRow === gesture.cell.dataset.rangeRow ? target : null;
+            return target && viewport.contains(target) && target.dataset.rangeRow === source.dataset.rangeRow ? target : null;
         }
         viewport.addEventListener('pointermove', event => {
             if (gesture?.id !== event.pointerId) return;
+            if (!(event.buttons & 1)) { stopGesture(); return; }
             if (!gesture.moved && Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y) < 5) return;
             clearTimeout(gesture.timer);
-            const target = hit(event);
+            const target = hit(event,gesture.cell);
             if (gesture.lift) {
                 viewport.querySelector('.is-drop-target')?.classList.remove('is-drop-target');
                 target?.classList.add('is-drop-target');
             } else if (target) mark(gesture.extend ? anchor : gesture.cell,target);
             gesture.moved = true;
         });
-        viewport.addEventListener('pointerup', event => {
+        function finishGesture(event) {
             if (gesture?.id !== event.pointerId) return;
-            const g = gesture, target = hit(event), range = limits();
+            const g = gesture;
             stopGesture();
+            if (event.button !== 0 || !g.cell.isConnected || !editorCanMove() || !anchor || !extent) return;
+            const target = hit(event,g.cell);
             if (g.lift && g.moved && target && target !== g.cell) {
+                const range = limits();
                 transfer(target,{row:g.cell.dataset.rangeRow,...range,to:range.start + start(target)-start(g.cell)},g.frame);
-            } else if (g.second && !g.moved && !g.lift) enterText(g.cell);
-            else if (!g.extend && !g.lift && !g.moved) mark(g.cell,g.cell);
+            } else if (target === g.cell && g.second && !g.moved && !g.lift) {
+                if (g.cell.dataset.rangeRow === 'strum') controlOf(g.cell)._cycleStroke();
+                else enterText(g.cell);
+            } else if (target === g.cell && !g.extend && !g.lift && !g.moved) mark(g.cell,g.cell);
+        }
+        // A trusted click can land after the viewport scrolls during the press.
+        viewport.addEventListener('click', event => {
+            const completedGesture = handledStroke;
+            handledStroke = null;
+            const cell = cellOf(event.target), control = controlOf(cell);
+            if (cell?.dataset.rangeRow !== 'strum' || !control.contains(event.target)) return;
+            event.stopPropagation();
+            if (completedGesture) return;
+            if (!editorCanMove()) return;
+            if (event.shiftKey && anchor?.dataset.rangeRow === 'strum') mark(anchor,cell);
+            else if (anchor === cell && extent === cell) control._cycleStroke();
+            else mark(cell,cell);
+            if (control.isConnected) control.focus({preventScroll:true});
         });
-        viewport.addEventListener('pointercancel',stopGesture);
+        function cancelPointer(event) {
+            if (gesture?.id === event.pointerId) stopGesture();
+        }
+        viewport.addEventListener('dragstart', event => {
+            if (event.target.closest('[data-range-row] input')) event.preventDefault();
+        },true);
         viewport.addEventListener('lostpointercapture',event => { if (gesture?.id === event.pointerId && !viewport.hasPointerCapture(event.pointerId)) stopGesture(); });
         function beginTyping(event) {
             const cell = cellOf(event.target);
             if (cell?.hasAttribute('data-cell-selected')) enterText(cell);
         }
+        viewport.addEventListener('keydown', event => {
+            // In text mode the browser moves the caret (and extends text selections).
+            // Alt + arrow retains the editor's explicit measure navigation.
+            if (editing && event.target === controlOf(editing) && !event.altKey &&
+                (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) event.stopPropagation();
+        },true);
         viewport.addEventListener('beforeinput',beginTyping,true);
         viewport.addEventListener('compositionstart',beginTyping,true);
         viewport.addEventListener('focusin', event => {
             const cell = cellOf(event.target);
             if (anchor && !cell?.hasAttribute('data-cell-selected')) mark(null,null);
-            if (editing && editing !== cell) editing = null;
         });
+        viewport.addEventListener('focusout', event => {
+            if (editing && event.target === controlOf(editing)) {
+                editing.removeAttribute('data-cell-editing');
+                editing = null;
+            }
+        });
+        if (previousStrokeStart !== undefined) {
+            const cell = viewport.querySelector('[data-range-row="strum"][data-range-start="' + previousStrokeStart + '"]');
+            if (cell) mark(cell,cell);
+        }
         viewport.addEventListener('copy', event => {
-            if (!anchor || anchor === extent || !event.clipboardData || !cellOf(event.target)?.hasAttribute('data-cell-selected')) return;
+            if (!anchor || (anchor === extent && anchor.dataset.rangeRow !== 'strum') ||
+                !event.clipboardData || !cellOf(event.target)?.hasAttribute('data-cell-selected')) return;
             const token = CS().model.schema2.newId(), range = limits();
             event.clipboardData.setData(editorClipboardType, token);
-            event.clipboardData.setData('text/plain', Array.from(viewport.querySelectorAll('[data-cell-selected]'),cell => inputOf(cell).value).join('\t'));
+            event.clipboardData.setData('text/plain', Array.from(viewport.querySelectorAll('[data-cell-selected]'),cell => cell.dataset.rangeRow === 'strum' ? controlOf(cell).textContent : controlOf(cell).value).join('\t'));
             editorClipboard = {token, clip:{row:anchor.dataset.rangeRow, ...range, source:owner.workingSnapshot()}};
             event.preventDefault(); event.stopPropagation();
         },true);
@@ -2579,10 +2697,8 @@
         var field = row === 'strum' ? '.dock-strum-cell' : row === 'lyrics' ? '.dock-lyrics-cell' : '[data-overlay-field="' + row + '"]';
         var tickField = row === 'strum' ? 'tick' : 'onsetTick';
         cell.classList.add('sc-editor-transfer-cell');
-        if (row !== 'strum') {
-            cell.dataset.rangeRow = row;
-            cell.dataset.rangeStart = (bar.barNumber - 1) * getBeats(state.project)*480 + tick;
-        }
+        cell.dataset.rangeRow = row;
+        cell.dataset.rangeStart = (bar.barNumber - 1) * CS().model.getBarLengthTicks(state.project) + tick;
         function eventsAtCell() {
             var canonical = owner.draft.bars.find(function (item) { return item.id === barId; });
             if (!canonical) return [];
@@ -2590,7 +2706,7 @@
             return events.filter(function (event) { return event[tickField] >= tick && event[tickField] < tick + span; });
         }
         function wholeCell() {
-            return input.selectionStart === input.selectionEnd ||
+            return row === 'strum' || input.selectionStart === input.selectionEnd ||
                 input.selectionStart === 0 && input.selectionEnd === input.value.length;
         }
         function eligible() {
@@ -2603,7 +2719,7 @@
             if (!canReceive(!!args.from)) return;
             stopPianoAudition();
             var result = runStructureOperation(row === 'chord' ? 'chordTransfer' : 'cellTransfer',
-                Object.assign({barId:barId, row:row, tick:tick, span:span}, args), frame);
+                Object.assign({barId:barId, row:row, tick:tick, span:span, resolution:range.res}, args), frame);
             if (!result.ok) return;
             var number = owner.draft.bars.findIndex(function (item) { return item.id === barId; }) + 1;
             state.selectedBarNumber = number;
@@ -2744,7 +2860,7 @@
                         var symbol=api.chord(raw,p.instrument.capo);if(symbol===null)throw Error('コード名を確認してください');
                         // An explicitly inserted chord establishes a new harmony boundary. Keep IDs and make this one undoable edit.
                         if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
-                        if(!old||old.symbol!==symbol||old.unresolved)addedStroke=api.addChordDownstroke(p,b.id,tick);
+                        if(!old||old.symbol!==symbol||old.unresolved)addedStroke=api.addChordStroke(p,b.id,tick,range.res);
                         if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
                         if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,formMode==='auto'?'auto':'fixed');}else{if(formMode==='auto')p.performance.formBindings=p.performance.formBindings.filter(function(b){return b.chordEventId!==chordEvent.id;});CS().localChordForms.syncEvent(p,chordEvent);}}
                     }else{
@@ -3346,12 +3462,10 @@
             if(!value.protected&&(action==='rest'||action==='down'||action==='up')){cell.textContent='';cell.appendChild(action==='rest'?CS().sheetRenderer.createStrumRestSymbol(range.span):CS().sheetRenderer.createStrumArrow(action));}
             if(value.protected){cell.setAttribute('aria-readonly','true');cell.title='この範囲の細かなストロークを保持しています。16分表示で編集してください。';}
             cell.dataset.cellIndex=index;cell.dataset.slotTick=range.tick;cell.dataset.slotTicks=range.span;
-            cell.addEventListener('focus',function(){cell.style.boxShadow='inset 0 0 0 2px var(--slot-focus)';cell.style.position='relative';cell.style.zIndex='1';});
-            cell.addEventListener('blur',function(){cell.style.boxShadow='';cell.style.zIndex='';});
             var meaning=action==='empty'?'未入力':action==='rest'?(range.span===120?'16分休符の表示区間':'8分休符の表示区間'):action==='sustain'?'直前のストロークを伸ばす':STRUM_GLYPHS[action]||'';
             cell.setAttribute('aria-label',bar.barNumber+'小節目 ストローク '+(index+1)+'マス目（'+meaning+'）');
-            if(!value.protected)cell.title=meaning+' / R／Space:休符 / Delete:未入力';
-            cell.addEventListener('click',function(event){event.stopPropagation();applyStrumCellAction(bar,ranges,index,nextStrumCellAction(action,value.canSustain,false));});
+            if(!value.protected)cell.title=meaning+' / 1回目で選択・以降はクリックごとに変更 / R・Spaceで休符 / Deleteで未入力';
+            cell._cycleStroke=function(){applyStrumCellAction(bar,ranges,index,nextStrumCellAction(action,value.canSustain,false));};
             cell.addEventListener('mousedown',function(event){event.stopPropagation();});
             cell.addEventListener('keydown',function(event){onStrumCellKeydown(event,bar,ranges,index,action);});
             var host=document.createElement('div');host.appendChild(cell);
@@ -4512,6 +4626,9 @@
         if (!els.slotOverlay) return;
         var oldViewport=els.slotOverlay.querySelector('.editor-score-scroll');
         var priorAnchor=oldViewport?.dataset.anchor,priorScroll=oldViewport?.scrollLeft||0;
+        var priorStroke=oldViewport?.querySelector('[data-cell-selected][data-range-row="strum"] > :focus')?.parentElement;
+        var selectedStrokeStart=priorStroke && oldViewport.querySelectorAll('[data-cell-selected]').length===1
+            ? priorStroke.dataset.rangeStart : undefined;
         els.slotOverlay.querySelectorAll('[data-chord-picker]').forEach(function(root){root._disposeOwnerChord?.();});
         els.slotOverlay.innerHTML = '';
         scoreUI?.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);
@@ -4588,7 +4705,7 @@
 
         var canonical=state.session.draft,anchor=canonical.bars.findIndex(function(b){return b.id===editorAnchorId;});
         if(editorBars===1||anchor<0||state.selectedBarNumber<anchor+1||state.selectedBarNumber>anchor+editorBars){anchor=Math.max(0,state.selectedBarNumber-1);editorAnchorId=canonical.bars[anchor].id;}
-        var viewport=document.createElement('div');viewport.className='editor-score-scroll';viewport.dataset.anchor=editorAnchorId;els.slotOverlay.appendChild(viewport);var measures=document.createElement('div');measures.className='editor-measures';measures.dataset.count=Math.min(editorBars,canonical.bars.length-anchor);measures.style.setProperty('--editor-count',measures.dataset.count);viewport.appendChild(measures);bindEditorRanges(viewport);
+        var viewport=document.createElement('div');viewport.className='editor-score-scroll';viewport.dataset.anchor=editorAnchorId;els.slotOverlay.appendChild(viewport);var measures=document.createElement('div');measures.className='editor-measures';measures.dataset.count=Math.min(editorBars,canonical.bars.length-anchor);measures.style.setProperty('--editor-count',measures.dataset.count);viewport.appendChild(measures);
         state.project.bars.slice(anchor,anchor+editorBars).forEach(function(bar){
             var measure=document.createElement('section');measure.className='editor-measure';measure.dataset.barNumber=bar.barNumber;measure.style.setProperty('--editor-column',bar.barNumber-anchor);measure.setAttribute('aria-label',bar.barNumber+'小節目を編集');
             function activate(event){if(event.target.closest('.editor-row-tools,[data-chord-cell-toggle]'))return;if(!activateEditorMeasure(bar.barNumber)){event.preventDefault();event.stopImmediatePropagation();if(event.type==='focus'){event.target.blur();editorRoot().querySelector('.is-invalid')?.focus({preventScroll:true});}}else if(event.type==='focus')revealEditorCell(event.target);}
@@ -4642,6 +4759,7 @@
         measure.appendChild(grid);
             measures.appendChild(measure);
         });
+        bindEditorRanges(viewport, priorAnchor===editorAnchorId ? selectedStrokeStart : undefined);
         measures.classList.toggle('has-chord-panel',Number(measures.dataset.count)>1&&chordPicker.open&&editorPlacement!=='right');
         els.slotOverlay.appendChild(buildPianoPanel());
         syncEditorDisclosures();
@@ -4859,7 +4977,7 @@
         var ids=args.barIds.slice(),res=runStructureOperation('moveBars',args);if(!res.ok)return;
         var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
     }
-    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.173.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
+    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.175.1-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
     function openSheetAction(kind,trigger){
         if(!editorCanMove())return;finishTextInputs();if(!editorCanMove())return;stopPianoAudition();var owner=state.session,version=owner.snapshotVersion;
         prepareSheetActions().then(function(ready){if(!ready||state.session!==owner||owner.snapshotVersion!==version||!editorCanMove())return;
@@ -4881,13 +4999,13 @@
     }
     function openPlaybackSettings(trigger){
         if(!editorCanMove())return;var owner=state.session;
-        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.173.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
+        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.175.1-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
             if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);pianoAudition?.setMix(playbackMix);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(playbackMix);refreshPracticeTransport();
             try{var raw=localStorage.getItem('cruiseStudio.appSettings'),settings=raw===null?{}:JSON.parse(raw);if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('invalid-settings');var result=CS().storage.setAppSetting(key,value);if(!result.ok)throw Error(result.error);notice.textContent='';}catch(_){notice.textContent='設定を保存できませんでした。この画面にのみ適用しています';}
         },closed:refreshToolbarActions});return playbackSettings;}).catch(function(){playbackSettingsPending=null;setSaveStatus('音設定を読み込めませんでした',true);});
         playbackSettingsPending.then(function(settings){if(settings&&state.session===owner&&editorCanMove())settings.open(trigger);});
     }
-    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.173.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
+    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.175.1-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
     async function openPaperForm(cell,eventId,tick){
         if(!editorCanMove()||!CS().localPaperForms)return;
@@ -5036,10 +5154,10 @@
         var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project))||{};
         viewerExportFlight=true;refreshToolbarActions();
         try{
-            var module=await import('./viewer-contract.mjs?v=0.173.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
+            var module=await import('./viewer-contract.mjs?v=0.175.1-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
             var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(project.projectId));
             var documentId='score-'+Array.from(new Uint8Array(hash),function(n){return n.toString(16).padStart(2,'0');}).join('');
-            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.173.0-dev.1',defaultPresentation:presentation});
+            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.175.1-dev.1',defaultPresentation:presentation});
             if(!state.active||state.session!==owner||owner.snapshotVersion!==version||owner.inputPending||textDiagnostic(owner)){setSaveStatus('曲や入力状態が変わったため、書き出しを中止しました',true);return;}
             var exportedEntry=await CS().scoreViewer.add(result.text,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);}});
             if(!exportedEntry){setSaveStatus('書き出しをキャンセルしました');return;}
@@ -5381,7 +5499,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line local UI candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.173.0-dev.1',
+        developmentVersion: '0.175.1-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,

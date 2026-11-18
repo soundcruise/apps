@@ -191,7 +191,7 @@
         target.chords.forEach(function (item) {
             if (item.onsetTick < tick && item.onsetTick + item.durationTicks > tick) item.durationTicks = tick - item.onsetTick;
         });
-        if(!event.unresolved)api.addChordDownstroke(project,target.id,tick);
+        if(!event.unresolved)api.addChordStroke(project,target.id,tick,args.resolution);
         target.chords.push(event);
         target.chords.sort(function (a, b) { return a.onsetTick - b.onsetTick; });
     }
@@ -263,27 +263,88 @@
         var updates = new Map([[args.barId, sorted]]);
         if (moving && !sameBar) updates.set(args.from.barId, source.filter(function (event) { return !picked.includes(event); }));
         if (row === 'strum') {
-            model.editLegacy(project, function (view) {
-                updates.forEach(function (slots, id) {
-                    var barNumber = project.bars.findIndex(function (bar) { return bar.id === id; }) + 1;
-                    model.setBarStrumSlots(view, barNumber, slots.map(function (slot) {
-                        var value = Object.assign({}, slot); delete value.id; return value;
-                    }), {keepEmpty:true});
-                });
-            }, {kind:'strum', barIds:Array.from(updates.keys())});
+            writeStrokeUpdates(model,project,updates);
         } else updates.forEach(function (events, id) {
             var bar = project.bars.find(function (item) { return item.id === id; });
             bar[row === 'lyrics' ? 'lyrics' : 'melody'] = events;
         });
     }
-    function transferRange(project, args, schema, duplicateBinding) {
-        var track = {chord:'chords', lyrics:'lyrics', doremi:'melody'}[args.row];
+    function writeStrokeUpdates(model,project,updates) {
+        model.editLegacy(project, function (view) {
+            updates.forEach(function (slots,id) {
+                var barNumber = project.bars.findIndex(function (bar) { return bar.id === id; }) + 1;
+                model.setBarStrumSlots(view,barNumber,slots.map(function ({id,...slot}) { return slot; }),{keepEmpty:true});
+            });
+        },{kind:'strum',barIds:Array.from(updates.keys())});
+    }
+    function transferStrokeRange(model,project,origin,start,end,to,barTicks) {
+        var moving=origin===project, length=end-start, updates=new Map(), items=[];
+        // Copy explicit rests at either edge. A held stroke starts at its original attack.
+        for(var index=Math.floor(start/barTicks);index<Math.ceil(end/barTicks);index++){
+            var base=index*barTicks;
+            for(var slot of rhythmSlots(origin,origin.bars[index].id)){
+                var onset=base+slot.tick, stop=onset+(slot.durationTicks??1);
+                var from=slot.action==='rest'?Math.max(onset,start):onset;
+                if(from<start||from>=end||stop<=from)continue;
+                var last=Math.min(stop,end);
+                var event={...slot};
+                if(slot.durationTicks!==undefined)event.durationTicks=last-from;
+                if(last<stop)delete event.tieToNext;
+                items.push({event,time:to+from-start});
+            }
+        }
+        if(!items.length)throw Error('移動・コピーするストロークや休符を選択してください。「〜」は直前の入力も一緒に選択します');
+
+        function erase(slots,from,until) {
+            return slots.flatMap(function(slot){
+                var stop=slot.tick+(slot.durationTicks??1);
+                if(stop<=from||slot.tick>=until)return [slot];
+                var remaining=[];
+                if(slot.tick<from){
+                    var head={...slot,durationTicks:from-slot.tick};
+                    delete head.tieToNext;
+                    remaining.push(head);
+                }
+                if(slot.action==='rest'&&stop>until)
+                    remaining.push({...slot,tick:until,durationTicks:stop-until});
+                return remaining;
+            });
+        }
+        project.bars.forEach(function(bar,index){
+            var base=index*barTicks;
+            var clears=moving&&base<end&&base+barTicks>start, replaces=base<to+length&&base+barTicks>to;
+            if(!clears&&!replaces)return;
+            var slots=rhythmSlots(project,bar.id);
+            if(clears)slots=erase(slots,Math.max(0,start-base),Math.min(barTicks,end-base));
+            if(replaces)slots=erase(slots,Math.max(0,to-base),Math.min(barTicks,to+length-base));
+            updates.set(bar.id,slots);
+        });
+        items.forEach(function({event,time}){
+            var bar=project.bars[Math.floor(time/barTicks)], tick=time%barTicks;
+            var remaining=barTicks-tick;
+            if(event.durationTicks>remaining){
+                var tail=event.durationTicks-remaining;
+                event.durationTicks=remaining;
+                delete event.tieToNext;
+                if(event.action==='rest'){
+                    var nextBar=project.bars[Math.floor(time/barTicks)+1];
+                    updates.get(nextBar.id).push({...event,tick:0,durationTicks:tail});
+                }
+            }
+            updates.get(bar.id).push({...event,tick});
+        });
+        updates.forEach(function(slots){slots.sort(function(a,b){return a.tick-b.tick;});});
+        writeStrokeUpdates(model,project,updates);
+    }
+    function transferRange(model, project, args, schema, duplicateBinding) {
+        var track = {chord:'chords', lyrics:'lyrics', doremi:'melody', strum:'strum'}[args.row];
         var {start, end, to} = args, origin = args.source || project, moving = !args.source;
         var barTicks=schema.barLength(project),length = end - start, limit = project.bars.length * barTicks;
         if (!track || origin.projectId !== project.projectId || schema.barLength(origin)!==barTicks || ![start,end,to].every(Number.isInteger) ||
             start < 0 || length < 1 || end > origin.bars.length * barTicks || to < 0 || to + length > limit)
             throw Error('選択範囲が収まる位置を選んでください');
         if (moving && start === to) return;
+        if (track === 'strum') return transferStrokeRange(model,project,origin,start,end,to,barTicks);
         if (!moving && track === 'chords' && JSON.stringify(project.instrument) !== JSON.stringify(origin.instrument))
             throw Error('楽器設定が変わりました。コピーし直してください');
         var items = [], displaced = new Set(), touched = new Set(), arrivals = new Set(), copiedMelody=new Map();
@@ -328,7 +389,7 @@
             arrivals.add(next);
             var targetBar=project.bars[Math.floor(time / barTicks)];
             targetBar[track].push(next);
-            if(track==='chords'&&!next.unresolved)schema.addChordDownstroke(project,targetBar.id,next.onsetTick);
+            if(track==='chords'&&!next.unresolved)schema.addChordStroke(project,targetBar.id,next.onsetTick,args.chordGrid?.[targetBar.id]?.[next.onsetTick]);
         });
         copiedMelody.forEach(function(note){
             if(!note.tieToNext)return;
@@ -361,7 +422,7 @@
                 if (symbol === null || !Number.isInteger(entry.tick) || entry.tick < 0 || entry.tick >= barTicks || ticks.has(entry.tick))
                     throw Error('コード名と拍の位置を確認してください');
                 ticks.add(entry.tick);
-                api.addChordDownstroke(project,bar.id,entry.tick);
+                api.addChordStroke(project,bar.id,entry.tick);
                 var keep = bar.chords.find(function (event) { return event.onsetTick === entry.tick && !event.unresolved && event.symbol === symbol; });
                 if (keep) kept.add(keep.id);
                 var event = keep ? copyJSON(keep) : {id:api.newId(), onsetTick:entry.tick, symbol:symbol, unresolved:false, provenance:{origin:'user-set'}};
@@ -433,7 +494,7 @@
                 if (['rangeTransfer', 'chordTransfer', 'cellTransfer', 'chordPreset', 'strumPreset'].includes(kind)) {
                     if (canonical.schemaVersion !== 2) throw Error('この操作は最新形式の曲で使用できます');
                     var schema = model.schema2;
-                    if (kind === 'rangeTransfer') transferRange(canonical, args, schema, options.duplicateBinding);
+                    if (kind === 'rangeTransfer') transferRange(model, canonical, args, schema, options.duplicateBinding);
                     if (kind === 'chordTransfer') chordTransfer(canonical, args, schema, options.duplicateBinding);
                     if (kind === 'cellTransfer') cellTransfer(model, canonical, args);
                     if (kind === 'chordPreset') {
