@@ -212,7 +212,8 @@ test('retention clears all item review data, run logs and old audit without touc
 test('policy document matches registry status and OFF settings',()=>{
  const doc=readFileSync(new URL('../../../apps/cruise-port/NEWS-LEGAL-COMPLIANCE.md',import.meta.url),'utf8');
  const supplement=readFileSync(new URL('../HIGH-VALUE-SOURCE-POLICY.md',import.meta.url),'utf8');
- for(const s of SOURCES)assert.ok((['agm','ikebe-event','at-distribution'].includes(s.id)?supplement:doc).split('\n').some(line=>line.startsWith(`| ${s.id} |`)&&line.endsWith(`| ${s.legalStatus} | ${s.enabled} |`)),s.id);
+ const humanReview=readFileSync(new URL('../NEWS-SOURCE-DECISION-REGISTER.md',import.meta.url),'utf8');
+ for(const s of SOURCES)assert.ok((['audient','recording-king'].includes(s.id)?humanReview:['agm','ikebe-event','at-distribution'].includes(s.id)?supplement:doc).split('\n').some(line=>line.startsWith(`| ${s.id} |`)&&line.endsWith(`| ${s.legalStatus} | ${s.enabled} |`)),s.id);
  for(const term of ['evidence_missing','robots_unparseable','Prototype fixture exception','source-policies.js'])assert.ok(doc.includes(term));
 });
 

@@ -33,6 +33,9 @@ const entries = [
  ['agm','AGM / Rittor Music','https://acousticguitarmagazine.jp/','media',null,'CONTACT'],
  ['korg','KORG / VOX','https://www.korg.com/','official',null,'CONTACT'],
  ['esp','ESP / BIGBOSS','https://espguitars.co.jp/','official',null,'CONTACT'],
+ // Registry identity for human confirmation only. No discovery route or Bot permission.
+ ['audient','Audient','https://audient.com/','official',null,'UNKNOWN'],
+ ['recording-king','Recording King','https://recordingking.co/','official',null,'UNKNOWN'],
  ['yamaha-newsroom','Yamaha newsroom','https://www.yamaha.com/','official',null,'CONTACT'],
  ['amass','amass','https://amass.jp/','media',null,'UNKNOWN'],
  ['tft','THE FIRST TIMES','https://www.thefirsttimes.jp/','media',null,'UNKNOWN'],
