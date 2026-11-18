@@ -4,10 +4,10 @@ import {resolveProductType} from './assisted-product-type.js';
 export function draftFieldHints(row,estimate){
  const title=(row.title||'').normalize('NFKC'),primary=title.split(/[|｜]/)[0],event=estimate.event||'',fields={},sources={},warnings=[];
  const offer=(key,value,kind,field)=>{if(typeof value==='string'&&value.length>=2&&value.length<=100&&!/[<>\x00-\x1f]/.test(value)){fields[key]=value;sources[key]={kind,reference:row.url,inputField:field,confirmed:false};}};
- const alias={'acoustic guitar':'アコースティックギター',acoustic_guitar:'アコースティックギター',electro_acoustic:'エレアコ','electro-acoustic guitar':'エレアコ','guitar amplifier':'ギターアンプ',guitar_amp:'ギターアンプ','guitar pickup':'ギター用ピックアップ',electric_guitar_bass:'エレキギター・ベース関連','electric guitar':'エレキギター・ベース関連','electric bass':'エレキギター・ベース関連',guitar_article:'ギター関連記事'};
+ const alias={audio_interface:'オーディオインターフェース','audio interface':'オーディオインターフェース','acoustic guitar':'アコースティックギター',acoustic_guitar:'アコースティックギター',electro_acoustic:'エレアコ','electro-acoustic guitar':'エレアコ','guitar amplifier':'ギターアンプ',guitar_amp:'ギターアンプ','guitar pickup':'ギター用ピックアップ',electric_guitar_bass:'エレキギター・ベース関連','electric guitar':'エレキギター・ベース関連','electric bass':'エレキギター・ベース関連',guitar_article:'ギター関連記事'};
  const ai=resolveProductType(alias[estimate.category.toLowerCase().trim()]||estimate.category);
  const editorial=/工房訪問|特集|試奏|feat[.．]|interview/i.test(primary+' '+event);
- const physical=[];if(/アコースティック[・\s]*ギター|アコギ/.test(primary)&&!/(?:ギター|アコギ)[・\s]*アンプ/.test(primary))physical.push('acoustic_guitar');if(/エレキギター|エレキベース|エレクトリック[・\s]*(?:ギター|ベース)|フルアコ/.test(primary))physical.push('electric_guitar_bass');if(/(?:ギター|アコギ)[・\s]*アンプ/.test(primary))physical.push('guitar_amp');
+ const physical=[];if(/オーディオ[・\s]*インターフェ[イー]ス|\baudio[ -]interface\b/i.test(primary))physical.push('audio_interface');if(/アコースティック[・\s]*ギター|アコギ/.test(primary)&&!/(?:ギター|アコギ)[・\s]*アンプ/.test(primary))physical.push('acoustic_guitar');if(/エレキギター|エレキベース|エレクトリック[・\s]*(?:ギター|ベース)|フルアコ/.test(primary))physical.push('electric_guitar_bass');if(/(?:ギター|アコギ)[・\s]*アンプ/.test(primary))physical.push('guitar_amp');
  let type=ai.resolved?ai.productType:'';
  if(editorial&&type!=='interview'&&/ギター|guitar/i.test(title+' '+estimate.category+' '+estimate.product)){type='guitar_article';offer('productType',type,'search_title_hint','title/event');}
  else if(new Set(physical).size===1){if(type&&type!==physical[0])warnings.push('保存AIの種別と検索見出しの候補が異なります。原記事を確認してください。');type=physical[0];offer('productType',type,'search_title_hint','title');}
