@@ -69,7 +69,7 @@ export function createOwnerChordPicker(C,base){
             }
             const definition=base.theory.QUALITIES[quality];owner.state.exploreCustomChord={symbol:name,source:'custom',rootPc:root.pc,rootName:parsed.root,qualityKey:quality,intervals:definition.intervals.slice(),notePcs:definition.intervals.map(n=>(root.pc+n)%12),bassPc:parsed.bass?base.theory.parseSpelledNoteName(parsed.bass)?.pc:null};owner.state.exploreSelectedChordIndex=null;return true;
         }
-        const canonical=bar.chords.find(e=>target.eventId?e.id===target.eventId:e.onsetTick===tick),identity=bar.id+':'+tick+':'+(canonical?.id||'')+':'+(canonical?.symbol||'');
+        const canonical=bar.chords.find(e=>target.eventId?e.id===target.eventId:e.onsetTick===tick),identity=(target.cellKey??(bar.id+':'+tick+':'+(canonical?.id||'')))+':'+(canonical?.symbol||'');
         if(memory.revealFormIdentity&&memory.revealFormIdentity!==identity)delete memory.revealFormIdentity;
         if(memory.identity!==identity){memory.identity=identity;owner.state.exploreFretboardDisplayMode='finger';if(canonical){setChord(canonical.symbol);const binding=project.performance.formBindings.find(b=>b.chordEventId===canonical.id),saved=binding&&project.materials.forms.find(m=>m.id===binding.materialId);if(saved?.provenance.shape){owner.state.exploreShape=saved.provenance.shape;owner.state.exploreFretboardDisplayMode='finger';}}else{owner.state.exploreCustomChord=null;owner.state.exploreSelectedChordIndex=0;}}
         if(canonical){const binding=project.performance.formBindings.find(b=>b.chordEventId===canonical.id),saved=project.materials.forms.find(m=>m.id===binding?.materialId),parsed=C.theory.parseBasicChordSymbol(canonical.symbol);
@@ -253,7 +253,7 @@ export function createOwnerChordPicker(C,base){
         function adoptMaterial(m){
             if(!eligible()||!m)return false;const chord=owner.ui.explore.readSelectedChord();
             const authored=C.localChordForms.material(m.snapshot,chord.symbol,'manual',null,m.provenance.shape);
-            if(canonical?.symbol!==chord.symbol)return write(chord.symbol,authored);
+            if(target.draftOnly || canonical?.symbol!==chord.symbol)return write(chord.symbol,authored);
             const result=C.localChordForms.adopt(session,bar.id,canonical.id,authored);if(result.ok)target.changed();else status.textContent=formMessage(result);return result.ok;
         }
         function editSlot(string,fret,cycle){
@@ -317,7 +317,7 @@ export function createOwnerChordPicker(C,base){
         // These are explicit musical choices, after the owner handlers updated
         // selectedChord. Opening, mounting, scale/key changes never insert a code.
         doc.addEventListener('click',e=>{if(e.target.closest('[data-shape],#cc-high-fret-toggle,[data-fm7-variant]')){pickedShape=true;memory.revealFormIdentity=identity;const m=selectedMaterial();if(m)adoptMaterial(m);else refreshAdoption();revealRequestedForm();}if(e.target.closest('#cc-custom-chord-btn')){const apply=shadow.getElementById('cc-builder-apply');if(apply)apply.textContent='コード欄に入力';}if(e.target.closest('.cc-chord-btn,.cc-note-chip--link,#cc-builder-apply')){memory.builderSymbol=e.target.closest('#cc-builder-apply')?owner.ui.explore.readSelectedChord()?.symbol:null;chooseRecommended();}});
-        doc.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&!e.altKey&&e.key.toLowerCase()==='z'&&!e.target.matches('input,textarea,[contenteditable]')){e.stopPropagation();if(eligible()&&!session.inputPending)C.shellHost.keyboard.localCommand(e,e.shiftKey?'studio.redo':'studio.undo','sheetCruise');e.preventDefault();return;}if(!((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'))e.stopPropagation();});
+        doc.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&!e.altKey&&e.key.toLowerCase()==='z'&&!e.target.matches('input,textarea,[contenteditable]')){e.stopPropagation();if(target.draftOnly)target.undo?.(e.shiftKey);else if(eligible()&&!session.inputPending)C.shellHost.keyboard.localCommand(e,e.shiftKey?'studio.redo':'studio.undo','sheetCruise');e.preventDefault();return;}if(target.draftOnly || !((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'))e.stopPropagation();});
         doc.addEventListener('compositionstart',()=>{composing=true;host.classList.add('is-composing');session.setInputPending(true);});doc.addEventListener('compositionend',()=>{composing=false;host.classList.remove('is-composing');session.setInputPending(false);});
         // Owner popups remain inside this editor. Neither global IDs nor Shell theme are changed.
         owner.ui.explore.render();

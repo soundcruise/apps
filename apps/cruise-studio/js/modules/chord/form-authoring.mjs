@@ -76,5 +76,47 @@ export function createFormAuthoring(C,base){
             },{requireUndo:true});
         }catch(e){return {ok:false,error:e.message};}
     }
-    return Object.freeze({configureStrings,material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
+    // Presets carry a portable shape and string selection, never a foreign material ID.
+    function installPreset(project,event,form) {
+        initialize(project);
+        const m=clone(form.material), snap=m.snapshot;
+        if (JSON.stringify(snap.tuningMidi)!==JSON.stringify(project.instrument.tuning))
+            throw Error('保存したフォームと曲のチューニングが異なります');
+        const from=C.theory.parseBasicChordSymbol(form.playSymbol);
+        const to=C.theory.parseBasicChordSymbol(schema.chord(event.symbol,-project.instrument.capo));
+        if (!from || !to || from.quality!==to.quality) throw Error('保存したフォームのコードを確認してください');
+        const delta=(C.theory.keyToSemitone(to.root)-C.theory.keyToSemitone(from.root)+12)%12;
+        const limit=project.instrument.maxAbsoluteFret-project.instrument.capo;
+        const notes=snap.strings.filter(n=>n.kind==='note');
+        const shift=[delta,delta-12,delta+12,-24+delta].sort((a,b)=>Math.abs(a)-Math.abs(b))
+            .find(s=>notes.every(n=>n.relativeFret+s>=0 && n.relativeFret+s<=limit));
+        if (shift===undefined) throw Error('このキーでは保存したフォームが指板に収まりません');
+        for(const n of notes) {
+            n.relativeFret+=shift;
+            if(n.relativeFret===0)n.finger=null;
+        }
+        snap.barres=snap.barres.map(b=>({...b,relativeFret:b.relativeFret+shift})).filter(b=>b.relativeFret>0);
+        snap.capo=project.instrument.capo;snap.maxAbsoluteFret=project.instrument.maxAbsoluteFret;
+        m.provenance.sourceSymbol=event.symbol;
+        if (shift || m.provenance.generation.maxRelativeFret>limit) m.provenance.generation={minRelativeFret:0,maxRelativeFret:limit};
+        delete m.id;
+        install(project,event,m,'fixed',form.playedStrings);
+        if (form.confirmed===false) {
+            const binding=project.performance.formBindings.find(b=>b.chordEventId===event.id);
+            binding.confirmation={status:'unconfirmed',basisKey:null};
+        }
+    }
+    function duplicateBinding(project, original, event, binding, material) {
+        const confirmed = binding.confirmation.status === 'confirmed' &&
+            binding.confirmation.basisKey === basisKey(project, original, material, binding.playedStrings);
+        return {
+            ...clone(binding),
+            id: schema.newId(),
+            chordEventId: event.id,
+            confirmation: confirmed
+                ? {status:'confirmed', basisKey:basisKey(project, event, material, binding.playedStrings)}
+                : {status:'unconfirmed', basisKey:null}
+        };
+    }
+    return Object.freeze({configureStrings,duplicateBinding,installPreset,material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
 }

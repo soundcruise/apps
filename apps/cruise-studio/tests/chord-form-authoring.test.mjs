@@ -25,3 +25,27 @@ test('manual adoption guards active Session, revision, IME and failed save prese
 test('manual finger adoption keeps an explicit muted subset, preserves other immutable forms and validates the final binding',()=>{const {f,a}=setup();ok(enter(f,a,'C'));f.C.documents=f.owner;f.C.repository=f.repository;f.C.shellHost={getCommandContext:()=>({}),getActiveWorkspace:()=> 'sheetCruise',modal:{getActive:()=>null},keyboard:{isIMEBlocked:()=>false}};const before=f.s().workingSnapshot(),bar=before.bars[0],snapshot=clone(before.materials.forms[0].snapshot);snapshot.strings.find(n=>n.kind==='note'&&n.relativeFret>0).finger=4;const material=a.material(snapshot,'C','manual');ok(a.adopt(f.s(),bar.id,bar.chords[0].id,material,[2,3,4,5]));const after=f.s().workingSnapshot();assert.deepEqual(after.bars,before.bars);assert.deepEqual(after.materials.forms.slice(0,before.materials.forms.length),before.materials.forms);assert.deepEqual(after.performance.formBindings[0].playedStrings,[2,3,4,5]);ok(f.api.validate(after));ok(f.s().undo());assert.deepEqual(f.s().workingSnapshot(),before);ok(f.s().redo());assert.deepEqual(f.s().workingSnapshot(),after);const prior=state(f);assert(!a.adopt(f.s(),bar.id,bar.chords[0].id,material,[]).ok);assert.equal(state(f),prior);});
 
 test('FM7 authoring takes the shared common E rule, keeps the formal alternative and never rewrites fixed saved forms when opened',()=>{const {f,a}=setup();ok(enter(f,a,'FM7'));const p=f.s().workingSnapshot(),binding=p.performance.formBindings[0],m=p.materials.forms.find(m=>m.id===binding.materialId);assert.equal(m.provenance.shape,'E');assert.deepEqual(m.snapshot.strings.map(n=>n.kind==='note'?n.relativeFret:'x'),[0,1,2,3,'x','x']);assert.equal(m.snapshot.ownerWarning,null);assert(a.evaluate(p,binding).ready);const formal=a.recommend(p,'FM7','E',{formVariant:'formal'});assert.equal(formal.snapshot.strings.filter(n=>n.kind==='note').length,6);ok(f.s().runOperation('Formal E selection',draft=>a.install(draft,draft.bars[0].chords[0],formal,'fixed')));const before=state(f);createFormAuthoring(f.C,f.realm.window.ChordCruise);assert.equal(state(f),before);assert.equal(a.recommend({...p,instrument:{...p.instrument,capo:1}},'FM7','E').snapshot.capo,1);});
+
+test('portable preset forms follow Play key and capo, retaining the source fingering, mute and string set', () => {
+    const {f,a}=setup();
+    ok(enter(f,a,'F'));
+    const target=clone(f.s().workingSnapshot()), material=clone(target.materials.forms[0]);
+    const preset={material,playSymbol:'F',playedStrings:[1,2,3,4],confirmed:false};
+    const saved=clone(preset), event=target.bars[0].chords[0];
+    target.instrument.capo=2;
+    event.symbol='A'; // Sounding A, Play G: two frets above the saved F.
+    a.installPreset(target,event,preset);
+    const binding=target.performance.formBindings[0];
+    const form=target.materials.forms.find(m=>m.id===binding.materialId);
+    ok(f.api.validate(target));
+    assert.equal(form.snapshot.capo,2);
+    assert.equal(form.provenance.sourceSymbol,'A');
+    assert.deepEqual(binding.playedStrings,saved.playedStrings);
+    assert.equal(binding.confirmation.status,'unconfirmed');
+    assert.deepEqual(form.snapshot.strings,saved.material.snapshot.strings.map(n=>
+        n.kind==='note'?{...n,relativeFret:n.relativeFret+2}:n));
+    assert.deepEqual(form.snapshot.barres,saved.material.snapshot.barres.map(b=>({...b,relativeFret:b.relativeFret+2})));
+    assert.deepEqual(preset,saved);
+    target.instrument.tuning[5]-=2;
+    assert.throws(()=>a.installPreset(target,event,preset),/チューニング/);
+});
