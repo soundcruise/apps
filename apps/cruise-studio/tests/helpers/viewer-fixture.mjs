@@ -13,3 +13,23 @@ export function viewerFixture() {
     return {score:createUITestProject(),contract:createStudioViewerContract({schema:C.model.schema2,crypto:webcrypto}),
         metadata:{documentId:'library-fixture',revisionId:'revision-1',exportedAt:'2026-11-16T00:00:00.000Z',studioVersion:'0.145.0-dev.1'}};
 }
+
+// One attack in bar 1 spans two barlines. The end of bar 3 is silent, so
+// loop boundaries and extra attacks inside the tie can be measured separately.
+export function tiedViewerFixture() {
+    const fixture = viewerFixture();
+    const {score} = fixture;
+    const note = score.bars[0].melody[0];
+    score.songInfo.title = '小節をまたぐタイの再生確認';
+    score.songInfo.bpm = 240;
+    for (const bar of score.bars) {
+        bar.chords = [];
+        bar.melody = [];
+    }
+    score.performance.formBindings = [];
+    for (const rhythm of score.materials.rhythms) rhythm.snapshot.slots = [];
+    score.bars[0].melody = [{...note, id:'test-tie-start', onsetTick:1440, durationTicks:480, tieToNext:'test-tie-middle'}];
+    score.bars[1].melody = [{...note, id:'test-tie-middle', onsetTick:0, durationTicks:1920, tieToNext:'test-tie-end'}];
+    score.bars[2].melody = [{...note, id:'test-tie-end', onsetTick:0, durationTicks:960}];
+    return fixture;
+}

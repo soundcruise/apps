@@ -63,7 +63,8 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         if(clock){const s=clock.pause(cause);tick=s.tick;
             for(const voice of nodes)if(voice.start>context.currentTime){
                 issued.delete(voice.key);
-                if(phase==='playing'&&voice.iteration===s.iteration&&voice.event.tick<tick)carry.push({index:voice.event.index,offset:0,delay:voice.start-context.currentTime,age:context.currentTime-voice.attack});
+                if(phase==='playing'&&voice.iteration===s.iteration&&(voice.offset>0||voice.event.tick<tick))
+                    carry.push({index:voice.event.index,offset:voice.offset,delay:voice.offset>0?0:voice.start-context.currentTime,age:context.currentTime-voice.attack});
             }
             if(phase==='playing')for(const voice of nodes)if(voice.iteration===s.iteration&&voice.start<=context.currentTime&&voice.end>context.currentTime&&['guitar','piano'].includes(voice.event.part))
                 carry.push({index:voice.event.index,offset:voice.offset+(context.currentTime-voice.start)*voice.rate,age:context.currentTime-voice.attack});
@@ -169,16 +170,23 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         if(clock)clock.setTempo(value);options={...options,bpm:value};
         const now=context?.currentTime||0;
         if(phase==='playing'){
-            const s=clock.snapshot(),partialStroke=[];
+            const s=clock.snapshot(),pending=[];
             for(const voice of [...nodes])if(voice.start>now){
-                // A stroke's beat may already have passed while its later
-                // strings are still waiting for the physical pick sweep.
-                if(voice.iteration===s.iteration&&voice.event.tick<s.tick)partialStroke.push({event:voice.event,attack:voice.attack});
+                if(voice.iteration===s.iteration){
+                    // Held notes keep their sample position. A continuation at
+                    // the range start cannot be recovered by scanning the main list.
+                    if(voice.offset>0)pending.push({event:voice.event,held:{offset:voice.offset,age:now-voice.attack}});
+                    else if(tiedEntries.get(voice.event.tick)===voice.event)pending.push({event:voice.event});
+                    else if(voice.event.tick<s.tick)pending.push({event:voice.event,attack:voice.attack});
+                }
                 issued.delete(voice.key);stats.cancelledFuture++;cancel(voice);
             }
             resetScan(s.tick);
             for(const voice of [...nodes])envelope(voice,Math.min(musicalEnd(voice.event,plan,s,voice.attack),tickTime(s,range.end),voice.start+(voice.source.buffer.duration-voice.offset)/voice.rate),true);
-            for(const pending of partialStroke){schedule(pending.event,s,null,pending.attack);issued.add(eventKey(pending.event,s.iteration));}
+            for(const reservation of pending){
+                schedule(reservation.event,s,reservation.held,reservation.attack);
+                issued.add(eventKey(reservation.event,s.iteration));
+            }
             cancelTimer();pump();
         }
         notify();

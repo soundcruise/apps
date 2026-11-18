@@ -62,6 +62,31 @@ test('starting or looping at a tied continuation sounds once per pass and clips 
     }
     await f.player.dispose();
 });
+test('tempo change in the start delay keeps the first restricted-range tie audible',async()=>{
+    const f=fake(addTiedMelody);
+    f.player.setRange(1920,3840,true);
+    assert(await f.player.play());
+    f.advance(.01);
+    f.player.setTempo(300);
+    const active=f.sources.filter(source=>source.buffer.midi===67&&source.stoppedAt>f.ctx.currentTime);
+    assert.equal(active.length,1);
+    near(active[0].stoppedAt-active[0].startTime,.8);
+    await f.player.dispose();
+});
+for(const action of ['pause','tempo'])test('a pending tie resumption keeps its sample offset on '+action,async()=>{
+    const f=fake(addTiedMelody);
+    assert(await f.player.play());f.advance(1.2);
+    f.player.pause();assert(await f.player.play());f.advance(.01);
+    const started=f.sources.filter(source=>source.buffer.midi===67);
+    const offset=started.at(-1).offset;
+    assert(offset>0);
+    if(action==='pause'){f.player.pause();assert(await f.player.play());}
+    else f.player.setTempo(300);
+    const active=f.sources.filter(source=>source.buffer.midi===67&&source.stoppedAt>f.ctx.currentTime);
+    assert.equal(active.length,1);
+    near(active[0].offset,offset);
+    await f.player.dispose();
+});
 test('streaming nodes stay bounded; tempo change preserves tick/pitch and cancels pending reservations',async()=>{
     const f=fake();assert(await f.player.play());f.advance(.04);const before=f.player.snapshot(),started=f.sources.filter(s=>s.startTime<=f.ctx.currentTime&&!s.ended),pending=f.sources.filter(s=>s.startTime>f.ctx.currentTime&&!s.ended);
     f.player.setTempo(200);near(f.player.snapshot().tick,before.tick);assert(started.every(s=>s.playbackRate.value===1));assert(pending.every(s=>s.stoppedAt<=f.ctx.currentTime));
