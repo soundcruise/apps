@@ -32,6 +32,19 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
     const eventKey=(event,iteration=clock?.snapshot().iteration||0)=>iteration+':'+event.index;
     let buffers=new Map(),buses={},issued=new Set(),carry=[],nodes=new Set();
     const ordered=plan.events.slice().sort((a,b)=>a.tick-b.tick||a.offsetSeconds-b.offsetSeconds||a.index-b.index);
+    const tiedEntries=new Map();
+    for(const event of ordered){
+        for(const tick of event.tieStarts||[]){
+            tiedEntries.set(tick,{...event,tick,durationTicks:event.tick+event.durationTicks-tick});
+        }
+    }
+    function scheduleTiedEntry(start,state){
+        const event=tiedEntries.get(start), key=event&&eventKey(event,state.iteration);
+        if(event&&!issued.has(key)){
+            issued.add(key);
+            schedule(event,state);
+        }
+    }
     const stats={created:0,cancelledFuture:0,peakNodes:0,parts:{guitar:0,piano:0,click:0,mute:0,count:0}};
     function sample(){return clock?clock.snapshot():{status:phase,tick,time:0,bpm:options.bpm,totalTicks:plan.totalTicks,barIndex:Math.max(0,Math.min(Math.ceil(plan.totalTicks/1920)-1,Math.floor(tick/1920))),tickInBar:tick%1920};}
     function snapshot(){const s=sample();outputPosition.observe({...s,phase,range});return {...s,phase,reason,settings:{...options,mix:{...options.mix}},nodes:nodes.size,contextState:context?.state||'closed',
@@ -104,7 +117,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         try{
             if(phase==='counting'){
                 const step=60/options.bpm;countBeat=Math.max(1,Math.min(4,Math.floor((context.currentTime-(countEnd-4*step))/step)+1));
-                if(context.currentTime>=countEnd-.03){phase='playing';clock.play({delay:Math.max(0,countEnd-context.currentTime)});notify();}
+                if(context.currentTime>=countEnd-.03){phase='playing';clock.play({delay:Math.max(0,countEnd-context.currentTime)});scheduleTiedEntry(tick,clock.snapshot());notify();}
             }
             if(phase==='playing'){
                 const s=clock.snapshot();tick=s.tick;
@@ -113,7 +126,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
                 while(scan<ordered.length){const e=ordered[scan];if(e.tick>=range.end)break;if(tickTime(s,e.tick)>context.currentTime+.12)break;scan++;
                     const key=eventKey(e,s.iteration);if(issued.has(key))continue;issued.add(key);schedule(e,s);
                 }
-                if(range.loop){const boundary=tickTime(s,range.end);if(boundary<=context.currentTime+.12){const next={...s,tick:range.start,time:boundary,anchorTime:boundary,iteration:s.iteration+1};for(const e of ordered){if(e.tick<range.start)continue;if(e.tick>=range.end||tickTime(next,e.tick)>context.currentTime+.12)break;const key=eventKey(e,next.iteration);if(!issued.has(key)){issued.add(key);schedule(e,next);}}}}
+                if(range.loop){const boundary=tickTime(s,range.end);if(boundary<=context.currentTime+.12){const next={...s,tick:range.start,time:boundary,anchorTime:boundary,iteration:s.iteration+1};scheduleTiedEntry(range.start,next);for(const e of ordered){if(e.tick<range.start)continue;if(e.tick>=range.end||tickTime(next,e.tick)>context.currentTime+.12)break;const key=eventKey(e,next.iteration);if(!issued.has(key)){issued.add(key);schedule(e,next);}}}}
 
             }
         }catch{pause('interruption');return;}
@@ -145,7 +158,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
                     schedule(e,{time:start,tick:0,bpm:options.bpm});}
             }else{
                 phase='playing';clock.play({delay:.03});const s=clock.snapshot();
-                for(const held of carry){const e=plan.events[held.index];schedule(e,s,held);issued.add(eventKey(e));}carry=[];
+                for(const held of carry){const e=plan.events[held.index];schedule(e,s,held);issued.add(eventKey(e));}scheduleTiedEntry(tick,s);carry=[];
             }
             hasStarted=true;notify();pump();return true;
         }catch(error){if(attempt===token){pause('audio-error');reason='audio-error';notify();}return false;}

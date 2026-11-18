@@ -56,6 +56,24 @@ function barPlan(project, index, deps, harmony) {
     if (events.length > 256) throw Error('試聴する音が多すぎます');
     return {events, cuts, duration: total + .03, secondsPerTick: seconds, warnings: [...new Set(warnings)]};
 }
+// Collapse only ties whose two ends are present in this playback range.
+function mergeMelodyTies(project,deps,events,lengthKey){
+    if(!deps.tieTarget)return events;
+    const voices=new Map(events.filter(e=>e.part==='piano').map(e=>[e.sourceEventId,e]));
+    const continuations=new Map();
+    for(let index=0;index<project.bars.length-1;index++){
+        for(const note of project.bars[index].melody){
+            if(!note.tieToNext)continue;
+            const attack=continuations.get(note.id)||voices.get(note.id), next=voices.get(note.tieToNext);
+            if(!attack||!next||deps.tieTarget(project,index,note)?.id!==note.tieToNext)continue;
+            attack[lengthKey]+=next[lengthKey];
+            (attack.tieStarts??=[]).push(next.barIndex*1920);
+            continuations.set(next.sourceEventId,attack);
+        }
+    }
+    return events.filter(e=>e.part!=='piano'||!continuations.has(e.sourceEventId));
+}
+
 function finishPlan(plan) {
     const cuts = [...new Set([...plan.cuts, plan.duration])].sort((a, b) => a - b);
     const ordered = plan.events.slice().sort((a, b) => a.start - b.start), nextString = new Map();
@@ -86,7 +104,7 @@ export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
         spans.push({index, start: offset, end: offset + plan.duration - .03}); offset += plan.duration - .03;
         plan.warnings.forEach(w => { if (warnings.length < 8 && !warnings.includes(w)) warnings.push(w); });
     });
-    return finishPlan({events, cuts, spans, duration: offset + .03, secondsPerTick: 60 / project.songInfo.bpm / 480, warnings});
+    return finishPlan({events:mergeMelodyTies(project,deps,events,'duration'), cuts, spans, duration: offset + .03, secondsPerTick: 60 / project.songInfo.bpm / 480, warnings});
 }
 
 // Repeat the musical duration, excluding the initial Web Audio attack offset.
@@ -137,14 +155,15 @@ export function buildSongTickPlan(project,deps){
         });
         p.warnings.forEach(w=>{if(!warnings.includes(w)&&warnings.length<8)warnings.push(w);});
     });
+    const timeline=mergeMelodyTies(project,deps,events,'durationTicks');
     const orderedCuts=[...new Set(cuts)].sort((a,b)=>a-b),groups=new Map();
-    for(const e of events)if(e.part==='guitar'){
+    for(const e of timeline)if(e.part==='guitar'){
         const key=[e.barIndex,e.tick,e.sourceEventId,e.stroke].join(':');
         groups.set(key,Math.max(groups.get(key)||0,e.offsetSeconds));e.group=key;
     }
-    events.sort((a,b)=>a.tick-b.tick||a.offsetSeconds-b.offsetSeconds);
+    timeline.sort((a,b)=>a.tick-b.tick||a.offsetSeconds-b.offsetSeconds);
     const next=new Map();
-    for(let i=events.length-1;i>=0;i--){const e=events[i];e.index=i;
+    for(let i=timeline.length-1;i>=0;i--){const e=timeline[i];e.index=i;
         if(e.part!=='guitar')continue;
         e.travelSpan=groups.get(e.group)||0;delete e.group;
         let lo=0,hi=orderedCuts.length;while(lo<hi){const mid=(lo+hi)>>>1;if(orderedCuts[mid]<=e.tick)lo=mid+1;else hi=mid;}
@@ -153,7 +172,7 @@ export function buildSongTickPlan(project,deps){
         e.nextIndex=next.get(key)??null;next.set(key,i);
     }
     // Clicks are always available; enabling them never changes the music plan.
-    for(let tick=0;tick<project.bars.length*1920;tick+=480)events.push({part:'click',midi:tick%1920===0?84:72,tick,
-        offsetSeconds:0,naturalSeconds:.055,gain:tick%1920===0?.1:.075,index:events.length});
-    return {events,totalTicks:project.bars.length*1920,warnings};
+    for(let tick=0;tick<project.bars.length*1920;tick+=480)timeline.push({part:'click',midi:tick%1920===0?84:72,tick,
+        offsetSeconds:0,naturalSeconds:.055,gain:tick%1920===0?.1:.075,index:timeline.length});
+    return {events:timeline,totalTicks:project.bars.length*1920,warnings};
 }

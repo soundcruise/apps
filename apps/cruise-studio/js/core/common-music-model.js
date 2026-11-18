@@ -73,6 +73,7 @@
             out.model.measures.forEach(function(m,bi){
                 var b=p.bars[bi],notes=b.melody.filter(function(e){return e.kind==='note';});m.id=b.id;m.sourceBarId=b.id;
                 m.voices.melody.events.forEach(function(e,i){var src=notes[i];e.sourceEventId=src.id;e.sourceLocation.barId=b.id;e.sourceLocation.eventId=src.id;
+                    if(src.tieToNext&&api.melodyTieTarget(p,bi,src)?.id===src.tieToNext)e.tieToNext=src.tieToNext;
                     e.pitch=Object.assign({},src.pitch,{midi:api.pitchMidi(src.pitch),semitoneNumber:api.pitchMidi(src.pitch),name:src.pitch.step+spelling.formatAccidental(src.pitch.alter)});e.provenance.timing=src.provenance.timing;});
                 b.melody.filter(function(e){return e.kind==='rest';}).forEach(function(e){m.voices.melody.events.push({kind:'rest',onsetTick:e.onsetTick,durationTicks:e.durationTicks,sourceEventId:e.id,sourceLocation:{barIndex:bi,eventType:'rest',eventIndex:null,barId:b.id,eventId:e.id},provenance:e.provenance});});
                 var cursor=0,empty=[];m.voices.melody.events.slice().sort(function(a,b){return a.onsetTick-b.onsetTick;}).forEach(function(e){if(e.onsetTick>cursor)empty.push({kind:'silence',onsetTick:cursor,durationTicks:e.onsetTick-cursor,sourceBarId:b.id});cursor=e.onsetTick+e.durationTicks;});

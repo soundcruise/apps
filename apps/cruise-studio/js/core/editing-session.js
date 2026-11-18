@@ -483,6 +483,7 @@
                     try {
                         originalCheck=options.validate(group.tracker.raw);
                         if(!originalCheck.ok)return {ok:false,code:'validation',error:originalCheck.errors.join(' / ')};
+                        if(options.reconcileEdit)options.reconcileEdit(handle.draft);
                         after=contentSnapshot(group.tracker.raw, true);
                     } catch(error){return {ok:false,code:'validation',error:error.message};}
                     if (equal(group.before, after)) { abandonGroup(); return { ok: true, recorded: false }; }

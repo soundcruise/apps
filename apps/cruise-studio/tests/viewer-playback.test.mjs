@@ -16,8 +16,9 @@ for(const bpm of [20,50,100,120,400])test('tick plan matches existing acoustic p
     actual.forEach((e,i)=>{const old=expected[i];assert.equal(e.part,old.part);assert.equal(e.midi,old.midi);assert.equal(e.string,old.string);near(e.start,old.start);near(e.end,old.start+old.duration);near(e.gain,old.gain);});
     assert.equal(JSON.stringify(score),before);
 });
-function fake(){
-    const {score,contract}=viewerFixture(),coordinator=createCoordinator(),sources=[],contexts=[],timers=new Map();let id=0,current=null,delay=null;
+function fake(prepare=()=>{}){
+    const {score,contract}=viewerFixture();prepare(score);
+    const coordinator=createCoordinator(),sources=[],contexts=[],timers=new Map();let id=0,current=null,delay=null;
     const param=()=>({value:1,setValueAtTime(v){this.value=v;},linearRampToValueAtTime(v){this.value=v;},exponentialRampToValueAtTime(v){this.value=v;},setTargetAtTime(v){this.value=v;},cancelScheduledValues(){}});
     const createContext=()=>{current={state:'running',currentTime:0,destination:{},sampleRate:48000,
         resume:async()=>{current.state='running';},close:async()=>{current.state='closed';},
@@ -31,6 +32,36 @@ function fake(){
     function advance(seconds){const end=current.currentTime+seconds;while(true){const next=[...timers].sort((a,b)=>a[1].time-b[1].time)[0];if(!next||next[1].time>end)break;current.currentTime=next[1].time;for(const s of sources)if(!s.ended&&s.stoppedAt<=current.currentTime){s.ended=true;s.onended?.();}timers.delete(next[0]);next[1].fn();}current.currentTime=end;}
     return {player,sources,contexts,coordinator,advance,timers,get ctx(){return current;},delay:p=>delay=p};
 }
+function addTiedMelody(score){
+    const sample={...score.bars[0].melody[0],pitch:{step:'G',alter:0,octave:4}};
+    score.songInfo.bpm=240;
+    for(const bar of score.bars){bar.melody=[];bar.chords=[];}
+    score.performance.formBindings=[];
+    score.bars[0].melody=[{...sample,id:'cross-tail',onsetTick:1440,durationTicks:480,tieToNext:'cross-middle'}];
+    score.bars[1].melody=[{...sample,id:'cross-middle',onsetTick:0,durationTicks:1920,tieToNext:'cross-head'}];
+    score.bars[2].melody=[{...sample,id:'cross-head',onsetTick:0,durationTicks:480}];
+}
+test('a chain of cross-bar ties stays one voice across two boundaries and resumes from the sample tail',async()=>{
+    const f=fake(addTiedMelody);
+    assert(await f.player.play());f.advance(2.1);
+    assert.equal(f.player.snapshot().stats.parts.piano,1);
+    const notes=()=>f.sources.filter(source=>source.buffer.midi===67);
+    near(notes()[0].startTime,.78);near(notes()[0].stoppedAt,2.28);
+    f.player.pause();assert(await f.player.play());
+    assert.equal(notes().length,2);near(notes()[1].offset,2.1-.78);
+    await f.player.dispose();
+});
+test('starting or looping at a tied continuation sounds once per pass and clips at the range end',async()=>{
+    const f=fake(addTiedMelody);
+    f.player.setRange(1920,3840,true);
+    assert(await f.player.play());f.advance(2.06);
+    assert.equal(f.player.snapshot().stats.parts.piano,3);
+    const notes=f.sources.filter(source=>source.buffer.midi===67);
+    for(let i=0;i<3;i++){
+        near(notes[i].startTime,.03+i);near(notes[i].stoppedAt,1.03+i);
+    }
+    await f.player.dispose();
+});
 test('streaming nodes stay bounded; tempo change preserves tick/pitch and cancels pending reservations',async()=>{
     const f=fake();assert(await f.player.play());f.advance(.04);const before=f.player.snapshot(),started=f.sources.filter(s=>s.startTime<=f.ctx.currentTime&&!s.ended),pending=f.sources.filter(s=>s.startTime>f.ctx.currentTime&&!s.ended);
     f.player.setTempo(200);near(f.player.snapshot().tick,before.tick);assert(started.every(s=>s.playbackRate.value===1));assert(pending.every(s=>s.stoppedAt<=f.ctx.currentTime));

@@ -25,6 +25,7 @@
             if(!binding)return null;if(!identity(binding)){clear();return null;}var value=target(binding);if(!value){clear();return null;}
             var s=o.owner.getSession(),barNumber=s.draft.bars.findIndex(function(b){return b.id===binding.barId;})+1;
             return {handle:binding.handle,barId:binding.barId,eventId:binding.eventId,barNumber:barNumber,event:value.event||null,gap:value.gap||null,bar:value.bar,
+                tieTarget:value.event&&o.commands.tieTarget?.(s.draft,barNumber-1,value.event),
                 blocked:!!blocked()||binding.stale||s.snapshotVersion!==binding.envelope.expectedSnapshotVersion,
                 confirmed:o.gaps(value.bar).length===0&&value.bar.melody.every(function(e){return e.provenance.timing.onset.confirmed&&e.provenance.timing.duration.confirmed;})};
         }
@@ -55,6 +56,7 @@
         return Object.freeze({select:select,view:view,execute:execute,clear:clear,changed:changed});
     }
     function message(result){var code=result.error||result.code||'';
+        if(code==='no-tie-target')return '小節末の音と次の小節の先頭が同じ音のときに選べます。';
         if(code==='no-extendable-gap')return 'この音の直後に伸ばせる空きがありません。';
         if(/overlap/.test(code))return '次の音または休符に重なります。変更は適用していません。';
         if(/undo-budget/.test(code))return 'Undoの容量が不足しています。変更は適用していません。';
@@ -127,6 +129,11 @@
                 button('休符にする',function(){apply(h,'melody.setKind',{kind:'rest'});},actions).title='この音と同じ位置・長さの休符にします';
                 nodes.extend=button('空きまで伸ばす',function(){apply(h,'melody.extendNote',{});},actions);
                 nodes.extend.title='次の音や休符、または小節の終わりまで伸ばします';
+                nodes.tie=button('次の小節の音とつなぐ',function(){
+                    var current=controller.view();
+                    if(current?.handle!==h)return;
+                    apply(h,'melody.setTie',{enabled:!current.event.tieToNext});
+                });
             }else{
                 var box=node('fieldset'),legend=node('legend','音符へ変換する実音を指定');box.appendChild(legend);slot.appendChild(box);
                 nodes.step=node('select');nodes.step.id='sc-melody-pitch-step';nodes.step.setAttribute('aria-label','実音の音名');['','C','D','E','F','G','A','B'].forEach(function(x){var a=node('option',x||'音名を選択');a.value=x;nodes.step.appendChild(a);});box.appendChild(nodes.step);
@@ -166,6 +173,12 @@
             if(nodes.extend&&C.melodyCommands.extensionDuration(v.bar,v.event)===null){
                 nodes.extend.disabled=true;nodes.extend.title='この音の直後に伸ばせる空きがありません';
             }else if(nodes.extend)nodes.extend.title='次の音や休符、または小節の終わりまで伸ばします';
+            if(nodes.tie){
+                nodes.tie.disabled=v.blocked||(!v.event.tieToNext&&!v.tieTarget);
+                var tieLabel=v.event.tieToNext?'小節をまたぐタイを外す':'次の小節の音とつなぐ';
+                if(nodes.tie.textContent!==tieLabel)nodes.tie.textContent=tieLabel;
+                nodes.tie.title='小節末の音を次の小節の頭にある同じ音とタイでつなぎます';
+            }
             decorate();layout();
         }
         function select(t,n,enter){var result=controller.select(t);if(!result.ok)return false;lastNode=n;refresh();selectedVisible();if(enter){nodes.heading.focus({preventScroll:true});slot.scrollTop=0;if(window.innerWidth>=1280)slot.scrollIntoView({block:'nearest'});}return true;}

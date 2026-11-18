@@ -41,7 +41,7 @@ export function createStudioViewerContract({schema, crypto = globalThis.crypto})
         insist(Number.isFinite(bpm) && bpm >= 20 && bpm <= 400, 'invalid-practice-bpm');
         const copy = clone(score); copy.songInfo.bpm = bpm;
         const native = copy.materials.rhythms.some(m => m.encoding === 'rhythm-owner-cells-v1') ? schema.readStructureProjection(copy) : null;
-        return freeze(buildSongPreviewPlan(copy, {pitchMidi:schema.pitchMidi, chordsOnly, melodyOnly,
+        return freeze(buildSongPreviewPlan(copy, {pitchMidi:schema.pitchMidi,tieTarget:schema.melodyTieTarget, chordsOnly, melodyOnly,
              parseChord:() => null, notePc:() => null, qualities:{},
             rhythm(project, index) {
                 const binding = project.performance.barRhythms.find(b => b.barId === project.bars[index].id);
@@ -55,7 +55,7 @@ export function createStudioViewerContract({schema, crypto = globalThis.crypto})
         const check=schema.validate(score);insist(check.ok,'invalid-score');
         const native=score.materials.rhythms.some(m=>m.encoding==='rhythm-owner-cells-v1')?schema.readStructureProjection(score):null;
         const materials=new Map(score.materials.rhythms.map(m=>[m.id,m])),bindings=new Map(score.performance.barRhythms.map(b=>[b.barId,b.materialId]));
-        return freeze(buildSongTickPlan(score,{melodyOnly,pitchMidi:schema.pitchMidi,parseChord:()=>null,notePc:()=>null,qualities:{},
+        return freeze(buildSongTickPlan(score,{melodyOnly,pitchMidi:schema.pitchMidi,tieTarget:schema.melodyTieTarget,parseChord:()=>null,notePc:()=>null,qualities:{},
             rhythm(p,index){const m=materials.get(bindings.get(p.bars[index].id)||p.performance.basicRhythmId);return m.encoding==='studio-strum-v1'?{...m.snapshot,encoding:m.encoding}:native.rhythmByBar[index].rhythm;}}));
     }
     return Object.freeze({codec, normalizePresentation:normalizeViewerPresentation, timeline, createClock, playbackPlan,tickPlan,

@@ -13,7 +13,7 @@
             now:function(){return new Date().toISOString();},
             knownTargets:function(){return C.sessions ? C.sessions.listSessions().map(function(s){return s.target;}) : [];}
         });
-        C.sessions=C.editing.createRegistry({repository:C.repository,validate:C.model.validateProject});
+        C.sessions=C.editing.createRegistry({repository:C.repository,validate:C.model.validateProject,reconcileEdit:C.model.schema2.pruneMelodyTies});
         C.repository.attach();
         C.documents=C.activeDocument.createOwner({registry:C.sessions,repository:C.repository,
             validate:C.model.validateProject,snapshot:C.editing.snapshot,openProject:C.sheetCruise.openProject,

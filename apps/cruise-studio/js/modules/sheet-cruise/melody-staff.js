@@ -192,6 +192,17 @@
         voice.draw(ctx,stave);bundle.beams.forEach(function(b){b.setContext(ctx).draw();});
 
         bar.tokens.forEach(function(t,i){if(t.tieTo!==null)new VF.StaveTie({first_note:notes[i],last_note:notes[t.tieTo],first_indices:[0],last_indices:[0]}).setContext(ctx).draw();});
+        bar.tokens.forEach(function(t,i){
+            if(!t.tieInFromBar&&!t.tieOutToBar)return;
+            var edgeTie=function(first,last,direction){
+                var group=ctx.openGroup('melody-cross-bar-tie');
+                group.dataset.melodyTie=direction;
+                new VF.StaveTie({first_note:first,last_note:last,first_indices:[0],last_indices:[0]}).setContext(ctx).draw();
+                ctx.closeGroup();
+            };
+            if(t.tieInFromBar)edgeTie(null,notes[i],'in');
+            if(t.tieOutToBar)edgeTie(notes[i],null,'out');
+        });
         [[bar.chords,'melody-chords','symbol',x.chordRow],[bar.lyrics,'melody-lyrics','text',x.lyricRow]].forEach(function(row){
             if(row[1]==='melody-lyrics')paper.appendChild(svgHost);if(!row[3])return;var lane=el('div',row[1]);row[0].forEach(function(item){var text=el('span','melody-time-text',item[row[2]]);text.style.left=anchor(item.tick)+'px';text.dataset.tick=item.tick;lane.appendChild(text);});paper.appendChild(lane);
         });scroll.appendChild(paper);body.appendChild(scroll);

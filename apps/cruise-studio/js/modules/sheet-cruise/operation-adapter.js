@@ -59,6 +59,7 @@
         canonical.performance.formBindings=canonical.performance.formBindings.filter(function(b){return !oldChords.has(b.chordEventId);}).concat(forms);
         canonical.performance.barRhythms=canonical.performance.barRhythms.filter(function(b){return b.barId!==target.id;}).concat([{id:api.newId(),barId:target.id,materialId:materialId}]);
         check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
+        return bar;
     }
     function scoreLayout(p,create){
         if(create){if(!p.extensions)p.extensions={};if(!p.extensions.scoreLayoutV1)p.extensions.scoreLayoutV1={version:1,holes:[],fills:[]};}
@@ -132,7 +133,17 @@
             if(index<0||index+ids.length>slots.length)throw Error('貼り付け先の枠が足りません。「挿入して貼り付け」を使ってください');
             targets=slots.slice(index,index+ids.length).map(function(s){return s.empty?restoreSlot(model,p,{id:s.id}):s.id;});
         }
-        ids.forEach(function(id,i){pasteBar(model,p,{source:args.source,sourceBarId:id,barId:targets[i]});});return targetId;
+        var copiedNotes=new Map();
+        ids.forEach(function(id,i){
+            var original=args.source.bars.find(function(b){return b.id===id;});
+            var pasted=pasteBar(model,p,{source:args.source,sourceBarId:id,barId:targets[i]});
+            original.melody.forEach(function(note,j){copiedNotes.set(note.id,{original:note,pasted:pasted.melody[j]});});
+        });
+        copiedNotes.forEach(function(pair){
+            var continuation=copiedNotes.get(pair.original.tieToNext);
+            if(continuation)pair.pasted.tieToNext=continuation.pasted.id;
+        });
+        return targetId;
     }
     function copyJSON(value) { return JSON.parse(JSON.stringify(value)); }
     function chordTransfer(project, args, api, duplicateBinding) {
@@ -271,7 +282,7 @@
         if (moving && start === to) return;
         if (!moving && track === 'chords' && JSON.stringify(project.instrument) !== JSON.stringify(origin.instrument))
             throw Error('楽器設定が変わりました。コピーし直してください');
-        var items = [], displaced = new Set(), touched = new Set(), arrivals = new Set();
+        var items = [], displaced = new Set(), touched = new Set(), arrivals = new Set(), copiedMelody=new Map();
         origin.bars.slice(Math.floor(start / 1920), Math.ceil(end / 1920)).forEach(function(bar, index) {
             var base = (Math.floor(start / 1920) + index) * 1920;
             bar[track].forEach(function(event) {
@@ -298,6 +309,7 @@
             next.onsetTick = time % 1920;
             if (!moving) {
                 next.id = schema.newId();
+                if (track === 'melody') copiedMelody.set(event.id,next);
                 if (track === 'chords') {
                     var binding = origin.performance.formBindings.find(b => b.chordEventId === event.id);
                     if (binding) {
@@ -313,6 +325,12 @@
             var targetBar=project.bars[Math.floor(time / 1920)];
             targetBar[track].push(next);
             if(track==='chords'&&!next.unresolved)schema.addChordDownstroke(project,targetBar.id,next.onsetTick);
+        });
+        copiedMelody.forEach(function(note){
+            if(!note.tieToNext)return;
+            var continuation=copiedMelody.get(note.tieToNext);
+            if(continuation)note.tieToNext=continuation.id;
+            else delete note.tieToNext;
         });
         touched.forEach(function(bar) {
             var events = bar[track].sort((a,b) => a.onsetTick - b.onsetTick);

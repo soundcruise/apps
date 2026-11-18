@@ -1,7 +1,7 @@
 /* Session-owned, memory-only melody commands. No independent history or persistence. */
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.CruiseStudio.melodyCommands=factory();})(typeof window==='object'?window:globalThis,function(){
     'use strict';
-    var TYPES=['melody.setDuration','melody.extendNote','melody.insertRest','melody.setKind','melody.delete','melody.move','melody.confirmEventTiming','melody.confirmGap','melody.confirmBarTiming'];
+    var TYPES=['melody.setDuration','melody.extendNote','melody.setTie','melody.insertRest','melody.setKind','melody.delete','melody.move','melody.confirmEventTiming','melody.confirmGap','melody.confirmBarTiming'];
     var DURATIONS=[1920,1440,960,720,480,360,240,180,120];
     function clone(x){return JSON.parse(JSON.stringify(x));}
     function reject(code){return {ok:false,code:code};}
@@ -48,9 +48,18 @@
                     ev.durationTicks=duration;
                     ev.provenance.timing.duration={origin:'user-set',confirmed:true};
                 }
+                else if(type==='melody.setTie'){
+                    requireEvent();
+                    if(payload.enabled===false)delete ev.tieToNext;
+                    else{
+                        var next=schema.melodyTieTarget(p,p.bars.findIndex(function(b){return b.id===bar.id;}),ev);
+                        if(payload.enabled!==true||!next)fail('no-tie-target');
+                        ev.tieToNext=next.id;
+                    }
+                }
                 else if(type==='melody.insertRest'){if(!DURATIONS.includes(payload.durationTicks))fail('unsupported-duration');bar.melody.push(rest(payload));}
                 else if(type==='melody.setKind'){requireEvent();if(!['note','rest'].includes(payload.kind))fail('invalid-kind');if(payload.kind===ev.kind)return;
-                    if(payload.kind==='note'){if(!payload.pitch||schema.pitchMidi(payload.pitch)===null)fail('explicit-pitch-required');ev.pitch=clone(payload.pitch);}else delete ev.pitch;ev.kind=payload.kind;}
+                    if(payload.kind==='note'){if(!payload.pitch||schema.pitchMidi(payload.pitch)===null)fail('explicit-pitch-required');ev.pitch=clone(payload.pitch);}else {delete ev.pitch;delete ev.tieToNext;}ev.kind=payload.kind;}
                 else if(type==='melody.delete'){requireEvent();bar.melody=bar.melody.filter(function(e){return e.id!==ev.id;});}
                 else if(type==='melody.move'){requireEvent();if(!Number.isSafeInteger(payload.onsetTick)||payload.onsetTick%30)fail('unsupported-onset');ev.onsetTick=payload.onsetTick;ev.provenance.timing.onset={origin:'user-set',confirmed:true};}
                 else if(type==='melody.confirmEventTiming'){requireEvent();supported(ev);if(!Array.isArray(payload.attributes)||!payload.attributes.length||payload.attributes.some(function(a){return !['onset','duration'].includes(a);}))fail('invalid-attributes');payload.attributes.forEach(function(a){ev.provenance.timing[a].confirmed=true;});}
@@ -60,7 +69,7 @@
                 // Validating this entire Proxy here duplicates that boundary at much greater cost.
             },{requireUndo:true});
         }
-        return Object.freeze({capture:capture,execute:execute});
+        return Object.freeze({capture:capture,execute:execute,tieTarget:schema.melodyTieTarget});
     }
     return Object.freeze({create:create,gaps:gaps,extensionDuration:extensionDuration,types:Object.freeze(TYPES)});
 });

@@ -30,7 +30,7 @@
         if(!Array.isArray(m.measures)||m.measures.length>LIMITS.bars)return failure('preview-budget');
         if(!KEYS.includes(m.keyContext?.originalKey))return failure('unsupported-key-signature');
         if(!m.source||typeof m.source.projectId!=='string'||typeof m.source.sessionId!=='string'||typeof m.source.snapshotVersion!=='string')return failure('invalid-source');
-        var measures=[];
+        var measures=[],incomingTie=null;
         for(var bar of m.measures){
             var voice=bar.voices?.melody;
             if(!voice||!Array.isArray(voice.events)||!Array.isArray(voice.silentIntervals))return failure('invalid-melody-voice');
@@ -48,9 +48,11 @@
                     key:isRest?'b/4':pitch.step.toLowerCase()+'/'+pitch.octave,
                     pitch:isRest?null:{step:pitch.step,alter:pitch.alter,octave:pitch.octave,midi:pitch.midi},
                     sourceOnsetTick:ev.onsetTick,sourceDurationTicks:ev.durationTicks,
+                    tieInFromBar:i===0&&!!incomingTie&&ev.sourceEventId===incomingTie,
+                    tieOutToBar:i===parts.segments.length-1&&!!ev.tieToNext,
                     sourceEventId:ev.sourceEventId||null,sourceBarId:bar.sourceBarId||null,gap:isRest&&!ev.sourceEventId,eventIndex:isRest?null:ev.sourceLocation.eventIndex,tieFrom:!isRest&&i>0?group+i-1:null,
                     tieTo:!isRest&&i<parts.segments.length-1?group+i+1:null});});
-                cursor=ev.onsetTick+ev.durationTicks;
+                incomingTie=ev.tieToNext||null;cursor=ev.onsetTick+ev.durationTicks;
             }
             if(cursor!==1920||tokens.length>LIMITS.segmentsPerBar)return failure('invalid-voice-coverage');
             if(bar.harmony.length+(bar.lyrics||[]).length>128)return failure('preview-text-budget');
