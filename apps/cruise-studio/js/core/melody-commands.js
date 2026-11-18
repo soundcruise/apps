@@ -1,11 +1,19 @@
 /* Session-owned, memory-only melody commands. No independent history or persistence. */
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.CruiseStudio.melodyCommands=factory();})(typeof window==='object'?window:globalThis,function(){
     'use strict';
-    var TYPES=['melody.setDuration','melody.insertRest','melody.setKind','melody.delete','melody.move','melody.confirmEventTiming','melody.confirmGap','melody.confirmBarTiming'];
+    var TYPES=['melody.setDuration','melody.extendNote','melody.insertRest','melody.setKind','melody.delete','melody.move','melody.confirmEventTiming','melody.confirmGap','melody.confirmBarTiming'];
     var DURATIONS=[1920,1440,960,720,480,360,240,180,120];
     function clone(x){return JSON.parse(JSON.stringify(x));}
     function reject(code){return {ok:false,code:code};}
     function gaps(bar){var end=0,out=[];bar.melody.slice().sort(function(a,b){return a.onsetTick-b.onsetTick;}).forEach(function(e){if(e.onsetTick>end)out.push({onsetTick:end,durationTicks:e.onsetTick-end});end=e.onsetTick+e.durationTicks;});if(end<1920)out.push({onsetTick:end,durationTicks:1920-end});return out;}
+    function extensionDuration(bar,event){
+        if(event?.kind!=='note'||event.onsetTick%30)return null;
+        var end=bar.melody.reduce(function(limit,other){
+            return other.onsetTick>event.onsetTick?Math.min(limit,other.onsetTick):limit;
+        },1920);
+        var duration=end-event.onsetTick;
+        return duration>event.durationTicks&&duration%30===0?duration:null;
+    }
     function create(options){
         var owner=options.owner,schema=options.schema,issued=new WeakSet();
         function capture(barId,eventId,gap){var s=owner.getSession(),doc=owner.ticket(),ctx=options.getContext();if(!s||s.draft.schemaVersion!==2)return null;
@@ -33,6 +41,13 @@
                 function rest(interval){if(!Number.isSafeInteger(interval.onsetTick)||!Number.isSafeInteger(interval.durationTicks)||interval.onsetTick%30||interval.durationTicks%30)fail('unsupported-time');
                     return {id:schema.newId(),kind:'rest',onsetTick:interval.onsetTick,durationTicks:interval.durationTicks,provenance:schema.timing('user-set',true)};}
                 if(type==='melody.setDuration'){requireEvent();if(!DURATIONS.includes(payload.durationTicks))fail('unsupported-duration');ev.durationTicks=payload.durationTicks;ev.provenance.timing.duration={origin:'user-set',confirmed:true};}
+                else if(type==='melody.extendNote'){
+                    requireEvent();
+                    var duration=extensionDuration(bar,ev);
+                    if(duration===null)fail('no-extendable-gap');
+                    ev.durationTicks=duration;
+                    ev.provenance.timing.duration={origin:'user-set',confirmed:true};
+                }
                 else if(type==='melody.insertRest'){if(!DURATIONS.includes(payload.durationTicks))fail('unsupported-duration');bar.melody.push(rest(payload));}
                 else if(type==='melody.setKind'){requireEvent();if(!['note','rest'].includes(payload.kind))fail('invalid-kind');if(payload.kind===ev.kind)return;
                     if(payload.kind==='note'){if(!payload.pitch||schema.pitchMidi(payload.pitch)===null)fail('explicit-pitch-required');ev.pitch=clone(payload.pitch);}else delete ev.pitch;ev.kind=payload.kind;}
@@ -47,5 +62,5 @@
         }
         return Object.freeze({capture:capture,execute:execute});
     }
-    return Object.freeze({create:create,gaps:gaps,types:Object.freeze(TYPES)});
+    return Object.freeze({create:create,gaps:gaps,extensionDuration:extensionDuration,types:Object.freeze(TYPES)});
 });

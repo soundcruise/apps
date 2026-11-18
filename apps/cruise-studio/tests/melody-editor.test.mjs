@@ -85,3 +85,21 @@ test('explicit Save/Load retains exact edited event, legacy raw and Undo save po
 test('delete returns gap, no-op confirmation retains one history owner',()=>{
  const f=editor();f.select();assert(f.run('melody.confirmEventTiming',{attributes:['onset']}).ok);const before=state(f);assert(f.run('melody.confirmEventTiming',{attributes:['onset']}).ok);assert.equal(state(f),before);assert(f.run('melody.delete').ok);assert.equal(f.c.view(),null);assert(f.s().undo().ok);assert.equal(f.s().draft.bars[0].melody.length,1);
 });
+
+test('extend fills to the bar boundary in one operation and can undo an irregular length',()=>{
+ const f=editor();assert(f.select().ok);
+ const before=f.s().workingSnapshot(),note=before.bars[0].melody[0];
+ assert(f.run('melody.extendNote').ok);
+ const extended=f.s().workingSnapshot();
+ assert.deepEqual(extended.bars[0].melody[0],{
+  ...note,durationTicks:1920-note.onsetTick,provenance:{
+   ...note.provenance,timing:{...note.provenance.timing,duration:{origin:'user-set',confirmed:true}}
+  }
+ });
+ assert.deepEqual(extended.bars.slice(1),before.bars.slice(1));
+ assert.equal(f.s().getHistory().cursor,1);
+ assert.equal(f.writes(),0);
+ const complete=state(f);assert(!f.run('melody.extendNote').ok);assert.equal(state(f),complete);
+ assert(f.s().undo().ok);assert.deepEqual(f.s().workingSnapshot(),before);
+ assert(f.s().redo().ok);assert.deepEqual(f.s().workingSnapshot(),extended);
+});

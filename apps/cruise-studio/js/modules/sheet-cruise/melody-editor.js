@@ -55,6 +55,7 @@
         return Object.freeze({select:select,view:view,execute:execute,clear:clear,changed:changed});
     }
     function message(result){var code=result.error||result.code||'';
+        if(code==='no-extendable-gap')return 'この音の直後に伸ばせる空きがありません。';
         if(/overlap/.test(code))return '次の音または休符に重なります。変更は適用していません。';
         if(/undo-budget/.test(code))return 'Undoの容量が不足しています。変更は適用していません。';
         if(/stale|revision|blocked|missing/.test(code))return '対象が更新されました。五線で選び直してください。変更は適用していません。';
@@ -63,10 +64,11 @@
     function mount(o){
         var C=o.C,doc=o.document,slot=doc.getElementById('sc-melody-inspector'),preview=doc.getElementById('sc-preview'),pane=slot.parentElement,uiHandle=null,nodes={},lastNode=null;
         function context(){return {workspaceId:C.shellHost.getActiveWorkspace(),generation:C.shellHost.getWorkspaceGeneration(),blocked:!!C.shellHost.modal.getActive()||C.shellHost.keyboard.isIMEBlocked({})};}
+        slot.setAttribute('aria-label','五線譜の編集');
         var controller=createController({owner:C.documents,commands:C.melodyEditing,gaps:C.melodyCommands.gaps,getContext:context});
         function node(tag,text){var e=doc.createElement(tag);if(text!==undefined)e.textContent=text;return e;}
-        function field(label,input){var l=node('label',label);l.appendChild(input);slot.appendChild(l);return input;}
-        function button(text,fn){var b=node('button',text);b.type='button';b.className='btn-ghost';b.addEventListener('click',fn);slot.appendChild(b);return b;}
+        function field(label,input,parent=slot){var l=node('label');l.append(node('span',label),input);input.setAttribute('aria-label',label);parent.appendChild(l);return input;}
+        function button(text,fn,parent=slot){var b=node('button',text);b.type='button';b.className='btn-ghost';b.addEventListener('click',fn);parent.appendChild(b);return b;}
         function focusSelection(){var selected=preview.querySelector('[data-melody-target][aria-pressed="true"]');if(selected)selected.focus({preventScroll:true});else if(lastNode&&lastNode.isConnected)lastNode.focus({preventScroll:true});}
         // Geometry is UI-only; it never changes a music position or rebuilds an input.
         var main=doc.getElementById('studio-main'),layoutKey='',layoutFrame=0;
@@ -108,36 +110,44 @@
             }
         }
         function build(v){
+            var keepDetails=uiHandle===v.handle&&nodes.details?.open;
             uiHandle=v.handle;slot.replaceChildren();nodes={};
-            nodes.heading=node('h3','メロディ Inspector');nodes.heading.tabIndex=-1;slot.appendChild(nodes.heading);
-            nodes.close=button('閉じる（Esc）',close);nodes.close.classList.add('melody-editor-close');
+            var header=node('header');header.className='melody-editor-header';slot.appendChild(header);
+            nodes.heading=node('h3','五線譜の編集');nodes.heading.tabIndex=-1;header.appendChild(nodes.heading);
+            nodes.close=button('閉じる（Esc）',close,header);nodes.close.classList.add('melody-editor-close');
             nodes.target=node('p');nodes.target.id='sc-melody-target';slot.appendChild(nodes.target);
-            nodes.status=node('p');nodes.status.className='melody-editor-status';slot.appendChild(nodes.status);
             nodes.error=node('p');nodes.error.id='sc-melody-error';nodes.error.setAttribute('role','alert');slot.appendChild(nodes.error);
-            var h=v.handle;nodes.duration=node('select');nodes.duration.id='sc-melody-duration';DURATIONS.forEach(function(d){var a=node('option',d[1]);a.value=d[0];nodes.duration.appendChild(a);});field('音価',nodes.duration);
+            var h=v.handle;nodes.duration=node('select');nodes.duration.id='sc-melody-duration';DURATIONS.forEach(function(d){var a=node('option',d[1]);a.value=d[0];nodes.duration.appendChild(a);});field('長さ',nodes.duration);
             nodes.duration.addEventListener('change',function(){if(controller.view()?.handle!==h)return;nodes.error.textContent='';if(v.event)apply(h,'melody.setDuration',{durationTicks:Number(nodes.duration.value)});});
             if(v.gap){
-                button('選んだ長さの休符を挿入',function(){apply(h,'melody.insertRest',{onsetTick:v.gap.onsetTick,durationTicks:Number(nodes.duration.value)});});
+                nodes.insertRest=button('選んだ長さの休符を挿入',function(){apply(h,'melody.insertRest',{onsetTick:v.gap.onsetTick,durationTicks:Number(nodes.duration.value)});});
                 button('空き全体を休符として確認',function(){apply(h,'melody.confirmGap',{});});
+            }else if(v.event.kind==='note'){
+                var actions=node('div');actions.className='melody-editor-actions';slot.appendChild(actions);
+                button('休符にする',function(){apply(h,'melody.setKind',{kind:'rest'});},actions).title='この音と同じ位置・長さの休符にします';
+                nodes.extend=button('空きまで伸ばす',function(){apply(h,'melody.extendNote',{});},actions);
+                nodes.extend.title='次の音や休符、または小節の終わりまで伸ばします';
             }else{
-                nodes.onset=node('input');nodes.onset.id='sc-melody-onset';nodes.onset.type='number';nodes.onset.min='0';nodes.onset.max='1890';nodes.onset.step='30';field('開始位置（tick / 480 = 1拍）',nodes.onset);
-                button('開始位置を変更',function(){apply(h,'melody.move',{onsetTick:nodes.onset.value===''?null:Number(nodes.onset.value)});});
-                if(v.event.kind==='note')button('休符にする',function(){apply(h,'melody.setKind',{kind:'rest'});});
-                else{
-                    var box=node('fieldset'),legend=node('legend','音符へ変換する実音を指定');box.appendChild(legend);slot.appendChild(box);
-                    nodes.step=node('select');nodes.step.id='sc-melody-pitch-step';nodes.step.setAttribute('aria-label','実音の音名');['','C','D','E','F','G','A','B'].forEach(function(x){var a=node('option',x||'音名を選択');a.value=x;nodes.step.appendChild(a);});box.appendChild(nodes.step);
-                    nodes.alter=node('select');nodes.alter.id='sc-melody-pitch-alter';nodes.alter.setAttribute('aria-label','臨時記号');[-2,-1,0,1,2].forEach(function(x){var a=node('option',String(x));a.value=x;nodes.alter.appendChild(a);});nodes.alter.value='0';box.appendChild(nodes.alter);
-                    nodes.octave=node('input');nodes.octave.id='sc-melody-pitch-octave';nodes.octave.type='number';nodes.octave.min='-1';nodes.octave.max='9';nodes.octave.setAttribute('aria-label','実音octave');box.appendChild(nodes.octave);
-                    button('指定した音符にする',function(){if(!nodes.step.value||nodes.octave.value===''){nodes.error.textContent='音名とoctaveを明示指定してください。変更は適用していません。';return;}apply(h,'melody.setKind',{kind:'note',pitch:{step:nodes.step.value,alter:Number(nodes.alter.value),octave:Number(nodes.octave.value)}});});
-                }
-                button('開始位置だけ確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['onset']});});
-                button('音価だけ確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['duration']});});
-                button('この音の時間を確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['onset','duration']});});
-                button('削除して空き時間に戻す',function(){apply(h,'melody.delete',{});});
+                var box=node('fieldset'),legend=node('legend','音符へ変換する実音を指定');box.appendChild(legend);slot.appendChild(box);
+                nodes.step=node('select');nodes.step.id='sc-melody-pitch-step';nodes.step.setAttribute('aria-label','実音の音名');['','C','D','E','F','G','A','B'].forEach(function(x){var a=node('option',x||'音名を選択');a.value=x;nodes.step.appendChild(a);});box.appendChild(nodes.step);
+                nodes.alter=node('select');nodes.alter.id='sc-melody-pitch-alter';nodes.alter.setAttribute('aria-label','臨時記号');[-2,-1,0,1,2].forEach(function(x){var a=node('option',String(x));a.value=x;nodes.alter.appendChild(a);});nodes.alter.value='0';box.appendChild(nodes.alter);
+                nodes.octave=node('input');nodes.octave.id='sc-melody-pitch-octave';nodes.octave.type='number';nodes.octave.min='-1';nodes.octave.max='9';nodes.octave.setAttribute('aria-label','実音のオクターブ');box.appendChild(nodes.octave);
+                button('指定した音符にする',function(){if(!nodes.step.value||nodes.octave.value===''){nodes.error.textContent='音名とオクターブを明示指定してください。変更は適用していません。';return;}apply(h,'melody.setKind',{kind:'note',pitch:{step:nodes.step.value,alter:Number(nodes.alter.value),octave:Number(nodes.octave.value)}});});
             }
-            button('空きを休符にして小節を確認',function(){apply(h,'melody.confirmBarTiming',{});});
-            slot.appendChild(node('p','時間編集は非リップルです。後続の音は移動しません。保存は上部の「保存」から行ってください。'));
-            slot.appendChild(node('p','三連符・小節またぎのタイ・五線の印刷は未対応です。五線は印刷されません。コード譜を印刷します。'));
+            nodes.details=node('details');nodes.details.open=!!keepDetails;
+            nodes.details.appendChild(node('summary','詳細設定'));slot.appendChild(nodes.details);
+            nodes.status=node('p');nodes.status.className='melody-editor-status';nodes.details.appendChild(nodes.status);
+            if(v.event){
+                nodes.onset=node('input');nodes.onset.id='sc-melody-onset';nodes.onset.type='number';nodes.onset.min='0';nodes.onset.max='1890';nodes.onset.step='30';field('開始位置（tick / 480 = 1拍）',nodes.onset,nodes.details);
+                button('開始位置を変更',function(){apply(h,'melody.move',{onsetTick:nodes.onset.value===''?null:Number(nodes.onset.value)});},nodes.details);
+                button('開始位置だけ確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['onset']});},nodes.details);
+                button('音価だけ確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['duration']});},nodes.details);
+                button('この音の時間を確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['onset','duration']});},nodes.details);
+                button('削除して空き時間に戻す',function(){apply(h,'melody.delete',{});},nodes.details);
+            }
+            button('空きを休符にして小節を確認',function(){apply(h,'melody.confirmBarTiming',{});},nodes.details);
+            nodes.details.appendChild(node('p','音の長さを変えても後続の音は移動しません。編集を保存するには上部の「保存」を押します。'));
+            nodes.details.appendChild(node('p','五線は印刷されません。コード譜を印刷します。'));
         }
         function decorate(){var v=controller.view();preview.querySelectorAll('[data-melody-target]').forEach(function(e){var chosen=!!v&&e.dataset.barId===v.barId&&(v.eventId?e.dataset.eventId===v.eventId:e.dataset.gap===v.gap.onsetTick+':'+v.gap.durationTicks);e.setAttribute('aria-pressed',String(chosen));});}
         function refresh(){
@@ -145,13 +155,18 @@
             // A note/rest conversion rebuilds only this Inspector; Loupe DOM is outside it.
             var kind=v.event?v.event.kind:'gap';if(uiHandle!==v.handle||slot.dataset.kind!==kind){build(v);slot.dataset.kind=kind;}
             slot.hidden=false;pane.dataset.melodyEditorOpen='true';var event=v.event||v.gap,t=event.onsetTick;
-            nodes.target.textContent=v.barNumber+'小節目 · '+(1+t/480)+'拍目（'+t+' tick） · '+(v.event?(v.event.kind==='rest'?'休符':v.event.pitch.step+({0:'',1:'♯',2:'♯♯','-1':'♭','-2':'♭♭'}[v.event.pitch.alter])+v.event.pitch.octave+'（実音）'):'未確認の空き時間');
+            nodes.target.textContent=v.barNumber+'小節目 · '+Number((1+t/480).toFixed(3))+'拍目 · '+(v.event?(v.event.kind==='rest'?'休符':v.event.pitch.step+({0:'',1:'♯',2:'♯♯','-1':'♭','-2':'♭♭'}[v.event.pitch.alter])+v.event.pitch.octave+'（実音）'):'未確認の空き時間');
             function state(a){return a.confirmed?'確認済み':a.origin==='legacy-unknown'?'由来未確認':a.origin==='auto-assigned'?'自動・未確認':'手動・未確認';}
             nodes.status.textContent=v.event?'開始：'+state(v.event.provenance.timing.onset)+' / 音価：'+state(v.event.provenance.timing.duration):'空いている時間です。休符として確定するまで未確認です。';
-            nodes.status.textContent+=' · 小節の時間：'+(v.confirmed?'確認済み':'未確認を含む');
-            if(v.event){var current=String(v.event.durationTicks);if(!Array.from(nodes.duration.options).some(function(x){return x.value===current;})){var x=node('option','未対応の音価：'+current+' tick');x.value=current;x.disabled=true;nodes.duration.appendChild(x);}nodes.duration.value=current;if(doc.activeElement!==nodes.onset)nodes.onset.value=v.event.onsetTick;}
-            else if(!nodes.duration.value||Number(nodes.duration.value)>v.gap.durationTicks)nodes.duration.value=String((DURATIONS.find(function(x){return x[0]<=v.gap.durationTicks;})||DURATIONS[DURATIONS.length-1])[0]);
-            slot.querySelectorAll('button,select,input').forEach(function(e){if(e===nodes.close||e===doc.activeElement&&C.documents.getSession().inputPending)return;e.disabled=v.blocked;});decorate();layout();
+            nodes.status.textContent+=' · '+t+' tick · 小節の時間：'+(v.confirmed?'確認済み':'未確認を含む');
+            if(v.event){var current=String(v.event.durationTicks);if(!Array.from(nodes.duration.options).some(function(x){return x.value===current;})){var x=node('option',Number((v.event.durationTicks/480).toFixed(3))+'拍（現在の長さ）');x.value=current;x.disabled=true;nodes.duration.appendChild(x);}nodes.duration.value=current;if(doc.activeElement!==nodes.onset)nodes.onset.value=v.event.onsetTick;}
+            else if(!nodes.duration.value||Number(nodes.duration.value)>v.gap.durationTicks)nodes.duration.value=String(Math.max(0,...DURATIONS.map(function(d){return d[0];}).filter(function(d){return d<=v.gap.durationTicks;})));
+            slot.querySelectorAll('button,select,input').forEach(function(e){if(e===nodes.close||e===doc.activeElement&&C.documents.getSession().inputPending)return;e.disabled=v.blocked;});
+            if(nodes.insertRest&&v.gap.durationTicks<120){nodes.insertRest.disabled=true;nodes.duration.disabled=true;}
+            if(nodes.extend&&C.melodyCommands.extensionDuration(v.bar,v.event)===null){
+                nodes.extend.disabled=true;nodes.extend.title='この音の直後に伸ばせる空きがありません';
+            }else if(nodes.extend)nodes.extend.title='次の音や休符、または小節の終わりまで伸ばします';
+            decorate();layout();
         }
         function select(t,n,enter){var result=controller.select(t);if(!result.ok)return false;lastNode=n;refresh();selectedVisible();if(enter){nodes.heading.focus({preventScroll:true});slot.scrollTop=0;if(window.innerWidth>=1280)slot.scrollIntoView({block:'nearest'});}return true;}
         function key(t,n,event){
