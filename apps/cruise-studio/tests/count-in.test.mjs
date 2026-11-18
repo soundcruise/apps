@@ -27,7 +27,16 @@ for(const bpm of [20,100,400])test('one bar pre-roll at '+bpm+' BPM leaves Proje
 });
 test('unsupported or invalid pre-roll inputs fail without inventing a meter',()=>{
  for(const bpm of [NaN,Infinity,0,19,401,'100'])assert.throws(()=>buildCountIn(project(bpm)));
- for(const meter of [{beats:3,beatUnit:4},{beats:6,beatUnit:8},null])assert.throws(()=>buildCountIn({songInfo:{bpm:100,timeSignature:meter}}));
+ for(const meter of [{beats:5,beatUnit:4},{beats:6,beatUnit:8},null])assert.throws(()=>buildCountIn({songInfo:{bpm:100,timeSignature:meter}}));
+});
+test('3/4 uses three count-in and metronome beats',()=>{
+ const p=project(120);
+ p.songInfo.timeSignature.beats=3;
+ const count=buildCountIn(p);
+ assert.equal(count.duration,1.5);
+ assert.deepEqual(count.events.map(event=>event.midi),[84,72,72]);
+ const plan=withMetronome(p,{events:[],spans:[{index:0,start:0,end:1.5},{index:1,start:1.5,end:3}],duration:3});
+ assert.deepEqual(plan.events.map(event=>[event.barIndex,event.tick]),[[0,0],[0,480],[0,960],[1,0],[1,480],[1,960]]);
 });
 test('clicks and song share one context; the first score event follows exactly one bar',async()=>{
  const f=fixture(),count=buildCountIn(project(400));assert((await f.runtime.playEvents(score,()=>true,.63,true,undefined,count)).ok);

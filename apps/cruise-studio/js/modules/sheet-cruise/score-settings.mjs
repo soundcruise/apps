@@ -64,7 +64,12 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    collect=()=>({kind:'songInfo',args:{values:{},sections:rows.map(s=>({id:s.id,name:s.name,isNew:s.isNew}))}});
   }else{
    const title=input('曲名',project.songInfo.title,'title'),artist=input('アーティスト名',project.songInfo.artist,'artist'),bpm=input('BPM',project.songInfo.bpm,'bpm','number');bpm.min='20';bpm.max='400';
-   collect=()=>({kind:'songInfo',args:{values:{title:title.value,artist:artist.value,bpm:Number(bpm.value)}}});
+   const meterLabel=node('label',undefined,body);node('span','拍子',meterLabel);
+   const meter=node('select',undefined,meterLabel);meter.dataset.scoreField='timeSignature';meter.setAttribute('aria-label','拍子');
+   for(const beats of [4,3]){const option=node('option',beats+'/4',meter);option.value=String(beats);}
+   meter.value=String(project.songInfo.timeSignature.beats);
+   collect=()=>({kind:'songInfo',args:{values:{title:title.value,artist:artist.value,bpm:Number(bpm.value),
+    timeSignature:{beats:Number(meter.value),beatUnit:4}}}});
   }
   dismiss.addEventListener('click',()=>current.close());apply.addEventListener('click',commit);
   let applyWasDisabled=false;current.addEventListener('compositionstart',()=>{composing=true;applyWasDisabled=apply.disabled;apply.disabled=true;});current.addEventListener('compositionend',e=>{composing=false;apply.disabled=applyWasDisabled;if(mode==='chordPreset')e.target.dispatchEvent(new Event('input',{bubbles:true}));});

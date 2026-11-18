@@ -5,12 +5,12 @@
     var DURATIONS=[1920,1440,960,720,480,360,240,180,120];
     function clone(x){return JSON.parse(JSON.stringify(x));}
     function reject(code){return {ok:false,code:code};}
-    function gaps(bar){var end=0,out=[];bar.melody.slice().sort(function(a,b){return a.onsetTick-b.onsetTick;}).forEach(function(e){if(e.onsetTick>end)out.push({onsetTick:end,durationTicks:e.onsetTick-end});end=e.onsetTick+e.durationTicks;});if(end<1920)out.push({onsetTick:end,durationTicks:1920-end});return out;}
-    function extensionDuration(bar,event){
+    function gaps(bar,barTicks=1920){var end=0,out=[];bar.melody.slice().sort(function(a,b){return a.onsetTick-b.onsetTick;}).forEach(function(e){if(e.onsetTick>end)out.push({onsetTick:end,durationTicks:e.onsetTick-end});end=e.onsetTick+e.durationTicks;});if(end<barTicks)out.push({onsetTick:end,durationTicks:barTicks-end});return out;}
+    function extensionDuration(bar,event,barTicks=1920){
         if(event?.kind!=='note'||event.onsetTick%30)return null;
         var end=bar.melody.reduce(function(limit,other){
             return other.onsetTick>event.onsetTick?Math.min(limit,other.onsetTick):limit;
-        },1920);
+        },barTicks);
         var duration=end-event.onsetTick;
         return duration>event.durationTicks&&duration%30===0?duration:null;
     }
@@ -35,6 +35,7 @@
             return s.runOperation(type,function(p){
                 if(!current(envelope))fail('stale-command');
                 var bar=p.bars.find(function(b){return b.id===envelope.barId;});if(!bar)fail('missing-bar');
+                var barTicks=schema.barLength(p);
                 var ev=bar.melody.find(function(e){return e.id===envelope.eventId;});
                 function requireEvent(){if(!ev)fail('missing-event');}
                 function supported(e){if(e.onsetTick%30||e.durationTicks%30)fail('unsupported-time');}
@@ -43,7 +44,7 @@
                 if(type==='melody.setDuration'){requireEvent();if(!DURATIONS.includes(payload.durationTicks))fail('unsupported-duration');ev.durationTicks=payload.durationTicks;ev.provenance.timing.duration={origin:'user-set',confirmed:true};}
                 else if(type==='melody.extendNote'){
                     requireEvent();
-                    var duration=extensionDuration(bar,ev);
+                    var duration=extensionDuration(bar,ev,barTicks);
                     if(duration===null)fail('no-extendable-gap');
                     ev.durationTicks=duration;
                     ev.provenance.timing.duration={origin:'user-set',confirmed:true};
@@ -63,8 +64,8 @@
                 else if(type==='melody.delete'){requireEvent();bar.melody=bar.melody.filter(function(e){return e.id!==ev.id;});}
                 else if(type==='melody.move'){requireEvent();if(!Number.isSafeInteger(payload.onsetTick)||payload.onsetTick%30)fail('unsupported-onset');ev.onsetTick=payload.onsetTick;ev.provenance.timing.onset={origin:'user-set',confirmed:true};}
                 else if(type==='melody.confirmEventTiming'){requireEvent();supported(ev);if(!Array.isArray(payload.attributes)||!payload.attributes.length||payload.attributes.some(function(a){return !['onset','duration'].includes(a);}))fail('invalid-attributes');payload.attributes.forEach(function(a){ev.provenance.timing[a].confirmed=true;});}
-                else if(type==='melody.confirmGap'){var gap=envelope.gap;if(!gap||!gaps(bar).some(function(x){return x.onsetTick===gap.onsetTick&&x.durationTicks===gap.durationTicks;}))fail('stale-gap');bar.melody.push(rest(gap));}
-                else if(type==='melody.confirmBarTiming'){bar.melody.forEach(supported);var empty=gaps(bar);empty.forEach(function(g){bar.melody.push(rest(g));});bar.melody.forEach(function(e){e.provenance.timing.onset.confirmed=e.provenance.timing.duration.confirmed=true;});}
+                else if(type==='melody.confirmGap'){var gap=envelope.gap;if(!gap||!gaps(bar,barTicks).some(function(x){return x.onsetTick===gap.onsetTick&&x.durationTicks===gap.durationTicks;}))fail('stale-gap');bar.melody.push(rest(gap));}
+                else if(type==='melody.confirmBarTiming'){bar.melody.forEach(supported);var empty=gaps(bar,barTicks);empty.forEach(function(g){bar.melody.push(rest(g));});bar.melody.forEach(function(e){e.provenance.timing.onset.confirmed=e.provenance.timing.duration.confirmed=true;});}
                 // Session validates the original staged raw once before publication and Undo reservation.
                 // Validating this entire Proxy here duplicates that boundary at much greater cost.
             },{requireUndo:true});

@@ -12,6 +12,6 @@ export function createHarmonyTimeline(project){
             if(local.length)return event.durationTicks!==undefined&&tick>=event.onsetTick+event.durationTicks?null:event;
             return event.durationTicks===undefined?event:null;
         },
-        next(index,tick){return rows[index].find(c=>c.onsetTick>tick)?.onsetTick??1920;}
+        next(index,tick){return rows[index].find(c=>c.onsetTick>tick)?.onsetTick??((project.songInfo?.timeSignature?.beats??4)*480);}
     };
 }

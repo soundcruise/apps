@@ -6,10 +6,12 @@
         var VF=window.Vex.Flow,notes=bar.tokens.map(function(t){
             var accidental=t.pitch?{'-2':'bb','-1':'b','0':'','1':'#','2':'##'}[t.pitch.alter]:'';
             var key=t.pitch?t.pitch.step.toLowerCase()+accidental+'/'+t.pitch.octave:t.key;
-            var n=new VF.StaveNote({clef:'treble',keys:[key],duration:t.duration+(t.kind==='rest'?'r':''),dots:t.dots,auto_stem:true});
+            var wholeRest=t.kind==='rest'&&t.durationTicks===bar.barTicks;
+            var n=new VF.StaveNote({clef:'treble',keys:[key],duration:t.duration+(t.kind==='rest'?'r':''),dots:t.dots,auto_stem:true,
+                ...(wholeRest?{duration_override:new VF.Fraction(bar.beats,4)}:{})});
             if(t.dots)VF.Dot.buildAndAttach([n],{all:true});return n;
         });
-        var voice=new VF.Voice({num_beats:4,beat_value:4}).addTickables(notes);
+        var voice=new VF.Voice({num_beats:bar.beats,beat_value:4}).addTickables(notes);
         VF.Accidental.applyAccidentals([voice],key);
         new VF.Formatter().joinVoices([voice]).format([voice],0);
         var beams=VF.Beam.generateBeams(notes,{groups:[new VF.Fraction(1,4)]});
@@ -18,14 +20,14 @@
                 right:Math.max(m.notePx,m.glyphWidth)+m.modRightPx+m.rightDisplacedHeadPx};})};
     }
     function combine(items,field){var out=[];items.forEach(function(item){var previous=out.find(function(t){return t.tick===item.tick;});if(previous)previous[field]+=' / '+item[field];else out.push(Object.assign({},item));});return out.sort(function(a,b){return a.tick-b.tick;});}
-    function signatureWidth(key,start,first){var s=new window.Vex.Flow.Stave(0,0,400);
-        if(start)s.addClef('treble').addKeySignature(key);if(first)s.addTimeSignature('4/4');return s.getNoteStartX();}
+    function signatureWidth(key,start,first,timeSignature){var s=new window.Vex.Flow.Stave(0,0,400);
+        if(start)s.addClef('treble').addKeySignature(key);if(first)s.addTimeSignature(timeSignature);return s.getNoteStartX();}
     function vertical(bar){var top=-12,bottom=12;bar.tokens.forEach(function(t){if(t.pitch){var d=t.pitch.octave*7+'CDEFGAB'.indexOf(t.pitch.step);
         top=Math.max(top,-12+Math.max(0,d-38)*5);bottom=Math.max(bottom,12+Math.max(0,30-d)*5);}});return {top:top,bottom:bottom};}
     function explanation(codes,bar){
         var list=Array.from(new Set(codes)),at=bar?'（'+bar+'小節目）':'';
         if(list.some(function(c){return /duration|coverage/.test(c);}))return 'この音の長さはまだ表示できません'+at+'。三連符などの音価は未対応です。コード譜で確認してください。';
-        if(list.some(function(c){return /meter|time-signature|ppq/.test(c);}))return 'この拍子はまだ表示できません'+at+'。現在は4/4に対応しています。';
+        if(list.some(function(c){return /meter|time-signature|ppq/.test(c);}))return 'この拍子はまだ表示できません'+at+'。現在は3/4と4/4に対応しています。';
         if(list.some(function(c){return /pitch|key/.test(c);}))return '音高またはキーを確認してください'+at+'。対応する音名・調号で入力し直してください。';
         if(list.some(function(c){return /external|deleted|source/.test(c);}))return '曲の保存状態が変わりました。外部更新や競合を解決してから五線を更新してください。';
         if(list.includes('input-or-modal-pending'))return '入力またはダイアログの確定後に更新します。';
@@ -108,16 +110,16 @@
                 function arrange(){
                     var layoutStart=performance.now(),systems=[],index=0;
                     while(index<bars.length){var a=bars[index];a.start=true;
-                        a.plan=CruiseStudio.melodyNotation.layout(a.stored.bundle.spacing,a.stored.rows,signatureWidth(score.key,true,a.first));
+                        a.plan=CruiseStudio.melodyNotation.layout(a.stored.bundle.spacing,a.stored.rows,signatureWidth(score.key,true,a.first,score.timeSignature),undefined,a.bar.barTicks);
                         var row=[a],b=bars[index+1];
                         if(b&&b.bar.sectionId===a.bar.sectionId&&!project.bars[index].lineBreakAfter){
-                            b.plan=CruiseStudio.melodyNotation.layout(b.stored.bundle.spacing,b.stored.rows,signatureWidth(score.key,false,false));
+                            b.plan=CruiseStudio.melodyNotation.layout(b.stored.bundle.spacing,b.stored.rows,signatureWidth(score.key,false,false,score.timeSignature),undefined,b.bar.barTicks);
                             if(a.plan.minWidth+b.plan.minWidth<=available){row.push(b);}
                         }
                         var sum=row.reduce(function(n,x){return n+x.plan.minWidth;},0),extra=Math.max(0,available-sum)/row.length;
                         var top=Math.max.apply(null,row.map(function(x){return x.stored.vertical.top;})),bottom=Math.max.apply(null,row.map(function(x){return x.stored.vertical.bottom;}));
                         var chords=row.some(function(x){return x.bar.chords.length;}),lyrics=row.some(function(x){return x.bar.lyrics.length;});
-                        row.forEach(function(x){x.plan=CruiseStudio.melodyNotation.layout(x.stored.bundle.spacing,x.stored.rows,signatureWidth(score.key,x.start,x.first),x.plan.minWidth+extra);
+                        row.forEach(function(x){x.plan=CruiseStudio.melodyNotation.layout(x.stored.bundle.spacing,x.stored.rows,signatureWidth(score.key,x.start,x.first,score.timeSignature),x.plan.minWidth+extra,x.bar.barTicks);
                             x.top=top;x.bottom=bottom;x.chordRow=chords;x.lyricRow=lyrics;});
                         systems.push(row);index+=row.length;
                     }
@@ -139,7 +141,7 @@
                     maxFrame=Math.max(maxFrame,performance.now()-sliceStart);if(i<bars.length){schedule(paint);return;}if(!current())return;
                     lastSource=score.source;lastResult=result;root.classList.remove('melody-unready','melody-pending');root.dataset.ready='true';root.dataset.projectId=score.source.projectId;
                     root.querySelector('.melody-title').textContent=project.songInfo.title||'無題';
-                    root.querySelector('.melody-caption').textContent='Key '+score.key+' / Capo '+score.capo+' / BPM '+project.songInfo.bpm+' / 4/4　コード名：押さえ方（Playキー）・五線：実音';
+                    root.querySelector('.melody-caption').textContent='Key '+score.key+' / Capo '+score.capo+' / BPM '+project.songInfo.bpm+' / '+score.timeSignature+'　コード名：押さえ方（Playキー）・五線：実音';
                     status.textContent=(score.measures.every(function(b){return !b.autoTiming;})?'音の長さ：確認済み':'音の長さ：自動を含む（由来未確認）')+' · 画面用プレビュー。五線は印刷されません。コード譜を印刷します。';
                     detail.textContent=score.measures.every(function(b){return !b.autoTiming;})?'すべての音・休符の開始位置と音価が確認されています。':'音・休符または空き時間に未確認が残っています。原曲どおりか確認してください。';
                     metrics={bars:i,drawn:drawn,maxFrameMs:maxFrame,totalMs:performance.now()-started,source:score.source,timing:timing};options.onLayout();
@@ -184,11 +186,11 @@
         var body=el('div','melody-bar-content'),scroll=el('div','melody-scroll'),paper=el('div','melody-bar-paper'),svgHost=el('div','melody-svg');
         paper.style.width=width+'px';var height=x.top+80+x.bottom,renderer=new VF.Renderer(svgHost,VF.Renderer.Backends.SVG);renderer.resize(width,height);
         var ctx=renderer.getContext(),stave=new VF.Stave(0,x.top,width);
-        if(x.start)stave.addClef('treble').addKeySignature(key);if(x.first)stave.addTimeSignature('4/4');stave.setContext(ctx).draw();
+        if(x.start)stave.addClef('treble').addKeySignature(key);if(x.first)stave.addTimeSignature(bar.beats+'/4');stave.setContext(ctx).draw();
         function anchor(t){return x.plan.anchors.find(function(a){return a.tick===t;}).x;}
         notes.forEach(function(n,i){n.setStave(stave);var tc=n.getTickContext();tc.setX(0);var offset=n.getAbsoluteX();tc.setX(anchor(bar.tokens[i].onsetTick)-offset);});
         // A full-measure rest is conventionally centred; its temporal event remains tick 0.
-        if(notes.length===1&&bar.tokens[0].kind==='rest'&&bar.tokens[0].durationTicks===1920){var tc=notes[0].getTickContext();tc.setX(tc.getX()+(stave.getNoteStartX()+width-12)/2-notes[0].getAbsoluteX()-notes[0].getGlyphWidth()/2);}
+        if(notes.length===1&&bar.tokens[0].kind==='rest'&&bar.tokens[0].durationTicks===bar.barTicks){var tc=notes[0].getTickContext();tc.setX(tc.getX()+(stave.getNoteStartX()+width-12)/2-notes[0].getAbsoluteX()-notes[0].getGlyphWidth()/2);}
         voice.draw(ctx,stave);bundle.beams.forEach(function(b){b.setContext(ctx).draw();});
 
         bar.tokens.forEach(function(t,i){if(t.tieTo!==null)new VF.StaveTie({first_note:notes[i],last_note:notes[t.tieTo],first_indices:[0],last_indices:[0]}).setContext(ctx).draw();});

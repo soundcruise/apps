@@ -28,9 +28,11 @@
         }
     }
     function pitchMidi(p){return object(p)&&Object.hasOwn(NAT,p.step)&&integer(p.alter)&&Math.abs(p.alter)<=2&&integer(p.octave)?12*(p.octave+1)+NAT[p.step]+p.alter:null;}
+    function supportedMeter(si){return [3,4].includes(si?.timeSignature?.beats)&&si.timeSignature.beatUnit===4&&si.ticksPerBeat===480;}
+    function barLength(project){return project.songInfo.timeSignature.beats*project.songInfo.ticksPerBeat;}
     // The destination ID prevents an edit or a reorder from tying an unrelated note.
     function melodyTieTarget(project,index,event){
-        if(event?.kind!=='note'||event.onsetTick+event.durationTicks!==1920)return null;
+        if(event?.kind!=='note'||event.onsetTick+event.durationTicks!==barLength(project))return null;
         var next=project.bars[index+1]?.melody.find(function(note){return note.onsetTick===0;});
         if(!next||next.kind!=='note'||!event.pitch||!next.pitch)return null;
         return ['step','alter','octave'].every(function(key){return event.pitch[key]===next.pitch[key];})?next:null;
@@ -43,6 +45,20 @@
                     delete event.tieToNext;
             });
         });
+    }
+    function setMeter(project,meter){
+        var si=project.songInfo;
+        insist(supportedMeter({...si,timeSignature:meter}),'拍子は3/4または4/4を選んでください');
+        if(si.timeSignature.beats===meter.beats&&si.timeSignature.beatUnit===meter.beatUnit)return;
+        var end=meter.beats*si.ticksPerBeat;
+        project.bars.forEach(function(bar,index){
+            if(['melody','chords','lyrics'].some(function(row){return bar[row].some(function(event){
+                return event.onsetTick+(event.durationTicks??1)>end;
+            });}))throw Error((index+1)+'小節目に変更後の拍子に収まらない音・コード・歌詞があります');
+            if(bar.melody.some(function(note){return note.tieToNext&&melodyTieTarget(project,index,note)?.id===note.tieToNext;}))
+                throw Error('拍子を変更する前に、'+(index+1)+'小節目から次の小節へのタイを外してください');
+        });
+        si.timeSignature={beats:meter.beats,beatUnit:meter.beatUnit};
     }
     function timing(origin,confirmed){return {timing:{onset:{origin:origin,confirmed:!!confirmed},duration:{origin:origin,confirmed:!!confirmed}}};}
     function checkTiming(p){
@@ -202,7 +218,7 @@
                 var ids=new Set();function unique(x){insist(typeof x==='string'&&x.length>0&&!ids.has(x),'duplicate-or-invalid-id');ids.add(x);}
                 unique(p.projectId);keys(p.songInfo,['title','artist','originalKey','bpm','timeSignature','ticksPerBeat']);
                 var si=p.songInfo;insist(typeof si.title==='string'&&typeof si.artist==='string'&&theory.keyToSemitone(si.originalKey)!==null,'invalid-song');
-                keys(si.timeSignature,['beats','beatUnit']);insist(si.timeSignature.beats===4&&si.timeSignature.beatUnit===4&&si.ticksPerBeat===480,'unsupported-meter');
+                keys(si.timeSignature,['beats','beatUnit']);insist(supportedMeter(si),'unsupported-meter');var barTicks=barLength(p);
                 insist(Number.isFinite(si.bpm)&&si.bpm>=20&&si.bpm<=400,'invalid-bpm');
                 keys(p.instrument,['capo','tuning','stringOrder','maxAbsoluteFret']);insist(integer(p.instrument.capo)&&p.instrument.capo>=0&&p.instrument.capo<=11,'invalid-capo');
                 insist((p.instrument.tuning===null||standardTuning(p.instrument.tuning))&&p.instrument.stringOrder==='high-to-low','unsupported-instrument');
@@ -213,17 +229,17 @@
                 var sections=new Set();p.sections.forEach(function(s){keys(s,['id','name','lyricsHidden']);unique(s.id);sections.add(s.id);insist(typeof s.name==='string'&&typeof s.lyricsHidden==='boolean','invalid-section');});
                 keys(p.materials,['forms','rhythms']);insist(Array.isArray(p.materials.forms)&&Array.isArray(p.materials.rhythms),'unsupported-material');
                 var forms=new Set();p.materials.forms.forEach(function(m){formMaterial(m);unique(m.id);forms.add(m.id);});
-                var nativeCount=0,nativeCells=0;var chordIds=new Set();var materials=new Set(),legacyAliases=new Set();p.materials.rhythms.forEach(function(m){
+                var nativeCount=0,nativeCells=0,nativeIds=new Set();var chordIds=new Set();var materials=new Set(),legacyAliases=new Set();p.materials.rhythms.forEach(function(m){
                     keys(m,['id','encoding','snapshot','provenance']);unique(m.id);materials.add(m.id);
                     if(m.encoding==='rhythm-owner-cells-v1'){
                         insist(options.rhythmSnapshots,'unsupported-rhythm-encoding');
                         var nativeResult=validateNative(m);if(nativeResults)nativeResults.set(m.id,nativeResult.projection);
-                        nativeCount++;nativeCells+=m.snapshot.cells.length;insist(nativeCount<=256&&nativeCells<=4096,'rhythm-budget');return;
+                        nativeIds.add(m.id);nativeCount++;nativeCells+=m.snapshot.cells.length;insist(nativeCount<=256&&nativeCells<=4096,'rhythm-budget');return;
                     }
                     insist(m.encoding==='studio-strum-v1','unsupported-rhythm-encoding');
-                    keys(m.snapshot,['name','lengthTicks','slots']);insist(typeof m.snapshot.name==='string'&&m.snapshot.lengthTicks===1920&&Array.isArray(m.snapshot.slots),'invalid-rhythm');
-                    var last=-1;m.snapshot.slots.forEach(function(e){keys(e,['id','tick','action','accent','durationTicks','tieToNext']);unique(e.id);insist(integer(e.tick)&&e.tick>last&&e.tick<1920&&e.tick>=0,'invalid-stroke-onset');last=e.tick;
-                        insist(['down','up','mute','rest'].includes(e.action),'invalid-stroke-kind');if(e.durationTicks!==undefined)insist(integer(e.durationTicks)&&e.durationTicks>0&&e.tick+e.durationTicks<=1920,'invalid-stroke-duration');
+                    keys(m.snapshot,['name','lengthTicks','slots']);insist(typeof m.snapshot.name==='string'&&[1440,1920].includes(m.snapshot.lengthTicks)&&Array.isArray(m.snapshot.slots),'invalid-rhythm');
+                    var last=-1;m.snapshot.slots.forEach(function(e){keys(e,['id','tick','action','accent','durationTicks','tieToNext']);unique(e.id);insist(integer(e.tick)&&e.tick>last&&e.tick<m.snapshot.lengthTicks&&e.tick>=0,'invalid-stroke-onset');last=e.tick;
+                        insist(['down','up','mute','rest'].includes(e.action),'invalid-stroke-kind');if(e.durationTicks!==undefined)insist(integer(e.durationTicks)&&e.durationTicks>0&&e.tick+e.durationTicks<=m.snapshot.lengthTicks,'invalid-stroke-duration');
                         ['accent','tieToNext'].forEach(function(k){if(e[k]!==undefined)insist(typeof e[k]==='boolean','invalid-stroke-flag');});});
                     keys(m.provenance,['origin','legacyId']);var alias=m.provenance.legacyId||m.id;insist(!legacyAliases.has(alias),'duplicate-rhythm-alias');legacyAliases.add(alias);if(m.provenance.legacyId!==undefined)insist(typeof m.provenance.legacyId==='string'&&m.provenance.legacyId.length>0,'invalid-legacy-rhythm-id');insist(ORIGINS.includes(m.provenance.origin),'invalid-material-provenance');
                 });
@@ -233,20 +249,21 @@
                     var end=0;b.melody.slice().sort(function(a,z){return a.onsetTick-z.onsetTick;}).forEach(function(e){
                         keys(e,['id','kind','onsetTick','durationTicks','pitch','provenance','tieToNext']);unique(e.id);
                         if(Object.hasOwn(e,'tieToNext'))insist(e.kind==='note'&&typeof e.tieToNext==='string'&&e.tieToNext.length>0,'invalid-melody-tie');
-                        insist(['note','rest'].includes(e.kind)&&integer(e.onsetTick)&&integer(e.durationTicks)&&e.onsetTick>=end&&e.onsetTick>=0&&e.durationTicks>0&&e.onsetTick+e.durationTicks<=1920,'invalid-melody-time');
+                        insist(['note','rest'].includes(e.kind)&&integer(e.onsetTick)&&integer(e.durationTicks)&&e.onsetTick>=end&&e.onsetTick>=0&&e.durationTicks>0&&e.onsetTick+e.durationTicks<=barTicks,'invalid-melody-time');
                         end=e.onsetTick+e.durationTicks;checkTiming(e.provenance);
                         if(e.kind==='note'){keys(e.pitch,['step','alter','octave']);var n=pitchMidi(e.pitch);insist(integer(n)&&n>=0&&n<=127,'invalid-pitch');}
                         else insist(!Object.hasOwn(e,'pitch'),'rest-has-pitch');
                     });
-                    b.chords.forEach(function(e){keys(e,['id','onsetTick','durationTicks','symbol','unresolved','provenance']);unique(e.id);chordIds.add(e.id);insist(integer(e.onsetTick)&&e.onsetTick>=0&&e.onsetTick<1920,'invalid-chord-time');
-                        if(e.durationTicks!==undefined)insist(integer(e.durationTicks)&&e.durationTicks>0&&e.onsetTick+e.durationTicks<=1920,'invalid-chord-duration');
+                    b.chords.forEach(function(e){keys(e,['id','onsetTick','durationTicks','symbol','unresolved','provenance']);unique(e.id);chordIds.add(e.id);insist(integer(e.onsetTick)&&e.onsetTick>=0&&e.onsetTick<barTicks,'invalid-chord-time');
+                        if(e.durationTicks!==undefined)insist(integer(e.durationTicks)&&e.durationTicks>0&&e.onsetTick+e.durationTicks<=barTicks,'invalid-chord-duration');
                         insist(typeof e.symbol==='string'&&typeof e.unresolved==='boolean','invalid-chord');keys(e.provenance,['origin','sourceBasis']);insist(ORIGINS.includes(e.provenance.origin),'invalid-chord-origin');if(e.provenance.sourceBasis){keys(e.provenance.sourceBasis,['playKey','capo']);insist(theory.keyToSemitone(e.provenance.sourceBasis.playKey)!==null&&integer(e.provenance.sourceBasis.capo)&&e.provenance.sourceBasis.capo>=0&&e.provenance.sourceBasis.capo<=11,'invalid-chord-basis');}
                         if(e.unresolved)insist(object(e.provenance.sourceBasis)&&integer(e.provenance.sourceBasis.capo),'unresolved-basis');
                     });
-                    b.lyrics.forEach(function(e){keys(e,['id','onsetTick','text','provenance']);unique(e.id);insist(integer(e.onsetTick)&&e.onsetTick>=0&&e.onsetTick<1920&&typeof e.text==='string','invalid-lyric');keys(e.provenance,['origin']);insist(ORIGINS.includes(e.provenance.origin),'invalid-lyric-origin');});
+                    b.lyrics.forEach(function(e){keys(e,['id','onsetTick','text','provenance']);unique(e.id);insist(integer(e.onsetTick)&&e.onsetTick>=0&&e.onsetTick<barTicks&&typeof e.text==='string','invalid-lyric');keys(e.provenance,['origin']);insist(ORIGINS.includes(e.provenance.origin),'invalid-lyric-origin');});
                 });
                 keys(p.performance,['basicRhythmId','barRhythms','formBindings','strokeOverrides','arrangement']);
                 insist(materials.has(p.performance.basicRhythmId)&&Array.isArray(p.performance.barRhythms),'missing-rhythm');
+                if(si.timeSignature.beats===3)insist(!nativeIds.has(p.performance.basicRhythmId)&&!p.performance.barRhythms.some(function(b){return nativeIds.has(b.materialId);}), '3/4の曲には4/4専用のリズム素材を設定できません');
                 insist(Array.isArray(p.performance.formBindings)&&Array.isArray(p.performance.strokeOverrides)&&!p.performance.strokeOverrides.length,'unsupported-performance');
                 var formTargets=new Set();p.performance.formBindings.forEach(function(b){
                     formKeys(b,['id','chordEventId','materialId','playedStrings','mode','confirmation']);unique(b.id);
@@ -280,7 +297,7 @@
                 insist(p && p.schemaVersion===1,'unsupported-schema');jsonValue(p,0,new Set());
                 keys(p,['schemaVersion','appVersion','projectId','createdAt','updatedAt','songInfo','sections','bars','strumPatterns','basicStrumPatternId','sheetSettings','arrangement']);
                 insist(legacy.validateProject(p).ok,'invalid-legacy-project');
-                if(p.songInfo?.timeSignature?.beats!==4||p.songInfo?.timeSignature?.beatUnit!==4||p.songInfo?.ticksPerBeat!==480)return {ok:true,project:copy(p),migrated:false,compatibility:'schema1-unsupported-meter'};
+                if(!supportedMeter(p.songInfo))return {ok:true,project:copy(p),migrated:false,compatibility:'schema1-unsupported-meter'};
                 keys(p,['schemaVersion','appVersion','projectId','createdAt','updatedAt','songInfo','sections','bars','strumPatterns','basicStrumPatternId','sheetSettings','arrangement']);
                 keys(p.songInfo,['title','artist','originalKey','playKey','capo','bpm','timeSignature','ticksPerBeat']);
                 insist(legacy.validateProject(p).ok,'invalid-legacy-project');
@@ -380,6 +397,7 @@
                 next.id=id();next.provenance={origin:'user-set'};
                 next.snapshot.slots.forEach(s=>{s.id=id();});
             }
+            next.snapshot.lengthTicks=Math.max(next.snapshot.lengthTicks,barLength(project));
             next.snapshot.slots.push({id:id(),tick:tick,action:'down',accent:false});
             next.snapshot.slots.sort((a,b)=>a.tick-b.tick);
             if(shared){
@@ -447,8 +465,8 @@
             // The legacy form editor changes representation, never the canonical sound by implication.
             var si=view.songInfo;
             if(si.playKey!==before.songInfo.playKey || si.capo!==before.songInfo.capo)throw Error('schema 2のキー・カポ変更は実音保持の明示操作が必要です。M1では変更を適用していません');
-            if(!same(si.timeSignature,before.songInfo.timeSignature))throw Error('schema 2の拍子変更は未対応です。変更は適用していません');
             var canonicalInfo=copy(project.songInfo);canonicalInfo.title=si.title;canonicalInfo.artist=si.artist;canonicalInfo.bpm=si.bpm;canonicalInfo.originalKey=si.originalKey;
+            if(!same(si.timeSignature,before.songInfo.timeSignature))setMeter({songInfo:canonicalInfo,bars:project.bars},si.timeSignature);
             // Translate only changed legacy collections. Unchanged pitch/timing is never re-parsed.
             var patterns=new Map(), oldMaterials=new Map(project.materials.rhythms.map(function(m){return [m.provenance.legacyId||m.id,m];}));
             var changedPatterns=new Set();var materials=view.strumPatterns.map(function(p){var old=oldMaterials.get(p.id), snap=copy(p);delete snap.id;
@@ -545,7 +563,7 @@
             check=validate(next);insist(check.ok,check.errors.join('/'));Object.keys(next).forEach(function(k){project[k]=next[k];});return bar.id;
         }
         function reconcileChord(bar,events){if(!legacyBars.has(bar))return;if(bar.chords.length>1){insist(!boundLegacyBars.has(bar),'ambiguous-chord-mapping');replacementBars.add(bar);return;}if(bar.chords.length&&events.length){var source=legacyChords.get(bar.chords[0]);insist(source,'ambiguous-chord-mapping');legacyChords.set(events[0],source);}}
-        return Object.freeze({melodyTieTarget:melodyTieTarget,pruneMelodyTies:pruneMelodyTies,addChordDownstroke:addChordDownstroke,readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
+        return Object.freeze({barLength:barLength,setMeter:setMeter,melodyTieTarget:melodyTieTarget,pruneMelodyTies:pruneMelodyTies,addChordDownstroke:addChordDownstroke,readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(p.songInfo.timeSignature.beats===4,'プレDTMの伴奏出力は4/4に対応しています');insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
     }
     return Object.freeze({create:create,pitchMidi:pitchMidi,maxBytes:MAX_BYTES,timing:timing});
 });

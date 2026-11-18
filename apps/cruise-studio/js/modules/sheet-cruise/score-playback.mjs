@@ -4,7 +4,8 @@ import {createHarmonyTimeline} from './score-harmony.mjs';
 // Pure, read-only score -> audio projection. Times are seconds from one audio clock.
 // A blank cell is not a rest: recorded strings ring until a physical interruption.
 function barPlan(project, index, deps, harmony) {
-    const bar = project.bars[index], seconds = 60 / project.songInfo.bpm / 480, total = 1920 * seconds;
+    const bar = project.bars[index], seconds = 60 / project.songInfo.bpm / 480;
+    const barTicks=(project.songInfo.timeSignature?.beats??4)*480,total=barTicks*seconds;
     if (!bar || !Number.isFinite(total) || total <= 0 || total > 60) throw Error('BPMや小節を確認してください');
     const events = [], warnings = [], cuts = [];
     if (!deps.chordsOnly) bar.melody.forEach(e => {
@@ -17,7 +18,7 @@ function barPlan(project, index, deps, harmony) {
     if (!deps.melodyOnly) {
         const rhythm = deps.rhythm(project, index);
         let slots;
-        if (rhythm?.encoding === 'studio-strum-v1') slots = rhythm.slots.slice().sort((a, b) => a.tick - b.tick);
+        if (rhythm?.encoding === 'studio-strum-v1') slots = rhythm.slots.filter(slot=>slot.tick<barTicks).sort((a, b) => a.tick - b.tick);
         else if (rhythm?.encoding === 'rhythm-owner-cells-v1' && rhythm.projection?.rhythmResolved)
             slots = rhythm.projection.events.filter(e => e.sound !== 'sustain').map(e => ({tick: e.onsetTick,
                 action: e.sound === 'rest' ? 'rest' : e.direction, durationTicks: e.notationDurationTicks, accent: e.accent === true}));
@@ -31,7 +32,7 @@ function barPlan(project, index, deps, harmony) {
             if (chord.durationTicks !== undefined) cuts.push(.03 + (chord.onsetTick + chord.durationTicks) * seconds);
         }
         slots.forEach((slot, i) => {
-            const end = Math.min(1920, slot.tick + (slot.durationTicks ?? fallback), slots[i + 1]?.tick ?? 1920);
+            const end = Math.min(barTicks, slot.tick + (slot.durationTicks ?? fallback), slots[i + 1]?.tick ?? barTicks);
             const duration = (end - slot.tick) * seconds, start = .03 + slot.tick * seconds;
             if (duration <= 0) return;
             if (slot.action === 'rest' || slot.action === 'mute') cuts.push(start);
@@ -60,14 +61,14 @@ function barPlan(project, index, deps, harmony) {
 function mergeMelodyTies(project,deps,events,lengthKey){
     if(!deps.tieTarget)return events;
     const voices=new Map(events.filter(e=>e.part==='piano').map(e=>[e.sourceEventId,e]));
-    const continuations=new Map();
+    const continuations=new Map(),barTicks=(project.songInfo.timeSignature?.beats??4)*480;
     for(let index=0;index<project.bars.length-1;index++){
         for(const note of project.bars[index].melody){
             if(!note.tieToNext)continue;
             const attack=continuations.get(note.id)||voices.get(note.id), next=voices.get(note.tieToNext);
             if(!attack||!next||deps.tieTarget(project,index,note)?.id!==note.tieToNext)continue;
             attack[lengthKey]+=next[lengthKey];
-            (attack.tieStarts??=[]).push(next.barIndex*1920);
+            (attack.tieStarts??=[]).push(next.barIndex*barTicks);
             continuations.set(next.sourceEventId,attack);
         }
     }
@@ -104,7 +105,7 @@ export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
         spans.push({index, start: offset, end: offset + plan.duration - .03}); offset += plan.duration - .03;
         plan.warnings.forEach(w => { if (warnings.length < 8 && !warnings.includes(w)) warnings.push(w); });
     });
-    return finishPlan({events:mergeMelodyTies(project,deps,events,'duration'), cuts, spans, duration: offset + .03, secondsPerTick: 60 / project.songInfo.bpm / 480, warnings});
+    return finishPlan({events:mergeMelodyTies(project,deps,events,'duration'), cuts, spans, barTicks:(project.songInfo.timeSignature?.beats??4)*480, duration: offset + .03, secondsPerTick: 60 / project.songInfo.bpm / 480, warnings});
 }
 
 // Repeat the musical duration, excluding the initial Web Audio attack offset.
@@ -119,9 +120,9 @@ export function buildRangeLoopPlan(project, deps, startIndex, count) {
 // A pre-roll on the same audio clock, separate from score ticks and loop events.
 export function buildCountIn(project) {
     const {bpm,timeSignature}=project.songInfo;
-    if(!Number.isFinite(bpm)||bpm<20||bpm>400||timeSignature?.beats!==4||timeSignature?.beatUnit!==4)
+    if(!Number.isFinite(bpm)||bpm<20||bpm>400||![3,4].includes(timeSignature?.beats)||timeSignature?.beatUnit!==4)
         throw Error('カウントインのBPM・拍子を確認してください');
-    const beatSeconds=60/bpm,beats=4;
+    const beatSeconds=60/bpm,beats=timeSignature.beats;
     return {duration:beats*beatSeconds,beatSeconds,beats,events:Array.from({length:beats},(_,i)=>({
         part:'count',midi:i===0?84:72,start:.03+i*beatSeconds,duration:.055,gain:i===0?.16:.12
     }))};
@@ -129,9 +130,9 @@ export function buildCountIn(project) {
 
 // Clicks are a playback projection. They never enter chord/form/MIDI data.
 export function withMetronome(project,plan){
-    const {beatSeconds}=buildCountIn(project),clicks=[];
+    const {beatSeconds,beats}=buildCountIn(project),clicks=[];
     for(const span of plan.spans||[]){
-        for(let beat=0;beat<4;beat++)clicks.push({part:'click',midi:beat===0?84:72,
+        for(let beat=0;beat<beats;beat++)clicks.push({part:'click',midi:beat===0?84:72,
             start:span.start+.03+beat*beatSeconds,duration:.055,gain:beat===0?.1:.075,
             barIndex:span.index,tick:beat*480});
     }
@@ -144,9 +145,10 @@ export function withMetronome(project,plan){
 // above remains the independent oracle for fixed-tempo rendering/audition.
 export function buildSongTickPlan(project,deps){
     const reference={...project,songInfo:{...project.songInfo,bpm:20}},spt=60/20/480;
-    const harmony=createHarmonyTimeline(reference),events=[],cuts=[project.bars.length*1920],warnings=[];
+    const ticksPerBar=(project.songInfo.timeSignature?.beats??4)*480,totalTicks=project.bars.length*ticksPerBar;
+    const harmony=createHarmonyTimeline(reference),events=[],cuts=[totalTicks],warnings=[];
     reference.bars.forEach((bar,index)=>{
-        const p=barPlan(reference,index,{...deps,tickPlan:true},harmony),base=index*1920;
+        const p=barPlan(reference,index,{...deps,tickPlan:true},harmony),base=index*ticksPerBar;
         p.cuts.forEach(t=>cuts.push(base+Math.round((t-.03)/spt)));
         p.events.forEach(e=>{
             const {start,duration,attackStart,tick,...rest}=e;
@@ -167,12 +169,12 @@ export function buildSongTickPlan(project,deps){
         if(e.part!=='guitar')continue;
         e.travelSpan=groups.get(e.group)||0;delete e.group;
         let lo=0,hi=orderedCuts.length;while(lo<hi){const mid=(lo+hi)>>>1;if(orderedCuts[mid]<=e.tick)lo=mid+1;else hi=mid;}
-        e.boundaryTick=orderedCuts[lo]??project.bars.length*1920;
+        e.boundaryTick=orderedCuts[lo]??totalTicks;
         const key=e.string===null?'fallback:'+e.midi:'string:'+e.string;
         e.nextIndex=next.get(key)??null;next.set(key,i);
     }
     // Clicks are always available; enabling them never changes the music plan.
-    for(let tick=0;tick<project.bars.length*1920;tick+=480)timeline.push({part:'click',midi:tick%1920===0?84:72,tick,
-        offsetSeconds:0,naturalSeconds:.055,gain:tick%1920===0?.1:.075,index:timeline.length});
-    return {events:timeline,totalTicks:project.bars.length*1920,warnings};
+    for(let tick=0;tick<totalTicks;tick+=480)timeline.push({part:'click',midi:tick%ticksPerBar===0?84:72,tick,
+        offsetSeconds:0,naturalSeconds:.055,gain:tick%ticksPerBar===0?.1:.075,index:timeline.length});
+    return {events:timeline,totalTicks,ticksPerBar,warnings};
 }

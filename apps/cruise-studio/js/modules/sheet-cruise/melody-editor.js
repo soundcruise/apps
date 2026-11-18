@@ -10,8 +10,9 @@
         function target(b){
             var s=o.owner.getSession();if(!identity(b))return null;
             var bar=s.draft.bars.find(function(x){return x.id===b.barId;});if(!bar)return null;
-            if(b.eventId){var event=bar.melody.find(function(x){return x.id===b.eventId;});return event?{bar:bar,event:event}:null;}
-            var gap=o.gaps(bar).find(function(g){return g.onsetTick===b.gap.onsetTick&&g.durationTicks===b.gap.durationTicks;});return gap?{bar:bar,gap:gap}:null;
+            var barTicks=(s.draft.songInfo?.timeSignature?.beats||4)*480;
+            if(b.eventId){var event=bar.melody.find(function(x){return x.id===b.eventId;});return event?{bar:bar,event:event,barTicks:barTicks}:null;}
+            var gap=o.gaps(bar,barTicks).find(function(g){return g.onsetTick===b.gap.onsetTick&&g.durationTicks===b.gap.durationTicks;});return gap?{bar:bar,gap:gap,barTicks:barTicks}:null;
         }
         function renew(){if(!binding||!target(binding)){clear();return;}binding.envelope=o.commands.capture(binding.barId,binding.eventId,binding.gap);binding.stale=false;}
         function select(t){
@@ -24,10 +25,10 @@
         function view(){
             if(!binding)return null;if(!identity(binding)){clear();return null;}var value=target(binding);if(!value){clear();return null;}
             var s=o.owner.getSession(),barNumber=s.draft.bars.findIndex(function(b){return b.id===binding.barId;})+1;
-            return {handle:binding.handle,barId:binding.barId,eventId:binding.eventId,barNumber:barNumber,event:value.event||null,gap:value.gap||null,bar:value.bar,
+            return {handle:binding.handle,barId:binding.barId,eventId:binding.eventId,barNumber:barNumber,event:value.event||null,gap:value.gap||null,bar:value.bar,barTicks:value.barTicks,
                 tieTarget:value.event&&o.commands.tieTarget?.(s.draft,barNumber-1,value.event),
                 blocked:!!blocked()||binding.stale||s.snapshotVersion!==binding.envelope.expectedSnapshotVersion,
-                confirmed:o.gaps(value.bar).length===0&&value.bar.melody.every(function(e){return e.provenance.timing.onset.confirmed&&e.provenance.timing.duration.confirmed;})};
+                confirmed:o.gaps(value.bar,value.barTicks).length===0&&value.bar.melody.every(function(e){return e.provenance.timing.onset.confirmed&&e.provenance.timing.duration.confirmed;})};
         }
         function execute(handle,type,payload){
             if(!binding||binding.handle!==handle||blocked()||binding.stale||!identity(binding))return {ok:false,code:'stale-selection'};
@@ -119,7 +120,7 @@
             nodes.close=button('閉じる（Esc）',close,header);nodes.close.classList.add('melody-editor-close');
             nodes.target=node('p');nodes.target.id='sc-melody-target';slot.appendChild(nodes.target);
             nodes.error=node('p');nodes.error.id='sc-melody-error';nodes.error.setAttribute('role','alert');slot.appendChild(nodes.error);
-            var h=v.handle;nodes.duration=node('select');nodes.duration.id='sc-melody-duration';DURATIONS.forEach(function(d){var a=node('option',d[1]);a.value=d[0];nodes.duration.appendChild(a);});field('長さ',nodes.duration);
+            var h=v.handle;nodes.duration=node('select');nodes.duration.id='sc-melody-duration';DURATIONS.filter(function(d){return d[0]<=v.barTicks;}).forEach(function(d){var a=node('option',d[1]);a.value=d[0];nodes.duration.appendChild(a);});field('長さ',nodes.duration);
             nodes.duration.addEventListener('change',function(){if(controller.view()?.handle!==h)return;nodes.error.textContent='';if(v.event)apply(h,'melody.setDuration',{durationTicks:Number(nodes.duration.value)});});
             if(v.gap){
                 nodes.insertRest=button('選んだ長さの休符を挿入',function(){apply(h,'melody.insertRest',{onsetTick:v.gap.onsetTick,durationTicks:Number(nodes.duration.value)});});
@@ -145,7 +146,7 @@
             nodes.details.appendChild(node('summary','詳細設定'));slot.appendChild(nodes.details);
             nodes.status=node('p');nodes.status.className='melody-editor-status';nodes.details.appendChild(nodes.status);
             if(v.event){
-                nodes.onset=node('input');nodes.onset.id='sc-melody-onset';nodes.onset.type='number';nodes.onset.min='0';nodes.onset.max='1890';nodes.onset.step='30';field('開始位置（tick / 480 = 1拍）',nodes.onset,nodes.details);
+                nodes.onset=node('input');nodes.onset.id='sc-melody-onset';nodes.onset.type='number';nodes.onset.min='0';nodes.onset.max=String(v.barTicks-30);nodes.onset.step='30';field('開始位置（tick / 480 = 1拍）',nodes.onset,nodes.details);
                 button('開始位置を変更',function(){apply(h,'melody.move',{onsetTick:nodes.onset.value===''?null:Number(nodes.onset.value)});},nodes.details);
                 button('開始位置だけ確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['onset']});},nodes.details);
                 button('音価だけ確認',function(){apply(h,'melody.confirmEventTiming',{attributes:['duration']});},nodes.details);
@@ -160,7 +161,7 @@
         function refresh(){
             var v=controller.view();if(!v){var hadSelection=uiHandle!==null;slot.hidden=true;pane.removeAttribute('data-melody-editor-open');uiHandle=null;if(hadSelection)decorate();layout();return;}
             // A note/rest conversion rebuilds only this Inspector; Loupe DOM is outside it.
-            var kind=v.event?v.event.kind:'gap';if(uiHandle!==v.handle||slot.dataset.kind!==kind){build(v);slot.dataset.kind=kind;}
+            var kind=v.event?v.event.kind:'gap';if(uiHandle!==v.handle||slot.dataset.kind!==kind||Number(slot.dataset.barTicks)!==v.barTicks){build(v);slot.dataset.kind=kind;slot.dataset.barTicks=v.barTicks;}
             slot.hidden=false;pane.dataset.melodyEditorOpen='true';var event=v.event||v.gap,t=event.onsetTick;
             nodes.target.textContent=v.barNumber+'小節目 · '+Number((1+t/480).toFixed(3))+'拍目 · '+(v.event?(v.event.kind==='rest'?'休符':v.event.pitch.step+({0:'',1:'♯',2:'♯♯','-1':'♭','-2':'♭♭'}[v.event.pitch.alter])+v.event.pitch.octave+'（実音）'):'未確認の空き時間');
             function state(a){return a.confirmed?'確認済み':a.origin==='legacy-unknown'?'由来未確認':a.origin==='auto-assigned'?'自動・未確認':'手動・未確認';}
@@ -170,7 +171,7 @@
             else if(!nodes.duration.value||Number(nodes.duration.value)>v.gap.durationTicks)nodes.duration.value=String(Math.max(0,...DURATIONS.map(function(d){return d[0];}).filter(function(d){return d<=v.gap.durationTicks;})));
             slot.querySelectorAll('button,select,input').forEach(function(e){if(e===nodes.close||e===doc.activeElement&&C.documents.getSession().inputPending)return;e.disabled=v.blocked;});
             if(nodes.insertRest&&v.gap.durationTicks<120){nodes.insertRest.disabled=true;nodes.duration.disabled=true;}
-            if(nodes.extend&&C.melodyCommands.extensionDuration(v.bar,v.event)===null){
+            if(nodes.extend&&C.melodyCommands.extensionDuration(v.bar,v.event,v.barTicks)===null){
                 nodes.extend.disabled=true;nodes.extend.title='この音の直後に伸ばせる空きがありません';
             }else if(nodes.extend)nodes.extend.title='次の音や休符、または小節の終わりまで伸ばします';
             if(nodes.tie){

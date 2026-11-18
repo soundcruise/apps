@@ -228,7 +228,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
                 const viewport=paper.getBoundingClientRect();
                 if(bounds.bottom>viewport.bottom || bounds.top<viewport.top)paper.scrollTop+=bounds.top-viewport.top;
             }
-            if(scale>0)placePlayhead(cursor,page,{x:(bounds.left-sheet.left+bounds.width*position.tick/1920)/scale,
+            if(scale>0)placePlayhead(cursor,page,{x:(bounds.left-sheet.left+bounds.width*position.tick/(position.barTicks??1920))/scale,
                 y:(bounds.top-sheet.top)/scale,height:bounds.height/scale});
         }
         cursorFrame=requestAnimationFrame(paintCursor);
@@ -253,6 +253,10 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     function patternProject(forPicker = false) {
         const schema = C.model.schema2;
         const patterns = chords ? timedChords : (sourceSlots || strokeSlots(rows));
+        const barTicks = schema.barLength(project);
+        if(patterns.some(events=>events.some(event=>event.tick>=barTicks||
+            (!chords&&event.tick+(event.durationTicks??1)>barTicks))))
+            throw Error('このパターンは曲の拍子に収まりません');
         const rhythms = [], barRhythms = [];
         const instrument=structuredClone(project.instrument);
         if(forPicker) {instrument.maxAbsoluteFret=(instrument.maxAbsoluteFret??22)-instrument.capo;instrument.capo=0;}
@@ -261,12 +265,12 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             const id = schema.newId(), materialId = schema.newId();
             const harmony = chords ? events : [{tick:0,symbol:view.songInfo.playKey}];
             const slots = chords ? events.map((event,i) => ({tick:event.tick,action:'down',
-                durationTicks:event.durationTicks ?? ((events[i+1]?.tick ?? 1920)-event.tick)})) : events;
+                durationTicks:Math.min(event.durationTicks??(events[i+1]?.tick??barTicks)-event.tick,barTicks-event.tick)})) : events;
             rhythms.push({id:materialId,encoding:'studio-strum-v1',snapshot:{slots}});
             barRhythms.push({barId:id,materialId});
             return {id,melody:[],chords:harmony.map(event=>({id:schema.newId(),onsetTick:event.tick,
                 symbol:schema.chord(event.symbol,instrument.capo),
-                ...(event.durationTicks===undefined ? {} : {durationTicks:event.durationTicks})}))};
+                ...(event.durationTicks===undefined ? {} : {durationTicks:Math.min(event.durationTicks,barTicks-event.tick)})}))};
         });
         const draft={...project,bars,instrument,songInfo:{...project.songInfo,...(forPicker?{originalKey:key.value}:{})},
             materials:{...project.materials,forms:[],rhythms},performance:{...project.performance,barRhythms,formBindings:[]}};

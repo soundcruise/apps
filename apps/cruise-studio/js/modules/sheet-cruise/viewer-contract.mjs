@@ -31,7 +31,7 @@ export function createStudioViewerContract({schema, crypto = globalThis.crypto})
     function timeline(score) { return createScoreTimeline(score); }
     function createClock(score, {now, bpm = score.songInfo.bpm}) {
         const t = timeline(score);
-        return createBeatClock({now, bpm, barIds:t.bars.map(b => b.barId), ticksPerBeat:t.ticksPerBeat});
+        return createBeatClock({now, bpm, barIds:t.bars.map(b => b.barId), ticksPerBeat:t.ticksPerBeat, beatsPerBar:t.ticksPerBar/t.ticksPerBeat});
     }
     // Reference contract for Stage 2: exact existing acoustic projection at a
     // chosen tempo, with silent unsupported/unbound forms rather than invention.

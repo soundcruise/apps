@@ -97,7 +97,7 @@
     /**
      * 1小節の長さ（tick）を返す。
      * TODO(将来): 小節単位の拍子変更（barごとの timeSignature override）に対応する。
-     *             現状は songInfo.timeSignature のみを見る（Phase 2Bは4/4前提で開始）。
+     *             現状は曲全体の songInfo.timeSignature を使う。
      */
     function getBarLengthTicks(project) {
         var ts = project && project.songInfo && project.songInfo.timeSignature;
@@ -656,7 +656,15 @@
     function getBasicStrumSlots(project) {
         var pattern = currentBasicStrumPattern(project);
         if (!pattern || !Array.isArray(pattern.slots) || pattern.slots.length === 0) return null;
-        return pattern.slots;
+        return strumSlotsInBar(project, pattern.slots);
+    }
+
+    function strumSlotsInBar(project, slots) {
+        var end = getBarLengthTicks(project);
+        if (!slots.some(function (s) { return s.tick >= end || s.tick + (s.durationTicks || 0) > end; })) return slots;
+        return slots.filter(function (s) { return s.tick < end; }).map(function (s) {
+            return s.durationTicks > end - s.tick ? Object.assign({},s,{durationTicks:end-s.tick}) : s;
+        });
     }
 
     function getBarStrumOverrideText(project, barNumber) {
@@ -664,7 +672,7 @@
         if (!bar || !bar.strumOverride) return '';
         var pattern = findStrumPattern(project, bar.strumOverride);
         if (!pattern || !Array.isArray(pattern.slots) || pattern.slots.length === 0) return '';
-        return theory.strumSlotsToString(pattern.slots, getBarLengthTicks(project), getBeats(project));
+        return theory.strumSlotsToString(strumSlotsInBar(project, pattern.slots), getBarLengthTicks(project), getBeats(project));
     }
 
     function getBarEffectiveStrumSlots(project, barNumber) {
@@ -673,7 +681,7 @@
         if (bar.strumOverride) {
             var pattern = findStrumPattern(project, bar.strumOverride);
             if (pattern && Array.isArray(pattern.slots)) {
-                return pattern.slots;
+                return strumSlotsInBar(project, pattern.slots);
             }
         }
         return getBasicStrumSlots(project);

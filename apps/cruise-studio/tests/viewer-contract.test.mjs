@@ -53,6 +53,36 @@ test('dedicated file preserves every canonical field/material, non-ASCII text, t
     assert.throws(() => result.document.score.songInfo.bpm = 20, TypeError);
     assert.equal(contract.timeline(result.document.score).totalTicks, p.bars.length * 1920);
 });
+test('a shorter meter rejects out-of-bar notes without modifying the score', () => {
+    const p=clone(source), note=p.bars[0].melody[0];
+    p.bars[0].melody=[{...note,onsetTick:1320,durationTicks:240}];
+    const before=clone(p);
+    assert.equal(schema.validate(p).ok,true);
+    assert.throws(()=>schema.setMeter(p,{beats:3,beatUnit:4}),/1小節目/);
+    assert.deepEqual(p,before);
+});
+test('3/4 export requires its meter capability and advances at 1440 ticks', async () => {
+    const p=clone(source);
+    for (const bar of p.bars) Object.assign(bar,{melody:[],chords:[],lyrics:[]});
+    p.performance.formBindings=[];
+    schema.setMeter(p,{beats:3,beatUnit:4});
+    const file=await contract.codec.encode(p,metadata());
+    const {document}=await contract.codec.decode(file.text);
+    assert.deepEqual(document.score,p);
+    assert(document.requires.includes('meter:3/4'));
+    assert(!document.requires.includes('meter:4/4'));
+    let now=0;
+    const clock=contract.createClock(document.score,{now:()=>now,bpm:120});
+    clock.play();
+    now=1.5;
+    const position=clock.snapshot();
+    assert.equal(position.tick,1440);
+    assert.equal(position.barIndex,1);
+    assert.equal(position.tickInBar,0);
+    const wrong=clone(document);
+    wrong.requires=wrong.requires.map(entry=>entry==='meter:3/4'?'meter:4/4':entry);
+    await assert.rejects(contract.codec.decode(JSON.stringify(wrong)),/missing-required-capability/);
+});
 test('canonical musical digest ignores key order; byte hash preserves exact file representation', async () => {
     const a = await exported(), obj = JSON.parse(a.text), reordered = Object.fromEntries(Object.entries(obj.score).reverse());
     obj.score = reordered;
@@ -81,7 +111,7 @@ for (const [name,edit,error] of [
     ['invalid date', x => x.source.exportedAt = '2026-02-30T00:00:00.000Z', /invalid-export-time/],
     ['future schema', x => x.score.schemaVersion = 3, /invalid-score/],
     ['missing form material', x => x.score.materials.forms = [], /invalid-score/],
-    ['unsupported meter', x => x.score.songInfo.timeSignature = {beats:3,beatUnit:4}, /invalid-score/],
+    ['unsupported meter', x => x.score.songInfo.timeSignature = {beats:6,beatUnit:8}, /invalid-score/],
 ]) test('file rejects ' + name, async () => assert.rejects(contract.codec.decode(await mutateFile(edit)),error));
 
 test('size, malformed JSON, invalid UTF-8 and unsupported input reject before publication', async () => {

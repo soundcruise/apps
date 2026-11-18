@@ -10,7 +10,7 @@ export function registeredPaperForms(project){
 // Geometry is independent of the SVG artwork and of the Project snapshot.
 function layoutEntries(entries,beats,scale){
     const columns=beats/scale,span=100/columns,groups=[];let group=null;
-    for(const e of entries){const left=Math.max(0,Math.min(e.tick/1920*100+(100/beats-span)/2,100-span));
+    for(const e of entries){const left=Math.max(0,Math.min(e.tick/(beats*480)*100+(100/beats-span)/2,100-span));
         if(!group||left>=group.end){group={end:0,ends:[],entries:[]};groups.push(group);}
         let level=group.ends.findIndex(end=>end<=left);if(level<0)level=group.ends.length;group.ends[level]=left+span;group.end=Math.max(group.end,left+span);group.entries.push({...e,left,level});
     }

@@ -28,6 +28,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
     let options=normalizePlayback(settings,originalBpm),phase='paused',reason=null,clock=null,context=null,handle=null,lease=null;
     let token=0,timer=null,tick=0,scan=0,countEnd=0,countBeat=0,hasStarted=false,disposed=false,closing=null;
     let range={start:0,end:plan.totalTicks,loop:false},scanIteration=0;
+    const ticksPerBar=plan.ticksPerBar??1920, countBeats=ticksPerBar/480;
     const outputPosition=createOutputPosition();
     const eventKey=(event,iteration=clock?.snapshot().iteration||0)=>iteration+':'+event.index;
     let buffers=new Map(),buses={},issued=new Set(),carry=[],nodes=new Set();
@@ -46,7 +47,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         }
     }
     const stats={created:0,cancelledFuture:0,peakNodes:0,parts:{guitar:0,piano:0,click:0,mute:0,count:0}};
-    function sample(){return clock?clock.snapshot():{status:phase,tick,time:0,bpm:options.bpm,totalTicks:plan.totalTicks,barIndex:Math.max(0,Math.min(Math.ceil(plan.totalTicks/1920)-1,Math.floor(tick/1920))),tickInBar:tick%1920};}
+    function sample(){return clock?clock.snapshot():{status:phase,tick,time:0,bpm:options.bpm,totalTicks:plan.totalTicks,ticksPerBar,barIndex:Math.max(0,Math.min(Math.ceil(plan.totalTicks/ticksPerBar)-1,Math.floor(tick/ticksPerBar))),tickInBar:tick%ticksPerBar};}
     function snapshot(){const s=sample();outputPosition.observe({...s,phase,range});return {...s,phase,reason,settings:{...options,mix:{...options.mix}},nodes:nodes.size,contextState:context?.state||'closed',
         stats:{...stats,parts:{...stats.parts}},warnings:plan.warnings||[],countBeat:phase==='counting'?countBeat:0,range:{...range}};}
     function notify(){onState(snapshot());}
@@ -117,7 +118,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         if(context?.state!=='running'||!coordinator.isLeaseCurrent(handle,lease)){pause('interruption');return;}
         try{
             if(phase==='counting'){
-                const step=60/options.bpm;countBeat=Math.max(1,Math.min(4,Math.floor((context.currentTime-(countEnd-4*step))/step)+1));
+                const step=60/options.bpm;countBeat=Math.max(1,Math.min(countBeats,Math.floor((context.currentTime-(countEnd-countBeats*step))/step)+1));
                 if(context.currentTime>=countEnd-.03){phase='playing';clock.play({delay:Math.max(0,countEnd-context.currentTime)});scheduleTiedEntry(tick,clock.snapshot());notify();}
             }
             if(phase==='playing'){
@@ -154,8 +155,8 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
             if(attempt!==token||disposed||context!==ctx)return false;
             insist(coordinator.grant(handle,next),'audio-interrupted');buffers=new Map(entries);resetScan(tick);scanIteration=clock.snapshot().iteration;
             if(!hasStarted&&options.countIn){
-                phase='counting';const step=60/options.bpm,start=ctx.currentTime+.03;countEnd=start+step*4;countBeat=1;
-                for(let i=0;i<4;i++){const e={part:'count',midi:i===0?84:72,gain:i===0?.16:.12,tick:i*480,naturalSeconds:.055};
+                phase='counting';const step=60/options.bpm,start=ctx.currentTime+.03;countEnd=start+step*countBeats;countBeat=1;
+                for(let i=0;i<countBeats;i++){const e={part:'count',midi:i===0?84:72,gain:i===0?.16:.12,tick:i*480,naturalSeconds:.055};
                     schedule(e,{time:start,tick:0,bpm:options.bpm});}
             }else{
                 phase='playing';clock.play({delay:.03});const s=clock.snapshot();
@@ -205,7 +206,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         insist(Number.isFinite(value)&&value>=range.start&&value<=range.end,'invalid-seek');
         pause('seek');outputPosition.reset();tick=value;clock?.seek(value);carry=[];issued.clear();resetScan(value);hasStarted=false;phase=value===range.end?'ended':'paused';notify();
     }
-    function setRange(start=0,end=plan.totalTicks,loop=false){insist(Number.isFinite(start)&&Number.isFinite(end)&&start>=0&&end>start&&end<=plan.totalTicks&&start%1920===0&&end%1920===0,'invalid-playback-range');const resume=['playing','counting','loading'].includes(phase);const preserve=range.start===start&&range.end===end;pause('range');const held=preserve?carry:[];outputPosition.reset();range={start,end,loop:loop===true};if(tick<start||tick>=end)tick=start;clock?.setRange(start,end,range.loop);clock?.seek(tick);carry=held;issued.clear();scanIteration=0;resetScan(tick);phase='paused';notify();return resume;}
+    function setRange(start=0,end=plan.totalTicks,loop=false){insist(Number.isFinite(start)&&Number.isFinite(end)&&start>=0&&end>start&&end<=plan.totalTicks&&start%ticksPerBar===0&&end%ticksPerBar===0,'invalid-playback-range');const resume=['playing','counting','loading'].includes(phase);const preserve=range.start===start&&range.end===end;pause('range');const held=preserve?carry:[];outputPosition.reset();range={start,end,loop:loop===true};if(tick<start||tick>=end)tick=start;clock?.setRange(start,end,range.loop);clock?.seek(tick);carry=held;issued.clear();scanIteration=0;resetScan(tick);phase='paused';notify();return resume;}
     return Object.freeze({play,pause,setTempo,configure,seek,setRange,snapshot,visualSnapshot(){const s=snapshot();return context?outputPosition.at(s,Math.max(0,outputContextTime(context,performanceTime())-options.visualDelayMs/1000)):s;},
         async suspend(reason='visibility'){await cleanup(reason);},
         async dispose(){if(disposed)return;await cleanup('dispose');disposed=true;if(handle)await coordinator.disposeSession(handle);}

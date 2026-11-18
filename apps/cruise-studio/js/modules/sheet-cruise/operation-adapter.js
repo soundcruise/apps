@@ -28,6 +28,7 @@
     function pasteBar(model, canonical, args) {
         var api=model.schema2, source=args.source, check=source&&api.validate(source);
         if(!check?.ok||source.projectId!==canonical.projectId)throw Error('同じProjectの小節をコピーしてください');
+        if(api.barLength(source)!==api.barLength(canonical))throw Error('拍子が変わりました。小節をコピーし直してください');
         if(JSON.stringify(source.instrument)!==JSON.stringify(canonical.instrument))throw Error('楽器条件が変わりました。小節をコピーし直してください');
         var destination=canonical.bars.findIndex(function(b){return b.id===args.barId;});
         if(destination<0)throw Error('貼り付け先の小節を選択してください');
@@ -148,8 +149,8 @@
     function copyJSON(value) { return JSON.parse(JSON.stringify(value)); }
     function chordTransfer(project, args, api, duplicateBinding) {
         var target = project.bars.find(function (bar) { return bar.id === args.barId; });
-        var tick = args.tick, span = args.span;
-        if (!target || !Number.isInteger(tick) || !Number.isInteger(span) || tick < 0 || span < 1 || tick + span > 1920)
+        var tick = args.tick, span = args.span, barTicks=api.barLength(project);
+        if (!target || !Number.isInteger(tick) || !Number.isInteger(span) || tick < 0 || span < 1 || tick + span > barTicks)
             throw Error('貼り付け先を選び直してください');
         var source = args.from && project.bars.find(function (bar) { return bar.id === args.from.barId; });
         var moving = !!args.from;
@@ -185,7 +186,7 @@
         });
         target.chords = target.chords.filter(function (item) { return !replaced.has(item.id); });
         event.onsetTick = tick;
-        var next = target.chords.reduce(function (end, item) { return item.onsetTick > tick ? Math.min(end, item.onsetTick) : end; }, 1920);
+        var next = target.chords.reduce(function (end, item) { return item.onsetTick > tick ? Math.min(end, item.onsetTick) : end; }, barTicks);
         if (event.durationTicks !== undefined) event.durationTicks = Math.min(event.durationTicks, next - tick);
         target.chords.forEach(function (item) {
             if (item.onsetTick < tick && item.onsetTick + item.durationTicks > tick) item.durationTicks = tick - item.onsetTick;
@@ -200,7 +201,10 @@
             return item.id === (binding?.materialId || project.performance.basicRhythmId);
         });
         if (material?.encoding !== 'studio-strum-v1') throw Error('このリズム素材はマス単位で編集できません');
-        return copyJSON(material.snapshot.slots);
+        var barTicks=project.songInfo.timeSignature.beats*project.songInfo.ticksPerBeat;
+        return copyJSON(material.snapshot.slots.filter(function(slot){return slot.tick<barTicks;}).map(function(slot){
+            return slot.durationTicks>barTicks-slot.tick?{...slot,durationTicks:barTicks-slot.tick}:slot;
+        }));
     }
     function cellEvents(project, row, barId) {
         var bar = project.bars.find(function (item) { return item.id === barId; });
@@ -211,7 +215,7 @@
         throw Error('転送する行を確認してください');
     }
     function cellTransfer(model, project, args) {
-        var row = args.row, moving = !!args.from, api = model.schema2;
+        var row = args.row, moving = !!args.from, api = model.schema2, barTicks=api.barLength(project);
         var tickField = row === 'strum' ? 'tick' : 'onsetTick';
         var from = moving ? args.from.tick : args.clip.tick;
         var target = cellEvents(project, row, args.barId);
@@ -220,7 +224,7 @@
         if (!moving && (args.clip.projectId !== project.projectId || args.clip.row !== row))
             throw Error('同じ曲の同じ行でコピーし直してください');
         if (!Number.isInteger(args.tick) || !Number.isInteger(args.span) ||
-            args.tick < 0 || args.span <= 0 || args.tick + args.span > 1920)
+            args.tick < 0 || args.span <= 0 || args.tick + args.span > barTicks)
             throw Error('移動先を選び直してください');
         if (sameBar && from === args.tick) return;
         var picked = moving ? source.filter(function (event) {
@@ -235,7 +239,7 @@
         var moved = copyJSON(picked);
         moved.forEach(function (event) {
             event[tickField] += args.tick - from;
-            if (event[tickField] >= args.tick + args.span || (!moving && event[tickField] + (event.durationTicks || 1) > 1920))
+            if (event[tickField] >= args.tick + args.span || (!moving && event[tickField] + (event.durationTicks || 1) > barTicks))
                 throw Error('移動先に入りきりません。マスの幅や音の長さを確認してください');
             if (!moving) event.id = api.newId();
         });
@@ -246,7 +250,7 @@
             sorted.forEach(function (event, index) {
                 var next = sorted[index + 1];
                 if (!arrivals.has(event) && !arrivals.has(next)) return;
-                var end = next ? next[tickField] : 1920;
+                var end = next ? next[tickField] : barTicks;
                 if (event[tickField] + event.durationTicks > end) {
                     event.durationTicks = end - event[tickField];
                     if (event.tieToNext) delete event.tieToNext;
@@ -275,16 +279,16 @@
     function transferRange(project, args, schema, duplicateBinding) {
         var track = {chord:'chords', lyrics:'lyrics', doremi:'melody'}[args.row];
         var {start, end, to} = args, origin = args.source || project, moving = !args.source;
-        var length = end - start, limit = project.bars.length * 1920;
-        if (!track || origin.projectId !== project.projectId || ![start,end,to].every(Number.isInteger) ||
-            start < 0 || length < 1 || end > origin.bars.length * 1920 || to < 0 || to + length > limit)
+        var barTicks=schema.barLength(project),length = end - start, limit = project.bars.length * barTicks;
+        if (!track || origin.projectId !== project.projectId || schema.barLength(origin)!==barTicks || ![start,end,to].every(Number.isInteger) ||
+            start < 0 || length < 1 || end > origin.bars.length * barTicks || to < 0 || to + length > limit)
             throw Error('選択範囲が収まる位置を選んでください');
         if (moving && start === to) return;
         if (!moving && track === 'chords' && JSON.stringify(project.instrument) !== JSON.stringify(origin.instrument))
             throw Error('楽器設定が変わりました。コピーし直してください');
         var items = [], displaced = new Set(), touched = new Set(), arrivals = new Set(), copiedMelody=new Map();
-        origin.bars.slice(Math.floor(start / 1920), Math.ceil(end / 1920)).forEach(function(bar, index) {
-            var base = (Math.floor(start / 1920) + index) * 1920;
+        origin.bars.slice(Math.floor(start / barTicks), Math.ceil(end / barTicks)).forEach(function(bar, index) {
+            var base = (Math.floor(start / barTicks) + index) * barTicks;
             bar[track].forEach(function(event) {
                 var time = base + event.onsetTick;
                 if (time >= start && time < end) items.push({event, time:to + time - start});
@@ -292,8 +296,8 @@
         });
         if (!items.length) throw Error('選択範囲に入力がありません');
         project.bars.forEach(function(bar, index) {
-            var base = index * 1920;
-            if (!(base < to + length && base + 1920 > to || moving && base < end && base + 1920 > start)) return;
+            var base = index * barTicks;
+            if (!(base < to + length && base + barTicks > to || moving && base < end && base + barTicks > start)) return;
             touched.add(bar);
             bar[track] = bar[track].filter(function(event) {
                 var at = base + event.onsetTick;
@@ -306,7 +310,7 @@
         if (track === 'chords') project.performance.formBindings = project.performance.formBindings.filter(b => !displaced.has(b.chordEventId));
         items.forEach(function({event, time}) {
             var next = copyJSON(event);
-            next.onsetTick = time % 1920;
+            next.onsetTick = time % barTicks;
             if (!moving) {
                 next.id = schema.newId();
                 if (track === 'melody') copiedMelody.set(event.id,next);
@@ -322,7 +326,7 @@
                 }
             }
             arrivals.add(next);
-            var targetBar=project.bars[Math.floor(time / 1920)];
+            var targetBar=project.bars[Math.floor(time / barTicks)];
             targetBar[track].push(next);
             if(track==='chords'&&!next.unresolved)schema.addChordDownstroke(project,targetBar.id,next.onsetTick);
         });
@@ -336,7 +340,7 @@
             var events = bar[track].sort((a,b) => a.onsetTick - b.onsetTick);
             events.forEach(function(event,index) {
                 if (!arrivals.has(event) && !arrivals.has(events[index+1])) return;
-                var stop = events[index+1]?.onsetTick ?? 1920;
+                var stop = events[index+1]?.onsetTick ?? barTicks;
                 if (event.durationTicks !== undefined && event.onsetTick + event.durationTicks > stop)
                     event.durationTicks = stop - event.onsetTick;
             });
@@ -346,7 +350,7 @@
         var positions = selectedPositions(project, args.barIds);
         var pattern = args.pattern || args.values?.map(function (symbol) { return [{tick:0, symbol:symbol}]; });
         if (!Array.isArray(pattern) || positions.length !== pattern.length) throw Error('進行と入力先の小節数を確認してください');
-        var replaced = new Set(), forms = [];
+        var replaced = new Set(), forms = [],barTicks=api.barLength(project);
         positions.forEach(function (position, index) {
             var bar = project.bars[position], kept = new Set();
             if (bar.chords.length && !args.overwrite) throw Error('既存コードの上書きを選択してください');
@@ -354,14 +358,14 @@
             if (!Array.isArray(staged)) throw Error('進行を確認してください');
             var next = staged.map(function (entry) {
                 var symbol = api.chord(entry.symbol, project.instrument.capo);
-                if (symbol === null || !Number.isInteger(entry.tick) || entry.tick < 0 || entry.tick >= 1920 || ticks.has(entry.tick))
+                if (symbol === null || !Number.isInteger(entry.tick) || entry.tick < 0 || entry.tick >= barTicks || ticks.has(entry.tick))
                     throw Error('コード名と拍の位置を確認してください');
                 ticks.add(entry.tick);
                 api.addChordDownstroke(project,bar.id,entry.tick);
                 var keep = bar.chords.find(function (event) { return event.onsetTick === entry.tick && !event.unresolved && event.symbol === symbol; });
                 if (keep) kept.add(keep.id);
                 var event = keep ? copyJSON(keep) : {id:api.newId(), onsetTick:entry.tick, symbol:symbol, unresolved:false, provenance:{origin:'user-set'}};
-                if (entry.durationTicks !== undefined) event.durationTicks = Math.min(entry.durationTicks, 1920 - entry.tick);
+                if (entry.durationTicks !== undefined) event.durationTicks = Math.min(entry.durationTicks, barTicks - entry.tick);
                 else delete event.durationTicks;
                 if (entry.form) {
                     if (!installForm) throw Error('フォームの読み込みを確認してください');
@@ -382,13 +386,15 @@
         var positions = selectedPositions(project, args.barIds);
         if (!Array.isArray(args.pattern) || !args.pattern.length || args.pattern.length > 8)
             throw Error('パターンは1〜8小節で指定してください');
-        var targets = new Set(args.barIds), old = new Set();
+        var targets = new Set(args.barIds), old = new Set(),barTicks=api.barLength(project);
         var bindings = project.performance.barRhythms;
         var targetBindings = new Map(bindings.filter(function (binding) { return targets.has(binding.barId); })
             .map(function (binding) { return [binding.barId, binding]; }));
         var materials = args.pattern.map(function (slots) {
+            if(!Array.isArray(slots)||slots.some(function(slot){return slot.tick>=barTicks||slot.tick+(slot.durationTicks??1)>barTicks;}))
+                throw Error('このパターンは曲の拍子に収まりません');
             return {id: api.newId(), encoding: 'studio-strum-v1', snapshot: {
-                name: args.name, lengthTicks: 1920, slots: slots.map(function (slot) {
+                name: args.name, lengthTicks: barTicks, slots: slots.map(function (slot) {
                     return Object.assign({}, slot, {id: api.newId()});
                 })
             }, provenance: {origin: 'user-set'}};
@@ -447,7 +453,7 @@
                     if(kind==='duplicateBars'){var selected=selectedPositions(canonical,args.barIds),source=JSON.parse(JSON.stringify(canonical)),last=selected.at(-1),section=canonical.bars[last].sectionId,target={id:api.newId(),sectionId:section,chords:[],lyrics:[],melody:[]};canonical.bars.splice(last+1,0,target);pasteRange(model,canonical,{source:source,sourceBarIds:args.barIds,barId:target.id,insert:true,slot:null});canonical.bars.splice(last+1+args.barIds.length,1);}
                     if(kind==='restoreSlot'){if(args.activateEmpty!==true&&!Object.values(args.values||{}).some(function(v){return typeof v==='string'&&v.trim();}))throw Error('入力してから確定してください');var restored=restoreSlot(model,canonical,args.slot);writeRestoredBar(model,canonical,restored,args.values);}
                     if(kind==='basicRhythm')model.editLegacy(canonical,function(view){var r=model.setBasicStrumText(view,args.text);if(r.warnings.length)throw Error(r.warnings.join('/'));},{kind:'basicStrum'});
-                    if(kind==='songInfo'){var values=args.values;for(var field of Object.keys(values)){if(!['title','artist','bpm','originalKey'].includes(field))throw Error('曲情報の項目が不正です');if(field==='bpm'){if(!Number.isFinite(values[field])||values[field]<20||values[field]>400)throw Error('BPMは20〜400で入力してください');canonical.songInfo.bpm=values.bpm;}else{if(typeof values[field]!=='string'||values[field].length>1000)throw Error('入力を確認してください');canonical.songInfo[field]=values[field].trim();}}}
+                    if(kind==='songInfo'){var values=args.values;for(var field of Object.keys(values)){if(!['title','artist','bpm','originalKey','timeSignature'].includes(field))throw Error('曲情報の項目が不正です');if(field==='bpm'){if(!Number.isFinite(values[field])||values[field]<20||values[field]>400)throw Error('BPMは20〜400で入力してください');canonical.songInfo.bpm=values.bpm;}else if(field==='timeSignature'){api.setMeter(canonical,values[field]);}else{if(typeof values[field]!=='string'||values[field].length>1000)throw Error('入力を確認してください');canonical.songInfo[field]=values[field].trim();}}}
                     if(kind==='songInfo'&&args.sections){
                         var rows=args.sections;if(!Array.isArray(rows)||!rows.length||rows.length>128||new Set(rows.map(function(s){return s.id;})).size!==rows.length)throw Error('セクション構成を確認してください');
                         var oldSections=new Map(canonical.sections.map(function(s){return [s.id,s];})),retained=new Set(rows.map(function(s){return s.id;}));

@@ -113,7 +113,7 @@
     var sectionPlaybackSelection=null;
     var scoreSettings=null,scoreSettingsPending=null,emptySlotSelection=null;
     function prepareScoreSettings(){
-        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.172.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
+        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.173.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
             emptySlotSelection=null;var oldIds=new Set(change.previous.bars.map(function(b){return b.id;})),added=state.session.draft.bars.findIndex(function(b){return !oldIds.has(b.id);});redrawSession(false);
             if(change.mode==='slot'&&added>=0){editorOpen=true;selectSheetBar(added+1);}refreshSessionStatus();
         }});return scoreSettings;}).catch(function(e){scoreSettingsPending=null;setSaveStatus(e.message||'編集画面を読み込めませんでした',true);});return scoreSettingsPending;
@@ -123,7 +123,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.172.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.173.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -812,7 +812,7 @@
         els.capo.value = si.capo;
         els.bpm.value = si.bpm;
         els.timeSig.value = si.timeSignature.beats + '/' + si.timeSignature.beatUnit;
-        els.timeSig.title = '現在のschema2は4/4のみ対応しています。拍別データの切捨ては行いません';
+        els.timeSig.title = '曲全体の拍子を変更します';
         [els.playKey,els.capo].forEach(function(e){e.disabled=state.session.draft.schemaVersion===2;e.title=e.disabled?'schema 2 M1では表示専用です。実音保持・移調の編集導線は次工程です':'';});
         // 基本ストローク: slotsから記号列を再生成して表示（slotsが正。ADR-018）
         var basic=CS().model.getBasicStrumText(state.project);els.basicStrum.disabled=!!(basic&&basic.ok===false);els.basicStrum.value=basic&&basic.ok===false?basic.name+'（採用済み・旧編集非対応）':basic;
@@ -824,9 +824,6 @@
     function readFormIntoProject() { finishTextInputs(); } // DOM is not the content owner.
 
     function onFieldChange(event) {
-        if (event.target === els.timeSig && state.session.draft.schemaVersion === 2 && els.timeSig.value !== '4/4') {
-            els.timeSig.value = '4/4';q('sc-edit-error').textContent = '現在のschema2保存契約は4/4のみです。変更しませんでした';setSaveStatus('現在のschema2保存契約は4/4のみです。拍別データを保持するため変更しませんでした', true);return;
-        }
         var result = applyTextInput(event.target, event);
         if (!result.ok || result.deferred) return;
         markDirty(); updateKeyCheck(); renderPreview(true);
@@ -1911,7 +1908,7 @@
         async function playEvents(events,isCurrent,holdSeconds,streaming,loopPeriod,preRoll,startOffset){
             startOffset=startOffset===undefined?0:startOffset;if(!Number.isFinite(startOffset)||startOffset<0||startOffset&&(preRoll||!streaming||startOffset>=holdSeconds))return {ok:false};
             var lead=preRoll?.duration||0,countEvents=preRoll?.events||[];
-            if(preRoll&&(!streaming||!Number.isFinite(lead)||lead<=0||lead>12||!Array.isArray(countEvents)||countEvents.length!==4||!countEvents.every(function(e){return e.part==='count'&&[72,84].includes(e.midi)&&Number.isFinite(e.start)&&e.start>=0&&Number.isFinite(e.duration)&&e.duration>0&&e.start+e.duration<=lead+.03&&Number.isFinite(e.gain)&&e.gain>0&&e.gain<=.2;})))return {ok:false};
+            if(preRoll&&(!streaming||!Number.isFinite(lead)||lead<=0||lead>12||!Array.isArray(countEvents)||![3,4].includes(countEvents.length)||!countEvents.every(function(e){return e.part==='count'&&[72,84].includes(e.midi)&&Number.isFinite(e.start)&&e.start>=0&&Number.isFinite(e.duration)&&e.duration>0&&e.start+e.duration<=lead+.03&&Number.isFinite(e.gain)&&e.gain>0&&e.gain<=.2;})))return {ok:false};
             if(loopPeriod!==undefined&&(!streaming||!Number.isFinite(loopPeriod)||loopPeriod<=0||loopPeriod>holdSeconds))return {ok:false};
             if(holdSeconds!==undefined&&(!Number.isFinite(holdSeconds)||holdSeconds<=0||holdSeconds>(streaming?122881:61)))return {ok:false};
             if(!Array.isArray(events)||(!events.length&&!holdSeconds)||events.length>(streaming?524288:256)||!events.every(function(e){return Number.isInteger(e.midi)&&e.midi>=21&&e.midi<=108&&['piano','guitar','mute','click'].includes(e.part)&&Number.isFinite(e.start)&&e.start>=0&&Number.isFinite(e.duration)&&e.duration>0&&(streaming||e.duration<=61)&&e.start+e.duration<=(streaming?holdSeconds+.01:61)&&Number.isFinite(e.gain)&&e.gain>0&&e.gain<=.45;})||!isCurrent())return {ok:false};
@@ -2053,14 +2050,15 @@
         els.slotOverlay.querySelectorAll('[data-bar-preview],[data-melody-preview]').forEach(function(button){var scope=button.hasAttribute('data-melody-preview')?'melody':'all',active=barPreviewPhase!=='idle'&&barPreviewScope===scope;button.textContent=active?(barPreviewPhase==='loading'?'■ 準備中':'■ 停止'):scope==='melody'?'▶ メロディ':'▶ 再生';button.setAttribute('aria-pressed',String(active));});
     }
     function paintBands(root,tick,editor){
+        var barTicks=getBeats(state.project)*480;
         root.querySelectorAll(editor?'.slot-overlay-row':'.sheet-bar-row').forEach(function(row){
             var kind=editor?DOCK_ROW_ORDER.find(function(k){return row.classList.contains('slot-overlay-row--'+k);}):row.classList.contains('sheet-bar-chord')?'chord':row.classList.contains('sheet-bar-strum')?'strum':row.classList.contains('sheet-bar-lyrics')?'lyrics':row.classList.contains('sheet-bar-forms')?'forms':'doremi';
             var body=editor?row.querySelector('.slot-overlay-row-body'):row,allowed=barPreviewScope==='melody'?kind==='doremi':barPreviewScope==='chords'?['chord','strum','forms'].includes(kind):true;
             if(!body)return;var band=body.querySelector(':scope > [data-playback-band]');
             if(!allowed||body.hidden||!body.clientWidth){band?.remove();return;}
             var cells=Array.from(body.querySelectorAll(editor?'.dock-strum-cell,.dock-lyrics-cell,[data-overlay-field]':':scope > [data-slot-tick]')),left,width;
-            if(kind==='forms'){width=body.clientWidth/Number(body.dataset.formResolution||8);left=body.clientWidth*tick/1920-width/2;}
-            else{var cell=cells.find(function(e){var start=Number(e.dataset.slotTick),span=Number(e.dataset.slotTicks)||1920/cells.length;return tick>=start&&tick<start+span;});if(!cell){band?.remove();return;}var start=Number(cell.dataset.slotTick),span=Number(cell.dataset.slotTicks)||1920/cells.length,target=editor&&cell.dataset.overlayField==='doremi'?cell.parentElement:cell,a=body.getBoundingClientRect(),b=target.getBoundingClientRect();if(!a.width)return;width=b.width/a.width*body.clientWidth;left=(b.left-a.left)/a.width*body.clientWidth+width*(tick-start)/span-width/2;}
+            if(kind==='forms'){width=body.clientWidth/Number(body.dataset.formResolution||8);left=body.clientWidth*tick/barTicks-width/2;}
+            else{var cell=cells.find(function(e){var start=Number(e.dataset.slotTick),span=Number(e.dataset.slotTicks)||barTicks/cells.length;return tick>=start&&tick<start+span;});if(!cell){band?.remove();return;}var start=Number(cell.dataset.slotTick),span=Number(cell.dataset.slotTicks)||barTicks/cells.length,target=editor&&cell.dataset.overlayField==='doremi'?cell.parentElement:cell,a=body.getBoundingClientRect(),b=target.getBoundingClientRect();if(!a.width)return;width=b.width/a.width*body.clientWidth;left=(b.left-a.left)/a.width*body.clientWidth+width*(tick-start)/span-width/2;}
             if(!Number.isFinite(left)||!Number.isFinite(width)){band?.remove();return;}
             if(!band){band=document.createElement('span');band.dataset.playbackBand='';band.dataset.playbackRow=kind;band.setAttribute('aria-hidden','true');body.appendChild(band);}band.style.left=left+'px';band.style.width=width+'px';
         });
@@ -2072,7 +2070,8 @@
         var sample=pianoAudition.snapshot(),elapsed=Math.max(0,(sample.visualElapsedSeconds??sample.elapsedSeconds)-.03-playbackVisualDelay/1000);
         if(previewCountIn&&elapsed<previewCountIn.duration){var countPosition=q('sc-song-position');if(countPosition)countPosition.textContent='カウント '+Math.min(previewCountIn.beats,Math.floor(elapsed/previewCountIn.beatSeconds)+1)+' / '+previewCountIn.beats;previewRAF=requestAnimationFrame(paintPlayhead);return;}
         elapsed=Math.max(previewStartOffset,elapsed-(previewCountIn?.duration||0));if(previewLoopPeriod)elapsed%=previewLoopPeriod;var span=previewSpans?(previewSpans.find(function(s){return elapsed<s.end;})||previewSpans[previewSpans.length-1]):null;
-        var number=span?span.index+1:state.selectedBarNumber,tick=Math.min(1919.999,Math.max(0,(elapsed-(span?span.start:0))/previewSecondsPerTick)),bar=state.session.draft.bars[number-1],cardActive=number===state.selectedBarNumber;
+        var barTicks=getBeats(state.project)*480;
+        var number=span?span.index+1:state.selectedBarNumber,tick=Math.min(barTicks-.001,Math.max(0,(elapsed-(span?span.start:0))/previewSecondsPerTick)),bar=state.session.draft.bars[number-1],cardActive=number===state.selectedBarNumber;
         previewLastBar=number;
         els.slotOverlay.dataset.playbackTick=String(tick);els.slotOverlay.dataset.playbackBar=number;
         var position=q('sc-song-position');if(position&&barPreviewScope==='song')position.textContent=number+' / '+state.session.draft.bars.length+'小節'+(previewLoopPeriod?'（範囲ループ）':'');
@@ -2081,10 +2080,10 @@
         var playingMeasure=els.slotOverlay.querySelector('.editor-measure[data-bar-number="'+number+'"]'),grid=playingMeasure?.querySelector('.slot-overlay-grid'),body=grid&&Array.from(grid.querySelectorAll('.slot-overlay-row-body')).find(function(e){return !e.hidden;});
         els.slotOverlay.querySelectorAll('.slot-overlay-grid').forEach(function(g){if(g!==grid){g.querySelector('[data-score-playhead]')?.remove();g.querySelectorAll('[data-playback-band]').forEach(function(e){e.remove();});}});
         if(playingMeasure)paintBands(playingMeasure,tick,true);
-        if(grid&&body){var line=grid.querySelector('[data-score-playhead]');if(!line){line=document.createElement('span');line.dataset.scorePlayhead='';line.setAttribute('aria-hidden','true');grid.appendChild(line);}var scale=grid.getBoundingClientRect().width/grid.offsetWidth||1,x=(body.getBoundingClientRect().left-grid.getBoundingClientRect().left+body.getBoundingClientRect().width*tick/1920)/scale;scoreUI?.placePlayhead(line,grid,{x:Math.max(0,Math.min(grid.clientWidth-2,x)),height:grid.clientHeight});revealEditorCell(line);}
+        if(grid&&body){var line=grid.querySelector('[data-score-playhead]');if(!line){line=document.createElement('span');line.dataset.scorePlayhead='';line.setAttribute('aria-hidden','true');grid.appendChild(line);}var scale=grid.getBoundingClientRect().width/grid.offsetWidth||1,x=(body.getBoundingClientRect().left-grid.getBoundingClientRect().left+body.getBoundingClientRect().width*tick/barTicks)/scale;scoreUI?.placePlayhead(line,grid,{x:Math.max(0,Math.min(grid.clientWidth-2,x)),height:grid.clientHeight});revealEditorCell(line);}
         var paper=els.scaleBox.querySelector('.sheet-bar[data-bar-number="'+number+'"]');
         els.scaleBox.classList.add('sc-score-playing');els.scaleBox.classList.toggle('sc-range-playing',barPreviewScope==='song'&&(!!previewLoopPeriod||previewRangeActive));els.scaleBox.querySelectorAll('.sheet-bar').forEach(function(b){b.classList.toggle('sc-playing-bar',b===paper);if(b!==paper){b.querySelector('[data-score-playhead]')?.remove();b.querySelectorAll('[data-playback-band]').forEach(function(e){e.remove();});b.querySelectorAll('.sc-playing-cell').forEach(function(c){c.classList.remove('sc-playing-cell');});}});
-        if(paper){if(barPreviewScope==='song')followPlaybackBar(paper,number);if(!previewPaperCursor){previewPaperCursor=document.createElement('span');previewPaperCursor.dataset.scorePlayhead='';previewPaperCursor.setAttribute('aria-hidden','true');}previewPaperCursor.dataset.playheadBar=number;var rootRect=els.scaleBox.getBoundingClientRect(),barRect=paper.getBoundingClientRect(),sx=rootRect.width/els.scaleBox.offsetWidth||1,sy=rootRect.height/els.scaleBox.offsetHeight||sx;scoreUI?.placePlayhead(previewPaperCursor,els.scaleBox,{x:(barRect.left-rootRect.left+barRect.width*tick/1920)/sx,y:(barRect.top-rootRect.top)/sy,height:barRect.height/sy});}
+        if(paper){if(barPreviewScope==='song')followPlaybackBar(paper,number);if(!previewPaperCursor){previewPaperCursor=document.createElement('span');previewPaperCursor.dataset.scorePlayhead='';previewPaperCursor.setAttribute('aria-hidden','true');}previewPaperCursor.dataset.playheadBar=number;var rootRect=els.scaleBox.getBoundingClientRect(),barRect=paper.getBoundingClientRect(),sx=rootRect.width/els.scaleBox.offsetWidth||1,sy=rootRect.height/els.scaleBox.offsetHeight||sx;scoreUI?.placePlayhead(previewPaperCursor,els.scaleBox,{x:(barRect.left-rootRect.left+barRect.width*tick/barTicks)/sx,y:(barRect.top-rootRect.top)/sy,height:barRect.height/sy});}
         previewRAF=requestAnimationFrame(paintPlayhead);
     }
     function ensureAudition(){
@@ -2094,7 +2093,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.172.0-dev.1'),import('../score-ui.mjs?v=0.172.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.173.0-dev.1'),import('../score-ui.mjs?v=0.173.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -2151,7 +2150,7 @@
             if(!options.patternOnly)plan=scorePlayback.withMetronome(practice,plan);
             var schedule=options.auditionTiming?options.auditionTiming(plan):plan;
             preRoll=!options.patternOnly&&countInEnabled?scorePlayback.buildCountIn(practice):null;var result=await audio().playEvents(schedule.events,function(){return ticket===generation&&stopGeneration===CS().audio.getStopGeneration()&&current();},schedule.duration,true,undefined,preRoll);if(!result.ok){phase='idle';options.changed(phase);if(result.error)options.message(result.error);}}catch(error){phase='idle';options.changed(phase);options.message(error.message||'音を開始できませんでした');}},
-            position(){if(phase!=='playing'||!runtime||!plan)return null;var snapshot=runtime.snapshot(),elapsed=(snapshot.visualElapsedSeconds??snapshot.elapsedSeconds)-.03-playbackVisualDelay/1000-(preRoll?.duration||0);if(elapsed<0)return null;var span=plan.spans.find(function(s){return elapsed<s.end;})||plan.spans[plan.spans.length-1];return span?{barNumber:span.index+1,tick:Math.max(0,Math.min(1919.999,(elapsed-span.start)/plan.secondsPerTick))}:null;},
+            position(){if(phase!=='playing'||!runtime||!plan)return null;var snapshot=runtime.snapshot(),elapsed=(snapshot.visualElapsedSeconds??snapshot.elapsedSeconds)-.03-playbackVisualDelay/1000-(preRoll?.duration||0);if(elapsed<0)return null;var span=plan.spans.find(function(s){return elapsed<s.end;})||plan.spans[plan.spans.length-1];return span?{barNumber:span.index+1,barTicks:plan.barTicks,tick:Math.max(0,Math.min(plan.barTicks-.001,(elapsed-span.start)/plan.secondsPerTick))}:null;},
             stop(){generation++;phase='idle';options.changed(phase);if(runtime)void runtime.stop();},dispose(){disposed=true;generation++;return runtime?runtime.dispose():Promise.resolve({ok:true});}};
     }
     function startPreview(scope,fromSettings,restart){
@@ -2325,7 +2324,7 @@
     function buildChordPickerPanel(){var root=document.createElement('section');root.dataset.chordPicker='';root.hidden=!chordPicker.open||collapsedEditorRows.has('chord');if(!root.hidden)populateChordPicker(root);return root;}
     function refreshChordPicker(){syncEditorDisclosures();var root=els.slotOverlay?.querySelector('[data-chord-picker]');if(root&&!root.hidden)populateChordPicker(root);}
     function prepareChordPicker(){
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.172.0-dev.1')
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.173.0-dev.1')
             .then(function(module){return module.createChordPicker(CS(),window.ChordCruise);})
             .catch(function(error){chordPickerModule=null;throw error;});
         return chordPickerModule;
@@ -2582,7 +2581,7 @@
         cell.classList.add('sc-editor-transfer-cell');
         if (row !== 'strum') {
             cell.dataset.rangeRow = row;
-            cell.dataset.rangeStart = (bar.barNumber - 1) * 1920 + tick;
+            cell.dataset.rangeStart = (bar.barNumber - 1) * getBeats(state.project)*480 + tick;
         }
         function eventsAtCell() {
             var canonical = owner.draft.bars.find(function (item) { return item.id === barId; });
@@ -4860,7 +4859,7 @@
         var ids=args.barIds.slice(),res=runStructureOperation('moveBars',args);if(!res.ok)return;
         var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
     }
-    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.172.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
+    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.173.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
     function openSheetAction(kind,trigger){
         if(!editorCanMove())return;finishTextInputs();if(!editorCanMove())return;stopPianoAudition();var owner=state.session,version=owner.snapshotVersion;
         prepareSheetActions().then(function(ready){if(!ready||state.session!==owner||owner.snapshotVersion!==version||!editorCanMove())return;
@@ -4882,13 +4881,13 @@
     }
     function openPlaybackSettings(trigger){
         if(!editorCanMove())return;var owner=state.session;
-        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.172.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
+        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.173.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
             if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);pianoAudition?.setMix(playbackMix);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(playbackMix);refreshPracticeTransport();
             try{var raw=localStorage.getItem('cruiseStudio.appSettings'),settings=raw===null?{}:JSON.parse(raw);if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('invalid-settings');var result=CS().storage.setAppSetting(key,value);if(!result.ok)throw Error(result.error);notice.textContent='';}catch(_){notice.textContent='設定を保存できませんでした。この画面にのみ適用しています';}
         },closed:refreshToolbarActions});return playbackSettings;}).catch(function(){playbackSettingsPending=null;setSaveStatus('音設定を読み込めませんでした',true);});
         playbackSettingsPending.then(function(settings){if(settings&&state.session===owner&&editorCanMove())settings.open(trigger);});
     }
-    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.172.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
+    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.173.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
     async function openPaperForm(cell,eventId,tick){
         if(!editorCanMove()||!CS().localPaperForms)return;
@@ -5037,10 +5036,10 @@
         var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project))||{};
         viewerExportFlight=true;refreshToolbarActions();
         try{
-            var module=await import('./viewer-contract.mjs?v=0.172.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
+            var module=await import('./viewer-contract.mjs?v=0.173.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
             var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(project.projectId));
             var documentId='score-'+Array.from(new Uint8Array(hash),function(n){return n.toString(16).padStart(2,'0');}).join('');
-            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.172.0-dev.1',defaultPresentation:presentation});
+            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.173.0-dev.1',defaultPresentation:presentation});
             if(!state.active||state.session!==owner||owner.snapshotVersion!==version||owner.inputPending||textDiagnostic(owner)){setSaveStatus('曲や入力状態が変わったため、書き出しを中止しました',true);return;}
             var exportedEntry=await CS().scoreViewer.add(result.text,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);}});
             if(!exportedEntry){setSaveStatus('書き出しをキャンセルしました');return;}
@@ -5231,15 +5230,6 @@
         window.addEventListener('blur',function(){cancelBarDrag();cancelRangeSelection();});window.addEventListener('resize',cancelBarDrag);
 
 
-        function rejectUnsupportedMeter(event) {
-            if (state.session && state.session.draft.schemaVersion === 2 && els.timeSig.value !== '4/4') {
-                els.timeSig.value = '4/4';
-                q('sc-edit-error').textContent = '現在のschema2保存契約は4/4のみです。拍別データを保持するため変更しませんでした';
-                event.stopImmediatePropagation();
-            }
-        }
-        els.timeSig.addEventListener('input', rejectUnsupportedMeter, true);
-        els.timeSig.addEventListener('change', rejectUnsupportedMeter, true);
         [[els.title, 'title'], [els.artist, 'artist'], [els.capo, 'capo'], [els.bpm, 'bpm'],
          [els.originalKey, 'originalKey'], [els.playKey, 'playKey'], [els.timeSig, 'timeSignature']].forEach(function (pair) {
             wireTextControl(pair[0], { kind: 'song', field: pair[1] }, onFieldChange, true);
@@ -5391,7 +5381,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line local UI candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.172.0-dev.1',
+        developmentVersion: '0.173.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,

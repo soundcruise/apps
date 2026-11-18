@@ -5,7 +5,7 @@ import {insist, freeze, assertJSON, clone} from './json.mjs';
 // Date.now, DOM, audio node, editor, storage or network ownership in this module.
 export function createBeatClock({now, bpm, barIds, ticksPerBeat = 480, beatsPerBar = 4}) {
     insist(typeof now === 'function', 'missing-monotonic-clock');
-    insist(ticksPerBeat === 480 && beatsPerBar === 4, 'unsupported-meter');
+    insist(ticksPerBeat === 480 && [3,4].includes(beatsPerBar), 'unsupported-meter');
     insist(Array.isArray(barIds) && barIds.length <= 2048 && new Set(barIds).size === barIds.length &&
         barIds.every(id => typeof id === 'string' && id.length > 0), 'invalid-clock-bars');
     barIds = barIds.slice();
@@ -78,9 +78,10 @@ export function createBeatClock({now, bpm, barIds, ticksPerBeat = 480, beatsPerB
 // audio scheduler and scroll interpolation consume these same tick boundaries.
 export function createScoreTimeline(score) {
     insist(score.schemaVersion === 2 && score.songInfo.ticksPerBeat === 480 &&
-        score.songInfo.timeSignature.beats === 4 && score.songInfo.timeSignature.beatUnit === 4, 'unsupported-meter');
-    return freeze({ticksPerBeat:480, ticksPerBar:1920, totalTicks:score.bars.length * 1920,
-        bars:score.bars.map((b, index) => ({barId:b.id, index, startTick:index * 1920, endTick:(index + 1) * 1920}))});
+        [3,4].includes(score.songInfo.timeSignature.beats) && score.songInfo.timeSignature.beatUnit === 4, 'unsupported-meter');
+    const ticksPerBar=score.songInfo.timeSignature.beats*480;
+    return freeze({ticksPerBeat:480, ticksPerBar, totalTicks:score.bars.length*ticksPerBar,
+        bars:score.bars.map((b, index) => ({barId:b.id, index, startTick:index*ticksPerBar, endTick:(index+1)*ticksPerBar}))});
 }
 
 // Deterministic reservation cursor, not an AudioNode scheduler. Consumers

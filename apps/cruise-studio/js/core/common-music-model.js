@@ -51,7 +51,7 @@
             var legacy = options.schema2.readStructureProjection(project, true);
             var value = freeze({ schemaVersion: 2, projectId: project.projectId,
                 originalKey: project.songInfo.originalKey, tonic: { ...project.solfege.tonic },
-                bars: frozenTree(project.bars) ? project.bars : JSON.parse(JSON.stringify(project.bars)), legacy: legacy });
+                songInfo: legacy.songInfo, bars: frozenTree(project.bars) ? project.bars : JSON.parse(JSON.stringify(project.bars)), legacy: legacy });
             prepared.add(value); return value;
         }
         function convertV2(frame) {
@@ -77,7 +77,7 @@
                     e.pitch=Object.assign({},src.pitch,{midi:api.pitchMidi(src.pitch),semitoneNumber:api.pitchMidi(src.pitch),name:src.pitch.step+spelling.formatAccidental(src.pitch.alter)});e.provenance.timing=src.provenance.timing;});
                 b.melody.filter(function(e){return e.kind==='rest';}).forEach(function(e){m.voices.melody.events.push({kind:'rest',onsetTick:e.onsetTick,durationTicks:e.durationTicks,sourceEventId:e.id,sourceLocation:{barIndex:bi,eventType:'rest',eventIndex:null,barId:b.id,eventId:e.id},provenance:e.provenance});});
                 var cursor=0,empty=[];m.voices.melody.events.slice().sort(function(a,b){return a.onsetTick-b.onsetTick;}).forEach(function(e){if(e.onsetTick>cursor)empty.push({kind:'silence',onsetTick:cursor,durationTicks:e.onsetTick-cursor,sourceBarId:b.id});cursor=e.onsetTick+e.durationTicks;});
-                if(cursor<1920)empty.push({kind:'silence',onsetTick:cursor,durationTicks:1920-cursor,sourceBarId:b.id});m.voices.melody.silentIntervals=empty;
+                if(cursor<m.lengthTicks)empty.push({kind:'silence',onsetTick:cursor,durationTicks:m.lengthTicks-cursor,sourceBarId:b.id});m.voices.melody.silentIntervals=empty;
                 m.harmony.forEach(function(e,i){e.sourceEventId=b.chords[i].id;e.actualSymbol=b.chords[i].symbol;});
                 m.lyrics.forEach(function(e,i){e.sourceEventId=b.lyrics[i].id;});
             });
@@ -93,8 +93,9 @@
             if (!budget(p) || (frame.baseRevision && frame.baseRevision.length > LIMITS.chars * 2)) return failure('memory-budget');
             if (p.schemaVersion !== 1 && !privateProjections.has(p)) return failure('unsupported-schema');
             var info = p.songInfo;
-            if (!info || info.timeSignature?.beats !== 4 || info.timeSignature?.beatUnit !== 4) return failure('unsupported-time-signature');
+            if (!info || ![3,4].includes(info.timeSignature?.beats) || info.timeSignature?.beatUnit !== 4) return failure('unsupported-time-signature');
             if (info.ticksPerBeat !== 480) return failure('unsupported-ppq');
+            var meter=info.timeSignature, barTicks=meter.beats*info.ticksPerBeat;
             var validation;
             try { validation = privateProjections.has(p)?{ok:true}:options.validate(p); } catch (_) { return failure('invalid-project'); }
             if (!validation || typeof validation.ok !== 'boolean') return failure('invalid-project');
@@ -114,10 +115,10 @@
             function provenance(loc, kind) { return { sourceOwner: 'cruise-studio', sourceLocation: loc,
                 derivationKind: kind || 'legacy-data', confirmationState: 'legacy-unknown' }; }
             function timing(ev, loc, optional) {
-                if (!Number.isSafeInteger(ev?.tick) || ev.tick < 0 || ev.tick >= 1920) { issue('invalid-onset', 'fatal', loc); return false; }
+                if (!Number.isSafeInteger(ev?.tick) || ev.tick < 0 || ev.tick >= barTicks) { issue('invalid-onset', 'fatal', loc); return false; }
                 if (optional && ev.durationTicks === undefined) return true;
                 if (!Number.isSafeInteger(ev.durationTicks) || ev.durationTicks <= 0) { issue('invalid-duration', 'fatal', loc); return false; }
-                if (ev.tick + ev.durationTicks > 1920) { issue('out-of-range', 'fatal', loc, 'measure-boundary'); return false; }
+                if (ev.tick + ev.durationTicks > barTicks) { issue('out-of-range', 'fatal', loc, 'measure-boundary'); return false; }
                 return true;
             }
             function scale(key) { return spelling.spellScaleNotes({ tonicPc: theory.keyToSemitone(key), tonicName: key, scaleId: 'major' }); }
@@ -140,15 +141,15 @@
                 patternMap.set(pat.id, { value: pat, index: i });
             });
             p.bars.forEach(function (bar, bi) {
-                var melody = [], harmony = [], strokes = [], silence = [], start = bi * 1920;
-                var measure = { index: bi, barNumber: bar.barNumber, sectionId: bar.sectionId, startTick: start, lengthTicks: 1920,
-                    meter: { beats: 4, beatUnit: 4 }, harmony: harmony, lyrics: [],
+                var melody = [], harmony = [], strokes = [], silence = [], start = bi * barTicks;
+                var measure = { index: bi, barNumber: bar.barNumber, sectionId: bar.sectionId, startTick: start, lengthTicks: barTicks,
+                    meter: {...meter}, harmony: harmony, lyrics: [],
                     voices: { melody: { events: melody, silentIntervals: silence }, guitar: { events: strokes,
                         form: null, stringFret: null, struckStrings: null, fingering: null, voicing: null } } };
                 measures.push(measure);
                 (Array.isArray(bar.lyrics) ? bar.lyrics : []).forEach(function (ev, ei) {
                     var loc = location(bi, 'lyrics', ei);
-                    if (!Number.isSafeInteger(ev?.tick) || ev.tick < 0 || ev.tick >= 1920 || typeof ev.text !== 'string') {
+                    if (!Number.isSafeInteger(ev?.tick) || ev.tick < 0 || ev.tick >= barTicks || typeof ev.text !== 'string') {
                         issue('invalid-lyrics', 'fatal', loc); return;
                     }
                     measure.lyrics.push({ onsetTick: ev.tick, text: ev.text, sourceLocation: loc, provenance: provenance(loc) });
@@ -171,7 +172,7 @@
                 ordered.forEach(function (ev) { if (ev.onsetTick < cursor) issue('overlap', 'fatal', ev.sourceLocation, 'melody');
                     if (ev.onsetTick > cursor) silence.push({ onsetTick: cursor, durationTicks: ev.onsetTick - cursor, kind: 'silence', provenance: provenance(location(bi, 'melody-gap', null), 'existing-convention') });
                     cursor = Math.max(cursor, ev.onsetTick + ev.durationTicks); });
-                if (cursor < 1920) silence.push({ onsetTick: cursor, durationTicks: 1920 - cursor, kind: 'silence', provenance: provenance(location(bi, 'melody-gap', null), 'existing-convention') });
+                if (cursor < barTicks) silence.push({ onsetTick: cursor, durationTicks: barTicks - cursor, kind: 'silence', provenance: provenance(location(bi, 'melody-gap', null), 'existing-convention') });
                 bar.chords.forEach(function (ev, ei) {
                     var loc = location(bi, 'chord', ei); if (!timing(ev, loc, true)) return;
                     if (typeof ev.symbol !== 'string') { issue('unsupported-chord', 'fatal', loc, 'symbol must be string'); return; }
@@ -193,17 +194,21 @@
                 }
                 var selected = patternMap.get(bar.strumOverride || p.basicStrumPatternId);
                 var pat = selected?.value;
-                if (!pat || pat.lengthTicks !== 1920 || !Array.isArray(pat.slots)) { issue('stroke-inconsistency', 'fatal', location(bi, 'stroke', null), 'pattern-length/reference'); return; }
+                if (!pat || ![1440,1920].includes(pat.lengthTicks) || !Array.isArray(pat.slots)) { issue('stroke-inconsistency', 'fatal', location(bi, 'stroke', null), 'pattern-length/reference'); return; }
                 var previous = -1;
                 pat.slots.forEach(function (slot, si) {
                     var loc = location(bi, 'stroke', si, selected.index);
-                    if (!timing(slot, loc, true)) return;
+                    if (!Number.isSafeInteger(slot?.tick) || slot.tick<0 || slot.tick>=pat.lengthTicks) {
+                        issue('invalid-onset','fatal',loc);return;
+                    }
                     if (!['down', 'up', 'mute', 'rest'].includes(slot.action) || slot.tick <= previous || (slot.accent !== undefined && typeof slot.accent !== 'boolean') ||
                         (slot.tieToNext !== undefined && typeof slot.tieToNext !== 'boolean')) { issue('stroke-inconsistency', 'fatal', loc); return; }
                     previous = slot.tick;
                     var explicit = slot.durationTicks !== undefined;
-                    var duration = explicit ? slot.durationTicks : ((pat.slots[si + 1]?.tick ?? 1920) - slot.tick);
-                    if (!Number.isSafeInteger(duration) || duration <= 0 || slot.tick + duration > 1920) { issue('stroke-inconsistency', 'fatal', loc, 'duration'); return; }
+                    var duration = explicit ? slot.durationTicks : ((pat.slots[si + 1]?.tick ?? pat.lengthTicks) - slot.tick);
+                    if (!Number.isSafeInteger(duration) || duration <= 0 || slot.tick + duration > pat.lengthTicks) { issue('stroke-inconsistency', 'fatal', loc, 'duration'); return; }
+                    if (slot.tick>=barTicks) return;
+                    duration=Math.min(duration,barTicks-slot.tick);
                     if (slot.tieToNext !== undefined) issue('unresolved-continuation', 'unresolved', loc);
                     strokes.push({ onsetTick: slot.tick, absoluteTick: start + slot.tick, durationTicks: duration,
                         grid: { tick: slot.tick, quarterPosition: { numerator: slot.tick, denominator: 480 }, resolution: null,
@@ -218,7 +223,7 @@
                     issue('unresolved-string-fret', 'unresolved', location(bi, 'guitar', null));
                 }
             });
-            return freeze({ ok: !hasFatal, model: { modelVersion: 1, source: source, ppq: 480, meter: { beats: 4, beatUnit: 4 },
+            return freeze({ ok: !hasFatal, model: { modelVersion: 1, source: source, ppq: 480, meter: {...meter},
                 keyContext: { originalKey: info.originalKey, playKey: info.playKey, capo: info.capo, scale: 'legacy-major-solfege',
                     provenance: provenance(location(null, 'songInfo', null), 'existing-convention') }, measures: measures,
                 completePerformance: false, diagnostics: ds }, diagnostics: ds });

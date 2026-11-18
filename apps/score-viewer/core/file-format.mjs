@@ -1,19 +1,19 @@
 import {assertJSON, insist, record, clone, freeze, canonicalJSON} from './json.mjs';
 
-export const VIEWER_VERSION = '0.17.1-dev.1';
+export const VIEWER_VERSION = '0.18.0-dev.1';
 export const SCORE_FORMAT = 'sound-cruise/score-view';
 export const SCORE_EXTENSION = '.cruise-score.json';
 // Schema2 allows 4 Mi UTF-16 code units (8 MiB accounting). UTF-8 needs at most
 // 12 MiB for that score. Reserve 1 MiB for the bounded envelope/presentation.
 export const MAX_FILE_BYTES = 13 * 1024 * 1024;
 export const MAX_PRESENTATION_BYTES = 64 * 1024;
-export const CAPABILITIES = Object.freeze(['schema2', 'meter:4/4', 'layout:scoreLayoutV1', 'melody:bar-ties-v1',
+export const CAPABILITIES = Object.freeze(['schema2', 'meter:4/4', 'meter:3/4', 'layout:scoreLayoutV1', 'melody:bar-ties-v1',
     'form:studio-chord-form-v1', 'form:studio-chord-form-v2',
     'rhythm:studio-strum-v1', 'rhythm:rhythm-owner-cells-v1']);
 const encoder = new TextEncoder();
 const identifier = v => typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(v);
 function requirements(score) {
-    return [...new Set(['schema2', 'meter:4/4',
+    return [...new Set(['schema2', 'meter:'+score.songInfo.timeSignature.beats+'/'+score.songInfo.timeSignature.beatUnit,
         ...score.materials.forms.map(m => 'form:' + m.encoding),
         ...score.materials.rhythms.map(m => 'rhythm:' + m.encoding),
         ...(score.bars.some(bar=>bar.melody.some(note=>note.tieToNext))?['melody:bar-ties-v1']:[]),
