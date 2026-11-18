@@ -16,20 +16,23 @@ export function viewerFixture() {
 
 // One attack in bar 1 spans two barlines. The end of bar 3 is silent, so
 // loop boundaries and extra attacks inside the tie can be measured separately.
-export function tiedViewerFixture() {
+export function tiedViewerFixture(beats = 4) {
     const fixture = viewerFixture();
     const {score} = fixture;
     const note = score.bars[0].melody[0];
-    score.songInfo.title = '小節をまたぐタイの再生確認';
+    score.songInfo.title = beats + '/4の小節をまたぐタイの再生確認';
+    score.songInfo.timeSignature = {beats, beatUnit:4};
+    const barTicks = beats * score.songInfo.ticksPerBeat;
     score.songInfo.bpm = 240;
     for (const bar of score.bars) {
         bar.chords = [];
         bar.melody = [];
+        bar.lyrics = bar.lyrics.filter(lyric => lyric.onsetTick < barTicks);
     }
     score.performance.formBindings = [];
     for (const rhythm of score.materials.rhythms) rhythm.snapshot.slots = [];
-    score.bars[0].melody = [{...note, id:'test-tie-start', onsetTick:1440, durationTicks:480, tieToNext:'test-tie-middle'}];
-    score.bars[1].melody = [{...note, id:'test-tie-middle', onsetTick:0, durationTicks:1920, tieToNext:'test-tie-end'}];
+    score.bars[0].melody = [{...note, id:'test-tie-start', onsetTick:barTicks-480, durationTicks:480, tieToNext:'test-tie-middle'}];
+    score.bars[1].melody = [{...note, id:'test-tie-middle', onsetTick:0, durationTicks:barTicks, tieToNext:'test-tie-end'}];
     score.bars[2].melody = [{...note, id:'test-tie-end', onsetTick:0, durationTicks:960}];
     return fixture;
 }

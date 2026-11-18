@@ -132,7 +132,14 @@ async function waitForVoices(page,count) {
         v.start <= tieAudio.contexts[v.context].currentTime).length >= count, count);
 }
 
-async function checkTransport(page, editor) {
+function timing(score, bpm = score.songInfo.bpm) {
+    const beats = score.songInfo.timeSignature.beats, secondsPerBeat = 60/bpm;
+    return {bar:beats*secondsPerBeat, lap:3*beats*secondsPerBeat,
+        tied:(beats+3)*secondsPerBeat, clipped:(beats+2)*secondsPerBeat, attack:(beats-1)*secondsPerBeat};
+}
+
+async function checkTransport(page, editor, score) {
+    const originalTiming = timing(score), practiceBpm = 300, practiceTiming = timing(score,practiceBpm);
     const controls = transport(page,editor);
     await controls.configure();
     await controls.select(1,3);
@@ -140,26 +147,29 @@ async function checkTransport(page, editor) {
     await waitForVoices(page,3);
     const initial = await voices(page);
     for (let i=0;i<3;i++) {
-        near(initial[i].end-initial[i].start,1.75,'the linked sound holds through both barlines');
-        if (i) near(initial[i].start-initial[i-1].start,3,'one attack per three-bar lap');
+        near(initial[i].end-initial[i].start,originalTiming.tied,'the linked sound holds through both barlines');
+        if (i) near(initial[i].start-initial[i-1].start,originalTiming.lap,'one attack per three-bar lap');
     }
     await controls.at(600);
     const beforeTempo = (await voices(page)).length;
-    await controls.changeBPM(300);
+    await controls.changeBPM(practiceBpm);
     await controls.at(950);
     const afterTempo = await voices(page);
     assert.equal(afterTempo.length,beforeTempo+(editor?1:0),editor
         ? 'Studio restarts the held note once at the head of the current measure'
         : 'Viewer retimes the held note without playing a fresh attack');
     await controls.stop();
-    await quiet(page);
-    const beforeRestart = (await voices(page)).length;
+    const stopped = await page.evaluate(() => ({
+        noteCount:tieAudio.voices.filter(v => v.end > v.start).length,
+        pending:tieAudio.voices.filter(v => v.end > v.start && v.end > tieAudio.contexts[v.context].currentTime).length
+    }));
     await controls.start();
-    await waitForVoices(page,beforeRestart+1);
-    const resumed = (await voices(page))[beforeRestart];
+    assert.equal(stopped.pending,0,'stop cancels the previous voice before an immediate restart');
+    await waitForVoices(page,stopped.noteCount+1);
+    const resumed = (await voices(page))[stopped.noteCount];
     if (editor) {
         assert.equal(resumed.offset,0);
-        near(resumed.end-resumed.start,1.4,'the restarted range plays the complete tied note');
+        near(resumed.end-resumed.start,practiceTiming.tied,'the restarted range plays the complete tied note');
     } else {
         assert(resumed.offset>0,'resume uses the sample tail instead of replaying its attack');
     }
@@ -171,15 +181,15 @@ async function checkTransport(page, editor) {
     await controls.start();
     await waitForVoices(page,beforeClipped+2);
     const clipped = (await voices(page)).slice(beforeClipped);
-    near(clipped[1].start-clipped[0].start,1.6,'a range starting inside the tie loops at the right barline');
-    near(clipped[0].end-clipped[0].start,1.2,'explicit start inside the tie plays only the remaining written duration');
+    near(clipped[1].start-clipped[0].start,2*practiceTiming.bar,'a range starting inside the tie loops at the right barline');
+    near(clipped[0].end-clipped[0].start,practiceTiming.clipped,'explicit start inside the tie plays only the remaining written duration');
     await controls.stop();
     await quiet(page);
 }
 
-for (const engine of ['chrome','webkit']) test('three-bar tie passes actual repeat, tempo and restart controls: '+engine,async()=>{
+for (const [beats,engine] of [[4,'chrome'],[4,'webkit'],[3,'chrome'],[3,'webkit']]) test(beats+'/4 three-bar tie passes actual repeat, tempo and restart controls: '+engine,async()=>{
     const {tiedViewerFixture}=await import('./helpers/viewer-fixture.mjs');
-    const {score}=tiedViewerFixture();
+    const {score}=tiedViewerFixture(beats);
     const browser=await(engine==='chrome'?chrome():webkit.launch());
     try {
         const {context,errors}=await prepareContext(browser);
@@ -187,21 +197,21 @@ for (const engine of ['chrome','webkit']) test('three-bar tie passes actual repe
         await editScore(editor,score);
         const project=()=>editor.evaluate(()=>CruiseStudio.documents.getSession().workingSnapshot());
         const original=await project();
-        await checkTransport(editor,true);
+        await checkTransport(editor,true,score);
         assert.deepEqual(await project(),original,'practice tempo and transport do not change the score');
         const hash=await exportScore(editor);
         const viewer=await context.newPage();
         await viewer.goto(viewerURL);
         await viewer.waitForFunction(hash=>window.CruiseViewer?.view.read()?.byteHash===hash,hash);
-        await checkTransport(viewer,false);
+        await checkTransport(viewer,false,score);
         assert.equal(await viewer.evaluate(()=>CruiseViewer.view.read().byteHash),hash);
         assert.deepEqual(errors,[]);
     } finally {await browser.close();}
 });
 
-test('the exported three-bar tie restores from the offline library and plays once across both barlines',async()=>{
+for (const beats of [4,3]) test(beats+'/4 exported three-bar tie restores from the offline library and plays once across both barlines',async()=>{
     const {tiedViewerFixture}=await import('./helpers/viewer-fixture.mjs');
-    const {score}=tiedViewerFixture();
+    const {score}=tiedViewerFixture(beats);
     const browser=await chrome();
     try {
         const {context,errors}=await prepareContext(browser);
@@ -227,14 +237,15 @@ test('the exported three-bar tie restores from the offline library and plays onc
             try {await fetch('./not-in-offline-cache.txt');return true;} catch {return false;}
         }),false);
         const restored=await offline.evaluate(()=>CruiseViewer.view.read().document.score);
+        assert.deepEqual(restored.songInfo.timeSignature,score.songInfo.timeSignature);
         assert.deepEqual(restored.bars,score.bars);
         const controls=transport(offline,false);
         await controls.select(1,3);
         await controls.start();
         await waitForVoices(offline,2);
         const notes=await voices(offline);
-        near(notes[1].start-notes[0].start,3,'the offline loop plays one attack per pass');
-        near(notes[0].end-notes[0].start,1.75,'the offline sound remains tied across two barlines');
+        near(notes[1].start-notes[0].start,timing(score).lap,'the offline loop plays one attack per pass');
+        near(notes[0].end-notes[0].start,timing(score).tied,'the offline sound remains tied across two barlines');
         await controls.stop();
         await quiet(offline);
         assert.deepEqual(errors,[]);
@@ -246,11 +257,14 @@ test('the exported three-bar tie restores from the offline library and plays onc
 if (process.env.SCORE_TIE_SOAK_SECONDS) {
     const seconds = Number(process.env.SCORE_TIE_SOAK_SECONDS);
     assert(Number.isFinite(seconds) && seconds >= 10);
-    test('both apps keep the three-bar tie and playhead stable in real time',
+    const beats = Number(process.env.SCORE_TIE_SOAK_BEATS || 4);
+    assert([3,4].includes(beats));
+    test(beats+'/4 both apps keep the three-bar tie and playhead stable in real time',
         {timeout:(seconds+120)*1000}, async () => {
         const {setTimeout:sleep} = require('node:timers/promises');
         const {tiedViewerFixture} = await import('./helpers/viewer-fixture.mjs');
-        const {score, contract, metadata} = tiedViewerFixture();
+        const {score, contract, metadata} = tiedViewerFixture(beats);
+        const expected = timing(score);
         const file = await contract.codec.encode(score,metadata);
         const browser = await chrome();
         try {
@@ -278,7 +292,7 @@ if (process.env.SCORE_TIE_SOAK_SECONDS) {
             while (performance.now()-started < seconds*1000) {
                 await sleep(Math.min(1000,Math.max(0,seconds*1000-(performance.now()-started))));
                 for (const run of runs) {
-                    const frame = await run.page.evaluate(editor=>{
+                    const frame = await run.page.evaluate(({editor,expected})=>{
                         const selector=editor?'#sc-sheet-scale-box > [data-score-playhead]':'[data-viewer-playhead]';
                         const cursors=document.querySelectorAll(selector);
                         const measure=document.querySelector(editor?'#sc-sheet-scale-box .sc-playing-bar':'.sv-paper .sv-playing');
@@ -292,13 +306,13 @@ if (process.env.SCORE_TIE_SOAK_SECONDS) {
                                 : context.currentTime-(context.baseLatency||0)-(context.outputLatency||0);
                             const rect=measure.getBoundingClientRect();
                             const actual=bar-1+(cursors[0].getBoundingClientRect().left-rect.left)/rect.width;
-                            const difference=actual-(output-first.start+.75);
-                            phaseErrorMs=1000*(difference-3*Math.round(difference/3));
+                            const difference=actual*expected.bar-(output-first.start+expected.attack);
+                            phaseErrorMs=1000*(difference-expected.lap*Math.round(difference/expected.lap));
                         }
                         return {cursors:cursors.length,bar,phaseErrorMs,
                             running:tieAudio.contexts.filter(context=>context.state==='running').length,
                             attacks:tieAudio.voices.length};
-                    },run.editor);
+                    },{editor:run.editor,expected});
                     assert.equal(frame.cursors,1,'one visible transport cursor throughout');
                     assert(frame.bar>=1&&frame.bar<=3,'transport stays within the selected bars');
                     assert.equal(frame.running,1,'one running audio context');
@@ -314,11 +328,11 @@ if (process.env.SCORE_TIE_SOAK_SECONDS) {
             }
             for (const run of runs) {
                 const notes = await voices(run.page);
-                assert(notes.length>=Math.floor(seconds/3));
+                assert(notes.length>=Math.floor(seconds/expected.lap));
                 assert.deepEqual([...run.bars].sort(),[1,2,3]);
                 for (let i=0;i<notes.length;i++) {
-                    near(notes[i].end-notes[i].start,1.75,'note holds across two barlines on lap '+i);
-                    if (i) near(notes[i].start-notes[i-1].start,3,'one attack per lap '+i);
+                    near(notes[i].end-notes[i].start,expected.tied,'note holds across two barlines on lap '+i);
+                    if (i) near(notes[i].start-notes[i-1].start,expected.lap,'one attack per lap '+i);
                 }
                 await run.controls.stop();
                 await quiet(run.page);
