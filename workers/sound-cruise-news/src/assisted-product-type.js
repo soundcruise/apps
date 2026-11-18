@@ -1,6 +1,7 @@
 // A bounded noun-phrase grammar. Definitions are alternatives, never priority rules.
 // No URL, model catalogue or source-brand inference is used.
 export const productTypes={
+ usb_microphone:['USBマイク','recording_audio'],
  electric_guitar_bass:['エレキギター・ベース関連','electric_guitar_bass'],guitar_article:['ギター関連記事','media_other'],
  acoustic_guitar:['アコースティックギター','acoustic_guitar'],electro_acoustic:['エレアコ','acoustic_guitar'],
  pickup:['ギター用ピックアップ','amps_effects'],guitar_amp:['ギターアンプ','amps_effects'],
@@ -10,6 +11,7 @@ export const productTypes={
  interview:['ギター演奏のインタビュー','artist_guitar'],event:['ギター関連イベント','live_guitar']
 };
 const vocabulary={
+ usb_microphone:['USBマイク','USBマイクロホン','USBマイクロフォン','USB microphone'],
  electric_guitar_bass:['エレキギター・ベース関連','エレキギター・ベース','エレキギター／ベース','エレキギター','エレクトリックギター','エレクトリック・ギター','エレキベース','エレクトリックベース'],guitar_article:['ギター関連記事','ギター特集','ギター工房訪問'],
  acoustic_guitar:['アコースティックギター','アコギ'],electro_acoustic:['エレアコ','エレクトリックアコースティックギター','エレクトリック・アコースティックギター'],
  pickup:['ピックアップ','ギターピックアップ'],guitar_amp:['ギターアンプ','アンプ'],preamp:['プリアンプ'],

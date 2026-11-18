@@ -1,0 +1,117 @@
+[
+  {
+    "key": "mv360",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/114556/",
+      "source": {
+        "label": "2026-11-18 原記事の通常閲覧と保存済み収集情報による入力補助（本人未確認）",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/114556/"
+      },
+      "fields": {
+        "brand": "SHURE",
+        "product": "MV360",
+        "productType": "usb_microphone",
+        "action": "introduction",
+        "publishedAt": "2026-11-18"
+      },
+      "notes": [
+        {
+          "label": "記事の位置付け",
+          "value": "USBマイクの製品紹介。記事公開日と発売日を混同せず、本人が原記事を照合してください。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "iris-bb",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1117-parlor-iris-guitar-company-the-bb-model-sitka-spruce-chippoke/",
+      "source": {
+        "label": "2026-11-18 原記事の通常閲覧と保存済み収集情報による入力補助（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1117-parlor-iris-guitar-company-the-bb-model-sitka-spruce-chippoke/"
+      },
+      "fields": {
+        "brand": "IRIS GUITAR COMPANY",
+        "product": "The BB Model Sitka Spruce（Tobacco Burst）",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-17",
+        "label": "IRIS GUITAR COMPANY、The BB Model Sitka Spruce（Tobacco Burst）の試奏記事を公開"
+      },
+      "notes": [
+        {
+          "label": "記事の位置付け",
+          "value": "大橋ちっぽけによるパーラー・ギターの試奏記事。PR表記とVol.110にも掲載されている旨を原記事で確認。新製品発売とは扱いません。"
+        },
+        {
+          "label": "公開日候補",
+          "value": "保存済みcollectorの2026-11-17 17:00 JSTを使用。通常閲覧では公開日の表示を再確認できていないため、本人が原記事と照合してください。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "sekitori-live",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/column/2026-1116-sekitori-hana-hikigatari-live/",
+      "source": {
+        "label": "2026-11-18 原記事の通常閲覧と保存済み収集情報による入力補助（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/column/2026-1116-sekitori-hana-hikigatari-live/"
+      },
+      "fields": {
+        "brand": "関取花",
+        "product": "弾き語りライブの準備",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-16",
+        "label": "関取花、弾き語りライブの準備をQ&A形式で語る"
+      },
+      "notes": [
+        {
+          "label": "記事の位置付け",
+          "value": "ライブ前後の準備や喉のケアなどのQ&A。既刊ムックからの再録であり、新しい公演の発表ではありません。"
+        },
+        {
+          "label": "公開日候補",
+          "value": "保存済みcollectorの2026-11-16 19:00 JSTを使用。通常閲覧では公開日の表示を再確認できていないため、本人が原記事と照合してください。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "mxr-three",
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/113887/",
+      "source": {
+        "label": "2026-11-18 原記事の通常閲覧と保存済み収集情報による入力補助（本人未確認）",
+        "url": "https://www.shimamura.co.jp/update/amp-effector/2026/11/113887/"
+      },
+      "fields": {
+        "brand": "MXR",
+        "product": "M400／EVHMHG／YJM308G",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-13",
+        "label": "MXR、M400／EVHMHG／YJM308Gの3機種を紹介"
+      },
+      "notes": [
+        {
+          "label": "製品の区別",
+          "value": "チューナー1機種と歪みペダル2機種。限定仕様はYJM308Gのみ。3機種全体を単一のエフェクターや限定品へ変換しません。"
+        },
+        {
+          "label": "日付の区別",
+          "value": "記事公開11月13日、更新11月17日、発売予定11月19日。発売済みと断定しません。"
+        },
+        {
+          "label": "関連性",
+          "value": "M400は弾き語りにも有用。歪みペダル2機種を含むため、本人が記事全体の掲載価値を判断してください。"
+        }
+      ]
+    }
+  }
+]

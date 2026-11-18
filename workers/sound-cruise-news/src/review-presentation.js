@@ -1,7 +1,8 @@
 // Read-only routing for the operator. These groups grant no facts or authority.
 import previousInformation from '../docs/human-ready-20261116/review-information.json' with {type:'json'};
 import currentInformation from '../docs/readiness-20261117/review-information.json' with {type:'json'};
-const information=[...currentInformation,...previousInformation];
+import remainingInformation from '../docs/remaining-review-20261118/review-information.json' with {type:'json'};
+const information=[...remainingInformation,...currentInformation,...previousInformation];
 import guidance from '../docs/operator-review-groups-20261116/editorial-guidance.json' with {type:'json'};
 import {assistedLabel,assistedTypes} from './assisted-facts.js';
 import {labelMatchesType} from './assisted-product-type.js';
