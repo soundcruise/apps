@@ -1,0 +1,77 @@
+[
+  {
+    "key": "lag-sauvage",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1118-parlor-lag-guitars-sauvage-peparlour-chippoke/",
+      "source": {
+        "label": "原記事の通常閲覧と既存候補の公開日による入力補助（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1118-parlor-lag-guitars-sauvage-peparlour-chippoke/"
+      },
+      "fields": {
+        "brand": "Lâg Guitars",
+        "product": "SAUVAGE-PE PARLOUR ACOUSTIC-ELECTRIC",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-18",
+        "label": "大橋ちっぽけがLâg GuitarsのSAUVAGE-PE PARLOUR ACOUSTIC-ELECTRICを試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "PR表記があるVol.110併載の試奏記事です。11月18日は収集済みの記事公開日候補です。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "lluthier-cofe",
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1118-new-gear-110-lluthier/",
+      "source": {
+        "label": "原記事の通常閲覧と既存候補の公開日による入力補助（本人未確認）",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1118-new-gear-110-lluthier/"
+      },
+      "fields": {
+        "brand": "L.LUTHIER",
+        "product": "Cofe Ot C w/EQ",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-18",
+        "label": "井草聖二がL.LUTHIERのCofe Ot C w/EQを試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "PR表記がある試奏記事です。11月18日は収集済みの記事公開日候補で、製品の発売日は扱いません。"
+        }
+      ]
+    }
+  },
+  {
+    "key": "neumann-kh",
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174047/",
+      "source": {
+        "label": "原記事の通常閲覧と既存候補の公開日による入力補助（本人未確認）",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174047/"
+      },
+      "fields": {
+        "brand": "NEUMANN",
+        "product": "KH 310 II／KH 350",
+        "productType": "studio_monitor",
+        "action": "introduction",
+        "publishedAt": "2026-11-18",
+        "label": "NEUMANNのモニタースピーカー2機種、KH 310 II／KH 350を池部楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "11月18日は池部記事の公開日です。左右・ペア販売の違いを別機種に数えず、録音用途での掲載価値を確認してください。"
+        }
+      ]
+    }
+  }
+]
