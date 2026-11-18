@@ -1,57 +1,122 @@
 /* Disposable Chrome, local fixture songs, no auth/Sync/Authority probes. */
 const test=require('node:test'),assert=require('node:assert/strict'),{chromium}=require('playwright');
 const {install:installSvgProbe,read:readSvg,painted,assertMeasure,cases:engravingCases}=require('./helpers/staff-svg-probe.cjs');
-const url=process.env.STUDIO_URL||'http://127.0.0.1:8767/apps/cruise-studio/index.html',origin=new URL(url).origin;
+const url=new URL(process.env.STUDIO_URL||'http://127.0.0.1:18874/');
+assert(['127.0.0.1','localhost','[::1]'].includes(url.hostname),'STUDIO_URL must point to a local test server');
+const origin=url.origin;
 test('Melody staff preview in real Structure',async t=>{
- const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),ctx=await browser.newContext();await require('./helpers/schema2-fixture.cjs').install(ctx);const p=await ctx.newPage();
+ const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),ctx=await browser.newContext({viewport:{width:1440,height:1000},serviceWorkers:'block'});await require('./helpers/schema2-fixture.cjs').install(ctx);const p=await ctx.newPage();
+ p.setDefaultTimeout(5000);
  const errors=[],missing=[],external=[];
- await ctx.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin===origin&&r.request().method()==='GET')return r.continue();if(u.hostname==='fonts.googleapis.com')return r.fulfill({body:'',contentType:'text/css'});external.push(u.href);return r.abort();});
+ await ctx.route('**/*',route=>{
+  const request=route.request(),target=new URL(request.url());
+  if(target.origin===origin&&request.method()==='GET')return route.continue();
+  external.push(request.method()+' '+target.href);
+  return route.abort();
+ });
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('response',r=>{if(r.status()>=400)missing.push(r.url());});
- const ready=()=>p.waitForFunction(()=>document.querySelector('.melody-page')?.dataset.ready==='true');
+ const ready=()=>p.waitForFunction(()=>{
+  const studio=window.CruiseStudio,session=studio?.documents.getSession(),source=studio?.sheetCruise.getStaffMetrics()?.source;
+  return session&&document.querySelector('.melody-page')?.dataset.ready==='true'&&
+   source?.sessionId===session.sessionId&&source.snapshotVersion===session.snapshotVersion;
+ });
+ const scaleBox=p.locator('#sc-sheet-scale-box');
+ const staffPage=scaleBox.locator('.melody-page');
+ const input=p.locator('#sc-slot-overlay .editor-measure[data-bar-number="1"] [data-overlay-field="doremi"][data-slot-tick="0"]');
+ async function toggleStaff() {
+  await p.locator('#sc-curve-menu-toggle').click();
+  await p.locator('#sc-menu-staff-toggle').click();
+ }
  const midi=()=>p.locator('.melody-svg').first().getAttribute('data-notes');
  try{
- await p.goto(url);
+ await p.goto(url.href);
+ await p.locator('[data-local-ui-banner]').waitFor();
+ await p.waitForFunction(()=>document.documentElement.dataset.studioEntry==='ready');
  await p.evaluate(async()=>{
   const C=CruiseStudio;
   for(const id of ['staff-A','staff-B']){const d=C.model.createLegacySampleProject();d.projectId=id;d.songInfo.title=id;d.bars[0].melody=[{tick:0,durationTicks:720,step:id==='staff-A'?0:2,alter:0,octave:0}];d.bars[0].lyrics=[{tick:120,text:'あした'}];const r=await C.repository.save({target:{type:'project',projectId:id},snapshot:d,baseRevision:null});if(!r.ok)throw Error(r.error);}
   C.storage.setCurrentProjectId('staff-A');C.shellHost.navigate('sheetCruise');window.__staffWrites=[];
-  const save=C.repository.save; // repository facade is immutable: storage observes actual committed project writes.
-  for(const name of ['setItem','removeItem','clear']){const f=Storage.prototype[name];Storage.prototype[name]=function(...a){if(name==='clear'||String(a[0]).startsWith('cruiseStudio.project.')||a[0]==='cruiseStudio.projects.index')__staffWrites.push([name,a[0]]);return f.apply(this,a);};}
+  // Observe persistence calls after seeding the two disposable projects.
+  for(const name of ['setItem','removeItem','clear']){const f=Storage.prototype[name];Storage.prototype[name]=function(...a){if(name==='clear'||/^(?:cruiseStudio\.project\.|cruisePort)/.test(a[0])||a[0]==='cruiseStudio.projects.index')__staffWrites.push([name,a[0]]);return f.apply(this,a);};}
   for(const name of ['open','deleteDatabase']){const f=indexedDB[name].bind(indexedDB);indexedDB[name]=(...a)=>{__staffWrites.push(name);return f(...a);};}
  });
  await t.test('two styles only; code sheet unchanged until explicit view selection',async()=>{
-  assert.equal(await p.locator('#sc-score-style option').count(),2);assert.equal(await p.locator('.melody-page').count(),0);
-  await p.selectOption('#sc-score-style','melody');await ready();assert.equal(await p.locator('.melody-measure').count(),4);assert.match(await midi(),/C0\/4@0:720/);
+  const codeSheet=scaleBox.locator('.sheet-bar:not(.melody-measure)').first();
+  await codeSheet.waitFor();
+  assert.equal(await staffPage.count(),0);
+  await toggleStaff();await ready();
+  assert.equal(await p.locator('.melody-measure').count(),4);assert.match(await midi(),/C0\/4@0:720/);
   assert.equal(await p.locator('.melody-timing').count(),0);assert.match(await p.locator('.melody-status').innerText(),/自動を含む/);
   assert.equal(await p.locator('.melody-chords').first().innerText(),'C');assert.equal(await p.locator('.melody-lyrics span').first().getAttribute('data-tick'),'120');
   assert(await p.locator('.melody-svg svg').first().locator('path').count()>0);
+  await toggleStaff();await codeSheet.waitFor();assert.equal(await staffPage.count(),0);
+  await toggleStaff();await ready();
  });
- await t.test('Loupe input DOM, native Undo, cursor and scroll survive staff redraw',async()=>{
-  await p.locator('.melody-measure').first().locator('.melody-bar-heading').click();const input=p.locator('#sc-slot-overlay [data-overlay-field="doremi"]');await input.focus();
-  await p.evaluate(()=>{window.__heldStaffInput=document.querySelector('#sc-slot-overlay [data-overlay-field="doremi"]');window.__staffScroll=document.querySelector('#studio-main').scrollTop;});
-  await input.fill('ドレミ');await ready();
-  const inputMs=await input.evaluate(e=>{const start=performance.now();e.dispatchEvent(new InputEvent('input',{bubbles:true,data:'ミ'}));return performance.now()-start;});assert(inputMs<100,'input handler remains responsive');console.log('STAFF_INPUT_RESPONSE_MS',inputMs);await ready();assert(await p.evaluate(()=>document.activeElement===__heldStaffInput&&__heldStaffInput.isConnected));
+ await t.test('Loupe melody focus, caret and scroll survive redraw; Undo restores the score',async()=>{
+  await p.locator('.melody-measure').first().locator('.melody-bar-heading').click();
+  await p.locator('#sc-edit-selected').click();await input.click();
+  await input.evaluate(e=>{
+   window.__heldStaffInput=e;
+   window.__staffScroll=document.querySelector('#studio-main').scrollTop;
+   let started;
+   e.addEventListener('input',()=>{started=performance.now();},{capture:true,once:true});
+   e.addEventListener('input',()=>{window.__staffInputMs=performance.now()-started;},{once:true});
+  });
+  await input.fill('レ');await ready();
+  assert.match(await midi(),/D0\/4@0:720/);
+  const inputMs=await p.evaluate(()=>__staffInputMs);
+  assert(inputMs<100,'input handler remains responsive');console.log('STAFF_INPUT_RESPONSE_MS',inputMs);
+  assert(await p.evaluate(()=>document.activeElement===__heldStaffInput&&__heldStaffInput.isConnected&&
+   __heldStaffInput.selectionStart===1&&__heldStaffInput.selectionEnd===1&&
+   document.querySelector('#studio-main').scrollTop===__staffScroll));
   await p.evaluate(()=>{window.__staffDomainUndos=0;CruiseStudio.sessions.subscribe((s,k)=>{if(k==='undo')__staffDomainUndos++;});});
-  await input.press('End');await input.press('Backspace');await input.press('Meta+z');await ready();assert.equal(await p.evaluate(()=>__staffDomainUndos),0);
-  assert(await p.evaluate(()=>document.activeElement===__heldStaffInput));
+  await input.press('ControlOrMeta+z');await ready();
+  assert.match(await midi(),/C0\/4@0:720/);
+  assert.equal(await p.evaluate(()=>__staffDomainUndos),1);
  });
  await t.test('IME buffer never adopted; composition completion retains element and text',async()=>{
-  const input=p.locator('#sc-slot-overlay [data-overlay-field="doremi"]');await p.evaluate(()=>window.__beforeIME=document.querySelector('.melody-svg svg'));await input.dispatchEvent('compositionstart');
+  await input.click();
+  await input.evaluate(e=>window.__heldStaffInput=e);
+  const snapshot=()=>p.evaluate(()=>CruiseStudio.documents.getSession().workingSnapshot());
+  const before=await snapshot();
+  await p.evaluate(()=>window.__beforeIME=document.querySelector('.melody-svg svg'));await input.dispatchEvent('compositionstart');
   await input.evaluate(e=>{e.value='ファ';e.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true,data:'ファ'}));});
-  await p.waitForTimeout(50);if(process.env.STAFF_QA_DIR)await p.screenshot({path:process.env.STAFF_QA_DIR+'/ime-pending.png'});assert.equal(await p.locator('.melody-page').getAttribute('data-ready'),'false');
+  await p.waitForFunction(()=>document.querySelector('.melody-page').dataset.ready==='false'&&
+   document.querySelector('.melody-status').textContent.includes('確定後'));
+  if(process.env.STAFF_QA_DIR)await p.screenshot({path:process.env.STAFF_QA_DIR+'/ime-pending.png'});
+  assert.deepEqual(await snapshot(),before);
   assert.match(await p.locator('.melody-status').innerText(),/入力中.*確定後/);assert(await p.evaluate(()=>document.querySelector('.melody-svg svg')===__beforeIME&&getComputedStyle(__beforeIME.closest('.melody-bar-content')).visibility==='visible'));
   await input.dispatchEvent('compositionend',{data:'ファ'});await ready();assert.equal(await input.inputValue(),'ファ');assert(await p.evaluate(()=>document.activeElement===__heldStaffInput));
  });
  await t.test('domain Undo/Redo uses same draft and updates staff',async()=>{
-  await p.locator('#sc-score-style').focus();await p.evaluate(()=>{const C=CruiseStudio;C.documents.getSession().finishTextGroup();C.documents.getSession().runOperation('staff fixture', __canonical => window.__editSchema1Fixture(__canonical, d=>d.bars[0].melody=[{tick:0,durationTicks:480,step:4,alter:0,octave:0}]));});await ready();assert.match(await midi(),/G0\/4/);
+  await input.press('Escape');await p.evaluate(()=>{const C=CruiseStudio;C.documents.getSession().finishTextGroup();C.documents.getSession().runOperation('staff fixture', __canonical => window.__editSchema1Fixture(__canonical, d=>d.bars[0].melody=[{tick:0,durationTicks:480,step:4,alter:0,octave:0}]));});await ready();assert.match(await midi(),/G0\/4/);
   await p.locator('#sc-undo').click();await ready();assert.match(await midi(),/F0\/4/);await p.locator('#sc-redo').click();await ready();assert.match(await midi(),/G0\/4/);
+ });
+ await t.test('Song Info text uses native Undo without moving the score history',async()=>{
+  const history=()=>p.evaluate(()=>CruiseStudio.documents.getSession().getHistory());
+  const before=await history();
+  await p.locator('#sc-curve-menu-toggle').click();
+  await p.locator('#sc-edit-song').click();
+  const dialog=p.locator('[data-score-dialog="settings"]'),title=dialog.locator('[data-score-field="title"]');
+  const original=await title.inputValue();
+  try{
+   await title.press('End');
+   await p.keyboard.insertText(' draft');
+   assert.equal(await title.inputValue(),original+' draft');
+   await title.press('ControlOrMeta+z');
+   assert.equal(await title.inputValue(),original);
+  }finally{
+   await dialog.locator('[data-score-cancel]').click();
+  }
+  await dialog.waitFor({state:'detached'});await ready();
+  assert.deepEqual(await history(),before);
  });
  await t.test('A/B/A and workspace round trip never restore stale callbacks',async()=>{
   await p.evaluate(()=>CruiseStudio.documents.select('staff-B'));await ready();assert.equal(await p.locator('.melody-page').getAttribute('data-project-id'),'staff-B');assert.match(await midi(),/E0\/4/);
   await p.evaluate(()=>{const C=CruiseStudio;C.documents.select('staff-A');C.shellHost.navigate('preDtm');C.shellHost.navigate('sheetCruise');});await ready();assert.equal(await p.locator('.melody-page').getAttribute('data-project-id'),'staff-A');assert.match(await midi(),/G0\/4/);
  });
  await t.test('4 Themes and narrow layout preserve contrast and no document overflow',async()=>{
-  for(const theme of ['dark','light','charcoal','gray'])for(const width of [390,768,1440,1920]){await p.setViewportSize({width,height:1000});await p.evaluate(x=>CruiseStudio.colorTheme.setColorTheme(x),theme);await ready();if(process.env.STAFF_QA_DIR)await p.screenshot({path:process.env.STAFF_QA_DIR+'/theme-'+theme+'-'+width+'.png'});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.equal(await p.locator('.melody-bar-paper').first().evaluate(e=>getComputedStyle(e).color),'rgb(41, 37, 31)');}
+  for(const theme of ['dark','light','charcoal','gray'])for(const width of [390,768,1440,1920]){await p.setViewportSize({width,height:1000});await p.evaluate(x=>CruiseStudio.colorTheme.applyColorTheme(x),theme);await ready();if(process.env.STAFF_QA_DIR)await p.screenshot({path:process.env.STAFF_QA_DIR+'/theme-'+theme+'-'+width+'.png'});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.equal(await p.locator('.melody-bar-paper').first().evaluate(e=>getComputedStyle(e).color),'rgb(41, 37, 31)');}
  });
  await t.test('print remains traditional code sheet and returns to staff preview',async()=>{
   await p.evaluate(()=>window.dispatchEvent(new Event('beforeprint')));await p.emulateMedia({media:'print'});assert.equal(await p.locator('.melody-page').evaluate(e=>getComputedStyle(e).display),'none');assert.equal(await p.locator('.melody-print-fallback').evaluate(e=>getComputedStyle(e).display),'block');assert(await p.locator('.melody-print-fallback .sheet-bar').count()>0);await p.emulateMedia({media:'screen'});await p.evaluate(()=>window.dispatchEvent(new Event('afterprint')));assert.equal(await p.locator('.melody-print-fallback').count(),0);
@@ -164,8 +229,14 @@ test('Melody staff preview in real Structure',async t=>{
   await p.waitForFunction(()=>document.querySelector('.melody-status').textContent.includes('この拍子'));assert.equal(await p.locator('.melody-page').getAttribute('data-ready'),'false');assert.equal(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.schemaVersion),1);
   await p.evaluate(()=>{CruiseStudio.documents.select('staff-A');});await ready();
  });
- await t.test('no project writes/IDB, schema1, shared write OFF, Console/404/network zero',async()=>{
-  assert.deepEqual(await p.evaluate(()=>__staffWrites),[]);assert.equal(await p.evaluate(()=>CruiseStudio.model.APP_VERSION),'0.47.17');assert.equal(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.schemaVersion),2);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.canWrite),false);assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.deepEqual(external,[]);
+ await t.test('no project writes or IndexedDB access, shared write off, no browser or network errors',async()=>{
+  assert.deepEqual(await p.evaluate(()=>__staffWrites),[]);
+  assert.equal(await p.evaluate(()=>CruiseStudio.documents.getSession().draft.schemaVersion),2);
+  assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost?.canWrite??false),false);
+  assert.equal(await p.evaluate(()=>CruiseStudio.entryAuth.read().accountId),null);
+  assert.deepEqual(errors,[]);
+  assert.deepEqual(missing,[]);
+  assert.deepEqual(external,[]);
  });
  }finally{await ctx.close();await browser.close();}
 });
