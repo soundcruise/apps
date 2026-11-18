@@ -1,6 +1,6 @@
-import { CRUISE_APPS_NEWS_ITEM } from './news-articles.js?v=1.16.1';
+import { CRUISE_APPS_NEWS_ITEMS } from './news-articles.js?v=1.36.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
-import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.35.0';
+import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.36.0';
 import { NEWS_PROVIDER, NEWS_API_BASE } from './news-config.js?v=1.11.1';
 export class NewsDisabledError extends Error { constructor(){super('news_disabled');this.name='NewsDisabledError';} }
 // Only the loopback preview server supplies this read-only proxy. Production
@@ -37,7 +37,7 @@ export async function loadNews({ provider = 'fixture', transport } = {}) {
 }
 
 export async function loadConfiguredNews({provider=NEWS_PROVIDER,baseUrl=NEWS_API_BASE,fetcher=globalThis.fetch}={}){
- if(provider==='fixture')return {items:[CRUISE_APPS_NEWS_ITEM,...await loadNews()],mode:'beta'};
+ if(provider==='fixture')return {items:[...CRUISE_APPS_NEWS_ITEMS,...await loadNews()],mode:'beta'};
  if(provider!=='api'||baseUrl!==NEWS_API_BASE)throw new TypeError('News provider unavailable');
  const items=[],seen=new Set(),cursors=new Set();let offset=0,cursor=null;
  // No persistent client cache: an API kill or takedown must not resurrect old news.
@@ -51,11 +51,11 @@ export async function loadConfiguredNews({provider=NEWS_PROVIDER,baseUrl=NEWS_AP
   }});
   for(const item of records)if(!seen.has(item.id)){seen.add(item.id);items.push(item);}
   if(Object.hasOwn(payload,'nextCursor')){
-   if(payload.nextCursor===null)return {items:[CRUISE_APPS_NEWS_ITEM,...items],mode:'on'};
+   if(payload.nextCursor===null)return {items:[...CRUISE_APPS_NEWS_ITEMS,...items],mode:'on'};
    if(typeof payload.nextCursor!=='string'||payload.nextCursor.length>400||!payload.nextCursor.length||cursors.has(payload.nextCursor))throw new TypeError('Invalid news pagination');
    cursors.add(payload.nextCursor);cursor=payload.nextCursor;continue;
   }
-  if(payload.nextOffset===null)return {items:[CRUISE_APPS_NEWS_ITEM,...items],mode:'on'};
+  if(payload.nextOffset===null)return {items:[...CRUISE_APPS_NEWS_ITEMS,...items],mode:'on'};
   if(!Number.isInteger(payload.nextOffset)||payload.nextOffset!==offset+50)throw new TypeError('Invalid news pagination');
   offset=payload.nextOffset;
  }
@@ -67,6 +67,6 @@ export async function loadNewsPresentation(options) {
   if (error?.name === 'NewsDisabledError') throw error;
   // Never resurrect external fixtures/cache on an outage. First-party content
   // is local, independently published and remains available.
-  return {items:[CRUISE_APPS_NEWS_ITEM],mode:'on',notice:'外部ニュースを読み込めませんでした。時間をおいてページを更新してください。'};
+  return {items:[...CRUISE_APPS_NEWS_ITEMS],mode:'on',notice:'外部ニュースを読み込めませんでした。時間をおいてページを更新してください。'};
  }
 }
