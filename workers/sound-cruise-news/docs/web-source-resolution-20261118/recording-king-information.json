@@ -2,7 +2,7 @@
   "version": 1,
   "url": "https://recordingking.co/news/rk-standard-series/",
   "source": {
-    "label": "2026-11-18 メーカー一次記事の通常閲覧による入力補助（本人未確認・正式保存範囲未承認）",
+    "label": "メーカー一次記事の公開情報（本人未確認）",
     "url": "https://recordingking.co/news/rk-standard-series/"
   },
   "fields": {
@@ -10,7 +10,8 @@
     "product": "RK Standard Series",
     "productType": "acoustic_guitar",
     "action": "announcement",
-    "publishedAt": "2026-11-02"
+    "publishedAt": "2026-11-02",
+    "label": "Recording King、アコギ「RK Standard Series」を発表（オール単板）"
   },
   "notes": [
     {
@@ -22,8 +23,12 @@
       "value": "メーカー一次記事でオール単板・戦前の設計を意識したシリーズと確認。国内販売日・価格は未確認です。"
     },
     {
-      "label": "確認事項3",
-      "value": "現在の正式保存範囲外。一次URLの短い独自事実紹介・出典・直リンク条件と人間確認scopeを承認してから既存経路へ接続します。"
+      "label": "掲載前の注意",
+      "value": "11月2日の海外発表です。国内発売日・価格は未確認です。"
+    },
+    {
+      "label": "紹介条件",
+      "value": "メーカー一次記事の客観的事実を独自見出し・出典・通常リンクで紹介。本文・原見出し・写真は転載しません。"
     }
   ]
 }

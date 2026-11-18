@@ -1,4 +1,4 @@
-import {webPresentation,primaryReviewInformation} from './review-presentation.js';
+import {webPresentation,primaryReviewInformation,reviewInformation} from './review-presentation.js';
 import {hash} from './policy.js';
 import {publicSearchUrl,generalPage,searchDate,knownProductOverlap} from './web-discovery-quality.js';
 import {assistedSource} from './assisted-facts.js';
@@ -49,13 +49,14 @@ export async function addWebReview(db,items,now){
   item.reviewBlocked=tombstones.has(await hash(item.url))?'candidate_takedown':source&&(source.humanFactsProhibited||['DO_NOT_USE','PROHIBITED'].includes(source.legalStatus))?'source_prohibited':state&&(state.takedown||state.publication_blocked||state.disabled&&!item.humanEntry)?'source_stopped':null;
   // A reviewed relation may offer an already-approved primary source. Keep the
   // secondary hint and its state intact; never infer equivalence from title text.
-  const info=primaryReviewInformation(item.url),primary=info&&assistedSource(info.url),primaryState=states.find(s=>s.source_id===primary?.id),primaryExisting=info&&known.find(c=>[c.source_url,c.normalized_url].includes(info.url)),registered=SOURCES.find(s=>s.id===primary?.id);
+  const notes=await webReviewNotes(item,known,states,tombstones,now);
+  const info=primaryReviewInformation(item.url) || (notes && reviewInformation(notes.reference.url));
+  const primary=info&&assistedSource(info.url),primaryState=states.find(s=>s.source_id===primary?.id),primaryExisting=info&&known.find(c=>[c.source_url,c.normalized_url].includes(info.url)),registered=SOURCES.find(s=>s.id===primary?.id);
   if(!item.reviewBlocked&&primary&&!primary.existingCandidateOnly&&registered&&!registered.humanFactsProhibited&&!['DO_NOT_USE','PROHIBITED'].includes(registered.legalStatus)&&!primaryState?.disabled&&!primaryState?.takedown&&!primaryState?.publication_blocked&&!tombstones.has(await hash(info.url))){
    item.primaryReview={url:info.url,existingCandidate:primaryExisting?{id:primaryExisting.id,status:primaryExisting.review_status}:null,draft:assistedDraftWithInformation({fields:{url:info.url,sourceId:primary.id},fieldSources:{},registrationAllowed:true},info)};
    if(!primaryExisting)item.humanEntry={sourceId:primary.id,url:info.url,basis:primary.basis,viaPrimary:true};
   }
-  // Display observations alongside the saved AI draft; never overwrite its fields.
-  const notes=await webReviewNotes(item,known,states,tombstones,now);
+  // Keep the original discovery draft and secondary-source restrictions.
   if(notes&&item.articleDraft)item.articleDraft={...item.articleDraft,sourceReview:{...item.articleDraft.sourceReview,...notes,registrationAllowed:false}};
   item.webReview=webReviewDisposition(item,known,now);
   item.reviewPresentation=webPresentation(item,now);
