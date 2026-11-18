@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, existsSync} from 'node:fs';
-import {NEWS_ARTICLES, articlePath, parseNewsArticleRoute, replaceNewsListRoute, CRUISE_APPS_NEWS_ITEM as own} from './news-articles.js';
+import {NEWS_ARTICLES, articlePath, parseNewsArticleRoute, replaceNewsListRoute, CRUISE_APPS_NEWS_ITEM as own, CRUISE_STUDIO_NEWS_ITEM as video} from './news-articles.js';
 import {NEWS_CATEGORIES, NEWS_FILTER_GROUPS, normalizeNewsItem, prepareNews, groupNews} from './news-data.js';
 import {NEWS_BETA_ITEMS} from './data/news-beta.js';
 import {loadConfiguredNews} from './news-provider.js';
@@ -20,7 +20,7 @@ test('first-party production article is merged without preview query; queries ne
  for(const search of ['', '?newsPreview=cruise-apps']){
   const calls=[];
   const result=await loadConfiguredNews({locationObject:{hostname:'soundcruise.jp',search},fetcher:async url=>{calls.push(url);return{ok:true,json:async()=>({contractVersion:1,items:[],nextCursor:null})};}});
-  assert.equal(result.mode,'on');assert.deepEqual(result.items,[own]);assert.equal(calls.length,1);
+  assert.equal(result.mode,'on');assert.deepEqual(result.items,[own,video]);assert.equal(calls.length,1);
  }
  assert.doesNotMatch(readFileSync(new URL('news-provider.js',import.meta.url),'utf8'),/isLocalNewsPreview|newsPreview/);
 });
@@ -41,7 +41,7 @@ test('internal path must be a bundled article, never arbitrary URL/HTML/body fro
  for(const route of ['#news/cruise-apps/unknown','#news/cruise-apps/theme-colors/evil','#news/cruise-apps/%3Cscript%3E'])assert.equal(parseNewsArticleRoute(route),null);
 });
 test('card is internal; external card retains new tab and noreferrer; filters switch',()=>{
- const d=doc();renderNews({documentObject:d,items:[own,NEWS_BETA_ITEMS[0]],mode:'beta',now,clock:()=>now});
+ const d=doc();renderNews({documentObject:d,items:[own,video,NEWS_BETA_ITEMS[0]],mode:'beta',now,clock:()=>now});
  let cards=d.ids['news-content'].all().filter(n=>n.className==='news-card');
  const internal=cards.find(n=>n.href?.startsWith('#news/'));assert.equal(internal.href,articlePath('theme-colors'));assert.equal(internal.target,undefined);
  const external=cards.find(n=>n.target==='_blank');assert.equal(external.href,NEWS_BETA_ITEMS[0].sourceUrl);assert.equal(external.rel,'noopener noreferrer');

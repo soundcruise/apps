@@ -32,3 +32,30 @@ export const CRUISE_APPS_NEWS_ITEM = Object.freeze({
 export function replaceNewsListRoute({ historyObject = globalThis.history, locationObject = globalThis.location } = {}) {
     historyObject.replaceState(historyObject.state, '', `${locationObject.pathname}${locationObject.search}#news`);
 }
+
+// Owner-requested official announcement; not a collector receipt, AI inference or
+// manufacturer publication permission. Published only when this release is approved.
+export const OFFICIAL_VIDEO_SOURCE_ID = 'sound-cruise-youtube';
+export const OFFICIAL_VIDEO_CHANNEL_ID = 'UC4ncQuk56I8SK6lJGZcGwJQ';
+export const CRUISE_STUDIO_VIDEO = Object.freeze({
+    id: 'BKHbxOotq9E', url: 'https://www.youtube.com/watch?v=BKHbxOotq9E',
+    title: '#6【メンバー限定】PCで使える弾き語りアプリ「クルーズスタジオ」',
+    channelId: OFFICIAL_VIDEO_CHANNEL_ID,
+    publishedOn: '2026-11-15', publishedAt: null, // Exact publication time not exposed by the reviewed UI.
+    visibility: 'members_only', audience: 'all_channel_members',
+    evidence: 'youtube_watch_and_authenticated_studio_review_2026-11-18'
+});
+export const CRUISE_STUDIO_NEWS_ITEM = Object.freeze({
+    id: 'sound-cruise-studio-members-video-20261118',
+    label: 'オールインワン弾き語りアプリfor PC「クルーズスタジオ」メンバー限定公開',
+    sourceId: OFFICIAL_VIDEO_SOURCE_ID, sourceName: 'アコギ弾き語り専門ラボ / クルーニー',
+    category: 'cruise_apps', linkType: 'members_video', hot: true, displayOrder: 0,
+    sourceUrl: CRUISE_STUDIO_VIDEO.url, videoId: CRUISE_STUDIO_VIDEO.id,
+    videoChannelId: OFFICIAL_VIDEO_CHANNEL_ID, videoPublishedOn: CRUISE_STUDIO_VIDEO.publishedOn,
+    publishedAt: '2026-11-17T15:00:00.000Z', // NEWS date: November 18 JST, distinct from video date.
+    createdAt: '2026-11-17T15:00:00.000Z', updatedAt: '2026-11-17T15:00:00.000Z',
+    topicKey: 'sound-cruise:youtube:BKHbxOotq9E', sourceKind: 'official',
+    sourceSafety: 'safe', manualReviewStatus: 'approved',
+    publicationBasis: 'owner_official_notice_instruction_2026-11-18'
+});
+export const CRUISE_APPS_NEWS_ITEMS = Object.freeze([CRUISE_APPS_NEWS_ITEM, CRUISE_STUDIO_NEWS_ITEM]);

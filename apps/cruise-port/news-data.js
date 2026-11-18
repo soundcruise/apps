@@ -1,4 +1,5 @@
-import { articlePath } from './news-articles.js?v=1.16.1';
+import { membersVideoHref } from './news-members-video.js?v=1.36.0';
+import { articlePath } from './news-articles.js?v=1.36.0';
 import {labelInformationScore,selectTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
@@ -50,6 +51,11 @@ export function normalizeNewsItem(input) {
     if(input.hot!==undefined&&typeof input.hot!=='boolean'||input.displayOrder!==undefined&&(!Number.isSafeInteger(input.displayOrder)||input.displayOrder<0||input.displayOrder>99))return null;
     if (input.manualReviewStatus !== 'approved' || input.sourceSafety !== 'safe') return null;
     if (['artist_guitar', 'live_guitar'].includes(input.category) && !GUITAR_EVIDENCE.includes(input.guitarEvidence)) return null;
+    if (input.linkType === 'members_video') {
+        if (!membersVideoHref(input) || !/^20\d{2}-\d{2}-\d{2}$/.test(input.videoPublishedOn || '') || !Number.isFinite(Date.parse(input.videoPublishedOn+'T00:00:00Z')) ||
+            new Date(input.videoPublishedOn + 'T00:00:00Z').toISOString().slice(0,10) !== input.videoPublishedOn) return null;
+        return Object.fromEntries(['id', 'label', 'sourceName', 'sourceUrl', 'publishedAt', 'category', 'topicKey', 'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'linkType', 'videoId', 'videoChannelId', 'videoPublishedOn', 'sourceId', 'hot', 'displayOrder'].filter(key => input[key] !== undefined).map(key => [key, input[key]]));
+    }
     if (input.linkType === 'internal') {
         if (input.category !== 'cruise_apps' || !articlePath(input.articleId) || input.sourceName !== 'Sound Cruise' || input.sourceKind !== 'official') return null;
         return Object.fromEntries(['id', 'label', 'sourceName', 'publishedAt', 'category', 'topicKey', 'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'linkType', 'articleId'].map(key => [key, input[key]]));
@@ -77,7 +83,16 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
             (labelInformationScore(item.label) === labelInformationScore(previous.label) && (PRIORITY.indexOf(item.sourceKind) < PRIORITY.indexOf(previous.sourceKind) ||
             (item.sourceKind === previous.sourceKind && item.publishedAt > previous.publishedAt)))) topics.set(item.topicKey, item);
     }
-    return [...topics.values()].sort((a,b)=>{const day=s=>new Date(Date.parse(s)+9*3600000).toISOString().slice(0,10);return day(b.publishedAt).localeCompare(day(a.publishedAt))||(a.displayOrder??100000)-(b.displayOrder??100000)||b.publishedAt.localeCompare(a.publishedAt)||a.id.localeCompare(b.id);});
+    return [...topics.values()].sort((a,b) => {
+        const day = s => new Date(Date.parse(s) + 9 * 3600000).toISOString().slice(0,10);
+        // Reserve the approved official notice's zero slot within its JST day,
+        // including a tie with another zero. Newer days always remain ahead.
+        const officialFirst = item => item.displayOrder === 0 && membersVideoHref(item) ? 1 : 0;
+        return day(b.publishedAt).localeCompare(day(a.publishedAt)) ||
+            (a.displayOrder ?? 100000) - (b.displayOrder ?? 100000) ||
+            officialFirst(b) - officialFirst(a) ||
+            b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id);
+    });
 }
 export function tickerNews(items, now = Date.now()) {
     const recent = days => items.filter(item => saleVisible(item, now) && eventVisible(item, now) && now - Date.parse(item.publishedAt) >= 0 && now - Date.parse(item.publishedAt) <= days * DAY);
