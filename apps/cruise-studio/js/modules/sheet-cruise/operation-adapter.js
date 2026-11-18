@@ -179,6 +179,7 @@
         target.chords.forEach(function (item) {
             if (item.onsetTick < tick && item.onsetTick + item.durationTicks > tick) item.durationTicks = tick - item.onsetTick;
         });
+        if(!event.unresolved)api.addChordDownstroke(project,target.id,tick);
         target.chords.push(event);
         target.chords.sort(function (a, b) { return a.onsetTick - b.onsetTick; });
     }
@@ -309,7 +310,9 @@
                 }
             }
             arrivals.add(next);
-            project.bars[Math.floor(time / 1920)][track].push(next);
+            var targetBar=project.bars[Math.floor(time / 1920)];
+            targetBar[track].push(next);
+            if(track==='chords'&&!next.unresolved)schema.addChordDownstroke(project,targetBar.id,next.onsetTick);
         });
         touched.forEach(function(bar) {
             var events = bar[track].sort((a,b) => a.onsetTick - b.onsetTick);
@@ -336,6 +339,7 @@
                 if (symbol === null || !Number.isInteger(entry.tick) || entry.tick < 0 || entry.tick >= 1920 || ticks.has(entry.tick))
                     throw Error('コード名と拍の位置を確認してください');
                 ticks.add(entry.tick);
+                api.addChordDownstroke(project,bar.id,entry.tick);
                 var keep = bar.chords.find(function (event) { return event.onsetTick === entry.tick && !event.unresolved && event.symbol === symbol; });
                 if (keep) kept.add(keep.id);
                 var event = keep ? copyJSON(keep) : {id:api.newId(), onsetTick:entry.tick, symbol:symbol, unresolved:false, provenance:{origin:'user-set'}};

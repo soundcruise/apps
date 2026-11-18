@@ -1,4 +1,4 @@
-import {chordVoicing, strumVoices, fillBlankStrums} from './chord-audition.mjs';
+import {chordVoicing, strumVoices} from './chord-audition.mjs';
 import {createHarmonyTimeline} from './score-harmony.mjs';
 
 // Pure, read-only score -> audio projection. Times are seconds from one audio clock.
@@ -24,14 +24,12 @@ function barPlan(project, index, deps, harmony) {
         else throw Error('このストローク形式は試聴未対応です。元のデータを保持しています');
         if (slots.some(s => s.tieToNext === true || !['down', 'up', 'mute', 'rest'].includes(s.action)))
             throw Error('このストロークの方向・タイは試聴未対応です');
-        if (deps.fillBlankStrums) slots = deps.fillBlankStrums(slots, bar.chords.map(c => c.onsetTick));
         const fallback = slots.some(s => s.tick % 240 || s.durationTicks !== undefined && s.durationTicks % 240) ? 120 : 240;
         const chords = bar.chords.slice().sort((a, b) => a.onsetTick - b.onsetTick);
         for (const chord of chords) {
             cuts.push(.03 + chord.onsetTick * seconds);
             if (chord.durationTicks !== undefined) cuts.push(.03 + (chord.onsetTick + chord.durationTicks) * seconds);
         }
-        if (!slots.length && chords.length) warnings.push('ストローク未入力のためコードは鳴りません');
         slots.forEach((slot, i) => {
             const end = Math.min(1920, slot.tick + (slot.durationTicks ?? fallback), slots[i + 1]?.tick ?? 1920);
             const duration = (end - slot.tick) * seconds, start = .03 + slot.tick * seconds;
@@ -44,7 +42,6 @@ function barPlan(project, index, deps, harmony) {
             }
             try {
                 const chord = harmony.at(index,slot.tick);
-                if (!chord && slot.fallback) return;
                 if (!chord) throw Error('コード未入力のストロークは鳴らせません');
                 if (chords.includes(chord) && chords.filter(c => c.onsetTick === chord.onsetTick).length > 1)
                     throw Error('同じ位置の複数コードは試聴未対応です');
@@ -112,7 +109,6 @@ export function buildCountIn(project) {
     }))};
 }
 
-export {fillBlankStrums};
 // Clicks are a playback projection. They never enter chord/form/MIDI data.
 export function withMetronome(project,plan){
     const {beatSeconds}=buildCountIn(project),clicks=[];

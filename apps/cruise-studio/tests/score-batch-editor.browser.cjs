@@ -42,14 +42,31 @@ for (const engine of ['chrome', 'webkit']) test('score editor batch tools and fo
         await page.waitForFunction(id => CruiseStudio.sheetCruise.getSession().draft.projectId === id, project.projectId);
         const before = await read();
         await open('sc-edit-chord-preset');
+        const forms=root=>page.locator(root+' .sheet-form-event');
+        assert.equal(await forms('.sc-preset-sheet-frame').count(),await forms('#sc-sheet-scale-box').count());
+        await page.click('[data-score-cancel]');
+        await page.click('#sc-display-menu-toggle');await page.locator('#sc-show-forms').check();await page.keyboard.press('Escape');
+        await open('sc-edit-chord-preset');
+        const ratios=async root=>forms(root).evaluateAll(nodes=>nodes.map(n=>{
+            const bar=n.closest('.sheet-bar').getBoundingClientRect();
+            return [n.firstElementChild.getBoundingClientRect().width/bar.width,n.getBoundingClientRect().width/bar.width];
+        }));
+        const main=await ratios('#sc-sheet-scale-box'),sample=await ratios('.sc-preset-sheet-frame');
+        assert(main.length && main.length===sample.length);
+        sample.forEach(([svg,box],i)=>{assert(Math.abs(svg-box)<0.01);assert(Math.abs(svg-main[i][0])<0.01);});
+        const lane=page.locator('.sc-preset-cell-editor');
+        assert.equal(await lane.locator('.sc-pattern-slot').count(),16);
+        assert.equal(await lane.locator('input').count(),16);
+        await lane.getByRole('button',{name:'コード・フォームを編集'}).click();
+        await lane.locator('[data-selected-chord-name]').waitFor();
+        await lane.locator('[data-chord-close]').click();
         await page.selectOption('[data-score-preset]', {label:'王道進行'});
         await page.getByLabel('Playキー', {exact:true}).selectOption('D');
-        assert.equal(await page.locator('[data-pattern-chord]').count(), 4);
-        assert.equal(await page.locator('[data-pattern-chord]').allTextContents().then(a=>a.join(' ')), 'G A F#m Bm');
+        assert.equal(await page.locator('[data-preset-chord-cell]').count(), 4);
+        assert.equal(await page.locator('[data-preset-chord-cell]').evaluateAll(nodes=>nodes.map(n=>n.value).join(' ')), 'G A F#m Bm');
         assert(await page.locator('[data-score-apply]').isDisabled());
         await page.getByText('プリセットを編集', {exact:true}).click();
-        await page.getByRole('button',{name:'一覧から編集'}).click();
-        await page.getByRole('button',{name:/この(コード進行|ストローク)を編集/}).click();
+        await page.getByRole('listitem',{name:'王道進行',exact:true}).getByRole('button',{name:'編集',exact:true}).click();
         await page.getByRole('button',{name:'プリセットに保存',exact:true}).click();
         await page.getByLabel('プリセット名').fill('テスト進行');
         await page.getByRole('dialog',{name:'プリセットに保存',exact:true}).getByRole('button',{name:'保存',exact:true}).click();
@@ -131,8 +148,7 @@ for (const engine of ['chrome', 'webkit']) test('score editor batch tools and fo
         await page.selectOption('[data-score-preset]', {label:'リズム自作'});
         assert.equal(await page.locator('.sc-strum-preset-grid button').count(), 8);
         await page.getByText('プリセットを編集', {exact:true}).click();
-        await page.getByRole('button',{name:'一覧から編集'}).click();
-        await page.getByRole('button',{name:/この(コード進行|ストローク)を編集/}).click();
+        await page.getByRole('listitem',{name:'リズム自作',exact:true}).getByRole('button',{name:'編集',exact:true}).click();
         await page.getByRole('button',{name:'プリセットに保存',exact:true}).click();
         await page.getByLabel('プリセット名').fill('ストローク自作');
         await page.getByRole('dialog',{name:'プリセットに保存',exact:true}).getByRole('button',{name:'保存',exact:true}).click();
@@ -170,8 +186,7 @@ for (const engine of ['chrome', 'webkit']) test('score editor batch tools and fo
         // Make a pattern in the cell grid, save it, then use it for the whole song.
         await open('sc-edit-rhythm');
         await page.getByText('プリセットを編集', {exact:true}).click();
-        await page.getByRole('button',{name:'一覧から編集'}).click();
-        await page.getByRole('button',{name:/この(コード進行|ストローク)を編集/}).click();
+        await page.getByRole('listitem',{name:'4分連続',exact:true}).getByRole('button',{name:'編集',exact:true}).click();
         await page.getByText('パターンを編集・読み込む', {exact:true}).click();
         await page.getByLabel('リズムクルーズのプリセットJSON（4・8・16分）').setInputFiles({
             name:'rhythm-preset.json', mimeType:'application/json', buffer:Buffer.from(JSON.stringify({
@@ -226,8 +241,26 @@ for (const engine of ['chrome','webkit']) test('preset auditions, library operat
         const before=await snapshot();
         for (const [mode,first] of [['chord-preset','基本進行'],['rhythm','4分連続']]) {
             const open=async()=>{await page.click('#sc-curve-menu-toggle');await page.click('#sc-edit-'+mode);};
-            const manage=async()=>{await button('一覧から編集').click();return page.getByLabel('プリセット一覧',{exact:true});};
+            const row=name=>page.getByRole('listitem',{name,exact:true});
+            const act=(item,name)=>row(item).getByRole('button',{name,exact:true}).click();
             await open();
+            await page.keyboard.press('Space');
+            await waitPlaying('score');
+            const cursor=page.locator('.sc-preset-paper [data-layout-playhead]');
+            await cursor.waitFor();
+            const initial=await cursor.evaluate(el=>el.style.transform);
+            await page.waitForFunction(initial=>document.querySelector('.sc-preset-paper [data-layout-playhead]')?.style.transform!==initial,initial);
+            assert.equal(await cursor.count(),1);
+            const inside=await cursor.evaluate(el=>{
+                const line=el.getBoundingClientRect();
+                const bar=el.parentElement.querySelector('.sc-layout-playing').getBoundingClientRect();
+                return Math.abs(line.top-bar.top)<2 && Math.abs(line.height-bar.height)<2 &&
+                    line.left>=bar.left-2 && line.left<=bar.right+2;
+            });
+            assert(inside,'the moving line spans the active measure');
+            await page.keyboard.press('Space');
+            await cursor.waitFor({state:'detached'});
+            assert.equal(await play('score').getAttribute('aria-pressed'),'false');
             await play('pattern').click(); await waitPlaying('pattern');
             await play('score').click(); await waitPlaying('score');
             assert.equal(await play('pattern').getAttribute('aria-pressed'),'false');
@@ -236,24 +269,24 @@ for (const engine of ['chrome','webkit']) test('preset auditions, library operat
             await play('score').click(); await waitPlaying('score');
             await button('プリセットを編集').click();
             const author=page.getByRole('dialog',{name:'プリセットを編集',exact:true});
-            assert(await author.isVisible());
+            assert(await page.getByLabel('プリセット一覧',{exact:true}).isVisible());
             assert.equal(await author.getByRole('button',{name:'プリセットに保存',exact:true}).count(),0);
-            let list=await manage();
-            const editorLabel=mode==='chord-preset'?'このコード進行を編集':'このストロークを編集';
-            await list.selectOption({label:first}); await button(editorLabel).click();
-            await author.getByText('このプリセットの整理',{exact:true}).click();
-            await button('複製').click();
-            await button('名前を変更').click(); await page.getByLabel('新しいプリセット名').fill('試験用');
-            await button('変更を保存').click(); await button('↑ 上へ').click();
-            list=await manage(); assert.equal(await list.locator('option').first().textContent(),'試験用');
-            await list.selectOption({label:'試験用'}); await button(editorLabel).click();
-            const details=author.locator('details').filter({hasText:'このプリセットの整理'});
-            if(!await details.evaluate(e=>e.open))await details.locator('summary').click();
-            await button('削除').click(); await details.getByRole('button',{name:'キャンセル',exact:true}).click();
-            await button('削除').click(); await button('削除する').click();
-            await author.waitFor({state:'detached'});await button('プリセットを編集').click();
-            list=await manage();assert.equal(await list.locator('option').first().textContent(),first);
-            await list.selectOption({label:first});await button(editorLabel).click();
+            const list=page.getByLabel('プリセット一覧',{exact:true});
+            const actions=row(first).locator('.sc-preset-list-actions button');
+            assert.equal(await actions.count(),6);
+            for(const action of await actions.all())assert((await action.getAttribute('title')).includes(first));
+            const editStyle=await actions.first().evaluate(el=>[getComputedStyle(el).fontWeight,getComputedStyle(el).fontSize]);
+            assert.deepEqual(editStyle,['500','13px']);
+            await act(first,'複製');
+            await act(first+' (2)','名前を変更');await page.getByLabel('新しいプリセット名').fill('試験用');
+            await act(first+' (2)','変更を保存');await act('試験用','上へ');
+            assert.equal(await list.getByRole('listitem').first().getAttribute('aria-label'),'試験用');
+            await act('試験用','下へ');await act('試験用','上へ');
+            await act('試験用','削除');await act('試験用','キャンセル');
+            await act('試験用','削除');await act('試験用','削除する');
+            assert.equal(await row('試験用').count(),0);
+            await act(first,'編集');
+            assert.equal(await author.getByText('このプリセットの整理').count(),0);
             if(mode==='chord-preset') {
                 const cell=author.getByRole('textbox',{name:'1小節 1拍のコード',exact:true});
                 await cell.fill('Dm');await cell.press('Enter');
@@ -280,11 +313,24 @@ for (const engine of ['chrome','webkit']) test('preset auditions, library operat
             assert.deepEqual(await snapshot(),before);
             await open();
             assert.equal(await page.locator('[data-score-preset] option:checked').textContent(),first);
-            if(mode==='chord-preset') assert.equal(await page.locator('[data-pattern-chord]').first().textContent(),'Dm');
+            if(mode==='chord-preset') assert.equal(await page.locator('[data-preset-chord-cell]').first().inputValue(),'Dm');
             else assert.equal(await page.locator('.sc-strum-preset-grid button').first().textContent(),'↑');
             await play('pattern').click();await waitPlaying('pattern');await page.keyboard.press('Escape');
             await page.locator('[data-score-dialog]').waitFor({state:'detached'});
         }
+        // Old presets may contain more than one onset within a quarter note.
+        await page.evaluate(()=>CruiseStudio.storage.setAppSetting('scoreChordPresetsLibraryV2',{
+            items:[{id:'offbeat',name:'裏拍の進行',pattern:[[{tick:0,symbol:'C'},{tick:240,symbol:'F'}]]}],
+            knownRhythms:[]
+        }));
+        await page.click('#sc-curve-menu-toggle');await page.click('#sc-edit-chord-preset');
+        assert.equal(await page.locator('.sc-pattern-slot').count(),4);
+        const offbeat=page.getByRole('textbox',{name:'1小節 1.5拍のコード',exact:true});
+        assert.equal(await offbeat.inputValue(),'F');
+        await offbeat.fill('Dm');await offbeat.press('Enter');
+        await page.click('[data-preset-stage]');await page.click('[data-score-apply]');
+        const applied=await snapshot();
+        assert.deepEqual(applied.bars[0].chords.map(c=>[c.onsetTick,c.symbol]),[[0,'C'],[240,'Dm']]);
         assert.deepEqual(errors,[]);
     } finally {await browser.close();}
 });

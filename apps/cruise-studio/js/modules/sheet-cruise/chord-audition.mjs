@@ -59,11 +59,3 @@ export function singleChordPlan(project, chord, deps, form) {
     return {events: strumVoices(voicing, {start: .03, duration: 1.6, tick: 0, id: chord.id}),
         warnings: voicing.fallback ? ['登録フォームなし：コード名からの参考和音です'] : []};
 }
-// Fill only true gaps. Explicit rests and sustained strokes own their intervals.
-export function fillBlankStrums(slots,chordTicks,barTicks=1920){
-    const original=slots.map(s=>({...s})),fallback=original.some(s=>s.tick%240||(s.durationTicks!==undefined&&s.durationTicks%240))?120:240;
-    const candidates=[...new Set([0,480,960,1440,...chordTicks])].filter(t=>Number.isInteger(t)&&t>=0&&t<barTicks).sort((a,b)=>a-b);
-    const added=candidates.filter(t=>!original.some(s=>t>=s.tick&&t<s.tick+(s.durationTicks??fallback))).map(t=>({tick:t,action:'down',fallback:true}));
-    const all=[...original,...added].sort((a,b)=>a.tick-b.tick);
-    return all.map((s,i)=>s.fallback?{...s,durationTicks:(all[i+1]?.tick??barTicks)-s.tick}:s);
-}

@@ -347,6 +347,31 @@
                 legacyNotes.set(events[index],eventId);
             });
         }
+        // Write only to the receiving bar. Never modify an inherited pattern, a rest or a held stroke.
+        function addChordDownstroke(project,barId,tick) {
+            var perf=project.performance, bindings=perf.barRhythms;
+            var binding=bindings.find(b=>b.barId===barId);
+            var materialId=binding?.materialId||perf.basicRhythmId;
+            var rhythms=project.materials.rhythms, index=rhythms.findIndex(m=>m.id===materialId);
+            var material=rhythms[index];
+            if(material?.encoding!=='studio-strum-v1')return false;
+            var slots=material.snapshot.slots;
+            if(slots.some(s=>s.tick<=tick && tick<s.tick+(s.durationTicks??1)))return false;
+            var shared=perf.basicRhythmId===materialId || bindings.some(b=>b.barId!==barId && b.materialId===materialId);
+            var next=copy(material);
+            if(shared){
+                next.id=id();next.provenance={origin:'user-set'};
+                next.snapshot.slots.forEach(s=>{s.id=id();});
+            }
+            next.snapshot.slots.push({id:id(),tick:tick,action:'down',accent:false});
+            next.snapshot.slots.sort((a,b)=>a.tick-b.tick);
+            if(shared){
+                rhythms.push(next);
+                if(binding)binding.materialId=next.id;
+                else bindings.push({id:id(),barId:barId,materialId:next.id});
+            }else rhythms[index]=next;
+            return true;
+        }
         function editLegacy(project, edit, intent) {
             if(project.schemaVersion===1)return edit(project);
             var rich=project.materials.rhythms.some(function(m){return m.encoding==='rhythm-owner-cells-v1';});
@@ -477,6 +502,15 @@
             }
             var liveChords=new Set();next.bars.forEach(function(b){b.chords.forEach(function(e){liveChords.add(e.id);});});next.performance.formBindings=next.performance.formBindings.filter(function(b){return liveChords.has(b.chordEventId);});
             next.performance.arrangement=copy(view.arrangement);next.notation={settings:copy(view.sheetSettings),lineBreakAfter:breaks};
+            if(intent && ['chord','setBarChord','bulkChord'].includes(intent.kind)){
+                for(const barId of targetIds){
+                    const previous=project.bars.find(b=>b.id===barId),bar=next.bars.find(b=>b.id===barId);
+                    for(const event of bar?.chords||[]){
+                        if(!event.unresolved && !previous?.chords.some(c=>c.onsetTick===event.onsetTick && c.symbol===event.symbol))
+                            addChordDownstroke(next,barId,event.onsetTick);
+                    }
+                }
+            }
             reconcileScoreLayout(next,project);
             var check=validate(next);insist(check.ok,check.errors.join('/'));
             Object.keys(project).forEach(function(k){if(!Object.hasOwn(next,k))delete project[k];});Object.keys(next).forEach(function(k){project[k]=next[k];});
@@ -494,7 +528,7 @@
             check=validate(next);insist(check.ok,check.errors.join('/'));Object.keys(next).forEach(function(k){project[k]=next[k];});return bar.id;
         }
         function reconcileChord(bar,events){if(!legacyBars.has(bar))return;if(bar.chords.length>1){insist(!boundLegacyBars.has(bar),'ambiguous-chord-mapping');replacementBars.add(bar);return;}if(bar.chords.length&&events.length){var source=legacyChords.get(bar.chords[0]);insist(source,'ambiguous-chord-mapping');legacyChords.set(events[0],source);}}
-        return Object.freeze({readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
+        return Object.freeze({addChordDownstroke:addChordDownstroke,readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
     }
     return Object.freeze({create:create,pitchMidi:pitchMidi,maxBytes:MAX_BYTES,timing:timing});
 });

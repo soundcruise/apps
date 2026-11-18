@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {compactChordAudition} from '../js/modules/sheet-cruise/score-presets.mjs';
 import {chordVoicing, singleChordPlan} from '../js/modules/sheet-cruise/chord-audition.mjs';
 import {buildBarPreviewPlan, buildSongPreviewPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
 const form = {capo: 0, tuningMidi: [64,59,55,50,45,40], strings: [0,1,0,2,3,null].map((f,i) =>
@@ -79,4 +80,30 @@ test('range loop uses the selected musical duration with inherited harmony, no c
 test('single selected bar can repeat without changing the source or adding a second bar',async()=>{
  const {buildRangeLoopPlan}=await import('../js/modules/sheet-cruise/score-playback.mjs'),p=fixture(),before=JSON.stringify(p),d=deps(),plan=buildRangeLoopPlan(p,d,0,1);
  assert.equal(plan.spans.length,1);assert.equal(plan.spans[0].index,0);assert(Math.abs(plan.loopPeriod-240/p.songInfo.bpm)<1e-9);assert(plan.events.every(e=>e.barIndex===0));assert.equal(JSON.stringify(p),before);
+});
+
+test('progression audition caps long gaps at one beat and preserves offbeats and string attacks',()=>{
+    const original=buildSongPreviewPlan(fixture(),deps([{tick:0,action:'down'},{tick:240,action:'up'}]));
+    const before=structuredClone(original);
+    const compact=compactChordAudition(original);
+    const onsets=[...new Set(compact.events.map(event=>event.attackStart))];
+    assert.deepEqual(onsets.map(time=>Math.round(time*1000)),[30,280,780,1030]);
+    assert.equal(Math.round(compact.duration*1000),1530);
+    for(const [i,event] of compact.events.entries()){
+        const source=original.events[i];
+        assert.equal(event.midi,source.midi);
+        assert(Math.abs(event.start-event.attackStart-(source.start-source.attackStart))<1e-9);
+        assert(event.start+event.duration<=compact.duration+1e-9);
+    }
+    assert.deepEqual(original,before);
+});
+
+test('chord changes do not create guitar attacks in blank slots or explicit rests',()=>{
+    const project=fixture();
+    project.bars[0].chords.push({id:'change',symbol:'C',onsetTick:720});
+    for(const slots of [[],[{tick:0,action:'rest',durationTicks:960}]]){
+        for(const plan of [buildBarPreviewPlan(project,0,deps(slots)),buildSongPreviewPlan(project,deps(slots))]){
+            assert.equal(plan.events.filter(e=>e.part==='guitar').length,0);
+        }
+    }
 });

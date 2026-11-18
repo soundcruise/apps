@@ -1,3 +1,4 @@
+import {icon} from '../../../../score-viewer/ui/icons.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 
 // Keep one ordered catalogue per instrument part on this device. Initially seed it
@@ -56,65 +57,77 @@ export function presetWindow(parent, title, className = '') {
     return dialog;
 }
 
-export function managePresets(parent, library, initial, editContent, partName) {
+export function managePresets(parent, library, initial, editContent, changed) {
     const dialog=presetWindow(parent,'プリセット一覧を編集','sc-preset-catalog');
-    const doc=dialog.ownerDocument, list=doc.createElement('select');
-    list.size=12;
+    const doc=dialog.ownerDocument;
+    const list=doc.createElement('ul'),status=doc.createElement('p');
     list.setAttribute('aria-label','プリセット一覧');
-    for(const item of library.items) list.add(new doc.defaultView.Option(item.name,item.id));
-    list.selectedIndex=list.length ? Math.max(0,library.items.findIndex(e=>e.id===initial?.id)) : -1;
-    const edit=doc.createElement('button');
-    edit.type='button';edit.className='sc-preset-primary';
-    edit.textContent='この'+partName+'を編集';edit.disabled=!list.length;
-    function select(){const item=library.items[list.selectedIndex];if(item){dialog.close();editContent(item);}}
-    edit.onclick=select;list.ondblclick=select;
-    list.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();select();}};
-    dialog.append(list,edit);list.focus();
-}
-
-export function mountPresetActions(area,library,initial,changed) {
-    const doc=area.ownerDocument;
-    const summary=doc.createElement('summary');summary.textContent='このプリセットの整理';area.append(summary);
-    const actions=doc.createElement('div'),detail=doc.createElement('div'),status=doc.createElement('p');
-    actions.className='sc-preset-list-actions';status.setAttribute('role','status');area.append(actions,detail,status);
-    let item=initial;
-    function button(text, action, host=actions) {
-        const b=doc.createElement('button');b.type='button';b.textContent=text;
-        b.onclick=()=>{try{action();}catch(e){status.textContent=e.message;}};host.append(b);return b;
+    status.setAttribute('role','status');
+    dialog.append(list,status);
+    function button(host,label,content,action) {
+        const b=doc.createElement('button');
+        b.type='button';b.append(content);b.title=label;b.setAttribute('aria-label',label);
+        b.onclick=()=>{status.textContent='';try{action();}catch(error){status.textContent=error.message;}};
+        host.append(b);
+        return b;
     }
-    const index=()=>library.items.findIndex(e=>e.id===item.id);
-    function write(next,selected,message,removed=false){
-        library.write(next);item=selected;changed(selected,removed);
-        if(removed)return;
-        detail.replaceChildren();status.textContent=message;
-        up.disabled=index()<=0;down.disabled=index()>=next.length-1;
+    function write(items, focusId) {
+        library.write(items);
+        changed();
+        render(focusId);
     }
-    button('名前を変更',()=>{
-        detail.replaceChildren();
-        const input=doc.createElement('input');input.value=item.name;input.maxLength=80;input.setAttribute('aria-label','新しいプリセット名');detail.append(input);
-        const save=button('変更を保存',()=>{
-            const name=input.value.trim();
-            if(!name||library.items.some(e=>e.id!==item.id&&e.name===name))throw Error('未使用の名前を入力してください');
-            const renamed={...item,name};
-            write(library.items.map(e=>e.id===item.id?renamed:e),renamed,'名前を変更しました。');
-        },detail);
-        input.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)save.click();};input.select();
-    });
-    function move(offset){
-        const next=library.items.slice(),i=index();next.splice(i,1);next.splice(i+offset,0,item);
-        write(next,item,'一覧の'+(i+offset+1)+'番目に移動しました。');
+    function render(focusId) {
+        list.replaceChildren();
+        if(!library.items.length) status.textContent='プリセットはありません。';
+        library.items.forEach((item,index)=>{
+            const row=doc.createElement('li'),name=doc.createElement('strong'),actions=doc.createElement('div'),detail=doc.createElement('div');
+            row.setAttribute('aria-label',item.name);name.textContent=item.name;
+            actions.className='sc-preset-list-actions';detail.className='sc-preset-row-detail';
+            row.append(name,actions,detail);list.append(row);
+            const edit=button(actions,'編集','編集',()=>{dialog.close();editContent(item);});
+            edit.className='sc-preset-primary';
+            button(actions,'名前を変更',icon(doc,'edit'),()=>{
+                detail.replaceChildren();
+                const input=doc.createElement('input');input.value=item.name;input.maxLength=80;
+                input.setAttribute('aria-label','新しいプリセット名');detail.append(input);
+                const save=button(detail,'変更を保存','保存',()=>{
+                    const value=input.value.trim();
+                    if(!value||library.items.some(e=>e.id!==item.id&&e.name===value))throw Error('未使用の名前を入力してください');
+                    write(library.items.map(e=>e.id===item.id?{...item,name:value}:e),item.id);
+                });
+                input.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229)save.click();};
+                button(detail,'キャンセル','キャンセル',()=>{detail.replaceChildren();edit.focus();});
+                input.select();
+            });
+            function move(offset) {
+                const items=library.items.slice();
+                items.splice(index,1);items.splice(index+offset,0,item);write(items,item.id);
+            }
+            button(actions,'上へ','↑',()=>move(-1)).disabled=index===0;
+            button(actions,'下へ','↓',()=>move(1)).disabled=index===library.items.length-1;
+            button(actions,'複製',icon(doc,'copy'),()=>{
+                let n=2, name;
+                do{name=item.name.slice(0,72)+' ('+n+')';n++;}while(library.items.some(e=>e.name===name));
+                const copy={...structuredClone(item),id:crypto.randomUUID(),name},items=library.items.slice();
+                items.splice(index+1,0,copy);write(items,copy.id);
+            });
+            const remove=button(actions,'削除',icon(doc,'trash'),()=>{
+                detail.replaceChildren();
+                const prompt=doc.createElement('span');prompt.textContent='「'+item.name+'」を削除しますか？';detail.append(prompt);
+                const cancel=button(detail,'キャンセル','キャンセル',()=>{detail.replaceChildren();remove.focus();});
+                button(detail,'削除する','削除する',()=>{
+                    const items=library.items.filter(e=>e.id!==item.id);
+                    write(items,items[Math.min(index,items.length-1)]?.id);
+                });cancel.focus();
+            });
+            remove.className='sc-preset-delete';
+            for(const b of actions.children){
+                const action=b.getAttribute('aria-label');
+                const verb={編集:'内容を編集',上へ:'一覧の一つ上へ移動',下へ:'一覧の一つ下へ移動',複製:'コピーを作成',削除:'一覧から削除','名前を変更':'名前を変更'}[action];
+                b.title=item.name+' — '+verb;
+            }
+            if(item.id===focusId)edit.focus();
+        });
     }
-    const up=button('↑ 上へ',()=>move(-1)),down=button('↓ 下へ',()=>move(1));
-    up.disabled=index()<=0;down.disabled=index()>=library.items.length-1;
-    button('複製',()=>{
-        let n=2,name;
-        do{name=item.name.slice(0,72)+' ('+n+')'; n++;}while(library.items.some(e=>e.name===name));
-        const copy={...structuredClone(item),id:crypto.randomUUID(),name},next=library.items.slice();
-        next.splice(index()+1,0,copy);write(next,copy,'複製を編集中です。');
-    });
-    button('削除',()=>{
-        detail.replaceChildren();const prompt=doc.createElement('p');prompt.textContent='「'+item.name+'」を削除しますか？';detail.append(prompt);
-        button('削除する',()=>{const next=library.items.filter(e=>e.id!==item.id);write(next,next[0],null,true);},detail);
-        button('キャンセル',()=>detail.replaceChildren(),detail);
-    });
+    render(initial?.id);
 }

@@ -116,18 +116,23 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
             const root = page.locator('[data-score-dialog]'), sheet = root.locator('.sc-preset-paper');
             const original = await sheet.innerText();
             await root.locator('[data-preset-stage]').click();
+            const firstStage=await sheet.innerText();
             if (action.endsWith('rhythm')) await page.getByLabel('適用範囲').selectOption('all');
-            else await page.getByLabel('開始小節').selectOption({index:4});
+            else await page.locator('.sc-preset-paper').getByRole('button',{name:'5小節目を選択',exact:true}).click();
             await root.locator('[data-preset-stage]').click();
             assert.notEqual(await sheet.innerText(),original);
+            await page.keyboard.press('Control+z');assert.equal(await sheet.innerText(),firstStage);
+            await page.keyboard.press('ControlOrMeta+z');assert.equal(await sheet.innerText(),original);
+            assert(await root.locator('[data-score-apply]').isDisabled());
+            await page.keyboard.press('Control+Shift+z');assert.equal(await sheet.innerText(),firstStage);
             assert.deepEqual(await snapshot(),before);
             await root.locator('[data-score-cancel]').click();
             assert.deepEqual(await snapshot(),before);
         }
         await openMenu('#sc-edit-chord-preset');
-        await page.getByLabel('開始小節').selectOption({index:0});
+        await page.locator('.sc-preset-paper').getByRole('button',{name:'1小節目を選択',exact:true}).click();
         await page.click('[data-preset-stage]');
-        await page.getByLabel('開始小節').selectOption({index:4});
+        await page.locator('.sc-preset-paper').getByRole('button',{name:'5小節目を選択',exact:true}).click();
         await page.click('[data-preset-stage]');
         await page.click('[data-score-apply]');
         const committed = await snapshot();
@@ -138,35 +143,38 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         await page.keyboard.press('ControlOrMeta+z');
         assert.deepEqual(await snapshot(),before);
         await openMenu('#sc-edit-chord-preset');
-        assert.deepEqual(await page.locator('[data-pattern-chord]').allTextContents(), ['C','F','G','C']);
-        const grid = page.locator('.sc-chord-preset-grid');
-        await grid.locator('[data-pattern-chord]').nth(0).dragTo(grid.locator('[data-pattern-chord]').nth(1));
-        assert.deepEqual(await grid.locator('[data-pattern-chord]').allTextContents(), ['C','G','C']);
+        assert.deepEqual(await page.locator('[data-preset-chord-cell]').evaluateAll(nodes=>nodes.map(n=>n.value)), ['C','F','G','C']);
+        await page.selectOption('[data-score-preset]',{label:'カノン進行'});
+        const positions=await page.locator('.sc-author-measure').evaluateAll(rows=>rows.map(row=>row.offsetTop));
+        assert.equal(positions.length,8);
+        assert(positions.slice(0,4).every(top=>top===positions[0]) && positions[4]>positions[0]);
+        await page.selectOption('[data-score-preset]',{label:'基本進行'});
+        const grid = page.locator('.sc-preset-cell-editor');
+        await grid.locator('.sc-pattern-grip').first().dragTo(grid.locator('[data-preset-chord-cell]').nth(1));
+        assert.deepEqual(await grid.locator('[data-preset-chord-cell]').evaluateAll(nodes=>nodes.map(n=>n.value)), ['C','G','C']);
         await grid.press('ControlOrMeta+z');
-        assert.deepEqual(await grid.locator('[data-pattern-chord]').allTextContents(), ['C','F','G','C']);
+        assert.deepEqual(await grid.locator('[data-preset-chord-cell]').evaluateAll(nodes=>nodes.map(n=>n.value)), ['C','F','G','C']);
         const paper = page.locator('.sc-preset-paper');
         for (const size of [{width:1280,height:800},{width:390,height:844}]) {
             await page.setViewportSize(size);
             await page.waitForFunction(() => {
                 const paper = document.querySelector('.sc-preset-paper'), view = paper.getBoundingClientRect();
                 const sheet = paper.querySelector('.sheet-page').getBoundingClientRect();
-                return sheet.width > 200 && sheet.top >= view.top && sheet.bottom <= view.bottom + 1 &&
+                return sheet.width > 200 && sheet.top >= view.top && sheet.height > 0 &&
                     sheet.left >= view.left && sheet.right <= view.right + 1;
             });
             const sidebar = await page.locator('.sc-preset-sidebar').boundingBox(), pattern = await grid.boundingBox();
             const sheet = await paper.locator('.sheet-page').boundingBox();
-            assert(Math.abs(pattern.width-sheet.width) < 2 && Math.abs(pattern.x-sheet.x) < 2);
+            assert(Math.abs(pattern.width-sheet.width)<2 && Math.abs(pattern.x-sheet.x)<2);
+            assert.equal(await page.getByLabel('曲の譜面を拡大',{exact:true}).count(),0);
             assert(sidebar.y + sidebar.height <= pattern.y);
             const stage = await page.locator('[data-preset-stage]').boundingBox();
             assert(stage.y >= pattern.y + pattern.height - 1);
         }
         await page.setViewportSize({width:1440,height:1000});
-        await page.waitForFunction(() => document.querySelector('.sc-chord-preset-grid').getBoundingClientRect().width > 500);
-        const timeline = page.locator('.sc-preset-chord-timeline').first(), box = await timeline.boundingBox();
-        await timeline.locator('[data-pattern-chord]').dragTo(timeline, {
-            targetPosition:{x:box.width*.53,y:box.height*.75}
-        });
-        assert.equal(await timeline.locator('[data-pattern-chord]').getAttribute('data-tick'), '960');
+        await page.waitForFunction(() => document.querySelector('.sc-preset-cell-editor').getBoundingClientRect().width > 500);
+        await grid.locator('.sc-pattern-grip').first().dragTo(grid.getByLabel('1小節 3拍のコード',{exact:true}));
+        assert.equal(await grid.locator('[data-preset-chord-cell]').first().getAttribute('data-tick'), '960');
         await paper.getByRole('button', {name:'4小節目を選択',exact:true}).click();
         assert.deepEqual(await paper.locator('[data-preset-destination]').evaluateAll(nodes => nodes.map(node => Number(node.dataset.barNumber))), [4,5,6,7]);
         await page.click('[data-preset-stage]');
@@ -177,8 +185,7 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         assert.deepEqual(applied.bars[3].chords.map(e => [e.onsetTick,e.symbol]), [[960,'C']]);
         assert.deepEqual(applied.bars[2], before.bars[2]);
         await openMenu('#sc-edit-chord-preset');
-        await page.getByRole('button',{name:'プリセットを編集'}).click();
-        await page.getByRole('button',{name:'譜面から取り込む',exact:true}).click();
+        await page.getByRole('button',{name:'譜面からプリセット追加',exact:true}).click();
         const first = await paper.getByRole('button', {name:'1小節目を選択',exact:true}).boundingBox();
         const second = await paper.getByRole('button', {name:'2小節目を選択',exact:true}).boundingBox();
         await page.mouse.move(first.x+12, first.y+15);
@@ -186,7 +193,7 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         await page.mouse.move(second.x+12, second.y+15, {steps:8});
         await page.mouse.up();
         assert.equal(await paper.locator('[data-preset-source]').count(), 2);
-        const captured = page.locator('[data-preset-pattern-bar] [data-pattern-chord]');
+        const captured = page.locator('[data-preset-chord-cell]');
         assert.deepEqual(await page.locator('.sc-author-beats [data-preset-chord-cell]').evaluateAll(cells=>cells.map(input=>input.value)), ['C','G','Am','F']);
         await page.setViewportSize({width:390,height:844});
         const authorBody=page.locator('.sc-preset-author .sc-preset-dialog-body');
@@ -203,7 +210,7 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         await openMenu('#sc-edit-chord-preset');
         await page.selectOption('[data-score-preset]', {label:'譜面からの進行'});
         assert.deepEqual(await captured.evaluateAll(nodes => nodes.map(node => Number(node.dataset.tick))), [0,960,0,960]);
-        await page.getByLabel('開始小節').selectOption({index:6});
+        await page.locator('.sc-preset-paper').getByRole('button',{name:'7小節目を選択',exact:true}).click();
         await page.click('[data-preset-stage]');
         await page.click('[data-score-apply]');
         await page.locator('[data-score-dialog]').waitFor({state:'detached'});
@@ -221,8 +228,7 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         await paper.getByRole('button', {name:'4小節目を選択',exact:true}).click();
         assert.equal(await page.getByLabel('適用範囲').inputValue(), 'section');
         assert.deepEqual(await paper.locator('[data-preset-destination]').evaluateAll(nodes => nodes.map(node => Number(node.dataset.barNumber))), [4,5,6,7]);
-        await page.getByRole('button',{name:'プリセットを編集'}).click();
-        await page.getByRole('button',{name:'譜面から取り込む',exact:true}).click();
+        await page.getByRole('button',{name:'譜面からプリセット追加',exact:true}).click();
         await paper.getByRole('button', {name:'4小節目を選択',exact:true}).press('Enter');
         await paper.getByRole('button', {name:'5小節目を選択',exact:true}).press('Shift+Enter');
         await page.getByRole('button',{name:'プリセットに保存',exact:true}).click();

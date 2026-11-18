@@ -1,5 +1,5 @@
 import {cycleFormNote,playedSnapshot} from './form-cycle.mjs';
-import {singleChordPlan,fillBlankStrums} from './chord-audition.mjs';
+import {singleChordPlan} from './chord-audition.mjs';
 import {readBookSource,bookSourceCurrent} from './book-source.mjs';
 import {openBookPicker} from './book-bridge.mjs';
 import {parseChordNames,MAX_BYTES} from './chord-name-transfer.mjs';
@@ -95,7 +95,7 @@ export function createOwnerChordPicker(C,base){
         node('p','クリックすると運指が変更できます。',formView,'score-form-instruction');
         button('閉じる',()=>target.close?.(),body,{'data-chord-close':'','aria-label':'コードのカードを閉じる'}).classList.add('score-chord-close');
         const harmony=node('div',undefined,basicLayout,'score-chord-harmony');
-        const progression=button('▶ コード進行を再生',()=>{try{target.progression?.({fillBlank:fillBlankStrums});}catch(e){status.textContent=e.message;}},harmony,{'data-chord-progression':'',title:'編集中の1／2小節のコードとストロークを試聴。空欄は拍の表とコード変化で発音','aria-pressed':false});
+        const progression=button('▶ コード進行を再生',()=>{try{target.progression?.();}catch(e){status.textContent=e.message;}},harmony,{'data-chord-progression':'',title:'編集中の小節のコードと入力済みストロークを試聴','aria-pressed':false});
         function refreshPlayback(){const state=target.previewState?.(),active=state?.scope==='chords'&&state.phase!=='idle',text=active?'■ 停止':'▶ コード進行を再生';if(progression.textContent!==text)progression.textContent=text;progression.setAttribute('aria-pressed',String(!!active));}
         const unsubscribePreview=target.subscribePreview?.(refreshPlayback);refreshPlayback();
         const actions=node('div',undefined,basicLayout,'cc-control-row score-chord-actions');

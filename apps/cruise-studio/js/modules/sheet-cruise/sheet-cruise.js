@@ -113,7 +113,7 @@
     var sectionPlaybackSelection=null;
     var scoreSettings=null,scoreSettingsPending=null,emptySlotSelection=null;
     function prepareScoreSettings(){
-        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.166.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,closed:refreshSessionStatus,changed:function(change){
+        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.170.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
             emptySlotSelection=null;var oldIds=new Set(change.previous.bars.map(function(b){return b.id;})),added=state.session.draft.bars.findIndex(function(b){return !oldIds.has(b.id);});redrawSession(false);
             if(change.mode==='slot'&&added>=0){editorOpen=true;selectSheetBar(added+1);}refreshSessionStatus();
         }});return scoreSettings;}).catch(function(e){scoreSettingsPending=null;setSaveStatus(e.message||'編集画面を読み込めませんでした',true);});return scoreSettingsPending;
@@ -123,7 +123,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.166.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.170.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -486,7 +486,7 @@
         var hiddenForms=q('sc-chord-forms');var songSettings=['sc-edit-song','sc-edit-instrument','sc-edit-chord-preset','sc-edit-rhythm','sc-edit-sections'].map(q),fileActions=[els.newProjectBtn,q('sc-save-overwrite'),q('sc-save-as'),importButton,els.importInput],exports=[q('sc-export-viewer'),q('sc-export-pdf'),els.exportBtn,els.printBtn].filter(Boolean);
         curve.body.replaceChildren();menuLabel('ファイル');fileActions.forEach(function(e){curve.body.appendChild(e);});divider(curve.body);menuLabel('表示');
         curve.body.appendChild(button('sc-menu-display','表示',function(){display.root.open=true;}));curve.body.appendChild(mirror('sc-menu-display-settings','表示設定','sc-paper-settings'));
-        var zoomRow=group('sc-menu-zoom-row'),zoomLabel=document.createElement('span'),zoomButtons=group('sc-menu-zoom');zoomLabel.textContent='拡大・縮小';var minus=mirror('sc-menu-zoom-out','−','sc-zoom-out'),percent=mirror('sc-menu-zoom-reset','100%','sc-zoom-reset'),plus=mirror('sc-menu-zoom-in','＋','sc-zoom-in');zoomButtons.append(minus,percent,plus);zoomRow.append(zoomLabel,zoomButtons);curve.body.appendChild(zoomRow);function syncMenuZoom(){percent.textContent=q('sc-zoom-reset').textContent;}curve.root.addEventListener('toggle',syncMenuZoom);zoomButtons.addEventListener('click',syncMenuZoom);
+        var zoomRow=group('sc-menu-zoom-row'),zoomLabel=document.createElement('span'),zoomButtons=group('sc-menu-zoom');zoomLabel.textContent='拡大・縮小';var minus=mirror('sc-menu-zoom-out','−','sc-zoom-out'),percent=mirror('sc-menu-zoom-reset','100%','sc-zoom-reset'),plus=mirror('sc-menu-zoom-in','＋','sc-zoom-in');minus.title='譜面を縮小';percent.title='標準の倍率に戻す';plus.title='譜面を拡大';zoomButtons.append(minus,percent,plus);zoomRow.append(zoomLabel,zoomButtons);curve.body.appendChild(zoomRow);function syncMenuZoom(){percent.textContent=q('sc-zoom-reset').textContent;}curve.root.addEventListener('toggle',syncMenuZoom);zoomButtons.addEventListener('click',syncMenuZoom);
         divider(curve.body);menuLabel('再生');curve.body.appendChild(mirror('sc-menu-playback-settings','音設定','sc-playback-settings'));
         divider(curve.body);menuLabel('曲の設定');songSettings.forEach(function(e){curve.body.appendChild(e);});if(transpose)curve.body.appendChild(transpose);curve.body.appendChild(hiddenForms);
         divider(curve.body);menuLabel('書き出し');exports.forEach(function(e){curve.body.appendChild(e);});
@@ -1098,11 +1098,11 @@
 #screen-sheet-cruise .sc-paper-visibility{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--studio-border-default);}
 #screen-sheet-cruise .sc-paper-visibility label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
 #screen-sheet-cruise .sc-paper-visibility input{width:16px;height:16px;accent-color:var(--studio-accent);}
-#sc-sheet-scale-box .sheet-bar-forms{position:relative;margin:0 calc(-1 * var(--sheet-bar-pad-x));overflow:hidden;min-height:0;}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-forms{position:relative;margin:0 calc(-1 * var(--sheet-bar-pad-x));overflow:hidden;min-height:0;}
 /* Safari can size an aspect-ratio wrapper taller than its SVG. Center the intrinsic image height. */
-#sc-sheet-scale-box .sheet-form-event{position:absolute;transform:translateY(-50%);height:auto;aspect-ratio:auto;display:block;overflow:hidden;cursor:zoom-in;}
-#sc-sheet-scale-box .sheet-form-event svg{display:block;width:100%;height:auto;}
-#sc-sheet-scale-box .sheet-bar-num{min-height:24px;}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-form-event{position:absolute;transform:translateY(-50%);height:auto;aspect-ratio:auto;display:block;overflow:hidden;cursor:zoom-in;}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-form-event svg{display:block;width:100%;height:auto;}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-num{min-height:24px;}
 #sc-sheet-scale-box [data-edit-selected-bar]{position:absolute;right:6px;top:4px;z-index:6;border:1px solid #8c7949;border-radius:6px;padding:4px 9px;background:#fffcf3;color:#544626;font:600 11px sans-serif;cursor:pointer;}
 #sc-sheet-scale-box .sheet-chord-event{cursor:default;}
 .sc-form-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;width:min(300px,calc(100vw - 40px));max-height:85vh;padding:14px;border:1px solid #8e98a4;border-radius:14px;background:#fff;color:#171b20;box-shadow:0 20px 60px #0006;}
@@ -1131,7 +1131,7 @@
 .sc-form-dialog h2{margin:0;font-size:24px;}
 .sc-form-dialog button{border:1px solid #a0a7ae;border-radius:7px;background:white;color:#273440;padding:6px 12px;cursor:pointer;}
 .sc-form-dialog svg{display:block;width:100%;height:auto;max-height:65vh;}
-@media print{[data-edit-selected-bar],.sc-form-dialog{display:none!important;}#sc-sheet-scale-box .sheet-bar-num{min-height:0;}}
+@media print{[data-edit-selected-bar],.sc-form-dialog{display:none!important;}:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-num{min-height:0;}}
 #sc-slot-overlay {--editor-label-width:max(82px,calc(82px * var(--bar-loupe-scale,1)));--editor-label-offset:calc(var(--editor-label-width) + 8px * var(--bar-loupe-scale,1));--editor-min-cell:max(9px,calc(max(18px,24px * var(--bar-loupe-scale,1)) * var(--editor-horizontal-scale,1)));gap:calc(6px * var(--bar-loupe-scale,1));padding:calc(8px * var(--bar-loupe-scale,1)) calc(20px * var(--bar-loupe-scale,1)) calc(16px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-head {gap:calc(14px * var(--bar-loupe-scale,1));padding-bottom:calc(6px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-head-main,#sc-slot-overlay .slot-overlay-head-actions {gap:calc(8px * var(--bar-loupe-scale,1));}
@@ -1167,16 +1167,16 @@
 #sc-slot-overlay .solfege-cell:focus-within .solfege-colors {visibility:hidden;}
 #sc-slot-overlay .solfege-cell.piano-color-mode input {color:transparent!important;caret-color:transparent;}
 #sc-slot-overlay .solfege-cell.piano-color-mode:focus-within .solfege-colors {visibility:visible;}
-#sc-sheet-scale-box .sheet-bar-strum{column-gap:0;margin:0 calc(-1 * var(--sheet-bar-pad-x));padding:3px 0 0;border-radius:0;background:transparent;box-shadow:none;}
-#sc-sheet-scale-box .sheet-bar-strum>span:not([data-playback-band]){border-radius:0;background:transparent;box-shadow:none;}
-@media print{#sc-sheet-scale-box .sheet-bar-strum,#sc-sheet-scale-box .sheet-bar-strum>span{background:transparent!important;box-shadow:none!important;}}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-strum{column-gap:0;margin:0 calc(-1 * var(--sheet-bar-pad-x));padding:3px 0 0;border-radius:0;background:transparent;box-shadow:none;}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-strum>span:not([data-playback-band]){border-radius:0;background:transparent;box-shadow:none;}
+@media print{:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-strum,:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-strum>span{background:transparent!important;box-shadow:none!important;}}
 #sc-sheet-scale-box .sheet-section-label{cursor:pointer;}
 #sc-sheet-scale-box .sheet-section-label.is-selected-section{background:var(--score-fill,rgba(196,167,91,.18));outline:2px solid var(--score-border,#b49a55);outline-offset:3px;}
 @media print{#sc-sheet-scale-box .sheet-section-label.is-selected-section{background:transparent;outline:none;}}
 #sc-slot-overlay .slot-overlay-grid {position:relative;overflow:visible;}
 #sc-slot-overlay .editor-score-scroll{overflow-y:hidden;}
 
-#sc-slot-overlay .slot-overlay-row-body,#sc-sheet-scale-box .sheet-bar-row{position:relative;overflow:hidden;}
+#sc-slot-overlay .slot-overlay-row-body,:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-bar-row{position:relative;overflow:hidden;}
 #sc-slot-overlay [data-playback-band],#sc-sheet-scale-box [data-playback-band]{position:absolute;top:0;bottom:0;pointer-events:none;z-index:3;background:var(--score-fill,rgba(196,167,91,.18));box-shadow:inset 0 0 0 1px var(--score-border,#b49a55);will-change:left;}
 @media print{[data-playback-band]{display:none!important;}}
 #sc-slot-overlay .sc-playing-cell,#sc-sheet-scale-box .sc-playing-cell {box-shadow:inset 0 0 0 2px var(--score-border,#b49a55)!important;background-color:var(--score-fill,rgba(196,167,91,.18))!important;}
@@ -1402,8 +1402,8 @@
 #sc-sheet-scale-box [data-paper-edit]:not([data-paper-edit=""]){cursor:text;border-radius:3px;}
 #sc-sheet-scale-box [data-paper-edit=instrument],#sc-sheet-scale-box [data-paper-edit=rhythm]{cursor:pointer;}
 #sc-sheet-scale-box [data-paper-edit]:hover{outline:1px dashed #8c9da9;outline-offset:2px;}
-#sc-sheet-scale-box .sheet-section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-#sc-sheet-scale-box .sheet-section-heading .sheet-section-label{flex:1;}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+:is(#sc-sheet-scale-box,.sc-preset-sheet-frame) .sheet-section-heading .sheet-section-label{flex:1;}
 #sc-sheet-scale-box .sheet-section-play{font:11px sans-serif;padding:4px 8px;border:1px solid #bbb5aa;border-radius:5px;background:transparent;color:#665e54;cursor:pointer;}
 .sc-paper-layout.sc-hide-parts .sheet-section-heading{display:none!important;}
 #sc-sheet-scale-box [data-editable-empty]{pointer-events:auto;cursor:pointer;min-height:80px;}
@@ -1445,7 +1445,7 @@
 .sc-preset-paper .sheet-header{display:none;}
 .sc-preset-target .sc-preset-hint{margin:4px 0 8px;}
 .sc-preset-paper{overflow:auto;max-height:38dvh;margin-top:10px;border:1px solid var(--studio-border-default);border-radius:8px;}
-.sc-preset-paper .sheet-page{margin:0 auto;width:100%;min-width:500px;min-height:0;padding:8px 14px;box-sizing:border-box;}
+
 .sc-preset-paper .sheet-bar{cursor:pointer;user-select:none;}
 .sc-preset-paper .sheet-bar[data-preset-source]{outline:2px dashed #64879f;outline-offset:-3px;z-index:1;}
 .sc-preset-paper .sheet-bar[data-preset-destination]{background:#c8ad6333;box-shadow:inset 0 0 0 2px #a68136;}
@@ -1455,12 +1455,11 @@
 .sc-song-dialog.sc-batch-dialog>header h2{font-size:17px;}
 .sc-song-dialog.sc-batch-dialog>footer:empty,.sc-batch-dialog [role=status]:empty,.sc-preset-window [role=status]:empty{display:none;}
 .sc-song-dialog.sc-batch-dialog .sc-preset-dialog-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:0;overflow:auto;scrollbar-gutter:auto;}
-.sc-preset-sidebar,.sc-author-tools{border:1px solid var(--studio-border-default);background:var(--studio-control);border-radius:9px;padding:8px 12px;}
-.sc-batch-dialog .sc-preset-controls,.sc-author-tools,.sc-batch-dialog .sc-preset-range-controls,.sc-preview-heading{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;}
+.sc-preset-sidebar{border:1px solid var(--studio-border-default);background:var(--studio-control);border-radius:9px;padding:8px 12px;}
+.sc-batch-dialog .sc-preset-controls,.sc-batch-dialog .sc-preset-range-controls,.sc-preview-heading{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;}
 .sc-batch-dialog .sc-preset-controls>label,.sc-batch-dialog .sc-preset-range-controls>label{display:flex;flex:0 1 auto;align-items:center;flex-direction:row;gap:8px;margin:0;min-width:0;font-size:13px;}
 .sc-batch-dialog .sc-preset-controls select,.sc-batch-dialog .sc-preset-range-controls select{max-width:min(210px,65vw);}
-.sc-batch-dialog :is(.sc-preset-controls,.sc-preset-range-controls,.sc-preview-heading,.sc-author-tools)>button,.sc-batch-dialog select,.sc-preset-window button,.sc-batch-dialog>header button{font:inherit;font-size:13px;min-height:32px;padding:4px 10px;}
-.sc-preset-controls>button,.sc-author-tools>button:first-of-type{margin-left:auto;}
+.sc-batch-dialog :is(.sc-preset-controls,.sc-preset-range-controls,.sc-preview-heading)>button,.sc-batch-dialog select,.sc-preset-window button,.sc-batch-dialog>header button{font:inherit;font-size:13px;min-height:32px;padding:4px 10px;}
 .sc-song-dialog.sc-batch-dialog .sc-preset-pattern{margin:0;min-width:0;}
 .sc-batch-dialog .sc-preset-range-controls{margin-top:6px;justify-content:center;}
 .sc-preview-heading{justify-content:flex-start;font-size:13px;margin:0 0 4px;}
@@ -1479,27 +1478,17 @@
 .sc-preset-author .sheet-bar{touch-action:none;}
 .sc-batch-dialog .sc-preset-range-controls>.sc-preset-preview{margin:0;padding:0;background:none;font-size:12px;}
 .sc-batch-dialog .sc-preview-heading .sc-preset-hint{margin:0;color:var(--studio-text-secondary);}
-.sc-batch-dialog :is(.sc-chord-preset-grid,.sc-strum-preset-grid){box-sizing:border-box;max-width:100%;margin-inline:auto!important;}
-.sc-chord-preset-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));max-height:94px;overflow:auto;background:#fbf8f0;border:1px solid #b6ad98;border-radius:4px;color:#514a3f;}
-.sc-preset-chord-bar{min-width:0;border-left:1px solid #827c71;border-bottom:1px solid #ccc5b8;}
-.sc-preset-chord-number{display:block;height:13px;padding-left:5px;color:#837b6a;font:10px/13px sans-serif;}
-.sc-preset-chord-timeline{position:relative;height:32px;}
-.sc-preset-drop-buttons{position:absolute;inset:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));}
-.sc-song-dialog .sc-preset-drop-buttons button{min-width:0;min-height:0;height:100%;padding:0;border:0;border-left:1px solid #d9d3c7;border-radius:0;background:transparent;font-size:0;}
-.sc-song-dialog .sc-preset-drop-buttons button:hover{background:#d2ba8133;}
-.sc-song-dialog .sc-preset-chord-chip{position:absolute;top:1px;z-index:1;max-width:75%;padding:1px 4px;min-height:24px;height:auto;border:0;border-radius:3px;background:#fbf8f0;color:#ad3d29;font:bold 16px/1.25 sans-serif;cursor:grab;}
-.sc-preset-chord-chip:is(:hover,[aria-pressed=true]){outline:1px solid #977543;}
-.sc-preset-chord-timeline[data-dragging]::after{content:'';position:absolute;inset-block:0;left:var(--drop);width:2px;z-index:2;background:#977543;pointer-events:none;}
+.sc-batch-dialog .sc-strum-preset-grid{box-sizing:border-box;max-width:100%;margin-inline:auto!important;}
 .sc-song-dialog.sc-batch-dialog .sc-preset-target{flex:1 1 200px;display:flex;flex-direction:column;min-height:120px;margin:0;}
 .sc-song-dialog.sc-batch-dialog .sc-preset-hint{margin:0 0 5px;font-size:11px;}
 .sc-song-dialog.sc-batch-dialog .sc-preset-paper{flex:1;min-height:0;max-height:none;overflow:auto;margin:0;padding:5px;box-sizing:border-box;background:#141c24;scrollbar-gutter:stable both-edges;}
 .sc-preset-sheet-frame{position:relative;margin:0 auto;overflow:hidden;}
-.sc-song-dialog.sc-batch-dialog .sheet-page{position:absolute;top:0;left:0;transform-origin:top left;width:794px;min-width:794px;max-width:none;min-height:0;padding:22px 28px;margin:0 auto;}
+.sc-song-dialog.sc-batch-dialog .sheet-page{position:absolute;top:0;left:0;transform-origin:top left;width:794px;min-width:794px;max-width:none;font-size:var(--sc-source-font-size,16px);margin:0 auto;}
 .sc-song-dialog.sc-batch-dialog .sheet-header{display:block;}
 @media(max-width:640px){
  .sc-song-dialog.sc-batch-dialog[open]{padding:10px;gap:6px;width:calc(100vw - 12px);max-height:97dvh;height:97dvh;}
- .sc-preset-sidebar,.sc-author-tools{padding:5px 7px;}
- .sc-batch-dialog .sc-preset-controls,.sc-batch-dialog .sc-preset-range-controls,.sc-author-tools{gap:4px 7px;}
+ .sc-preset-sidebar{padding:5px 7px;}
+ .sc-batch-dialog .sc-preset-controls,.sc-batch-dialog .sc-preset-range-controls{gap:4px 7px;}
  .sc-batch-dialog .sc-preset-controls>label{flex-direction:column;align-items:start;gap:1px;font-size:11px;}
  .sc-preset-controls>button{align-self:end;}
  .sc-preset-controls select[data-score-preset]{max-width:35vw;}
@@ -1518,17 +1507,12 @@
 .sc-batch-dialog .sc-strum-preset-grid{max-height:90px;overflow:auto;margin:0;background:#fbf8f0;padding:3px;border-radius:4px;}
 .sc-strum-preset-grid>div>button{min-width:0;color:#704124!important;background:transparent;border-color:#c5bcab;}
 /* Bulk entry places each transport next to the material it auditions. */
-.sc-batch-dialog .sc-preset-controls>label,.sc-batch-dialog .sc-preset-controls select{font-size:16px;font-weight:600;}
-.sc-batch-dialog .sc-preset-controls select{min-height:42px;padding-inline:12px;font-size:18px;}
+.sc-batch-dialog .sc-preset-controls>label,.sc-batch-dialog .sc-preset-controls select{font:inherit;font-size:14px;}
+.sc-batch-dialog .sc-preset-controls select{min-height:42px;padding-inline:12px;}
 .sc-preset-guide{font-size:13px;color:var(--studio-text-secondary);margin:6px 0 0;}
-.sc-pattern-strip{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,var(--pattern-width,65%)) minmax(0,1fr);align-items:center;}
+.sc-pattern-strip{align-items:center;}
 .sc-pattern-strip>[data-preview-play]{justify-self:end;margin-right:8px;white-space:nowrap;}
 .sc-preset-paper-area{position:relative;display:flex;min-height:0;flex:1;background:#141c24;border-radius:8px;}
-.sc-batch-dialog .sc-preset-paper-area>[data-preview-play]{position:absolute;z-index:2;top:12px;left:12px;min-height:36px;}
-.sc-song-dialog.sc-preset-author[open]:has(.sc-preset-target[hidden]):has(.sc-preset-pattern[hidden]){width:min(540px,95vw);height:auto;}
-.sc-preset-author:has(.sc-preset-target[hidden]):has(.sc-preset-pattern[hidden]) .sc-author-tools{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;}
-.sc-preset-author:has(.sc-preset-target[hidden]):has(.sc-preset-pattern[hidden]) .sc-author-tools strong{grid-column:1/-1;}
-.sc-preset-author:has(.sc-preset-target[hidden]):has(.sc-preset-pattern[hidden]) .sc-author-tools button{margin:0;min-height:42px;}
 .sc-preset-author .sc-preset-pattern>section{display:block;}
 .sc-preset-cell-editor{min-width:0;margin-bottom:8px;}
 .sc-author-cell-tools{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px;}
@@ -1541,19 +1525,56 @@
 .sc-preset-author .score-owner-chord-picker{max-height:48dvh;overflow:auto;}
 .sc-preset-author .sc-preset-pattern{flex-shrink:0;}
 .sc-preset-author .sc-preset-pattern>section details[open]{max-height:32dvh;overflow:auto;}
-.sc-preset-window.sc-preset-catalog:not(.sc-batch-dialog){width:min(560px,94vw);max-width:none;}
-.sc-preset-window.sc-preset-catalog select[size]{height:min(52dvh,530px);font:16px/1.5 system-ui;}
-.sc-preset-window.sc-preset-catalog option{padding:8px;}
-.sc-preset-window.sc-preset-catalog .sc-preset-primary{display:block;margin-left:auto;font-size:16px;min-height:42px;}
+.sc-preset-window.sc-preset-catalog:not(.sc-batch-dialog){width:min(620px,94vw);max-width:none;}
+.sc-preset-catalog ul{margin:0;padding:0;list-style:none;max-height:66dvh;overflow:auto;}
+.sc-preset-catalog li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--studio-border-default);}
+.sc-preset-catalog li strong{overflow-wrap:anywhere;}
+.sc-preset-catalog .sc-preset-list-actions{display:flex;gap:4px;flex-wrap:nowrap;}
+.sc-preset-catalog .sc-preset-list-actions button{display:inline-grid;place-items:center;min-width:32px;padding:2px 5px;font-size:16px;}
+.sc-preset-catalog .sc-preset-list-actions button.sc-preset-primary{min-width:48px;font:500 13px/1.3 system-ui;}
+.sc-preset-catalog button.sc-preset-delete{color:#f1a9a7;}
+.sc-preset-row-detail:not(:empty){display:flex;align-items:center;flex-wrap:wrap;gap:6px;grid-column:1/-1;}
+.sc-preset-row-detail:empty{display:none;}
+.sc-song-dialog.sc-preset-author[open]:has(.sc-preset-target[hidden]){height:auto;}
+@media(max-width:520px){.sc-preset-catalog li{grid-template-columns:minmax(0,1fr);}.sc-preset-catalog .sc-preset-list-actions button{min-width:36px;min-height:36px;}}
 .sc-preset-author details input{max-width:270px;margin-right:6px;}
 @media(max-width:640px){
- .sc-batch-dialog .sc-preset-controls label{font-size:13px;}
- .sc-batch-dialog .sc-preset-controls select{font-size:16px;}
  .sc-pattern-strip>[data-preview-play]{font-size:12px;padding:5px;margin-right:4px;}
- .sc-preset-paper-area:has(>[data-preview-play]:not([hidden])){flex-direction:column;padding:8px;gap:6px;}
- .sc-batch-dialog .sc-preset-paper-area>[data-preview-play]{position:static;align-self:start;}
  .sc-preset-guide{font-size:12px;}
 }
+
+.sc-preset-cell-editor{display:grid;grid-template-columns:68px minmax(0,1fr);gap:4px 8px;align-items:center;background:#f5f5f5;border-radius:6px;color:#515960;padding:7px;box-sizing:border-box;}
+.sc-preset-cell-editor .sc-author-cell-tools{display:flex;flex-direction:column;gap:3px;margin:0;align-items:center;}
+.sc-author-cell-tools strong{font-size:12px;}
+.sc-song-dialog .sc-author-cell-tools button{min-height:0;padding:1px 4px;background:white;color:#505b63;border:1px solid #929ba1;border-radius:4px;font:bold 11px system-ui;}
+.sc-author-cell-grid{display:grid;grid-template-columns:repeat(4,minmax(104px,1fr));min-width:0;overflow:auto;gap:5px 0;max-height:none;margin:0;}
+.sc-author-measure{flex:1 0 0;box-sizing:border-box;border:0;background:white;}
+.sc-author-measure strong{color:#515960;background:#f5f5f5;}
+.sc-author-beats{border:1px solid #909ba3;border-radius:5px;overflow:auto;}
+.sc-pattern-slot{min-width:0;position:relative;border-right:1px solid #ddd;background:white;padding-top:14px;}
+.sc-pattern-slot small{position:absolute;top:0;left:2px;color:#59626a;font-size:9px;}
+.sc-song-dialog .sc-pattern-slot input{border:0;height:27px;font:bold 15px system-ui;color:#ba3e30;}
+.sc-pattern-grip{position:absolute;bottom:0;left:1px;cursor:grab;font-size:12px;line-height:14px;}
+.sc-preset-cell-editor>section,.sc-pattern-length-tools{grid-column:1/-1;}
+.sc-pattern-length-tools{display:flex;gap:6px;}
+.sc-song-dialog .sc-pattern-length-tools button{padding:2px 6px;min-height:23px;font-size:11px;}
+
+.sc-batch-dialog{--preset-rail:78px;}
+.sc-batch-dialog .sc-pattern-strip,.sc-batch-dialog .sc-preset-paper-area{display:grid;grid-template-columns:var(--preset-rail) minmax(0,1fr);gap:8px;}
+.sc-pattern-strip>.sc-preset-cell-editor,.sc-pattern-strip>.sc-strum-preset-grid{width:min(100%,var(--pattern-width,100%));justify-self:start;margin-inline:0!important;}
+.sc-preset-author .sc-pattern-strip>.sc-preset-cell-editor,.sc-preset-author .sc-pattern-strip>.sc-strum-preset-grid{width:100%;}
+.sc-batch-dialog .sc-preset-paper-area{align-items:stretch;padding:0;}
+.sc-preset-paper-area:has(.sc-score-preview-rail[hidden]){grid-template-columns:minmax(0,1fr);}
+.sc-score-preview-rail{display:flex;flex-direction:column;gap:4px;align-items:stretch;}
+.sc-score-preview-rail{padding:6px 0 6px 6px;}
+.sc-score-preview-rail button{min-height:32px;padding:3px;}
+.sc-song-dialog.sc-batch-dialog .sc-preset-paper{padding:4px 0;border:0;scrollbar-gutter:stable;min-width:0;}
+.sc-preset-sheet-frame{margin-inline:0;}
+.sc-preset-actions{display:flex;align-items:center;margin-left:auto;gap:6px;flex-wrap:wrap;}
+.sc-song-dialog .sc-preset-actions button{padding:5px 8px;font-size:12px;background:transparent;color:var(--studio-text-secondary);}
+.sc-batch-dialog .sc-preset-controls select[data-score-preset]{appearance:none;border-color:var(--studio-accent);font-size:16px;font-weight:600;line-height:1.25;height:42px;padding:0 32px 0 12px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:right 16px center,right 11px center;background-repeat:no-repeat;background-size:5px 5px;}
+.sc-pattern-onset{position:relative;padding-bottom:10px;}
+@media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
 #sc-slot-overlay .sc-editor-transfer-cell> :is(.dock-strum-cell,.dock-lyrics-cell){height:100%;width:100%;min-width:0;}
 #sc-slot-overlay [data-range-row] input{touch-action:pan-y;}
@@ -2054,7 +2075,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.166.0-dev.1'),import('../score-ui.mjs?v=0.166.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.170.0-dev.1'),import('../score-ui.mjs?v=0.170.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -2094,7 +2115,7 @@
     }
     function previewDependencies(project,melodyOnly){
         var materials=new Map(project.materials.rhythms.map(function(m){return [m.id,m];})),bindings=new Map(project.performance.barRhythms.map(function(b){return [b.barId,b.materialId];})),cache=new Map();
-        return {pitchMidi:CS().model.schema2.pitchMidi,parseChord:CS().theory.parseBasicChordSymbol,qualities:window.ChordCruise.theory.QUALITIES,notePc:CS().theory.keyToSemitone,melodyOnly:!!melodyOnly,fillBlankStrums:scorePlayback?.fillBlankStrums,rhythm:function(p,i){
+        return {pitchMidi:CS().model.schema2.pitchMidi,parseChord:CS().theory.parseBasicChordSymbol,qualities:window.ChordCruise.theory.QUALITIES,notePc:CS().theory.keyToSemitone,melodyOnly:!!melodyOnly,rhythm:function(p,i){
             var id=bindings.get(p.bars[i].id)||p.performance.basicRhythmId;if(cache.has(id))return cache.get(id);var m=materials.get(id),r;
             if(m?.encoding==='studio-strum-v1')r={encoding:m.encoding,slots:m.snapshot.slots};
             else if(m?.encoding==='rhythm-owner-cells-v1'){var checked=CS().rhythmSnapshots.readRhythmMaterial(m);if(!checked.ok)throw Error('ストロークの内容を確認してください');r={encoding:m.encoding,projection:checked.projection};}
@@ -2107,10 +2128,10 @@
         function current(){return !disposed&&state.active&&state.session===owner&&owner.snapshotVersion===version&&options.isOpen()&&!document.hidden;}
         function audio(){if(!runtime)runtime=createPianoAudition({sessionId:'studio.sheet.layout.'+crypto.randomUUID(),coordinator:CS().audio,mix:playbackMix,isMetronomeEnabled:function(){return metronomeEnabled;},metronomeSample:function(ctx,midi){return scoreUI.metronomeSample(ctx,midi,metronomeSound);},outputTime:function(ctx){return scoreUI.outputContextTime(ctx,performance.now());},createContext:function(){return new (window.AudioContext||window.webkitAudioContext)();},setTimer:window.setTimeout.bind(window),clearTimer:window.clearTimeout.bind(window),loadSample:loadPianoSample,onState:function(value){phase=value;options.changed(value);},onError:function(text){options.message(text);}});return runtime;}
         return {async play(){var ticket=++generation,stopGeneration=CS().audio.getStopGeneration();if(!current())return;phase='loading';options.changed(phase);await prepareScorePlayback();if(ticket!==generation||stopGeneration!==CS().audio.getStopGeneration()||!current()||!scorePlayback){if(ticket===generation){phase='idle';options.changed(phase);}return;}try{var practice=practiceProject(project);var deps=previewDependencies(practice,false);
-            if(options.patternOnly)deps.fillBlankStrums=null;
             plan=options.auditionPlan || buildSongPreviewPlan(practice,deps,0);
             if(!options.patternOnly)plan=scorePlayback.withMetronome(practice,plan);
-            preRoll=!options.patternOnly&&countInEnabled?scorePlayback.buildCountIn(practice):null;var result=await audio().playEvents(plan.events,function(){return ticket===generation&&stopGeneration===CS().audio.getStopGeneration()&&current();},plan.duration,true,undefined,preRoll);if(!result.ok){phase='idle';options.changed(phase);if(result.error)options.message(result.error);}}catch(error){phase='idle';options.changed(phase);options.message(error.message||'音を開始できませんでした');}},
+            var schedule=options.auditionTiming?options.auditionTiming(plan):plan;
+            preRoll=!options.patternOnly&&countInEnabled?scorePlayback.buildCountIn(practice):null;var result=await audio().playEvents(schedule.events,function(){return ticket===generation&&stopGeneration===CS().audio.getStopGeneration()&&current();},schedule.duration,true,undefined,preRoll);if(!result.ok){phase='idle';options.changed(phase);if(result.error)options.message(result.error);}}catch(error){phase='idle';options.changed(phase);options.message(error.message||'音を開始できませんでした');}},
             position(){if(phase!=='playing'||!runtime||!plan)return null;var snapshot=runtime.snapshot(),elapsed=(snapshot.visualElapsedSeconds??snapshot.elapsedSeconds)-.03-playbackVisualDelay/1000-(preRoll?.duration||0);if(elapsed<0)return null;var span=plan.spans.find(function(s){return elapsed<s.end;})||plan.spans[plan.spans.length-1];return span?{barNumber:span.index+1,tick:Math.max(0,Math.min(1919.999,(elapsed-span.start)/plan.secondsPerTick))}:null;},
             stop(){generation++;phase='idle';options.changed(phase);if(runtime)void runtime.stop();},dispose(){disposed=true;generation++;return runtime?runtime.dispose():Promise.resolve({ok:true});}};
     }
@@ -2294,16 +2315,16 @@
         }
         root._chordOwner=owner;root._chordBarId=bar.id;root._chordTick=chordPicker.tick;root._chordSymbol=symbol;root._disposeOwnerChord?.();
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.166.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.170.0-dev.1').then(function(m){return m.createChordPicker(CS(),window.ChordCruise);}).catch(function(e){chordPickerModule=null;throw e;});
         chordPickerModule.then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick||chordPicker.formEventId!==eventId)return;
             module.mount(root,{session:owner,bar:bar,tick:tick,eventId:eventId,editForm:!!eventId,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick&&chordPicker.formEventId===eventId;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
                 if(!currentFrame(frame)||!editorCanMove())return false;var field=editorRoot().querySelector('[data-overlay-field="chord"][data-slot-tick="'+tick+'"]');if(!field||field.readOnly)return false;return field._applyBeatValue(symbol,formMaterial,formMode).ok;
-            },close:function(){if(!currentFrame(frame)||!editorCanMove())return;stopPianoAudition();chordPicker.open=false;root.hidden=true;root._disposeOwnerChord?.();syncEditorDisclosures();},formDetail:function(id){var cell=getSheetBarByNumber(state.selectedBarNumber);if(cell&&currentFrame(frame))openPaperForm(cell,id);},changed:function(){renderPreview(true);},progression:function(resolver){
+            },close:function(){if(!currentFrame(frame)||!editorCanMove())return;stopPianoAudition();chordPicker.open=false;root.hidden=true;root._disposeOwnerChord?.();syncEditorDisclosures();},formDetail:function(id){var cell=getSheetBarByNumber(state.selectedBarNumber);if(cell&&currentFrame(frame))openPaperForm(cell,id);},changed:function(){renderPreview(true);},progression:function(){
                 if(!currentFrame(frame)||!editorCanMove())return false;
                 if(barPreviewScope==='chords'&&barPreviewPhase!=='idle'){stopPianoAudition();return true;}
                 finishTextInputs();if(!currentFrame(frame)||!editorCanMove())return false;
-                try{var p=owner.workingSnapshot(),deps=previewDependencies(p,false);deps.chordsOnly=true;deps.fillBlankStrums=resolver.fillBlank;var plan=editorBars>1?buildSongPreviewPlan(p,deps,editorStartIndex(p),editorBars):buildBarPreviewPlan(p,state.selectedBarNumber-1,deps);playPreviewPlan(plan,'chords');return true;}catch(e){pianoMessage(e.message);return false;}
+                try{var p=owner.workingSnapshot(),deps=previewDependencies(p,false);deps.chordsOnly=true;var plan=editorBars>1?buildSongPreviewPlan(p,deps,editorStartIndex(p),editorBars):buildBarPreviewPlan(p,state.selectedBarNumber-1,deps);playPreviewPlan(plan,'chords');return true;}catch(e){pianoMessage(e.message);return false;}
             },previewRange:function(){return {startIndex:editorBars>1?editorStartIndex(owner.draft):state.selectedBarNumber-1,count:Math.min(editorBars,owner.draft.bars.length-editorStartIndex(owner.draft))};},previewState:function(){return {phase:barPreviewPhase,scope:barPreviewScope};},subscribePreview:function(listener){chordPreviewListeners.add(listener);return function(){chordPreviewListeners.delete(listener);};},preview:function(plan,scope){
                 if(!currentFrame(frame)||!editorCanMove())return false;
                 if(scope==='chords'&&barPreviewScope===scope&&barPreviewPhase!=='idle'){stopPianoAudition();return true;}
@@ -2688,6 +2709,7 @@
                 var raw=input.value.trim();
                 var priorChord=owner.draft.bars.find(function(b){return b.id===source.id;})?.chords.find(function(e){return e.onsetTick===tick;}),fixedForm=priorChord&&owner.draft.performance.formBindings.some(function(b){return b.chordEventId===priorChord.id&&b.mode==='fixed';});
                 var formAllowed=kind!=='chord'||!raw||!CS().localChordForms||fixedForm&&!formMaterial||CS().localChordForms.authorize(owner);
+                var addedStroke=false;
                 var result=(composition?owner.runCompositionTextOperation:owner.runTextOperation)(JSON.stringify(['beat',kind,source.id,tick]),'拍位置の'+kind+'入力',function(p){
                     if(!formAllowed)throw Error('楽器条件の確認をキャンセルしました。入力内容は保存されていません');
                     var b=p.bars.find(function(b){return b.id===source.id;}), list=b[collection], old=list.find(function(e){return e.onsetTick===tick;});
@@ -2699,6 +2721,7 @@
                         var symbol=api.chord(raw,p.instrument.capo);if(symbol===null)throw Error('コード名を確認してください');
                         // An explicitly inserted chord establishes a new harmony boundary. Keep IDs and make this one undoable edit.
                         if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
+                        if(!old||old.symbol!==symbol||old.unresolved)addedStroke=api.addChordDownstroke(p,b.id,tick);
                         if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
                         if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,formMode==='auto'?'auto':'fixed');}else{if(formMode==='auto')p.performance.formBindings=p.performance.formBindings.filter(function(b){return b.chordEventId!==chordEvent.id;});CS().localChordForms.syncEvent(p,chordEvent);}}
                     }else{
@@ -2731,6 +2754,11 @@
                 input.setAttribute('aria-invalid',result.ok?'false':'true');input.classList.toggle('is-invalid',!result.ok);input.title=result.ok?'':result.error||'入力を確認してください';
                 var diagnostics=textDiagnostics.get(owner);if(!diagnostics){diagnostics=new Map();textDiagnostics.set(owner,diagnostics);}
                 if(result.ok)diagnostics.delete(input);else diagnostics.set(input,input.title);
+                if(result.ok&&addedStroke){
+                    var updated=state.project.bars[bar.barNumber-1];
+                    var row=input.closest('.editor-measure')?.querySelector('.dock-strum-grid');
+                    if(row)row.replaceWith(buildStrumGridRow(updated,getStrumGridResolution(updated)));
+                }
                 if(result.ok){initial=input.value;replacingAll=false;if(input._refreshColors)input._refreshColors();renderPreview(true);}else{setSaveStatus(input.title,true);refreshPiano();}
                 return result;
             }
@@ -4808,7 +4836,7 @@
         var ids=args.barIds.slice(),res=runStructureOperation('moveBars',args);if(!res.ok)return;
         var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
     }
-    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.166.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
+    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.170.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
     function openSheetAction(kind,trigger){
         if(!editorCanMove())return;finishTextInputs();if(!editorCanMove())return;stopPianoAudition();var owner=state.session,version=owner.snapshotVersion;
         prepareSheetActions().then(function(ready){if(!ready||state.session!==owner||owner.snapshotVersion!==version||!editorCanMove())return;
@@ -4830,13 +4858,13 @@
     }
     function openPlaybackSettings(trigger){
         if(!editorCanMove())return;var owner=state.session;
-        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.166.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
+        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.170.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
             if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);pianoAudition?.setMix(playbackMix);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(playbackMix);refreshPracticeTransport();
             try{var raw=localStorage.getItem('cruiseStudio.appSettings'),settings=raw===null?{}:JSON.parse(raw);if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('invalid-settings');var result=CS().storage.setAppSetting(key,value);if(!result.ok)throw Error(result.error);notice.textContent='';}catch(_){notice.textContent='設定を保存できませんでした。この画面にのみ適用しています';}
         },closed:refreshToolbarActions});return playbackSettings;}).catch(function(){playbackSettingsPending=null;setSaveStatus('音設定を読み込めませんでした',true);});
         playbackSettingsPending.then(function(settings){if(settings&&state.session===owner&&editorCanMove())settings.open(trigger);});
     }
-    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.166.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
+    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.170.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
     async function openPaperForm(cell,eventId,tick){
         if(!editorCanMove()||!CS().localPaperForms)return;
@@ -4985,10 +5013,10 @@
         var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project))||{};
         viewerExportFlight=true;refreshToolbarActions();
         try{
-            var module=await import('./viewer-contract.mjs?v=0.166.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
+            var module=await import('./viewer-contract.mjs?v=0.170.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
             var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(project.projectId));
             var documentId='score-'+Array.from(new Uint8Array(hash),function(n){return n.toString(16).padStart(2,'0');}).join('');
-            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.166.0-dev.1',defaultPresentation:presentation});
+            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.170.0-dev.1',defaultPresentation:presentation});
             if(!state.active||state.session!==owner||owner.snapshotVersion!==version||owner.inputPending||textDiagnostic(owner)){setSaveStatus('曲や入力状態が変わったため、書き出しを中止しました',true);return;}
             var exportedEntry=await CS().scoreViewer.add(result.text,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);}});
             if(!exportedEntry){setSaveStatus('書き出しをキャンセルしました');return;}
@@ -5339,7 +5367,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line local UI candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.166.0-dev.1',
+        developmentVersion: '0.170.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,

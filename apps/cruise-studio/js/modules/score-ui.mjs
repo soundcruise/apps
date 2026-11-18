@@ -30,8 +30,24 @@ export function bindOutsideDismiss(dialog,{close=()=>dialog.close(),canClose=()=
 // Shared presentation of optional transport slots; each host keeps its own clock.
 export function installScoreUI(doc){
  if(!doc.defaultView||doc.getElementById('score-ui-style'))return;
- const explain=e=>{const el=e.target.closest?.('button,summary,input,select,textarea,[role="button"]');if(!el||el.title||!el.closest('#screen-sheet-cruise,#sc-slot-overlay,.sv-viewer,.sv-settings,.sc-layout-dialog,.sc-form-dialog,.sc-playback-dialog,dialog[class^="sc-"],dialog[class^="sv-"]'))return;const name=el.getAttribute('aria-label')||el.labels?.[0]?.textContent?.trim()||el.textContent?.trim();if(!name)return;const help={'表示':'譜面に表示する項目を選びます。詳しい調整は詳細設定へ','詳細設定':'文字・フォームのサイズや色、線、配置を調整します','音設定':'音量・カウントイン・メトロノーム・音と棒の同期を調整します','ライブラリ':'この端末に保存した譜面を開き、名前やフォルダを整理します','保存':'現在の曲の変更を上書き保存します','履歴':'変更前の譜面を確認し、選んだ時点へ戻します'};el.title=help[name]||name;};
- doc.addEventListener('pointerover',explain);doc.addEventListener('focusin',explain);
+ const regions='#screen-sheet-cruise,#sc-slot-overlay,.sv-viewer,.sv-settings,.sc-layout-dialog,.sc-form-dialog,.sc-playback-dialog,dialog[class^="sc-"],dialog[class^="sv-"]';
+ const controls='button,summary,input:not([type=hidden]),select,textarea,a[href],[role=button],[role=switch],[role=slider],[role=tab],[role=menuitem],[draggable=true]';
+ const help={'表示':'譜面に表示する項目を選びます','詳細設定':'文字・フォームのサイズや色、線、配置を調整します','音設定':'音量・カウントイン・メトロノーム・音と棒の同期を調整します','ライブラリ':'この端末の譜面を開いて整理します','履歴':'変更前の譜面を確認し、選んだ時点へ戻します','適用':'選んだ範囲にパターンを仮適用します','メニュー':'曲の操作や表示・音の設定を開きます'};
+ const generated=new WeakMap();
+ function explain(event){
+    const path=event.composedPath();
+    if(!path.some(node=>node.matches?.(regions)))return;
+    const el=path.find(node=>node.matches?.(controls));
+    if(!el||el.title && el.title!==generated.get(el))return;
+    const label=el.labels?.[0];
+    const name=el.getAttribute('aria-label')||el.ownerDocument.getElementById(el.getAttribute('aria-labelledby'))?.textContent?.trim()||
+        label?.querySelector('span')?.textContent?.trim()||Array.from(label?.childNodes||[]).filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).filter(Boolean).join(' ')||
+        el.placeholder||el.textContent?.trim();
+    if(!name)return;
+    const value=help[name]||name;
+    el.title=value;generated.set(el,value);
+ }
+ doc.addEventListener('pointerover',explain,true);doc.addEventListener('focusin',explain,true);
  const style=doc.createElement('style');style.id='score-ui-style';style.textContent=`
 .score-transport{box-sizing:border-box;display:flex!important;align-items:center!important;justify-content:center!important;flex-wrap:nowrap!important;gap:10px!important;padding:8px 12px!important;min-height:62px;border:1px solid var(--studio-border-default,#62717e);border-radius:10px;background:#1e2832;color:#f5f1e8}
 .score-transport .score-transport-main,.score-transport .score-transport-options{display:flex!important;align-items:center;flex-wrap:nowrap;gap:8px;min-width:0}

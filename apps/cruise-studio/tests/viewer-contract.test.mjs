@@ -8,7 +8,7 @@ import {createUITestProject} from '../scripts/create-ui-test-project.mjs';
 import {createStudioViewerContract, normalizeViewerPresentation} from '../js/modules/sheet-cruise/viewer-contract.mjs';
 import {MAX_FILE_BYTES, MAX_PRESENTATION_BYTES} from '../../score-viewer/core/file-format.mjs';
 import {canonicalJSON} from '../../score-viewer/core/json.mjs';
-import {buildSongPreviewPlan, fillBlankStrums} from '../js/modules/sheet-cruise/score-playback.mjs';
+import {buildSongPreviewPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
 
 const require = createRequire(import.meta.url), realm = {window:{CruiseStudio:{},ChordCruise:{},crypto:webcrypto},TextEncoder};
 for (const f of ['music-theory.js','song-model.js']) vm.runInNewContext(readFileSync(new URL('../js/core/' + f, import.meta.url), 'utf8'), realm);
@@ -19,6 +19,24 @@ const source = createUITestProject(), clone = value => JSON.parse(JSON.stringify
 const metadata = () => ({documentId:'viewer-document-1',revisionId:'revision-1',exportedAt:'2026-11-16T00:00:00.000Z',studioVersion:'0.144.0-dev.1'});
 const exported = () => contract.codec.encode(source, metadata());
 const mutateFile = async edit => { const x = JSON.parse((await exported()).text); edit(x); return JSON.stringify(x); };
+
+test('entering a chord in an inherited pattern only adds a stroke for the target bar',()=>{
+    const p=clone(source), bar=p.bars[0];
+    const basic=p.materials.rhythms.find(m=>m.id===p.performance.basicRhythmId);
+    p.performance.barRhythms=p.performance.barRhythms.filter(b=>b.barId!==bar.id);
+    basic.snapshot.slots=[{id:schema.newId(),tick:0,durationTicks:480,action:'rest',accent:false},
+        {id:schema.newId(),tick:480,durationTicks:480,action:'up',accent:false}];
+    const original=clone(basic);
+    for(const tick of [0,240,480,720])assert.equal(schema.addChordDownstroke(p,bar.id,tick),false);
+    assert.equal(schema.addChordDownstroke(p,bar.id,960),true);
+    const binding=p.performance.barRhythms.find(b=>b.barId===bar.id);
+    const slots=p.materials.rhythms.find(m=>m.id===binding.materialId).snapshot.slots;
+    assert.notEqual(binding.materialId,basic.id);
+    assert.deepEqual(basic,original);
+    assert.equal(schema.addChordDownstroke(p,bar.id,960),false);
+    assert.deepEqual(slots.map(s=>[s.tick,s.action]),[[0,'rest'],[480,'up'],[960,'down']]);
+    assert.equal(schema.validate(p).ok,true);
+});
 
 test('dedicated file preserves every canonical field/material, non-ASCII text, timing and visual holes', async () => {
     const p = clone(source), b = p.bars[0];
@@ -92,7 +110,7 @@ test('optional appearance is allowlisted and warned; invalid anchors/required pr
     await assert.rejects(contract.codec.encode(source,{...metadata(),defaultPresentation:{layout:{padding:'x'.repeat(MAX_PRESENTATION_BYTES)}}}), /presentation-budget/);
 });
 test('reference acoustic projection equals the editor plan for all registered strings and exact melody timing', () => {
-    const before = JSON.stringify(source), expected = buildSongPreviewPlan(source, {pitchMidi:schema.pitchMidi,fillBlankStrums,parseChord:() => null,qualities:{},
+    const before = JSON.stringify(source), expected = buildSongPreviewPlan(source, {pitchMidi:schema.pitchMidi,parseChord:() => null,qualities:{},
         rhythm(p,index) { const binding = p.performance.barRhythms.find(b => b.barId === p.bars[index].id), m = p.materials.rhythms.find(m => m.id === (binding?.materialId || p.performance.basicRhythmId)); return {...m.snapshot,encoding:m.encoding}; }});
     const actual = contract.playbackPlan(source); assert.deepEqual(actual,expected);
     assert(actual.events.some(e => e.part === 'guitar' && e.stroke === 'down'));

@@ -1,5 +1,6 @@
+import {placePlayhead} from '../score-ui.mjs';
 import {presetChordCells} from './preset-chord-cells.mjs';
-import {mountPresetActions,presetLibrary, presetWindow, managePresets} from './preset-library.mjs';
+import {presetLibrary, presetWindow, managePresets} from './preset-library.mjs';
 
 // Straight 4/4 patterns adapted from Rhythm Cruise's built-in stages 1–6.
 // Progression symbols are in C, matching Pitch Cruise's built-in progressions.
@@ -107,7 +108,26 @@ function rowsFromScore(C, view, numbers) {
     });
 }
 
-export function mountScorePresets({C, doc, node, body, status, apply, project, view, args, mode, navigate, createPreviewAudio}) {
+// Audition the harmony at practice tempo, shortening only gaps longer than one beat.
+export function compactChordAudition(plan) {
+    const beat=480*plan.secondsPerTick;
+    const attacks=[...new Set(plan.events.map(event=>event.attackStart))].sort((a,b)=>a-b);
+    const groups=new Map();
+    let end=.03;
+    attacks.forEach((attack,index)=>{
+        const length=Math.min(beat,(attacks[index+1]??plan.duration)-attack);
+        groups.set(attack,{start:end,length});
+        end+=length;
+    });
+    const events=plan.events.map(event=>{
+        const group=groups.get(event.attackStart),offset=event.start-event.attackStart;
+        return {...event,attackStart:group.start,start:group.start+offset,
+            duration:Math.min(event.duration,group.length-offset)};
+    }).filter(event=>event.duration>0);
+    return {events,duration:end};
+}
+
+export function mountScorePresets({C, doc, node, body, status, apply, project, view, args, mode, navigate, createPreviewAudio, previewPaperOptions}) {
     const chords = mode === 'chordPreset';
     const storageKey = chords ? 'scoreChordPresetsV1' : 'scoreStrumPresetsV1';
     const saved = C.storage.getAppSetting(storageKey);
@@ -144,7 +164,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     controls.className = 'sc-preset-controls';
     const preset = field('プリセット', 'select', controls);
     preset.dataset.scorePreset = '';
-    const guide=node('p','1. プリセットを選ぶ　 2. 入力先を選んで「適用」　 3. 譜面を確認して「OK」',sidebar);
+    const guide=node('p','1. プリセットを選ぶ　 2. '+(chords?'入力先の先頭の小節をクリック':'入力する範囲を選ぶ')+'　 3.「適用」ボタンをクリック',sidebar);
     guide.className='sc-preset-guide';
     const builtin = chords ? progressions.map(([name, value]) => ({name, values:value.split(' ')})) :
         strokes.map(([name, rows]) => ({name, rows}));
@@ -166,11 +186,20 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     rangeControls.className = 'sc-preset-range-controls';
     const stage = button('適用', stagePattern, rangeControls);
     stage.dataset.presetStage = '';
-    const steps = [];
+    const steps = [], redoSteps = [];
     let previewProject = project;
     const editor = node('section', undefined, sidebar);
     editor.hidden = true;
-    const edit = button('プリセットを編集', openEditor, controls);
+    const presetActions=node('div',undefined,controls);presetActions.className='sc-preset-actions';
+    const addPreset=button('譜面からプリセット追加',()=>openEditor(null),presetActions);
+    const edit=button('プリセットを編集',()=>{
+        void stopAudio();
+        managePresets(dialog,library,current,openEditor,()=>{
+            populateOptions(current);
+            if(preset.value!==current?.id)choose();
+            else current=entries.find(entry=>entry.id===preset.value);
+        });
+    },presetActions);
     let author = null, authorHint, saveButton, editingEntry, savedDraft, savedEntry;
     const partName = chords ? 'コード進行' : 'ストローク';
     const patternHead = node('div',undefined,patternArea);
@@ -180,6 +209,30 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     patternPlay.dataset.previewPlay = 'pattern';
     let audio = null, audioKind = null, audioPhase = 'idle', audioEpoch = 0, releasing = Promise.resolve();
     const previewListeners=new Set();
+    let cursorFrame=0, playingBar=null;
+    const cursor=doc.createElement('span');
+    cursor.dataset.layoutPlayhead='';cursor.setAttribute('aria-hidden','true');
+    function clearCursor(){
+        cancelAnimationFrame(cursorFrame);cursorFrame=0;
+        cursor.remove();playingBar?.classList.remove('sc-layout-playing');playingBar=null;
+    }
+    function paintCursor(){
+        if(!dialog.open||audioKind!=='score'||audioPhase!=='playing')return;
+        const position=audio.position();
+        const bar=position && paperBars[position.barNumber-1];
+        if(bar){
+            const bounds=bar.getBoundingClientRect(),sheet=page.getBoundingClientRect();
+            const scale=sheet.width/page.offsetWidth;
+            if(bar!==playingBar){
+                playingBar?.classList.remove('sc-layout-playing');playingBar=bar;bar.classList.add('sc-layout-playing');
+                const viewport=paper.getBoundingClientRect();
+                if(bounds.bottom>viewport.bottom || bounds.top<viewport.top)paper.scrollTop+=bounds.top-viewport.top;
+            }
+            if(scale>0)placePlayhead(cursor,page,{x:(bounds.left-sheet.left+bounds.width*position.tick/1920)/scale,
+                y:(bounds.top-sheet.top)/scale,height:bounds.height/scale});
+        }
+        cursorFrame=requestAnimationFrame(paintCursor);
+    }
     function syncPlayButtons() {
         for (const refresh of previewListeners) refresh();
         for (const [kind,btn] of [['pattern',patternPlay],['score',scorePlay]]) {
@@ -191,6 +244,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         }
     }
     async function stopAudio() {
+        clearCursor();
         const old = audio;
         audio = null; audioKind = null; audioPhase='idle'; ++audioEpoch; syncPlayButtons();
         if (old) releasing=old.dispose();
@@ -229,9 +283,11 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         try {
             const source = kind === 'note' || kind === 'pattern' ? patternProject() : previewProject;
             const player = createPreviewAudio(source,{
-                patternOnly:kind!=='score', auditionPlan, isOpen:()=>ticket===audioEpoch && dialog.open,
+                patternOnly:kind!=='score', auditionTiming:chords && kind==='pattern' ? compactChordAudition : null, auditionPlan, isOpen:()=>ticket===audioEpoch && dialog.open,
                 changed(phase) {
                     if (ticket!==audioEpoch) return;
+                    clearCursor();
+                    if(kind==='score'&&phase==='playing')cursorFrame=requestAnimationFrame(paintCursor);
                     audioPhase = phase; audioKind = phase === 'idle' ? null : kind;
                     syncPlayButtons();
                 },
@@ -245,12 +301,6 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
 
     function showPattern(entry = null) {
         editingEntry = entry; patternPlay.disabled=false;
-        itemTools.replaceChildren();itemTools.hidden=!entry;
-        if(entry) mountPresetActions(itemTools,library,entry,(next,removed)=>{
-            populateOptions(next);
-            if(removed){savedEntry=next;author.close();return;}
-            editingEntry=next;current=next;patternTitle.textContent=next.name;
-        });
         patternArea.hidden = editor.hidden = false;
         saveButton.hidden = false;
         patternTitle.textContent = entry ? entry.name : partName;
@@ -262,46 +312,37 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (chords) paintChords();
         else paintGrid();
     }
-    function openEditor() {
+    function openEditor(initialEntry) {
         if (author?.open) return;
         void stopAudio();
         savedDraft = structuredClone({current, key:key?.value, rows, sourceSlots, timedChords,
             edited, rangeIndices});
         savedEntry = editingEntry = null;
-        author = presetWindow(dialog,'プリセットを編集','sc-batch-dialog sc-preset-author');
+        author = presetWindow(dialog,initialEntry?'プリセットを編集':'譜面からプリセット追加','sc-batch-dialog sc-preset-author');
         const authorBody = node('div',undefined,author); authorBody.className = 'sc-preset-dialog-body';
-        const tools = node('div',undefined,authorBody); tools.className = 'sc-author-tools';
-        authorHint = node('strong','編集方法を選んでください',tools);
-        button('譜面から取り込む',() => {
-            void stopAudio(); resetCellEditor(); targetArea.hidden=false; patternArea.hidden=true; editingEntry=null;
-            authorHint.textContent='1. 譜面をドラッグして取り込む範囲を選択';
-            rangeIndices=[]; refreshPaper(); fitPaper(); status.textContent='';
-        },tools);
-        button('一覧から編集',() => {
-            void stopAudio();
-            managePresets(author,library,editingEntry||current,entry=>{
-                resetCellEditor(); populateOptions(entry); choose(); targetArea.hidden=true;showPattern(entry);
-                paintAuthorGrid(); status.textContent=''; authorHint.textContent='内容を編集して保存';
-            },partName);
-        },tools);
+        authorHint=node('p','',authorBody);authorHint.className='sc-preset-guide';
+        function editEntry(entry){
+            resetCellEditor();populateOptions(entry);choose();targetArea.hidden=true;showPattern(entry);
+            paintAuthorGrid();status.textContent='';authorHint.textContent='内容を調整して保存';
+        }
         targetArea.hidden=true;
         authorBody.append(patternArea,targetArea,status);
         patternArea.hidden = true;
         patternArea.append(editor);
-        if(chords){strip.hidden=true;patternHead.append(patternPlay);}
+
         rangeControls.hidden = true;
         editor.hidden = true;
         saveButton = button('プリセットに保存',openNameDialog,editor);
         saveButton.className = 'sc-preset-primary'; saveButton.hidden = true;
         rangeIndices = []; refreshPaper();
         status.textContent = '';
-        hint.hidden = true; scoreHead.hidden = scorePlay.hidden = true;
+        hint.hidden = true; scoreHead.hidden = rail.hidden = true;
         author.addEventListener('close',() => {
             void stopAudio(); resetCellEditor(); author=null; targetArea.hidden=false;
             saveButton.remove(); sidebar.append(editor); editor.hidden=true;
             body.append(patternArea,targetArea); sidebar.append(status);
-            if(chords){strip.hidden=false;strip.prepend(patternPlay);}
-            hint.hidden=false; scoreHead.hidden=scorePlay.hidden=false; patternArea.hidden=false; rangeControls.hidden=false;
+
+            hint.hidden=false; scoreHead.hidden=rail.hidden=false; patternArea.hidden=false; rangeControls.hidden=false;
             rangeIndices=savedDraft.rangeIndices;
             const old = entries.find(item=>item.id===savedDraft.current?.id);
             populateOptions(savedEntry || old); choose();
@@ -309,10 +350,15 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
                 restorePattern();
             }
             patternTitle.textContent=partName;
-            update();fitPaper?.();edit.focus();
+            update();fitPaper?.();(initialEntry?edit:addPreset).focus();
             if(savedEntry) status.textContent='プリセットを保存しました。';
         },{once:true});
-        fitPaper?.();
+        if(initialEntry) editEntry(initialEntry);
+        else {
+            resetCellEditor();targetArea.hidden=false;
+            authorHint.textContent='1. 譜面をドラッグして取り込む範囲を選択';
+            refreshPaper();fitPaper();
+        }
     }
     function openNameDialog() {
         void stopAudio();
@@ -325,7 +371,6 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         name.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();save.click();}};
         name.focus(); name.select();
     }
-    const itemTools=node('details',undefined,editor);
     let resetCellEditor=()=>{}, paintAuthorGrid=()=>{};
     const selected = new Set(args.barIds || []);
     const selectedBars = project.bars.filter(bar => selected.has(bar.id));
@@ -334,13 +379,9 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         key = field('Playキー', 'select', controls);
         const keys = new Set([view.songInfo.playKey, 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']);
         for (const value of keys) option(key, value, value);
-        const chordGrid = node('div', undefined, patternArea);
-        chordGrid.className = 'sc-chord-preset-grid';
-        chordGrid.setAttribute('aria-label', 'コード進行（ドラッグで拍を変更）');
-        let moving = null, selectedChord = null;
-        const cellHost=node('section',undefined,editor);cellHost.className='sc-preset-cell-editor';
+        const cellHost=node('section',undefined,patternArea);cellHost.className='sc-preset-cell-editor';
         const cells=presetChordCells({C,doc,host:cellHost,read:()=>timedChords,
-            write:pattern=>{timedChords=pattern;edited=true;paintChords();update();},
+            write:pattern=>{timedChords=pattern;edited=true;update();},
             project:()=>patternProject(true),play:()=>play('pattern'),
             preview:plan=>play('note',{...plan,duration:2,events:plan.events.map(e=>({...e,midi:e.midi+project.instrument.capo}))}),
             previewState:()=>({scope:audioKind==='pattern'?'chords':null,phase:audioPhase}),
@@ -348,97 +389,9 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             closeAudio:()=>void stopAudio(),notice:message=>{status.textContent=message;}});
         resetCellEditor=cells.reset;
         paintAuthorGrid=cells.render;
-        const moves = [];
-        let cursor = 0;
-        chordGrid.addEventListener('keydown', event => {
-            if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 'z' ||
-                event.isComposing || event.target.matches('input,textarea,select')) return;
-            const move = moves[event.shiftKey ? cursor : cursor - 1];
-            if (!move || timedChords !== (event.shiftKey ? move.before : move.after)) return;
-            event.preventDefault();
-            timedChords = event.shiftKey ? move.after : move.before;
-            cursor += event.shiftKey ? 1 : -1;
-            selectedChord = moving = null;
-
-            paintChords(); update(); chordGrid.focus({preventScroll:true});
-        });
-        chordGrid.tabIndex = -1;
-        function moveChord(bar, tick) {
-            const picked = moving || selectedChord;
-            if (!picked || !timedChords[picked.bar]?.includes(picked.event) || (picked.bar === bar && picked.event.tick === tick)) return;
-            const before = timedChords;
-            timedChords = before.map((events, index) => events.filter(event =>
-                event !== picked.event && !(index === bar && event.tick === tick)));
-            const moved = {...picked.event, tick};
-            if (moved.durationTicks !== undefined) moved.durationTicks = Math.min(moved.durationTicks, 1920 - tick);
-            timedChords[bar].push(moved);
-            timedChords[bar].sort((left, right) => left.tick - right.tick);
-            if (cursor && moves[cursor - 1].after !== before) cursor = 0;
-            moves.splice(cursor, moves.length - cursor, {before, after:timedChords});
-            if (moves.length > 50) moves.shift();
-            cursor = moves.length;
-            moving = selectedChord = null;
-            edited = true;
-            paintChords(); update(); chordGrid.focus({preventScroll:true});
-        }
-        paintChords = () => {
-            if (selectedChord && !timedChords[selectedChord.bar]?.includes(selectedChord.event)) selectedChord = null;
-
-            chordGrid.replaceChildren();
-            timedChords.forEach((events, index) => {
-                const cell = node('div', undefined, chordGrid);
-                cell.className = 'sc-preset-chord-bar';
-                cell.dataset.presetPatternBar = index + 1;
-                const heading = node('small', String(index + 1), cell);
-                heading.className = 'sc-preset-chord-number';
-                const timeline = node('div', undefined, cell);
-                timeline.className = 'sc-preset-chord-timeline';
-                const tickAt = event => {
-                    const chip = event.target.closest('[data-pattern-chord]');
-                    if (chip && !(moving?.bar === index && moving.event.tick === Number(chip.dataset.tick)))
-                        return Number(chip.dataset.tick);
-                    const rect = timeline.getBoundingClientRect();
-                    return Math.max(0, Math.min(15, Math.floor(16 * (event.clientX - rect.left) / rect.width))) * 120;
-                };
-                timeline.ondragover = event => {
-                    if (!moving) return;
-                    event.preventDefault();
-                    timeline.style.setProperty('--drop', (tickAt(event) / 1920 * 100) + '%');
-                    timeline.dataset.dragging = '';
-                };
-                timeline.ondragleave = event => { if (!timeline.contains(event.relatedTarget)) delete timeline.dataset.dragging; };
-                timeline.ondrop = event => {event.preventDefault();delete timeline.dataset.dragging;moveChord(index, tickAt(event));};
-                const beats = node('div', undefined, timeline);beats.className = 'sc-preset-drop-buttons';
-                for (let beat = 0; beat < 4; beat++) {
-                    const target = button(String(beat + 1), () => moveChord(index, beat * 480), beats);
-                    target.title = (index + 1) + '小節目 ' + (beat + 1) + '拍目';
-                }
-                for (const event of events) {
-                    const chip = button(event.symbol, () => {
-                        if (selectedChord && selectedChord.event !== event) { moveChord(index, event.tick); return; }
-                        selectedChord = {bar:index, event}; moving = null;
-
-                        chordGrid.querySelectorAll('[data-pattern-chord]').forEach(item => item.setAttribute('aria-pressed', String(item === chip)));
-                    }, timeline);
-                    chip.className = 'sc-preset-chord-chip';
-                    chip.dataset.patternChord = '';
-                    chip.dataset.tick = event.tick;
-                    chip.style.left = 'clamp(0px, ' + (event.tick / 1920 * 100) + '%, calc(100% - 34px))';
-                    chip.title = event.symbol + ' · ' + (event.tick / 480 + 1) + '拍目';
-                    chip.setAttribute('aria-pressed', String(selectedChord?.event === event));
-                    chip.draggable = true;
-                    chip.ondragstart = drag => {
-                        moving = {bar:index, event};
-                        drag.dataTransfer.setData('text/plain', event.symbol);
-                        drag.dataTransfer.effectAllowed = 'move';
-                    };
-                    chip.ondragend = () => {moving = null;chordGrid.querySelectorAll('[data-dragging]').forEach(item => delete item.dataset.dragging);};
-                }
-            });
-        };
-        starting = field('開始小節', 'select', rangeControls);
-        project.bars.forEach((bar, index) => option(starting, (index + 1) + '小節目', bar.id));
-        starting.value = first?.id || '';
+        paintChords=cells.render;
+        dialog.addEventListener('close',cells.reset,{once:true});
+        starting=project.bars.indexOf(first);
     } else {
         grid = node('div', undefined, patternArea);
         grid.className = 'sc-strum-preset-grid';
@@ -507,9 +460,9 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         };
     }
 
-    controls.append(edit);
+    controls.append(presetActions);
     const strip=node('div',undefined,patternArea);strip.className='sc-pattern-strip';
-    strip.append(patternPlay,patternArea.querySelector('.sc-chord-preset-grid,.sc-strum-preset-grid'));
+    strip.append(patternPlay,patternArea.querySelector('.sc-preset-cell-editor,.sc-strum-preset-grid'));
     patternArea.prepend(patternHead,strip);
     patternArea.append(rangeControls);
     rangeControls.append(stage);
@@ -526,6 +479,16 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     const scoreHead = node('div',undefined,targetArea); scoreHead.className='sc-preview-heading';
     node('strong','曲の譜面',scoreHead);
     const scorePlay=button('▶ 再生',()=>play('score'),scoreHead);
+    scorePlay.title='曲の譜面を先頭から再生・停止（スペースキー）';
+    dialog.addEventListener('keydown',event=>{
+        if(author || event.defaultPrevented || (event.code!=='Space'&&event.key!==' ') || event.isComposing ||
+            event.keyCode===229 || event.ctrlKey || event.altKey || event.metaKey ||
+            event.target.closest('input,textarea,select,summary,[contenteditable=true]'))return;
+        // Other controls keep native Space activation; a score measure uses Enter for selection.
+        const control=event.target.closest('button');
+        if(control && control!==scorePlay && control!==stage)return;
+        event.preventDefault();if(!event.repeat)void play('score');
+    });
     scorePlay.dataset.previewPlay='score'; syncPlayButtons();
     const hint = node('p', targetHint, scoreHead);
     hint.className = 'sc-preset-hint';
@@ -533,15 +496,15 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     paper.className = 'sc-preset-paper';
     const frameBox = node('div', undefined, paper);
     frameBox.className = 'sc-preset-sheet-frame';
+    const sourcePage=doc.querySelector('#sc-sheet-scale-box .sheet-page');
+    if(sourcePage) frameBox.style.setProperty('--sc-source-font-size',getComputedStyle(sourcePage).fontSize);
     const paperArea=node('div',undefined,targetArea);paperArea.className='sc-preset-paper-area';
-    paperArea.append(scorePlay,paper);
+    const rail=node('div',undefined,paperArea);rail.className='sc-score-preview-rail';rail.append(scorePlay);
+    paperArea.append(paper);
     let page, paperBars;
     function renderPaper() {
-        const layout=C.localPaperLayout?.renderOptions(previewProject);
-        const forms=layout?.visibility?.forms && C.localPaperForms?.view(previewProject,{scale:C.localPaperLayout.value.formScale});
-        C.sheetRenderer.render(previewProject, frameBox, {...layout, formsList:null,
-            formsForBar:forms?.row, hasFormsForBar:forms?.has,
-            readOnly:true, editableSlots:false, visibility:{chords:true, strum:true, lyrics:true, doremi:true, forms:!!forms}});
+        C.sheetRenderer.render(previewProject,frameBox,{...previewPaperOptions(previewProject),
+            readOnly:true,editableSlots:false});
         for(const item of frameBox.querySelectorAll('.sheet-form-event')) {
             item.setAttribute('role','img');item.removeAttribute('aria-haspopup');
         }
@@ -557,17 +520,13 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     }
     renderPaper();
     {
-        // The renderer produces continuous paper. Fit one A4 length, or the entire
-        // score when shorter; additional measures stay reachable by scrolling.
         const fit = () => {
-            if (!paper.clientHeight || !page.offsetHeight) return;
-            const scale = Math.min((paper.clientWidth - (author ? 12 : 96)) / page.offsetWidth,
-                (paper.clientHeight - 12) / Math.min(page.offsetHeight, 1123), 1.25);
-            if (scale <= 0) return;
-            page.style.transform = 'scale(' + scale + ')';
-            frameBox.style.width = Math.ceil(page.offsetWidth * scale) + 'px';
-            strip.style.setProperty('--pattern-width',frameBox.style.width);
-            patternArea.querySelector('.sc-chord-preset-grid,.sc-strum-preset-grid').style.width=frameBox.style.width;
+            if (!paper.clientWidth || !page.offsetWidth) return;
+            const width=paper.clientWidth;
+            const scale=width/page.offsetWidth;
+            page.style.transform='scale('+scale+')';
+            frameBox.style.width=Math.round(page.offsetWidth*scale)+'px';
+            strip.style.setProperty('--pattern-width',width+'px');
             frameBox.style.height = Math.ceil(page.offsetHeight * scale) + 'px';
         };
         fitPaper = fit;
@@ -591,12 +550,13 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         setRange(start, end);
         if (author) { refreshPaper(); captureFromScore(); return; }
         if (chords) {
-            starting.value = project.bars[Math.min(start,end)].id;
+            starting = Math.min(start,end);
         } else {
             scope.value = start === end ? 'section' : 'selection';
             section.value = project.bars[start].sectionId;
         }
         update();
+        paperBars[start]?.focus({preventScroll:true});
     }
     paper.addEventListener('pointerdown', event => {
         const index = barAt(event.target);
@@ -625,7 +585,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     });
     paper.addEventListener('keydown', event => {
         const index = barAt(event.target);
-        if (index < 0 || !Number.isInteger(index) || !['Enter',' '].includes(event.key)) return;
+        if (index < 0 || !Number.isInteger(index) || !(event.key==='Enter' || author && event.key===' ')) return;
         event.preventDefault();
         chooseFromPaper(index, event.shiftKey && rangeIndices.length ? rangeIndices[0] : index);
     });
@@ -676,7 +636,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             status.textContent = '';
         } catch (error) {
             patternArea.hidden = true; void stopAudio();
-            authorHint.textContent = '1. 譜面をドラッグして取り込む範囲を選択';
+            authorHint.textContent = '2. 譜面をドラッグして取り込む範囲を選択';
             status.textContent = error.message;
         }
     }
@@ -723,7 +683,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (chords) {
             const pattern = timedChords;
             if (!pattern?.some(events => events.length)) throw Error('コードを入力してください');
-            const from = project.bars.findIndex(bar => bar.id === starting.value);
+            const from = starting;
             if (from < 0 || from + pattern.length > project.bars.length)
                 throw Error('曲の末尾までに ' + pattern.length + ' 小節の入力先がありません。開始小節を変更してください');
             return {pattern, bars:project.bars.slice(from, from + pattern.length)};
@@ -751,6 +711,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         }
     }
     function choose() {
+        resetCellEditor();
         void stopAudio();
         current = entries.find(entry=>entry.id===preset.value);
         if (!current) {
@@ -799,10 +760,6 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             } catch (error) { key.value = previousKey; status.textContent = error.message; }
             update();
         };
-        starting.onchange = () => {
-            update();
-            paperBars[starting.selectedIndex]?.scrollIntoView({block:'nearest', inline:'nearest'});
-        };
     } else scope.onchange = section.onchange = update;
     populateOptions(); choose();
     fitPaper?.();
@@ -813,11 +770,27 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             const entry = structuredClone(chords ? {barIds, pattern, overwrite:true} :
                 {barIds, pattern, name:edited ? 'カスタムストローク' : current.name});
             previewProject = C.structureOperations.previewPreset(previewProject, mode, entry, C.model.schema2,C.localChordForms?.installPreset);
-            steps.push(entry);
+            steps.push(entry);redoSteps.length=0;stage.focus({preventScroll:true});
             renderPaper(); fitPaper(); update();
             apply.disabled = false;
-            status.textContent = '見本に適用しました。譜面を確認して「OK」を押してください。';
+            status.textContent = '';
         } catch (error) { status.textContent = error.message; }
     }
+    dialog.addEventListener('keydown',event=>{
+        if(event.defaultPrevented || event.isComposing || event.keyCode===229 || event.altKey ||
+            !(event.ctrlKey||event.metaKey) || event.key.toLowerCase()!=='z' ||
+            event.target.closest('input,textarea,[contenteditable=true]'))return;
+        const redo=event.shiftKey;
+        if(!(redo?redoSteps:steps).length)return;
+        event.preventDefault();
+        try {
+            const next=redo?[...steps,redoSteps.at(-1)]:steps.slice(0,-1);
+            const restored=next.reduce((draft,step)=>C.structureOperations.previewPreset(draft,mode,step,
+                C.model.schema2,C.localChordForms?.installPreset),project);
+            if(redo)steps.push(redoSteps.pop());else redoSteps.push(steps.pop());
+            void stopAudio();previewProject=restored;apply.disabled=!steps.length;
+            renderPaper();fitPaper();update();status.textContent='';
+        }catch(error){status.textContent=error.message;}
+    });
     return () => !author && steps.length ? {kind:mode, args:{steps}} : null;
 }
