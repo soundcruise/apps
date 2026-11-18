@@ -376,3 +376,39 @@ test('editorial-PASS cards share the approvable count/filter and final dialog wi
  assert.equal(u.ids.confirm.open,true);assert.equal(u.ids.submit.disabled,false);assert.equal(u.ids.submit.textContent,'確認して掲載');
  assert.deepEqual(rows,before);assert.equal(u.requests.filter(r=>r.options?.method==='POST').length,0);
 });
+
+test('an already open queue uses the primary article’s current source, options and condition basis',async()=>{
+ const u=inlineQueueFixture();await settle();
+ const url='https://audient.com/news/2026/11/12/id-desktop-launch/';
+ const fields={url,sourceId:'audient',brand:'Audient',product:'iD Desktopシリーズ',productType:'audio_interface',action:'announcement',publishedAt:'2026-11-12',label:'Audient、iD Desktopシリーズ4機種を発表'};
+ u.context.currentConfig={existing:null,draft:{fields,registrationAllowed:true,missing:[],fieldSources:{}},sources:[{id:'audient',name:'Audient',basis:'public_facts_conditions_review'}],types:{audio_interface:['オーディオインターフェース','recording_audio']},actions:{announcement:'を発表'}};
+ u.run('api=async path=>path.startsWith("/api/assisted?")?currentConfig:{draft:currentConfig.draft}');
+ assert.equal(u.run("assistedInputs.sourceId.options.some(o=>o.value==='audient')"),false);
+ await u.run('startAssistedReview({sourceUrl:currentConfig.draft.fields.url})');
+ assert.deepEqual([...u.run('assistedInputs.sourceId.options.map(o=>o.value)')],['audient']);
+ assert.equal(u.run("assistedInputs.productType.options.some(o=>o.value==='audio_interface')"),true);
+ assert.equal(u.ids['confirm-source'].textContent,'Audient · 2026-11-12');
+ assert.equal(u.run('assistedFinal.conditional'),true);
+ assert.equal(u.run('assistedFinal.entry.confirmed'),false);
+ assert.equal(u.run('assistedFinal.entry.conditionsConfirmed'),false);
+ u.ids.confirm.close();u.run("assistedInputs.sourceId.value=''");
+ await u.run("confirmAssisted('approve')");
+ assert.equal(u.ids.confirm.open,false);
+ assert.match(u.ids['assisted-status'].textContent,/情報源/);
+});
+
+test('a refused assisted publication shows the reason inside the open dialog and prevents another submit',async()=>{
+ const u=finalActionFixture();await settle();u.context.proposal=u.draft;
+ u.run('api=async()=>({draft:proposal})');
+ await u.run("confirmAssisted('approve')");
+ assert.equal(u.ids.confirm.open,true);
+ u.run('api=async path=>path==="/api/session"?{csrf:"fixture"}:{completed:false,errors:["既存候補が変更されています"]}');
+ u.ids.submit.events.click();await settle();
+ assert.equal(u.ids.confirm.open,true);
+ assert.equal(u.ids.submit.hidden,true);assert.equal(u.ids.submit.disabled,true);
+ assert.match(u.ids['confirmation-note'].textContent,/既存候補が変更/);
+ assert.equal(u.memory.has('news-operator-unconfirmed-decision-v1'),false);
+ u.ids.confirm.close();u.context.proposal=u.draft;u.run('api=async()=>({draft:proposal})');
+ await u.run("confirmAssisted('approve')");
+ assert.equal(u.ids.submit.hidden,false);assert.equal(u.ids.submit.disabled,false);
+});

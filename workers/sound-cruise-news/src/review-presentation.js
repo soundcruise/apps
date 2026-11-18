@@ -4,7 +4,8 @@ import currentInformation from '../docs/readiness-20261117/review-information.js
 import remainingInformation from '../docs/remaining-review-20261118/review-information.json' with {type:'json'};
 import audient from '../docs/web-source-resolution-20261118/audient-information.json' with {type:'json'};
 import recordingKing from '../docs/web-source-resolution-20261118/recording-king-information.json' with {type:'json'};
-const information=[...remainingInformation,...currentInformation,...previousInformation,{information:audient},{information:recordingKing}];
+import november19Information from '../docs/remaining-review-20261119/review-information.json' with {type:'json'};
+const information=[...november19Information,...remainingInformation,...currentInformation,...previousInformation,{information:audient},{information:recordingKing}];
 import guidance from '../docs/operator-review-groups-20261116/editorial-guidance.json' with {type:'json'};
 import {assistedLabel,assistedTypes} from './assisted-facts.js';
 import {labelMatchesType} from './assisted-product-type.js';
