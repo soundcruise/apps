@@ -1,6 +1,7 @@
 // Reuse the existing assisted facts contract for an existing candidate. No fetch,
 // inference, new candidate or publication authority is created by this projection.
 import {assistedSource,assistedTypes,assistedLabel,assistedExistingAllowed} from './assisted-facts.js';
+import {ARTICLE_FOCUS} from './agm-article-label.js';
 import {reviewInformation} from './review-presentation.js';
 import {assistedDraftWithInformation} from './draft-assistance.js';
 import {resolvedDuplicatePredicate} from './decision-policy.js';
@@ -21,6 +22,12 @@ export async function candidateAssistedDraft(store,row,now){
  const offer=(key,value)=>{if(typeof value==='string'&&value.length&&value.length<=160){fields[key]=value;fieldSources[key]={kind:row.origin==='operator_assisted'?'human_confirmed_record':'candidate_record',reference:row.source_url,confirmed:false};}};
  offer('publishedAt',row.published_at?new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10):'');
  offer('brand',facts.brand||facts.person);offer('product',facts.product);
+ // Reuse explicit saved editorial subjects as unconfirmed input, not product launches.
+ if(facts.kind==='agm_editorial'){
+  if(!fields.product&&Array.isArray(facts.models)&&facts.models.length&&facts.models.length<=4&&facts.models.every(m=>typeof m==='string'))offer('product',facts.models.join(' / '));
+  if(!fields.product&&ARTICLE_FOCUS[facts.focus])offer('product',ARTICLE_FOCUS[facts.focus]);
+  if(fields.product&&['review','column','lesson','beginner','equipment'].includes(facts.articleType)){offer('productType','guitar_article');offer('action','introduction');}
+ }
  if(assistedTypes[facts.productType])offer('productType',facts.productType);
  if(facts.kind==='assisted_notice'){offer('action',facts.action);offer('qualifier',facts.qualifier);offer('label',row.label);}
  const label=assistedLabel({kind:'assisted_notice',...fields,category:assistedTypes[fields.productType]?.[1]},{draft:true});
@@ -32,7 +39,7 @@ export async function candidateAssistedDraft(store,row,now){
  if(!info)return draft;
  const missingFields=Object.fromEntries(Object.entries(info.fields).filter(([key])=>!fields[key]));
  // Keep extracted candidate values and their origins; supply only missing inputs.
- if(!Object.keys(missingFields).length)return draft;
+ if(!Object.keys(missingFields).length)return {...draft,notes:info.notes,assistanceSource:info.source};
  const combined=assistedDraftWithInformation(draft,{...info,fields:missingFields});
  if(fields.label){combined.fields.label=fields.label;combined.headline=fields.label;combined.fieldSources.label=fieldSources.label;}
  return combined;
