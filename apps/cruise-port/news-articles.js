@@ -35,6 +35,7 @@ export function replaceNewsListRoute({ historyObject = globalThis.history, locat
 
 // Owner-requested official announcement; not a collector receipt, AI inference or
 // manufacturer publication permission. Published only when this release is approved.
+export const OFFICIAL_VIDEO_SOURCE_ID = 'sound-cruise-youtube';
 export const OFFICIAL_VIDEO_CHANNEL_ID = 'UC4ncQuk56I8SK6lJGZcGwJQ';
 export const CRUISE_STUDIO_VIDEO = Object.freeze({
     id: 'BKHbxOotq9E', url: 'https://www.youtube.com/watch?v=BKHbxOotq9E',
@@ -46,8 +47,9 @@ export const CRUISE_STUDIO_VIDEO = Object.freeze({
 });
 export const CRUISE_STUDIO_NEWS_ITEM = Object.freeze({
     id: 'sound-cruise-studio-members-video-20261118',
-    label: 'Cruise Studioの解説動画をメンバー限定で公開',
-    sourceName: 'Sound Cruise', category: 'cruise_apps', linkType: 'members_video',
+    label: 'オールインワン弾き語りアプリfor PC「クルーズスタジオ」メンバー限定公開',
+    sourceId: OFFICIAL_VIDEO_SOURCE_ID, sourceName: 'アコギ弾き語り専門ラボ / クルーニー',
+    category: 'cruise_apps', linkType: 'members_video', hot: true, displayOrder: 0,
     sourceUrl: CRUISE_STUDIO_VIDEO.url, videoId: CRUISE_STUDIO_VIDEO.id,
     videoChannelId: OFFICIAL_VIDEO_CHANNEL_ID, videoPublishedOn: CRUISE_STUDIO_VIDEO.publishedOn,
     publishedAt: '2026-11-17T15:00:00.000Z', // NEWS date: November 18 JST, distinct from video date.

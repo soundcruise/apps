@@ -34,17 +34,19 @@ test('reviewed video identity and day precision remain separate from NEWS announ
  assert.equal(video.publishedOn,'2026-11-15');assert.equal(video.publishedAt,null);
  const item=normalizeNewsItem(notice);assert.equal(item.videoPublishedOn,'2026-11-15');
  assert.equal(groupNews([item],'',now)[0][0],'2026-11-18');
- assert.equal(item.label,'Cruise Studioの解説動画をメンバー限定で公開');
+ assert.equal(item.label,'オールインワン弾き語りアプリfor PC「クルーズスタジオ」メンバー限定公開');
+ assert.equal(item.sourceName,'アコギ弾き語り専門ラボ / クルーニー');
+ assert.equal(item.hot,true);assert.equal(item.displayOrder,0);
  assert.equal(item.body,undefined);assert.equal(item.image,undefined);
 });
 test('only canonical HTTPS YouTube watch URLs with bundled official authority are accepted',()=>{
  assert.equal(membersVideoHref(notice),video.url);
  for(const sourceUrl of ['http://www.youtube.com/watch?v=BKHbxOotq9E','https://youtu.be/BKHbxOotq9E',video.url+'&x=1',video.url+'#x','https://user@www.youtube.com/watch?v=BKHbxOotq9E','https://www.youtube.com:443/watch?v=BKHbxOotq9E','https://youtube.com.evil.test/watch?v=BKHbxOotq9E','javascript:alert(1)'])assert.equal(normalizeNewsItem({...notice,sourceUrl}),null,sourceUrl);
- for(const patch of [{videoId:'x'},{videoChannelId:'another'},{sourceName:'Unknown'},{sourceKind:'media'},{category:'sale'},{videoPublishedOn:'2026-02-31'},{videoPublishedOn:'2026-11-15T00:00:00Z'}])assert.equal(normalizeNewsItem({...notice,...patch}),null);
+ for(const patch of [{videoId:'AQai2tyIra0'}, {videoId:'x'},{videoChannelId:'another'},{sourceId:'Unknown'},{sourceKind:'media'},{category:'sale'},{videoPublishedOn:'2026-02-31'},{videoPublishedOn:'2026-11-15T00:00:00Z'}])assert.equal(normalizeNewsItem({...notice,...patch}),null);
 });
 test('API records cannot claim members-only official authority; kill switch and outage behavior stay distinct',async()=>{
  const records=await loadNews({provider:'api',transport:async()=>({contractVersion:1,items:[{...notice,publishable:true}],nextCursor:null})});
- assert.equal(records[0].linkType,undefined);assert.equal(records[0].sourceKind,'media');assert.equal(normalizeNewsItem(records[0]),null);
+ assert.equal(records[0].sourceId,undefined);assert.equal(records[0].hot,true);assert.equal(records[0].displayOrder,0);assert.equal(records[0].linkType,undefined);assert.equal(records[0].sourceKind,'media');assert.equal(normalizeNewsItem(records[0]),null);
  await assert.rejects(loadNewsPresentation({fetcher:async()=>({ok:true,json:async()=>({disabled:true})})}),{name:'NewsDisabledError'});
  const fallback=await loadNewsPresentation({fetcher:async()=>{throw Error('offline');}});
  assert.ok(fallback.items.some(n=>n.id===notice.id));assert.ok(!fallback.items.some(n=>n.id===external.id));
@@ -82,4 +84,28 @@ test('both editions load the scoped stylesheet and updated boot modules without 
   assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.36\.0/);
  }
  const source=readFileSync(new URL('news-members-video.js',import.meta.url),'utf8');assert.doesNotMatch(source,/innerHTML|insertAdjacentHTML|\bfetch\(|localStorage|indexedDB/);
+});
+
+test('the official source identifier is independent of its display name; API copies cannot gain authority',()=>{
+ assert.equal(membersVideoHref({...notice,sourceName:'表示名だけ訂正'}),video.url);
+ assert.equal(membersVideoHref({...notice,sourceId:undefined}),null);
+ assert.equal(membersVideoHref({...notice,sourceId:'manufacturer',sourceName:notice.sourceName}),null);
+});
+test('official zero slot wins only within its JST day, even against a later normal zero slot',()=>{
+ const sameDay={...external,id:'same-day',topicKey:'same-day',publishedAt:'2026-11-18T08:00:00.000Z',displayOrder:0,hot:false};
+ const other={...sameDay,id:'second',topicKey:'second',displayOrder:1};
+ const tomorrow={...sameDay,id:'tomorrow',topicKey:'tomorrow',publishedAt:'2026-11-18T15:00:00.000Z'};
+ const at=Date.parse('2026-11-19T03:00:00Z');
+ const before=structuredClone([sameDay,other,tomorrow]);
+ const sorted=prepareNews([other,notice,tomorrow,sameDay],{now:at});
+ assert.deepEqual(sorted.map(n=>n.id),['tomorrow',notice.id,'same-day','second']);
+ assert.equal(sorted.find(n=>n.id==='same-day').hot,false);assert.equal(sorted.find(n=>n.id==='second').displayOrder,1);
+ assert.deepEqual([sameDay,other,tomorrow],before);
+ // The home ticker continues its existing publication-timestamp order.
+ assert.deepEqual(tickerNews(sorted,at).map(n=>n.id),['tomorrow','same-day','second',notice.id]);
+ const doc=documentFixture();renderNews({documentObject:doc,items:[sameDay,notice],mode:'on',now:at,clock:()=>at});
+ const cards=doc.ids['news-content'].all().filter(n=>n.className==='news-card');
+ assert.equal(cards[0].tagName,'button');
+ assert.deepEqual(cards[0].all().filter(n=>n.className==='news-hot').map(n=>n.textContent),['🔥 ホット']);
+ assert.equal(cards[1].all().filter(n=>n.className==='news-hot').length,0);
 });

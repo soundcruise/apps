@@ -9,7 +9,7 @@ const boot=`import {renderNews} from '/apps/cruise-port/news-ui.js?v=1.36.0';
 import {CRUISE_APPS_NEWS_ITEMS} from '/apps/cruise-port/news-articles.js?v=1.36.0';
 document.querySelectorAll('.port-view').forEach(el=>el.hidden=el.id!=='news-view');
 document.querySelector('#news-view .view-kicker').textContent='Cruise Port・隔離'+(location.pathname.includes('pro_')?'Pro':'通常版');
-renderNews({items:[...CRUISE_APPS_NEWS_ITEMS,{id:'isolated-normal-news',label:'通常NEWSのリンク確認用',sourceName:'隔離fixture',sourceUrl:'https://example.com/news',category:'acoustic_guitar',publishedAt:'2026-11-16T00:00:00.000Z',createdAt:'2026-11-16T00:00:00.000Z',updatedAt:'2026-11-16T00:00:00.000Z',topicKey:'isolated:normal',sourceKind:'media',sourceSafety:'safe',manualReviewStatus:'approved'}],mode:'on',now:Date.parse('2026-11-18T03:00:00Z'),clock:()=>Date.parse('2026-11-18T03:00:00Z')});`;
+renderNews({items:[...CRUISE_APPS_NEWS_ITEMS,{id:'isolated-normal-news',label:'通常NEWSのリンク確認用',sourceName:'隔離fixture',sourceUrl:'https://example.com/news',category:'acoustic_guitar',publishedAt:'2026-11-18T00:00:00.000Z',displayOrder:0,createdAt:'2026-11-16T00:00:00.000Z',updatedAt:'2026-11-16T00:00:00.000Z',topicKey:'isolated:normal',sourceKind:'media',sourceSafety:'safe',manualReviewStatus:'approved'}],mode:'on',now:Date.parse('2026-11-18T03:00:00Z'),clock:()=>Date.parse('2026-11-18T03:00:00Z')});`;
 http.createServer(async(req,res)=>{
  const u=new URL(req.url,'http://127.0.0.1');
  if(req.method!=='GET'){res.writeHead(405).end();return;}

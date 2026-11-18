@@ -1,11 +1,11 @@
-import { OFFICIAL_VIDEO_CHANNEL_ID } from './news-articles.js?v=1.36.0';
+import { OFFICIAL_VIDEO_CHANNEL_ID, OFFICIAL_VIDEO_SOURCE_ID, CRUISE_STUDIO_VIDEO } from './news-articles.js?v=1.36.0';
 
 // Only the bundled, owner-reviewed official announcement can use this link type.
 // Public API articles do not acquire this authority from their URL or title.
 export function membersVideoHref(item) {
     if (item?.linkType !== 'members_video' || item.category !== 'cruise_apps' || item.sourceKind !== 'official' ||
-        item.sourceName !== 'Sound Cruise' || item.videoChannelId !== OFFICIAL_VIDEO_CHANNEL_ID ||
-        !/^[A-Za-z0-9_-]{11}$/.test(item.videoId || '')) return null;
+        item.sourceId !== OFFICIAL_VIDEO_SOURCE_ID || item.videoChannelId !== OFFICIAL_VIDEO_CHANNEL_ID ||
+        item.videoId !== CRUISE_STUDIO_VIDEO.id) return null;
     const canonical = `https://www.youtube.com/watch?v=${item.videoId}`;
     return item.sourceUrl === canonical ? canonical : null;
 }
