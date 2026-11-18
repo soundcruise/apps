@@ -53,6 +53,35 @@ exclude:
   - apps/cruise-studio/js/modules/pre-dtm-cruise/README.md
   - apps/cruise-studio/js/modules/sheet-cruise/README.md
 
+  # Local Studio score workspace and its assets.
+  - apps/cruise-studio/assets/chord-owner
+  - apps/cruise-studio/js/modules/chord/form-authoring.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/book-bridge.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/book-protocol.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/book-source.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/chord-audition.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/chord-form-diagram.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/chord-form-transfer.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/chord-name-transfer.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/chord-picker.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/editor-help.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/form-cycle.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/form-popup.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/owner-chord-panel.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/paper-appearance.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/paper-forms.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/paper-layout.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/playback-settings.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/score-playback.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/sheet-actions.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/viewer-contract.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/viewer-samples.mjs
+  - apps/cruise-studio/vendor/guitar
+  - apps/cruise-studio/vendor/piano
+
+  # The development viewer entry depends on Studio scripts excluded above.
+  - apps/score-viewer/local
+
   # Standard distribution is paused; preserve source and the published Pro entry.
   - apps/cruise-studio/index.html
   - apps/cruise-studio/manifest.webmanifest
