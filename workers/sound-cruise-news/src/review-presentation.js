@@ -23,7 +23,9 @@ export function draftRequirements(draft,now=Date.now()){
 }
 function humanPresentation(url,draft,now){
  const {missing,headline}=draftRequirements(draft,now),confirmationUrl='/?assistedUrl='+encodeURIComponent(url);
- return missing.length?result('human_facts','不足する事実を原記事で確認し、確認フォームで補完してください。',{missing,headline,confirmationUrl}):result('approvable','入力済み案と原記事・紹介条件を本人が確認すれば、既存の掲載操作へ進めます。',{readiness:'human_confirmation',missing,headline,confirmationUrl});
+ // A caution changes what to check, not whether a complete draft can be decided.
+ const caution=draft.notes?.find(n=>n.label==='掲載前の注意'&&typeof n.value==='string'&&n.value.length<=100&&!/[<>\x00-\x1f]/.test(n.value))?.value;
+ return missing.length?result('human_facts','不足する情報の追記が必要です。表示された項目だけ補完してください。',{missing,headline,confirmationUrl}):result('approvable',caution?'注意：'+caution:'入力済み案を確認して、掲載するか判断してください。',{readiness:'human_confirmation',missing,headline,confirmationUrl});
 }
 export function candidatePresentation(row,validation,humanReview,draft,now){
  if(!['pending','reopened'].includes(row.review_status))return null;
