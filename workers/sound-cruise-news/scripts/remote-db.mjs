@@ -24,7 +24,7 @@ export function parseWranglerJson(output){
  throw Error('wrangler_json_result_missing');
 }
 export function wrangler(args,{json=false}={}){
- const output=execFileSync(new URL('../node_modules/.bin/wrangler',import.meta.url).pathname,[...args,'--config',productionConfig.pathname],{cwd:workerDirectory,encoding:'utf8',maxBuffer:10*1024*1024,env:{...process.env,CI:'true',WRANGLER_SEND_METRICS:'false'}});
+ const output=execFileSync(new URL('../node_modules/.bin/wrangler',import.meta.url).pathname,[...args,'--config',productionConfig.pathname],{cwd:workerDirectory,encoding:'utf8',maxBuffer:32*1024*1024,env:{...process.env,CI:'true',WRANGLER_SEND_METRICS:'false'}});
  return json?parseWranglerJson(output):output;
 }
 export const sqlLiteral=value=>value===null?'NULL':typeof value==='number'&&Number.isFinite(value)?String(value):typeof value==='string'?"'"+value.replaceAll("'","''")+"'":(()=>{throw Error('sql_value_invalid')})();

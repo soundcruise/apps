@@ -1,4 +1,5 @@
 // Read-only routing for the operator. These groups grant no facts or authority.
+import candidateInformation from '../docs/candidate-review-information.json' with {type:'json'};
 import previousInformation from '../docs/human-ready-20261116/review-information.json' with {type:'json'};
 import currentInformation from '../docs/readiness-20261117/review-information.json' with {type:'json'};
 import remainingInformation from '../docs/remaining-review-20261118/review-information.json' with {type:'json'};
@@ -9,7 +10,7 @@ import {hash} from './policy.js';
 import bacchus from '../docs/deviser-draft-information.json' with {type:'json'};
 // An overlay on a saved estimate must match the discovery that was actually reviewed.
 const directWebInformation=[{information:bacchus,titleHash:'d568bca99842601abef2b69d759e819f6186a91c0f0445f59616476a4291ad60'}];
-const information=[...directWebInformation,...november19Information,...remainingInformation,...currentInformation,...previousInformation,{information:audient},{information:recordingKing}];
+const information=[...directWebInformation,...candidateInformation,...november19Information,...remainingInformation,...currentInformation,...previousInformation,{information:audient},{information:recordingKing}];
 import guidance from '../docs/operator-review-groups-20261116/editorial-guidance.json' with {type:'json'};
 import {assistedLabel,assistedTypes} from './assisted-facts.js';
 import {labelMatchesType} from './assisted-product-type.js';

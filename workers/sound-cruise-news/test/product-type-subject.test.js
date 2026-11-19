@@ -33,7 +33,7 @@ test('MONSTER multi-model power equipment is recovered without category/target-d
  assert.deepEqual(result.productFacts.models,['MONSTER POWER 8000','MONSTER POWER 8001']);
  assert.equal(result.productFacts.category,'recording_audio');assert.equal(result.publishedAt,row.published_at);
  assert.match(factualLabel(result.productFacts,result.eventType),/電源タップ/);
- assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-14');
+ assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-15');
 });
 
 for(const phrase of ['オーディオインターフェースを保護する電源タップ',
@@ -165,4 +165,14 @@ test('full-row CAS corrects only presentation facts and audit, retaining human d
  assert.equal(db.prepare('SELECT COUNT(*) n FROM news_admin_audit').get().n,auditsBefore+1);
  db.exec(headlineCorrectionStatements(before,{...p,requestId:'stale-replay'},q).join(';')+';');
  assert.equal(db.prepare('SELECT COUNT(*) n FROM news_admin_audit').get().n,auditsBefore+1);
+});
+
+test('acoustic strings are a product in their own right; instrument compatibility is not a guitar launch',()=>{
+ const lead='Makerから、アコースティックギター用弦「Set 12」が発売されました。';
+ const parsed=parseShimamuraProductEvidence(article('Maker「Set 12」アコースティックギター用弦を発売',lead),source,row);
+ assert.equal(parsed.productFacts.productType,'acoustic_guitar_strings');
+ assert.equal(parsed.productFacts.category,'acoustic_guitar');
+ assert.match(factualLabel(parsed.productFacts,parsed.eventType),/アコースティックギター用弦/);
+ const mixed='Makerから、アコースティックギターおよびマンドリン用の新シリーズ「Set 12」が登場します。';
+ assert.throws(()=>parseShimamuraProductEvidence(article('Maker「Set 12」が登場',mixed),source,row));
 });

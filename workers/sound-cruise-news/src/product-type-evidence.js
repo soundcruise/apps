@@ -1,10 +1,14 @@
 // Classify the product noun, not equipment connected to, protected by, or
 // compared with it. Callers still own identity, source and article-scope checks.
 // No publisher text is retained and no model/brand-specific rules are used.
+export const ACOUSTIC_STRINGS_PATTERN=/(?:アコースティックギター|アコギ)(?:専用|用)?(?:の)?(?:コーティング)?弦(?!付き|付属|を同梱|が付属)/;
 export const POWER_DISTRIBUTION_PATTERN=/電源タップ|電源プロテクター|パワー[・ ]?(?:ディストリビューター|コンディショナー)|\bpower (?:strip|distributor|distribution unit|conditioner|protector)\b/i;
 
 function targetMention(before,after){
  const prefix=before.slice(-90),suffix=after.slice(0,250).replace(/^\s*(?:「[^」]{1,110}」|"[^"]{1,110}")/,'').slice(0,130);
+ // A string set can name multiple intended instruments before the usage marker.
+ if(/^(?:および|及び|と|・)(?:マンドリン|ギター|ベース)(?:専用|用)/.test(suffix))return true;
+ if(/^(?:専用|用)?(?:の)?(?:コーティング)?弦/.test(suffix))return true;
  // A commemorated instrument is not the new model announced in its honour.
  if(/^[」』”"]?\s*(?:の)?(?:誕生|発売)?\d{1,3}周年を記念/.test(suffix))return true;
  // Include coordinated target lists: "amps, mixers, audio interfaces ...".

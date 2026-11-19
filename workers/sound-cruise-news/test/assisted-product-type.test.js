@@ -6,7 +6,7 @@ const examples=[
  ['アコギ本体','acoustic_guitar','acoustic_guitar',[]],['エレアコ本体','electro_acoustic','acoustic_guitar',[]],
  ['エレアコ用ピックアップ','pickup','amps_effects',['electro_acoustic']],['アコギ用プリアンプ','preamp','amps_effects',['acoustic_guitar']],
  ['ギター用アンプ','guitar_amp','amps_effects',['guitar']],['ギターアンプ用フットスイッチ','footswitch','amps_effects',['guitar_amp']],
- ['ギター用チューナー','tuner','electric_guitar_bass',['guitar']],['アコギ用弦','strings','electric_guitar_bass',['acoustic_guitar']],
+ ['ギター用チューナー','tuner','electric_guitar_bass',['guitar']],['アコギ用弦','acoustic_guitar_strings','acoustic_guitar',['acoustic_guitar']],
  ['ギター用ケース','guitar_case','electric_guitar_bass',['guitar']],['エレアコ対応エフェクター','effect','amps_effects',['electro_acoustic']],
  ['アコギ（ケース付属）','acoustic_guitar','acoustic_guitar',[]],['ギター用ピックアップ（対応機器：エレアコ）','pickup','amps_effects',['electro_acoustic','guitar']]
 ];
@@ -14,7 +14,7 @@ async function setup(){const s=await store();await s.db.prepare('UPDATE news_con
 function parse(phrase,mode='field'){const information='記事公開日：2026年10月28日\n'+(mode==='field'?'ブランド：Yamaha\n製品名：MODEL-100\n種別：'+phrase+'\n出来事：紹介':'Yamahaは'+phrase+'「MODEL-100」を紹介しました。');return parseAssistedPaste({sourceId:'yamaha',url,information});}
 for(const [phrase,type,category,targets]of examples)for(const mode of ['field','sentence'])test(`${mode}: ${phrase} -> facts/label/category/validation/READY`,async()=>{
  const p=parse(phrase,mode);assert(p.valid,JSON.stringify(p));assert.equal(p.fields.productType,type);assert.equal(p.typeResolution.confidence,'explicit_main_noun');assert.deepEqual(p.typeResolution.usageTargets,targets);
- const s=await setup(),input={...p.fields,confirmed:true,requestId:'isolated-type-request-0001'},d=await prepareAssisted(s,input,now,SOURCES,pepper);assert(d.valid);assert.equal(d.category,category);assert.equal(d.label,'Yamaha、'+({acoustic_guitar:'アコースティックギター',electro_acoustic:'エレアコ',pickup:'ギター用ピックアップ',guitar_amp:'ギターアンプ',preamp:'ギター用プリアンプ',footswitch:'フットスイッチ',tuner:'ギター用チューナー',strings:'ギター用弦',guitar_case:'ギター用ケース',effect:'エフェクター'})[type]+'「MODEL-100」を紹介');assert.equal(d.facts.typeEvidence.productType,type);
+ const s=await setup(),input={...p.fields,confirmed:true,requestId:'isolated-type-request-0001'},d=await prepareAssisted(s,input,now,SOURCES,pepper);assert(d.valid);assert.equal(d.category,category);assert.equal(d.label,'Yamaha、'+({acoustic_guitar:'アコースティックギター',electro_acoustic:'エレアコ',pickup:'ギター用ピックアップ',guitar_amp:'ギターアンプ',preamp:'ギター用プリアンプ',footswitch:'フットスイッチ',tuner:'ギター用チューナー',acoustic_guitar_strings:'アコースティックギター用弦',strings:'ギター用弦',guitar_case:'ギター用ケース',effect:'エフェクター'})[type]+'「MODEL-100」を紹介');assert.equal(d.facts.typeEvidence.productType,type);
  const result=await saveAssisted(s,input,now,SOURCES,pepper,actor);assert(result.validation.valid);const row=await s.db.prepare('SELECT * FROM candidate_items').first();assert.equal(row.review_status,'pending');assert.equal(JSON.parse(row.product_facts).productType,type);assert.equal(JSON.parse(row.facts_provenance).publisherHttpRequests,0);
  for(const t of ['news_decision_ledger','news_operator_feedback','news_shadow_evaluations'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+t).first()).n,0);
 });
@@ -38,3 +38,32 @@ test('manual follow-up can resolve only the missing kind; generic accessory cann
 test('alias equivalence is exact and independent of matching order; no HTTP',()=>{assert.equal(resolveProductType('エレクトリック・アコースティックギター').productType,'electro_acoustic');assert.equal(resolveProductType('エレクトリック・アコースティックギター用ピックアップ').productType,'pickup');assert(!resolveProductType('エレアコも使える機材').resolved);assert.equal(http,0);});
 test('explicit unknown accessory does not erase a known main product or invent an accessory type',()=>{const p=resolveProductType('アコギ（ストラップ付属）');assert(p.resolved);assert.equal(p.productType,'acoustic_guitar');assert.deepEqual(p.accessories,[]);assert(!resolveProductType('アコギ（種別不明）').resolved);assert(!resolveProductType('エレアコ用アコギ').resolved);assert(!resolveProductType('ギター用ケース（対応機器：アコギ：エレアコ）').resolved);});
 test('published legacy assisted facts without type evidence retain read compatibility without migration',async()=>{const s=await setup(),p=parse('アコギ'),saved=await saveAssisted(s,{...p.fields,confirmed:true,requestId:'legacy-type-fixture-0001'},now,SOURCES,pepper,actor);assert(saved.validation.valid);const r=await s.db.prepare('SELECT * FROM candidate_items').first(),f=JSON.parse(r.product_facts);delete f.typeEvidence;const json=JSON.stringify(f);await s.db.prepare("UPDATE candidate_items SET product_facts=?,review_status='approved' WHERE id=?").bind(json,r.id).run();await s.db.prepare('UPDATE news_assisted_edits SET facts_json=? WHERE candidate_id=?').bind(json,r.id).run();const old=await s.db.prepare('SELECT * FROM candidate_items').first();assert((await publicationValidation(s,old,now,SOURCES,pepper)).valid);assert.deepEqual(await s.db.prepare('SELECT * FROM candidate_items').first(),old);});
+
+test('stored generic string selections retain verifiable evidence',async()=>{
+ const {validTypeEvidence}=await import('../src/assisted-product-type.js');
+ const legacy={version:1,method:'human_supplied_type_phrase',phrase:'アコギ用弦',productType:'strings',usageTargets:['acoustic_guitar'],accessories:[]};
+ assert(validTypeEvidence(legacy,'strings'));
+ assert(!validTypeEvidence({...legacy,usageTargets:[]},'strings'));
+ assert(!validTypeEvidence({...legacy,productType:'strings'},'acoustic_guitar_strings'));
+});
+
+test('source-backed candidate drafts stay unconfirmed and use the same publication form for all five subjects',async()=>{
+ const {default:entries}=await import('../docs/candidate-review-information.json',{with:{type:'json'}});
+ const {candidateAssistedDraft}=await import('../src/candidate-draft.js');
+ const {draftRequirements}=await import('../src/review-presentation.js');
+ const {assistedSource}=await import('../src/assisted-facts.js');
+ const local=await setup(),day=Date.parse('2026-11-20T08:00:00+09:00');
+ for(const {information} of entries){
+  const sourceId=assistedSource(information.url).id;
+  const row={source_id:sourceId,source_url:information.url,origin:'automatic_collection',published_at:'2026-11-18T15:00:00Z'};
+  const draft=await candidateAssistedDraft(local,row,day);
+  assert.deepEqual(draftRequirements(draft,day).missing,[]);
+  assert.equal(draft.fields.label,information.fields.label);
+  assert.equal(draft.fieldSources.publishedAt.kind,'candidate_record');
+  assert.equal(draft.fieldSources.product.kind,'provided_information');
+  assert.equal(draft.fields.publishedAt,'2026-11-19');
+  assert.equal(draft.formalFacts,false);
+  assert.equal(draft.humanConfirmed,false);
+ }
+ assert.equal((await local.candidates()).length,0);
+});

@@ -2,6 +2,7 @@
 // No fetch/discovery, decisions, teacher signals, dates, source changes or migration.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {checkedConfig,remoteSql,sqlLiteral as q} from './remote-db.mjs';
+import {primaryContractValid} from '../src/primary-provenance.js';
 import {hash} from '../src/policy.js';
 import {publishedHeadline,publishedCorrectionStatements,reviewedPublishedTargets} from '../src/published-headline.js';
 const [mode,manifestPath]=process.argv.slice(2),now=Date.now();
@@ -26,6 +27,11 @@ if(mode==='plan'){
   if(!label||label!==e.after)throw Error('published_manifest_label');
   const proof={sourceId:row.source_id,sourceUrl:row.source_url,verifiedAt:now,extractionMethod:'authorized_published_primary_review',parserVersion:'published-headline-1',factField:'headlineQuality',evidence:e.headlineQuality.evidence};
   const plan={before:row,facts,label,provenance:[...JSON.parse(row.facts_provenance||'[]'),proof],at:now,requestId:crypto.randomUUID()};
+  if(e.preserveSealedEvidence===true){
+   if(manifest.scope!=='explicit_targets'||!await primaryContractValid(row,JSON.parse(row.product_facts),JSON.parse(row.facts_provenance),now))throw Error('sealed_display_correction_invalid');
+   plan.preserveSealedEvidence=true;
+   plan.correctionReason='product_type_correction';
+  }
   publishedCorrectionStatements(row,plan,q);plans.push(plan);
  }
  if(!plans.length)throw Error('published_quality_no_targets');
