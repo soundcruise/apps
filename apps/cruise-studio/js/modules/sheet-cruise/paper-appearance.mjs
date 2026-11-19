@@ -16,9 +16,9 @@ for(const [name,[,color,width]] of Object.entries(LINE_FIELDS)){const l=value.ap
 export const APPEARANCE_CSS=Object.entries(TEXT_FIELDS).map(([, [name,,selector]])=>`.sc-paper-layout ${selector}{font-family:var(--sc-font-${name})!important;}.sc-paper-layout.sc-custom-color-${name} ${selector},.sc-paper-layout.sc-custom-color-${name} ${selector} *{color:var(--sc-color-${name})!important;}`).join('\n')+`
 .sc-paper-layout .sheet-line{border-left:var(--sc-line-bar-width) var(--sc-line-bar-style) var(--sc-line-bar-color)!important;}
 .sc-paper-layout .sheet-bar{border-right:var(--sc-line-bar-width) var(--sc-line-bar-style) var(--sc-line-bar-color)!important;}
-.sc-paper-layout .sheet-bar-grid>.is-beat{border-right:var(--sc-line-beat-width) var(--sc-line-beat-style) var(--sc-line-beat-color)!important;}
-.sc-paper-layout .sheet-bar-grid>.is-8th,.sc-paper-layout .sheet-bar-grid>.is-16th{border-right:var(--sc-line-division-width) var(--sc-line-division-style) var(--sc-line-division-color)!important;}
-.sc-paper-layout .sheet-bar-grid>.is-16th{border-right-color:var(--sc-line-sixteenth-color)!important;}
+.sc-paper-layout :is(.sheet-bar-grid,.sheet-bar-grid~.sheet-preset-strum)>.is-beat{border-right:var(--sc-line-beat-width) var(--sc-line-beat-style) var(--sc-line-beat-color)!important;}
+.sc-paper-layout :is(.sheet-bar-grid,.sheet-bar-grid~.sheet-preset-strum)>.is-8th,.sc-paper-layout :is(.sheet-bar-grid,.sheet-bar-grid~.sheet-preset-strum)>.is-16th{border-right:var(--sc-line-division-width) var(--sc-line-division-style) var(--sc-line-division-color)!important;}
+.sc-paper-layout :is(.sheet-bar-grid,.sheet-bar-grid~.sheet-preset-strum)>.is-16th{border-right-color:var(--sc-line-sixteenth-color)!important;}
 .sc-layout-field{border-left:3px solid transparent;padding-left:7px;min-width:0;}.sc-layout-field.is-layout-active{border-color:#75c6dc;background:#ffffff0b;}
 .sc-text-heading{display:flex;gap:7px;align-items:center;font-size:13px;}.sc-text-heading>span{flex:1;min-width:0;}.sc-text-heading input[type=checkbox]{width:15px;height:15px;accent-color:#cdb275;}
 .sc-text-heading details{position:relative;}.sc-text-heading summary{cursor:pointer;list-style:none;border:1px solid #71818b;border-radius:5px;padding:2px 5px;font:600 13px sans-serif;}.sc-text-heading summary::-webkit-details-marker{display:none;}.sc-text-heading details[open] select{position:absolute;top:25px;right:0;width:155px;z-index:4;}

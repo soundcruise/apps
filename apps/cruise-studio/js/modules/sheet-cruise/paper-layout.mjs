@@ -3,8 +3,8 @@ import {FONTS,setPresentationProperty,togglePresentationClass,TEXT_FIELDS,LINE_F
 // Browser-local presentation preferences. Never edits a Project or its Session.
 export const META_FIELDS=Object.freeze({originalKey:'ORGキー',playKey:'Playキー',bpm:'BPM',timeSignature:'拍子',basicStrum:'基本ストローク'});
 export function normalizeMetaFields(source){const out={};for(const key of Object.keys(META_FIELDS)){const field=source?.[key];if(!field||typeof field!=='object')continue;const v={};if(typeof field.visible==='boolean')v.visible=field.visible;if(Object.hasOwn(FONTS,field.font))v.font=field.font;if(typeof field.color==='string'&&/^#[0-9a-f]{6}$/i.test(field.color))v.color=field.color;if(typeof field.size==='number'&&Number.isFinite(field.size))v.size=Math.max(8,Math.min(24,field.size));out[key]=v;}return out;}
-export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:4,formScale:100,formListScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:16,strumSize:15,lyricsSize:14,doremiSize:12,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,timingGrid:null,gridResolution:null,metaFields:Object.freeze({}),appearance:Object.freeze({text:Object.freeze({}),lines:Object.freeze({}),visibility:Object.freeze({})})});
-const ranges={formScale:[60,140],formListScale:[60,160],titleSize:[18,40],artistSize:[10,26],metaSize:[9,18],chordSize:[12,28],strumSize:[10,24],lyricsSize:[10,24],doremiSize:[10,24],partSize:[10,22],numberSize:[8,16]};
+export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:4,formScale:100,formListScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:16,strumSize:15,lyricsSize:14,doremiSize:12,lyricsSpacing:-1,doremiSpacing:-1,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,timingGrid:null,gridResolution:null,metaFields:Object.freeze({}),appearance:Object.freeze({text:Object.freeze({}),lines:Object.freeze({}),visibility:Object.freeze({})})});
+const ranges={formScale:[60,140],formListScale:[60,160],titleSize:[18,40],artistSize:[10,26],metaSize:[9,18],chordSize:[12,28],strumSize:[10,24],lyricsSize:[10,24],doremiSize:[10,24],lyricsSpacing:[-3,3],doremiSpacing:[-3,3],partSize:[10,22],numberSize:[8,16]};
 export function normalizeLayout(value){const out={...DEFAULT_LAYOUT},v=value&&typeof value==='object'?value:{};for(const [key,[min,max]] of Object.entries(ranges))if(typeof v[key]==='number'&&Number.isFinite(v[key]))out[key]=Math.max(min,Math.min(max,v[key]));if([0,1,2,3,4].includes(v.barsPerLine))out.barsPerLine=v.barsPerLine;for(const key of ['showTitle','showArtist','showMeta','showNumbers','showParts'])if(typeof v[key]==='boolean')out[key]=v[key];if(typeof v.timingGrid==='boolean')out.timingGrid=v.timingGrid;if([8,16].includes(v.gridResolution))out.gridResolution=v.gridResolution;out.appearance=normalizeAppearance(v.appearance);out.metaFields=normalizeMetaFields(v.metaFields);return out;}
 export function normalizeLineRules(rows){
     const result=new Map();if(!Array.isArray(rows)||rows.length>2048)return [];
@@ -76,18 +76,19 @@ export function createPaperLayout(C,doc=document){
 .sc-paper-layout .sheet-bar-strum>span:not([data-playback-band]){background:transparent;border-radius:0;box-shadow:none;}
 .sc-paper-layout .sheet-bar-strum>span{font-size:inherit!important;}
 .sc-paper-layout .sheet-bar-strum>[data-strum-state]{justify-content:flex-start;}
-.sc-paper-layout :is(.sheet-bar-lyrics,.sheet-bar-doremi)>.sheet-timed-cell>span{font-size:min(1em,calc(96cqi / var(--sheet-token-length,1)));letter-spacing:0;}
-.sc-paper-layout .sheet-bar-grid~.sheet-preset-strum{isolation:isolate;align-self:stretch;}
-.sc-paper-layout .sheet-bar-grid~.sheet-preset-strum::before{content:'';position:absolute;inset:0;background:var(--paper-bg,#fdfbf5);z-index:-1;print-color-adjust:exact;}
-.sc-paper-layout .sheet-bar-grid~.sheet-preset-strum>.is-beat-start:not(:first-child){border-left:var(--sc-line-beat-width) var(--sc-line-beat-style) var(--sc-line-beat-color);}
-.sc-paper-layout .sheet-bar-grid~.sheet-preset-strum>.is-division-start{border-left:var(--sc-line-division-width) var(--sc-line-division-style) var(--sc-line-division-color);}
+.sc-paper-layout :is(.sheet-bar-lyrics,.sheet-bar-doremi)>.sheet-timed-cell{white-space:normal;overflow-wrap:anywhere;line-break:strict;font-feature-settings:"palt";}
+.sc-paper-layout .sheet-bar-lyrics>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-lyricsSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
+.sc-paper-layout .sheet-bar-doremi>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-doremiSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
+.sc-paper-layout .sheet-kana-pair{letter-spacing:calc(var(--sc-vocal-spacing) - .12em);}
+.sc-paper-layout .sheet-bar-grid~.sheet-preset-strum{align-self:stretch;padding-top:0!important;}
+.sc-paper-layout .sheet-bar-grid~.sheet-preset-strum>[data-strum-state]{align-self:stretch;padding-top:3px;}
 .sc-paper-layout .sheet-bar-strum [data-strum-arrow]{height:1.2em!important;width:1em!important;}
 .sc-paper-layout [data-edit-selected-bar]{font:600 9px/12px sans-serif!important;padding:2px 6px!important;top:2px!important;}
 .sc-paper-layout .sheet-bar-forms{display:flex;align-items:center;justify-content:center;padding:4px 0!important;line-height:0;font-size:0;}
 .sc-paper-layout .sheet-form-lane{flex:0 0 100%;min-width:0;}
 .sc-paper-layout .sheet-form-lane{position:static;width:100%;margin:0;padding:0;line-height:0;}
 .sc-paper-layout .sheet-line{grid-template-rows:repeat(var(--sheet-row-count),max-content);align-items:stretch;}
-.sc-paper-layout .sheet-line>.sheet-bar{display:grid;grid-template-rows:subgrid;min-width:0;min-height:0;row-gap:0;align-content:stretch;}
+.sc-paper-layout .sheet-line>.sheet-bar{--sheet-lower-grid-display:grid;display:grid;grid-template-rows:subgrid;min-width:0;min-height:0;row-gap:0;align-content:stretch;}
 .sc-paper-layout .sheet-bar-row{align-items:center;}
 .sc-layout-dialog{box-sizing:border-box;position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;width:min(1080px,calc(100vw - 32px));max-height:90vh;overflow:auto;padding:20px;border:1px solid #798b9a;border-radius:14px;background:#1e2832;color:#f7f4ec;}
 .sc-layout-dialog::backdrop{background:#10182088;}
@@ -224,6 +225,17 @@ export function createPaperLayout(C,doc=document){
             if(TEXT_FIELDS[name]){row.replaceChildren();addTextTools({doc,row,name,label,get:()=>value.appearance,patch:textPatch,visible,toggle,syncs:inputs});}
             else {const check=doc.createElement('input');check.type='checkbox';const flag=name==='formListScale'?'formList':'forms';check.dataset.textVisible=flag;if(flag==='formList')check.dataset.layoutFormList='';check.setAttribute('aria-label',label+'を表示');check.addEventListener('change',()=>toggle(flag,check.checked));const heading=doc.createElement('div');heading.className='sc-text-heading';heading.append(row.firstChild,check);row.appendChild(heading);inputs.push(()=>check.checked=visible(flag));}
             input.type='range';input.min=ranges[name][0];input.max=ranges[name][1];input.step=['formScale','formListScale'].includes(name)?5:.5;input.setAttribute('aria-label',label+'の大きさ');if(name==='formScale')input.title='100%は1拍分。重なる図は上下に並びます';input.dataset.layoutSetting=name;const sync=()=>{input.value=value[name];output.textContent=value[name]+(['formScale','formListScale'].includes(name)?'%':'px');};sync();inputs.push(sync);input.addEventListener('input',()=>{activeSetting=name;set({[name]:Number(input.value)},false);sync();});input.addEventListener('change',save);const size=doc.createElement('div');size.className='sc-text-size';size.append(input,output);row.appendChild(size);
+            if(name==='lyricsSize'||name==='doremiSize'){
+                const key=name==='lyricsSize'?'lyricsSpacing':'doremiSpacing';
+                const control=doc.createElement('label'),slider=doc.createElement('input'),amount=doc.createElement('output');
+                control.className='sc-text-size';slider.type='range';slider.step=.5;
+                [slider.min,slider.max]=ranges[key];slider.dataset.layoutSetting=key;
+                slider.setAttribute('aria-label',label+'の字間');
+                const syncSpacing=()=>{slider.value=value[key];amount.textContent=value[key]+'px';};
+                slider.addEventListener('input',()=>{activeSetting=name;set({[key]:Number(slider.value)},false);syncSpacing();});
+                slider.addEventListener('change',save);syncSpacing();inputs.push(syncSpacing);
+                control.append('字間',slider,amount);row.appendChild(control);
+            }
             if(name==='metaSize'){
                 const details=doc.createElement('details'),summary=doc.createElement('summary');details.className='sc-meta-details';details.dataset.metaDetails='';summary.textContent='さらに詳細';details.appendChild(summary);row.appendChild(details);
                 const patchMeta=(key,patch)=>set({metaFields:{...value.metaFields,[key]:{...value.metaFields[key],...patch}}});

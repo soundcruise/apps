@@ -225,7 +225,8 @@
             const cell=el('span','is-'+action+(['down','up'].includes(action)?' is-stroke':''));
             cell.dataset.strumState=action;cell.dataset.slotTick=start;cell.dataset.slotTicks=width;
             if(action==='rest')cell.style.color='#746e65';
-            cell.classList.add(start%480===0?'is-beat-start':'is-division-start');
+            const end=ticks[n+1];
+            if(end<barTicks) cell.classList.add(end%480===0?'is-beat':end%240===0?'is-8th':'is-16th');
             renderStrumCell(cell,action,width);
             row.appendChild(cell);widths.push('minmax(0,'+width+'fr)');
         }
@@ -266,11 +267,34 @@
         events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i].push(e);
             if(e.durationTicks&&e.octave!==undefined)for(var n=i+1;n<resolution&&n*barTicksLen/resolution<e.tick+e.durationTicks;n++)texts[n].push({text:'〜',octave:e.octave});
         });
-        texts.forEach(function(items,i){var cell=el('span','sheet-timed-cell'),unit=items.length===1&&items[0].durationTicks?items[0].durationTicks:barTicksLen/resolution;function gcd(a,b){while(b){var r=a%b;a=b;b=r;}return a;}items.forEach(function(e){if(e.durationTicks)unit=gcd(unit,e.durationTicks);});items.forEach(function(e){var suffix=e.durationTicks&&e.durationTicks<=barTicksLen/resolution?'〜'.repeat(Math.min(16,Math.max(e.held?1:0,e.durationTicks/unit-1))):'';var token=el('span','',e.text+suffix);if(e.restTicks){token.replaceChildren(createStrumRestSymbol(e.restTicks));token.style.color='#746e65';}if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}cell.appendChild(token);});if(className.includes('lyrics') || className.includes('doremi')){
-                cell.style.containerType='inline-size';
-                cell.style.setProperty('--sheet-token-length',String(Math.max(1,Array.from(cell.textContent).length)));
+        const vocal=className.includes('lyrics')||className.includes('doremi');
+        function gcd(a,b){while(b){const r=a%b;a=b;b=r;}return a;}
+        texts.forEach(function(items,i){
+            const cell=el('span','sheet-timed-cell');
+            let unit=items.length===1&&items[0].durationTicks?items[0].durationTicks:barTicksLen/resolution;
+            for(const e of items)if(e.durationTicks)unit=gcd(unit,e.durationTicks);
+            for(const e of items){
+                const suffix=e.durationTicks&&e.durationTicks<=barTicksLen/resolution?'〜'.repeat(Math.min(16,Math.max(e.held?1:0,e.durationTicks/unit-1))):'';
+                const token=el('span','',e.text+suffix);
+                if(e.restTicks){token.replaceChildren(createStrumRestSymbol(e.restTicks));token.style.color='#746e65';}
+                else if(vocal && /.[ぁぃぅぇぉっゃゅょァィゥェォッャュョ]/u.test(token.textContent)){
+                    const chunks=token.textContent.split(/(.[ぁぃぅぇぉっゃゅょァィゥェォッャュョ])/u);
+                    token.replaceChildren(...chunks.map((text,index)=>index%2?el('span','sheet-kana-pair',text):text));
+                }
+                if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}
+                cell.appendChild(token);
             }
-            cell.dataset.slotTick=i*barTicksLen/resolution;Object.assign(cell.style,{textAlign:'start',minWidth:'0',whiteSpace:'nowrap',position:'relative'});row.appendChild(cell);});
+            if(vocal && items.length){
+                // Borrow empty time slots up to the next onset before wrapping.
+                let end=i+1;
+                while(end<resolution&&!texts[end].length)end++;
+                cell.style.width=((end-i)*100)+'%';
+            }
+            cell.dataset.slotTick=i*barTicksLen/resolution;
+            Object.assign(cell.style,{textAlign:'start',minWidth:'0',position:'relative'});
+            if(!vocal)cell.style.whiteSpace='nowrap';
+            row.appendChild(cell);
+        });
         return row;
     }
     function buildLyricsRow(bar,resolution,barTicksLen){
@@ -294,9 +318,8 @@
             (strum && strum.needs16)) ? 16 : 8;
         if(viewResolution===8||viewResolution===16)timeRes=viewResolution;
 
-        if (show.timingGrid) {
-            cell.appendChild(buildTimingGrid(beats, timeRes));
-        }
+        var grid = show.timingGrid ? buildTimingGrid(beats, timeRes) : null;
+        if (grid) cell.appendChild(grid);
 
         var rowIndex=1;function appendRow(row){row.style.gridRow=String(rowIndex++);cell.appendChild(row);}
         appendRow(el('span', 'sheet-bar-num', String(bar.barNumber)));
@@ -319,6 +342,17 @@
         // Keep the empty stroke band so lyrics/notes align with neighboring bars.
         // This adds no rhythm events; blank-stroke playback remains a projection.
         if (show.strum) {
+            // The stroke lane draws its own boundaries. End and resume the shared
+            // grid at its row edges so the bar highlight shows through every lane.
+            if (grid && strum?.cellStarts && !unsupportedStrum) {
+                grid.style.gridRowEnd=String(rowIndex);
+                if (hasVocal && (show.lyrics || show.doremi)) {
+                    var lowerGrid=buildTimingGrid(beats,timeRes);
+                    lowerGrid.style.gridRowStart=String(rowIndex+1);
+                    lowerGrid.style.display='var(--sheet-lower-grid-display,none)';
+                    grid.after(lowerGrid);
+                }
+            }
             appendRow(unsupportedStrum?el('div','sheet-bar-row sheet-bar-strum',strum.name+'：採用リズムの印刷は未対応'):strum?.cellStarts?buildPresetStrumRow(strum.slots,beats*model.TICKS_PER_BEAT,strum.cellStarts,strum.leadingSustainTicks):buildStrumRow(strum?.slots || [], strum?.barTicks || beats * model.TICKS_PER_BEAT, timeRes));
         }
 
