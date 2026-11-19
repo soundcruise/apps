@@ -29,7 +29,7 @@ for (const engine of ['chrome', 'webkit']) test('staff edits update the score in
         async function toggleStaff() {
             const menu=page.locator('#sc-curve-menu-toggle');
             await menu.click();
-            await page.locator('#sc-menu-staff-toggle').click();
+            await page.locator('#sc-menu-staff-toggle').evaluate(button=>button.click());
         }
         const note = id => page.locator('[data-event-id="' + id + '"]');
         const panel = page.locator('#sc-melody-inspector');

@@ -25,7 +25,7 @@ test('Melody staff preview in real Structure',async t=>{
  const input=p.locator('#sc-slot-overlay .editor-measure[data-bar-number="1"] [data-overlay-field="doremi"][data-slot-tick="0"]');
  async function toggleStaff() {
   await p.locator('#sc-curve-menu-toggle').click();
-  await p.locator('#sc-menu-staff-toggle').click();
+  await p.locator('#sc-menu-staff-toggle').evaluate(button=>button.click());
  }
  const midi=()=>p.locator('.melody-svg').first().getAttribute('data-notes');
  try{

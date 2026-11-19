@@ -17,8 +17,8 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert(await pin('sc-edit-rhythm').isVisible());
   const ids=()=>p.locator('.sc-menu-shortcuts [data-shortcut]:visible').evaluateAll(items=>items.map(item=>item.dataset.shortcut));
   const initial=await ids();
-  await pin(initial[0]).dragTo(pin(initial[2]));
-  assert.deepEqual(await ids(),[initial[1],initial[2],initial[0]]);
+  await pin(initial[0]).dragTo(pin(initial[1]),{targetPosition:{x:32,y:18}});
+  assert.deepEqual(await ids(),[initial[1],initial[0]]);
   await p.locator('#sc-curve-menu-toggle').click();
   await p.getByRole('button',{name:'ツールエリア',exact:true}).click();
   await picker.getByLabel('曲情報',{exact:true}).check();
@@ -30,8 +30,34 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('[data-score-cancel]');
   assert.deepEqual(await snap(p),before);
   await p.reload();await p.click('#open-sheet-cruise');
-  assert.deepEqual(await ids(),[initial[2],initial[0],'sc-edit-song']);
+  assert.deepEqual(await ids(),[initial[0],'sc-edit-song']);
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
+ }));
+ await t.test('move each tool group within the card and retain the chosen row',()=>fresh(async p=>{
+  const group=p.locator('.sc-menu-shortcuts'),head=p.locator('.sc-score-toolbar-head'),primary=p.locator('.sc-toolbar-primary');
+  await group.locator('.sc-dock-grip').dragTo(head,{targetPosition:{x:20,y:10}});
+  assert.equal(await head.locator('.sc-menu-shortcuts').count(),1);
+  await p.locator('#sc-toolbar-head-actions .sc-dock-grip').dragTo(primary,{targetPosition:{x:20,y:10}});
+  assert.equal(await primary.locator('#sc-toolbar-head-actions').count(),1);
+  await p.reload();await p.click('#open-sheet-cruise');
+  assert.equal(await head.locator('.sc-menu-shortcuts').count(),1);assert.equal(await primary.locator('#sc-toolbar-head-actions').count(),1);
+  await p.click('#sc-curve-menu-toggle');assert(await p.locator('#sc-menu-staff-toggle').isHidden());
+ }));
+ await t.test('preview a section copy with only chords, add a bar, apply and undo',()=>fresh(async p=>{
+  const before=await snap(p);await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
+  const dialog=p.locator('[data-score-dialog=sections]'),rows=dialog.locator('.sc-song-section-row');
+  await rows.first().getByText('コピー',{exact:true}).click();
+  for(const name of ['ストローク','メロディ','歌詞'])await dialog.getByLabel(name,{exact:true}).uncheck();
+  await rows.first().getByText('後ろに貼り付け').click();
+  await rows.nth(1).getByText('＋ 小節').click();
+  assert.equal(await dialog.locator('.sheet-bar[data-bar-number]').count(),before.bars.length+4);
+  assert.deepEqual(await snap(p),before);await dialog.locator('[data-score-apply]').click();
+  assert.equal(await dialog.count(),0,await dialog.count()?await dialog.locator("[role=status]").innerText():"");
+  const after=await snap(p),copies=after.bars.filter(b=>b.sectionId===after.sections[1].id);
+  assert.equal(copies.length,4);assert.equal(copies[0].chords[0].symbol,before.bars[0].chords[0].symbol);
+  assert.notEqual(copies[0].chords[0].id,before.bars[0].chords[0].id);
+  assert(copies.every(b=>!b.lyrics.length&&!b.melody.length),JSON.stringify(copies.map(b=>[b.lyrics.length,b.melody.map(e=>e.kind)])));
+  await p.click('#sc-undo');assert.deepEqual(await snap(p),before);
  }));
  await t.test('frequent actions remain visible; context appears only for selected bars without mutating the Project',()=>fresh(async p=>{
   const before=await snap(p),history=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());

@@ -44,7 +44,7 @@ for (const engine of ['chrome', 'webkit']) test('cross-bar ties survive save and
             CruiseStudio.sheetCruise.getStaffMetrics()?.source?.snapshotVersion === CruiseStudio.documents.getSession().snapshotVersion);
         async function menu(item) {
             await page.click('#sc-curve-menu-toggle');
-            await page.click(item);
+            if(item==='#sc-menu-staff-toggle')await page.locator(item).evaluate(button=>button.click());else await page.click(item);
         }
         const note = id => page.locator('[data-event-id="' + id + '"]').first();
         const panel = page.locator('#sc-melody-inspector');

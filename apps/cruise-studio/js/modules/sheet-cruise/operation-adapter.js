@@ -52,10 +52,7 @@
         }
         forms.forEach(function(b){retain('forms',b.materialId);});
         var originalRhythm=staged.performance.barRhythms.find(function(b){return b.barId===newId;}),material=retain('rhythms',originalRhythm?originalRhythm.materialId:source.performance.basicRhythmId),materialId=material.id;
-        if(material.encoding==='studio-strum-v1'){
-            var independent=JSON.parse(JSON.stringify(material));independent.id=api.newId();independent.provenance.legacyId='strum_bar_'+independent.id;
-            independent.snapshot.slots.forEach(function(e){e.id=api.newId();});canonical.materials.rhythms.push(independent);materialId=independent.id;
-        }
+        materialId=copyRhythmMaterial(canonical,material,api);
         bar.id=target.id;bar.sectionId=target.sectionId;canonical.bars[destination]=bar;
         canonical.performance.formBindings=canonical.performance.formBindings.filter(function(b){return !oldChords.has(b.chordEventId);}).concat(forms);
         canonical.performance.barRhythms=canonical.performance.barRhythms.filter(function(b){return b.barId!==target.id;}).concat([{id:api.newId(),barId:target.id,materialId:materialId}]);
@@ -511,6 +508,54 @@
             return !old.has(material.id) || referenced.has(material.id);
         });
     }
+    function copyRhythmMaterial(project,material,api){
+        if(material.encoding!=='studio-strum-v1')return material.id;
+        const copy=copyJSON(material);
+        copy.id=api.newId();copy.provenance.legacyId='strum_bar_'+copy.id;
+        for(const slot of copy.snapshot.slots)slot.id=api.newId();
+        project.materials.rhythms.push(copy);
+        return copy.id;
+    }
+    function editSections(canonical,rows,api){
+        const original=copyJSON(canonical);
+        if(!Array.isArray(rows)||!rows.length||rows.length>128||new Set(rows.map(function(s){return s.id;})).size!==rows.length)throw Error('セクション構成を確認してください');
+        var oldSections=new Map(canonical.sections.map(function(s){return [s.id,s];})),retained=new Set(rows.map(function(s){return s.id;}));
+        for(var r of rows)if(typeof r.name!=='string'||r.name.length>200||!r.name.trim()||!oldSections.has(r.id)&&r.isNew!==true)throw Error('セクション名を確認してください');
+        var remove=canonical.bars.filter(function(b){return !retained.has(b.sectionId);}).map(function(b){return b.id;});for(var id of remove)removeBars(canonical,[id],false);
+        canonical.sections=rows.map(function(r){return oldSections.has(r.id)?Object.assign({},oldSections.get(r.id),{name:r.name.trim()}):{id:r.id,name:r.name.trim(),lyricsHidden:false};});
+        for(const row of rows){
+            const existing=canonical.bars.filter(b=>b.sectionId===row.id).length;
+            const count=row.count??(oldSections.has(row.id)?existing:4);
+            if(!Number.isInteger(count)||count<existing||count>2048||canonical.bars.length+count-existing>2048)throw Error('小節数を確認してください');
+            const sources=row.copyFrom?original.bars.filter(b=>b.sectionId===row.copyFrom):[];
+            const ids=new Map(), copied=[];
+            for(let n=existing;n<count;n++){
+                const bar={id:api.newId(),sectionId:row.id,chords:[],melody:[],lyrics:[]},source=sources[n];
+                if(!source){canonical.bars.push(bar);continue;}
+                for(const part of ['chords','melody','lyrics']){
+                    if(!row.parts.includes(part))continue;
+                    bar[part]=copyJSON(source[part]);
+                    for(const event of bar[part]){const id=api.newId();ids.set(event.id,id);event.id=id;}
+                }
+                canonical.bars.push(bar);
+                copied.push(...bar.melody);
+                if(row.parts.includes('strum')){
+                    const rhythm=original.performance.barRhythms.find(r=>r.barId===source.id);
+                    const material=original.materials.rhythms.find(m=>m.id===(rhythm?.materialId??original.performance.basicRhythmId));
+                    canonical.performance.barRhythms.push({id:api.newId(),barId:bar.id,materialId:copyRhythmMaterial(canonical,material,api)});
+                }
+            }
+            for(const note of copied)if(note.tieToNext)note.tieToNext=ids.get(note.tieToNext);
+            for(const note of copied)if(!note.tieToNext)delete note.tieToNext;
+            for(const form of original.performance.formBindings)if(ids.has(form.chordEventId)){
+                const clone=copyJSON(form);clone.id=api.newId();clone.chordEventId=ids.get(form.chordEventId);
+                canonical.performance.formBindings.push(clone);
+            }
+        }
+        var order=new Map(rows.map(function(r,i){return [r.id,i];}));canonical.bars.sort(function(a,b){return order.get(a.sectionId)-order.get(b.sectionId);});
+        api.pruneMelodyTies(canonical);
+        api.reconcileScoreLayout(canonical,original);
+    }
     function create(options) {
         var model = options.model;
         return Object.freeze({ execute: function (kind, args, expected) {
@@ -548,13 +593,9 @@
                     if(kind==='basicRhythm')model.editLegacy(canonical,function(view){var r=model.setBasicStrumText(view,args.text);if(r.warnings.length)throw Error(r.warnings.join('/'));},{kind:'basicStrum'});
                     if(kind==='songInfo'){var values=args.values;for(var field of Object.keys(values)){if(!['title','artist','bpm','originalKey','timeSignature'].includes(field))throw Error('曲情報の項目が不正です');if(field==='bpm'){if(!Number.isFinite(values[field])||values[field]<20||values[field]>400)throw Error('BPMは20〜400で入力してください');canonical.songInfo.bpm=values.bpm;}else if(field==='timeSignature'){api.setMeter(canonical,values[field]);}else{if(typeof values[field]!=='string'||values[field].length>1000)throw Error('入力を確認してください');canonical.songInfo[field]=values[field].trim();}}}
                     if(kind==='songInfo'&&args.sections){
-                        var rows=args.sections;if(!Array.isArray(rows)||!rows.length||rows.length>128||new Set(rows.map(function(s){return s.id;})).size!==rows.length)throw Error('セクション構成を確認してください');
-                        var oldSections=new Map(canonical.sections.map(function(s){return [s.id,s];})),retained=new Set(rows.map(function(s){return s.id;}));
-                        for(var r of rows)if(typeof r.name!=='string'||r.name.length>200||!r.name.trim()||!oldSections.has(r.id)&&r.isNew!==true)throw Error('セクション名を確認してください');
-                        var remove=canonical.bars.filter(function(b){return !retained.has(b.sectionId);}).map(function(b){return b.id;});for(var id of remove)removeBars(canonical,[id],false);
-                        canonical.sections=rows.map(function(r){return oldSections.has(r.id)?Object.assign({},oldSections.get(r.id),{name:r.name.trim()}):{id:r.id,name:r.name.trim(),lyricsHidden:false};});
-                        for(var row of rows)if(!oldSections.has(row.id))for(var n=0;n<4;n++)canonical.bars.push({id:api.newId(),sectionId:row.id,chords:[],melody:[],lyrics:[]});
-                        var order=new Map(rows.map(function(r,i){return [r.id,i];}));canonical.bars.sort(function(a,b){return order.get(a.sectionId)-order.get(b.sectionId);});
+                        const next=copyJSON(canonical);
+                        editSections(next,args.sections,api);
+                        for(const field of ['sections','bars','materials','performance','notation','extensions'])if(next[field])canonical[field]=next[field];
                     }
                     if(kind==='moveSection'){var i=canonical.sections.findIndex(function(s){return s.id===args.sectionId;}),j=i+args.direction;if(i<0||![-1,1].includes(args.direction)||j<0||j>=canonical.sections.length)throw Error('これ以上移動できません');var item=canonical.sections.splice(i,1)[0];canonical.sections.splice(j,0,item);var order=new Map(canonical.sections.map(function(s,i){return [s.id,i];}));canonical.bars.sort(function(a,b){return order.get(a.sectionId)-order.get(b.sectionId);});}
                     if(kind==='instrument'){
@@ -666,7 +707,7 @@
                 structureChanged: result.ok && before !== structureKey(session.draft) });
         } });
     }
-    return Object.freeze({ previewPreset(project,kind,args,schema,installForm) {
+    return Object.freeze({ previewSections(project,rows,api){const draft=copyJSON(project);editSections(draft,rows,api);return draft;}, previewPreset(project,kind,args,schema,installForm) {
         var draft = copyJSON(project);
         if (kind === 'chordPreset') applyChordPreset(draft,args,schema,installForm);
         else if (kind === 'strumPreset') applyStrumPreset(draft,args,schema);
