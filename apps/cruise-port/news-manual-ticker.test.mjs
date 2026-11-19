@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {prepareNews} from './news-data.js';
 import {renderNews,stopNewsUpdates} from './news-ui.js';
 
 class Target {
@@ -24,7 +25,7 @@ function setup(reduced=true) {
     const replay=JSON.parse(readFileSync(new URL('./test-fixtures/news-home-20261112.json',import.meta.url)));
     const items=replay.items.map(i=>({...i,topicKey:i.id,createdAt:i.publishedAt,updatedAt:i.publishedAt,sourceSafety:'safe',sourceKind:'official',manualReviewStatus:'approved'}));
     const draw=(data=items)=>renderNews({documentObject:doc,items:data,mode:'on',now:Date.parse(replay.at)});
-    draw();return {ids,motion,doc,draw,items};
+    draw();return {ids,motion,doc,draw,items:prepareNews(items,{now:Date.parse(replay.at),mode:'on'})};
 }
 const current=ids=>ids['news-ticker'].children[1].children[0].children.findIndex(n=>n.attrs['data-current']==='true');
 

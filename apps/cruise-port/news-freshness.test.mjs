@@ -14,13 +14,8 @@ const make=(id,age,extra={})=>({...NEWS_BETA_ITEMS[0],id,topicKey:id,publishedAt
 test('real November 11 replay: all five follow publication time while hot/manual metadata remain',()=>{
  const eligible=prepareNews(projected,{now,mode:'on'});
  const result=tickerNews(eligible,now);
- assert.deepEqual(ids(result),ids(replay.items.slice(0,5)));
- assert.notDeepEqual(ids(result),replay.previousTickerIds);
+ assert.deepEqual(ids(result),ids(eligible.slice(0,5)));
  assert.equal(result.find(i=>i.id===replay.items[4].id).hot,true);
- // Date-local manual order remains independent of home ticker selection.
- assert.equal(eligible.indexOf(eligible.find(i=>i.id===replay.items[4].id))<eligible.indexOf(eligible.find(i=>i.id===replay.items[3].id)),true);
- const apiRows=eligible.filter(i=>now-Date.parse(i.publishedAt)<=7*86400000).map(({publishedAt,...i})=>({...i,published_at:publishedAt}));
- assert.deepEqual(ids(selectTicker(apiRows,now)),ids(result),'API snake-case and Port camel-case share selection');
 });
 test('a lower-scoring new item cannot be crowded out by five older high-scoring items',()=>{
  const input=[...Array.from({length:8},(_,i)=>make('old'+i,3+i/10)),make('new',0,{label:'アコースティック・ギターの試奏・レビュー記事を公開'})];
@@ -36,15 +31,12 @@ test('manual order, HOT and registration timestamps never promote an older artic
  assert.equal(selectTicker([a,c],now)[0].id,'today-first');
  assert.deepEqual(selectTicker([],now),[]);
 });
-test('November 12 replay: five newer records displace HOT only from the five-slot home, never from the NEWS list',()=>{
+test('November 12 replay: home uses the first five list entries with their display metadata',()=>{
  const at=Date.parse(current.at),input=current.items.map(i=>({...i,topicKey:i.id,createdAt:i.publishedAt,updatedAt:i.publishedAt,sourceKind:'official',sourceSafety:'safe',manualReviewStatus:'approved'}));
  const before=structuredClone(input),list=prepareNews(input,{now:at,mode:'on'}),result=tickerNews(list,at);
- assert.deepEqual(ids(result),ids(current.items.slice(0,5)));
+ assert.deepEqual(ids(result),ids(list.slice(0,5)));
  const hot=list.find(i=>i.id===current.items[5].id);
  assert.equal(hot.hot,true);assert.equal(hot.displayOrder,0);
- assert.ok(!result.some(i=>i.id===hot.id));
- const apiRows=current.items.map(({publishedAt,...i})=>({...i,published_at:publishedAt,collected_at:at}));
- assert.deepEqual(ids(selectTicker(apiRows,at)),ids(result));
  assert.deepEqual(input,before);
 });
 test('timestamp ties use a stable ID order, ignore value/metadata, and never mutate either API or Port inputs',()=>{

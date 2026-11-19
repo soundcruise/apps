@@ -39,7 +39,7 @@ test('current public replay renders five chronological home headlines and keeps 
     const data=replay.items.map(i=>({...i,topicKey:i.id,createdAt:i.publishedAt,updatedAt:i.publishedAt,sourceSafety:'safe',sourceKind:'official',manualReviewStatus:'approved'}));
     const before=structuredClone(data),doc=render(data,Date.parse(replay.at));
     const track=doc['news-ticker'].all().find(n=>n.className==='news-ticker-track');
-    assert.deepEqual(track.children.map(n=>n.textContent),data.slice(0,5).map(i=>i.label));
+    assert.deepEqual(track.children.map(n=>n.textContent),doc['news-content'].all().filter(n=>n.className==='news-card').slice(0,5).map(card=>(card.all().some(n=>n.className==='news-hot')?'🔥 ':'')+card.children[1].textContent));
     const acompass=doc['news-content'].all().find(n=>n.className==='news-card'&&n.href===data[5].sourceUrl);
     assert.equal(acompass.children[1].textContent,data[5].label);
     assert.equal(acompass.all().find(n=>n.className==='news-hot').textContent,'🔥 ホット');

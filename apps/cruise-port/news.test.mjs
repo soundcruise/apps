@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.36.0'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.36.1'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {
@@ -84,7 +84,7 @@ test('rich independent duplicate wins; ticker follows publication time regardles
  assert.equal(prepareNews([generic,rich],{now})[0].id,'rich');
  const bulk=Array.from({length:12},(_,i)=>make(0,{id:'low'+i,topicKey:'low'+i,label:'合成メーカーの製品情報'}));
  const useful=make(3,{id:'useful',topicKey:'useful',label:'Xotic、XXP-1を発表'});
- assert.deepEqual(tickerNews([...bulk,useful],now).map(i=>i.id),['low0','low1','low10','low11','low2']);
+ assert.deepEqual(tickerNews(prepareNews([...bulk,useful],{now}),now).map(i=>i.id),['low0','low1','low10','low11','low2']);
  assert.equal(tickerNews([make(15,{label:rich.label})],now).length,0);
 });
 
