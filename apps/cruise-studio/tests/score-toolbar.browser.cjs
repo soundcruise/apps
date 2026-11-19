@@ -209,8 +209,21 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.locator('#screen-sheet-cruise .workspace-home').first().click();
   await p.getByRole('button',{name:'キャンセル',exact:true}).last().click();
   if(engine==='webkit'){
+   await p.click('#sc-curve-menu-toggle');
+   assert(await p.locator('#sc-save-as').isHidden());
+   assert.equal(await p.locator('#sc-duplicate-project').innerText(),'曲を複製');
+   await p.keyboard.press('Escape');
    assert.equal(await p.evaluate(()=>typeof window.showSaveFilePicker),'undefined');
    await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+   const status=p.locator('#sc-save-status');
+   const exportButton=status.getByRole('button',{name:'ファイルに書き出す（JSON）'});
+   await exportButton.waitFor();
+   assert.match(await status.innerText(),/このブラウザに保存しました/);
+   assert((await status.boundingBox()).width>1);
+   const download=p.waitForEvent('download');
+   await exportButton.click();
+   const {scorePresentation,...file}=JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));
+   assert.deepEqual(file,await snap(p));
    return;
   }
   await p.evaluate(()=>{
@@ -230,6 +243,40 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
   const result=await p.evaluate(async()=>{const dir=await navigator.storage.getDirectory(),f=await dir.getFileHandle('test-score.json');return [window.picks,JSON.parse(await (await f.getFile()).text()).songInfo.title];});
   assert.deepEqual(result,[0,'second save']);
+  const oldBytes=await p.evaluate(async()=>{
+   const f=await (await navigator.storage.getDirectory()).getFileHandle('test-score.json');
+   return (await f.getFile()).text();
+  });
+  const saveAs=async()=>{await p.click('#sc-curve-menu-toggle');await p.getByRole('button',{name:'名前をつけて保存',exact:true}).click();};
+  // A clean project can still be written to another path.
+  const rows=await p.locator('#sc-project-select option').count();
+  await p.evaluate(()=>{window.showSaveFilePicker=async options=>{
+   window.suggested=options.suggestedName;
+   return (await navigator.storage.getDirectory()).getFileHandle('renamed.json',{create:true});
+  };});
+  await saveAs();
+  await p.waitForFunction(()=>document.querySelector('#sc-save-status').textContent.includes('renamed.json'));
+  assert.equal(await p.evaluate(()=>window.suggested),'second save.json');
+  assert.equal((await snap(p)).projectId,before.projectId);
+  assert.equal(await p.locator('#sc-project-select option').count(),rows);
+  await p.reload();await p.click('#open-sheet-cruise');
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
+  await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
+  await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});
+  await saveAs();
+  await p.waitForFunction(()=>document.querySelector('#sc-save-status').textContent.includes('キャンセル'));
+  await p.evaluate(()=>{window.showSaveFilePicker=async()=>({createWritable:async()=>{throw Error('テスト書き込み失敗');}});});
+  await saveAs();
+  await p.waitForFunction(()=>document.querySelector('#sc-save-status').textContent.includes('テスト書き込み失敗'));
+  assert(await p.locator('#sc-save').isEnabled());
+  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  const files=await p.evaluate(async()=>{
+   const dir=await navigator.storage.getDirectory();
+   const read=async name=>(await (await dir.getFileHandle(name)).getFile()).text();
+   return [window.picks,await read('test-score.json'),JSON.parse(await read('renamed.json'))];
+  });
+  assert.equal(files[0],1);assert.equal(files[1],oldBytes);
+  assert.equal(files[2].projectId,before.projectId);assert.equal(files[2].songInfo.title,'after rename');
  }));
  await t.test('menus fit narrow screens and print hides all toolbar controls',()=>fresh(async p=>{
   await select(p,1);
