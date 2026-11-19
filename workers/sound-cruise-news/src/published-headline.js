@@ -5,7 +5,7 @@ import {ARTICLE_FOCUS,specificEditorialLabel} from './agm-article-label.js';
 import {attributedProductHeadline} from './product-attribution.js';
 export const PUBLISHED_PRODUCT_TYPES=Object.freeze({
  electric_acoustic_guitar:'エレアコ',truss_rod_tool:'トラスロッド調整工具',fret_sprout_tool:'フレット用バリ取り工具',fret_leveling_tool:'フレットすり合わせ工具',
- acoustic_guitar:'アコースティックギター',electric_guitar:'エレキギター',guitar:'ギター',hybrid_guitar:'ハイブリッドギター',
+ acoustic_guitar_strings:'アコースティックギター用弦',acoustic_guitar:'アコースティックギター',electric_guitar:'エレキギター',guitar:'ギター',hybrid_guitar:'ハイブリッドギター',
  signature_pick:'シグネチャーピック',cleaning_cloth:'楽器用クロス',guitar_stand:'ギタースタンド',
  multi_effect_pedal:'マルチエフェクター',guitar_amp:'ギターアンプ',smart_amp:'スマートアンプ',
  expression_pedal:'エクスプレッションペダル',pedal_power_supply:'ペダル用電源',tube_di:'真空管DI',
@@ -91,9 +91,16 @@ export function publishedCorrectionStatements(row,plan,q){
   JSON.stringify(identity)!==JSON.stringify(oldIdentity)||!text(plan.label,140,true)||!Array.isArray(plan.provenance)||
   JSON.stringify(plan.provenance.slice(0,-1))!==JSON.stringify(JSON.parse(row.facts_provenance||'[]'))||plan.provenance.at(-1)?.factField!=='headlineQuality'||
   !Number.isSafeInteger(plan.at)||!text(plan.requestId,80))throw Error('published_quality_patch_invalid');
+ // A signed primary-fields receipt covers the entire extraction object. For
+ // an explicit display-only correction keep both signed columns byte-identical.
+ const displayOnly=plan.preserveSealedEvidence===true;
+ if(displayOnly&&(plan.correctionReason!=='product_type_correction'||previousQuality||headlineQuality.kind!=='product'||
+  headlineQuality.brand!==old.brand||headlineQuality.product!==old.product||headlineQuality.action!==old.releaseEvent?.action||
+  !JSON.parse(row.facts_provenance||'[]').some(p=>p.contract==='primary-fields-1')))throw Error('sealed_display_correction_invalid');
+ const evidenceUpdate=displayOnly?'':`product_facts=${q(JSON.stringify(plan.facts))},facts_provenance=${q(JSON.stringify(plan.provenance))},`;
  const cas=Object.keys(row).map(k=>`"${k}" IS ${q(row[k])}`).join(' AND ');
  return [
-  `UPDATE candidate_items SET label=${q(plan.label)},product_facts=${q(JSON.stringify(plan.facts))},facts_provenance=${q(JSON.stringify(plan.provenance))},review_revision=review_revision+1 WHERE ${cas} AND review_status='approved' AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=${q(row.id)}) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=${q(row.source_id)} AND (publication_blocked=1 OR takedown=1))`,
+  `UPDATE candidate_items SET label=${q(plan.label)},${evidenceUpdate}review_revision=review_revision+1 WHERE ${cas} AND review_status='approved' AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=${q(row.id)}) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=${q(row.source_id)} AND (publication_blocked=1 OR takedown=1))`,
   `INSERT INTO news_admin_audit(id,action,target,occurred_at,reason_code) SELECT ${q(plan.requestId)},'headline-quality-backfill',${q(row.id)},${plan.at},${q(plan.correctionReason||(headlineQuality.evidence.some(e=>e.basis==='owner_product_type_confirmation')?'owner_confirmed_type_presentation_only':'verified_primary_presentation_only'))} WHERE changes()=1`,
   // Keep the existing exact legacy grant's display label aligned. Never create a
   // grant or change its identity, digest, source, category or publication date.

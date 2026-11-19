@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "purpose": "published_headline_quality_only",
+  "scope": "explicit_targets",
+  "expectedPublished": 210,
+  "entries": [
+    {
+      "id": "d8591c472f5b98f4a1cd7dbe2469655ba5553d26cbf115e4525a01627e0057ed",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/114533/",
+      "source": "shimamura",
+      "publishedAt": "2026-11-12T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "release",
+      "before": "D'Addario、XS Nickel Bronzeを発売",
+      "classification": "A",
+      "after": "D'Addario、アコースティックギター用弦「XS Nickel Bronze」を発売",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "d8591c472f5b98f4a1cd7dbe2469655ba5553d26cbf115e4525a01627e0057ed",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/114533/",
+        "kind": "product",
+        "brand": "D'Addario",
+        "product": "XS Nickel Bronze",
+        "productType": "acoustic_guitar_strings",
+        "action": "release",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/114533/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1795128357985,
+            "fields": [
+              "identity",
+              "action",
+              "productType"
+            ]
+          }
+        ]
+      },
+      "preserveSealedEvidence": true
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 // are used to guess a type. Source text is transient; only bounded enums are saved.
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
-import {subjectProductTypes,hasProductSubject,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
+import {subjectProductTypes,hasProductSubject,ACOUSTIC_STRINGS_PATTERN,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
 export const HEADLINE_EVIDENCE_PARSER='headline-evidence-2';
 const types=[
  ['maintenance_tool_kit','楽器メンテナンス工具セット',/メンテナンス(?:用)?(?:ツール|工具)(?:セット|キット)/],
@@ -31,7 +31,8 @@ const types=[
  ['effect_pedal','エフェクター',/エフェクター|エフェクトペダル/],
  ['bass_amp','ベースアンプ',/ベースアンプ/],
  ['guitar_amp','ギターアンプ',/ギターアンプ/],
- ['acoustic_guitar','アコースティックギター',/アコースティックギター/],
+ ['acoustic_guitar_strings','アコースティックギター用弦',ACOUSTIC_STRINGS_PATTERN],
+ ['acoustic_guitar','アコースティックギター',/アコースティックギター(?!専用|用)/],
  ['electric_guitar','エレキギター',/エレキギター/],
  ['bass_guitar','エレキベース',/エレキベース/],
  ['microphone','マイク',/マイクロ[フホ]ン/],

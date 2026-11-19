@@ -98,3 +98,16 @@ test('real public API retains inactive legacy articles, exact grant identity and
  db.exec(publishedCorrectionStatements(before,{...p,requestId:'legacy-race'},q).join(';')+';');assert.deepEqual(db.prepare('SELECT * FROM legacy_news_grants').get(),updatedGrant);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').get().n,0);assert.equal(db.prepare('SELECT COUNT(*) n FROM news_shadow_evaluations').get().n,0);
 });
+
+test('a sealed approved release can correct its display without changing the signed facts or receipt',()=>{
+ const headlineQuality={...h,productType:'acoustic_guitar_strings',action:'release'};
+ const identity={brand:h.brand,product:h.product,releaseEvent:{action:'release'}};
+ const originalReceipt={contract:'primary-fields-1'};
+ const original={...row,label:'previous',category:'electric_guitar_bass',published_at:'2026-11-13T00:00:00Z',source_id:'shimamura',review_revision:1,product_facts:JSON.stringify(identity),facts_provenance:JSON.stringify([originalReceipt])};
+ const plan={at:now,requestId:'sealed-display-test',preserveSealedEvidence:true,correctionReason:'product_type_correction',label:publishedHeadline(headlineQuality,original),facts:{...identity,headlineQuality},provenance:[originalReceipt,{factField:'headlineQuality'}]};
+ const [sql,audit]=publishedCorrectionStatements(original,plan,q);
+ assert.match(sql.split(' WHERE ')[0],/^UPDATE candidate_items SET label=.+,review_revision=review_revision\+1$/);
+ assert.match(sql,/review_status='approved'.*news_takedowns.*source_state/);
+ assert.match(audit,/product_type_correction/);
+ assert.throws(()=>publishedCorrectionStatements({...original,product_facts:JSON.stringify({...identity,product:'different'})},plan,q));
+});

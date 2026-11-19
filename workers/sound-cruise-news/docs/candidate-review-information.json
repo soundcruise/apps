@@ -1,0 +1,122 @@
+[
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1119-koike-ryuki-gear/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1119-koike-ryuki-gear/"
+      },
+      "fields": {
+        "brand": "Taylor",
+        "product": "214ce",
+        "productType": "electro_acoustic",
+        "action": "introduction",
+        "publishedAt": "2026-11-19",
+        "label": "小池竜暉が作曲に使うTaylor 214ceを紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "小池竜暉の使用機材を取り上げた記事です。製品発売の発表ではありません。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1119-parlor-martin-d-jr-e-walnut-chippoke/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1119-parlor-martin-d-jr-e-walnut-chippoke/"
+      },
+      "fields": {
+        "brand": "Martin",
+        "product": "D Jr E Walnut",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-19",
+        "label": "大橋ちっぽけがMartinのD Jr E Walnutを試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "PR表記のある試奏記事です。試奏者とモデルを原記事で確認してください。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1119-new-gear-110-martin/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1119-new-gear-110-martin/"
+      },
+      "fields": {
+        "brand": "Martin",
+        "product": "DE Retro Plus Granadillo",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-19",
+        "label": "井草聖二がMartinのDE Retro Plus Granadilloを試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "掲載日は試奏記事の公開日です。製品発売の発表ではありません。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/113738/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/113738/"
+      },
+      "fields": {
+        "brand": "Soyuz",
+        "product": "Silver 17",
+        "productType": "condenser_microphone",
+        "action": "introduction",
+        "publishedAt": "2026-11-19",
+        "label": "Soyuzの真空管コンデンサーマイク「Silver 17」を島村楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "記事の公開日と製品の発売日を区別してください。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/115406/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/115406/"
+      },
+      "fields": {
+        "brand": "XLN Audio",
+        "product": "RC-20 Retro Color V2",
+        "productType": "effect_plugin",
+        "action": "release",
+        "publishedAt": "2026-11-19",
+        "label": "XLN Audio、エフェクトプラグイン「RC-20 Retro Color V2」を発売"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "V2の紹介記事です。旧版との取り違えに注意してください。"
+        }
+      ]
+    }
+  }
+]

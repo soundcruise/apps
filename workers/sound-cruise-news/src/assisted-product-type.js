@@ -1,6 +1,8 @@
 // A bounded noun-phrase grammar. Definitions are alternatives, never priority rules.
 // No URL, model catalogue or source-brand inference is used.
 export const productTypes={
+ condenser_microphone:['コンデンサーマイク','recording_audio'],effect_plugin:['エフェクトプラグイン','dtm_software'],
+ acoustic_guitar_strings:['アコースティックギター用弦','acoustic_guitar'],
  studio_monitor:['モニタースピーカー','recording_audio'],
  usb_microphone:['USBマイク','recording_audio'],audio_interface:['オーディオインターフェース','recording_audio'],
  electric_guitar_bass:['エレキギター・ベース関連','electric_guitar_bass'],guitar_article:['ギター関連記事','media_other'],
@@ -12,6 +14,8 @@ export const productTypes={
  interview:['ギター演奏のインタビュー','artist_guitar'],event:['ギター関連イベント','live_guitar']
 };
 const vocabulary={
+ condenser_microphone:['コンデンサーマイク','真空管コンデンサーマイク'],effect_plugin:['エフェクトプラグイン','エフェクト・プラグイン'],
+ acoustic_guitar_strings:['アコースティックギター弦','アコギ弦'],
  studio_monitor:['モニタースピーカー','スタジオモニタースピーカー','studio monitor speaker'],
  usb_microphone:['USBマイク','USBマイクロホン','USBマイクロフォン','USB microphone'],audio_interface:['オーディオインターフェース','オーディオインターフェイス','オーディオ・インターフェース','audio interface'],
  electric_guitar_bass:['エレキギター・ベース関連','エレキギター・ベース','エレキギター／ベース','エレキギター','エレクトリックギター','エレクトリック・ギター','エレキベース','エレクトリックベース'],guitar_article:['ギター関連記事','ギター特集','ギター工房訪問'],
@@ -26,7 +30,7 @@ function atom(s){const n=text(s).replace(/本体$/,'');const matches=Object.entr
 const target=s=>text(s)==='ギター'?'guitar':text(s)==='アンプ'?'amplifier':atom(s);
 const validTarget=t=>['guitar','acoustic_guitar','electro_acoustic','guitar_amp','amplifier'].includes(t);
 const guitarTarget=targets=>targets.some(t=>['guitar','acoustic_guitar','electro_acoustic','guitar_amp'].includes(t));
-export function resolveProductType(raw){
+export function resolveProductType(raw,{legacyStrings=false}={}){
  const phrase=text(raw),unresolved={resolved:false,phrase,reason:'主製品の種別を一意に確認できません'};
  if(!phrase||phrase.length>100||/[<>\x00-\x1f]/.test(phrase))return unresolved;
  // Parentheses can only describe explicitly marked ancillary roles.
@@ -42,7 +46,8 @@ export function resolveProductType(raw){
   if(relations.length!==1)return unresolved;
   const r=relations[0],t=target(main.slice(0,r.index)),head=atom(main.slice(r.index+r[0].length));
   if(!validTarget(t)||!head||['acoustic_guitar','electro_acoustic','interview','event'].includes(head))return unresolved;
-  usageTargets.push(t);productType=head;
+  usageTargets.push(t);
+  productType=!legacyStrings&&head==='strings'&&t==='acoustic_guitar'?'acoustic_guitar_strings':head;
  }
  // Bare accessory nouns do not establish guitar scope. Exact guitar nouns and
  // explicitly named usage targets do; a manufacturer/source name does not.
@@ -56,7 +61,7 @@ export function typeEvidence(raw,method='human_supplied_type_phrase'){
 }
 export function validTypeEvidence(e,type){
  if(!e||Object.keys(e).some(k=>!['version','method','phrase','productType','usageTargets','accessories'].includes(k))||e.version!==1||!['human_supplied_type_phrase','human_type_selection'].includes(e.method))return false;
- const r=typeEvidence(e.phrase,e.method);return !!r&&r.productType===type&&r.phrase===e.phrase&&JSON.stringify(r.usageTargets)===JSON.stringify(e.usageTargets)&&JSON.stringify(r.accessories)===JSON.stringify(e.accessories);
+ const r=resolveProductType(e.phrase,{legacyStrings:type==='strings'});return r.resolved&&e.productType===type&&r.productType===type&&r.phrase===e.phrase&&JSON.stringify(r.usageTargets)===JSON.stringify(e.usageTargets)&&JSON.stringify(r.accessories)===JSON.stringify(e.accessories);
 }
 export function labelMatchesType(label,type){
  if(typeof label!=='string')return false;
