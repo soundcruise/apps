@@ -237,7 +237,17 @@
                         nativeIds.add(m.id);nativeCount++;nativeCells+=m.snapshot.cells.length;insist(nativeCount<=256&&nativeCells<=4096,'rhythm-budget');return;
                     }
                     insist(m.encoding==='studio-strum-v1','unsupported-rhythm-encoding');
-                    keys(m.snapshot,['name','lengthTicks','slots']);insist(typeof m.snapshot.name==='string'&&[1440,1920].includes(m.snapshot.lengthTicks)&&Array.isArray(m.snapshot.slots),'invalid-rhythm');
+                    keys(m.snapshot,['name','lengthTicks','slots','cellStarts','inputGrid','leadingSustainTicks']);insist(typeof m.snapshot.name==='string'&&[1440,1920].includes(m.snapshot.lengthTicks)&&Array.isArray(m.snapshot.slots),'invalid-rhythm');
+                    var starts=m.snapshot.cellStarts;
+                    if(starts!==undefined)insist(Array.isArray(starts)&&starts[0]===0&&starts.length<=16&&starts.every((t,i)=>integer(t)&&t%120===0&&t<m.snapshot.lengthTicks&&(!i||t>starts[i-1])),'invalid-strum-grid');
+                    const leading=m.snapshot.leadingSustainTicks;
+                    if(leading!==undefined)insist(integer(leading)&&leading>0&&leading%120===0&&leading<=(m.snapshot.slots[0]?.tick??m.snapshot.lengthTicks),'invalid-strum-sustain');
+                    const grid=m.snapshot.inputGrid;
+                    if(grid!==undefined){
+                        keys(grid,['unit','beats']);
+                        insist([1,2,4,8,16].includes(grid.unit)&&Array.isArray(grid.beats)&&grid.beats.length<=4&&grid.beats.every(v=>v===null||v===8||v===16),'invalid-strum-grid');
+                        insist(same(starts,legacy.strumCellStarts(grid.unit,grid.beats,m.snapshot.lengthTicks)),'invalid-strum-grid');
+                    }
                     var last=-1;m.snapshot.slots.forEach(function(e){keys(e,['id','tick','action','accent','durationTicks','tieToNext']);unique(e.id);insist(integer(e.tick)&&e.tick>last&&e.tick<m.snapshot.lengthTicks&&e.tick>=0,'invalid-stroke-onset');last=e.tick;
                         insist(['down','up','mute','rest'].includes(e.action),'invalid-stroke-kind');if(e.durationTicks!==undefined)insist(integer(e.durationTicks)&&e.durationTicks>0&&e.tick+e.durationTicks<=m.snapshot.lengthTicks,'invalid-stroke-duration');
                         ['accent','tieToNext'].forEach(function(k){if(e[k]!==undefined)insist(typeof e[k]==='boolean','invalid-stroke-flag');});});
@@ -309,7 +319,7 @@
                 if(!theory.isKeyRelationConsistent(si.playKey,si.capo,si.originalKey))return {ok:true,project:copy(p),migrated:false,compatibility:'schema1-inconsistent-key'};
                 var tonicMidi=60+theory.keyToSemitone(si.playKey)+si.capo;
                 var tonic=spelled(tonicMidi,0,si.originalKey,0), materials=[], patterns=new Map();
-                p.strumPatterns.forEach(function(m,mi){keys(m,['id','name','lengthTicks','slots']);insist(!patterns.has(m.id),'duplicate-legacy-rhythm-id');m.slots.forEach(function(e){keys(e,['tick','action','accent','durationTicks','tieToNext']);});var materialId=next('rhythm',mi);patterns.set(m.id,materialId);
+                p.strumPatterns.forEach(function(m,mi){keys(m,['id','name','lengthTicks','slots','cellStarts','inputGrid','leadingSustainTicks']);insist(!patterns.has(m.id),'duplicate-legacy-rhythm-id');m.slots.forEach(function(e){keys(e,['tick','action','accent','durationTicks','tieToNext']);});var materialId=next('rhythm',mi);patterns.set(m.id,materialId);
                     var snap=copy(m);delete snap.id;snap.slots.forEach(function(e,ei){e.id=next('pattern-event',mi+':'+ei);});
                     materials.push({id:materialId,encoding:'studio-strum-v1',snapshot:snap,provenance:{origin:newProject?'auto-assigned':'legacy-unknown',legacyId:m.id}});});
                 var sectionMap=new Map();p.sections.forEach(function(s){sectionMap.set(s.id,newProject?next('section',s.id):s.id);});
@@ -390,6 +400,7 @@
             var material=rhythms[index];
             if(material?.encoding!=='studio-strum-v1')return false;
             var slots=material.snapshot.slots;
+            if(tick<(material.snapshot.leadingSustainTicks||0))return false;
             if(slots.some(s=>s.tick<=tick && tick<s.tick+(s.durationTicks??1)))return false;
             var shared=perf.basicRhythmId===materialId || bindings.some(b=>b.barId!==barId && b.materialId===materialId);
             var next=copy(material);
@@ -397,7 +408,14 @@
                 next.id=id();next.provenance={origin:'user-set'};
                 next.snapshot.slots.forEach(s=>{s.id=id();});
             }
-            next.snapshot.lengthTicks=Math.max(next.snapshot.lengthTicks,barLength(project));
+            if(next.snapshot.lengthTicks<barLength(project)){
+                next.snapshot.lengthTicks=barLength(project);
+                if(next.snapshot.cellStarts){
+                    const grid=legacy.strumInputGrid(material.snapshot,material.snapshot.lengthTicks);
+                    next.snapshot.inputGrid=grid;
+                    next.snapshot.cellStarts=legacy.strumCellStarts(grid.unit,grid.beats,next.snapshot.lengthTicks);
+                }
+            }
             // A sixteenth-note grid alternates within each half beat.
             var halfBeat=project.songInfo.ticksPerBeat/2;
             var subdivision=resolution===16||tick%halfBeat!==0?halfBeat/2:halfBeat;
@@ -567,7 +585,7 @@
             check=validate(next);insist(check.ok,check.errors.join('/'));Object.keys(next).forEach(function(k){project[k]=next[k];});return bar.id;
         }
         function reconcileChord(bar,events){if(!legacyBars.has(bar))return;if(bar.chords.length>1){insist(!boundLegacyBars.has(bar),'ambiguous-chord-mapping');replacementBars.add(bar);return;}if(bar.chords.length&&events.length){var source=legacyChords.get(bar.chords[0]);insist(source,'ambiguous-chord-mapping');legacyChords.set(events[0],source);}}
-        return Object.freeze({barLength:barLength,setMeter:setMeter,melodyTieTarget:melodyTieTarget,pruneMelodyTies:pruneMelodyTies,addChordStroke:addChordStroke,readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(p.songInfo.timeSignature.beats===4,'プレDTMの伴奏出力は4/4に対応しています');insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
+        return Object.freeze({strumCellStarts:legacy.strumCellStarts,barLength:barLength,setMeter:setMeter,melodyTieTarget:melodyTieTarget,pruneMelodyTies:pruneMelodyTies,addChordStroke:addChordStroke,readArrangementProjection:function(p){if(p.schemaVersion===1)return p;var check=validate(p);insist(check.ok,check.errors.join('/'));insist(p.songInfo.timeSignature.beats===4,'プレDTMの伴奏出力は4/4に対応しています');insist(!p.bars.some(function(b){var binding=p.performance.barRhythms.find(function(x){return x.barId===b.id;});return p.materials.rhythms.find(function(m){return m.id===(binding?binding.materialId:p.performance.basicRhythmId);}).encoding==='rhythm-owner-cells-v1';}),'unsupported-legacy-rhythm');return readProjection(p,false,'edit');},readStructureProjection:function(p,legacyPitch){return readProjection(p,legacyPitch,'structure');},reconcileScoreLayout:reconcileScoreLayout,duplicateBar:duplicateBar,reconcileChord:reconcileChord,validate:validate,migrate:migration,readProjection:readProjection,editLegacy:editLegacy,reconcileDoremi:reconcileDoremi,pitchMidi:pitchMidi,newId:id,timing:timing,chord:chord,assertJson:assertJson});
     }
     return Object.freeze({create:create,pitchMidi:pitchMidi,maxBytes:MAX_BYTES,timing:timing});
 });

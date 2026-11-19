@@ -1,42 +1,42 @@
 import {bindOutsideDismiss} from '../score-ui.mjs';
 // Read-only help. Editing, storage and playback remain owned by the existing editor.
 const TOPICS=[
- ['入力単位',[
-  ['マスの選択','クリックでマスを選びます。コード・歌詞・ドレミはそのまま入力でき、もう一度クリックすると文字の途中も編集できます。ドラッグまたはShift＋クリックで同じ行を範囲選択し、長押しして浮いたら移動できます。'],
-  ['マスの移動・コピー','入力済みマスの左下をドラッグすると、同じ行に移動します。移動先にある入力は上書きされます。マス全体のコピー・貼り付けでは、フォームや音価も保持します。Ctrl／⌘＋Zで取り消せます。'],
-  ['横方向の拡大・縮小','編集カードの −／＋ でマスの横幅を調整できます。中央のパーセントを押すと100%に戻ります。'],
-  ['行の数字','8分 → 16分 → 4分 → 全（小節全体）→ 2分で切り替えます。表示中の1〜4小節のその行へ適用し、既存の音や歌詞は消しません。'],
-  ['拍の右下の数字','その拍だけ細かさを固定します。ロックした拍は行の単位を変えても保持します。全・2分は固定した拍の前後をまとめます。'],
-  ['「コード」横の▼','選んだマスのコード入力・運指画面をコード行のすぐ下に開きます。もう一度押すと閉じます。']
+ ['文字・コード・ドレミを入力する',[
+  ['書き換える','マスを1回クリックして、そのまま文字を打ちます。'],
+  ['一部を直す','選んだマスをもう一度クリック。点滅するカーソルを直したい位置に移します。'],
+  ['フォーム・鍵盤','コード行の▼でコードとフォームを選べます。ドレミ行の▼で鍵盤を開き、選んだマスに音を入れます。']
  ]],
- ['再生とSpace',[
-  ['譜面上でSpace','選択中の小節から再生・停止します。複数の小節を選んでいるときは、その範囲を繰り返します。'],
-  ['音量','「音設定」でコード・メロディ・メトロノームの音量を別々に調整できます。再生中にも反映されます。'],
-  ['メトロノーム','「音設定」のチェックをオンにすると、譜面の再生中も拍を鳴らします。カウントインとは別に切り替えられます。'],
-  ['カウントイン','「音設定」のチェックをオンにすると、譜面の再生前に1小節だけ拍を鳴らします。範囲ループでは最初の1回だけです。'],
-  ['編集カードの余白でSpace','表示中の小節を再生・停止します。鍵盤を開いているときは、メロディだけを再生します。'],
-  ['ストロークのマスでSpace','そのマスに休符を入力します。'],
-  ['文字を入力しているとき','Spaceは文字入力に使われます。再生するときは、再生ボタンを押してください。']
+ ['ストロークを入れる・消す',[
+  ['↓ ダウン　↑ アップ','マスを選び、Dでダウン、Uでアップ。マウスだけなら、同じマスをクリックするたびに種類が変わります。上下キーでも切り替えられます。'],
+  ['× ミュート　〜 伸ばし','Xでミュート。〜で直前のストロークを伸ばします。'],
+  ['休符・空欄','RかSpaceで休符を入れ、鳴っている音を止めます。DeleteかBackspaceで空欄にすると、その位置では弦を弾きません。'],
+  ['コード入力時','同じ位置のストロークが空欄なら、コードを入れると表・裏に合わせて自動入力されます。']
  ]],
- ['マスと小節の移動',[
-  ['Enter','次のマスへ進みます。最後のマスでは次の小節へ進みます。曲の最後では同じ位置にとどまります。'],
-  ['Tab／Shift＋Tab','次のマス／前のマスへ移動します。小節の端では、隣の小節へ移動します。'],
-  ['←／→','文字を編集中は文字の間を移動します。マスの選択中は前後のマスへ移動します。ドレミでは、マス内の音を順に選んでから隣のマスへ移動します。'],
-  ['↑／↓','コード・歌詞・ドレミのマスでは、上下の行へ移動します。'],
-  ['マスを選んでいないとき','上下左右キーで小節を選びます。譜面でEnterを押すと編集カードが開きます。']
+ ['1拍だけ細かくする・音価を変える',[
+  ['小節全体','行名の横の数字をクリック。表示中の小節の、その行のマス幅が変わります。'],
+  ['1拍だけ','拍の右下の数字をクリック。鍵マークが付いた拍は、行の数字を変えても同じ音価を保ちます。繰り返し押すと固定を解除できます。'],
+  ['「…」が出たら','ストロークのマス内に細かい入力があります。音価を細かくして個別に直すか、D・Uなどでマス全体を上書きできます。']
  ]],
- ['ストロークの入力',[
-  ['マスをクリック','最初のクリックで選択し、以降は同じマスをクリックするたびに種類が切り替わります。空欄にコードを入れると、マスの位置に合わせてダウンかアップが入ります。'],
-  ['↓／↑','ストロークの種類を切り替えます。Dでダウン、Uでアップを直接入力できます。'],
-  ['Shift＋↑／↓','上下の行へ移動します。'],
-  ['R／Space','休符を入力します。'],
-  ['X／〜','Xはミュート、〜は前のストロークを伸ばす指定です。伸ばしを移動・コピーするときは、そのストロークのマスも選びます。'],
-  ['Delete／Backspace','そのマスを空欄（未入力）に戻します。']
+ ['マスを選んでコピー・移動する',[
+  ['範囲を選ぶ','同じ行をドラッグするか、最初のマスを選んでから最後のマスをShift＋クリックします。'],
+  ['コピーして貼る','Ctrl／⌘＋Cでコピー。貼り始めるマスを選んでCtrl／⌘＋V。伸ばしは、音を鳴らすマスから一緒に選びます。'],
+  ['移動する','入力済みマスの左下の点をドラッグ。または長押しして浮いたら移動します。移動先の入力は上書きされます。']
  ]],
- ['保存・元に戻す・終了',[
-  ['Ctrl／⌘＋S','曲を保存します。入力に不備がある場合は、先に修正してください。'],
-  ['Ctrl／⌘＋Z','元に戻します。Shiftも押すと、やり直します。文字入力中は、文字の編集操作が優先されます。'],
-  ['Escape','ヘルプや補助画面を閉じます。マスの入力中は、まずマスからフォーカスを外します。']
+ ['隣のマス・小節へ移る',[
+  ['次へ・前へ','EnterかTabで次のマス、Shift＋Tabで前のマスへ。小節の端を越えると隣の小節に移ります。'],
+  ['左右キー','マスの選択中は左右に移動します。ドレミはマス内の音を順に選びます。文字の編集中はカーソルが移動します。'],
+  ['行を移る','上下キーで行を移ります。ストローク行ではShift＋上下キーを使います。'],
+  ['見える範囲','上の「1小節」〜「4小節」で表示数を選びます。−／＋で横幅を変え、中央の倍率を押すと100%に戻ります。']
+ ]],
+ ['再生・停止する',[
+  ['編集中の小節','上の「▶ 再生」を押します。編集画面の余白ではSpaceでも再生・停止できます。鍵盤を開いているときはメロディを試聴します。'],
+  ['曲の譜面','小節を選んでSpace。複数選ぶとその範囲を反復します。「音設定」で各パートの音量、メトロノーム、カウントインを調整できます。'],
+  ['Spaceで休符が入るとき','ストロークのマスにフォーカスがあります。再生ボタンを押してください。']
+ ]],
+ ['取り消す・保存する',[
+  ['取り消し','Ctrl／⌘＋Z。やり直しはShiftも押します。文字の編集中は、その文字の編集が優先されます。'],
+  ['保存','「保存」またはCtrl／⌘＋S。日本語の変換中は先に確定してください。'],
+  ['閉じる','ガイドは「閉じる」かEsc。編集画面に戻ります。']
  ]]
 ];
 export function createEditorHelp({document:doc,closed=()=>{}}){
@@ -46,18 +46,23 @@ export function createEditorHelp({document:doc,closed=()=>{}}){
  function open({host,trigger,returnFocus}={}){
   if(dialog||!host)return false;
   const previous=returnFocus||doc.activeElement,current=node('dialog');dialog=current;
-  current.id='sc-editor-help';current.className='sc-editor-help-dialog';current.dataset.editorHelp='';current.setAttribute('aria-labelledby','sc-editor-help-title');current.setAttribute('aria-describedby','sc-editor-help-description');current.restoreHelpFocus=true;
+  current.id='sc-editor-help';current.className='sc-editor-help-dialog';current.dataset.editorHelp='';current.setAttribute('aria-labelledby','sc-editor-help-title');current.restoreHelpFocus=true;
   const head=node('header',undefined,current),title=node('h2','編集の操作ガイド',head),dismiss=node('button','閉じる',head);title.id='sc-editor-help-title';dismiss.type='button';dismiss.dataset.editorHelpClose='';
-  const body=node('div',undefined,current);body.className='sc-editor-help-body';body.tabIndex=0;body.setAttribute('aria-label','操作一覧');const intro=node('p','使う場所によって、Spaceや矢印キーの動きが変わります。',body);intro.id='sc-editor-help-description';
-  for(const [name,rows]of TOPICS){const section=node('section',undefined,body);node('h3',name,section);const table=node('table',undefined,section);table.setAttribute('aria-label',name);const tbody=node('tbody',undefined,table);for(const [key,explanation]of rows){const row=node('tr',undefined,tbody),label=node('th',undefined,row);label.scope='row';node('span',key,label);node('td',explanation,row);}}
-  node('p','日本語の変換中は、変換操作が優先されます。',body);
+  const body=node('div',undefined,current);body.className='sc-editor-help-body';body.tabIndex=0;body.setAttribute('aria-label','操作一覧');
+  for(const [i,[name,rows]] of TOPICS.entries()){
+   const topic=node('details',undefined,body);
+   topic.name='sc-editor-help-topic';topic.open=i===0;
+   node('summary',name,topic);
+   const list=node('dl',undefined,topic);
+   for(const [label,description] of rows){node('dt',label,list);node('dd',description,list);}
+  }
   dismiss.addEventListener('click',()=>close());
-  current.addEventListener('keydown',event=>{event.stopPropagation();if(event.isComposing||event.keyCode===229)return;if(event.key==='Tab'){event.preventDefault();const items=Array.from(current.querySelectorAll('button,[tabindex="0"]')),index=items.indexOf(doc.activeElement),next=(index+(event.shiftKey?-1:1)+items.length)%items.length;items[next].focus({preventScroll:true});}else if(event.key==='Escape'){event.preventDefault();close();}else if(['Backspace','Delete'].includes(event.key))event.preventDefault();else if((event.ctrlKey||event.metaKey)&&['s','z'].includes(event.key.toLowerCase()))event.preventDefault();});
+  current.addEventListener('keydown',event=>{event.stopPropagation();if(event.isComposing||event.keyCode===229)return;if(event.key==='Tab'){event.preventDefault();const items=Array.from(current.querySelectorAll('button,summary,[tabindex="0"]')),index=items.indexOf(doc.activeElement),next=(index+(event.shiftKey?-1:1)+items.length)%items.length;items[next].focus();}else if(event.key==='Escape'){event.preventDefault();close();}else if(['Backspace','Delete'].includes(event.key))event.preventDefault();else if((event.ctrlKey||event.metaKey)&&['s','z'].includes(event.key.toLowerCase()))event.preventDefault();});
   current.addEventListener('cancel',event=>{event.preventDefault();close();});
   current.addEventListener('close',()=>{if(dialog===current)dialog=null;current.remove();trigger?.setAttribute('aria-expanded','false');closed();if(current.restoreHelpFocus){const target=previous?.isConnected?previous:trigger?.isConnected?trigger:null;target?.focus({preventScroll:true});}});
   if(!doc.getElementById('sc-editor-help-style')){const style=node('style');style.id='sc-editor-help-style';style.textContent=`
 .sc-editor-help-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;box-sizing:border-box;width:min(660px,calc(100vw - 24px));max-height:88dvh;overflow:auto;padding:20px;border:1px solid var(--studio-border-default);border-radius:14px;background:var(--studio-panel);color:var(--studio-text-primary);font:14px/1.65 sans-serif;}
-.sc-editor-help-dialog::backdrop{background:rgba(0,0,0,.45);}.sc-editor-help-dialog header{position:sticky;top:-20px;background:var(--studio-panel);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;z-index:1;}.sc-editor-help-dialog h2{font-size:19px;margin:0;}.sc-editor-help-dialog button{font:inherit;padding:7px 12px;white-space:nowrap;border:1px solid var(--studio-border-default);border-radius:7px;background:var(--studio-control);color:inherit;}.sc-editor-help-dialog h3{font-size:15px;margin:18px 0 5px;color:var(--studio-accent);}.sc-editor-help-dialog p{font-size:12px;color:var(--studio-text-secondary);}.sc-editor-help-dialog table{width:100%;border-collapse:collapse;table-layout:fixed;}.sc-editor-help-dialog th,.sc-editor-help-dialog td{text-align:left;vertical-align:top;padding:9px 6px;border-bottom:1px solid var(--studio-border-default);overflow-wrap:anywhere;}.sc-editor-help-dialog th{width:32%;font-weight:600;font-size:12px;}.sc-editor-help-dialog td{font-size:13px;}.sc-editor-help-body:focus-visible{outline:2px solid var(--studio-accent);outline-offset:2px;}
+.sc-editor-help-dialog::backdrop{background:rgba(0,0,0,.45);}.sc-editor-help-dialog header{position:sticky;top:-20px;background:var(--studio-panel);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;z-index:1;}.sc-editor-help-dialog h2{font-size:19px;margin:0;}.sc-editor-help-dialog button{font:inherit;padding:7px 12px;white-space:nowrap;border:1px solid var(--studio-border-default);border-radius:7px;background:var(--studio-control);color:inherit;}.sc-editor-help-body details{border-top:1px solid var(--studio-border-default);}.sc-editor-help-body summary{padding:11px 4px;font-weight:600;cursor:pointer;}.sc-editor-help-body dl{margin:0 4px 14px 20px;}.sc-editor-help-body dt{font-weight:600;margin-top:9px;}.sc-editor-help-body dd{margin:1px 0 0;line-height:1.55;}.sc-editor-help-body summary:focus-visible{outline:2px solid var(--studio-accent);}.sc-editor-help-body:focus-visible{outline:2px solid var(--studio-accent);outline-offset:2px;}
 @media(max-width:480px){.sc-editor-help-dialog{padding:14px;}.sc-editor-help-dialog header{top:-14px;}.sc-editor-help-dialog h2{font-size:17px;}}
 @media print{.sc-editor-help-dialog,.sc-editor-help-dialog::backdrop{display:none!important;}}
 `;doc.head.appendChild(style);}

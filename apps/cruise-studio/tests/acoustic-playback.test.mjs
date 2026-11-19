@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {compactChordAudition} from '../js/modules/sheet-cruise/score-presets.mjs';
 import {chordVoicing, singleChordPlan} from '../js/modules/sheet-cruise/chord-audition.mjs';
-import {buildBarPreviewPlan, buildSongPreviewPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
+import {buildBarPreviewPlan, buildSongPreviewPlan, buildSongTickPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
 const form = {capo: 0, tuningMidi: [64,59,55,50,45,40], strings: [0,1,0,2,3,null].map((f,i) =>
     f === null ? {string:i+1,kind:'muted'} : {string:i+1,kind:'note',relativeFret:f})};
 function fixture() {
@@ -106,4 +106,30 @@ test('chord changes do not create guitar attacks in blank slots or explicit rest
             assert.equal(plan.events.filter(e=>e.part==='guitar').length,0);
         }
     }
+});
+
+test('strokes keep the preceding form after its stored end and a whitespace-only chord',()=>{
+    const project=fixture();
+    Object.assign(project.bars[0].chords[0],{symbol:'Am',durationTicks:960});
+    project.bars[0].chords.push({id:'blank',symbol:'　 ',onsetTick:960});
+    const ticks=[0,240,480,720,960,1200,1440,1680];
+    const plan=buildBarPreviewPlan(project,0,deps(ticks.map(tick=>({tick,action:'down'}))));
+    for(const tick of ticks) assert.deepEqual(mids(at(plan,tick)),[48,52,55,60,64]);
+});
+
+test('syncopated upstroke rings through the next downbeat until the end of its written hold',()=>{
+    const p=fixture(),d=deps();
+    p.bars[0].chords[0].durationTicks=1920;
+    p.bars[1].chords=[{id:'next',symbol:'C',onsetTick:0}];
+    d.rhythm=(_,index)=>index===0 ?
+        {encoding:'studio-strum-v1',slots:[{tick:1680,action:'up',durationTicks:240}]} :
+        {encoding:'studio-strum-v1',leadingSustainTicks:240,slots:[{tick:240,action:'down',durationTicks:240}]};
+    const preview=buildSongPreviewPlan(p,d);
+    const held=at(preview,1680);
+    assert.equal(held.length,5);
+    for(const string of held)assert(Math.abs(string.start+string.duration-2.28)<1e-8);
+    const live=buildSongTickPlan(p,d);
+    assert.equal(at(live,1920).length,0);
+    assert(at(live,2160).length>0);
+    assert.deepEqual(at(live,1680).map(e=>e.boundaryTick),Array(5).fill(2160));
 });

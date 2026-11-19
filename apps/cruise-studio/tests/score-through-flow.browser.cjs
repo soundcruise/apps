@@ -15,6 +15,8 @@ for(const engine of ['chrome','webkit'])test('apply form and rhythm presets, sav
  }
  const closeBatch=()=>p.locator('[data-score-dialog]').waitFor({state:'detached'});
  const firstPreviewBar=()=>p.locator('.sc-preset-paper .sheet-bar[data-bar-number="1"]');
+ const firstBarCellWidths=paper=>p.locator(paper+' .sheet-bar[data-bar-number="1"] .sheet-preset-strum [data-slot-ticks]')
+  .evaluateAll(cells=>cells.map(cell=>Number(cell.dataset.slotTicks)));
  const rhythmSlots=(score,index)=>{
   const binding=score.performance.barRhythms.find(b=>b.barId===score.bars[index].id);
   return score.materials.rhythms.find(m=>m.id===(binding?.materialId||score.performance.basicRhythmId))
@@ -86,13 +88,13 @@ for(const engine of ['chrome','webkit'])test('apply form and rhythm presets, sav
 
  await openBatch('#sc-edit-rhythm');
  await p.selectOption('[data-score-preset]',{label:'通し確認ストローク'});
- const lastStroke=p.locator('.sc-strum-preset-grid button').last();
+ const lastStroke=p.locator('.sc-strum-preset-grid [data-stroke]').last();
+ await lastStroke.click();assert.equal(await lastStroke.getAttribute('data-stroke'),'↑');
  // Cycle upstroke through mute and sustain to an empty cell.
  for(const value of ['×','〜','−']){
   await lastStroke.click();assert.equal(await lastStroke.getAttribute('data-stroke'),value);
  }
- await p.getByLabel('適用範囲').selectOption('section');
- await p.getByLabel('セクション',{exact:true}).selectOption(withChords.sections[0].id);
+ await p.locator('.sc-preset-paper .sheet-section-label').first().click();
  await p.click('[data-preset-stage]');
  assert.deepEqual(await snapshot(),withChords);
  await p.click('[data-score-apply]');await closeBatch();
@@ -108,6 +110,7 @@ for(const engine of ['chrome','webkit'])test('apply form and rhythm presets, sav
 
  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot();assert(await p.locator('#sc-save').isDisabled());
  await p.reload();await p.click('#open-sheet-cruise');await p.waitForFunction(()=>!!CruiseStudio.sheetCruise.getSession());assert.deepEqual(await snapshot(),saved);
+ assert.deepEqual(await firstBarCellWidths('#sc-sheet-scale-box'),Array(8).fill(240));
  await p.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="1"]').click({position:{x:4,y:4}});
  await p.click('#sc-song-preview');
  await p.locator('#sc-sheet-scale-box .sc-playing-bar').waitFor();
@@ -123,6 +126,7 @@ for(const engine of ['chrome','webkit'])test('apply form and rhythm presets, sav
  await exportMenu();await p.click('[data-export-choice=rename]');await p.locator('[data-export-name]').fill('通し確認・別名');await p.click('[data-export-choice=rename-save]');await p.click('[data-export-complete=open]');
  await p.locator('.sv-paper .sheet-bar').first().waitFor();await p.evaluate(async()=>window.__throughViewer=await CruiseStudio.scoreViewer.ready());await p.waitForFunction(()=>__throughViewer.read()?.libraryTitle==='通し確認・別名');const copyRead=await p.evaluate(async()=>(await CruiseStudio.scoreViewer.ready()).read());const hash=copyRead.byteHash;
  assert.equal(await p.locator('.sv-paper .sc-form-list').count(),1);
+ assert.deepEqual(await firstBarCellWidths('.sv-paper'),Array(8).fill(240));
  await p.locator('.sv-paper .sheet-bar[data-bar-number="1"]').click({position:{x:4,y:4}});await p.locator('.sv-paper .sheet-bar[data-bar-number="2"]').click({position:{x:4,y:4},modifiers:['Shift']});
  const exported=copyRead.document.score;
  assert.deepEqual(exported.bars,saved.bars);

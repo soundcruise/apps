@@ -245,7 +245,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('dialog').getByRole('button',{name:'保存せず続行',exact:true}).click();await dismissNewSongSettings(page);await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),8);assert.equal(await page.locator('.dock-strum-cell').count(),8);
             await page.locator('#sc-project-select').selectOption(before.projectId);await page.getByRole('dialog').getByRole('button',{name:'保存せず続行',exact:true}).click();await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),10);assert.equal(await page.locator('.dock-strum-cell').count(),10);assert.deepEqual(await snapshot(page),before);
         }));
-        await t.test('coarse display protects fine events and editing another stroke retains exact durations and accents',()=>fresh(async page=>{
+        await t.test('coarse stroke input replaces the selected interval and preserves other durations and accents',()=>fresh(async page=>{
             await page.evaluate(()=>{
                 const s=CruiseStudio.sheetCruise.getSession();const result=s.runOperation('Synthetic shared fine rhythm',p=>{
                     const id=crypto.randomUUID();p.materials.rhythms.push({id,encoding:'studio-strum-v1',provenance:{origin:'user-set'},snapshot:{name:'synthetic',lengthTicks:1920,slots:[{id:crypto.randomUUID(),tick:0,action:'down',durationTicks:60,accent:true},{id:crypto.randomUUID(),tick:120,action:'up',durationTicks:120,accent:false},{id:crypto.randomUUID(),tick:960,action:'mute',durationTicks:180,accent:true,tieToNext:false}]}});
@@ -254,9 +254,13 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 });if(!result.ok)throw Error(result.error);
             });
             await select(page);const before=await snapshot(page),binding=before.performance.barRhythms[0],material=before.materials.rhythms.find(m=>m.id===binding.materialId);
-            for(const row of ['chord','strum']){await page.locator('[data-resolution-row='+row+']').first().click();await settle(page);}
+            await page.locator('[data-row-resolution=chord]').click();await page.locator('[data-row-resolution=chord]').click();
+            await page.locator('[data-row-resolution=strum]').click();await page.locator('[data-row-resolution=strum]').click();
             assert.equal(await page.locator('[data-overlay-field=chord]').first().getAttribute('readonly'),'');assert.equal(await page.locator('.dock-strum-cell').first().innerText(),'…');
-            await page.locator('.dock-strum-cell').first().press('ArrowDown');await settle(page);assert.deepEqual(await snapshot(page),before);
+            await page.locator('.dock-strum-cell').first().press('u');await settle(page);
+            const overwritten=await snapshot(page), firstId=overwritten.performance.barRhythms.find(b=>b.barId===before.bars[0].id).materialId;
+            assert.deepEqual(overwritten.materials.rhythms.find(m=>m.id===firstId).snapshot.slots.map(e=>[e.tick,e.durationTicks,e.action]),[[0,480,'up'],[960,180,'mute']]);
+            await page.click('#sc-undo');assert.deepEqual(await snapshot(page),before);
             await page.locator('.dock-strum-cell[data-slot-tick="480"]').press('d');await settle(page);const edited=await snapshot(page);
             assert.deepEqual(edited.bars,before.bars);assert.deepEqual(edited.performance.barRhythms[1],before.performance.barRhythms[1]);assert.deepEqual(edited.materials.rhythms.find(m=>m.id===material.id),material);
             const current=edited.materials.rhythms.find(m=>m.id===edited.performance.barRhythms.find(b=>b.barId===edited.bars[0].id).materialId);
@@ -290,8 +294,10 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await cells.nth(1).press('Delete');await settle(page);assert.equal(await cells.nth(1).getAttribute('data-strum-state'),'empty');p=await snapshot(page);binding=p.performance.barRhythms.find(b=>b.barId===p.bars[0].id);slots=p.materials.rhythms.find(m=>m.id===binding.materialId).snapshot.slots;assert.equal(slots[0].durationTicks,120);
             await cells.first().press('Delete');await settle(page);const empty=await snapshot(page);assert.deepEqual(await page.evaluate(()=>Array.from(CruiseStudio.model.getBarEffectiveStrumSlots(CruiseStudio.sheetCruise.getSession().draft,1))),[]);assert.equal(await page.getByRole('button',{name:'基本に戻す',exact:true}).count(),0);
             await page.locator('#sc-undo').click();await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),empty);await saveIfNeeded(page);await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);await page.reload();await page.locator('#open-sheet-cruise').click();await select(page);assert.equal(await glyphOf(cells.first()),'');assert.deepEqual(await snapshot(page),saved);
-            await cells.first().press('d');await cells.nth(1).press('~');await settle(page);assert.equal(await cells.nth(1).getAttribute('data-strum-state'),'sustain');await cells.nth(2).press('r');await settle(page);assert.equal(await glyphOf(cells.nth(2)),'𝄾');await cells.nth(3).press('r');await settle(page);await cells.nth(3).press('Delete');await settle(page);assert.equal(await glyphOf(cells.nth(3)),'');
-            const current=await snapshot(page),download=page.waitForEvent('download');await (await toolbarControl(page,'#sc-export-json')).click();const file=await download;assert.deepEqual(JSON.parse(fs.readFileSync(await file.path(),'utf8')),current);
+            await cells.first().press('d');await cells.nth(1).press('~');await settle(page);assert.equal(await cells.nth(1).getAttribute('data-strum-state'),'sustain');await cells.nth(2).press('r');await settle(page);assert.equal(await glyphOf(cells.nth(2)),'𝄿');await cells.nth(3).press('r');await settle(page);await cells.nth(3).press('Delete');await settle(page);assert.equal(await glyphOf(cells.nth(3)),'');
+            const current=await snapshot(page),download=page.waitForEvent('download');await (await toolbarControl(page,'#sc-export-json')).click();
+            const {scorePresentation,...song}=JSON.parse(fs.readFileSync(await(await download).path(),'utf8'));
+            assert.equal(scorePresentation.version,1);assert.deepEqual(song,current);
             if(output)await page.screenshot({path:path.join(output,'rest-empty-stretch.png')});
         }));
         await t.test('Tab and Shift Tab cross every row at boundaries and stop at the song ends',()=>fresh(async page=>{

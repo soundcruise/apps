@@ -56,10 +56,19 @@
         var model = CS().model;
         var slots = model.getBarEffectiveStrumSlots(project, bar.barNumber);
         if(slots&&slots.ok===false)return {unsupported:true,name:slots.name};
-        if (!Array.isArray(slots) || slots.length === 0) return null;
+        var pattern=(project.strumPatterns||[]).find(p=>p.id===(bar.strumOverride||project.basicStrumPatternId));
+        if (!Array.isArray(slots) || (!slots.length && !pattern?.cellStarts && !pattern?.leadingSustainTicks)) return null;
+        const barTicks=model.getBarLengthTicks(project);
+        let cellStarts=pattern?.cellStarts;
+        if(pattern?.inputGrid || (!cellStarts && pattern?.leadingSustainTicks)){
+            const grid=model.strumInputGrid(pattern,barTicks);
+            cellStarts=model.strumCellStarts(grid.unit,grid.beats,barTicks);
+        }
         return {
             slots: slots,
-            barTicks: model.getBarLengthTicks(project),
+            cellStarts,
+            leadingSustainTicks: pattern?.leadingSustainTicks,
+            barTicks,
             needs16: strumNeedsSixteenth(slots)
         };
     }
@@ -186,12 +195,55 @@
         svg.setAttribute('viewBox','0 0 16 24');svg.setAttribute('width','.75em');svg.setAttribute('height','1.1em');svg.setAttribute('data-strum-arrow',direction);svg.setAttribute('aria-hidden','true');
         path.setAttribute('d',direction==='up'?'M8 21V3M3 8L8 3L13 8':'M8 3V21M3 16L8 21L13 16');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','1.65');path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');svg.appendChild(path);return svg;
     }
+    function hasInnerStroke(starts,tick) {
+        return starts.some((slot,index)=>slot.tick!==tick && !(slot.action==='rest' &&
+            starts[index-1]?.action==='rest' && starts[index-1].tick+starts[index-1].durationTicks===slot.tick));
+    }
+    function renderStrumCell(cell, action, ticks) {
+        if (action === 'rest') cell.replaceChildren(createStrumRestSymbol(ticks));
+        else if (action === 'down' || action === 'up') cell.replaceChildren(createStrumArrow(action));
+        else cell.textContent = action === 'mute' ? 'x' : action === 'sustain' ? '〜' : '';
+    }
+
     var defaultOctaveColors=['#50555f','#8a633c','#197547','#245b91','#c43c39','#b96a08','#7747b2','#bf3b8a','#087d99'],octaveColors=defaultOctaveColors.slice();
     function setOctaveColors(colors){octaveColors=defaultOctaveColors.map(function(color,i){return Array.isArray(colors)&&/^#[0-9a-f]{6}$/i.test(colors[i])?colors[i]:color;});}
     function getOctaveColors(){return octaveColors.slice();}
     function octaveColor(octave){return octaveColors[Math.max(0,Math.min(8,octave))];}
 
     // Empty = no event, rest = explicit rest + duration, sustain = previous stroke duration.
+    function buildPresetStrumRow(slots, barTicks, starts, leadingSustainTicks) {
+        const row=el('span','sheet-bar-strum sheet-bar-row sheet-preset-strum');
+        const boundaries=new Set(starts.filter(t=>t<barTicks));
+        // A later edit can add a stroke inside a previously applied cell.
+        let previous=null;
+        for (const slot of slots) {
+            if (slot.tick>=barTicks) break;
+            if (slot.action!=='rest' || previous?.action!=='rest' ||
+                previous.tick+(previous.durationTicks||0)!==slot.tick) boundaries.add(slot.tick);
+            previous=slot;
+        }
+        const ticks=[...boundaries,barTicks].sort((a,b)=>a-b);
+        const widths=[];
+        let i=-1;
+        for(let n=0;n<ticks.length-1;n++){
+            const start=ticks[n], width=ticks[n+1]-start;
+            while(i+1<slots.length && slots[i+1].tick<=start)i++;
+            const event=slots[i];
+            let action=start<leadingSustainTicks?'sustain':'empty';
+            if(event?.tick===start)action=event.action;
+            else if(event && event.tick+(event.durationTicks||0)>start)
+                action=event.action==='rest'?'rest':event.action==='mute'?'empty':'sustain';
+            const cell=el('span','is-'+action+(['down','up'].includes(action)?' is-stroke':''));
+            cell.dataset.strumState=action;cell.dataset.slotTick=start;cell.dataset.slotTicks=width;
+            if(action==='rest')cell.style.color='#746e65';
+            cell.classList.add(start%480===0?'is-beat-start':'is-division-start');
+            renderStrumCell(cell,action,width);
+            row.appendChild(cell);widths.push('minmax(0,'+width+'fr)');
+        }
+        row.style.gridTemplateColumns=widths.join(' ');
+        return row;
+    }
+
     function buildStrumRow(slots, barTicks, viewResolution) {
         var res=Math.max(strumNeedsSixteenth(slots)?16:8,viewResolution===16?16:8);
         var slotTicks=barTicks/res,glyphs={down:'↓',up:'↑',mute:'x'};
@@ -274,7 +326,7 @@
         // Keep the empty stroke band so lyrics/notes align with neighboring bars.
         // This adds no rhythm events; blank-stroke playback remains a projection.
         if (show.strum) {
-            appendRow(unsupportedStrum?el('div','sheet-bar-row sheet-bar-strum',strum.name+'：採用リズムの印刷は未対応'):buildStrumRow(strum?.slots || [], strum?.barTicks || beats * model.TICKS_PER_BEAT, timeRes));
+            appendRow(unsupportedStrum?el('div','sheet-bar-row sheet-bar-strum',strum.name+'：採用リズムの印刷は未対応'):strum?.cellStarts?buildPresetStrumRow(strum.slots,beats*model.TICKS_PER_BEAT,strum.cellStarts,strum.leadingSustainTicks):buildStrumRow(strum?.slots || [], strum?.barTicks || beats * model.TICKS_PER_BEAT, timeRes));
         }
 
         if (hasVocal && show.lyrics) {
@@ -372,6 +424,8 @@
         // ロジック自体は無変更（紙面のストローク段描画とドックのセル表示解像度の両方から使う）
         createStrumRestSymbol: createStrumRestSymbol,
         createStrumArrow: createStrumArrow,
+        renderStrumCell: renderStrumCell,
+        hasInnerStroke: hasInnerStroke,
         octaveColor: octaveColor,
         setOctaveColors: setOctaveColors,
         getOctaveColors: getOctaveColors,

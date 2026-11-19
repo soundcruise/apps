@@ -226,3 +226,17 @@ test('2048 real bars with registered forms/text/melody fit the file contract and
     assert.equal(contract.timeline(decoded.document.score).totalTicks,2048 * 1920); assert(file.byteLength < MAX_FILE_BYTES);
     assert.deepEqual(decoded.document.score,p);
 });
+test('exported syncopation keeps the end-of-bar attack ringing through the following chord change',async()=>{
+    const ops=require('../js/modules/sheet-cruise/operation-adapter.js');
+    const score=ops.previewPreset(source,'strumPreset',{barIds:source.bars.slice(0,2).map(b=>b.id),name:'シンコペーション',
+        pattern:[[{tick:1680,durationTicks:240,action:'up'}],[{tick:240,durationTicks:240,action:'down'}]],
+        inputGrids:[{unit:8,beats:[]},{unit:4,beats:[8]}],leadingSustains:[0,240]},schema);
+    const file=await contract.codec.encode(score,metadata());
+    const {document}=await contract.codec.decode(file.text);
+    const attacks=contract.tickPlan(document.score).events.filter(event=>event.part==='guitar');
+    const held=attacks.filter(event=>event.tick===1680);
+    assert(held.length);
+    assert(held.every(event=>event.boundaryTick===2160));
+    assert(!attacks.some(event=>event.tick===1920));
+    assert(attacks.some(event=>event.tick===2160));
+});

@@ -687,6 +687,51 @@
         return getBasicStrumSlots(project);
     }
 
+    // Beat overrides split even a whole or half note at both edges of the beat.
+    function strumCellStarts(unit, beatUnits, length) {
+        if (![1,2,4,8,16].includes(unit) || !Number.isSafeInteger(length) || length <= 0) throw Error('invalid-strum-grid');
+        const starts = new Set([0]);
+        const step = unit === 1 ? length : 1920 / unit;
+        for (let tick = step; tick < length; tick += step) starts.add(tick);
+        beatUnits.forEach((local, beat) => {
+            const start = beat * 480, end = start + 480;
+            if (local == null || start >= length) return;
+            if (![8,16].includes(local)) throw Error('invalid-strum-grid');
+            for (const tick of starts) if (tick > start && tick < end) starts.delete(tick);
+            for (let tick = start; tick <= end && tick < length; tick += 1920 / local) starts.add(tick);
+        });
+        return [...starts].sort((a, b) => a - b);
+    }
+
+    // Older presets stored boundaries alone. Prefer the matching grid with the fewest locks.
+    function strumInputGrid(pattern, length) {
+        if (pattern?.inputGrid) return pattern.inputGrid;
+        const starts = pattern?.cellStarts?.filter(t => t < length);
+        let best = {unit:8, beats:[]}, fewest = Infinity;
+        if (!starts) {
+            // Recover fine attacks and releases in scores saved before the editor stored beat locks.
+            for (const slot of pattern?.slots || []) {
+                for (const edge of [slot.tick, slot.tick+(slot.durationTicks??0)]) {
+                    if (edge < length && edge % 240) best.beats[Math.floor(edge/480)] = 16;
+                }
+            }
+            best.beats=Array.from(best.beats,unit=>unit??null);
+            return best;
+        }
+        for (const unit of [4, 8, 16, 2, 1]) {
+            const beats = Array.from({length:length / 480}, (_, beat) => {
+                const offsets = starts.filter(t => t >= beat * 480 && t < (beat + 1) * 480);
+                const local = offsets.length * 4;
+                return local !== unit && [8,16].includes(local) ? local : null;
+            });
+            const locks = beats.filter(Boolean).length;
+            if (locks < fewest && strumCellStarts(unit, beats, length).join() === starts.join()) {
+                best = {unit, beats}; fewest = locks;
+            }
+        }
+        return best;
+    }
+
     /**
      * 小節のストロークを slots 配列で直接設定する（D3aのセル編集が使う低レベルAPI）。
      * 小節専用パターンID管理（allocate/衝突回避/未参照掃除）はここに共通化してあり、
@@ -723,6 +768,15 @@
             pattern = findStrumPattern(project, patternId);
         }
         pattern.lengthTicks = barTicks;
+        const source = findStrumPattern(project, previousId || project.basicStrumPatternId);
+        const grid = options?.inputGrid || source?.inputGrid;
+        const starts = grid ? strumCellStarts(grid.unit, grid.beats, barTicks) : source?.cellStarts?.filter(tick => tick < barTicks);
+        const hold = Math.min(options?.leadingSustainTicks ?? source?.leadingSustainTicks ?? 0,
+            cleanSlots[0]?.tick ?? barTicks, barTicks);
+        if(hold>0)pattern.leadingSustainTicks=hold;
+        else delete pattern.leadingSustainTicks;
+        if (starts) pattern.cellStarts = starts.slice();
+        if (grid) pattern.inputGrid = {unit:grid.unit, beats:grid.beats.slice()};
         pattern.slots = cleanSlots;
         pattern.name = theory.strumSlotsToString(cleanSlots, barTicks, beats) || ('bar ' + bar.barNumber);
         bar.strumOverride = patternId;
@@ -1084,6 +1138,8 @@
         getBasicStrumSlots: getBasicStrumSlots,
         getBarStrumOverrideText: getBarStrumOverrideText,
         getBarEffectiveStrumSlots: getBarEffectiveStrumSlots,
+        strumCellStarts: strumCellStarts,
+        strumInputGrid: strumInputGrid,
         setBarStrumSlots: setBarStrumSlots,
         setBarStrumText: setBarStrumText,
         validateProject: validateProject,

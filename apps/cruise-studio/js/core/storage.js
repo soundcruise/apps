@@ -188,11 +188,11 @@
     /**
      * プロジェクトをJSONテキストへ書き出す（ファイル保存用・整形あり）。
      */
-    function exportProjectJson(project) {
+    function exportProjectJson(project, presentation) {
         var marker=Object.getOwnPropertyDescriptor(project,'sourceSchemaVersion');
         if(marker && marker.value===2)throw Error('Derived projections cannot be exported as projects');
         var check=model().validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
-        return JSON.stringify(project, null, 2);
+        return JSON.stringify(presentation ? Object.assign({}, project, {scorePresentation:presentation}) : project, null, 2);
     }
 
     /**
@@ -211,7 +211,9 @@
         if (!m) {
             return { ok: false, project: null, error: 'song-model が読み込まれていません', warnings: [] };
         }
-        var mig = m.migrateProject(data, jsonText);
+        var presentation = data?.scorePresentation;
+        if (presentation !== undefined) delete data.scorePresentation;
+        var mig = m.migrateProject(data, presentation === undefined ? jsonText : JSON.stringify(data));
         if (!mig.ok) {
             return { ok: false, project: null, error: mig.error, warnings: [] };
         }
@@ -223,7 +225,7 @@
                 warnings: result.warnings
             };
         }
-        return { ok: true, project: mig.project, error: null, warnings: result.warnings };
+        return { ok: true, project: mig.project, presentation: presentation, error: null, warnings: result.warnings };
     }
 
     window.CruiseStudio = window.CruiseStudio || {};

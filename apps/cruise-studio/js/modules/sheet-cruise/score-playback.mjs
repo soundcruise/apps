@@ -26,11 +26,17 @@ function barPlan(project, index, deps, harmony) {
         if (slots.some(s => s.tieToNext === true || !['down', 'up', 'mute', 'rest'].includes(s.action)))
             throw Error('このストロークの方向・タイは試聴未対応です');
         const fallback = slots.some(s => s.tick % 240 || s.durationTicks !== undefined && s.durationTicks % 240) ? 120 : 240;
-        const chords = bar.chords.slice().sort((a, b) => a.onsetTick - b.onsetTick);
-        for (const chord of chords) {
-            cuts.push(.03 + chord.onsetTick * seconds);
-            if (chord.durationTicks !== undefined) cuts.push(.03 + (chord.onsetTick + chord.durationTicks) * seconds);
+        const chords = bar.chords.filter(chord => chord.symbol?.trim()).sort((a, b) => a.onsetTick - b.onsetTick);
+        const hold = Math.min(barTicks,rhythm?.leadingSustainTicks || 0);
+        const carriesOver = index+1<project.bars.length && deps.rhythm(project,index+1)?.leadingSustainTicks>0;
+        function cutAtChord(tick) {
+            if(tick>=hold && !(tick===barTicks && carriesOver))cuts.push(.03+tick*seconds);
         }
+        for (const chord of chords) {
+            cutAtChord(chord.onsetTick);
+            if (chord.durationTicks !== undefined) cutAtChord(chord.onsetTick + chord.durationTicks);
+        }
+        if(hold && (hold<barTicks || !carriesOver))cuts.push(.03+hold*seconds);
         slots.forEach((slot, i) => {
             const end = Math.min(barTicks, slot.tick + (slot.durationTicks ?? fallback), slots[i + 1]?.tick ?? barTicks);
             const duration = (end - slot.tick) * seconds, start = .03 + slot.tick * seconds;
@@ -94,9 +100,9 @@ function finishPlan(plan) {
     plan.events = ordered.filter(e => e.duration > .0001 && e.start < plan.duration);
     return plan;
 }
-export function buildBarPreviewPlan(project, index, deps) { return finishPlan(barPlan(project, index, deps,createHarmonyTimeline(project))); }
+export function buildBarPreviewPlan(project, index, deps) { return finishPlan(barPlan(project, index, deps,createHarmonyTimeline(project,{holdForStrums:true}))); }
 export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
-    const events = [], cuts = [], spans = [], warnings = [], harmony=createHarmonyTimeline(project); let offset = 0;
+    const events = [], cuts = [], spans = [], warnings = [], harmony=createHarmonyTimeline(project,{holdForStrums:true}); let offset = 0;
     project.bars.slice(startIndex, count === undefined ? undefined : startIndex + count).forEach((bar, n) => {
         const index = startIndex + n;
         let plan; try { plan = barPlan(project, index, deps,harmony); } catch (e) { throw Error((index + 1) + '小節目：' + e.message); }
@@ -146,7 +152,7 @@ export function withMetronome(project,plan){
 export function buildSongTickPlan(project,deps){
     const reference={...project,songInfo:{...project.songInfo,bpm:20}},spt=60/20/480;
     const ticksPerBar=(project.songInfo.timeSignature?.beats??4)*480,totalTicks=project.bars.length*ticksPerBar;
-    const harmony=createHarmonyTimeline(reference),events=[],cuts=[totalTicks],warnings=[];
+    const harmony=createHarmonyTimeline(reference,{holdForStrums:true}),events=[],cuts=[totalTicks],warnings=[];
     reference.bars.forEach((bar,index)=>{
         const p=barPlan(reference,index,{...deps,tickPlan:true},harmony),base=index*ticksPerBar;
         p.cuts.forEach(t=>cuts.push(base+Math.round((t-.03)/spt)));

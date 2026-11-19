@@ -51,27 +51,36 @@ export function importRhythmPresets(value) {
     });
 }
 
+function strokeFill(value, width) {
+    const tail = value === '↓' || value === '↑' ? '〜' : value === '×' ? '−' : value;
+    return value + tail.repeat(width - 1);
+}
+
 // A tie carries the previous stroke into the next cell without re-attacking.
-export function strokeSlots(rows) {
+export function strokeSlots(rows, barTicks=1920) {
     if (!validRows(rows)) throw Error('ストロークパターンを確認してください');
-    return rows.map((row, bar) => {
-        const durationTicks = 1920 / row.length;
-        const slots = [];
-        [...row].forEach((cell, index) => {
-            const tick = index * durationTicks;
-            if (cell === '−') return;
-            if (cell !== '〜') {
-                slots.push({tick, durationTicks, action:strokeActions[cell], accent:false});
-                return;
-            }
-            const previous = slots.at(-1);
-            if (previous && previous.tick + previous.durationTicks === tick &&
-                (previous.action === 'down' || previous.action === 'up')) previous.durationTicks += durationTicks;
-            else if (previous || (index === 0 ? bar === 0 || /[・×−]$/.test(rows[bar - 1]) : row[index - 1] !== '〜'))
-                throw Error('「伸ばす」はストロークの直後に置いてください');
-        });
-        return slots;
+    return rows.map((row,index)=>decodeStrokeRow(row,barTicks,canCarry(rows[index-1],barTicks)));
+}
+function canCarry(previous,barTicks){
+    return !!previous && /[↓↑〜]$/.test(previous.slice(0,barTicks*previous.length/1920));
+}
+function decodeStrokeRow(row,barTicks,carry) {
+    const durationTicks = 1920 / row.length;
+    const slots = [];
+    [...row].forEach((cell, index) => {
+        const tick = index * durationTicks;
+        if (tick>=barTicks || cell === '−') return;
+        if (cell !== '〜') {
+            slots.push({tick, durationTicks, action:strokeActions[cell], accent:false});
+            return;
+        }
+        const previous = slots.at(-1);
+        if (previous && previous.tick + previous.durationTicks === tick &&
+            (previous.action === 'down' || previous.action === 'up')) previous.durationTicks += durationTicks;
+        else if (previous || (index === 0 ? !carry : row[index - 1] !== '〜'))
+            throw Error('「伸ばす」はストロークの直後に置いてください');
     });
+    return slots;
 }
 
 function chordRows(entry, parse) {
@@ -84,12 +93,19 @@ function chordRows(entry, parse) {
                 item.durationTicks > 0 && item.durationTicks + item.tick <= 1920)))) return null;
     return pattern;
 }
+function leadingHold(row) {
+    return (row.match(/^〜+/)?.[0].length || 0) * 1920 / row.length;
+}
+
 function rowsFromScore(C, view, numbers) {
     return numbers.map(number => {
         if (C.model.rhythmForBar(view, number)?.encoding === 'rhythm-owner-cells-v1')
             throw Error('このリズム素材はパターンのマスに変換できません');
         const slots = C.model.getBarEffectiveStrumSlots(view, number) || [];
         const cells = Array(16).fill('−');
+        const bar = view.bars[number-1];
+        const pattern = view.strumPatterns.find(item=>item.id===(bar.strumOverride||view.basicStrumPatternId));
+        cells.fill('〜',0,(pattern?.leadingSustainTicks||0)/120);
         const fallback = slots.some(slot => slot.tick % 240 || (slot.durationTicks ?? 240) % 240) ? 120 : 240;
         for (const slot of slots) {
             const end = slot.durationTicks === undefined ? slot.tick + fallback : slot.tick + slot.durationTicks;
@@ -129,6 +145,8 @@ export function compactChordAudition(plan) {
 
 export function mountScorePresets({C, doc, node, body, status, apply, project, view, args, mode, navigate, createPreviewAudio, loadChordPicker, previewPaperOptions}) {
     const chords = mode === 'chordPreset';
+    const measureTicks=C.model.schema2.barLength(project);
+    const beatsPerBar=measureTicks/480;
     const storageKey = chords ? 'scoreChordPresetsV1' : 'scoreStrumPresetsV1';
     const saved = C.storage.getAppSetting(storageKey);
     const valid = entry => typeof entry?.name === 'string' && (chords ?
@@ -169,8 +187,8 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     const builtin = chords ? progressions.map(([name, value]) => ({name, values:value.split(' ')})) :
         strokes.map(([name, rows]) => ({name, rows}));
     let edited = false;
-    let entries, current, rows, key, starting, scope, section, grid, refreshGridControls, timedChords, sourceSlots;
-    let fitPaper, rangeIndices = [], refreshPaper = () => {}, paintChords = () => {};
+    let entries, current, rows, key, starting, gridUnits=[], beatUnits=[], selectedStroke=null, grid, refreshGridControls, timedChords, sourceSlots;
+    let sectionSelected=false, fitPaper, rangeIndices = [], refreshPaper = () => {}, paintChords = () => {};
 
     const library = presetLibrary(C.storage, storageKey, builtin, custom, imported, valid);
     let imports = [];
@@ -205,6 +223,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     const patternHead = node('div',undefined,patternArea);
     patternHead.className = 'sc-preview-heading';
     const patternTitle = node('strong',partName,patternHead);
+    if (!chords) node('small','クリックでマスを選択。もう一度クリックで変更。D・Uでダウン・アップを入力。',patternHead);
     const patternPlay = button('▶ 再生',() => play('pattern'),patternHead);
     patternPlay.dataset.previewPlay = 'pattern';
     let audio = null, audioKind = null, audioPhase = 'idle', audioEpoch = 0, releasing = Promise.resolve();
@@ -250,9 +269,32 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (old) releasing=old.dispose();
         await releasing;
     }
+    function slotsForGrid(row,index) {
+        const slots=decodeStrokeRow(row,measureTicks,canCarry(rows[index-1],measureTicks));
+        const cells=strokeGrid(gridUnits[index]??row.length,beatUnits[index]??[]);
+        // Merge adjacent rest fragments only within the same displayed cell.
+        const result=[];
+        for(const cell of cells){
+            const start=cell.start*120, end=(cell.start+cell.span)*120;
+            const inCell=slots.filter(slot=>slot.tick>=start && slot.tick<end);
+            if(inCell.length && inCell[0].tick===start && inCell.every((slot,i)=>
+                slot.action==='rest' && slot.tick+slot.durationTicks===(inCell[i+1]?.tick??end))){
+                result.push({...inCell[0],durationTicks:end-start});
+            }else result.push(...inCell);
+        }
+        return result;
+    }
+    function patternSlots() {
+        return rows.map((row,index)=>{
+            const exact=sourceSlots?.[index];
+            if(!exact)return slotsForGrid(row,index);
+            return exact.filter(slot=>slot.tick<measureTicks).map(slot=>
+                slot.durationTicks>measureTicks-slot.tick ? {...slot,durationTicks:measureTicks-slot.tick} : slot);
+        });
+    }
     function patternProject(forPicker = false) {
         const schema = C.model.schema2;
-        const patterns = chords ? timedChords : (sourceSlots || strokeSlots(rows));
+        const patterns = chords ? timedChords : patternSlots();
         const barTicks = schema.barLength(project);
         if(patterns.some(events=>events.some(event=>event.tick>=barTicks||
             (!chords&&event.tick+(event.durationTicks??1)>barTicks))))
@@ -261,12 +303,13 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         const instrument=structuredClone(project.instrument);
         if(forPicker) {instrument.maxAbsoluteFret=(instrument.maxAbsoluteFret??22)-instrument.capo;instrument.capo=0;}
 
-        const bars = patterns.map(events => {
+        const bars = patterns.map((events,index) => {
             const id = schema.newId(), materialId = schema.newId();
-            const harmony = chords ? events : [{tick:0,symbol:view.songInfo.playKey}];
+            const harmony = chords ? events : index===0 ? [{tick:0,symbol:view.songInfo.playKey}] : [];
             const slots = chords ? events.map((event,i) => ({tick:event.tick,action:'down',
                 durationTicks:Math.min(event.durationTicks??(events[i+1]?.tick??barTicks)-event.tick,barTicks-event.tick)})) : events;
-            rhythms.push({id:materialId,encoding:'studio-strum-v1',snapshot:{slots}});
+            const leading = chords ? 0 : Math.min(barTicks,leadingHold(rows[index]));
+            rhythms.push({id:materialId,encoding:'studio-strum-v1',snapshot:{slots,...(leading && {leadingSustainTicks:leading})}});
             barRhythms.push({barId:id,materialId});
             return {id,melody:[],chords:harmony.map(event=>({id:schema.newId(),onsetTick:event.tick,
                 symbol:schema.chord(event.symbol,instrument.capo),
@@ -312,7 +355,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     }
     function restorePattern() {
         if (key) previousKey=key.value=savedDraft.key;
-        ({rows,sourceSlots,timedChords,edited}=structuredClone(savedDraft));
+        ({rows,sourceSlots,timedChords,edited,gridUnits,beatUnits}=structuredClone(savedDraft));
         if (chords) paintChords();
         else paintGrid();
     }
@@ -320,7 +363,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (author?.open) return;
         void stopAudio();
         savedDraft = structuredClone({current, key:key?.value, rows, sourceSlots, timedChords,
-            edited, rangeIndices});
+            edited, rangeIndices,selectionAnchor,sectionSelected,gridUnits,beatUnits});
         savedEntry = editingEntry = null;
         author = presetWindow(dialog,initialEntry?'プリセットを編集':'譜面からプリセット追加','sc-batch-dialog sc-preset-author');
         const authorBody = node('div',undefined,author); authorBody.className = 'sc-preset-dialog-body';
@@ -338,7 +381,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         editor.hidden = true;
         saveButton = button('プリセットに保存',openNameDialog,editor);
         saveButton.className = 'sc-preset-primary'; saveButton.hidden = true;
-        rangeIndices = []; refreshPaper();
+        rangeIndices = []; selectionAnchor=null; refreshPaper();
         status.textContent = '';
         hint.hidden = true; scoreHead.hidden = rail.hidden = true;
         author.addEventListener('close',() => {
@@ -347,7 +390,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             body.append(patternArea,targetArea); sidebar.append(status);
 
             hint.hidden=false; scoreHead.hidden=rail.hidden=false; patternArea.hidden=false; rangeControls.hidden=false;
-            rangeIndices=savedDraft.rangeIndices;
+            rangeIndices=savedDraft.rangeIndices;selectionAnchor=savedDraft.selectionAnchor;sectionSelected=savedDraft.sectionSelected;
             const old = entries.find(item=>item.id===savedDraft.current?.id);
             populateOptions(savedEntry || old); choose();
             if (!savedEntry && old && JSON.stringify(old)===JSON.stringify(savedDraft.current)) {
@@ -407,20 +450,24 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         for (const count of [4, 8, 16]) option(division, count + '分', count);
         button('空のパターンを作る', () => {
             edited = true; sourceSlots = null;
+            gridUnits=[];beatUnits=[];selectedStroke=null;
             rows = ['・'.repeat(Number(division.value))];
             paintGrid(); update();
         }, advanced);
-        const add = button('＋ パターンに小節を追加', () => {
-            if (rows.length >= 8) return;
-            edited = true; sourceSlots = null;
-            rows.push('・'.repeat(Number(division.value)));
-            paintGrid(); update();
-        }, advanced);
-        const remove = button('末尾の小節を外す', () => {
-            if (rows.length <= 1) return;
-            edited = true; sourceSlots = null;
-            rows.pop(); paintGrid(); update();
-        }, advanced);
+        const lengthTools=node('div',undefined,patternArea);
+        lengthTools.className='sc-pattern-length-tools sc-stroke-length-tools';
+        const add=button('＋ 小節',()=>{
+            if(rows.length>=8)return;
+            const unit=gridUnits.at(-1)??rows.at(-1).length;
+            rows.push('−−−−');gridUnits[rows.length-1]=unit;beatUnits[rows.length-1]=[];
+            if(sourceSlots)sourceSlots.push([]);
+            edited=true;selectedStroke=null;paintGrid();update();
+        },lengthTools);
+        const remove=button('末尾の空小節を削除',()=>{
+            if(rows.length<=1 || /[^−]/.test(rows.at(-1)))return;
+            rows.pop();sourceSlots?.pop();gridUnits.length=beatUnits.length=rows.length;
+            edited=true;selectedStroke=null;paintGrid();update();
+        },lengthTools);
         const file = field('リズムクルーズのプリセットJSON（4・8・16分）', 'input', advanced);
         const importedPattern = field('読み込んだパターン','select',advanced);
         importedPattern.parentElement.hidden = true;
@@ -449,18 +496,10 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
                 status.textContent = choices.length + '件読み込みました。残す場合は「プリセットに保存」を使ってください。';
             } catch (error) { status.textContent = error.message; }
         };
-        scope = field('適用範囲', 'select', rangeControls);
-        option(scope, '選択範囲', 'selection');
-        option(scope, 'セクション', 'section');
-        option(scope, '曲全体', 'all');
-        scope.value = selectedBars.length > 1 ? 'selection' : 'section';
-        section = field('セクション', 'select', rangeControls);
-        for (const item of project.sections) option(section, item.name, item.id);
-        section.value = first?.sectionId || '';
         refreshGridControls = () => {
-            division.value = String(rows[0].length);
+            if(!division.value)division.value = '8';
             add.disabled = rows.length >= 8;
-            remove.disabled = rows.length <= 1;
+            remove.disabled = rows.length <= 1 || /[^−]/.test(rows.at(-1));
         };
     }
 
@@ -479,7 +518,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     dialog.querySelector('header').appendChild(apply);
     const targetArea = node('section', undefined, body);
     targetArea.className = 'sc-preset-target';
-    const targetHint = chords ? 'クリックで開始小節を指定' : 'クリックでセクションを指定、ドラッグで範囲を選択';
+    const targetHint = chords ? 'クリックで開始小節を指定' : '小節で開始位置、セクション名で範囲を指定。ドラッグ・Shift＋クリックで範囲選択（複数小節のパターンは2小節単位）。余白で解除。';
     const scoreHead = node('div',undefined,targetArea); scoreHead.className='sc-preview-heading';
     node('strong','曲の譜面',scoreHead);
     const scorePlay=button('▶ 再生',()=>play('score'),scoreHead);
@@ -515,8 +554,14 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         page = frameBox.querySelector('.sheet-page');
         C.localPaperLayout?.apply(frameBox);
         frameBox.querySelectorAll('[tabindex]').forEach(item => item.removeAttribute('tabindex'));
+        if (!chords && !author) for (const label of frameBox.querySelectorAll('.sheet-section-label[data-section-id]')) {
+            label.tabIndex=0;
+            label.setAttribute('role','button');
+            label.title=label.textContent+'の小節をすべて選択';
+        }
         paperBars = Array.from(frameBox.querySelectorAll('.sheet-bar[data-bar-number]'));
         for (const item of paperBars) {
+            if (!chords) item.style.touchAction='none';
             item.tabIndex = 0;
             item.setAttribute('role','button');
             item.setAttribute('aria-label', item.dataset.barNumber + '小節目を選択');
@@ -544,61 +589,124 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         body.closest('dialog').addEventListener('close', () => { observer.disconnect(); cancelAnimationFrame(frame); }, {once:true});
     }
 
-    let gesture = null;
-    function barAt(target) { return Number(target?.closest('.sheet-bar[data-bar-number]')?.dataset.barNumber) - 1; }
+    let gesture = null, selectionAnchor = null;
+    function barAt(target) {
+        const bar = target?.closest('.sheet-bar[data-bar-number]');
+        return bar && paper.contains(bar) ? Number(bar.dataset.barNumber) - 1 : NaN;
+    }
     function setRange(start, end) {
         rangeIndices = Array.from({length:Math.abs(end - start) + 1}, (_, index) => Math.min(start, end) + index);
-
+    }
+    function destinationIndices(anchor,section){
+        if(chords || author || rows.length<2 || !rangeIndices.length)return rangeIndices;
+        const first=rangeIndices[0], last=rangeIndices.at(-1);
+        if(!section && first===last){
+            return first+rows.length<=project.bars.length
+                ? Array.from({length:rows.length},(_,i)=>first+i) : [];
+        }
+        if(rangeIndices.length%2===0)return rangeIndices;
+        if(section)return rangeIndices.slice(0,-1);
+        const backward=anchor===last;
+        if(backward && first>0)return [first-1,...rangeIndices];
+        if(!backward && last+1<project.bars.length)return [...rangeIndices,last+1];
+        // At either end of the song, extend on the other side to keep all touched bars.
+        if(first>0)return [first-1,...rangeIndices];
+        if(last+1<project.bars.length)return [...rangeIndices,last+1];
+        // An odd-length song cannot be covered entirely by pairs.
+        return backward ? rangeIndices.slice(1) : rangeIndices.slice(0,-1);
+    }
+    function paintGesture(){
+        if(chords || author)refreshPaper();
+        else refreshPaper(destinationIndices(gesture.start,false).map(index=>project.bars[index].id));
     }
     function chooseFromPaper(start, end) {
+        sectionSelected=false;
         setRange(start, end);
-        if (author) { refreshPaper(); captureFromScore(); return; }
+        if (author) { selectionAnchor=start; refreshPaper(); captureFromScore(); return; }
         if (chords) {
             starting = Math.min(start,end);
         } else {
-            scope.value = start === end ? 'section' : 'selection';
-            section.value = project.bars[start].sectionId;
+            selectionAnchor=start;
         }
         update();
         paperBars[start]?.focus({preventScroll:true});
     }
-    paper.addEventListener('pointerdown', event => {
+    const selectionSurface=paperArea;
+    selectionSurface.addEventListener('pointerdown', event => {
+        if (event.target.closest('button') || (!author && event.target.closest('.sheet-section-label'))) return;
         const index = barAt(event.target);
-        if (event.button !== 0 || (event.pointerType === 'touch' && !author) || !Number.isInteger(index) || index < 0) return;
-        gesture = {pointer:event.pointerId, start:index, end:index};
-        paper.setPointerCapture(event.pointerId);
+        if (event.button !== 0 || (event.pointerType === 'touch' && chords && !author) || (chords && !author && !Number.isInteger(index))) return;
+        const anchor = event.shiftKey && selectionAnchor !== null ? selectionAnchor : Number.isInteger(index) ? index : null;
+        gesture = {pointer:event.pointerId, previous:rangeIndices, start:anchor, end:Number.isInteger(index)?index:null,x:event.clientX,y:event.clientY};
+        if(Number.isInteger(index)){setRange(anchor,index);paintGesture();}
+        selectionSurface.setPointerCapture(event.pointerId);
         event.preventDefault();
     });
-    paper.addEventListener('pointermove', event => {
+    selectionSurface.addEventListener('pointermove', event => {
         if (gesture?.pointer !== event.pointerId) return;
-        const index = barAt(doc.elementFromPoint(event.clientX, event.clientY));
-        if (Number.isInteger(index) && index >= 0 && index !== gesture.end) {
+        // Sample the segment too: a fast drag can enter and leave a bar between events.
+        const steps=Math.max(1,Math.ceil(Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)/8));
+        for(let step=1;step<=steps;step++){
+            const fraction = step / steps;
+            const x = gesture.x + (event.clientX - gesture.x) * fraction;
+            const y = gesture.y + (event.clientY - gesture.y) * fraction;
+            const index = barAt(doc.elementFromPoint(x, y));
+            if (!Number.isInteger(index) || index === gesture.end) continue;
+            gesture.start ??= index;
             gesture.end = index;
-            setRange(gesture.start, index); refreshPaper();
+            setRange(gesture.start, index);
+            paintGesture();
         }
+        gesture.x=event.clientX;gesture.y=event.clientY;
     });
-    paper.addEventListener('pointerup', event => {
+    selectionSurface.addEventListener('pointerup', event => {
         if (gesture?.pointer !== event.pointerId) return;
-        chooseFromPaper(gesture.start, gesture.end);
+        const {start,end}=gesture;
         gesture = null;
+        if(start===null || end===null){
+            rangeIndices=[];selectionAnchor=null;
+            if(author){patternArea.hidden=true;saveButton.hidden=true;void stopAudio();authorHint.textContent='譜面をドラッグして取り込む範囲を選択';}
+            update();
+        }
+        else chooseFromPaper(start,end);
     });
-    paper.addEventListener('pointercancel', () => { gesture = null; });
+    selectionSurface.addEventListener('pointercancel', event => {
+        if (gesture?.pointer !== event.pointerId) return;
+        rangeIndices = gesture.previous;
+        gesture = null;
+        update();
+    });
     paper.addEventListener('click', event => {
         const index = barAt(event.target);
-        if (Number.isInteger(index) && index >= 0) chooseFromPaper(index, event.shiftKey && rangeIndices.length ? rangeIndices[0] : index);
+        if (chooseSection(event.target)) return;
+        if (Number.isInteger(index) && index >= 0) {
+            if (!event.shiftKey || selectionAnchor === null) selectionAnchor=index;
+            chooseFromPaper(selectionAnchor,index);
+        }
     });
+    function chooseSection(target) {
+        const heading = target.closest('.sheet-section-label[data-section-id]');
+        if (!heading || chords || author) return false;
+        sectionSelected=true;
+        rangeIndices=project.bars.flatMap((bar,i)=>bar.sectionId===heading.dataset.sectionId?[i]:[]);
+        selectionAnchor=rangeIndices[0]??null;
+        update();
+        return true;
+    }
     paper.addEventListener('keydown', event => {
+        if (['Enter',' '].includes(event.key) && chooseSection(event.target)) {event.preventDefault();return;}
         const index = barAt(event.target);
         if (index < 0 || !Number.isInteger(index) || !(event.key==='Enter' || author && event.key===' ')) return;
         event.preventDefault();
-        chooseFromPaper(index, event.shiftKey && rangeIndices.length ? rangeIndices[0] : index);
+        if (!event.shiftKey || selectionAnchor === null) selectionAnchor=index;
+        chooseFromPaper(selectionAnchor,index);
     });
     refreshPaper = (ids = []) => {
         const target = new Set(ids), source = new Set(rangeIndices);
         paperBars.forEach(item => {
             const index = barAt(item);
             item.toggleAttribute('data-preset-destination', target.has(project.bars[index]?.id));
-            item.toggleAttribute('data-preset-source', source.has(index) && (author || gesture !== null));
+            item.toggleAttribute('data-preset-source', source.has(index) && (author || (chords && gesture !== null)));
         });
     };
     function captureFromScore() {
@@ -628,6 +736,12 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             } else {
                 const previewView = C.model.toStructureView(previewProject);
                 rows = rowsFromScore(C, previewView, indices.map(index => index + 1));
+                const grids=indices.map(index=>{
+                    const bar=previewView.bars[index];
+                    const material=previewView.strumPatterns.find(p=>p.id===(bar.strumOverride||previewView.basicStrumPatternId));
+                    return C.model.strumInputGrid(material,C.model.schema2.barLength(previewProject));
+                });
+                gridUnits=grids.map(g=>g.unit);beatUnits=grids.map(g=>g.beats.slice());selectedStroke=null;
                 sourceSlots = indices.map(index => (C.model.getBarEffectiveStrumSlots(previewView, index + 1) || []).map(slot => {
                     const {id, ...value} = slot;
                     return value;
@@ -644,31 +758,146 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             status.textContent = error.message;
         }
     }
+    if (!chords && !selectedBars.length && first) setRange(project.bars.indexOf(first),project.bars.indexOf(first));
     let previousKey = key?.value;
-    if (selectedBars.length > 1) setRange(project.bars.indexOf(selectedBars[0]), project.bars.indexOf(selectedBars.at(-1)));
+    if (selectedBars.length) setRange(project.bars.indexOf(selectedBars[0]), project.bars.indexOf(selectedBars.at(-1)));
 
 
+    function strokeGrid(unit, beats) {
+        const starts = C.model.strumCellStarts(unit, beats, measureTicks);
+        return starts.map((tick,i)=>({start:tick/120, span:((starts[i+1]??measureTicks)-tick)/120}));
+    }
     function paintGrid() {
         grid.replaceChildren();
         rows.forEach((row, index) => {
             const line = node('div', undefined, grid);
             line.setAttribute('aria-label', 'パターン ' + (index + 1) + '小節目');
-            line.style.gridTemplateColumns = 'repeat(' + row.length + ', minmax(30px, 1fr))';
-            [...row].forEach((cell, column) => {
-                const cellButton = button(cell, () => {
-                    const next = noteStates[(noteStates.indexOf(rows[index][column]) + 1) % noteStates.length];
-                    edited = true; sourceSlots = null;
-                    rows[index] = rows[index].slice(0, column) + next + rows[index].slice(column + 1);
-                    renderCell(next); update();
-                }, line);
+            const units=gridUnits[index] ?? row.length;
+            const beats=beatUnits[index] ?? [];
+            const expanded=[...row].map(value=>strokeFill(value,16/row.length)).join('');
+            const cells=strokeGrid(units,beats);
+            function changeGrid(nextUnits,nextBeats) {
+                gridUnits[index]=nextUnits;
+                beatUnits[index]=nextBeats;
+                selectedStroke=null;
+                const layout=strokeGrid(nextUnits,nextBeats);
+                let newRow='';
+                const changes=[];
+                for(const {start,span} of layout){
+                    if(cells.some(cell=>cell.start===start && cell.span===span)){
+                        newRow+=expanded.slice(start,start+span);
+                        continue;
+                    }
+                    changes.push({start,span});
+                    let value=expanded[start];
+                    // A discarded offbeat attack may have been the source of this sustain.
+                    if(value==='〜' && start>0 && !/[↓↑〜]$/.test(newRow))value='−';
+                    newRow+=strokeFill(value,span);
+                }
+                replaceRow(newRow,layout,changes);
+                paintGrid();update();
+            }
+            function replaceRow(newRow, layout, changes) {
+                // Preserve the stored length of a rest when the grid needs only four or eight cells.
+                const step=layout.every(({start,span})=>start%4===0 && span%4===0)?4:
+                    layout.every(({start,span})=>start%2===0 && span%2===0)?2:1;
+                newRow=newRow.slice(0,beatsPerBar*4).padEnd(16,'−');
+                const compact=[...newRow].filter((_,i)=>i%step===0).join('');
+                rows[index]=[...compact].map(cell=>strokeFill(cell,step)).join('')===newRow ? compact : newRow;
+                edited=true;
+                if(!sourceSlots || !changes.length)return;
+                try {
+                    const old=sourceSlots[index]||[];
+                    const fallback=old.some(slot=>slot.tick%240 || (slot.durationTicks??240)%240) ? 120 : 240;
+                    const kept=old.filter(slot=>{
+                        const from=slot.tick/120,to=from+(slot.durationTicks??fallback)/120;
+                        return changes.every(cell=>to<=cell.start || from>=cell.start+cell.span) &&
+                            expanded.slice(from,to)===newRow.slice(from,to) && newRow[to]!=='〜';
+                    });
+                    const rebuilt=slotsForGrid(rows[index],index).filter(slot=>!kept.some(original=>
+                        slot.tick>=original.tick && slot.tick<original.tick+(original.durationTicks??fallback)));
+                    for(const slot of rebuilt){
+                        const original=old.find(item=>item.tick===slot.tick && item.action===slot.action);
+                        if(original)slot.accent=original.accent??false;
+                    }
+                    rebuilt.push(...kept);
+                    rebuilt.sort((a,b)=>a.tick-b.tick);
+                    sourceSlots=sourceSlots.map((slots,i)=>i===index?rebuilt:slots);
+                } catch {
+                    sourceSlots[index]=null;
+                }
+            }
+            line.style.gridTemplateColumns='repeat('+beatsPerBar*4+',minmax(0,1fr))';
+            const heading=node('strong',(index+1)+'小節目',line);
+            heading.style.gridColumn='1 / -1';
+            const cycle=[8,16,4,1,2];
+            const toggle=button(units===1?'全音符':units+'分',()=>{
+                changeGrid(cycle[(cycle.indexOf(units)+1)%cycle.length],beats);
+            },heading);
+            toggle.title='入力単位を切り替え';
+            toggle.setAttribute('aria-label',(index+1)+'小節目の入力単位を切り替え');
+            for(let beat=0;beat<beatsPerBar;beat++){
+                const label=node('small',(beat+1)+'拍',line);
+                label.style.gridColumn='span 4';
+            }
+            for(const [column,{start,span}] of cells.entries()){
+                const cell=expanded[start];
+                function writeStroke(next) {
+                    gridUnits[index]=units;
+                    let suffix=expanded.slice(start+span);
+                    if(next==='−'||next==='・'||next==='×')suffix=suffix.replace(/^〜+/,tie=>'−'.repeat(tie.length));
+                    replaceRow(expanded.slice(0,start)+strokeFill(next,span)+suffix,cells,[{start,span}]);
+                    paintGrid();
+                    grid.children[index].querySelectorAll('[data-stroke]')[column].focus({preventScroll:true});
+                    update();
+                }
+                const slotKey=index+':'+column;
+                const cellButton=button(cell,()=>{
+                    if(selectedStroke===slotKey)writeStroke(noteStates[(noteStates.indexOf(cell)+1)%noteStates.length]);
+                    else {
+                        grid.querySelector('[data-selected]')?.removeAttribute('data-selected');
+                        selectedStroke=slotKey;
+                        cellButton.setAttribute('data-selected','');
+                    }
+                },line);
+                cellButton.toggleAttribute('data-selected',selectedStroke===slotKey);
+                cellButton.addEventListener('keydown',event=>{
+                    if(event.ctrlKey||event.metaKey||event.altKey)return;
+                    const value={d:'↓',u:'↑',x:'×',r:'・',' ':'・',delete:'−',backspace:'−','~':'〜','〜':'〜','～':'〜'}[event.key.toLowerCase()];
+                    if(!value)return;
+                    event.preventDefault();event.stopPropagation();selectedStroke=slotKey;writeStroke(value);
+                });
+                cellButton.style.gridColumn=(start+1)+' / span '+span;
+                cellButton.style.gridRow='3';
                 function renderCell(value) {
-                    cellButton.textContent = value;
+                    const action = strokeActions[value] || (value === '〜' ? 'sustain' : 'empty');
+                    const inner=sourceSlots?.[index]?.filter(slot=>slot.tick>=start*120 && slot.tick<(start+span)*120);
+                    const multiple=inner && C.sheetRenderer.hasInnerStroke(inner,start*120);
+                    if(multiple)cellButton.textContent='…';
+                    else C.sheetRenderer.renderStrumCell(cellButton,action,span*120);
                     cellButton.dataset.stroke = value;
-                    cellButton.title = (index + 1) + '小節目・' + (column + 1) + 'マス目 ' + stateNames[value];
+                    cellButton.title = (index + 1) + '小節目・' + (column + 1) + 'マス目 ' + (multiple?'細かい入力があります。このマスの音価で上書きできます':stateNames[value]) + '（クリックで選択、もう一度クリックで変更）';
                     cellButton.setAttribute('aria-label', cellButton.title);
                 }
                 renderCell(cell);
-            });
+            }
+            for(let beat=0;beat<beatsPerBar;beat++){
+                const fixed=beats[beat], effective=fixed || units;
+                const opposite=units===8?16:8;
+                const next=!fixed?opposite:fixed===opposite?(units<=4?16:units):null;
+                const control=button(String(effective),()=>{
+                    const updated=beats.slice();
+                    updated[beat]=next;
+                    changeGrid(units,updated);
+                    grid.children[index].querySelectorAll('.sc-stroke-beat-unit')[beat].focus({preventScroll:true});
+                },line);
+                control.className='sc-stroke-beat-unit dock-lyrics-beat-res-btn '+(fixed?'is-local':'is-auto');
+                control.style.gridColumn=(beat*4+1)+' / span 4';
+                control.style.gridRow='4';
+                control.setAttribute('aria-pressed',String(Boolean(fixed)));
+                control.title=(index+1)+'小節目・'+(beat+1)+'拍目：'+(fixed?fixed+'分に固定中':'小節の単位に追従中')+'。クリックで'+(next?next+'分に固定':'小節の入力単位に戻す');
+                control.setAttribute('aria-label',control.title);
+            }
         });
         refreshGridControls();
     }
@@ -692,14 +921,14 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
                 throw Error('曲の末尾までに ' + pattern.length + ' 小節の入力先がありません。開始小節を変更してください');
             return {pattern, bars:project.bars.slice(from, from + pattern.length)};
         }
-        const bars = scope.value === 'all' ? project.bars : scope.value === 'selection' ? rangeIndices.map(index => project.bars[index]) :
-            project.bars.filter(bar => bar.sectionId === section.value);
-        if (!bars.length) throw Error('適用先に小節がありません');
-        return {bars, pattern:(sourceSlots || strokeSlots(rows)).slice(0, bars.length)};
+        const bars=destinationIndices(selectionAnchor,sectionSelected).map(index=>project.bars[index]);
+        if(!bars.length && rangeIndices.length)throw Error('この範囲に収まりません。開始小節か範囲を変更してください');
+        if (!bars.length) throw Error('下の譜面で入力先を選んでください');
+        return {bars, pattern:patternSlots().slice(0, bars.length)};
     }
     function update() {
         if (audioKind === 'pattern') void stopAudio();
-        if (section) section.parentElement.hidden = scope.value !== 'section';
+
         try {
             const {bars} = plan();
             refreshPaper(author ? [] : bars.map(bar => bar.id));
@@ -715,6 +944,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         }
     }
     function choose() {
+        gridUnits=[];beatUnits=[]; selectedStroke=null;
         resetCellEditor();
         void stopAudio();
         current = entries.find(entry=>entry.id===preset.value);
@@ -729,7 +959,10 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (chords) {
             timedChords = transposePattern(chordRows(current, C.theory.parseBasicChordSymbol), C.theory.keyToSemitone(key.value));
             paintChords();
-        } else { rows = current.rows.slice(); sourceSlots = current.slots || null; paintGrid(); }
+        } else { rows = current.rows.slice();
+            gridUnits=rows.map((row,i)=>[1,2,4,8,16].includes(current.gridUnits?.[i])?current.gridUnits[i]:row.length);
+            beatUnits=rows.map((_,i)=>Array.from({length:4},(_,b)=>[8,16].includes(current.beatUnits?.[i]?.[b])?current.beatUnits[i][b]:null));
+            sourceSlots = current.slots ? structuredClone(current.slots) : null; paintGrid(); }
         status.textContent = '';
         update();
     }
@@ -743,9 +976,10 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
                 if (!timedChords.some(events=>events.length)) throw Error('コードを入力してください');
                 entry.pattern=transposePattern(timedChords,-C.theory.keyToSemitone(key.value));
             } else {
-                if (sourceSlots) entry.slots=sourceSlots;
-                else strokeSlots(rows);
+                entry.slots=patternSlots();
                 entry.rows=rows.slice();
+                entry.gridUnits=rows.map((row,i)=>gridUnits[i]??row.length);
+                entry.beatUnits=rows.map((_,i)=>beatUnits[i]??[]);
             }
             const replacing=library.items.some(item=>item.id===entry.id);
             library.write(replacing ? library.items.map(item=>item.id===entry.id ? entry : item) : [...library.items,entry]);
@@ -764,7 +998,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             } catch (error) { key.value = previousKey; status.textContent = error.message; }
             update();
         };
-    } else scope.onchange = section.onchange = update;
+    }
     populateOptions(); choose();
     fitPaper?.();
     function stagePattern() {
@@ -772,7 +1006,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             void stopAudio();
             const {bars, pattern} = plan(), barIds = bars.map(bar => bar.id);
             const entry = structuredClone(chords ? {barIds, pattern, overwrite:true} :
-                {barIds, pattern, name:edited ? 'カスタムストローク' : current.name});
+                {barIds, pattern, leadingSustains:rows.map(row=>Math.min(measureTicks,leadingHold(row))), inputGrids:pattern.map((_,i)=>({unit:gridUnits[i]??rows[i].length, beats:beatUnits[i]??[]})), name:edited ? 'カスタムストローク' : current.name});
             previewProject = C.structureOperations.previewPreset(previewProject, mode, entry, C.model.schema2,C.localChordForms?.installPreset);
             steps.push(entry);redoSteps.length=0;stage.focus({preventScroll:true});
             renderPaper(); fitPaper(); update();

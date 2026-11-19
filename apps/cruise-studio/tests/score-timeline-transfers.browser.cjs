@@ -58,6 +58,12 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         assert.equal(await selected.count(),1,'hover cannot extend a selection');
         await chords.nth(4).click();
         assert.deepEqual(await snapshot(),before,'a new click must not move the old chord');
+        await chords.first().click();
+        await chords.first().click({delay:550});
+        assert(await chords.first().evaluate(input => document.activeElement===input &&
+            input.parentElement.hasAttribute('data-cell-editing') && input.selectionStart===input.selectionEnd &&
+            getComputedStyle(input).caretColor==='rgb(32, 40, 48)'));
+        await chords.nth(4).click();
         const firstBox = await chords.first().boundingBox();
         await page.mouse.move(firstBox.x+firstBox.width/2,firstBox.y+firstBox.height/2);
         await page.mouse.down();
@@ -284,7 +290,7 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
             const original = await sheet.innerText();
             await root.locator('[data-preset-stage]').click();
             const firstStage=await sheet.innerText();
-            if (action.endsWith('rhythm')) await page.getByLabel('適用範囲').selectOption('all');
+            if (action.endsWith('rhythm')) { const bars=page.locator('.sc-preset-paper .sheet-bar[data-bar-number]'); await bars.first().click(); await bars.last().click({modifiers:['Shift']}); }
             else await page.locator('.sc-preset-paper').getByRole('button',{name:'5小節目を選択',exact:true}).click();
             await root.locator('[data-preset-stage]').click();
             assert.notEqual(await sheet.innerText(),original);
@@ -356,7 +362,7 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         await page.getByRole('button',{name:'譜面からプリセット追加',exact:true}).click();
         const first = await paper.getByRole('button', {name:'1小節目を選択',exact:true}).boundingBox();
         const second = await paper.getByRole('button', {name:'2小節目を選択',exact:true}).boundingBox();
-        await page.mouse.move(first.x+12, first.y+15);
+        await page.mouse.move(first.x-10, first.y+15);
         await page.mouse.down();
         await page.mouse.move(second.x+12, second.y+15, {steps:8});
         await page.mouse.up();
@@ -393,11 +399,43 @@ for (const engine of ['chrome', 'webkit']) test('editor transfers and batch scor
         }
         await page.click('#sc-undo');assert.deepEqual(await snapshot(),applied);
         await openMenu('#sc-edit-rhythm');
-        const presetStroke=page.locator('.sc-strum-preset-grid button').first();
+        const presetStroke=page.locator('.sc-strum-preset-grid [data-stroke]').first();
         await presetStroke.focus();
         assert.equal(await presetStroke.evaluate(cell=>getComputedStyle(cell).backgroundColor),'rgb(237, 246, 255)');
         await paper.getByRole('button', {name:'4小節目を選択',exact:true}).click();
-        assert.equal(await page.getByLabel('適用範囲').inputValue(), 'section');
+        const destinations=()=>paper.locator('[data-preset-destination]').evaluateAll(nodes=>nodes.map(n=>Number(n.dataset.barNumber)));
+        assert.deepEqual(await destinations(),[4]);
+        const patternBar=page.locator('.sc-strum-preset-grid > div').first();
+        const firstBar=paper.locator('.sheet-bar[data-bar-number="1"]');
+        const secondBar=paper.locator('.sheet-bar[data-bar-number="2"]');
+        await firstBar.scrollIntoViewIfNeeded();
+        const gridBox=await page.locator('.sc-strum-preset-grid').boundingBox();
+        assert.ok(Math.abs(2*(await patternBar.boundingBox()).width-gridBox.width)<8);
+        const toggle=patternBar.getByRole('button',{name:'1小節目の入力単位を切り替え'});
+        const counts=new Set();
+        for(let step=0;step<5;step++){
+            counts.add(await patternBar.locator('[data-stroke]').count());
+            await toggle.click();
+        }
+        assert.deepEqual([...counts].sort((a,b)=>a-b),[1,2,4,8,16]);
+        await firstBar.scrollIntoViewIfNeeded();
+        const box=await firstBar.boundingBox(), next=await secondBar.boundingBox();
+        const y=box.y+box.height/2;
+        await page.mouse.click(box.x-8,y);
+        assert.deepEqual(await destinations(),[]);
+        assert.ok(await page.locator('[data-preset-stage]').isDisabled());
+        await page.mouse.move(box.x-8,y);await page.mouse.down();
+        await page.mouse.move(next.x+10,y,{steps:6});await page.mouse.up();
+        assert.deepEqual(await destinations(),[1,2]);
+        assert.equal(await page.locator('[data-score-preset]').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(251, 248, 240)');
+        assert.match(await page.locator('.sc-strum-preset-grid strong').first().innerText(),/^1小節目/);
+        assert.deepEqual(await page.locator('.sc-strum-preset-grid > div').first().locator('small').allTextContents(),['1拍','2拍','3拍','4拍']);
+        await paper.getByRole('button',{name:'4小節目を選択',exact:true}).dragTo(paper.getByRole('button',{name:'5小節目を選択',exact:true}));
+        assert.deepEqual(await destinations(),[4,5]);
+        await paper.getByRole('button',{name:'6小節目を選択',exact:true}).click({modifiers:['Shift']});
+        assert.deepEqual(await destinations(),[4,5,6]);
+        await paper.locator('.sheet-section-label').filter({hasText:'Aメロ'}).click();
+        assert.equal(await page.getByLabel('適用範囲').count(), 0);
         assert.deepEqual(await paper.locator('[data-preset-destination]').evaluateAll(nodes => nodes.map(node => Number(node.dataset.barNumber))), [4,5,6,7]);
         await page.getByRole('button',{name:'譜面からプリセット追加',exact:true}).click();
         await paper.getByRole('button', {name:'4小節目を選択',exact:true}).press('Enter');

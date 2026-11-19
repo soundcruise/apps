@@ -90,7 +90,7 @@
     }
 
     function downloadProjectJson(project) {
-        var json = storage.exportProjectJson(project);
+        var json = storage.exportProjectJson(project, CS.localPaperLayout?.exportPresentation(project));
         var blob = new Blob([json], { type: 'application/json' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
@@ -204,6 +204,7 @@
                 setStatus(saved.error, true);
                 return;
             }
+            if (res.presentation && CS.documents.isSelected(intent)) CS.localPaperLayout?.importPresentation(res.project,res.presentation);
             var warnText = res.warnings.length ? '（警告: ' + res.warnings.join(' / ') + '）' : '';
             setStatus('「' + res.project.songInfo.title + '」を読み込んで保存しました ' + warnText);
             renderProjectList();

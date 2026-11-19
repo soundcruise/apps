@@ -64,12 +64,31 @@ for (const engine of ['chrome', 'webkit']) test('3/4 from score entry to tied me
         await page.click('#open-sheet-cruise');
         await page.locator('#sc-import-json').setInputFiles({name:'waltz.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(score))});
         await page.waitForFunction(id => CruiseStudio.documents.getSession()?.target.projectId === id,score.projectId);
+        await menu('#sc-edit-rhythm');
+        await page.getByRole('button',{name:'プリセットを編集',exact:true}).click();
+        await page.getByRole('listitem',{name:'シンコペーション',exact:true}).getByRole('button',{name:'編集',exact:true}).click();
+        await page.getByRole('button',{name:'プリセットに保存',exact:true}).click();
+        await page.getByLabel('プリセット名',{exact:true}).fill('拍子変更の確認');
+        await page.getByRole('dialog',{name:'プリセットに保存',exact:true}).getByRole('button',{name:'保存',exact:true}).click();
+        await page.click('[data-score-cancel]');
         await menu('#sc-edit-song');
         await page.getByLabel('拍子',{exact:true}).selectOption('3');
         await page.click('[data-score-apply]');
         await page.locator('[data-score-dialog]').waitFor({state:'detached'});
         assert.deepEqual((await read()).songInfo.timeSignature,{beats:3,beatUnit:4});
 
+        // Reuse the exact saved four-beat pattern in a three-beat score.
+        await menu('#sc-edit-rhythm');
+        await page.selectOption('[data-score-preset]',{label:'拍子変更の確認'});
+        const pattern=page.locator('.sc-strum-preset-grid > div');
+        assert.equal(await pattern.count(),2);
+        assert.equal(await pattern.first().locator('[data-stroke]').count(),6);
+        assert.equal(await pattern.first().locator('.sc-stroke-beat-unit').count(),3);
+        await page.locator('.sc-preset-paper .sheet-bar[data-bar-number="1"]').click();
+        await page.click('[data-preset-stage]');
+        const appliedFirst=page.locator('.sc-preset-paper .sheet-bar[data-bar-number="1"] .sheet-bar-strum [data-slot-ticks]');
+        assert.deepEqual(await appliedFirst.evaluateAll(cells=>cells.map(cell=>Number(cell.dataset.slotTicks))),Array(6).fill(240));
+        await page.click('[data-score-cancel]');
         await page.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="1"]').click({position:{x:4,y:4}});
         await page.click('#sc-edit-selected');
         await page.click('[data-editor-bars="2"]');

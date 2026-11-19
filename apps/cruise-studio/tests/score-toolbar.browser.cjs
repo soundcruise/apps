@@ -10,6 +10,23 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
  async function fresh(fn){const context=await browser.newContext({viewport:{width:1440,height:1000}}),p=await context.newPage(),errors=[],external=[];p.setDefaultTimeout(8000);p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());await context.route('**/*',r=>{if(new URL(r.request().url()).origin!==origin){external.push(r.request().url());return r.abort();}return r.continue();});try{await p.goto(origin);await p.click('#open-sheet-cruise');const project=createUITestProject();await p.locator('#sc-import-json').setInputFiles({name:'toolbar-test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(project))});await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,project.projectId);await p.locator('#sc-editor-drawer').evaluate(e=>e.open=false);await fn(p);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);}catch(e){console.error('TOOLBAR FAILURE',engine,e.stack);throw e;}finally{await context.close();}}
  async function select(p,n,modifiers=[]){await p.locator('.sheet-bar[data-bar-number="'+n+'"]').click({position:{x:5,y:5},modifiers});}
  try{
+ await t.test('choose menu shortcuts, run the same command and restore the choices after reload',()=>fresh(async p=>{
+  const before=await snap(p);
+  const picker=p.locator('#sc-shortcut-menu');
+  const pin=id=>p.locator('[data-shortcut="'+id+'"]');
+  assert(await pin('sc-edit-rhythm').isVisible());
+  await picker.locator('summary').click();
+  await picker.getByLabel('曲情報',{exact:true}).check();
+  await picker.getByLabel('ストローク一括',{exact:true}).uncheck();
+  await p.keyboard.press('Escape');
+  assert(await pin('sc-edit-rhythm').isHidden());
+  await pin('sc-edit-song').click();
+  assert(await p.locator('[data-score-field=title]').isVisible());
+  await p.click('[data-score-cancel]');
+  assert.deepEqual(await snap(p),before);
+  await p.reload();await p.click('#open-sheet-cruise');
+  assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
+ }));
  await t.test('frequent actions remain visible; context appears only for selected bars without mutating the Project',()=>fresh(async p=>{
   const before=await snap(p),history=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
   assert(await p.locator('#sc-selected-bar-actions').isHidden());
@@ -41,14 +58,18 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
  }));
  await t.test('curve menu opens song settings, exports the working Project and retains ordinary Save',()=>fresh(async p=>{
   await p.locator('#sc-curve-menu-toggle').click();await p.locator('#sc-edit-song').click();await p.locator('[data-score-field=title]').fill('Toolbar working title');await p.locator('[data-score-apply]').click();await p.locator('[data-score-dialog]').waitFor({state:'detached'});
-  const before=await snap(p);await p.locator('#sc-curve-menu-toggle').click();const download=p.waitForEvent('download',{timeout:8000});download.catch(()=>{});await p.locator('#sc-export-json').click();assert.deepEqual(JSON.parse(fs.readFileSync(await(await download).path(),'utf8')),before);
+  const before=await snap(p);await p.locator('#sc-curve-menu-toggle').click();const download=p.waitForEvent('download',{timeout:8000});download.catch(()=>{});await p.locator('#sc-export-json').click();const {scorePresentation,...downloaded}=JSON.parse(fs.readFileSync(await(await download).path(),'utf8'));
+  assert.deepEqual(downloaded,before);
+  assert.equal(scorePresentation.version,1);
+  assert.equal(scorePresentation.layout.barsPerLine,4);
+  assert.equal(Object.hasOwn(scorePresentation,'scoreToolbarShortcuts'),false);
   await p.locator('#sc-save').click();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);assert.equal((await snap(p)).songInfo.title,'Toolbar working title');assert.equal(await p.locator('#sc-curve-menu').getAttribute('open'),null);
  }));
  await t.test('menus fit narrow screens and print hides all toolbar controls',()=>fresh(async p=>{
   await select(p,1);
   for(const width of [320,390,768,1440]){
    await p.setViewportSize({width,height:900});
-   for(const id of ['sc-curve-menu','sc-display-menu','sc-bar-menu']){await p.locator('#'+id+'-toggle').click();const popup=p.locator('#'+id+' > .sc-toolbar-menu-body');await popup.waitFor({state:'visible'});const box=await popup.boundingBox();assert(box.x>=11&&box.x+box.width<=width-11,JSON.stringify({width,id,box}));assert(box.y+box.height<=901,JSON.stringify({width,id,box}));await p.keyboard.press('Escape');}
+   for(const id of ['sc-curve-menu','sc-display-menu','sc-bar-menu','sc-shortcut-menu']){await p.locator('#'+id+'-toggle').click();const popup=p.locator('#'+id+' > .sc-toolbar-menu-body');await popup.waitFor({state:'visible'});const box=await popup.boundingBox();assert(box.x>=11&&box.x+box.width<=width-11,JSON.stringify({width,id,box}));assert(box.y+box.height<=901,JSON.stringify({width,id,box}));await p.keyboard.press('Escape');}
    for(const id of ['sc-zoom-reset','sc-copy-bar','sc-song-preview']){const box=await p.locator('#'+id).boundingBox();assert(box.x>=0&&box.x+box.width<=width+1,JSON.stringify({width,id,box}));}
   }
   await p.locator('#sc-display-menu-toggle').click();await p.emulateMedia({media:'print'});assert(await p.locator('.sc-compact-toolbar').isHidden());await p.emulateMedia({media:'screen'});

@@ -195,14 +195,17 @@
         target.chords.push(event);
         target.chords.sort(function (a, b) { return a.onsetTick - b.onsetTick; });
     }
-    function rhythmSlots(project, barId) {
+    function rhythmSnapshot(project, barId) {
         var binding = project.performance.barRhythms.find(function (item) { return item.barId === barId; });
         var material = project.materials.rhythms.find(function (item) {
             return item.id === (binding?.materialId || project.performance.basicRhythmId);
         });
         if (material?.encoding !== 'studio-strum-v1') throw Error('このリズム素材はマス単位で編集できません');
+        return material.snapshot;
+    }
+    function rhythmSlots(project, barId) {
         var barTicks=project.songInfo.timeSignature.beats*project.songInfo.ticksPerBeat;
-        return copyJSON(material.snapshot.slots.filter(function(slot){return slot.tick<barTicks;}).map(function(slot){
+        return copyJSON(rhythmSnapshot(project,barId).slots.filter(function(slot){return slot.tick<barTicks;}).map(function(slot){
             return slot.durationTicks>barTicks-slot.tick?{...slot,durationTicks:barTicks-slot.tick}:slot;
         }));
     }
@@ -269,19 +272,25 @@
             bar[row === 'lyrics' ? 'lyrics' : 'melody'] = events;
         });
     }
-    function writeStrokeUpdates(model,project,updates) {
+    function writeStrokeUpdates(model,project,updates,options) {
         model.editLegacy(project, function (view) {
             updates.forEach(function (slots,id) {
                 var barNumber = project.bars.findIndex(function (bar) { return bar.id === id; }) + 1;
-                model.setBarStrumSlots(view,barNumber,slots.map(function ({id,...slot}) { return slot; }),{keepEmpty:true});
+                model.setBarStrumSlots(view,barNumber,slots.map(function ({id,...slot}) { return slot; }),{keepEmpty:true,...options?.get(id)});
             });
         },{kind:'strum',barIds:Array.from(updates.keys())});
     }
     function transferStrokeRange(model,project,origin,start,end,to,barTicks) {
-        var moving=origin===project, length=end-start, updates=new Map(), items=[];
+        var moving=origin===project, length=end-start, updates=new Map(), options=new Map(), items=[];
         // Copy explicit rests at either edge. A held stroke starts at its original attack.
         for(var index=Math.floor(start/barTicks);index<Math.ceil(end/barTicks);index++){
             var base=index*barTicks;
+            var carry=rhythmSnapshot(origin,origin.bars[index].id).leadingSustainTicks;
+            var previous=items.at(-1);
+            if(carry && previous && ['down','up'].includes(previous.event.action) &&
+                previous.time+(previous.event.durationTicks||0)===to+base-start){
+                previous.event.durationTicks+=Math.min(carry,end-base);
+            }
             for(var slot of rhythmSlots(origin,origin.bars[index].id)){
                 var onset=base+slot.tick, stop=onset+(slot.durationTicks??1);
                 var from=slot.action==='rest'?Math.max(onset,start):onset;
@@ -315,6 +324,20 @@
             var clears=moving&&base<end&&base+barTicks>start, replaces=base<to+length&&base+barTicks>to;
             if(!clears&&!replaces)return;
             var slots=rhythmSlots(project,bar.id);
+            var target=rhythmSnapshot(project,bar.id);
+            var hold=target.leadingSustainTicks||0, metadata={};
+            if(clears)hold=Math.min(hold,Math.max(0,start-base));
+            if(replaces){
+                hold=Math.min(hold,Math.max(0,to-base));
+                var sourceStart=base-to+start;
+                if(base>=to && base+barTicks<=to+length && sourceStart%barTicks===0){
+                    var snapshot=rhythmSnapshot(origin,origin.bars[sourceStart/barTicks].id);
+                    metadata.inputGrid=model.strumInputGrid(snapshot,barTicks);
+                    hold=snapshot.leadingSustainTicks||0;
+                }
+            }
+            metadata.leadingSustainTicks=hold;
+            options.set(bar.id,metadata);
             if(clears)slots=erase(slots,Math.max(0,start-base),Math.min(barTicks,end-base));
             if(replaces)slots=erase(slots,Math.max(0,to-base),Math.min(barTicks,to+length-base));
             updates.set(bar.id,slots);
@@ -326,15 +349,17 @@
                 var tail=event.durationTicks-remaining;
                 event.durationTicks=remaining;
                 delete event.tieToNext;
-                if(event.action==='rest'){
-                    var nextBar=project.bars[Math.floor(time/barTicks)+1];
-                    updates.get(nextBar.id).push({...event,tick:0,durationTicks:tail});
+                for(var next=Math.floor(time/barTicks)+1;tail>0;next++){
+                    var nextId=project.bars[next].id, span=Math.min(barTicks,tail);
+                    if(event.action==='rest')updates.get(nextId).push({...event,tick:0,durationTicks:span});
+                    else if(event.action!=='mute')options.get(nextId).leadingSustainTicks=span;
+                    tail-=span;
                 }
             }
             updates.get(bar.id).push({...event,tick});
         });
         updates.forEach(function(slots){slots.sort(function(a,b){return a.tick-b.tick;});});
-        writeStrokeUpdates(model,project,updates);
+        writeStrokeUpdates(model,project,updates,options);
     }
     function transferRange(model, project, args, schema, duplicateBinding) {
         var track = {chord:'chords', lyrics:'lyrics', doremi:'melody', strum:'strum'}[args.row];
@@ -451,11 +476,18 @@
         var bindings = project.performance.barRhythms;
         var targetBindings = new Map(bindings.filter(function (binding) { return targets.has(binding.barId); })
             .map(function (binding) { return [binding.barId, binding]; }));
-        var materials = args.pattern.map(function (slots) {
+        var materials = args.pattern.map(function (slots, index) {
             if(!Array.isArray(slots)||slots.some(function(slot){return slot.tick>=barTicks||slot.tick+(slot.durationTicks??1)>barTicks;}))
                 throw Error('このパターンは曲の拍子に収まりません');
+            const sourceGrid = args.inputGrids?.[index];
+            const inputGrid = sourceGrid && {unit:sourceGrid.unit, beats:sourceGrid.beats.slice(0,barTicks/480)};
+            const cellStarts = inputGrid ? api.strumCellStarts(inputGrid.unit,inputGrid.beats,barTicks)
+                : args.cellStarts?.[index]?.filter(tick=>tick<barTicks);
             return {id: api.newId(), encoding: 'studio-strum-v1', snapshot: {
-                name: args.name, lengthTicks: barTicks, slots: slots.map(function (slot) {
+                name: args.name, lengthTicks: barTicks,
+                ...(cellStarts && {cellStarts}), ...(inputGrid && {inputGrid}),
+                ...(args.leadingSustains?.[index] ? {leadingSustainTicks:args.leadingSustains[index]} : {}),
+                slots: slots.map(function (slot) {
                     return Object.assign({}, slot, {id: api.newId()});
                 })
             }, provenance: {origin: 'user-set'}};
@@ -608,7 +640,7 @@
                 case 'barCount': model.setSectionBarCount(draft, args.sectionId, args.count); break;
                 case 'strum': case 'resetStrum':
                     if (!draft.bars.some(function (b) { return b.barNumber === args.barNumber; })) throw Error('小節が見つかりません');
-                    model.setBarStrumSlots(draft, args.barNumber, kind === 'resetStrum' ? [] : args.slots, {keepEmpty:kind==='strum'&&args.keepEmpty===true}); break;
+                    model.setBarStrumSlots(draft, args.barNumber, kind === 'resetStrum' ? [] : args.slots, {keepEmpty:kind==='strum'&&args.keepEmpty===true,inputGrid:args.inputGrid,leadingSustainTicks:args.leadingSustainTicks}); break;
                 case 'bulkChord': case 'bulkDoremi':
                     var start = draft.bars.findIndex(function (b) { return b.barNumber === args.barNumber; });
                     if (start < 0) throw Error('小節が見つかりません');

@@ -36,3 +36,28 @@ test('explicit rests and extended strokes reach Common Music with their exact me
  const converted=converter.convert({source:'working',project:before,sessionId:'synthetic',version:'s:0:1',baseRevision:null,token:{projectId:before.projectId,sessionId:'synthetic',generation:1}});assert(converted.ok,JSON.stringify(converted.diagnostics));
  const events=converted.model.measures[0].voices.guitar.events;assert.deepEqual(events.map(e=>[e.onsetTick,e.durationTicks,e.hit,e.rest]),[[0,240,false,true],[240,480,true,false],[960,120,false,true]]);assert(!events.some(e=>e.onsetTick===720));assert.deepEqual(f.s.workingSnapshot(),before);
 });
+test('copying a syncopated pair preserves its input grids, beat lock and incoming sustain through undo and JSON',()=>{
+ const {s,op}=fixture(), ids=s.draft.bars.slice(0,2).map(b=>b.id);
+ const apply=op.execute('strumPreset',{barIds:ids,name:'2小節',pattern:[
+    [{tick:1680,durationTicks:240,action:'up'}],[{tick:240,durationTicks:240,action:'down'}]],
+    inputGrids:[{unit:4,beats:[null,null,null,8]},{unit:8,beats:[null,16]}],leadingSustains:[0,240]});
+ assert(apply.ok,apply.error);
+ const original=s.workingSnapshot();
+ const paste=op.execute('rangeTransfer',{row:'strum',source:original,start:0,end:3840,to:3840});
+ assert(paste.ok,paste.error);
+ const restored=C.storage.importProjectJson(C.storage.exportProjectJson(s.workingSnapshot()));
+ assert(restored.ok,restored.error);
+ const p=restored.project;
+ function material(i){
+    const binding=p.performance.barRhythms.find(b=>b.barId===p.bars[i].id);
+    return p.materials.rhythms.find(m=>m.id===binding.materialId).snapshot;
+ }
+ for(let i=0;i<2;i++){
+    assert.deepEqual(copy(material(i).inputGrid),copy(material(i+2).inputGrid));
+    assert.deepEqual(copy(material(i).cellStarts),copy(material(i+2).cellStarts));
+ }
+ assert.equal(material(3).leadingSustainTicks,240);
+ assert.equal(material(3).slots[0].tick,240);
+ assert(s.undo().ok);
+ assert.deepEqual(s.workingSnapshot(),original);
+});

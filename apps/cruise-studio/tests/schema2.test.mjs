@@ -36,6 +36,21 @@ for(const key of ['C','G','F','B','Cb','C#','B#'])for(const capo of [0,2,5])test
  p.bars[0].melody=[-1,0,1].flatMap(o=>[-1,0,1].map(alter=>({tick:0,durationTicks:120,step:0,alter,octave:o}))).map((e,i)=>({...e,tick:i*180}));
  let r=migrate(p);assert(r.ok,r.error);p.bars.forEach((b,i)=>b.melody.forEach((e,j)=>{let n=r.project.bars[i].melody[j];assert.equal(api.pitchMidi(n.pitch),C.theory.melodyEventToMidiNote(e,key,capo));assert.equal(n.onsetTick,e.tick);assert.equal(n.durationTicks,e.durationTicks);assert.equal(n.provenance.timing.onset.confirmed,false);}));
 });
+test('legacy strokes expose sixteenth attacks and short rests only in the affected beats',()=>{
+ const slots=[{tick:0,action:'rest',durationTicks:120},{tick:1080,action:'up',durationTicks:120}];
+ for(const length of [1440,1920])assert.deepEqual(clone(C.model.strumInputGrid({slots},length)),{unit:8,beats:[16,null,16]});
+});
+test('older strum boundaries recover the editable subdivision in both meters',()=>{
+ for(const length of [1440,1920]){
+  for(const unit of [1,2,4,8,16]){
+   for(const beats of [[],[null,16],[8,null,16]]){
+    const starts=C.model.strumCellStarts(unit,beats,length);
+    const recovered=C.model.strumInputGrid({cellStarts:starts},length);
+    assert.deepEqual(C.model.strumCellStarts(recovered.unit,recovered.beats,length),starts);
+   }
+  }
+ }
+});
 test('v1 unknown fields and invalid timing reject; raw input never mutates',()=>{for(const patch of [p=>p.unknown=1,p=>p.bars[0].melody[0].durationTicks=0,p=>p.bars[0].melody[0].tick=.5,p=>p.bars[0].melody[1].tick=0]){let p=clone(v1sample);patch(p);const before=JSON.stringify(p);assert(!migrate(p).ok);assert.equal(JSON.stringify(p),before);}});
 test('non4/4 compatibility retains v1 exactly; future schema is rejected',()=>{let p=clone(v1sample);p.songInfo.timeSignature={beats:6,beatUnit:8};let r=migrate(p);assert(r.ok);assert.equal(r.project.schemaVersion,1);assert.deepEqual(r.project,p);p.schemaVersion=3;assert(!migrate(p).ok);});
 test('v2 extensions roundtrip, unknown structural fields and invalid event kinds reject',()=>{let p=song();p.extensions={owner:{value:[1,'x',null]}};assert(api.validate(p).ok);assert.deepEqual(api.migrate(p).project.extensions,p.extensions);for(const edit of [p=>p.future=1,p=>p.bars[0].melody[0].kind='future',p=>p.bars[0].melody[1].id=p.bars[0].melody[0].id,p=>p.bars[0].melody[0].durationTicks=NaN]){let q=clone(p);edit(q);assert(!api.validate(q).ok);}});
