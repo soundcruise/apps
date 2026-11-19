@@ -1,7 +1,7 @@
 import { confirmMembersVideo } from './news-members-video.js?v=1.36.0';
 import { articlePath } from './news-articles.js?v=1.36.0';
 import { newsOriginalArticleHref } from './news-external-link.js?v=1.23.1';
-import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews, isFeaturedStudioNotice, nextStudioFeatureChange } from './news-data.js?v=1.36.2';
+import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews, isFeaturedStudioNotice, nextStudioFeatureChange } from './news-data.js?v=1.37.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();

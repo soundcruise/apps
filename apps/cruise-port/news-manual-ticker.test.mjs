@@ -43,7 +43,9 @@ test('outside the mobile home spacing and NEWS rules, CSS retains the production
 
 `;
     assert.ok(css.includes(homeSpacing));
-    const outsideNews=css.replace(homeSpacing,'').replace(/\.news-heading \{[\s\S]*?(?=\n\/\* ═══ Color themes)/,'<NEWS>');
+    const homeRefresh = css.match(/\.port-home-refresh \{[^}]+\}\n\n\.port-home-refresh:focus-visible \{[^}]+\}\n\n\.port-home-refresh:active \{[^}]+\}\n\n/);
+    assert.ok(homeRefresh);
+    const outsideNews=css.replace(homeRefresh[0],'').replace(homeSpacing,'').replace(/\.news-heading \{[\s\S]*?(?=\n\/\* ═══ Color themes)/,'<NEWS>');
     assert.equal(createHash('sha256').update(outsideNews).digest('hex'),'87c5b3af2443f28ac1f737a7a8d4cd61cfa1a46e06bc99207edc05b7b102ca72');
 });
 
