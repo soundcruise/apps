@@ -71,7 +71,7 @@ test('bundled grand samples retain original MP3 checksums, attribution and cover
 
 test('polyphonic bar scheduling uses both samples, onset and duration; cancel cannot revoke a subsequent audition',async()=>{
  const f=fixture(),events=[{midi:48,part:'guitar',start:.03,duration:1,gain:.075},{midi:52,part:'guitar',start:.042,duration:.988,gain:.075},{midi:72,part:'piano',start:.53,duration:.25,gain:.32}];
- assert((await f.runtime.playEvents(events,()=>true,2)).ok);assert.equal(f.runtime.snapshot().mode,'bar');const ctx=f.contexts[0];assert.equal(ctx.oscillators.length,3);assert.deepEqual(ctx.oscillators.map(n=>n.starts[0]),[10.03,10.042,10.53]);assert(Math.abs(ctx.oscillators[2].stops[0]-10.78)<.00001);
+ assert((await f.runtime.playEvents(events,()=>true,2)).ok);assert.equal(f.runtime.snapshot().mode,'bar');const ctx=f.contexts[0];assert.equal(ctx.oscillators.length,3);assert.deepEqual(ctx.oscillators.map(n=>n.starts[0]),[10.02,10.032,10.53]);assert.deepEqual(ctx.oscillators.map(n=>Math.round(n.stops[0]*1000)),[11020,11020,10780]);
  for(const n of ctx.oscillators)n.onended();assert.equal(f.audio.snapshot()[0].resourceType,'audio-output/session');
  f.runtime.cancel();assert.equal(f.audio.snapshot()[0].resourceType,null);assert(!f.runtime.snapshot().playing);assert((await f.runtime.play(69,()=>true)).ok);assert.equal(f.contexts.length,1);assert.equal(f.audio.snapshot()[0].resourceType,'audio-output/session');await f.runtime.stop();assert.equal(f.audio.snapshot()[0].contextCount,0);
 });

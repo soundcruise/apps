@@ -38,16 +38,29 @@ test('3/4 uses three count-in and metronome beats',()=>{
  const plan=withMetronome(p,{events:[],spans:[{index:0,start:0,end:1.5},{index:1,start:1.5,end:3}],duration:3});
  assert.deepEqual(plan.events.map(event=>[event.barIndex,event.tick]),[[0,0],[0,480],[0,960],[1,0],[1,480],[1,960]]);
 });
-test('clicks and song share one context; the first score event follows exactly one bar',async()=>{
+test('count-in and score share one context with a 10 ms guitar lead',async()=>{
  const f=fixture(),count=buildCountIn(project(400));assert((await f.runtime.playEvents(score,()=>true,.63,true,undefined,count)).ok);
  assert.equal(f.created,1);assert.equal(f.starts.filter(e=>e.part==='count').length,4);
- await f.advance(.65);assert(Math.abs(f.starts.find(e=>e.part==='guitar').t-.63)<1e-9);
+ await f.advance(.65);assert(Math.abs(f.starts.find(e=>e.part==='guitar').t-.62)<1e-9);
  assert(f.runtime.snapshot().playing);await f.advance(1.3);assert.equal(f.runtime.snapshot().playing,false);await f.runtime.stop();assert.equal(f.audio.snapshot()[0].contextCount,0);
+});
+test('guitar and muted strokes advance together in song and audition while click and melody stay on the beat',async()=>{
+ for(const streaming of [true,false]){
+  const f=fixture();
+  f.ctx.sampleRate=48000;
+  const events=['click','piano','guitar','guitar','mute'].map((part,i)=>({
+   part,midi:60,start:i===3?.344:i===4?.63:.33,duration:.10,gain:.1
+  }));
+  assert((await f.runtime.playEvents(events,()=>true,.8,streaming)).ok);
+  assert.deepEqual(f.starts.map(e=>[e.part,Math.round(e.t*48000)]),
+   [['click',15840],['piano',15840],['guitar',15360],['guitar',16032],['mute',29760]]);
+  await f.runtime.stop();
+ }
 });
 test('range repeats use only score duration; count clicks never repeat',async()=>{
  const f=fixture(),count=buildCountIn(project(400));assert((await f.runtime.playEvents(score,()=>true,.63,true,.6,count)).ok);await f.advance(2.5);
  assert.equal(f.created,1);assert.equal(f.starts.filter(e=>e.part==='count').length,4);
- const times=f.starts.filter(e=>e.part==='guitar').map(e=>e.t);assert(times.length>=4);times.forEach((t,i)=>assert(Math.abs(t-(.63+i*.6))<1e-8));
+ const times=f.starts.filter(e=>e.part==='guitar').map(e=>e.t);assert(times.length>=4);times.forEach((t,i)=>assert(Math.abs(t-(.62+i*.6))<1e-8));
  await f.runtime.stop();const n=f.starts.length;await f.advance(6);assert.equal(f.starts.length,n);assert.equal(f.timers.size,0);assert.equal(f.audio.snapshot()[0].contextCount,0);
 });
 test('stop during asynchronous sample loading cannot revive the count or score',async()=>{
