@@ -134,7 +134,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert(await p.locator('#sc-editor-drawer').isHidden());
   for(const id of ['sc-song-preview','sc-save','sc-undo','sc-redo','sc-zoom-reset','sc-playback-settings'])assert(await p.locator('#'+id).isVisible(),id);
   for(const id of ['sc-new-project','sc-print','sc-export-json','sc-show-forms'])assert(await p.locator('#'+id).isHidden(),id);
-  await select(p,2);assert(await p.locator('#sc-selected-bar-actions').isVisible());assert.match(await p.locator('#sc-toolbar-selection').innerText(),/第2小節/);assert(await p.locator('#sc-edit-selected').isVisible());assert(await p.locator('#sc-copy-bar').isVisible());assert(await p.locator('[data-bar-operation=deleteBar]').isHidden());
+  await select(p,2);assert(await p.locator('#sc-selected-bar-actions').isVisible());assert.match(await p.locator('#sc-toolbar-selection').innerText(),/第2小節/);assert(await p.locator('#sc-edit-selected').isVisible());assert(await p.locator('#sc-copy-bar').isVisible());assert(await p.locator('[data-bar-operation=deleteBar]').isVisible());assert.equal(await p.locator('#sc-bar-menu').count(),0);
   await p.locator('#sc-edit-selected').click();assert(await p.locator('#sc-slot-overlay').isVisible());await p.locator('.slot-overlay-close').click();
   assert.deepEqual(await snap(p),before);assert.deepEqual(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
   const nav=await p.locator('#screen-sheet-cruise>.workspace-local-nav').boundingBox(),head=await p.locator('.sc-score-toolbar-head').boundingBox();assert(head.y>=nav.y+nav.height-1,JSON.stringify({nav,head}));
@@ -154,7 +154,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
  await t.test('copy/paste, add, duplicate, delete and Undo use existing session commands',()=>fresh(async p=>{
   const before=await snap(p);await select(p,1);await p.locator('#sc-copy-bar').click();await select(p,2);await p.locator('#sc-paste-bar').click();let now=await snap(p);assert.deepEqual(now.bars[1].chords.map(c=>c.symbol),before.bars[0].chords.map(c=>c.symbol));await p.locator('#sc-undo').click();assert.deepEqual(await snap(p),before);
   for(const operation of ['addBar','duplicateBar']){await p.locator('[data-bar-operation='+operation+']').click();assert.equal((await snap(p)).bars.length,before.bars.length+1);await p.locator('#sc-undo').click();assert.equal((await snap(p)).bars.length,before.bars.length);await select(p,2);}
-  await p.locator('#sc-bar-menu-toggle').click();await p.locator('[data-bar-operation=deleteBar]').click();assert.equal((await snap(p)).bars.length,before.bars.length-1);await p.locator('#sc-undo').click();assert.equal((await snap(p)).bars.length,before.bars.length);
+  await p.locator('[data-bar-operation=deleteBar]').click();assert.equal((await snap(p)).bars.length,before.bars.length-1);await p.locator('#sc-undo').click();assert.equal((await snap(p)).bars.length,before.bars.length);
   await select(p,1);await select(p,2,['Shift']);assert(await p.locator('#sc-copy-bar').isEnabled());assert(await p.locator('#sc-paste-bar').isEnabled());
  }));
  await t.test('curve menu opens song settings, exports the working Project and retains ordinary Save',()=>fresh(async p=>{
@@ -199,7 +199,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await select(p,1);
   for(const width of [320,390,768,1440]){
    await p.setViewportSize({width,height:900});
-   for(const id of ['sc-curve-menu','sc-display-menu','sc-bar-menu','sc-shortcut-menu']){await p.locator('#'+id+'-toggle').click();const popup=p.locator('#'+id+' > .sc-toolbar-menu-body');await popup.waitFor({state:'visible'});const box=await popup.boundingBox();assert(box.x>=11&&box.x+box.width<=width-11,JSON.stringify({width,id,box}));assert(box.y+box.height<=901,JSON.stringify({width,id,box}));await p.keyboard.press('Escape');}
+   for(const id of ['sc-curve-menu','sc-display-menu','sc-shortcut-menu']){await p.locator('#'+id+'-toggle').click();const popup=p.locator('#'+id+' > .sc-toolbar-menu-body');await popup.waitFor({state:'visible'});const box=await popup.boundingBox();assert(box.x>=11&&box.x+box.width<=width-11,JSON.stringify({width,id,box}));assert(box.y+box.height<=901,JSON.stringify({width,id,box}));await p.keyboard.press('Escape');}
    for(const id of ['sc-zoom-reset','sc-copy-bar','sc-song-preview']){const box=await p.locator('#'+id).boundingBox();assert(box.x>=0&&box.x+box.width<=width+1,JSON.stringify({width,id,box}));}
   }
   await p.locator('#sc-display-menu-toggle').click();await p.emulateMedia({media:'print'});assert(await p.locator('.sc-compact-toolbar').isHidden());await p.emulateMedia({media:'screen'});

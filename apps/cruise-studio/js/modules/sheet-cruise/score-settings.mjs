@@ -33,7 +33,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const field=input(labels[args.field],value??'',args.field,args.field==='bpm'?'number':'text');if(args.field==='bpm'){field.min='20';field.max='400';}
    collect=()=>args.field==='section'?{kind:'renameSection',args:{sectionId:args.sectionId,name:field.value}}:{kind:'songInfo',args:{values:{[args.field]:args.field==='bpm'?Number(field.value):field.value}}};
   }else if(mode==='instrument'){
-   const modeLabel=node('label',undefined,body);node('span','変更方法',modeLabel);const choice=node('select',undefined,modeLabel);choice.dataset.scoreField='keyMode';for(const[v,t]of[['preserve','実音を保つ'],['transpose','曲全体を移調']]){const o=node('option',t,choice);o.value=v;}
+   const modeLabel=node('label',undefined,body);node('span','何を変更しますか？',modeLabel);const choice=node('select',undefined,modeLabel);choice.dataset.scoreField='keyMode';for(const[v,t]of[['preserve','曲の高さを保ってカポを変える'],['transpose','曲の高さを変える（移調）']]){const o=node('option',t,choice);o.value=v;}
    const explanation=node('p','',body);explanation.dataset.keyModeHelp='';
    const keyLabel=node('label',undefined,body);node('span','原曲キー（実音）',keyLabel);const key=node('select',undefined,keyLabel);key.dataset.scoreField='originalKey';for(const name of ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B']){const o=node('option',name,key);o.value=name;}if(![...key.options].some(o=>o.value===project.songInfo.originalKey)){const o=node('option',project.songInfo.originalKey,key);o.value=project.songInfo.originalKey;}key.value=project.songInfo.originalKey;
    const capo=input('カポ',project.instrument.capo,'capo','number');capo.min='0';capo.max='11';
@@ -46,7 +46,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    let shapeShift=0;
    function nameAt(name,shift){const value=C.theory.transposeNote(name,shift);return shift%12===0?name:([...key.options].find(o=>C.theory.keyToSemitone(o.value)===C.theory.keyToSemitone(value))?.value||value);}
    function draft(){const n=capo.value.trim()?Number(capo.value):NaN;if(!Number.isInteger(n)||n<0||n>11)return null;const shift=choice.value==='transpose'?shapeShift+n-project.instrument.capo:0;return {capo:n,shift,originalKey:choice.value==='transpose'?nameAt(project.songInfo.originalKey,shift):project.songInfo.originalKey,playKey:nameAt(view.songInfo.playKey,project.instrument.capo-n+shift)};}
-   function update(){const next=draft();key.disabled=choice.value!=='transpose';explanation.textContent=choice.value==='transpose'?'カポを上げると曲全体の音も上がり、Playキーは変わりません。':'曲の音の高さは変えず、カポに合わせてPlayキーを変えます。';if(next)key.value=next.originalKey;for(const name of Object.keys(cells))cells[name].textContent=next?next[name]:'—';apply.disabled=!next;}
+   function update(){const next=draft();key.disabled=choice.value!=='transpose';explanation.textContent=choice.value==='transpose'?'歌いやすい高さにするには、原曲キーを選びます。カポだけを動かすと、押さえるコードは同じまま曲の高さが変わります。':'カポの位置を選ぶと、同じ高さで演奏するためのPlayキー（押さえるコードのキー）が決まります。';if(next)key.value=next.originalKey;for(const name of Object.keys(cells))cells[name].textContent=next?next[name]:'—';apply.disabled=!next;}
    choice.addEventListener('change',update);capo.addEventListener('input',update);key.addEventListener('change',()=>{const n=Number(capo.value),oldPc=C.theory.keyToSemitone(project.songInfo.originalKey),newPc=C.theory.keyToSemitone(key.value);if(Number.isInteger(n)&&n>=0&&n<=11)shapeShift=((newPc-oldPc+18)%12)-6-(n-project.instrument.capo);update();});update();
    collect=()=>{const next=draft();if(!next)throw Error('カポは0〜11で指定してください');return {kind:'instrument',args:{mode:choice.value,originalKey:next.originalKey,capo:next.capo,...(choice.value==='transpose'?{transposeSemitones:next.shift}:{}),...(maximum.value.trim()?{maxAbsoluteFret:Number(maximum.value)}:{}),rebuildForms:true}};};
   }else if(mode==='chordPreset'||mode==='strumPreset'){
@@ -177,6 +177,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     playKey.selectedIndex=capo;
    }
    updatePlayKeys();
+   button('移調・カポの変更前後を確認',()=>commit('instrument'),form).className='sc-key-link';
    original.addEventListener('input',updatePlayKeys);
    playKey.addEventListener('input',()=>{capo=playKey.selectedIndex;});
    const keyChange=()=>original.value!==project.songInfo.originalKey||capo!==project.instrument.capo?
@@ -202,7 +203,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   let applyWasDisabled=false;current.addEventListener('compositionstart',()=>{composing=true;applyWasDisabled=apply.disabled;apply.disabled=true;});current.addEventListener('compositionend',e=>{composing=false;apply.disabled=applyWasDisabled;if(mode==='chordPreset')e.target.dispatchEvent(new Event('input',{bubbles:true}));});
   current.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing||composing)return;if(e.key==='Escape'){e.preventDefault();current.close();}else if(e.key==='Enter'&&!args.newSong&&mode!=='chordPreset'&&mode!=='strumPreset'&&e.target.matches('input:not([type=checkbox])')){e.preventDefault();commit();}});
   current.addEventListener('close',()=>{if(parked){parked.parent.insertBefore(parked.node,parked.next?.parentNode===parked.parent?parked.next:null);parked=null;}if(dialog===current)dialog=null;current.remove();closed();if(previous?.isConnected)previous.focus({preventScroll:true});if(!navigating&&args.parentCard&&getSession()===owner)open('settings',args.parentCard);});
-  doc.getElementById('screen-sheet-cruise').appendChild(current);bindOutsideDismiss(current,{close,canClose:()=>!applying});current.showModal();mountPreview?.();const initial=current.querySelector('[data-preview-play="score"]')||current.querySelector('input:not([type=checkbox]),select');initial?.focus({preventScroll:true});if(args.selectTitle&&initial?.dataset.scoreField==='title')initial.select();
+  doc.getElementById('screen-sheet-cruise').appendChild(current);bindOutsideDismiss(current,{close,canClose:()=>!applying});current.showModal();mountPreview?.();const initial=current.querySelector('[data-preview-play="score"]')||(mode==='settings'&&current.querySelector('[data-score-field="'+args.field+'"]'))||current.querySelector('input:not([type=checkbox]),select');initial?.focus({preventScroll:true});if(args.selectTitle&&initial?.dataset.scoreField==='title')initial.select();
  }
  return {open,close,get isOpen(){return !!dialog?.open&&!applying;}};
 }
