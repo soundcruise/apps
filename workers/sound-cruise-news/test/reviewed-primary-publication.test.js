@@ -48,7 +48,7 @@ test('three preserved hints reach two primary articles through explicit human co
   assert.equal((await assessAutomatic(s,row,SOURCES,now,pepper)).eligible,false);
  }
  assert.deepEqual(await snapshot(),before);
- for(const item of (await hints(s)).items){assert(!item.humanEntry);assert.equal(item.primaryReview.existingCandidate.status,'approved');}
+ for(const item of (await hints(s)).items){assert(!item.humanEntry);assert.equal(item.primaryReview.existingCandidate.status,'approved');assert.equal(item.webReview.reason,'primary_already_decided');assert.equal(item.webReview.queue,'low');}
 });
 test('a changed discovery headline or blocked primary cannot offer the reviewed form from a secondary card',async()=>{
  const s=await store(),r=inputs.find(r=>r.url.includes('computermusic.jp'));

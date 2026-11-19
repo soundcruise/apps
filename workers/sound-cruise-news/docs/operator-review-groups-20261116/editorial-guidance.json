@@ -36,6 +36,7 @@
   },
   {
     "url": "https://www.deviser.co.jp/information/626551",
+    "relevanceOnly": true,
     "reason": "限定モデルの先行紹介ですがエレキギター・ベース中心です。アコギ弾き語りへの関連性を判断してください。",
     "reference": "docs/news-home-20261111/ACCEPTANCE.md"
   },
