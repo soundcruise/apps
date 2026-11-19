@@ -81,7 +81,7 @@ test('rerender closes the modal; normal external cards retain their original anc
 test('both editions load the scoped stylesheet and updated boot modules without changing main CSS',()=>{
  for(const path of ['index.html','pro_9a3943176561/index.html']){
   const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/news-members-video\.css\?v=1\.36\.0/);
-  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.36\.0/);
+  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.36\.1/);
  }
  const source=readFileSync(new URL('news-members-video.js',import.meta.url),'utf8');assert.doesNotMatch(source,/innerHTML|insertAdjacentHTML|\bfetch\(|localStorage|indexedDB/);
 });
@@ -101,11 +101,12 @@ test('official zero slot wins only within its JST day, even against a later norm
  assert.deepEqual(sorted.map(n=>n.id),['tomorrow',notice.id,'same-day','second']);
  assert.equal(sorted.find(n=>n.id==='same-day').hot,false);assert.equal(sorted.find(n=>n.id==='second').displayOrder,1);
  assert.deepEqual([sameDay,other,tomorrow],before);
- // The home ticker continues its existing publication-timestamp order.
- assert.deepEqual(tickerNews(sorted,at).map(n=>n.id),['tomorrow','same-day','second',notice.id]);
+ // The home follows the list, including the official same-day slot.
+ assert.deepEqual(tickerNews(sorted,at).map(n=>n.id),['tomorrow',notice.id,'same-day','second']);
  const doc=documentFixture();renderNews({documentObject:doc,items:[sameDay,notice],mode:'on',now:at,clock:()=>at});
  const cards=doc.ids['news-content'].all().filter(n=>n.className==='news-card');
  assert.equal(cards[0].tagName,'button');
+ assert.equal(doc.ids['news-ticker'].all().find(n=>n.className==='news-ticker-track').children[0].textContent,'🔥 '+notice.label);
  assert.deepEqual(cards[0].all().filter(n=>n.className==='news-hot').map(n=>n.textContent),['🔥 ホット']);
  assert.equal(cards[1].all().filter(n=>n.className==='news-hot').length,0);
 });
