@@ -168,6 +168,29 @@ body {
     gap: 8px;
 }
 
+.port-home-refresh {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--port-muted);
+    font: 20px/1 system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.port-home-refresh:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+}
+
+.port-home-refresh:active {
+    color: var(--port-text);
+}
+
 .port-settings-button,
 .port-calendar-button {
     min-height: 44px;
@@ -6312,6 +6335,16 @@ body.metronome-preset-open {
     .practice-calendar-heading button:hover {
         border-color: rgba(var(--port-accent-soft-rgb), 0.34);
         background: rgba(var(--port-accent-rgb), 0.08);
+    }
+}
+
+@media (max-width: 519px) {
+    .port-header-actions {
+        top: calc(max(12px, env(safe-area-inset-top)) + 6px);
+    }
+
+    .port-header {
+        margin-bottom: 20px;
     }
 }
 
