@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSyncCenterController, normalizeSyncCenterSummary } from './sync-center-controller.js';
-import { describeAppSyncDetail, shortTargetIds } from './sync-center-device-detail.js';
+import { describeAppSyncDetail, shortTargetIds, SYNC_DETAIL_COPY, canOpenReportedApp } from './sync-center-device-detail.js';
 import { renderAppRows } from './sync-center-ui.js';
 import { createPortSyncStatus } from './port-sync-status.js';
 
@@ -72,12 +72,20 @@ function renderChord(presentation, handlers = {}) {
 }
 
 function assertNoLaunch(d, row) {
+  const panel = row.children.find(node => node.className === 'sync-center-app-info');
+  for (const node of d.walk(panel)) {
+    assert.equal(Boolean(node.dataset.syncResolveApp), false, 'a target detail cannot launch a specific environment');
+    if (node.tagName === 'button') assert.doesNotMatch(node.textContent, /アプリを開く/);
+  }
   for (const node of d.walk(row)) {
-    assert.doesNotMatch(node.textContent, /を開く$|この端末で開く|アプリを開く/, 'no launch CTA');
+    if (node.tagName === 'button' && /アプリを開く/.test(node.textContent)) {
+      assert.equal(node.textContent, 'アプリを開く');
+      assert.equal(node.dataset.syncResolveApp, 'chord', 'only the explicit app-wide link may launch');
+    }
     assert.equal(node.tagName === 'a' && /cruise/i.test(node.href || ''), false, 'no app link');
   }
   const buttons = d.walk(row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-  for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['解決方法を確認', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
+  for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['アプリを開く', '同期先を確認', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
 }
 
 test('1: all targets clean — simple row, ⓘ lists each target with 前回の完了報告あり', () => {
@@ -96,8 +104,8 @@ test('1: all targets clean — simple row, ⓘ lists each target with 前回の�
   assert.match(text, /クラウド\nクラウド上の同期データは利用できます/);
   assert.match(text, /同期先/);
   assert.equal((text.match(/前回の完了報告あり/g) || []).length, 2);
-  assert.match(text, /最終報告 \d{1,2}\/\d{1,2} \d{2}:\d{2}・追加 \d{1,2}\/\d{1,2} \d{2}:\d{2}/);
-  assert.doesNotMatch(text, /最終利用/, 'lastSeenAt is never presented as a report time');
+  assert.match(text, /最終報告 \d{1,2}\/\d{1,2} \d{2}:\d{2}\n追加 \d{1,2}\/\d{1,2} \d{2}:\d{2}/);
+  assert.match(text, /最終利用/); // Last activity and last report have separate labels.
   assert.doesNotMatch(text, /全端末同期済み|すべて最新|問題ありません/);
   d.toggle.click();
   assert.equal(d.panel.hidden, true);
@@ -107,7 +115,7 @@ test('2/5: pending and never-reported targets stay neutral and are not called er
   const presentation = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, pending()),
     target('chord', 'c0ffee00-0000-4000-8000-000000000003', null)], { removalSafety: 'unknown' });
   const d = renderChord(presentation);
-  assert.equal(d.chip.textContent, '✓ 同期済み');
+  assert.equal(d.chip.textContent, '同期中');
   const text = d.text(d.panel);
   assert.match(text, /最新の完了報告は未確認/);
   assert.match(text, /完了報告はまだ確認できていません/);
@@ -125,7 +133,7 @@ test('3: one attention target raises 確認が必要 and names its reported item
   assert.equal(detail.targets[1].stateText, '前回の同期報告に確認事項があります');
   assert.equal(detail.targets[1].countText, '確認する内容 3件');
   assert.equal(detail.targets[1].mark, '!');
-  assert.equal(detail.notice, null);
+  assert.equal(detail.notice, SYNC_DETAIL_COPY.openScope);
 });
 
 test('4: one error target is reported as a past report, not as sync currently stopped', () => {
@@ -152,19 +160,19 @@ test('6: several non-clean targets are all listed; no single culprit is assumed'
   assert.match(detail.guidance[2], /登録名「Mac Safari」/);
 });
 
-test('7: Android pending + iPhone clean stays ✓ 同期済み and guides by registered name only', () => {
+test('7: Android pending + iPhone clean shows 同期中 and guides by registered name only', () => {
   const presentation = chordPresentation([
     target('chord', IPHONE, clean(), { label: 'iPhone Safari', isCurrent: true }),
     target('chord', ANDROID, pending(), { label: 'Android Chrome' })
   ], { removalSafety: 'unknown' });
   const d = renderChord(presentation, { onRecheck: () => {} });
-  assert.equal(d.chip.textContent, '✓ 同期済み');
+  assert.equal(d.chip.textContent, '同期中');
   assert.notEqual(d.chip.textContent, '確認が必要');
   const text = d.text(d.panel);
-  assert.match(text, /✓\n+登録名「iPhone Safari」\n前回の完了報告あり/);
-  assert.match(text, /○\n+登録名「Android Chrome」\n最新の完了報告は未確認/);
+  assert.match(text, /登録名「iPhone Safari」[\s\S]*?前回の完了報告あり/);
+  assert.match(text, /登録名「Android Chrome」[\s\S]*?最新の完了報告は未確認/);
   assert.match(text, /登録名「Android Chrome」のコードクルーズを開くと、最新の状態を確認できます。/);
-  assert.match(text, /このCruise Portから接続/);
+  assert.equal(text.split('このCruise Portから接続').length - 1, 1);
   assertNoLaunch(d, d.row);
 });
 
@@ -180,6 +188,31 @@ test('8: Android attention + iPhone clean is 確認が必要 with the attention 
   assert.equal(detail.targets[1].state, 'attention');
   assert.deepEqual([...detail.guidance], ['登録名「Android Chrome」のコードクルーズを開き、同期画面で内容を確認してください。']);
   assertNoLaunch(d, d.row);
+});
+
+test('reported app opening requires all problem reports to belong to one unambiguous current target', () => {
+  const current = target('chord', IPHONE, attention(1), {isCurrent:true});
+  const remoteClean = target('chord', ANDROID, clean());
+  const make = targets => chordPresentation(targets, {removalSafety:'attention',attentionConflictCount:1});
+  const allowed = make([current,remoteClean]);
+  assert.equal(canOpenReportedApp(chord(allowed),allowed),true);
+  const cases = [
+    [{...current,isCurrent:false},{...remoteClean,isCurrent:true}], // other target's clean is not evidence
+    [current,{...remoteClean,lastReport:error()}], // one current problem plus a different problem
+    [current,{...remoteClean,isCurrent:true}], // ambiguous current binding
+    [{...current,isCurrent:undefined},remoteClean],
+    [{...current,id:null},remoteClean],
+    [{...current,lastReport:{...attention(1),reportedAt:null}},remoteClean],
+    [current,{...remoteClean,lastReport:undefined}] // incomplete report response
+  ];
+  for (const targets of cases) {
+    const p = make(targets);
+    assert.equal(canOpenReportedApp(chord(p),p),false,JSON.stringify(targets));
+  }
+  for (const context of [{kind:'offline'},{kind:'error'},{devicesState:'unavailable'}]) {
+    assert.equal(canOpenReportedApp(chord(allowed),context),false);
+  }
+  assert.equal(canOpenReportedApp({...chord(allowed),snapshot:'mismatch'},allowed),false);
 });
 
 test('9/10: no app launch CTA in any state, even for the target connected from this Port', () => {
@@ -244,7 +277,7 @@ test('14: summary succeeds and devices fail — row keeps the summary status, �
   assert.equal(presentation.devicesState, 'unavailable');
   let rechecks = 0;
   const d = renderChord(presentation, { onRecheck: () => { rechecks += 1; } });
-  assert.equal(d.chip.textContent, '✓ 同期済み', 'a devices failure is never turned into 確認が必要');
+  assert.equal(d.chip.textContent, 'クラウド利用可', 'a devices failure is never turned into 確認が必要');
   const text = d.text(d.panel);
   assert.match(text, /クラウド上の同期データは利用できます/);
   assert.match(text, /同期先の詳細情報を取得できませんでした/);
@@ -353,7 +386,7 @@ test('aligned snapshots keep their meaning', () => {
   const unknown = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, pending()),
     target('chord', 'c0ffee00-0000-4000-8000-000000000003', null)], { removalSafety: 'unknown' });
   assert.equal(chord(unknown).snapshot, 'aligned');
-  assert.equal(chord(unknown).presentationStatus.label, '✓ 同期済み', 'pending/no report alone is not 確認が必要');
+  assert.equal(chord(unknown).presentationStatus.label, '同期中', 'pending/no report alone is not 確認が必要');
   const attentionAligned = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, error())],
     { removalSafety: 'attention' });
   assert.equal(chord(attentionAligned).snapshot, 'aligned');
@@ -361,7 +394,7 @@ test('aligned snapshots keep their meaning', () => {
   assert.equal(detailOf(attentionAligned).targets[1].state, 'error', 'agreeing snapshots show target detail');
   const noDevices = normalizeSyncCenterSummary(summary({ chord: { removalSafety: 'unknown' } }), null);
   assert.equal(chord(noDevices).snapshot, 'unverified', 'a devices failure is not a mismatch');
-  assert.equal(chord(noDevices).presentationStatus.label, '✓ 同期済み');
+  assert.equal(chord(noDevices).presentationStatus.label, 'クラウド利用可');
   const legacy = normalizeSyncCenterSummary(summary(), { devices: [], appDevices: [
     { id: IPHONE, appId: 'chord', label: 'x', createdAt: 1, lastSeenAt: 1, revokedAt: null, isCurrent: false }] });
   assert.equal(chord(legacy).snapshot, 'unverified', 'targets without report data cannot be compared');
@@ -410,7 +443,7 @@ test('old active targets that never reported are shown neutrally and nothing is 
 test('19: Safe-to-remove authority and label are unchanged by the neutral main status', () => {
   const presentation = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, pending())],
     { removalSafety: 'unknown' });
-  assert.equal(chord(presentation).presentationStatus.state, 'available');
+  assert.equal(chord(presentation).presentationStatus.state, 'syncing');
   assert.equal(chord(presentation).removalSafety, 'unknown');
   assert.equal(chord(presentation).removalSafetyLabel, '同期を確認してください');
   const safe = chordPresentation([target('chord', IPHONE, clean())]);
@@ -422,11 +455,22 @@ test('20/21: the detach action and Port own sync status are unchanged', () => {
   const presentation = chordPresentation([target('chord', IPHONE, pending())], { removalSafety: 'unknown' });
   const d = renderChord(presentation);
   const detach = d.row.children[2].children[0];
-  assert.equal(detach.textContent, '同期を解除');
-  assert.equal(detach.dataset.syncAppDetach, 'chord');
+  assert.equal(detach, undefined, 'problem rows cannot offer disconnect');
   assert.equal(createPortSyncStatus({ accountState: 'active', online: true,
     structured: { known: true, connected: true, migrationState: 'complete', datasetState: 'ready',
       runtimeState: 'ready', lastSyncAt: 1, pendingCount: 0, conflictCount: 0 },
     assets: { known: true, pendingCount: 0, running: false, error: false } }).label, '✓ 同期済み',
   'Port keeps its own structured status');
+});
+
+test('the target panel offers management only for an active Account with operations enabled', () => {
+  const model = chordPresentation([target('chord', IPHONE, clean())]);
+  for (const [enabled, accountState, expected] of [[false, 'active', 0], [true, 'deleting', 0], [true, 'active', 1]]) {
+    const d = dom();
+    renderAppRows(d.root, { ...model, accountState }, 'pro', enabled);
+    const nodes = d.walk(d.row('コードクルーズ'));
+    assert.equal(nodes.filter(n => n.dataset.syncAppEnvironmentRevoke === IPHONE).length, expected);
+    assert.equal(nodes.filter(n => n.dataset.syncTargetRename === 'app').length, expected);
+    assert.ok(nodes.some(n => n.textContent === '前回の完了報告あり'));
+  }
 });

@@ -2,7 +2,7 @@ import { portSyncStatusDetail, PORT_SYNC_STATUS_PRESENTATIONS } from './port-syn
 import { getCapabilities } from './cruise-port-capabilities.js?v=1.30.5';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation, ACCOUNT_RESTART_FAILURE_CODES } from './sync-center-controller.js?v=1.33.0';
-import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.33.0';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, canOpenReportedApp, describeAppSyncDetail } from './sync-center-device-detail.js?v=1.37.1';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
 
@@ -83,7 +83,7 @@ export function createRenameButton({ kind, id, appId = null, context, userLabel 
 
 // Target detail for one app row: the cloud state, then each sync target's own last report. Port can
 // only describe targets; it cannot open a specific one, so this panel offers no app launch.
-function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = false, aiSupport = false } = {}) {
+function createSyncInfoPanel(app, detail, { onRecheck = null, targetManagementEnabled = false, aiSupport = false } = {}) {
     const panel = document.createElement('div');
     panel.className = 'sync-center-app-info';
     panel.id = `sync-center-app-info-${app.id}`;
@@ -101,7 +101,7 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
         if (detail.notice) appendText(targets, 'p', 'sync-center-app-info-notice', detail.notice);
         if (detail.targets?.length) {
             const list = createEnvironmentDetails({ entry: app, portEnvironments: [],
-                renameEnabled, listId: `info-${app.id}` });
+                targetManagementEnabled, listId: `info-${app.id}` });
             list.hidden = false;
             targets.append(list);
         } else if (detail.emptyText) {
@@ -230,7 +230,7 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         if (appHasSyncDetail(app, presentation.kind)) {
             infoPanel = createSyncInfoPanel(app, describeAppSyncDetail(app, {
                 kind: presentation.kind, devicesState: presentation.devicesState
-            }), { onRecheck, aiSupport, renameEnabled: orchestrationEnabled && presentation.accountState === 'active' });
+            }), { onRecheck, aiSupport, targetManagementEnabled: orchestrationEnabled && presentation.accountState === 'active' });
             const toggle = targetsToggle = createSyncTargetsTab({ name: app.name,
                 count: appTargetCount(app, presentation.devicesState), panelId: infoPanel.id });
             toggle.addEventListener('click', (event) => {
@@ -304,7 +304,7 @@ export function describeTargetForConfirm(naming, context) {
     return `${name}（${detail.join('・')}）`;
 }
 
-function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, listId }) {
+function createEnvironmentDetails({ entry, portEnvironments, targetManagementEnabled, listId }) {
         const details = document.createElement('ul');
         details.className = 'sync-center-environments sync-center-environment-list';
         details.dataset.syncEnvironmentDetails = listId;
@@ -324,7 +324,7 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
                 appendText(copy, 'span', entry.id === 'port'
                     ? 'sync-center-environment-current sync-center-environment-current--account'
                     : 'sync-center-environment-current',
-                    entry.id === 'port' ? 'この端末' : 'このCruise Portから接続');
+                    entry.id === 'port' ? 'この端末' : SYNC_DETAIL_COPY.current);
             }
             if (naming.secondary) appendText(copy, 'small', '', naming.secondary);
             const metadata = document.createElement('small');
@@ -335,18 +335,18 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
             if (report) {
                 appendText(copy, 'small', 'sync-center-app-info-state', report.stateText);
                 if (report.countText) appendText(copy, 'small', 'sync-center-app-info-state', report.countText);
-                for (const text of report.meta) appendText(copy, 'small', 'sync-center-app-info-meta', text);
+                for (const text of report.meta) {
+                    if (text !== SYNC_DETAIL_COPY.current) appendText(copy, 'small', 'sync-center-app-info-meta', text);
+                }
             }
             item.append(copy);
-            if (environment.id && renameEnabled) {
+            if (environment.id && targetManagementEnabled) {
                 const rename = createRenameButton({ kind: entry.id === 'port' ? 'account' : 'app', id: environment.id,
                     appId: entry.id === 'port' ? null : entry.id, context: entry.name,
                     userLabel: naming.userLabel, registeredLabel: naming.registeredLabel,
                     shortId: naming.shortId, name: naming.name });
                 rename.dataset.syncTargetSurface = listId;
                 item.append(rename);
-            }
-            if (environment.id) {
                 const revoke = document.createElement('button');
                 revoke.type = 'button';
                 revoke.className = 'action-button secondary-action';
@@ -429,7 +429,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         if (entry.id === 'port') add.dataset.syncPortAddEnvironment = 'true';
         else add.dataset.syncAppAddEnvironment = entry.id;
         const details = createEnvironmentDetails({ entry, portEnvironments,
-            renameEnabled: orchestrationEnabled && activeAccount, listId: entry.id });
+            targetManagementEnabled: orchestrationEnabled && activeAccount, listId: entry.id });
         if (entry.id !== 'port' && orchestrationEnabled && activeAccount && entry.status !== 'deleting' &&
             Number(entry.activeAppDeviceCount || 0) > 0 && entry.environments.length) {
             const item = document.createElement('li');
@@ -451,7 +451,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         const count = createSyncTargetsTab({ name: entry.name, count: entry.environments.length,
             listId: 'port-account', disabled: entry.environments.length === 0 });
         const details = createEnvironmentDetails({ entry, portEnvironments,
-            renameEnabled: orchestrationEnabled && activeAccount, listId: 'port-account' });
+            targetManagementEnabled: orchestrationEnabled && activeAccount, listId: 'port-account' });
         accountTrigger.replaceChildren(count);
         accountTargets.replaceChildren(details);
     }

@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { PortDatasetRepository, PORT_DATASET_KEYS, PORT_DELETE_INTENTS } from '../port-dataset-repository.js';
 import { openIsolatedIDBRepositoryBackend } from '../port-indexeddb-repository-backend.mjs';
-import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.24.24';
+import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.30.5';
 import { values, control } from './authority-store/fixture.mjs';
 import { AUTHORITY_DB_VERSION, V1_STORE_KEYS } from '../port-idb-authority-contract.mjs';
-import { loadSettings, saveSettings } from '../settings-store.js';
+import { loadSettings, saveSettings, MIDNIGHT_STORAGE_KEY, MIDNIGHT_PENDING_KEY } from '../settings-store.js';
 import { loadMetronomeSettings, saveMetronomeSettings } from '../metronome-store.js';
 import { loadMetronomePresets, saveMetronomePresets } from '../metronome-presets-store.js';
 import { loadTunerSettings, saveTunerSettings } from '../tuner-store.js';
@@ -128,10 +128,37 @@ const adapters=[
  ['My Apps',s=>loadMyApps(s),(r,s)=>saveMyApps(r.items,s)]
 ];
 for(const [name,load,save] of adapters)test('real feature sync-read / async-write adapter: '+name,async t=>{
- const x=await setup(t),storage=Object.freeze({getItem(){throw Error('unhydrated raw read');}});registerPortRepository(storage,x.ra);
+ const x=await setup(t);
+ const storage=Object.freeze({getItem(key){
+   if(key===MIDNIGHT_STORAGE_KEY || key===MIDNIGHT_PENDING_KEY)return null;
+   throw Error('unhydrated raw read');
+ }});
+ registerPortRepository(storage,x.ra);
  const r=load(storage);assert.equal(r.ok,true,JSON.stringify(r));assert.equal(typeof r.then,'undefined');
  const pending=save(r,storage);assert.equal(typeof pending.then,'function');const out=await pending;assert.equal(out.ok,true,JSON.stringify(out));
  assert.equal(Object.keys(out.state.values).length,PORT_DATASET_KEYS.length);assert.equal(out.publish,false);
+});
+test('saving stale settings keeps the observed revision even after another tab changed display size',async t=>{
+ const {ra,rb,a}=await setup(t);
+ const storage={getItem(key){
+   assert.ok(key===MIDNIGHT_STORAGE_KEY || key===MIDNIGHT_PENDING_KEY);
+   return null;
+ }};
+ registerPortRepository(storage,ra);
+ const initial=loadSettings(storage);
+ assert.equal(initial.ok,true);
+ const key='cruisePort.settings';
+ const changed=await rb.runWrite({expectedValues:{[key]:rb.inspect().values[key]}},draft=>{
+   const settings=JSON.parse(draft.getItem(key));
+   draft.setItem(key,JSON.stringify({...settings,displaySize:'large'}));
+   return {ok:true};
+ });
+ assert.equal(changed.ok,true);
+ await a.hydrate();
+ const stale=await saveSettings({...initial.settings,fontSize:'large'},storage);
+ assert.equal(stale.ok,false);
+ assert.equal(stale.reason,'stale');
+ assert.equal(ra.inspect().values[key],changed.state.values[key]);
 });
 test('readPortStore before hydration exposes read-only reason rather than defaults as success',async t=>{
  const scope=createIsolatedIDBAuthorityScope({indexedDB:new IDBFactory(),partitionId:'fixture-partition'}),b=await openIsolatedIDBRepositoryBackend({scope,generation:'g1',channelFactory:()=>null});t.after(()=>b.dispose());

@@ -23,8 +23,10 @@ test('opening a regenerated merge preview does not fabricate a new issue identit
  const s={stage:'awaiting_confirmation',sessionId:'old',localSnapshot:{manifestHash:'l'},cloudSnapshot:{manifestHash:'r'},plan:{conflicts:[{recordKey:'folder/f',kind:'field',fields:['name']}]}};
  assert.equal(issueFingerprint([],s),issueFingerprint([],{...s,sessionId:'new'}));assert.notEqual(issueFingerprint([{conflictId:'one',baseRevision:1}]),issueFingerprint([{conflictId:'two',baseRevision:2}]));
 });
-test('overall count does not add the same membership report and target report twice or alter Port success',()=>{
- const p={kind:'ready',accountState:'active',portStatus:{state:'synced'},portConflictCount:0,apps:[{id:'chord',status:'synced',removalSafety:'attention',attentionCount:1,environments:[{id:'current',lastReport:{state:'attention',attentionCount:1}}]}]};const i=syncAttentionItems(p);assert.equal(i.reduce((n,x)=>n+x.count,0),1);assert.equal(p.portStatus.state,'synced');assert.equal(syncAttentionItems({...p,apps:[],portStatus:{state:'attention'},portConflictCount:2})[0].count,2);
+test('overall count lists apps, never a fabricated live conflict count or an extra target report',()=>{
+ const p={kind:'ready',accountState:'active',portStatus:{state:'synced'},portConflictCount:0,apps:[{id:'chord',status:'synced',removalSafety:'attention',attentionCount:1,environments:[{id:'current',lastReport:{state:'attention',attentionCount:1}}]}]};
+ assert.deepEqual(syncAttentionItems(p),[{id:'chord'}]);assert.equal(p.portStatus.state,'synced');
+ assert.deepEqual(syncAttentionItems({...p,portStatus:{state:'attention'},portConflictCount:2}),[{id:'port'},{id:'chord'}]);
 });
 test('unavailable/offline is not mislabeled as a four-app conflict',()=>{
  assert.deepEqual(syncAttentionItems({kind:'offline',accountState:'active',apps:[{id:'chord',status:'attention'}]}),[]);

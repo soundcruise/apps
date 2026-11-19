@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import {
-    DEFAULT_SETTINGS, DEFAULT_THEME, SETTINGS_SCHEMA_VERSION, SETTINGS_STORAGE_KEY, THEMES, THEME_META_COLORS,
+    DEFAULT_SETTINGS, DEFAULT_THEME, SETTINGS_SCHEMA_VERSION, SETTINGS_STORAGE_KEY, MIDNIGHT_PENDING_KEY, THEMES, THEME_META_COLORS,
     loadSettings, normalizeSettings, resolveTheme, saveSettings
 } from './settings-store.js';
 import { validateRecordPayload } from '../../workers/sound-cruise-sync/src/record-schema-registry.js';
@@ -84,7 +84,7 @@ function themeDeclarations(body) {
 
 function assertThemeStructure(source) {
     const regions = themeRegions(source), radii = [];
-    const scoped = /^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/;
+    const scoped = /^:root(?:\[data-theme="(?:midnight|charcoal|gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/;
     const allowed = /^(?:--port-[a-z0-9-]+|color|color-scheme|background|background-color|border-color|outline-color|box-shadow|filter|accent-color|border-radius)$/;
     for (const rule of regions.themed) {
         for (const selector of rule.selectors) assert.match(selector, scoped, selector);
@@ -96,12 +96,12 @@ function assertThemeStructure(source) {
     assert.deepEqual(radii, [{ selector: ':root:is([data-theme="gray"], [data-theme="light"]) #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon', value: '23%' }], 'only the themed tool icon tile may set border-radius');
     // Every general rule in this section is accounted for; none is silently
     // discarded to make the theme constraints pass.
-    assert.deepEqual(regions.general.map(rule => rule.selector), ['.news-hot'], 'general CSS after the theme marker is the NEWS badge');
+    assert.deepEqual(regions.general.map(rule => rule.selector), ['.news-hot', '.diagnostic-actions', '.diagnostic-actions .diagnostic-copy', '.diagnostic-advice', '.diagnostic-details', '.diagnostic-details summary', '.tuner-input-tools > .tuner-diagnostic'], 'general CSS after the theme marker is the NEWS badge');
     assert.deepEqual(Object.fromEntries(themeDeclarations(regions.general[0].body)), {
-        display: 'inline-flex', 'align-items': 'center', 'justify-self': 'start', gap: '4px',
+        display: 'inline-flex', 'align-items': 'center', 'align-self': 'flex-end', flex: 'none', 'white-space': 'nowrap', gap: '4px',
         'font-size': '12px', 'font-weight': '500', color: 'var(--accent,#d8bc76)',
         border: '1px solid color-mix(in srgb,var(--accent,#d8bc76) 45%,transparent)',
-        'border-radius': '5px', padding: '1px 6px', 'line-height': '1.5', 'grid-column': '1/-1'
+        'border-radius': '5px', padding: '1px 6px', 'line-height': '1.5'
     }, 'NEWS remains a complete general badge rule, independently of theme overrides');
     return regions;
 }
@@ -122,7 +122,7 @@ function storage(values = {}) {
 const v3 = (extra = {}) => JSON.stringify({ version: 3, displaySize: 'small', fontSize: 'large', sectionOrder: ['tools', 'cruiseApps', 'myApps'], ...extra });
 
 test('theme values, Dark default and the unchanged settings schema version', () => {
-    assert.deepEqual([...THEMES], ['dark', 'charcoal', 'gray', 'light']);
+    assert.deepEqual([...THEMES], ['dark', 'midnight', 'charcoal', 'gray', 'light']);
     assert.equal(DEFAULT_THEME, 'dark');
     assert.equal(SETTINGS_SCHEMA_VERSION, 3, 'the schema version must never move for the theme');
     assert.equal(Object.hasOwn(DEFAULT_SETTINGS, 'theme'), false, 'defaults never inject a theme into saved settings');
@@ -168,7 +168,7 @@ test('an explicit choice saves dark, gray and light and reloads as saved', () =>
         const saved = saveSettings({ ...loadSettings(store).settings, theme }, store);
         assert.equal(saved.ok, true);
         const stored = JSON.parse(store.value(SETTINGS_STORAGE_KEY));
-        assert.equal(stored.theme, theme);
+        assert.equal(stored.theme, theme === 'midnight' ? undefined : theme);
         assert.equal(stored.version, 3);
         assert.equal(stored.fontSize, 'large', 'other settings are kept');
         assert.equal(loadSettings(store).settings.theme, theme);
@@ -176,8 +176,8 @@ test('an explicit choice saves dark, gray and light and reloads as saved', () =>
 });
 
 test('reset returns the theme to Dark explicitly, within the existing display-settings reset', () => {
-    const handlers = app.slice(app.indexOf('function updateDisplaySettings(next)'), app.indexOf('elements.myAppsForm.addEventListener'));
-    assert.match(handlers, /updateDisplaySettings\(\{ \.\.\.DEFAULT_SETTINGS, theme: DEFAULT_THEME \}\)/);
+    const handlers = app.slice(app.indexOf('function updateDisplaySettings(next, options)'), app.indexOf('elements.myAppsForm.addEventListener'));
+    assert.match(handlers, /updateDisplaySettings\(\{ \.\.\.DEFAULT_SETTINGS, theme: DEFAULT_THEME \}, \{ themeChanged: true \}\)/);
     const store = storage({ [SETTINGS_STORAGE_KEY]: v3({ theme: 'light' }) });
     saveSettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME }, store);
     assert.equal(JSON.parse(store.value(SETTINGS_STORAGE_KEY)).theme, 'dark');
@@ -185,7 +185,7 @@ test('reset returns the theme to Dark explicitly, within the existing display-se
 
 test('only an explicit tap stores the theme and the choice applies without reload', () => {
     assert.match(app, /themeChoices: \[\.\.\.document\.querySelectorAll\('button\[data-theme-choice\]'\)\]/);
-    assert.match(app, /elements\.themeChoices\.forEach\(\(button\) => button\.addEventListener\('click', async \(\) => \{\n\s*\(await updateDisplaySettings\(\{ \.\.\.homeSettings, theme: button\.dataset\.themeChoice \}\)\);/);
+    assert.match(app, /elements\.themeChoices\.forEach\(\(button\) => button\.addEventListener\('click', async \(\) => \{\n\s*\(await updateDisplaySettings\(\{ \.\.\.homeSettings, theme: button\.dataset\.themeChoice \}, \{ themeChanged: true \}\)\);/);
     assert.match(app, /function applyColorTheme\(theme\) \{\n\s*document\.documentElement\.dataset\.theme = theme;\n\s*document\.querySelector\('meta\[name="theme-color"\]'\)\?\.setAttribute\('content', THEME_META_COLORS\[theme\]\);/);
     assert.match(app, /applyColorTheme\(resolveTheme\(homeSettings\.theme\)\);/);
     assert.doesNotMatch(app, /location\.reload\(\)[^\n]*theme|theme[^\n]*location\.reload/);
@@ -202,9 +202,10 @@ test('Settings UI: カラーテーマ radiogroup reuses the existing choices, ri
         const section = html.slice(theme, order);
         assert.match(section, /<h2 id="color-theme-title">カラーテーマ<\/h2>/);
         assert.match(section, /class="settings-choices" role="radiogroup" aria-label="カラーテーマ"/);
-        const buttons = [...section.matchAll(/<button type="button" class="settings-choice" data-theme-choice="([a-z]+)" role="radio" aria-checked="(true|false)">([^<]+)<\/button>/g)];
-        assert.deepEqual(buttons.map(([, value, , label]) => [value, label]), [['dark', 'ダーク'], ['charcoal', 'チャコール'], ['gray', 'グレー'], ['light', 'ライト']], name);
-        assert.deepEqual(buttons.map(([, , checked]) => checked), ['true', 'false', 'false', 'false'], `${name}: Dark is the initial state`);
+        assert.match(section, /aria-label="ミッドナイト"[^>]*><span aria-hidden="true">ミッド<br>ナイト<\/span>/);
+        const buttons = [...section.matchAll(/<button type="button" class="settings-choice" data-theme-choice="([a-z]+)" role="radio"(?: aria-label="[^"]+")? aria-checked="(true|false)">([\s\S]*?)<\/button>/g)];
+        assert.deepEqual(buttons.map(([, value, , label]) => [value, label.replace(/<[^>]+>/g, '')]), [['dark', 'ダーク'], ['midnight', 'ミッドナイト'], ['charcoal', 'チャコール'], ['gray', 'グレー'], ['light', 'ライト']], name);
+        assert.deepEqual(buttons.map(([, , checked]) => checked), ['true', 'false', 'false', 'false', 'false'], `${name}: Dark is the initial state`);
     }
 });
 
@@ -244,11 +245,11 @@ test('startup bootstrap applies the saved theme before the stylesheet, Dark for 
         }
         assert.equal(runBootstrap(html, {}, { throwOnRead: true }).theme, 'dark', `${name}: storage error → Dark`);
         assert.match(html, /<meta name="theme-color" content="#090806">/, `${name}: static meta is still the Dark color`);
-        assert.doesNotMatch(html.slice(bootstrap, html.indexOf('</script>', bootstrap)), /localStorage\.getItem\('(?!cruisePort\.settings')/);
+        assert.doesNotMatch(html.slice(bootstrap, html.indexOf('</script>', bootstrap)), /localStorage\.getItem\('(?!cruisePort\.(?:settings|midnightTheme(?:\.pending)?\.v1)')/);
     }
     assert.equal(entries[0][1].match(/<script>\s*\/\/ Port color theme[\s\S]*?<\/script>/)[0],
         entries[1][1].match(/<script>\s*\/\/ Port color theme[\s\S]*?<\/script>/)[0], 'Standard and Pro share one bootstrap');
-    assert.deepEqual({ ...THEME_META_COLORS }, { dark: '#090806', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' });
+    assert.deepEqual({ ...THEME_META_COLORS }, { dark: '#090806', midnight: '#10151c', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' });
 });
 
 test('Cloud Sync carries the theme inside settings/global without any Worker or adapter change', async () => {
@@ -284,7 +285,7 @@ test('the theme is Port-only: other Cruise app settings are never read or writte
     };
     const store = storage({ ...others, [SETTINGS_STORAGE_KEY]: v3() });
     saveSettings({ ...loadSettings(store).settings, theme: 'gray' }, store);
-    assert.deepEqual(store.writes, [SETTINGS_STORAGE_KEY]);
+    assert.deepEqual(store.writes, [MIDNIGHT_PENDING_KEY, SETTINGS_STORAGE_KEY]);
     for (const [key, value] of Object.entries(others)) assert.equal(store.value(key), value, key);
     for (const source of [app, read('./settings-store.js'), css, ...entries.map(([, html]) => html)]) {
         assert.doesNotMatch(source, /globalTheme|soundCruise\.theme|prefers-color-scheme/);
@@ -320,14 +321,10 @@ const ruleBody = (selector) => {
 };
 const declarations = (body) => Object.fromEntries([...body.matchAll(/([a-z-]+|--port-[a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
 
-test('Dark CSS is byte-identical to the 1.12.0 production Dark apart from explicit theme-button and NEWS-label rules', () => {
+test('Dark layout retains the published Port 1.37.0 baseline, including wrapped theme choices', () => {
     const dark = css.slice(0, css.indexOf(THEME_SECTION_MARKER));
-    const rule = /\/\* カラーテーマ: four labels[\s\S]*?\n\}\n\n/;
-    const added = dark.match(rule)[0];
-    assert.match(added, /^\/\*[^\n]*\*\/\n\.settings-choices\[aria-label="カラーテーマ"\] \.settings-choice \{\n    font-size: calc\(0\.8rem \* var\(--font-scale\)\);\n    letter-spacing: 0;\n    white-space: nowrap;\n\}\n\n$/, 'only the new theme buttons get a one-line label');
-    const newsLabelRules = '.news-heading { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }\n.news-heading .view-title { flex: none; white-space: nowrap; }\n.news-test-label { flex: none; color: rgb(var(--port-accent-rgb)); font-size: calc(0.8125rem * var(--font-scale)); font-weight: 500; line-height: 1.5; white-space: nowrap; padding: 2px 7px; border: 1px solid rgba(var(--port-accent-line-rgb), 0.45); border-radius: 4px; background: transparent; box-shadow: none; }\n';
-    assert.ok(dark.includes(newsLabelRules));
-    assert.equal(createHash('sha256').update(dark.replace(rule, '').replace(newsLabelRules, '')).digest('hex'), '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360');
+    assert.match(dark, /\.settings-choices\[aria-label="カラーテーマ"\] \.settings-choice \{[^}]*white-space: normal;[^}]*overflow-wrap: anywhere;/);
+    assert.equal(createHash('sha256').update(dark).digest('hex'), '713fb317159021b4f1439e3cda4a909ec1d197c49a38efbb98e87df7af39d92b');
 });
 
 test('Gray/Light rules only change colors: no sizing, spacing or layout property is themed', () => {
@@ -352,7 +349,7 @@ for (const [name, source, reason] of [
     ['extra themed radius', css + '\n:root[data-theme="light"] .probe { border-radius: 5px; }', /themed tool icon/],
     ['unaccounted general layout rule', css + '\n.probe { width: 1px; }', /general CSS/],
     ['missing general NEWS rule', css.replace(/\.news-hot\{[^}]+\}/, ''), /general CSS/],
-    ['changed NEWS layout', css.replace('justify-self:start;gap:4px;', 'justify-self:start;gap:40px;'), /NEWS remains/]
+    ['changed NEWS layout', css.replace('white-space:nowrap;gap:4px;', 'white-space:nowrap;gap:40px;'), /NEWS remains/]
 ]) test(`theme structural guard rejects ${name}`, () => {
     assert.throws(() => assertThemeStructure(source), reason);
 });

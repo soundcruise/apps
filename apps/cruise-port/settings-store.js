@@ -1,4 +1,4 @@
-import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.30.5';
+import { usesPortRepository, portRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.30.5';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 export const SETTINGS_STORAGE_KEY = 'cruisePort.settings';
 // Port-only local overlay. Not a dataset key, backup record, or Cloud Sync field.
@@ -149,7 +149,9 @@ export function saveSettings(settings, storage, { themeChanged = false } = {}) {
         assertStorageUnchanged(storage, [MIDNIGHT_STORAGE_KEY, MIDNIGHT_PENDING_KEY]);
         const overlayRaw = storage.getItem(MIDNIGHT_STORAGE_KEY);
         const pendingRaw = storage.getItem(MIDNIGHT_PENDING_KEY);
-        const base = loadBaseSettings({ getItem: key => storage.getItem(key) });
+        // Inspect without advancing the caller's observed revision for the subsequent CAS.
+        const values = usesPortRepository(storage) ? portRepository(storage).inspect().values : null;
+        const base = loadBaseSettings({ getItem: key => values ? values[key] ?? null : storage.getItem(key) });
         if (!base.ok) return { ok: false, settings: requested };
         const before = applyPendingTheme(applyMidnightOverlay(base, overlayRaw), base, pendingRaw);
         const active = before.settings.theme === 'midnight';
