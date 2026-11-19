@@ -63,9 +63,10 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   const form=await p.locator('.sc-song-workspace aside').boundingBox(),preview=await p.locator('.sc-song-workspace .sc-song-preview').boundingBox();
   assert(form.x+form.width<=preview.x);
-  const tools=p.getByRole('group',{name:'譜面の編集',exact:true});
+  const tools=p.getByRole('group',{name:'譜面の全体編集',exact:true});
   assert.deepEqual(await tools.getByRole('button').allTextContents(),['セクション編集','コード一括入力','ストローク一括入力']);
-  assert((await tools.boundingBox()).y>=Math.max(form.y+form.height,preview.y+preview.height)-1);
+  const box=await tools.boundingBox();assert(box.x>=form.x && box.x+box.width<=form.x+form.width+1);
+  assert.equal(await tools.locator('p').count(),0);
   assert.equal(await p.locator('.sc-key-entry').count(),0);
   await tools.getByRole('button',{name:'セクション編集',exact:true}).click();
   const paper=p.locator('.sc-section-preview');
@@ -74,6 +75,12 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    await p.waitForFunction(()=>{const el=document.querySelector('.sc-section-preview');return el.scrollWidth<=el.clientWidth+1;});
   }
   await p.setViewportSize({width:1440,height:1000});await p.click('[data-score-cancel]');
+  const lastSection=p.locator('.sc-song-preview .sheet-section-label button').last();
+  const selectedName=await lastSection.innerText();
+  await lastSection.press('Enter');
+  assert.equal(await p.locator('.sc-section-workspace aside').getByLabel('セクション名',{exact:true}).inputValue(),selectedName);
+  assert(await paper.evaluate(e=>e.scrollTop>0));
+  await p.click('[data-score-cancel]');
   await p.getByRole('button',{name:'コード一括入力',exact:true}).click();
   const bars=p.locator('.sc-preset-paper .sheet-bar[data-bar-number]');
   const a=await bars.first().boundingBox(),b=await bars.nth(2).boundingBox();

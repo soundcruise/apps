@@ -32,7 +32,14 @@ for(const engine of ['chrome','webkit'])test('five score editing features: '+eng
   await p.evaluate(()=>{const C=CruiseStudio,p=C.sheetCruise.getSession().workingSnapshot();C.localPaperLayout.setLine(p,p.bars[0].id,4,2);});await p.locator('.sheet-line').first().locator('[data-editable-empty]').first().click();await p.click('#sc-paste-bar');assert.equal((await snap(p)).bars.length,before.bars.length+2);assert.deepEqual((await snap(p)).bars[4],before.bars[2]);assert.equal(await p.locator('.sheet-line').first().locator('[data-bar-number]').count(),4);await undo(p);assert.deepEqual(await snap(p),before);
  }));
  await t.test('direct score metadata uses staged edits, Enter/Escape and leaves form enlargement intact',()=>fresh(async p=>{
-  const before=await snap(p);for(const[field,value]of[['title','直接曲名'],['artist','直接作者'],['bpm','120'],['section','前奏']]){const cell=p.locator('#sc-sheet-scale-box [data-paper-edit='+field+']').first();await cell.click();const input=p.locator('[data-score-field='+field+']');await input.fill(value);assert.deepEqual(await snap(p),before);await p.keyboard.press('Escape');assert.deepEqual(await snap(p),before);await cell.click();await p.locator('[data-score-field='+field+']').fill(value);await p.keyboard.press('Enter');await p.locator('[data-score-dialog]').waitFor({state:'detached'});assert.equal(field==='section'?(await snap(p)).sections[0].name:String((await snap(p)).songInfo[field]),value);await undo(p);assert.deepEqual(await snap(p),before);}
+  const before=await snap(p);for(const[field,value]of[['title','直接曲名'],['artist','直接作者'],['bpm','120']]){const cell=p.locator('#sc-sheet-scale-box [data-paper-edit='+field+']').first();await cell.click();const input=p.locator('[data-score-field='+field+']');await input.fill(value);assert.deepEqual(await snap(p),before);await p.keyboard.press('Escape');assert.deepEqual(await snap(p),before);await cell.click();await p.locator('[data-score-field='+field+']').fill(value);await p.keyboard.press('Enter');await p.locator('[data-score-dialog]').waitFor({state:'detached'});assert.equal(field==='section'?(await snap(p)).sections[0].name:String((await snap(p)).songInfo[field]),value);await undo(p);assert.deepEqual(await snap(p),before);}
+  const heading=p.locator('#sc-sheet-scale-box [data-paper-edit=section]').nth(1);
+  await heading.click();
+  const name=p.locator('.sc-section-workspace aside').getByLabel('セクション名',{exact:true});
+  assert.equal(await name.inputValue(),await heading.textContent());
+  await name.fill('前奏');await p.click('[data-score-apply]');
+  await p.locator('[data-score-dialog]').waitFor({state:'detached'});assert.equal(await heading.textContent(),'前奏');
+  await undo(p);assert.deepEqual(await snap(p),before);
   await p.locator('#sc-sheet-scale-box [data-paper-edit=timeSignature]').click();
   const settings=p.locator('[data-score-dialog=settings]');
   assert.equal(await settings.locator(':focus').getAttribute('data-score-field'),'timeSignature');

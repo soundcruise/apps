@@ -369,7 +369,7 @@
 
 
             var slots=canonical&&CS().structureOperations?.scoreSlots?CS().structureOperations.scoreSlots(canonical,sec.id):bars.map(function(b){return {id:'bar-'+b.barNumber,barNumber:b.barNumber,sectionId:sec.id};});
-            var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.dataset.paperEdit='section';label.tabIndex=0;label.setAttribute('role','button');label.title='セクション名を編集';
+            var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.dataset.paperEdit='section';label.tabIndex=0;label.setAttribute('role','button');label.title='セクション編集を開く';
             var sectionHead=heads.get(sec.id)||el('div','sheet-section-heading');if(!heads.has(sec.id))sectionHead.appendChild(label);if(!readOnly&&options?.editableSlots&&!heads.has(sec.id)){var play=el('button','sheet-section-play','▶ ここから');play.type='button';play.dataset.playSection=sec.id;play.setAttribute('aria-label',sec.name+'から再生');sectionHead.appendChild(play);}page.appendChild(sectionHead);
             var hasVocal=show.lyrics||show.doremi,hasForms=!!options?.formsForBar;
             var cols=[1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms?show.barsPerLine:show.barsPerLine*2;

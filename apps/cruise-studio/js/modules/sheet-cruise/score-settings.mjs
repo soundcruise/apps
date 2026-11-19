@@ -16,11 +16,11 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   function input(label,value,key,type='text',parent=body){const wrap=node('label',undefined,parent);node('span',label,wrap);const field=node(type==='textarea'?'textarea':'input',undefined,wrap);if(type!=='textarea')field.type=type;field.value=value;field.dataset.scoreField=key;return field;}
   function button(text,fn,parent=body){const b=node('button',text,parent);b.type='button';b.addEventListener('click',fn);return b;}
   function navigate(next){navigating=true;current.addEventListener('close',()=>open(next,{parentCard:args.parentCard}),{once:true});current.close();}
-  function commit(next){
+  function commit(next,sectionId){
    if(composing)return;const now=getSession();if(now!==owner||!C.structureOperations.isCurrent(frame,now)){status.textContent='編集対象が変わりました。入力を保持しています。開き直してください。';return;}
    try{const request=collect();if(!request)return;applying=true;let result;try{if(!canEdit())throw Error('入力・保存・競合の状態を確認してください');result=execute(request.kind,request.args,frame);}finally{applying=false;}
     if(!result.ok){status.textContent=result.error||'変更を適用できませんでした';return;}request.onApplied?.();
-    if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,field:args.field==='instrument'?undefined:args.field,selectTitle:false},barIds:args.barIds}),{once:true});
+    if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,field:args.field==='instrument'?undefined:args.field,selectTitle:false},barIds:args.barIds,sectionId}),{once:true});
     current.close();changed({mode,previous:project,slot:args.slot});
    }catch(e){applying=false;status.textContent=e.message;}
   }
@@ -61,7 +61,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const panel=doc.getElementById('studio-rhythm-panel');if(panel){parked={node:panel,parent:panel.parentNode,next:panel.nextSibling};body.appendChild(panel);}dismiss.textContent='閉じる';apply.hidden=true;
   }else if(mode==='sections'){
    let rows=project.sections.map(s=>({...s,count:project.bars.filter(b=>b.sectionId===s.id).length,isNew:false}));const list=node('div',undefined,body);list.className='sc-song-section-list';
-   let selected=rows[0].id,clipboard=null,dragged=null;
+   let selected=rows.find(row=>row.id===args.sectionId)?.id??rows[0].id,clipboard=null,dragged=null;
    const flow=node('nav',undefined,body);flow.className='sc-section-flow';flow.setAttribute('aria-label','セクションの流れ');
    const aside=node('aside',undefined,body);aside.append(list);
    body.className='sc-section-workspace';
@@ -78,13 +78,16 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    }
    const resize=new ResizeObserver(fitSectionPaper);resize.observe(paper);
    current.addEventListener('close',()=>resize.disconnect(),{once:true});
+   function scrollToSelected(behavior){
+      const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(el=>el.dataset.sectionId===selected);
+      if(heading)paper.scrollBy({top:heading.getBoundingClientRect().top-paper.getBoundingClientRect().top-8,behavior});
+   }
    function preview(){
     try{
      flow.replaceChildren();
      function selectSection(id){
       const from=paper.scrollTop;selected=id;paint();paper.scrollTop=from;
-      const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(el=>el.dataset.sectionId===selected);
-      if(heading)paper.scrollBy({top:heading.getBoundingClientRect().top-paper.getBoundingClientRect().top-8,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+      scrollToSelected(matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth');
       flow.querySelector('[aria-pressed=true]')?.focus({preventScroll:true});
      }
      rows.forEach((row,i)=>{
@@ -148,7 +151,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},aside);remove.className='sc-section-delete';remove.disabled=rows.length===1;
     preview();
    }
-   mountPreview=paint;
+   mountPreview=()=>{paint();if(args.sectionId)scrollToSelected('instant');};
    collect=()=>({kind:'songInfo',args:{values:{},sections:rows}});
   }else{
    body.className='sc-song-workspace';
@@ -192,14 +195,18 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
      if(keyChange()){C.structureOperations.applyInstrument(draft,keyChange(),C.model.schema2,C.localChordForms?.reconcile);C.localChordForms?.reconcile(draft,project);}
      Object.assign(draft.songInfo,{title:values.title,artist:values.artist,bpm:values.bpm||project.songInfo.bpm});
      C.sheetRenderer.render(draft,paper,{...previewPaperOptions(draft),readOnly:true,editableSlots:false});
+     for(const heading of paper.querySelectorAll('.sheet-section-label[data-section-id]')){
+      const name=heading.textContent;
+      heading.replaceChildren();
+      button(name,()=>commit('sections',heading.dataset.sectionId),heading).title='セクション編集を開く';
+     }
      C.localPaperLayout?.apply(paper);
      status.textContent='';
     }catch(err){status.textContent=err.message;}
    };
    form.addEventListener('input',preview);mountPreview=preview;
-   const tools=node('fieldset',undefined,body);tools.className='sc-song-tools';
-   node('legend','譜面の編集',tools);
-   node('p','編集画面を開くと、入力した曲情報が反映されます。',tools);
+   const tools=node('fieldset',undefined,form);tools.className='sc-song-tools';
+   node('legend','譜面の全体編集',tools);
    const actions=node('div',undefined,tools);actions.className='sc-song-tool-buttons';
    for(const child of ['sections','chordPreset','strumPreset'])button(titles[child],()=>commit(child),actions);
 
