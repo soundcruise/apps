@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {placePlayhead,syncPlaybackButton,applyScoreTheme,scoreColors} from '../js/modules/score-ui.mjs';
+import {placePlayhead,movePlayhead,syncPlaybackButton,applyScoreTheme,scoreColors} from '../js/modules/score-ui.mjs';
 test('one composited cursor moves without changing left layout or replacing its node',()=>{
  const line={style:{}},parent={appends:0,append(n){this.appends++;n.parentElement=this;}};
  placePlayhead(line,parent,{x:12,y:30,height:150});placePlayhead(line,parent,{x:80,y:30,height:150});assert.equal(parent.appends,1);assert.equal(line.style.left,'0px');assert.equal(line.style.top,'0px');assert.equal(line.style.transform,'translate3d(80px,30px,0)');assert.equal(line.style.height,'150px');assert.equal(line.style.willChange,'transform');
@@ -18,4 +18,22 @@ test('highlight transparency changes only the fill and clamps unsafe opacity',()
  applyScoreTheme(root,{highlight:'#3355aa',opacity:1});assert.equal(values.get('--score-fill'),'#3355aaff');
  applyScoreTheme(root,{opacity:2});assert.equal(values.get('--score-fill'),scoreColors.border+'ff');
  applyScoreTheme(root,{opacity:NaN});assert.equal(values.get('--score-fill'),scoreColors.fill);
+});
+test('a running playhead follows audio time and reanchors on seek, bar change and resize',()=>{
+ const animations=[];
+ const line={style:{},animate(){const a={cancel(){this.cancelled=true;}};animations.push(a);return a;}};
+ const parent={append(el){el.parentElement=this;}};
+ const bounds={left:20,width:180,y:4,height:100,fraction:.1,seconds:2,segment:1};
+ movePlayhead(line,parent,bounds);
+ assert.equal(animations[0].currentTime,200);
+ animations[0].currentTime=215;
+ movePlayhead(line,parent,{...bounds,fraction:.11});
+ assert.equal(animations.length,1);
+ movePlayhead(line,parent,{...bounds,fraction:.7});
+ assert.equal(animations[0].cancelled,true);
+ assert.equal(animations[1].currentTime,1400);
+ movePlayhead(line,parent,{...bounds,segment:2});
+ movePlayhead(line,parent,{...bounds,segment:2,width:240});
+ assert.equal(animations.length,4);
+ assert(animations.slice(0,-1).every(a=>a.cancelled));
 });

@@ -1,4 +1,4 @@
-import {placePlayhead} from '../score-ui.mjs';
+import {movePlayhead} from '../score-ui.mjs';
 import {presetChordCells} from './preset-chord-cells.mjs';
 import {presetLibrary, presetWindow, managePresets} from './preset-library.mjs';
 
@@ -245,9 +245,12 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             if(bar!==playingBar){
                 playingBar?.classList.remove('sc-layout-playing');playingBar=bar;bar.classList.add('sc-layout-playing');
                 const viewport=paper.getBoundingClientRect();
-                if(bounds.bottom>viewport.bottom || bounds.top<viewport.top)paper.scrollTop+=bounds.top-viewport.top;
+                if(bounds.bottom>viewport.bottom || bounds.top<viewport.top){
+                    const reduced=doc.defaultView.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    paper.scrollTo({top:paper.scrollTop+bounds.top-viewport.top,behavior:reduced?'instant':'smooth'});
+                }
             }
-            if(scale>0)placePlayhead(cursor,page,{x:(bounds.left-sheet.left+bounds.width*position.tick/(position.barTicks??1920))/scale,
+            if(scale>0)movePlayhead(cursor,page,{segment:bar,left:(bounds.left-sheet.left)/scale,width:bounds.width/scale,fraction:position.tick/(position.barTicks??1920),seconds:position.barSeconds,
                 y:(bounds.top-sheet.top)/scale,height:bounds.height/scale});
         }
         cursorFrame=requestAnimationFrame(paintCursor);

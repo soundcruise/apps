@@ -7,6 +7,26 @@ export function placePlayhead(line,parent,{x,y=0,height}){
  if(line.parentElement!==parent)parent.append(line);
  Object.assign(line.style,{left:'0px',top:'0px',bottom:'auto',height:Math.max(0,height)+'px',transform:'translate3d('+x+'px,'+y+'px,0)',willChange:'transform',pointerEvents:'none'});
 }
+// Let the compositor traverse a musical segment even if a UI frame is missed.
+const playheadMotions = new WeakMap();
+export function movePlayhead(line, parent, {left, width, y, height, fraction, seconds, segment}) {
+ const x = left + width * fraction;
+ const duration = seconds * 1000;
+ const elapsed = duration * fraction;
+ const motion = playheadMotions.get(line);
+ if (motion && line.parentElement === parent && motion.segment === segment &&
+     motion.left === left && motion.width === width && motion.y === y && motion.height === height &&
+     motion.duration === duration && Math.abs(motion.animation.currentTime - elapsed) < 35 && fraction > 0) return;
+ motion?.animation.cancel();
+ playheadMotions.delete(line);
+ placePlayhead(line, parent, {x, y, height});
+ if (!line.animate || !(duration > 0) || !(fraction > 0 && fraction < 1)) return;
+ const transform = pos => 'translate3d('+pos+'px,'+y+'px,0)';
+ const animation = line.animate([{transform:transform(left)}, {transform:transform(left+width)}],
+   {duration, easing:'linear', fill:'both'});
+ animation.currentTime = elapsed;
+ playheadMotions.set(line, {segment, left, width, y, height, duration, animation});
+}
 export function bindPlaybackButton(button,toggle){button.addEventListener('pointerdown',e=>{if(e.button===0)e.preventDefault();});button.onclick=toggle;}
 export function syncPlaybackButton(button,phase,{stop=false,disabled=false,idle='▶ 再生'}={}){
  const moving=['playing','counting','loading'].includes(phase),text=phase==='loading'?'■ 中止':phase==='counting'?'■ カウント中':phase==='playing'?(stop?'■ 停止':'Ⅱ 一時停止'):idle;

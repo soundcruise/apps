@@ -458,8 +458,8 @@ for (const engine of ['chrome','webkit']) test('preset auditions, library operat
             await waitPlaying('score');
             const cursor=page.locator('.sc-preset-paper [data-layout-playhead]');
             await cursor.waitFor();
-            const initial=await cursor.evaluate(el=>el.style.transform);
-            await page.waitForFunction(initial=>document.querySelector('.sc-preset-paper [data-layout-playhead]')?.style.transform!==initial,initial);
+            const initial=await cursor.evaluate(el=>getComputedStyle(el).transform);
+            await page.waitForFunction(initial=>getComputedStyle(document.querySelector('.sc-preset-paper [data-layout-playhead]')).transform!==initial,initial);
             assert.equal(await cursor.count(),1);
             const inside=await cursor.evaluate(el=>{
                 const line=el.getBoundingClientRect();
