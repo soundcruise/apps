@@ -34,7 +34,7 @@ export function renderWebDiscovery(document,data,{diagnosticsOnly=false}={}){
  if(!diagnosticsOnly&&!data.items.length){const p=document.createElement('p');p.textContent='発見候補はまだありません';section.append(p);}return section;
 }
 // The ordinary review workspace owns presentation; publication remains in assisted-entry.
-const reviewReasons={operator_deferred:'見送り中（掲載・非掲載の判断ではありません）',operator_later:'あとで確認',possible_known_event:'掲載済み記事との同一ニュースの疑い。仕様・出来事を確認してください',general_page:'一般ページ・製品一覧の可能性',old_date_hint:'検索側の公開日ヒントが古いため低優先（未検証）',archive_or_old_url_hint:'アーカイブ・URLの古い日付表記。公開日は未確認です',background_or_roundup:'特集・紹介・まとめ記事。新しい出来事の確認が必要です',relevance_unconfirmed:'ギター関連性を確認できません',candidate_takedown:'削除要請により停止',source_prohibited:'出典の明示的な利用条件により停止',source_stopped:'出典の運用停止中',unsafe_url:'安全な原記事URLを確認できません',no_article_draft:'AI記事案なし'};
+const reviewReasons={primary_already_decided:'対応を確認した一次記事は判断済みです。既存NEWSで判断内容を確認できます。',operator_deferred:'見送り中（掲載・非掲載の判断ではありません）',operator_later:'あとで確認',possible_known_event:'掲載済み記事との同一ニュースの疑い。仕様・出来事を確認してください',general_page:'一般ページ・製品一覧の可能性',old_date_hint:'検索側の公開日ヒントが古いため低優先（未検証）',archive_or_old_url_hint:'アーカイブ・URLの古い日付表記。公開日は未確認です',background_or_roundup:'特集・紹介・まとめ記事。新しい出来事の確認が必要です',relevance_unconfirmed:'ギター関連性を確認できません',candidate_takedown:'削除要請により停止',source_prohibited:'出典の明示的な利用条件により停止',source_stopped:'出典の運用停止中',unsafe_url:'安全な原記事URLを確認できません',no_article_draft:'AI記事案なし'};
 export function renderWebReviewCard(document,item,{change}={}){
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
  const card=el('article',undefined,'card web-review-card');card.dataset.webUrl=item.url;

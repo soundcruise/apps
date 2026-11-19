@@ -65,10 +65,27 @@ test('workerd D1: authenticated-view snapshot supports concurrent audited visibi
  }finally{await runtime.mf.dispose();await rm(dir,{recursive:true,force:true});}
 });
 
-test('old eight Web drafts become editorial advice without changing hint visibility or creating decisions',async()=>{
+test('relevance alone is an owner decision when the permitted draft is complete',async()=>{
  const s=await store();for(const r of fixture.hints){await saveHint(s.db,{url:r.url,title:r.title,provider:'exa',searchedAt:now},now);await s.db.prepare('UPDATE news_web_hints SET estimate_json=?,search_meta_json=? WHERE url=?').bind(r.estimate_json,r.search_meta_json||null,r.url).run();}
  const before=(await s.db.prepare('SELECT * FROM news_web_hints ORDER BY url').all()).results;
  const items=await addWebReview(s.db,fixture.hints.map(project),now),judgment=items.filter(i=>i.reviewPresentation?.group==='editorial');
- assert.equal(judgment.length,8);assert(judgment.every(i=>i.webReview.queue==='judgment'&&i.reviewPresentation.formalReady===false));
+ assert.equal(judgment.length,7);
+ const b=items.find(i=>i.url.includes('626551'));
+ assert.equal(b.reviewPresentation.group,'approvable');assert.equal(b.reviewPresentation.formalReady,false);
+ assert.match(b.reviewPresentation.reason,/エレキギター・ベース/);
+ const {assistedDraftForUrl}=await import('../src/candidate-draft.js');
+ const form=await assistedDraftForUrl(s,b.url,now);
+ assert.deepEqual(form.fields,b.articleDraft.fields);assert.equal(form.fields.publishedAt,'2026-11-06');
+ assert.deepEqual(form.missing,[]);assert.equal(form.humanConfirmed,false);
+ assert(judgment.every(i=>i.webReview.queue==='judgment'&&i.reviewPresentation.formalReady===false));
  assert.deepEqual((await s.db.prepare('SELECT * FROM news_web_hints ORDER BY url').all()).results,before);for(const table of ['news_decision_ledger','news_shadow_evaluations','news_admin_audit']){const rows=await s.db.prepare('SELECT * FROM '+table).all();if(table==='news_admin_audit')assert(!rows.results.some(r=>r.action==='web-hint-visibility'));else assert.equal(rows.results.length,0);}
+});
+
+test('a changed source headline cannot inherit prepared facts and operator deferrals take precedence',async()=>{
+ const s=await store(),row=fixture.hints.find(r=>r.url.endsWith('/626551'));
+ const [changed,deferred]=await addWebReview(s.db,[project({...row,title:row.title+' 続報'}),project({...row,reason:'web_review:defer:explicit-defer-0001'})],now);
+ assert.equal(changed.articleDraft.fields.publishedAt,'');
+ assert.notEqual(changed.reviewPresentation?.group,'approvable');
+ assert.equal(deferred.webReview.reason,'operator_deferred');
+ assert.equal(deferred.reviewPresentation,null);
 });

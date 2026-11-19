@@ -1,4 +1,4 @@
-import {webPresentation,primaryReviewInformation,reviewInformation} from './review-presentation.js';
+import {preparedWebDraft,webPresentation,primaryReviewInformation,reviewInformation} from './review-presentation.js';
 import {hash} from './policy.js';
 import {publicSearchUrl,generalPage,searchDate,knownProductOverlap} from './web-discovery-quality.js';
 import {assistedSource} from './assisted-facts.js';
@@ -19,6 +19,10 @@ export function webReviewDisposition(item,known,now){
  const state=webVisibility(item.reason);if(state==='defer'||state==='later')return result('low',state==='defer'?'operator_deferred':'operator_later',{canRestore:true});
  if(!draft)return result('low','no_article_draft');
  if(state==='review')return result('judgment','operator_requested_review',{needsSourceReview:!item.humanEntry});
+ // An exact, reviewed primary with a final decision already represents this story.
+ // Keep the hint and link available in the archive; a deliberate restore still wins.
+ const primary=item.primaryReview?.existingCandidate;
+ if(item.primaryReview?.matchedDiscovery&&primary&&['approved','rejected'].includes(primary.status))return result('low','primary_already_decided',{candidateId:primary.id,canRestore:true});
  const overlap=knownProductOverlap(item,known,now);if(overlap)return result('low','possible_known_event',{candidateId:overlap.candidateId});
  // Human-confirmed facts have object provenance; do not fake a machine receipt
  // just to compare them. This is only a duplicate suspicion, never a rejection.
@@ -53,11 +57,12 @@ export async function addWebReview(db,items,now){
   const info=primaryReviewInformation(item.url) || (notes && reviewInformation(notes.reference.url));
   const primary=info&&assistedSource(info.url),primaryState=states.find(s=>s.source_id===primary?.id),primaryExisting=info&&known.find(c=>[c.source_url,c.normalized_url].includes(info.url)),registered=SOURCES.find(s=>s.id===primary?.id);
   if(!item.reviewBlocked&&primary&&!primary.existingCandidateOnly&&registered&&!registered.humanFactsProhibited&&!['DO_NOT_USE','PROHIBITED'].includes(registered.legalStatus)&&!primaryState?.disabled&&!primaryState?.takedown&&!primaryState?.publication_blocked&&!tombstones.has(await hash(info.url))){
-   item.primaryReview={url:info.url,existingCandidate:primaryExisting?{id:primaryExisting.id,status:primaryExisting.review_status}:null,draft:assistedDraftWithInformation({fields:{url:info.url,sourceId:primary.id},fieldSources:{},registrationAllowed:true},info)};
+   item.primaryReview={matchedDiscovery:notes?.reference?.url===info.url,url:info.url,existingCandidate:primaryExisting?{id:primaryExisting.id,status:primaryExisting.review_status}:null,draft:assistedDraftWithInformation({fields:{url:info.url,sourceId:primary.id},fieldSources:{},registrationAllowed:true},info)};
    if(!primaryExisting)item.humanEntry={sourceId:primary.id,url:info.url,basis:primary.basis,viaPrimary:true};
   }
   // Keep the original discovery draft and secondary-source restrictions.
   if(notes&&item.articleDraft)item.articleDraft={...item.articleDraft,sourceReview:{...item.articleDraft.sourceReview,...notes,registrationAllowed:false}};
+  if(item.humanEntry&&!item.humanEntry.viaPrimary)item.articleDraft=await preparedWebDraft(item.articleDraft,item.title);
   item.webReview=webReviewDisposition(item,known,now);
   item.reviewPresentation=webPresentation(item,now);
   if(notes?.knownArticles.length&&item.webReview.queue==='judgment')item.reviewPresentation={group:'editorial',reason:notes.reason,formalReady:false};

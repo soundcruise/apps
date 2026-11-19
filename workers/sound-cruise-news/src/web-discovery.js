@@ -1,5 +1,6 @@
 import {draftFieldHints} from './draft-field-hints.js';
 import {addWebReview,webHintSnapshot} from './web-review.js';
+import {preparedWebDraft} from './review-presentation.js';
 import {draftDate} from './draft-assistance.js';
 import {assistedSource,assistedSourceReview,assistedUrl,assistedLabel,assistedTypes} from './assisted-facts.js';
 import {manualPermit,manualAvailability} from './web-manual-permit.js';
@@ -110,9 +111,10 @@ export function webArticleDraft(row){
  if(label)fieldSources.label={kind:'generated_from_draft',confirmed:false};
  return {basis:'saved_ai_estimate_unverified',headline:brand&&product?`${brand}「${product}」${event?' — '+event:'（出来事は未確認）'}`:'記事の対象・出来事の確認が必要です',fields:{...fields,...(label?{label}:{})},fieldSources,formalFacts:false,humanConfirmed:false,warnings:hints.warnings,missing:['publishedAt','brand','product','productType','action',...(action==='variant_introduction'?['qualifier']:[])].filter(k=>!fields[k]),relevance:e.relevance,duplicate:e.duplicate,registrationAllowed:!!assistedUrl(row.url),usageBasis:assistedSource(row.url)?.basis||null,sourceReview:assistedSourceReview(row.url),requiredConfirmation:'原記事の事実・公開日・利用条件。AI推定は正式証拠ではありません。'};
 }
-export async function savedWebDraft(db,url,now){
+export async function savedWebDraft(db,url,now,{prepared=false}={}){
  if(typeof url!=='string'||url.length>2048)return null;
- const row=await db.prepare('SELECT url,title,estimate_json,search_meta_json FROM news_web_hints WHERE url=? AND expires_at>?').bind(url,now).first();return row?webArticleDraft(row):null;
+ const row=await db.prepare('SELECT url,title,estimate_json,search_meta_json FROM news_web_hints WHERE url=? AND expires_at>?').bind(url,now).first();const draft=row?webArticleDraft(row):null;
+ return prepared?preparedWebDraft(draft,row?.title):draft;
 }
 export async function listWebHints(env,now=Date.now()){
  if(env.NEWS_WEB_ENABLED!=='true')return {enabled:false,items:[]};

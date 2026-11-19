@@ -47,7 +47,7 @@ export async function candidateAssistedDraft(store,row,now){
 export async function assistedDraftForUrl(store,url,now){
  const row=await store.db.prepare("SELECT * FROM candidate_items WHERE normalized_url=? AND review_status IN ('pending','reopened')").bind(url||'').first();
  if(row)return candidateAssistedDraft(store,row,now);
- const saved=await savedWebDraft(store.db,url,now);if(saved)return saved;
+ const saved=await savedWebDraft(store.db,url,now,{prepared:true});if(saved)return saved;
  // A reviewed human URL scope does not require a search-service record. This
  // empty input shell grants no facts, confirmation, acquisition or publication.
  const source=assistedSource(url);if(!source||source.existingCandidateOnly)return null;
