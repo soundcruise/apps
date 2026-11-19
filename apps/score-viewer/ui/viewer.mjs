@@ -216,7 +216,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
             candidate=player.snapshot().barIndex;viewport.replaceChildren(paper);if(active)observer.observe(viewport);restoreAnchor=preference?.anchor||null;redraw(restoreAnchor);
             if(saved)void library.setLast(libraryId,document.revisionId).catch(()=>{});
             const warning=reader.read().warnings.length>0;
-            notice(preferenceFailed?'表示設定を復元できなかったため、ファイルの初期表示で開きました。':warning?'譜面を開きました。一部の表示設定を調整したか、登録フォームがないコードがあります。':saved?'':'譜面を開きました。「この端末に保存」でライブラリに残せます。',preferenceFailed);
+            notice(preferenceFailed?'表示設定を復元できなかったため、ファイルの初期表示で開きました。':warning?'譜面を開きました。一部の表示設定を調整しました。':saved?'':'譜面を開きました。「この端末に保存」でライブラリに残せます。',preferenceFailed);
             controls();viewport.focus({preventScroll:true});return true;
         } catch(error) {
             reader.dispose();if(request===ticket&&!disposed){notice(message(error,'open'),true);controls();}return false;

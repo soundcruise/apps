@@ -8,13 +8,13 @@ import {createUITestProject} from '../scripts/create-ui-test-project.mjs';
 import {createStudioViewerContract, normalizeViewerPresentation} from '../js/modules/sheet-cruise/viewer-contract.mjs';
 import {MAX_FILE_BYTES, MAX_PRESENTATION_BYTES} from '../../score-viewer/core/file-format.mjs';
 import {canonicalJSON} from '../../score-viewer/core/json.mjs';
-import {buildSongPreviewPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
+import {buildSongPreviewPlan,buildSongTickPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
 
 const require = createRequire(import.meta.url), realm = {window:{CruiseStudio:{},ChordCruise:{},crypto:webcrypto},TextEncoder};
 for (const f of ['music-theory.js','song-model.js']) vm.runInNewContext(readFileSync(new URL('../js/core/' + f, import.meta.url), 'utf8'), realm);
 vm.runInNewContext(readFileSync(new URL('../../chord-cruise/js/core/music-theory.js',import.meta.url),'utf8'),realm);
 const C = realm.window.CruiseStudio; C.rhythmSnapshots = require('../js/core/rhythm-snapshot.js'); C.schema2 = require('../js/core/schema2.js'); C.model.configureSchema2();
-const schema = C.model.schema2, contract = createStudioViewerContract({schema,crypto:webcrypto});
+const schema = C.model.schema2, contract = createStudioViewerContract({schema,host:realm.window,crypto:webcrypto});
 const source = createUITestProject(), clone = value => JSON.parse(JSON.stringify(value));
 const metadata = () => ({documentId:'viewer-document-1',revisionId:'revision-1',exportedAt:'2026-11-16T00:00:00.000Z',studioVersion:'0.144.0-dev.1'});
 const exported = () => contract.codec.encode(source, metadata());
@@ -164,11 +164,30 @@ test('reference acoustic projection equals the editor plan for all registered st
     assert.equal(slow.events.find(e => e.part === 'piano').midi,actual.events.find(e => e.part === 'piano').midi);
     assert.equal(JSON.stringify(source),before);
 });
-test('unbound chords never silently become reference harmony', async () => {
-    const p = clone(source); p.performance.formBindings = []; p.materials.forms = [];
-    const file = await contract.codec.encode(p,metadata()), plan = contract.playbackPlan(file.document.score);
-    assert(file.warnings.includes('unbound-form:no-automatic-voicing')); assert(!plan.events.some(e => e.part === 'guitar'));
-    assert(plan.events.some(e => e.part === 'piano'));
+test('export preserves mixed forms and both viewer plans play the editor’s slash-chord voicing', async () => {
+    const project = clone(source), chord = project.bars[0].chords[0];
+    project.performance.formBindings = project.performance.formBindings.filter(b => b.chordEventId !== chord.id);
+    chord.symbol = 'Cmaj7/E';
+    const before = clone(project);
+    const file = await contract.codec.decode((await contract.codec.encode(project,metadata())).text);
+    const deps = {pitchMidi:schema.pitchMidi, tieTarget:schema.melodyTieTarget,
+        parseChord:C.theory.parseBasicChordSymbol, notePc:C.theory.keyToSemitone, qualities:realm.window.ChordCruise.theory.QUALITIES,
+        rhythm(p,index) {
+            const binding = p.performance.barRhythms.find(b => b.barId === p.bars[index].id);
+            const material = p.materials.rhythms.find(m => m.id === (binding?.materialId || p.performance.basicRhythmId));
+            return {...material.snapshot, encoding:material.encoding};
+        }};
+    assert.deepEqual(file.warnings,[]);
+    for (const [viewer,editor] of [[contract.playbackPlan,buildSongPreviewPlan],[contract.tickPlan,buildSongTickPlan]]) {
+        const plan = viewer(file.document.score);
+        assert.deepEqual(plan,editor(project,deps));
+        const attack = plan.events.filter(e => e.part === 'guitar' && e.sourceEventId === chord.id && e.tick === 0);
+        assert.deepEqual(attack.map(e => e.midi),[40,48,52,55,59]);
+        assert(attack.every(e => e.string === null));
+        assert(plan.events.some(e => e.part === 'guitar' && Number.isInteger(e.string)));
+    }
+    assert.deepEqual(project,before);
+    assert.deepEqual(file.document.score,before);
 });
 test('native rhythm snapshots roundtrip without owner/network dependencies and use canonical playback projection', async () => {
     const p = clone(source), native = JSON.parse(readFileSync(new URL('./fixtures/rhythm-snapshots-v1.json',import.meta.url))).materials[0];

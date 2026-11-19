@@ -1,6 +1,6 @@
 import {assertJSON, insist, record, clone, freeze, canonicalJSON} from './json.mjs';
 
-export const VIEWER_VERSION = '0.18.0-dev.1';
+export const VIEWER_VERSION = '0.19.0-dev.1';
 export const SCORE_FORMAT = 'sound-cruise/score-view';
 export const SCORE_EXTENSION = '.cruise-score.json';
 // Schema2 allows 4 Mi UTF-16 code units (8 MiB accounting). UTF-8 needs at most
@@ -61,10 +61,8 @@ export function createScoreCodec({validateScore, normalizePresentation, crypto =
         const actual = await hash(encoder.encode(canonicalJSON(score)));
         insist(actual === input.source.scoreDigest, 'score-digest-mismatch');
         const p = presentation(input.defaultPresentation, score);
-        const bound = new Set(score.performance.formBindings.map(b => b.chordEventId));
-        const unbound = score.bars.some(b => b.chords.some(c => !c.unresolved && !bound.has(c.id)));
         return {document: freeze({...clone(input), score, defaultPresentation: p.value}),
-            warnings: freeze([...(p.warnings || []), ...(unbound ? ['unbound-form:no-automatic-voicing'] : [])])};
+            warnings: freeze(p.warnings || [])};
     }
     async function decode(data) {
         let bytes;

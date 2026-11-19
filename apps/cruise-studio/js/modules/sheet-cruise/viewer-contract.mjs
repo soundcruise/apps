@@ -25,7 +25,7 @@ export function normalizeViewerPresentation(input, score) {
     return {value:{version:1, layout, rows, zoom, flow:input.flow || 'responsive'}, warnings:[...new Set(warnings)]};
 }
 
-export function createStudioViewerContract({schema, crypto = globalThis.crypto}) {
+export function createStudioViewerContract({schema, host = globalThis.window, crypto = globalThis.crypto}) {
     insist(typeof schema?.validate === 'function', 'missing-schema2-validator');
     const codec = createScoreCodec({validateScore:score => schema.validate(score), normalizePresentation:normalizeViewerPresentation, crypto});
     function timeline(score) { return createScoreTimeline(score); }
@@ -33,16 +33,18 @@ export function createStudioViewerContract({schema, crypto = globalThis.crypto})
         const t = timeline(score);
         return createBeatClock({now, bpm, barIds:t.bars.map(b => b.barId), ticksPerBeat:t.ticksPerBeat, beatsPerBar:t.ticksPerBar/t.ticksPerBeat});
     }
-    // Reference contract for Stage 2: exact existing acoustic projection at a
-    // chosen tempo, with silent unsupported/unbound forms rather than invention.
-    // This is NOT the live AudioNode scheduler or transport integration yet.
+    // Both players use chordVoicing for registered forms and symbol-based harmony.
+    function acousticDependencies() {
+        return {pitchMidi:schema.pitchMidi, tieTarget:schema.melodyTieTarget,
+            parseChord:host.CruiseStudio.theory.parseBasicChordSymbol,
+            notePc:host.CruiseStudio.theory.keyToSemitone, qualities:host.ChordCruise.theory.QUALITIES};
+    }
     function playbackPlan(score, {bpm = score.songInfo.bpm, chordsOnly = false, melodyOnly = false} = {}) {
         const result = schema.validate(score); insist(result.ok, 'invalid-score');
         insist(Number.isFinite(bpm) && bpm >= 20 && bpm <= 400, 'invalid-practice-bpm');
         const copy = clone(score); copy.songInfo.bpm = bpm;
         const native = copy.materials.rhythms.some(m => m.encoding === 'rhythm-owner-cells-v1') ? schema.readStructureProjection(copy) : null;
-        return freeze(buildSongPreviewPlan(copy, {pitchMidi:schema.pitchMidi,tieTarget:schema.melodyTieTarget, chordsOnly, melodyOnly,
-             parseChord:() => null, notePc:() => null, qualities:{},
+        return freeze(buildSongPreviewPlan(copy, {...acousticDependencies(), chordsOnly, melodyOnly,
             rhythm(project, index) {
                 const binding = project.performance.barRhythms.find(b => b.barId === project.bars[index].id);
                 const m = project.materials.rhythms.find(m => m.id === (binding?.materialId || project.performance.basicRhythmId));
@@ -55,7 +57,7 @@ export function createStudioViewerContract({schema, crypto = globalThis.crypto})
         const check=schema.validate(score);insist(check.ok,'invalid-score');
         const native=score.materials.rhythms.some(m=>m.encoding==='rhythm-owner-cells-v1')?schema.readStructureProjection(score):null;
         const materials=new Map(score.materials.rhythms.map(m=>[m.id,m])),bindings=new Map(score.performance.barRhythms.map(b=>[b.barId,b.materialId]));
-        return freeze(buildSongTickPlan(score,{melodyOnly,pitchMidi:schema.pitchMidi,tieTarget:schema.melodyTieTarget,parseChord:()=>null,notePc:()=>null,qualities:{},
+        return freeze(buildSongTickPlan(score,{...acousticDependencies(), melodyOnly,
             rhythm(p,index){const m=materials.get(bindings.get(p.bars[index].id)||p.performance.basicRhythmId);return m.encoding==='studio-strum-v1'?{...m.snapshot,encoding:m.encoding}:native.rhythmByBar[index].rhythm;}}));
     }
     return Object.freeze({codec, normalizePresentation:normalizeViewerPresentation, timeline, createClock, playbackPlan,tickPlan,

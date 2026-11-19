@@ -10,7 +10,7 @@ export function viewerFixture() {
     for(const path of ['../../js/core/music-theory.js','../../js/core/song-model.js','../../../chord-cruise/js/core/music-theory.js'])
         vm.runInNewContext(readFileSync(new URL(path,import.meta.url),'utf8'),realm);
     const C=realm.window.CruiseStudio;C.schema2=require('../../js/core/schema2.js');C.rhythmSnapshots=require('../../js/core/rhythm-snapshot.js');C.model.configureSchema2();
-    return {score:createUITestProject(),contract:createStudioViewerContract({schema:C.model.schema2,crypto:webcrypto}),
+    return {score:createUITestProject(),contract:createStudioViewerContract({schema:C.model.schema2,host:realm.window,crypto:webcrypto}),
         metadata:{documentId:'library-fixture',revisionId:'revision-1',exportedAt:'2026-11-16T00:00:00.000Z',studioVersion:'0.145.0-dev.1'}};
 }
 
