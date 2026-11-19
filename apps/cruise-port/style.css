@@ -6315,6 +6315,16 @@ body.metronome-preset-open {
     }
 }
 
+@media (max-width: 519px) {
+    .port-header-actions {
+        top: calc(max(12px, env(safe-area-inset-top)) + 6px);
+    }
+
+    .port-header {
+        margin-bottom: 20px;
+    }
+}
+
 @media (min-width: 520px) {
     .port-shell {
         padding-top: max(68px, calc(env(safe-area-inset-top) + 42px));

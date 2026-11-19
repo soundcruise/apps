@@ -5,7 +5,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 const root=resolve(import.meta.dirname,'../../..');
-const boot=`import {renderNews} from '/apps/cruise-port/news-ui.js?v=1.36.1';
+const boot=`import {renderNews} from '/apps/cruise-port/news-ui.js?v=1.36.2';
 import {CRUISE_APPS_NEWS_ITEMS} from '/apps/cruise-port/news-articles.js?v=1.36.0';
 document.querySelectorAll('.port-view').forEach(el=>el.hidden=el.id!=='news-view');
 document.querySelector('#news-view .view-kicker').textContent='Cruise Port・隔離'+(location.pathname.includes('pro_')?'Pro':'通常版');

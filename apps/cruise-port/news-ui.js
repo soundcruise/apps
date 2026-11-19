@@ -1,7 +1,7 @@
 import { confirmMembersVideo } from './news-members-video.js?v=1.36.0';
 import { articlePath } from './news-articles.js?v=1.36.0';
 import { newsOriginalArticleHref } from './news-external-link.js?v=1.23.1';
-import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.36.1';
+import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews, isFeaturedStudioNotice, nextStudioFeatureChange } from './news-data.js?v=1.36.2';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();
@@ -110,7 +110,8 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             if (!groups.length) list.append(node('p', '表示できるニュースはありません。', 'news-empty'));
             for (const [day, records] of groups) {
                 const section = node('section');
-                section.append(node('h2', day.replaceAll('-', '/'), 'news-day'));
+                const heading = isFeaturedStudioNotice(records[0], at) ? '注目のお知らせ' : day.replaceAll('-', '/');
+                section.append(node('h2', heading, 'news-day'));
                 for (const item of records) {
                     const link = node(item.linkType === 'members_video' ? 'button' : 'a', undefined, 'news-card');
                     if (item.linkType === 'members_video') {
@@ -141,7 +142,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             const refresh = () => renderNews({ documentObject: doc, items, mode, clock, now: clock(), category: select.value, notice });
             const wake = () => { if (!doc.hidden) refresh(); };
             const deadlines = news.filter(item => item.category === 'sale' && Number.isSafeInteger(item.saleEndsAt)).map(item => item.saleEndsAt + 1);
-            const next = Math.min(...deadlines);
+            const next = Math.min(nextStudioFeatureChange(news, now), ...deadlines);
             const timer = Number.isFinite(next) ? view.setTimeout(refresh, Math.max(1, Math.min(2147483647, next - now))) : null;
             doc.addEventListener?.('visibilitychange', wake);
             view.addEventListener?.('pageshow', wake);

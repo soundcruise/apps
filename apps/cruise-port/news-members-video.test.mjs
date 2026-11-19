@@ -81,7 +81,7 @@ test('rerender closes the modal; normal external cards retain their original anc
 test('both editions load the scoped stylesheet and updated boot modules without changing main CSS',()=>{
  for(const path of ['index.html','pro_9a3943176561/index.html']){
   const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/news-members-video\.css\?v=1\.36\.0/);
-  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.36\.1/);
+  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.36\.2/);
  }
  const source=readFileSync(new URL('news-members-video.js',import.meta.url),'utf8');assert.doesNotMatch(source,/innerHTML|insertAdjacentHTML|\bfetch\(|localStorage|indexedDB/);
 });
@@ -109,4 +109,39 @@ test('official zero slot wins only within its JST day, even against a later norm
  assert.equal(doc.ids['news-ticker'].all().find(n=>n.className==='news-ticker-track').children[0].textContent,'🔥 '+notice.label);
  assert.deepEqual(cards[0].all().filter(n=>n.className==='news-hot').map(n=>n.textContent),['🔥 ホット']);
  assert.equal(cards[1].all().filter(n=>n.className==='news-hot').length,0);
+});
+
+test('only the Studio notice leads the list and ticker during the three JST dates', () => {
+ const normal = [19, 18, 17, 16, 15].map(day => ({
+  ...external, label: '記事' + day, id: 'external-' + day, topicKey: 'external-' + day,
+  publishedAt: '2026-11-' + day + 'T01:00:00Z', hot: true, displayOrder: 0
+ }));
+ const items = [...normal, notice];
+ const start = Date.parse('2026-11-20T00:00:00+09:00');
+ const end = Date.parse('2026-11-23T00:00:00+09:00');
+ for (const [now, featured] of [[start-1,false],[start,true],[start+86400000,true],[end-1,true],[end,false]]) {
+  const doc = documentFixture();
+  renderNews({documentObject:doc, items, mode:'on', now, clock:()=>now});
+  const cards = doc.ids['news-content'].all().filter(n=>n.className==='news-card');
+  const order = cards.map(card=>card.all().find(n=>n.className==='news-label').textContent);
+  const sorted = prepareNews(items,{now});
+  assert.equal(sorted[0].id, featured ? notice.id : normal[0].id);
+  assert.deepEqual(sorted.filter(item=>item.id!==notice.id).map(item=>item.id),normal.map(item=>item.id));
+  assert.deepEqual(order, sorted.map(item=>item.label));
+  assert.deepEqual(tickerNews(sorted,now).map(item=>item.label),order.slice(0,5));
+  const studio = cards.find(card=>card.tagName==='button');
+  assert.equal(studio.all().find(n=>n.tagName==='time').textContent,'2026/11/18');
+  assert.deepEqual(groupNews(sorted,'acoustic_guitar',now).flatMap(([,rows])=>rows.map(item=>item.id)),normal.map(item=>item.id));
+ }
+ const doc = documentFixture();
+ let time = start-1, timer;
+ doc.defaultView.setTimeout = (callback, delay) => { timer={callback, delay}; return 1; };
+ renderNews({documentObject:doc, items, mode:'on', clock:()=>time});
+ const first = () => doc.ids['news-ticker'].all().find(n=>n.className==='news-ticker-track').children[0].textContent;
+ assert.equal(timer.delay,1);
+ time=start; timer.callback();
+ assert.equal(first(),'🔥 '+notice.label);
+ assert.equal(timer.delay,end-start);
+ time=end; timer.callback();
+ assert.equal(first(),'🔥 '+normal[0].label);
 });
