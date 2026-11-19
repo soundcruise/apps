@@ -19,7 +19,8 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   function commit(next){
    if(composing)return;const now=getSession();if(now!==owner||!C.structureOperations.isCurrent(frame,now)){status.textContent='編集対象が変わりました。入力を保持しています。開き直してください。';return;}
    try{const request=collect();if(!request)return;applying=true;let result;try{if(!canEdit())throw Error('入力・保存・競合の状態を確認してください');result=execute(request.kind,request.args,frame);}finally{applying=false;}
-    if(!result.ok){status.textContent=result.error||'変更を適用できませんでした';return;}if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,selectTitle:false},barIds:args.barIds}),{once:true});
+    if(!result.ok){status.textContent=result.error||'変更を適用できませんでした';return;}request.onApplied?.();
+    if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,selectTitle:false},barIds:args.barIds}),{once:true});
     current.close();changed({mode,previous:project,slot:args.slot});
    }catch(e){applying=false;status.textContent=e.message;}
   }
@@ -71,6 +72,12 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const clipName=node('small','',aside);
    button('＋ セクションを追加',()=>{const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};rows.push(item);selected=item.id;paint();},aside);
    const paper=node('div',undefined,body);paper.className='sc-section-preview';
+   function fitSectionPaper(){
+    const page=paper.querySelector('.sheet-page');
+    if(page?.offsetWidth&&paper.clientWidth)page.style.zoom=String(Math.min(1,paper.clientWidth/page.offsetWidth));
+   }
+   const resize=new ResizeObserver(fitSectionPaper);resize.observe(paper);
+   current.addEventListener('close',()=>resize.disconnect(),{once:true});
    function preview(){
     try{
      flow.replaceChildren();
@@ -99,7 +106,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
      });
      const draft=C.structureOperations.previewSections(project,rows,C.model.schema2);
      C.sheetRenderer.render(draft,paper,{...previewPaperOptions(draft),readOnly:true,editableSlots:false});
-     C.localPaperLayout?.apply(paper);paper.classList.remove('sc-hide-parts');
+     C.localPaperLayout?.apply(paper);paper.classList.remove('sc-hide-parts');fitSectionPaper();
      for(const heading of paper.querySelectorAll('.sheet-section-heading')){
       const label=heading.querySelector('[data-section-id]'),row=rows.find(r=>r.id===label.dataset.sectionId);
       label.title='セクションを選択';label.tabIndex=0;label.setAttribute('role','button');
@@ -145,7 +152,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    collect=()=>({kind:'songInfo',args:{values:{},sections:rows}});
   }else{
    body.className='sc-song-workspace';
-   const paper=node('div',undefined,body),form=node('aside',undefined,body);paper.className='sc-song-preview';
+   const form=node('aside',undefined,body),paper=node('div',undefined,body);paper.className='sc-song-preview';
    const title=input('曲名',project.songInfo.title,'title','text',form),artist=input('アーティスト名',project.songInfo.artist,'artist','text',form),bpm=input('BPM',project.songInfo.bpm,'bpm','number',form);bpm.min='20';bpm.max='400';
    const meterLabel=node('label',undefined,form);node('span','拍子',meterLabel);
    const meter=node('select',undefined,meterLabel);meter.dataset.scoreField='timeSignature';meter.setAttribute('aria-label','拍子');

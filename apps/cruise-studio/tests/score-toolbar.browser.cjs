@@ -30,8 +30,51 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('[data-score-cancel]');
   assert.deepEqual(await snap(p),before);
   await p.reload();await p.click('#open-sheet-cruise');
-  assert.deepEqual(await ids(),[initial[0],'sc-edit-song']);
+  assert.deepEqual(await ids(),['sc-edit-song',initial[0]]);
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
+ }));
+ await t.test('all-song strokes, remembered preset, and edge scrolling from outside a bar',()=>fresh(async p=>{
+  await p.click('[data-shortcut=sc-edit-rhythm]');
+  const dialog=p.locator('[data-score-dialog=strumPreset]'),paper=dialog.locator('.sc-preset-paper'),preset=dialog.locator('[data-score-preset]');
+  assert.equal(await preset.locator('option:checked').textContent(),'王道の8分');
+  await preset.selectOption({label:'4分連続'});
+  const first=await paper.locator('.sheet-bar[data-bar-number]').first().boundingBox(),box=await paper.boundingBox();
+  await p.mouse.move(first.x-5,first.y+12);await p.mouse.down();
+  await p.mouse.move(first.x+10,first.y+12,{steps:4});await p.mouse.move(first.x+10,box.y+box.height-7,{steps:10});
+  await p.waitForFunction(()=>{const paper=document.querySelector('.sc-preset-paper');return paper.scrollTop>0 && paper.scrollTop+paper.clientHeight>=paper.scrollHeight-2;});
+  await p.mouse.up();
+  assert(await paper.locator('.sheet-bar[data-bar-number]').last().evaluate(el=>el.hasAttribute('data-preset-destination')));
+  await dialog.getByLabel('曲全て').check();await dialog.locator('[data-preset-stage]').click();
+  await dialog.locator('[data-score-apply]').click();
+  const song=await snap(p);assert.equal(song.performance.barRhythms.length,song.bars.length);
+  await p.click('[data-shortcut=sc-edit-rhythm]');assert.equal(await preset.locator('option:checked').textContent(),'4分連続');
+  await dialog.locator('[data-score-cancel]').click();
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
+  await p.getByRole('button',{name:'イントロの末尾に小節を追加'}).click();
+  await p.click('[data-score-apply]');
+  await p.click('[data-shortcut=sc-edit-rhythm]');await preset.selectOption({label:'シンコペーション'});
+  await dialog.getByLabel('曲全て').check();await dialog.locator('[data-preset-stage]').click();await dialog.locator('[data-score-apply]').click();
+  const odd=await snap(p);
+  const sequence=odd.bars.map(bar=>odd.performance.barRhythms.find(binding=>binding.barId===bar.id).materialId);
+  assert.equal(sequence.length%2,1);assert.notEqual(sequence[0],sequence[1]);
+  sequence.forEach((id,i)=>assert.equal(id,sequence[i%2]));
+ }));
+ await t.test('card layout fits the paper and chord range starts in its margin',()=>fresh(async p=>{
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
+  const form=await p.locator('.sc-song-workspace aside').boundingBox(),preview=await p.locator('.sc-song-workspace .sc-song-preview').boundingBox();
+  assert(form.x+form.width<=preview.x);
+  await p.getByRole('button',{name:'セクション編集',exact:true}).last().click();
+  const paper=p.locator('.sc-section-preview');
+  for(const width of [1440,800,390]){
+   await p.setViewportSize({width,height:940});
+   await p.waitForFunction(()=>{const el=document.querySelector('.sc-section-preview');return el.scrollWidth<=el.clientWidth+1;});
+  }
+  await p.setViewportSize({width:1440,height:1000});await p.click('[data-score-cancel]');
+  await p.getByRole('button',{name:'コード一括入力',exact:true}).click();
+  const bars=p.locator('.sc-preset-paper .sheet-bar[data-bar-number]');
+  const a=await bars.first().boundingBox(),b=await bars.nth(2).boundingBox();
+  await p.mouse.move(a.x-6,a.y+15);await p.mouse.down();await p.mouse.move(b.x+8,a.y+15,{steps:12});await p.mouse.up();
+  assert.equal(await p.locator('[data-preset-destination]').count(),3);
  }));
  await t.test('display controls sit next to the title and the shortcut group stays fixed',()=>fresh(async p=>{
   assert.equal(await p.locator('.sc-dock-grip').count(),0);

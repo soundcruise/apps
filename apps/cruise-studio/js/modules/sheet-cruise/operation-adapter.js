@@ -493,7 +493,7 @@
         project.materials.rhythms.push.apply(project.materials.rhythms, materials);
         targetBindings.forEach(function (binding) { old.add(binding.materialId); });
         project.performance.barRhythms = bindings.filter(function (binding) { return !targets.has(binding.barId); });
-        if (positions.length === project.bars.length && materials.length === 1) {
+        if (!args.wholeSong && positions.length === project.bars.length && materials.length === 1) {
             old.add(project.performance.basicRhythmId);
             project.performance.basicRhythmId = materials[0].id;
         } else {

@@ -524,6 +524,7 @@ for (const engine of ['chrome','webkit']) test('preset auditions, library operat
             await page.click('[data-score-cancel]');
             assert.deepEqual(await snapshot(),before);
             await open();
+            if(mode!=='chord-preset')await page.selectOption('[data-score-preset]',{label:first});
             assert.equal(await page.locator('[data-score-preset] option:checked').textContent(),first);
             if(mode==='chord-preset') assert.equal(await page.locator('[data-preset-chord-cell]').first().inputValue(),'Dm');
             else {

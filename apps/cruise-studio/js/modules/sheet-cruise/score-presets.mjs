@@ -508,6 +508,12 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     strip.append(patternPlay,patternArea.querySelector('.sc-preset-cell-editor,.sc-strum-preset-grid'));
     patternArea.prepend(patternHead,strip);
     patternArea.append(rangeControls);
+    let wholeSong;
+    if(!chords){
+        const label=node('label',undefined,rangeControls);
+        wholeSong=node('input',undefined,label);wholeSong.type='checkbox';label.append('曲全て');
+        wholeSong.onchange=update;
+    }
     rangeControls.append(stage);
     const preview = node('p', '', rangeControls);
     preview.className = 'sc-preset-preview';
@@ -518,7 +524,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     dialog.querySelector('header').appendChild(apply);
     const targetArea = node('section', undefined, body);
     targetArea.className = 'sc-preset-target';
-    const targetHint = chords ? 'クリックで開始小節を指定' : '小節で開始位置、セクション名で範囲を指定。ドラッグ・Shift＋クリックで範囲選択（複数小節のパターンは2小節単位）。余白で解除。';
+    const targetHint = chords ? 'クリックで開始小節を指定。ドラッグで選んだ範囲には進行を繰り返します。' : '小節で開始位置、セクション名で範囲を指定。ドラッグ・Shift＋クリックで範囲選択（複数小節のパターンは2小節単位）。余白で解除。';
     const scoreHead = node('div',undefined,targetArea); scoreHead.className='sc-preview-heading';
     node('strong','曲の譜面',scoreHead);
     const scorePlay=button('▶ 再生',()=>play('score'),scoreHead);
@@ -598,6 +604,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         rangeIndices = Array.from({length:Math.abs(end - start) + 1}, (_, index) => Math.min(start, end) + index);
     }
     function destinationIndices(anchor,section){
+        if(wholeSong?.checked&&!author)return project.bars.map((_,i)=>i);
         if(chords || author || rows.length<2 || !rangeIndices.length)return rangeIndices;
         const first=rangeIndices[0], last=rangeIndices.at(-1);
         if(!section && first===last){
@@ -620,11 +627,12 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         else refreshPaper(destinationIndices(gesture.start,false).map(index=>project.bars[index].id));
     }
     function chooseFromPaper(start, end) {
+        if(wholeSong&&!author)wholeSong.checked=false;
         sectionSelected=false;
         setRange(start, end);
         if (author) { selectionAnchor=start; refreshPaper(); captureFromScore(); return; }
         if (chords) {
-            starting = Math.min(start,end);
+            selectionAnchor=start;starting = Math.min(start,end);
         } else {
             selectionAnchor=start;
         }
@@ -635,15 +643,32 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     selectionSurface.addEventListener('pointerdown', event => {
         if (event.target.closest('button') || (!author && event.target.closest('.sheet-section-label'))) return;
         const index = barAt(event.target);
-        if (event.button !== 0 || (event.pointerType === 'touch' && chords && !author) || (chords && !author && !Number.isInteger(index))) return;
+        if (event.button !== 0 || gesture) return;
+        const wasWholeSong=wholeSong?.checked;
+        if(!author&&wholeSong)wholeSong.checked=false;
         const anchor = event.shiftKey && selectionAnchor !== null ? selectionAnchor : Number.isInteger(index) ? index : null;
-        gesture = {pointer:event.pointerId, previous:rangeIndices, start:anchor, end:Number.isInteger(index)?index:null,x:event.clientX,y:event.clientY};
+        gesture = {pointer:event.pointerId, wasWholeSong, previous:rangeIndices, start:anchor, end:Number.isInteger(index)?index:null,x:event.clientX,y:event.clientY};
         if(Number.isInteger(index)){setRange(anchor,index);paintGesture();}
         selectionSurface.setPointerCapture(event.pointerId);
         event.preventDefault();
     });
+    const edgeScroll=C.sheetCruise.createDragScroll(paper,(x,y)=>{
+        if(!gesture)return;
+        const element=doc.elementFromPoint(x,y);
+        let hit=barAt(element);
+        if(!Number.isInteger(hit)&&paper.contains(element)){
+            const row=element.closest('.sheet-line');
+            const cells=row?.querySelectorAll('.sheet-bar[data-bar-number]');
+            if(cells?.length)hit=barAt(cells[cells.length-1]);
+            else if(paper.scrollTop+paper.clientHeight>=paper.scrollHeight-1)hit=project.bars.length-1;
+        }
+        if(Number.isInteger(hit)){gesture.start??=hit;gesture.end=hit;setRange(gesture.start,hit);paintGesture();}
+    });
+    dialog.addEventListener('close',()=>edgeScroll.stop(),{once:true});
+    selectionSurface.addEventListener('lostpointercapture',()=>{edgeScroll.stop();});
     selectionSurface.addEventListener('pointermove', event => {
         if (gesture?.pointer !== event.pointerId) return;
+        edgeScroll.move(event.clientX,event.clientY);
         // Sample the segment too: a fast drag can enter and leave a bar between events.
         const steps=Math.max(1,Math.ceil(Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)/8));
         for(let step=1;step<=steps;step++){
@@ -672,6 +697,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     });
     selectionSurface.addEventListener('pointercancel', event => {
         if (gesture?.pointer !== event.pointerId) return;
+        if(wholeSong)wholeSong.checked=gesture.wasWholeSong;
         rangeIndices = gesture.previous;
         gesture = null;
         update();
@@ -687,6 +713,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     function chooseSection(target) {
         const heading = target.closest('.sheet-section-label[data-section-id]');
         if (!heading || chords || author) return false;
+        if(wholeSong)wholeSong.checked=false;
         sectionSelected=true;
         rangeIndices=project.bars.flatMap((bar,i)=>bar.sectionId===heading.dataset.sectionId?[i]:[]);
         selectionAnchor=rangeIndices[0]??null;
@@ -916,6 +943,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (chords) {
             const pattern = timedChords;
             if (!pattern?.some(events => events.length)) throw Error('コードを入力してください');
+            if(rangeIndices.length>1)return {bars:rangeIndices.map(i=>project.bars[i]),pattern:rangeIndices.map((_,i)=>pattern[i%pattern.length])};
             const from = starting;
             if (from < 0 || from + pattern.length > project.bars.length)
                 throw Error('曲の末尾までに ' + pattern.length + ' 小節の入力先がありません。開始小節を変更してください');
@@ -999,16 +1027,21 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             update();
         };
     }
-    populateOptions(); choose();
+    const lastKey='scoreLastStrumPreset';
+    const lastId=!chords&&C.storage.getAppSetting(lastKey);
+    const initial=!chords&&(library.items.find(item=>item.id===lastId)||
+        library.items.find(item=>item.id==='default:'+strokes.findIndex(([name])=>name==='王道の8分')));
+    populateOptions(initial); choose();
+    const usedPresets=new WeakMap();
     fitPaper?.();
     function stagePattern() {
         try {
             void stopAudio();
             const {bars, pattern} = plan(), barIds = bars.map(bar => bar.id);
             const entry = structuredClone(chords ? {barIds, pattern, overwrite:true} :
-                {barIds, pattern, leadingSustains:rows.map(row=>Math.min(measureTicks,leadingHold(row))), inputGrids:pattern.map((_,i)=>({unit:gridUnits[i]??rows[i].length, beats:beatUnits[i]??[]})), name:edited ? 'カスタムストローク' : current.name});
+                {barIds, pattern, wholeSong:wholeSong.checked, leadingSustains:rows.map(row=>Math.min(measureTicks,leadingHold(row))), inputGrids:pattern.map((_,i)=>({unit:gridUnits[i]??rows[i].length, beats:beatUnits[i]??[]})), name:edited ? 'カスタムストローク' : current.name});
             previewProject = C.structureOperations.previewPreset(previewProject, mode, entry, C.model.schema2,C.localChordForms?.installPreset);
-            steps.push(entry);redoSteps.length=0;stage.focus({preventScroll:true});
+            usedPresets.set(entry,current.id);steps.push(entry);redoSteps.length=0;stage.focus({preventScroll:true});
             renderPaper(); fitPaper(); update();
             apply.disabled = false;
             status.textContent = '';
@@ -1030,5 +1063,5 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             renderPaper();fitPaper();update();status.textContent='';
         }catch(error){status.textContent=error.message;}
     });
-    return () => !author && steps.length ? {kind:mode, args:{steps}} : null;
+    return () => !author && steps.length ? {kind:mode, args:{steps},onApplied(){if(!chords)C.storage.setAppSetting(lastKey,usedPresets.get(steps.at(-1)));}} : null;
 }
