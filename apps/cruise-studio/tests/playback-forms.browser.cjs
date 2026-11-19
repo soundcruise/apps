@@ -75,9 +75,38 @@ for(const engine of ['chrome','webkit'])test('score metronome, smooth follow and
   },selector);
   assert(crossed);
  },100));
+ await t.test('the paper cursor already has the next row queued before a late UI update',()=>fresh(async page=>{
+  await page.evaluate(()=>{window.__paperElapsed=2*2.4+2.30;});
+  await page.click('#sc-song-preview');
+  const selector='#sc-sheet-scale-box>[data-playhead-bar="3"]';
+  await page.waitForFunction(sel=>document.querySelector(sel)?.getAnimations().length,selector);
+  const delta=await page.evaluate(sel=>{
+   const line=document.querySelector(sel),animation=line.getAnimations()[0];
+   // Sample the scheduled animation 100 ms into bar four, without calling paintPlayhead again.
+   animation.pause();
+   animation.currentTime=2500;
+   const box=document.querySelector('#sc-sheet-scale-box .sheet-bar[data-bar-number="4"]').getBoundingClientRect();
+   const r=line.getBoundingClientRect();
+   return {x:r.left-(box.left+box.width/24),y:r.top-box.top};
+  },selector);
+  assert(Math.abs(delta.x)<2 && Math.abs(delta.y)<2,JSON.stringify(delta));
+ },100));
  await t.test('follow centers gradually across frames, yields to manual scrolling and stops immediately with playback',()=>fresh(async p=>{
   await p.setViewportSize({width:1440,height:720});await p.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession(),r=s.runOperation('long follow fixture',p=>{while(p.bars.length<32)p.bars.push({id:crypto.randomUUID(),sectionId:p.sections.at(-1).id,melody:[],chords:[],lyrics:[]});});if(!r.ok)throw Error(r.error);});await p.click('#sc-undo');await p.click('#sc-redo');const before=await snap(p);await p.click('#sc-song-preview');await p.waitForFunction(()=>document.querySelector('.sc-playing-bar'));
-  const r=await p.evaluate(async()=>{window.__paperElapsed=8*2.4+.08;const root=CruiseStudio.scroll.getRoot('sheetCruise'),samples=[];for(let i=0;i<90;i++){await new Promise(requestAnimationFrame);samples.push(root.scrollTop);}return {samples,height:root.clientHeight};});const steps=r.samples.slice(1).map((x,i)=>Math.abs(x-r.samples[i]));assert(steps.filter(n=>n>.1).length>15);assert(Math.max(...steps)<Math.min(90,r.height/3));await p.waitForFunction(()=>{const root=CruiseStudio.scroll.getRoot('sheetCruise').getBoundingClientRect(),b=document.querySelector('.sheet-bar[data-bar-number="9"]').getBoundingClientRect();return Math.abs((b.top+b.bottom-root.top-root.bottom)/2)<140;});await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTo({top:0,behavior:'instant'}));await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop),0);await p.evaluate(()=>window.__paperElapsed=9*2.4+.08);await p.waitForFunction(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop>100);await p.evaluate(()=>document.getElementById('sc-song-preview').click());await stopped(p);const y=await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop);await p.waitForTimeout(150);assert.equal(await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop),y);assert.deepEqual(await snap(p),before);
+  const r=await p.evaluate(async()=>{
+   const root=CruiseStudio.scroll.getRoot('sheetCruise'),samples=[],targets=[];
+   const absolute=root.scrollTo.bind(root),relative=root.scrollBy.bind(root);
+   let relativeCalls=0;
+   root.scrollTo=options=>{targets.push(options.top);absolute(options);};
+   root.scrollBy=options=>{relativeCalls++;relative(options);};
+   try {
+    window.__paperElapsed=8*2.4+.08;
+    for(let i=0;i<90;i++){await new Promise(requestAnimationFrame);samples.push(root.scrollTop);}
+   } finally {delete root.scrollTo;delete root.scrollBy;}
+   return {samples,height:root.clientHeight,targets,relativeCalls};
+  });
+  assert.equal(r.relativeCalls,0);assert(r.targets.length>0);assert(r.targets.every(Number.isInteger));
+  const steps=r.samples.slice(1).map((x,i)=>Math.abs(x-r.samples[i]));assert(steps.filter(n=>n>.1).length>15);assert(Math.max(...steps)<Math.min(90,r.height/3));await p.waitForFunction(()=>{const root=CruiseStudio.scroll.getRoot('sheetCruise').getBoundingClientRect(),b=document.querySelector('.sheet-bar[data-bar-number="9"]').getBoundingClientRect();return Math.abs((b.top+b.bottom-root.top-root.bottom)/2)<140;});await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTo({top:0,behavior:'instant'}));await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop),0);await p.evaluate(()=>window.__paperElapsed=9*2.4+.08);await p.waitForFunction(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop>100);await p.evaluate(()=>document.getElementById('sc-song-preview').click());await stopped(p);const y=await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop);await p.waitForTimeout(150);assert.equal(await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop),y);assert.deepEqual(await snap(p),before);
  },100));
  }finally{await browser.close();}
 });

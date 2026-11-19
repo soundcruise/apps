@@ -37,3 +37,19 @@ test('a running playhead follows audio time and reanchors on seek, bar change an
  assert.equal(animations.length,3);
  assert(animations.slice(0,-1).every(a=>a.cancelled));
 });
+
+test('a delayed UI frame crosses the bar line using the next row and its duration',()=>{
+ const line={style:{},animate(frames,options){this.frames=frames;this.duration=options.duration;return {cancel(){}};}};
+ const parent={append(el){el.parentElement=this;}};
+ let reads=0;
+ const bar={left:180,width:100,y:0,height:80,fraction:.95,seconds:2,segment:1,
+   nextSegment(){reads++;return {left:0,width:160,y:100,height:72,seconds:3};}};
+ movePlayhead(line,parent,bar);
+ movePlayhead(line,parent,{...bar,fraction:.96});
+ assert.equal(reads,1);
+ assert.equal(line.duration,5000);
+ assert.deepEqual(line.frames.map(f=>f.offset),[0,.4,.4,1]);
+ assert.equal(line.frames[1].transform,'translate3d(280px,0px,0)');
+ assert.equal(line.frames[2].transform,'translate3d(0px,100px,0) scaleY(0.9)');
+ assert.equal(line.frames[3].transform,'translate3d(160px,100px,0) scaleY(0.9)');
+});

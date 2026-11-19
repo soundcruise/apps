@@ -9,7 +9,7 @@ export function placePlayhead(line,parent,{x,y=0,height}){
 }
 // Let the compositor traverse a musical segment even if a UI frame is missed.
 const playheadMotions = new WeakMap();
-export function movePlayhead(line, parent, {left, width, y, height, fraction, seconds, segment}) {
+export function movePlayhead(line, parent, {left, width, y, height, fraction, seconds, segment, nextSegment}) {
  const x = left + width * fraction;
  const duration = seconds * 1000;
  const elapsed = duration * fraction;
@@ -26,9 +26,22 @@ export function movePlayhead(line, parent, {left, width, y, height, fraction, se
  playheadMotions.delete(line);
  placePlayhead(line, parent, {x, y, height});
  if (!line.animate || !(duration > 0) || !(fraction > 0 && fraction < 1)) return;
- const transform = pos => 'translate3d('+pos+'px,'+y+'px,0)';
- const animation = line.animate([{transform:transform(left)}, {transform:transform(left+width)}],
-   {duration, easing:'linear', fill:'both'});
+ const transform = (x, top) => 'translate3d('+x+'px,'+top+'px,0)';
+ const frames = [{offset:0, transform:transform(left,y)}, {offset:1, transform:transform(left+width,y)}];
+ let total = duration;
+ // Queue the actual next bar before the boundary. Equal offsets jump to a new
+ // row without drawing a diagonal line or waiting for another main-thread frame.
+ const next = nextSegment?.();
+ if (next && next.seconds > 0 && height > 0) {
+   total += next.seconds * 1000;
+   const boundary = duration / total;
+   frames[1].offset = boundary;
+   line.style.transformOrigin = 'top left';
+   const scale = ' scaleY('+next.height/height+')';
+   frames.push({offset:boundary, transform:transform(next.left,next.y)+scale},
+               {offset:1, transform:transform(next.left+next.width,next.y)+scale});
+ }
+ const animation = line.animate(frames, {duration:total, easing:'linear', fill:'both'});
  animation.currentTime = elapsed;
  playheadMotions.set(line, {segment, left, width, y, height, duration, animation});
 }
