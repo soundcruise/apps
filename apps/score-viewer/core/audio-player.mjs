@@ -1,4 +1,4 @@
-import {CONNECTED_STRUM_RELEASE,stringDampTime,metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
+import {GUITAR_LEAD_SECONDS,CONNECTED_STRUM_RELEASE,stringDampTime,metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
 import {createOutputPosition,outputContextTime} from './output-position.mjs';
 import {insist} from './json.mjs';
 
@@ -7,6 +7,8 @@ export function normalizePlayback(value={},originalBpm=100){
     return {bpm,visualDelayMs:Number.isFinite(value.visualDelayMs)?Math.max(-1000,Math.min(1000,value.visualDelayMs)):0,metronomeSound:normalizeMetronomeSound(value.metronomeSound),countIn:value.countIn!==false,metronome:value.metronome!==false,
         mix:Object.fromEntries(['chords','melody','metronome'].map(k=>[k,Number.isFinite(value.mix?.[k])?Math.max(0,Math.min(100,value.mix[k])):100]))};
 }
+// The scheduler shifts the complete guitar envelope relative to the musical grid.
+const guitarLead = event => event.part==='guitar'||event.part==='mute' ? GUITAR_LEAD_SECONDS : 0;
 export function pickOffset(event,bpm){
     return event.part==='guitar'&&event.travelSpan>0?event.offsetSeconds*Math.min(1,(event.attackWindowTicks*60/bpm/480)*.28/event.travelSpan):event.offsetSeconds||0;
 }
@@ -35,6 +37,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
     let options=normalizePlayback(settings,originalBpm),phase='paused',reason=null,clock=null,context=null,handle=null,lease=null;
     let token=0,timer=null,tick=0,scan=0,countEnd=0,countBeat=0,hasStarted=false,disposed=false,closing=null;
     let range={start:0,end:plan.totalTicks,loop:false},scanIteration=0;
+    const lookahead=.30;
     const ticksPerBar=plan.ticksPerBar??1920, countBeats=ticksPerBar/480;
     const outputPosition=createOutputPosition();
     const eventKey=(event,iteration=clock?.snapshot().iteration||0)=>iteration+':'+event.index;
@@ -98,12 +101,12 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         let fade = .35;
         if (event.part === 'guitar') {
             const next = plan.events[event.nextIndex];
-            const rangeEnd = Math.abs(end - tickTime(s,range.end)) < 1e-9;
+            const rangeEnd = Math.abs(end + guitarLead(event) - tickTime(s,range.end)) < 1e-9;
             const nextPick = next ? tickTime(s,next.tick) + pickOffset(next,s.bpm) : Infinity;
             const damp = guitarDampTime(event,plan,s,nextPick);
             const samePitch = event.pickHandoffEndTick !== undefined && next.midi === event.midi;
             const shortRelease = rangeEnd ? range.loop && guitarAttacks.has(range.start)
-                : !samePitch && guitarAttacks.has(event.boundaryTick) && Math.abs(end - damp) < 1e-9;
+                : !samePitch && guitarAttacks.has(event.boundaryTick) && Math.abs(end + guitarLead(event) - damp) < 1e-9;
             fade = shortRelease ? CONNECTED_STRUM_RELEASE : event.release ?? .045;
         }
         const gain=voice.gain.gain,release=Math.min(fade,duration*.35);
@@ -120,12 +123,13 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
     function schedule(event,s,held,pendingAttack){
         if(event.part==='click'&&!options.metronome)return;
         const sourceSample=['click','count'].includes(event.part)?metronomeSample(context,event.midi,options.metronomeSound):buffers.get(event.part+':'+event.midi);insist(sourceSample,'missing-decoded-sample');
+        const lead=guitarLead(event);
         const attack=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)-held.age:pendingAttack??tickTime(s,event.tick);
-        let start=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)+(held.delay||0):attack+pickOffset(event,s.bpm);
+        let start=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)+(held.delay||0):attack+pickOffset(event,s.bpm)-lead;
         if(event.part==='guitar' && context.sampleRate)start=Math.round(start*context.sampleRate)/context.sampleRate;
         if(start<context.currentTime-.08)throw Error('playback-interrupted');
         const rate=Math.pow(2,(event.midi-sourceSample.midi)/12),offset=held?.offset||0;
-        const end=Math.min(musicalEnd(event,plan,s,attack),event.part==='count'?Infinity:tickTime(s,range.end),start+(sourceSample.buffer.duration-offset)/rate);
+        const end=Math.min(musicalEnd(event,plan,s,attack)-lead,event.part==='count'?Infinity:tickTime(s,range.end)-lead,start+(sourceSample.buffer.duration-offset)/rate);
         if(end<=start+.0001)return;
         insist(nodes.size<2048,'too-many-audio-nodes');
         const source=context.createBufferSource(),gain=context.createGain();source.buffer=sourceSample.buffer;source.playbackRate.setValueAtTime(rate,start);
@@ -140,16 +144,22 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         try{
             if(phase==='counting'){
                 const step=60/options.bpm;countBeat=Math.max(1,Math.min(countBeats,Math.floor((context.currentTime-(countEnd-countBeats*step))/step)+1));
-                if(context.currentTime>=countEnd-.03){phase='playing';clock.play({delay:Math.max(0,countEnd-context.currentTime)});scheduleTiedEntry(tick,clock.snapshot());notify();}
+                // Arm the musical clock while the last count is still playing. A late
+                // timer must not set the downbeat or postpone its first guitar attack.
+                if(clock.snapshot().status!=='playing' && context.currentTime>=countEnd-.18){
+                    clock.play({delay:Math.max(0,countEnd-context.currentTime)});
+                    scheduleTiedEntry(tick,clock.snapshot());
+                }
+                if(context.currentTime>=countEnd){phase='playing';notify();}
             }
-            if(phase==='playing'){
+            if(phase==='playing'||clock.snapshot().status==='playing'){
                 const s=clock.snapshot();tick=s.tick;
                 if(scanIteration!==s.iteration){scanIteration=s.iteration;resetScan(s.tick);for(const key of issued)if(Number(key.split(':')[0])<s.iteration)issued.delete(key);}
                 if(s.status==='ended'){pause('end');return;}
-                while(scan<ordered.length){const e=ordered[scan];if(e.tick>=range.end)break;if(tickTime(s,e.tick)>context.currentTime+.12)break;scan++;
+                while(scan<ordered.length){const e=ordered[scan];if(e.tick>=range.end)break;if(tickTime(s,e.tick)>context.currentTime+lookahead)break;scan++;
                     const key=eventKey(e,s.iteration);if(issued.has(key))continue;issued.add(key);schedule(e,s);
                 }
-                if(range.loop){const boundary=tickTime(s,range.end);if(boundary<=context.currentTime+.12){const next={...s,tick:range.start,time:boundary,anchorTime:boundary,iteration:s.iteration+1};scheduleTiedEntry(range.start,next);for(const e of ordered){if(e.tick<range.start)continue;if(e.tick>=range.end||tickTime(next,e.tick)>context.currentTime+.12)break;const key=eventKey(e,next.iteration);if(!issued.has(key)){issued.add(key);schedule(e,next);}}}}
+                if(range.loop){const boundary=tickTime(s,range.end);if(boundary<=context.currentTime+lookahead){const next={...s,tick:range.start,time:boundary,anchorTime:boundary,iteration:s.iteration+1};scheduleTiedEntry(range.start,next);for(const e of ordered){if(e.tick<range.start)continue;if(e.tick>=range.end||tickTime(next,e.tick)>context.currentTime+lookahead)break;const key=eventKey(e,next.iteration);if(!issued.has(key)){issued.add(key);schedule(e,next);}}}}
 
             }
         }catch{pause('interruption');return;}
@@ -204,7 +214,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
                 issued.delete(voice.key);stats.cancelledFuture++;cancel(voice);
             }
             resetScan(s.tick);
-            for(const voice of [...nodes])envelope(voice,Math.min(musicalEnd(voice.event,plan,s,voice.attack),tickTime(s,range.end),voice.start+(voice.source.buffer.duration-voice.offset)/voice.rate),s,true);
+            for(const voice of [...nodes])envelope(voice,Math.min(musicalEnd(voice.event,plan,s,voice.attack)-guitarLead(voice.event),tickTime(s,range.end)-guitarLead(voice.event),voice.start+(voice.source.buffer.duration-voice.offset)/voice.rate),s,true);
             for(const reservation of pending){
                 schedule(reservation.event,s,reservation.held,reservation.attack);
                 issued.add(eventKey(reservation.event,s.iteration));

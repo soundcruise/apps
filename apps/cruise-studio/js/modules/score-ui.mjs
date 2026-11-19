@@ -1,4 +1,4 @@
-export {outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
+export {GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
 // Presentation helpers shared by the score editor and the read-only viewer.
 // They own no music, transport, storage or account state.
 export const scoreColors=Object.freeze({line:'#967536',border:'#b49a55',fill:'rgba(196,167,91,.18)',ink:'#735721'});
@@ -44,6 +44,15 @@ export function movePlayhead(line, parent, {left, width, y, height, fraction, se
  const animation = line.animate(frames, {duration:total, easing:'linear', fill:'both'});
  animation.currentTime = elapsed;
  playheadMotions.set(line, {segment, left, width, y, height, duration, animation});
+}
+export function movePaperPlayhead(line,paper,bar,bounds,{fraction,seconds,nextBar}){
+ const root=paper.getBoundingClientRect();
+ const sx=root.width/paper.offsetWidth||1,sy=root.height/paper.offsetHeight||sx;
+ const geometry=r=>({left:(r.left-root.left)/sx,y:(r.top-root.top)/sy,width:r.width/sx,height:r.height/sy});
+ movePlayhead(line,paper,{...geometry(bounds),segment:bar,fraction,seconds,nextSegment:()=>{
+   const following=nextBar();
+   return following&&{...geometry(following.getBoundingClientRect()),seconds};
+ }});
 }
 export function bindPlaybackButton(button,toggle){button.addEventListener('pointerdown',e=>{if(e.button===0)e.preventDefault();});button.onclick=toggle;}
 export function syncPlaybackButton(button,phase,{stop=false,disabled=false,idle='▶ 再生'}={}){

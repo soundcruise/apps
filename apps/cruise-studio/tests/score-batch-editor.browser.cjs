@@ -458,6 +458,10 @@ for (const engine of ['chrome','webkit']) test('preset auditions, library operat
             await waitPlaying('score');
             const cursor=page.locator('.sc-preset-paper [data-layout-playhead]');
             await cursor.waitFor();
+            await page.waitForFunction(()=>{
+                const frames=document.querySelector('.sc-preset-paper [data-layout-playhead]')?.getAnimations()[0]?.effect.getKeyframes();
+                return frames?.length===4 && frames[1].offset===frames[2].offset;
+            });
             const initial=await cursor.evaluate(el=>getComputedStyle(el).transform);
             await page.waitForFunction(initial=>getComputedStyle(document.querySelector('.sc-preset-paper [data-layout-playhead]')).transform!==initial,initial);
             assert.equal(await cursor.count(),1);

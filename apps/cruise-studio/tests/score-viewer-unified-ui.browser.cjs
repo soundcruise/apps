@@ -12,6 +12,25 @@ for(const engine of ['chrome','webkit'])test('unified score UI '+engine,async t=
  await t.test('library management is always available and source bytes survive organize/copy/delete and outside close',()=>fresh(async p=>{
   await open(p);await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p);await p.waitForFunction(()=>!CruiseViewer.view.hasUnsaved());const before=(await read(p)).byteHash;await p.click('[data-viewer-action=library]');await p.locator('[data-library-action=duplicate]').waitFor();assert.equal(await p.locator('[data-library-action=manage]').count(),0);await p.click('[data-library-action=create-folder]');await p.getByRole('textbox',{name:'新しいフォルダ名'}).fill('ライブ');await p.click('[data-library-action=new-folder]');await p.click('[data-library-action=duplicate]');await require('./helpers/viewer-regression-choices.cjs').editNumberedCopy(p);await p.locator('[data-library-name]').fill('コピー');await p.click('[data-library-action=edit-save]');await p.waitForFunction(()=>document.querySelectorAll('[data-library-entry]').length===2);await p.locator('[data-library-action=create-folder]').waitFor({state:'visible'});await p.waitForFunction(()=>!document.querySelector('[data-library-action=create-folder]').disabled);await shot(p,'library-always-editable');await p.mouse.click(5,5);await p.locator('.sv-library-manager').waitFor({state:'detached'});assert.equal((await read(p)).byteHash,before);
  }));
+ await t.test('the displayed bar and the following bar are queued on one playhead animation',()=>fresh(async p=>{
+  await open(p);await p.click('[data-viewer-action=play]');await playing(p);
+  await p.waitForFunction(()=>{
+   const cursor=document.querySelector('[data-viewer-playhead]');
+   const animation=cursor?.getAnimations()[0];
+   if(!animation)return false;
+   const frames=animation.effect.getKeyframes();
+   return frames.length===4 && frames[1].offset===frames[2].offset && frames[1].offset===.5;
+  });
+  assert.equal(await p.locator('.sv-playing').count(),1);
+  await p.click('[data-viewer-action=play]');
+  assert.equal(await p.locator('[data-viewer-playhead]').count(),0);
+  await menu(p);await p.getByRole('button',{name:'表示設定',exact:true}).click();
+  await p.click('[data-layout-play]');
+  await p.waitForFunction(()=>document.querySelector('[data-layout-playhead]')?.getAnimations()[0]?.effect.getKeyframes().length===4);
+  assert.equal(await p.locator('.sc-layout-playing').count(),1);
+  await p.click('[data-layout-play]');
+  assert.equal(await p.locator('[data-layout-playhead]').count(),0);
+ }));
  await t.test('display menu groups settings, fullscreen, layout and labelled zoom; export is separate; transport groups fit all orientations',()=>fresh(async p=>{
   await open(p);for(const size of [{width:1440,height:1000},{width:390,height:844},{width:320,height:568},{width:844,height:390}]){await p.setViewportSize(size);await p.waitForTimeout(80);const rows=await p.locator('.sv-toolbar:visible,.sv-transport:visible').evaluateAll(es=>es.map(e=>({h:e.getBoundingClientRect().height,w:e.clientWidth,s:e.scrollWidth})));assert(rows.every(e=>e.h<=68&&e.s<=e.w+2),JSON.stringify(rows));assert.equal(await p.locator('.sv-transport-right [data-viewer-tempo]').count(),1);assert(await p.locator('.sv-tempo-group').isVisible());await shot(p,'transport-'+size.width);}
   await menu(p);const sections=await p.locator('.sv-main-menu section').evaluateAll(es=>es.map(e=>({label:e.querySelector('strong').textContent,text:e.textContent})));const display=sections.find(e=>e.label==='表示'),output=sections.find(e=>e.label==='書き出し');for(const text of ['表示設定','全画面モード','配置','拡大・縮小'])assert(display.text.includes(text));assert(output.text.includes('PDFとして保存')&&output.text.includes('印刷'));const panel=await p.locator('.sv-main-menu>div').evaluate(e=>({w:e.clientWidth,s:e.scrollWidth}));assert(panel.s<=panel.w+2,JSON.stringify(panel));await shot(p,'menu-display');assert(!sections.find(e=>e.label==='ファイル').text.includes('PDFとして保存'));await shot(p,'display-menu');await p.locator('.sv-main-menu').getByRole('button',{name:'全画面モード',exact:true}).click();await p.locator('.sv-focused').waitFor();await p.locator('.sv-focus-exit').click();await p.waitForFunction(()=>!document.querySelector('.sv-focused'));

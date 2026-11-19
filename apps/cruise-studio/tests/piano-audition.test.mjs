@@ -1,3 +1,4 @@
+import * as scoreUI from '../js/modules/score-ui.mjs';
 import {buildBarPreviewPlan,buildSongPreviewPlan} from '../js/modules/sheet-cruise/score-playback.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ const source=readFileSync(new URL('../js/modules/sheet-cruise/sheet-cruise.js',i
 const start=source.indexOf('    function createPianoAudition('),end=source.indexOf('    // End short pitch audition.',start);
 assert(start>=0&&end>start);
 // Execute the production factory, with silent injected audio nodes and the real coordinator.
-const create=vm.runInNewContext(source.slice(start,end)+';createPianoAudition;');
+const create=vm.runInNewContext(source.slice(start,end)+';createPianoAudition;',{scoreUI});
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture({pending=false,samplePending=false,sampleFailure=false,outputDelay=0,metronomeState=null}={}){
  const audio=A.createCoordinator(),contexts=[],timers=new Map();let nextTimer=0,resolveResume,resolveSample;

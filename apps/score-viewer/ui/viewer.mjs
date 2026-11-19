@@ -1,4 +1,4 @@
-import {applyScoreTheme,placePlayhead,syncPlaybackButton,installScoreUI,styleAudioButton,styleRepeatButton} from '../../cruise-studio/js/modules/score-ui.mjs';
+import {applyScoreTheme,movePlayhead,syncPlaybackButton,installScoreUI,styleAudioButton,styleRepeatButton} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {mountFocusMode} from './focus-mode.mjs';
 import {bindRangeSelection} from './range-selection.mjs';
 import {labelIcon} from './icons.mjs';
@@ -77,7 +77,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     const scrollValue=()=>horizontal()?viewport.scrollLeft:viewport.scrollTop;
     const span=()=>horizontal()?viewport.clientWidth:viewport.clientHeight;
     const scrollMax=()=>horizontal()?viewport.scrollWidth-viewport.clientWidth:viewport.scrollHeight-viewport.clientHeight;
-    function scrollTo(value){if(horizontal())viewport.scrollLeft=value;else viewport.scrollTop=value;}
+    function scrollTo(value){if(horizontal())viewport.scrollLeft=Math.round(value);else viewport.scrollTop=Math.round(value);}
     let presentationPreview=false,playFrame=null,following=true,geometry=null,barNodes=[],lastFrameTime=0,highlight=null,candidate=null,barGeometry=[];
     const cursor=doc.createElement('span');cursor.className='sv-playhead';cursor.dataset.viewerPlayhead='';cursor.setAttribute('aria-hidden','true');
     let noticeTimer;function notice(text,error=false) {win.clearTimeout(noticeTimer);state.textContent=text;state.dataset.error=String(error);if(!error&&current?.saved)noticeTimer=win.setTimeout(()=>{state.textContent='';},3000);}
@@ -142,12 +142,24 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         // the one playback decoration after layout/visibility/rotation changes.
         highlight?.classList.remove('sv-playing');highlight=null;cursor.remove();selectionNode?.classList.remove('sv-selected');selectionNode=null;selectionKey='';
         barNodes=Array.from(current.paper.querySelectorAll('.sheet-bar[data-bar-number]'));
-        const paperRect=current.paper.getBoundingClientRect();barGeometry=barNodes.map(e=>{const r=e.getBoundingClientRect();return {left:r.left-paperRect.left,top:r.top-paperRect.top,width:r.width,height:r.height};});
+        const paperRect=current.paper.getBoundingClientRect();barGeometry=barNodes.map(e=>{const r=e.getBoundingClientRect();return {left:r.left-paperRect.left,y:r.top-paperRect.top,width:r.width,height:r.height};});
         geometry=createScrollMap(horizontal()?barNodes.map((e,i)=>{const r=e.getBoundingClientRect();return {startTick:i*current.ticksPerBar,top:r.left-top+viewport.scrollLeft,bottom:r.right-top+viewport.scrollLeft};}):Array.from(current.paper.querySelectorAll('.sheet-line[data-line-start]')).filter(e=>Number(e.dataset.lineStart)>0).map(e=>{const r=e.getBoundingClientRect();return {startTick:(Number(e.dataset.lineStart)-1)*current.ticksPerBar,top:r.top-top+viewport.scrollTop,bottom:r.bottom-top+viewport.scrollTop};}),current.player.snapshot().totalTicks);
     }
-    function stopFrames(){if(playFrame!==null)win.cancelAnimationFrame(playFrame);playFrame=null;lastFrameTime=0;highlight?.classList.remove('sv-playing');highlight=null;cursor.remove();}
+    let lastControlBar=-1,lastVisualBar=-1,lastCountBeat=-1;
+    function stopFrames(){lastControlBar=lastVisualBar=lastCountBeat=-1;if(playFrame!==null)win.cancelAnimationFrame(playFrame);playFrame=null;lastFrameTime=0;highlight?.classList.remove('sv-playing');highlight=null;cursor.remove();}
     function paintPosition(s){
-        const bar=barNodes[s.barIndex],r=barGeometry[s.barIndex];if(!bar||!r)return;if(bar!==highlight){highlight?.classList.remove('sv-playing');highlight=bar;bar.classList.add('sv-playing');}placePlayhead(cursor,current.paper,{x:r.left+Math.min(1,s.tickInBar/current.ticksPerBar)*r.width,y:r.top,height:r.height});
+        const bar=barNodes[s.barIndex],r=barGeometry[s.barIndex];
+        if(!bar||!r)return;
+        if(bar!==highlight){
+            highlight?.classList.remove('sv-playing');
+            highlight=bar;
+            bar.classList.add('sv-playing');
+        }
+        const ticks=current.ticksPerBar,seconds=ticks*60/(480*(s.outputBpm??s.bpm));
+        const nextTick=(s.barIndex+1)*ticks;
+        const nextIndex=nextTick<s.range.end?s.barIndex+1:s.range.loop?s.range.start/ticks:-1;
+        movePlayhead(cursor,current.paper,{...r,segment:bar,fraction:Math.min(1,s.tickInBar/ticks),seconds,
+            nextSegment:()=>barGeometry[nextIndex]&&{...barGeometry[nextIndex],seconds}});
     }
     function animate(time){
         playFrame=null;if(!active||!current)return;const raw=current.player.snapshot(),s=current.player.visualSnapshot();
@@ -156,7 +168,11 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
             if(lastIteration!==s.iteration){lastIteration=s.iteration;current.scroll.seek(s.tick);if(following&&current.scroll.snapshot().enabled&&geometry)scrollTo(geometry.target(s.tick,span(),scrollMax()));}paintPosition(s);
             if(following&&current.scroll.snapshot().enabled&&geometry)scrollTo(smoothFollow(scrollValue(),geometry.target(current.scroll.target(s),span(),scrollMax()),lastFrameTime?(time-lastFrameTime)/1000:1/60));
         }
-        lastFrameTime=time;controls();playFrame=win.requestAnimationFrame(animate);
+        lastFrameTime=time;
+        if(raw.barIndex!==lastControlBar || s.barIndex!==lastVisualBar || raw.countBeat!==lastCountBeat){
+            controls();lastControlBar=raw.barIndex;lastVisualBar=s.barIndex;lastCountBeat=raw.countBeat;
+        }
+        playFrame=win.requestAnimationFrame(animate);
     }
     function soundChanged(player){
         if(!current||current.player!==player)return;const s=player.snapshot();controls();
@@ -233,7 +249,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     files.onclick=()=>void libraryUI.show(files);
     function settingsPreviewAudio(options){const item=current;let player=null,generation=0,dead=false,closing=Promise.resolve();
         const valid=()=>!dead&&active&&current===item&&options.isOpen();
-        return {async play(){const ticket=++generation;if(!valid())return;options.changed('loading');const stopGeneration=createPlayback.stopGeneration?.();item.player.pause();await closing;if(ticket!==generation||!valid()||stopGeneration!==createPlayback.stopGeneration?.())return;if(!player)player=createPlayback(item.reader.read().document,{...item.player.snapshot().settings,tick:0},s=>options.changed(['playing','counting','loading'].includes(s.phase)?s.phase:'idle'));player.setRange(0,player.snapshot().totalTicks,false);player.seek(0);try{await player.play();}catch(error){options.changed('idle');options.message(error.message||'音を開始できませんでした');}},stop(){generation++;options.changed('idle');const old=player;player=null;if(old)closing=old.dispose();return closing;},position(){if(!player||player.snapshot().phase!=='playing')return null;const s=player.visualSnapshot();return {barNumber:s.barIndex+1,tick:s.tickInBar,barTicks:item.ticksPerBar};},dispose(){dead=true;generation++;const old=player;player=null;if(old)closing=old.dispose();return closing;}};
+        return {async play(){const ticket=++generation;if(!valid())return;options.changed('loading');const stopGeneration=createPlayback.stopGeneration?.();item.player.pause();await closing;if(ticket!==generation||!valid()||stopGeneration!==createPlayback.stopGeneration?.())return;if(!player)player=createPlayback(item.reader.read().document,{...item.player.snapshot().settings,tick:0},s=>options.changed(['playing','counting','loading'].includes(s.phase)?s.phase:'idle'));player.setRange(0,player.snapshot().totalTicks,false);player.seek(0);try{await player.play();}catch(error){options.changed('idle');options.message(error.message||'音を開始できませんでした');}},stop(){generation++;options.changed('idle');const old=player;player=null;if(old)closing=old.dispose();return closing;},position(){if(!player||player.snapshot().phase!=='playing')return null;const s=player.visualSnapshot();return {barNumber:s.barIndex+1,tick:s.tickInBar,barTicks:item.ticksPerBar,barSeconds:item.ticksPerBar*60/(480*(s.outputBpm??s.bpm)),nextBarNumber:(s.barIndex+1)*item.ticksPerBar<s.range.end?s.barIndex+2:null};},dispose(){dead=true;generation++;const old=player;player=null;if(old)closing=old.dispose();return closing;}};
     }
     const panels=createViewerSettings({host,forms:renderPaper.forms,renderPreview:(target,p)=>{if(!current)return;const item=current;renderPaper({read:()=>({...item.reader.read(),presentation:{...item.reader.read().presentation,...p,flow:'source',zoom:1}}),renderWith:(...args)=>item.reader.renderWith(...args)},target,{width:794,interactive:false});},createPreviewAudio:settingsPreviewAudio,library,presetCodec:createPresetCodec(contract.normalizePresentation),read:()=>current&&!disposed?current.reader.read():null,change,
         playback:()=>current.player.snapshot(),toggle:()=>play.click(),configure(value){try{if(value.bpm!==undefined)current.player.setTempo(value.bpm);else current.player.configure(value);schedulePreferences();controls();scrollPanel.refresh();}catch{notice('テンポはカウントイン終了後に変更できます。',true);}},

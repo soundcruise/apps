@@ -20,6 +20,8 @@ export function trimSampleAttack(context,buffer){const start=attackFrame(buffer)
 
 // A changed fingering damps quickly. A common note can ring until the pick
 // reaches its string, just as it does between strokes within a chord.
+// Measured pick lead relative to a grid-aligned click, including muted strokes.
+export const GUITAR_LEAD_SECONDS = .010;
 export const CONNECTED_STRUM_RELEASE = .008;
 
 export function stringDampTime(beat, nextPick, samePitch, followingCut) {

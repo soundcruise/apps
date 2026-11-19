@@ -7,6 +7,6 @@ export function createOutputPosition(){let points=[];
    if(loop&&end>start&&tick>=end){iteration+=1+Math.floor((tick-end)/(end-start));tick=start+(tick-end)%(end-start);}else tick=Math.min(end,tick);
    const ticksPerBar=s.ticksPerBar??1920;
    const barIndex=Math.max(0,Math.min(Math.ceil(s.totalTicks/ticksPerBar)-1,Math.floor(tick/ticksPerBar)));
-   return {...s,tick,time,iteration,barIndex,tickInBar:tick-barIndex*ticksPerBar,barId:barIndex===s.barIndex?s.barId:null,phase:p.phase==='playing'&&(!loop&&tick>=end)?'ended':p.phase};
+   return {...s,outputBpm:p.bpm,tick,time,iteration,barIndex,tickInBar:tick-barIndex*ticksPerBar,barId:barIndex===s.barIndex?s.barId:null,phase:p.phase==='playing'&&(!loop&&tick>=end)?'ended':p.phase};
   },get size(){return points.length;}});
 }

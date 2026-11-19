@@ -9,7 +9,7 @@ test('output timestamp maps device presentation time without double subtracting 
 });
 test('presentation follows output position across a tempo change, loop boundary and natural end',()=>{
  const p=createOutputPosition(),base={phase:'playing',time:0,tick:0,bpm:60,totalTicks:7680,range:{start:0,end:3840,loop:false},anchorTime:0,iteration:0};p.observe(base);p.observe({...base,time:1,tick:480,bpm:120});
- let at=p.at({...base,time:1.1,tick:576,bpm:120},.9);assert.equal(at.tick,432);assert.equal(at.bpm,120);at=p.at({...base,time:1.1,tick:576,bpm:120},1.05);assert.equal(at.tick,528);
+ let at=p.at({...base,time:1.1,tick:576,bpm:120},.9);assert.equal(at.tick,432);assert.equal(at.bpm,120);assert.equal(at.outputBpm,60);at=p.at({...base,time:1.1,tick:576,bpm:120},1.05);assert.equal(at.tick,528);assert.equal(at.outputBpm,120);
  p.reset();p.observe({...base,time:0,tick:3780,range:{start:1920,end:3840,loop:true}});at=p.at({...base,time:.2,tick:1956,iteration:1},.1);assert.equal(at.tick,3828);assert.equal(at.iteration,0);at=p.at({...base,time:.2,tick:1956,iteration:1},.2);assert.equal(at.tick,1956);assert.equal(at.iteration,1);
  p.reset();p.observe({...base,time:0,tick:3780});at=p.at({...base,phase:'ended',time:.2,tick:3840},.1);assert.equal(at.phase,'playing');assert.equal(at.tick,3828);assert.equal(p.at({...base,phase:'ended'},.2).phase,'ended');
  assert.equal(p.at({...base,phase:'paused',tick:123},0).tick,123);p.reset();assert.equal(p.size,0);

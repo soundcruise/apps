@@ -1,4 +1,4 @@
-import {bindOutsideDismiss,installScoreUI,movePlayhead} from '../score-ui.mjs';
+import {bindOutsideDismiss,installScoreUI,movePaperPlayhead} from '../score-ui.mjs';
 import {FONTS,setPresentationProperty,togglePresentationClass,TEXT_FIELDS,LINE_FIELDS,normalizeAppearance,applyAppearance,APPEARANCE_CSS,addTextTools,addInteractionColors} from './paper-appearance.mjs';
 // Browser-local presentation preferences. Never edits a Project or its Session.
 export const META_FIELDS=Object.freeze({originalKey:'ORGキー',playKey:'Playキー',bpm:'BPM',timeSignature:'拍子',basicStrum:'基本ストローク'});
@@ -243,7 +243,26 @@ export function createPaperLayout(C,doc=document){
         const footer=doc.createElement('footer'),reset=doc.createElement('button'),statusText=doc.createElement('span');reset.type='button';reset.textContent='デフォルトに戻す';reset.dataset.layoutReset='';statusText.setAttribute('role','status');controls.prepend(reset);footer.append(statusText);controls.append(footer,presetGroup);host.appendChild(dialog);
         let auditionFrame=null,auditionBar=null;const auditionLine=doc.createElement('span');auditionLine.dataset.layoutPlayhead='';auditionLine.setAttribute('aria-hidden','true');paper.style.position='relative';
         function clearAudition(){if(auditionFrame!==null)cancelAnimationFrame(auditionFrame);auditionFrame=null;auditionLine.remove();auditionBar=null;paper.querySelectorAll('.sc-layout-playing').forEach(e=>e.classList.remove('sc-layout-playing'));}
-        function paintAudition(){auditionFrame=null;if(!dialog?.open)return;const position=previewAudio?.position();if(position){if(!auditionBar?.isConnected||Number(auditionBar.dataset.barNumber)!==position.barNumber){auditionBar?.classList.remove('sc-layout-playing');auditionBar=paper.querySelector('.sheet-bar[data-bar-number="'+position.barNumber+'"]');auditionBar?.classList.add('sc-layout-playing');}const bar=auditionBar;if(bar){const a=paper.getBoundingClientRect(),b=bar.getBoundingClientRect(),scale=a.width/paper.offsetWidth||1;movePlayhead(auditionLine,paper,{segment:bar,left:(b.left-a.left)/scale,width:b.width/scale,fraction:position.tick/(position.barTicks??1920),seconds:position.barSeconds,y:(b.top-a.top)/scale,height:b.height/scale});const outer=viewport.getBoundingClientRect(),delta=(b.top+b.bottom-outer.top-outer.bottom)/2;viewport.scrollTop+=delta*.1;}}auditionFrame=requestAnimationFrame(paintAudition);}
+        function paintAudition(){
+            auditionFrame=null;
+            if(!dialog?.open)return;
+            const position=previewAudio?.position();
+            if(position){
+                const findBar=n=>paper.querySelector('.sheet-bar[data-bar-number="'+n+'"]');
+                if(!auditionBar?.isConnected||Number(auditionBar.dataset.barNumber)!==position.barNumber){
+                    auditionBar?.classList.remove('sc-layout-playing');
+                    auditionBar=findBar(position.barNumber);
+                    auditionBar?.classList.add('sc-layout-playing');
+                }
+                if(auditionBar){
+                    const bounds=auditionBar.getBoundingClientRect(),outer=viewport.getBoundingClientRect();
+                    movePaperPlayhead(auditionLine,paper,auditionBar,bounds,{fraction:position.tick/position.barTicks,seconds:position.barSeconds,
+                        nextBar:()=>position.nextBarNumber && findBar(position.nextBarNumber)});
+                    viewport.scrollTop=Math.round(viewport.scrollTop+(bounds.top+bounds.bottom-outer.top-outer.bottom)*.05);
+                }
+            }
+            auditionFrame=requestAnimationFrame(paintAudition);
+        }
         previewAudio=options.createPreviewAudio?.({isOpen:()=>!!dialog?.open,changed:phase=>{auditionPhase=phase;previewPlay.textContent=phase==='idle'?'▶ 再生':'■ 停止';previewPlay.setAttribute('aria-label',phase==='idle'?'再生':'停止');previewPlay.setAttribute('aria-pressed',String(phase!=='idle'));clearAudition();if(phase==='playing')auditionFrame=requestAnimationFrame(paintAudition);},message:text=>status(text)});previewPlay.hidden=!previewAudio;const toggleAudition=()=>{if(!previewAudio||!dialog?.open)return;if(auditionPhase!=='idle'){previewAudio.stop();clearAudition();}else{viewport.scrollTop=0;clearAudition();void previewAudio.play();}};previewPlay.onclick=toggleAudition;previewPlay.title='先頭から再生／停止（Space）';dialog.addEventListener('keydown',e=>{if(e.code!=='Space'&&e.key!==' ')return;if(e.isComposing||e.keyCode===229||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;if(e.target.closest('input,textarea,select,summary,[contenteditable="true"]')||e.target.closest('button')&&e.target!==previewPlay)return;e.preventDefault();e.stopPropagation();toggleAudition();});
         const silencePreview=()=>{if(doc.hidden)previewAudio?.stop();};doc.addEventListener('visibilitychange',silencePreview);const stopPreview=()=>previewAudio?.stop();doc.defaultView.addEventListener('pagehide',stopPreview);
         dialog.addEventListener('close',()=>{doc.removeEventListener('visibilitychange',silencePreview);doc.defaultView.removeEventListener('pagehide',stopPreview);clearAudition();const audio=previewAudio;previewAudio=null;void audio?.dispose();},{once:true});

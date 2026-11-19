@@ -67,7 +67,8 @@ test('explicit JSON/Print reject invalid and composing text, then export correct
   await (await toolbarControl(p,'#sc-export-json')).click();await (await toolbarControl(p,'#sc-print')).click();assert.equal(downloads.length,0);assert.equal(await p.evaluate(()=>__prints),0);
   await field.dispatchEvent('compositionend');await p.evaluate(()=>new Promise(r=>setTimeout(r,0)));
   const event=p.waitForEvent('download');await (await toolbarControl(p,'#sc-export-json')).click();const output=JSON.parse(fs.readFileSync(await(await event).path(),'utf8'));
-  assert.deepEqual(output,await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()));assert.notDeepEqual(output.bars[0].melody,before.bars[0].melody);
+  const {scorePresentation,...project}=output;assert.equal(scorePresentation.version,1);
+  assert.deepEqual(project,await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()));assert.notDeepEqual(output.bars[0].melody,before.bars[0].melody);
   await (await toolbarControl(p,'#sc-print')).click();assert.equal(await p.evaluate(()=>__prints),1);
  }finally{await browser.close();}
 });

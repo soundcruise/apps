@@ -27,11 +27,35 @@ function fake(prepare=()=>{}){
         createBufferSource(){const s={playbackRate:param(),buffer:null,started:false,stoppedAt:Infinity,connect(node){this.output=node;},disconnect(){},
             start(time,offset=0){this.started=true;this.startTime=time;this.offset=offset;},stop(time){assert(this.started);this.stoppedAt=time;}};sources.push(s);return s;}};contexts.push(current);return current;};
     const player=createViewerPlayer({plan:contract.tickPlan(score),createClock:opts=>contract.createClock(score,opts),createContext,
-        coordinator,sessionId:'viewer-test',loadSample:async(ctx,midi)=>{if(delay)await delay;return {midi,buffer:{duration:8,midi}};},
+        coordinator,sessionId:'viewer-test',loadSample:async(ctx,midi,part)=>{if(delay)await delay;return {midi,buffer:{duration:8,midi,part}};},
         setTimer(fn,ms){const key=++id;timers.set(key,{fn,time:current.currentTime+ms/1000});return key;},clearTimer:key=>timers.delete(key),originalBpm:score.songInfo.bpm,settings:{countIn:false,metronome:false}});
     function advance(seconds){const end=current.currentTime+seconds;while(true){const next=[...timers].sort((a,b)=>a[1].time-b[1].time)[0];if(!next||next[1].time>end)break;current.currentTime=next[1].time;for(const s of sources)if(!s.ended&&s.stoppedAt<=current.currentTime){s.ended=true;s.onended?.();}timers.delete(next[0]);next[1].fn();}current.currentTime=end;}
     return {player,sources,contexts,coordinator,advance,timers,get ctx(){return current;},delay:p=>delay=p};
 }
+test('the counted downbeat is queued in advance and strums lead the click by 10 ms across bars',async()=>{
+    const f=fake(score=>{score.songInfo.bpm=100;});
+    f.player.configure({countIn:true,metronome:true});
+    await f.player.play();
+    const countStart=f.sources[0].startTime,beat=.6,downbeat=countStart+4*beat;
+    // No callback on the downbeat itself; both sources must already be armed.
+    f.advance(downbeat-.07);
+    assert.equal(f.player.snapshot().phase,'counting');
+    const guitar=()=>f.sources.filter(s=>s.buffer.part==='guitar');
+    near(guitar()[0].startTime,downbeat-.010);
+    near(f.sources.find(s=>!s.buffer.part&&s.startTime>=downbeat-.001).startTime,downbeat);
+    f.advance(6*beat+.2);
+    const clicks=f.sources.filter(s=>!s.buffer.part);
+    for(let i=0;i<=8;i++)near(clicks[i].startTime,countStart+i*beat);
+    for(const i of [1,1.5,2.5,3,3.5,4]){
+        const attack=downbeat+i*beat-.010;
+        assert(guitar().some(source=>Math.abs(source.startTime-attack)<1/48000),'beat '+i);
+    }
+    near(f.sources.find(s=>s.buffer.part==='piano').startTime,downbeat);
+    const mute=f.sources.find(source=>source.buffer.part==='mute');
+    near(mute.startTime,downbeat+6*beat-.010);
+    near(mute.stoppedAt,mute.startTime+.085);
+    await f.player.dispose();
+});
 function addTiedMelody(score){
     const sample={...score.bars[0].melody[0],pitch:{step:'G',alter:0,octave:4}};
     score.songInfo.bpm=240;
@@ -82,7 +106,7 @@ test('the last strum uses a connected release only when the selected bar repeats
         f.player.setRange(0,1920,loop);
         assert(await f.player.play());
         f.advance(2.38);
-        const last=f.sources.filter(source=>Math.abs(source.stoppedAt-2.43)<1e-7 && source.buffer.midi<60);
+        const last=f.sources.filter(source=>Math.abs(source.stoppedAt-2.42)<1e-7 && source.buffer.midi<60);
         assert(last.length);
         for(const source of last)near(source.stoppedAt-source.output.gain.lastSetTime,loop ? .008 : .045);
         await f.player.dispose();
@@ -139,10 +163,10 @@ test('pause/resume holds the beat and resumes ringing notes from sample tails, n
 test('tempo changes and pauses midway through a pick sweep never lose its pending strings',async()=>{
     for(const action of ['tempo','pause']){
         const f=fake();await f.player.play();f.advance(.034);
-        const pending=f.sources.filter(s=>s.startTime>f.ctx.currentTime&&s.buffer.midi<60);
+        const pending=f.sources.filter(s=>s.startTime>f.ctx.currentTime&&s.startTime<.10&&s.buffer.midi<60);
         assert(pending.length>0);const expected=pending.map(s=>s.buffer.midi).sort(),created=f.sources.length;
         if(action==='tempo')f.player.setTempo(200);else{f.player.pause();f.advance(1);await f.player.play();}
-        const replaced=f.sources.slice(created).filter(s=>s.buffer.midi<60&&!s.offset).map(s=>s.buffer.midi).sort();
+        const replaced=f.sources.slice(created).filter(s=>s.buffer.midi<60&&s.startTime<f.ctx.currentTime+.1&&!s.offset).map(s=>s.buffer.midi).sort();
         assert.deepEqual(replaced,expected,action);f.advance(.2);assert.equal(f.player.snapshot().phase,'playing');await f.player.dispose();
     }
 });

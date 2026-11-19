@@ -1,4 +1,4 @@
-import {movePlayhead} from '../score-ui.mjs';
+import {movePaperPlayhead} from '../score-ui.mjs';
 import {presetChordCells} from './preset-chord-cells.mjs';
 import {presetLibrary, presetWindow, managePresets} from './preset-library.mjs';
 
@@ -240,8 +240,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         const position=audio.position();
         const bar=position && paperBars[position.barNumber-1];
         if(bar){
-            const bounds=bar.getBoundingClientRect(),sheet=page.getBoundingClientRect();
-            const scale=sheet.width/page.offsetWidth;
+            const bounds=bar.getBoundingClientRect();
             if(bar!==playingBar){
                 playingBar?.classList.remove('sc-layout-playing');playingBar=bar;bar.classList.add('sc-layout-playing');
                 const viewport=paper.getBoundingClientRect();
@@ -250,8 +249,8 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
                     paper.scrollTo({top:paper.scrollTop+bounds.top-viewport.top,behavior:reduced?'instant':'smooth'});
                 }
             }
-            if(scale>0)movePlayhead(cursor,page,{segment:bar,left:(bounds.left-sheet.left)/scale,width:bounds.width/scale,fraction:position.tick/(position.barTicks??1920),seconds:position.barSeconds,
-                y:(bounds.top-sheet.top)/scale,height:bounds.height/scale});
+            movePaperPlayhead(cursor,page,bar,bounds,{fraction:position.tick/position.barTicks,seconds:position.barSeconds,
+                nextBar:()=>paperBars[position.nextBarNumber-1]});
         }
         cursorFrame=requestAnimationFrame(paintCursor);
     }

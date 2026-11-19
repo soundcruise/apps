@@ -33,6 +33,8 @@ for (const engine of ['chrome', 'webkit']) test('3/4 from score entry to tied me
             return route.continue();
         });
         await context.addInitScript(() => {
+            // Exercise the browser-library save path consistently in both engines.
+            Object.defineProperty(window,'showSaveFilePicker',{configurable:true,value:undefined});
             const Base=window.AudioContext||window.webkitAudioContext;
             window.scoreNotes=[];
             window.AudioContext=class extends Base {

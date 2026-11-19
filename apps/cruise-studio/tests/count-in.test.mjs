@@ -1,3 +1,4 @@
+import * as scoreUI from '../js/modules/score-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -7,7 +8,7 @@ import {buildCountIn,withMetronome} from '../js/modules/sheet-cruise/score-playb
 const require=createRequire(import.meta.url),{createCoordinator}=require('../js/core/audio-coordinator.js');
 const source=readFileSync(new URL('../js/modules/sheet-cruise/sheet-cruise.js',import.meta.url),'utf8');
 // Exercise the real scheduler, using explicit clock/sample/timer dependencies.
-const create=vm.runInNewContext('('+source.slice(source.indexOf('function createPianoAudition('),source.indexOf('    // End short pitch audition.')).trim()+')');
+const create=vm.runInNewContext('('+source.slice(source.indexOf('function createPianoAudition('),source.indexOf('    // End short pitch audition.')).trim()+')',{scoreUI});
 const project=bpm=>({songInfo:{bpm,timeSignature:{beats:4,beatUnit:4}}});
 const score=[{midi:60,part:'guitar',start:.03,duration:.1,gain:.1}];
 function fixture(load){
