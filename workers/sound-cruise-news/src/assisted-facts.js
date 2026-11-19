@@ -30,11 +30,25 @@ export function assistedSourceReview(raw){
  try{const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||u.port)return null;const policy=pendingHumanSources[u.hostname];return policy?{...policy,registrationAllowed:false,confirmationUrl:raw}:null;}catch{return null;}
 }
 export const assistedTypes={...productTypes,guitar_accessory:['ギター関連アクセサリー','acoustic_guitar']};
+// Section and human-confirmed article type scope this editorial default to AGM.
+export function assistedAgmEditorialType(url,productType,isReview){
+ if(productType!=='guitar_article'||assistedSource(url)?.id!=='agm')return null;
+ const path=new URL(url).pathname;
+ if(path.startsWith('/column/'))return 'column';
+ return isReview&&path.startsWith('/gears/')?'review':null;
+}
 export const assistedActions={preview:'を先行紹介',variant_introduction:'の特別仕様を紹介',announcement:'を発表',release:'を発売',introduction:'を紹介',event_announcement:'の開催を案内',interview:'を公開'};
 export function assistedUrl(raw){const s=assistedSource(raw);return s&&!s.existingCandidateOnly?raw:null;}
 const safe=s=>typeof s==='string'&&s===s.trim()&&s.length>=2&&s.length<=100&&!/[<>\x00-\x1f]|https?:/.test(s);
 // Draft formatting is not type evidence. Formal callers retain the strict default.
-export function assistedLabel(f,{draft=false}={}){if(f?.kind!=='assisted_notice'||!safe(f.brand)||!safe(f.product)||!assistedTypes[f.productType]||!assistedActions[f.action]||f.category!==assistedTypes[f.productType][1])return null;
+export function assistedLabel(f,{draft=false}={}){if(f?.kind!=='assisted_notice'||!safe(f.brand)||!safe(f.product)||!assistedTypes[f.productType]||!assistedActions[f.action])return null;
+ let category=assistedTypes[f.productType][1];
+ if(f.articleUrl!==undefined||f.articleType!==undefined){
+  const type=assistedAgmEditorialType(f.articleUrl,f.productType,f.articleType==='review');
+  if(!type||type!==f.articleType)return null;
+  category='acoustic_guitar';
+ }
+ if(f.category!==category)return null;
  if(f.typeEvidence&&!validTypeEvidence(f.typeEvidence,f.productType))return null;
  if(!draft&&!f.typeEvidence&&!['acoustic_guitar','electro_acoustic','pickup','guitar_amp','guitar_accessory','interview','event','electric_guitar_bass','guitar_article'].includes(f.productType))return null;
  if(f.productType==='event'&&(f.action!=='event_announcement'||!/^20\d{2}-\d\d-\d\d$/.test(f.eventDate||'')||!safe(f.venue)))return null;
@@ -54,6 +68,7 @@ export async function assistedProof(store,row,now,registry){
  const source=assistedSource(row.source_url),registered=registry?.find(s=>s.id===row.source_id);
  if(row.origin!==ASSISTED_ORIGIN||source?.id!==row.source_id||registry&&(!registered||['DO_NOT_USE','PROHIBITED'].includes(registered.legalStatus)||registered.humanFactsProhibited===true))return false;
  const a=await store.db.prepare('SELECT * FROM news_assisted_edits WHERE candidate_id=? ORDER BY verified_at DESC,rowid DESC LIMIT 1').bind(row.id).first();let facts;try{facts=JSON.parse(row.product_facts);}catch{return false;}
+ if(facts?.articleUrl!==undefined&&facts.articleUrl!==row.source_url)return false;
  if(facts?.typeEvidence&&(!assistedLabel(facts)||!labelMatchesType(row.label,facts.productType)))return false;
  return !!a&&a.source_url===row.source_url&&a.published_at===row.published_at&&a.facts_json===row.product_facts&&a.label===row.label&&a.permission_ref===source.permissionRef&&a.verified_at<=now&&now-a.verified_at<90*86400000&&a.actor_type==='human_operator'&&row.facts_provenance===assistedProvenance(source,a.request_id,a.verified_at,a.actor_id,facts.confirmationContext);
 }

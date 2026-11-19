@@ -18,6 +18,17 @@ for(const [section,title,body,part] of [
  ['column','録音用ヘッドホンの選び方','<p>音楽制作の録音向けヘッドホンについて解説します。</p><h2>ヘッドホンの選び方</h2>','ヘッドホンの選び方'],
  ['news','合成奏者が新アルバムをリリース','<p>シンガー・ソングライターの合成奏者がアルバム『朝の空』をリリースする。</p>','朝の空']
 ])test('explicit article recovery '+section,()=>{const r=row(section),f=parse(r,title,body);assert.equal(f.publishedAt,date);assert.ok(agmArticleLabel(f.productFacts,f.eventType).includes(part));assert.notEqual(agmArticleLabel(f.productFacts,f.eventType),title);assert.ok(!JSON.stringify(f).includes('<p>'));assert.equal(f.productFacts.articleUrl,r.source_url);});
+test('recovered reviews and columns use the acoustic shelf and legacy receipts keep their headline',()=>{
+ for(const [section,title,body] of [
+  ['gears','SOUND CHECK 合成機材','<p>試奏した内容です。</p><h2>SYNTH GUITARS／AB-42</h2>'],
+  ['column','録音用ヘッドホンの選び方','<p>音楽制作の録音向けヘッドホンについて解説します。</p><h2>ヘッドホンの選び方</h2>']
+ ]){
+  const {productFacts:f,eventType,category}=parse(row(section),title,body);
+  assert.equal(category,'acoustic_guitar');assert.equal(f.category,category);
+  assert.equal(factualLabel({...f,category:'media_other'},eventType),factualLabel(f,eventType));
+  assert.equal(factualLabel({...f,category:'sale'},eventType),null);
+ }
+});
 test('insufficient or unrelated/hidden evidence cannot supply facts; size and canonical fail closed',()=>{const r=row();for(const b of ['<p>特定できない話題。</p>','<aside><p>合成奏者が弾き語りを語る。</p></aside>','<div class="related-block"><p>合成奏者が弾き語りを語る。</p></div>','<p hidden>合成奏者が弾き語りを語る。</p>'])assert.throws(()=>parse(r,'合成奏者が語る新たな話題',b),/facts_not_recovered/);assert.throws(()=>parseAgmArticleEvidence('x'.repeat(1000001),source,r),/too_large/);assert.throws(()=>parseAgmArticleEvidence(html(r,'合成奏者が語る弾き語り','<p>合成奏者の弾き語り。</p>').replace('rel="canonical"','rel="other"'),source,r));});
 test('date is never URL/release/modified date; missing page date keeps existing RSS date only',()=>{const r=row(),h=html(r,'合成奏者が語る弾き語り','<p>合成奏者の弾き語り。</p>');assert.throws(()=>parseAgmArticleEvidence(h.replace(date,'2026-10-02T10:00:00.000Z'),source,r),/facts_date_changed/);assert.equal(parseAgmArticleEvidence(h.replace(/<meta property="article:published_time"[^>]+>/,''),source,r).publishedAt,date);assert.throws(()=>parseAgmArticleEvidence(h,source,{...r,published_at:null}),/facts_date_changed/);});
 test('title priority, multiple guitars, review/advertorial remain editorial, never launch',()=>{const r=row('gears'),f=parse(r,'合成奏者の愛用ギター','<p>合成奏者が使うギター。【PR】</p><h2>ALPHA／A-1</h2><h2>BETA／B-2</h2>');assert.equal(f.productFacts.models.length,2);assert.equal(f.productFacts.editorialNotice,'advertorial');assert.equal(f.eventType,'agm_editorial');assert.match(factualLabel(f.productFacts,f.eventType),/2種類の愛用ギター/);const i=parse(row(),'合成奏者が語る弾き語り','<p>合成奏者はフィンガーピッキングにも言及。</p>');assert.equal(i.productFacts.topic,'singing');});

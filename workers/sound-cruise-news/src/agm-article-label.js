@@ -6,6 +6,15 @@ import {validEventDay} from './agm-performance-evidence.js';
 export const ARTICLE_TOPICS=Object.freeze({chord_progression:'コード進行',headphone:'ヘッドホン',acoustic:'アコースティック・ギター',singing:'ギター弾き語り',songwriting:'作曲とアコースティック・ギター',guitar_roots:'ギターを始めた経緯',solo:'ソロ・ギター',guitar_career:'ギタリストとしての歩み',fingerstyle:'フィンガーピッキング',rhythm:'リズム',home_recording:'自宅での音楽制作'});
 export const ARTICLE_FOCUS=Object.freeze({singing_technique:'弾き語りの歌い方',acoustic_records:'弾き語りの参考にしたアルバム',ai_music:'音楽制作でのAIとの付き合い方',mic_placement:'アコギ録音のマイク配置',recording_latency:'録音時のレイテンシー対策',headphone_choice:'音楽制作向けヘッドホンの選び方',chord_transposition:'コード進行の移調',strumming:'弾き語りのストローク',fingerpicking_basics:'フィンガーピッキングの基礎'});
 export const factName=v=>typeof v==='string'&&v.trim()===v&&v.length>=2&&v.length<=80&&!/[<>\x00-\x1f]/.test(v);
+export function acousticEditorialType(type){return type==='review'||type==='column';}
+export function agmEditorialCategory(type){
+ if(acousticEditorialType(type))return 'acoustic_guitar';
+ return ['interview','equipment','artist_news'].includes(type)?'artist_guitar':'media_other';
+}
+// Saved receipts from before the display policy change retain their original category.
+export function validAgmEditorialCategory(f){
+ return f.category===agmEditorialCategory(f.articleType)||(acousticEditorialType(f.articleType)&&f.category==='media_other');
+}
 export function specificEditorialLabel(f,topic){
  if(f.person!==undefined&&!factName(f.person)||f.people!==undefined&&(!Array.isArray(f.people)||f.people.length<2||f.people.length>3||f.people.some(p=>!factName(p))||f.people.join('・')!==f.person))return null;
  const subject=f.person||f.author,focus=ARTICLE_FOCUS[f.focus];
@@ -27,7 +36,7 @@ export function agmArticleLabel(f,event){
  if(type==='book_release')return f.section==='news'&&f.category==='media_other'&&validBook(f)?`${f.author}の教則本『${f.bookTitle}』、${Number(f.releaseDate.slice(5,7))}月${Number(f.releaseDate.slice(8,10))}日${f.evidence==='agm_human_book_v1'?'の発売情報':'に発売予定'}`:null;
  if(type==='performance_event')return agmPerformanceLabel(f);
  if(person!==undefined&&!factName(person)||f.author!==undefined&&!factName(f.author)||f.focus!==undefined&&!Object.hasOwn(ARTICLE_FOCUS,f.focus))return null;
- const expected=['interview','equipment','artist_news'].includes(type)?'artist_guitar':'media_other';if(f.category!==expected)return null;
+ if(!validAgmEditorialCategory(f))return null;
  if(['interview','equipment','artist_news'].includes(type)&&!person)return null;
  if(f.models!==undefined&&(!Array.isArray(f.models)||!f.models.length||f.models.length>4||f.models.some(m=>!factName(m))))return null;
  if(f.labelPolicy===AGM_SPECIFIC_LABEL&&['column','lesson','beginner','interview','equipment','review'].includes(type))return specificEditorialLabel(f,topic);

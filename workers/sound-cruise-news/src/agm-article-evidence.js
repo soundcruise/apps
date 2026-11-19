@@ -6,7 +6,7 @@ import {musicReleaseFields} from './agm-music-release.js';
 export const AGM_ARTICLE_PARSER='agm-article-9';
 export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-8','agm-article-7','agm-article-6','agm-article-5','agm-article-4']);
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
-import {agmArticleLabel,factName} from './agm-article-label.js';
+import {agmArticleLabel,agmEditorialCategory,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
 import {optOut} from './policy.js';
 const find=(n,p)=>D.findAll(x=>!!x.name&&p(x),n.children||[]);
@@ -74,7 +74,7 @@ export function parseAgmArticleEvidence(html,source,row){
  const tags=find(doc,n=>n.name==='a'&&/^https:\/\/acousticguitarmagazine\.jp\/tag\//.test(n.attribs.href||'')).map(text);
  let old={};try{old=JSON.parse(row.product_facts)||{};}catch{}
  let person=normalizePerson(nameFrom(title,intro,tags,old.person))||null,type=old.articleType||({beginners:'beginner',lesson:'lesson',column:'column',interview:'interview'}[section]);
- const f={kind:'agm_editorial',section,articleType:type,category:['interview','equipment'].includes(type)?'artist_guitar':'media_other',articleUrl:row.source_url,evidence:'agm_explicit_article_v1'};
+ const f={kind:'agm_editorial',section,articleType:type,category:agmEditorialCategory(type),articleUrl:row.source_url,evidence:'agm_explicit_article_v1'};
  if(person)f.person=person;
  const people=principalPeople(title,intro,{tags});if(people.length>1)f.people=people;
  const format=editorialForm(title,intro,headings);if(format)f.format=format;
@@ -90,7 +90,7 @@ export function parseAgmArticleEvidence(html,source,row){
  if(/【PR】|\bPR\b|タイアップ|広告企画/.test(intro))f.editorialNotice='advertorial';
  // Explicit model-bearing subsection headings, not related cards or price lists.
  const models=[...new Set(headings.filter(h=>/^[A-Za-z][A-Za-z .&-]{1,35}／[^／]{2,70}$/.test(h)&&/(?:[0-9]|[A-Z]+-[A-Z]+)/.test(h)).map(h=>h.replace('／',' ')))].slice(0,5);
- if(section==='gears'&&models.length&&models.length<=4){f.models=models;f.articleType=/SOUND CHECK|試奏|レビュー|体験/.test(title)?'review':/セレクション|愛用|使用/.test(title)?'equipment':type;f.category=f.articleType==='equipment'?'artist_guitar':'media_other';}
+ if(section==='gears'&&models.length&&models.length<=4){f.models=models;f.articleType=/SOUND CHECK|試奏|レビュー|体験/.test(title)?'review':/セレクション|愛用|使用/.test(title)?'equipment':type;f.category=agmEditorialCategory(f.articleType);}
 
  const themes=[['headphone',/ヘッドホン|ヘッドフォン/],['chord_progression',/コード進行|カノン進行/],['guitar_roots',/ギタリスト.{0,12}ルーツ|ギターを始めた経緯/],['songwriting',/作曲法|作曲方法/],['fingerstyle',/フィンガー[・ ]?(?:ピッキング|スタイル)/],['singing',/弾き語り/],['solo',/ソロ[・ ]?ギター/],['guitar_career',/軌跡|ギタリスト.{0,10}歩み/],['home_recording',/音楽制作|宅録|DTM/],['rhythm',/リズム/],['acoustic',/アコギ|アコースティック[・ ]?ギター/]];
  const topic=[title,...headings.slice(0,10),intro].map(segment=>themes.find(([,re])=>re.test(segment))).find(Boolean);if(topic)f.topic=topic[0];
