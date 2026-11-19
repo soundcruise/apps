@@ -1,5 +1,5 @@
 import {typeEvidence,validTypeEvidence,labelMatchesType} from './assisted-product-type.js';
-import {ASSISTED_ORIGIN,assistedTypes,assistedLabel,assistedProof,assistedSource,assistedExistingAllowed,assistedProvenance} from './assisted-facts.js';
+import {ASSISTED_ORIGIN,assistedTypes,assistedAgmEditorialType,assistedLabel,assistedProof,assistedSource,assistedExistingAllowed,assistedProvenance} from './assisted-facts.js';
 import {hash,DAY} from './policy.js';
 import {fingerprint} from './fingerprint.js';
 import {publicationValidation,resolvedDuplicatePredicate} from './decision-policy.js';
@@ -20,7 +20,9 @@ export async function prepareAssisted(store,input,now,registry,pepper){
  const stamp=/^20\d{2}-\d\d-\d\d$/.test(input.publishedAt||'')?Date.parse(input.publishedAt+'T00:00:00+09:00'):NaN;if(!Number.isFinite(stamp)||new Date(stamp+9*3600000).toISOString().slice(0,10)!==input.publishedAt||stamp>now||now-stamp>=90*DAY)errors.push('90日以内の正しい記事公開日が必要です');
  const evidence=input.typeEvidence??typeEvidence(assistedTypes[input.productType]?.[0]||'','human_type_selection');
  if(!validTypeEvidence(evidence,input.productType))errors.push('主製品の具体的な種別を確認してください。用途・対応機器だけでは種別を確定できません');
- const facts={typeEvidence:evidence,kind:'assisted_notice',brand:input.brand,product:input.product,models:[input.product],version:null,productType:input.productType,category:assistedTypes[input.productType]?.[1],action:input.action,...(input.qualifier?{qualifier:input.qualifier}:{}),...(input.productType==='event'?{eventDate:input.eventDate,venue:input.venue}:{})},generated=assistedLabel(facts);
+ const isReview=previousFacts.articleType==='review'||/試奏|(?<!プ)レビュー|\bsound check\b/i.test([input.product,input.label].join(' '));
+ const articleType=assistedAgmEditorialType(input.url,input.productType,isReview);
+ const facts={typeEvidence:evidence,kind:'assisted_notice',brand:input.brand,product:input.product,models:[input.product],version:null,productType:input.productType,category:articleType?'acoustic_guitar':assistedTypes[input.productType]?.[1],...(articleType?{articleType,articleUrl:input.url}:{}),action:input.action,...(input.qualifier?{qualifier:input.qualifier}:{}),...(input.productType==='event'?{eventDate:input.eventDate,venue:input.venue}:{})},generated=assistedLabel(facts);
  if(!generated)errors.push('主体・製品／イベント名・製品種別・出来事を確認してください（開催案内は開催日と会場も必要）');
  const label=input.label||generated;if(typeof label!=='string'||label.length<8||label.length>160||/[<>\x00-\x1f]/.test(label)||!label.includes(input.product||'\u0000')||!label.includes(input.brand||'\u0000'))errors.push('見出しには確認済みの主体と対象名を含めてください');
  if(label&&!labelMatchesType(label,facts.productType))errors.push('見出しの主製品種別が確認済みfactsと一致しません');

@@ -15,6 +15,18 @@ const feed=s=>`<rss><channel><item><title>${title(s)}</title><link>${url(s)}</li
 const fixtureFetch=calls=>async u=>{calls.push(u);const surf=AGM_SURFACES.find(s=>s.url===u);return new Response(u.endsWith('robots.txt')?robot:surf?.type==='rss'?feed(surf.section):surf?.type==='html'?Array.from({length:9},(_,i)=>card(i)).join(''):article(u),{headers:{'content-type':surf?.type==='rss'?'application/rss+xml':u.endsWith('robots.txt')?'text/plain':'text/html'}});};
 test('permission evidence is current, exact attribution, fixed six sections, daily interval',()=>{const s=getSource('agm');assert.equal(evidenceGate(s,now),null);assert.equal(s.permissionRef,'agm-permission-2026-10-08');assert.equal(s.explicitAutomationPermission,true);assert.equal(s.name,'ACOUSTIC GUITAR MAGAZINE WEB');assert.equal(s.crawlIntervalHours,24);assert.deepEqual(AGM_SECTIONS,['beginners','lesson','gears','interview','news','column']);assert.equal(AGM_SURFACES.filter(s=>s.type==='rss').length,5);assert.equal(s.discoveryUrl,AGM_SURFACES[3].url);});
 for(const s of AGM_SECTIONS)test(s+' becomes pending without publisher expressions or images',async()=>{const source=await active(),e=entry(s),{item}=await candidateFrom(e,source,allow,now,pepper);assert.ok(item);assert.equal(item.publicationDecision,'PUBLISH_REVIEW');assert.equal(item.sourceName,'ACOUSTIC GUITAR MAGAZINE WEB');assert.equal(item.publishedAt,'2026-10-01T10:00:00.000Z');assert.ok(!JSON.stringify(item).includes(e.title));assert.ok(!('body' in item)&&!('images' in item));});
+test('AGM reviews and columns enter the acoustic shelf and stay pending',async()=>{
+ for(const [section,headline,category] of [
+  ['column','アコギのadd9を解説','acoustic_guitar'],
+  ['gears','試奏レビュー アコギのadd9','acoustic_guitar'],
+  ['gears',title('gears'),'artist_guitar'],
+  ['lesson',title('lesson'),'media_other']
+ ]){
+  const {item}=await candidateFrom(entry(section,{title:headline}),await active(),allow,now,pepper);
+  assert.equal(item.category,category);assert.equal(item.productFacts.category,category);
+  assert.equal(item.publicationDecision,'PUBLISH_REVIEW');
+ }
+});
 test('unknown editorial topic is partial facts for review, never invented',async()=>{const {item}=await candidateFrom(entry('column',{title:'合成奏者の今週の話題'}),await active(),allow,now,pepper);assert.equal(item.productFacts.articleType,'column');assert.equal(item.productFacts.topic,undefined);assert.equal(factualLabel(item.productFacts,item.eventType),null);assert.equal(item.decisionReason,'label_required');});
 test('datePublished wins over updated and URL; conflicting or absent date stays unknown',()=>{const u=url('news');assert.equal(agmArticleMetadata(article(u),u).date,'2026-10-01T10:00:00.000Z');assert.equal(agmArticleMetadata(article(u,'not-a-date'),u).date,'');assert.equal(agmArticleMetadata(article(u)+`<meta property="article:published_time" content="2026-10-02T10:00:00Z">`,u).date,'');assert.equal(agmArticleMetadata(`<link rel="canonical" href="${u}"><h1>ギター情報</h1>`,u).date,'');});
 test('canonical mismatch, optout and changed listing fail closed',()=>{assert.throws(()=>agmArticleMetadata(article(url('news')),url('news',1)));assert.throws(()=>agmNewsListing('<meta name="robots" content="noindex">'+card()));assert.throws(()=>agmNewsListing('<a href="'+url('news')+'">unscoped link</a>'));});

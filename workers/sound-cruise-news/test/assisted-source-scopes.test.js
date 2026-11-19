@@ -5,14 +5,26 @@ const urls=['https://acousticguitarmagazine.jp/gears/eastman-1/','https://www.sh
 const entry=url=>({sourceId:assistedSource(url)?.id,url,brand:'Fixture',product:'独立した記事対象',productType:'guitar_article',action:'introduction',publishedAt:'2026-11-10',confirmed:true,conditionsConfirmed:true});
 let calls=0;globalThis.fetch=async()=>{calls++;throw Error('publisher and paid HTTP forbidden');};
 for(const url of urls)test('existing human save/decision route works without collector activation: '+url,async()=>{
- const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();const input=entry(url),sourceBefore=JSON.stringify(SOURCES),configBefore=await s.controls();
+ const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();const input=entry(url);if(input.sourceId==='agm')input.product='合成モデルの試奏';const sourceBefore=JSON.stringify(SOURCES),configBefore=await s.controls();
  const missing=await prepareAssisted(s,{...input,publishedAt:''},now,SOURCES,pepper);assert.equal(missing.valid,false);assert.equal((await prepareAssisted(s,{...input,confirmed:false},now,SOURCES,pepper)).valid,false);
  if(input.sourceId==='shimamura')assert.equal((await prepareAssisted(s,{...input,conditionsConfirmed:false},now,SOURCES,pepper)).valid,false);
  // These dates/facts are synthetic local confirmations, NOT actual source facts.
  const operation={entry:input,action:'approve',reason:'useful_product',requestId:'common-source-local-decision-001',confirmation:FINAL_CONFIRMATION};assert((await decideAssisted(s,operation,now,SOURCES,pepper,actor)).completed);
  assert((await decideAssisted(s,operation,now+1,SOURCES,pepper,actor)).replayed);const row=(await s.candidates())[0];assert.equal(row.review_status,'approved');assert(await assistedProof(s,row,now+1,SOURCES));assert.equal(JSON.parse(row.facts_provenance).publisherHttpRequests,0);assert.equal(JSON.parse(row.facts_provenance).method,input.sourceId==='agm'?'human_official_article_confirmation':'human_public_facts_confirmation');
- assert.equal((await assessAutomatic(s,row,SOURCES,now,pepper)).eligible,false);const r=await handleNewsRequest(new Request('https://isolated.test/v1/news'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:SOURCES,cache:null});assert.equal((await r.json()).items.length,1);assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,1);
+ assert.equal((await assessAutomatic(s,row,SOURCES,now,pepper)).eligible,false);const r=await handleNewsRequest(new Request('https://isolated.test/v1/news'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:SOURCES,cache:null});const items=(await r.json()).items;assert.equal(items.length,1);assert.equal(items[0].category,input.sourceId==='agm'?'acoustic_guitar':'media_other');assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,1);
  for(const t of ['collection_runs','news_web_runs','news_web_hints'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+t).first()).n,0);assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_shadow_evaluations').first()).n,1);assert.equal(JSON.stringify(SOURCES),sourceBefore);assert.equal(configBefore.collection_enabled,(await s.controls()).collection_enabled);assert.equal(calls,0);
+});
+test('AGM assisted categories follow the selected article type and section',async()=>{
+ const s=await store(),base='https://acousticguitarmagazine.jp';
+ for(const [url,productType,category] of [
+  [base+'/column/synthetic/','guitar_article','acoustic_guitar'],
+  [base+'/gears/synthetic/','usb_microphone','recording_audio'],
+  [base+'/gears/synthetic/','guitar_article','media_other'],
+  [base+'/interview/synthetic/','guitar_article','media_other']
+ ]){
+  const prepared=await prepareAssisted(s,{...entry(url),productType},now,SOURCES,pepper);
+  assert.equal(prepared.valid,true);assert.equal(prepared.category,category);
+ }
 });
 test('source permissions/URLs remain explicit, never wildcard, and collector paths remain unchanged',()=>{
  for(const url of ['https://acousticguitarmagazine.jp/gears/feed/','https://acousticguitarmagazine.jp/gears/','https://acousticguitarmagazine.jp/wp-json/post/','https://www.shimamura.co.jp/update/shops/hakata/sale/36609/','https://www.shimamura.co.jp/update/shops/hakata/event/36609/','https://www.shimamura.co.jp/update/shops/hakata/guitar-bass/','https://www.shimamura.co.jp.evil.example/update/shops/hakata/guitar-bass/36609/',urls[0]+'?confirmed=true',urls[0]+'#article'])assert.equal(assistedSource(url),null,url);

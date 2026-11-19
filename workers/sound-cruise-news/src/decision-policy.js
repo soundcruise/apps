@@ -1,3 +1,4 @@
+import {acousticEditorialType} from './agm-article-label.js';
 import {specificAgmLabel} from './agm-sections.js';
 import {humanAgmBook,agmHumanBookProofValid} from './agm-human-evidence.js';
 import {canonicalProofValid} from './canonical-evidence.js';
@@ -219,6 +220,10 @@ export async function publicationValidation(store,row,now,registry,pepper){
  const duplicates=(await store.db.prepare(`SELECT d.id,d.label,d.source_name,d.source_url,d.topic_key FROM candidate_items d WHERE ${predicate.sql} ORDER BY d.id LIMIT 20`).bind(...predicate.args).all()).results;
  if(duplicates.length)errors.push('duplicate');
  if(await store.db.prepare('SELECT item_id FROM news_takedowns WHERE item_id=?').bind(row.id).first())errors.push('candidate_takedown');
- const relevance={status:row.event_type==='firmware'||facts?.category==='media_other'&&!(facts?.kind==='agm_editorial'&&validBook(facts))||row.decision_reason==='relevance_uncertain'&&!['verified_primary_announcement','explicit_shimamura_product_fields','explicit_article_product_fields'].includes(facts?.identifierBasis)?'REVIEW':'PASS',basis:'existing_source_and_facts_scope'};
+ // An editorial shelf change does not establish acoustic relevance or permit automatic publication.
+ const acousticEditorial=facts?.category==='acoustic_guitar'&&row.source_id==='agm'&&(
+  facts.kind==='agm_editorial'&&acousticEditorialType(facts.articleType)||facts.kind==='assisted_notice'&&facts.productType==='guitar_article'
+ );
+ const relevance={status:acousticEditorial||row.event_type==='firmware'||facts?.category==='media_other'&&!(facts?.kind==='agm_editorial'&&validBook(facts))||row.decision_reason==='relevance_uncertain'&&!['verified_primary_announcement','explicit_shimamura_product_fields','explicit_article_product_fields'].includes(facts?.identifierBasis)?'REVIEW':'PASS',basis:'existing_source_and_facts_scope'};
  return {relevance,valid:!errors.length,errors:[...new Set(errors)],publishableLabel:label||null,facts,duplicates,quality:{labelInformationScore:labelInformationScore(label||row.label)},policyVersion:DECISION_POLICY_VERSION,healthSuccessfulAt:health?.last_successful_run_at??null};
 }
