@@ -15,7 +15,12 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const picker=p.locator('#sc-shortcut-menu');
   const pin=id=>p.locator('[data-shortcut="'+id+'"]');
   assert(await pin('sc-edit-rhythm').isVisible());
-  await picker.locator('summary').click();
+  const ids=()=>p.locator('.sc-menu-shortcuts [data-shortcut]:visible').evaluateAll(items=>items.map(item=>item.dataset.shortcut));
+  const initial=await ids();
+  await pin(initial[0]).dragTo(pin(initial[2]));
+  assert.deepEqual(await ids(),[initial[1],initial[2],initial[0]]);
+  await p.locator('#sc-curve-menu-toggle').click();
+  await p.getByRole('button',{name:'ツールエリア',exact:true}).click();
   await picker.getByLabel('曲情報',{exact:true}).check();
   await picker.getByLabel('ストローク一括',{exact:true}).uncheck();
   await p.keyboard.press('Escape');
@@ -25,6 +30,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('[data-score-cancel]');
   assert.deepEqual(await snap(p),before);
   await p.reload();await p.click('#open-sheet-cruise');
+  assert.deepEqual(await ids(),[initial[2],initial[0],'sc-edit-song']);
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
  }));
  await t.test('frequent actions remain visible; context appears only for selected bars without mutating the Project',()=>fresh(async p=>{
