@@ -108,7 +108,18 @@ for(const engine of ['chrome','webkit'])test('apply form and rhythm presets, sav
  await p.click('#sc-undo');assert.deepEqual(await snapshot(),withChords);
  await p.click('#sc-redo');assert.deepEqual(await snapshot(),withRhythm);
 
+ // Route Chrome's native picker to a real file in this disposable browser context.
+ if(engine==='chrome')await p.evaluate(()=>{
+  window.showSaveFilePicker=async()=> (await navigator.storage.getDirectory()).getFileHandle('through-flow.json',{create:true});
+ });
  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot();assert(await p.locator('#sc-save').isDisabled());
+ if(engine==='chrome'){
+  const disk=await p.evaluate(async()=>{
+   const handle=await (await navigator.storage.getDirectory()).getFileHandle('through-flow.json');
+   return JSON.parse(await (await handle.getFile()).text());
+  });
+  assert.deepEqual(disk.bars,saved.bars);assert.deepEqual(disk.performance,saved.performance);
+ }
  await p.reload();await p.click('#open-sheet-cruise');await p.waitForFunction(()=>!!CruiseStudio.sheetCruise.getSession());assert.deepEqual(await snapshot(),saved);
  assert.deepEqual(await firstBarCellWidths('#sc-sheet-scale-box'),Array(8).fill(240));
  await p.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="1"]').click({position:{x:4,y:4}});

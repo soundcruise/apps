@@ -17,6 +17,15 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert(await pin('sc-edit-rhythm').isVisible());
   const ids=()=>p.locator('.sc-menu-shortcuts [data-shortcut]:visible').evaluateAll(items=>items.map(item=>item.dataset.shortcut));
   const initial=await ids();
+  const toggle=picker.locator('summary');
+  assert.equal(await toggle.textContent(),'…');
+  assert.equal(await toggle.getAttribute('aria-label'),'ショートカットを選ぶ');
+  assert(await picker.evaluate(el=>el===el.parentElement.lastElementChild));
+  assert((await toggle.boundingBox()).width<(await pin(initial[0]).boundingBox()).width);
+  await toggle.press('Enter');
+  await picker.getByLabel('曲情報',{exact:true}).waitFor();
+  await p.keyboard.press('Escape');
+  assert(await toggle.evaluate(el=>document.activeElement===el));
   await pin(initial[0]).dragTo(pin(initial[1]),{targetPosition:{x:32,y:18}});
   assert.deepEqual(await ids(),[initial[1],initial[0]]);
   await p.locator('#sc-curve-menu-toggle').click();
@@ -32,6 +41,22 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.reload();await p.click('#open-sheet-cruise');
   assert.deepEqual(await ids(),['sc-edit-song',initial[0]]);
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
+ }));
+ await t.test('shortcut settings remain reachable with all commands on a narrow screen',()=>fresh(async p=>{
+  const picker=p.locator('#sc-shortcut-menu'),toggle=picker.locator('summary');
+  await toggle.click();
+  for(const input of await picker.locator('input[type=checkbox]').all())await input.check();
+  await p.keyboard.press('Escape');
+  await p.setViewportSize({width:390,height:844});
+  const strip=p.locator('.sc-shortcut-items');
+  assert(await strip.evaluate(el=>el.scrollWidth>el.clientWidth));
+  for(const end of [false,true]){
+   await strip.evaluate((el,end)=>{el.scrollLeft=end?el.scrollWidth:0;},end);
+   const box=await toggle.boundingBox();
+   assert(box.x>=0 && box.x+box.width<=390);
+   await toggle.click();await picker.getByLabel('曲情報',{exact:true}).waitFor();
+   await p.keyboard.press('Escape');
+  }
  }));
  await t.test('all-song strokes, remembered preset, and edge scrolling from outside a bar',()=>fresh(async p=>{
   await p.click('[data-shortcut=sc-edit-rhythm]');
