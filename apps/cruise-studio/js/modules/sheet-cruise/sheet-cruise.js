@@ -112,7 +112,7 @@
     var sectionPlaybackSelection=null;
     var scoreSettings=null,scoreSettingsPending=null,emptySlotSelection=null;
     function prepareScoreSettings(){
-        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.186.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
+        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.187.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
             emptySlotSelection=null;var oldIds=new Set(change.previous.bars.map(function(b){return b.id;})),added=state.session.draft.bars.findIndex(function(b){return !oldIds.has(b.id);});redrawSession(false);
             if(change.mode==='slot'&&added>=0){editorOpen=true;selectSheetBar(added+1);}refreshSessionStatus();
         }});return scoreSettings;}).catch(function(e){scoreSettingsPending=null;setSaveStatus(e.message||'編集画面を読み込めませんでした',true);});return scoreSettingsPending;
@@ -122,7 +122,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.186.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.187.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -635,34 +635,6 @@
         if(drawerLabel)drawerLabel.textContent='曲情報・セクションを編集';if(drawerHint)drawerHint.textContent='曲名・キー・BPM・セクション構成など';
         var shortcutPicker=menu('sc-shortcut-menu','ショートカットを選ぶ');
         mountMenuShortcuts(primary,shortcutPicker,curve.body);
-        const toolStrip=primary.querySelector('.sc-menu-shortcuts');
-        function dock(group,name,key){
-            const destinations=[head,primary];
-            function place(position){
-                const row=destinations[position>>1];
-                if(position%2)row.append(group);else row.prepend(group);
-            }
-            const saved=CS().storage.getAppSetting(key);
-            if(Number.isInteger(saved)&&saved>=0&&saved<4)place(saved);
-            const grip=button('', '⠿',()=>{});grip.removeAttribute('id');
-            grip.classList.add('sc-dock-grip');grip.title=name+'を移動（矢印キーでも移動）';grip.setAttribute('aria-label',grip.title);
-            group.prepend(grip);
-            function move(position){place(position);CS().storage.setAppSetting(key,position);grip.focus({preventScroll:true});}
-            function position(e){
-                const rect=head.getBoundingClientRect(),card=els.toolbar.getBoundingClientRect();
-                return (e.clientY<=rect.bottom?0:2)+(e.clientX>card.left+card.width/2?1:0);
-            }
-            grip.onpointerdown=e=>{if(e.button===0)grip.setPointerCapture(e.pointerId);};
-            grip.onpointermove=e=>{if(grip.hasPointerCapture(e.pointerId))destinations.forEach((row,i)=>row.classList.toggle('sc-dock-hover',i===(position(e)>>1)));};
-            grip.onpointerup=e=>{
-                if(!grip.hasPointerCapture(e.pointerId))return;
-                if(els.toolbar.contains(document.elementFromPoint(e.clientX,e.clientY))&&!grip.contains(document.elementFromPoint(e.clientX,e.clientY)))move(position(e));
-            };
-            grip.onlostpointercapture=()=>destinations.forEach(row=>row.classList.remove('sc-dock-hover'));
-            grip.onkeydown=e=>{const index=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].indexOf(e.key);if(index<0)return;e.preventDefault();move(index<2?destinations.indexOf(group.parentNode)*2+index:(index-2)*2+1);};
-        }
-
-        dock(toolStrip,'ツールエリア','scoreShortcutDock');
         function menus(){return [curve.root,display.root,more.root,shortcutPicker.root];}
         function closeMenu(el){var body=el.querySelector('.sc-toolbar-menu-body');if(body.popover&&body.matches(':popover-open'))body.hidePopover();el.open=false;}
         function closeMenus(except,restore){menus().forEach(function(el){if(el!==except&&el.open){closeMenu(el);if(restore)el.querySelector('summary').focus({preventScroll:true});}});}
@@ -1273,7 +1245,7 @@
         style.textContent=`
 
 #screen-sheet-cruise .sc-score-toolbar-head{padding-right:52px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-basis:100%;width:100%;}
-#screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:auto;}
+#screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:0;}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
 #screen-sheet-cruise .sc-paper-visibility{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--studio-border-default);}
 #screen-sheet-cruise .sc-paper-visibility label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
@@ -1510,7 +1482,7 @@
 #screen-sheet-cruise .sc-compact-toolbar{gap:10px;overflow:visible;top:52px;}
 /* Native popovers raise only the menu, leaving the movable editor unobstructed. */
 #screen-sheet-cruise .sc-compact-toolbar:has(.sc-toolbar-menu[data-popup-fallback][open]){z-index:45;}
-#screen-sheet-cruise .sc-compact-toolbar .sc-score-toolbar-head{gap:8px;padding-right:44px;}
+#screen-sheet-cruise .sc-compact-toolbar .sc-score-toolbar-head{justify-content:flex-start;gap:10px;padding-right:44px;}
 #screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project{flex:1 1 240px;max-width:440px;min-width:0;}
 #screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project select{width:100%;font-size:14px;}
 #screen-sheet-cruise .sc-toolbar-head-actions,#screen-sheet-cruise .sc-toolbar-primary,#screen-sheet-cruise .sc-toolbar-view{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;}
@@ -1522,9 +1494,6 @@
 #screen-sheet-cruise .sc-menu-shortcuts>button[hidden],#screen-sheet-cruise #sc-shortcut-menu>summary::after{display:none;}
 #screen-sheet-cruise .sc-menu-shortcuts>button{touch-action:none;}
 #screen-sheet-cruise .sc-menu-shortcuts{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;grid-template-rows:auto;align-content:center;justify-content:start;overflow-x:auto;min-width:0;}
-#screen-sheet-cruise .sc-menu-shortcuts>.sc-dock-grip{grid-row:1;grid-column:1;}
-#screen-sheet-cruise .sc-dock-grip{cursor:grab;touch-action:none;align-self:center;padding:3px;color:inherit;}
-#screen-sheet-cruise .sc-dock-hover{outline:1px dashed #98b4c5;}
 #screen-sheet-cruise [data-shortcut]{position:relative;}
 #screen-sheet-cruise [data-drop-side]::after{content:'';position:absolute;inset-block:1px;width:3px;background:#f1c96a;}
 #screen-sheet-cruise [data-drop-side=before]::after{left:-4px;}
@@ -1805,14 +1774,28 @@
 .sc-song-dialog p{font-size:12px;color:var(--studio-text-secondary);}
 .sc-song-dialog .sc-key-comparison{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;}.sc-key-comparison th,.sc-key-comparison td{text-align:left;padding:8px 4px;border-bottom:1px solid var(--studio-border-default);}.sc-key-comparison td:last-child{font-weight:700;color:var(--studio-accent);}.sc-song-dialog details>summary{cursor:pointer;font-size:12px;}
 .sc-song-dialog[data-score-dialog=sections]{width:min(1050px,94vw);}
-.sc-section-workspace{display:grid;grid-template-columns:minmax(165px,22%) minmax(0,1fr);gap:14px;}
-.sc-section-workspace aside button{margin:3px;}
+.sc-section-workspace{display:grid;grid-template-columns:minmax(244px,24%) minmax(0,1fr);gap:14px;}
+.sc-section-flow{grid-column:1/-1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.sc-section-flow>span{display:inline-flex;align-items:center;gap:5px;max-width:100%;}
+.sc-section-flow button{max-width:100%;overflow-wrap:anywhere;}
+.sc-section-flow button[aria-pressed=true]{border-color:#c9ae70;background:#514a37;color:white;}
+.sc-section-workspace aside{align-self:start;display:grid;gap:12px;min-width:0;}
+.sc-section-workspace .sc-song-section-list,.sc-section-command-row{display:grid;gap:6px;}
+.sc-section-command-row [data-icon]::before{content:attr(data-icon) ' ';}
+.sc-section-command-row{grid-template-columns:repeat(2,minmax(0,1fr));}
+.sc-section-workspace aside button{margin:0;min-width:0;}
+.sc-section-workspace aside fieldset{display:grid;grid-template-columns:1fr 1fr;padding:8px 10px;gap:8px;margin:0;min-width:0;border:1px solid var(--studio-border-default);border-radius:8px;}
+.sc-section-workspace aside fieldset label{margin:0;align-items:center!important;}
+.sc-section-workspace aside small{color:var(--studio-text-secondary);overflow-wrap:anywhere;}
+.sc-section-workspace aside .sc-section-delete{justify-self:start;border:0;background:transparent;color:#efb3ae;}
+.sc-song-dialog>header>h2,.sc-actions-dialog>header>h2{margin-right:auto;}
 .sc-section-preview{max-height:70vh;overflow:auto;min-width:0;background:#18232b;}
 .sc-section-preview .sheet-section-heading{display:flex;align-items:center;gap:5px;}
 .sc-section-preview .sheet-section-heading button{width:auto;padding:2px 9px;min-height:26px;}
 .sc-section-preview .sc-section-active{background:#d1b56c29;}
 @media(max-width:620px){.sc-section-workspace{grid-template-columns:1fr;}.sc-section-preview{max-height:50vh;}}
-.sc-song-dialog[data-score-dialog=sections] fieldset{display:flex;flex-wrap:wrap;gap:12px;}
+.sc-song-dialog .sc-section-command-row button{padding:6px 4px;font-size:13px;}
+.sc-section-workspace aside button:disabled{opacity:.5;}
 .sc-song-dialog .sc-song-section-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--studio-border-default);}
 .sc-song-dialog .sc-song-section-row label{flex:1 1 180px;min-width:0;margin:0;}.sc-song-section-row label>span{display:none;}
 
@@ -2352,7 +2335,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.186.0-dev.1'),import('../score-ui.mjs?v=0.186.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.187.0-dev.1'),import('../score-ui.mjs?v=0.187.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -2583,7 +2566,7 @@
     function buildChordPickerPanel(){var root=document.createElement('section');root.dataset.chordPicker='';root.hidden=!chordPicker.open||collapsedEditorRows.has('chord');if(!root.hidden)populateChordPicker(root);return root;}
     function refreshChordPicker(){syncEditorDisclosures();var root=els.slotOverlay?.querySelector('[data-chord-picker]');if(root&&!root.hidden)populateChordPicker(root);}
     function prepareChordPicker(){
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.186.0-dev.1')
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.187.0-dev.1')
             .then(function(module){return module.createChordPicker(CS(),window.ChordCruise);})
             .catch(function(error){chordPickerModule=null;throw error;});
         return chordPickerModule;
@@ -5250,7 +5233,7 @@
         var ids=args.barIds.slice(),res=runStructureOperation('moveBars',args);if(!res.ok)return;
         var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
     }
-    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.186.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
+    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.187.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
     function openSheetAction(kind,trigger){
         if(!editorCanMove())return;finishTextInputs();if(!editorCanMove())return;stopPianoAudition();var owner=state.session,version=owner.snapshotVersion;
         prepareSheetActions().then(function(ready){if(!ready||state.session!==owner||owner.snapshotVersion!==version||!editorCanMove())return;
@@ -5272,13 +5255,13 @@
     }
     function openPlaybackSettings(trigger){
         if(!editorCanMove())return;var owner=state.session;
-        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.186.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
+        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.187.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
             if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);pianoAudition?.setMix(playbackMix);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(playbackMix);refreshPracticeTransport();
             try{var raw=localStorage.getItem('cruiseStudio.appSettings'),settings=raw===null?{}:JSON.parse(raw);if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('invalid-settings');var result=CS().storage.setAppSetting(key,value);if(!result.ok)throw Error(result.error);notice.textContent='';}catch(_){notice.textContent='設定を保存できませんでした。この画面にのみ適用しています';}
         },closed:refreshToolbarActions});return playbackSettings;}).catch(function(){playbackSettingsPending=null;setSaveStatus('音設定を読み込めませんでした',true);});
         playbackSettingsPending.then(function(settings){if(settings&&state.session===owner&&editorCanMove())settings.open(trigger);});
     }
-    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.186.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
+    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.187.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
     async function openPaperForm(cell,eventId,tick){
         if(!editorCanMove()||!CS().localPaperForms)return;
@@ -5427,10 +5410,10 @@
         var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project))||{};
         viewerExportFlight=true;refreshToolbarActions();
         try{
-            var module=await import('./viewer-contract.mjs?v=0.186.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
+            var module=await import('./viewer-contract.mjs?v=0.187.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
             var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(project.projectId));
             var documentId='score-'+Array.from(new Uint8Array(hash),function(n){return n.toString(16).padStart(2,'0');}).join('');
-            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.186.0-dev.1',defaultPresentation:presentation});
+            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.187.0-dev.1',defaultPresentation:presentation});
             if(!state.active||state.session!==owner||owner.snapshotVersion!==version||owner.inputPending||textDiagnostic(owner)){setSaveStatus('曲や入力状態が変わったため、書き出しを中止しました',true);return;}
             var exportedEntry=await CS().scoreViewer.add(result.text,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);}});
             if(!exportedEntry){setSaveStatus('書き出しをキャンセルしました');return;}
@@ -5854,7 +5837,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line local UI candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.186.0-dev.1',
+        developmentVersion: '0.187.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,

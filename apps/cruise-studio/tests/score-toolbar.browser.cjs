@@ -33,13 +33,10 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.deepEqual(await ids(),[initial[0],'sc-edit-song']);
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
  }));
- await t.test('move each tool group within the card and retain the chosen row',()=>fresh(async p=>{
-  const group=p.locator('.sc-menu-shortcuts'),head=p.locator('.sc-score-toolbar-head'),primary=p.locator('.sc-toolbar-primary');
-  await group.locator('.sc-dock-grip').dragTo(head,{targetPosition:{x:20,y:10}});
-  assert.equal(await head.locator('.sc-menu-shortcuts').count(),1);
-  assert.equal(await head.locator('#sc-toolbar-head-actions .sc-dock-grip').count(),0);
-  await p.reload();await p.click('#open-sheet-cruise');
-  assert.equal(await head.locator('.sc-menu-shortcuts').count(),1);assert.equal(await head.locator('#sc-toolbar-head-actions').count(),1);
+ await t.test('display controls sit next to the title and the shortcut group stays fixed',()=>fresh(async p=>{
+  assert.equal(await p.locator('.sc-dock-grip').count(),0);
+  const title=await p.locator('#sc-project-select').boundingBox(),tools=await p.locator('#sc-toolbar-head-actions').boundingBox();
+  const gap=tools.x-title.x-title.width;assert(gap>=4&&gap<=24,String(gap));
   await p.click('#sc-curve-menu-toggle');assert(await p.locator('#sc-menu-staff-toggle').isHidden());
  }));
  await t.test('preview a section copy with only chords, add a bar, apply and undo',()=>fresh(async p=>{
@@ -59,6 +56,28 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.notEqual(copies[0].chords[0].id,before.bars[0].chords[0].id);
   assert(copies.every(b=>!b.lyrics.length&&!b.melody.length),JSON.stringify(copies.map(b=>[b.lyrics.length,b.melody.map(e=>e.kind)])));
   await p.click('#sc-undo');assert.deepEqual(await snap(p),before);
+ }));
+ await t.test('navigate the section flow and copy empty measures without materializing the basic rhythm',()=>fresh(async p=>{
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
+  const dialog=p.locator('[data-score-dialog=sections]'),flow=dialog.locator('nav'),aside=dialog.locator('aside');
+  assert(await dialog.locator('header [data-score-apply]').isVisible());
+  await flow.getByRole('button').last().click();
+  assert(await dialog.locator('.sc-section-preview').evaluate(e=>e.scrollTop>0));
+  await aside.getByRole('button',{name:'＋ セクションを追加'}).click();
+  let prompts=0;p.on('dialog',d=>{if(d.type()==='confirm')prompts++;});
+  await dialog.getByRole('button',{name:'新しいセクションの最後の小節を削除'}).click();
+  assert.equal(prompts,0);
+  const intro=await flow.getByRole('button').first().textContent();
+  await dialog.getByRole('button',{name:'イントロの最後の小節を削除'}).click();
+  assert.equal(prompts,1);
+  assert.notEqual(await flow.getByRole('button').first().textContent(),intro);
+  await dialog.locator('[data-score-apply]').click();
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
+  await flow.getByRole('button',{name:'新しいセクション 3小節'}).click();
+  await aside.getByText('コピー',{exact:true}).click();await aside.getByRole('button',{name:'後ろに貼り付け'}).click();
+  await dialog.locator('[data-score-apply]').click();
+  const song=await snap(p),ids=song.bars.filter(b=>b.sectionId===song.sections.at(-1).id).map(b=>b.id);
+  assert.equal(ids.length,3);assert(!song.performance.barRhythms.some(r=>ids.includes(r.barId)));
  }));
  await t.test('frequent actions remain visible; context appears only for selected bars without mutating the Project',()=>fresh(async p=>{
   const before=await snap(p),history=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());

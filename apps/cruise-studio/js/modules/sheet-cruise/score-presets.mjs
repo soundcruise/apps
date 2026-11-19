@@ -413,7 +413,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         const name = field('プリセット名','input',win);
         name.maxLength=80; name.value=editingEntry?.name || '';
         const message=node('p','',win); message.setAttribute('role','status');
-        const save=button('保存',()=>savePreset(win,name.value,message),win);
+        const save=button('保存',()=>savePreset(win,name.value,message),win.querySelector('header'));
         save.className='sc-preset-primary';
         name.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();save.click();}};
         name.focus(); name.select();

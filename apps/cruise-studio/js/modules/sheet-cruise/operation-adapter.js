@@ -51,11 +51,12 @@
             return material;
         }
         forms.forEach(function(b){retain('forms',b.materialId);});
-        var originalRhythm=staged.performance.barRhythms.find(function(b){return b.barId===newId;}),material=retain('rhythms',originalRhythm?originalRhythm.materialId:source.performance.basicRhythmId),materialId=material.id;
-        materialId=copyRhythmMaterial(canonical,material,api);
+        var originalRhythm=staged.performance.barRhythms.find(function(b){return b.barId===newId;});
+        const needsBinding=originalRhythm || source.performance.basicRhythmId!==canonical.performance.basicRhythmId;
+        const materialId=needsBinding && copyRhythmMaterial(canonical,retain('rhythms',originalRhythm?.materialId||source.performance.basicRhythmId),api);
         bar.id=target.id;bar.sectionId=target.sectionId;canonical.bars[destination]=bar;
         canonical.performance.formBindings=canonical.performance.formBindings.filter(function(b){return !oldChords.has(b.chordEventId);}).concat(forms);
-        canonical.performance.barRhythms=canonical.performance.barRhythms.filter(function(b){return b.barId!==target.id;}).concat([{id:api.newId(),barId:target.id,materialId:materialId}]);
+        canonical.performance.barRhythms=canonical.performance.barRhythms.filter(function(b){return b.barId!==target.id;}).concat(materialId?[{id:api.newId(),barId:target.id,materialId}]:[]);
         check=api.validate(canonical);if(!check.ok)throw Error(check.errors.join('/'));
         return bar;
     }
@@ -543,7 +544,8 @@
                 copied.push(...bar.melody);
                 if(row.parts.includes('strum')){
                     const rhythm=original.performance.barRhythms.find(r=>r.barId===source.id);
-                    const material=original.materials.rhythms.find(m=>m.id===(rhythm?.materialId??original.performance.basicRhythmId));
+                    if(!rhythm)continue;
+                    const material=original.materials.rhythms.find(m=>m.id===rhythm.materialId);
                     canonical.performance.barRhythms.push({id:api.newId(),barId:bar.id,materialId:copyRhythmMaterial(canonical,material,api)});
                 }
             }
