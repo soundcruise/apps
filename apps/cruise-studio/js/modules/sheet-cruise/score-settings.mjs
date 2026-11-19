@@ -7,19 +7,20 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
  function close(){if(dialog)dialog.close();}
  function open(mode,args={}){
   if(dialog||!canEdit())return;
-  const owner=getSession(),frame=C.structureOperations.capture(owner),project=owner.workingSnapshot(),view=C.model.toStructureView(project),titles={settings:'曲情報',sections:'セクション',inline:'譜面を編集',slot:'空き枠',instrument:'キー・カポ',chordPreset:'コード一括入力',strumPreset:'ストローク一括入力',rhythm:'基本ストローク',rhythmMaterials:'リズム素材'};
+  const owner=getSession(),frame=C.structureOperations.capture(owner),project=owner.workingSnapshot(),view=C.model.toStructureView(project),titles={settings:args.newSong?'新しい曲を作成':'曲情報',sections:'セクション編集',inline:'譜面を編集',slot:'空き枠',instrument:'キー・カポ',chordPreset:'コード一括入力',strumPreset:'ストローク一括入力',rhythm:'基本ストローク',rhythmMaterials:'リズム素材'};
   previous=args.returnFocus||doc.activeElement;previous=previous?.closest('.sc-toolbar-menu')?.querySelector(':scope > summary')||previous;dialog=node('dialog');dialog.className='sc-song-dialog';dialog.dataset.scoreDialog=mode;dialog.setAttribute('aria-label',titles[mode]);
   const current=dialog,head=node('header',undefined,current);node('h2',titles[mode],head);const dismiss=node('button','キャンセル',head);dismiss.type='button';dismiss.dataset.scoreCancel='';
   const body=node('div',undefined,current),status=node('p','',current);status.setAttribute('role','status');status.dataset.scoreStatus='';
   const apply=node('button',mode==='inline'?'確定':'適用',head);apply.type='button';apply.dataset.scoreApply='';apply.className='btn-primary';
-  let collect=()=>null,mountPreview,composing=false;
+  let collect=()=>null,mountPreview,composing=false,navigating=false;
   function input(label,value,key,type='text',parent=body){const wrap=node('label',undefined,parent);node('span',label,wrap);const field=node(type==='textarea'?'textarea':'input',undefined,wrap);if(type!=='textarea')field.type=type;field.value=value;field.dataset.scoreField=key;return field;}
   function button(text,fn,parent=body){const b=node('button',text,parent);b.type='button';b.addEventListener('click',fn);return b;}
-  function navigate(next){current.addEventListener('close',()=>open(next),{once:true});current.close();}
-  function commit(){
+  function navigate(next){navigating=true;current.addEventListener('close',()=>open(next,{parentCard:args.parentCard}),{once:true});current.close();}
+  function commit(next){
    if(composing)return;const now=getSession();if(now!==owner||!C.structureOperations.isCurrent(frame,now)){status.textContent='編集対象が変わりました。入力を保持しています。開き直してください。';return;}
    try{const request=collect();if(!request)return;applying=true;let result;try{if(!canEdit())throw Error('入力・保存・競合の状態を確認してください');result=execute(request.kind,request.args,frame);}finally{applying=false;}
-    if(!result.ok){status.textContent=result.error||'変更を適用できませんでした';return;}current.close();changed({mode,previous:project,slot:args.slot});
+    if(!result.ok){status.textContent=result.error||'変更を適用できませんでした';return;}if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,selectTitle:false},barIds:args.barIds}),{once:true});
+    current.close();changed({mode,previous:project,slot:args.slot});
    }catch(e){applying=false;status.textContent=e.message;}
   }
   if(mode==='slot'){
@@ -59,7 +60,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const panel=doc.getElementById('studio-rhythm-panel');if(panel){parked={node:panel,parent:panel.parentNode,next:panel.nextSibling};body.appendChild(panel);}dismiss.textContent='閉じる';apply.hidden=true;
   }else if(mode==='sections'){
    let rows=project.sections.map(s=>({...s,count:project.bars.filter(b=>b.sectionId===s.id).length,isNew:false}));const list=node('div',undefined,body);list.className='sc-song-section-list';
-   let selected=rows[0].id,clipboard=null;
+   let selected=rows[0].id,clipboard=null,dragged=null;
    const flow=node('nav',undefined,body);flow.className='sc-section-flow';flow.setAttribute('aria-label','セクションの流れ');
    const aside=node('aside',undefined,body);aside.append(list);
    body.className='sc-section-workspace';
@@ -73,15 +74,28 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    function preview(){
     try{
      flow.replaceChildren();
+     function selectSection(id){
+      selected=id;paint();
+      const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(el=>el.dataset.sectionId===selected);
+      if(heading)paper.scrollTop+=heading.getBoundingClientRect().top-paper.getBoundingClientRect().top-8;
+      flow.querySelector('[aria-pressed=true]')?.focus({preventScroll:true});
+     }
      rows.forEach((row,i)=>{
       const group=node('span',undefined,flow);
       if(i)node('span','→ ',group).setAttribute('aria-hidden','true');
-      const tab=button(row.name+' '+row.count+'小節',()=>{
-       selected=row.id;paint();
-       const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(el=>el.dataset.sectionId===selected);
-       if(heading)paper.scrollTop+=heading.getBoundingClientRect().top-paper.getBoundingClientRect().top-8;
-       flow.querySelector('[aria-pressed=true]')?.focus({preventScroll:true});
-      },group);tab.setAttribute('aria-pressed',String(row.id===selected));
+      const tab=button(row.name+' '+row.count+'小節',()=>selectSection(row.id),group);tab.setAttribute('aria-pressed',String(row.id===selected));
+      tab.draggable=true;
+      tab.ondragstart=e=>{dragged=row.id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',row.id);};
+      const after=e=>e.clientX>tab.getBoundingClientRect().left+tab.offsetWidth/2;
+      tab.ondragover=e=>{if(dragged&&dragged!==row.id){e.preventDefault();tab.dataset.drop=after(e)?'after':'before';}};
+      tab.ondragleave=()=>delete tab.dataset.drop;
+      tab.ondragend=()=>{dragged=null;flow.querySelectorAll('[data-drop]').forEach(b=>delete b.dataset.drop);};
+      tab.ondrop=e=>{
+       e.preventDefault();if(!dragged||dragged===row.id)return;
+       const source=rows.splice(rows.findIndex(r=>r.id===dragged),1)[0];
+       rows.splice(rows.indexOf(row)+Number(after(e)),0,source);
+       dragged=null;selectSection(source.id);
+      };
      });
      const draft=C.structureOperations.previewSections(project,rows,C.model.schema2);
      C.sheetRenderer.render(draft,paper,{...previewPaperOptions(draft),readOnly:true,editableSlots:false});
@@ -130,18 +144,33 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    mountPreview=paint;
    collect=()=>({kind:'songInfo',args:{values:{},sections:rows}});
   }else{
-   const title=input('曲名',project.songInfo.title,'title'),artist=input('アーティスト名',project.songInfo.artist,'artist'),bpm=input('BPM',project.songInfo.bpm,'bpm','number');bpm.min='20';bpm.max='400';
-   const meterLabel=node('label',undefined,body);node('span','拍子',meterLabel);
+   body.className='sc-song-workspace';
+   const paper=node('div',undefined,body),form=node('aside',undefined,body);paper.className='sc-song-preview';
+   const title=input('曲名',project.songInfo.title,'title','text',form),artist=input('アーティスト名',project.songInfo.artist,'artist','text',form),bpm=input('BPM',project.songInfo.bpm,'bpm','number',form);bpm.min='20';bpm.max='400';
+   const meterLabel=node('label',undefined,form);node('span','拍子',meterLabel);
    const meter=node('select',undefined,meterLabel);meter.dataset.scoreField='timeSignature';meter.setAttribute('aria-label','拍子');
    for(const beats of [4,3]){const option=node('option',beats+'/4',meter);option.value=String(beats);}
    meter.value=String(project.songInfo.timeSignature.beats);
    collect=()=>({kind:'songInfo',args:{values:{title:title.value,artist:artist.value,bpm:Number(bpm.value),
     timeSignature:{beats:Number(meter.value),beatUnit:4}}}});
+   const preview=()=>{
+    const draft=structuredClone(project),values=collect().args.values;
+    try{C.model.schema2.setMeter(draft,values.timeSignature);
+     Object.assign(draft.songInfo,{title:values.title,artist:values.artist,bpm:values.bpm||project.songInfo.bpm});
+     C.sheetRenderer.render(draft,paper,{...previewPaperOptions(draft),readOnly:true,editableSlots:false});
+     C.localPaperLayout?.apply(paper);
+     status.textContent='';
+    }catch(err){status.textContent=err.message;}
+   };
+   form.addEventListener('input',preview);mountPreview=preview;
+   node('p','各編集画面を開くと、入力した曲情報が反映されます。',form);
+   for(const child of ['sections','chordPreset','strumPreset'])button(titles[child],()=>commit(child),form);
+
   }
   dismiss.addEventListener('click',()=>current.close());apply.addEventListener('click',commit);
   let applyWasDisabled=false;current.addEventListener('compositionstart',()=>{composing=true;applyWasDisabled=apply.disabled;apply.disabled=true;});current.addEventListener('compositionend',e=>{composing=false;apply.disabled=applyWasDisabled;if(mode==='chordPreset')e.target.dispatchEvent(new Event('input',{bubbles:true}));});
   current.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing||composing)return;if(e.key==='Escape'){e.preventDefault();current.close();}else if(e.key==='Enter'&&mode!=='chordPreset'&&mode!=='strumPreset'&&e.target.matches('input:not([type=checkbox])')){e.preventDefault();commit();}});
-  current.addEventListener('close',()=>{if(parked){parked.parent.insertBefore(parked.node,parked.next?.parentNode===parked.parent?parked.next:null);parked=null;}if(dialog===current)dialog=null;current.remove();closed();if(previous?.isConnected)previous.focus({preventScroll:true});});
+  current.addEventListener('close',()=>{if(parked){parked.parent.insertBefore(parked.node,parked.next?.parentNode===parked.parent?parked.next:null);parked=null;}if(dialog===current)dialog=null;current.remove();closed();if(previous?.isConnected)previous.focus({preventScroll:true});if(!navigating&&args.parentCard&&getSession()===owner)open('settings',args.parentCard);});
   doc.getElementById('screen-sheet-cruise').appendChild(current);bindOutsideDismiss(current,{close,canClose:()=>!applying});current.showModal();mountPreview?.();const initial=current.querySelector('[data-preview-play="score"]')||current.querySelector('input:not([type=checkbox]),select');initial?.focus({preventScroll:true});if(args.selectTitle&&initial?.dataset.scoreField==='title')initial.select();
  }
  return {open,close,get isOpen(){return !!dialog?.open&&!applying;}};
