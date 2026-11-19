@@ -5,12 +5,22 @@ import remainingInformation from '../docs/remaining-review-20261118/review-infor
 import audient from '../docs/web-source-resolution-20261118/audient-information.json' with {type:'json'};
 import recordingKing from '../docs/web-source-resolution-20261118/recording-king-information.json' with {type:'json'};
 import november19Information from '../docs/remaining-review-20261119/review-information.json' with {type:'json'};
-const information=[...november19Information,...remainingInformation,...currentInformation,...previousInformation,{information:audient},{information:recordingKing}];
+import {hash} from './policy.js';
+import bacchus from '../docs/deviser-draft-information.json' with {type:'json'};
+// An overlay on a saved estimate must match the discovery that was actually reviewed.
+const directWebInformation=[{information:bacchus,titleHash:'d568bca99842601abef2b69d759e819f6186a91c0f0445f59616476a4291ad60'}];
+const information=[...directWebInformation,...november19Information,...remainingInformation,...currentInformation,...previousInformation,{information:audient},{information:recordingKing}];
 import guidance from '../docs/operator-review-groups-20261116/editorial-guidance.json' with {type:'json'};
 import {assistedLabel,assistedTypes} from './assisted-facts.js';
 import {labelMatchesType} from './assisted-product-type.js';
-import {draftDate} from './draft-assistance.js';
+import {draftDate,assistedDraftWithInformation} from './draft-assistance.js';
 export const reviewInformation=url=>information.find(r=>r.information.url===url)?.information;
+export async function preparedWebDraft(draft,title){
+ if(!draft?.registrationAllowed)return draft;
+ const match=directWebInformation.find(r=>r.information.url===draft.fields.url);
+ const info=match&&match.titleHash===await hash(title||'')?match.information:null;
+ return info?assistedDraftWithInformation(draft,info):draft;
+}
 export const primaryReviewInformation=url=>information.find(r=>r.discoveryUrls?.includes(url))?.information;
 const editorial=url=>guidance.find(r=>r.url===url);
 const result=(group,reason,extra={})=>({group,reason,formalReady:false,...extra});
@@ -53,7 +63,9 @@ export function candidatePresentation(row,validation,humanReview,draft,now){
 export function webPresentation(item,now){
  if(item.webReview?.queue!=='judgment')return null;
  if(item.reviewBlocked)return result('technical','出典停止・利用条件を確認する必要があります。');
- const note=editorial(item.url);if(note)return result('editorial',note.reason,{reference:note.reference});
+ const note=editorial(item.url);
+ if(note&&!note.relevanceOnly)return result('editorial',note.reason,{reference:note.reference});
  if(!item.humanEntry||!(item.primaryReview?.draft||item.articleDraft)?.registrationAllowed)return result('technical',item.articleDraft?.sourceReview?.reason||'この出典・URLは人間確認による正式保存が未対応です。出典条件と対応経路の確認が必要です。');
- return humanPresentation(item.humanEntry.url,item.primaryReview?.draft||item.articleDraft,now);
+ const view=humanPresentation(item.humanEntry.url,item.primaryReview?.draft||item.articleDraft,now);
+ return note?.relevanceOnly&&view.group==='approvable'?{...view,reason:note.reason}:view;
 }

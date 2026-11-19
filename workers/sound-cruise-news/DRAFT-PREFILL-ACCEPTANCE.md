@@ -25,7 +25,7 @@
 
 見出しは既存検証が必要とする主体・対象名を含む独自表現とした。原見出し・本文の転載なし。原記事確認・紹介条件・掲載判断は未選択で、入力補助を正式取得証拠にしない。
 
-**提供情報は本番DBには存在しない。** `test/fixtures/deviser-draft-information.json` と既存の `scripts/assisted-draft-link.mjs` で、導入後のOperator向けリンクを生成できる。最初のリンクを開くと読み込まれ、同じタブでは通常のassistedUrlリンクへ戻っても再入力不要。記事URL専用のruntime分岐はない。未反映の本番0.62.0では新しい種別／出来事を受け入れられないため、先にクリックする運用にはしない。
+**提供情報は本番DBには存在しない。** `docs/deviser-draft-information.json` と既存の `scripts/assisted-draft-link.mjs` で、導入後のOperator向けリンクを生成できる。最初のリンクを開くと読み込まれ、同じタブでは通常のassistedUrlリンクへ戻っても再入力不要。記事URL専用のruntime分岐はない。未反映の本番0.62.0では新しい種別／出来事を受け入れられないため、先にクリックする運用にはしない。
 
 Deviser通常collectorはOFF・discoveryValid=false。今回の情報で入力補助を成立させられるため追加の原記事HTTP取得を行わなかった。OFFを法的なBot禁止と同一視せず、既存の正規取得・保存条件が成立していないことと区別する。Yamahaへの直接Bot取得も0件。
 
