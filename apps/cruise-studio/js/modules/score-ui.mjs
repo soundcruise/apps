@@ -14,9 +14,14 @@ export function movePlayhead(line, parent, {left, width, y, height, fraction, se
  const duration = seconds * 1000;
  const elapsed = duration * fraction;
  const motion = playheadMotions.get(line);
- if (motion && line.parentElement === parent && motion.segment === segment &&
-     motion.left === left && motion.width === width && motion.y === y && motion.height === height &&
-     motion.duration === duration && Math.abs(motion.animation.currentTime - elapsed) < 35 && fraction > 0) return;
+ // Scrolling a scaled score can change DOMRect differences by fractions of a CSS pixel.
+ // Compare against the original geometry so small real layout changes still accumulate.
+ if (motion && line.parentElement === parent && motion.segment === segment && motion.duration === duration &&
+     Math.abs(motion.left-left)<.25 && Math.abs(motion.width-width)<.25 &&
+     Math.abs(motion.y-y)<.25 && Math.abs(motion.height-height)<.25 && fraction>0 && fraction<1) {
+   if (Math.abs(motion.animation.currentTime-elapsed)>=35) motion.animation.currentTime=elapsed;
+   return;
+ }
  motion?.animation.cancel();
  playheadMotions.delete(line);
  placePlayhead(line, parent, {x, y, height});

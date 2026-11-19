@@ -27,13 +27,13 @@ test('a running playhead follows audio time and reanchors on seek, bar change an
  movePlayhead(line,parent,bounds);
  assert.equal(animations[0].currentTime,200);
  animations[0].currentTime=215;
- movePlayhead(line,parent,{...bounds,fraction:.11});
+ movePlayhead(line,parent,{...bounds,fraction:.11,y:3.99998,width:180.00001});
  assert.equal(animations.length,1);
  movePlayhead(line,parent,{...bounds,fraction:.7});
- assert.equal(animations[0].cancelled,true);
- assert.equal(animations[1].currentTime,1400);
+ assert.equal(animations.length,1);
+ assert.equal(animations[0].currentTime,1400);
  movePlayhead(line,parent,{...bounds,segment:2});
  movePlayhead(line,parent,{...bounds,segment:2,width:240});
- assert.equal(animations.length,4);
+ assert.equal(animations.length,3);
  assert(animations.slice(0,-1).every(a=>a.cancelled));
 });

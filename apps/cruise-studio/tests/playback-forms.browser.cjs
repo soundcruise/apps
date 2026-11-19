@@ -54,6 +54,27 @@ for(const engine of ['chrome','webkit'])test('score metronome, smooth follow and
  await t.test('form finger edits preserve a fine-timed event in a protected chord cell',()=>fresh(async p=>{
   await p.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession(),r=s.runOperation('fine chord fixture',p=>{p.bars[0].chords[0].durationTicks=120;p.bars[0].chords[1].onsetTick=120;p.bars[0].chords[1].durationTicks=1800;});if(!r.ok)throw Error(r.error);});await p.click('#sc-undo');await p.click('#sc-redo');await forms(p);const before=await snap(p),event=before.project.bars[0].chords[1];await p.locator('[data-form-event="'+event.id+'"]').click();const old=before.project.performance.formBindings.find(b=>b.chordEventId===event.id).materialId;await beginFormEdit(p);await p.locator('[data-form-finger]').last().click();await p.locator('[data-form-apply]').click();await p.waitForFunction(({id,old})=>CruiseStudio.sheetCruise.getSession().draft.performance.formBindings.find(b=>b.chordEventId===id).materialId!==old,{id:event.id,old});assert.deepEqual((await snap(p)).project.bars,before.project.bars);
  }));
+ await t.test('the cursor crosses a visible chord form without replacing its animation',()=>fresh(async page=>{
+  await forms(page);
+  await page.click('#sc-song-preview');
+  const selector='#sc-sheet-scale-box>[data-score-playhead]';
+  await page.waitForFunction(sel=>document.querySelector(sel)?.getAnimations().length,selector);
+  const crossed=await page.evaluate(async sel=>{
+   const line=document.querySelector(sel),animation=line.getAnimations()[0];
+   const bar=document.querySelector('.sc-playing-bar'),form=bar.querySelector('.sheet-form-event');
+   const x=()=>line.getBoundingClientRect().left;
+   const start=x(),deadline=performance.now()+1800;
+   let samples=0;
+   while(line.dataset.playheadBar===bar.dataset.barNumber && x()<start+40 && performance.now()<deadline){
+    await new Promise(requestAnimationFrame);
+    if(line.getAnimations()[0]!==animation)return false;
+    const box=form.getBoundingClientRect();
+    if(x()>=box.left && x()<box.right)samples++;
+   }
+   return samples>1 && x()>=start+40;
+  },selector);
+  assert(crossed);
+ },100));
  await t.test('follow centers gradually across frames, yields to manual scrolling and stops immediately with playback',()=>fresh(async p=>{
   await p.setViewportSize({width:1440,height:720});await p.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession(),r=s.runOperation('long follow fixture',p=>{while(p.bars.length<32)p.bars.push({id:crypto.randomUUID(),sectionId:p.sections.at(-1).id,melody:[],chords:[],lyrics:[]});});if(!r.ok)throw Error(r.error);});await p.click('#sc-undo');await p.click('#sc-redo');const before=await snap(p);await p.click('#sc-song-preview');await p.waitForFunction(()=>document.querySelector('.sc-playing-bar'));
   const r=await p.evaluate(async()=>{window.__paperElapsed=8*2.4+.08;const root=CruiseStudio.scroll.getRoot('sheetCruise'),samples=[];for(let i=0;i<90;i++){await new Promise(requestAnimationFrame);samples.push(root.scrollTop);}return {samples,height:root.clientHeight};});const steps=r.samples.slice(1).map((x,i)=>Math.abs(x-r.samples[i]));assert(steps.filter(n=>n>.1).length>15);assert(Math.max(...steps)<Math.min(90,r.height/3));await p.waitForFunction(()=>{const root=CruiseStudio.scroll.getRoot('sheetCruise').getBoundingClientRect(),b=document.querySelector('.sheet-bar[data-bar-number="9"]').getBoundingClientRect();return Math.abs((b.top+b.bottom-root.top-root.bottom)/2)<140;});await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTo({top:0,behavior:'instant'}));await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop),0);await p.evaluate(()=>window.__paperElapsed=9*2.4+.08);await p.waitForFunction(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop>100);await p.evaluate(()=>document.getElementById('sc-song-preview').click());await stopped(p);const y=await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop);await p.waitForTimeout(150);assert.equal(await p.evaluate(()=>CruiseStudio.scroll.getRoot('sheetCruise').scrollTop),y);assert.deepEqual(await snap(p),before);
