@@ -13,7 +13,7 @@ export function normalizeViewerPresentation(input, score) {
     if (Object.keys(input).some(key => !['version','layout','rows','zoom','flow'].includes(key)) ||
         input.layout !== undefined && (!input.layout || typeof input.layout !== 'object' || Array.isArray(input.layout))) warnings.push('presentation-normalized');
     if (input.layout && Object.entries(input.layout).some(([key, value]) =>
-        !Object.hasOwn(DEFAULT_LAYOUT, key) || canonicalJSON(value) !== canonicalJSON(layout[key]))) warnings.push('presentation-normalized');
+        (!Object.hasOwn(DEFAULT_LAYOUT,key)&&key!=='sections') || layout[key]===undefined || canonicalJSON(value)!==canonicalJSON(layout[key]))) warnings.push('presentation-normalized');
     insist(input.rows === undefined || Array.isArray(input.rows) && input.rows.length <= 2048, 'invalid-presentation-rows');
     const rows = normalizeLineRules(input.rows || []);
     insist(rows.length === (input.rows || []).length, 'invalid-presentation-rows');

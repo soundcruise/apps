@@ -1,8 +1,9 @@
 export {GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
 // Presentation helpers shared by the score editor and the read-only viewer.
 // They own no music, transport, storage or account state.
-export const scoreColors=Object.freeze({line:'#967536',border:'#b49a55',fill:'rgba(196,167,91,.18)',ink:'#735721'});
-export function applyScoreTheme(root,colors={}){const valid=c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c),highlight=valid(colors.highlight)?colors.highlight:null;const opacity=typeof colors.opacity==='number'&&Number.isFinite(colors.opacity)?Math.max(0,Math.min(1,colors.opacity)):.18;const fillColor=highlight||scoreColors.border;const fill=highlight||opacity!==.18?fillColor+Math.round(opacity*255).toString(16).padStart(2,'0'):scoreColors.fill;const values={...scoreColors,fill,...(highlight?{border:highlight,ink:highlight}:{}),...(valid(colors.playhead)?{line:colors.playhead}:{})};for(const [key,value]of Object.entries(values))if(root.style.getPropertyValue('--score-'+key)!==value)root.style.setProperty('--score-'+key,value);}
+export const defaultHighlightOpacity=.12;
+export const scoreColors=Object.freeze({line:'#286780',border:'#408aa7',fill:'rgba(64,138,167,.12)',ink:'#265d72'});
+export function applyScoreTheme(root,colors={}){const valid=c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c),highlight=valid(colors.highlight)?colors.highlight:null;const opacity=typeof colors.opacity==='number'&&Number.isFinite(colors.opacity)?Math.max(0,Math.min(1,colors.opacity)):defaultHighlightOpacity;const fillColor=highlight||scoreColors.border;const fill=highlight||opacity!==defaultHighlightOpacity?fillColor+Math.round(opacity*255).toString(16).padStart(2,'0'):scoreColors.fill;const values={...scoreColors,fill,...(highlight?{border:highlight,ink:highlight}:{}),...(valid(colors.playhead)?{line:colors.playhead}:{})};for(const [key,value]of Object.entries(values))if(root.style.getPropertyValue('--score-'+key)!==value)root.style.setProperty('--score-'+key,value);}
 export function placePlayhead(line,parent,{x,y=0,height}){
  if(line.parentElement!==parent)parent.append(line);
  Object.assign(line.style,{left:'0px',top:'0px',bottom:'auto',height:Math.max(0,height)+'px',transform:'translate3d('+x+'px,'+y+'px,0)',willChange:'transform',pointerEvents:'none'});
@@ -111,8 +112,8 @@ export function installScoreUI(doc){
 .score-tempo-reset{display:block;margin-top:14px!important}
 .score-metronome-tone{display:flex!important;align-items:center;flex-wrap:wrap;gap:10px 14px!important;margin:16px 0!important;line-height:1.5}
 [data-metronome-sound]{box-sizing:border-box;min-height:44px!important;height:44px!important;min-width:140px;font:14px system-ui!important;padding:8px 12px!important;border:1px solid #718390;border-radius:7px;background:var(--studio-control,#25313c);color:inherit}
-.sc-layout-playing{background:var(--score-fill,rgba(196,167,91,.18))!important;box-shadow:inset 0 0 0 2px var(--score-border,#b49a55)!important}
-[data-layout-playhead]{position:absolute;top:0;left:0;width:2px;background:var(--score-line,#967536);pointer-events:none;z-index:5;will-change:transform}
+.sc-layout-playing{background:var(--score-fill,rgba(64,138,167,.12))!important;box-shadow:inset 0 0 0 2px var(--score-border,#408aa7)!important}
+[data-layout-playhead]{position:absolute;top:0;left:0;width:2px;background:var(--score-line,#286780);pointer-events:none;z-index:5;will-change:transform}
 @media(max-width:700px){.score-transport{gap:6px!important;padding:6px 8px!important;min-height:58px}.score-transport .score-transport-main,.score-transport .score-transport-options{gap:5px}.score-transport .score-play{min-width:88px;font-size:12px!important;padding:8px!important}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{padding:8px;min-width:38px}.score-transport .score-tempo{font-size:12px;padding:8px}}
 
 .score-transport .sv-sound-modes{display:flex;gap:2px;padding:3px;border:1px solid #71839066;border-radius:9px;white-space:nowrap;align-items:center}

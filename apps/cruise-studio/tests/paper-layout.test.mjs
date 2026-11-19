@@ -1,8 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {DEFAULT_LAYOUT,normalizeLayout,normalizeLineRules} from '../js/modules/sheet-cruise/paper-layout.mjs';
-test('screenshot defaults and independent header visibility retain prior saved preferences',()=>{assert.deepEqual(DEFAULT_LAYOUT,{barsPerLine:4,formScale:100,formListScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:16,strumSize:15,lyricsSize:14,doremiSize:12,lyricsSpacing:-1,doremiSpacing:-1,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,timingGrid:null,gridResolution:null,metaFields:{},appearance:{text:{},lines:{},visibility:{}}});const f=presetFixture({scorePaperLayoutV1:{barsPerLine:2,formScale:90,chordSize:22}}),l=f.layout,p={projectId:'p',bars:[]};assert.equal(l.value.formScale,90);l.begin();l.set({showTitle:false,showArtist:false,showMeta:false});l.saveDisplayPreset('見出しなし',p);l.set({showTitle:true,showArtist:true,showMeta:true});l.loadDisplayPreset('見出しなし',p);assert.equal(l.value.showTitle,false);assert.equal(l.value.showArtist,false);assert.equal(l.value.showMeta,false);l.commit();const reload=createPaperLayout(f.C,f.doc);assert.equal(reload.value.showMeta,false);assert.equal(reload.value.chordSize,22);});
-test('layout normalizes bounded local UI values and never accepts CSS/string values',()=>{const source={barsPerLine:99,chordHeight:Infinity,titleSize:'url(evil)',lyricsSize:200,doremiSize:-1,showParts:false,showNumbers:'false',extra:'ignored'},before=JSON.stringify(source);assert.deepEqual(normalizeLayout(source),{...DEFAULT_LAYOUT,lyricsSize:24,doremiSize:10,showParts:false});assert.equal(JSON.stringify(source),before);assert.deepEqual(normalizeLayout(null),DEFAULT_LAYOUT);});
-test('layout defaults are immutable and explicit columns range from one to four without adaptive doubling',()=>{assert(Object.isFrozen(DEFAULT_LAYOUT));for(const n of [0,1,2,3,4])assert.equal(normalizeLayout({barsPerLine:n}).barsPerLine,n);const p=normalizeLayout({chordHeight:40.5,chordSize:24,showNumbers:false});assert.equal(p.chordHeight,undefined);assert.equal(normalizeLayout({formScale:180}).formScale,140);assert.equal(p.showNumbers,false);assert.equal(DEFAULT_LAYOUT.showNumbers,true);});
+test('screenshot defaults and independent header visibility retain prior saved preferences',()=>{assert.deepEqual(DEFAULT_LAYOUT,{barsPerLine:4,formScale:100,formListScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:14,strumSize:15,lyricsSize:12,doremiSize:11,lyricsSpacing:-1,doremiSpacing:-1,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,timingGrid:null,gridResolution:null,metaFields:{},appearance:{text:{},lines:{},visibility:{}}});const f=presetFixture({scorePaperLayoutV1:{barsPerLine:2,formScale:90,chordSize:22}}),l=f.layout,p={projectId:'p',bars:[]};assert.equal(l.value.formScale,90);l.begin();l.set({showTitle:false,showArtist:false,showMeta:false});l.saveDisplayPreset('見出しなし',p);l.set({showTitle:true,showArtist:true,showMeta:true});l.loadDisplayPreset('見出しなし',p);assert.equal(l.value.showTitle,false);assert.equal(l.value.showArtist,false);assert.equal(l.value.showMeta,false);l.commit();const reload=createPaperLayout(f.C,f.doc);assert.equal(reload.value.showMeta,false);assert.equal(reload.value.chordSize,22);});
+test('layout normalizes bounded local UI values and never accepts CSS/string values',()=>{const source={barsPerLine:99,chordHeight:Infinity,titleSize:'url(evil)',lyricsSize:200,doremiSize:-1,showParts:false,showNumbers:'false',extra:'ignored'},before=JSON.stringify(source);assert.deepEqual(normalizeLayout(source),{...DEFAULT_LAYOUT,lyricsSize:24,doremiSize:6,showParts:false});assert.equal(JSON.stringify(source),before);assert.deepEqual(normalizeLayout(null),DEFAULT_LAYOUT);});
+test('layout defaults are immutable and explicit columns range from one to eight without adaptive doubling',()=>{assert(Object.isFrozen(DEFAULT_LAYOUT));for(const n of [0,1,2,3,4,5,6,7,8])assert.equal(normalizeLayout({barsPerLine:n}).barsPerLine,n);const p=normalizeLayout({chordHeight:40.5,chordSize:24,showNumbers:false});assert.equal(p.chordHeight,undefined);assert.equal(normalizeLayout({formScale:180}).formScale,140);assert.equal(p.showNumbers,false);assert.equal(DEFAULT_LAYOUT.showNumbers,true);});
 
 test('line rules retain stable bar IDs and separate capacity from real bars; malformed rules cannot consume or erase bars',()=>{const source=[{barId:'a',columns:4,used:3},{barId:'bad',columns:4,used:0},{barId:'over',columns:4,used:5},{barId:'a',columns:3,used:2}],before=JSON.stringify(source);assert.deepEqual(normalizeLineRules(source),[{barId:'a',columns:3,used:2}]);assert.equal(JSON.stringify(source),before);assert.deepEqual(normalizeLineRules(null),[]);assert.deepEqual(normalizeLineRules([{barId:'b',columns:9,used:3}]),[]);});
 
@@ -63,4 +63,22 @@ test('viewer export captures safe full presentation and current row IDs without 
  assert.equal(view.layout.formScale,120);assert.equal(view.layout.artistSize,20);assert.equal(view.layout.appearance.visibility.forms,true);assert.equal(view.layout.appearance.visibility.lyrics,false);
  assert.equal(view.layout.gridResolution,16);assert.equal(view.layout.timingGrid,false);assert.equal(view.layout.appearance.visibility.gridResolution,undefined);assert.deepEqual(view.rows,[{barId:'a',columns:4,used:3}]);
  view.layout.artistSize=10;assert.equal(l.value.artistSize,20);assert.equal(JSON.stringify([...f.saved]),stored);assert.equal(JSON.stringify(p),JSON.stringify({...JSON.parse(before),bars:[{id:'a'}]}));
+});
+
+test('section overrides follow the section ID across reorders and stay local to one project',()=>{
+ const f=presetFixture(),layout=f.layout;
+ const project={projectId:'one',sections:[{id:'verse'},{id:'intro'}],bars:[]};
+ const other={...project,projectId:'two'};
+ const rule={sectionId:'verse',barsPerLine:8,visibility:{forms:true,strum:false},sizes:{chordSize:14,doremiSize:6}};
+ layout.begin();
+ layout.replacePresentation(project,{layout:{sections:[rule,{sectionId:'gone',barsPerLine:2}]}});
+ project.sections.reverse();
+ assert.deepEqual(layout.exportPresentation(project).layout.sections,[rule]);
+ assert.equal(layout.exportPresentation(other).layout.sections,undefined);
+ assert(layout.commit().ok);
+ const restored=createPaperLayout(f.C,f.doc);
+ assert.deepEqual(restored.exportPresentation(project).layout.sections,[rule]);
+ restored.begin();restored.replacePresentation(project,{layout:{barsPerLine:4}});restored.cancel();
+ assert.deepEqual(restored.exportPresentation(project).layout.sections,[rule]);
+ assert.equal(restored.renderOptions(other).sectionRules.length,0);
 });

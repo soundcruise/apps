@@ -3,9 +3,25 @@ import {FONTS,setPresentationProperty,togglePresentationClass,TEXT_FIELDS,LINE_F
 // Browser-local presentation preferences. Never edits a Project or its Session.
 export const META_FIELDS=Object.freeze({originalKey:'ORGキー',playKey:'Playキー',bpm:'BPM',timeSignature:'拍子',basicStrum:'基本ストローク'});
 export function normalizeMetaFields(source){const out={};for(const key of Object.keys(META_FIELDS)){const field=source?.[key];if(!field||typeof field!=='object')continue;const v={};if(typeof field.visible==='boolean')v.visible=field.visible;if(Object.hasOwn(FONTS,field.font))v.font=field.font;if(typeof field.color==='string'&&/^#[0-9a-f]{6}$/i.test(field.color))v.color=field.color;if(typeof field.size==='number'&&Number.isFinite(field.size))v.size=Math.max(8,Math.min(24,field.size));out[key]=v;}return out;}
-export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:4,formScale:100,formListScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:16,strumSize:15,lyricsSize:14,doremiSize:12,lyricsSpacing:-1,doremiSpacing:-1,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,timingGrid:null,gridResolution:null,metaFields:Object.freeze({}),appearance:Object.freeze({text:Object.freeze({}),lines:Object.freeze({}),visibility:Object.freeze({})})});
-const ranges={formScale:[60,140],formListScale:[60,160],titleSize:[18,40],artistSize:[10,26],metaSize:[9,18],chordSize:[12,28],strumSize:[10,24],lyricsSize:[10,24],doremiSize:[10,24],lyricsSpacing:[-3,3],doremiSpacing:[-3,3],partSize:[10,22],numberSize:[8,16]};
-export function normalizeLayout(value){const out={...DEFAULT_LAYOUT},v=value&&typeof value==='object'?value:{};for(const [key,[min,max]] of Object.entries(ranges))if(typeof v[key]==='number'&&Number.isFinite(v[key]))out[key]=Math.max(min,Math.min(max,v[key]));if([0,1,2,3,4].includes(v.barsPerLine))out.barsPerLine=v.barsPerLine;for(const key of ['showTitle','showArtist','showMeta','showNumbers','showParts'])if(typeof v[key]==='boolean')out[key]=v[key];if(typeof v.timingGrid==='boolean')out.timingGrid=v.timingGrid;if([8,16].includes(v.gridResolution))out.gridResolution=v.gridResolution;out.appearance=normalizeAppearance(v.appearance);out.metaFields=normalizeMetaFields(v.metaFields);return out;}
+export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:4,formScale:100,formListScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:14,strumSize:15,lyricsSize:12,doremiSize:11,lyricsSpacing:-1,doremiSpacing:-1,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,timingGrid:null,gridResolution:null,metaFields:Object.freeze({}),appearance:Object.freeze({text:Object.freeze({}),lines:Object.freeze({}),visibility:Object.freeze({})})});
+const ranges={formScale:[60,140],formListScale:[60,160],titleSize:[18,40],artistSize:[10,26],metaSize:[9,18],chordSize:[12,28],strumSize:[10,24],lyricsSize:[6,24],doremiSize:[6,24],lyricsSpacing:[-3,3],doremiSpacing:[-3,3],partSize:[10,22],numberSize:[8,16]};
+const sectionTracks=[['chords','コード','chordSize'],['forms','フォーム','formScale'],['strum','ストローク','strumSize'],['lyrics','歌詞','lyricsSize'],['doremi','メロディ','doremiSize']];
+function normalizeSections(records){
+    if(!Array.isArray(records)||records.length>2048)return [];
+    const rules=new Map();
+    for(const row of records){
+        if(typeof row?.sectionId!=='string'||!row.sectionId||row.sectionId.length>160)continue;
+        const rule={sectionId:row.sectionId};
+        if(Number.isInteger(row.barsPerLine)&&row.barsPerLine>=1&&row.barsPerLine<=8)rule.barsPerLine=row.barsPerLine;
+        for(const [flag,,key] of sectionTracks){
+            if(typeof row.visibility?.[flag]==='boolean')(rule.visibility??={})[flag]=row.visibility[flag];
+            if(Number.isFinite(row.sizes?.[key]))(rule.sizes??={})[key]=Math.max(ranges[key][0],Math.min(ranges[key][1],row.sizes[key]));
+        }
+        if(Object.keys(rule).length>1)rules.set(rule.sectionId,rule);
+    }
+    return [...rules.values()];
+}
+export function normalizeLayout(value){const out={...DEFAULT_LAYOUT},v=value&&typeof value==='object'?value:{};for(const [key,[min,max]] of Object.entries(ranges))if(typeof v[key]==='number'&&Number.isFinite(v[key]))out[key]=Math.max(min,Math.min(max,v[key]));if(Number.isInteger(v.barsPerLine)&&v.barsPerLine>=0&&v.barsPerLine<=8)out.barsPerLine=v.barsPerLine;for(const key of ['showTitle','showArtist','showMeta','showNumbers','showParts'])if(typeof v[key]==='boolean')out[key]=v[key];if(typeof v.timingGrid==='boolean')out.timingGrid=v.timingGrid;if([8,16].includes(v.gridResolution))out.gridResolution=v.gridResolution;out.appearance=normalizeAppearance(v.appearance);out.metaFields=normalizeMetaFields(v.metaFields);const sections=normalizeSections(v.sections);if(sections.length)out.sections=sections;return out;}
 export function normalizeLineRules(rows){
     const result=new Map();if(!Array.isArray(rows)||rows.length>2048)return [];
     for(const row of rows)if(row&&typeof row.barId==='string'&&row.barId.length>0&&row.barId.length<=160&&Number.isInteger(row.columns)&&row.columns>=1&&row.columns<=8&&Number.isInteger(row.used)&&row.used>=1&&row.used<=row.columns)result.set(row.barId,{barId:row.barId,columns:row.columns,used:row.used});
@@ -33,20 +49,20 @@ export function createPaperLayout(C,doc=document){
     installScoreUI(doc);
     const key='scorePaperLayoutV1',displayKey='scorePaperDisplayV2';let value=normalizeLayout(C.storage.getAppSetting(key)),dialog=null,changed=()=>{},refreshSample=()=>{},editing=null,previewAudio=null;
     const presetKey='scorePaperFontPresetsV1';let presets=normalizeDisplayPresets(C.storage.getAppSetting(presetKey));
-    const rowKey='scorePaperRowsV1',rowProjects=new Map();
+    const rowKey='scorePaperRowsV1',rowProjects=new Map(),sectionProjects=new Map();
     const savedRows=C.storage.getAppSetting(rowKey);if(Array.isArray(savedRows))for(const record of savedRows)if(record&&typeof record.projectId==='string'&&record.projectId.length<=160)rowProjects.set(record.projectId,normalizeLineRules(record.rows));
     function revision(){return JSON.stringify([C.storage.getAppSetting(displayKey),C.storage.getAppSetting(key),C.storage.getAppSetting(rowKey),C.storage.getAppSetting(presetKey)]);}
-    function restoreStored(){const saved=C.storage.getAppSetting(displayKey),modern=saved?.version===2;value=normalizeLayout(modern?saved.layout:C.storage.getAppSetting(key));presets=normalizeDisplayPresets(modern?saved.presets:C.storage.getAppSetting(presetKey));rowProjects.clear();const records=modern?saved.rows:C.storage.getAppSetting(rowKey);if(Array.isArray(records))for(const row of records)if(typeof row?.projectId==='string')rowProjects.set(row.projectId,normalizeLineRules(row.rows));}
+    function restoreStored(){const saved=C.storage.getAppSetting(displayKey),modern=saved?.version===2;value=normalizeLayout(modern?saved.layout:C.storage.getAppSetting(key));presets=normalizeDisplayPresets(modern?saved.presets:C.storage.getAppSetting(presetKey));sectionProjects.clear();rowProjects.clear();const records=modern?saved.rows:C.storage.getAppSetting(rowKey);if(Array.isArray(records))for(const row of records)if(typeof row?.projectId==='string'){rowProjects.set(row.projectId,normalizeLineRules(row.rows));sectionProjects.set(row.projectId,normalizeSections(row.sections));}}
     restoreStored();let storedRevision=revision();
     // Typography/ink update existing rows; only geometry/track changes rebuild nodes.
-    function structureKey(){return JSON.stringify([value.barsPerLine,value.timingGrid,value.gridResolution,value.appearance.visibility,Array.from(rowProjects)]);}
-    function tracksKey(){return JSON.stringify([value.timingGrid,value.gridResolution,value.appearance.visibility]);}
+    function structureKey(){return JSON.stringify([value.barsPerLine,value.timingGrid,value.gridResolution,value.appearance.visibility,Array.from(sectionProjects),Array.from(rowProjects)]);}
+    function tracksKey(){return JSON.stringify([value.timingGrid,value.gridResolution,value.appearance.visibility,Array.from(sectionProjects)]);}
     let lastStructure=structureKey(),lastTracks=tracksKey();
     function notify(){const next=structureKey(),tracks=tracksKey(),structural=next!==lastStructure,reflowOnly=structural&&tracks===lastTracks;lastStructure=next;lastTracks=tracks;refreshSample(structural,reflowOnly);changed({structural,reflowOnly});}
-    function bundle(){return {version:2,layout:{...value},rows:Array.from(rowProjects,([projectId,rows])=>({projectId,rows})),presets:copy(presets)};}
+    function bundle(){return {version:2,layout:{...value},rows:Array.from(new Set([...rowProjects.keys(),...sectionProjects.keys()]),projectId=>({projectId,rows:rowProjects.get(projectId)||[],sections:sectionProjects.get(projectId)||[]})),presets:copy(presets)};}
     function persist(){if(editing)return {ok:true,staged:true};if(revision()!==storedRevision)return {ok:false,error:'表示設定が別の画面で変更されています'};const result=C.storage.setAppSetting(displayKey,bundle());if(result?.ok!==false)storedRevision=revision();return result;}
     function begin(){if(editing)return false;if(revision()!==storedRevision){restoreStored();storedRevision=revision();}editing={before:JSON.parse(JSON.stringify(bundle())),revision:storedRevision};return true;}
-    function cancel(){if(!editing)return;const before=editing.before;editing=null;value=normalizeLayout(before.layout);presets=normalizeDisplayPresets(before.presets);rowProjects.clear();for(const row of before.rows)rowProjects.set(row.projectId,row.rows);notify();}
+    function cancel(){if(!editing)return;const before=editing.before;editing=null;value=normalizeLayout(before.layout);presets=normalizeDisplayPresets(before.presets);sectionProjects.clear();rowProjects.clear();for(const row of before.rows){rowProjects.set(row.projectId,row.rows);sectionProjects.set(row.projectId,row.sections||[]);}notify();}
     function commit(){
         if(!editing)return {ok:false,error:'表示設定が開かれていません'};
         if(revision()!==editing.revision)return {ok:false,error:'別の画面で表示設定が変更されました。キャンセルして開き直してください'};
@@ -68,17 +84,20 @@ export function createPaperLayout(C,doc=document){
 .sc-paper-layout.sc-hide-parts .sheet-section-label{display:none!important;}
 .sc-paper-layout .sheet-bar-num{font-size:var(--sc-numberSize)!important;min-height:18px!important;line-height:1.3;}
 .sc-paper-layout.sc-hide-numbers .sheet-bar-num,.sc-paper-layout.sc-hide-numbers [data-edit-selected-bar]{display:none!important;}
-.sc-paper-layout .sheet-bar-chord{height:max(24px,calc(var(--sc-chordSize) * 1.45 + 2px));min-height:0!important;font-size:var(--sc-chordSize)!important;align-items:center;padding:0!important;}
+.sc-paper-layout .sheet-bar-chord{height:max(24px,calc(var(--sc-section-chordSize,var(--sc-chordSize)) * 1.45 + 2px));min-height:0!important;font-size:var(--sc-section-chordSize,var(--sc-chordSize))!important;align-items:center;padding:0!important;}
 .sc-paper-layout .sheet-bar-chord>.sheet-timed-cell{line-height:1.2;}
-.sc-paper-layout .sheet-bar-lyrics{font-size:var(--sc-lyricsSize)!important;}
-.sc-paper-layout .sheet-bar-doremi{font-size:var(--sc-doremiSize)!important;}
-.sc-paper-layout .sheet-bar-strum{font-size:var(--sc-strumSize)!important;column-gap:0;margin:0 calc(-1 * var(--sheet-bar-pad-x));padding:3px 0 0;border-radius:0;background:transparent;box-shadow:none;}
+.sc-paper-layout .sheet-bar-lyrics{font-size:var(--sc-section-lyricsSize,var(--sc-lyricsSize))!important;}
+.sc-paper-layout .sheet-bar-doremi{font-size:var(--sc-section-doremiSize,var(--sc-doremiSize))!important;}
+.sc-paper-layout .sheet-bar-strum{font-size:var(--sc-section-strumSize,var(--sc-strumSize))!important;column-gap:0;margin:0 calc(-1 * var(--sheet-bar-pad-x));padding:3px 0 0;border-radius:0;background:transparent;box-shadow:none;}
 .sc-paper-layout .sheet-bar-strum>span:not([data-playback-band]){background:transparent;border-radius:0;box-shadow:none;}
 .sc-paper-layout .sheet-bar-strum>span{font-size:inherit!important;}
 .sc-paper-layout .sheet-bar-strum>[data-strum-state]{justify-content:flex-start;}
 .sc-paper-layout :is(.sheet-bar-lyrics,.sheet-bar-doremi)>.sheet-timed-cell{white-space:normal;overflow-wrap:anywhere;line-break:strict;font-feature-settings:"palt";}
 .sc-paper-layout .sheet-bar-lyrics>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-lyricsSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
 .sc-paper-layout .sheet-bar-doremi>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-doremiSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
+.sheet-note-fa{display:inline-grid;grid-template-columns:.41em .55em;width:.96em;white-space:nowrap;letter-spacing:0;font-feature-settings:normal;}
+.sheet-note-fa>span{width:1em;transform:scaleX(.55);transform-origin:left center;}
+.sheet-note-fa>span:first-child{transform:scaleX(.78);}
 .sc-paper-layout .sheet-kana-pair{letter-spacing:calc(var(--sc-vocal-spacing) - .12em);}
 .sc-paper-layout .sheet-bar-grid~.sheet-preset-strum{align-self:stretch;padding-top:0!important;}
 .sc-paper-layout .sheet-bar-grid~.sheet-preset-strum>[data-strum-state]{align-self:stretch;padding-top:3px;}
@@ -96,7 +115,7 @@ export function createPaperLayout(C,doc=document){
 .sc-layout-dialog h2{font-size:20px;margin:0;}.sc-layout-dialog p{font-size:12px;margin:6px 0 12px;color:#bfcad2;}
 .sc-layout-dialog button,.sc-layout-dialog select{font:inherit;font-size:13px;border:1px solid #7e8a94;border-radius:6px;padding:6px 10px;background:#2d3944;color:#fff;}
 .sc-paper-layout .sheet-bar--empty{background:repeating-linear-gradient(-45deg,transparent,transparent 6px,rgba(122,116,108,.06) 6px,rgba(122,116,108,.06) 7px)!important;}
-.sc-layout-example [data-layout-highlight]{background:#c9e2ed88!important;box-shadow:inset 0 0 0 2px #408aa7!important;}
+.sc-layout-example:not(:has(.sc-layout-playing)) [data-layout-highlight]{background:#c9e2ed88!important;box-shadow:inset 0 0 0 2px #408aa7!important;}
 .sc-layout-example .sc-selected-layout-line{outline:1px dashed #81959b;outline-offset:2px;}
 .sc-layout-controls label{border-left:3px solid transparent;padding-left:7px;}
 .sc-layout-controls label.is-layout-active{border-color:#75c6dc;background:#ffffff0b;}
@@ -105,6 +124,11 @@ export function createPaperLayout(C,doc=document){
 .sc-layout-controls legend{font-size:13px;padding:0 6px;}
 .sc-layout-custom{grid-column:1/-1;min-width:0;}.sc-layout-custom summary{cursor:pointer;font-size:13px;padding:8px 10px;border:1px solid #71818b;border-radius:6px;}.sc-layout-custom[open] summary{margin-bottom:10px;}
 .sc-layout-feedback{min-height:20px;color:#8bd3e6!important;font-size:13px!important;}
+.sc-section-layout{min-width:0;border:1px solid #52616c;border-radius:6px;padding:7px;}
+.sc-section-layout summary{cursor:pointer;font-size:13px;}.sc-section-layout>div{display:grid;gap:8px;margin-top:9px;font-size:12px;}
+.sc-section-layout .sc-section-track{display:grid;grid-template-columns:minmax(0,1fr) auto 43px 16px;align-items:center;gap:3px;}
+.sc-section-layout .sc-section-track select{grid-column:auto;}
+.sc-section-layout select,.sc-section-layout input{min-width:0;font:inherit;padding:3px;}.sc-section-layout label{display:flex;justify-content:space-between;align-items:center;}
 .sc-layout-example{position:sticky;top:54px;}
 .sc-layout-body{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start;}
 .sc-layout-controls{display:grid;gap:12px;}.sc-layout-controls label{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font-size:13px;}.sc-layout-controls input[type=range]{grid-column:1/-1;width:100%;accent-color:#cdb275;}.sc-layout-controls select{grid-column:1/-1;min-width:0;width:100%;}
@@ -115,7 +139,7 @@ export function createPaperLayout(C,doc=document){
 .sc-layout-presets select,.sc-layout-presets input{min-width:0;max-width:100%;box-sizing:border-box;flex:1 1 180px;font:inherit;font-size:13px;padding:7px 10px;border:1px solid #7e8a94;border-radius:6px;background:#16212b;color:#fff;}
 .sc-layout-presets select{flex-basis:130px;width:auto;}
 .sc-layout-presets button{white-space:nowrap;}.sc-preset-create{flex-basis:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.sc-layout-presets [hidden]{display:none!important;}
-@media(max-width:700px){.sc-layout-body{grid-template-columns:1fr;}.sc-layout-example{position:static;}.sc-layout-controls fieldset{grid-column:1/-1;}.sc-layout-controls{grid-template-columns:1fr 1fr;}.sc-layout-dialog{padding:14px;}.sc-layout-example-viewport{max-height:48vh;}}
+@media(max-width:700px){.sc-layout-body{grid-template-columns:1fr;}.sc-layout-example{position:static;}.sc-layout-controls fieldset,.sc-section-layout{grid-column:1/-1;}.sc-layout-controls{grid-template-columns:1fr 1fr;}.sc-layout-dialog{padding:14px;}.sc-layout-example-viewport{max-height:48vh;}}
 @media print{.sc-layout-dialog,.sc-layout-dialog::backdrop{display:none!important;}.sc-paper-layout .sheet-bar-num{min-height:0!important;}.sc-paper-layout.sc-hide-numbers .sheet-bar-num{display:none!important;}}
 `;doc.head.appendChild(style);}
     const appliedSizes=new WeakMap();
@@ -156,15 +180,15 @@ export function createPaperLayout(C,doc=document){
         if(presets.some(p=>p.name===name))return {ok:false,error:'同じ名前があります。別の名前を入力してください'};
         if(presets.length>=20)return {ok:false,error:'プリセットは20個まで保存できます'};
         const slots=projectSlots(project),rows=(rowProjects.get(project.projectId)||[]).flatMap(r=>{const hole=project.extensions?.scoreLayoutV1?.holes.find(h=>h.id===r.barId),index=project.bars.findIndex(b=>b.id===(hole?hole.beforeBarId:r.barId)),slotIndex=hole?slots.findIndex(s=>s.id===r.barId):-1;return index<0&&slotIndex<0?[]:[{barNumber:Math.max(1,index+1),columns:r.columns,used:r.used,...(slotIndex>=0?{slotNumber:slotIndex+1}:{})}];});
-        const layout=copy(value);if(visibility)layout.appearance.visibility={...visibility,...layout.appearance.visibility};const previous=presets;presets=presets.concat({name,type:'display-settings-v1',layout,rows});const result=persist();if(result?.ok===false){presets=previous;return {ok:false,error:'プリセットを保存できませんでした'};}return {ok:true,name};
+        const layout=exportPresentation(project).layout;if(visibility)layout.appearance.visibility={...visibility,...layout.appearance.visibility};const previous=presets;presets=presets.concat({name,type:'display-settings-v1',layout,rows});const result=persist();if(result?.ok===false){presets=previous;return {ok:false,error:'プリセットを保存できませんでした'};}return {ok:true,name};
     }
     function loadDisplayPreset(name,project){
         const preset=presets.find(p=>p.name===name);if(!preset)return {ok:false,error:'プリセットを選択してください'};
         if(preset.fonts)return loadFontPreset(name);
         const slots=projectSlots(project),rows=preset.rows.flatMap(r=>{const anchor=r.slotNumber?slots[r.slotNumber-1]:project.bars[r.barNumber-1];return anchor?[{barId:anchor.id,columns:r.columns,used:r.used}]:[];});
-        rowProjects.set(project.projectId,rows);return set(preset.layout);
+        replacePresentation(project,{rows,layout:preset.layout});return persist();
     }
-    function renderOptions(project){const rules=new Map((rowProjects.get(project.projectId)||[]).map(r=>[r.barId,r]));return {formsList:value.appearance.visibility.formList?C.localPaperForms?.list(project):null,visibility:{...value.appearance.visibility,...(value.timingGrid===null?{}:{timingGrid:value.timingGrid}),...(value.gridResolution===null?{}:{gridResolution:value.gridResolution})},barsPerLine:value.barsPerLine,lineLayoutForSlot(id,number){return rules.get(id)||rules.get(project.bars[number-1]?.id)||null;},lineLayoutForBar(number){return rules.get(project.bars[number-1]?.id)||null;}};}
+    function renderOptions(project){const rules=new Map((rowProjects.get(project.projectId)||[]).map(r=>[r.barId,r]));return {sectionRules:sectionProjects.get(project.projectId)||[],formsList:value.appearance.visibility.formList?C.localPaperForms?.list(project):null,visibility:{...value.appearance.visibility,...(value.timingGrid===null?{}:{timingGrid:value.timingGrid}),...(value.gridResolution===null?{}:{gridResolution:value.gridResolution})},barsPerLine:value.barsPerLine,lineLayoutForSlot(id,number){return rules.get(id)||rules.get(project.bars[number-1]?.id)||null;},lineLayoutForBar(number){return rules.get(project.bars[number-1]?.id)||null;}};}
     function setLine(project,barId,columns,used){
         if(!project.bars.some(b=>b.id===barId)&&!project.extensions?.scoreLayoutV1?.holes.some(h=>h.id===barId))return {ok:false};
         let rows=(rowProjects.get(project.projectId)||[]).filter(r=>r.barId!==barId);
@@ -208,7 +232,46 @@ export function createPaperLayout(C,doc=document){
         presetSelect.addEventListener('change',()=>{if(presetSelect.value){loadDisplayPreset(presetSelect.value,sample);status('表示プリセットを呼び出しました。保存で反映します');}createPanel.hidden=true;syncPresets();});
         presetSave.addEventListener('click',()=>{const result=saveDisplayPreset(presetInput.value,sample,currentVisibility());if(result.ok){syncPresets(result.name);createPanel.hidden=true;presetNew.focus({preventScroll:true});}status(result.ok?'表示設定のプリセットを追加しました。保存で確定します':result.error);});
         presetDelete.addEventListener('click',()=>{const result=deleteFontPreset(presetSelect.value);if(result.ok){syncPresets('');createPanel.hidden=true;}status(result.ok?'プリセットを削除しました。保存で確定します':result.error);});syncPresets();if(options.mountPresets){presetGroup.replaceChildren();options.mountPresets(presetGroup);}
-        const row=field('barsPerLine','全体：1行の小節数'),select=doc.createElement('select');select.dataset.layoutSetting='barsPerLine';select.setAttribute('aria-label','全体：1行の小節数');for(const [n,text] of [[0,'自動'],[1,'1小節'],[2,'2小節'],[3,'3小節'],[4,'4小節']]){const option=doc.createElement('option');option.value=n;option.textContent=text;select.appendChild(option);}select.value=value.barsPerLine;select.addEventListener('change',()=>{activeSetting='barsPerLine';set({barsPerLine:Number(select.value)});});row.appendChild(select);inputs.push(()=>select.value=value.barsPerLine);
+        const row=field('barsPerLine','全体：1行の小節数'),select=doc.createElement('select');select.dataset.layoutSetting='barsPerLine';select.setAttribute('aria-label','全体：1行の小節数');for(const [n,text] of Array.from({length:9},(_,i)=>[i,i?i+'小節':'自動'])){const option=doc.createElement('option');option.value=n;option.textContent=text;select.appendChild(option);}select.value=value.barsPerLine;select.addEventListener('change',()=>{activeSetting='barsPerLine';set({barsPerLine:Number(select.value)});});row.appendChild(select);inputs.push(()=>select.value=value.barsPerLine);
+        if(sample.sections?.length){
+            const panel=doc.createElement('details'),heading=doc.createElement('summary'),body=doc.createElement('div');
+            panel.className='sc-section-layout';heading.textContent='セクション別の表示';panel.append(heading,body);controls.append(panel);
+            function choice(label,choices){
+                const input=doc.createElement('select');input.setAttribute('aria-label',label);
+                for(const [id,text] of choices){const opt=doc.createElement('option');opt.value=id;opt.textContent=text;input.append(opt);}
+                return input;
+            }
+            const target=choice('設定するセクション',sample.sections.map(s=>[s.id,s.name]));
+            target.value=sample.bars[(options.selectedBarNumber||1)-1]?.sectionId||sample.sections[0].id;
+            body.append(target);
+            const rules=()=>sectionProjects.get(sample.projectId)||[];
+            const current=()=>rules().find(r=>r.sectionId===target.value)||{sectionId:target.value};
+            function change(edit){
+                const next=copy(current());edit(next);
+                sectionProjects.set(sample.projectId,normalizeSections([...rules().filter(r=>r.sectionId!==target.value),next]));
+                notify();save();
+            }
+            const syncs=[],columns=choice('セクションの1行の小節数',[['','全体に従う'],...Array.from({length:8},(_,i)=>[i+1,(i+1)+'小節'])]);
+            const lineLabel=doc.createElement('label');lineLabel.append('1行の小節数',columns);body.append(lineLabel);
+            columns.onchange=()=>change(r=>{r.barsPerLine=Number(columns.value);});
+            syncs.push(()=>columns.value=current().barsPerLine??'');
+            for(const [flag,title,key] of sectionTracks){
+                const line=doc.createElement('div'),label=doc.createElement('span'),size=doc.createElement('input');
+                line.className='sc-section-track';label.textContent=title;
+                const mode=choice(title+'の表示',[['','全体に従う'],['on','表示'],['off','非表示']]);
+                mode.onchange=()=>change(r=>{(r.visibility??={})[flag]=mode.value===''?undefined:mode.value==='on';});
+                size.type='number';[size.min,size.max]=ranges[key];size.step=flag==='forms'?5:.5;
+                size.setAttribute('aria-label',title+'の大きさ');size.title='空欄で全体の大きさを使用';
+                size.onchange=()=>{if(size.validity.valid)change(r=>{(r.sizes??={})[key]=size.value===''?undefined:size.valueAsNumber;});else size.reportValidity();};
+                syncs.push(()=>{const rule=current();mode.value=rule.visibility?.[flag]===undefined?'':rule.visibility[flag]?'on':'off';size.value=rule.sizes?.[key]??'';size.placeholder=value[key];size.disabled=mode.value==='off';});
+                const unit=doc.createElement('small');unit.textContent=flag==='forms'?'%':'px';line.append(label,mode,size,unit);body.append(line);
+            }
+            const resetSection=doc.createElement('button');resetSection.type='button';resetSection.textContent='このセクションを全体設定に戻す';
+            resetSection.onclick=()=>change(r=>{delete r.barsPerLine;delete r.visibility;delete r.sizes;});body.append(resetSection);
+            const sync=()=>{syncs.forEach(fn=>fn());resetSection.disabled=Object.keys(current()).length===1;};
+            target.onchange=()=>{sync();const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(h=>h.dataset.sectionId===target.value);if(heading)viewport.scrollTop+=heading.getBoundingClientRect().top-viewport.getBoundingClientRect().top;};
+            inputs.push(sync);
+        }
         const custom=doc.createElement('div');custom.className='sc-layout-custom';custom.dataset.layoutCustom='';custom.hidden=true;controls.appendChild(custom);
         const lineGroup=doc.createElement('fieldset'),legend=doc.createElement('legend');legend.textContent='選択した行';legend.dataset.layoutLineTitle='';lineGroup.appendChild(legend);custom.appendChild(lineGroup);
         const colsRow=field('rowLayout','横に並べる枠',lineGroup),colsInput=doc.createElement('select'),usedRow=field('rowLayout','この行に置く小節',lineGroup),usedInput=doc.createElement('select');colsInput.dataset.lineColumns='';colsInput.setAttribute('aria-label','横に並べる枠');usedInput.dataset.layoutLineUsed='';usedInput.setAttribute('aria-label','この行に置く小節');for(let n=1;n<=8;n++){const o=doc.createElement('option');o.value=n;o.textContent=n+'枠';colsInput.appendChild(o);}colsRow.appendChild(colsInput);usedRow.appendChild(usedInput);
@@ -284,18 +347,21 @@ export function createPaperLayout(C,doc=document){
         let resizeFrame=null;
         function scheduleResize(){if(resizeFrame===null)resizeFrame=requestAnimationFrame(()=>{resizeFrame=null;resize();});}
         function resize(){if(!dialog||!paper.isConnected)return;const scale=Math.min(1,viewport.clientWidth/794);paper.style.transform='scale('+scale+')';frame.style.height=Math.ceil(paper.offsetHeight*scale)+'px';mark(true);}
-        refreshSample=(structural=true,reflowOnly=false)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){if(options.renderSample)options.renderSample(paper,{layout:copy(value),rows:exportPresentation(sample).rows,reuse:reflowOnly});else C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample),editableSlots:false,formsList:value.appearance.visibility.formList?C.localPaperForms?.list(sample,{interactive:false}):null,reuseBars:reflowOnly});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(options.renderSample){paper.style.height='auto';paper.querySelectorAll('.sc-paper-layout').forEach(apply);}if(structural)syncLine();mark(false,false);scheduleResize();};
+        refreshSample=(structural=true,reflowOnly=false)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){if(options.renderSample){const {layout,rows}=exportPresentation(sample);options.renderSample(paper,{layout,rows,reuse:reflowOnly});}else C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample),editableSlots:false,formsList:value.appearance.visibility.formList?C.localPaperForms?.list(sample,{interactive:false}):null,reuseBars:reflowOnly});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(options.renderSample){paper.style.height='auto';paper.querySelectorAll('.sc-paper-layout').forEach(apply);}if(structural)syncLine();mark(false,false);scheduleResize();};
         function clearHighlight(){activeSetting=null;feedback.textContent='';mark();}
         preview.addEventListener('click',e=>{const line=e.target.closest('.sheet-line');selectedNumber=line&&Number(line.dataset.lineStart)>0?Number(line.dataset.lineStart):null;syncLine();clearHighlight();});
         dialog.addEventListener('click',e=>{if(e.target.closest('[data-layout-field],[data-layout-custom]'))return;clearHighlight();if(!e.target.closest('.sheet-line,button,input,select,summary')){selectedNumber=null;syncLine();}});
-        reset.addEventListener('click',()=>{const forms=visible('forms');selectedNumber=null;value=normalizeLayout(DEFAULT_LAYOUT);value.appearance.visibility.forms=forms;rowProjects.delete(sample.projectId);notify();save();});dismiss.addEventListener('click',()=>close());accept.addEventListener('click',()=>close(true));dialog.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close();}});dialog.addEventListener('close',()=>{const old=dialog;if(!old)return;dialog=null;old.remove();refreshSample=()=>{};if(editing)cancel();else notify();if(previous?.isConnected)previous.focus({preventScroll:true});options.onClose?.(old.returnValue==='save');});const observer=new ResizeObserver(scheduleResize);observer.observe(viewport);dialog.addEventListener('close',()=>{observer.disconnect();if(resizeFrame!==null)cancelAnimationFrame(resizeFrame);},{once:true});dialog.addEventListener('cancel',e=>{e.preventDefault();close();});bindOutsideDismiss(dialog,{close:()=>close()});dialog.showModal();refreshSample();return dialog;
+        reset.addEventListener('click',()=>{const forms=visible('forms');selectedNumber=null;value=normalizeLayout(DEFAULT_LAYOUT);value.appearance.visibility.forms=forms;rowProjects.delete(sample.projectId);sectionProjects.delete(sample.projectId);notify();save();});dismiss.addEventListener('click',()=>close());accept.addEventListener('click',()=>close(true));dialog.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close();}});dialog.addEventListener('close',()=>{const old=dialog;if(!old)return;dialog=null;old.remove();refreshSample=()=>{};if(editing)cancel();else notify();if(previous?.isConnected)previous.focus({preventScroll:true});options.onClose?.(old.returnValue==='save');});const observer=new ResizeObserver(scheduleResize);observer.observe(viewport);dialog.addEventListener('close',()=>{observer.disconnect();if(resizeFrame!==null)cancelAnimationFrame(resizeFrame);},{once:true});dialog.addEventListener('cancel',e=>{e.preventDefault();close();});bindOutsideDismiss(dialog,{close:()=>close()});dialog.showModal();refreshSample();return dialog;
     }
     function exportPresentation(project,visibility={}){
         const layout=copy(value),anchors=new Set(project.bars.map(b=>b.id).concat((project.extensions?.scoreLayoutV1?.holes||[]).map(h=>h.id)));
+        const ids=new Set(project.sections?.map(s=>s.id));
+        const sections=(sectionProjects.get(project.projectId)||[]).filter(rule=>ids.has(rule.sectionId));
+        if(sections.length)layout.sections=copy(sections);
         for(const key of ['chords','forms','strum','lyrics','doremi'])if(typeof visibility[key]==='boolean'&&!Object.hasOwn(layout.appearance.visibility,key))layout.appearance.visibility[key]=visibility[key];
         if(typeof visibility.timingGrid==='boolean')layout.timingGrid=visibility.timingGrid;if([8,16].includes(visibility.gridResolution))layout.gridResolution=visibility.gridResolution;
         return {version:1,layout,rows:copy((rowProjects.get(project.projectId)||[]).filter(r=>anchors.has(r.barId))),zoom:1,flow:'responsive'};
     }
-    function replacePresentation(project,presentation){value=normalizeLayout(presentation.layout);rowProjects.set(project.projectId,normalizeLineRules(presentation.rows||[]));notify();}
+    function replacePresentation(project,presentation){value=normalizeLayout(presentation.layout);sectionProjects.set(project.projectId,value.sections||[]);delete value.sections;rowProjects.set(project.projectId,normalizeLineRules(presentation.rows||[]));notify();}
     return {importPresentation(project,presentation){if(presentation?.version!==1 || !presentation.layout || typeof presentation.layout!=='object')return;replacePresentation(project,presentation);return persist();},replacePresentation,exportPresentation,renderOptions,setLine,begin,commit,cancel,saveDisplayPreset,loadDisplayPreset,saveFontPreset,loadFontPreset,deleteFontPreset,get presets(){return copy(presets);},get value(){return copy(value);},get isOpen(){return !!dialog?.open;},apply,set,open,close,onChange(fn){changed=fn;}};
 }

@@ -277,6 +277,11 @@
                 const suffix=e.durationTicks&&e.durationTicks<=barTicksLen/resolution?'〜'.repeat(Math.min(16,Math.max(e.held?1:0,e.durationTicks/unit-1))):'';
                 const token=el('span','',e.text+suffix);
                 if(e.restTicks){token.replaceChildren(createStrumRestSymbol(e.restTicks));token.style.color='#746e65';}
+                else if(className==='sheet-bar-doremi' && e.text?.startsWith('ファ')){
+                    const syllable=el('span','sheet-note-fa');
+                    syllable.append(el('span','','フ'),el('span','','ァ'));
+                    token.replaceChildren(syllable,e.text.slice(2)+suffix);
+                }
                 else if(vocal && /.[ぁぃぅぇぉっゃゅょァィゥェォッャュョ]/u.test(token.textContent)){
                     const chunks=token.textContent.split(/(.[ぁぃぅぇぉっゃゅょァィゥェォッャュョ])/u);
                     token.replaceChildren(...chunks.map((text,index)=>index%2?el('span','sheet-kana-pair',text):text));
@@ -413,18 +418,27 @@
             var slots=canonical&&CS().structureOperations?.scoreSlots?CS().structureOperations.scoreSlots(canonical,sec.id):bars.map(function(b){return {id:'bar-'+b.barNumber,barNumber:b.barNumber,sectionId:sec.id};});
             var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.dataset.paperEdit='section';label.tabIndex=0;label.setAttribute('role','button');label.title='セクション編集を開く';
             var sectionHead=heads.get(sec.id)||el('div','sheet-section-heading');if(!heads.has(sec.id))sectionHead.appendChild(label);if(!readOnly&&options?.editableSlots&&!heads.has(sec.id)){var play=el('button','sheet-section-play','▶ ここから');play.type='button';play.dataset.playSection=sec.id;play.setAttribute('aria-label',sec.name+'から再生');sectionHead.appendChild(play);}page.appendChild(sectionHead);
-            var hasVocal=show.lyrics||show.doremi,hasForms=!!options?.formsForBar;
-            var cols=[1,2,3,4].includes(options?.barsPerLine)?options.barsPerLine:hasVocal||hasForms?show.barsPerLine:show.barsPerLine*2;
+            const section=options?.sectionRules?.find(r=>r.sectionId===sec.id);
+            const lineShow={...show,forms:!!options?.formsForBar && (show.forms??options?.defaultForms??true),...section?.visibility};
+            const hasVocal=lineShow.lyrics||lineShow.doremi,hasForms=lineShow.forms&&!!options?.formsForBar;
+            const requested=section?.barsPerLine??options?.barsPerLine;
+            const cols=Number.isInteger(requested)&&requested>=1&&requested<=8?requested:Math.min(8,(hasVocal||hasForms?1:2)*show.barsPerLine);
             for(var i=0;i<slots.length||i===0;){
                 var first=slots[i],firstReal=slots.slice(i).find(function(s){return !s.empty;}),rule=options?.lineLayoutForSlot?.(first?.id,firstReal?.barNumber)||options?.lineLayoutForBar?.(firstReal?.barNumber),capacity=rule?.columns>=1&&rule.columns<=8?rule.columns:cols,baseUsed=rule?.used>0?Math.min(rule.used,capacity):capacity;
                 var fill=canonical?.extensions?.scoreLayoutV1?.fills.find(function(f){return f.anchorId===first?.id&&f.columns===capacity&&f.baseUsed===baseUsed;}),used=fill?fill.used:baseUsed;
                 var line=el('div','sheet-line'+(hasVocal?'':' sheet-line--compact'));line.style.gridTemplateColumns='repeat('+capacity+', 1fr)';line.dataset.lineStart=firstReal?.barNumber||0;line.dataset.lineAnchor=first?.id||'empty-'+sec.id;line.dataset.lineCapacity=capacity;line.dataset.lineBaseUsed=baseUsed;if(rule)line.dataset.lineCustom='';
                 var lineSlots=slots.slice(i,i+used);line.dataset.lineUsed=lineSlots.length;
-                var formRows=options?.formsForBar?lineSlots.map(function(s){return s.empty||canReuse?null:options.formsForBar(s.barNumber);}):[];
-                var lineShow=Object.assign({},show,{forms:!!options?.formsForBar}),rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);line.style.setProperty('--sheet-row-count',rowCount);
+                var formRows=hasForms?lineSlots.map(function(s){return s.empty||canReuse?null:options.formsForBar(s.barNumber);}):[];
+                var rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);line.style.setProperty('--sheet-row-count',rowCount);
                 var nextReal=slots.slice(i+lineSlots.length).find(function(s){return !s.empty;});
                 function emptyCell(descriptor){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.dataset.emptySlot=JSON.stringify(descriptor);empty.setAttribute('role',options?.editableSlots?'button':'img');empty.setAttribute('aria-label','空き枠（再生なし。編集開始・貼り付けで小節に戻す）');if(options?.editableSlots){empty.tabIndex=0;empty.dataset.editableEmpty='';}return empty;}
-                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=show.strum?resolveBarStrum(project,bar):null;line.appendChild((canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.resolutionForBar?options.resolutionForBar(bar):null,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]));});
+                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=lineShow.strum?resolveBarStrum(project,bar):null;const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.resolutionForBar?options.resolutionForBar(bar):null,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]);
+                    if(section?.sizes){
+                        for(const [key,size] of Object.entries(section.sizes))cell.style.setProperty('--sc-section-'+key,size+'px');
+                        if(section.sizes.formScale&&formRows[index])formRows[index].dataset.sectionFormScale=section.sizes.formScale;
+                    }
+                    line.appendChild(cell);
+                });
                 for(var pad=lineSlots.length;pad<capacity;pad++)line.appendChild(emptyCell({sectionId:sec.id,beforeBarId:nextReal?nextReal.barId:null,anchorId:first?.id||null,columns:capacity,baseUsed:baseUsed,liveUsed:lineSlots.length,padIndex:pad-lineSlots.length,precedingHoleIds:slots.slice(0,i+lineSlots.length).filter(function(s){return s.empty;}).map(function(s){return s.id;})}));
                 page.appendChild(line);i+=Math.max(1,lineSlots.length);
             }

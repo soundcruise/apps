@@ -22,11 +22,14 @@ export function createViewerSettings({host,read,change,playback,configure,toggle
         if(current||!read())return;
         const initial=read(),score=initial.document.score,identity=initial.document.viewerDocumentId+':'+initial.document.revisionId,backup=copy(initial.presentation);
         const same=()=>read()?.document.viewerDocumentId+':'+read()?.document.revisionId===identity;
-        const memory={scorePaperDisplayV2:{version:2,layout:backup.layout,rows:[{projectId:score.projectId,rows:backup.rows}],presets:[]}};
+        const memory={scorePaperDisplayV2:{version:2,layout:{},rows:[],presets:[]}};
         const owner=createPaperLayout({storage:{getAppSetting:key=>memory[key],setAppSetting:(key,value)=>{memory[key]=value;return {ok:true};}},localPaperForms:forms},doc);
-        const originalRows=JSON.stringify([backup.layout.barsPerLine,backup.rows]);let d=null;
+        owner.replacePresentation(score,backup);
+        const lineArrangement=p=>JSON.stringify([p.layout.barsPerLine,p.rows,
+            (p.layout.sections||[]).filter(rule=>rule.barsPerLine).map(rule=>[rule.sectionId,rule.barsPerLine]).sort()]);
+        const originalRows=lineArrangement(backup);let d=null;
         const active=()=>current===d&&d?.open&&same();
-        owner.onChange(()=>{if(!active())return;const value=owner.exportPresentation(score),geometry=JSON.stringify([value.layout.barsPerLine,value.rows]);change({...read().presentation,layout:value.layout,rows:value.rows,...(geometry!==originalRows?{flow:'source'}:{})});});
+        owner.onChange(()=>{if(!active())return;const value=owner.exportPresentation(score),geometry=lineArrangement(value);change({...read().presentation,layout:value.layout,rows:value.rows,...(geometry!==originalRows?{flow:'source'}:{})});});
         function mountPresets(parent){
             const node=(tag,text,target=parent)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;target.append(e);return e;};
             const button=(text,target=parent)=>{const b=node('button',text,target);b.type='button';return b;};
