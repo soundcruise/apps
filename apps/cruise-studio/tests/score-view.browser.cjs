@@ -142,14 +142,14 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             for(const [key,glyph] of [['u','↑'],['d','↓'],['x','x']]){await first.press(key);await settle(page);assert.equal(await glyphOf(first),glyph);assert.notEqual(await first.locator('..').evaluate(e=>getComputedStyle(e).boxShadow),'none');}
             await first.press('ArrowRight');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'1');assert.notEqual(await page.locator('.dock-strum-cell').nth(1).evaluate(e=>getComputedStyle(e).boxShadow),'none');
         }));
-        await t.test('lyrics and solfege use matching centers and font metrics; paper cells center all rows',()=>fresh(async page=>{
+        await t.test('lyrics and solfege use matching centers and font metrics; paper rows align at their onset',()=>fresh(async page=>{
             await select(page);await page.locator('.dock-lyrics-cell').first().fill('あい');await page.locator('[data-overlay-field=doremi]').first().fill('ドレ');await page.locator('[data-overlay-field=doremi]').first().press('Tab');await settle(page);await page.locator('[data-overlay-field=chord]').first().fill('C');await page.locator('[data-overlay-field=chord]').first().press('Tab');await settle(page);
             const before=await snapshot(page);
             for(const width of [1440,390]){
                 await page.setViewportSize({width,height:900});await settle(page);
-                const metrics=await page.evaluate(()=>{function m(e){const s=getComputedStyle(e),r=e.getBoundingClientRect();return {center:r.x+r.width/2,align:s.textAlign,size:s.fontSize,family:s.fontFamily,spacing:s.letterSpacing};}return {lyric:m(document.querySelector('.dock-lyrics-cell')),note:m(document.querySelector('[data-overlay-field=doremi]')),paper:[...document.querySelector('.sheet-bar').querySelectorAll('.sheet-bar-chord > span:first-child,.sheet-bar-lyrics > span:first-child,.sheet-bar-doremi > span:first-child')].map(m)};});
+                const metrics=await page.evaluate(()=>{function m(e){const s=getComputedStyle(e),r=e.getBoundingClientRect();return {left:r.x,center:r.x+r.width/2,align:s.textAlign,size:s.fontSize,family:s.fontFamily,spacing:s.letterSpacing};}return {lyric:m(document.querySelector('.dock-lyrics-cell')),note:m(document.querySelector('[data-overlay-field=doremi]')),paper:[...document.querySelector('.sheet-bar').querySelectorAll('.sheet-bar-chord > span:first-child,.sheet-bar-lyrics > span:first-child,.sheet-bar-doremi > span:first-child')].map(m)};});
                 assert(Math.abs(metrics.lyric.center-metrics.note.center)<2);assert.equal(metrics.note.align,'center');assert.equal(metrics.note.size,metrics.lyric.size);assert.equal(metrics.note.family,metrics.lyric.family);
-                assert.equal(metrics.paper.length,3);for(const m of metrics.paper){assert.equal(m.align,'center');assert(Math.abs(m.center-metrics.paper[0].center)<1);}
+                assert.equal(metrics.paper.length,3);for(const m of metrics.paper){assert.equal(m.align,'start');assert(Math.abs(m.left-metrics.paper[0].left)<1);}
                 if(output)await page.screenshot({path:path.join(output,'aligned-'+width+'.png')});
             }
             assert.deepEqual(await snapshot(page),before);
@@ -248,7 +248,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await t.test('coarse stroke input replaces the selected interval and preserves other durations and accents',()=>fresh(async page=>{
             await page.evaluate(()=>{
                 const s=CruiseStudio.sheetCruise.getSession();const result=s.runOperation('Synthetic shared fine rhythm',p=>{
-                    const id=crypto.randomUUID();p.materials.rhythms.push({id,encoding:'studio-strum-v1',provenance:{origin:'user-set'},snapshot:{name:'synthetic',lengthTicks:1920,slots:[{id:crypto.randomUUID(),tick:0,action:'down',durationTicks:60,accent:true},{id:crypto.randomUUID(),tick:120,action:'up',durationTicks:120,accent:false},{id:crypto.randomUUID(),tick:960,action:'mute',durationTicks:180,accent:true,tieToNext:false}]}});
+                    const id=crypto.randomUUID();p.materials.rhythms.push({id,encoding:'studio-strum-v1',provenance:{origin:'user-set'},snapshot:{name:'synthetic',lengthTicks:1920,inputGrid:{unit:8,beats:[]},cellStarts:[0,240,480,720,960,1200,1440,1680],slots:[{id:crypto.randomUUID(),tick:0,action:'down',durationTicks:60,accent:true},{id:crypto.randomUUID(),tick:120,action:'up',durationTicks:120,accent:false},{id:crypto.randomUUID(),tick:960,action:'mute',durationTicks:180,accent:true,tieToNext:false}]}});
                     p.performance.barRhythms=[{id:crypto.randomUUID(),barId:p.bars[0].id,materialId:id},{id:crypto.randomUUID(),barId:p.bars[1].id,materialId:id}];
                     p.bars[0].chords=[0,120].map((onsetTick,i)=>({id:crypto.randomUUID(),onsetTick,symbol:i?'G':'C',unresolved:false,provenance:{origin:'user-set'}}));
                 });if(!result.ok)throw Error(result.error);
