@@ -17,6 +17,25 @@ for(const engine of ['chrome','webkit'])test('unified settings and visible score
   await p.keyboard.insertText('新しい曲');await dialog.locator('[data-score-field=bpm]').fill('120');assert.deepEqual(await snapshot(p),empty);await dialog.locator('[data-score-cancel]').click();await dialog.waitFor({state:'detached'});assert.deepEqual(await snapshot(p),empty);
   await menu(p,'sc-curve-menu','#sc-edit-song');await dialog.waitFor();assert.equal(await title.inputValue(),empty.songInfo.title);await title.fill('共通設定の曲');await dialog.locator('[data-score-field=bpm]').fill('120');const h=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory().cursor);await dialog.locator('[data-score-apply]').click();await dialog.waitFor({state:'detached'});const edited=await snapshot(p);assert.equal(edited.songInfo.title,'共通設定の曲');assert.equal(edited.songInfo.bpm,120);assert.equal(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory().cursor),h+1);assert.equal(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().baseRevision),null);assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));await p.click('#sc-undo');assert.deepEqual(await snapshot(p),empty);await p.locator('#sc-project-select').selectOption(original.projectId);await p.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.deepEqual(await snapshot(p),original);assert(await p.locator('#sc-editor-drawer').isHidden());
  }));
+ await t.test('compose with both keys and apply a progression to sections and the whole song',()=>fresh(async p=>{
+  await menu(p,'sc-curve-menu','#sc-new-project');await p.getByRole('button',{name:'保存せず続行',exact:true}).click();
+  const card=p.getByRole('dialog',{name:'新しい曲を作成',exact:true});
+  await p.evaluate(()=>{const layout=CruiseStudio.localPaperLayout,appearance=layout.value.appearance;layout.set({appearance:{...appearance,visibility:{...appearance.visibility,forms:true}}});});
+  await card.getByLabel('アーティスト名').fill('テスト');await card.getByLabel('アーティスト名').press('Enter');
+  await card.getByLabel('原曲キー').selectOption('D');await card.getByLabel('Playキー').selectOption('C');
+  await card.getByRole('button',{name:'セクション編集',exact:true}).click();
+  await p.getByRole('button',{name:'Bメロの最後の小節を削除'}).click();await p.click('[data-score-apply]');
+  await card.getByRole('button',{name:'コード一括入力',exact:true}).click();
+  const batch=p.locator('[data-score-dialog=chordPreset]');
+  for(const [name,n] of [['Aメロ',8],['Bメロ',7]]){
+   await batch.locator('.sheet-section-label').filter({hasText:name}).click();
+   assert.equal(await batch.locator('[data-preset-destination]').count(),n);await batch.locator('[data-preset-stage]').click();
+  }
+  await batch.getByLabel('曲全て').check();await batch.locator('[data-preset-stage]').click();await batch.locator('[data-score-apply]').click();
+  const song=await snapshot(p);assert.equal(song.songInfo.originalKey,'D');assert.equal(song.instrument.capo,2);
+  const pattern=song.bars.slice(0,4).map(b=>b.chords[0].symbol);song.bars.forEach((b,i)=>assert.equal(b.chords[0].symbol,pattern[i%4]));
+  const svg=card.locator('.sheet-form-event svg').first(),size=await svg.boundingBox();assert(size.width>0&&size.width<100&&size.height<100);
+ }));
  await t.test('song card returns from all three editors and previews section reordering',()=>fresh(async p=>{
   await menu(p,'sc-curve-menu','#sc-edit-song');
   const card=p.getByRole('dialog',{name:'曲情報',exact:true});

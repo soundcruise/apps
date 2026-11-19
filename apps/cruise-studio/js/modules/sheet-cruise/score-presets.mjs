@@ -508,12 +508,8 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     strip.append(patternPlay,patternArea.querySelector('.sc-preset-cell-editor,.sc-strum-preset-grid'));
     patternArea.prepend(patternHead,strip);
     patternArea.append(rangeControls);
-    let wholeSong;
-    if(!chords){
-        const label=node('label',undefined,rangeControls);
-        wholeSong=node('input',undefined,label);wholeSong.type='checkbox';label.append('曲全て');
-        wholeSong.onchange=update;
-    }
+    const wholeLabel=node('label',undefined,rangeControls),wholeSong=node('input',undefined,wholeLabel);
+    wholeSong.type='checkbox';wholeLabel.append('曲全て');wholeSong.onchange=update;
     rangeControls.append(stage);
     const preview = node('p', '', rangeControls);
     preview.className = 'sc-preset-preview';
@@ -524,7 +520,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     dialog.querySelector('header').appendChild(apply);
     const targetArea = node('section', undefined, body);
     targetArea.className = 'sc-preset-target';
-    const targetHint = chords ? 'クリックで開始小節を指定。ドラッグで選んだ範囲には進行を繰り返します。' : '小節で開始位置、セクション名で範囲を指定。ドラッグ・Shift＋クリックで範囲選択（複数小節のパターンは2小節単位）。余白で解除。';
+    const targetHint = chords ? '小節で開始位置、セクション名でセクション全体を選択。選んだ範囲にコード進行を繰り返します。' : '小節で開始位置、セクション名で範囲を指定。ドラッグ・Shift＋クリックで範囲選択（複数小節のパターンは2小節単位）。余白で解除。';
     const scoreHead = node('div',undefined,targetArea); scoreHead.className='sc-preview-heading';
     node('strong','曲の譜面',scoreHead);
     const scorePlay=button('▶ 再生',()=>play('score'),scoreHead);
@@ -560,7 +556,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         page = frameBox.querySelector('.sheet-page');
         C.localPaperLayout?.apply(frameBox);
         frameBox.querySelectorAll('[tabindex]').forEach(item => item.removeAttribute('tabindex'));
-        if (!chords && !author) for (const label of frameBox.querySelectorAll('.sheet-section-label[data-section-id]')) {
+        if (!author) for (const label of frameBox.querySelectorAll('.sheet-section-label[data-section-id]')) {
             label.tabIndex=0;
             label.setAttribute('role','button');
             label.title=label.textContent+'の小節をすべて選択';
@@ -712,7 +708,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     });
     function chooseSection(target) {
         const heading = target.closest('.sheet-section-label[data-section-id]');
-        if (!heading || chords || author) return false;
+        if (!heading || author) return false;
         if(wholeSong)wholeSong.checked=false;
         sectionSelected=true;
         rangeIndices=project.bars.flatMap((bar,i)=>bar.sectionId===heading.dataset.sectionId?[i]:[]);
@@ -943,7 +939,11 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (chords) {
             const pattern = timedChords;
             if (!pattern?.some(events => events.length)) throw Error('コードを入力してください');
-            if(rangeIndices.length>1)return {bars:rangeIndices.map(i=>project.bars[i]),pattern:rangeIndices.map((_,i)=>pattern[i%pattern.length])};
+            if(wholeSong.checked||sectionSelected||rangeIndices.length>1){
+                const bars=wholeSong.checked?project.bars:rangeIndices.map(i=>project.bars[i]);
+                if(!bars.length)throw Error('入力先に小節がありません');
+                return {bars,pattern:bars.map((_,i)=>pattern[i%pattern.length])};
+            }
             const from = starting;
             if (from < 0 || from + pattern.length > project.bars.length)
                 throw Error('曲の末尾までに ' + pattern.length + ' 小節の入力先がありません。開始小節を変更してください');

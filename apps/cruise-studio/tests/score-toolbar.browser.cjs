@@ -76,6 +76,12 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.mouse.move(a.x-6,a.y+15);await p.mouse.down();await p.mouse.move(b.x+8,a.y+15,{steps:12});await p.mouse.up();
   assert.equal(await p.locator('[data-preset-destination]').count(),3);
  }));
+ await t.test('reset shortcut order without changing visible commands',()=>fresh(async p=>{
+  const icons=p.locator('.sc-menu-shortcuts [data-shortcut]:visible'),ids=()=>icons.evaluateAll(els=>els.map(el=>el.dataset.shortcut));
+  const start=await ids();await icons.first().dragTo(icons.last(),{targetPosition:{x:32,y:18}});
+  await p.click('#sc-shortcut-menu summary');await p.getByRole('button',{name:'デフォルトの順番に戻す'}).click();
+  assert.deepEqual(await ids(),start);
+ }));
  await t.test('display controls sit next to the title and the shortcut group stays fixed',()=>fresh(async p=>{
   assert.equal(await p.locator('.sc-dock-grip').count(),0);
   const title=await p.locator('#sc-project-select').boundingBox(),tools=await p.locator('#sc-toolbar-head-actions').boundingBox();
@@ -105,7 +111,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const dialog=p.locator('[data-score-dialog=sections]'),flow=dialog.locator('nav'),aside=dialog.locator('aside');
   assert(await dialog.locator('header [data-score-apply]').isVisible());
   await flow.getByRole('button').last().click();
-  assert(await dialog.locator('.sc-section-preview').evaluate(e=>e.scrollTop>0));
+  await p.waitForFunction(()=>document.querySelector('.sc-section-preview').scrollTop>0);
   await aside.getByRole('button',{name:'＋ セクションを追加'}).click();
   let prompts=0;p.on('dialog',d=>{if(d.type()==='confirm')prompts++;});
   await dialog.getByRole('button',{name:'新しいセクションの最後の小節を削除'}).click();

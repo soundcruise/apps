@@ -560,6 +560,20 @@
         api.pruneMelodyTies(canonical);
         api.reconcileScoreLayout(canonical,original);
     }
+    function applyInstrument(canonical,args,api,afterEdit){
+        if(!['preserve','transpose'].includes(args.mode))throw Error('変更方法を確認してください');
+        if(!Number.isInteger(args.capo)||args.capo<0||args.capo>11)throw Error('カポは0〜11で指定してください');
+        var delta=0;if(args.mode==='transpose'){var root=function(key){var m=/^([A-G])([#b♯♭]?)$/.exec(key);if(!m)throw Error('キーを確認してください');return (['C','D','E','F','G','A','B'].indexOf(m[1])<0?0:{C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]])+(m[2]==='#'||m[2]==='♯'?1:m[2]?-1:0);};delta=((root(args.originalKey)-root(canonical.songInfo.originalKey)+18)%12)-6;}
+        // Capo edits retain the full interval; legacy key-only requests keep the shortest shift.
+        if(args.transposeSemitones!==undefined){var shift=args.transposeSemitones;if(args.mode!=='transpose'||!Number.isInteger(shift)||Math.abs(shift)>24||((shift-delta)%12+12)%12!==0)throw Error('移調する音程とキーを確認してください');delta=shift;}
+        var maximum=args.maxAbsoluteFret??canonical.instrument.maxAbsoluteFret;
+        if(maximum!==undefined&&(!Number.isInteger(maximum)||maximum<args.capo||maximum>36))throw Error('フレット上限はカポ位置以上・36以下で指定してください');
+        var changed=delta!==0||args.capo!==canonical.instrument.capo||maximum!==canonical.instrument.maxAbsoluteFret;
+        if(changed&&canonical.performance.formBindings.length&&!afterEdit)throw Error('フォームの更新処理を準備できませんでした。開き直してください');
+        if(delta){if(canonical.bars.some(function(b){return b.chords.some(function(c){return c.unresolved;});}))throw Error('未解決コードを確認してから移調してください');var shift=function(p){var midi=api.pitchMidi(p)+delta;if(midi<0||midi>127)throw Error('移調後の音域を確認してください');var steps=['C','C','D','D','E','F','F','G','G','A','A','B'];return {step:steps[midi%12],alter:[1,3,6,8,10].includes(midi%12)?1:0,octave:Math.floor(midi/12)-1};};canonical.bars.forEach(function(b){b.melody.forEach(function(e){if(e.kind==='note')e.pitch=shift(e.pitch);});b.chords.forEach(function(c){var symbol=api.chord(c.symbol,delta);if(symbol===null)throw Error('コードの移調を確認してください');c.symbol=symbol;});});canonical.solfege.tonic=shift(canonical.solfege.tonic);canonical.songInfo.originalKey=args.originalKey;}
+        if(args.mode==='transpose')canonical.songInfo.originalKey=args.originalKey;
+        canonical.instrument.capo=args.capo;if(maximum!==undefined)canonical.instrument.maxAbsoluteFret=maximum;if(changed)canonical.performance.formBindings=[];
+    }
     function create(options) {
         var model = options.model;
         return Object.freeze({ execute: function (kind, args, expected) {
@@ -602,20 +616,8 @@
                         for(const field of ['sections','bars','materials','performance','notation','extensions'])if(next[field])canonical[field]=next[field];
                     }
                     if(kind==='moveSection'){var i=canonical.sections.findIndex(function(s){return s.id===args.sectionId;}),j=i+args.direction;if(i<0||![-1,1].includes(args.direction)||j<0||j>=canonical.sections.length)throw Error('これ以上移動できません');var item=canonical.sections.splice(i,1)[0];canonical.sections.splice(j,0,item);var order=new Map(canonical.sections.map(function(s,i){return [s.id,i];}));canonical.bars.sort(function(a,b){return order.get(a.sectionId)-order.get(b.sectionId);});}
-                    if(kind==='instrument'){
-                        if(!['preserve','transpose'].includes(args.mode))throw Error('変更方法を確認してください');
-                        if(!Number.isInteger(args.capo)||args.capo<0||args.capo>11)throw Error('カポは0〜11で指定してください');
-                        var delta=0;if(args.mode==='transpose'){var root=function(key){var m=/^([A-G])([#b♯♭]?)$/.exec(key);if(!m)throw Error('キーを確認してください');return (['C','D','E','F','G','A','B'].indexOf(m[1])<0?0:{C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]])+(m[2]==='#'||m[2]==='♯'?1:m[2]?-1:0);};delta=((root(args.originalKey)-root(canonical.songInfo.originalKey)+18)%12)-6;}
-                        // Capo edits retain the full interval; legacy key-only requests keep the shortest shift.
-                        if(args.transposeSemitones!==undefined){var shift=args.transposeSemitones;if(args.mode!=='transpose'||!Number.isInteger(shift)||Math.abs(shift)>24||((shift-delta)%12+12)%12!==0)throw Error('移調する音程とキーを確認してください');delta=shift;}
-                        var maximum=args.maxAbsoluteFret??canonical.instrument.maxAbsoluteFret;
-                        if(maximum!==undefined&&(!Number.isInteger(maximum)||maximum<args.capo||maximum>36))throw Error('フレット上限はカポ位置以上・36以下で指定してください');
-                        var changed=delta!==0||args.capo!==canonical.instrument.capo||maximum!==canonical.instrument.maxAbsoluteFret;
-                        if(changed&&canonical.performance.formBindings.length&&!options.afterEdit)throw Error('フォームの更新処理を準備できませんでした。開き直してください');
-                        if(delta){if(canonical.bars.some(function(b){return b.chords.some(function(c){return c.unresolved;});}))throw Error('未解決コードを確認してから移調してください');var shift=function(p){var midi=api.pitchMidi(p)+delta;if(midi<0||midi>127)throw Error('移調後の音域を確認してください');var steps=['C','C','D','D','E','F','F','G','G','A','A','B'];return {step:steps[midi%12],alter:[1,3,6,8,10].includes(midi%12)?1:0,octave:Math.floor(midi/12)-1};};canonical.bars.forEach(function(b){b.melody.forEach(function(e){if(e.kind==='note')e.pitch=shift(e.pitch);});b.chords.forEach(function(c){var symbol=api.chord(c.symbol,delta);if(symbol===null)throw Error('コードの移調を確認してください');c.symbol=symbol;});});canonical.solfege.tonic=shift(canonical.solfege.tonic);canonical.songInfo.originalKey=args.originalKey;}
-                        if(args.mode==='transpose')canonical.songInfo.originalKey=args.originalKey;
-                        canonical.instrument.capo=args.capo;if(maximum!==undefined)canonical.instrument.maxAbsoluteFret=maximum;if(changed)canonical.performance.formBindings=[];
-                    }
+                    const instrument=kind==='instrument'?args:kind==='songInfo'&&args.instrument;
+                    if(instrument)applyInstrument(canonical,instrument,api,options.afterEdit);
                     api.reconcileScoreLayout(canonical,formBefore||canonical);if(options.afterEdit)options.afterEdit(canonical,formBefore);var checked=api.validate(canonical);if(!checked.ok)throw Error(checked.errors.join('/'));return;
                 }
                 if(kind==='pasteBar'){if(canonical.schemaVersion!==2)throw Error('この操作はschema2の曲で使用できます');pasteBar(model,canonical,args);return;}
@@ -717,5 +719,5 @@
         else if (kind === 'strumPreset') applyStrumPreset(draft,args,schema);
         else throw Error('入力の種類を確認してください');
         return draft;
-    }, create: create, capture: capture, isCurrent: isCurrent, structureKey: structureKey,scoreSlots:scoreSlots,scoreLayout:scoreLayout });
+    }, applyInstrument, create: create, capture: capture, isCurrent: isCurrent, structureKey: structureKey,scoreSlots:scoreSlots,scoreLayout:scoreLayout });
 }));

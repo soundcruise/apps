@@ -82,9 +82,9 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     try{
      flow.replaceChildren();
      function selectSection(id){
-      selected=id;paint();
+      const from=paper.scrollTop;selected=id;paint();paper.scrollTop=from;
       const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(el=>el.dataset.sectionId===selected);
-      if(heading)paper.scrollTop+=heading.getBoundingClientRect().top-paper.getBoundingClientRect().top-8;
+      if(heading)paper.scrollBy({top:heading.getBoundingClientRect().top-paper.getBoundingClientRect().top-8,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
       flow.querySelector('[aria-pressed=true]')?.focus({preventScroll:true});
      }
      rows.forEach((row,i)=>{
@@ -158,11 +158,26 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const meter=node('select',undefined,meterLabel);meter.dataset.scoreField='timeSignature';meter.setAttribute('aria-label','拍子');
    for(const beats of [4,3]){const option=node('option',beats+'/4',meter);option.value=String(beats);}
    meter.value=String(project.songInfo.timeSignature.beats);
-   collect=()=>({kind:'songInfo',args:{values:{title:title.value,artist:artist.value,bpm:Number(bpm.value),
+   const keys=['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+   function keySelect(label,value){
+    const wrap=node('label',undefined,form);node('span',label,wrap);
+    const select=node('select',undefined,wrap);
+    for(const name of new Set([...keys,project.songInfo.originalKey,view.songInfo.playKey]))node('option',name,select).value=name;
+    select.value=value;return select;
+   }
+   const original=keySelect('原曲キー',project.songInfo.originalKey),playKey=keySelect('Playキー',view.songInfo.playKey);
+   const pitch=name=>C.theory.keyToSemitone(name);
+   let capo=project.instrument.capo;
+   original.addEventListener('input',()=>{playKey.value=keys[(pitch(original.value)-capo+12)%12];});
+   playKey.addEventListener('input',()=>{capo=(pitch(original.value)-pitch(playKey.value)+12)%12;});
+   const keyChange=()=>original.value!==project.songInfo.originalKey||capo!==project.instrument.capo?
+    {mode:'transpose',originalKey:original.value,capo}:undefined;
+   collect=()=>({kind:'songInfo',args:{instrument:keyChange(),values:{title:title.value,artist:artist.value,bpm:Number(bpm.value),
     timeSignature:{beats:Number(meter.value),beatUnit:4}}}});
    const preview=()=>{
     const draft=structuredClone(project),values=collect().args.values;
     try{C.model.schema2.setMeter(draft,values.timeSignature);
+     if(keyChange()){C.structureOperations.applyInstrument(draft,keyChange(),C.model.schema2,C.localChordForms?.reconcile);C.localChordForms?.reconcile(draft,project);}
      Object.assign(draft.songInfo,{title:values.title,artist:values.artist,bpm:values.bpm||project.songInfo.bpm});
      C.sheetRenderer.render(draft,paper,{...previewPaperOptions(draft),readOnly:true,editableSlots:false});
      C.localPaperLayout?.apply(paper);
@@ -176,7 +191,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   }
   dismiss.addEventListener('click',()=>current.close());apply.addEventListener('click',commit);
   let applyWasDisabled=false;current.addEventListener('compositionstart',()=>{composing=true;applyWasDisabled=apply.disabled;apply.disabled=true;});current.addEventListener('compositionend',e=>{composing=false;apply.disabled=applyWasDisabled;if(mode==='chordPreset')e.target.dispatchEvent(new Event('input',{bubbles:true}));});
-  current.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing||composing)return;if(e.key==='Escape'){e.preventDefault();current.close();}else if(e.key==='Enter'&&mode!=='chordPreset'&&mode!=='strumPreset'&&e.target.matches('input:not([type=checkbox])')){e.preventDefault();commit();}});
+  current.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing||composing)return;if(e.key==='Escape'){e.preventDefault();current.close();}else if(e.key==='Enter'&&!args.newSong&&mode!=='chordPreset'&&mode!=='strumPreset'&&e.target.matches('input:not([type=checkbox])')){e.preventDefault();commit();}});
   current.addEventListener('close',()=>{if(parked){parked.parent.insertBefore(parked.node,parked.next?.parentNode===parked.parent?parked.next:null);parked=null;}if(dialog===current)dialog=null;current.remove();closed();if(previous?.isConnected)previous.focus({preventScroll:true});if(!navigating&&args.parentCard&&getSession()===owner)open('settings',args.parentCard);});
   doc.getElementById('screen-sheet-cruise').appendChild(current);bindOutsideDismiss(current,{close,canClose:()=>!applying});current.showModal();mountPreview?.();const initial=current.querySelector('[data-preview-play="score"]')||current.querySelector('input:not([type=checkbox]),select');initial?.focus({preventScroll:true});if(args.selectTitle&&initial?.dataset.scoreField==='title')initial.select();
  }
