@@ -12,7 +12,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   const current=dialog,head=node('header',undefined,current);node('h2',titles[mode],head);const dismiss=node('button','キャンセル',head);dismiss.type='button';dismiss.dataset.scoreCancel='';
   const body=node('div',undefined,current),status=node('p','',current);status.setAttribute('role','status');status.dataset.scoreStatus='';
   const apply=node('button',mode==='inline'?'確定':'適用',head);apply.type='button';apply.dataset.scoreApply='';apply.className='btn-primary';
-  let collect=()=>null,mountPreview,composing=false,navigating=false;
+  let collect=()=>null,mountPreview,keyEntry,composing=false,navigating=false;
   function input(label,value,key,type='text',parent=body){const wrap=node('label',undefined,parent);node('span',label,wrap);const field=node(type==='textarea'?'textarea':'input',undefined,wrap);if(type!=='textarea')field.type=type;field.value=value;field.dataset.scoreField=key;return field;}
   function button(text,fn,parent=body){const b=node('button',text,parent);b.type='button';b.addEventListener('click',fn);return b;}
   function navigate(next){navigating=true;current.addEventListener('close',()=>open(next,{parentCard:args.parentCard}),{once:true});current.close();}
@@ -20,7 +20,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    if(composing)return;const now=getSession();if(now!==owner||!C.structureOperations.isCurrent(frame,now)){status.textContent='編集対象が変わりました。入力を保持しています。開き直してください。';return;}
    try{const request=collect();if(!request)return;applying=true;let result;try{if(!canEdit())throw Error('入力・保存・競合の状態を確認してください');result=execute(request.kind,request.args,frame);}finally{applying=false;}
     if(!result.ok){status.textContent=result.error||'変更を適用できませんでした';return;}request.onApplied?.();
-    if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,selectTitle:false},barIds:args.barIds}),{once:true});
+    if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,field:args.field==='instrument'?undefined:args.field,selectTitle:false},barIds:args.barIds}),{once:true});
     current.close();changed({mode,previous:project,slot:args.slot});
    }catch(e){applying=false;status.textContent=e.message;}
   }
@@ -177,7 +177,9 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     playKey.selectedIndex=capo;
    }
    updatePlayKeys();
-   button('移調・カポの変更前後を確認',()=>commit('instrument'),form).className='sc-key-link';
+   const keyLink=button('移調・カポの変更前後を確認',()=>commit('instrument'),form);
+   keyLink.className='sc-key-link';
+   if(args.field==='instrument'){keyEntry=keyLink;keyLink.classList.add('sc-key-entry');}
    original.addEventListener('input',updatePlayKeys);
    playKey.addEventListener('input',()=>{capo=playKey.selectedIndex;});
    const keyChange=()=>original.value!==project.songInfo.originalKey||capo!==project.instrument.capo?
@@ -195,15 +197,18 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     }catch(err){status.textContent=err.message;}
    };
    form.addEventListener('input',preview);mountPreview=preview;
-   node('p','各編集画面を開くと、入力した曲情報が反映されます。',form);
-   for(const child of ['sections','chordPreset','strumPreset'])button(titles[child],()=>commit(child),form);
+   const tools=node('fieldset',undefined,body);tools.className='sc-song-tools';
+   node('legend','譜面の編集',tools);
+   node('p','編集画面を開くと、入力した曲情報が反映されます。',tools);
+   const actions=node('div',undefined,tools);actions.className='sc-song-tool-buttons';
+   for(const child of ['sections','chordPreset','strumPreset'])button(titles[child],()=>commit(child),actions);
 
   }
   dismiss.addEventListener('click',()=>current.close());apply.addEventListener('click',commit);
   let applyWasDisabled=false;current.addEventListener('compositionstart',()=>{composing=true;applyWasDisabled=apply.disabled;apply.disabled=true;});current.addEventListener('compositionend',e=>{composing=false;apply.disabled=applyWasDisabled;if(mode==='chordPreset')e.target.dispatchEvent(new Event('input',{bubbles:true}));});
   current.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing||composing)return;if(e.key==='Escape'){e.preventDefault();current.close();}else if(e.key==='Enter'&&!args.newSong&&mode!=='chordPreset'&&mode!=='strumPreset'&&e.target.matches('input:not([type=checkbox])')){e.preventDefault();commit();}});
   current.addEventListener('close',()=>{if(parked){parked.parent.insertBefore(parked.node,parked.next?.parentNode===parked.parent?parked.next:null);parked=null;}if(dialog===current)dialog=null;current.remove();closed();if(previous?.isConnected)previous.focus({preventScroll:true});if(!navigating&&args.parentCard&&getSession()===owner)open('settings',args.parentCard);});
-  doc.getElementById('screen-sheet-cruise').appendChild(current);bindOutsideDismiss(current,{close,canClose:()=>!applying});current.showModal();mountPreview?.();const initial=current.querySelector('[data-preview-play="score"]')||(mode==='settings'&&current.querySelector('[data-score-field="'+args.field+'"]'))||current.querySelector('input:not([type=checkbox]),select');initial?.focus({preventScroll:true});if(args.selectTitle&&initial?.dataset.scoreField==='title')initial.select();
+  doc.getElementById('screen-sheet-cruise').appendChild(current);bindOutsideDismiss(current,{close,canClose:()=>!applying});current.showModal();mountPreview?.();const initial=keyEntry||current.querySelector('[data-preview-play="score"]')||(mode==='settings'&&current.querySelector('[data-score-field="'+args.field+'"]'))||current.querySelector('input:not([type=checkbox]),select');initial?.focus({preventScroll:!keyEntry});if(args.selectTitle&&initial?.dataset.scoreField==='title')initial.select();
  }
  return {open,close,get isOpen(){return !!dialog?.open&&!applying;}};
 }

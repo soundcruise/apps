@@ -63,7 +63,11 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   const form=await p.locator('.sc-song-workspace aside').boundingBox(),preview=await p.locator('.sc-song-workspace .sc-song-preview').boundingBox();
   assert(form.x+form.width<=preview.x);
-  await p.getByRole('button',{name:'セクション編集',exact:true}).last().click();
+  const tools=p.getByRole('group',{name:'譜面の編集',exact:true});
+  assert.deepEqual(await tools.getByRole('button').allTextContents(),['セクション編集','コード一括入力','ストローク一括入力']);
+  assert((await tools.boundingBox()).y>=Math.max(form.y+form.height,preview.y+preview.height)-1);
+  assert.equal(await p.locator('.sc-key-entry').count(),0);
+  await tools.getByRole('button',{name:'セクション編集',exact:true}).click();
   const paper=p.locator('.sc-section-preview');
   for(const width of [1440,800,390]){
    await p.setViewportSize({width,height:940});
