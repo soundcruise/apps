@@ -18,9 +18,14 @@ export function attackFrame(buffer){
 }
 export function trimSampleAttack(context,buffer){const start=attackFrame(buffer);if(!start)return buffer;const trimmed=context.createBuffer(buffer.numberOfChannels,buffer.length-start,buffer.sampleRate);for(let ch=0;ch<buffer.numberOfChannels;ch++)trimmed.getChannelData(ch).set(buffer.getChannelData(ch).subarray(start));return trimmed;}
 
-// At a chord change all strings stop together. Keep them audible up to the
-// next strum while still damping the old chord before the new attack.
+// A changed fingering damps quickly. A common note can ring until the pick
+// reaches its string, just as it does between strokes within a chord.
 export const CONNECTED_STRUM_RELEASE = .008;
+
+export function stringDampTime(beat, nextPick, samePitch, followingCut) {
+    // Limit overlap between different pitches to the start of the new stroke.
+    return Math.min(nextPick, followingCut, samePitch ? Infinity : beat + .012);
+}
 
 export const METRONOME_SOUNDS=Object.freeze({click:'クリック',wood:'ウッド',beep:'電子音',hihat:'ハイハット'});
 export const normalizeMetronomeSound=value=>Object.hasOwn(METRONOME_SOUNDS,value)?value:'click';

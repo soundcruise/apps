@@ -1,4 +1,4 @@
-import {CONNECTED_STRUM_RELEASE,metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
+import {CONNECTED_STRUM_RELEASE,stringDampTime,metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
 import {createOutputPosition,outputContextTime} from './output-position.mjs';
 import {insist} from './json.mjs';
 
@@ -11,11 +11,18 @@ export function pickOffset(event,bpm){
     return event.part==='guitar'&&event.travelSpan>0?event.offsetSeconds*Math.min(1,(event.attackWindowTicks*60/bpm/480)*.28/event.travelSpan):event.offsetSeconds||0;
 }
 export function tickTime(sample,tick){return Math.max(sample.time,sample.anchorTime??sample.time)+(tick-sample.tick)*60/sample.bpm/480;}
+function guitarDampTime(event, plan, sample, nextPick) {
+    const beat = tickTime(sample,event.boundaryTick);
+    if (event.pickHandoffEndTick === undefined) return beat;
+    const samePitch = event.midi === plan.events[event.nextIndex].midi;
+    return stringDampTime(beat, nextPick, samePitch, tickTime(sample,event.pickHandoffEndTick));
+}
 export function musicalEnd(event,plan,sample,attackTime){
     if(event.part==='piano')return tickTime(sample,event.tick+event.durationTicks);
     if(event.part==='guitar'){
         const next=event.nextIndex===null?null:plan.events[event.nextIndex];
-        return Math.min(attackTime+4,tickTime(sample,event.boundaryTick),next?tickTime(sample,next.tick)+pickOffset(next,sample.bpm):Infinity);
+        const nextPick=next?tickTime(sample,next.tick)+pickOffset(next,sample.bpm):Infinity;
+        return Math.min(attackTime+4,guitarDampTime(event,plan,sample,nextPick),nextPick);
     }
     return attackTime+Math.min(event.naturalSeconds,event.attackWindowTicks?event.attackWindowTicks*60/sample.bpm/480:Infinity);
 }
@@ -90,9 +97,14 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         const event=voice.event;
         let fade = .35;
         if (event.part === 'guitar') {
-            const cut = Math.min(event.boundaryTick, range.end);
-            const nextAttack = cut < range.end ? guitarAttacks.has(cut) : range.loop && guitarAttacks.has(range.start);
-            fade = nextAttack && Math.abs(end - tickTime(s, cut)) < 1e-9 ? CONNECTED_STRUM_RELEASE : event.release ?? .045;
+            const next = plan.events[event.nextIndex];
+            const rangeEnd = Math.abs(end - tickTime(s,range.end)) < 1e-9;
+            const nextPick = next ? tickTime(s,next.tick) + pickOffset(next,s.bpm) : Infinity;
+            const damp = guitarDampTime(event,plan,s,nextPick);
+            const samePitch = event.pickHandoffEndTick !== undefined && next.midi === event.midi;
+            const shortRelease = rangeEnd ? range.loop && guitarAttacks.has(range.start)
+                : !samePitch && guitarAttacks.has(event.boundaryTick) && Math.abs(end - damp) < 1e-9;
+            fade = shortRelease ? CONNECTED_STRUM_RELEASE : event.release ?? .045;
         }
         const gain=voice.gain.gain,release=Math.min(fade,duration*.35);
         if(retime){
@@ -109,7 +121,8 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         if(event.part==='click'&&!options.metronome)return;
         const sourceSample=['click','count'].includes(event.part)?metronomeSample(context,event.midi,options.metronomeSound):buffers.get(event.part+':'+event.midi);insist(sourceSample,'missing-decoded-sample');
         const attack=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)-held.age:pendingAttack??tickTime(s,event.tick);
-        const start=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)+(held.delay||0):attack+pickOffset(event,s.bpm);
+        let start=held?Math.max(context.currentTime+.003,s.anchorTime??context.currentTime)+(held.delay||0):attack+pickOffset(event,s.bpm);
+        if(event.part==='guitar' && context.sampleRate)start=Math.round(start*context.sampleRate)/context.sampleRate;
         if(start<context.currentTime-.08)throw Error('playback-interrupted');
         const rate=Math.pow(2,(event.midi-sourceSample.midi)/12),offset=held?.offset||0;
         const end=Math.min(musicalEnd(event,plan,s,attack),event.part==='count'?Infinity:tickTime(s,range.end),start+(sourceSample.buffer.duration-offset)/rate);

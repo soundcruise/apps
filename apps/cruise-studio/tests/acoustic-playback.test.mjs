@@ -92,6 +92,45 @@ test('guitar strings reach a strummed chord change and keep their usual fade int
     }
 });
 
+for (const direction of ['up','down']) test('a repeated C form has the same per-string envelope across a barline going '+direction,()=>{
+    const p=fixture(), chord=p.bars[0].chords[0];
+    chord.durationTicks=1920;
+    p.bars[1].chords=[{...chord,id:'next'}];
+    p.performance.formBindings.push({...p.performance.formBindings[0],chordEventId:'next'});
+    const opposite=direction==='up' ? 'down' : 'up';
+    const d=deps(Array.from({length:8},(_,i)=>({tick:i*240,action:i%2 ? opposite : direction})));
+    const plan=buildSongPreviewPlan(p,d);
+    const previous=at(plan,720).filter(e=>e.barIndex===0);
+    const boundary=at(plan,1680).filter(e=>e.barIndex===0);
+    const incoming=at(plan,0).filter(e=>e.barIndex===1);
+    assert.equal(boundary.length,5);
+    for (const e of boundary) {
+        const inside=previous.find(v=>v.string===e.string), next=incoming.find(v=>v.string===e.string);
+        assert(Math.abs(e.start+e.duration-next.start)<1e-9);
+        assert(Math.abs(inside.duration-e.duration)<1e-9);
+        assert.equal(e.release,inside.release);
+    }
+});
+
+test('a new fingering damps omitted strings on the beat and limits the overlap of changed pitches',()=>{
+    const p=fixture();
+    const second=structuredClone(form);
+    second.strings.find(s=>s.string===5).relativeFret=2;
+    p.materials.forms.push({id:'other-form',snapshot:second});
+    p.bars[1].chords=[{id:'different',symbol:'G',onsetTick:0}];
+    p.performance.formBindings.push({chordEventId:'different',materialId:'other-form',playedStrings:[1,3,5]});
+    const d=deps();d.rhythm=(_,i)=>({encoding:'studio-strum-v1',slots:[{tick:i?0:1680,action:i?'up':'down'}]});
+    const outgoing=at(buildSongPreviewPlan(p,d),1680);
+    const end=string=>{const note=outgoing.find(n=>n.string===string);return note.start+note.duration;};
+    assert(Math.abs(end(5)-2.042)<1e-9); // New pitch, short overlap.
+    assert(Math.abs(end(3)-2.046)<1e-9); // Same pitch, pick reaches string 3 after 16 ms.
+    for (const string of [2,4]) assert(Math.abs(end(string)-2.03)<1e-9);
+    // A rest a few ticks later still damps every string, even during pick travel.
+    d.rhythm=(_,i)=>({encoding:'studio-strum-v1',slots:i?[{tick:0,action:'up'},{tick:3,action:'rest'}]:[{tick:1680,action:'down'}]});
+    const clipped=at(buildSongPreviewPlan(p,d),1680);
+    assert(clipped.every(e=>e.start+e.duration<=2.03+3*60/120/480+1e-9));
+});
+
 test('range loop uses the selected musical duration with inherited harmony, no copied bars and no trailing attack gap',async()=>{
  const {buildRangeLoopPlan}=await import('../js/modules/sheet-cruise/score-playback.mjs'),p=fixture();p.bars.push({id:'b3',melody:[],chords:[]});const before=JSON.stringify(p),d=deps(),plan=buildRangeLoopPlan(p,d,1,2);
  assert.deepEqual(plan.spans.map(s=>s.index),[1,2]);assert(Math.abs(plan.loopPeriod-4)<1e-9);assert(Math.abs(plan.duration-4.03)<1e-9);assert(plan.events.length);assert(plan.events.every(e=>[1,2].includes(e.barIndex)));assert(plan.events.every(e=>e.start+e.duration<=plan.duration+1e-9));assert.equal(JSON.stringify(p),before);

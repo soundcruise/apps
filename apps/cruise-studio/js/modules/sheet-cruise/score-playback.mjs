@@ -1,5 +1,5 @@
 import {chordVoicing, strumVoices} from './chord-audition.mjs';
-import {CONNECTED_STRUM_RELEASE} from '../score-audio.mjs';
+import {CONNECTED_STRUM_RELEASE, stringDampTime} from '../score-audio.mjs';
 import {createHarmonyTimeline} from './score-harmony.mjs';
 
 // Pure, read-only score -> audio projection. Times are seconds from one audio clock.
@@ -31,18 +31,18 @@ function barPlan(project, index, deps, harmony) {
         const hold = Math.min(barTicks,rhythm?.leadingSustainTicks || 0);
         const carriesOver = index+1<project.bars.length && deps.rhythm(project,index+1)?.leadingSustainTicks>0;
         function cutAtChord(tick) {
-            if(tick>=hold && !(tick===barTicks && carriesOver))cuts.push(.03+tick*seconds);
+            if(tick>=hold && !(tick===barTicks && carriesOver))cuts.push({tick});
         }
         for (const chord of chords) {
             cutAtChord(chord.onsetTick);
             if (chord.durationTicks !== undefined) cutAtChord(chord.onsetTick + chord.durationTicks);
         }
-        if(hold && (hold<barTicks || !carriesOver))cuts.push(.03+hold*seconds);
+        if(hold && (hold<barTicks || !carriesOver))cuts.push({tick:hold, stop:true});
         slots.forEach((slot, i) => {
             const end = Math.min(barTicks, slot.tick + (slot.durationTicks ?? fallback), slots[i + 1]?.tick ?? barTicks);
             const duration = (end - slot.tick) * seconds, start = .03 + slot.tick * seconds;
             if (duration <= 0) return;
-            if (slot.action === 'rest' || slot.action === 'mute') cuts.push(start);
+            if (slot.action === 'rest' || slot.action === 'mute') cuts.push({tick:slot.tick, stop:true});
             if (slot.action === 'rest') return;
             if (slot.action === 'mute') {
                 events.push({part: 'mute', midi: 60, start, duration: Math.min(.085, duration), gain: slot.accent ? .18 : .14,
@@ -58,7 +58,7 @@ function barPlan(project, index, deps, harmony) {
                 const voices=strumVoices(voicing, {start, duration: 4, attackWindow: duration, tick: slot.tick,
                     id: chord.id, direction: slot.action, accent: slot.accent});
                 events.push(...(deps.tickPlan?voices.map(e=>({...e,attackWindowTicks:end-slot.tick})):voices));
-            } catch (e) { warnings.push(e.message); cuts.push(start); }
+            } catch (e) { warnings.push(e.message); cuts.push({tick:slot.tick, stop:true}); }
         });
     }
     if (events.length > 256) throw Error('試聴する音が多すぎます');
@@ -82,25 +82,50 @@ function mergeMelodyTies(project,deps,events,lengthKey){
     return events.filter(e=>e.part!=='piano'||!continuations.has(e.sourceEventId));
 }
 
+// Chord boundaries allow the next stroke to take over each string. A rest,
+// mute, written end of a hold, or end of playback must stop it on the beat.
+function cutLookup(cuts, totalTicks) {
+    const stops = new Set([totalTicks]);
+    const positions = new Set([totalTicks]);
+    for (const {tick, stop} of cuts) {
+        positions.add(tick);
+        if (stop) stops.add(tick);
+    }
+    const ticks = [...positions].sort((a,b) => a-b);
+    return tick => {
+        let lo = 0, hi = ticks.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (ticks[mid] <= tick) lo = mid + 1;
+            else hi = mid;
+        }
+        const at = ticks[lo] ?? totalTicks;
+        return {at, stop:stops.has(at), following:ticks[lo+1] ?? totalTicks};
+    };
+}
+
 function finishPlan(plan, repeat = false) {
     const tickAt = time => Math.round((time - .03) / plan.secondsPerTick);
     const attacks = new Set(plan.events.filter(e => e.part === 'guitar').map(e => tickAt(e.attackStart)));
     if (repeat && attacks.has(0)) attacks.add(tickAt(plan.duration));
-    const cuts = [...new Set([...plan.cuts, plan.duration])].sort((a, b) => a - b);
+    const cutAfter = cutLookup(plan.cuts, tickAt(plan.duration));
+    const timeAt = tick => .03 + tick * plan.secondsPerTick;
     const ordered = plan.events.slice().sort((a, b) => a.start - b.start), nextString = new Map();
     // Reverse sweep is linear after sorting, even for 2,048 bars. Same pitch on
     // different strings remains two voices; a restruck string releases before its new attack.
     for (let i = ordered.length - 1; i >= 0; i--) {
         const e = ordered[i];
         if (e.part !== 'guitar') continue;
-        let lo = 0, hi = cuts.length;
-        while (lo < hi) { const mid = (lo + hi) >>> 1; if (cuts[mid] <= e.attackStart + 1e-9) lo = mid + 1; else hi = mid; }
+        const cut = cutAfter(tickAt(e.attackStart));
         const key = e.string === null ? 'fallback:' + e.midi : 'string:' + e.string;
-        const cut = cuts[lo] ?? plan.duration;
-        const end = Math.min(e.start + e.duration, cut, nextString.get(key) ?? Infinity);
-        if (Math.abs(cut - end) < 1e-9 && attacks.has(tickAt(cut))) e.release = CONNECTED_STRUM_RELEASE;
+        const next = nextString.get(key);
+        const followPick = !cut.stop && next && tickAt(next.attackStart) === cut.at;
+        const samePitch = followPick && e.midi === next.midi;
+        const damp = followPick ? stringDampTime(timeAt(cut.at), next.start, samePitch, timeAt(cut.following)) : timeAt(cut.at);
+        const end = Math.min(e.start + e.duration, damp, next?.start ?? Infinity);
+        if (!samePitch && Math.abs(damp - end) < 1e-9 && attacks.has(cut.at)) e.release = CONNECTED_STRUM_RELEASE;
         e.duration = end - e.start;
-        nextString.set(key, e.start);
+        nextString.set(key, e);
     }
     delete plan.cuts;
     plan.events = ordered.filter(e => e.duration > .0001 && e.start < plan.duration);
@@ -113,7 +138,8 @@ export function buildSongPreviewPlan(project, deps, startIndex = 0, count, repea
         const index = startIndex + n;
         let plan; try { plan = barPlan(project, index, deps,harmony); } catch (e) { throw Error((index + 1) + '小節目：' + e.message); }
         plan.events.forEach(e => events.push({...e, start: e.start + offset, ...(e.attackStart === undefined ? {} : {attackStart: e.attackStart + offset}), barIndex: index}));
-        plan.cuts.forEach(t => cuts.push(t + offset));
+        const baseTick = n * (project.songInfo.timeSignature?.beats ?? 4) * 480;
+        plan.cuts.forEach(cut => cuts.push({...cut, tick:baseTick + cut.tick}));
         spans.push({index, start: offset, end: offset + plan.duration - .03}); offset += plan.duration - .03;
         plan.warnings.forEach(w => { if (warnings.length < 8 && !warnings.includes(w)) warnings.push(w); });
     });
@@ -158,10 +184,10 @@ export function withMetronome(project,plan){
 export function buildSongTickPlan(project,deps){
     const reference={...project,songInfo:{...project.songInfo,bpm:20}},spt=60/20/480;
     const ticksPerBar=(project.songInfo.timeSignature?.beats??4)*480,totalTicks=project.bars.length*ticksPerBar;
-    const harmony=createHarmonyTimeline(reference,{holdForStrums:true}),events=[],cuts=[totalTicks],warnings=[];
+    const harmony=createHarmonyTimeline(reference,{holdForStrums:true}),events=[],cuts=[],warnings=[];
     reference.bars.forEach((bar,index)=>{
         const p=barPlan(reference,index,{...deps,tickPlan:true},harmony),base=index*ticksPerBar;
-        p.cuts.forEach(t=>cuts.push(base+Math.round((t-.03)/spt)));
+        p.cuts.forEach(cut=>cuts.push({...cut,tick:base+cut.tick}));
         p.events.forEach(e=>{
             const {start,duration,attackStart,tick,...rest}=e;
             events.push({...rest,tick:base+tick,barIndex:index,offsetSeconds:Math.max(0,start-(.03+tick*spt)),
@@ -170,7 +196,7 @@ export function buildSongTickPlan(project,deps){
         p.warnings.forEach(w=>{if(!warnings.includes(w)&&warnings.length<8)warnings.push(w);});
     });
     const timeline=mergeMelodyTies(project,deps,events,'durationTicks');
-    const orderedCuts=[...new Set(cuts)].sort((a,b)=>a-b),groups=new Map();
+    const cutAfter=cutLookup(cuts,totalTicks),groups=new Map();
     for(const e of timeline)if(e.part==='guitar'){
         const key=[e.barIndex,e.tick,e.sourceEventId,e.stroke].join(':');
         groups.set(key,Math.max(groups.get(key)||0,e.offsetSeconds));e.group=key;
@@ -180,10 +206,11 @@ export function buildSongTickPlan(project,deps){
     for(let i=timeline.length-1;i>=0;i--){const e=timeline[i];e.index=i;
         if(e.part!=='guitar')continue;
         e.travelSpan=groups.get(e.group)||0;delete e.group;
-        let lo=0,hi=orderedCuts.length;while(lo<hi){const mid=(lo+hi)>>>1;if(orderedCuts[mid]<=e.tick)lo=mid+1;else hi=mid;}
-        e.boundaryTick=orderedCuts[lo]??totalTicks;
+        const cut=cutAfter(e.tick);
+        e.boundaryTick=cut.at;
         const key=e.string===null?'fallback:'+e.midi:'string:'+e.string;
         e.nextIndex=next.get(key)??null;next.set(key,i);
+        if(!cut.stop && timeline[e.nextIndex]?.tick===cut.at)e.pickHandoffEndTick=cut.following;
     }
     // Clicks are always available; enabling them never changes the music plan.
     for(let tick=0;tick<totalTicks;tick+=480)timeline.push({part:'click',midi:tick%ticksPerBar===0?84:72,tick,

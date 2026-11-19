@@ -10,14 +10,15 @@ const meterPath = '/apps/cruise-studio/tests/helpers/score-output-meter.js';
 async function attachMeter(page) {
     await page.addInitScript(path => {
         const Native = window.AudioContext || window.webkitAudioContext;
-        const capture = window.scoreCapture = {starts: [], crossings: []};
+        const capture = window.scoreCapture = {starts: [], crossings: [], blocks: []};
         window.AudioContext = class extends Native {
             constructor(...args) {
                 super(...args);
+                capture.sampleRate = this.sampleRate;
                 this.tap = this.createGain();
                 this.meterReady = this.audioWorklet.addModule(path).then(() => {
                     const meter = new AudioWorkletNode(this, 'score-output-meter');
-                    meter.port.onmessage = e => capture.crossings.push(e.data);
+                    meter.port.onmessage = ({data}) => (data.samples ? capture.blocks : capture.crossings).push(data);
                     this.tap.connect(meter);
                     meter.connect(this.destination);
                 });
@@ -56,16 +57,25 @@ for (const engine of ['chrome', 'webkit']) test('continuous eighths across chord
         await attachMeter(page);
         const {createUITestProject} = await import('../scripts/create-ui-test-project.mjs');
         const project = createUITestProject();
-        for (const bar of project.bars) {
+        const [C, G] = project.bars[0].chords;
+        const bindings = project.performance.formBindings;
+        project.performance.formBindings = [];
+        // With an upstroke at beat one, each comparison is down -> up.
+        // The same C -> G change occurs inside bar 2 and leading into bar 4.
+        const chords = [[C], [C,G], [G,C], [G]];
+        for (const [index,bar] of project.bars.entries()) {
             bar.melody = [];
-            bar.chords = bar.chords.slice(0, 1);
-            bar.chords[0].durationTicks = 1920;
+            const row = chords[index] ?? bar.chords.slice(0,1);
+            bar.chords = row.map((source,i) => {
+                const id = crypto.randomUUID();
+                const binding = bindings.find(b => b.chordEventId === source.id);
+                project.performance.formBindings.push({...binding, id:crypto.randomUUID(), chordEventId:id});
+                return {...source, id, onsetTick:i*960, durationTicks:1920/row.length};
+            });
         }
-        const ids = new Set(project.bars.map(bar => bar.chords[0].id));
-        project.performance.formBindings = project.performance.formBindings.filter(b => ids.has(b.chordEventId));
         for (const rhythm of project.materials.rhythms) {
             rhythm.snapshot.slots = Array.from({length: 8}, (_, i) => ({
-                id: crypto.randomUUID(), tick: i * 240, durationTicks: 240, action: i % 2 ? 'up' : 'down'
+                id: crypto.randomUUID(), tick: i * 240, durationTicks: 240, action: i % 2 ? 'down' : 'up'
             }));
         }
         await page.goto(origin);
@@ -76,7 +86,34 @@ for (const engine of ['chrome', 'webkit']) test('continuous eighths across chord
         await page.click('#sc-song-preview');
         await page.waitForFunction(() => document.querySelector('.sc-playing-bar')?.dataset.barNumber === '7');
         await page.click('#sc-song-preview');
-        const {starts, crossings} = await page.evaluate(() => scoreCapture);
+        const {starts, crossings, differences} = await page.evaluate(() => {
+            const {starts,crossings,blocks,sampleRate} = scoreCapture;
+            const first = Math.min(...starts);
+            const pcm = new Float32Array(blocks.at(-1).frame + blocks.at(-1).samples.length);
+            for (const {frame,samples} of blocks) pcm.set(samples,frame);
+            // Compare 60 ms of outgoing strings and the first 75 ms of the new stroke.
+            const wave = beat => pcm.subarray(Math.round((first+beat-.060)*sampleRate),Math.round((first+beat+.075)*sampleRate));
+            function compareEnvelope(left,right) {
+                const a=wave(left), b=wave(right), block=Math.round(sampleRate*.002);
+                let difference=0, reference=0, dipDb=0;
+                for (let i=0;i+block<=a.length;i+=block) {
+                    let energyA=0, energyB=0;
+                    for (let k=i;k<i+block;k++) {
+                        energyA+=a[k]**2;
+                        energyB+=b[k]**2;
+                    }
+                    difference+=(Math.sqrt(energyA)-Math.sqrt(energyB))**2;
+                    reference+=energyA;
+                    if (Math.abs(i/sampleRate-.060)<.008) dipDb=Math.max(dipDb,10*Math.log10(energyA/energyB));
+                }
+                return {relative:Math.sqrt(difference/reference),dipDb};
+            }
+            return {starts,crossings,differences:[compareEnvelope(1.2,2.4),compareEnvelope(3.6,7.2)]};
+        });
+        for (const {relative,dipDb} of differences) {
+            assert(relative < .05, 'barline volume envelope differs from interior by '+relative);
+            assert(dipDb < 2, 'extra dip around the boundary in dB: '+dipDb);
+        }
         assert(starts.length && crossings.some(c => c.audible));
         const first = Math.min(...starts);
         const secondsPerBar = 4 * 60 / project.songInfo.bpm;
@@ -84,7 +121,8 @@ for (const engine of ['chrome', 'webkit']) test('continuous eighths across chord
             const beat = first + i * secondsPerBar;
             const before = crossings.filter(c => c.time <= beat).at(-1);
             assert(before && (before.audible || beat-before.time < .012), 'premature damping before bar '+(i+1));
-            assert(crossings.some(c => c.audible && Math.abs(c.time-beat) < .015), 'missing attack at bar '+(i+1));
+            assert(starts.some(time => Math.abs(time-beat) < .001), 'missing attack at bar '+(i+1));
+            assert(before.audible || crossings.some(c => c.audible && Math.abs(c.time-beat) < .015), 'silent downbeat at bar '+(i+1));
         }
     } finally { await browser.close(); }
 });

@@ -51,6 +51,31 @@ test('a chain of cross-bar ties stays one voice across two boundaries and resume
     assert.equal(notes().length,2);near(notes()[1].offset,2.1-.78);
     await f.player.dispose();
 });
+test('the viewer follows each string across a repeated form at practice tempos',()=>{
+    const {score,contract}=viewerFixture();
+    const c=score.bars[0].chords[0], repeat=score.bars[1].chords[0];
+    const firstBinding=score.performance.formBindings.find(b=>b.chordEventId===c.id);
+    const repeatedBinding=score.performance.formBindings.find(b=>b.chordEventId===repeat.id);
+    c.durationTicks=1920;
+    Object.assign(repeat,{symbol:c.symbol,durationTicks:1920});
+    score.bars[0].chords=[c];
+    score.bars[1].chords=[repeat];
+    score.performance.formBindings=[firstBinding,{...repeatedBinding,materialId:firstBinding.materialId,playedStrings:firstBinding.playedStrings}];
+    for(const material of score.materials.rhythms) material.snapshot.slots=Array.from({length:8},(_,i)=>({
+        id:'strum-'+material.id+'-'+i,tick:i*240,durationTicks:240,action:i%2?'down':'up'
+    }));
+    const plan=contract.tickPlan(score);
+    const outgoing=plan.events.filter(e=>e.part==='guitar' && e.tick===1680);
+    assert.equal(outgoing.length,5);
+    for (const bpm of [60,100,240,400]) {
+        const sample={time:.03,tick:0,bpm};
+        for(const string of outgoing) {
+            const next=plan.events[string.nextIndex];
+            assert.equal(next.tick,1920);
+            near(musicalEnd(string,plan,sample,tickTime(sample,string.tick)),tickTime(sample,1920)+pickOffset(next,bpm));
+        }
+    }
+});
 test('the last strum uses a connected release only when the selected bar repeats into an attack',async()=>{
     for(const loop of [false,true]){
         const f=fake();
