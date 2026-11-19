@@ -524,10 +524,12 @@
         var remove=canonical.bars.filter(function(b){return !retained.has(b.sectionId);}).map(function(b){return b.id;});for(var id of remove)removeBars(canonical,[id],false);
         canonical.sections=rows.map(function(r){return oldSections.has(r.id)?Object.assign({},oldSections.get(r.id),{name:r.name.trim()}):{id:r.id,name:r.name.trim(),lyricsHidden:false};});
         for(const row of rows){
+            const previous=canonical.bars.filter(b=>b.sectionId===row.id);
+            for(const bar of previous.slice(row.keep??previous.length))removeBars(canonical,[bar.id],false);
             const existing=canonical.bars.filter(b=>b.sectionId===row.id).length;
             const count=row.count??(oldSections.has(row.id)?existing:4);
             if(!Number.isInteger(count)||count<existing||count>2048||canonical.bars.length+count-existing>2048)throw Error('小節数を確認してください');
-            const sources=row.copyFrom?original.bars.filter(b=>b.sectionId===row.copyFrom):[];
+            const sources=row.copyFrom?original.bars.filter(b=>b.sectionId===row.copyFrom).slice(0,row.keep??Infinity):[];
             const ids=new Map(), copied=[];
             for(let n=existing;n<count;n++){
                 const bar={id:api.newId(),sectionId:row.id,chords:[],melody:[],lyrics:[]},source=sources[n];

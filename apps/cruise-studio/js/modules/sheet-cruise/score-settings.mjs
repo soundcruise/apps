@@ -59,41 +59,52 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const panel=doc.getElementById('studio-rhythm-panel');if(panel){parked={node:panel,parent:panel.parentNode,next:panel.nextSibling};body.appendChild(panel);}dismiss.textContent='閉じる';apply.hidden=true;
   }else if(mode==='sections'){
    let rows=project.sections.map(s=>({...s,count:project.bars.filter(b=>b.sectionId===s.id).length,isNew:false}));const list=node('div',undefined,body);list.className='sc-song-section-list';
-   let clipboard=null;
-   const parts=new Map();
-   const controls=node('fieldset',undefined,body);node('legend','貼り付ける内容',controls);
+   let selected=rows[0].id,clipboard=null;
+   const aside=node('aside',undefined,body);aside.append(list);
+   body.className='sc-section-workspace';
+   const parts=new Map(),controls=node('fieldset',undefined,aside);node('legend','貼り付ける内容',controls);
    for(const [key,title] of [['chords','コード'],['strum','ストローク'],['melody','メロディ'],['lyrics','歌詞']]){
-    const label=node('label',undefined,controls),check=node('input',undefined,label);
-    check.type='checkbox';check.checked=true;parts.set(key,check);label.append(title);
+    const label=node('label',undefined,controls),check=node('input',undefined,label);check.type='checkbox';check.checked=true;parts.set(key,check);label.append(title);
    }
-   button('＋ セクションを追加',()=>{rows.push({id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true});paint();});
+   button('＋ セクションを追加',()=>{const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};rows.push(item);selected=item.id;paint();},aside);
    const paper=node('div',undefined,body);paper.className='sc-section-preview';
    function preview(){
     try{
      const draft=C.structureOperations.previewSections(project,rows,C.model.schema2);
      C.sheetRenderer.render(draft,paper,{...previewPaperOptions(draft),readOnly:true,editableSlots:false});
-     C.localPaperLayout?.apply(paper);apply.disabled=false;status.textContent='';
+     C.localPaperLayout?.apply(paper);paper.classList.remove('sc-hide-parts');
+     for(const heading of paper.querySelectorAll('.sheet-section-heading')){
+      const label=heading.querySelector('[data-section-id]'),row=rows.find(r=>r.id===label.dataset.sectionId);
+      label.title='セクションを選択';label.tabIndex=0;label.setAttribute('role','button');
+      label.setAttribute('aria-pressed',String(selected===row.id));
+      label.onclick=()=>{selected=row.id;paint();};
+      label.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();label.click();}};
+      const plus=button('＋',()=>{selected=row.id;row.count++;paint();},heading);
+      plus.setAttribute('aria-label',row.name+'の末尾に小節を追加');
+      const minus=button('−',()=>{if(window.confirm(row.name+'の最後の小節を削除しますか？')){selected=row.id;row.count--;row.keep=Math.min(row.keep??row.count,row.count);paint();}},heading);
+      minus.setAttribute('aria-label',row.name+'の最後の小節を削除');minus.disabled=row.count<=1;
+     }
+     for(const bar of paper.querySelectorAll('.sheet-bar[data-bar-number]')){
+      const id=draft.bars[Number(bar.dataset.barNumber)-1].sectionId;
+      bar.classList.toggle('sc-section-active',id===selected);bar.onclick=()=>{selected=id;paint();};
+     }
+     apply.disabled=false;status.textContent='';
     }catch(error){apply.disabled=true;status.textContent=error.message;}
    }
    function paint(){
-    list.replaceChildren();
-    rows.forEach((s,i)=>{
-     const row=node('div',undefined,list);row.className='sc-song-section-row';
-     const name=input('名前',s.name,'section-'+s.id,'text',row);name.oninput=()=>{s.name=name.value;preview();};
-     node('span',s.count+'小節',row);
-     button('＋ 小節',()=>{s.count++;paint();},row);
-     for(const [d,text] of [[-1,'↑'],[1,'↓']]){
-      const move=button(text,()=>{[rows[i],rows[i+d]]=[rows[i+d],rows[i]];paint();},row);
-      move.disabled=i+d<0||i+d>=rows.length;move.setAttribute('aria-label',s.name+(d<0?'を前へ':'を後ろへ'));
-     }
-     button('コピー',()=>{clipboard=structuredClone(s);paint();},row);
-     const paste=button('後ろに貼り付け',()=>{
-      const selected=[...parts].filter(([k,c])=>c.checked&&(!clipboard.parts||clipboard.parts.includes(k))).map(([k])=>k);
-      rows.splice(i+1,0,{id:C.model.schema2.newId(),isNew:true,name:clipboard.name+' コピー',count:clipboard.count,
-       copyFrom:clipboard.copyFrom||clipboard.id,parts:selected});paint();
-     },row);paste.disabled=!clipboard;
-     const remove=button('削除',()=>{if(window.confirm('セクション「'+s.name+'」と中の'+s.count+'小節を削除しますか？')){rows.splice(i,1);paint();}},row);remove.disabled=rows.length<=1;
-    });preview();
+    list.replaceChildren();const i=rows.findIndex(r=>r.id===selected),s=rows[i];
+    const name=input('セクション名',s.name,'section-'+s.id,'text',list);name.oninput=()=>{s.name=name.value;preview();};
+    for(const [d,text] of [[-1,'前へ移動'],[1,'後ろへ移動']]){
+     const move=button(text,()=>{[rows[i],rows[i+d]]=[rows[i+d],rows[i]];paint();},list);move.disabled=!rows[i+d];
+    }
+    button('コピー',()=>{clipboard=structuredClone(s);paint();},list);
+    const paste=button(clipboard?'「'+clipboard.name+'」を後ろに貼り付け':'後ろに貼り付け',()=>{
+     const checked=[...parts].filter(([k,c])=>c.checked&&(!clipboard.parts||clipboard.parts.includes(k))).map(([k])=>k);
+     const copy={...clipboard,id:C.model.schema2.newId(),isNew:true,name:clipboard.name+' コピー',copyFrom:clipboard.copyFrom||clipboard.id,parts:checked};
+     rows.splice(i+1,0,copy);selected=copy.id;paint();
+    },list);paste.disabled=!clipboard;
+    const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},list);remove.disabled=rows.length===1;
+    preview();
    }
    mountPreview=paint;
    collect=()=>({kind:'songInfo',args:{values:{},sections:rows}});

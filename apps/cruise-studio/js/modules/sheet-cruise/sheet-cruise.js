@@ -112,7 +112,7 @@
     var sectionPlaybackSelection=null;
     var scoreSettings=null,scoreSettingsPending=null,emptySlotSelection=null;
     function prepareScoreSettings(){
-        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.185.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
+        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.186.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
             emptySlotSelection=null;var oldIds=new Set(change.previous.bars.map(function(b){return b.id;})),added=state.session.draft.bars.findIndex(function(b){return !oldIds.has(b.id);});redrawSession(false);
             if(change.mode==='slot'&&added>=0){editorOpen=true;selectSheetBar(added+1);}refreshSessionStatus();
         }});return scoreSettings;}).catch(function(e){scoreSettingsPending=null;setSaveStatus(e.message||'編集画面を読み込めませんでした',true);});return scoreSettingsPending;
@@ -122,7 +122,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.185.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.186.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -477,7 +477,6 @@
         const heading=document.createElement('strong');heading.textContent='ツールエリア';picker.body.append(heading);
         const pins=new Map();
         function arrange(){
-            strip.style.setProperty('--sc-tool-columns',Math.ceil((1+[...chosen].filter(id=>pins.has(id)).length)/2));
             for(const id of chosen){
                 const pin=pins.get(id);
                 if(pin)strip.insertBefore(pin,picker.root);
@@ -662,7 +661,7 @@
             grip.onlostpointercapture=()=>destinations.forEach(row=>row.classList.remove('sc-dock-hover'));
             grip.onkeydown=e=>{const index=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].indexOf(e.key);if(index<0)return;e.preventDefault();move(index<2?destinations.indexOf(group.parentNode)*2+index:(index-2)*2+1);};
         }
-        dock(right,'表示ツール','scoreDisplayDock');
+
         dock(toolStrip,'ツールエリア','scoreShortcutDock');
         function menus(){return [curve.root,display.root,more.root,shortcutPicker.root];}
         function closeMenu(el){var body=el.querySelector('.sc-toolbar-menu-body');if(body.popover&&body.matches(':popover-open'))body.hidePopover();el.open=false;}
@@ -775,6 +774,15 @@
             draft.textContent = (session.draft.songInfo.title || '無題') + '（未保存）';
             els.projectSelect.appendChild(draft);
         });
+        try{
+            for(const key of Object.keys(localStorage)){
+                if(!key.startsWith(draftPrefix))continue;
+                const id=decodeURIComponent(key.slice(draftPrefix.length).split(':')[0]);
+                if(projects.some(p=>p.projectId===id)||Array.from(els.projectSelect.options).some(o=>o.value===id))continue;
+                const draft=draftRecord(id,null);
+                if(draft?.base===null)els.projectSelect.add(new Option((draft.project.songInfo.title||'無題')+'（下書き）',id));
+            }
+        }catch{/* Browser storage may be unavailable. */}
         projects.forEach(function (meta) {
             var opt = document.createElement('option');
             opt.value = meta.projectId;
@@ -860,6 +868,10 @@
         });
         cancelRangeSelection();cancelBarDrag();editorHelp?.close({restoreFocus:false});scoreSettings?.close();emptySlotSelection=null;selectedBarIds = []; rangeAnchor = null;
         state.session = session;
+        const fileId=session.target.projectId;
+        if(typeof window.showSaveFilePicker==='function'&&!handleReads.has(fileId)){
+            handleReads.set(fileId,storedHandle(fileId).then(handle=>{if(handle&&!fileHandles.has(fileId))fileHandles.set(fileId,handle);}).catch(()=>{}));
+        }
         structureIdentity = CS().structureOperations.structureKey(session.draft);
         publishedBars = session.draft.bars;
         selectionDeleted = false;
@@ -878,7 +890,7 @@
             CS().shellHost.setCommandTarget('editingSession', session);
             CS().shellHost.setCommandTarget('activeDocument', session.target);
         }
-        renderAll(); refreshSessionStatus();
+        renderAll(); refreshSessionStatus();backupDraft(session);
         if (message && !session.externalUpdatePending) setSaveStatus(message);
     }
 
@@ -898,7 +910,11 @@
     function openProject(projectId) {
         if (state.session && state.session.inputPending) { setSaveStatus('入力の確定を待ってください', true); refreshProjectSelect(); return false; }
         try {
-            var session = CS().sessions.getOrCreateSession('structure', { type: 'project', projectId: projectId });
+            const target={type:'project',projectId};
+            const recovered=draftRecord(projectId,CS().repository.read(target).revision),existing=CS().sessions.getSession('structure',target);
+            const canRestore=!existing && recovered?.project?.projectId===projectId && CS().repository.read(target).revision===recovered.base;
+            var session=existing||CS().sessions.getOrCreateSession('structure',target,canRestore&&recovered.base===null?recovered.project:undefined);
+            if(canRestore){recoverySources.set(session,recovered);if(recovered.base!==null)session.replaceDraft(recovered.project);}
             showSession(session); return true;
         } catch (error) { setSaveStatus(error.message, true); refreshProjectSelect(); return false; }
     }
@@ -929,7 +945,7 @@
         actions.style.display='flex';actions.style.flexWrap='wrap';actions.style.gap='12px';actions.style.padding='4px';
         message.style.overflowWrap='anywhere';
         body.style.padding='12px';message.style.margin='0 0 24px';message.style.lineHeight='1.7';actions.style.gap='16px';actions.style.padding='4px';
-        message.textContent='未保存のProject: '+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。保存せず続行しても画面内のdraftは保持しますが、ブラウザ終了や再読込で失われる可能性があります。';body.appendChild(message);
+        message.textContent='未保存のProject: '+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。変更を保存してから移動しますか？';body.appendChild(message);
         var buttons=[],record={active:true,saving:false};leavePending=record;
         function current(){return record.active&&leavePending===record&&state.session===owner&&CS().shellHost.getActiveWorkspace()===workspace&&CS().entryAuth.isAuthorized();}
         function proceed(){if(!current())return;if(CS().sessions.listSessions().some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;})){message.textContent='入力・保存結果・競合を解決してください。移動せずdraftを保持しています';return;}modal.close();continueAction();}
@@ -1505,8 +1521,8 @@
 #screen-sheet-cruise .sc-menu-shortcuts>button,#screen-sheet-cruise #sc-shortcut-menu>summary{display:grid;place-items:center;box-sizing:border-box;width:36px;height:36px;padding:0;border-radius:8px;}
 #screen-sheet-cruise .sc-menu-shortcuts>button[hidden],#screen-sheet-cruise #sc-shortcut-menu>summary::after{display:none;}
 #screen-sheet-cruise .sc-menu-shortcuts>button{touch-action:none;}
-#screen-sheet-cruise .sc-menu-shortcuts{display:grid;grid-auto-flow:row;grid-template-columns:auto repeat(var(--sc-tool-columns),36px);grid-template-rows:repeat(2,auto);align-content:center;justify-content:start;overflow-x:auto;min-width:0;}
-#screen-sheet-cruise .sc-menu-shortcuts>.sc-dock-grip{grid-row:1 / 3;grid-column:1;}
+#screen-sheet-cruise .sc-menu-shortcuts{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;grid-template-rows:auto;align-content:center;justify-content:start;overflow-x:auto;min-width:0;}
+#screen-sheet-cruise .sc-menu-shortcuts>.sc-dock-grip{grid-row:1;grid-column:1;}
 #screen-sheet-cruise .sc-dock-grip{cursor:grab;touch-action:none;align-self:center;padding:3px;color:inherit;}
 #screen-sheet-cruise .sc-dock-hover{outline:1px dashed #98b4c5;}
 #screen-sheet-cruise [data-shortcut]{position:relative;}
@@ -1789,7 +1805,13 @@
 .sc-song-dialog p{font-size:12px;color:var(--studio-text-secondary);}
 .sc-song-dialog .sc-key-comparison{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;}.sc-key-comparison th,.sc-key-comparison td{text-align:left;padding:8px 4px;border-bottom:1px solid var(--studio-border-default);}.sc-key-comparison td:last-child{font-weight:700;color:var(--studio-accent);}.sc-song-dialog details>summary{cursor:pointer;font-size:12px;}
 .sc-song-dialog[data-score-dialog=sections]{width:min(1050px,94vw);}
-.sc-section-preview{max-height:48vh;overflow:auto;margin-top:10px;}
+.sc-section-workspace{display:grid;grid-template-columns:minmax(165px,22%) minmax(0,1fr);gap:14px;}
+.sc-section-workspace aside button{margin:3px;}
+.sc-section-preview{max-height:70vh;overflow:auto;min-width:0;background:#18232b;}
+.sc-section-preview .sheet-section-heading{display:flex;align-items:center;gap:5px;}
+.sc-section-preview .sheet-section-heading button{width:auto;padding:2px 9px;min-height:26px;}
+.sc-section-preview .sc-section-active{background:#d1b56c29;}
+@media(max-width:620px){.sc-section-workspace{grid-template-columns:1fr;}.sc-section-preview{max-height:50vh;}}
 .sc-song-dialog[data-score-dialog=sections] fieldset{display:flex;flex-wrap:wrap;gap:12px;}
 .sc-song-dialog .sc-song-section-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--studio-border-default);}
 .sc-song-dialog .sc-song-section-row label{flex:1 1 180px;min-width:0;margin:0;}.sc-song-section-row label>span{display:none;}
@@ -2330,7 +2352,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.185.0-dev.1'),import('../score-ui.mjs?v=0.185.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.186.0-dev.1'),import('../score-ui.mjs?v=0.186.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -2561,7 +2583,7 @@
     function buildChordPickerPanel(){var root=document.createElement('section');root.dataset.chordPicker='';root.hidden=!chordPicker.open||collapsedEditorRows.has('chord');if(!root.hidden)populateChordPicker(root);return root;}
     function refreshChordPicker(){syncEditorDisclosures();var root=els.slotOverlay?.querySelector('[data-chord-picker]');if(root&&!root.hidden)populateChordPicker(root);}
     function prepareChordPicker(){
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.185.0-dev.1')
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.186.0-dev.1')
             .then(function(module){return module.createChordPicker(CS(),window.ChordCruise);})
             .catch(function(error){chordPickerModule=null;throw error;});
         return chordPickerModule;
@@ -5228,7 +5250,7 @@
         var ids=args.barIds.slice(),res=runStructureOperation('moveBars',args);if(!res.ok)return;
         var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
     }
-    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.185.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
+    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.186.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
     function openSheetAction(kind,trigger){
         if(!editorCanMove())return;finishTextInputs();if(!editorCanMove())return;stopPianoAudition();var owner=state.session,version=owner.snapshotVersion;
         prepareSheetActions().then(function(ready){if(!ready||state.session!==owner||owner.snapshotVersion!==version||!editorCanMove())return;
@@ -5250,13 +5272,13 @@
     }
     function openPlaybackSettings(trigger){
         if(!editorCanMove())return;var owner=state.session;
-        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.185.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
+        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.186.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
             if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);pianoAudition?.setMix(playbackMix);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(playbackMix);refreshPracticeTransport();
             try{var raw=localStorage.getItem('cruiseStudio.appSettings'),settings=raw===null?{}:JSON.parse(raw);if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('invalid-settings');var result=CS().storage.setAppSetting(key,value);if(!result.ok)throw Error(result.error);notice.textContent='';}catch(_){notice.textContent='設定を保存できませんでした。この画面にのみ適用しています';}
         },closed:refreshToolbarActions});return playbackSettings;}).catch(function(){playbackSettingsPending=null;setSaveStatus('音設定を読み込めませんでした',true);});
         playbackSettingsPending.then(function(settings){if(settings&&state.session===owner&&editorCanMove())settings.open(trigger);});
     }
-    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.185.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
+    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.186.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
     async function openPaperForm(cell,eventId,tick){
         if(!editorCanMove()||!CS().localPaperForms)return;
@@ -5405,10 +5427,10 @@
         var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project))||{};
         viewerExportFlight=true;refreshToolbarActions();
         try{
-            var module=await import('./viewer-contract.mjs?v=0.185.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
+            var module=await import('./viewer-contract.mjs?v=0.186.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
             var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(project.projectId));
             var documentId='score-'+Array.from(new Uint8Array(hash),function(n){return n.toString(16).padStart(2,'0');}).join('');
-            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.185.0-dev.1',defaultPresentation:presentation});
+            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.186.0-dev.1',defaultPresentation:presentation});
             if(!state.active||state.session!==owner||owner.snapshotVersion!==version||owner.inputPending||textDiagnostic(owner)){setSaveStatus('曲や入力状態が変わったため、書き出しを中止しました',true);return;}
             var exportedEntry=await CS().scoreViewer.add(result.text,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);}});
             if(!exportedEntry){setSaveStatus('書き出しをキャンセルしました');return;}
@@ -5473,7 +5495,86 @@
 
     function save(event) { if (CS().shellHost) CS().shellHost.commands.execute('studio.save', event); }
 
-    function commitSession(session) {
+    const draftPrefix='cruiseStudio.scoreDraft.',draftVersions=new WeakMap(),fileSaves=new WeakSet();
+    const fileHandles=new Map(),handleReads=new Map();
+    let fileDatabase;
+    const draftWriter=window.crypto?.randomUUID?.()||String(Date.now())+Math.random(),recoverySources=new WeakMap();
+    function recoveryKeys(id){
+        const prefix=draftPrefix+encodeURIComponent(id)+':';
+        return Object.keys(localStorage).filter(key=>key.startsWith(prefix));
+    }
+    function draftRecord(id,revision){
+        try{
+            return recoveryKeys(id).map(key=>({...JSON.parse(localStorage.getItem(key)),key}))
+                .filter(record=>record.base===revision).sort((a,b)=>b.time-a.time)[0];
+        }catch{return null;}
+    }
+    function backupDraft(session){
+        if(session.domain!=='structure'||session.inputPending)return;
+        const key=draftPrefix+encodeURIComponent(session.target.projectId)+':'+draftWriter;
+        try{
+            if(!session.dirty){
+                if(draftVersions.has(session)){
+                    localStorage.removeItem(key);draftVersions.delete(session);
+
+                }
+                return;
+            }
+            if(draftVersions.get(session)===session.snapshotVersion)return;
+            localStorage.setItem(key,JSON.stringify({time:Date.now(),base:session.baseRevision,project:session.workingSnapshot()}));
+            draftVersions.set(session,session.snapshotVersion);
+            const source=recoverySources.get(session);
+            if(source && source.key!==key && JSON.parse(localStorage.getItem(source.key))?.time===source.time)localStorage.removeItem(source.key);
+            recoverySources.delete(session);
+        }catch{setSaveStatus('下書きをブラウザに保存できません。曲を保存してください。',true);}
+    }
+    function storedHandle(id,handle){
+        if(!fileDatabase)fileDatabase=new Promise((resolve,reject)=>{
+            const req=indexedDB.open('cruiseStudio.scoreFiles',1);
+            req.onupgradeneeded=()=>req.result.createObjectStore('handles');
+            req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+        });
+        return fileDatabase.then(db=>new Promise((resolve,reject)=>{
+            const tx=db.transaction('handles',handle?'readwrite':'readonly'),store=tx.objectStore('handles');
+            const req=handle?store.put(handle,id):store.get(id);
+            tx.oncomplete=()=>resolve(req.result);tx.onabort=()=>reject(tx.error);
+        }));
+    }
+    async function commitSession(session){
+        if(fileSaves.has(session))return {ok:false,error:'保存中です'};
+        if(typeof window.showSaveFilePicker!=='function')return commitBrowserSession(session);
+        session.finishTextGroup();
+        if(!session.canCommit())return {ok:false,error:'保存できる状態を確認してください'};
+        const id=session.target.projectId,version=session.snapshotVersion,project=session.workingSnapshot();
+        fileSaves.add(session);
+        try{
+            const check=CS().model.validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
+            const json=CS().storage.exportProjectJson(project,CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project)));
+            await handleReads.get(id);
+            let handle=fileHandles.get(id);
+            if(handle && handle.requestPermission && await handle.requestPermission({mode:'readwrite'})!=='granted')handle=null;
+            if(!handle)try{handle=await window.showSaveFilePicker({suggestedName:(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
+            }catch(error){
+                if(error.name==='SecurityError'&&!fileHandles.has(id)){
+                    const result=await commitBrowserSession(session);
+                    if(result.ok)setSaveStatus('この環境では保存先を指定できないため、ブラウザに保存しました');
+                    return result;
+                }
+                throw error;
+            }
+            const writable=await handle.createWritable();
+            try{await writable.write(json);await writable.close();}catch(error){await writable.abort().catch(()=>{});throw error;}
+            fileHandles.set(id,handle);await storedHandle(id,handle).catch(()=>{});
+            if(session.snapshotVersion!==version)throw Error('ファイル保存後に編集が加わりました。もう一度保存してください');
+            return await commitBrowserSession(session);
+        }catch(error){
+            if(error.name==='NotFoundError')fileHandles.delete(id);
+            const message=error.name==='AbortError'?'保存をキャンセルしました':error.message;
+            if(state.session===session)setSaveStatus(message,true);
+            return {ok:false,error:message};
+        }finally{fileSaves.delete(session);}
+    }
+    function commitBrowserSession(session) {
         session.finishTextGroup();
         // UI mutations already write to the session; never read another document's form here.
         return session.commit().then(function (result) {
@@ -5659,6 +5760,7 @@
             }
         });
         CS().sessions.subscribe(function (session, kind) {
+            backupDraft(session);
             if (state.session !== session) return;
             if(kind==='operation'&&pianoAudition?.snapshot().mode)pianoAudition.cancel();
             if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)){cancelRangeSelection();cancelBarDrag();editorHelp?.close({restoreFocus:false});stopPianoAudition();textDiagnostics.delete(session);}
@@ -5752,7 +5854,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line local UI candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.185.0-dev.1',
+        developmentVersion: '0.186.0-dev.1',
         connectPaperLayout: mountPaperLayoutControls,
         init: init,
         connectHistoryCommands: connectHistoryCommands,

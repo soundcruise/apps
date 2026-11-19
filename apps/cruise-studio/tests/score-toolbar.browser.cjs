@@ -37,19 +37,20 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const group=p.locator('.sc-menu-shortcuts'),head=p.locator('.sc-score-toolbar-head'),primary=p.locator('.sc-toolbar-primary');
   await group.locator('.sc-dock-grip').dragTo(head,{targetPosition:{x:20,y:10}});
   assert.equal(await head.locator('.sc-menu-shortcuts').count(),1);
-  await p.locator('#sc-toolbar-head-actions .sc-dock-grip').dragTo(primary,{targetPosition:{x:20,y:10}});
-  assert.equal(await primary.locator('#sc-toolbar-head-actions').count(),1);
+  assert.equal(await head.locator('#sc-toolbar-head-actions .sc-dock-grip').count(),0);
   await p.reload();await p.click('#open-sheet-cruise');
-  assert.equal(await head.locator('.sc-menu-shortcuts').count(),1);assert.equal(await primary.locator('#sc-toolbar-head-actions').count(),1);
+  assert.equal(await head.locator('.sc-menu-shortcuts').count(),1);assert.equal(await head.locator('#sc-toolbar-head-actions').count(),1);
   await p.click('#sc-curve-menu-toggle');assert(await p.locator('#sc-menu-staff-toggle').isHidden());
  }));
  await t.test('preview a section copy with only chords, add a bar, apply and undo',()=>fresh(async p=>{
   const before=await snap(p);await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
-  const dialog=p.locator('[data-score-dialog=sections]'),rows=dialog.locator('.sc-song-section-row');
+  const dialog=p.locator('[data-score-dialog=sections]'),rows=dialog.locator('aside');
   await rows.first().getByText('コピー',{exact:true}).click();
   for(const name of ['ストローク','メロディ','歌詞'])await dialog.getByLabel(name,{exact:true}).uncheck();
-  await rows.first().getByText('後ろに貼り付け').click();
-  await rows.nth(1).getByText('＋ 小節').click();
+  await rows.first().getByRole('button',{name:/後ろに貼り付け/}).click();
+  await dialog.getByRole('button',{name:/コピーの末尾に小節を追加/}).click();
+  await dialog.getByRole('button',{name:/コピーの最後の小節を削除/}).click();
+  await dialog.getByRole('button',{name:/コピーの末尾に小節を追加/}).click();
   assert.equal(await dialog.locator('.sheet-bar[data-bar-number]').count(),before.bars.length+4);
   assert.deepEqual(await snap(p),before);await dialog.locator('[data-score-apply]').click();
   assert.equal(await dialog.count(),0,await dialog.count()?await dialog.locator("[role=status]").innerText():"");
@@ -95,7 +96,36 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.equal(scorePresentation.version,1);
   assert.equal(scorePresentation.layout.barsPerLine,4);
   assert.equal(Object.hasOwn(scorePresentation,'scoreToolbarShortcuts'),false);
+  await p.evaluate(()=>Object.defineProperty(window,'showSaveFilePicker',{configurable:true,value:undefined}));
   await p.locator('#sc-save').click();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);assert.equal((await snap(p)).songInfo.title,'Toolbar working title');assert.equal(await p.locator('#sc-curve-menu').getAttribute('open'),null);
+ }));
+ await t.test('restore unsaved work, cancel the picker, then save twice to one file',()=>fresh(async p=>{
+  const before=await snap(p);
+  await p.reload();await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),before);
+  await p.locator('#screen-sheet-cruise .workspace-home').first().click();
+  await p.getByRole('button',{name:'キャンセル',exact:true}).last().click();
+  if(engine==='webkit'){
+   assert.equal(await p.evaluate(()=>typeof window.showSaveFilePicker),'undefined');
+   await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+   return;
+  }
+  await p.evaluate(()=>{
+   window.picks=0;
+   window.showSaveFilePicker=async()=>{
+    if(++window.picks===1)throw new DOMException('cancel','AbortError');
+    const dir=await navigator.storage.getDirectory();
+    return dir.getFileHandle('test-score.json',{create:true});
+   };
+  });
+  await p.click('#sc-save');await p.waitForFunction(()=>window.picks===1);assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
+  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  assert.equal(await p.evaluate(()=>window.picks),2);
+  await p.reload();await p.click('#open-sheet-cruise');
+  await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=()=>{window.picks++;throw Error('unexpected picker');};});
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');await p.locator('[data-score-field=title]').fill('second save');await p.click('[data-score-apply]');
+  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  const result=await p.evaluate(async()=>{const dir=await navigator.storage.getDirectory(),f=await dir.getFileHandle('test-score.json');return [window.picks,JSON.parse(await (await f.getFile()).text()).songInfo.title];});
+  assert.deepEqual(result,[0,'second save']);
  }));
  await t.test('menus fit narrow screens and print hides all toolbar controls',()=>fresh(async p=>{
   await select(p,1);
