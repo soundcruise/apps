@@ -1,6 +1,6 @@
 import { membersVideoHref } from './news-members-video.js?v=1.36.0';
 import { articlePath } from './news-articles.js?v=1.36.0';
-import {labelInformationScore,selectTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
+import {labelInformationScore,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
 export const NEWS_MODE = 'beta';
@@ -97,7 +97,8 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
 export function tickerNews(items, now = Date.now()) {
     const recent = days => items.filter(item => saleVisible(item, now) && eventVisible(item, now) && now - Date.parse(item.publishedAt) >= 0 && now - Date.parse(item.publishedAt) <= days * DAY);
     const week = recent(7);
-    return selectTicker(week.length ? week : recent(14), now);
+    // prepareNews already ordered the list, including same-day display preferences.
+    return (week.length ? week : recent(14)).slice(0, 5);
 }
 export function groupNews(items, category = '', now = Date.now()) {
     const groups = new Map();
