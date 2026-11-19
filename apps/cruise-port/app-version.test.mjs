@@ -6,7 +6,7 @@ import {
     reloadAppWithCacheBust
 } from './app-version.js';
 
-assert.equal(CRUISE_PORT_APP_VERSION, '1.36.1');
+assert.equal(CRUISE_PORT_APP_VERSION, '1.37.0');
 assert.equal(
     buildReloadUrl('https://soundcruise.jp/apps/cruise-port/?tunerDebug=1', 123),
     'https://soundcruise.jp/apps/cruise-port/?tunerDebug=1&_r=123'
@@ -19,13 +19,14 @@ const button = {
     attributes: new Map(),
     setAttribute(name, value) { this.attributes.set(name, value); }
 };
+const iconButton = { ...button, firstElementChild: {}, textContent: '↻', attributes: new Map() };
 const documentObject = {
     querySelectorAll(selector) {
-        return selector === '.port-app-version-display' ? [display] : [button];
+        return selector === '.port-app-version-display' ? [display] : [button, iconButton];
     }
 };
 applyVersionDisplay(documentObject);
-assert.equal(display.textContent, 'Ver 1.36.1');
+assert.equal(display.textContent, 'Ver 1.37.0');
 
 let replacement = '';
 assert.equal(reloadAppWithCacheBust({
@@ -40,5 +41,10 @@ assert.equal(replacement, 'https://soundcruise.jp/apps/cruise-port/?_r=456');
 assert.equal(button.disabled, true);
 assert.equal(button.textContent, '更新中…');
 assert.equal(button.attributes.get('aria-busy'), 'true');
+
+assert.equal(iconButton.disabled, true);
+assert.equal(iconButton.attributes.get('aria-label'), '更新中…');
+assert.equal(iconButton.textContent, '↻');
+assert.equal(reloadAppWithCacheBust({documentObject, locationObject:{replace(){assert.fail('duplicate reload');}}}), false);
 
 console.log('app-version: version display and cache-busting reload tests passed');

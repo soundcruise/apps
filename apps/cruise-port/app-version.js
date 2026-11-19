@@ -1,4 +1,4 @@
-export const CRUISE_PORT_APP_VERSION = '1.36.1';
+export const CRUISE_PORT_APP_VERSION = '1.37.0';
 
 let reloadInProgress = false;
 
@@ -32,7 +32,8 @@ export function reloadAppWithCacheBust({
     documentObject?.querySelectorAll?.('.port-refresh-app').forEach((button) => {
         button.disabled = true;
         button.setAttribute('aria-busy', 'true');
-        button.textContent = '更新中…';
+        if (button.firstElementChild) button.setAttribute('aria-label', '更新中…');
+        else button.textContent = '更新中…';
     });
     try {
         const next = new URL(buildReloadUrl(locationObject.href, timestamp));

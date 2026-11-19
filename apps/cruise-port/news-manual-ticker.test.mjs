@@ -29,9 +29,23 @@ function setup(reduced=true) {
 }
 const current=ids=>ids['news-ticker'].children[1].children[0].children.findIndex(n=>n.attrs['data-current']==='true');
 
-test('non-NEWS stylesheet bytes remain identical to the fetched production 1.34.0',()=>{
+test('outside the mobile home spacing and NEWS rules, CSS retains the production 1.34.0 bytes',()=>{
     const css=readFileSync(new URL('./style.css',import.meta.url),'utf8');
-    const outsideNews=css.replace(/\.news-heading \{[\s\S]*?(?=\n\/\* ═══ Color themes)/,'<NEWS>');
+    const homeSpacing = `@media (max-width: 519px) {
+    .port-header-actions {
+        top: calc(max(12px, env(safe-area-inset-top)) + 6px);
+    }
+
+    .port-header {
+        margin-bottom: 20px;
+    }
+}
+
+`;
+    assert.ok(css.includes(homeSpacing));
+    const homeRefresh = css.match(/\.port-home-refresh \{[^}]+\}\n\n\.port-home-refresh:focus-visible \{[^}]+\}\n\n\.port-home-refresh:active \{[^}]+\}\n\n/);
+    assert.ok(homeRefresh);
+    const outsideNews=css.replace(homeRefresh[0],'').replace(homeSpacing,'').replace(/\.news-heading \{[\s\S]*?(?=\n\/\* ═══ Color themes)/,'<NEWS>');
     assert.equal(createHash('sha256').update(outsideNews).digest('hex'),'87c5b3af2443f28ac1f737a7a8d4cd61cfa1a46e06bc99207edc05b7b102ca72');
 });
 
