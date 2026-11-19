@@ -168,8 +168,17 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const original=keySelect('原曲キー',project.songInfo.originalKey),playKey=keySelect('Playキー',view.songInfo.playKey);
    const pitch=name=>C.theory.keyToSemitone(name);
    let capo=project.instrument.capo;
-   original.addEventListener('input',()=>{playKey.value=keys[(pitch(original.value)-capo+12)%12];});
-   playKey.addEventListener('input',()=>{capo=(pitch(original.value)-pitch(playKey.value)+12)%12;});
+   function updatePlayKeys(){
+    playKey.replaceChildren();
+    for(let position=0;position<=11;position++){
+     const name=keys[(pitch(original.value)-position+12)%12];
+     node('option',(position?position+'カポ':'カポなし')+' '+name,playKey).value=name;
+    }
+    playKey.selectedIndex=capo;
+   }
+   updatePlayKeys();
+   original.addEventListener('input',updatePlayKeys);
+   playKey.addEventListener('input',()=>{capo=playKey.selectedIndex;});
    const keyChange=()=>original.value!==project.songInfo.originalKey||capo!==project.instrument.capo?
     {mode:'transpose',originalKey:original.value,capo}:undefined;
    collect=()=>({kind:'songInfo',args:{instrument:keyChange(),values:{title:title.value,artist:artist.value,bpm:Number(bpm.value),

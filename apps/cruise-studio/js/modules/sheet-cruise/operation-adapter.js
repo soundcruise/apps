@@ -468,12 +468,22 @@
     }
     function applyStrumPreset(project, args, api) {
         var positions = selectedPositions(project, args.barIds);
-        if (!Array.isArray(args.pattern) || !args.pattern.length || args.pattern.length > 8)
+        if (!args.clear && (!Array.isArray(args.pattern) || !args.pattern.length || args.pattern.length > 8))
             throw Error('パターンは1〜8小節で指定してください');
         var targets = new Set(args.barIds), old = new Set(),barTicks=api.barLength(project);
         var bindings = project.performance.barRhythms;
         var targetBindings = new Map(bindings.filter(function (binding) { return targets.has(binding.barId); })
             .map(function (binding) { return [binding.barId, binding]; }));
+        let clearIndices;
+        if(args.clear){
+            const sourceIds=positions.map(i=>targetBindings.get(project.bars[i].id)?.materialId||project.performance.basicRhythmId);
+            const unique=Array.from(new Set(sourceIds));
+            const lookup=new Map(unique.map((id,index)=>[id,index]));
+            const sources=new Map(project.materials.rhythms.map(m=>[m.id,m.snapshot]));
+            clearIndices=sourceIds.map(id=>lookup.get(id));
+            args={...args,wholeSong:true,name:'空のストローク',pattern:unique.map(()=>[]),
+                inputGrids:unique.map(id=>sources.get(id)?.inputGrid),cellStarts:unique.map(id=>sources.get(id)?.cellStarts)};
+        }
         var materials = args.pattern.map(function (slots, index) {
             if(!Array.isArray(slots)||slots.some(function(slot){return slot.tick>=barTicks||slot.tick+(slot.durationTicks??1)>barTicks;}))
                 throw Error('このパターンは曲の拍子に収まりません');
@@ -500,7 +510,7 @@
             positions.forEach(function (position, index) {
                 var barId = project.bars[position].id, previous = targetBindings.get(barId);
                 project.performance.barRhythms.push({
-                    id: previous?.id || api.newId(), barId: barId, materialId: materials[index % materials.length].id
+                    id: previous?.id || api.newId(), barId: barId, materialId: materials[clearIndices?.[index] ?? index % materials.length].id
                 });
             });
         }

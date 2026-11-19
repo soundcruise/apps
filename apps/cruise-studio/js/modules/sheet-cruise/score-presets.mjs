@@ -535,7 +535,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         event.preventDefault();if(!event.repeat)void play('score');
     });
     scorePlay.dataset.previewPlay='score'; syncPlayButtons();
-    const hint = node('p', targetHint, scoreHead);
+    const hint = node('p', targetHint+' 選択した小節の'+(chords?'コード':'ストローク')+'はDeleteで削除できます。', scoreHead);
     hint.className = 'sc-preset-hint';
     const paper = node('div', undefined, targetArea);
     paper.className = 'sc-preset-paper';
@@ -717,6 +717,18 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         return true;
     }
     paper.addEventListener('keydown', event => {
+        if(!author && !event.isComposing && ['Delete','Backspace'].includes(event.key)){
+            const indices=destinationIndices(selectionAnchor,sectionSelected);
+            if(!indices.length)return;
+            event.preventDefault();
+            const barIds=indices.map(i=>project.bars[i].id);
+            try {
+                stageEntry(chords?{barIds,pattern:indices.map(()=>[]),overwrite:true}:{barIds,clear:true});
+                paperBars[indices[0]]?.focus({preventScroll:true});
+                status.textContent=barIds.length+'小節の'+(chords?'コード':'ストローク')+'を削除しました';
+            } catch(error){status.textContent=error.message;}
+            return;
+        }
         if (['Enter',' '].includes(event.key) && chooseSection(event.target)) {event.preventDefault();return;}
         const index = barAt(event.target);
         if (index < 0 || !Number.isInteger(index) || !(event.key==='Enter' || author && event.key===' ')) return;
@@ -1034,17 +1046,20 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     populateOptions(initial); choose();
     const usedPresets=new WeakMap();
     fitPaper?.();
+    function stageEntry(entry){
+        void stopAudio();
+        previewProject=C.structureOperations.previewPreset(previewProject,mode,entry,C.model.schema2,C.localChordForms?.installPreset);
+        steps.push(entry);redoSteps.length=0;
+        renderPaper();fitPaper();update();apply.disabled=false;status.textContent='';
+    }
     function stagePattern() {
         try {
-            void stopAudio();
             const {bars, pattern} = plan(), barIds = bars.map(bar => bar.id);
             const entry = structuredClone(chords ? {barIds, pattern, overwrite:true} :
                 {barIds, pattern, wholeSong:wholeSong.checked, leadingSustains:rows.map(row=>Math.min(measureTicks,leadingHold(row))), inputGrids:pattern.map((_,i)=>({unit:gridUnits[i]??rows[i].length, beats:beatUnits[i]??[]})), name:edited ? 'カスタムストローク' : current.name});
-            previewProject = C.structureOperations.previewPreset(previewProject, mode, entry, C.model.schema2,C.localChordForms?.installPreset);
-            usedPresets.set(entry,current.id);steps.push(entry);redoSteps.length=0;stage.focus({preventScroll:true});
-            renderPaper(); fitPaper(); update();
-            apply.disabled = false;
-            status.textContent = '';
+            stageEntry(entry);
+            usedPresets.set(entry,current.id);
+            stage.focus({preventScroll:true});
         } catch (error) { status.textContent = error.message; }
     }
     dialog.addEventListener('keydown',event=>{
@@ -1063,5 +1078,5 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             renderPaper();fitPaper();update();status.textContent='';
         }catch(error){status.textContent=error.message;}
     });
-    return () => !author && steps.length ? {kind:mode, args:{steps},onApplied(){if(!chords)C.storage.setAppSetting(lastKey,usedPresets.get(steps.at(-1)));}} : null;
+    return () => !author && steps.length ? {kind:mode, args:{steps},onApplied(){const last=steps.findLast(step=>usedPresets.has(step));if(!chords&&last)C.storage.setAppSetting(lastKey,usedPresets.get(last));}} : null;
 }

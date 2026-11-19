@@ -20,9 +20,9 @@ for(const engine of ['chrome','webkit'])test('unified settings and visible score
  await t.test('compose with both keys and apply a progression to sections and the whole song',()=>fresh(async p=>{
   await menu(p,'sc-curve-menu','#sc-new-project');await p.getByRole('button',{name:'保存せず続行',exact:true}).click();
   const card=p.getByRole('dialog',{name:'新しい曲を作成',exact:true});
-  await p.evaluate(()=>{const layout=CruiseStudio.localPaperLayout,appearance=layout.value.appearance;layout.set({appearance:{...appearance,visibility:{...appearance.visibility,forms:true}}});});
+  await p.evaluate(()=>{const layout=CruiseStudio.localPaperLayout,appearance=layout.value.appearance;layout.set({appearance:{...appearance,visibility:{...appearance.visibility,forms:true,formList:true}}});});
   await card.getByLabel('アーティスト名').fill('テスト');await card.getByLabel('アーティスト名').press('Enter');
-  await card.getByLabel('原曲キー').selectOption('D');await card.getByLabel('Playキー').selectOption('C');
+  await card.getByLabel('原曲キー').selectOption('D');await card.getByLabel('Playキー').selectOption({label:'2カポ C'});
   await card.getByRole('button',{name:'セクション編集',exact:true}).click();
   await p.getByRole('button',{name:'Bメロの最後の小節を削除'}).click();await p.click('[data-score-apply]');
   await card.getByRole('button',{name:'コード一括入力',exact:true}).click();
@@ -35,6 +35,20 @@ for(const engine of ['chrome','webkit'])test('unified settings and visible score
   const song=await snapshot(p);assert.equal(song.songInfo.originalKey,'D');assert.equal(song.instrument.capo,2);
   const pattern=song.bars.slice(0,4).map(b=>b.chords[0].symbol);song.bars.forEach((b,i)=>assert.equal(b.chords[0].symbol,pattern[i%4]));
   const svg=card.locator('.sheet-form-event svg').first(),size=await svg.boundingBox();assert(size.width>0&&size.width<100&&size.height<100);
+  const catalogue=await card.locator('.sc-form-list-item').first().evaluate(el=>({width:el.offsetWidth,svg:el.querySelector('svg').getBoundingClientRect().width}));
+  assert(catalogue.width<=100&&catalogue.svg>0&&catalogue.svg<=100);
+ }));
+ await t.test('Delete clears only the selected track and bars in each batch editor',()=>fresh(async p=>{
+  for(const [id,chords] of [['sc-edit-chord-preset',true],['sc-edit-rhythm',false]]){
+   const before=await snapshot(p);await menu(p,'sc-curve-menu','#'+id);
+   const dialog=p.locator('[data-score-dialog]'),bars=dialog.locator('.sheet-bar[data-bar-number]');
+   await bars.nth(0).click();await bars.nth(1).click({modifiers:['Shift']});await p.keyboard.press('Delete');
+   await dialog.locator('[data-score-apply]').click();await dialog.waitFor({state:'detached'});
+   const after=await snapshot(p);
+   if(chords){assert(after.bars.slice(0,2).every(b=>!b.chords.length));assert.deepEqual(after.performance.barRhythms,before.performance.barRhythms);}
+   else{for(const b of after.bars.slice(0,2)){const binding=after.performance.barRhythms.find(v=>v.barId===b.id);assert.deepEqual(after.materials.rhythms.find(m=>m.id===binding.materialId).snapshot.slots,[]);}assert.deepEqual(after.bars,before.bars);}
+   assert.deepEqual(after.bars.slice(2),before.bars.slice(2));
+  }
  }));
  await t.test('song card returns from all three editors and previews section reordering',()=>fresh(async p=>{
   await menu(p,'sc-curve-menu','#sc-edit-song');
