@@ -1,4 +1,4 @@
-import {metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
+import {CONNECTED_STRUM_RELEASE,metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
 import {createOutputPosition,outputContextTime} from './output-position.mjs';
 import {insist} from './json.mjs';
 
@@ -33,6 +33,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
     const eventKey=(event,iteration=clock?.snapshot().iteration||0)=>iteration+':'+event.index;
     let buffers=new Map(),buses={},issued=new Set(),carry=[],nodes=new Set();
     const ordered=plan.events.slice().sort((a,b)=>a.tick-b.tick||a.offsetSeconds-b.offsetSeconds||a.index-b.index);
+    const guitarAttacks = new Set(ordered.filter(event => event.part === 'guitar').map(event => event.tick));
     const tiedEntries=new Map();
     for(const event of ordered){
         for(const tick of event.tieStarts||[]){
@@ -83,10 +84,17 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
     function register(){if(!handle)handle=coordinator.register({sessionId,ownerFeatureId:'scoreViewer',cleanup,
         notify:()=>{void cleanup('interruption').catch(()=>{});}});}
     function output(part){return buses[part==='piano'?'melody':['click','count'].includes(part)?'metronome':'chords'];}
-    function envelope(voice,end,retime=false){
+    function envelope(voice,end,s,retime=false){
         const now=context.currentTime,start=retime?now:voice.start,duration=end-start;
         if(duration<=.0001){cancel(voice);return;}
-        const gain=voice.gain.gain,release=Math.min(voice.event.part==='guitar'?.045:.35,duration*.35);
+        const event=voice.event;
+        let fade = .35;
+        if (event.part === 'guitar') {
+            const cut = Math.min(event.boundaryTick, range.end);
+            const nextAttack = cut < range.end ? guitarAttacks.has(cut) : range.loop && guitarAttacks.has(range.start);
+            fade = nextAttack && Math.abs(end - tickTime(s, cut)) < 1e-9 ? CONNECTED_STRUM_RELEASE : event.release ?? .045;
+        }
+        const gain=voice.gain.gain,release=Math.min(fade,duration*.35);
         if(retime){
             const level=now>voice.end-voice.release?voice.event.gain*Math.exp(Math.log(.0001/voice.event.gain)*Math.max(0,(now-(voice.end-voice.release))/Math.max(.001,voice.release))):voice.event.gain;
             gain.cancelScheduledValues(now);gain.setValueAtTime(Math.max(.0001,level),now);
@@ -110,7 +118,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         const source=context.createBufferSource(),gain=context.createGain();source.buffer=sourceSample.buffer;source.playbackRate.setValueAtTime(rate,start);
         source.connect(gain);gain.connect(output(event.part));
         const voice={source,gain,event,start,attack,rate,offset,end,release:0,iteration:s.iteration||0,key:eventKey(event,s.iteration||0)};nodes.add(voice);
-        source.onended=()=>forget(voice);source.start(Math.max(context.currentTime,start),offset);envelope(voice,end);
+        source.onended=()=>forget(voice);source.start(Math.max(context.currentTime,start),offset);envelope(voice,end,s);
         stats.created++;stats.parts[event.part]++;stats.peakNodes=Math.max(stats.peakNodes,nodes.size);
     }
     function pump(){
@@ -183,7 +191,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
                 issued.delete(voice.key);stats.cancelledFuture++;cancel(voice);
             }
             resetScan(s.tick);
-            for(const voice of [...nodes])envelope(voice,Math.min(musicalEnd(voice.event,plan,s,voice.attack),tickTime(s,range.end),voice.start+(voice.source.buffer.duration-voice.offset)/voice.rate),true);
+            for(const voice of [...nodes])envelope(voice,Math.min(musicalEnd(voice.event,plan,s,voice.attack),tickTime(s,range.end),voice.start+(voice.source.buffer.duration-voice.offset)/voice.rate),s,true);
             for(const reservation of pending){
                 schedule(reservation.event,s,reservation.held,reservation.attack);
                 issued.add(eventKey(reservation.event,s.iteration));

@@ -82,15 +82,14 @@
         var items = [
             ['ORGキー', si.originalKey],
             ['Playキー', si.capo > 0 ? si.capo + 'カポ' + si.playKey : si.playKey],
-            ['カポ', si.capo > 0 ? String(si.capo) : 'なし'],
             ['BPM', String(si.bpm)],
             ['拍子', si.timeSignature.beats + '/' + si.timeSignature.beatUnit]
         ];
         items.forEach(function (pair) {
             var item = el('span', 'sheet-meta-item');
-            item.dataset.metaField=({'ORGキー':'originalKey','Playキー':'playKey','カポ':'capo','BPM':'bpm','拍子':'timeSignature'})[pair[0]];
+            item.dataset.metaField=({'ORGキー':'originalKey','Playキー':'playKey','BPM':'bpm','拍子':'timeSignature'})[pair[0]];
             item.appendChild(el('span', 'sheet-meta-label', pair[0] + ': '));
-            var value=el('span','sheet-meta-value',pair[1]);value.dataset.paperEdit=({'ORGキー':'instrument','Playキー':'instrument','カポ':'instrument','BPM':'bpm'})[pair[0]]||'';item.appendChild(value);
+            var value=el('span','sheet-meta-value',pair[1]);value.dataset.paperEdit=({'ORGキー':'instrument','Playキー':'instrument','BPM':'bpm'})[pair[0]]||'';item.appendChild(value);
             meta.appendChild(item);
         });
         header.appendChild(meta);

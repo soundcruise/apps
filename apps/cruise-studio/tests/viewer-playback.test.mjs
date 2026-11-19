@@ -19,12 +19,12 @@ for(const bpm of [20,50,100,120,400])test('tick plan matches existing acoustic p
 function fake(prepare=()=>{}){
     const {score,contract}=viewerFixture();prepare(score);
     const coordinator=createCoordinator(),sources=[],contexts=[],timers=new Map();let id=0,current=null,delay=null;
-    const param=()=>({value:1,setValueAtTime(v){this.value=v;},linearRampToValueAtTime(v){this.value=v;},exponentialRampToValueAtTime(v){this.value=v;},setTargetAtTime(v){this.value=v;},cancelScheduledValues(){}});
+    const param=()=>({value:1,setValueAtTime(v,time){this.value=v;this.lastSetTime=time;},linearRampToValueAtTime(v){this.value=v;},exponentialRampToValueAtTime(v){this.value=v;},setTargetAtTime(v){this.value=v;},cancelScheduledValues(){}});
     const createContext=()=>{current={state:'running',currentTime:0,destination:{},sampleRate:48000,
         resume:async()=>{current.state='running';},close:async()=>{current.state='closed';},
         createBuffer(channels,length,sampleRate){const a=new Float32Array(length);return {duration:length/sampleRate,getChannelData:()=>a};},
         createGain:()=>({gain:param(),connect(){},disconnect(){}}),
-        createBufferSource(){const s={playbackRate:param(),buffer:null,started:false,stoppedAt:Infinity,connect(){},disconnect(){},
+        createBufferSource(){const s={playbackRate:param(),buffer:null,started:false,stoppedAt:Infinity,connect(node){this.output=node;},disconnect(){},
             start(time,offset=0){this.started=true;this.startTime=time;this.offset=offset;},stop(time){assert(this.started);this.stoppedAt=time;}};sources.push(s);return s;}};contexts.push(current);return current;};
     const player=createViewerPlayer({plan:contract.tickPlan(score),createClock:opts=>contract.createClock(score,opts),createContext,
         coordinator,sessionId:'viewer-test',loadSample:async(ctx,midi)=>{if(delay)await delay;return {midi,buffer:{duration:8,midi}};},
@@ -51,6 +51,19 @@ test('a chain of cross-bar ties stays one voice across two boundaries and resume
     assert.equal(notes().length,2);near(notes()[1].offset,2.1-.78);
     await f.player.dispose();
 });
+test('the last strum uses a connected release only when the selected bar repeats into an attack',async()=>{
+    for(const loop of [false,true]){
+        const f=fake();
+        f.player.setRange(0,1920,loop);
+        assert(await f.player.play());
+        f.advance(2.38);
+        const last=f.sources.filter(source=>Math.abs(source.stoppedAt-2.43)<1e-7 && source.buffer.midi<60);
+        assert(last.length);
+        for(const source of last)near(source.stoppedAt-source.output.gain.lastSetTime,loop ? .008 : .045);
+        await f.player.dispose();
+    }
+});
+
 test('starting or looping at a tied continuation sounds once per pass and clips at the range end',async()=>{
     const f=fake(addTiedMelody);
     f.player.setRange(1920,3840,true);

@@ -1,4 +1,5 @@
 import {chordVoicing, strumVoices} from './chord-audition.mjs';
+import {CONNECTED_STRUM_RELEASE} from '../score-audio.mjs';
 import {createHarmonyTimeline} from './score-harmony.mjs';
 
 // Pure, read-only score -> audio projection. Times are seconds from one audio clock.
@@ -81,7 +82,10 @@ function mergeMelodyTies(project,deps,events,lengthKey){
     return events.filter(e=>e.part!=='piano'||!continuations.has(e.sourceEventId));
 }
 
-function finishPlan(plan) {
+function finishPlan(plan, repeat = false) {
+    const tickAt = time => Math.round((time - .03) / plan.secondsPerTick);
+    const attacks = new Set(plan.events.filter(e => e.part === 'guitar').map(e => tickAt(e.attackStart)));
+    if (repeat && attacks.has(0)) attacks.add(tickAt(plan.duration));
     const cuts = [...new Set([...plan.cuts, plan.duration])].sort((a, b) => a - b);
     const ordered = plan.events.slice().sort((a, b) => a.start - b.start), nextString = new Map();
     // Reverse sweep is linear after sorting, even for 2,048 bars. Same pitch on
@@ -92,7 +96,9 @@ function finishPlan(plan) {
         let lo = 0, hi = cuts.length;
         while (lo < hi) { const mid = (lo + hi) >>> 1; if (cuts[mid] <= e.attackStart + 1e-9) lo = mid + 1; else hi = mid; }
         const key = e.string === null ? 'fallback:' + e.midi : 'string:' + e.string;
-        const end = Math.min(e.start + e.duration, cuts[lo] ?? plan.duration, nextString.get(key) ?? Infinity);
+        const cut = cuts[lo] ?? plan.duration;
+        const end = Math.min(e.start + e.duration, cut, nextString.get(key) ?? Infinity);
+        if (Math.abs(cut - end) < 1e-9 && attacks.has(tickAt(cut))) e.release = CONNECTED_STRUM_RELEASE;
         e.duration = end - e.start;
         nextString.set(key, e.start);
     }
@@ -101,7 +107,7 @@ function finishPlan(plan) {
     return plan;
 }
 export function buildBarPreviewPlan(project, index, deps) { return finishPlan(barPlan(project, index, deps,createHarmonyTimeline(project,{holdForStrums:true}))); }
-export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
+export function buildSongPreviewPlan(project, deps, startIndex = 0, count, repeat = false) {
     const events = [], cuts = [], spans = [], warnings = [], harmony=createHarmonyTimeline(project,{holdForStrums:true}); let offset = 0;
     project.bars.slice(startIndex, count === undefined ? undefined : startIndex + count).forEach((bar, n) => {
         const index = startIndex + n;
@@ -111,7 +117,7 @@ export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
         spans.push({index, start: offset, end: offset + plan.duration - .03}); offset += plan.duration - .03;
         plan.warnings.forEach(w => { if (warnings.length < 8 && !warnings.includes(w)) warnings.push(w); });
     });
-    return finishPlan({events:mergeMelodyTies(project,deps,events,'duration'), cuts, spans, barTicks:(project.songInfo.timeSignature?.beats??4)*480, duration: offset + .03, secondsPerTick: 60 / project.songInfo.bpm / 480, warnings});
+    return finishPlan({events:mergeMelodyTies(project,deps,events,'duration'), cuts, spans, barTicks:(project.songInfo.timeSignature?.beats??4)*480, duration: offset + .03, secondsPerTick: 60 / project.songInfo.bpm / 480, warnings}, repeat);
 }
 
 // Repeat the musical duration, excluding the initial Web Audio attack offset.
@@ -119,7 +125,7 @@ export function buildSongPreviewPlan(project, deps, startIndex = 0, count) {
 export function buildRangeLoopPlan(project, deps, startIndex, count) {
     if (!Number.isInteger(startIndex) || startIndex < 0 || !Number.isInteger(count) || count < 1 || startIndex + count > project.bars.length)
         throw Error('1小節以上の連続する小節を選択してください');
-    const plan = buildSongPreviewPlan(project, deps, startIndex, count);
+    const plan = buildSongPreviewPlan(project, deps, startIndex, count, true);
     return {...plan, loopPeriod: plan.spans.at(-1).end};
 }
 

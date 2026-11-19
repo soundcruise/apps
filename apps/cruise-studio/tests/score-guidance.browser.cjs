@@ -33,10 +33,21 @@ for(const engine of ['chrome','webkit'])test('unified settings and visible score
   }
   await batch.getByLabel('曲全て').check();await batch.locator('[data-preset-stage]').click();await batch.locator('[data-score-apply]').click();
   const song=await snapshot(p);assert.equal(song.songInfo.originalKey,'D');assert.equal(song.instrument.capo,2);
+  assert.equal(await card.locator('[data-meta-field=capo]').count(),0);
+  assert.match(await card.locator('[data-meta-field=playKey]').innerText(),/2カポC/);
   const pattern=song.bars.slice(0,4).map(b=>b.chords[0].symbol);song.bars.forEach((b,i)=>assert.equal(b.chords[0].symbol,pattern[i%4]));
   const svg=card.locator('.sheet-form-event svg').first(),size=await svg.boundingBox();assert(size.width>0&&size.width<100&&size.height<100);
   const catalogue=await card.locator('.sc-form-list-item').first().evaluate(el=>({width:el.offsetWidth,svg:el.querySelector('svg').getBoundingClientRect().width}));
   assert(catalogue.width<=100&&catalogue.svg>0&&catalogue.svg<=100);
+ }));
+ await t.test('Delete at a single progression start clears all four highlighted bars',()=>fresh(async p=>{
+  const before=await snapshot(p);await menu(p,'sc-curve-menu','#sc-edit-chord-preset');
+  const dialog=p.locator('[data-score-dialog]'),bars=dialog.locator('.sheet-bar[data-bar-number]');
+  await bars.nth(1).click();
+  assert.deepEqual(await dialog.locator('[data-preset-destination]').evaluateAll(nodes=>nodes.map(n=>n.dataset.barNumber)),['2','3','4','5']);
+  await p.keyboard.press('Backspace');await dialog.locator('[data-score-apply]').click();
+  const after=await snapshot(p);assert(after.bars.slice(1,5).every(b=>!b.chords.length));
+  assert.deepEqual(after.bars[0],before.bars[0]);assert.deepEqual(after.bars.slice(5),before.bars.slice(5));
  }));
  await t.test('Delete clears only the selected track and bars in each batch editor',()=>fresh(async p=>{
   for(const [id,chords] of [['sc-edit-chord-preset',true],['sc-edit-rhythm',false]]){

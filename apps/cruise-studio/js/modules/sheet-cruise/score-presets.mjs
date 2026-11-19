@@ -718,7 +718,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     }
     paper.addEventListener('keydown', event => {
         if(!author && !event.isComposing && ['Delete','Backspace'].includes(event.key)){
-            const indices=destinationIndices(selectionAnchor,sectionSelected);
+            const indices=paperBars.filter(bar=>bar.hasAttribute('data-preset-destination')).map(barAt);
             if(!indices.length)return;
             event.preventDefault();
             const barIds=indices.map(i=>project.bars[i].id);

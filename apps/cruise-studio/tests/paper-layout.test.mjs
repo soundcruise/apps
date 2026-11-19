@@ -44,7 +44,7 @@ test('grid presentation defaults defer to the existing Project and explicit valu
 
 import {normalizeMetaFields} from '../js/modules/sheet-cruise/paper-layout.mjs';
 test('individual metadata is allowlisted, inherited by default and saved atomically with full presets',()=>{
- assert.deepEqual(normalizeMetaFields({originalKey:{size:Infinity,font:'url(evil)',color:'red',visible:'false'},capo:{visible:false,size:100,font:'serif',color:'#abcdef'},unknown:{size:20}}),{originalKey:{},capo:{visible:false,size:24,font:'serif',color:'#abcdef'}});
+ assert.deepEqual(normalizeMetaFields({originalKey:{size:Infinity,font:'url(evil)',color:'red',visible:'false'},capo:{visible:false,size:100,font:'serif',color:'#abcdef'},unknown:{size:20}}),{originalKey:{}});
  const f=presetFixture(),l=f.layout,p={projectId:'meta',bars:[]},before=l.value;l.begin();l.set({metaFields:{originalKey:{size:18,font:'serif',color:'#123456'},capo:{visible:false}}});l.saveDisplayPreset('metadata',p);l.cancel();assert.deepEqual(l.value,before);assert.equal(l.presets.length,0);l.begin();l.set({metaFields:{playKey:{size:16},bpm:{visible:false}}});l.saveDisplayPreset('metadata',p);assert(l.commit().ok);const reload=createPaperLayout(f.C,f.doc),saved=reload.value;reload.set({metaFields:{}});assert(reload.loadDisplayPreset('metadata',p).ok);assert.deepEqual(reload.value,saved);assert.equal(normalizeLayout({metaSize:16}).metaFields.playKey,undefined);
 });
 
