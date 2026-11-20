@@ -72,7 +72,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   }));
   assert(illustrated.length>=1 && illustrated.every(Boolean));
   await manual.close();await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});
-  const info=p.getByRole('dialog',{name:'保存場所'});assert.match(await info.textContent(),/未保存/);
+  const info=p.getByRole('dialog',{name:'保存場所'});assert.match(await info.textContent(),/まだ保存されていません/);
   await info.getByRole('button',{name:'閉じる'}).click();assert.deepEqual(await snap(p),before);
  }));
  await t.test('discard an unsaved song, remove a browser song and keep other entries across reload',()=>fresh(async p=>{
@@ -291,19 +291,25 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const select=p.locator('#sc-project-select');
   const commands=await p.locator('#sc-curve-menu [data-file-command]').evaluateAll(items=>items.map(item=>[item.id,item.textContent.trim()]));
   assert(commands.length>=10);
-  assert.deepEqual(await select.locator('option[data-file-action]').evaluateAll(items=>items.map(item=>[item.dataset.fileAction,item.label])),commands);
+  const direct=['sc-menu-file-location','sc-menu-files'];
+  assert.deepEqual(await select.locator('option[data-file-action]').evaluateAll(items=>items.map(item=>item.dataset.fileAction)),direct);
+  async function more(name){
+   await select.selectOption({label:'その他のファイル操作…'});
+   const panel=p.getByRole('dialog',{name:'その他のファイル操作'});
+   assert.deepEqual(await panel.locator('.sc-file-command-list button').allTextContents(),commands.filter(([id])=>!direct.includes(id)).map(([,label])=>label));
+   await panel.getByRole('button',{name,exact:true}).click();
+  }
   const before=await snap(p);
   await select.selectOption({label:'ファイル一覧・削除…'});
   await p.locator('.sc-file-list').getByText('閉じる').click();
   await p.evaluate(()=>window.showSaveFilePicker=undefined);
   const named=p.getByRole('dialog',{name:'名前をつけて保存'});
-  await select.selectOption({label:'名前をつけて保存'});
+  await more('名前をつけて保存');
   await named.getByRole('button',{name:'キャンセル'}).click();
   assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
-  await select.selectOption({label:'名前をつけて保存'});
-  await named.getByText('Safariで端末内の保存先を選ぶ').click();
-  assert(await named.getByText(/Mac：Safari → 設定/).isVisible());
-  assert(await named.getByText(/このiPhone内/).isVisible());
+  await more('名前をつけて保存');
+  await named.getByText('ダウンロード先を選ぶには').click();
+  assert(await named.getByText(engine==='webkit'?/Safari → 設定/:/ブラウザのダウンロード設定/).isVisible());
   await named.getByLabel('ファイル名').fill('練習用');
   const output=p.waitForEvent('download');
   await named.getByRole('button',{name:'保存',exact:true}).click();
@@ -341,7 +347,11 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    const location=p.getByRole('dialog',{name:'保存場所'});
    assert.match(await location.innerText(),/曲名一覧/);
    const exportedSnapshot=await snap(p);
-   await location.getByRole('button',{name:'ファイルに書き出す（JSON）'}).click();
+   assert.match(await location.innerText(),/Safari内/);
+   assert.equal(await location.getByRole('button').count(),1);
+   await location.getByRole('button',{name:'閉じる'}).click();
+   await p.locator('#sc-project-select').selectOption({label:'その他のファイル操作…'});
+   await p.getByRole('dialog',{name:'その他のファイル操作'}).getByRole('button',{name:'名前をつけて保存'}).click();
    const download=p.waitForEvent('download');
    await p.getByRole('dialog',{name:'名前をつけて保存'}).getByRole('button',{name:'保存',exact:true}).click();
    const {scorePresentation,...file}=JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));
@@ -356,13 +366,15 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
     return dir.getFileHandle('test-score.json',{create:true});
    };
   });
-  await p.click('#sc-save');await p.waitForFunction(()=>window.picks===1);assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
-  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  const reminder=p.getByRole('dialog',{name:'ファイル保存時のご案内'}),go=()=>reminder.getByRole('button',{name:'保存を続ける'}).click();
+  await p.click('#sc-save');await reminder.press('Escape');assert.equal(await p.evaluate(()=>window.picks),0);
+  await p.click('#sc-save');await go();await p.waitForFunction(()=>window.picks===1);assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
+  await p.click('#sc-save');await go();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
   assert.equal(await p.evaluate(()=>window.picks),2);
   await p.reload();await p.click('#open-sheet-cruise');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=()=>{window.picks++;throw Error('unexpected picker');};});
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');await p.locator('[data-score-field=title]').fill('second save');await p.click('[data-score-apply]');
-  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  await p.click('#sc-save');await reminder.getByLabel('案内の表示').selectOption('sometimes');await go();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
   const result=await p.evaluate(async()=>{const dir=await navigator.storage.getDirectory(),f=await dir.getFileHandle('test-score.json');return [window.picks,JSON.parse(await (await f.getFile()).text()).songInfo.title];});
   assert.deepEqual(result,[0,'second save']);
   const oldBytes=await p.evaluate(async()=>{
@@ -388,12 +400,13 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.reload();await p.click('#open-sheet-cruise');
   await p.evaluate(()=>{window.showOpenFilePicker=async({startIn})=>{window.locationFilename=startIn.name;throw new DOMException('cancel','AbortError');};});
   await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});const card=p.getByRole('dialog',{name:'保存場所'});assert.equal(await card.locator('strong').textContent(),'renamed.json');
-  await card.getByText('保存フォルダを開く').click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');await card.getByText('閉じる').click();
+  await card.getByRole('button',{name:'保存フォルダを開く',exact:true}).click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');await card.getByText('閉じる').click();
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});
-  await saveAs();
-  await p.waitForFunction(()=>document.querySelector('#sc-save-notice').textContent.includes('キャンセル'));
+  await p.evaluate(()=>CruiseStudio.storage.setAppSetting('scoreFilePermissionReminder',{mode:'sometimes',lastShown:Date.now()-31*86400000}));
+  await saveAs();await reminder.getByLabel('案内の表示').selectOption('never');await go();
+  await p.waitForFunction(()=>document.querySelector('#sc-save-notice')?.textContent.includes('キャンセル'));
   await p.evaluate(()=>{window.showSaveFilePicker=async()=>({createWritable:async()=>{throw Error('テスト書き込み失敗');}});});
   await saveAs();
   await p.waitForFunction(()=>document.querySelector('#sc-save-notice').textContent.includes('テスト書き込み失敗'));

@@ -873,11 +873,15 @@
         });
         const actions=document.createElement('optgroup');
         actions.label='ファイル操作';
-        for(const command of els.toolbar.querySelectorAll('#sc-curve-menu [data-file-command]')){
+        for(const command of ['sc-menu-file-location','sc-menu-files'].map(q).filter(Boolean)){
             const option=new Option(command.textContent.trim(),'command:'+command.id);
             option.dataset.fileAction=command.id;option.disabled=command.disabled;actions.append(option);
         }
-        els.projectSelect.append(actions);
+        if(actions.children.length){
+            const more=new Option('その他のファイル操作…','command:more');
+            more.dataset.moreFileActions='';
+            els.projectSelect.append(actions,more);
+        }
         els.projectSelect.value = state.project.projectId;
     }
 
@@ -1402,9 +1406,15 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-save-place h2{margin:0 0 18px;font-size:1.15rem}
 .sc-save-place strong{display:block;font-size:1rem;overflow-wrap:anywhere}
 .sc-save-place p{margin:6px 0 20px;font-size:.9rem;line-height:1.6;overflow-wrap:anywhere}
-.sc-save-place footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.sc-save-place a{color:inherit;text-underline-offset:3px}.sc-save-place footer{margin-top:16px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .sc-save-place footer button{min-height:40px;padding:8px 14px;border-radius:8px;font-size:.875rem}
 
+.sc-file-command-list{display:grid;gap:4px;max-height:55vh;overflow:auto;}
+.sc-file-command-list button{text-align:start;padding:8px 12px;}
+.sc-reminder-frequency{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:.875rem;}
+.sc-reminder-frequency select{max-width:100%;font:inherit;padding:6px;}
+.sc-save-place details>summary{cursor:pointer;font-size:.875rem;}
+.sc-save-place details[open]>.sc-reminder-frequency{margin-block:10px;}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
 #screen-sheet-cruise .sc-paper-visibility{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--studio-border-default);}
 #screen-sheet-cruise .sc-paper-visibility label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
@@ -1738,6 +1748,9 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 }
 @media print{#screen-sheet-cruise .sc-toolbar-menu-body{display:none!important;}}
 @media(pointer:coarse){#screen-sheet-cruise .sc-compact-toolbar button,#screen-sheet-cruise .sc-toolbar-menu>summary,#screen-sheet-cruise .sc-toolbar-menu label{min-height:44px;}}
+#screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project{position:relative;}
+#screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project #sc-project-select{appearance:none;padding-inline-end:36px;}
+#screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project::after{content:'';position:absolute;right:15px;top:50%;width:7px;height:7px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:translateY(-70%) rotate(45deg);pointer-events:none;}
 #sc-sheet-scale-box [data-paper-edit]:not([data-paper-edit=""]){cursor:pointer;border-radius:3px;}
 #sc-sheet-scale-box [data-paper-edit=instrument],#sc-sheet-scale-box [data-paper-edit=rhythm]{cursor:pointer;}
 #sc-sheet-scale-box [data-paper-edit]:hover{outline:1px dashed #8c9da9;outline-offset:2px;}
@@ -5905,15 +5918,77 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         if (recommendChrome) {
             const note = document.createElement('span');
             note.className = 'sc-browser-save-note';
-            const help = document.createElement('a');
-            help.href = '/apps/cruise-studio/score-guide/index.html#browser-saving';
-            help.target = '_blank';
-            help.rel = 'noopener';
-            help.textContent = '詳しく';
-            help.setAttribute('aria-label', 'ブラウザによる保存方法の違いを詳しく見る');
-            note.append('Google Chromeを推奨します。(', help, ')');
+            note.append('Google Chromeを推奨します。(', browserSaveHelp(), ')');
             notice.append(note);
         }
+    }
+    function fileDialog(heading){
+        const dialog=document.createElement('dialog'),title=document.createElement('h2');
+        dialog.className='sc-location-dialog sc-save-place';
+        dialog.setAttribute('aria-label',heading);title.textContent=heading;
+        dialog.append(title);els.root.append(dialog);
+        dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+        return dialog;
+    }
+    function dialogButton(text,action,primary=false){
+        const button=document.createElement('button');
+        button.type='button';button.textContent=text;
+        button.className=primary?'btn-primary':'btn-ghost';button.onclick=action;
+        return button;
+    }
+    function openMoreFileActions(){
+        const dialog=fileDialog('その他のファイル操作'),list=document.createElement('div');
+        list.className='sc-file-command-list';
+        const direct=new Set(Array.from(els.projectSelect.querySelectorAll('[data-file-action]'),o=>o.dataset.fileAction));
+        for(const command of els.toolbar.querySelectorAll('#sc-curve-menu [data-file-command]')){
+            if(direct.has(command.id))continue;
+            const button=dialogButton(command.textContent.trim(),()=>{dialog.close();command.click();});
+            button.disabled=command.disabled;list.append(button);
+        }
+        const footer=document.createElement('footer');
+        footer.append(dialogButton('閉じる',()=>dialog.close()));
+        dialog.append(list,footer);dialog.showModal();
+    }
+    function browserSaveHelp(){
+        const help=document.createElement('a');
+        help.href='/apps/cruise-studio/score-guide/index.html#browser-saving';
+        help.target='_blank';help.rel='noopener';help.textContent='詳しく';
+        help.setAttribute('aria-label','ブラウザによる保存方法の違いを詳しく見る');
+        return help;
+    }
+    function storageBrowserName(){
+        // This label describes the current browser. Its APIs determine save behavior.
+        const ua=navigator.userAgent;
+        if(/Edg(?:e|A|iOS)?\//.test(ua))return 'Microsoft Edge';
+        if(/Firefox\/|FxiOS\//.test(ua))return 'Firefox';
+        if(/Chrome\/|CriOS\//.test(ua))return 'Google Chrome';
+        if(/Safari\//.test(ua))return 'Safari';
+        return 'このブラウザ';
+    }
+    const reminderKey='scoreFilePermissionReminder';
+    function reminderSelect(setting){
+        const label=document.createElement('label'),select=document.createElement('select');
+        label.className='sc-reminder-frequency';label.append('案内の表示',select);
+        for(const [value,text] of [['always','毎回表示する'],['sometimes','ときどき表示する（30日ごと）'],['never','次回から表示しない']]){
+            select.add(new Option(text,value));
+        }
+        select.value=setting?.mode||'always';
+        return {label,select};
+    }
+    function confirmFileSave(setting){
+        const dialog=fileDialog('ファイル保存時のご案内'),text=document.createElement('p');
+        text.textContent='保存画面に「このサイトはあなたが行った編集内容を参照できます」と表示されることがあります。これは、選んだ譜面ファイルをアプリで読み書きするための確認です。';
+        const {label,select}=reminderSelect(setting),footer=document.createElement('footer');
+        return new Promise(resolve=>{
+            const proceed=dialogButton('保存を続ける',()=>{
+                CS().storage.setAppSetting(reminderKey,{mode:select.value,lastShown:Date.now()});
+                dialog.close('continue');
+            },true);
+            footer.append(dialogButton('キャンセル',()=>dialog.close()),proceed);
+            dialog.append(text,label,footer);
+            dialog.addEventListener('close',()=>resolve(dialog.returnValue==='continue'),{once:true});
+            dialog.showModal();proceed.focus();
+        });
     }
     function openFileList(){
         const dialog=document.createElement('dialog'),list=document.createElement('div'),title=document.createElement('h2');
@@ -5924,7 +5999,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         function refresh(){
             refreshProjectSelect();list.replaceChildren();
             const saved=new Set(CS().storage.listProjects().map(meta=>meta.projectId));
-            for(const item of els.projectSelect.querySelectorAll(':scope > option')){
+            for(const item of els.projectSelect.querySelectorAll(':scope > option:not([data-more-file-actions])')){
                 const id=item.value,target={type:'project',projectId:id},row=document.createElement('div');
                 const name=document.createElement('button'),remove=document.createElement('button');
                 name.textContent=item.textContent;name.title='この曲を開く';remove.textContent='削除';
@@ -5950,7 +6025,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                         }
                         for(const key of recoveryKeys(id))localStorage.removeItem(key);
                         if(state.session?.target.projectId===id){
-                            const other=Array.from(els.projectSelect.querySelectorAll(':scope > option')).find(o=>o.value!==id);
+                            const other=Array.from(els.projectSelect.querySelectorAll(':scope > option:not([data-more-file-actions])')).find(o=>o.value!==id);
                             if(!other||!openProject(other.value))createNewProject(false);
                         }
                         await handleReads.get(id);handleReads.delete(id);fileHandles.delete(id);
@@ -5972,25 +6047,32 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         await handleReads.get(id);
         if(state.session!==session)return;
         const handle=fileHandles.get(id), saved=session.baseRevision!==null;
-        const dialog=document.createElement('dialog'),title=document.createElement('h2'),place=document.createElement('strong'),hint=document.createElement('p'),actions=document.createElement('footer');
-        dialog.className='sc-location-dialog sc-save-place';
-        dialog.setAttribute('aria-label','保存場所');
-        title.textContent='保存場所';
-        place.textContent=handle?handle.name:saved?'この端末のブラウザ内':'未保存';
-        hint.textContent=handle?'「保存」でこのファイルを更新します。':saved?'左上の曲名一覧から「'+session.draft.songInfo.title+'」を開けます。':'この曲はまだ保存されていません。';
-        const close=document.createElement('button'),action=document.createElement('button');
-        close.type=action.type='button';
-        close.textContent='閉じる';close.className='btn-ghost';close.onclick=()=>dialog.close();
-        const canLocate=handle && typeof window.showOpenFilePicker==='function';
-        action.textContent=canLocate?'保存フォルダを開く':handle||!saved?'名前をつけて保存':'ファイルに書き出す（JSON）';
-        action.className='btn-primary';
-        action.onclick=async()=>{
-            if(!canLocate){dialog.close();q('sc-save-as').click();return;}
-            try{await window.showOpenFilePicker({startIn:handle,multiple:false});}
-            catch(error){if(error.name!=='AbortError')hint.textContent='フォルダを開けませんでした。メニューの「名前をつけて保存」で保存場所を選び直せます。';}
-        };
-        actions.append(close,action);dialog.append(title,place,hint,actions);els.root.append(dialog);
-        dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+        const dialog=fileDialog('保存場所'),place=document.createElement('strong'),hint=document.createElement('p');
+        const direct=typeof window.showSaveFilePicker==='function';
+        place.textContent=handle?handle.name:saved?storageBrowserName()+'内に保存されています。':'この曲はまだ保存されていません。';
+        if(handle){
+            hint.textContent='「保存」でこのファイルを更新します。';
+        }else{
+            hint.textContent=saved?'左上の曲名一覧から開けます。':'';
+            hint.append(direct?'「名前をつけて保存」でフォルダを指定できます。':'Google Chromeでは「保存」でフォルダを指定できます。','（',browserSaveHelp(),'）');
+        }
+        dialog.append(place,hint);
+        if(direct){
+            const details=document.createElement('details'),summary=document.createElement('summary');
+            summary.textContent='保存時の案内設定';
+            const {label,select}=reminderSelect(CS().storage.getAppSetting(reminderKey));
+            select.onchange=()=>CS().storage.setAppSetting(reminderKey,{mode:select.value,lastShown:Date.now()});
+            details.append(summary,label);dialog.append(details);
+        }
+        const footer=document.createElement('footer');
+        footer.append(dialogButton('閉じる',()=>dialog.close()));
+        if(handle && typeof window.showOpenFilePicker==='function'){
+            footer.append(dialogButton('保存フォルダを開く',async()=>{
+                try{await window.showOpenFilePicker({startIn:handle,multiple:false});}
+                catch(error){if(error.name!=='AbortError')hint.textContent='フォルダを開けませんでした。「名前をつけて保存」で保存先を選び直せます。';}
+            },true));
+        }
+        dialog.append(footer);dialog.showModal();
     }
     function chooseDownloadName(title){
         const dialog=document.createElement('dialog'),form=document.createElement('form'),label=document.createElement('label');
@@ -5999,11 +6081,16 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         input.value=title+'.json';input.required=true;label.append('ファイル名 ',input);
         note.textContent='編集用JSONをダウンロードします。次回の「保存」は、この端末のブラウザ内にある曲を更新します。';
         const help=document.createElement('details'),summary=document.createElement('summary');
-        summary.textContent='Safariで端末内の保存先を選ぶ';
-        const mac=document.createElement('p'),mobile=document.createElement('p');
-        mac.textContent='Mac：Safari → 設定 → 一般 → ファイルのダウンロード先。保存先を毎回確認する設定にし、ダウンロード時にMac内のフォルダを選びます。';
-        mobile.textContent='iPhone・iPad：設定 → アプリ → Safari → ダウンロードで「このiPhone内」または「このiPad内」を選びます。保存後は「ファイル」で移動できます。';
-        help.append(summary,mac,mobile);
+        summary.textContent='ダウンロード先を選ぶには';
+        const instructions=document.createElement('p');
+        if(storageBrowserName()==='Safari'){
+            instructions.textContent='Macでは Safari → 設定 → 一般 →「ファイルのダウンロード先」でフォルダを指定できます。毎回選ぶこともできます。';
+        }else if(storageBrowserName()==='Firefox'){
+            instructions.textContent='Firefoxの設定で「ダウンロード」を検索し、保存先を指定するか、保存先を毎回確認する設定を選びます。';
+        }else{
+            instructions.textContent='ブラウザのダウンロード設定で、保存先のフォルダを選べます。';
+        }
+        help.append(summary,instructions);
         cancel.type='button';cancel.textContent='キャンセル';
         accept.type='submit';accept.textContent='保存';form.append(label,note,help,cancel,accept);dialog.append(form);els.root.append(dialog);
         return new Promise(resolve=>{
@@ -6040,6 +6127,12 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         try{
             if(typeof window.showSaveFilePicker!=='function')return chooseFile?await saveNamedDownload(session):await commitBrowserSession(session);
             const check=CS().model.validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
+            const setting=CS().storage.getAppSetting(reminderKey);
+            const recent=setting?.mode==='sometimes' && Date.now()-setting.lastShown<30*24*60*60*1000;
+            if(setting?.mode!=='never' && !recent){
+                if(!await confirmFileSave(setting))throw new DOMException('キャンセル','AbortError');
+                if(session.snapshotVersion!==version || !session.canCommit())throw Error('曲の状態が変わりました。確認してからもう一度保存してください。');
+            }
             const json=CS().storage.exportProjectJson(project,scorePresentation(project));
             let handle;
             if(!chooseFile){
@@ -6048,7 +6141,6 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             }
             if(handle && handle.requestPermission && await handle.requestPermission({mode:'readwrite'})!=='granted')handle=null;
             if(!handle)try{
-                showSaveNotice('ブラウザの警告は、選んだ譜面ファイルの読み書きを許可するための案内です。');
                 handle=await window.showSaveFilePicker({suggestedName:(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
             }catch(error){
                 dismissSaveNotice();
@@ -6177,7 +6269,9 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         }
 
         els.projectSelect.addEventListener('change', function () {
-            const action=els.projectSelect.selectedOptions[0]?.dataset.fileAction;
+            const option=els.projectSelect.selectedOptions[0];
+            if(option?.hasAttribute('data-more-file-actions')){refreshProjectSelect();openMoreFileActions();return;}
+            const action=option?.dataset.fileAction;
             if(action){refreshProjectSelect();q(action)?.click();return;}
             var selectedId = els.projectSelect.value;
             if (state.project && selectedId === state.project.projectId) return;
