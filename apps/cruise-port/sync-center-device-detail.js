@@ -19,7 +19,9 @@ const INFO_APP_STATUSES = new Set(['synced', 'attention', 'connecting', 'initial
 
 export const SYNC_DETAIL_COPY = Object.freeze({
     // Cloud availability is not a per-target connection or completion guarantee.
-    synced: 'クラウドデータは利用できます。解除したアプリの同期完了を示す表示ではありません。',
+    synced: '接続中のすべての同期先から、前回の同期成功が報告されています。',
+    pending: '同期先からの完了報告を待っています。',
+    available: 'クラウドデータは利用できます。解除したアプリの同期完了を示す表示ではありません。',
     reportedError: '前回の同期報告でエラーが報告されています。',
     reportedAttention: '前回の同期報告に確認事項があります。',
     membershipAttention: '同期の状態に確認が必要な点があります。時間をおいて、もう一度確認してください。',
@@ -149,7 +151,12 @@ function guidanceFor(app, rows, needsAction) {
 
 // The one-line meaning of the row's main status, shown first in ⓘ.
 function statusTextFor(app, presentationState, rows) {
-    if (presentationState === 'available') return SYNC_DETAIL_COPY.synced;
+    if (presentationState === 'available') {
+        return app.snapshot === 'aligned' && app.removalSafety === 'safe' && rows?.length &&
+            rows.every(row => row.state === 'clean')
+            ? SYNC_DETAIL_COPY.synced : SYNC_DETAIL_COPY.available;
+    }
+    if (presentationState === 'syncing' && app.status === 'synced') return SYNC_DETAIL_COPY.pending;
     if (presentationState === 'syncing' || presentationState === 'connecting') return SYNC_DETAIL_COPY.progress;
     if (presentationState === 'deleting') return SYNC_DETAIL_COPY.deleting;
     if (presentationState !== 'attention') return null;

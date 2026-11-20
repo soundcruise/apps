@@ -79,7 +79,7 @@ test('A: opening Sync Center fetches the server state once per load, never from 
 test('B: once every target reports clean the row reads ✓ 同期済み, never a device guarantee', async () => {
   const { ctrl } = controller([summary({ rhythm: { removalSafety: 'unknown' } }), summary()]);
   const before = await ctrl.load();
-  assert.equal(before.apps.find((app) => app.id === 'rhythm').presentationStatus.state, 'available',
+  assert.equal(before.apps.find((app) => app.id === 'rhythm').presentationStatus.state, 'syncing',
     'an unconfirmed target alone does not raise 確認が必要');
   const after = await ctrl.load();
   const d = dom();

@@ -6,7 +6,7 @@ import {
     reloadAppWithCacheBust
 } from './app-version.js';
 
-assert.equal(CRUISE_PORT_APP_VERSION, '1.37.0');
+assert.equal(CRUISE_PORT_APP_VERSION, '1.37.1');
 assert.equal(
     buildReloadUrl('https://soundcruise.jp/apps/cruise-port/?tunerDebug=1', 123),
     'https://soundcruise.jp/apps/cruise-port/?tunerDebug=1&_r=123'
@@ -26,7 +26,7 @@ const documentObject = {
     }
 };
 applyVersionDisplay(documentObject);
-assert.equal(display.textContent, 'Ver 1.37.0');
+assert.equal(display.textContent, 'Ver 1.37.1');
 
 let replacement = '';
 assert.equal(reloadAppWithCacheBust({

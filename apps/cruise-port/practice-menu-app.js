@@ -37,7 +37,7 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=1.33.0';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.33.0';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.37.1';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.24.25';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.30.5';
 import { createAiSupportPanel } from './ai-support-ui.js?v=1.30.5';
@@ -195,10 +195,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.37.0';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.30.5';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.30.5';
-import { initTuner } from './tuner-app.js?v=1.37.0';
+} from './app-version.js?v=1.37.1';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.37.1';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.37.1';
+import { initTuner } from './tuner-app.js?v=1.37.1';
 import {
     clearGearPhotoReferences,
     createGearItem,

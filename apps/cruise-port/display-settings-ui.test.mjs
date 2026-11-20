@@ -26,12 +26,12 @@ test('font choices use independent field and stable baseline, not global rem geo
 });
 
 test('settings handlers keep complete drafts, use the guarded store, and limit reset scope', () => {
-    const handlers = app.slice(app.indexOf('function updateDisplaySettings(next)'), app.indexOf('elements.myAppsForm.addEventListener'));
-    assert.match(handlers, /saveSettings\(next\)/);
+    const handlers = app.slice(app.indexOf('function updateDisplaySettings(next, options)'), app.indexOf('elements.myAppsForm.addEventListener'));
+    assert.match(handlers, /saveSettings\(next, undefined, options\)/);
     assert.match(handlers, /\.\.\.homeSettings, \[field\]/);
     assert.match(handlers, /window\.confirm/);
     // Reset returns every display setting, including the color theme, to its default (Dark).
-    assert.match(handlers, /updateDisplaySettings\(\{ \.\.\.DEFAULT_SETTINGS, theme: DEFAULT_THEME \}\)/);
+    assert.match(handlers, /updateDisplaySettings\(\{ \.\.\.DEFAULT_SETTINGS, theme: DEFAULT_THEME \}, \{ themeChanged: true \}\)/);
     assert.doesNotMatch(handlers, /localStorage|indexedDB|deleteDatabase|removeItem/);
     assert.match(app, /row\.append\(button\)/);
     assert.match(app, /button\.disabled = index \+ direction/);

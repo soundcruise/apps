@@ -155,7 +155,7 @@ test('duplicate Account submit shares one in-flight operation', async () => {
 test('committed Account creation remains successful when Port structured sync is temporarily unavailable', async () => {
     let ensureCalls = 0;
     const { orchestrator, calls } = fixture({
-        portSync: { async ensure() { ensureCalls += 1; throw new Error('temporary_sync_failure'); } }
+        portSync: { async resumeAutomatically() { ensureCalls += 1; throw new Error('temporary_sync_failure'); } }
     });
     orchestrator.createAccountCandidate();
     const result = await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken: 'verified' });
@@ -167,7 +167,7 @@ test('committed Account creation remains successful when Port structured sync is
 
 test('committed existing-Account Join remains successful when Port structured sync is temporarily unavailable', async () => {
     const current = fixture({
-        portSync: { async ensure() { throw new Error('temporary_sync_failure'); } }
+        portSync: { async resumeAutomatically() { throw new Error('temporary_sync_failure'); } }
     });
     current.setSavedAccount(null);
     const result = await current.orchestrator.connectExistingAccount('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
@@ -181,7 +181,7 @@ test('committed Account recovery remains successful when Port structured sync is
     const current = fixture({
         portSync: {
             async clearCloudState() { throw new Error('temporary_clear_failure'); },
-            async ensure() { throw new Error('temporary_sync_failure'); }
+            async resumeAutomatically() { throw new Error('temporary_sync_failure'); }
         }
     });
     await current.orchestrator.prepareRecovery({ recoveryCode: 'saved-code', turnstileToken: 'verified' });
@@ -361,7 +361,7 @@ test('Standard denies all sync setup, handoff and cloud app deletion methods',as
  assert.deepEqual(calls,[]);assert.deepEqual(navigations,[]);
 });
 test('Standard keeps Account creation and readonly summary without automatic data sync',async()=>{
- let ensures=0;const {orchestrator,calls}=fixture({canSync:()=>false,portSync:{ensure:async()=>{ensures++;}}});
+ let ensures=0;const {orchestrator,calls}=fixture({canSync:()=>false,portSync:{resumeAutomatically:async()=>{ensures++;}}});
  orchestrator.createAccountCandidate();const created=await orchestrator.completeAccountSetup({recoverySaved:true,turnstileToken:'local-test'});
  assert.equal(created.portSyncState.locked,true);assert.equal(ensures,0);
  assert(calls.some(c=>c[0]==='start'));
@@ -370,8 +370,31 @@ test('Standard keeps Account creation and readonly summary without automatic dat
 });
 
 test('joined Account with unconfirmed local data keeps successful membership but never ensures Sync',async()=>{
- let writes=0;const f=fixture({canInitializeJoined:async()=>false,portSync:{ensure:async()=>{writes++;}}});f.setSavedAccount(null);
+ let writes=0;const f=fixture({canInitializeJoined:async()=>false,portSync:{resumeAutomatically:async()=>{writes++;}}});f.setSavedAccount(null);
  const result=await f.orchestrator.connectExistingAccount('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE','My PC');assert.equal(result.accountId,'account-1');assert.equal(result.portSyncState.code,'local_data_unconfirmed');assert.equal(writes,0);
 });
 
-test('new Account with old local data never auto-starts Port sync',async()=>{let ensureCalls=0;const f=fixture({canInitializeJoined:async()=>false,portSync:{ensure:async()=>{ensureCalls++;}}});f.orchestrator.createAccountCandidate();const r=await f.orchestrator.completeAccountSetup({recoverySaved:true,turnstileToken:'synthetic'});assert.equal(r.ok,true);assert.equal(r.portSyncState.code,'local_data_unconfirmed');assert.equal(ensureCalls,0);});
+test('new Account with old local data never auto-starts Port sync',async()=>{let ensureCalls=0;const f=fixture({canInitializeJoined:async()=>false,portSync:{resumeAutomatically:async()=>{ensureCalls++;}}});f.orchestrator.createAccountCandidate();const r=await f.orchestrator.completeAccountSetup({recoverySaved:true,turnstileToken:'synthetic'});assert.equal(r.ok,true);assert.equal(r.portSyncState.code,'local_data_unconfirmed');assert.equal(ensureCalls,0);});
+
+
+test('automatic Account setup never falls back to an old explicit-merge controller', async () => {
+    let explicit = 0;
+    const f = fixture({ portSync: { async ensure() { explicit++; } } });
+    await f.orchestrator.prepareRecovery({ recoveryCode: 'synthetic', turnstileToken: 'synthetic' });
+    const result = await f.orchestrator.commitRecovery({ recoverySaved: true });
+    assert.equal(result.accountDeviceId, 'port-device-recovered');
+    assert.equal(result.portSyncState.code, 'port_sync_unavailable');
+    assert.equal(explicit, 0);
+});
+test('Account recovery preserves scoped evidence and reports an automatic refusal without undoing recovery', async () => {
+    let cleared = 0;
+    const f = fixture({ portSync: {
+        async clearCloudState() { cleared++; },
+        async resumeAutomatically() { return { ok: false, code: 'local_data_unconfirmed' }; }
+    } });
+    await f.orchestrator.prepareRecovery({ recoveryCode: 'synthetic', turnstileToken: 'synthetic' });
+    const result = await f.orchestrator.commitRecovery({ recoverySaved: true });
+    assert.equal(result.accountDeviceId, 'port-device-recovered');
+    assert.equal(result.portSyncState.code, 'local_data_unconfirmed');
+    assert.equal(cleared, 0);
+});
