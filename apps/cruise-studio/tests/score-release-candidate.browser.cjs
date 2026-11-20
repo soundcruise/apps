@@ -20,6 +20,8 @@ test.before(async () => {
         output = path.join(directory,'distribution');
         manifest = packageScoreCandidate(output);
     }
+    const {CRUISE_PORT_ROOT, PRO_ENTRY_PATH} = await import('../../cruise-port/cruise-port-edition.js');
+    assert.deepEqual(manifest.portEntries, [CRUISE_PORT_ROOT, PRO_ENTRY_PATH].map(root => root.slice(1) + 'index.html'));
     for (const [name,hash] of Object.entries(manifest.files)) {
         const bytes = await fs.readFile(path.join(output,name));
         assert.equal(createHash('sha256').update(bytes).digest('hex'),hash,name);
@@ -251,3 +253,77 @@ for (const engine of ['chrome', 'webkit']) test('packaged editor mobile playback
         });
     }
 });
+
+for (const model of ['iPhone 13', 'Pixel 7', 'iPad (gen 7)', 'Galaxy Tab S4']) {
+    test('Port tool opens and plays an exported score: ' + model, async t => {
+        const {devices} = require('playwright');
+        const device = devices[model];
+        const browser = await (device.defaultBrowserType === 'webkit' ? webkit.launch() : chromium.launch({channel:'chrome'}));
+        const server = await startServer();
+        t.after(() => stopServer(server));
+        t.after(() => browser.close());
+        const origin = 'http://127.0.0.1:' + server.address().port;
+        const {viewerFixture} = await import('./helpers/viewer-fixture.mjs');
+        const {score, contract, metadata} = viewerFixture();
+        score.songInfo.bpm = 180;
+        const file = await contract.codec.encode(score, metadata);
+        for (const entry of manifest.portEntries) for (const landscape of [false, true]) {
+            const pro = entry.includes('/pro_');
+            await t.test((pro ? 'Pro' : 'Standard') + (landscape ? ' landscape' : ' portrait'), async t => {
+                const {width,height} = device.viewport;
+                const context = await browser.newContext({...device, viewport:landscape ? {width:height,height:width} : {width,height}});
+                t.after(() => context.close());
+                const page = await context.newPage();
+                page.setDefaultTimeout(6000);
+                const failures = [];
+                await context.route('**/*', route => {
+                    const url = new URL(route.request().url());
+                    if (url.origin === origin || ['blob:', 'data:'].includes(url.protocol)) return route.continue();
+                    failures.push(url.origin);return route.abort();
+                });
+                page.on('pageerror', e => failures.push(e.message));
+                page.on('response', r => {if(r.status()>=400) failures.push(r.status()+' '+new URL(r.url()).pathname);});
+                const home = origin + '/' + entry.replace(/index\.html$/, '');
+                await page.goto(home);
+                if(pro) {
+                    await page.locator('#pro-gate-input').waitFor();
+                    const {signIntoLocalPro} = await import('./helpers/score-candidate-pro.mjs');
+                    await signIntoLocalPro(page, origin, t, () => document.documentElement.dataset.edition === 'pro');
+                }
+                await page.waitForFunction(edition => document.documentElement.dataset.edition === edition, pro ? 'pro' : 'standard');
+                await page.locator('[data-home-section="tools"]').getByRole('link',{name:'譜面ビューワー'}).tap();
+                await page.waitForFunction(() => !!window.CruiseViewer);
+                const menu = page.locator('.sv-main-menu:visible > summary');
+                await menu.tap();
+                const [chooser] = await Promise.all([
+                    page.waitForEvent('filechooser'), page.locator('[data-viewer-action=open]:visible').tap()
+                ]);
+                await chooser.setFiles({name:'Port.cruise-score.json',mimeType:'application/json',buffer:Buffer.from(file.text)});
+                await page.locator('.sv-paper .sheet-bar').first().waitFor();
+                assert.deepEqual(await page.evaluate(()=>CruiseViewer.view.read().document.score),score);
+                const play = page.locator('[data-viewer-action=play]:visible');
+                await play.tap();
+                await page.waitForFunction(()=>{
+                    const p=CruiseViewer.view.playback();
+                    const bar=document.querySelector('.sv-playing'), cursor=document.querySelector('[data-viewer-playhead]');
+                    if(p.phase!=='playing'||p.barIndex<1||!p.stats.parts.guitar||!bar||!cursor) return false;
+                    const b=bar.getBoundingClientRect(),k=cursor.getBoundingClientRect();
+                    return +bar.dataset.barNumber===p.barIndex+1 && k.x>=b.left-2 && k.x<=b.right+2 &&
+                        bar.contains(document.elementFromPoint(Math.min(b.right-2,Math.max(b.left+2,k.x)),b.y+8));
+                });
+                const pos = await play.boundingBox();
+                assert(pos && pos.y>=0 && pos.y+pos.height<=page.viewportSize().height+1);
+                await page.touchscreen.tap(pos.x+pos.width/2,pos.y+pos.height/2);
+                await page.waitForFunction(()=>CruiseViewer.view.playback().phase==='paused');
+                const back = page.getByRole('link',{name:'← ポート'});
+                assert.equal(await back.evaluate(a=>a.href),home);
+                await back.tap();
+                await page.locator('[data-viewer-leave=discard]').tap();
+                await page.waitForURL(home);
+                await page.waitForFunction(edition => document.documentElement.dataset.edition === edition, pro ? 'pro' : 'standard');
+                await page.locator('[data-home-section="tools"]').getByRole('link',{name:'譜面ビューワー'}).waitFor();
+                assert.deepEqual(failures,[]);
+            });
+        }
+    });
+}

@@ -6,12 +6,28 @@ import {fileURLToPath} from 'node:url';
 import {packagePortPC} from './package-port-pc.mjs';
 import {PRO_DIRECTORY} from './edition-layout.mjs';
 import {renderOwnerBundle} from './generate-local-chord-owner.mjs';
+import {CRUISE_APP_ICONS} from '../../cruise-port/cruise-app-links.js';
+import {CRUISE_PORT_ROOT, PRO_ENTRY_PATH as portProEntry} from '../../cruise-port/cruise-port-edition.js';
 
 const repo=fileURLToPath(new URL('../../../',import.meta.url));
 const studio='apps/cruise-studio/', viewer='apps/score-viewer/', standalone=viewer+'standalone/';
 const candidate=studio+'edition-candidates/score/';
-const version='0.205.0-rc.2';
+const version='0.205.0-rc.3';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+
+function localDependencies(output,name) {
+    if(!/\.(?:html|m?js|css)$/.test(name))return [];
+    const content=fs.readFileSync(path.join(output,name),'utf8');
+    const refs=name.endsWith('.html')?content.matchAll(/<(?:script|img|link)\b[^>]*?\b(?:src|href)="([^"]+)"/g):
+            name.endsWith('.css')?content.matchAll(/url\(\s*["']?([^\s"')]+)["']?\s*\)/g):
+            content.matchAll(/(?:\bfrom\s+|\bimport\s*(?:\(\s*)?)['"]((?:\.{1,2}\/|\/)[^'"]+)['"]/g);
+    const paths=[];
+    for(const [,ref] of refs){
+        const url=new URL(ref,'https://candidate.invalid/'+name);
+        if(url.origin==='https://candidate.invalid')paths.push(url.pathname.slice(1));
+    }
+    return paths;
+}
 
 function enableScore(html,edition) {
     const panel='<section id="screen-score-viewer" class="screen hidden" hidden inert tabindex="-1" aria-label="譜面ビューワー"><header class="screen-header"><h1>譜面ビューワー</h1><button type="button" class="sv-dock-button" data-open-tool="scoreViewer">右窓で表示</button><a class="sv-standalone-link" href="/'+standalone+'?from='+edition+'">スマホ・オフライン画面</a></header><div id="score-viewer-host"></div></section>';
@@ -85,7 +101,34 @@ export function packageScoreCandidate(output) {
         copy(viewer+'local/'+name,standalone+target);
     }
     const index=standalone+'index.html';
-    put(index,fs.readFileSync(path.join(output,index),'utf8').replace('</head>','<meta name="pro-entry" content="/'+studio+PRO_DIRECTORY+'/"></head>'));
+    put(index,fs.readFileSync(path.join(output,index),'utf8').replace('</head>','<meta name="pro-entry" content="/'+studio+PRO_DIRECTORY+'/"><meta name="port-pro-entry" content="'+portProEntry+'"></head>'));
+    // Build the Port entries from their real home screens only in this local distribution.
+    const portPages=[];
+    for(const [root,from] of [[CRUISE_PORT_ROOT,'port'],[portProEntry,'port-pro']]){
+        const name=root.slice(1)+'index.html';
+        const html=fs.readFileSync(path.join(repo,name),'utf8');
+        const toolsHeading='<div class="card-grid home-card-grid" aria-label="ツール">';
+        if(!html.includes(toolsHeading))throw Error('Port tools grid missing: '+name);
+        const card='<a class="port-card skeleton-card tool-card" href="/'+standalone+'?from='+from+'"><span class="skeleton-icon" aria-hidden="true"><img src="/'+standalone+'icon-192.png" alt="" decoding="async"></span><span class="card-name">譜面ビューワー</span></a>';
+        put(name,html.replace(toolsHeading,toolsHeading+'\n                    '+card)
+            .replace(/<script src="[^"]*\/sync-account\/production-config\.js[^"]*"><\/script>/,''));
+        portPages.push(name);
+    }
+    // Port's news module already provides a local-data mode.
+    put('apps/cruise-port/news-config.js',"export const NEWS_PROVIDER='fixture';\nexport const NEWS_API_BASE='';\n");
+    copyTree('apps/cruise-port/assets');
+    for(const icons of Object.values(CRUISE_APP_ICONS)){
+        for(const icon of Object.values(icons))copy(new URL(icon,'https://candidate.invalid').pathname.slice(1));
+    }
+    const portQueue=[...portPages,...['terms.html','privacy.html','pro-access.html'].map(file=>'apps/cruise-port/'+file)];
+    const portFiles=new Set();
+    while(portQueue.length){
+        const name=portQueue.pop();
+        if(portFiles.has(name))continue;
+        portFiles.add(name);
+        if(!files[name])copy(name);
+        portQueue.push(...localDependencies(output,name));
+    }
     // Only the reader's static dependency closure is eligible for offline use.
     const seen=new Set();
     const queue=[index,standalone+'manifest.webmanifest',standalone+'icon-192.png',standalone+'icon-512.png',
@@ -94,24 +137,17 @@ export function packageScoreCandidate(output) {
     while(queue.length){
         const name=queue.pop();
         if(seen.has(name))continue;
-        if(!files[name]||/\/scripts\/|\/shared\/|\/cloud\/|\/sync\/|project-repository|editing-session/.test(name))throw Error('Unexpected offline dependency: '+name);
+        if(!files[name]||name.startsWith('apps/cruise-port/')||/\/scripts\/|\/shared\/|\/cloud\/|\/sync\/|project-repository|editing-session/.test(name))throw Error('Unexpected offline dependency: '+name);
         seen.add(name);
         if(name.startsWith(viewer+'vendor/'))continue;
-        const content=fs.readFileSync(path.join(output,name),'utf8');
-        const refs=name.endsWith('.html')?content.matchAll(/<(?:script|img|link)\b[^>]*?\b(?:src|href)="([^"]+)"/g):
-            /\.m?js$/.test(name)?content.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*)['"]((?:\.{1,2}\/|\/)[^'"]+)['"]/g):
-            name.endsWith('.css')?content.matchAll(/url\(\s*["']?([^\s"')]+)["']?\s*\)/g):[];
-        for(const [,ref] of refs){
-            const url=new URL(ref,'https://candidate.invalid/'+name);
-            if(url.origin==='https://candidate.invalid')queue.push(url.pathname.slice(1));
-        }
+        queue.push(...localDependencies(output,name));
     }
     const assets=[...seen].sort().map(name=>({path:'/'+name,sha256:files[name],bytes:fs.statSync(path.join(output,name)).size}));
     const cacheVersion=version+'-'+hash(JSON.stringify(assets)+files[standalone+'sw.js']).slice(0,12);
     put(standalone+'asset-list.js','self.VIEWER_ASSETS='+JSON.stringify({version:cacheVersion,assets})+';\n');
     for(const name of ['LICENSE','NOTICE','SECURITY-AND-AI-POLICY.md'])copy(name);
     const manifest={...base,version,channel:'local-score-release-candidate',standardPublished:undefined,
-        scoreEditions:['standard','pro'],viewerEntry:standalone+'index.html',files,productionReady:false};
+        scoreEditions:['standard','pro'],portEntries:portPages,viewerEntry:standalone+'index.html',files,productionReady:false};
     fs.writeFileSync(path.join(output,'RELEASE-MANIFEST.json'),JSON.stringify(manifest,null,2)+'\n');
     return manifest;
 }

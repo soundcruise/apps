@@ -12,7 +12,11 @@ let offline;
 const view=mountStudioViewer(C,document.getElementById('score-viewer-host'),{onPlaybackState:s=>{const playing=!!s&&['playing','counting'].includes(s.phase);wake.setActive(playing);offline?.setPlaying(playing||s?.phase==='loading');}});
 offline=mountOfflineControls({button:document.getElementById('viewer-offline-prepare'),status:document.getElementById('viewer-offline-status')});
 const back=document.getElementById('viewer-return');
-if (new URLSearchParams(location.search).get('from') === 'pro') {
+const from=new URLSearchParams(location.search).get('from');
+if (from === 'port' || from === 'port-pro') {
+    back.href=from === 'port' ? '/apps/cruise-port/' : document.querySelector('meta[name="port-pro-entry"]').content;
+    back.textContent='← ポート';
+} else if (from === 'pro') {
     back.href = document.querySelector('meta[name="pro-entry"]').content;
 }
 back.onclick=e=>{if(view.requestLeave(()=>back.click())){e.preventDefault();return;}view.deactivate();void wake.dispose();};
