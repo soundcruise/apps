@@ -47,7 +47,7 @@ test('stored generic string selections retain verifiable evidence',async()=>{
  assert(!validTypeEvidence({...legacy,productType:'strings'},'acoustic_guitar_strings'));
 });
 
-test('source-backed candidate drafts stay unconfirmed and use the same publication form for all five subjects',async()=>{
+test('source-backed candidate drafts stay unconfirmed and use the same publication form for all prepared subjects',async()=>{
  const {default:entries}=await import('../docs/candidate-review-information.json',{with:{type:'json'}});
  const {candidateAssistedDraft}=await import('../src/candidate-draft.js');
  const {draftRequirements}=await import('../src/review-presentation.js');
