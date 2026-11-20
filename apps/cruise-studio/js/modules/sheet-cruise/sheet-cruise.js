@@ -5657,7 +5657,7 @@
             var module=await import('./viewer-contract.mjs?v=0.204.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
             var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(project.projectId));
             var documentId='score-'+Array.from(new Uint8Array(hash),function(n){return n.toString(16).padStart(2,'0');}).join('');
-            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.204.0-dev.1',defaultPresentation:presentation});
+            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:CS().releaseFeatures?.scoreVersion||'0.204.0-dev.1',defaultPresentation:presentation});
             if(!state.active||state.session!==owner||owner.snapshotVersion!==version||owner.inputPending||textDiagnostic(owner)){setSaveStatus('曲や入力状態が変わったため、書き出しを中止しました',true);return;}
             var exportedEntry=await CS().scoreViewer.add(result.text,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);}});
             if(!exportedEntry){setSaveStatus('書き出しをキャンセルしました');return;}

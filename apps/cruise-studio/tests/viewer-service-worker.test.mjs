@@ -9,7 +9,15 @@ function setup(){
     const assets=[...responses].map(([path,text])=>({path,sha256:createHash('sha256').update(text).digest('hex')}));
     const caches={async open(name){if(!stores.has(name))stores.set(name,new Map());const data=stores.get(name);return {async match(key){return data.get(key)?.clone();},async put(key,response){data.set(key,response.clone());}};},async keys(){return [...stores.keys()];},async delete(name){return stores.delete(name);}};
     const self={location:{origin},registration:{scope:root},clients:{async claim(){claims++;}},addEventListener(type,handler){handlers[type]=handler;}};
-    vm.runInNewContext(fs.readFileSync(new URL('../../score-viewer/local/sw.js',import.meta.url),'utf8'),{self,importScripts(){self.VIEWER_LOCAL_ASSETS={version:'test',assets};},crypto:webcrypto,URL,Map,Promise,caches,fetch:async key=>{requests.push(key);const value=responses.get(new URL(key).pathname);if(value===undefined)throw Error('offline');return new Response(value);}});
+    const worker=new URL('../../score-viewer/local/sw.js',import.meta.url);
+    const context=vm.createContext({self,crypto:webcrypto,URL,Map,Promise,caches,
+        importScripts(name){
+            if(name==='./asset-list.js')self.VIEWER_LOCAL_ASSETS={version:'test',assets};
+            else vm.runInContext(fs.readFileSync(new URL(name,worker),'utf8'),context);
+        },
+        fetch:async key=>{requests.push(key);const value=responses.get(new URL(key).pathname);if(value===undefined)throw Error('offline');return new Response(value);}
+    });
+    vm.runInContext(fs.readFileSync(worker,'utf8'),context);
     async function event(type,input={}){let promise;handlers[type]({...input,waitUntil(value){promise=value;}});return promise;}
     async function message(type,client=root+'index.html'){let answer;await event('message',{source:{url:client},ports:[{postMessage(value){answer=value;}}],data:{type}});return answer;}
     return {stores,caches,responses,requests,event,message,handlers,get claims(){return claims;}};

@@ -6,7 +6,7 @@ import {renderLocalPortViewer} from './local-port-viewer.mjs';
 const root=fileURLToPath(new URL('../../../',import.meta.url)),local='/apps/score-viewer/local/';
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 export function buildLocalViewerOffline(){
-    const queue=[local+'index.html',local+'port.html','/apps/cruise-studio/vendor/guitar/acoustic-bank.js','/apps/cruise-studio/vendor/piano/salamander-bank.js'],seen=new Map();
+    const queue=['/apps/score-viewer/core/offline-worker.js',local+'index.html',local+'port.html','/apps/cruise-studio/vendor/guitar/acoustic-bank.js','/apps/cruise-studio/vendor/piano/salamander-bank.js'],seen=new Map();
     const vendor=path.join(root,'apps/score-viewer/vendor/pdfjs');
     function addVendor(dir){for(const f of fs.readdirSync(dir,{withFileTypes:true})){const p=path.join(dir,f.name);if(f.isDirectory())addVendor(p);else if(/\.(mjs|js|bcmap|ttf|pfb|wasm|icc)$/.test(p))queue.push('/'+path.relative(root,p));}}addVendor(vendor);
     function add(value,base){if(!value||/^(data:|https?:|#|javascript:|mailto:)/.test(value))return;const url=new URL(value,'http://127.0.0.1:18874'+base);if(url.origin!=='http://127.0.0.1:18874')throw Error('external asset');queue.push(url.pathname);}
