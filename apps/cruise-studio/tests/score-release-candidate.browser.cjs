@@ -156,3 +156,98 @@ test('packaged score creation, persistence, export and playback: '+engine+' '+ed
     assert.deepEqual(missing,[]);
     assert.deepEqual(external,[]);
 });
+
+function visiblePlaybackPosition() {
+    const bar = document.querySelector('#sc-sheet-scale-box .sc-playing-bar');
+    const cursor = document.querySelector('#sc-sheet-scale-box [data-score-playhead]');
+    const stop = document.querySelector('#sc-song-preview[aria-label="停止"]');
+    if (!bar || !cursor || !stop) return null;
+    const b = bar.getBoundingClientRect(), k = cursor.getBoundingClientRect(), s = stop.getBoundingClientRect();
+    const x = Math.min(b.right - 2, Math.max(b.left + 2, k.left));
+    const hit = (element, x, y) => element.contains(document.elementFromPoint(x, y));
+    if (k.left < b.left - 3 || k.left > b.right + 3 || Math.abs(k.top - b.top) > 3) return null;
+    if (![b.top + 4, b.top + b.height / 2, b.bottom - 4].every(y => hit(bar, x, y))) return null;
+    if (s.top < 0 || s.bottom > innerHeight + 1 || !hit(stop, s.left + s.width / 2, s.top + s.height / 2)) return null;
+    return {bar: Number(bar.dataset.barNumber), x: k.left, stopX: s.left + s.width / 2, stopY: s.top + s.height / 2};
+}
+
+for (const engine of ['chrome', 'webkit']) test('packaged editor mobile playback layout: ' + engine, async t => {
+    const server = await startServer();
+    t.after(() => stopServer(server));
+    const origin = 'http://127.0.0.1:' + server.address().port;
+    const browser = await (engine === 'chrome' ? chromium.launch({channel:'chrome'}) : webkit.launch());
+    t.after(() => browser.close());
+    const {createUITestProject} = await import('../scripts/create-ui-test-project.mjs');
+    const score = createUITestProject();
+    score.songInfo.bpm = 180;
+    await t.test('PC toolbar stays available during playback, including a short window', async () => {
+        const page = await browser.newPage({viewport:{width:1440,height:900}, hasTouch:false});
+        try {
+            await page.goto(origin + '/apps/cruise-studio/');
+            await page.locator('#open-sheet-cruise').click();
+            await page.locator('#sc-import-json').setInputFiles({
+                name:'desktop.json', mimeType:'application/json', buffer:Buffer.from(JSON.stringify(score))
+            });
+            await page.waitForFunction(id => CruiseStudio.sheetCruise.getSession().draft.projectId === id, score.projectId);
+            await page.locator('#sc-song-preview').click();
+            await page.locator('.sc-playing-bar').waitFor();
+            for (const height of [900, 390]) {
+                await page.setViewportSize({width:1440, height});
+                assert(await page.locator('#sc-curve-menu-toggle').isVisible());
+                assert.equal(await page.locator('.sc-compact-toolbar').evaluate(e => getComputedStyle(e).position), 'sticky');
+                assert(await page.locator('#sc-curve-menu-toggle').evaluate(el => {
+                    const r = el.getBoundingClientRect();
+                    return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+                }));
+                assert.equal(await page.locator('#sc-song-preview').getAttribute('aria-label'), '停止');
+            }
+            await page.locator('#sc-song-preview').click();
+            await page.waitForFunction(() => !document.querySelector('.sc-playing-bar'));
+            await page.locator('#sc-curve-menu-toggle').click();
+            await page.locator('#sc-new-project').waitFor();
+        } finally {
+            await page.context().close();
+        }
+    });
+    const profiles = [
+        ['iPhone', {width:390,height:664}, {width:664,height:390}],
+        ['iPhone wide', {width:390,height:844}, {width:844,height:390}],
+        ['iPad', {width:810,height:1080}, {width:1080,height:810}]
+    ];
+    for (const [name, portrait, landscape] of profiles) for (const rotate of [false, true]) {
+        await t.test(name + (rotate ? ' portrait → landscape → portrait' : ' landscape launch'), async () => {
+            const context = await browser.newContext({isMobile:true, hasTouch:true, viewport:rotate ? portrait : landscape});
+            try {
+                const page = await context.newPage();
+                await page.goto(origin + '/apps/cruise-studio/');
+                await page.locator('#open-sheet-cruise').tap();
+                await page.locator('#sc-import-json').setInputFiles({
+                    name:'layout.json', mimeType:'application/json', buffer:Buffer.from(JSON.stringify(score))
+                });
+                await page.waitForFunction(id => CruiseStudio.sheetCruise.getSession().draft.projectId === id, score.projectId);
+                await page.locator('#sc-song-preview').tap();
+                const sample = async () => {
+                    const result = await page.waitForFunction(visiblePlaybackPosition, null, {timeout:3500});
+                    return result.jsonValue();
+                };
+                let last = await sample();
+                for (const size of rotate ? [landscape, portrait] : [landscape]) {
+                    if (rotate) await page.setViewportSize(size);
+                    const first = await sample();
+                    assert(first.bar >= last.bar, 'rotation kept the playback position');
+                    await page.waitForFunction(n => Number(document.querySelector('.sc-playing-bar')?.dataset.barNumber) > n, first.bar);
+                    last = await sample();
+                    assert(last.bar > first.bar, 'cursor advanced to another visible measure');
+                    assert.equal(await page.locator('#screen-sheet-cruise.sc-focused').count(), 0);
+                }
+                // Tap the measured position; an auto-scrolling locator could conceal an occlusion.
+                await page.touchscreen.tap(last.stopX, last.stopY);
+                await page.waitForFunction(() => !document.querySelector('#sc-sheet-scale-box .sc-playing-bar'));
+                assert.equal(await page.locator('#sc-song-preview').getAttribute('aria-label'), '再生');
+                assert(await page.locator('#sc-curve-menu-toggle').isVisible());
+            } finally {
+                await context.close();
+            }
+        });
+    }
+});

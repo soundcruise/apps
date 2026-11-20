@@ -10,7 +10,7 @@ import {renderOwnerBundle} from './generate-local-chord-owner.mjs';
 const repo=fileURLToPath(new URL('../../../',import.meta.url));
 const studio='apps/cruise-studio/', viewer='apps/score-viewer/', standalone=viewer+'standalone/';
 const candidate=studio+'edition-candidates/score/';
-const version='0.205.0-rc.1';
+const version='0.205.0-rc.2';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 
 function enableScore(html,edition) {

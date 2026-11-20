@@ -1661,6 +1661,10 @@
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-curve-menu>summary,#screen-sheet-cruise .sheet-toolbar-project #sc-project-select{box-sizing:border-box;height:44px;min-height:44px;padding:8px 12px;font-size:14px;}
 #screen-sheet-cruise .sc-toolbar-head-actions .sc-toolbar-menu>summary,#screen-sheet-cruise .sc-compact-toolbar #sc-zoom-controls{height:44px;min-height:44px;box-sizing:border-box;}#screen-sheet-cruise .sc-compact-toolbar #sc-zoom-controls button{height:42px;}
 #screen-sheet-cruise .sc-bottom-transport{position:sticky;bottom:10px;z-index:24;margin-top:16px;box-shadow:0 5px 22px #0005;}.sc-bottom-transport>.sc-playback-caption{display:none!important;}
+@media screen and (pointer:coarse) and (orientation:landscape) and (max-height:500px){
+    #screen-sheet-cruise > .sc-compact-toolbar{position:relative;top:auto;}
+    #screen-sheet-cruise:has(#sc-song-preview[aria-pressed="true"]) > .sc-compact-toolbar{display:none;}
+}
 @media print{#sc-transport{display:none!important}}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-curve-menu{flex:none;}
 #screen-sheet-cruise .sc-compact-toolbar #sc-song-preview{min-height:44px;min-width:108px;background:linear-gradient(135deg,#e6d29b,var(--studio-accent));border-color:var(--studio-accent);color:#201b11;font-weight:650;}
