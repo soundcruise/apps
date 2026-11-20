@@ -593,8 +593,6 @@
         function menu(id,title){var el=document.createElement('details'),summary=document.createElement('summary'),body=group('sc-toolbar-menu-body');el.id=id;el.className='sc-toolbar-menu';summary.id=id+'-toggle';summary.textContent=title;body.setAttribute('aria-labelledby',summary.id);el.append(summary,body);return {root:el,body:body};}
         function divider(body){body.appendChild(document.createElement('hr'));}
         var right=group('sc-toolbar-head-actions');right.id='sc-toolbar-head-actions';head.appendChild(right);
-        const location=button('sc-file-location','保存場所',showFileLocation);
-        els.projectSelect.after(location);
         const guide=document.createElement('a');guide.id='sc-score-guide';guide.textContent='？';
         guide.href='/apps/cruise-studio/score-guide/index.html';guide.target='_blank';guide.rel='noopener';
         guide.title='譜面クルーズの取扱説明書';guide.setAttribute('aria-label',guide.title+'（新しいタブ）');head.append(guide);
@@ -821,6 +819,12 @@
             opt.textContent = meta.title + (meta.artist ? ' / ' + meta.artist : '');
             els.projectSelect.appendChild(opt);
         });
+        const actions=document.createElement('optgroup');
+        actions.label='ファイル操作';
+        for(const [action,label] of [['location','この曲の保存場所'],['manage','ファイル一覧・削除…']]){
+            const option=new Option(label);option.dataset.fileAction=action;actions.append(option);
+        }
+        els.projectSelect.append(actions);
         els.projectSelect.value = state.project.projectId;
     }
 
@@ -962,7 +966,7 @@
         } catch (error) { setSaveStatus(error.message, true); refreshProjectSelect(); return false; }
     }
 
-    function createNewProject() {
+    function createNewProject(openSettings=true) {
         var names = new Set(CS().storage.listProjects().map(function(p){return p.title;}));
         CS().sessions.listSessions().forEach(function(s){names.add(s.draft.songInfo.title);});
         var number=1;while(names.has('無題のプロジェクト '+number))number++;
@@ -971,7 +975,7 @@
         rhythm.snapshot.slots=[];rhythm.snapshot.name='空白';rhythm.provenance.legacyId='strum_empty';
         if(CS().localChordForms)CS().localChordForms.initialize(project);
         setProject(project, { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
-        els.editorDrawer.open=false;openScoreSettings('settings',{selectTitle:true,newSong:true});
+        els.editorDrawer.open=false;if(openSettings)openScoreSettings('settings',{selectTitle:true,newSong:true});
     }
 
     var leavePending = null;
@@ -1329,7 +1333,8 @@
 
 #screen-sheet-cruise .sc-score-toolbar-head{padding-right:52px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-basis:100%;width:100%;}
 #screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:0;display:flex;align-items:center;gap:4px;}
-#sc-project-select{min-width:0;}#sc-file-location{white-space:nowrap;}
+#sc-project-select{min-width:0;}.sc-location-dialog.sc-file-list{box-sizing:border-box;width:min(32rem,92vw);max-width:92vw;background:var(--studio-surface);color:var(--studio-text-primary);border:1px solid var(--studio-border-default);background-color:var(--studio-control,#222e38)}
+.sc-file-list h2{font-size:1.15rem;margin:0 0 1rem}.sc-file-list button{border:1px solid var(--studio-border-default);color:inherit;background:transparent;padding:8px 12px;border-radius:5px;cursor:pointer}.sc-file-list>div>div button:last-child{color:#ffc1ba}.sc-file-list>div{display:grid;gap:6px;max-height:55vh;overflow:auto}.sc-file-list>div>div{display:flex;gap:10px}.sc-file-list>div>div button:first-child{flex:1;text-align:left;overflow-wrap:anywhere}
 #sc-score-guide{margin-inline-start:auto;border:1px solid currentColor;color:inherit;text-decoration:none;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;align-self:center;}
 .sc-location-dialog{max-width:min(26em,85vw);padding:20px;border-radius:10px;}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
@@ -5787,8 +5792,8 @@
             req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
         });
         return fileDatabase.then(db=>new Promise((resolve,reject)=>{
-            const tx=db.transaction('handles',handle?'readwrite':'readonly'),store=tx.objectStore('handles');
-            const req=handle?store.put(handle,id):store.get(id);
+            const tx=db.transaction('handles',handle===undefined?'readonly':'readwrite'),store=tx.objectStore('handles');
+            const req=handle===null?store.delete(id):handle?store.put(handle,id):store.get(id);
             tx.oncomplete=()=>resolve(req.result);tx.onabort=()=>reject(tx.error);
         }));
     }
@@ -5802,6 +5807,56 @@
         exportButton.addEventListener('click',downloadCurrentProjectJson);
         els.saveStatus.append(' ',exportButton);
     }
+    function openFileList(){
+        const dialog=document.createElement('dialog'),list=document.createElement('div'),title=document.createElement('h2');
+        const message=document.createElement('p'),close=document.createElement('button');
+        dialog.className='sc-location-dialog sc-file-list';dialog.setAttribute('aria-label','ファイル一覧');
+        title.textContent='ファイル一覧';message.setAttribute('role','status');close.textContent='閉じる';close.onclick=()=>dialog.close();
+        let deleting=false;
+        function refresh(){
+            refreshProjectSelect();list.replaceChildren();
+            const saved=new Set(CS().storage.listProjects().map(meta=>meta.projectId));
+            for(const item of els.projectSelect.querySelectorAll(':scope > option')){
+                const id=item.value,target={type:'project',projectId:id},row=document.createElement('div');
+                const name=document.createElement('button'),remove=document.createElement('button');
+                name.textContent=item.textContent;name.title='この曲を開く';remove.textContent='削除';
+                remove.setAttribute('aria-label',item.textContent+'を削除');row.append(name,remove);list.append(row);
+                name.onclick=()=>{dialog.close();if(state.session.target.projectId!==id)requestLeave(()=>openProject(id));};
+                remove.onclick=async()=>{
+                    if(deleting)return;
+                    const owner=CS().sessions.getSession('structure',target),record=CS().repository.read(target);
+                    if(!record.ok||owner?.inputPending||owner?.commitInFlight||fileSaves.has(owner)){
+                        message.textContent=record.error||'入力・保存の完了後にもう一度お試しください。';return;
+                    }
+                    if(saved.has(id)!==record.exists){message.textContent='曲の状態が変わりました。もう一度選んでください。';refresh();return;}
+                    if(!window.confirm('「'+item.textContent+'」を'+(record.exists?'このブラウザから削除しますか？ パソコンのJSONファイルは保持されます。':'下書きごと破棄しますか？')))return;
+                    deleting=true;list.inert=true;
+                    try{
+                        if(record.exists){
+                            const result=await CS().repository.remove(target,record.revision);
+                            if(!result.ok)throw Error(result.error||'保存済みの曲を削除できませんでした。');
+                        }
+                        if(owner){
+                            const result=await CS().sessions.destroySession(owner,{discard:true});
+                            if(!result.ok)throw Error(result.error);
+                        }
+                        for(const key of recoveryKeys(id))localStorage.removeItem(key);
+                        if(state.session?.target.projectId===id){
+                            const other=Array.from(els.projectSelect.querySelectorAll(':scope > option')).find(o=>o.value!==id);
+                            if(!other||!openProject(other.value))createNewProject(false);
+                        }
+                        await handleReads.get(id);handleReads.delete(id);fileHandles.delete(id);
+                        if(typeof window.showSaveFilePicker==='function')await storedHandle(id,null);
+                        message.textContent='「'+item.textContent+'」を削除しました。';
+                    }catch(error){message.textContent=error.message;}
+                    finally{deleting=false;list.inert=false;refresh();}
+                };
+            }
+        }
+        dialog.append(title,list,message,close);els.root.append(dialog);refresh();dialog.showModal();
+        dialog.onclose=()=>dialog.remove();
+    }
+
     async function showFileLocation(){
         const session=state.session;
         if(!session)return;
@@ -5971,6 +6026,8 @@
         }
 
         els.projectSelect.addEventListener('change', function () {
+            const action=els.projectSelect.selectedOptions[0]?.dataset.fileAction;
+            if(action){refreshProjectSelect();if(action==='location')void showFileLocation();else openFileList();return;}
             var selectedId = els.projectSelect.value;
             if (state.project && selectedId === state.project.projectId) return;
             refreshProjectSelect();

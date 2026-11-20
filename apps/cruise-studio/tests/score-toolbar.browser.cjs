@@ -48,9 +48,31 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.match(await manual.title(),/譜面クルーズ 取扱説明書/);
   assert(await manual.locator('figure img').evaluateAll(images=>images.length>=8&&images.every(img=>img.complete&&img.naturalWidth>0)));
   assert(await manual.locator('nav a').evaluateAll(links=>links.every(a=>document.getElementById(a.hash.slice(1)))));
-  await manual.close();await p.click('#sc-file-location');
+  await manual.close();await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});
   const info=p.getByRole('dialog',{name:'保存場所'});assert.match(await info.textContent(),/未保存/);
   await info.getByRole('button',{name:'閉じる'}).click();assert.deepEqual(await snap(p),before);
+ }));
+ await t.test('discard an unsaved song, remove a browser song and keep other entries across reload',()=>fresh(async p=>{
+  const id=(await snap(p)).projectId,select=p.locator('#sc-project-select'),list=p.getByRole('dialog',{name:'ファイル一覧'});
+  const manage=()=>select.selectOption({label:'ファイル一覧・削除…'});
+  await manage();
+  const target=list.getByRole('button',{name:/海辺の散歩.*削除/});
+  p.removeAllListeners('dialog');p.once('dialog',d=>d.dismiss());await target.click();
+  assert(await target.isVisible());
+  p.on('dialog',d=>d.accept());await target.click();
+  await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().target.projectId!==id,id);
+  await list.getByRole('button',{name:'閉じる'}).click();
+  assert.equal(await select.locator('option[value="'+id+'"]').count(),0);
+  await p.evaluate(()=>window.showSaveFilePicker=undefined);
+  await p.click('#sc-save');
+  const saved=(await snap(p)).projectId;
+  await p.waitForFunction(id=>CruiseStudio.repository.read({type:'project',projectId:id}).exists,saved);
+  await manage();await list.getByRole('button',{name:/を削除$/}).first().click();
+  await p.waitForFunction(id=>!CruiseStudio.repository.read({type:'project',projectId:id}).exists,saved);
+  await list.getByText(/削除しました/).waitFor();
+  await p.reload();await p.click('#open-sheet-cruise');
+  for(const gone of [id,saved])assert.equal(await select.locator('option[value="'+gone+'"]').count(),0);
+  assert(await select.locator(':scope > option').count()>0);
  }));
  await t.test('shortcut settings remain reachable with all commands on a narrow screen',()=>fresh(async p=>{
   const picker=p.locator('#sc-shortcut-menu'),toggle=picker.locator('summary');
@@ -300,7 +322,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.equal(await p.locator('#sc-project-select option').count(),rows);
   await p.reload();await p.click('#open-sheet-cruise');
   await p.evaluate(()=>{window.showOpenFilePicker=async({startIn})=>{window.locationFilename=startIn.name;throw new DOMException('cancel','AbortError');};});
-  await p.click('#sc-file-location');await p.waitForFunction(()=>window.locationFilename==='renamed.json');
+  await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});await p.waitForFunction(()=>window.locationFilename==='renamed.json');
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});

@@ -12,7 +12,7 @@ import {CRUISE_PORT_ROOT, PRO_ENTRY_PATH as portProEntry} from '../../cruise-por
 const repo=fileURLToPath(new URL('../../../',import.meta.url));
 const studio='apps/cruise-studio/', viewer='apps/score-viewer/', standalone=viewer+'standalone/';
 const candidate=studio+'edition-candidates/score/';
-const version='0.208.0-rc.1';
+const version='0.209.0-rc.1';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 
 function localDependencies(output,name) {
