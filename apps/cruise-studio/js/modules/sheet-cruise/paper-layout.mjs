@@ -95,9 +95,10 @@ export function createPaperLayout(C,doc=document){
 .sc-paper-layout :is(.sheet-bar-lyrics,.sheet-bar-doremi)>.sheet-timed-cell{white-space:normal;overflow-wrap:anywhere;line-break:strict;font-feature-settings:"palt";}
 .sc-paper-layout .sheet-bar-lyrics>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-lyricsSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
 .sc-paper-layout .sheet-bar-doremi>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-doremiSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
-.sheet-note-fa{display:inline-grid;grid-template-columns:.41em .55em;width:.96em;white-space:nowrap;letter-spacing:0;font-feature-settings:normal;}
-.sheet-note-fa>span{width:1em;transform:scaleX(.55);transform-origin:left center;}
-.sheet-note-fa>span:first-child{transform:scaleX(.78);}
+.sheet-note-fa{display:inline-grid;grid-template-columns:.56em .44em;width:1em;line-height:1;vertical-align:baseline;text-align:left;white-space:nowrap;letter-spacing:0;font-feature-settings:normal;}
+.sheet-note-fa>span{width:1em;transform-origin:left center;}
+.sheet-note-fa>span:first-child{transform:scaleX(.82);}
+.sheet-note-fa>span:last-child{align-self:end;font-size:.6em;transform:scaleX(.78);}
 .sc-paper-layout .sheet-kana-pair{letter-spacing:calc(var(--sc-vocal-spacing) - .12em);}
 .sc-paper-layout .sheet-bar-grid~.sheet-preset-strum{align-self:stretch;padding-top:0!important;}
 .sc-paper-layout .sheet-bar-grid~.sheet-preset-strum>[data-strum-state]{align-self:stretch;padding-top:3px;}

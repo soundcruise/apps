@@ -181,16 +181,49 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await first.press('ArrowRight');await settle(page);assert.equal(await page.evaluate(()=>document.activeElement.dataset.cellIndex),'1');assert.notEqual(await page.locator('.dock-strum-cell').nth(1).evaluate(e=>getComputedStyle(e).boxShadow),'none');
         }));
         await t.test('lyrics and solfege use matching centers and font metrics; paper rows align at their onset',()=>fresh(async page=>{
-            await select(page);await page.locator('.dock-lyrics-cell').first().fill('あい');await page.locator('[data-overlay-field=doremi]').first().fill('ドレ');await page.locator('[data-overlay-field=doremi]').first().press('Tab');await settle(page);await page.locator('[data-overlay-field=chord]').first().fill('C');await page.locator('[data-overlay-field=chord]').first().press('Tab');await settle(page);
+            await select(page);await page.locator('.dock-lyrics-cell').first().fill('あ');await page.locator('[data-overlay-field=doremi]').first().fill('ド');await page.locator('[data-overlay-field=doremi]').first().press('Tab');await settle(page);await page.locator('[data-overlay-field=chord]').first().fill('C');await page.locator('[data-overlay-field=chord]').first().press('Tab');await settle(page);
             const before=await snapshot(page);
             for(const width of [1440,390]){
                 await page.setViewportSize({width,height:900});await settle(page);
-                const metrics=await page.evaluate(()=>{function m(e){const s=getComputedStyle(e),r=e.getBoundingClientRect();return {left:r.x,center:r.x+r.width/2,align:s.textAlign,size:s.fontSize,family:s.fontFamily,spacing:s.letterSpacing};}return {lyric:m(document.querySelector('.dock-lyrics-cell')),note:m(document.querySelector('[data-overlay-field=doremi]')),paper:[...document.querySelector('.sheet-bar').querySelectorAll('.sheet-bar-chord > span:first-child,.sheet-bar-lyrics > span:first-child,.sheet-bar-doremi > span:first-child')].map(m)};});
+                const metrics=await page.evaluate(()=>{
+                    function fieldMetrics(input){
+                        const box=input.getBoundingClientRect(),style=getComputedStyle(input);
+                        return {center:box.left+box.width/2,align:style.textAlign,size:style.fontSize,family:style.fontFamily};
+                    }
+                    const bar=document.querySelector('.sheet-bar');
+                    const centers=['chord','lyrics','doremi'].map(row=>{
+                        const cell=bar.querySelector('.sheet-bar-'+row+' > .sheet-timed-cell');
+                        const left=cell.getBoundingClientRect().left, next=cell.nextElementSibling.getBoundingClientRect().left;
+                        const glyph=cell.firstElementChild.getBoundingClientRect();
+                        return {slot:(left+next)/2,glyph:glyph.left+glyph.width/2};
+                    });
+                    return {lyric:fieldMetrics(document.querySelector('.dock-lyrics-cell')),note:fieldMetrics(document.querySelector('[data-overlay-field=doremi]')),centers};
+                });
                 assert(Math.abs(metrics.lyric.center-metrics.note.center)<2);assert.equal(metrics.note.align,'center');assert.equal(metrics.note.size,metrics.lyric.size);assert.equal(metrics.note.family,metrics.lyric.family);
-                assert.equal(metrics.paper.length,3);for(const m of metrics.paper){assert.equal(m.align,'start');assert(Math.abs(m.left-metrics.paper[0].left)<1);}
+                for(const center of metrics.centers)assert(Math.abs(center.slot-center.glyph)<1,JSON.stringify(center));
                 if(output)await page.screenshot({path:path.join(output,'aligned-'+width+'.png')});
             }
             assert.deepEqual(await snapshot(page),before);
+        }));
+        await t.test('paper pinch and modified wheels share toolbar zoom and leave ordinary scrolling alone',()=>fresh(async page=>{
+            const viewport=page.locator('#sc-preview'), label=page.locator('#sc-zoom-reset');
+            const project=await snapshot(page);
+            const wheel=(deltaY,modifier)=>viewport.evaluate((e,[dy,key])=>{
+                const event=new WheelEvent('wheel',{deltaY:dy,[key]:true,bubbles:true,cancelable:true});
+                e.dispatchEvent(event);return event.defaultPrevented;
+            },[deltaY,modifier]);
+            assert.equal(await wheel(-80,'shiftKey'),false);
+            assert.equal(await wheel(-1000,'ctrlKey'),true);await settle(page);assert.equal(await label.textContent(),'200%');
+            assert.equal(await wheel(1000,'metaKey'),true);await settle(page);assert.equal(await label.textContent(),'50%');
+            await zoomControl(page,'#sc-zoom-reset');
+            await viewport.evaluate(e=>{
+                for(const [name,scale] of [['gesturestart',1],['gesturechange',1.4],['gestureend',1.4]]){
+                    const event=new Event(name,{bubbles:true,cancelable:true});Object.defineProperty(event,'scale',{value:scale});
+                    e.dispatchEvent(event);if(!event.defaultPrevented)throw Error(name);
+                }
+            });
+            await settle(page);assert.equal(await label.textContent(),'140%');
+            assert.deepEqual(await snapshot(page),project);
         }));
         await t.test('zoom changes only screen geometry and print stays A4',()=>fresh(async page=>{
             await page.locator('#sc-editor-drawer').evaluate(e=>e.open=false);await settle(page);
@@ -713,10 +746,11 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                             const r=g.getBoundingClientRect();return r.top<bounds.bottom-1&&r.bottom>bounds.top+1;}),
                         sizes:[...b.querySelectorAll('.sheet-bar-doremi [data-note-octave]')].map(e=>getComputedStyle(e).fontSize),
                         pair:b.querySelector('.sheet-note-fa')?.textContent,
+                        smallKanaSize:parseFloat(getComputedStyle(b.querySelector('.sheet-note-fa>span:last-child')).fontSize),
                         pairWidth:parseFloat(getComputedStyle(b.querySelector('.sheet-note-fa')).width)};
                 });
                 assert.equal(metrics.background,'rgba(0, 0, 0, 0)');assert.equal(metrics.overlap,false);
-                assert.deepEqual(metrics.sizes,['14px','14px']);assert.equal(metrics.pair,'ファ');assert(Math.abs(metrics.pairWidth-14*.96)<.1);
+                assert.deepEqual(metrics.sizes,['14px','14px']);assert.equal(metrics.pair,'ファ');assert(Math.abs(metrics.pairWidth-14)<.1 && Math.abs(metrics.smallKanaSize-8.4)<.1);
             }
             await page.emulateMedia({media:'screen'});await openPaperSettings(page);
             const dialog=page.locator('[data-paper-layout]'),spacing=dialog.getByRole('slider',{name:'ドレミの字間'});

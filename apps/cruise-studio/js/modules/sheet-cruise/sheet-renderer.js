@@ -289,14 +289,19 @@
                 if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}
                 cell.appendChild(token);
             }
+            if(items.length){
+                cell.style.width='max-content';
+            }
             if(vocal && items.length){
-                // Borrow empty time slots up to the next onset before wrapping.
+                // A short syllable stays centered on its onset. Only longer text borrows empty slots.
                 let end=i+1;
                 while(end<resolution&&!texts[end].length)end++;
-                cell.style.width=((end-i)*100)+'%';
+                cell.style.maxWidth=((end-i)*100)+'%';
             }
             cell.dataset.slotTick=i*barTicksLen/resolution;
-            Object.assign(cell.style,{textAlign:'start',minWidth:'0',position:'relative'});
+            cell.style.textAlign='center';
+            cell.style.position='relative';
+            cell.style.minWidth=items.length?'100%':'0';
             if(!vocal)cell.style.whiteSpace='nowrap';
             row.appendChild(cell);
         });
