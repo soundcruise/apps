@@ -180,6 +180,18 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.equal(await first.getAttribute('data-line-capacity'),'3');
             assert.deepEqual(await snapshot(page),project);
         }));
+        await t.test('a final offbeat chord can extend into the next bar',()=>fresh(async page=>{
+            const geometry=await page.evaluate(()=>{
+                const C=CruiseStudio,score=C.model.toStructureView(C.sheetCruise.getSession().workingSnapshot());
+                score.bars[0].chords=[{tick:1680,symbol:'Em'}];
+                const paper=document.createElement('div');paper.className='sc-song-preview sc-paper-layout';document.body.append(paper);
+                C.sheetRenderer.render(score,paper,{barsPerLine:4,visibility:{chords:true}});
+                const row=paper.querySelector('.sheet-bar-chord');row.style.width='144px';
+                const result={overflow:getComputedStyle(row).overflow,overhang:row.querySelector('.sheet-chord-event>span').getBoundingClientRect().right-row.getBoundingClientRect().right};
+                paper.remove();return result;
+            });
+            assert.equal(geometry.overflow,'visible');assert(geometry.overhang>0);
+        }));
         await t.test('short chord insets respect adjacent onsets and the end of the bar',()=>fresh(async page=>{
             const gaps=await page.evaluate(()=>{
                 const C=CruiseStudio,project=C.model.toStructureView(C.sheetCruise.getSession().workingSnapshot());

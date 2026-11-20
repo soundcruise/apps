@@ -123,6 +123,8 @@ export function createPaperLayout(C,doc=document){
 .sc-paper-layout .sheet-bar-num{font-size:var(--sc-numberSize)!important;min-height:18px!important;line-height:1.3;}
 .sc-paper-layout.sc-hide-numbers .sheet-bar-num,.sc-paper-layout.sc-hide-numbers [data-edit-selected-bar]{display:none!important;}
 .sc-paper-layout .sheet-bar-chord{height:max(24px,calc(var(--sc-section-chordSize,var(--sc-chordSize)) * 1.45 + 2px));min-height:0!important;font-size:var(--sc-section-chordSize,var(--sc-chordSize))!important;align-items:center;padding:0!important;}
+/* Keep the chord at its onset when its last letters cross an internal barline. */
+.sc-paper-layout .sheet-bar:has(+.sheet-bar)>.sheet-bar-chord{overflow:visible!important;}
 .sc-paper-layout .sheet-bar-chord>.sheet-timed-cell{line-height:1.2;}
 .sc-paper-layout .sheet-bar-lyrics{font-size:var(--sc-section-lyricsSize,var(--sc-lyricsSize))!important;}
 .sc-paper-layout .sheet-bar-doremi{font-size:var(--sc-section-doremiSize,var(--sc-doremiSize))!important;}

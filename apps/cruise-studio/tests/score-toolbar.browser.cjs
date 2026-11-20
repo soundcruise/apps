@@ -16,7 +16,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const pin=id=>p.locator('[data-shortcut="'+id+'"]');
   assert(await pin('sc-edit-rhythm').isVisible());
   const ids=()=>p.locator('.sc-menu-shortcuts [data-shortcut]:visible').evaluateAll(items=>items.map(item=>item.dataset.shortcut));
-  const initial=await ids();
+  const initial=await ids();assert(initial.length>10);assert.equal(initial.length,await picker.locator('input[type=checkbox]').count());
   const toggle=picker.locator('summary');
   assert.equal(await toggle.textContent(),'…');
   assert.equal(await toggle.getAttribute('aria-label'),'ショートカットを選ぶ');
@@ -27,7 +27,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.keyboard.press('Escape');
   assert(await toggle.evaluate(el=>document.activeElement===el));
   await pin(initial[0]).dragTo(pin(initial[1]),{targetPosition:{x:32,y:18}});
-  assert.deepEqual(await ids(),[initial[1],initial[0]]);
+  assert.deepEqual(await ids(),[initial[1],initial[0],...initial.slice(2)]);
   await p.locator('#sc-curve-menu-toggle').click();
   await p.getByRole('button',{name:'ツールエリア',exact:true}).click();
   await picker.getByLabel('曲情報',{exact:true}).check();
@@ -39,8 +39,18 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('[data-score-cancel]');
   assert.deepEqual(await snap(p),before);
   await p.reload();await p.click('#open-sheet-cruise');
-  assert.deepEqual(await ids(),['sc-edit-song',initial[0]]);
+  assert.deepEqual(await ids(),[initial[1],initial[0],...initial.slice(2)].filter(id=>id!=='sc-edit-rhythm'));
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
+ }));
+ await t.test('help opens the illustrated manual and an unsaved song explains its save location',()=>fresh(async p=>{
+  const before=await snap(p),opened=p.waitForEvent('popup');await p.locator('#sc-score-guide').click();
+  const manual=await opened;await manual.waitForLoadState();
+  assert.match(await manual.title(),/譜面クルーズ 取扱説明書/);
+  assert(await manual.locator('figure img').evaluateAll(images=>images.length>=8&&images.every(img=>img.complete&&img.naturalWidth>0)));
+  assert(await manual.locator('nav a').evaluateAll(links=>links.every(a=>document.getElementById(a.hash.slice(1)))));
+  await manual.close();await p.click('#sc-file-location');
+  const info=p.getByRole('dialog',{name:'保存場所'});assert.match(await info.textContent(),/未保存/);
+  await info.getByRole('button',{name:'閉じる'}).click();assert.deepEqual(await snap(p),before);
  }));
  await t.test('shortcut settings remain reachable with all commands on a narrow screen',()=>fresh(async p=>{
   const picker=p.locator('#sc-shortcut-menu'),toggle=picker.locator('summary');
@@ -289,6 +299,8 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.equal((await snap(p)).projectId,before.projectId);
   assert.equal(await p.locator('#sc-project-select option').count(),rows);
   await p.reload();await p.click('#open-sheet-cruise');
+  await p.evaluate(()=>{window.showOpenFilePicker=async({startIn})=>{window.locationFilename=startIn.name;throw new DOMException('cancel','AbortError');};});
+  await p.click('#sc-file-location');await p.waitForFunction(()=>window.locationFilename==='renamed.json');
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});

@@ -468,7 +468,7 @@
             'sc-menu-zoom-in':'sc-zoom-in','sc-menu-zoom-out':'sc-zoom-out','sc-menu-zoom-reset':'sc-zoom-reset'};
         const key='scoreToolbarShortcuts';
         const saved=CS().storage.getAppSetting(key);
-        const chosen=new Set(Array.isArray(saved)?saved:['sc-edit-chord-preset','sc-edit-rhythm']);
+        const chosen=new Set(Array.isArray(saved)?saved:[]);
         chosen.delete('sc-menu-staff-toggle');
         const strip=document.createElement('div');
         strip.className='sc-menu-shortcuts';strip.setAttribute('role','group');strip.setAttribute('aria-label','メニューのショートカット');
@@ -503,6 +503,7 @@
         for(const target of menuBody.querySelectorAll('button[id]')){
             if(menuBody.contains(target.closest('[hidden]')))continue;
             const id=target.id,command=q(mirrors[id])||target;
+            if(!Array.isArray(saved))chosen.add(id);
             const pin=document.createElement('button');pin.type='button';pin.className='btn-ghost btn-compact';pin.dataset.shortcut=id;
             const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
             svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
@@ -569,7 +570,10 @@
             const order=[...pins.keys()].filter(id=>chosen.has(id));
             chosen.clear();order.forEach(id=>chosen.add(id));saveOrder();
         };
-        picker.body.append(reset);
+        const all=document.createElement('button');all.type='button';all.textContent='すべて表示';
+        all.onclick=()=>{for(const [id,pin] of pins){chosen.add(id);pin.hidden=false;}
+            picker.body.querySelectorAll('input[type=checkbox]').forEach(input=>input.checked=true);saveOrder();};
+        picker.body.append(all,reset);
         arrange();
         const configure=document.createElement('button');
         configure.type='button';configure.className='btn-ghost btn-compact';configure.textContent='ツールエリア';
@@ -589,6 +593,11 @@
         function menu(id,title){var el=document.createElement('details'),summary=document.createElement('summary'),body=group('sc-toolbar-menu-body');el.id=id;el.className='sc-toolbar-menu';summary.id=id+'-toggle';summary.textContent=title;body.setAttribute('aria-labelledby',summary.id);el.append(summary,body);return {root:el,body:body};}
         function divider(body){body.appendChild(document.createElement('hr'));}
         var right=group('sc-toolbar-head-actions');right.id='sc-toolbar-head-actions';head.appendChild(right);
+        const location=button('sc-file-location','保存場所',showFileLocation);
+        els.projectSelect.after(location);
+        const guide=document.createElement('a');guide.id='sc-score-guide';guide.textContent='？';
+        guide.href='/apps/cruise-studio/score-guide/index.html';guide.target='_blank';guide.rel='noopener';
+        guide.title='譜面クルーズの取扱説明書';guide.setAttribute('aria-label',guide.title+'（新しいタブ）');head.append(guide);
         var curve=menu('sc-curve-menu','曲メニュー');head.insertBefore(curve.root,right);
         function menuLabel(text){var label=document.createElement('span');label.textContent=text;label.className='sc-menu-label';curve.body.appendChild(label);}
         els.newProjectBtn.textContent='新しい曲を作成';curve.body.appendChild(els.newProjectBtn);divider(curve.body);menuLabel('保存');
@@ -1319,7 +1328,10 @@
         style.textContent=`
 
 #screen-sheet-cruise .sc-score-toolbar-head{padding-right:52px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-basis:100%;width:100%;}
-#screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:0;}
+#screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:0;display:flex;align-items:center;gap:4px;}
+#sc-project-select{min-width:0;}#sc-file-location{white-space:nowrap;}
+#sc-score-guide{margin-inline-start:auto;border:1px solid currentColor;color:inherit;text-decoration:none;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;align-self:center;}
+.sc-location-dialog{max-width:min(26em,85vw);padding:20px;border-radius:10px;}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
 #screen-sheet-cruise .sc-paper-visibility{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--studio-border-default);}
 #screen-sheet-cruise .sc-paper-visibility label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
@@ -5789,6 +5801,31 @@
         exportButton.textContent='ファイルに書き出す（JSON）';
         exportButton.addEventListener('click',downloadCurrentProjectJson);
         els.saveStatus.append(' ',exportButton);
+    }
+    async function showFileLocation(){
+        const session=state.session;
+        if(!session)return;
+        const id=session.target.projectId;
+        let message;
+        await handleReads.get(id);
+        if(state.session!==session)return;
+        const handle=fileHandles.get(id);
+        if(handle&&typeof window.showOpenFilePicker==='function'){
+            try{
+                await window.showOpenFilePicker({startIn:handle,multiple:false});
+                return;
+            }catch(error){
+                if(error.name==='AbortError')return;
+                message='「'+handle.name+'」の保存場所を開けませんでした。曲メニューの「名前をつけて保存」で保存先を選び直せます。';
+            }
+        }else{
+            message=(session.baseRevision===null?'この曲は未保存です。':'この曲はこのブラウザに保存されています。')+
+                (typeof window.showSaveFilePicker==='function'?' 曲メニューの「名前をつけて保存」で、ファイル名と保存先を選べます。':' 曲メニューのJSON書き出しでファイルを作成できます。保存先はブラウザのダウンロード設定で確認できます。');
+        }
+        const dialog=document.createElement('dialog'),title=document.createElement('h2'),info=document.createElement('p'),close=document.createElement('button');
+        dialog.className='sc-location-dialog';dialog.setAttribute('aria-label','保存場所');title.textContent='保存場所';info.textContent=message;close.textContent='閉じる';
+        close.onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+        dialog.append(title,info,close);els.root.append(dialog);dialog.showModal();
     }
     async function commitSession(session,{chooseFile=false}={}){
         if(fileSaves.has(session))return {ok:false,error:'保存中です'};
