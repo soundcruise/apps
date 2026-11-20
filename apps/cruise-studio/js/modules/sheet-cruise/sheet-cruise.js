@@ -1264,8 +1264,10 @@
 
     // Both the paper and its settings preview use the same snapshot and display choices.
     function effectivePaperVisibility(project){var show=CS().sheetRenderer.resolveShowSettings(project);return {chords:show.chords,strum:show.strum,lyrics:show.lyrics,doremi:show.doremi,forms:!!paperFormSessions.get(state.session),timingGrid:CS().localPaperLayout?.value.timingGrid??show.timingGrid,gridResolution:CS().localPaperLayout?.value.gridResolution??show.gridResolution,...CS().localPaperLayout?.value.appearance.visibility};}
+    var lastPaperColumns;
     function paperRenderOptions(project,version=state.session?.snapshotVersion){
-        var layout=CS().localPaperLayout?.renderOptions(project),defaultForms=effectivePaperVisibility(project).forms;
+        var layout=CS().localPaperLayout?.renderOptions(project,els.root),defaultForms=effectivePaperVisibility(project).forms;
+        lastPaperColumns=layout?.barsPerLine;
         var forms=(defaultForms||layout?.sectionRules.some(rule=>rule.visibility?.forms))&&CS().localPaperForms?.view(project,{scale:CS().localPaperLayout?.value.formScale});
         const rowSettings=state.lyricBeatResV2.get(state.session);
         return {contentKey:project.projectId+':'+version,structureView:!historyPreview&&state.session?.draft.projectId===project.projectId&&state.session.snapshotVersion===version?state.project:null,editableSlots:true,hasFormsForBar:forms?forms.has:null,formsForBar:forms?forms.row:null,defaultForms,...layout,
@@ -2487,7 +2489,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.204.0-dev.1'),import('../score-ui.mjs?v=0.204.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.204.0-dev.1'),import('../score-ui.mjs?v=0.204.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen',openSettings:()=>q('sc-paper-settings')?.click()});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -5298,6 +5300,11 @@
                     changed = true;
                 }
             });
+            if(changed && state.session && CS().localPaperLayout?.value.autoBarsPerLine && CS().localPaperLayout.automaticColumns(els.root)!==lastPaperColumns){
+                playingPaperBar=null;
+                renderPreview(true,true);
+                if(barPreviewPhase==='playing')beginPlaybackFollow();
+            }
             if (changed) scheduleOverlayPosition(false);
         });
         [els.root, els.preview, els.toolbar].forEach(function (el) {

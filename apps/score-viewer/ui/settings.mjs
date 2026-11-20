@@ -25,11 +25,9 @@ export function createViewerSettings({host,read,change,playback,configure,toggle
         const memory={scorePaperDisplayV2:{version:2,layout:{},rows:[],presets:[]}};
         const owner=createPaperLayout({storage:{getAppSetting:key=>memory[key],setAppSetting:(key,value)=>{memory[key]=value;return {ok:true};}},localPaperForms:forms},doc);
         owner.replacePresentation(score,backup);
-        const lineArrangement=p=>JSON.stringify([p.layout.barsPerLine,p.rows,
-            (p.layout.sections||[]).filter(rule=>rule.barsPerLine).map(rule=>[rule.sectionId,rule.barsPerLine]).sort()]);
-        const originalRows=lineArrangement(backup);let d=null;
+        let d=null;
         const active=()=>current===d&&d?.open&&same();
-        owner.onChange(()=>{if(!active())return;const value=owner.exportPresentation(score),geometry=lineArrangement(value);change({...read().presentation,layout:value.layout,rows:value.rows,...(geometry!==originalRows?{flow:'source'}:{})});});
+        owner.onChange(()=>{if(active()){const {layout,rows}=owner.exportPresentation(score);change({...read().presentation,layout,rows});}});
         function mountPresets(parent){
             const node=(tag,text,target=parent)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;target.append(e);return e;};
             const button=(text,target=parent)=>{const b=node('button',text,target);b.type='button';return b;};

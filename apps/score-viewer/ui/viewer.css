@@ -176,6 +176,8 @@
 @container viewer (max-width:620px){.sv-viewer>.sv-toolbar{gap:5px;padding:6px}.sv-toolbar>.sv-main-menu>summary,.sv-toolbar>.sv-display-menu>summary,.sv-toolbar>[data-viewer-action=library]{font:12px/1.3 system-ui!important;padding:6px 8px!important;white-space:nowrap;flex:none}.sv-toolbar>.sv-main-menu>summary::after{margin-left:6px}.sv-toolbar>[data-viewer-focus]{box-sizing:border-box;width:38px;min-width:38px;padding:8px!important;flex:none}.sv-toolbar>.sv-display-menu{flex:none}.sv-toolbar>.sv-main-menu{flex:none}}
 
 /* Keep the same paper-sized reading area as Sheet Cruise in fullscreen. */
-.sv-viewer.sv-focused:not(.sv-pdf-viewer)>.sv-viewport{width:100%;max-width:794px;align-self:center;}
+.sv-viewer.sv-focused:not(.sv-pdf-viewer)>.sv-viewport{width:100%;max-width:none;align-self:center;}
 .sv-toolbar>.sv-display-menu{margin-left:auto;}
 .sv-toolbar>label{margin-left:0;}
+
+.sv-viewer.sv-focused{padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))!important}

@@ -56,7 +56,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     const audioSettings=button('音設定','playback-settings',transport),scrollButton=button('送り設定','scroll-settings',transport),scrollReset=button('BPMに戻す','scroll-reset',transport),follow=button('自動追従に戻る','follow',transport),here=button('ここから再生','here',transport);
     follow.hidden=here.hidden=true;transport.append(summary);
     const repeatButton=button('繰り返し','repeat',transport);labelIcon(repeatButton,'loop','繰り返し');repeatButton.setAttribute('aria-pressed','false');styleRepeatButton(repeatButton);
-    const focusMode=mountFocusMode(host,bar);
+    const focusMode=mountFocusMode(host,bar,{openSettings:()=>display.click()});
     const selectionLabel=node('span','',transport);selectionLabel.className='sv-selection-label';selectionLabel.dataset.viewerSelection='';
     start.hidden=true;start.style.display='none';audioSettings.textContent='音設定';audioSettings.classList.add('sv-audio-settings');
     let exporting=false;const syncExport=exportIcon(doc,bar,async()=>{if(!current||exporting)return;const item=current,args={document:doc,contract,bytes:item.bytes,presentation:item.reader.read().presentation,renderPaper,name:item.libraryTitle,notify:(...value)=>{if(current===item)notice(...value);},isCurrent:()=>active&&!disposed&&current===item};exporting=true;controls();try{const {downloadScorePDF}=await import('./pdf-download.mjs');await downloadScorePDF(args);}catch{notice('PDFを作成できませんでした。',true);}finally{exporting=false;controls();}});
@@ -132,7 +132,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     function redraw(anchor=viewAnchor()) {
         if(!current||!active)return;
         applyScoreTheme(host,current.reader.read().presentation.layout.appearance.interaction);
-        renderPaper(current.reader,current.paper,{width:viewport.clientWidth,interactive:true});
+        renderPaper(current.reader,current.paper,{width:viewport.clientWidth,interactive:true,layoutHost:host});
         measureGeometry();
         const sound=current.player.visualSnapshot();if(sound.phase==='playing')paintPosition(sound);
         if(current.player.snapshot().phase==='playing'&&following&&current.scroll.snapshot().enabled){restoring=false;scrollTo(geometry.target(current.scroll.target(current.player.visualSnapshot()),span(),scrollMax()));}
@@ -206,7 +206,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
             if(disposed||!active||request!==ticket){reader.dispose();return false;}
             if(preference?.version===1&&preference.presentation)try {reader.setPresentation({...document.defaultPresentation,...preference.presentation});}catch{preferenceFailed=true;}
             const paper=doc.createElement('div');paper.className='sv-paper';
-            renderPaper(reader,paper,{width:viewport.clientWidth,interactive:true}); // Prepare before removing the preceding score.
+            renderPaper(reader,paper,{width:viewport.clientWidth,interactive:true,layoutHost:host}); // Prepare before removing the preceding score.
             let player;player=createPlayback(document,preference?.playback,()=>soundChanged(player));
             if(current)await persistPreferences();
             if(disposed||!active||request!==ticket){reader.dispose();void player.dispose();return false;}
@@ -254,7 +254,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         const valid=()=>!dead&&active&&current===item&&options.isOpen();
         return {async play(){const ticket=++generation;if(!valid())return;options.changed('loading');const stopGeneration=createPlayback.stopGeneration?.();item.player.pause();await closing;if(ticket!==generation||!valid()||stopGeneration!==createPlayback.stopGeneration?.())return;if(!player)player=createPlayback(item.reader.read().document,{...item.player.snapshot().settings,tick:0},s=>options.changed(['playing','counting','loading'].includes(s.phase)?s.phase:'idle'));player.setRange(0,player.snapshot().totalTicks,false);player.seek(0);try{await player.play();}catch(error){options.changed('idle');options.message(error.message||'音を開始できませんでした');}},stop(){generation++;options.changed('idle');const old=player;player=null;if(old)closing=old.dispose();return closing;},position(){if(!player||player.snapshot().phase!=='playing')return null;const s=player.visualSnapshot();return {barNumber:s.barIndex+1,tick:s.tickInBar,barTicks:item.ticksPerBar,barSeconds:item.ticksPerBar*60/(480*(s.outputBpm??s.bpm)),nextBarNumber:(s.barIndex+1)*item.ticksPerBar<s.range.end?s.barIndex+2:null};},dispose(){dead=true;generation++;const old=player;player=null;if(old)closing=old.dispose();return closing;}};
     }
-    const panels=createViewerSettings({host,forms:renderPaper.forms,renderPreview:(target,p)=>{if(!current)return;const item=current;renderPaper({read:()=>({...item.reader.read(),presentation:{...item.reader.read().presentation,...p,flow:'source',zoom:1}}),renderWith:(...args)=>item.reader.renderWith(...args)},target,{width:794,interactive:false});},createPreviewAudio:settingsPreviewAudio,library,presetCodec:createPresetCodec(contract.normalizePresentation),read:()=>current&&!disposed?current.reader.read():null,change,
+    const panels=createViewerSettings({host,forms:renderPaper.forms,renderPreview:(target,p)=>{if(!current)return;const item=current;renderPaper({read:()=>({...item.reader.read(),presentation:{...item.reader.read().presentation,...p,flow:'source',zoom:1}}),renderWith:(...args)=>item.reader.renderWith(...args)},target,{width:794,interactive:false,layoutHost:host});},createPreviewAudio:settingsPreviewAudio,library,presetCodec:createPresetCodec(contract.normalizePresentation),read:()=>current&&!disposed?current.reader.read():null,change,
         playback:()=>current.player.snapshot(),toggle:()=>play.click(),configure(value){try{if(value.bpm!==undefined)current.player.setTempo(value.bpm);else current.player.configure(value);schedulePreferences();controls();scrollPanel.refresh();}catch{notice('テンポはカウントイン終了後に変更できます。',true);}},
         begin(){presentationPreview=true;win.clearTimeout(preferenceTimer);},finish(accepted){presentationPreview=false;if(accepted&&!disposed){const item=current;void persistPreferences().then(ok=>{if(ok&&!disposed&&current===item)notice('表示設定をこのブラウザに保存しました。');});}},notify:notice});
     display.onclick=()=>{displayMenu.open=false;scrollPanel.close();panels.display(displaySummary);};audioSettings.onclick=()=>{scrollPanel.close();panels.audio(audioSettings);};

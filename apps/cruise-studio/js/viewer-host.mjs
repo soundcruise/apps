@@ -2,15 +2,16 @@ import {chooseExportName,exportComplete} from '../../score-viewer/ui/export-dial
 import {createStudioViewerContract} from './modules/sheet-cruise/viewer-contract.mjs';
 import {createViewerLibrary} from '../../score-viewer/core/library.mjs';
 import {mountViewer} from '../../score-viewer/ui/viewer.mjs';
-import {createPaperLayout} from './modules/sheet-cruise/paper-layout.mjs';
+import {automaticColumns,createPaperLayout} from './modules/sheet-cruise/paper-layout.mjs';
 import {createViewerPlayer} from '../../score-viewer/core/audio-player.mjs';
 import {createViewerSamples} from './modules/sheet-cruise/viewer-samples.mjs';
 
 export function createViewerPaperRenderer(C){const layouts=new WeakMap();
-    function renderPaper(reader,host,{width,interactive=false}) {
+    function renderPaper(reader,host,{width,interactive=false,layoutHost=host.closest('.sv-viewer')}) {
         const {document:doc,presentation:stored}=reader.read(),score=doc.score;
-        const p=host.closest('.score-fullscreen')&&stored.flow!=='horizontal'?{...stored,flow:'source'}:stored;
-        const logicalWidth=width/p.zoom,automatic=p.flow==='responsive',horizontal=p.flow==='horizontal',scale=p.flow==='source'?width/794*p.zoom:p.zoom,columns=automatic?(logicalWidth<600?1:logicalWidth<1050?2:4):p.layout.barsPerLine||4;
+        const p=stored;
+        const columns=p.layout.autoBarsPerLine?automaticColumns(layoutHost):p.layout.barsPerLine;
+        const logicalWidth=width/p.zoom,automatic=p.flow==='responsive',horizontal=p.flow==='horizontal',scale=p.flow==='source'?width/794*p.zoom:p.zoom;
         const paperWidth=p.flow==='source'?794:automatic?Math.max(100,Math.floor(logicalWidth)):Math.max(794,Math.floor(logicalWidth));
         host.style.width=Math.ceil(paperWidth*scale)+'px';
         // A separate in-memory presentation owner shares CSS/geometry only. It
@@ -28,10 +29,10 @@ export function createViewerPaperRenderer(C){const layouts=new WeakMap();
         const sectionRules=p.layout.sections||[];
         const forms=(visibility.forms!==false||sectionRules.some(r=>r.visibility?.forms))&&C.localPaperForms.view(score,{scale:p.layout.formScale});
         const rules=new Map(p.rows.map(r=>[r.barId,r]));
-        reader.renderWith(C.sheetRenderer,surface,{reuseBars:!horizontal&&local.flow!=='horizontal',sectionRules,barsPerLine:automatic?columns:(p.layout.barsPerLine||undefined),visibility,structureView,formsList:visibility.formList?C.localPaperForms.list(score,{interactive}):null,formsForBar:forms?forms.row:null,
+        reader.renderWith(C.sheetRenderer,surface,{reuseBars:!horizontal&&local.flow!=='horizontal',sectionRules,barsPerLine:columns,visibility,structureView,formsList:visibility.formList?C.localPaperForms.list(score,{interactive}):null,formsForBar:forms?forms.row:null,
             inputGridForRow:(bar,row)=>gridRows.get(bar.sourceId)?.[row],
             contentKey:doc.viewerDocumentId+':'+doc.revisionId+':'+JSON.stringify([visibility,p.gridRows,sectionRules]),
-            lineLayoutForSlot:automatic?undefined:id=>rules.get(id)||null});
+            lineLayoutForSlot:id=>rules.get(id)||null});
         if(interactive&&!local.zoomBound){surface.addEventListener('click',e=>{const form=e.target.closest('.sheet-form-event');if(form){e.stopPropagation();C.localPaperForms.zoom(local.reader.read().document.score,form.dataset.formEvent);}});surface.addEventListener('keydown',e=>{const form=e.target.closest('.sheet-form-event');if(form&&['Enter',' '].includes(e.key)){e.preventDefault();e.stopPropagation();C.localPaperForms.zoom(local.reader.read().document.score,form.dataset.formEvent);}});local.zoomBound=true;}local.reader=reader;
         if(interactive)surface.querySelectorAll('.sheet-form-event').forEach(e=>{e.tabIndex=0;e.setAttribute('role','button');e.setAttribute('aria-haspopup','dialog');e.style.cursor='zoom-in';});
         layout.apply(surface);local.flow=p.flow;

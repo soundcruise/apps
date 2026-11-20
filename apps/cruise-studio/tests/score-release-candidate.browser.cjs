@@ -327,3 +327,62 @@ for (const model of ['iPhone 13', 'Pixel 7', 'iPad (gen 7)', 'Galaxy Tab S4']) {
         }
     });
 }
+
+for (const engine of ['chrome','webkit']) test('automatic measure layout survives rotation, zoom and fullscreen: '+engine, async t=>{
+    const server=await startServer();
+    t.after(()=>stopServer(server));
+    const origin='http://127.0.0.1:'+server.address().port;
+    const browser=await (engine==='chrome'?chromium.launch({channel:'chrome'}):webkit.launch());
+    t.after(()=>browser.close());
+    const {viewerFixture}=await import('./helpers/viewer-fixture.mjs');
+    const {score,contract,metadata}=viewerFixture();
+    const exported=await contract.codec.encode(score,metadata);
+    for(const viewer of [false,true]) await t.test(viewer?'Viewer':'Editor',async t=>{
+        const context=await browser.newContext({isMobile:true,hasTouch:true,viewport:{width:402,height:874}});
+        t.after(()=>context.close());
+        const page=await context.newPage();
+        page.setDefaultTimeout(7000);
+        await page.goto(origin+(viewer?'/apps/score-viewer/standalone/':'/apps/cruise-studio/'));
+        if(!viewer)await page.click('#open-sheet-cruise');
+        await page.locator(viewer?'[data-viewer-file]':'#sc-import-json').setInputFiles({
+            name:viewer?'test.cruise-score.json':'editor.json',mimeType:'application/json',
+            buffer:Buffer.from(viewer?exported.text:JSON.stringify(score))
+        });
+        const firstLine=(viewer?'.sv-paper':'#sc-sheet-scale-box')+' .sheet-line';
+        const columns=n=>page.waitForFunction(([sel,n])=>Number(document.querySelector(sel)?.dataset.lineCapacity)===n,[firstLine,n]);
+        const play=page.locator(viewer?'[data-viewer-action=play]:visible':'#sc-song-preview');
+        const activeBar=page.locator(viewer?'.sv-playing':'#sc-sheet-scale-box .sc-playing-bar');
+        await columns(1);
+        await play.tap();
+        await activeBar.first().waitFor();
+        const bar=Number(await activeBar.first().getAttribute('data-bar-number'));
+        await page.setViewportSize({width:874,height:402});
+        await columns(2);
+        await page.locator(viewer?'.sv-viewport':'#sc-preview').dispatchEvent('wheel',{ctrlKey:true,deltaY:-150,bubbles:true,cancelable:true});
+        await page.waitForFunction(v=>v?CruiseViewer.view.read().presentation.zoom>1:parseInt(document.querySelector('#sc-zoom-reset').textContent)>100,viewer);
+        await columns(2);
+        const focus=page.locator(viewer?'[data-viewer-focus]':'#sc-fullscreen');
+        await focus.evaluate(b=>b.click());
+        await columns(2);
+        await page.setViewportSize({width:402,height:874});
+        await columns(1);
+        await page.waitForFunction(([sel,n])=>Number(document.querySelector(sel)?.dataset.barNumber)>n,[viewer?'.sv-playing':'.sc-playing-bar',bar]);
+        await play.tap();
+        await page.locator('.score-fullscreen .score-focus-settings').tap();
+        const dialog=page.locator('[data-paper-layout]');
+        await dialog.locator('[data-layout-setting=autoBarsPerLine]').uncheck();
+        await dialog.locator('[data-layout-setting=barsPerLine]').selectOption('3');
+        await dialog.locator('[data-layout-save]').tap();
+        await columns(3);
+        await page.locator('.score-fullscreen-exit:visible').tap();
+        await page.setViewportSize({width:820,height:1180});
+        await columns(3);
+        await focus.evaluate(b=>b.click());
+        await page.locator('.score-fullscreen .score-focus-settings').tap();
+        await dialog.locator('[data-layout-setting=autoBarsPerLine]').check();
+        await dialog.locator('[data-layout-save]').tap();
+        await columns(2);
+        await page.setViewportSize({width:1180,height:820});
+        await columns(4);
+    });
+});

@@ -167,8 +167,16 @@ export function installScoreUI(doc){
 .score-transport .score-tempo{padding:0 8px 0 12px;gap:6px;font:11px system-ui}.score-transport .score-tempo input{box-sizing:border-box;width:56px;min-height:40px;height:40px;font:14px system-ui!important;padding:4px;border:0;background:transparent;color:inherit}
 .score-transport .score-repeat{display:inline-flex;align-items:center;justify-content:center;min-height:44px!important;height:44px!important;min-width:40px;width:40px;padding:8px;border:1px solid #71839066;border-radius:8px;background:transparent;color:inherit}.score-transport .score-repeat[aria-pressed=true]{border-color:#b49a55;color:#ead8a2;background:#cdb47425}
 .score-fullscreen-exit{position:absolute;right:14px;top:14px;z-index:30;min-height:40px;padding:8px 10px;background:#25313ce8;color:#f5f1e8;border:1px solid #718390;border-radius:8px}
+.score-focus-actions{display:none}
+.score-fullscreen>.score-focus-actions{display:flex;justify-content:flex-end;align-items:center;gap:6px;flex:none;position:sticky;top:0;z-index:30;background:#111b23}
+.score-fullscreen .score-focus-actions>.score-fullscreen-exit{position:static}
+.score-focus-settings{min-height:40px;padding:0 10px;border-radius:8px;background:#25313c;color:white}
+.sc-layout-dialog [data-layout-field=barsPerLine]{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px}
+.sc-layout-dialog [data-layout-field=barsPerLine]>span{grid-column:1/-1}
+.sc-layout-dialog [data-layout-field=barsPerLine]>label{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.score-fullscreen .score-fullscreen-exit{right:calc(env(safe-area-inset-right) + 14px);top:calc(env(safe-area-inset-top) + 14px)}
 #screen-sheet-cruise{container-type:inline-size;container-name:score}
-#screen-sheet-cruise.sc-focused{position:fixed!important;inset:0!important;z-index:100000;width:100vw!important;height:100dvh!important;max-width:none;margin:0!important;padding:14px!important;box-sizing:border-box;overflow:auto!important;background:#111b23}
+#screen-sheet-cruise.sc-focused{position:fixed!important;inset:0!important;z-index:100000;width:100vw!important;height:100dvh!important;max-width:none;margin:0!important;padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))!important;box-sizing:border-box;overflow:auto!important;background:#111b23}
 #screen-sheet-cruise.sc-focused>.screen-header,#screen-sheet-cruise.sc-focused>.workspace-local-nav,#screen-sheet-cruise.sc-focused>.sheet-toolbar,#screen-sheet-cruise.sc-focused>#sc-editor-drawer{display:none!important}
 #screen-sheet-cruise.sc-focused #sc-transport{position:sticky;bottom:0}.score-fullscreen-exit[hidden]{display:none!important}
 #screen-sheet-cruise #sc-fullscreen{min-height:44px;height:44px;width:44px;padding:10px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #71839066;border-radius:8px;background:var(--studio-control,#25313c);color:inherit}
@@ -192,11 +200,14 @@ export function installScoreUI(doc){
 }
 export function styleAudioButton(button){button.classList.add('score-audio-button');button.setAttribute('aria-label','音設定');button.title='音設定';button.textContent='';const icon=button.ownerDocument.createElement('span'),label=button.ownerDocument.createElement('span');icon.textContent='♫';icon.setAttribute('aria-hidden','true');label.textContent='音設定';label.className='score-audio-label';button.append(icon,label);}
 
-export function mountScoreFullscreen(host,parent,{className='sv-focused',attribute='viewerFocus'}={}){
+export function mountScoreFullscreen(host,parent,{className='sv-focused',attribute='viewerFocus',openSettings}={}){
  const doc=host.ownerDocument,win=doc.defaultView;let enabled=false,disposed=false;
  const button=doc.createElement('button'),exit=doc.createElement('button');button.type=exit.type='button';button.dataset[attribute]='';parent.append(button);exit.className='sv-focus-exit score-fullscreen-exit';exit.hidden=true;host.append(exit);
+ const settings=doc.createElement('button');
+ const focusActions=doc.createElement('div');
+ if(openSettings){settings.type='button';settings.textContent='表示設定';settings.className='score-focus-settings';settings.onclick=openSettings;focusActions.className='score-focus-actions';focusActions.append(settings,exit);host.prepend(focusActions);}
  function icon(b,collapse,text){const path=collapse?'M3 8h5V3m13 5h-5V3M8 21v-5H3m13 5v-5h5':'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5';b.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="'+path+'" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';b.setAttribute('aria-label',text);b.title=text;b.classList.add('sv-icon-button');}
- function paint(){host.classList.toggle(className,enabled);host.classList.toggle('score-fullscreen',enabled);host.dispatchEvent(new win.Event('scorefullscreenchange'));exit.hidden=!enabled;button.setAttribute('aria-pressed',String(enabled));icon(button,enabled,enabled?'全画面モードを終了':'全画面モード');icon(exit,true,'全画面モードを終了');win.dispatchEvent(new win.Event('resize'));}
+ function paint(){host.classList.toggle(className,enabled);host.classList.toggle('score-fullscreen',enabled);host.dispatchEvent(new win.Event('scorefullscreenchange'));settings.hidden=exit.hidden=!enabled;button.setAttribute('aria-pressed',String(enabled));icon(button,enabled,enabled?'全画面モードを終了':'全画面モード');icon(exit,true,'全画面モードを終了');win.dispatchEvent(new win.Event('resize'));}
  async function toggle(value){enabled=value;paint();if(value){try{await host.requestFullscreen?.();if(!enabled&&doc.fullscreenElement===host)await doc.exitFullscreen();}catch{}}else if(doc.fullscreenElement===host)try{await doc.exitFullscreen();}catch{}}
  button.onclick=()=>void toggle(!enabled);exit.onclick=()=>void toggle(false);
  const key=e=>{if(enabled&&e.key==='Escape'&&!doc.querySelector('dialog[open]')){e.preventDefault();e.stopPropagation();void toggle(false);}},full=()=>{if(!doc.fullscreenElement&&enabled){enabled=false;paint();}};
