@@ -1,4 +1,4 @@
-import { OFFICIAL_VIDEO_CHANNEL_ID, OFFICIAL_VIDEO_SOURCE_ID, CRUISE_STUDIO_VIDEO } from './news-articles.js?v=1.36.0';
+import { OFFICIAL_VIDEO_CHANNEL_ID, OFFICIAL_VIDEO_SOURCE_ID, CRUISE_STUDIO_VIDEO } from './news-articles.js?v=1.38.0';
 
 // Only the bundled, owner-reviewed official announcement can use this link type.
 // Public API articles do not acquire this authority from their URL or title.
@@ -26,7 +26,13 @@ export function confirmMembersVideo(doc, item, trigger, { open = url => doc.defa
     view.className = 'action-button primary-action'; cancel.autofocus = true;
     let active = true;
     const close = () => { if (dialog.open) dialog.close(); };
-    const cleanup = () => { active = false; dialog.remove(); if (trigger?.isConnected) trigger.focus(); };
+    const viewWindow = doc.defaultView;
+    const cleanup = () => {
+        active = false;
+        viewWindow?.removeEventListener?.('hashchange', close);
+        dialog.remove();
+        if (trigger?.isConnected) trigger.focus();
+    };
     cancel.addEventListener('click', close);
     view.addEventListener('click', () => {
         if (!active || !dialog.open || membersVideoHref(item) !== href) return;
@@ -41,5 +47,6 @@ export function confirmMembersVideo(doc, item, trigger, { open = url => doc.defa
     });
     actions.append(cancel, view); dialog.append(title, text, actions); doc.body.append(dialog);
     dialog.showModal(); cancel.focus();
+    viewWindow?.addEventListener?.('hashchange', close);
     return close;
 }

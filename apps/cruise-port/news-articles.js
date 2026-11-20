@@ -1,5 +1,25 @@
 // First-party editorial content is bundled locally; never accept article bodies from the API.
+const browserCorrectionId = 'studio-browser-correction';
+
 export const NEWS_ARTICLES = Object.freeze({
+    [browserCorrectionId]: Object.freeze({
+        title: '【動画の訂正】クルーズスタジオの推奨ブラウザはGoogle Chromeです',
+        publishedAt: '2026-11-19T15:00:00.000Z',
+        dateNote: '2026年11月20日',
+        intro: '紹介動画でご案内したブラウザについて訂正します。',
+        overview: '現在開発中の譜面クルーズを検証したところ、Google Chromeでは譜面ファイルの保存がしやすいことがわかりました。クルーズスタジオはSafariやEdgeでも引き続きお使いいただけますが、',
+        recommendation: 'Mac・WindowsともにGoogle Chromeを推奨いたします。',
+        steps: Object.freeze([
+            'Google ChromeでクルーズスタジオProを開きます。',
+            '右上の「︙」→「キャスト、保存、共有」→「Cruise Studio をインストール…」を選び、画面の案内に沿って追加します。',
+            '専用ウィンドウが開いたら、画面下のアイコンを右クリックして固定します。'
+        ]),
+        platforms: Object.freeze([
+            'Macでは「オプション」→「Dockに追加」を選びます。',
+            'Windowsでは「タスク バーにピン留めする」を選びます。'
+        ]),
+        pdfUrl: 'https://drive.google.com/file/d/18plr6HfonU_1CjZ01IQ7Eon_3C49pnbF/view?usp=drivesdk'
+    }),
     'theme-colors': Object.freeze({
         title: 'クルーズapps、4つのカラーテーマに対応',
         publishedAt: '2026-10-02T15:00:00.000Z',
@@ -57,5 +77,12 @@ export const CRUISE_STUDIO_NEWS_ITEM = Object.freeze({
     topicKey: 'sound-cruise:youtube:BKHbxOotq9E', sourceKind: 'official',
     sourceSafety: 'safe', manualReviewStatus: 'approved',
     publicationBasis: 'owner_official_notice_instruction_2026-11-18'
+});
+const browserCorrection = NEWS_ARTICLES[browserCorrectionId];
+export const STUDIO_BROWSER_CORRECTION = Object.freeze({
+    id: browserCorrectionId, label: browserCorrection.title,
+    sourceName: 'Sound Cruise', category: 'cruise_apps', linkType: 'internal', articleId: browserCorrectionId,
+    publishedAt: browserCorrection.publishedAt, createdAt: browserCorrection.publishedAt, updatedAt: browserCorrection.publishedAt,
+    topicKey: browserCorrectionId, sourceKind: 'official', sourceSafety: 'safe', manualReviewStatus: 'approved'
 });
 export const CRUISE_APPS_NEWS_ITEMS = Object.freeze([CRUISE_APPS_NEWS_ITEM, CRUISE_STUDIO_NEWS_ITEM]);

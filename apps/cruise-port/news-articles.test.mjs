@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, existsSync} from 'node:fs';
-import {NEWS_ARTICLES, articlePath, parseNewsArticleRoute, replaceNewsListRoute, CRUISE_APPS_NEWS_ITEM as own, CRUISE_STUDIO_NEWS_ITEM as video} from './news-articles.js';
+import {NEWS_ARTICLES, articlePath, parseNewsArticleRoute, replaceNewsListRoute, CRUISE_APPS_NEWS_ITEM as own, CRUISE_STUDIO_NEWS_ITEM as video, STUDIO_BROWSER_CORRECTION as correction} from './news-articles.js';
 import {NEWS_CATEGORIES, NEWS_FILTER_GROUPS, normalizeNewsItem, prepareNews, groupNews} from './news-data.js';
 import {NEWS_BETA_ITEMS} from './data/news-beta.js';
-import {loadConfiguredNews} from './news-provider.js';
+import {loadConfiguredNews, loadPortNewsPresentation} from './news-provider.js';
 import {renderNews} from './news-ui.js';
 import {renderNewsArticle} from './news-article-ui.js';
 import {normalizeInitialHome} from './app-version.js';
@@ -13,9 +13,10 @@ class Node {
  constructor(tag){this.tagName=tag;this.children=[];this.textContent='';this.attrs={};this.listeners={};}
  append(...nodes){this.children.push(...nodes);} replaceChildren(...nodes){this.children=nodes;}
  setAttribute(k,v){this.attrs[k]=v;} addEventListener(k,v){this.listeners[k]=v;}
+ get lastElementChild(){return this.children.at(-1);}
  all(){return this.children.flatMap(n=>[n,...n.all()]);}
 }
-function doc(){const ids=Object.fromEntries(['news-ticker','news-entry','news-content','news-article-title','news-article-content'].map(id=>[id,new Node('div')]));return{ids,createElement:tag=>new Node(tag),getElementById:id=>ids[id]};}
+function doc(){const ids=Object.fromEntries(['news-ticker','news-entry','news-content','news-article-title','news-article-content'].map(id=>[id,new Node('div')]));return{ids,createElement:tag=>new Node(tag),createTextNode:text=>Object.assign(new Node('#text'),{textContent:text}),getElementById:id=>ids[id]};}
 test('first-party production article is merged without preview query; queries never bypass API',async()=>{
  for(const search of ['', '?newsPreview=cruise-apps']){
   const calls=[];
@@ -77,7 +78,7 @@ test('theme update represents all five apps and identifies screenshots as Port e
 });
 test('direct NEWS URLs survive startup without appending a history entry; both editions include article view',()=>{
  for(const hash of ['#news',articlePath('theme-colors'),'#news/cruise-apps/unknown'])normalizeInitialHome({locationObject:{hash},historyObject:{replaceState(){assert.fail('no redirect/history loop');}}});
- for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.16\.0/);}
+ for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.38\.0/);}
 });
 
 test('explicit return replaces detail rather than appending a route (no back loop)',()=>{
@@ -96,4 +97,34 @@ test('four real screenshots have matching JPEG dimensions (no fabricated UI)',()
   }
   assert.deepEqual(dimensions,{width:378,height:819});
  }
+});
+
+test('Port adds the pinned correction to its official list and honors the news stop flag',async()=>{
+ const fetcher=async()=>Response.json({contractVersion:1,items:[],nextCursor:null});
+ assert.deepEqual((await loadPortNewsPresentation({fetcher})).items,[own,video,correction]);
+ await assert.rejects(loadPortNewsPresentation({fetcher:async()=>Response.json({disabled:true})}),{name:'NewsDisabledError'});
+});
+test('the correction stays above dated news and its list entry only shows the linked title',()=>{
+ const d=doc(),duringVideoFeature=Date.parse('2026-11-21T10:00:00+09:00');
+ const next=Date.parse('2027-03-01T09:00:00+09:00');
+ assert.deepEqual(groupNews(prepareNews([video,correction],{now:duringVideoFeature}),'',duringVideoFeature)[0][1].map(item=>item.id),[correction.id,video.id]);
+ assert.deepEqual(prepareNews([video,correction],{now:next}),[correction]);
+ renderNews({documentObject:d,items:[video,correction],now:duringVideoFeature,clock:()=>duringVideoFeature});
+ const featured=d.ids['news-content'].all().find(n=>n.tagName==='section');
+ assert.equal(featured.children[0].textContent,'注目のお知らせ');
+ const card=featured.children[1];
+ assert.equal(card.href,articlePath(correction.articleId));
+ assert.deepEqual(card.children.map(n=>n.textContent),[correction.label]);
+ assert.equal(featured.children[2].all().find(n=>n.tagName==='time').dateTime,video.publishedAt);
+});
+test('the correction article renders its recommendation, ordered instructions, PDF and video action',()=>{
+ const d=doc();assert.ok(renderNewsArticle({documentObject:d,hash:articlePath(correction.articleId)}));
+ const nodes=d.ids['news-article-content'].all(),article=NEWS_ARTICLES[correction.articleId];
+ assert.equal(d.ids['news-article-title'].textContent,correction.label);
+ assert.equal(nodes.find(n=>n.tagName==='strong').textContent,article.recommendation);
+ assert.equal(nodes.find(n=>n.tagName==='ol').children.length,3);
+ assert.equal(nodes.find(n=>n.href===article.pdfUrl).rel,'noopener noreferrer');
+ const button=nodes.find(n=>n.tagName==='button');
+ assert.equal(button.attrs['aria-haspopup'],'dialog');
+ assert.equal(typeof button.listeners.click,'function');
 });

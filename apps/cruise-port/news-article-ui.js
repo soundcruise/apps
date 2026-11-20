@@ -1,4 +1,31 @@
-import { NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.36.0';
+import { CRUISE_STUDIO_NEWS_ITEM, NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.38.0';
+import { confirmMembersVideo } from './news-members-video.js?v=1.38.0';
+
+function appendBrowserCorrection(doc, content, article, node) {
+    content.append(node('p', article.intro));
+    const overview = node('p');
+    overview.append(doc.createTextNode(article.overview), node('strong', article.recommendation));
+    content.append(overview);
+
+    const steps = node('ol', undefined, 'news-article-steps');
+    article.steps.forEach(copy => steps.append(node('li', copy)));
+    const platforms = node('ul');
+    article.platforms.forEach(copy => platforms.append(node('li', copy)));
+    steps.lastElementChild.append(platforms);
+    content.append(node('h2', 'Chromeでアプリアイコンを追加する方法'), steps);
+
+    const actions = node('div', undefined, 'news-article-actions');
+    const pdf = node('a', '画像付きの手順を見る（PDF）', 'action-button secondary-action');
+    pdf.href = article.pdfUrl;
+    pdf.target = '_blank';
+    pdf.rel = 'noopener noreferrer';
+    const video = node('button', '紹介動画を見る（メンバー限定）', 'action-button secondary-action');
+    video.type = 'button';
+    video.setAttribute('aria-haspopup', 'dialog');
+    video.addEventListener('click', () => confirmMembersVideo(doc, CRUISE_STUDIO_NEWS_ITEM, video));
+    actions.append(pdf, video);
+    content.append(actions);
+}
 
 export function renderNewsArticle({ documentObject = document, hash } = {}) {
     const doc = documentObject, content = doc.getElementById('news-article-content');
@@ -21,26 +48,30 @@ export function renderNewsArticle({ documentObject = document, hash } = {}) {
     const time = node('time', `投稿日：${article.dateNote}`); time.dateTime = article.publishedAt;
     meta.append(node('span', 'クルーズapps', 'news-category'), time);
     content.append(meta);
-    for (const [heading, copy] of [['概要', article.overview], ['使い方', article.usage]]) {
-        const section = node('section'); section.append(node('h2', heading), node('p', copy));
-        if (heading === '概要') {
-            section.append(node('p', '対象アプリ'));
-            const list = node('ul', undefined, 'news-article-apps');
-            article.coveredApps.forEach(app => list.append(node('li', app)));
-            section.append(list);
+    if (article.steps) {
+        appendBrowserCorrection(doc, content, article, node);
+    } else {
+        for (const [heading, copy] of [['概要', article.overview], ['使い方', article.usage]]) {
+            const section = node('section'); section.append(node('h2', heading), node('p', copy));
+            if (heading === '概要') {
+                section.append(node('p', '対象アプリ'));
+                const list = node('ul', undefined, 'news-article-apps');
+                article.coveredApps.forEach(app => list.append(node('li', app)));
+                section.append(list);
+            }
+            content.append(section);
         }
-        content.append(section);
+        const section = node('section'); section.append(node('h2', '4つのテーマを比較'));
+        section.append(node('p', article.imageNote));
+        const grid = node('div', undefined, 'news-theme-grid');
+        for (const image of article.images) {
+            const figure = node('figure'), img = node('img');
+            img.src = new URL(image.src, import.meta.url).href;
+            img.alt = image.alt; img.width = 378; img.height = 819;
+            figure.append(node('figcaption', image.caption), img); grid.append(figure);
+        }
+        section.append(grid); content.append(section);
     }
-    const section = node('section'); section.append(node('h2', '4つのテーマを比較'));
-    section.append(node('p', article.imageNote));
-    const grid = node('div', undefined, 'news-theme-grid');
-    for (const image of article.images) {
-        const figure = node('figure'), img = node('img');
-        img.src = new URL(image.src, import.meta.url).href;
-        img.alt = image.alt; img.width = 378; img.height = 819;
-        figure.append(node('figcaption', image.caption), img); grid.append(figure);
-    }
-    section.append(grid); content.append(section);
     const footer = node('nav', undefined, 'news-article-footer'); footer.setAttribute('aria-label', '記事のナビゲーション');
     const back = node('a', '← ニュース一覧', 'view-back'); back.href = '#news';
     const home = node('a', 'Cruise Portを開く', 'view-back'); home.href = '#';
