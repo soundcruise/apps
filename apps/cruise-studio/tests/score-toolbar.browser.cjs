@@ -313,7 +313,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    assert.equal(await p.evaluate(()=>typeof window.showSaveFilePicker),'undefined');
    await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
    const status=p.locator('#sc-save-status');
-   await status.getByRole('button',{name:'保存先',exact:true}).click();
+   await status.getByRole('button',{name:'保存場所',exact:true}).click();
    const location=p.getByRole('dialog',{name:'保存場所'});
    assert.match(await location.innerText(),/曲名一覧/);
    const exportedSnapshot=await snap(p);
@@ -353,13 +353,15 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    return (await navigator.storage.getDirectory()).getFileHandle('renamed.json',{create:true});
   };});
   await saveAs();
-  await p.waitForFunction(()=>document.querySelector('#sc-save-status').textContent.includes('renamed.json'));
+  await p.locator('#sc-save-status').getByRole('button',{name:'保存場所'}).waitFor();
+  assert.equal(await p.locator('#sc-save-status').textContent(),'保存しました。(保存場所)');
   assert.equal(await p.evaluate(()=>window.suggested),'second save.json');
   assert.equal((await snap(p)).projectId,before.projectId);
   assert.equal(await p.locator('#sc-project-select option').count(),rows);
   await p.reload();await p.click('#open-sheet-cruise');
   await p.evaluate(()=>{window.showOpenFilePicker=async({startIn})=>{window.locationFilename=startIn.name;throw new DOMException('cancel','AbortError');};});
-  await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});await p.waitForFunction(()=>window.locationFilename==='renamed.json');
+  await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});const card=p.getByRole('dialog',{name:'保存場所'});assert.equal(await card.locator('strong').textContent(),'renamed.json');
+  await card.getByText('保存フォルダを開く').click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');await card.getByText('閉じる').click();
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});
