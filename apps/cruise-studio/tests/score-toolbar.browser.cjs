@@ -121,7 +121,8 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
  await t.test('display controls sit next to the title and the shortcut group stays fixed',()=>fresh(async p=>{
   assert.equal(await p.locator('.sc-dock-grip').count(),0);
   const title=await p.locator('#sc-project-select').boundingBox(),tools=await p.locator('#sc-toolbar-head-actions').boundingBox();
-  const gap=tools.x-title.x-title.width;assert(gap>=4&&gap<=24,String(gap));
+  const menu=await p.locator('#sc-curve-menu-toggle').boundingBox();
+  assert(menu.x>=title.x+title.width&&tools.x>=menu.x+menu.width&&Math.abs(title.y-tools.y)<4);
   await p.click('#sc-curve-menu-toggle');assert(await p.locator('#sc-menu-staff-toggle').isHidden());
  }));
  await t.test('preview a section copy with only chords, add a bar, apply and undo',()=>fresh(async p=>{
@@ -174,6 +175,34 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.locator('#sc-edit-selected').click();assert(await p.locator('#sc-slot-overlay').isVisible());await p.locator('.slot-overlay-close').click();
   assert.deepEqual(await snap(p),before);assert.deepEqual(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
   const nav=await p.locator('#screen-sheet-cruise>.workspace-local-nav').boundingBox(),head=await p.locator('.sc-score-toolbar-head').boundingBox();assert(head.y>=nav.y+nav.height-1,JSON.stringify({nav,head}));
+ }));
+ await t.test('the contextual actions edit and operate on the selected range in score order',()=>fresh(async p=>{
+  const actions=p.locator('#sc-selected-bar-actions'),edit=actions.getByRole('button',{name:'編集',exact:true});
+  const move=d=>actions.locator('[data-bar-operation=moveBar][data-direction="'+d+'"]');
+  const before=await snap(p),chords=project=>project.bars.map(b=>b.chords.map(c=>c.symbol));
+  assert(await edit.isHidden());
+  await select(p,1);assert(await edit.isVisible());assert(await move(-1).isDisabled());
+  const editStyle=await edit.evaluate(e=>getComputedStyle(e).backgroundColor);
+  assert.notEqual(editStyle,await actions.locator('#sc-copy-bar').evaluate(e=>getComputedStyle(e).backgroundColor));
+  await select(p,2,['Shift']);assert.match(await actions.innerText(),/第1〜2小節（2小節選択）/);
+  assert(await move(-1).isDisabled());assert(await move(1).isEnabled());
+  await edit.click();
+  assert.deepEqual(await p.locator('#sc-slot-overlay .editor-measure').evaluateAll(nodes=>nodes.map(e=>Number(e.dataset.barNumber))),[1,2]);
+  await p.click('.slot-overlay-close');assert(await actions.isHidden());
+  await select(p,6);await select(p,2,['Shift']);await edit.click();
+  assert.deepEqual(await p.locator('#sc-slot-overlay .editor-measure').evaluateAll(nodes=>nodes.map(e=>Number(e.dataset.barNumber))),[2,3,4,5]);
+  await p.click('.slot-overlay-close');
+  await select(p,1);await select(p,2,['Shift']);await p.click('#sc-copy-bar');
+  await select(p,3);await select(p,4,['Shift']);await p.click('#sc-paste-bar');
+  const expected=chords(before);expected.splice(2,2,...expected.slice(0,2));assert.deepEqual(chords(await snap(p)),expected);
+  await p.click('#sc-undo');assert.deepEqual(await snap(p),before);
+  const last=before.bars.length;
+  await select(p,last);await select(p,last-1,['Shift']);assert(await move(1).isDisabled());
+  await actions.locator('[data-bar-operation=addBar]').click();
+  const after=await snap(p);assert.deepEqual(after.bars.slice(0,-1).map(b=>b.id),before.bars.map(b=>b.id));
+  await p.click('#sc-undo');assert.deepEqual(await snap(p),before);
+  await p.locator('#sc-sheet-scale-box .sheet-page').click({position:{x:14,y:18}});
+  assert(await actions.isHidden());assert(await p.locator('#sc-save').isVisible());
  }));
  await t.test('display checks stay open for repeated edits; Escape restores focus; settings dialog remains available',()=>fresh(async p=>{
   const before=await snap(p);await p.locator('#sc-display-menu-toggle').click();
