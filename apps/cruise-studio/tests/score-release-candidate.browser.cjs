@@ -386,3 +386,27 @@ for (const engine of ['chrome','webkit']) test('automatic measure layout survive
         await columns(4);
     });
 });
+
+for(const engine of ['chrome','webkit'])
+test('packaged tutorial plays and seeks from the editor guide: '+engine,async t=>{
+    const server=await startServer(), origin='http://127.0.0.1:'+server.address().port;
+    t.after(()=>stopServer(server));
+    const browser=await(engine==='chrome'?chromium.launch({channel:'chrome'}):webkit.launch());
+    t.after(()=>browser.close());
+    const editor=await browser.newPage();
+    await editor.goto(origin+'/apps/cruise-studio/');
+    await editor.click('#open-sheet-cruise');
+    const opened=editor.waitForEvent('popup');
+    await editor.click('#sc-score-guide');
+    const guide=await opened;
+    const video=guide.locator('#lesson video');
+    await video.evaluate(async element=>{element.muted=true;await element.play();});
+    await guide.waitForFunction(()=>document.querySelector('video')?.currentTime>0.2);
+    const end=await video.evaluate(element=>{
+        element.currentTime=element.duration-2;
+        return element.duration;
+    });
+    await guide.waitForFunction(t=>document.querySelector('video').currentTime>t,end-1.9);
+    assert(await video.evaluate(element=>element.videoWidth>0 && !element.error));
+    await guide.close();
+});

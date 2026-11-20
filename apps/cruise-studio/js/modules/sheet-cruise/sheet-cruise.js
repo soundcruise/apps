@@ -448,6 +448,8 @@
             'sc-duplicate-project':'M8 8h12v13H8z M5 16H3V3h12v2',
             'sc-save-as':'M4 3h12l4 4v4 M4 3v18h7 M8 3v6h7V3 M13 19l6-6 2 2-6 6-3 1z',
             'sc-import-json-button':'M3 15v5h18v-5 M12 3v12m-5-5 5 5 5-5',
+            'sc-menu-file-location':'M2 6h8l2 3h10l-3 11H3z',
+            'sc-menu-files':'M4 4h16v16H4z M7 8h2m2 0h6 M7 12h2m2 0h6 M7 16h2m2 0h6',
             'sc-menu-display':'M2 12q10-14 20 0-10 14-20 0z M15 12a3 3 0 1 0-6 0 3 3 0 1 0 6 0',
             'sc-menu-display-settings':'M3 6h9m4 0h5 M3 12h3m4 0h11 M3 18h11m4 0h3 M12 3v6 M7 9v6 M15 15v6',
             'sc-menu-staff-toggle':'M2 5h20M2 9h20M2 13h20M2 17h20 M15 3v12q-6-1-6 3t6-1',
@@ -596,15 +598,15 @@
         const guide=document.createElement('a');guide.id='sc-score-guide';guide.textContent='？';
         guide.href='/apps/cruise-studio/score-guide/index.html';guide.target='_blank';guide.rel='noopener';
         guide.title='譜面クルーズの取扱説明書';guide.setAttribute('aria-label',guide.title+'（新しいタブ）');head.append(guide);
-        var curve=menu('sc-curve-menu','曲メニュー');head.insertBefore(curve.root,right);
+        var curve=menu('sc-curve-menu','メニュー');head.insertBefore(curve.root,right);
         function menuLabel(text){var label=document.createElement('span');label.textContent=text;label.className='sc-menu-label';curve.body.appendChild(label);}
         els.newProjectBtn.textContent='新しい曲を作成';curve.body.appendChild(els.newProjectBtn);divider(curve.body);menuLabel('保存');
         const canPickFile=typeof window.showSaveFilePicker==='function';
-        curve.body.appendChild(button('sc-save-overwrite',canPickFile?'上書き保存':'ブラウザに保存',function(){els.saveBtn.click();}));
+        curve.body.appendChild(button('sc-save-overwrite',canPickFile?'上書き保存':'保存（このブラウザ内）',function(){els.saveBtn.click();}));
         const saveAs=button('sc-save-as','名前をつけて保存',function(){
             if(prepareExplicitOutput())void commitSession(state.session,{chooseFile:true});
         });
-        saveAs.hidden=!canPickFile;
+        saveAs.title=canPickFile?'ファイル名と保存先を選ぶ':'名前を指定してJSONファイルをダウンロード';
         curve.body.append(saveAs,button('sc-duplicate-project','曲を複製',function(){openSheetAction('duplicate',q('sc-duplicate-project'));}));
         divider(curve.body);menuLabel('曲の設定');[['sc-edit-song','曲情報','settings'],['sc-edit-instrument','キー・カポ','instrument'],['sc-edit-chord-preset','コード一括','chordPreset'],['sc-edit-rhythm','ストローク一括','strumPreset'],['sc-edit-sections','セクション編集','sections']].forEach(function(item){curve.body.appendChild(button(item[0],item[1],function(){openScoreSettings(item[2],{barIds:selectedIDs(),returnFocus:curve.root.querySelector(':scope > summary')});}));});
         var transpose=els.toolbar.querySelector('.sc-transpose-tools');if(transpose){transpose.id='sc-transpose-menu';transpose.hidden=true;curve.body.appendChild(transpose);}
@@ -632,7 +634,8 @@
         divider(display.body);if(settings){settings.textContent='詳細設定';display.body.appendChild(settings);}right.append(display.root,q('sc-zoom-controls'));
         // Match the viewer's File / Display / Playback / Export grouping.
         function mirror(id,text,source){return button(id,text,function(){var target=q(source);if(target)target.click();});}
-        var hiddenForms=q('sc-chord-forms');var songSettings=['sc-edit-song','sc-edit-instrument','sc-edit-chord-preset','sc-edit-rhythm','sc-edit-sections'].map(q),fileActions=[els.newProjectBtn,q('sc-save-overwrite'),q('sc-save-as'),q('sc-duplicate-project'),importButton,els.importInput],exports=[q('sc-export-viewer'),q('sc-export-pdf'),els.exportBtn,els.printBtn].filter(Boolean);
+        var hiddenForms=q('sc-chord-forms');var songSettings=['sc-edit-song','sc-edit-instrument','sc-edit-chord-preset','sc-edit-rhythm','sc-edit-sections'].map(q),fileActions=[els.newProjectBtn,q('sc-save-overwrite'),q('sc-save-as'),q('sc-duplicate-project'),importButton,button('sc-menu-file-location','この曲の保存場所',showFileLocation),button('sc-menu-files','ファイル一覧・削除…',openFileList),els.importInput],exports=[q('sc-export-viewer'),q('sc-export-pdf'),els.exportBtn,els.printBtn].filter(Boolean);
+        for(const command of [...fileActions,...exports])if(command.tagName==='BUTTON')command.dataset.fileCommand='';
         curve.body.replaceChildren();menuLabel('ファイル');fileActions.forEach(function(e){curve.body.appendChild(e);});divider(curve.body);menuLabel('表示');
         curve.body.appendChild(button('sc-menu-display','表示',function(){display.root.open=true;}));curve.body.appendChild(mirror('sc-menu-display-settings','表示設定','sc-paper-settings'));
         var staffToggle=button('sc-menu-staff-toggle','五線譜に切り替える',function(){
@@ -751,6 +754,7 @@
             staffToggle.title=staffStyle==='melody'?'コード譜を表示します':'メロディを五線譜で表示し、音の長さや休符を編集します';
         }
         var staff=q('sc-staff-refresh');if(staff)staff.hidden=true;if(q('sc-save-overwrite'))q('sc-save-overwrite').disabled=!eligible||!owner?.dirty||!owner.canCommit()||!!textDiagnostic(owner)||!!schemaViewError;var play=q('sc-song-preview');if(play)play.disabled=(!eligible||!bars.length)&&!(barPreviewScope==='song'&&barPreviewPhase!=='idle');updateBarPlayButton();
+        for(const option of els.projectSelect.querySelectorAll('[data-file-action]'))option.disabled=q(option.dataset.fileAction).disabled;
     }
     function fillKeySelect(select) {
         select.innerHTML = '';
@@ -821,8 +825,9 @@
         });
         const actions=document.createElement('optgroup');
         actions.label='ファイル操作';
-        for(const [action,label] of [['location','この曲の保存場所'],['manage','ファイル一覧・削除…']]){
-            const option=new Option(label);option.dataset.fileAction=action;actions.append(option);
+        for(const command of els.toolbar.querySelectorAll('#sc-curve-menu [data-file-command]')){
+            const option=new Option(command.textContent.trim(),'command:'+command.id);
+            option.dataset.fileAction=command.id;option.disabled=command.disabled;actions.append(option);
         }
         els.projectSelect.append(actions);
         els.projectSelect.value = state.project.projectId;
@@ -1336,7 +1341,7 @@
 #sc-project-select{min-width:0;}.sc-location-dialog.sc-file-list{box-sizing:border-box;width:min(32rem,92vw);max-width:92vw;background:var(--studio-surface);color:var(--studio-text-primary);border:1px solid var(--studio-border-default);background-color:var(--studio-control,#222e38)}
 .sc-file-list h2{font-size:1.15rem;margin:0 0 1rem}.sc-file-list button{border:1px solid var(--studio-border-default);color:inherit;background:transparent;padding:8px 12px;border-radius:5px;cursor:pointer}.sc-file-list>div>div button:last-child{color:#ffc1ba}.sc-file-list>div{display:grid;gap:6px;max-height:55vh;overflow:auto}.sc-file-list>div>div{display:flex;gap:10px}.sc-file-list>div>div button:first-child{flex:1;text-align:left;overflow-wrap:anywhere}
 #sc-score-guide{margin-inline-start:auto;border:1px solid currentColor;color:inherit;text-decoration:none;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;align-self:center;}
-.sc-location-dialog{max-width:min(26em,85vw);padding:20px;border-radius:10px;}
+.sc-location-dialog{margin:auto;max-width:min(26em,85vw);padding:20px;border-radius:10px;}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
 #screen-sheet-cruise .sc-paper-visibility{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--studio-border-default);}
 #screen-sheet-cruise .sc-paper-visibility label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
@@ -5696,8 +5701,8 @@
         }catch(error){setSaveStatus('ビューワー用の書き出しに失敗しました。元の譜面は保持しています',true);}
         finally{viewerExportFlight=false;refreshToolbarActions();}
     }
-    function downloadCurrentProjectJson() {
-        if(!prepareExplicitOutput())return;
+    function downloadCurrentProjectJson(name) {
+        if(!prepareExplicitOutput())return false;
         var project = state.session.workingSnapshot();
         var json = CS().storage.exportProjectJson(project, scorePresentation(project));
         var blob = new Blob([json], { type: 'application/json' });
@@ -5705,12 +5710,13 @@
         var a = document.createElement('a');
         var title = state.project.songInfo.title || 'project';
         a.href = url;
-        a.download = 'cruise-studio_' + title.replace(/[\\/:*?"<>|\s]+/g, '_') + '.json';
+        a.download = typeof name==='string'?name:'cruise-studio_' + title.replace(/[\\/:*?"<>|\s]+/g, '_') + '.json';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         setSaveStatus('JSONファイルへ書き出しました');
+        return true;
     }
 
     function onImportJsonFile(event) {
@@ -5871,25 +5877,55 @@
                 return;
             }catch(error){
                 if(error.name==='AbortError')return;
-                message='「'+handle.name+'」の保存場所を開けませんでした。曲メニューの「名前をつけて保存」で保存先を選び直せます。';
+                message='「'+handle.name+'」の保存場所を開けませんでした。メニューの「名前をつけて保存」で保存先を選び直せます。';
             }
         }else{
             message=(session.baseRevision===null?'この曲は未保存です。':'この曲はこのブラウザに保存されています。')+
-                (typeof window.showSaveFilePicker==='function'?' 曲メニューの「名前をつけて保存」で、ファイル名と保存先を選べます。':' 曲メニューのJSON書き出しでファイルを作成できます。保存先はブラウザのダウンロード設定で確認できます。');
+                (typeof window.showSaveFilePicker==='function'?' メニューの「名前をつけて保存」で、ファイル名と保存先を選べます。':' メニューの「名前をつけて保存」でJSONをダウンロードできます。保存先はブラウザのダウンロード設定で確認できます。');
         }
         const dialog=document.createElement('dialog'),title=document.createElement('h2'),info=document.createElement('p'),close=document.createElement('button');
         dialog.className='sc-location-dialog';dialog.setAttribute('aria-label','保存場所');title.textContent='保存場所';info.textContent=message;close.textContent='閉じる';
         close.onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove(),{once:true});
         dialog.append(title,info,close);els.root.append(dialog);dialog.showModal();
     }
+    function chooseDownloadName(title){
+        const dialog=document.createElement('dialog'),form=document.createElement('form'),label=document.createElement('label');
+        const input=document.createElement('input'),note=document.createElement('p'),cancel=document.createElement('button'),accept=document.createElement('button');
+        dialog.className='sc-location-dialog';dialog.setAttribute('aria-label','名前をつけて保存');
+        input.value=title+'.json';input.required=true;label.append('ファイル名 ',input);
+        note.textContent='保存先はブラウザのダウンロード設定に従います。次回の「保存」はこのブラウザ内の曲を更新します。';
+        cancel.type='button';cancel.textContent='キャンセル';
+        accept.type='submit';accept.textContent='保存';form.append(label,note,cancel,accept);dialog.append(form);els.root.append(dialog);
+        return new Promise(resolve=>{
+            function finish(name){dialog.close();dialog.remove();resolve(name);}
+            cancel.onclick=()=>finish('');
+            dialog.oncancel=event=>{event.preventDefault();finish('');};
+            form.onsubmit=event=>{event.preventDefault();const name=input.value.trim();if(name)finish(/\.json$/i.test(name)?name:name+'.json');};
+            dialog.showModal();input.select();
+        });
+    }
+    async function saveNamedDownload(session){
+        const version=session.snapshotVersion,name=await chooseDownloadName(session.draft.songInfo.title||'無題');
+        if(!name||state.session!==session||version!==session.snapshotVersion)return {ok:false,error:'保存を中止しました'};
+        if(!downloadCurrentProjectJson(name))return {ok:false,error:'書き出しを中止しました'};
+        const id=session.target.projectId;
+        await handleReads.get(id);
+        if(fileHandles.has(id)){
+            await storedHandle(id,null);
+            fileHandles.delete(id);
+        }
+        const result=await commitBrowserSession(session);
+        if(result.ok && state.session===session)showBrowserSave('このブラウザに保存し、「'+name+'」のダウンロードを開始しました。');
+        return result;
+    }
     async function commitSession(session,{chooseFile=false}={}){
         if(fileSaves.has(session))return {ok:false,error:'保存中です'};
-        if(typeof window.showSaveFilePicker!=='function')return commitBrowserSession(session);
         session.finishTextGroup();
         if(!session.canCommit())return {ok:false,error:'保存できる状態を確認してください'};
         const id=session.target.projectId,version=session.snapshotVersion,project=session.workingSnapshot();
         fileSaves.add(session);
         try{
+            if(typeof window.showSaveFilePicker!=='function')return chooseFile?await saveNamedDownload(session):await commitBrowserSession(session);
             const check=CS().model.validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
             const json=CS().storage.exportProjectJson(project,scorePresentation(project));
             let handle;
@@ -5900,7 +5936,7 @@
             if(handle && handle.requestPermission && await handle.requestPermission({mode:'readwrite'})!=='granted')handle=null;
             if(!handle)try{handle=await window.showSaveFilePicker({suggestedName:(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
             }catch(error){
-                if(error.name==='SecurityError')return await commitBrowserSession(session);
+                if(error.name==='SecurityError')return chooseFile?await saveNamedDownload(session):await commitBrowserSession(session);
                 throw error;
             }
             const writable=await handle.createWritable();
@@ -6027,7 +6063,7 @@
 
         els.projectSelect.addEventListener('change', function () {
             const action=els.projectSelect.selectedOptions[0]?.dataset.fileAction;
-            if(action){refreshProjectSelect();if(action==='location')void showFileLocation();else openFileList();return;}
+            if(action){refreshProjectSelect();q(action)?.click();return;}
             var selectedId = els.projectSelect.value;
             if (state.project && selectedId === state.project.projectId) return;
             refreshProjectSelect();

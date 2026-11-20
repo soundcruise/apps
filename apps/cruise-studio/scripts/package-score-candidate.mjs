@@ -12,13 +12,13 @@ import {CRUISE_PORT_ROOT, PRO_ENTRY_PATH as portProEntry} from '../../cruise-por
 const repo=fileURLToPath(new URL('../../../',import.meta.url));
 const studio='apps/cruise-studio/', viewer='apps/score-viewer/', standalone=viewer+'standalone/';
 const candidate=studio+'edition-candidates/score/';
-const version='0.209.0-rc.1';
+const version='0.210.0-rc.1';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 
 function localDependencies(output,name) {
     if(!/\.(?:html|m?js|css)$/.test(name))return [];
     const content=fs.readFileSync(path.join(output,name),'utf8');
-    const refs=name.endsWith('.html')?content.matchAll(/<(?:script|img|link)\b[^>]*?\b(?:src|href)="([^"]+)"/g):
+    const refs=name.endsWith('.html')?content.matchAll(/<(?:script|img|link|video)\b[^>]*?\b(?:src|href)="([^"]+)"/g):
             name.endsWith('.css')?content.matchAll(/url\(\s*["']?([^\s"')]+)["']?\s*\)/g):
             content.matchAll(/(?:\bfrom\s+|\bimport\s*(?:\(\s*)?)['"]((?:\.{1,2}\/|\/)[^'"]+)['"]/g);
     const paths=[];
@@ -71,7 +71,7 @@ export function packageScoreCandidate(output) {
         const html=enableScore(fs.readFileSync(path.join(output,entry),'utf8'),edition);
         put(entry,html);
         // Include all resources fetched by these entry documents, including adjacent app icons and Pro's gate.
-        for(const [,reference] of html.matchAll(/<(?:script|img|link)\b[^>]*?\b(?:src|href)="([^"]+)"/g)){
+        for(const [,reference] of html.matchAll(/<(?:script|img|link|video)\b[^>]*?\b(?:src|href)="([^"]+)"/g)){
             const url=new URL(reference,'https://candidate.invalid/'+entry);
             if(url.origin!=='https://candidate.invalid')continue;
             const name=url.pathname.slice(1);

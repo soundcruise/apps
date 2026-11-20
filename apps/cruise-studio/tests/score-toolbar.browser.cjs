@@ -264,6 +264,32 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.evaluate(()=>Object.defineProperty(window,'showSaveFilePicker',{configurable:true,value:undefined}));
   await p.locator('#sc-save').click();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);assert.equal((await snap(p)).songInfo.title,'Toolbar working title');assert.equal(await p.locator('#sc-curve-menu').getAttribute('open'),null);
  }));
+ await t.test('song selector and menu share file commands, including named downloads',()=>fresh(async p=>{
+  const select=p.locator('#sc-project-select');
+  const commands=await p.locator('#sc-curve-menu [data-file-command]').evaluateAll(items=>items.map(item=>[item.id,item.textContent.trim()]));
+  assert(commands.length>=10);
+  assert.deepEqual(await select.locator('option[data-file-action]').evaluateAll(items=>items.map(item=>[item.dataset.fileAction,item.label])),commands);
+  const before=await snap(p);
+  await select.selectOption({label:'ファイル一覧・削除…'});
+  await p.locator('.sc-file-list').getByText('閉じる').click();
+  await p.evaluate(()=>window.showSaveFilePicker=undefined);
+  const named=p.getByRole('dialog',{name:'名前をつけて保存'});
+  await select.selectOption({label:'名前をつけて保存'});
+  await named.getByRole('button',{name:'キャンセル'}).click();
+  assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
+  await select.selectOption({label:'名前をつけて保存'});
+  await named.getByLabel('ファイル名').fill('練習用');
+  const output=p.waitForEvent('download');
+  await named.getByRole('button',{name:'保存',exact:true}).click();
+  const file=await output;
+  assert.equal(file.suggestedFilename(),'練習用.json');
+  const {scorePresentation,...contents}=JSON.parse(fs.readFileSync(await file.path(),'utf8'));
+  assert.deepEqual(contents,before);
+  await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  const committed=await snap(p);
+  assert(Date.parse(committed.updatedAt)>=Date.parse(before.updatedAt));
+  assert.deepEqual({...committed,updatedAt:before.updatedAt},before);
+ }));
  await t.test('restore unsaved work, cancel the picker, then save twice to one file',()=>fresh(async p=>{
   const before=await snap(p);
   await p.reload();await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),before);
@@ -271,7 +297,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.getByRole('button',{name:'キャンセル',exact:true}).last().click();
   if(engine==='webkit'){
    await p.click('#sc-curve-menu-toggle');
-   assert(await p.locator('#sc-save-as').isHidden());
+   assert(await p.locator('#sc-save-as').isVisible());
    assert.equal(await p.locator('#sc-duplicate-project').innerText(),'曲を複製');
    await p.keyboard.press('Escape');
    assert.equal(await p.evaluate(()=>typeof window.showSaveFilePicker),'undefined');
