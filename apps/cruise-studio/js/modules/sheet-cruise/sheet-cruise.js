@@ -614,7 +614,7 @@
         // A label around a hidden file input is not keyboard reachable in Safari.
         // Use a native button, keeping the existing file-change/import transaction.
         var importLabel=els.importInput.closest('label');importLabel.remove();els.importInput.hidden=true;
-        var importButton=button('sc-import-json-button','JSON読み込み',function(){els.importInput.click();});
+        var importButton=button('sc-import-json-button','ファイルを開く(JSON)',function(){els.importInput.click();});
         menuLabel('ファイル');curve.body.append(importButton,els.importInput,els.exportBtn,els.printBtn);
         if(CS().scoreViewer)curve.body.insertBefore(button('sc-export-viewer','譜面ビューワーに書き出す',downloadViewerScore),importButton);
         if(CS().scoreViewer)curve.body.insertBefore(button('sc-export-pdf','PDFとして保存',downloadProjectPDF),importButton);
@@ -1341,6 +1341,7 @@
 #sc-project-select{min-width:0;}.sc-location-dialog.sc-file-list{box-sizing:border-box;width:min(32rem,92vw);max-width:92vw;background:var(--studio-surface);color:var(--studio-text-primary);border:1px solid var(--studio-border-default);background-color:var(--studio-control,#222e38)}
 .sc-file-list h2{font-size:1.15rem;margin:0 0 1rem}.sc-file-list button{border:1px solid var(--studio-border-default);color:inherit;background:transparent;padding:8px 12px;border-radius:5px;cursor:pointer}.sc-file-list>div>div button:last-child{color:#ffc1ba}.sc-file-list>div{display:grid;gap:6px;max-height:55vh;overflow:auto}.sc-file-list>div>div{display:flex;gap:10px}.sc-file-list>div>div button:first-child{flex:1;text-align:left;overflow-wrap:anywhere}
 #sc-score-guide{margin-inline-start:auto;border:1px solid currentColor;color:inherit;text-decoration:none;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;align-self:center;}
+.sc-location-dialog details{margin:12px 0;}
 .sc-location-dialog{margin:auto;max-width:min(26em,85vw);padding:20px;border-radius:10px;}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
 #screen-sheet-cruise .sc-paper-visibility{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--studio-border-default);}
@@ -5803,7 +5804,7 @@
             tx.oncomplete=()=>resolve(req.result);tx.onabort=()=>reject(tx.error);
         }));
     }
-    function showBrowserSave(message='このブラウザに保存しました。'){
+    function showBrowserSave(message='このブラウザに保存しました（この端末内）。'){
         setSaveStatus(message);
         els.saveStatus.classList.remove('sc-status-quiet');
         const exportButton=document.createElement('button');
@@ -5893,9 +5894,15 @@
         const input=document.createElement('input'),note=document.createElement('p'),cancel=document.createElement('button'),accept=document.createElement('button');
         dialog.className='sc-location-dialog';dialog.setAttribute('aria-label','名前をつけて保存');
         input.value=title+'.json';input.required=true;label.append('ファイル名 ',input);
-        note.textContent='保存先はブラウザのダウンロード設定に従います。次回の「保存」はこのブラウザ内の曲を更新します。';
+        note.textContent='編集用JSONをダウンロードします。次回の「保存」は、この端末のブラウザ内にある曲を更新します。';
+        const help=document.createElement('details'),summary=document.createElement('summary');
+        summary.textContent='Safariで端末内の保存先を選ぶ';
+        const mac=document.createElement('p'),mobile=document.createElement('p');
+        mac.textContent='Mac：Safari → 設定 → 一般 → ファイルのダウンロード先。保存先を毎回確認する設定にし、ダウンロード時にMac内のフォルダを選びます。';
+        mobile.textContent='iPhone・iPad：設定 → アプリ → Safari → ダウンロードで「このiPhone内」または「このiPad内」を選びます。保存後は「ファイル」で移動できます。';
+        help.append(summary,mac,mobile);
         cancel.type='button';cancel.textContent='キャンセル';
-        accept.type='submit';accept.textContent='保存';form.append(label,note,cancel,accept);dialog.append(form);els.root.append(dialog);
+        accept.type='submit';accept.textContent='保存';form.append(label,note,help,cancel,accept);dialog.append(form);els.root.append(dialog);
         return new Promise(resolve=>{
             function finish(name){dialog.close();dialog.remove();resolve(name);}
             cancel.onclick=()=>finish('');

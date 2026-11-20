@@ -48,6 +48,13 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.match(await manual.title(),/譜面クルーズ 取扱説明書/);
   assert(await manual.locator('figure img').evaluateAll(images=>images.length>=8&&images.every(img=>img.complete&&img.naturalWidth>0)));
   assert(await manual.locator('nav a').evaluateAll(links=>links.every(a=>document.getElementById(a.hash.slice(1)))));
+  const illustrated=await manual.locator('#lesson h3').evaluateAll(steps=>steps.map(step=>{
+   for(let sibling=step.nextElementSibling;sibling && sibling.tagName!=='H3';sibling=sibling.nextElementSibling){
+    if(sibling.querySelector('img')?.naturalWidth>0)return true;
+   }
+   return false;
+  }));
+  assert(illustrated.length>=1 && illustrated.every(Boolean));
   await manual.close();await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});
   const info=p.getByRole('dialog',{name:'保存場所'});assert.match(await info.textContent(),/未保存/);
   await info.getByRole('button',{name:'閉じる'}).click();assert.deepEqual(await snap(p),before);
@@ -278,6 +285,9 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await named.getByRole('button',{name:'キャンセル'}).click();
   assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
   await select.selectOption({label:'名前をつけて保存'});
+  await named.getByText('Safariで端末内の保存先を選ぶ').click();
+  assert(await named.getByText(/Mac：Safari → 設定/).isVisible());
+  assert(await named.getByText(/このiPhone内/).isVisible());
   await named.getByLabel('ファイル名').fill('練習用');
   const output=p.waitForEvent('download');
   await named.getByRole('button',{name:'保存',exact:true}).click();
