@@ -2319,6 +2319,7 @@
         els.slotOverlay.style.maxHeight = availableHeight + 'px';
         els.slotOverlay.style.setProperty('--bar-loupe-scale', String(state.loupe.width / LOUPE_BASE_WIDTH));
         els.slotOverlay.classList.toggle('slot-overlay--narrow', isNarrowViewport() || state.loupe.width < LOUPE_NARROW_BREAKPOINT);
+        positionBulkPopover();
     }
 
     /**
@@ -2438,20 +2439,19 @@
         return handle;
     }
 
-    /**
-     * まとめて入力ポップオーバーがルーペ上側・右寄せで画面外へはみ出す場合、
-     * 下側・左寄せへ反転させる。
-     */
+    // Keep the panel in the Loupe's DOM/theme/focus owner, but use viewport
+    // positioning so its scroll container cannot clip the Apply/Close buttons.
     function positionBulkPopover() {
         var popover = els.slotOverlay && els.slotOverlay.querySelector('.slot-overlay-bulk-popover');
         if (!popover) return;
         popover.classList.remove('is-flip-down', 'is-flip-left');
-        if (popover.getBoundingClientRect().top < 8) {
-            popover.classList.add('is-flip-down');
-        }
-        if (popover.getBoundingClientRect().left < 8) {
-            popover.classList.add('is-flip-left');
-        }
+        Object.assign(popover.style, { position: 'fixed', right: 'auto', bottom: 'auto',
+            maxHeight: 'calc(100dvh - 16px)', overflowY: 'auto' });
+        var anchor = els.slotOverlay.getBoundingClientRect(), rect = popover.getBoundingClientRect();
+        var top = anchor.top - rect.height - 8;
+        if (top < 8) top = anchor.bottom + 8;
+        popover.style.left = Math.max(8, Math.min(anchor.right - rect.width - 20, window.innerWidth - rect.width - 8)) + 'px';
+        popover.style.top = Math.max(8, Math.min(top, window.innerHeight - rect.height - 8)) + 'px';
     }
 
     function tokenizeBulkChords(text) {
@@ -3326,6 +3326,8 @@
 
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
+        // B-line patch candidate; formal product/cache identity remains A-owned.
+        developmentVersion: '0.88.2-dev.1',
         init: init,
         connectHistoryCommands: connectHistoryCommands,
         enter: enter,

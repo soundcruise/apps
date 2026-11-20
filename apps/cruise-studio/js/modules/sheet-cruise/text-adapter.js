@@ -32,7 +32,7 @@
                     } else if (target.kind === 'basicStrum') warnings = model.setBasicStrumText(draft, value).warnings;
                     else {
                         if (!draft.bars.some(function (b) { return b.barNumber === target.barNumber; })) throw Error('小節が見つかりません');
-                        if (target.kind === 'chord') model.setBarChord(draft, target.barNumber, value);
+                        if (target.kind === 'chord') model.setBarChord(draft, target.barNumber, value, {symbolOnly: true});
                         else if (target.kind === 'doremi') { var bar=draft.bars.find(function(b){return b.barNumber===target.barNumber;}); if(value!==model.getBarDoremiText(bar)) { warnings=model.setBarDoremiText(draft,target.barNumber,value).warnings; if(canonical.schemaVersion===2 && warnings.length) throw Error(warnings.join(' / ')); } }
                         else if (target.kind === 'lyrics') {
                             var applied = model.setBarLyricSlot(draft, target.barNumber, target.tick, target.ticks, value);

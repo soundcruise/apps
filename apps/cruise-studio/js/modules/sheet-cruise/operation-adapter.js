@@ -105,7 +105,7 @@
                     if (start < 0) throw Error('小節が見つかりません');
                     args.values.slice(0, draft.bars.length - start).forEach(function (value, i) {
                         var number = draft.bars[start + i].barNumber;
-                        if (kind === 'bulkChord') model.setBarChord(draft, number, value);
+                        if (kind === 'bulkChord') model.setBarChord(draft, number, value, {symbolOnly: true});
                         else model.setBarDoremiText(draft, number, value).warnings.forEach(function (warning) {
                             warnings.push(number + '小節目: ' + warning);
                         });

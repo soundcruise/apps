@@ -1,0 +1,138 @@
+{
+  "date": "2026-11-11",
+  "base": "a0d44fe64b4b06f57b2d2ef9399349c21ed1288f",
+  "branch": "codex/studio-score-phase1-20261111",
+  "candidate": "0.88.2-dev.1",
+  "productVersionUnchanged": "0.88.1",
+  "nodeBaseline": {
+    "counts": {
+      "tests": 2050,
+      "pass": 2008,
+      "fail": 37,
+      "skipped": 5
+    },
+    "failingTestNames": [
+      "CSS artifact is exactly the verified projection, without Port variables",
+      "Dock primary BPM/toggle/beats precede optional duplicate actions; status remains outside details",
+      "Dock toggles independently of workspace/pane and has no audio effects",
+      "HTML imports only owner pure modules; no Chord UI/storage/feature or Pro gate import",
+      "Metronome entry controls same Dock, not workspace or second runtime",
+      "NEWS and Home markup owns no save/Account mutation and prints no new screen",
+      "Navigation IDs resolve to real workspaces including retained Home/Apps",
+      "Shell colors use semantic tokens, with no palette literals or Port import",
+      "Theme does not couple to Feature Metadata / Port runtime / Sync / project data",
+      "UI keeps advanced metronome disabled, explicit drafts and owner code without persistence imports",
+      "W1 worktree contracts: real isolated main/topic checkout, policy counterexamples and integration evidence",
+      "absent settings can be saved without a new storage key; invalid ID saves Dark",
+      "actual Git reader keeps NEWS hashes and detects rename/index changes in a disposable fixture",
+      "actual entry bootstrap runs before stylesheets with exactly the runtime resolver",
+      "actual feature-metadata boundary runs against linked topic Git directory",
+      "adapter stays pure and the product explicitly connects only owner CAGED plus form UI",
+      "all version projections and the imported Port value equal current source text",
+      "apply sets only data-theme/meta, normalizes invalid IDs and never saves",
+      "approved originals preserved byte-for-byte, only Pro outputs have exact PNG dimensions",
+      "bootstrap and runtime also agree when storage cannot be accessed",
+      "focus/IME/Modal ownership and read-only host boundaries remain connected",
+      "four IDs, Dark default, frozen metadata agree with Port settings",
+      "four Shell regions and two logical Dock slots exist once",
+      "four themes use the existing runtime, save failure is visible",
+      "load keeps appSettings, Port, projects and absent/invalid theme unchanged",
+      "one Studio package publishes the guarded client and read-only legacy compatibility resources",
+      "polish uses screen media and semantic colors, Print keeps A4 and hides chrome",
+      "product owner dependency is pure, ordered and exactly versioned, with no UI/storage/gate imports",
+      "read failure / blocked storage getter resolve to Dark without writes",
+      "real navigation/4-theme styling and print exclusion retain existing workspaces",
+      "real pinned R3 API lists exactly 5 eighth and 4 sixteenth; version evidence is separate from production mirror",
+      "resolver: supported values only; invalid input resolves to Dark",
+      "semantic four-theme styling, print exclusion and native readonly controls",
+      "stable Pro-only manifest and browser names come from the canonical source",
+      "storage schema refs are distinct from app versions, cache keys, Sync/API/build versions",
+      "the actual published sprite contains the complete original Lucide notice and Feather permission, not an excluded filename",
+      "theme-color agrees with Port runtime and both first-paint bootstraps"
+    ]
+  },
+  "nodeFinal": {
+    "counts": {
+      "tests": 2061,
+      "pass": 2019,
+      "fail": 37,
+      "skipped": 5
+    },
+    "failingTestNames": [
+      "CSS artifact is exactly the verified projection, without Port variables",
+      "Dock primary BPM/toggle/beats precede optional duplicate actions; status remains outside details",
+      "Dock toggles independently of workspace/pane and has no audio effects",
+      "HTML imports only owner pure modules; no Chord UI/storage/feature or Pro gate import",
+      "Metronome entry controls same Dock, not workspace or second runtime",
+      "NEWS and Home markup owns no save/Account mutation and prints no new screen",
+      "Navigation IDs resolve to real workspaces including retained Home/Apps",
+      "Shell colors use semantic tokens, with no palette literals or Port import",
+      "Theme does not couple to Feature Metadata / Port runtime / Sync / project data",
+      "UI keeps advanced metronome disabled, explicit drafts and owner code without persistence imports",
+      "W1 worktree contracts: real isolated main/topic checkout, policy counterexamples and integration evidence",
+      "absent settings can be saved without a new storage key; invalid ID saves Dark",
+      "actual Git reader keeps NEWS hashes and detects rename/index changes in a disposable fixture",
+      "actual entry bootstrap runs before stylesheets with exactly the runtime resolver",
+      "actual feature-metadata boundary runs against linked topic Git directory",
+      "adapter stays pure and the product explicitly connects only owner CAGED plus form UI",
+      "all version projections and the imported Port value equal current source text",
+      "apply sets only data-theme/meta, normalizes invalid IDs and never saves",
+      "approved originals preserved byte-for-byte, only Pro outputs have exact PNG dimensions",
+      "bootstrap and runtime also agree when storage cannot be accessed",
+      "focus/IME/Modal ownership and read-only host boundaries remain connected",
+      "four IDs, Dark default, frozen metadata agree with Port settings",
+      "four Shell regions and two logical Dock slots exist once",
+      "four themes use the existing runtime, save failure is visible",
+      "load keeps appSettings, Port, projects and absent/invalid theme unchanged",
+      "one Studio package publishes the guarded client and read-only legacy compatibility resources",
+      "polish uses screen media and semantic colors, Print keeps A4 and hides chrome",
+      "product owner dependency is pure, ordered and exactly versioned, with no UI/storage/gate imports",
+      "read failure / blocked storage getter resolve to Dark without writes",
+      "real navigation/4-theme styling and print exclusion retain existing workspaces",
+      "real pinned R3 API lists exactly 5 eighth and 4 sixteenth; version evidence is separate from production mirror",
+      "resolver: supported values only; invalid input resolves to Dark",
+      "semantic four-theme styling, print exclusion and native readonly controls",
+      "stable Pro-only manifest and browser names come from the canonical source",
+      "storage schema refs are distinct from app versions, cache keys, Sync/API/build versions",
+      "the actual published sprite contains the complete original Lucide notice and Feather permission, not an excluded filename",
+      "theme-color agrees with Port runtime and both first-paint bootstraps"
+    ]
+  },
+  "newFailingTestNames": [],
+  "targetedNode": {
+    "counts": {
+      "tests": 754,
+      "pass": 754,
+      "fail": 0,
+      "skipped": 0
+    },
+    "failingTestNames": []
+  },
+  "syntheticBrowser": {
+    "counts": {
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "skipped": 0
+    },
+    "failingTestNames": []
+  },
+  "realLocalhost": {
+    "url": "http://127.0.0.1:18873/",
+    "proGateObserved": true,
+    "authenticatedEditingVerified": false
+  },
+  "pdf": {
+    "pages": 1,
+    "paper": "A4",
+    "widths": [
+      1440,
+      390
+    ],
+    "renderer": "Chromium",
+    "previewInspected": true
+  },
+  "publicCreationEnabled": false,
+  "productionBackendChanges": false,
+  "realUserProjectsUsed": false
+}
