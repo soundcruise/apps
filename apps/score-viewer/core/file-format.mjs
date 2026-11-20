@@ -1,12 +1,14 @@
 import {assertJSON, insist, record, clone, freeze, canonicalJSON} from './json.mjs';
 
-export const VIEWER_VERSION = '0.19.0-dev.1';
+export const VIEWER_VERSION = '0.19.1-dev.1';
 export const SCORE_FORMAT = 'sound-cruise/score-view';
 export const SCORE_EXTENSION = '.cruise-score.json';
 // Schema2 allows 4 Mi UTF-16 code units (8 MiB accounting). UTF-8 needs at most
 // 12 MiB for that score. Reserve 1 MiB for the bounded envelope/presentation.
 export const MAX_FILE_BYTES = 13 * 1024 * 1024;
 export const MAX_PRESENTATION_BYTES = 64 * 1024;
+// The 1 MiB envelope reserves 64 KiB each for general settings and other metadata.
+const MAX_GRID_ROWS_BYTES = 896 * 1024;
 export const CAPABILITIES = Object.freeze(['schema2', 'meter:4/4', 'meter:3/4', 'layout:scoreLayoutV1', 'melody:bar-ties-v1',
     'form:studio-chord-form-v1', 'form:studio-chord-form-v2',
     'rhythm:studio-strum-v1', 'rhythm:rhythm-owner-cells-v1']);
@@ -35,12 +37,21 @@ export function createScoreCodec({validateScore, normalizePresentation, crypto =
         insist(score.schemaVersion === 2, 'unsupported-schema');
         return score;
     }
+    function checkPresentationBudget(value, score) {
+        const bytes = encoder.encode(JSON.stringify(value)).byteLength;
+        if (bytes <= MAX_PRESENTATION_BYTES) return;
+        insist(bytes <= MAX_PRESENTATION_BYTES + MAX_GRID_ROWS_BYTES &&
+            Array.isArray(value.gridRows) && value.gridRows.length <= score.bars.length, 'presentation-budget');
+        const {gridRows, ...settings} = value;
+        insist(encoder.encode(JSON.stringify(settings)).byteLength <= MAX_PRESENTATION_BYTES &&
+            encoder.encode(JSON.stringify(gridRows)).byteLength <= MAX_GRID_ROWS_BYTES, 'presentation-budget');
+    }
     function presentation(input, score) {
         assertJSON(input);
-        insist(encoder.encode(JSON.stringify(input)).byteLength <= MAX_PRESENTATION_BYTES, 'presentation-budget');
+        checkPresentationBudget(input, score);
         const result = normalizePresentation(clone(input), freeze(clone(score)));
         assertJSON(result.value);
-        insist(encoder.encode(JSON.stringify(result.value)).byteLength <= MAX_PRESENTATION_BYTES, 'presentation-budget');
+        checkPresentationBudget(result.value, score);
         return result;
     }
     async function verify(input) {

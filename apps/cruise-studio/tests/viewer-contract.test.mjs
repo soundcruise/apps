@@ -152,6 +152,25 @@ test('optional appearance is allowlisted and warned; invalid anchors/required pr
         await assert.rejects(contract.codec.encode(source,{...metadata(),defaultPresentation:value}));
     await assert.rejects(contract.codec.encode(source,{...metadata(),defaultPresentation:{layout:{padding:'x'.repeat(MAX_PRESENTATION_BYTES)}}}), /presentation-budget/);
 });
+test('bar grids for a maximum-length score fit without consuming the general settings budget',async () => {
+    const project=clone(source);
+    const sectionId=project.sections[0].id;
+    project.bars=Array.from({length:2048},()=>({id:schema.newId(),sectionId,chords:[],lyrics:[],melody:[]}));
+    project.notation.lineBreakAfter=[];
+    project.performance.formBindings=[];
+    project.performance.barRhythms=[];
+    project.performance.strokeOverrides=[];
+    const gridRows=project.bars.map(bar=>({barId:bar.id,rows:Object.fromEntries(
+        ['chord','strum','lyrics','doremi'].map(row=>[row,{unit:16,beats:[null,8,null,16]}])
+    )}));
+    const options={...metadata(),defaultPresentation:{gridRows}};
+    const file=await contract.codec.encode(project,options);
+    const decoded=await contract.codec.decode(file.text);
+    assert.deepEqual(decoded.document.defaultPresentation.gridRows,gridRows);
+    assert.deepEqual(decoded.warnings,[]);
+    options.defaultPresentation.layout={padding:'x'.repeat(MAX_PRESENTATION_BYTES)};
+    await assert.rejects(contract.codec.encode(project,options),/presentation-budget/);
+});
 test('reference acoustic projection equals the editor plan for all registered strings and exact melody timing', () => {
     const before = JSON.stringify(source), expected = buildSongPreviewPlan(source, {pitchMidi:schema.pitchMidi,parseChord:() => null,qualities:{},
         rhythm(p,index) { const binding = p.performance.barRhythms.find(b => b.barId === p.bars[index].id), m = p.materials.rhythms.find(m => m.id === (binding?.materialId || p.performance.basicRhythmId)); return {...m.snapshot,encoding:m.encoding}; }});

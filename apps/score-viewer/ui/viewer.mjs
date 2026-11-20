@@ -122,7 +122,9 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     async function persistPreferences() {
         if(!current)return;
         const item=current,doc=item.reader.read().document;
-        try {const p=item.player.snapshot();await library.savePreferences(item.entryId,doc.revisionId,{version:1,presentation:item.reader.read().presentation,anchor:viewAnchor(),scroll:item.scroll.snapshot(),repeat,playback:{...p.settings,tick:p.tick}});return true;}
+        // The input grid belongs to the immutable revision. Only viewing options need a local copy.
+        const {gridRows, ...presentation}=item.reader.read().presentation;
+        try {const p=item.player.snapshot();await library.savePreferences(item.entryId,doc.revisionId,{version:1,presentation,anchor:viewAnchor(),scroll:item.scroll.snapshot(),repeat,playback:{...p.settings,tick:p.tick}});return true;}
         catch {if(current===item)notice('閲覧位置と表示設定を保存できませんでした。譜面はそのまま閲覧できます。',true);return false;}
     }
     function schedulePreferences() {win.clearTimeout(preferenceTimer);if(!presentationPreview)preferenceTimer=win.setTimeout(()=>void persistPreferences(),180);}
@@ -202,7 +204,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
             try {preference=await library.readPreferences(libraryId,document.revisionId);}
             catch {preferenceFailed=true;}
             if(disposed||!active||request!==ticket){reader.dispose();return false;}
-            if(preference?.version===1&&preference.presentation)try {reader.setPresentation(preference.presentation);}catch{preferenceFailed=true;}
+            if(preference?.version===1&&preference.presentation)try {reader.setPresentation({...document.defaultPresentation,...preference.presentation});}catch{preferenceFailed=true;}
             const paper=doc.createElement('div');paper.className='sv-paper';
             renderPaper(reader,paper,{width:viewport.clientWidth,interactive:true}); // Prepare before removing the preceding score.
             let player;player=createPlayback(document,preference?.playback,()=>soundChanged(player));

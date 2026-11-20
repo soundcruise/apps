@@ -44,7 +44,7 @@ canonical JSONはオブジェクトのキーをソートし、配列順・値・
 
 - 外側13MiBまで。UTF-8のdecode/JSON.parse前にbyte長を検査し、不正UTF-8も拒否する。
 - 音楽部分は現行schema2の `JSON.stringify(score).length * 2 <= 8MiB` と最大2048小節をそのまま使用。前者の4Mi UTF-16 code unitsはUTF-8で最大12MiBになり得るため、外側13MiBと混同しない。
-- 初期表示の入力と正規化結果はそれぞれ64KiBまで。現行の許可書体ID/HEX色等のみ採用する。未知の任意表示項目や補正した値は `presentation-normalized` を返す。画面での案内は次段階。
+- 初期表示の一般設定は入力・正規化後とも64KiBまで。ビューワー0.19.1-dev.1以降は、小節ごとの入力グリッド（gridRows）に別途896KiBまで使用できる。現行の許可書体ID/HEX色等のみ採用する。未知の任意表示項目や補正した値は `presentation-normalized` を返す。画面での案内は次段階。
 - 未対応の必須能力・schema・拍子、未知の必須表示version、壊れた参照、digest不一致、行設定の不正な参照は拒否。
 - accessor/toJSON/循環参照/疎配列/非有限数は、直接APIへ渡されても書き出さない。
 - 素材を参照するbindingがあるのに実体がない場合は、schema不整合としてファイル全体を拒否。bindingのないコードを含む有効な曲は開き、`unbound-form:no-automatic-voicing` を返す。別フォームの自動生成・インストールはしない。
