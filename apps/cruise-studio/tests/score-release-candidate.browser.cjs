@@ -406,7 +406,17 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     await guide.waitForLoadState('load');
     const lesson=guide.locator('#lesson');
     assert.equal(await lesson.locator('video').count(),0);
-    assert(await lesson.locator('img').evaluateAll(images=>images.length>0 && images.every(img=>img.complete && img.naturalWidth>0)));
+    const figures=guide.locator('figure');
+    assert(await figures.count()>0);
+    const incompleteFigures=await figures.evaluateAll(items=>items.flatMap(figure=>{
+        const img=figure.querySelector('img');
+        return img?.complete && img.naturalWidth && img.alt.trim() && figure.querySelector('figcaption')?.textContent.trim()
+            ? [] : [img?.getAttribute('src') || '(missing image)'];
+    }));
+    assert.deepEqual(incompleteFigures,[]);
+    const brokenLinks=await guide.locator('a[href^="#"]').evaluateAll(links=>
+        links.map(a=>a.hash.slice(1)).filter(id=>!document.getElementById(id)));
+    assert.deepEqual(brokenLinks,[]);
     assert(!Object.keys(manifest.files).some(name=>name.startsWith('apps/cruise-studio/score-guide/') && name.endsWith('.mp4')));
     await guide.close();
 });
