@@ -21,13 +21,16 @@ export function createViewerPaperRenderer(C){const layouts=new WeakMap();
         surface.classList.toggle('sv-horizontal-sheet',horizontal);surface.style.width=paperWidth+'px';surface.style.transform='scale('+scale+')';
         layout.set(p.layout,false);
         const visibility={...C.sheetRenderer.resolveShowSettings(score),...p.layout.appearance.visibility};
+        if(p.layout.gridResolution)visibility.gridResolution=p.layout.gridResolution;
+        if(typeof p.layout.timingGrid==='boolean')visibility.timingGrid=p.layout.timingGrid;
+        const gridRows=new Map((p.gridRows||[]).map(entry=>[entry.barId,entry.rows]));
         const structureView=C.model.toStructureView(score);
         const sectionRules=p.layout.sections||[];
         const forms=(visibility.forms!==false||sectionRules.some(r=>r.visibility?.forms))&&C.localPaperForms.view(score,{scale:p.layout.formScale});
         const rules=new Map(p.rows.map(r=>[r.barId,r]));
         reader.renderWith(C.sheetRenderer,surface,{reuseBars:!horizontal&&local.flow!=='horizontal',sectionRules,barsPerLine:automatic?columns:(p.layout.barsPerLine||undefined),visibility,structureView,formsList:visibility.formList?C.localPaperForms.list(score,{interactive}):null,formsForBar:forms?forms.row:null,
-            resolutionForBar(bar){const slots=C.model.getBarEffectiveStrumSlots(structureView,bar.barNumber);return Math.max(C.model.barNeedsSixteenthResolution({strumSlots:Array.isArray(slots)?slots:[]})?16:8,p.layout.gridResolution||0);},
-            contentKey:doc.viewerDocumentId+':'+doc.revisionId+':'+JSON.stringify([visibility,p.layout.gridResolution,sectionRules]),
+            inputGridForRow:(bar,row)=>gridRows.get(bar.sourceId)?.[row],
+            contentKey:doc.viewerDocumentId+':'+doc.revisionId+':'+JSON.stringify([visibility,p.gridRows,sectionRules]),
             lineLayoutForSlot:automatic?undefined:id=>rules.get(id)||null});
         if(interactive&&!local.zoomBound){surface.addEventListener('click',e=>{const form=e.target.closest('.sheet-form-event');if(form){e.stopPropagation();C.localPaperForms.zoom(local.reader.read().document.score,form.dataset.formEvent);}});surface.addEventListener('keydown',e=>{const form=e.target.closest('.sheet-form-event');if(form&&['Enter',' '].includes(e.key)){e.preventDefault();e.stopPropagation();C.localPaperForms.zoom(local.reader.read().document.score,form.dataset.formEvent);}});local.zoomBound=true;}local.reader=reader;
         if(interactive)surface.querySelectorAll('.sheet-form-event').forEach(e=>{e.tabIndex=0;e.setAttribute('role','button');e.setAttribute('aria-haspopup','dialog');e.style.cursor='zoom-in';});
@@ -70,4 +73,4 @@ export async function saveToViewerLibrary(C,bytes,{isCurrent=()=>true}={}){
 export async function showViewerExportComplete(C,row){if(await exportComplete(document,row.title))return C.scoreViewer.openEntry(row.entryId);return false;}
 export async function readViewerEntry(C,entryId){const contract=createStudioViewerContract({schema:C.model.schema2}),library=createViewerLibrary({indexedDB:window.indexedDB,codec:contract.codec});try{return await library.read(entryId);}finally{await library.close();}}
 
-export async function exportEditorPDF(C,project,presentation,{isCurrent=()=>true,notify=()=>{}}={}){const contract=createStudioViewerContract({schema:C.model.schema2}),file=await contract.codec.encode(project,{documentId:'pdf-'+crypto.randomUUID(),revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.200.0-dev.1',defaultPresentation:presentation});if(!isCurrent())return false;const {downloadScorePDF}=await import('../../score-viewer/ui/pdf-download.mjs');return downloadScorePDF({document,contract,bytes:file.text,presentation,renderPaper:createViewerPaperRenderer(C),name:project.songInfo.title,notify,isCurrent});}
+export async function exportEditorPDF(C,project,presentation,{isCurrent=()=>true,notify=()=>{}}={}){const contract=createStudioViewerContract({schema:C.model.schema2}),file=await contract.codec.encode(project,{documentId:'pdf-'+crypto.randomUUID(),revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.201.0-dev.1',defaultPresentation:presentation});if(!isCurrent())return false;const {downloadScorePDF}=await import('../../score-viewer/ui/pdf-download.mjs');return downloadScorePDF({document,contract,bytes:file.text,presentation,renderPaper:createViewerPaperRenderer(C),name:project.songInfo.title,notify,isCurrent});}

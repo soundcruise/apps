@@ -208,12 +208,12 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await t.test('paper pinch and modified wheels share toolbar zoom and leave ordinary scrolling alone',()=>fresh(async page=>{
             const viewport=page.locator('#sc-preview'), label=page.locator('#sc-zoom-reset');
             const project=await snapshot(page);
-            const wheel=(deltaY,modifier)=>viewport.evaluate((e,[dy,key])=>{
+            const wheel=(deltaY,modifier,surface=viewport)=>surface.evaluate((e,[dy,key])=>{
                 const event=new WheelEvent('wheel',{deltaY:dy,[key]:true,bubbles:true,cancelable:true});
                 e.dispatchEvent(event);return event.defaultPrevented;
             },[deltaY,modifier]);
             assert.equal(await wheel(-80,'shiftKey'),false);
-            assert.equal(await wheel(-1000,'ctrlKey'),true);await settle(page);assert.equal(await label.textContent(),'200%');
+            assert.equal(await wheel(-1000,'ctrlKey',viewport.locator('..')),true);await settle(page);assert.equal(await label.textContent(),'200%');
             assert.equal(await wheel(1000,'metaKey'),true);await settle(page);assert.equal(await label.textContent(),'50%');
             await zoomControl(page,'#sc-zoom-reset');
             await viewport.evaluate(e=>{
@@ -224,6 +224,56 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             });
             await settle(page);assert.equal(await label.textContent(),'140%');
             assert.deepEqual(await snapshot(page),project);
+        }));
+        await t.test('zoom acts on each open paper preview independently of the underlying score',()=>fresh(async page=>{
+            for(const [id,viewport] of [
+                ['#sc-edit-song','.sc-song-preview'],['#sc-edit-sections','.sc-section-preview'],
+                ['#sc-edit-chord-preset','.sc-preset-paper'],['#sc-edit-rhythm','.sc-preset-paper'],
+                ['#sc-paper-settings','.sc-layout-example-viewport']
+            ]){
+                await (await toolbarControl(page,id)).click();
+                const frame=page.locator(viewport),sheet=frame.locator('.sheet-page').first();
+                await sheet.waitFor();await settle(page);const before=await sheet.boundingBox();
+                await frame.dispatchEvent('wheel',{deltaY:-35,ctrlKey:true,bubbles:true,cancelable:true});
+                await settle(page);
+                assert((await sheet.boundingBox()).width>before.width*1.15,viewport);
+                assert.equal(await page.locator('#sc-zoom-reset').textContent(),'100%');
+                await page.locator('dialog[open] [data-score-cancel],dialog[open] [data-layout-cancel]').last().click();
+            }
+        }));
+        await t.test('paper row boundaries match editor cells after changing a single beat or the entire row',()=>fresh(async page=>{
+            await select(page);
+            const bar=page.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="1"]');
+            for(const row of ['lyrics','chord','doremi','strum']){
+                await page.locator('[data-resolution-row="'+row+'"]').first().click();
+                for(const name of ['lyrics','chord','doremi','strum']){
+                    const positions=els=>els.map(e=>Number(e.dataset.slotTick));
+                    const ticks=await page.locator('.slot-overlay-row--'+name+' [data-slot-tick]').evaluateAll(positions);
+                    const lane=bar.locator('.sheet-bar-'+name);
+                    assert.deepEqual(await lane.locator(':scope > [data-slot-tick]').evaluateAll(positions),ticks);
+                    if(name==='strum')continue;
+                    const lines=await lane.evaluate(row=>{
+                        const index=Number(row.style.gridRowStart),grid=[...row.parentElement.querySelectorAll('.sheet-bar-grid')].find(g=>+g.style.gridRowStart<=index&&+g.style.gridRowEnd>index);
+                        return [...grid.children].map(e=>e.getBoundingClientRect().left);
+                    });
+                    const cells=await lane.locator('.sheet-timed-cell').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().left));
+                    assert.equal(lines.length,ticks.length);assert(lines.every((x,i)=>Math.abs(x-cells[i])<1));
+                }
+            }
+            await page.locator('[data-row-resolution=lyrics]').first().click();
+            const lyricTicks=await page.locator('.dock-lyrics-cell').evaluateAll(es=>es.map(e=>+e.dataset.slotTick));
+            assert.deepEqual(await bar.locator('.sheet-bar-lyrics>[data-slot-tick]').evaluateAll(es=>es.map(e=>+e.dataset.slotTick)),lyricTicks);
+            await page.locator('.slot-overlay-close').click();
+            const downloaded=page.waitForEvent('download');
+            await (await toolbarControl(page,'#sc-export-json')).click();
+            const json=fs.readFileSync(await (await downloaded).path(),'utf8');
+            const exported=JSON.parse(json);
+            assert(exported.scorePresentation.gridRows[0].rows.lyrics);
+            // Import as a separate project so a cached editor grid cannot satisfy the assertion.
+            exported.projectId='grid-roundtrip-copy';
+            await page.locator('#sc-import-json').setInputFiles({name:'grid.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exported))});
+            await page.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().target.projectId===id,exported.projectId);
+            assert.deepEqual(await bar.locator('.sheet-bar-lyrics>[data-slot-tick]').evaluateAll(es=>es.map(e=>+e.dataset.slotTick)),lyricTicks);
         }));
         await t.test('zoom changes only screen geometry and print stays A4',()=>fresh(async page=>{
             await page.locator('#sc-editor-drawer').evaluate(e=>e.open=false);await settle(page);

@@ -112,7 +112,7 @@
     var sectionPlaybackSelection=null;
     var scoreSettings=null,scoreSettingsPending=null,emptySlotSelection=null;
     function prepareScoreSettings(){
-        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.200.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
+        if(!scoreSettingsPending)scoreSettingsPending=import('./score-settings.mjs?v=0.201.0-dev.1').then(function(module){scoreSettings=module.createScoreSettings({C:CS(),document:document,getSession:function(){return state.session;},canEdit:editorCanMove,execute:runStructureOperation,createPreviewAudio:createLayoutPreview,loadChordPicker:prepareChordPicker,previewPaperOptions:project=>paperRenderOptions(project,null),closed:refreshSessionStatus,changed:function(change){
             emptySlotSelection=null;var oldIds=new Set(change.previous.bars.map(function(b){return b.id;})),added=state.session.draft.bars.findIndex(function(b){return !oldIds.has(b.id);});redrawSession(false);
             if(change.mode==='slot'&&added>=0){editorOpen=true;selectSheetBar(added+1);}refreshSessionStatus();
         }});return scoreSettings;}).catch(function(e){scoreSettingsPending=null;setSaveStatus(e.message||'編集画面を読み込めませんでした',true);});return scoreSettingsPending;
@@ -122,7 +122,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.200.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.201.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -910,7 +910,18 @@
         }
         if (!session) session = CS().sessions.getOrCreateSession('structure', target, options && options.dirty ? project : undefined);
         showSession(session, options && options.statusMessage);
-        if(options?.presentation)CS().localPaperLayout?.importPresentation(project,options.presentation);
+        if(options?.presentation){
+            const imported=CS().localPaperLayout?.readGridRows(options.presentation.gridRows,project)||new Map();
+            for(const bar of state.project.bars){
+                const rows=imported.get(bar.sourceId);
+                for(const [row,grid] of Object.entries(rows||{})){
+                    const map=editorResolutionMap(bar,row);map.set('row:'+row,grid.unit);
+                    grid.beats.forEach((lock,i)=>setLyricBeatLocalRes(bar,i,lock,row));
+                }
+            }
+            CS().localPaperLayout?.importPresentation(project,options.presentation);
+            if(imported.size)renderPreview(true);
+        }
     }
 
     function openProject(projectId) {
@@ -1239,9 +1250,16 @@
     function paperRenderOptions(project,version=state.session?.snapshotVersion){
         var layout=CS().localPaperLayout?.renderOptions(project),defaultForms=effectivePaperVisibility(project).forms;
         var forms=(defaultForms||layout?.sectionRules.some(rule=>rule.visibility?.forms))&&CS().localPaperForms?.view(project,{scale:CS().localPaperLayout?.value.formScale});
-        var resolutions=new Map(state.project.bars.map(function(bar){return [bar.barNumber,getStrumGridResolution(bar)];}));
+        const rowSettings=state.lyricBeatResV2.get(state.session);
         return {contentKey:project.projectId+':'+version,structureView:!historyPreview&&state.session?.draft.projectId===project.projectId&&state.session.snapshotVersion===version?state.project:null,editableSlots:true,hasFormsForBar:forms?forms.has:null,formsForBar:forms?forms.row:null,defaultForms,...layout,
-            resolutionForBar:function(bar){return Math.max(resolutions.get(bar.barNumber),CS().localPaperLayout?.value.gridResolution||0);},
+            inputGridForRow:function(bar,row,length){
+                const settings=rowSettings?.get(bar.sourceId);
+                if(!settings||historyPreview)return null;
+                if(row==='strum' && (settings.get('strumMaterial')!==(bar.strumOverride||state.project.basicStrumPatternId)||settings.get('strumLength')!==length))return null;
+                const unit=effectiveRowUnit(settings,row);
+                const locks=Array.from({length:length/480},(_,beat)=>settings.get(row==='lyrics'?beat:row+':'+beat));
+                return {unit,beats:locks};
+            },
             heldForNote:function(number,tick){var e=project.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick;});return e?.provenance.timing.onset.origin==='auto-assigned'&&e?.provenance.timing.duration.origin==='user-set';},
             restsForBar:function(number){return project.bars[number-1]?.melody.filter(function(e){return e.kind==='rest';})||[];},
             octaveForNote:function(number,tick){return project.bars[number-1]?.melody.find(function(e){return e.onsetTick===tick&&e.kind==='note';})?.pitch.octave;}};
@@ -1870,51 +1888,18 @@
         button('sc-zoom-reset','100%',function(){return 1;}).title='画面幅に合わせた表示へ戻す';
         button('sc-zoom-in','拡大 ＋',function(z){return Math.min(2,z+.25);});
         (els.toolbar.querySelector('.sheet-toolbar-actions')||els.toolbar).appendChild(controls);
-        mountPaperZoomGestures(els.preview);
-        mountCompactScoreToolbar();
-    }
-    function mountPaperZoomGestures(paper) {
-        let startZoom = null, pendingZoom = sheetZoom, frame = 0, point;
-        function schedule(value, event) {
-            pendingZoom = Math.max(.5, Math.min(2, value));
-            point = {x:event.clientX, y:event.clientY};
-            if (frame) return;
-            frame = requestAnimationFrame(function () {
-                frame = 0;
-                if (pendingZoom === sheetZoom || !paper.getClientRects().length) return;
-                const before = paper.getBoundingClientRect();
-                if (!before.width) return;
-                const x = point.x ?? before.left + before.width / 2;
-                const y = point.y ?? Math.max(before.top, 0);
-                const owner = els.root.classList.contains('sc-focused') ? els.root : CS().scroll?.getRoot('sheetCruise');
-                const scroller = !owner || owner === window ? document.scrollingElement : owner;
-                sheetZoom = pendingZoom;
-                updateSheetScale();
-                const after = paper.getBoundingClientRect(), ratio = after.width / before.width;
-                paper.parentElement.scrollLeft += after.left + (x - before.left) * ratio - x;
-                scroller.scrollTop += after.top + (y - before.top) * ratio - y;
+        prepareScorePlayback().then(()=>{
+            const workspace=els.root.closest('.studio-main')||els.root;
+            scoreUI?.bindScoreZoom(workspace,{
+                read:()=>sheetZoom,write:value=>{sheetZoom=value;updateSheetScale();},paper:()=>els.preview,
+                scrollX:()=>els.preview.parentElement,scrollY:()=>{
+                    const owner=els.root.classList.contains('sc-focused')?els.root:CS().scroll?.getRoot('sheetCruise');
+                    return !owner||owner===window?document.scrollingElement:owner;
+                },
+                enabled:event=>state.active&&(event.target===workspace||els.root.contains(event.target))&&!event.target.closest('dialog,#sc-slot-overlay,.sheet-toolbar,.sc-bottom-transport,input,select,textarea,button,details')
             });
-        }
-        paper.addEventListener('wheel', function (event) {
-            if (!(event.ctrlKey || event.metaKey) || !event.deltaY) return;
-            event.preventDefault();
-            if (startZoom !== null) return;
-            const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? paper.clientWidth : 1;
-            schedule((frame ? pendingZoom : sheetZoom) * Math.exp(-event.deltaY * unit * .008), event);
-        }, {passive:false});
-        paper.addEventListener('gesturestart', function (event) {
-            event.preventDefault();
-            startZoom = frame ? pendingZoom : sheetZoom;
-        }, {passive:false});
-        paper.addEventListener('gesturechange', function (event) {
-            if (startZoom === null || !(event.scale > 0)) return;
-            event.preventDefault();
-            schedule(startZoom * event.scale, event);
-        }, {passive:false});
-        paper.addEventListener('gestureend', function (event) {
-            if (startZoom !== null) event.preventDefault();
-            startZoom = null;
-        }, {passive:false});
+        });
+        mountCompactScoreToolbar();
     }
     function updateSheetScale() {
         if (!els.preview || !els.scaleBox) return;
@@ -2128,35 +2113,14 @@
     }
 
     function editorCellRanges(bar,globalRes,rowId){
-        var beats=getBeats(state.project),beatTicks=CS().model.getBarLengthTicks(state.project)/beats,ranges=[];
-        var base=rowResolution(bar,rowId);
-        if(rowId==='strum'){
-            const length=beats*beatTicks;
-            const locks=Array.from({length:beats},(_,beat)=>getLyricBeatLocalRes(bar,beat,rowId));
-            const starts=CS().model.strumCellStarts(base,locks,length);
-            return starts.map((tick,i)=>{
-                const beat=Math.floor(tick/beatTicks),res=locks[beat]||base;
-                const count=Math.max(1,res/4);
-                return {tick,span:(starts[i+1]??length)-tick,beat,res,count,
-                    slot:Math.floor(tick%beatTicks/beatTicks*count),previousTick:i?starts[i-1]:null};
-            });
-        }
-        if(base<=2){
-            var length=CS().model.getBarLengthTicks(state.project),tick=0,unit=length/base;
-            while(tick<length){
-                var beat=Math.floor(tick/beatTicks),local=getLyricBeatLocalRes(bar,beat,rowId);
-                if(local){var count=local/4,span=beatTicks/count;for(var slot=0;slot<count;slot++)ranges.push({tick:tick+slot*span,span:span,beat:beat,slot:slot,count:count,res:local});tick+=beatTicks;}
-                else{var end=Math.min(length,(Math.floor(tick/unit)+1)*unit),probe=(beat+1)*beatTicks;while(probe<end){if(getLyricBeatLocalRes(bar,Math.floor(probe/beatTicks),rowId)){end=probe;break;}probe+=beatTicks;}ranges.push({tick:tick,span:end-tick,beat:beat,slot:0,count:1,res:base});tick=end;}
-            }
-            ranges.forEach(function(r,i){r.previousTick=i?ranges[i-1].tick:null;});return ranges;
-        }
-        for(var beat=0;beat<beats;beat++){
-            var res=getLyricBeatEffectiveRes(bar,globalRes,beat,rowId);
-            var count=res===4?1:res/4,span=beatTicks/count;
-            for(var slot=0;slot<count;slot++)ranges.push({tick:beat*beatTicks+slot*span,span:span,beat:beat,slot:slot,count:count,res:res});
-        }
-        ranges.forEach(function(r,i){r.previousTick=i?ranges[i-1].tick:null;});
-        return ranges;
+        const length=CS().model.getBarLengthTicks(state.project),base=rowResolution(bar,rowId);
+        const locks=Array.from({length:length/480},(_,beat)=>getLyricBeatLocalRes(bar,beat,rowId));
+        const starts=CS().model.strumCellStarts(base,locks,length);
+        return starts.map((tick,i)=>{
+            const beat=Math.floor(tick/480),res=locks[beat]||base,count=Math.max(1,res/4);
+            return {tick,span:(starts[i+1]??length)-tick,beat,res,count,
+                slot:Math.floor(tick%480/480*count),previousTick:i?starts[i-1]:null};
+        });
     }
 
     function editorBeatGroups(wrap,bar,globalRes,rowId,ranges){
@@ -2491,7 +2455,7 @@
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.200.0-dev.1'),import('../score-ui.mjs?v=0.200.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.201.0-dev.1'),import('../score-ui.mjs?v=0.201.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen'});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -2722,7 +2686,7 @@
     function buildChordPickerPanel(){var root=document.createElement('section');root.dataset.chordPicker='';root.hidden=!chordPicker.open||collapsedEditorRows.has('chord');if(!root.hidden)populateChordPicker(root);return root;}
     function refreshChordPicker(){syncEditorDisclosures();var root=els.slotOverlay?.querySelector('[data-chord-picker]');if(root&&!root.hidden)populateChordPicker(root);}
     function prepareChordPicker(){
-        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.200.0-dev.1')
+        if(!chordPickerModule)chordPickerModule=import('./chord-picker.mjs?v=0.201.0-dev.1')
             .then(function(module){return module.createChordPicker(CS(),window.ChordCruise);})
             .catch(function(error){chordPickerModule=null;throw error;});
         return chordPickerModule;
@@ -3553,9 +3517,7 @@
         let map=owner.store.get(owner.key);
         if(!map){
             map=new Map();
-            for(const [row,events] of [['lyrics',bar.lyrics],['doremi',bar.melody]]){
-                if(events?.some(event=>event.tick%240))map.set('row:'+row,16);
-            }
+            for(const row of ['lyrics','doremi'])map.set('initial:'+row,CS().sheetRenderer.defaultRowUnit(bar,row,8));
             owner.store.set(owner.key,map);
         }
         if(rowId==='strum'){
@@ -3595,8 +3557,11 @@
      * （globalRes）を返す。
      */
     function rowResolution(bar,rowId){
-        var map=editorResolutionMap(bar,rowId);
-        return map.get('row:'+rowId)||8;
+        return effectiveRowUnit(editorResolutionMap(bar,rowId),rowId);
+    }
+    function effectiveRowUnit(map,row){
+        const preference=CS().localPaperLayout?.value.gridResolution??state.project.sheetSettings?.timingGridResolution;
+        return map.get('row:'+row)||Math.max(map.get('initial:'+row)||8,preference===16?16:8);
     }
     function buildRowResolutionButton(bar,rowId){
         var session=state.session,sourceId=bar.sourceId,value=rowResolution(bar,rowId),next={8:16,16:4,4:1,1:2,2:8}[value];
@@ -5086,6 +5051,7 @@
         [1,2,3,4].forEach(function(count){var tab=document.createElement('button');tab.type='button';tab.dataset.editorBars=count;tab.className='slot-overlay-res-btn'+(editorBars===count?' is-active':'');tab.textContent=count+'小節';tab.setAttribute('aria-pressed',String(editorBars===count));tab.title=count+'小節を並べて編集';tab.addEventListener('pointerdown',function(e){e.preventDefault();});tab.addEventListener('click',function(){if(!editorCanMove()||editorBars===count)return;stopPianoAudition();finishTextInputs();editorBars=count;editorAnchorId=state.session.draft.bars[state.selectedBarNumber-1].id;renderSlotOverlayContent();});tabs.appendChild(tab);});headActions.appendChild(tabs);
         var zoom=document.createElement('div');zoom.className='slot-overlay-res-toggle';zoom.setAttribute('role','group');zoom.setAttribute('aria-label','横方向の拡大・縮小');
         function changeHorizontalZoom(value){
+            value=Math.round(Math.min(160,Math.max(40,value)));
             editorHorizontalZoom=value;
             els.slotOverlay.style.setProperty('--editor-horizontal-scale',String(value/100));
             els.slotOverlay.style.setProperty('--editor-horizontal-width',value+'%');
@@ -5131,6 +5097,7 @@
         var canonical=state.session.draft,anchor=canonical.bars.findIndex(function(b){return b.id===editorAnchorId;});
         if(editorBars===1||anchor<0||state.selectedBarNumber<anchor+1||state.selectedBarNumber>anchor+editorBars){anchor=Math.max(0,state.selectedBarNumber-1);editorAnchorId=canonical.bars[anchor].id;}
         var viewport=document.createElement('div');viewport.className='editor-score-scroll';viewport.dataset.anchor=editorAnchorId;els.slotOverlay.appendChild(viewport);var measures=document.createElement('div');measures.className='editor-measures';measures.dataset.count=Math.min(editorBars,canonical.bars.length-anchor);measures.style.setProperty('--editor-count',measures.dataset.count);viewport.appendChild(measures);
+        scoreUI?.bindScoreZoom(viewport,{read:()=>editorHorizontalZoom/100,write:value=>changeHorizontalZoom(value*100),min:.4,max:1.6,enabled:editorCanMove});
         state.project.bars.slice(anchor,anchor+editorBars).forEach(function(bar){
             var measure=document.createElement('section');measure.className='editor-measure';measure.dataset.barNumber=bar.barNumber;measure.style.setProperty('--editor-column',bar.barNumber-anchor);measure.setAttribute('aria-label',bar.barNumber+'小節目を編集');
             function activate(event){if(event.target.closest('.editor-row-tools,[data-chord-cell-toggle]'))return;if(!activateEditorMeasure(bar.barNumber)){event.preventDefault();event.stopImmediatePropagation();if(event.type==='focus'){event.target.blur();editorRoot().querySelector('.is-invalid')?.focus({preventScroll:true});}}else if(event.type==='focus')revealEditorCell(event.target);}
@@ -5432,7 +5399,7 @@
         var ids=args.barIds.slice(),res=runStructureOperation('moveBars',args);if(!res.ok)return;
         var index=state.session.draft.bars.findIndex(function(b){return ids.includes(b.id);});selectSheetBar(index+1);selectedBarIds=ids;syncSheetSelection();setSaveStatus((index+1)+'小節目から'+ids.length+'小節を移動（未保存）');
     }
-    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.200.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
+    function prepareSheetActions(){if(!sheetActionsPending)sheetActionsPending=import('./sheet-actions.mjs?v=0.201.0-dev.1').then(function(m){sheetActions=m.createSheetActions({document:document,host:els.root,closed:refreshToolbarActions});return {module:m,ui:sheetActions};}).catch(function(){sheetActionsPending=null;return null;});return sheetActionsPending;}
     function openSheetAction(kind,trigger){
         if(!editorCanMove())return;finishTextInputs();if(!editorCanMove())return;stopPianoAudition();var owner=state.session,version=owner.snapshotVersion;
         prepareSheetActions().then(function(ready){if(!ready||state.session!==owner||owner.snapshotVersion!==version||!editorCanMove())return;
@@ -5467,13 +5434,13 @@
     }
     function openPlaybackSettings(trigger){
         if(!editorCanMove())return;var owner=state.session;
-        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.200.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
+        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.201.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
             if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);pianoAudition?.setMix(playbackMix);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(playbackMix);refreshPracticeTransport();
             try{var raw=localStorage.getItem('cruiseStudio.appSettings'),settings=raw===null?{}:JSON.parse(raw);if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('invalid-settings');var result=CS().storage.setAppSetting(key,value);if(!result.ok)throw Error(result.error);notice.textContent='';}catch(_){notice.textContent='設定を保存できませんでした。この画面にのみ適用しています';}
         },closed:refreshToolbarActions});return playbackSettings;}).catch(function(){playbackSettingsPending=null;setSaveStatus('音設定を読み込めませんでした',true);});
         playbackSettingsPending.then(function(settings){if(settings&&state.session===owner&&editorCanMove())settings.open(trigger);});
     }
-    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.200.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
+    function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.201.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
     async function openPaperForm(cell,eventId,tick){
         if(!editorCanMove()||!CS().localPaperForms)return;
@@ -5612,20 +5579,43 @@
         window.print();
     }
 
+    function scorePresentation(project){
+        const presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project));
+        if(!presentation)return presentation;
+        const settings=state.lyricBeatResV2.get(state.session),gridRows=[];
+        for(const bar of state.project.bars){
+            const map=settings?.get(bar.sourceId);
+            if(!map)continue;
+            const rows={};
+            const pattern=state.project.strumPatterns.find(p=>p.id===(bar.strumOverride||state.project.basicStrumPatternId));
+            const length=CS().model.getBarLengthTicks(state.project);
+            for(const row of ['chord','strum','lyrics','doremi']){
+                const fallback=row==='strum'?CS().model.strumInputGrid(pattern,length):
+                    {unit:CS().sheetRenderer.defaultRowUnit(bar,row,presentation.layout.gridResolution),beats:[]};
+                if(row==='strum'&&(map.get('strumMaterial')!==pattern?.id||map.get('strumLength')!==length))continue;
+                const unit=effectiveRowUnit(map,row),beats=Array.from({length:length/480},(_,i)=>map.get(row==='lyrics'?i:row+':'+i)??null);
+                if(unit!==fallback.unit||beats.some((v,i)=>v!==(fallback.beats[i]??null)))rows[row]={unit,beats};
+            }
+            if(Object.keys(rows).length)gridRows.push({barId:bar.sourceId,rows});
+        }
+        if(gridRows.length)presentation.gridRows=gridRows;
+        return presentation;
+    }
+
     var viewerExportFlight=false;
     async function downloadProjectPDF(){
-        if(viewerExportFlight||!prepareExplicitOutput())return;var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project))||{};viewerExportFlight=true;refreshToolbarActions();
+        if(viewerExportFlight||!prepareExplicitOutput())return;var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=scorePresentation(project)||{};viewerExportFlight=true;refreshToolbarActions();
         try{await CS().scoreViewer.pdf(project,presentation,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);},notify:function(text,error){setSaveStatus(text,error);}});}catch(error){setSaveStatus('PDFを作成できませんでした。元の譜面は保持しています',true);}finally{viewerExportFlight=false;refreshToolbarActions();}
     }
     async function downloadViewerScore() {
         if(viewerExportFlight||!prepareExplicitOutput())return;
-        var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project))||{};
+        var owner=state.session,version=owner.snapshotVersion,project=owner.workingSnapshot(),presentation=scorePresentation(project)||{};
         viewerExportFlight=true;refreshToolbarActions();
         try{
-            var module=await import('./viewer-contract.mjs?v=0.200.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
+            var module=await import('./viewer-contract.mjs?v=0.201.0-dev.1'),contract=module.createStudioViewerContract({schema:CS().model.schema2});
             var hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(project.projectId));
             var documentId='score-'+Array.from(new Uint8Array(hash),function(n){return n.toString(16).padStart(2,'0');}).join('');
-            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.200.0-dev.1',defaultPresentation:presentation});
+            var result=await contract.codec.encode(project,{documentId:documentId,revisionId:crypto.randomUUID(),exportedAt:new Date().toISOString(),studioVersion:'0.201.0-dev.1',defaultPresentation:presentation});
             if(!state.active||state.session!==owner||owner.snapshotVersion!==version||owner.inputPending||textDiagnostic(owner)){setSaveStatus('曲や入力状態が変わったため、書き出しを中止しました',true);return;}
             var exportedEntry=await CS().scoreViewer.add(result.text,{isCurrent:function(){return state.active&&state.session===owner&&owner.snapshotVersion===version&&!owner.inputPending&&!textDiagnostic(owner);}});
             if(!exportedEntry){setSaveStatus('書き出しをキャンセルしました');return;}
@@ -5637,7 +5627,7 @@
     function downloadCurrentProjectJson() {
         if(!prepareExplicitOutput())return;
         var project = state.session.workingSnapshot();
-        var json = CS().storage.exportProjectJson(project, CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project)));
+        var json = CS().storage.exportProjectJson(project, scorePresentation(project));
         var blob = new Blob([json], { type: 'application/json' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
@@ -5754,7 +5744,7 @@
         fileSaves.add(session);
         try{
             const check=CS().model.validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
-            const json=CS().storage.exportProjectJson(project,CS().localPaperLayout?.exportPresentation(project,effectivePaperVisibility(project)));
+            const json=CS().storage.exportProjectJson(project,scorePresentation(project));
             let handle;
             if(!chooseFile){
                 await handleReads.get(id);
@@ -6066,7 +6056,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         // B-line local UI candidate; formal product/cache identity remains A-owned.
-        developmentVersion: '0.200.0-dev.1',
+        developmentVersion: '0.201.0-dev.1',
         createDragScroll,
         connectPaperLayout: mountPaperLayoutControls,
         init: init,

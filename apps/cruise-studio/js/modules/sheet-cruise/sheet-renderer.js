@@ -49,20 +49,10 @@
         var slots = model.getBarEffectiveStrumSlots(project, bar.barNumber);
         if(slots&&slots.ok===false)return {unsupported:true,name:slots.name};
         var pattern=(project.strumPatterns||[]).find(p=>p.id===(bar.strumOverride||project.basicStrumPatternId));
-        if (!Array.isArray(slots) || (!slots.length && !pattern?.cellStarts && !pattern?.leadingSustainTicks)) return null;
+        if (!Array.isArray(slots) || (!slots.length && !pattern?.inputGrid && !pattern?.cellStarts && !pattern?.leadingSustainTicks)) return null;
         const barTicks=model.getBarLengthTicks(project);
-        let cellStarts=pattern?.cellStarts;
-        if(pattern?.inputGrid || (!cellStarts && pattern?.leadingSustainTicks)){
-            const grid=model.strumInputGrid(pattern,barTicks);
-            cellStarts=model.strumCellStarts(grid.unit,grid.beats,barTicks);
-        }
-        return {
-            slots: slots,
-            cellStarts,
-            leadingSustainTicks: pattern?.leadingSustainTicks,
-            barTicks,
-            needs16: strumNeedsSixteenth(slots)
-        };
+        const inputGrid=model.strumInputGrid(pattern,barTicks);
+        return {slots,inputGrid,leadingSustainTicks:pattern?.leadingSustainTicks};
     }
 
     /* ══════════ 紙面ヘッダー ══════════ */
@@ -98,50 +88,22 @@
 
     /* ══════════ タイミンググリッド（S1a） ══════════ */
 
-    /**
-     * 16分位置（120tick粒度）のイベントを含む小節か。
-     * 含む場合、全体設定が8分でもその小節だけ16分グリッドで表示する
-     * （分割状態はデータに持たず、tickから導出する方針）。
-     * 判定ロジック自体は song-model.js の barNeedsSixteenthResolution へ委譲する
-     * （F2a / ADR-028。strum/lyrics/歌詞セルの解像度判定と共有し、挙動は変えない）。
-     */
-    function barNeedsSixteenth(bar, strumSlots) {
-        return CS().model.barNeedsSixteenthResolution({
-            lyrics: bar.lyrics,
-            chords: bar.chords,
-            melody: bar.melody,
-            strumSlots: strumSlots
-        });
+    function defaultRowUnit(bar,row,resolution) {
+        const events=row==='lyrics'?bar.lyrics:row==='doremi'?bar.melody:null;
+        return resolution===16 || events?.some(event=>event.tick%240) ? 16 : 8;
     }
-
-    /**
-     * 小節セルの背面に敷くグリッド線要素を作る。
-     * 線の濃淡は theme.css / print.css 側で
-     * 小節線（セル枠）＞ 拍線（is-beat）＞ 8分線（is-8th）＞ 16分線（is-16th）とする。
-     * @param {number} beats 拍数（4/4なら4）
-     * @param {number} resolution 8 または 16
-     */
-    function buildTimingGrid(beats, resolution) {
-        var slotsPerBeat = resolution / 4;            // 8分=2 / 16分=4
-        var slots = beats * slotsPerBeat;
-        var grid = el('div', 'sheet-bar-grid');
-        grid.setAttribute('aria-hidden', 'true');
-        grid.style.gridTemplateColumns = 'repeat(' + slots + ', 1fr)';
-        for (var s = 0; s < slots; s++) {
-            var span = el('span');
-            // 各マスの右端の線の種類（最後のマスの右端は小節線なので線なし）
-            var boundary = s + 1;
-            if (boundary < slots) {
-                if (boundary % slotsPerBeat === 0) {
-                    span.className = 'is-beat';
-                } else if (resolution === 16 && boundary % 2 === 0) {
-                    span.className = 'is-8th';
-                } else {
-                    span.className = (resolution === 16) ? 'is-16th' : 'is-8th';
-                }
-            }
-            grid.appendChild(span);
-        }
+    function gridColumns(starts,length){
+        return starts.map((tick,i)=>'minmax(0,'+((starts[i+1]??length)-tick)+'fr)').join(' ');
+    }
+    function buildTimingGrid(starts,length){
+        const grid=el('div','sheet-bar-grid');
+        grid.setAttribute('aria-hidden','true');
+        grid.style.gridTemplateColumns=gridColumns(starts,length);
+        starts.forEach((tick,i)=>{
+            const end=starts[i+1];
+            const mark=el('span',end==null?'':end%480===0?'is-beat':end%240===0?'is-8th':'is-16th');
+            grid.appendChild(mark);
+        });
         return grid;
     }
 
@@ -202,6 +164,7 @@
     // Empty = no event, rest = explicit rest + duration, sustain = previous stroke duration.
     function buildPresetStrumRow(slots, barTicks, starts, leadingSustainTicks) {
         const row=el('span','sheet-bar-strum sheet-bar-row sheet-preset-strum');
+        const rules=new Set(starts);
         const boundaries=new Set(starts.filter(t=>t<barTicks));
         // A later edit can add a stroke inside a previously applied cell.
         let previous=null;
@@ -226,7 +189,7 @@
             cell.dataset.strumState=action;cell.dataset.slotTick=start;cell.dataset.slotTicks=width;
             if(action==='rest')cell.style.color='#746e65';
             const end=ticks[n+1];
-            if(end<barTicks) cell.classList.add(end%480===0?'is-beat':end%240===0?'is-8th':'is-16th');
+            if(end<barTicks && rules.has(end)) cell.classList.add(end%480===0?'is-beat':end%240===0?'is-8th':'is-16th');
             renderStrumCell(cell,action,width);
             row.appendChild(cell);widths.push('minmax(0,'+width+'fr)');
         }
@@ -234,47 +197,30 @@
         return row;
     }
 
-    function buildStrumRow(slots, barTicks, viewResolution) {
-        var res=Math.max(strumNeedsSixteenth(slots)?16:8,viewResolution===16?16:8);
-        var slotTicks=barTicks/res,glyphs={down:'↓',up:'↑',mute:'x'};
-        var cells=Array.from({length:res},function(){return {text:'',state:'empty'};});
-        slots.forEach(function(ev){
-            var idx=Math.round(ev.tick/slotTicks);if(idx<0||idx>=res)return;
-            var len=Math.max(1,Math.round((ev.durationTicks||slotTicks)/slotTicks));
-            for(var n=0;n<len&&idx+n<res;n++){
-                var rest=ev.action==='rest';
-                cells[idx+n]=rest?{text:slotTicks===120?'𝄿':'𝄾',state:'rest'}:n?{text:'〜',state:'sustain'}:{text:glyphs[ev.action]||'',state:ev.action};
-            }
-        });
-        var row=el('span','sheet-bar-strum sheet-bar-row sheet-bar-strum--'+res);
-        row.style.gridTemplateColumns='repeat('+res+',1fr)';
-        cells.forEach(function(value,index){
-            var cell=el('span','is-'+value.state+(['down','up'].includes(value.state)?' is-stroke':''),['rest','down','up'].includes(value.state)?'':value.text);cell.dataset.strumState=value.state;cell.dataset.slotTick=index*slotTicks;cell.dataset.slotTicks=slotTicks;
-            cell.title=value.state==='empty'?'未入力':value.state==='rest'?'休符':value.state==='sustain'?'伸ばし':value.text;
-            if(value.state==='rest'){cell.style.color='#746e65';cell.appendChild(createStrumRestSymbol(slotTicks));}else if(['down','up'].includes(value.state))cell.appendChild(createStrumArrow(value.state));
-            row.appendChild(cell);
-        });
-        return row;
-    }
-
     /* ══════════ 歌詞段（F2a / ADR-028: tick配置対応） ══════════ */
 
     // All text rows share the displayed time grid; rendering never edits event timing.
-    function buildTimedTextRow(className,events,resolution,barTicksLen){
+    function buildTimedTextRow(className,events,starts,barTicksLen){
         var row=el('span',className+' sheet-bar-row');
-        Object.assign(row.style,{display:'grid',gridTemplateColumns:'repeat('+resolution+',minmax(0,1fr))',gap:'0',marginLeft:'calc(-1 * var(--sheet-bar-pad-x))',marginRight:'calc(-1 * var(--sheet-bar-pad-x))',fontSize:'13.5px',fontWeight:'600',letterSpacing:'0',minHeight:'1.5em'});
-        var texts=Array.from({length:resolution},function(){return [];});
-        events.forEach(function(e){var i=Math.floor(e.tick/barTicksLen*resolution);if(i>=0&&i<resolution)texts[i].push(e);
-            if(e.durationTicks&&e.octave!==undefined)for(var n=i+1;n<resolution&&n*barTicksLen/resolution<e.tick+e.durationTicks;n++)texts[n].push({text:'〜',octave:e.octave});
-        });
+        Object.assign(row.style,{display:'grid',gridTemplateColumns:gridColumns(starts,barTicksLen),gap:'0',marginLeft:'calc(-1 * var(--sheet-bar-pad-x))',marginRight:'calc(-1 * var(--sheet-bar-pad-x))',fontSize:'13.5px',fontWeight:'600',letterSpacing:'0',minHeight:'1.5em'});
+        const texts=starts.map(()=>[]);
+        for(const event of events){
+            const i=starts.findLastIndex(tick=>tick<=event.tick);
+            if(i<0||event.tick>=barTicksLen)continue;
+            texts[i].push(event);
+            if(event.octave!==undefined)for(let j=i+1;j<starts.length&&starts[j]<event.tick+event.durationTicks;j++){
+                texts[j].push({text:'〜',octave:event.octave});
+            }
+        }
         const vocal=className.includes('lyrics')||className.includes('doremi');
         function gcd(a,b){while(b){const r=a%b;a=b;b=r;}return a;}
         texts.forEach(function(items,i){
             const cell=el('span','sheet-timed-cell');
-            let unit=items.length===1&&items[0].durationTicks?items[0].durationTicks:barTicksLen/resolution;
+            const span=(starts[i+1]??barTicksLen)-starts[i];
+            let unit=items.length===1&&items[0].durationTicks?items[0].durationTicks:span;
             for(const e of items)if(e.durationTicks)unit=gcd(unit,e.durationTicks);
             for(const e of items){
-                const suffix=e.durationTicks&&e.durationTicks<=barTicksLen/resolution?'〜'.repeat(Math.min(16,Math.max(e.held?1:0,e.durationTicks/unit-1))):'';
+                const suffix=e.durationTicks&&e.durationTicks<=span?'〜'.repeat(Math.min(16,Math.max(e.held?1:0,e.durationTicks/unit-1))):'';
                 const token=el('span','',e.text+suffix);
                 if(e.restTicks){token.replaceChildren(createStrumRestSymbol(e.restTicks));token.style.color='#746e65';}
                 else if(className==='sheet-bar-doremi' && e.text?.startsWith('ファ')){
@@ -295,10 +241,10 @@
             if(vocal && items.length){
                 // A short syllable stays centered on its onset. Only longer text borrows empty slots.
                 let end=i+1;
-                while(end<resolution&&!texts[end].length)end++;
-                cell.style.maxWidth=((end-i)*100)+'%';
+                while(end<starts.length&&!texts[end].length)end++;
+                cell.style.maxWidth=(((starts[end]??barTicksLen)-starts[i])*100/span)+'%';
             }
-            cell.dataset.slotTick=i*barTicksLen/resolution;
+            cell.dataset.slotTick=starts[i];cell.dataset.slotTicks=span;
             cell.style.textAlign='center';
             cell.style.position='relative';
             cell.style.minWidth=items.length?'100%':'0';
@@ -307,13 +253,13 @@
         });
         return row;
     }
-    function buildLyricsRow(bar,resolution,barTicksLen){
-        return buildTimedTextRow('sheet-bar-lyrics sheet-bar-lyrics--timed',(bar.lyrics||[]).map(function(e){return {tick:e.tick,text:e.text||''};}),resolution,barTicksLen);
+    function buildLyricsRow(bar,starts,barTicksLen){
+        return buildTimedTextRow('sheet-bar-lyrics sheet-bar-lyrics--timed',(bar.lyrics||[]).map(function(e){return {tick:e.tick,text:e.text||''};}),starts,barTicksLen);
     }
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,viewResolution,octaveForNote,songInfo,rests,heldForNote,formRow) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,inputGridForRow,octaveForNote,songInfo,rests,heldForNote,formRow) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -322,16 +268,29 @@
         cell.setAttribute('role', 'button');
         cell.setAttribute('aria-label', bar.barNumber + '小節目を選択');
 
-        // タイミンググリッドの解像度。表示ON/OFFに関わらず、歌詞のtick配置にも同じ基準を使う
-        // （F2a / ADR-028: 見えないグリッド線であっても歌詞の列位置が基準からズレないように）
-        var timeRes = (show.gridResolution === 16 || barNeedsSixteenth(bar, strum && strum.slots) ||
-            (strum && strum.needs16)) ? 16 : 8;
-        if(viewResolution===8||viewResolution===16)timeRes=viewResolution;
-
-        var grid = show.timingGrid ? buildTimingGrid(beats, timeRes) : null;
-        if (grid) cell.appendChild(grid);
-
-        var rowIndex=1;function appendRow(row){row.style.gridRow=String(rowIndex++);cell.appendChild(row);}
+        const length=beats*model.TICKS_PER_BEAT;
+        function startsFor(row){
+            const fallback=row==='strum'&&strum?.inputGrid ? strum.inputGrid :
+                {unit:row==='strum'?8:defaultRowUnit(bar,row,show.gridResolution),beats:[]};
+            const grid=inputGridForRow?.(bar,row,length,fallback)??fallback;
+            return model.strumCellStarts(grid.unit,grid.beats,length);
+        }
+        const chordStarts=startsFor('chord');
+        let rowIndex=1,lastGrid=null,lastColumns='';
+        function appendRow(row,starts=chordStarts){
+            if(show.timingGrid && starts){
+                const columns=starts.join(',');
+                if(!lastGrid||lastColumns!==columns){
+                    lastGrid=buildTimingGrid(starts,length);
+                    lastGrid.style.gridRowStart=String(rowIndex);
+                    cell.prepend(lastGrid);
+                }
+                lastGrid.style.gridRowEnd=String(rowIndex+1);
+                lastColumns=columns;
+            }else lastGrid=null;
+            row.style.gridRow=String(rowIndex++);
+            cell.appendChild(row);
+        }
         appendRow(el('span', 'sheet-bar-num', String(bar.barNumber)));
         var unsupportedStrum=!!strum?.unsupported;
 
@@ -339,7 +298,7 @@
         // CSS（.sheet-bar-row + .sheet-bar-row）が引く。将来ストローク段を
         // 追加するときも、同じく .sheet-bar-row を付ければ区切り線が自動で付く
         if (show.chords) {
-            var chord=buildTimedTextRow('sheet-bar-chord',(bar.chords||[]).map(function(e){return {tick:e.tick,text:e.symbol};}),timeRes,beats*model.TICKS_PER_BEAT);
+            var chord=buildTimedTextRow('sheet-bar-chord',(bar.chords||[]).map(function(e){return {tick:e.tick,text:e.symbol};}),chordStarts,length);
             chord.style.fontSize='17.5px';chord.style.fontWeight='800';
             chord.querySelectorAll('.sheet-timed-cell').forEach(function(e){if(e.textContent)e.classList.add('sheet-chord-event');});
             appendRow(chord);
@@ -352,34 +311,21 @@
         // Keep the empty stroke band so lyrics/notes align with neighboring bars.
         // This adds no rhythm events; blank-stroke playback remains a projection.
         if (show.strum) {
-            // The stroke lane draws its own boundaries. End and resume the shared
-            // grid at its row edges so the bar highlight shows through every lane.
-            if (grid && strum?.cellStarts && !unsupportedStrum) {
-                grid.style.gridRowEnd=String(rowIndex);
-                if (hasVocal && (show.lyrics || show.doremi)) {
-                    var lowerGrid=buildTimingGrid(beats,timeRes);
-                    lowerGrid.style.gridRowStart=String(rowIndex+1);
-                    lowerGrid.style.display='var(--sheet-lower-grid-display,none)';
-                    grid.after(lowerGrid);
-                }
-            }
-            appendRow(unsupportedStrum?el('div','sheet-bar-row sheet-bar-strum',strum.name+'：採用リズムの印刷は未対応'):strum?.cellStarts?buildPresetStrumRow(strum.slots,beats*model.TICKS_PER_BEAT,strum.cellStarts,strum.leadingSustainTicks):buildStrumRow(strum?.slots || [], strum?.barTicks || beats * model.TICKS_PER_BEAT, timeRes));
-        }
-
-        // A vocal onset has its own time position regardless of the guitar subdivision.
-        function vocalResolution(events) {
-            return show.gridResolution===16 || events.some(e=>e.tick%240) ? 16 : 8;
+            appendRow(unsupportedStrum?el('div','sheet-bar-row sheet-bar-strum',strum.name+'：採用リズムの印刷は未対応'):
+                buildPresetStrumRow(strum?.slots||[],length,startsFor('strum'),strum?.leadingSustainTicks),null);
         }
         if (hasVocal && show.lyrics) {
-            appendRow(buildLyricsRow(bar, vocalResolution(bar.lyrics), beats * model.TICKS_PER_BEAT));
+            const starts=startsFor('lyrics');
+            appendRow(buildLyricsRow(bar,starts,length),starts);
         }
 
         if (hasVocal && show.doremi) {
+            const starts=startsFor('doremi');
             var tokens=theory.melodyEventsToDoremiTokens((bar.melody||[]).map(function(e){return Object.assign({},e,{durationTicks:1});}));
             var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
-            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave,durationTicks:e.durationTicks,held:!!heldForNote&&heldForNote(bar.barNumber,e.tick)};}).concat((rests||[]).map(function(e){return {tick:e.onsetTick,restTicks:e.durationTicks};})),vocalResolution(ordered.concat((rests||[]).map(e=>({tick:e.onsetTick})))),beats*model.TICKS_PER_BEAT);
+            var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave,durationTicks:e.durationTicks,held:!!heldForNote&&heldForNote(bar.barNumber,e.tick)};}).concat((rests||[]).map(function(e){return {tick:e.onsetTick,restTicks:e.durationTicks};})),starts,length);
             doremi.style.color='var(--paper-doremi)';
-            appendRow(doremi);
+            appendRow(doremi,starts);
         }
         cell.style.gridRow='1 / span '+(rowIndex-1);return cell;
     }
@@ -437,7 +383,7 @@
                 var rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);line.style.setProperty('--sheet-row-count',rowCount);
                 var nextReal=slots.slice(i+lineSlots.length).find(function(s){return !s.empty;});
                 function emptyCell(descriptor){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.dataset.emptySlot=JSON.stringify(descriptor);empty.setAttribute('role',options?.editableSlots?'button':'img');empty.setAttribute('aria-label','空き枠（再生なし。編集開始・貼り付けで小節に戻す）');if(options?.editableSlots){empty.tabIndex=0;empty.dataset.editableEmpty='';}return empty;}
-                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=lineShow.strum?resolveBarStrum(project,bar):null;const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.resolutionForBar?options.resolutionForBar(bar):null,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]);
+                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=lineShow.strum?resolveBarStrum(project,bar):null;const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.inputGridForRow,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]);
                     if(section?.sizes){
                         for(const [key,size] of Object.entries(section.sizes))cell.style.setProperty('--sc-section-'+key,size+'px');
                         if(section.sizes.formScale&&formRows[index])formRows[index].dataset.sectionFormScale=section.sizes.formScale;
@@ -469,6 +415,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetRenderer = {
         render: render,
+        defaultRowUnit,
         resolveShowSettings: resolveShowSettings,
         // D3a: 下部ドックのタイムグリッド解像度判定（8分/16分）が紙面と同じ基準を使うための公開。
         // ロジック自体は無変更（紙面のストローク段描画とドックのセル表示解像度の両方から使う）

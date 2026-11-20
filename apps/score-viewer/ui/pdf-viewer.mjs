@@ -1,4 +1,4 @@
-import {bindOutsideDismiss,applyScoreTheme,syncPlaybackButton} from '../../cruise-studio/js/modules/score-ui.mjs';
+import {bindScoreZoom,bindOutsideDismiss,applyScoreTheme,syncPlaybackButton} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {mountFocusMode} from './focus-mode.mjs';
 import {printPDFDocument} from './pdf-print.mjs';
 import {exportIcon} from './pdf-export.mjs';
@@ -93,7 +93,7 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
         function number(text,key,min,max,value){const input=node('input',undefined,label(text));input.type='number';input.min=min;input.max=max;input.step='any';input.value=value;input.required=true;input.dataset.pdfSetting=key;return input;}
         const seconds=number('1ページの秒数','seconds',1,3600,initial.seconds),bpm=number('送り用BPM','bpm',20,400,initial.bpm),beats=number('1ページの拍数','beats',1,1024,initial.beats);
         const at=Math.min(current.data.sizes.length-1,Math.floor(viewPosition())),override=number((at+1)+'ページだけの拍数（空欄で共通）','page-beats',1,1024,initial.pageBeats[at]||'');override.required=false;
-        speedValue.textContent=Math.round(sec)+'秒／ページ';speed.oninput=()=>{const value=120*Math.pow(1/16,Number(speed.value)/100);seconds.value=String(Math.round(value*10)/10);current.clock.configure({configured:true,mode:'seconds',seconds:Number(seconds.value)});controls();scheduleSave();mode.value='seconds';speedValue.textContent=Math.round(value)+'秒／ページ';sync();};
+        speedValue.textContent=Math.round(sec)+'秒／ページ';speed.oninput=()=>{const value=120*Math.pow(1/16,Number(speed.value)/100);seconds.value=String(Math.round(value*100)/100);current.clock.configure({configured:true,mode:'seconds',seconds:Number(seconds.value)});controls();scheduleSave();mode.value='seconds';speedValue.textContent=Math.round(value)+'秒／ページ';sync();};
         const sync=()=>{seconds.parentElement.hidden=mode.value!=='seconds';bpm.parentElement.hidden=beats.parentElement.hidden=override.parentElement.hidden=mode.value!=='beats';};mode.onchange=sync;sync();
         const message=node('p','',d);message.setAttribute('role','status');const apply=button('完了','settings-save',h);
         apply.onclick=()=>{const visible=mode.value==='seconds'?[seconds]:[bpm,beats,override];if(visible.some(e=>!e.checkValidity())){visible.find(e=>!e.checkValidity()).reportValidity();return;}
@@ -111,13 +111,14 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     start.onclick=()=>jump(0);here.onclick=()=>{jump(viewPosition());play.click();};follow.onclick=()=>{following=true;restore({position:current.clock.snapshot().position,x:capture().x});controls();};
     settingsButton.onclick=settings;previous.onclick=()=>jump(Math.max(0,Math.floor(viewPosition())-1));next.onclick=()=>jump(Math.min(current.data.sizes.length-1,Math.floor(viewPosition())+1));
     pageInput.onchange=()=>{if(pageInput.checkValidity())jump(Number(pageInput.value)-1);};
-    const setZoom=value=>{if(!current)return;anchor=capture();current.zoom=Math.max(.5,Math.min(3,Math.round(value*10)/10));redraw();scheduleSave();};minus.onclick=()=>setZoom(current.zoom-.1);plus.onclick=()=>setZoom(current.zoom+.1);fit.onclick=()=>setZoom(1);
+    const setZoom=value=>{if(!current)return;anchor=capture();current.zoom=Math.max(.5,Math.min(3,Math.round(value*100)/100));redraw();scheduleSave();};minus.onclick=()=>setZoom(current.zoom-.1);plus.onclick=()=>setZoom(current.zoom+.1);fit.onclick=()=>setZoom(1);
     function manual(){restoring=false;anchor=null;if(current?.clock.snapshot().phase==='playing'){following=false;controls();}}
     for(const name of ['wheel','pointerdown','touchstart'])viewport.addEventListener(name,manual,{passive:true,signal:abort.signal});
     viewport.addEventListener('scroll',()=>{if(!current||!active)return;if(!restoring&&!(following&&current.clock.snapshot().phase==='playing')){anchor=capture();scheduleSave();}if(scrollFrame===null)scrollFrame=win.requestAnimationFrame(()=>{scrollFrame=null;current?.paper.update(viewport.scrollTop,viewport.clientHeight);controls();});},{passive:true,signal:abort.signal});
     host.addEventListener('keydown',e=>{if(!e.isComposing&&(e.ctrlKey||e.metaKey)&&['s','z','y'].includes(e.key.toLowerCase())){e.preventDefault();e.stopPropagation();}},{signal:abort.signal});
     const unbindKeys=bindPlaybackKeys(host,{active:()=>active&&!!current,toggle:()=>play.click()});
     viewport.addEventListener('click',e=>{const page=e.target.closest('[data-pdf-page]');if(!page||!current||current.clock.snapshot().phase==='playing')return;const rect=page.getBoundingClientRect(),index=Number(page.dataset.pdfPage)-1,ratio=Math.max(0,Math.min(.999,(e.clientY-rect.top)/rect.height));current.clock.seek(index+ratio);selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=page;page.classList.add('sv-selected');selectedMarker=node('span','',page);selectedMarker.className='sv-pdf-selection';selectedMarker.style.top=ratio*100+'%';following=true;viewport.focus({preventScroll:true});controls();scheduleSave();},{signal:abort.signal});
+    bindScoreZoom(viewport,{read:()=>current.zoom,write:setZoom,max:3,enabled:()=>active&&!!current,signal:abort.signal});
     const observer=new win.ResizeObserver(()=>{if(!active||!current||!viewport.clientWidth||lastWidth===viewport.clientWidth)return;lastWidth=viewport.clientWidth;if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);resizeFrame=win.requestAnimationFrame(()=>{resizeFrame=null;redraw();});});
     doc.addEventListener('visibilitychange',()=>{if(doc.visibilityState==='hidden')pause();},{signal:abort.signal});win.addEventListener('pagehide',()=>{pause();void persist();},{signal:abort.signal});
     return {openBytes,notice,saveCurrent,hasUnsaved:()=>!!current&&!current.saved,setBusy(value){busy=value;controls();},cancel:()=>loader.cancel(),

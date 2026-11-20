@@ -1,4 +1,4 @@
-import {applyScoreTheme,movePlayhead,syncPlaybackButton,installScoreUI,styleAudioButton,styleRepeatButton} from '../../cruise-studio/js/modules/score-ui.mjs';
+import {bindScoreZoom,applyScoreTheme,movePlayhead,syncPlaybackButton,installScoreUI,styleAudioButton,styleRepeatButton} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {mountFocusMode} from './focus-mode.mjs';
 import {bindRangeSelection} from './range-selection.mjs';
 import {labelIcon} from './icons.mjs';
@@ -241,6 +241,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     save.onclick=()=>void saveCurrent();
     function change(patch) {if(!current)return;const anchor=viewAnchor();current.reader.setPresentation({...current.reader.read().presentation,...patch});redraw(anchor);schedulePreferences();}
     flow.onchange=()=>change({flow:flow.value});
+    bindScoreZoom(viewport,{read:()=>current.reader.read().presentation.zoom,write:zoom=>change({zoom}),max:3,enabled:()=>active&&!!current,signal:events.signal});
     minus.onclick=()=>change({zoom:Math.max(.5,Math.round((current.reader.read().presentation.zoom-.1)*10)/10)});
     plus.onclick=()=>change({zoom:Math.min(3,Math.round((current.reader.read().presentation.zoom+.1)*10)/10)});
     percent.onclick=()=>change({zoom:1});

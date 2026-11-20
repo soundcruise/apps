@@ -1,6 +1,22 @@
-import {bindOutsideDismiss,installScoreUI,movePaperPlayhead} from '../score-ui.mjs';
+import {bindScoreZoom,bindOutsideDismiss,installScoreUI,movePaperPlayhead} from '../score-ui.mjs';
 import {FONTS,setPresentationProperty,togglePresentationClass,TEXT_FIELDS,LINE_FIELDS,normalizeAppearance,applyAppearance,APPEARANCE_CSS,addTextTools,addInteractionColors} from './paper-appearance.mjs';
 // Browser-local presentation preferences. Never edits a Project or its Session.
+export function readGridRows(entries,project){
+    const result=new Map();
+    if(!Array.isArray(entries)||!entries.length||entries.length>project.bars.length)return result;
+    const ids=new Set(project.bars.map(bar=>bar.id)),numBeats=project.songInfo.timeSignature.beats;
+    for(const entry of entries){
+        if(!ids.has(entry?.barId)||!entry.rows||result.has(entry.barId))continue;
+        const rows={};
+        for(const key of ['chord','strum','lyrics','doremi']){
+            const grid=entry.rows[key];
+            if(grid&&[1,2,4,8,16].includes(grid.unit)&&Array.isArray(grid.beats)&&grid.beats.length===numBeats&&
+                grid.beats.every(lock=>lock===null||lock===8||lock===16))rows[key]={unit:grid.unit,beats:[...grid.beats]};
+        }
+        if(Object.keys(rows).length)result.set(entry.barId,rows);
+    }
+    return result;
+}
 export const META_FIELDS=Object.freeze({originalKey:'ORGキー',playKey:'Playキー',bpm:'BPM',timeSignature:'拍子',basicStrum:'基本ストローク'});
 export function normalizeMetaFields(source){const out={};for(const key of Object.keys(META_FIELDS)){const field=source?.[key];if(!field||typeof field!=='object')continue;const v={};if(typeof field.visible==='boolean')v.visible=field.visible;if(Object.hasOwn(FONTS,field.font))v.font=field.font;if(typeof field.color==='string'&&/^#[0-9a-f]{6}$/i.test(field.color))v.color=field.color;if(typeof field.size==='number'&&Number.isFinite(field.size))v.size=Math.max(8,Math.min(24,field.size));out[key]=v;}return out;}
 export const DEFAULT_LAYOUT=Object.freeze({barsPerLine:4,formScale:100,formListScale:100,titleSize:26,artistSize:16,metaSize:11,chordSize:14,strumSize:15,lyricsSize:12,doremiSize:11,lyricsSpacing:-1,doremiSpacing:-1,partSize:13,numberSize:9,showTitle:true,showArtist:true,showMeta:true,showNumbers:true,showParts:true,timingGrid:null,gridResolution:null,metaFields:Object.freeze({}),appearance:Object.freeze({text:Object.freeze({}),lines:Object.freeze({}),visibility:Object.freeze({})})});
@@ -91,7 +107,7 @@ export function createPaperLayout(C,doc=document){
 .sc-paper-layout .sheet-bar-strum{font-size:var(--sc-section-strumSize,var(--sc-strumSize))!important;column-gap:0;margin:0 calc(-1 * var(--sheet-bar-pad-x));padding:3px 0 0;border-radius:0;background:transparent;box-shadow:none;}
 .sc-paper-layout .sheet-bar-strum>span:not([data-playback-band]){background:transparent;border-radius:0;box-shadow:none;}
 .sc-paper-layout .sheet-bar-strum>span{font-size:inherit!important;}
-.sc-paper-layout .sheet-bar-strum>[data-strum-state]{justify-content:flex-start;}
+.sc-paper-layout .sheet-bar-strum>[data-strum-state]{justify-content:center;}
 .sc-paper-layout :is(.sheet-bar-lyrics,.sheet-bar-doremi)>.sheet-timed-cell{white-space:normal;overflow-wrap:anywhere;line-break:strict;font-feature-settings:"palt";}
 .sc-paper-layout .sheet-bar-lyrics>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-lyricsSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
 .sc-paper-layout .sheet-bar-doremi>.sheet-timed-cell{--sc-vocal-spacing:var(--sc-doremiSpacing,-1px);letter-spacing:var(--sc-vocal-spacing);}
@@ -108,8 +124,9 @@ export function createPaperLayout(C,doc=document){
 .sc-paper-layout .sheet-form-lane{flex:0 0 100%;min-width:0;}
 .sc-paper-layout .sheet-form-lane{position:static;width:100%;margin:0;padding:0;line-height:0;}
 .sc-paper-layout .sheet-line{grid-template-rows:repeat(var(--sheet-row-count),max-content);align-items:stretch;}
-.sc-paper-layout .sheet-line>.sheet-bar{--sheet-lower-grid-display:grid;display:grid;grid-template-rows:subgrid;min-width:0;min-height:0;row-gap:0;align-content:stretch;}
+.sc-paper-layout .sheet-line>.sheet-bar{--sheet-lower-grid-display:grid;display:grid;grid-template-rows:subgrid;min-width:0;min-height:0;padding-bottom:0;row-gap:0;align-content:stretch;}
 .sc-paper-layout .sheet-bar-row{align-items:center;}
+.sc-paper-layout .sheet-bar-doremi{padding-block:2px;}
 .sc-layout-dialog{box-sizing:border-box;position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;width:min(1080px,calc(100vw - 32px));max-height:90vh;overflow:auto;padding:20px;border:1px solid #798b9a;border-radius:14px;background:#1e2832;color:#f7f4ec;}
 .sc-layout-dialog::backdrop{background:#10182088;}
 .sc-layout-dialog header{flex-wrap:wrap;position:sticky;top:0;z-index:2;background:#1e2832;padding:4px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px;box-shadow:0 -20px 0 0 #1e2832;}
@@ -345,9 +362,10 @@ export function createPaperLayout(C,doc=document){
         previewAudio=options.createPreviewAudio?.({isOpen:()=>!!dialog?.open,changed:phase=>{auditionPhase=phase;previewPlay.textContent=phase==='idle'?'▶ 再生':'■ 停止';previewPlay.setAttribute('aria-label',phase==='idle'?'再生':'停止');previewPlay.setAttribute('aria-pressed',String(phase!=='idle'));clearAudition();if(phase==='playing')auditionFrame=requestAnimationFrame(paintAudition);},message:text=>status(text)});previewPlay.hidden=!previewAudio;const toggleAudition=()=>{if(!previewAudio||!dialog?.open)return;if(auditionPhase!=='idle'){previewAudio.stop();clearAudition();}else{viewport.scrollTop=0;clearAudition();void previewAudio.play();}};previewPlay.onclick=toggleAudition;previewPlay.title='先頭から再生／停止（Space）';dialog.addEventListener('keydown',e=>{if(e.code!=='Space'&&e.key!==' ')return;if(e.isComposing||e.keyCode===229||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;if(e.target.closest('input,textarea,select,summary,[contenteditable="true"]')||e.target.closest('button')&&e.target!==previewPlay)return;e.preventDefault();e.stopPropagation();toggleAudition();});
         const silencePreview=()=>{if(doc.hidden)previewAudio?.stop();};doc.addEventListener('visibilitychange',silencePreview);const stopPreview=()=>previewAudio?.stop();doc.defaultView.addEventListener('pagehide',stopPreview);
         dialog.addEventListener('close',()=>{doc.removeEventListener('visibilitychange',silencePreview);doc.defaultView.removeEventListener('pagehide',stopPreview);clearAudition();const audio=previewAudio;previewAudio=null;void audio?.dispose();},{once:true});
-        let resizeFrame=null;
+        let zoom=1,resizeFrame=null;
+        bindScoreZoom(preview,{read:()=>zoom,write:value=>{zoom=value;resize(false);},paper:()=>paper,scrollX:()=>viewport,scrollY:()=>viewport});
         function scheduleResize(){if(resizeFrame===null)resizeFrame=requestAnimationFrame(()=>{resizeFrame=null;resize();});}
-        function resize(){if(!dialog||!paper.isConnected)return;const scale=Math.min(1,viewport.clientWidth/794);paper.style.transform='scale('+scale+')';frame.style.height=Math.ceil(paper.offsetHeight*scale)+'px';mark(true);}
+        function resize(reveal=true){if(!dialog||!paper.isConnected)return;const scale=zoom*Math.min(1,viewport.clientWidth/794);frame.style.width=Math.ceil(794*scale)+'px';paper.style.transform='scale('+scale+')';frame.style.height=Math.ceil(paper.offsetHeight*scale)+'px';mark(reveal);}
         refreshSample=(structural=true,reflowOnly=false)=>{if(!dialog)return;inputs.forEach(fn=>fn());if(structural){if(options.renderSample){const {layout,rows}=exportPresentation(sample);options.renderSample(paper,{layout,rows,reuse:reflowOnly});}else C.sheetRenderer.render(sample,paper,{...(options.getRenderOptions?options.getRenderOptions():options.renderOptions),...renderOptions(sample),editableSlots:false,formsList:value.appearance.visibility.formList?C.localPaperForms?.list(sample,{interactive:false}):null,reuseBars:reflowOnly});paper.querySelectorAll('[tabindex]').forEach(e=>e.removeAttribute('tabindex'));paper.querySelectorAll('.sheet-form-event').forEach(e=>{e.setAttribute('role','img');e.removeAttribute('aria-haspopup');});paper.querySelectorAll('.sheet-section-label').forEach(e=>{e.removeAttribute('role');e.removeAttribute('aria-pressed');});}apply(paper);if(options.renderSample){paper.style.height='auto';paper.querySelectorAll('.sc-paper-layout').forEach(apply);}if(structural)syncLine();mark(false,false);scheduleResize();};
         function clearHighlight(){activeSetting=null;feedback.textContent='';mark();}
         preview.addEventListener('click',e=>{const line=e.target.closest('.sheet-line');selectedNumber=line&&Number(line.dataset.lineStart)>0?Number(line.dataset.lineStart):null;syncLine();clearHighlight();});
@@ -364,5 +382,5 @@ export function createPaperLayout(C,doc=document){
         return {version:1,layout,rows:copy((rowProjects.get(project.projectId)||[]).filter(r=>anchors.has(r.barId))),zoom:1,flow:'responsive'};
     }
     function replacePresentation(project,presentation){value=normalizeLayout(presentation.layout);sectionProjects.set(project.projectId,value.sections||[]);delete value.sections;rowProjects.set(project.projectId,normalizeLineRules(presentation.rows||[]));notify();}
-    return {importPresentation(project,presentation){if(presentation?.version!==1 || !presentation.layout || typeof presentation.layout!=='object')return;replacePresentation(project,presentation);return persist();},replacePresentation,exportPresentation,renderOptions,setLine,begin,commit,cancel,saveDisplayPreset,loadDisplayPreset,saveFontPreset,loadFontPreset,deleteFontPreset,get presets(){return copy(presets);},get value(){return copy(value);},get isOpen(){return !!dialog?.open;},apply,set,open,close,onChange(fn){changed=fn;}};
+    return {readGridRows,importPresentation(project,presentation){if(presentation?.version!==1 || !presentation.layout || typeof presentation.layout!=='object')return;replacePresentation(project,presentation);return persist();},replacePresentation,exportPresentation,renderOptions,setLine,begin,commit,cancel,saveDisplayPreset,loadDisplayPreset,saveFontPreset,loadFontPreset,deleteFontPreset,get presets(){return copy(presets);},get value(){return copy(value);},get isOpen(){return !!dialog?.open;},apply,set,open,close,onChange(fn){changed=fn;}};
 }

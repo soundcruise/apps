@@ -3,14 +3,14 @@ import {createScoreCodec} from '../../../../score-viewer/core/file-format.mjs';
 import {createReadOnlyScore} from '../../../../score-viewer/core/read-only-score.mjs';
 import {createBeatClock, createScoreTimeline} from '../../../../score-viewer/core/beat-clock.mjs';
 import {insist, canonicalJSON, freeze, clone} from '../../../../score-viewer/core/json.mjs';
-import {normalizeLayout, normalizeLineRules, DEFAULT_LAYOUT} from './paper-layout.mjs';
+import {normalizeLayout, normalizeLineRules, readGridRows, DEFAULT_LAYOUT} from './paper-layout.mjs';
 import {buildSongPreviewPlan, buildSongTickPlan} from './score-playback.mjs';
 
 export function normalizeViewerPresentation(input, score) {
     insist(input && typeof input === 'object' && !Array.isArray(input), 'invalid-viewer-presentation');
     insist(input.version === undefined || input.version === 1, 'unsupported-presentation-version');
     const layout = normalizeLayout(input.layout), warnings = [];
-    if (Object.keys(input).some(key => !['version','layout','rows','zoom','flow'].includes(key)) ||
+    if (Object.keys(input).some(key => !['version','layout','rows','zoom','flow','gridRows'].includes(key)) ||
         input.layout !== undefined && (!input.layout || typeof input.layout !== 'object' || Array.isArray(input.layout))) warnings.push('presentation-normalized');
     if (input.layout && Object.entries(input.layout).some(([key, value]) =>
         (!Object.hasOwn(DEFAULT_LAYOUT,key)&&key!=='sections') || layout[key]===undefined || canonicalJSON(value)!==canonicalJSON(layout[key]))) warnings.push('presentation-normalized');
@@ -22,7 +22,9 @@ export function normalizeViewerPresentation(input, score) {
     const zoom = input.zoom === undefined ? 1 : input.zoom;
     insist(Number.isFinite(zoom) && zoom >= .5 && zoom <= 3, 'invalid-viewer-zoom');
     insist(input.flow === undefined || ['responsive','source','horizontal'].includes(input.flow), 'invalid-viewer-flow');
-    return {value:{version:1, layout, rows, zoom, flow:input.flow || 'responsive'}, warnings:[...new Set(warnings)]};
+    const gridRows=Array.from(readGridRows(input.gridRows,score),([barId,rows])=>({barId,rows}));
+    if(input.gridRows!==undefined && canonicalJSON(input.gridRows)!==canonicalJSON(gridRows))warnings.push('presentation-normalized');
+    return {value:{version:1, layout, rows, ...(gridRows.length?{gridRows}:{}), zoom, flow:input.flow || 'responsive'}, warnings:[...new Set(warnings)]};
 }
 
 export function createStudioViewerContract({schema, host = globalThis.window, crypto = globalThis.crypto}) {

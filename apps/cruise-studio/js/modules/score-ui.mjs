@@ -1,6 +1,46 @@
 export {GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
 // Presentation helpers shared by the score editor and the read-only viewer.
 // They own no music, transport, storage or account state.
+// Browsers deliver trackpad pinch as either a modified wheel or a native gesture.
+export function bindScoreZoom(surface,{read,write,paper,scrollX,scrollY,enabled=()=>true,min=.5,max=2,signal}){
+    const win=surface.ownerDocument.defaultView, options={passive:false,signal};
+    let start=null, pending=1, frame=0, x,y;
+    function schedule(value,event){
+        pending=Math.max(min,Math.min(max,value));
+        x=event.clientX;y=event.clientY;
+        if(frame)return;
+        frame=win.requestAnimationFrame(()=>{
+            frame=0;
+            if(!surface.isConnected||signal?.aborted||pending===read())return;
+            const element=paper?.(), before=element?.getBoundingClientRect();
+            write(pending);
+            if(!before?.width)return;
+            const after=element.getBoundingClientRect(),ratio=after.width/before.width;
+            const sx=scrollX?.()??surface,sy=scrollY?.()??surface;
+            if(Number.isFinite(x))sx.scrollLeft+=after.left+(x-before.left)*ratio-x;
+            if(Number.isFinite(y))sy.scrollTop+=after.top+(y-before.top)*ratio-y;
+        });
+    }
+    surface.addEventListener('wheel',event=>{
+        if(event.defaultPrevented||!(event.ctrlKey||event.metaKey)||!event.deltaY||!enabled(event))return;
+        event.preventDefault();
+        if(start!==null)return;
+        const unit=event.deltaMode===1?16:event.deltaMode===2?surface.clientHeight:1;
+        schedule((frame?pending:read())*Math.exp(-event.deltaY*unit*.008),event);
+    },options);
+    surface.addEventListener('gesturestart',event=>{
+        if(event.defaultPrevented||!enabled(event))return;
+        event.preventDefault();start=frame?pending:read();
+    },options);
+    surface.addEventListener('gesturechange',event=>{
+        if(start===null||!(event.scale>0))return;
+        event.preventDefault();schedule(start*event.scale,event);
+    },options);
+    surface.addEventListener('gestureend',event=>{
+        if(start!==null)event.preventDefault();
+        start=null;
+    },options);
+}
 export const defaultHighlightOpacity=.12;
 export const scoreColors=Object.freeze({line:'#286780',border:'#408aa7',fill:'rgba(64,138,167,.12)',ink:'#265d72'});
 export function applyScoreTheme(root,colors={}){const valid=c=>typeof c==='string'&&/^#[0-9a-f]{6}$/i.test(c),highlight=valid(colors.highlight)?colors.highlight:null;const opacity=typeof colors.opacity==='number'&&Number.isFinite(colors.opacity)?Math.max(0,Math.min(1,colors.opacity)):defaultHighlightOpacity;const fillColor=highlight||scoreColors.border;const fill=highlight||opacity!==defaultHighlightOpacity?fillColor+Math.round(opacity*255).toString(16).padStart(2,'0'):scoreColors.fill;const values={...scoreColors,fill,...(highlight?{border:highlight,ink:highlight}:{}),...(valid(colors.playhead)?{line:colors.playhead}:{})};for(const [key,value]of Object.entries(values))if(root.style.getPropertyValue('--score-'+key)!==value)root.style.setProperty('--score-'+key,value);}

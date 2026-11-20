@@ -1,4 +1,4 @@
-import {movePaperPlayhead} from '../score-ui.mjs';
+import {movePaperPlayhead,bindScoreZoom} from '../score-ui.mjs';
 import {presetChordCells} from './preset-chord-cells.mjs';
 import {presetLibrary, presetWindow, managePresets} from './preset-library.mjs';
 
@@ -573,15 +573,17 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     }
     renderPaper();
     {
+        let zoom=1;
         const fit = () => {
             if (!paper.clientWidth || !page.offsetWidth) return;
             const width=paper.clientWidth;
-            const scale=width/page.offsetWidth;
+            const scale=zoom*width/page.offsetWidth;
             page.style.transform='scale('+scale+')';
             frameBox.style.width=Math.round(page.offsetWidth*scale)+'px';
             strip.style.setProperty('--pattern-width',width+'px');
             frameBox.style.height = Math.ceil(page.offsetHeight * scale) + 'px';
         };
+        bindScoreZoom(paperArea,{read:()=>zoom,write:value=>{zoom=value;fit();},paper:()=>page,scrollX:()=>paper,scrollY:()=>paper});
         fitPaper = fit;
         let frame;
         const observer = new ResizeObserver(() => {

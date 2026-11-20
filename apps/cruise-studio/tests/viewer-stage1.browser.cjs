@@ -22,6 +22,11 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
         await p.locator('#sc-import-json').setInputFiles({name:'source.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(source))});
         await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,source.projectId);
         await p.evaluate(()=>CruiseStudio.localPaperLayout.set({barsPerLine:4,appearance:{visibility:{forms:true}}}));
+        // The source fixture saves inside this disposable browser profile.
+        await p.evaluate(()=>{if(typeof window.showSaveFilePicker==='function')window.showSaveFilePicker=async({suggestedName})=>{
+            const directory=await navigator.storage.getDirectory();
+            return directory.getFileHandle(suggestedName,{create:true});
+        };});
         if(await p.locator('#sc-save').isEnabled())await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
         const before=await editorState(p),sourceText=await paperText(p,'#sc-sheet-scale-box');await p.click('#sc-curve-menu-toggle');
         await p.click('#sc-export-viewer');await p.waitForFunction(()=>document.getElementById('sc-save-status').textContent.includes('ライブラリに追加'));
@@ -57,6 +62,9 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
         }));
         await t.test('saved library and last score survive reload; per-viewer display preferences never alter source files',()=>fresh(async p=>{
             const f=await exported(p);await enter(p);await importBytes(p,f.bytes);await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'viewer');await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').disabled);
+            await p.locator('.sv-viewport:visible').dispatchEvent('wheel',{deltaY:-35,ctrlKey:true,bubbles:true,cancelable:true});
+            await p.waitForFunction(()=>document.querySelector('[data-viewer-action=zoom-reset]').textContent!=='100%');
+            await p.click('[data-viewer-action=zoom-reset]');
             await setViewerFlow(p,'source');await p.click('[data-viewer-action=zoom-in]');await p.waitForTimeout(300);
             await p.reload();await p.waitForFunction(()=>document.documentElement.dataset.studioEntry==='ready');await p.click('#open-score-viewer');await p.locator('.sv-paper .sheet-title').waitFor();
             assert.equal(await p.locator('[data-viewer-action=zoom-reset]').innerText(),'110%');assert.equal(await p.locator('[aria-label="譜面の配置"]').inputValue(),'source');

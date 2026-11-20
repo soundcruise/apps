@@ -1,7 +1,20 @@
 import {mountScorePresets} from './score-presets.mjs';
-import {bindOutsideDismiss} from '../score-ui.mjs';
+import {bindOutsideDismiss,bindScoreZoom} from '../score-ui.mjs';
 // Transient editors for the active Project. No storage or account access.
 export function createScoreSettings({C,document:doc,getSession,canEdit,execute,changed,createPreviewAudio,loadChordPicker,previewPaperOptions,closed=()=>{}}){
+ function zoomablePreview(paper){
+    let zoom=1;
+    const page=()=>paper.querySelector('.sheet-page');
+    function fit(){
+        const sheet=page();
+        if(sheet?.offsetWidth&&paper.clientWidth)sheet.style.zoom=String(zoom*Math.min(1,paper.clientWidth/sheet.offsetWidth));
+    }
+    bindScoreZoom(paper,{read:()=>zoom,write:value=>{zoom=value;fit();},paper:page});
+    const observer=new ResizeObserver(fit);
+    observer.observe(paper);
+    paper.closest('dialog').addEventListener('close',()=>observer.disconnect(),{once:true});
+    return fit;
+ }
  let dialog=null,applying=false,previous=null,parked=null;
  const node=(tag,text,parent)=>{const el=doc.createElement(tag);if(text!==undefined)el.textContent=text;if(parent)parent.appendChild(el);return el;};
  function close(){if(dialog)dialog.close();}
@@ -72,12 +85,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const clipName=node('small','',aside);
    button('＋ セクションを追加',()=>{const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};rows.push(item);selected=item.id;paint();},aside);
    const paper=node('div',undefined,body);paper.className='sc-section-preview';
-   function fitSectionPaper(){
-    const page=paper.querySelector('.sheet-page');
-    if(page?.offsetWidth&&paper.clientWidth)page.style.zoom=String(Math.min(1,paper.clientWidth/page.offsetWidth));
-   }
-   const resize=new ResizeObserver(fitSectionPaper);resize.observe(paper);
-   current.addEventListener('close',()=>resize.disconnect(),{once:true});
+   const fitSectionPaper=zoomablePreview(paper);
    function scrollToSelected(behavior){
       const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(el=>el.dataset.sectionId===selected);
       if(heading)paper.scrollBy({top:heading.getBoundingClientRect().top-paper.getBoundingClientRect().top-8,behavior});
@@ -156,6 +164,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   }else{
    body.className='sc-song-workspace';
    const form=node('aside',undefined,body),paper=node('div',undefined,body);paper.className='sc-song-preview';
+   const fitSongPaper=zoomablePreview(paper);
    const title=input('曲名',project.songInfo.title,'title','text',form),artist=input('アーティスト名',project.songInfo.artist,'artist','text',form),bpm=input('BPM',project.songInfo.bpm,'bpm','number',form);bpm.min='20';bpm.max='400';
    const meterLabel=node('label',undefined,form);node('span','拍子',meterLabel);
    const meter=node('select',undefined,meterLabel);meter.dataset.scoreField='timeSignature';meter.setAttribute('aria-label','拍子');
@@ -200,7 +209,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
       heading.replaceChildren();
       button(name,()=>commit('sections',heading.dataset.sectionId),heading).title='セクション編集を開く';
      }
-     C.localPaperLayout?.apply(paper);
+     C.localPaperLayout?.apply(paper);fitSongPaper();
      status.textContent='';
     }catch(err){status.textContent=err.message;}
    };

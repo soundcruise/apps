@@ -28,6 +28,9 @@ for(const engine of ['chrome','webkit'])test('viewer PDF: '+engine,async t=>{
         await t.test('zoom and portrait/landscape retain the semantic page and fraction; saved bytes reopen unchanged',()=>fresh(async p=>{
             await load(p);await settled(p);await p.locator('[data-pdf-page-input]').fill('2');await p.locator('[data-pdf-page-input]').press('Tab');await settled(p);
             await p.locator('.sv-pdf-viewport').evaluate(v=>{const page=v.querySelector('[data-pdf-page="2"]');v.scrollTop=page.offsetTop+page.offsetHeight*.25;});await settled(p);const before=await read(p);
+            await p.locator('.sv-pdf-viewport:visible').dispatchEvent('wheel',{deltaY:-35,metaKey:true,bubbles:true,cancelable:true});
+            await settled(p);assert((await read(p)).zoom>1);
+            await p.click('[data-pdf-action=fit]');await settled(p);
             await p.click('[data-pdf-action=zoom-in]');await settled(p);const zoomed=await read(p);assert.equal(zoomed.zoom,1.1);assert(Math.abs(zoomed.anchor.position-before.anchor.position)<.04);
             for(const size of [{width:390,height:844},{width:844,height:390},{width:390,height:844}]){await p.setViewportSize(size);await settled(p);const r=await read(p);assert(Math.abs(r.anchor.position-before.anchor.position)<.04,JSON.stringify(r));}
             await p.locator('[data-pdf-page="2"][data-pdf-ready=true]').waitFor();if(out)await p.screenshot({path:path.join(out,engine+'-pdf-portrait.png')});await savePDF(p);await p.waitForFunction(()=>document.querySelector('[data-pdf-action=save]').disabled);await p.waitForTimeout(250);
