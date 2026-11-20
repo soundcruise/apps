@@ -1,7 +1,6 @@
 """Offline UI fixture only: python3 apps/cruise-studio/scripts/serve-local-ui.py"""
 import http.server
 import pathlib
-import re
 import subprocess
 import urllib.parse
 import importlib.util
@@ -29,34 +28,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')
         super().end_headers()
-    def serve_tutorial(self):
-        video = ROOT / 'apps/cruise-studio/score-guide/tutorial.mp4'
-        size = video.stat().st_size
-        start, end = 0, size - 1
-        requested = self.headers.get('Range')
-        if requested is not None:
-            match = re.fullmatch(r'bytes=(\d*)-(\d*)', requested)
-            if match:
-                left, right = match.groups()
-                start = int(left) if left else max(0, size - int(right or '0'))
-                end = min(int(right), size - 1) if left and right else size - 1
-            if not match or start > end:
-                self.send_response(416)
-                self.send_header('Content-Range', f'bytes */{size}')
-                self.end_headers()
-                return
-        self.send_response(206 if requested is not None else 200)
-        self.send_header('Content-Type', 'video/mp4')
-        self.send_header('Accept-Ranges', 'bytes')
-        self.send_header('Content-Length', str(end - start + 1))
-        if requested is not None:
-            self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
-        self.end_headers()
-        if self.command != 'HEAD':
-            with video.open('rb') as source:
-                source.seek(start)
-                self.wfile.write(source.read(end - start + 1))
-
     def do_GET(self):
         if self.headers.get('Host') != '127.0.0.1:18874':
             self.send_error(403); return
@@ -72,8 +43,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             body = (ROOT / path.lstrip('/')).read_bytes()
             self.send_response(200); self.send_header('Content-Type', 'application/manifest+json')
             self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
-        if path == '/apps/cruise-studio/score-guide/tutorial.mp4':
-            self.serve_tutorial(); return
         if path == '/apps/cruise-studio/score-guide/index.html':
             super().do_GET(); return
         if path == '/':
@@ -91,8 +60,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404); return
         super().do_GET()
     def do_HEAD(self):
-        if self.headers.get('Host') == '127.0.0.1:18874' and urllib.parse.urlsplit(self.path).path == '/apps/cruise-studio/score-guide/tutorial.mp4':
-            self.serve_tutorial(); return
         self.send_error(405)
     def do_POST(self):
         if viewer_mock.handle(self, 'POST'): return

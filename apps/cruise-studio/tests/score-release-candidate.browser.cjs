@@ -71,16 +71,20 @@ test('packaged score creation, persistence, export and playback: '+engine+' '+ed
     const title = '配布物の演奏確認 '+engine;
     await card.locator('[data-score-field=title]').fill(title);
     await card.locator('[data-score-field=bpm]').fill('200');
-    await card.locator('[data-score-apply]').click();
-    for(const menu of ['#sc-edit-chord-preset','#sc-edit-rhythm']) {
-        await editor.click('#sc-curve-menu-toggle');
-        await editor.click(menu);
-        const dialog = editor.locator('[data-score-dialog]');
+    await card.getByRole('button',{name:'セクション編集',exact:true}).click();
+    const sections=editor.getByRole('dialog',{name:'セクション編集',exact:true});
+    await sections.getByLabel('セクション名',{exact:true}).fill('うた');
+    await sections.locator('[data-score-apply]').click();
+    for(const [name,preset] of [['コード一括入力','1950s'],['ストローク一括入力','4分連続']]) {
+        await card.getByRole('button',{name,exact:true}).click();
+        const dialog=editor.getByRole('dialog',{name,exact:true});
+        await dialog.locator('[data-score-preset]').selectOption({label:preset});
         await dialog.getByLabel('曲全て').check();
         await dialog.locator('[data-preset-stage]').click();
-        await dialog.locator('[data-score-apply]').click();
-        await dialog.waitFor({state:'detached'});
+        await dialog.getByRole('button',{name:'OK',exact:true}).click();
     }
+    assert.equal(await card.getByLabel('曲名',{exact:true}).inputValue(),title);
+    await card.locator('[data-score-apply]').click();
     const snapshot=()=>editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
     if(engine==='chrome') await editor.evaluate(()=>{
         window.showSaveFilePicker=async()=>(await navigator.storage.getDirectory()).getFileHandle('candidate.json',{create:true});
@@ -388,7 +392,7 @@ for (const engine of ['chrome','webkit']) test('automatic measure layout survive
 });
 
 for(const engine of ['chrome','webkit'])
-test('packaged tutorial plays and seeks from the editor guide: '+engine,async t=>{
+test('packaged illustrated tutorial opens from the editor guide: '+engine,async t=>{
     const server=await startServer(), origin='http://127.0.0.1:'+server.address().port;
     t.after(()=>stopServer(server));
     const browser=await(engine==='chrome'?chromium.launch({channel:'chrome'}):webkit.launch());
@@ -399,14 +403,10 @@ test('packaged tutorial plays and seeks from the editor guide: '+engine,async t=
     const opened=editor.waitForEvent('popup');
     await editor.click('#sc-score-guide');
     const guide=await opened;
-    const video=guide.locator('#lesson video');
-    await video.evaluate(async element=>{element.muted=true;await element.play();});
-    await guide.waitForFunction(()=>document.querySelector('video')?.currentTime>0.2);
-    const end=await video.evaluate(element=>{
-        element.currentTime=element.duration-2;
-        return element.duration;
-    });
-    await guide.waitForFunction(t=>document.querySelector('video').currentTime>t,end-1.9);
-    assert(await video.evaluate(element=>element.videoWidth>0 && !element.error));
+    await guide.waitForLoadState('load');
+    const lesson=guide.locator('#lesson');
+    assert.equal(await lesson.locator('video').count(),0);
+    assert(await lesson.locator('img').evaluateAll(images=>images.length>0 && images.every(img=>img.complete && img.naturalWidth>0)));
+    assert(!Object.keys(manifest.files).some(name=>name.startsWith('apps/cruise-studio/score-guide/') && name.endsWith('.mp4')));
     await guide.close();
 });

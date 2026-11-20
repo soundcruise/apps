@@ -7,7 +7,7 @@
 @media print{.capture{max-width:100%;max-height:none}.capture img{width:auto;max-height:140mm}.legend b{print-color-adjust:exact}.opening{padding:0}}
 .lesson-notes{border-collapse:collapse;margin:1rem 0;width:min(100%,36rem)}.lesson-notes th,.lesson-notes td{text-align:center;border:1px solid #cfc7b6;padding:.25rem}.lesson-notes td span{color:#285b80}.lesson-notes caption{text-align:left}.lesson-notes thead{background:#ede8db}#lesson figure img{max-height:none}#lesson h3{margin-top:2rem}
 </style>
-<header id="top"><p>Cruise Studio · Ver. 0.211.0-rc.1</p><h1>譜面クルーズ 取扱説明書</h1><p>曲を作り、小節に演奏を入力し、印刷・配布するまでの操作を説明します。チュートリアルでは「そらまで」、機能別の解説では「海辺の散歩」を使います。</p></header>
+<header id="top"><p>Cruise Studio · Ver. 0.211.1-rc.1</p><h1>譜面クルーズ 取扱説明書</h1><p>曲を作り、小節に演奏を入力し、印刷・配布するまでの操作を説明します。チュートリアルでは「そらまで」、機能別の解説では「海辺の散歩」を使います。</p></header>
 <section id="overview" class="opening"><h2>画面の見かた</h2><p>操作は上、譜面は中央、再生は下にあります。左のスタジオメニューから他のツールにも移動できます。</p>
 <figure><div class="capture"><img src="overview.png" alt="スタジオの中で譜面クルーズを開いた画面全体"><svg aria-hidden="true" viewBox="0 0 1440 1000"><rect x="241" y="178" width="1159" height="201" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="238" cy="175" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="238" y="182.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">1</text><rect x="481" y="594" width="678" height="111" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="478" cy="591" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="478" y="598.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">2</text><rect x="241" y="929" width="1159" height="60" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="238" cy="926" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="238" y="933.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">3</text></svg></div><figcaption><ul class="legend"><li><b>1</b>上部カードで曲とツールを選ぶ</li><li><b>2</b>譜面で編集・再生する小節を選ぶ</li><li><b>3</b>再生、テンポ、音量を操作する</li></ul></figcaption></figure>
 <p><a href="#lesson">最初の1曲を作ってみる ↓</a></p></section>
@@ -15,15 +15,16 @@
 <li><a href="#overview">画面の見かた</a></li><li><a href="#lesson">はじめての1曲</a></li><li><a href="#start">曲を作る・開く</a></li><li><a href="#save">保存場所・複製・変更履歴</a></li><li><a href="#song">曲情報・キー・カポ</a></li><li><a href="#bars">小節を選ぶ・移動する</a></li><li><a href="#edit">小節編集と鍵盤・フォーム入力</a></li><li><a href="#sections">セクションを組み立てる</a></li><li><a href="#batch">コード・ストローク一括入力</a></li><li><a href="#view">段組み・文字・表示設定</a></li><li><a href="#play">再生と練習</a></li><li><a href="#share">書き出し・印刷・ビューワー</a></li><li><a href="#keys">キー操作・困ったとき</a></li><li><a href="#contact">お問い合わせ</a></li></ul></nav>
 <main><section id="lesson"><h2>はじめての1曲「そらまで」</h2>
 <p>4/4拍子、BPM 100の4小節を作ります。コードとストロークは一括入力し、歌詞とメロディは各拍の先頭に入れます。</p>
-<figure><video controls playsinline preload="metadata" poster="lesson/tutorial-cover.png" aria-label="はじめての1曲：作成からビューワーでの演奏まで" style="width:100%;border-radius:6px" src="tutorial.mp4"></video><figcaption>約1分9秒の操作動画です。字幕で操作を追えます。最後にビューワーで完成した曲の演奏が流れます。</figcaption></figure>
-<h3>1. 曲を作る</h3><p>メニュー → 新しい曲を作成。曲名を「そらまで」、BPMを100、拍子を4/4にして「適用」を押します。</p>
-<figure><img src="lesson/new-menu.png" alt="新しい曲を作成するメニュー"><figcaption>①メニュー　②新しい曲を作成</figcaption></figure><figure><img src="lesson/song.png" alt="曲名とBPMを入力した新規作成画面"><figcaption>①曲名　②BPM　③適用</figcaption></figure>
-<h3>2. 練習用の4小節を用意する</h3><p>メニュー → セクション編集。この練習用の新規曲では、イントロの4小節を残し、ほかのセクションを選んで削除します。残したセクションの名前を「うた」に変え、「適用」を押します。</p>
+<h3>1. 曲を作る</h3><p>「メニュー」→「新しい曲を作成」を開き、曲名に「そらまで」、BPMに100を入力します。拍子は4/4です。そのまま画面左下の「譜面の全体編集」へ進みます。</p>
+<figure><img src="lesson/new-menu.png" alt="新しい曲を作成するメニュー"><figcaption>①メニュー　②新しい曲を作成</figcaption></figure><figure><img src="lesson/song.png" alt="新規作成画面の左欄。曲名やBPMの下に「譜面の全体編集」の3つのボタンが並ぶ"><figcaption>①曲名　②BPM　③セクション編集　④コード一括入力　⑤ストローク一括入力</figcaption></figure>
+<h3>2. 練習用の4小節を用意する</h3><p>「譜面の全体編集」の「セクション編集」を押します。この練習用の新規曲では、イントロの4小節を残し、ほかのセクションを選んで削除します。残したセクションの名前を「うた」に変え、右上の「適用」を押すと「新しい曲を作成」に戻ります。</p>
 <figure><img src="lesson/sections.png" alt="不要なセクションを選択した画面"><figcaption>①削除するセクション　②セクションを削除　③適用</figcaption></figure>
-<h3>3. コードを一括入力する</h3><p>メニュー → コード一括。「1950s」を選び、「曲全て」にチェックして「適用」を押します。下の譜面に C・Am・F・G が1小節ずつ並んだら、右上の「OK」で確定します。</p>
+<h3>3. コードを一括入力する</h3><p>「新しい曲を作成」の「譜面の全体編集」から「コード一括入力」を押します。「1950s」を選び、「曲全て」にチェックして「適用」を押します。下の譜面に C・Am・F・G が1小節ずつ並んだら、右上の「OK」を押して作成画面に戻ります。</p>
 <figure><img src="lesson/chords.png" alt="1950sのコード進行を4小節に適用したプレビュー"><figcaption>①1950s　②曲全て　③適用　④OK</figcaption></figure>
-<h3>4. ストロークを4小節すべてに入れる</h3><p>メニュー → ストローク一括。「4分連続」を選び、ここでも「曲全て」をチェックして「適用」。3・4小節目まで各小節に4つずつ ↓ があることを確認し、「OK」を押します。</p>
+<h3>4. ストロークを4小節すべてに入れる</h3><p>同じ「譜面の全体編集」から「ストローク一括入力」を押します。「4分連続」を選び、ここでも「曲全て」をチェックして「適用」。3・4小節目まで各小節に4つずつ ↓ があることを確認し、「OK」で作成画面に戻ります。</p>
 <figure><img src="lesson/strum.png" alt="4分音符のダウンストロークを4小節に適用したプレビュー"><figcaption>①4分連続　②曲全て　③適用　④OK</figcaption></figure>
+<p>作成画面のプレビューで、4小節のコードとストロークを確認します。ここで右上の「適用」を押して、作った譜面を開きます。</p>
+<figure><img src="lesson/apply-song.png" alt="新規作成画面に戻ったプレビュー。4小節の伴奏と右上の適用ボタン"><figcaption>①作成画面の「適用」</figcaption></figure>
 <h3>5. 小節編集を開く</h3><p>譜面の1小節目をクリックし、上部カードの「編集」を押します。編集画面の上で「4小節」を選ぶと、4小節分を横に並べて入力できます。</p>
 <figure><img src="lesson/edit.png" alt="選んだ小節と上部カードの編集ボタン"><figcaption>①1小節目　②編集</figcaption></figure>
 <h3>6. 歌詞を入れる</h3><p>歌詞行の各拍の先頭に、ひらがなを1文字ずつ入力します。1小節目なら、1拍目「あ」、2拍目「さ」、3拍目「の」、4拍目「ひ」です。8分グリッドでは各拍の左側のマスを使います。</p><table class="lesson-notes"><caption>各列が1拍です。上段が歌詞、下段がドレミです。</caption><thead><tr><th>小節・コード</th><th>1拍目</th><th>2拍目</th><th>3拍目</th><th>4拍目</th></tr></thead><tbody><tr><th>1・C</th><td>あ<br><span>ド</span></td><td>さ<br><span>ミ</span></td><td>の<br><span>ソ</span></td><td>ひ<br><span>ミ</span></td></tr><tr><th>2・Am</th><td>か<br><span>ラ</span></td><td>ぜ<br><span>ソ</span></td><td>の<br><span>ミ</span></td><td>ね<br><span>ド</span></td></tr><tr><th>3・F</th><td>そ<br><span>ファ</span></td><td>ら<br><span>ラ</span></td><td>ま<br><span>ソ</span></td><td>で<br><span>ファ</span></td></tr><tr><th>4・G</th><td>と<br><span>ソ</span></td><td>ど<br><span>レ</span></td><td>け<br><span>シ</span></td><td>て<br><span>ソ</span></td></tr></tbody></table>
