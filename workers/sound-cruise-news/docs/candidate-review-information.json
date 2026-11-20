@@ -118,5 +118,197 @@
         }
       ]
     }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1120-parlor-martinez-mc-128s-610mm-chippoke/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1120-parlor-martinez-mc-128s-610mm-chippoke/"
+      },
+      "fields": {
+        "brand": "Martinez",
+        "product": "MC-128S 610mm",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "大橋ちっぽけがMartinezのMC-128S 610mmを試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "PR表記のあるクラシックギターの試奏です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1120-new-gear-110-maton/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1120-new-gear-110-maton/"
+      },
+      "fields": {
+        "brand": "MATON",
+        "product": "Troubadour-Jumbo",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "井草聖二がMATONのTroubadour-Jumboを試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "PR表記のあるエレアコの試奏です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/column/2026-1120-ohitorisama-dtm-035/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/column/2026-1120-ohitorisama-dtm-035/"
+      },
+      "fields": {
+        "brand": "関口シンゴ",
+        "product": "トラック制作",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "関口シンゴがアコギを加えるトラック制作とドラムの組み立て方を解説"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "連載第35回。前回のAI活用とはテーマが異なります。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174146/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174146/"
+      },
+      "fields": {
+        "brand": "basiner",
+        "product": "ACME-EG Basalt Black",
+        "productType": "guitar_case",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "basinerのギターケースに黒が再登場、ACME-EG Basalt Blackなどを紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "黒の再登場です。同日掲載の新色グリーンとは別の案内です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174138/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174138/"
+      },
+      "fields": {
+        "brand": "basiner",
+        "product": "ACME-EG Groove Green",
+        "productType": "guitar_case",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "basinerのギターケースに新色、ACME-EG Groove Greenを紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "ACMEシリーズの新色です。黒の再登場とは別の案内です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174111/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174111/"
+      },
+      "fields": {
+        "brand": "basiner",
+        "product": "CRUIES",
+        "productType": "guitar_case",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "basinerが軽量ギターバッグCRUIESシリーズを展開"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "ギター用とベース用を含むシリーズです。ACMEの色違いとは別製品です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174105/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174105/"
+      },
+      "fields": {
+        "brand": "Herbe＆Chick",
+        "product": "LOKI",
+        "productType": "effect",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "Herbe＆ChickのライトドライブペダルLOKIを池部楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "アンプの歪みを調整するペダルです。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174091/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174091/"
+      },
+      "fields": {
+        "brand": "IK Multimedia",
+        "product": "iLoud Micro Monitor 2",
+        "productType": "studio_monitor",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "池部楽器がIK Multimediaの小型モニタースピーカーiLoud Micro Monitor 2を紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "スピーカー本体の紹介です。初代や測定用機材とは区別してください。"
+        }
+      ]
+    }
   }
 ]
