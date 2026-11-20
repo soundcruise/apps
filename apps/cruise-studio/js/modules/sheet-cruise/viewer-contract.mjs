@@ -6,6 +6,8 @@ import {insist, canonicalJSON, freeze, clone} from '../../../../score-viewer/cor
 import {normalizeLayout, normalizeLineRules, readGridRows, DEFAULT_LAYOUT} from './paper-layout.mjs';
 import {buildSongPreviewPlan, buildSongTickPlan} from './score-playback.mjs';
 
+import {MIN_SCORE_ZOOM,MAX_SCORE_ZOOM} from '../score-ui.mjs';
+
 export function normalizeViewerPresentation(input, score) {
     insist(input && typeof input === 'object' && !Array.isArray(input), 'invalid-viewer-presentation');
     insist(input.version === undefined || input.version === 1, 'unsupported-presentation-version');
@@ -20,7 +22,7 @@ export function normalizeViewerPresentation(input, score) {
     const anchors = new Set([...score.bars.map(b => b.id), ...(score.extensions?.scoreLayoutV1?.holes || []).map(h => h.id)]);
     insist(rows.every(r => anchors.has(r.barId)), 'missing-presentation-anchor');
     const zoom = input.zoom === undefined ? 1 : input.zoom;
-    insist(Number.isFinite(zoom) && zoom >= .5 && zoom <= 3, 'invalid-viewer-zoom');
+    insist(Number.isFinite(zoom) && zoom >= MIN_SCORE_ZOOM && zoom <= MAX_SCORE_ZOOM, 'invalid-viewer-zoom');
     insist(input.flow === undefined || ['responsive','source','horizontal'].includes(input.flow), 'invalid-viewer-flow');
     const gridRows=Array.from(readGridRows(input.gridRows,score),([barId,rows])=>({barId,rows}));
     if(input.gridRows!==undefined && canonicalJSON(input.gridRows)!==canonicalJSON(gridRows))warnings.push('presentation-normalized');

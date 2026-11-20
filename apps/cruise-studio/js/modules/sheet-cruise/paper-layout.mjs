@@ -1,4 +1,4 @@
-import {bindScoreZoom,bindOutsideDismiss,installScoreUI,movePaperPlayhead} from '../score-ui.mjs';
+import {playbackRowTop,bindScoreZoom,bindOutsideDismiss,installScoreUI,movePaperPlayhead} from '../score-ui.mjs';
 import {FONTS,setPresentationProperty,togglePresentationClass,TEXT_FIELDS,LINE_FIELDS,normalizeAppearance,applyAppearance,APPEARANCE_CSS,addTextTools,addInteractionColors} from './paper-appearance.mjs';
 // Browser-local presentation preferences. Never edits a Project or its Session.
 export function readGridRows(entries,project){
@@ -354,7 +354,7 @@ export function createPaperLayout(C,doc=document){
                     const bounds=auditionBar.getBoundingClientRect(),outer=viewport.getBoundingClientRect();
                     movePaperPlayhead(auditionLine,paper,auditionBar,bounds,{fraction:position.tick/position.barTicks,seconds:position.barSeconds,
                         nextBar:()=>position.nextBarNumber && findBar(position.nextBarNumber)});
-                    viewport.scrollTop=Math.round(viewport.scrollTop+(bounds.top+bounds.bottom-outer.top-outer.bottom)*.05);
+                    viewport.scrollTop=Math.round(viewport.scrollTop+(bounds.top-playbackRowTop(outer.top,outer.bottom,bounds.height))*.1);
                 }
             }
             auditionFrame=requestAnimationFrame(paintAudition);

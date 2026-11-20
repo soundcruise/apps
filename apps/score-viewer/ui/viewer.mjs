@@ -1,4 +1,4 @@
-import {bindScoreZoom,applyScoreTheme,movePlayhead,syncPlaybackButton,installScoreUI,styleAudioButton,styleRepeatButton} from '../../cruise-studio/js/modules/score-ui.mjs';
+import {MIN_SCORE_ZOOM,MAX_SCORE_ZOOM,bindScoreZoom,applyScoreTheme,movePlayhead,syncPlaybackButton,installScoreUI,styleAudioButton,styleRepeatButton} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {mountFocusMode} from './focus-mode.mjs';
 import {bindRangeSelection} from './range-selection.mjs';
 import {labelIcon} from './icons.mjs';
@@ -86,7 +86,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         save.disabled=!current||current.saved||current.saving;
         save.hidden=!current||current.saved;save.textContent='この端末に保存';
         flow.disabled=minus.disabled=percent.disabled=plus.disabled=!current;
-        if(p){menuFlow.value=p.flow;menuZoom.querySelectorAll('button')[1].textContent=Math.round(p.zoom*100)+'%';flow.value=p.flow;percent.textContent=Math.round(p.zoom*100)+'%';minus.disabled=p.zoom<=.5;plus.disabled=p.zoom>=3;}
+        if(p){menuFlow.value=p.flow;menuZoom.querySelectorAll('button')[1].textContent=Math.round(p.zoom*100)+'%';flow.value=p.flow;percent.textContent=Math.round(p.zoom*100)+'%';minus.disabled=p.zoom<=MIN_SCORE_ZOOM;plus.disabled=p.zoom>=MAX_SCORE_ZOOM;}
         [minus,percent,plus].forEach((source,i)=>{menuZoom.querySelectorAll('button')[i].disabled=source.disabled;});
         const sound=current?.player.snapshot(),playing=sound&&['playing','counting','loading'].includes(sound.phase);
         open.disabled=files.disabled=!!playing||externalBusy;fileMenu.sync(!!playing||externalBusy);display.disabled=audioSettings.disabled=!current;displaySummary.setAttribute('aria-disabled',String(!current));for(const [flag,check]of displayChecks){check.disabled=!current;if(current){const v=current.reader.read(),settings=v.document.score.notation.settings;check.checked=flag.startsWith('show')?v.presentation.layout[flag]!==false:flag==='formList'?v.presentation.layout.appearance.visibility.formList===true:(v.presentation.layout.appearance.visibility[flag]??settings[({chords:'showChords',lyrics:'showLyrics',strum:'showStrum',doremi:'showDoremi'})[flag]])!==false;}}
@@ -241,9 +241,9 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     save.onclick=()=>void saveCurrent();
     function change(patch) {if(!current)return;const anchor=viewAnchor();current.reader.setPresentation({...current.reader.read().presentation,...patch});redraw(anchor);schedulePreferences();}
     flow.onchange=()=>change({flow:flow.value});
-    bindScoreZoom(viewport,{read:()=>current.reader.read().presentation.zoom,write:zoom=>change({zoom}),max:3,enabled:()=>active&&!!current,signal:events.signal});
-    minus.onclick=()=>change({zoom:Math.max(.5,Math.round((current.reader.read().presentation.zoom-.1)*10)/10)});
-    plus.onclick=()=>change({zoom:Math.min(3,Math.round((current.reader.read().presentation.zoom+.1)*10)/10)});
+    bindScoreZoom(viewport,{read:()=>current.reader.read().presentation.zoom,write:zoom=>change({zoom}),enabled:()=>active&&!!current,signal:events.signal});
+    minus.onclick=()=>change({zoom:Math.max(MIN_SCORE_ZOOM,Math.round((current.reader.read().presentation.zoom-.1)*10)/10)});
+    plus.onclick=()=>change({zoom:Math.min(MAX_SCORE_ZOOM,Math.round((current.reader.read().presentation.zoom+.1)*10)/10)});
     percent.onclick=()=>change({zoom:1});
     async function refreshLibraryState(){if(!current)return;const item=current,row=await library.entry(item.entryId);if(current===item){item.saved=!!row&&row.byteHash===item.reader.read().byteHash;item.libraryTitle=row?.title||item.libraryTitle;controls();}}
     const libraryUI=createLibraryUI({host,library,open:(bytes,metadata)=>(requestOpen||openBytes)(bytes,metadata),changed:refreshLibraryState,notify:notice});

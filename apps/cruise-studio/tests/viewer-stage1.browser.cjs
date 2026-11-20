@@ -62,8 +62,10 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
         }));
         await t.test('saved library and last score survive reload; per-viewer display preferences never alter source files',()=>fresh(async p=>{
             const f=await exported(p);await enter(p);await importBytes(p,f.bytes);await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'viewer');await p.waitForFunction(()=>document.querySelector('[data-viewer-action=save]').disabled);
-            await p.locator('.sv-viewport:visible').dispatchEvent('wheel',{deltaY:-35,ctrlKey:true,bubbles:true,cancelable:true});
-            await p.waitForFunction(()=>document.querySelector('[data-viewer-action=zoom-reset]').textContent!=='100%');
+            for(const [deltaY,label] of [[-1000,'400%'],[1000,'25%']]){
+                await p.locator('.sv-viewport:visible').dispatchEvent('wheel',{deltaY,ctrlKey:true,bubbles:true,cancelable:true});
+                await p.waitForFunction(label=>document.querySelector('[data-viewer-action=zoom-reset]').textContent===label,label);
+            }
             await p.click('[data-viewer-action=zoom-reset]');
             await setViewerFlow(p,'source');await p.click('[data-viewer-action=zoom-in]');await p.waitForTimeout(300);
             await p.reload();await p.waitForFunction(()=>document.documentElement.dataset.studioEntry==='ready');await p.click('#open-score-viewer');await p.locator('.sv-paper .sheet-title').waitFor();

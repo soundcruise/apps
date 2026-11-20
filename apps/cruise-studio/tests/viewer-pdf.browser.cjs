@@ -26,7 +26,13 @@ for(const engine of ['chrome','webkit'])test('viewer PDF: '+engine,async t=>{
         }));
         await t.test('scanned image PDF renders without text extraction or music recognition',()=>fresh(async p=>{await load(p,'scan.pdf');assert.equal((await read(p)).pages,2);if(out)await p.screenshot({path:path.join(out,engine+'-scan.png')});}));
         await t.test('zoom and portrait/landscape retain the semantic page and fraction; saved bytes reopen unchanged',()=>fresh(async p=>{
-            await load(p);await settled(p);await p.locator('[data-pdf-page-input]').fill('2');await p.locator('[data-pdf-page-input]').press('Tab');await settled(p);
+            await load(p);await settled(p);
+            for(const [deltaY,zoom] of [[-1000,4],[1000,.25]]){
+                await p.locator('.sv-pdf-viewport:visible').dispatchEvent('wheel',{deltaY,metaKey:true,bubbles:true,cancelable:true});
+                await settled(p);assert.equal((await read(p)).zoom,zoom);
+            }
+            await p.click('[data-pdf-action=fit]');await settled(p);
+            await p.locator('[data-pdf-page-input]').fill('2');await p.locator('[data-pdf-page-input]').press('Tab');await settled(p);
             await p.locator('.sv-pdf-viewport').evaluate(v=>{const page=v.querySelector('[data-pdf-page="2"]');v.scrollTop=page.offsetTop+page.offsetHeight*.25;});await settled(p);const before=await read(p);
             await p.locator('.sv-pdf-viewport:visible').dispatchEvent('wheel',{deltaY:-35,metaKey:true,bubbles:true,cancelable:true});
             await settled(p);assert((await read(p)).zoom>1);

@@ -2,7 +2,11 @@ export {GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,M
 // Presentation helpers shared by the score editor and the read-only viewer.
 // They own no music, transport, storage or account state.
 // Browsers deliver trackpad pinch as either a modified wheel or a native gesture.
-export function bindScoreZoom(surface,{read,write,paper,scrollX,scrollY,enabled=()=>true,min=.5,max=2,signal}){
+export const MIN_SCORE_ZOOM=.25, MAX_SCORE_ZOOM=4;
+export function playbackRowTop(top,bottom,height){
+    return top+Math.max(0,bottom-top-height)*.3;
+}
+export function bindScoreZoom(surface,{read,write,paper,scrollX,scrollY,enabled=()=>true,min=MIN_SCORE_ZOOM,max=MAX_SCORE_ZOOM,signal}){
     const win=surface.ownerDocument.defaultView, options={passive:false,signal};
     let start=null, pending=1, frame=0, x,y;
     function schedule(value,event){
@@ -152,7 +156,7 @@ export function installScoreUI(doc){
 .score-tempo-reset{display:block;margin-top:14px!important}
 .score-metronome-tone{display:flex!important;align-items:center;flex-wrap:wrap;gap:10px 14px!important;margin:16px 0!important;line-height:1.5}
 [data-metronome-sound]{box-sizing:border-box;min-height:44px!important;height:44px!important;min-width:140px;font:14px system-ui!important;padding:8px 12px!important;border:1px solid #718390;border-radius:7px;background:var(--studio-control,#25313c);color:inherit}
-.sc-layout-playing{background:var(--score-fill,rgba(64,138,167,.12))!important;box-shadow:inset 0 0 0 2px var(--score-border,#408aa7)!important}
+.sc-layout-playing{background:var(--score-fill,rgba(64,138,167,.12))!important;box-shadow:inset 0 0 0 1px var(--score-border,#408aa7)!important}
 [data-layout-playhead]{position:absolute;top:0;left:0;width:2px;background:var(--score-line,#286780);pointer-events:none;z-index:5;will-change:transform}
 @media(max-width:700px){.score-transport{gap:6px!important;padding:6px 8px!important;min-height:58px}.score-transport .score-transport-main,.score-transport .score-transport-options{gap:5px}.score-transport .score-play{min-width:88px;font-size:12px!important;padding:8px!important}.score-transport .score-audio-label{display:none}.score-transport .score-audio-button{padding:8px;min-width:38px}.score-transport .score-tempo{font-size:12px;padding:8px}}
 
