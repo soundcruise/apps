@@ -1,4 +1,4 @@
 /* Candidate edition policy. Pro admission is independently enforced by Studio. */
 Object.defineProperty(window.CruiseStudio, 'releaseFeatures', {
-    value: Object.freeze({scoreVersion:"0.211.2-rc.1", creation:true, allows:id => id !== 'preDtm'})
+    value: Object.freeze({scoreVersion:"0.212.0-rc.1", creation:true, allows:id => id !== 'preDtm'})
 });

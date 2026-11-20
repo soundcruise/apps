@@ -5491,7 +5491,7 @@
                         const copy=CS().sessions.getOrCreateSession('structure',{type:'project',projectId:project.projectId});
                         showSession(copy);
                         refreshProjectSelect();
-                        showBrowserSave('曲を複製し、このブラウザに保存しました。');
+                        showSaveReceipt('曲を複製して保存しました。');
                     }
                     return result;
                 });
@@ -5804,15 +5804,15 @@
             tx.oncomplete=()=>resolve(req.result);tx.onabort=()=>reject(tx.error);
         }));
     }
-    function showBrowserSave(message='このブラウザに保存しました（この端末内）。'){
+    function showSaveReceipt(message='保存しました。', fileName){
         setSaveStatus(message);
         els.saveStatus.classList.remove('sc-status-quiet');
-        const exportButton=document.createElement('button');
-        exportButton.type='button';
-        exportButton.className='btn-ghost btn-compact';
-        exportButton.textContent='ファイルに書き出す（JSON）';
-        exportButton.addEventListener('click',downloadCurrentProjectJson);
-        els.saveStatus.append(' ',exportButton);
+        const location=document.createElement('button');
+        location.type='button';
+        location.textContent=fileName?'保存先：'+fileName:'保存先';
+        location.style.cssText='background:transparent;border:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer;padding:0';
+        location.onclick=showFileLocation;
+        els.saveStatus.append('（',location,'）');
     }
     function openFileList(){
         const dialog=document.createElement('dialog'),list=document.createElement('div'),title=document.createElement('h2');
@@ -5881,13 +5881,20 @@
                 message='「'+handle.name+'」の保存場所を開けませんでした。メニューの「名前をつけて保存」で保存先を選び直せます。';
             }
         }else{
-            message=(session.baseRevision===null?'この曲は未保存です。':'この曲はこのブラウザに保存されています。')+
+            message=(session.baseRevision===null?'この曲は未保存です。':'保存先は、この端末のブラウザが管理するサイトデータです。譜面クルーズの左上の曲名一覧から「'+session.draft.songInfo.title+'」を開けます。曲ごとのファイルパスはありません。')+
                 (typeof window.showSaveFilePicker==='function'?' メニューの「名前をつけて保存」で、ファイル名と保存先を選べます。':' メニューの「名前をつけて保存」でJSONをダウンロードできます。保存先はブラウザのダウンロード設定で確認できます。');
         }
         const dialog=document.createElement('dialog'),title=document.createElement('h2'),info=document.createElement('p'),close=document.createElement('button');
         dialog.className='sc-location-dialog';dialog.setAttribute('aria-label','保存場所');title.textContent='保存場所';info.textContent=message;close.textContent='閉じる';
         close.onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove(),{once:true});
-        dialog.append(title,info,close);els.root.append(dialog);dialog.showModal();
+        dialog.append(title,info);
+        if(!handle && session.baseRevision!==null){
+            const write=document.createElement('button');
+            write.type='button';write.textContent='ファイルに書き出す（JSON）';
+            write.onclick=()=>{dialog.close();q('sc-save-as').click();};
+            dialog.append(write);
+        }
+        dialog.append(close);els.root.append(dialog);dialog.showModal();
     }
     function chooseDownloadName(title){
         const dialog=document.createElement('dialog'),form=document.createElement('form'),label=document.createElement('label');
@@ -5922,7 +5929,7 @@
             fileHandles.delete(id);
         }
         const result=await commitBrowserSession(session);
-        if(result.ok && state.session===session)showBrowserSave('このブラウザに保存し、「'+name+'」のダウンロードを開始しました。');
+        if(result.ok && state.session===session)showSaveReceipt('保存しました。「'+name+'」のダウンロードを開始しました。');
         return result;
     }
     async function commitSession(session,{chooseFile=false}={}){
@@ -5968,10 +5975,7 @@
             if (state.session === session) {
                 refreshProjectSelect(); refreshSessionStatus();
                 if(result.ok && !session.dirty && !session.externalUpdatePending){
-                    if(fileName){
-                        setSaveStatus('「'+fileName+'」に保存しました。');
-                        els.saveStatus.classList.remove('sc-status-quiet');
-                    }else showBrowserSave();
+                    showSaveReceipt('保存しました。',fileName);
                 }
             }
             return result;

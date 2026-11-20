@@ -313,14 +313,15 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    assert.equal(await p.evaluate(()=>typeof window.showSaveFilePicker),'undefined');
    await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
    const status=p.locator('#sc-save-status');
-   const exportButton=status.getByRole('button',{name:'ファイルに書き出す（JSON）'});
-   await exportButton.waitFor();
-   assert.match(await status.innerText(),/このブラウザに保存しました/);
-   assert((await status.boundingBox()).width>1);
+   await status.getByRole('button',{name:'保存先',exact:true}).click();
+   const location=p.getByRole('dialog',{name:'保存場所'});
+   assert.match(await location.innerText(),/曲名一覧/);
+   const exportedSnapshot=await snap(p);
+   await location.getByRole('button',{name:'ファイルに書き出す（JSON）'}).click();
    const download=p.waitForEvent('download');
-   await exportButton.click();
+   await p.getByRole('dialog',{name:'名前をつけて保存'}).getByRole('button',{name:'保存',exact:true}).click();
    const {scorePresentation,...file}=JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));
-   assert.deepEqual(file,await snap(p));
+   assert.deepEqual(file,exportedSnapshot);
    return;
   }
   await p.evaluate(()=>{
