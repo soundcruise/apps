@@ -238,6 +238,15 @@
                     token.replaceChildren(...chunks.map((text,index)=>index%2?el('span','sheet-kana-pair',text):text));
                 }
                 if(e.octave!==undefined){token.style.color=octaveColor(e.octave);token.dataset.noteOctave=e.octave;token.title='オクターブ '+e.octave;}
+                if(className==='sheet-bar-chord' && items.length===1 && e.text.length>1 && e.text.length<=3){
+                    const next=events.find(event=>event.tick>e.tick);
+                    const room=100*((next?.tick??barTicksLen)-starts[i])/barTicksLen;
+                    const slot=100*span/barTicksLen;
+                    // Offset only into free space, accounting for the token's existing centered inset.
+                    token.style.display='inline-block';
+                    const inset='max(0px, calc('+slot/2+'cqw - 50%))';
+                    token.style.transform='translateX(max(0px,min(calc('+(e.text.length===2?'.34em':'.18em')+' - '+inset+'),calc('+room+'cqw - 100% - '+inset+'))))';
+                }
                 cell.appendChild(token);
             }
             if(items.length){
@@ -304,6 +313,7 @@
         // 追加するときも、同じく .sheet-bar-row を付ければ区切り線が自動で付く
         if (show.chords) {
             var chord=buildTimedTextRow('sheet-bar-chord',(bar.chords||[]).map(function(e){return {tick:e.tick,text:e.symbol};}),chordStarts,length);
+            chord.style.containerType='inline-size';
             chord.style.fontSize='17.5px';chord.style.fontWeight='800';
             chord.querySelectorAll('.sheet-timed-cell').forEach(function(e){if(e.textContent)e.classList.add('sheet-chord-event');});
             appendRow(chord);
@@ -375,6 +385,12 @@
             var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.dataset.paperEdit='section';label.tabIndex=0;label.setAttribute('role','button');label.title='セクション編集を開く';
             var sectionHead=heads.get(sec.id)||el('div','sheet-section-heading');if(!heads.has(sec.id))sectionHead.appendChild(label);if(!readOnly&&options?.editableSlots&&!heads.has(sec.id)){var play=el('button','sheet-section-play','▶ ここから');play.type='button';play.dataset.playSection=sec.id;play.setAttribute('aria-label',sec.name+'から再生');sectionHead.appendChild(play);}page.appendChild(sectionHead);
             const section=options?.sectionRules?.find(r=>r.sectionId===sec.id);
+            sectionHead.querySelector('.sheet-section-layout-mark')?.remove();
+            if(section && !readOnly && options?.editableSlots){
+                const marker=el('button','sheet-section-layout-mark','⚙');marker.type='button';marker.dataset.layoutSection=sec.id;
+                marker.title=sec.name+'のセクション別表示設定';marker.setAttribute('aria-label',marker.title);
+                sectionHead.firstElementChild.after(marker);
+            }
             const lineShow={...show,forms:!!options?.formsForBar && (show.forms??options?.defaultForms??true),...section?.visibility};
             const hasVocal=lineShow.lyrics||lineShow.doremi,hasForms=lineShow.forms&&!!options?.formsForBar;
             const requested=section?.barsPerLine??options?.barsPerLine;
@@ -386,6 +402,10 @@
                 var lineSlots=slots.slice(i,i+used);line.dataset.lineUsed=lineSlots.length;
                 var formRows=hasForms?lineSlots.map(function(s){return s.empty||canReuse?null:options.formsForBar(s.barNumber);}):[];
                 var rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);line.style.setProperty('--sheet-row-count',rowCount);
+                for(const [name,style] of Object.entries(section?.text||{})){
+                    if(style.color){line.dataset['ink'+name[0].toUpperCase()+name.slice(1)]='';line.style.setProperty('--sc-section-color-'+name,style.color);}
+                    if(style.font)line.dataset['font'+name[0].toUpperCase()+name.slice(1)]=style.font;
+                }
                 var nextReal=slots.slice(i+lineSlots.length).find(function(s){return !s.empty;});
                 function emptyCell(descriptor){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.dataset.emptySlot=JSON.stringify(descriptor);empty.setAttribute('role',options?.editableSlots?'button':'img');empty.setAttribute('aria-label','空き枠（再生なし。編集開始・貼り付けで小節に戻す）');if(options?.editableSlots){empty.tabIndex=0;empty.dataset.editableEmpty='';}return empty;}
                 lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=lineShow.strum?resolveBarStrum(project,bar):null;const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.inputGridForRow,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]);

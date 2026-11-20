@@ -153,27 +153,60 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await openPaperSettings(page);
             const dialog=page.locator('[data-paper-layout]'), panel=dialog.locator('.sc-section-layout');
             await dialog.locator('[data-layout-setting=autoBarsPerLine]').uncheck();await dialog.locator('[data-layout-setting=barsPerLine]').selectOption('8');
-            await panel.locator('summary').click();
+            await panel.locator(':scope > summary').click();
             await panel.getByLabel('設定するセクション').selectOption(section.id);
             await panel.getByLabel('セクションの1行の小節数').selectOption('3');
-            await panel.getByLabel('ストロークの表示').selectOption('off');
+            await panel.getByLabel('ストロークを表示').uncheck();
             const size=panel.getByLabel('コードの大きさ');
-            await size.fill('20');await size.press('Tab');
+            await size.evaluate(e=>{e.value=20;e.dispatchEvent(new Event('input',{bubbles:true}));});
+            await panel.getByLabel('コードの色').evaluate(e=>{e.value='#125634';e.dispatchEvent(new Event('input',{bubbles:true}));});
             const first=paper.locator('.sheet-line').first();
             assert.equal(await first.getAttribute('data-line-capacity'),'3');
             assert.equal(await first.locator('.sheet-bar-strum').count(),0);
             assert.equal(await first.locator('.sheet-bar-chord').first().evaluate(e=>getComputedStyle(e).fontSize),'20px');
             await dialog.locator('[data-layout-save]').click();
             const presentation=await page.evaluate(()=>CruiseStudio.localPaperLayout.exportPresentation(CruiseStudio.sheetCruise.getSession().draft));
-            assert.deepEqual(presentation.layout.sections,[{sectionId:section.id,barsPerLine:3,visibility:{strum:false},sizes:{chordSize:20}}]);
+            assert.deepEqual(presentation.layout.sections,[{sectionId:section.id,barsPerLine:3,visibility:{strum:false},sizes:{chordSize:20},text:{chord:{color:'#125634'}}}]);
             assert.equal(presentation.layout.barsPerLine,8);
-            await openPaperSettings(page);
-            await panel.locator('summary').click();
+            assert.equal(await first.locator('.sheet-bar-chord').first().evaluate(e=>getComputedStyle(e).color),'rgb(18, 86, 52)');
+            const marker=paper.locator('.sheet-section-layout-mark');
+            await page.emulateMedia({media:'print'});assert.equal(await marker.isVisible(),false);await page.emulateMedia({media:'screen'});
+            await marker.click();assert.equal(await panel.getByLabel('設定するセクション').inputValue(),section.id);
+            await panel.getByRole('button',{name:'コードを全体設定に戻す'}).click();
+            assert.equal(await first.locator('.sheet-bar-strum').count(),0);
             await panel.getByRole('button',{name:'このセクションを全体設定に戻す'}).click();
             assert.equal(await first.getAttribute('data-line-capacity'),'8');
             await dialog.locator('[data-layout-cancel]').click();
             assert.equal(await first.getAttribute('data-line-capacity'),'3');
             assert.deepEqual(await snapshot(page),project);
+        }));
+        await t.test('short chord insets respect adjacent onsets and the end of the bar',()=>fresh(async page=>{
+            const gaps=await page.evaluate(()=>{
+                const C=CruiseStudio,project=C.model.toStructureView(C.sheetCruise.getSession().workingSnapshot());
+                const paper=document.createElement('div');paper.className='sc-paper-layout';document.body.append(paper);
+                const result=[];
+                for(const symbol of ['C','Em','G/B','F/A','Em/G','Cmaj7','F#m7♭5']){
+                    project.bars[0].chords=[0,240,480,1680].map(tick=>({tick,symbol}));
+                    C.sheetRenderer.render(project,paper,{barsPerLine:4,visibility:{chords:true}});
+                    const row=paper.querySelector('.sheet-bar-chord');row.style.width='192px';
+                    const rowRect=row.getBoundingClientRect();
+                    result.push(Array.from(row.querySelectorAll('.sheet-chord-event>span'),e=>{
+                        const transform=getComputedStyle(e).transform;
+                        return {symbol,offset:transform==='none'?0:new DOMMatrix(transform).m41,
+                            left:e.getBoundingClientRect().left-rowRect.left,width:e.getBoundingClientRect().width};
+                    }));
+                }
+                paper.remove();return result;
+            });
+            for(const [i,events] of gaps.entries()){
+                assert.equal(events.length,4);
+                for(const [j,event] of events.entries()){
+                    const room=[24,24,144,24][j];
+                    assert(event.offset>=0 && event.offset<=Math.max(0,room-event.width)+.1);
+                    if(i===0||i>=4)assert.equal(event.offset,0);
+                }
+            }
+            for(const i of [1,2,3])assert(gaps[i][2].offset>0);
         }));
         await t.test('stroke selection is visible for pointer and Up Down x keyboard input',()=>fresh(async page=>{
             await select(page);let first=page.locator('.dock-strum-cell').first();await first.click();await settle(page);assert.equal(await first.locator('..').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(237, 246, 255)');

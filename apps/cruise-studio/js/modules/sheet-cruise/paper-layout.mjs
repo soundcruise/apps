@@ -45,6 +45,13 @@ function normalizeSections(records){
         const rule={sectionId:row.sectionId};
         if(Number.isInteger(row.barsPerLine)&&row.barsPerLine>=1&&row.barsPerLine<=8)rule.barsPerLine=row.barsPerLine;
         for(const [flag,,key] of sectionTracks){
+            const textKey=TEXT_FIELDS[key]?.[0], style=row.text?.[textKey];
+            if(textKey && style){
+                const text={};
+                if(Object.hasOwn(FONTS,style.font))text.font=style.font;
+                if(typeof style.color==='string' && /^#[0-9a-f]{6}$/i.test(style.color))text.color=style.color;
+                if(Object.keys(text).length)(rule.text??={})[textKey]=text;
+            }
             if(typeof row.visibility?.[flag]==='boolean')(rule.visibility??={})[flag]=row.visibility[flag];
             if(Number.isFinite(row.sizes?.[key]))(rule.sizes??={})[key]=Math.max(ranges[key][0],Math.min(ranges[key][1],row.sizes[key]));
         }
@@ -158,8 +165,10 @@ export function createPaperLayout(C,doc=document){
 .sc-layout-feedback{min-height:20px;color:#8bd3e6!important;font-size:13px!important;}
 .sc-section-layout{min-width:0;border:1px solid #52616c;border-radius:6px;padding:7px;}
 .sc-section-layout summary{cursor:pointer;font-size:13px;}.sc-section-layout>div{display:grid;gap:8px;margin-top:9px;font-size:12px;}
-.sc-section-layout .sc-section-track{display:grid;grid-template-columns:minmax(0,1fr) auto 43px 16px;align-items:center;gap:3px;}
-.sc-section-layout .sc-section-track select{grid-column:auto;}
+.sc-track-inherit{font:inherit;font-size:10px;padding:1px 3px;background:transparent;color:inherit;border:0;text-decoration:underline;}.sc-track-inherit:disabled{text-decoration:none;opacity:.65;}
+.sheet-section-layout-mark{background:transparent;border:0;color:#786d57;padding:2px 5px;cursor:pointer;}
+#sc-sheet-scale-box .sheet-section-heading:has(.sheet-section-layout-mark) .sheet-section-label{flex:0 1 auto;}
+.sheet-section-layout-mark{margin-right:auto;}@media print{.sheet-section-layout-mark{display:none!important;}}
 .sc-section-layout select,.sc-section-layout input{min-width:0;font:inherit;padding:3px;}.sc-section-layout label{display:flex;justify-content:space-between;align-items:center;}
 .sc-layout-example{position:sticky;top:54px;}
 .sc-layout-body{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start;}
@@ -280,7 +289,7 @@ export function createPaperLayout(C,doc=document){
                 return input;
             }
             const target=choice('設定するセクション',sample.sections.map(s=>[s.id,s.name]));
-            target.value=sample.bars[(options.selectedBarNumber||1)-1]?.sectionId||sample.sections[0].id;
+            panel.open=!!options.sectionId;target.value=options.sectionId||sample.bars[(options.selectedBarNumber||1)-1]?.sectionId||sample.sections[0].id;
             body.append(target);
             const rules=()=>sectionProjects.get(sample.projectId)||[];
             const current=()=>rules().find(r=>r.sectionId===target.value)||{sectionId:target.value};
@@ -294,21 +303,38 @@ export function createPaperLayout(C,doc=document){
             columns.onchange=()=>change(r=>{r.barsPerLine=Number(columns.value);});
             syncs.push(()=>columns.value=current().barsPerLine??'');
             for(const [flag,title,key] of sectionTracks){
-                const line=doc.createElement('div'),label=doc.createElement('span'),size=doc.createElement('input');
-                line.className='sc-section-track';label.textContent=title;
-                const mode=choice(title+'の表示',[['','全体に従う'],['on','表示'],['off','非表示']]);
-                mode.onchange=()=>change(r=>{(r.visibility??={})[flag]=mode.value===''?undefined:mode.value==='on';});
-                size.type='number';[size.min,size.max]=ranges[key];size.step=flag==='forms'?5:.5;
-                size.setAttribute('aria-label',title+'の大きさ');size.title='空欄で全体の大きさを使用';
-                size.onchange=()=>{if(size.validity.valid)change(r=>{(r.sizes??={})[key]=size.value===''?undefined:size.valueAsNumber;});else size.reportValidity();};
-                syncs.push(()=>{const rule=current();mode.value=rule.visibility?.[flag]===undefined?'':rule.visibility[flag]?'on':'off';size.value=rule.sizes?.[key]??'';size.placeholder=value[key];size.disabled=mode.value==='off';});
-                const unit=doc.createElement('small');unit.textContent=flag==='forms'?'%':'px';line.append(label,mode,size,unit);body.append(line);
+                const line=doc.createElement('div'),size=doc.createElement('input'),output=doc.createElement('output');
+                const textKey=TEXT_FIELDS[key]?.[0];
+                const effectiveVisibility=()=>current().visibility?.[flag]??visible(flag);
+                const toggle=(_,checked)=>change(rule=>{(rule.visibility??={})[flag]=checked;});
+                if(textKey){
+                    addTextTools({doc,section:true,row:line,name:key,label:title,syncs,visible:effectiveVisibility,toggle,
+                        get:()=>({text:{[textKey]:{...value.appearance.text[textKey],...current().text?.[textKey]}}}),
+                        patch:(_,patch)=>change(rule=>{rule.text??={};rule.text[textKey]={...rule.text[textKey],...patch};})});
+
+                }else{
+                    const head=doc.createElement('div'),label=doc.createElement('span'),check=doc.createElement('input');
+                    head.className='sc-text-heading';label.textContent=title;check.type='checkbox';check.setAttribute('aria-label',title+'を表示');
+                    check.onchange=()=>toggle(flag,check.checked);syncs.push(()=>check.checked=effectiveVisibility());
+                    head.append(label,check);line.append(head);
+                }
+                const slider=doc.createElement('div'),inherit=doc.createElement('button');
+                slider.className='sc-text-size';size.type='range';[size.min,size.max]=ranges[key];size.step=flag==='forms'?5:.5;
+                size.setAttribute('aria-label',title+'の大きさ');
+                size.oninput=()=>change(rule=>{(rule.sizes??={})[key]=size.valueAsNumber;});
+                inherit.type='button';inherit.className='sc-track-inherit';inherit.setAttribute('aria-label',title+'を全体設定に戻す');
+                inherit.onclick=()=>change(rule=>{delete rule.visibility?.[flag];delete rule.sizes?.[key];delete rule.text?.[textKey];});
+                syncs.push(()=>{const rule=current();size.value=rule.sizes?.[key]??value[key];output.textContent=size.value+(flag==='forms'?'%':'px');
+                    inherit.disabled=rule.visibility?.[flag]===undefined&&rule.sizes?.[key]===undefined&&!rule.text?.[textKey];
+                    inherit.textContent=inherit.disabled?'全体に従う':'全体に戻す';});
+                slider.append(size,output);line.querySelector('.sc-text-heading span').after(inherit);line.append(slider);body.append(line);
             }
             const resetSection=doc.createElement('button');resetSection.type='button';resetSection.textContent='このセクションを全体設定に戻す';
-            resetSection.onclick=()=>change(r=>{delete r.barsPerLine;delete r.visibility;delete r.sizes;});body.append(resetSection);
+            resetSection.onclick=()=>change(r=>{delete r.barsPerLine;delete r.visibility;delete r.sizes;delete r.text;});body.append(resetSection);
             const sync=()=>{syncs.forEach(fn=>fn());resetSection.disabled=Object.keys(current()).length===1;};
             target.onchange=()=>{sync();const heading=Array.from(paper.querySelectorAll('.sheet-section-label')).find(h=>h.dataset.sectionId===target.value);if(heading)viewport.scrollTop+=heading.getBoundingClientRect().top-viewport.getBoundingClientRect().top;};
             inputs.push(sync);
+            if(options.sectionId)requestAnimationFrame(()=>{if(panel.isConnected){target.focus();target.onchange();}});
         }
         const custom=doc.createElement('div');custom.className='sc-layout-custom';custom.dataset.layoutCustom='';custom.hidden=true;controls.appendChild(custom);
         const lineGroup=doc.createElement('fieldset'),legend=doc.createElement('legend');legend.textContent='選択した行';legend.dataset.layoutLineTitle='';lineGroup.appendChild(legend);custom.appendChild(lineGroup);
