@@ -9,7 +9,7 @@
         renameSection: 'セクション名を変更', barCount: 'セクションの小節数を変更',
         strum: 'ストロークセルを変更', resetStrum: '基本ストロークへ戻す',
         rangeTransfer: '選択したマスを移動・貼り付け', chordTransfer: 'コードとフォームを移動・貼り付け', cellTransfer: 'マスを移動・貼り付け', chordPreset: 'コード一括入力', strumPreset: 'ストローク一括入力',
-        bulkChord: 'コードをまとめて適用', bulkDoremi: 'ドレミをまとめて適用', display: '譜面表示設定を変更' });
+        bulkChord: 'コードをまとめて適用', bulkDoremi: 'メロディをまとめて適用', display: '譜面表示設定を変更' });
     function structureKey(project) {
         return JSON.stringify([project.sections.map(function (s) { return s.id; }),
             project.bars.map(function (b) { return [b.sectionId, project.schemaVersion===2?b.id:b.barNumber]; })]);

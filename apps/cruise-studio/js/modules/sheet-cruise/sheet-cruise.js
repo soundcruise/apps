@@ -1,13 +1,13 @@
 /* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1/D2/D3a/F1でレイアウトのみ改修）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
-   歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
+   歌詞・メロディ入力とA4紙面プレビューは Phase 2C / Phase 3。
    D1（docs/DECISIONS.md ADR-025）: 曲情報・セクション・表示設定・小節グリッドは
    上部ドロワー（#sc-editor-drawer）へ移動。
    D2 MVP（同ADR-025）: 小節上の極小overlay（S1b〜R2）を画面下部の横長ドックへ移設。
    D3a（同ADR-025 / ADR-026）: 巨大な縦積みフォーム型ドックを、選択小節と同じ時間軸を持つ
    コンパクトなタイムグリッド・ドックへ変更（「選択小節のX線写真」）。本格セル編集は
-   ストローク行のみ。コードは1小節1セル、歌詞・ドレミは見た目だけ時間軸へ揃え、
+   ストローク行のみ。コードは1小節1セル、歌詞・メロディは見た目だけ時間軸へ揃え、
    入力方式は現行の小節単位文字列入力のまま（tick位置セル分解はD3bで扱う）。
    まとめて入力はヘッダーのボタンから開くポップオーバー化。
    F1（ADR-027）: D3aのタイムグリッド編集はそのまま、表示方式を bottom固定の黒いドックから
@@ -30,11 +30,11 @@
     var KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
     // プレビューの1行あたり小節数は sheetSettings.barsPerLine（既定2）。
-    // 歌詞もドレミもないセクション（前奏などのコードのみ）は2倍詰めで表示する。
+    // 歌詞もメロディもないセクション（前奏などのコードのみ）は2倍詰めで表示する。
 
     // 編集行の順序。セルは絶対tickで対応させ、表示の分割だけを拍別に切り替える。
     var DOCK_ROW_ORDER = ['chord', 'strum', 'lyrics', 'doremi'];
-    var DOCK_ROW_LABELS = { chord: 'コード', strum: 'ストローク', lyrics: '歌詞', doremi: 'ドレミ' };
+    var DOCK_ROW_LABELS = { chord: 'コード', strum: 'ストローク', lyrics: '歌詞', doremi: 'メロディ' };
 
     // D3a: ストロークセルのクリック循環順（空/restから開始）
     var STRUM_CELL_CYCLE = ['down', 'up', 'mute', 'sustain', 'rest', 'empty'];
@@ -439,7 +439,7 @@
         els.toolbar.appendChild(visibility);
         mountPaperLayoutControls();
         [['sc-copy-bar','コピー',copySelectedBar],['sc-paste-bar','貼り付け',pasteSelectedBar]].forEach(function(item){var b=document.createElement('button');b.type='button';b.id=item[0];b.className='btn btn-secondary btn-compact';b.textContent=item[1];b.title=item[1]+'（⌘ / Ctrl + '+(item[0]==='sc-copy-bar'?'C':'V')+'、同じ曲の選択小節）';b.addEventListener('click',item[2]);actions.querySelector('.sheet-bar-actions').appendChild(b);});
-        els.undoBtn.title='元に戻す（⌘Z / Ctrl+Z）。ドレミは既存の音符履歴を使います';els.redoBtn.title='やり直す（⌘⇧Z / Ctrl+Shift+Z）';
+        els.undoBtn.title='元に戻す（⌘Z / Ctrl+Z）。メロディは既存の音符履歴を使います';els.redoBtn.title='やり直す（⌘⇧Z / Ctrl+Shift+Z）';
     }
     function mountMenuShortcuts(primary,picker,menuBody){
         const paths={
@@ -583,6 +583,44 @@
         menuBody.querySelector('#sc-menu-display-settings').after(configure);
     }
 
+    function mountToolbarScale(toolbar) {
+        const grip=document.createElement('button');
+        grip.type='button';
+        grip.className='sc-toolbar-scale';
+        grip.setAttribute('role','slider');
+        grip.setAttribute('aria-label','上部カードの表示倍率');
+        grip.setAttribute('aria-valuemin','70');
+        grip.setAttribute('aria-valuemax','150');
+        grip.title='ドラッグで上部カードの大きさを変更・ダブルクリックで標準に戻す';
+        toolbar.append(grip);
+        let scale=1, drag=null;
+        function apply(value) {
+            scale=Math.max(.7,Math.min(1.5,Math.round(value*100)/100));
+            toolbar.style.setProperty('--sc-toolbar-scale',scale);
+            grip.setAttribute('aria-valuenow',Math.round(scale*100));
+            grip.setAttribute('aria-valuetext',Math.round(scale*100)+'%');
+        }
+        function remember(){CS().storage.setAppSetting('scoreToolbarScale',scale);}
+        apply(Number(CS().storage.getAppSetting('scoreToolbarScale'))||1);
+        grip.onpointerdown=event=>{
+            if(event.button!==0 || !event.isPrimary)return;
+            drag={x:event.clientX,y:event.clientY,scale};
+            grip.setPointerCapture(event.pointerId);
+        };
+        grip.onpointermove=event=>{
+            if(!drag || !grip.hasPointerCapture(event.pointerId))return;
+            const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
+            apply(drag.scale+(Math.abs(dx)>Math.abs(dy)?dx:dy)/300);
+        };
+        grip.onlostpointercapture=()=>{if(drag){drag=null;remember();}};
+        grip.ondblclick=()=>{apply(1);remember();};
+        grip.onkeydown=event=>{
+            const values={ArrowUp:scale+.05,ArrowRight:scale+.05,ArrowDown:scale-.05,ArrowLeft:scale-.05,Home:.7,End:1.5,Enter:1};
+            if(!Object.hasOwn(values,event.key))return;
+            event.preventDefault();event.stopPropagation();apply(values[event.key]);remember();
+        };
+    }
+
     // Move existing controls, retaining their command handlers and session ownership.
     function mountCompactScoreToolbar(){
         if(!q('sc-zoom-controls'))return;
@@ -590,6 +628,7 @@
         if(q('sc-curve-menu')){if(settings){settings.textContent='詳細設定';q('sc-display-menu').querySelector('.sc-toolbar-menu-body').appendChild(settings);}return;}
         if(!head){head=document.createElement('div');head.className='sc-score-toolbar-head';els.toolbar.prepend(head);head.appendChild(els.projectSelect.parentElement);}
         els.toolbar.classList.add('sc-compact-toolbar');
+        mountToolbarScale(els.toolbar);
         function group(className){var el=document.createElement('div');el.className=className;return el;}
         function button(id,text,action){var el=document.createElement('button');el.type='button';el.id=id;el.className='btn-ghost btn-compact';el.textContent=text;el.addEventListener('click',action);return el;}
         function menu(id,title){var el=document.createElement('details'),summary=document.createElement('summary'),body=group('sc-toolbar-menu-body');el.id=id;el.className='sc-toolbar-menu';summary.id=id+'-toggle';summary.textContent=title;body.setAttribute('aria-labelledby',summary.id);el.append(summary,body);return {root:el,body:body};}
@@ -602,6 +641,7 @@
         function menuLabel(text){var label=document.createElement('span');label.textContent=text;label.className='sc-menu-label';curve.body.appendChild(label);}
         els.newProjectBtn.textContent='新しい曲を作成';curve.body.appendChild(els.newProjectBtn);divider(curve.body);menuLabel('保存');
         const canPickFile=typeof window.showSaveFilePicker==='function';
+        if(canPickFile)els.saveBtn.title='初回は保存先を選びます。ブラウザの警告は、選んだファイルの読み書きについての案内です。';
         curve.body.appendChild(button('sc-save-overwrite',canPickFile?'上書き保存':'保存（このブラウザ内）',function(){els.saveBtn.click();}));
         const saveAs=button('sc-save-as','名前をつけて保存',function(){
             if(prepareExplicitOutput())void commitSession(state.session,{chooseFile:true});
@@ -694,7 +734,15 @@
         function closeMenus(except,restore){menus().forEach(function(el){if(el!==except&&el.open){closeMenu(el);if(restore)el.querySelector('summary').focus({preventScroll:true});}});}
         menus().forEach(function(el){
             var popup=el.querySelector('.sc-toolbar-menu-body');if(typeof popup.showPopover==='function')popup.popover='manual';else el.dataset.popupFallback='';
-            function place(){var body=el.querySelector('.sc-toolbar-menu-body'),anchor=el.querySelector('summary').getBoundingClientRect(),width=body.offsetWidth||Math.min(250,innerWidth-24),left=Math.max(12,Math.min(anchor.right-width,innerWidth-width-12)),top=anchor.bottom+6;body.style.left=left+'px';body.style.top=top+'px';body.style.maxHeight=Math.max(100,innerHeight-top-12)+'px';}
+            function place(){
+                const anchor=el.querySelector('summary').getBoundingClientRect();
+                const bounds=popup.getBoundingClientRect();
+                const scale=popup.offsetWidth ? bounds.width/popup.offsetWidth : 1;
+                const width=bounds.width||Math.min(250,innerWidth-24);
+                const left=Math.max(12,Math.min(anchor.right-width,innerWidth-width-12)),top=anchor.bottom+6;
+                popup.style.left=left/scale+'px';popup.style.top=top/scale+'px';
+                popup.style.maxHeight=Math.max(100,innerHeight-top-12)/scale+'px';
+            }
             el.querySelector('summary').addEventListener('click',function(){closeMenus(el,false);place();});
             el.addEventListener('toggle',function(event){if(event.target!==el)return;if(el.open){if(popup.popover&&!popup.matches(':popover-open'))popup.showPopover();place();}else if(popup.popover&&popup.matches(':popover-open'))popup.hidePopover();});
         });
@@ -899,6 +947,7 @@
     }
 
     function showSession(session, message) {
+        dismissSaveNotice();
         cancelRangeSelection();stopPianoAudition();closePaperForm();playbackSettings?.close(false);sheetActions?.close(false);CS().localPaperLayout?.close();scoreFullscreen?.exit();
         els.toolbar?.querySelectorAll('.sc-toolbar-menu[open]').forEach(function(menu){menu.open=false;});editorOpen=false;
         finishTextInputs();
@@ -1218,7 +1267,7 @@
             cells.className = 'bar-grid-cells';
 
             bars.forEach(function (bar) {
-                // .bar-cell: コード/歌詞/ドレミの3行構成（将来は拍位置入力へ拡張）
+                // .bar-cell: コード/歌詞/メロディの3行構成（将来は拍位置入力へ拡張）
                 var cell = document.createElement('div');
                 cell.className = 'bar-cell';
 
@@ -1257,8 +1306,8 @@
                 var doremiInput = document.createElement('input');
                 doremiInput.type = 'text';
                 doremiInput.className = 'bar-doremi-input'; doremiInput.dataset.historyBar = String(bar.barNumber);
-                doremiInput.placeholder = 'ドレミ';
-                doremiInput.setAttribute('aria-label', bar.barNumber + '小節目のドレミ');
+                doremiInput.placeholder = 'メロディ';
+                doremiInput.setAttribute('aria-label', bar.barNumber + '小節目のメロディ');
                 doremiInput.value = CS().model.getBarDoremiText(bar);
                 wireTextControl(doremiInput, { kind: 'doremi', barNumber: bar.barNumber }, function (event) {
                     var res = applyTextInput(doremiInput, event); if (!res.ok || res.deferred) return;
@@ -1340,6 +1389,9 @@
 #screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:0;display:flex;align-items:center;gap:4px;}
 #sc-project-select{min-width:0;}.sc-location-dialog.sc-file-list{box-sizing:border-box;width:min(32rem,92vw);max-width:92vw;background:var(--studio-surface);color:var(--studio-text-primary);border:1px solid var(--studio-border-default);background-color:var(--studio-control,#222e38)}
 .sc-file-list h2{font-size:1.15rem;margin:0 0 1rem}.sc-file-list button{border:1px solid var(--studio-border-default);color:inherit;background:transparent;padding:8px 12px;border-radius:5px;cursor:pointer}.sc-file-list>div>div button:last-child{color:#ffc1ba}.sc-file-list>div{display:grid;gap:6px;max-height:55vh;overflow:auto}.sc-file-list>div>div{display:flex;gap:10px}.sc-file-list>div>div button:first-child{flex:1;text-align:left;overflow-wrap:anywhere}
+#sc-save-notice{position:fixed;z-index:100;inset:50% auto auto 50%;transform:translate(-50%,-50%);box-sizing:border-box;width:max-content;max-width:calc(100vw - 32px);margin:0;padding:14px 20px;border:1px solid var(--studio-border-default);border-radius:10px;background:var(--studio-panel);color:var(--studio-text-primary);font:15px/1.6 system-ui,sans-serif;text-align:center;box-shadow:0 6px 28px #0004;}
+#sc-save-notice button{background:transparent;border:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer;padding:0;}
+@media print{#sc-save-notice{display:none!important;}}
 .sc-browser-save-note{display:block;margin-top:3px;font-size:.9em}
 .sc-browser-save-note a{color:inherit;text-decoration:underline}
 #sc-score-guide{margin-inline-start:auto;border:1px solid currentColor;color:inherit;text-decoration:none;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;align-self:center;}
@@ -1587,7 +1639,10 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 #sc-slot-overlay .slot-overlay-resize-handle {width:calc(24px * var(--bar-loupe-scale,1));height:calc(24px * var(--bar-loupe-scale,1));}
 #screen-sheet-cruise>.workspace-local-nav{top:0;}
 #screen-sheet-cruise .form-field:has(#sc-basic-strum),#screen-sheet-cruise:has(.sc-compact-toolbar) #sc-editor-drawer:not([open]){display:none;}
-#screen-sheet-cruise .sc-compact-toolbar{gap:10px;overflow:visible;top:52px;}
+#screen-sheet-cruise .sc-compact-toolbar{gap:10px;overflow:visible;zoom:var(--sc-toolbar-scale,1);top:calc(52px / var(--sc-toolbar-scale,1));}
+#screen-sheet-cruise .sc-toolbar-scale{position:absolute;right:1px;bottom:1px;width:18px;height:18px;min-height:0;padding:0;border:0;border-radius:0 0 5px 0;background:repeating-linear-gradient(135deg,transparent 0 2px,var(--studio-text-secondary) 2px 3px,transparent 3px 5px);clip-path:polygon(100% 0,100% 100%,0 100%);cursor:nwse-resize;touch-action:none;}
+#screen-sheet-cruise .sc-toolbar-scale:focus-visible{background:var(--studio-focus);}
+@media(pointer:coarse){#screen-sheet-cruise .sc-compact-toolbar{zoom:1;}#screen-sheet-cruise .sc-toolbar-scale{display:none;}}
 /* Native popovers raise only the menu, leaving the movable editor unobstructed. */
 #screen-sheet-cruise .sc-compact-toolbar:has(.sc-toolbar-menu[data-popup-fallback][open]){z-index:45;}
 #screen-sheet-cruise .sc-compact-toolbar .sc-score-toolbar-head{justify-content:flex-start;gap:10px;padding-right:44px;}
@@ -2028,7 +2083,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 
     function getOverlayPlaceholder(rowId) {
         if (rowId === 'chord') return 'コードを入力';
-        if (rowId === 'doremi') return 'ドレミを入力';
+        if (rowId === 'doremi') return 'メロディを入力';
         return '';
     }
 
@@ -2086,7 +2141,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         var className = rowId === 'chord' ? 'bar-chord-input' :
             (rowId === 'lyrics' ? 'bar-lyrics-input' : 'bar-doremi-input');
         var labelText = rowId === 'chord' ? 'コード' :
-            (rowId === 'lyrics' ? '歌詞' : 'ドレミ');
+            (rowId === 'lyrics' ? '歌詞' : 'メロディ');
         // F2aで旧グリッドの歌詞inputのaria-labelへ「（読み取り専用。ルーペで編集）」を
         // 追記した際、ここが完全一致セレクタのままだったため歌詞だけ同期が効かなくなっていた
         // 既存不具合（G2aの検証中に発見）。前方一致にして両方に対応する。
@@ -2787,7 +2842,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
     function buildPianoPanel(){
         var root=document.createElement('section');root.dataset.doremiPiano='';root.className='doremi-piano';
-        root.hidden=collapsedEditorRows.has('doremi');root.setAttribute('aria-label','ドレミ鍵盤');root.addEventListener('keydown',onPianoKeydown);populatePiano(root);return root;
+        root.hidden=collapsedEditorRows.has('doremi');root.setAttribute('aria-label','メロディ鍵盤');root.addEventListener('keydown',onPianoKeydown);populatePiano(root);return root;
     }
     function refreshPiano(){syncEditorDisclosures();var root=els.slotOverlay&&els.slotOverlay.querySelector('[data-doremi-piano]');if(root)populatePiano(root);}
     function syncPianoSelection(c){
@@ -2856,7 +2911,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             });
             palette.appendChild(button('初期色',function(){CS().sheetRenderer.setOctaveColors(null);savePianoColors();repaintPianoColors();},{'data-piano-colors-reset':''}));root.appendChild(palette);
         }
-        var scroll=document.createElement('div');scroll.className='piano-key-scroll';var keyboard=document.createElement('div');keyboard.className='piano-keys';keyboard.setAttribute('aria-label','3オクターブのドレミ鍵盤');
+        var scroll=document.createElement('div');scroll.className='piano-key-scroll';var keyboard=document.createElement('div');keyboard.className='piano-keys';keyboard.setAttribute('aria-label','3オクターブのメロディ鍵盤');
         var windowOctave=Math.max(0,Math.min(6,octave-1)),first=Math.max(21,12*(windowOctave+1)),last=Math.min(108,12*(windowOctave+4)-1),whites=[],blacks=[];
         for(var midi=first;midi<=last;midi++){if([0,2,4,5,7,9,11].includes(midi%12))whites.push(midi);else blacks.push(midi);}
         keyboard.style.gridTemplateColumns='repeat('+whites.length+',minmax(0,1fr))';
@@ -3235,7 +3290,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 
     function buildBeatTextRow(kind,bar,res) {
         var canonical=state.session.draft, source=canonical.bars[bar.barNumber-1];
-        if(canonical.schemaVersion!==2)return buildOverlayInput({id:kind,label:kind==='chord'?'コード':'ドレミ'},bar);
+        if(canonical.schemaVersion!==2)return buildOverlayInput({id:kind,label:kind==='chord'?'コード':'メロディ'},bar);
         var wrap=document.createElement('div');
         var collection=kind==='chord'?'chords':'melody', owner=state.session, ranges=editorCellRanges(bar,res,kind);
         var groups=editorBeatGroups(wrap,bar,res,kind,ranges);
@@ -3249,7 +3304,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             input.classList.add(boundary);
             input.style.borderRight='1px solid var('+(boundary==='is-beat'?'--paper-line-beat':boundary==='is-8th'?'--paper-line-eighth':boundary==='is-16th'?'--paper-line-sixteenth':'--slot-border')+')';
             if(kind==='doremi'){input.style.fontFamily='var(--paper-font)';input.style.fontSize='max(11px, calc(13px * var(--bar-loupe-scale, 1)))';input.style.fontWeight='600';input.style.letterSpacing='0';}
-            input.dataset.overlayField=kind;input.dataset.slotTick=tick;input.dataset.slotTicks=span;input.setAttribute('aria-label',bar.barNumber+'小節目の'+(kind==='chord'?'コード':'ドレミ')+' '+(tick/480+1)+'拍');
+            input.dataset.overlayField=kind;input.dataset.slotTick=tick;input.dataset.slotTicks=span;input.setAttribute('aria-label',bar.barNumber+'小節目の'+(kind==='chord'?'コード':'メロディ')+' '+(tick/480+1)+'拍');
             input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):((exact&&exact.kind==='note')||batch?cellDoremiText(events,span,canonical):'');
             if(events.length && !exact && !batch){input.readOnly=true;input.value='…';input.title='この範囲には細かな位置のイベントがあります。元の時間情報を保持しています';}
             var composing=false,justComposed=false,nativeHistory=false,replacingAll=false,initial=input.value;
@@ -3277,7 +3332,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                         if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,formMode==='auto'?'auto':'fixed');}else{if(formMode==='auto')p.performance.formBindings=p.performance.formBindings.filter(function(b){return b.chordEventId!==chordEvent.id;});CS().localChordForms.syncEvent(p,chordEvent);}}
                     }else{
                         var parsed=CS().theory.parseDoremiString(raw);
-                        if(parsed.warnings.length||!parsed.notes.length)throw Error('ドレミの表記を確認してください');
+                        if(parsed.warnings.length||!parsed.notes.length)throw Error('メロディの表記を確認してください');
                         var units=parsed.notes.reduce(function(n,e){return n+1+e.extensions;},0);
                         if(units>span)throw Error('1マスに入力する音数が多すぎます。元の音を保持しました');
                         var cellEvents=list.filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;});
@@ -3456,9 +3511,9 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
 
     /* ══════════ D3a: 下部ドックのタイムグリッド（拍ルーラー・ストロークセル編集） ══════════
-       Fable5レビュー「選択小節のX線写真」方針。紙面と同じ段順（コード/ストローク/歌詞/ドレミ）を
+       Fable5レビュー「選択小節のX線写真」方針。紙面と同じ段順（コード/ストローク/歌詞/メロディ）を
        選択小節の時間軸のまま横に拡大する。本格的にセル編集するのはストローク行のみ。
-       コードは1小節1コードの大きな1セル、歌詞・ドレミは見た目だけ時間軸に揃えた1つの入力欄
+       コードは1小節1コードの大きな1セル、歌詞・メロディは見た目だけ時間軸に揃えた1つの入力欄
        （tick位置セルへの分解はD3bで扱う）。 */
 
     function getBeats(project) {
@@ -3478,7 +3533,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
 
     /* ══════════ G1: 拍グループ構造化（docs/DECISIONS.md ADR-029） ══════════
-       行（拍ルーラー/ストローク/歌詞/コード・ドレミ背面線）のタイムライン部分を、
+       行（拍ルーラー/ストローク/歌詞/コード・メロディ背面線）のタイムライン部分を、
        「拍グループ（均等幅・flex） × 拍内スロット（slotsPerBeatのgrid）」の
        二段構造で組み立てる共通ヘルパー。全行がこの1つの関数だけを経由することで、
        拍・8分・16分の境界線のx座標が行をまたいで完全に一致する。
@@ -3508,7 +3563,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
 
     /**
-     * コード・ドレミ行（1小節1入力を維持）の背面に敷く、装飾専用の拍/8分/16分縦線。
+     * コード・メロディ行（1小節1入力を維持）の背面に敷く、装飾専用の拍/8分/16分縦線。
      * populateBeatGroups() を使うため、拍ルーラー・ストローク・歌詞セルと
      * 完全に同じx座標で線が揃う。クリック・キャレット操作を妨げないよう
      * pointer-events:none・aria-hidden・入力欄より背面（CSS側で z-index 制御）とする。
@@ -3527,7 +3582,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
 
     /**
-     * ルーペ全体（コード/ストローク/歌詞/ドレミの拍ルーラー等）が共有する時間軸の
+     * ルーペ全体（コード/ストローク/歌詞/メロディの拍ルーラー等）が共有する時間軸の
      * 必要解像度判定はストローク由来のみとする（G2b / ADR-030）。
      * F2a〜G1時点では歌詞のtickも判定に含めていたが、G2bで歌詞行が拍別ローカル解像度を
      * 持てるようになったため、歌詞データを理由に全体設定を16分へ強制することは廃止した
@@ -3539,7 +3594,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
 
     /**
-     * 小節の共有時間軸解像度（8 or 16）。拍ルーラー・ストロークセル・コード/ドレミ背面線・
+     * 小節の共有時間軸解像度（8 or 16）。拍ルーラー・ストロークセル・コード/メロディ背面線・
      * 歌詞の「自動」拍が使う。「データから必要な解像度」（ストローク由来のみ。G2b）と
      * 「ユーザーが一時的に選んだ解像度」（state.dockManualRes。barNumberごとに保持。
      * _proto/slot-editor.js の barResOverride と同じ思想でUI一時状態のみ）の大きい方を使う。
@@ -4898,7 +4953,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     /**
      * D3a: 「まとめて入力」をヘッダーのボタンから開くポップオーバーにする
      * （常設右カラムは廃止。ドックの通常高さ・幅は消費しない）。
-     * 中身（コード/歌詞/ドレミのまとめて入力）はD2までのロジックをそのまま再利用する。
+     * 中身（コード/歌詞/メロディのまとめて入力）はD2までのロジックをそのまま再利用する。
      */
     function buildBulkInputPanel() {
         var panel = document.createElement('div');
@@ -4914,7 +4969,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         [
             ['chord', 'コード'],
             ['lyrics', '歌詞'],
-            ['doremi', 'ドレミ']
+            ['doremi', 'メロディ']
         ].forEach(function (pair) {
             var option = document.createElement('option');
             option.value = pair[0];
@@ -5074,7 +5129,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 
     /**
      * D3a: 画面下部の編集ドック本体を組み立てる（「選択小節のX線写真」）。
-     * 紙面と同じ段順（コード/ストローク/歌詞/ドレミ）を、選択小節と同じ時間軸のまま
+     * 紙面と同じ段順（コード/ストローク/歌詞/メロディ）を、選択小節と同じ時間軸のまま
      * コンパクトなタイムグリッドとして表示する。本格セル編集はストローク行のみ。
      * ヘッダーは1行に集約: 小節番号・セクション名・前へ/次へ・8分/16分・
      * まとめて入力・小節試聴・閉じる。
@@ -5173,12 +5228,12 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             var measure=document.createElement('section');measure.className='editor-measure';measure.dataset.barNumber=bar.barNumber;measure.style.setProperty('--editor-column',bar.barNumber-anchor);measure.setAttribute('aria-label',bar.barNumber+'小節目を編集');
             function activate(event){if(event.target.closest('.editor-row-tools,[data-chord-cell-toggle]'))return;if(!activateEditorMeasure(bar.barNumber)){event.preventDefault();event.stopImmediatePropagation();if(event.type==='focus'){event.target.blur();editorRoot().querySelector('.is-invalid')?.focus({preventScroll:true});}}else if(event.type==='focus')revealEditorCell(event.target);}
             measure.addEventListener('pointerdown',activate,true);measure.addEventListener('focus',activate,true);
-        // 拍ルーラー（コード/ストローク/歌詞/ドレミの共通時間軸）
+        // 拍ルーラー（コード/ストローク/歌詞/メロディの共通時間軸）
         var res = getStrumGridResolution(bar);
         measure.appendChild(buildBeatRuler(bar, res));
 
         // タイムグリッド本文: コード=1小節1セル / ストローク・歌詞=本格セル編集（F2a） /
-        // ドレミ=時間軸に揃えた1つの入力欄（tick位置セル分解はF3）
+        // メロディ=時間軸に揃えた1つの入力欄（tick位置セル分解はF3）
         var grid = document.createElement('div');
         grid.className = 'slot-overlay-grid';
 
@@ -5814,15 +5869,39 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             tx.oncomplete=()=>resolve(req.result);tx.onabort=()=>reject(tx.error);
         }));
     }
+    let saveNoticeEvents=null;
+    function dismissSaveNotice(){
+        saveNoticeEvents?.abort();
+        saveNoticeEvents=null;
+        q('sc-save-notice')?.remove();
+    }
+    function showSaveNotice(message){
+        dismissSaveNotice();
+        const notice=document.createElement('div');
+        notice.id='sc-save-notice';notice.setAttribute('role','status');
+        els.root.append(notice);
+        notice.textContent=message;
+        saveNoticeEvents=new AbortController();
+        const options={capture:true,passive:true,signal:saveNoticeEvents.signal};
+        function dismissOutside(event){
+            if(notice.contains(event.target)||event.key==='Tab')return;
+            dismissSaveNotice();
+        }
+        for(const type of ['pointerdown','click','keydown','input','change','wheel']){
+            document.addEventListener(type,dismissOutside,options);
+        }
+        notice.addEventListener('click',()=>{
+            setTimeout(()=>{if(notice.isConnected)dismissSaveNotice();},0);
+        });
+        return notice;
+    }
     function showSaveReceipt(message='保存しました。', { recommendChrome = false } = {}){
-        setSaveStatus(message);
-        els.saveStatus.classList.remove('sc-status-quiet');
+        const notice=showSaveNotice(message);
         const location=document.createElement('button');
         location.type='button';
         location.textContent='保存場所';
-        location.style.cssText='background:transparent;border:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer;padding:0';
         location.onclick=showFileLocation;
-        els.saveStatus.append('(',location,')');
+        notice.append('(',location,')');
         if (recommendChrome) {
             const note = document.createElement('span');
             note.className = 'sc-browser-save-note';
@@ -5833,7 +5912,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             help.textContent = '詳しく';
             help.setAttribute('aria-label', 'ブラウザによる保存方法の違いを詳しく見る');
             note.append('Google Chromeを推奨します。(', help, ')');
-            els.saveStatus.append(note);
+            notice.append(note);
         }
     }
     function openFileList(){
@@ -5937,7 +6016,10 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
     async function saveNamedDownload(session){
         const version=session.snapshotVersion,name=await chooseDownloadName(session.draft.songInfo.title||'無題');
-        if(!name||state.session!==session||version!==session.snapshotVersion)return {ok:false,error:'保存を中止しました'};
+        if(!name||state.session!==session||version!==session.snapshotVersion){
+            if(state.session===session)showSaveNotice('保存を中止しました。');
+            return {ok:false,error:'保存を中止しました'};
+        }
         if(!downloadCurrentProjectJson(name))return {ok:false,error:'書き出しを中止しました'};
         const id=session.target.projectId;
         await handleReads.get(id);
@@ -5965,8 +6047,11 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                 handle=fileHandles.get(id);
             }
             if(handle && handle.requestPermission && await handle.requestPermission({mode:'readwrite'})!=='granted')handle=null;
-            if(!handle)try{handle=await window.showSaveFilePicker({suggestedName:(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
+            if(!handle)try{
+                showSaveNotice('ブラウザの警告は、選んだ譜面ファイルの読み書きを許可するための案内です。');
+                handle=await window.showSaveFilePicker({suggestedName:(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
             }catch(error){
+                dismissSaveNotice();
                 if(error.name==='SecurityError')return chooseFile?await saveNamedDownload(session):await commitBrowserSession(session);
                 throw error;
             }
@@ -5981,7 +6066,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         }catch(error){
             if(!chooseFile && error.name==='NotFoundError')fileHandles.delete(id);
             const message=error.name==='AbortError'?'保存をキャンセルしました':error.message;
-            if(state.session===session)setSaveStatus(message,true);
+            if(state.session===session)showSaveNotice(message);
             return {ok:false,error:message};
         }finally{fileSaves.delete(session);}
     }
@@ -5995,6 +6080,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                     showSaveReceipt(undefined, { recommendChrome: !fileSaved });
                 }
             }
+            if(state.session===session && !result.ok)showSaveNotice(result.error||'保存に失敗しました。');
             return result;
         });
     }
@@ -6041,6 +6127,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
 
     function deactivate() {
+        dismissSaveNotice();
         cancelRangeSelection();cancelBarDrag();editorHelp?.close({restoreFocus:false});scoreSettings?.close();stopPianoAudition();closePaperForm();playbackSettings?.close(false);sheetActions?.close(false);CS().localPaperLayout?.close();scoreFullscreen?.exit();
         if(editorPlacement==='right')CS().localEditorPane?.unmount(els.slotOverlay);
         if (!state.active) return;

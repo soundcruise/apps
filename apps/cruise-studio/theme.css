@@ -1083,7 +1083,7 @@ body {
 .sheet-bar-strum > .timed-strum-cell,
 button.timed-strum-cell {
     display: grid;
-    grid-template-columns: min(1em, var(--strum-onset-width)) minmax(0, 1fr);
+    grid-template-columns: var(--strum-onset-width) minmax(0, 1fr);
     align-items: center;
     justify-items: center;
 }

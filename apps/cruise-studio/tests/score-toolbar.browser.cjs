@@ -42,6 +42,22 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.deepEqual(await ids(),[initial[1],initial[0],...initial.slice(2)].filter(id=>id!=='sc-edit-rhythm'));
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
  }));
+ await t.test('dragging the toolbar grip scales controls independently of the score',()=>fresh(async p=>{
+  const toolbar=p.locator('.sc-compact-toolbar'),grip=p.getByRole('slider',{name:'上部カードの表示倍率'});
+  const button=toolbar.locator('#sc-save'),score=p.locator('.sheet-bar').first();
+  const before=await button.boundingBox(),bar=await score.boundingBox(),handle=await grip.boundingBox();
+  await p.mouse.move(handle.x+handle.width-3,handle.y+handle.height-3);await p.mouse.down();
+  await p.mouse.move(handle.x-55,handle.y-32,{steps:5});await p.mouse.up();
+  assert(Number(await grip.getAttribute('aria-valuenow'))<95);
+  assert((await button.boundingBox()).width<before.width*.95);
+  assert(Math.abs((await score.boundingBox()).width-bar.width)<1);
+  await p.click('#sc-curve-menu-toggle');
+  await toolbar.locator('#sc-curve-menu .sc-toolbar-menu-body').waitFor();
+  const menu=await toolbar.locator('#sc-curve-menu .sc-toolbar-menu-body').boundingBox(),anchor=await p.locator('#sc-curve-menu-toggle').boundingBox();
+  assert(Math.abs(menu.y-anchor.y-anchor.height-6)<3,JSON.stringify({anchor,menu}));
+  await p.keyboard.press('Escape');await grip.press('ArrowRight');await grip.press('Enter');
+  assert.equal(await grip.getAttribute('aria-valuenow'),'100');
+ }));
  await t.test('help opens the illustrated manual and an unsaved song explains its save location',()=>fresh(async p=>{
   const before=await snap(p),opened=p.waitForEvent('popup');await p.locator('#sc-score-guide').click();
   const manual=await opened;await manual.waitForLoadState();
@@ -312,8 +328,16 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    await p.keyboard.press('Escape');
    assert.equal(await p.evaluate(()=>typeof window.showSaveFilePicker),'undefined');
    await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
-   const status=p.locator('#sc-save-status');
-   await status.getByRole('button',{name:'保存場所',exact:true}).click();
+   const status=p.locator('#sc-save-notice'),bounds=await status.boundingBox();
+   assert(Math.abs(bounds.y+bounds.height/2-500)<2 && Math.abs(bounds.x+bounds.width/2-720)<2);
+   const help=p.waitForEvent('popup');await status.getByRole('link',{name:/詳しく/}).click();
+   const guide=await help;await guide.waitForLoadState();
+   const section=guide.locator('#browser-saving');
+   assert.match(await section.innerText(),/Microsoft Edge/);
+   assert(Math.abs((await section.boundingBox()).y-12)<3);
+   await guide.close();await status.waitFor({state:'detached'});
+   await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});
+
    const location=p.getByRole('dialog',{name:'保存場所'});
    assert.match(await location.innerText(),/曲名一覧/);
    const exportedSnapshot=await snap(p);
@@ -353,8 +377,11 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    return (await navigator.storage.getDirectory()).getFileHandle('renamed.json',{create:true});
   };});
   await saveAs();
-  await p.locator('#sc-save-status').getByRole('button',{name:'保存場所'}).waitFor();
-  assert.equal(await p.locator('#sc-save-status').textContent(),'保存しました。(保存場所)');
+  await p.locator('#sc-save-notice').getByRole('button',{name:'保存場所'}).waitFor();
+  assert.equal(await p.locator('#sc-save-notice').textContent(),'保存しました。(保存場所)');
+  await p.locator('#sc-save-notice button').click();
+  await p.getByRole('dialog',{name:'保存場所'}).getByRole('button',{name:'閉じる'}).click();
+  assert.equal(await p.locator('#sc-save-notice').count(),0);
   assert.equal(await p.evaluate(()=>window.suggested),'second save.json');
   assert.equal((await snap(p)).projectId,before.projectId);
   assert.equal(await p.locator('#sc-project-select option').count(),rows);
@@ -366,10 +393,10 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});
   await saveAs();
-  await p.waitForFunction(()=>document.querySelector('#sc-save-status').textContent.includes('キャンセル'));
+  await p.waitForFunction(()=>document.querySelector('#sc-save-notice').textContent.includes('キャンセル'));
   await p.evaluate(()=>{window.showSaveFilePicker=async()=>({createWritable:async()=>{throw Error('テスト書き込み失敗');}});});
   await saveAs();
-  await p.waitForFunction(()=>document.querySelector('#sc-save-status').textContent.includes('テスト書き込み失敗'));
+  await p.waitForFunction(()=>document.querySelector('#sc-save-notice').textContent.includes('テスト書き込み失敗'));
   assert(await p.locator('#sc-save').isEnabled());
   await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
   const files=await p.evaluate(async()=>{

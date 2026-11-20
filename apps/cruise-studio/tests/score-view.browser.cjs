@@ -816,7 +816,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await select(page);await page.locator('.dock-strum-cell').first().press('d');await page.locator('.dock-lyrics-cell').first().fill('あ');await settle(page);
             for(const media of ['screen','print']){await page.emulateMedia({media});const m=await page.locator('.sheet-bar-strum').first().evaluate(e=>{const s=getComputedStyle(e),c=e.firstElementChild,cs=getComputedStyle(c),bar=e.closest('.sheet-bar');return {bg:s.backgroundColor,shadow:s.boxShadow,radius:s.borderRadius,cellBg:cs.backgroundColor,cellShadow:cs.boxShadow,strokeX:c.getBoundingClientRect().x,gridX:bar.querySelector('.sheet-bar-grid').getBoundingClientRect().x,strokeWidth:c.getBoundingClientRect().width,gridWidth:bar.querySelector('.sheet-bar-grid').getBoundingClientRect().width/e.children.length};});assert.equal(m.bg,'rgba(0, 0, 0, 0)');assert.equal(m.shadow,'none');assert.equal(m.cellShadow,'none');assert.equal(m.radius,'0px');assert(Math.abs(m.strokeX-m.gridX)<2,JSON.stringify(m));assert(Math.abs(m.strokeWidth-m.gridWidth)<1,JSON.stringify(m));}
         }));
-        await t.test('stroke attacks keep the same inset from their onset for whole through sixteenth notes',()=>fresh(async page=>{
+        await t.test('short strokes are centered and longer strokes stay in the first eighth',()=>fresh(async page=>{
             const lane=page.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="1"] .sheet-bar-strum');
             for(const unit of [1,2,4,8,16]){
                 await page.evaluate(unit=>{
@@ -842,8 +842,17 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 assert.equal(positions.length,unit);
                 for(const [index,position] of positions.entries()){
                     const inset=position-index/unit;
-                    assert(inset>0&&inset<=1/32+.005,JSON.stringify({unit,index,position}));
+                    assert(Math.abs(inset-.5/Math.max(8,unit))<.005,JSON.stringify({unit,index,position}));
                     assert(Math.abs(inset-positions[0])<.006);
+                }
+                if(unit===8 || unit===16){
+                    await select(page);
+                    const offsets=await page.locator('.dock-strum-cell[data-slot-ticks="'+1920/unit+'"] svg[data-strum-arrow]').evaluateAll(arrows=>arrows.map(a=>{
+                        const glyph=a.getBoundingClientRect(),cell=a.parentElement.getBoundingClientRect();
+                        return (glyph.left+glyph.right-cell.left-cell.right)/2;
+                    }));
+                    assert(offsets.length && offsets.every(x=>Math.abs(x)<1),JSON.stringify(offsets));
+                    await page.locator('.slot-overlay-close').click();
                 }
             }
         }));
@@ -879,7 +888,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 assert.deepEqual(metrics.sizes,['14px','14px']);assert.equal(metrics.pair,'ファ');assert(Math.abs(metrics.pairWidth-14)<.1 && Math.abs(metrics.smallKanaSize-8.4)<.1);
             }
             await page.emulateMedia({media:'screen'});await openPaperSettings(page);
-            const dialog=page.locator('[data-paper-layout]'),spacing=dialog.getByRole('slider',{name:'ドレミの字間'});
+            const dialog=page.locator('[data-paper-layout]'),spacing=dialog.getByRole('slider',{name:'メロディの字間'});
             await spacing.fill('1');await spacing.dispatchEvent('input');await dialog.locator('[data-layout-save]').click();
             const style=await bar.locator('.sheet-bar-doremi .sheet-timed-cell').first().evaluate(e=>[getComputedStyle(e).letterSpacing,getComputedStyle(e).fontSize]);
             assert.deepEqual(style,['1px','14px']);

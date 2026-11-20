@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="theme-projection.css?v=0.88.1">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.88.1">
+    <link rel="stylesheet" href="theme.css?v=0.214.0-rc.1">
     <link rel="stylesheet" href="melody-staff.css?v=0.88.1">
     <link rel="stylesheet" href="melody-editor.css?v=0.88.1">
     <link rel="stylesheet" href="chord-form.css?v=0.88.1">
@@ -357,7 +357,7 @@
                                 <label class="pd-check"><input type="checkbox" id="sc-show-chords" checked> コード</label>
                                 <label class="pd-check"><input type="checkbox" id="sc-show-strum" checked> ストローク</label>
                                 <label class="pd-check"><input type="checkbox" id="sc-show-lyrics" checked> 歌詞</label>
-                                <label class="pd-check"><input type="checkbox" id="sc-show-doremi" checked> ドレミ</label>
+                                <label class="pd-check"><input type="checkbox" id="sc-show-doremi" checked> メロディ</label>
                             </div>
 
                             <!-- タイミンググリッド（S1a）。ONなら印刷/PDFにも出る -->
@@ -383,8 +383,8 @@
                              D1では常設表示から外し、既定で折りたたむ（データ・機能は維持）。 -->
                         <details class="editor-card bar-grid-drawer" id="sc-bar-grid-drawer">
                             <summary class="editor-card-title">小節グリッド（一覧編集・任意）</summary>
-                            <p class="editor-card-note">各小節にコード（例: C / Am7 / F/G）・歌詞・ドレミ（ド〜シ、伸ばしは 〜、オクターブは ↑↓）を入力します。解釈できない表記は警告になりますが、保存はできます。</p>
-                            <!-- .bar-cell: コード/歌詞/ドレミの3行構成。将来 拍位置入力へ拡張する -->
+                            <p class="editor-card-note">各小節にコード（例: C / Am7 / F/G）・歌詞・メロディ（ド〜シ、伸ばしは 〜、オクターブは ↑↓）を入力します。解釈できない表記は警告になりますが、保存はできます。</p>
+                            <!-- .bar-cell: コード/歌詞/メロディの3行構成。将来 拍位置入力へ拡張する -->
                             <div id="sc-bar-grid" class="bar-grid"></div>
                         </details>
 

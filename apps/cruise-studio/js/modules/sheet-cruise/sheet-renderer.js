@@ -151,11 +151,11 @@
             starts[index-1]?.action==='rest' && starts[index-1].tick+starts[index-1].durationTicks===slot.tick));
     }
     function renderStrumCell(cell, action, ticks) {
-        // Use the same small inset from the onset for every note value. Keep the
-        // full duration cell for its boundary, hit target and playback timing.
+        // Center short strokes in their cells. For longer values, anchor the glyph
+        // in the first eighth so the attack stays close to its beat.
         cell.classList.add('timed-strum-cell');
-        const sixteenth=CS().model.TICKS_PER_BEAT/4;
-        cell.style.setProperty('--strum-onset-width',Math.min(100,100*sixteenth/ticks)+'%');
+        const eighth=CS().model.TICKS_PER_BEAT/2;
+        cell.style.setProperty('--strum-onset-width',Math.min(100,100*eighth/ticks)+'%');
         if (action === 'rest') cell.replaceChildren(createStrumRestSymbol(ticks));
         else if (action === 'down' || action === 'up') cell.replaceChildren(createStrumArrow(action));
         else cell.textContent = action === 'mute' ? 'x' : action === 'sustain' ? '〜' : '';
