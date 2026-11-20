@@ -1340,6 +1340,8 @@
 #screen-sheet-cruise .sc-score-toolbar-head .sheet-toolbar-project{margin-right:0;display:flex;align-items:center;gap:4px;}
 #sc-project-select{min-width:0;}.sc-location-dialog.sc-file-list{box-sizing:border-box;width:min(32rem,92vw);max-width:92vw;background:var(--studio-surface);color:var(--studio-text-primary);border:1px solid var(--studio-border-default);background-color:var(--studio-control,#222e38)}
 .sc-file-list h2{font-size:1.15rem;margin:0 0 1rem}.sc-file-list button{border:1px solid var(--studio-border-default);color:inherit;background:transparent;padding:8px 12px;border-radius:5px;cursor:pointer}.sc-file-list>div>div button:last-child{color:#ffc1ba}.sc-file-list>div{display:grid;gap:6px;max-height:55vh;overflow:auto}.sc-file-list>div>div{display:flex;gap:10px}.sc-file-list>div>div button:first-child{flex:1;text-align:left;overflow-wrap:anywhere}
+.sc-browser-save-note{display:block;margin-top:3px;font-size:.9em}
+.sc-browser-save-note a{color:inherit;text-decoration:underline}
 #sc-score-guide{margin-inline-start:auto;border:1px solid currentColor;color:inherit;text-decoration:none;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;align-self:center;}
 .sc-location-dialog details{margin:12px 0;}
 .sc-location-dialog{margin:auto;max-width:min(26em,85vw);padding:20px;border-radius:10px;}
@@ -5812,7 +5814,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             tx.oncomplete=()=>resolve(req.result);tx.onabort=()=>reject(tx.error);
         }));
     }
-    function showSaveReceipt(message='保存しました。'){
+    function showSaveReceipt(message='保存しました。', { recommendChrome = false } = {}){
         setSaveStatus(message);
         els.saveStatus.classList.remove('sc-status-quiet');
         const location=document.createElement('button');
@@ -5821,6 +5823,18 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         location.style.cssText='background:transparent;border:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer;padding:0';
         location.onclick=showFileLocation;
         els.saveStatus.append('(',location,')');
+        if (recommendChrome) {
+            const note = document.createElement('span');
+            note.className = 'sc-browser-save-note';
+            const help = document.createElement('a');
+            help.href = '/apps/cruise-studio/score-guide/index.html#browser-saving';
+            help.target = '_blank';
+            help.rel = 'noopener';
+            help.textContent = '詳しく';
+            help.setAttribute('aria-label', 'ブラウザによる保存方法の違いを詳しく見る');
+            note.append('Google Chromeを推奨します。(', help, ')');
+            els.saveStatus.append(note);
+        }
     }
     function openFileList(){
         const dialog=document.createElement('dialog'),list=document.createElement('div'),title=document.createElement('h2');
@@ -5932,7 +5946,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             fileHandles.delete(id);
         }
         const result=await commitBrowserSession(session);
-        if(result.ok && state.session===session)showSaveReceipt('保存しました。「'+name+'」のダウンロードを開始しました。');
+        if(result.ok && state.session===session)showSaveReceipt('保存しました。「'+name+'」のダウンロードを開始しました。', { recommendChrome: true });
         return result;
     }
     async function commitSession(session,{chooseFile=false}={}){
@@ -5963,7 +5977,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             }
             fileHandles.set(id,handle);
             if(session.snapshotVersion!==version)throw Error('ファイル保存後に編集が加わりました。もう一度保存してください');
-            return await commitBrowserSession(session);
+            return await commitBrowserSession(session, { fileSaved: true });
         }catch(error){
             if(!chooseFile && error.name==='NotFoundError')fileHandles.delete(id);
             const message=error.name==='AbortError'?'保存をキャンセルしました':error.message;
@@ -5971,14 +5985,14 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             return {ok:false,error:message};
         }finally{fileSaves.delete(session);}
     }
-    function commitBrowserSession(session) {
+    function commitBrowserSession(session, { fileSaved = false } = {}) {
         session.finishTextGroup();
         // UI mutations already write to the session; never read another document's form here.
         return session.commit().then(function (result) {
             if (state.session === session) {
                 refreshProjectSelect(); refreshSessionStatus();
                 if(result.ok && !session.dirty && !session.externalUpdatePending){
-                    showSaveReceipt();
+                    showSaveReceipt(undefined, { recommendChrome: !fileSaved });
                 }
             }
             return result;
