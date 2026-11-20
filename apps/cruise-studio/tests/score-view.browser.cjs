@@ -771,6 +771,37 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await select(page);await page.locator('.dock-strum-cell').first().press('d');await page.locator('.dock-lyrics-cell').first().fill('あ');await settle(page);
             for(const media of ['screen','print']){await page.emulateMedia({media});const m=await page.locator('.sheet-bar-strum').first().evaluate(e=>{const s=getComputedStyle(e),c=e.firstElementChild,cs=getComputedStyle(c),bar=e.closest('.sheet-bar');return {bg:s.backgroundColor,shadow:s.boxShadow,radius:s.borderRadius,cellBg:cs.backgroundColor,cellShadow:cs.boxShadow,strokeX:c.getBoundingClientRect().x,gridX:bar.querySelector('.sheet-bar-grid').getBoundingClientRect().x,strokeWidth:c.getBoundingClientRect().width,gridWidth:bar.querySelector('.sheet-bar-grid').getBoundingClientRect().width/e.children.length};});assert.equal(m.bg,'rgba(0, 0, 0, 0)');assert.equal(m.shadow,'none');assert.equal(m.cellShadow,'none');assert.equal(m.radius,'0px');assert(Math.abs(m.strokeX-m.gridX)<2,JSON.stringify(m));assert(Math.abs(m.strokeWidth-m.gridWidth)<1,JSON.stringify(m));}
         }));
+        await t.test('stroke attacks keep the same inset from their onset for whole through sixteenth notes',()=>fresh(async page=>{
+            const lane=page.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="1"] .sheet-bar-strum');
+            for(const unit of [1,2,4,8,16]){
+                await page.evaluate(unit=>{
+                    const session=CruiseStudio.sheetCruise.getSession(),barTicks=1920,step=barTicks/unit;
+                    const result=session.runOperation('Set evenly spaced strokes',project=>{
+                        const id=crypto.randomUUID(),barId=project.bars[0].id;
+                        const starts=Array.from({length:unit},(_,i)=>i*step);
+                        project.materials.rhythms.push({id,encoding:'studio-strum-v1',provenance:{origin:'user-set'},snapshot:{
+                            name:'Stroke timing',lengthTicks:barTicks,inputGrid:{unit,beats:[]},cellStarts:starts,
+                            slots:starts.map((tick,i)=>({id:crypto.randomUUID(),action:i%2?'up':'down',tick,durationTicks:step,accent:false}))}});
+                        project.performance.barRhythms=[{id:crypto.randomUUID(),barId,materialId:id}];
+                    });
+                    if(!result.ok)throw Error(result.error);
+                },unit);
+                await page.click('#sc-undo');await page.click('#sc-redo');
+                const positions=await lane.evaluate(row=>{
+                    const bounds=row.getBoundingClientRect();
+                    return [...row.querySelectorAll('[data-strum-arrow]')].map(arrow=>{
+                        const box=arrow.getBoundingClientRect();
+                        return (box.left+box.width/2-bounds.left)/bounds.width;
+                    });
+                });
+                assert.equal(positions.length,unit);
+                for(const [index,position] of positions.entries()){
+                    const inset=position-index/unit;
+                    assert(inset>0&&inset<=1/32+.005,JSON.stringify({unit,index,position}));
+                    assert(Math.abs(inset-positions[0])<.006);
+                }
+            }
+        }));
         await t.test('preset stroke grids leave the lane transparent and vocal sizes stay constant across subdivisions',()=>fresh(async page=>{
             const bar=page.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="1"]');
             await page.evaluate(()=>{
@@ -963,7 +994,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await dialog.locator('[data-layout-cancel]').click();assert.deepEqual(await page.evaluate(()=>CruiseStudio.localPaperLayout.value),initial);await open();await color('lyrics','#123456');await font('lyrics','serif');await dialog.locator('[data-text-visible=strum]').uncheck();await dialog.locator('[data-text-visible=showMeta]').uncheck();await dialog.locator('[data-line-style=bar]').selectOption('dashed');
             await dialog.locator('[data-preset-new]').click();await dialog.locator('[data-font-preset-name]').fill('書体と罫線');await dialog.locator('[data-font-preset-action=save]').click();await dialog.locator('[data-layout-save]').click();assert.equal(await page.locator('#sc-show-strum').isChecked(),false);assert.equal(await page.locator('#sc-show-meta').isChecked(),false);assert.equal(await paper.locator('.sheet-bar-strum').count(),0);await (await toolbarControl(page,'#sc-show-strum')).check();assert.deepEqual(await snapshot(page),before);await open();await dialog.locator('[data-font-preset-select]').selectOption('書体と罫線');assert.equal(await dialog.locator('[data-text-visible=strum]').isChecked(),false);await dialog.locator('[data-layout-save]').click();await dialog.waitFor({state:'detached'});await settle(page);await page.emulateMedia({media:'print'});await settle(page);assert.equal(await paper.locator('.sheet-bar-strum').count(),0);assert.equal(await paper.locator('.sheet-bar').first().evaluate(e=>getComputedStyle(e).borderRightStyle),'dashed');assert.equal(await paper.locator('.sheet-bar-lyrics').first().evaluate(e=>getComputedStyle(e).color),'rgb(18, 52, 86)');await page.emulateMedia({media:'screen'});assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
             await openPaperSettings(page);await page.locator('[data-layout-grid]').uncheck();await page.locator('[data-layout-save]').click();await page.locator('[data-paper-layout]').waitFor({state:'detached'});assert.equal(await paper.locator('.sheet-bar-grid').count(),0,JSON.stringify(await page.evaluate(()=>({error:document.getElementById('sc-edit-error').textContent,checked:document.getElementById('sc-show-grid').checked,layout:CruiseStudio.localPaperLayout.value,open:CruiseStudio.localPaperLayout.isOpen}))));assert.deepEqual(await snapshot(page),before);await openPaperSettings(page);await page.locator('[data-layout-grid]').check();await page.locator('[data-layout-grid-resolution]').selectOption('16');await page.locator('[data-layout-save]').click();await page.locator('[data-paper-layout]').waitFor({state:'detached'});assert.equal(await page.evaluate(()=>CruiseStudio.localPaperLayout.value.gridResolution),16);assert.deepEqual(await snapshot(page),before);await saveIfNeeded(page);await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);await page.reload();await page.locator('#open-sheet-cruise').click();await (await toolbarControl(page,'#sc-show-forms')).check();for(const scale of [60,100,140]){await page.evaluate(scale=>CruiseStudio.localPaperLayout.set({barsPerLine:4,formScale:scale}),scale);const margins=await paper.locator('.sheet-bar-forms').evaluateAll(a=>a.map(row=>{const r=row.getBoundingClientRect(),forms=[...row.querySelectorAll('.sheet-form-event')].map(e=>e.getBoundingClientRect());return forms.length?[{top:Math.min(...forms.map(f=>f.top))-r.top,bottom:r.bottom-Math.max(...forms.map(f=>f.bottom))}]:[];}).flat());assert(margins.length);for(const m of margins)assert(Math.abs(m.top-m.bottom)<1.6,JSON.stringify({scale,m}));}
-            await open();await dialog.locator('[data-layout-reset]').click();assert.equal(await dialog.locator('[data-layout-setting=formScale]').inputValue(),'100');assert(await dialog.locator('[data-text-visible=forms]').isChecked());await dialog.evaluate(e=>e.scrollTop=0);if(output)await page.screenshot({path:path.join(output,'appearance-settings.png')});
+            await open();await dialog.locator('[data-layout-reset]').click();assert.equal(await dialog.locator('[data-layout-setting=formScale]').inputValue(),'100');assert.equal(await dialog.locator('[data-text-visible=forms]').isChecked(),false);assert.equal(await dialog.locator('[data-text-visible=formList]').isChecked(),false);await dialog.evaluate(e=>e.scrollTop=0);if(output)await page.screenshot({path:path.join(output,'appearance-settings.png')});
         }));
         await t.test('full display presets use a two-step New Save flow and restore layout artist font forms and line rules after reload',()=>fresh(async page=>{
             await select(page);await page.locator('[data-overlay-field=chord]').first().fill('C');await page.locator('.slot-overlay-close').click();await (await toolbarControl(page,'#sc-show-forms')).check();const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
