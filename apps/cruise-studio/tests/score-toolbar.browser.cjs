@@ -16,7 +16,14 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const pin=id=>p.locator('[data-shortcut="'+id+'"]');
   assert(await pin('sc-edit-rhythm').isVisible());
   const ids=()=>p.locator('.sc-menu-shortcuts [data-shortcut]:visible').evaluateAll(items=>items.map(item=>item.dataset.shortcut));
-  const initial=await ids();assert(initial.length>10);assert.equal(initial.length,await picker.locator('input[type=checkbox]').count());
+  const initial=await ids();assert(initial.length>10);const hidden=['sc-save-overwrite','sc-menu-display','sc-menu-fullscreen','sc-menu-tools','sc-menu-zoom-out','sc-menu-zoom-reset','sc-menu-zoom-in'];
+  assert(hidden.every(id=>!initial.includes(id)));
+  await p.click('#sc-curve-menu-toggle');await p.locator('#sc-menu-fullscreen').waitFor();
+  const commands=await p.locator('#sc-curve-menu button:visible').evaluateAll(els=>els.map(el=>el.id));
+  const shortcuts=await p.locator('[data-shortcut]').evaluateAll(els=>els.map(el=>el.dataset.shortcut));
+  assert.deepEqual(shortcuts.slice().sort(),commands.slice().sort());
+  assert.equal(initial.length+hidden.length,shortcuts.length);
+  await p.keyboard.press('Escape');
   const toggle=picker.locator('summary');
   assert.equal(await toggle.textContent(),'…');
   assert.equal(await toggle.getAttribute('aria-label'),'ショートカットを選ぶ');
@@ -41,6 +48,17 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.reload();await p.click('#open-sheet-cruise');
   assert.deepEqual(await ids(),[initial[1],initial[0],...initial.slice(2)].filter(id=>id!=='sc-edit-rhythm'));
   assert(await pin('sc-edit-song').isVisible());assert(await pin('sc-edit-rhythm').isHidden());
+ }));
+ await t.test('all icons include fullscreen and tool settings while saved choices take precedence',()=>fresh(async p=>{
+  const picker=p.locator('#sc-shortcut-menu'),pin=id=>p.locator('[data-shortcut="'+id+'"]');
+  await picker.locator('summary').click();await picker.getByRole('button',{name:'すべて表示'}).click();
+  await p.keyboard.press('Escape');
+  await pin('sc-menu-fullscreen').click();await p.locator('#screen-sheet-cruise.score-fullscreen').waitFor();
+  await p.locator('.score-fullscreen-exit').click();
+  await pin('sc-menu-tools').click();await picker.getByLabel('譜面を拡大').uncheck();await p.keyboard.press('Escape');
+  await p.reload();await p.click('#open-sheet-cruise');
+  assert(await pin('sc-menu-zoom-in').isHidden());assert(await pin('sc-menu-display').isVisible());
+  assert(await pin('sc-menu-tools').isVisible());
  }));
  await t.test('dragging the toolbar grip scales controls independently of the score',()=>fresh(async p=>{
   const toolbar=p.locator('.sc-compact-toolbar'),grip=p.getByRole('slider',{name:'上部カードの表示倍率'});
@@ -347,7 +365,8 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    const location=p.getByRole('dialog',{name:'保存場所'});
    assert.match(await location.innerText(),/曲名一覧/);
    const exportedSnapshot=await snap(p);
-   assert.match(await location.innerText(),/Safari内/);
+   assert.match(await location.innerText(),/このパソコンに保存されています。/);
+   assert.match(await location.innerText(),/Safariが管理するサイトデータ/);
    assert.equal(await location.getByRole('button').count(),1);
    await location.getByRole('button',{name:'閉じる'}).click();
    await p.locator('#sc-project-select').selectOption({label:'その他のファイル操作…'});
@@ -367,7 +386,13 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    };
   });
   const reminder=p.getByRole('dialog',{name:'ファイル保存時のご案内'}),go=()=>reminder.getByRole('button',{name:'保存を続ける'}).click();
-  await p.click('#sc-save');await reminder.press('Escape');assert.equal(await p.evaluate(()=>window.picks),0);
+  await p.click('#sc-save');
+  assert.match(await reminder.innerText(),/エラーを知らせる表示ではありません/);
+  for(const field of [reminder.getByLabel('案内の表示'),p.locator('#sc-project-select')]){
+   const style=await field.evaluate(el=>{const s=getComputedStyle(el);return [s.appearance,s.paddingInlineEnd,s.backgroundPositionX];});
+   assert.equal(style[0],'none');assert.equal(style[1],'32px');assert.match(style[2],/12px/);
+  }
+  await reminder.press('Escape');assert.equal(await p.evaluate(()=>window.picks),0);
   await p.click('#sc-save');await go();await p.waitForFunction(()=>window.picks===1);assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
   await p.click('#sc-save');await go();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
   assert.equal(await p.evaluate(()=>window.picks),2);

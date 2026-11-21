@@ -452,6 +452,8 @@
             'sc-menu-files':'M4 4h16v16H4z M7 8h2m2 0h6 M7 12h2m2 0h6 M7 16h2m2 0h6',
             'sc-menu-display':'M2 12q10-14 20 0-10 14-20 0z M15 12a3 3 0 1 0-6 0 3 3 0 1 0 6 0',
             'sc-menu-display-settings':'M3 6h9m4 0h5 M3 12h3m4 0h11 M3 18h11m4 0h3 M12 3v6 M7 9v6 M15 15v6',
+            'sc-menu-fullscreen':'M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5',
+            'sc-menu-tools':'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z',
             'sc-menu-staff-toggle':'M2 5h20M2 9h20M2 13h20M2 17h20 M15 3v12q-6-1-6 3t6-1',
             'sc-menu-zoom-out':'M5 12h14','sc-menu-zoom-in':'M5 12h14M12 5v14',
             'sc-menu-zoom-reset':'M3 9V4h5m8 0h5v5 M21 15v5h-5m-8 0H3v-5 M9 12h6',
@@ -468,6 +470,9 @@
         };
         const mirrors={'sc-menu-display-settings':'sc-paper-settings','sc-menu-playback-settings':'sc-playback-settings',
             'sc-menu-zoom-in':'sc-zoom-in','sc-menu-zoom-out':'sc-zoom-out','sc-menu-zoom-reset':'sc-zoom-reset'};
+        // These actions already have dedicated controls on the top card.
+        const onCard=new Set(['sc-save-overwrite','sc-menu-display','sc-menu-fullscreen','sc-menu-tools',
+            'sc-menu-zoom-in','sc-menu-zoom-out','sc-menu-zoom-reset']);
         const key='scoreToolbarShortcuts';
         const saved=CS().storage.getAppSetting(key);
         const chosen=new Set(Array.isArray(saved)?saved:[]);
@@ -480,6 +485,10 @@
         primary.append(strip);
         const summary=picker.root.querySelector('summary');
         summary.textContent='…';summary.title='ショートカットを選ぶ';summary.setAttribute('aria-label',summary.title);
+        const configure=document.createElement('button');
+        configure.id='sc-menu-tools';configure.type='button';configure.className='btn-ghost btn-compact';configure.textContent='ツールエリア';
+        configure.addEventListener('click',()=>{summary.click();summary.focus();});
+        menuBody.querySelector('#sc-menu-fullscreen').after(configure);
         const heading=document.createElement('strong');heading.textContent='ツールエリア';picker.body.append(heading);
         const pins=new Map();
         function arrange(){
@@ -505,7 +514,7 @@
         for(const target of menuBody.querySelectorAll('button[id]')){
             if(menuBody.contains(target.closest('[hidden]')))continue;
             const id=target.id,command=q(mirrors[id])||target;
-            if(!Array.isArray(saved))chosen.add(id);
+            if(!Array.isArray(saved) && !onCard.has(id))chosen.add(id);
             const pin=document.createElement('button');pin.type='button';pin.className='btn-ghost btn-compact';pin.dataset.shortcut=id;
             const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
             svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
@@ -577,10 +586,7 @@
             picker.body.querySelectorAll('input[type=checkbox]').forEach(input=>input.checked=true);saveOrder();};
         picker.body.append(all,reset);
         arrange();
-        const configure=document.createElement('button');
-        configure.type='button';configure.className='btn-ghost btn-compact';configure.textContent='ツールエリア';
-        configure.addEventListener('click',()=>{summary.click();summary.focus();});
-        menuBody.querySelector('#sc-menu-display-settings').after(configure);
+
     }
 
     function mountToolbarScale(toolbar) {
@@ -678,6 +684,9 @@
         for(const command of [...fileActions,...exports])if(command.tagName==='BUTTON')command.dataset.fileCommand='';
         curve.body.replaceChildren();menuLabel('ファイル');fileActions.forEach(function(e){curve.body.appendChild(e);});divider(curve.body);menuLabel('表示');
         curve.body.appendChild(button('sc-menu-display','表示',function(){display.root.open=true;}));curve.body.appendChild(mirror('sc-menu-display-settings','表示設定','sc-paper-settings'));
+        const fullscreenCommand=mirror('sc-menu-fullscreen','全画面モード','sc-fullscreen');
+        fullscreenCommand.disabled=!scoreFullscreen;
+        curve.body.appendChild(fullscreenCommand);
         var staffToggle=button('sc-menu-staff-toggle','五線譜に切り替える',function(){
             var style=q('sc-score-style');
             style.value=staffStyle==='melody'?'code':'melody';
@@ -1412,7 +1421,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-file-command-list{display:grid;gap:4px;max-height:55vh;overflow:auto;}
 .sc-file-command-list button{text-align:start;padding:8px 12px;}
 .sc-reminder-frequency{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:.875rem;}
-.sc-reminder-frequency select{max-width:100%;font:inherit;padding:6px;}
+.sc-reminder-frequency select{max-width:100%;min-height:36px;font:inherit;padding:6px 10px;border:1px solid var(--studio-border-default);border-radius:7px;background-color:var(--studio-control);color:inherit;}
 .sc-save-place details>summary{cursor:pointer;font-size:.875rem;}
 .sc-save-place details[open]>.sc-reminder-frequency{margin-block:10px;}
 #screen-sheet-cruise .sc-score-toolbar-head>#sc-paper-settings{margin-left:auto;}
@@ -1748,9 +1757,6 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 }
 @media print{#screen-sheet-cruise .sc-toolbar-menu-body{display:none!important;}}
 @media(pointer:coarse){#screen-sheet-cruise .sc-compact-toolbar button,#screen-sheet-cruise .sc-toolbar-menu>summary,#screen-sheet-cruise .sc-toolbar-menu label{min-height:44px;}}
-#screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project{position:relative;}
-#screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project #sc-project-select{appearance:none;padding-inline-end:36px;}
-#screen-sheet-cruise .sc-compact-toolbar .sheet-toolbar-project::after{content:'';position:absolute;right:15px;top:50%;width:7px;height:7px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:translateY(-70%) rotate(45deg);pointer-events:none;}
 #sc-sheet-scale-box [data-paper-edit]:not([data-paper-edit=""]){cursor:pointer;border-radius:3px;}
 #sc-sheet-scale-box [data-paper-edit=instrument],#sc-sheet-scale-box [data-paper-edit=rhythm]{cursor:pointer;}
 #sc-sheet-scale-box [data-paper-edit]:hover{outline:1px dashed #8c9da9;outline-offset:2px;}
@@ -1761,7 +1767,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 #sc-sheet-scale-box [data-editable-empty]{pointer-events:auto;cursor:pointer;min-height:80px;}
 #sc-sheet-scale-box [data-editable-empty].is-selected{outline:2px solid #83a7c7;outline-offset:-2px;}
 #sc-sheet-scale-box .sheet-artist--empty .sheet-artist-separator{display:none;}
-#screen-sheet-cruise .sc-score-toolbar-head>#sc-curve-menu>summary,#screen-sheet-cruise .sheet-toolbar-project #sc-project-select{box-sizing:border-box;height:44px;min-height:44px;padding:8px 12px;font-size:14px;}
+#screen-sheet-cruise .sc-score-toolbar-head>#sc-curve-menu>summary,#screen-sheet-cruise .sheet-toolbar-project select{box-sizing:border-box;height:44px;min-height:44px;padding:8px 12px;font-size:14px;}
 #screen-sheet-cruise .sc-toolbar-head-actions .sc-toolbar-menu>summary,#screen-sheet-cruise .sc-compact-toolbar #sc-zoom-controls{height:44px;min-height:44px;box-sizing:border-box;}#screen-sheet-cruise .sc-compact-toolbar #sc-zoom-controls button{height:42px;}
 #screen-sheet-cruise .sc-bottom-transport{position:sticky;bottom:10px;z-index:24;margin-top:16px;box-shadow:0 5px 22px #0005;}.sc-bottom-transport>.sc-playback-caption{display:none!important;}
 @media screen and (pointer:coarse) and (orientation:landscape) and (max-height:500px){
@@ -1941,7 +1947,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-preset-sheet-frame{margin-inline:0;}
 .sc-preset-actions{display:flex;align-items:center;margin-left:auto;gap:6px;flex-wrap:wrap;}
 .sc-song-dialog .sc-preset-actions button{padding:5px 8px;font-size:12px;background:transparent;color:var(--studio-text-secondary);}
-.sc-batch-dialog .sc-preset-controls select[data-score-preset]{appearance:none;background-color:#fbf8f0;color:#171717;color-scheme:light;border-color:var(--studio-accent);font-size:16px;font-weight:600;line-height:1.25;height:42px;padding:0 32px 0 12px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:right 16px center,right 11px center;background-repeat:no-repeat;background-size:5px 5px;}
+.sc-batch-dialog .sc-preset-controls select[data-score-preset]{background-color:#fbf8f0;color:#171717;color-scheme:light;border-color:var(--studio-accent);font-size:16px;font-weight:600;line-height:1.25;height:42px;}
 .sc-pattern-onset{position:relative;padding-bottom:10px;}
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
@@ -2009,6 +2015,19 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-song-dialog .sc-song-section-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--studio-border-default);}
 .sc-song-dialog .sc-song-section-row label{flex:1 1 180px;min-width:0;margin:0;}.sc-song-section-row label>span{display:none;}
 
+/* One inset for single-line selects, including score dialogs mounted under body. */
+:is(#screen-sheet-cruise,#sc-slot-overlay,body:has(#screen-sheet-cruise:not([hidden]):not(.hidden)) dialog) select:not([multiple]):is(:not([size]),[size="1"]){
+    appearance:none;
+    padding-inline-end:var(--sc-select-end,32px);
+    background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
+    background-position:right calc(var(--sc-select-inset,12px) + 4px) center,right var(--sc-select-inset,12px) center;
+    background-repeat:no-repeat;
+    background-size:4px 4px;
+}
+@media(forced-colors:active){
+    :is(#screen-sheet-cruise,#sc-slot-overlay,body:has(#screen-sheet-cruise:not([hidden]):not(.hidden)) dialog) select:not([multiple]):is(:not([size]),[size="1"]){appearance:auto;background-image:none;}
+}
+#screen-sheet-cruise .sv-sound-select{--sc-select-end:20px;--sc-select-inset:6px;}
 @media print{.sc-song-dialog,.sheet-section-play,.sheet-artist--empty{display:none!important;}#sc-sheet-scale-box [data-paper-edit]:hover{outline:none;}}
 `;
         document.head.appendChild(style);
@@ -2590,7 +2609,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.204.0-dev.1'),import('../score-ui.mjs?v=0.204.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen',openSettings:()=>q('sc-paper-settings')?.click()});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});var menu=q('sc-menu-display-settings');if(menu){var mirror=document.createElement('button');mirror.type='button';mirror.className='btn-ghost btn-compact';mirror.textContent='全画面モード';mirror.onclick=function(){scoreFullscreen.button.click();};menu.after(mirror);}}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.204.0-dev.1'),import('../score-ui.mjs?v=0.204.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen',openSettings:()=>q('sc-paper-settings')?.click()});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});const fullscreenCommand=q('sc-menu-fullscreen');if(fullscreenCommand)fullscreenCommand.disabled=false;}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -5977,7 +5996,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
     function confirmFileSave(setting){
         const dialog=fileDialog('ファイル保存時のご案内'),text=document.createElement('p');
-        text.textContent='保存画面に「このサイトはあなたが行った編集内容を参照できます」と表示されることがあります。これは、選んだ譜面ファイルをアプリで読み書きするための確認です。';
+        text.textContent='保存画面の「警告」は、譜面クルーズが選んだファイルを開き、編集内容を書き込めるようにするための確認です。エラーを知らせる表示ではありません。保存先とファイル名が合っていれば、「保存」で進めます。';
         const {label,select}=reminderSelect(setting),footer=document.createElement('footer');
         return new Promise(resolve=>{
             const proceed=dialogButton('保存を続ける',()=>{
@@ -6049,11 +6068,11 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         const handle=fileHandles.get(id), saved=session.baseRevision!==null;
         const dialog=fileDialog('保存場所'),place=document.createElement('strong'),hint=document.createElement('p');
         const direct=typeof window.showSaveFilePicker==='function';
-        place.textContent=handle?handle.name:saved?storageBrowserName()+'内に保存されています。':'この曲はまだ保存されていません。';
+        place.textContent=handle?handle.name:saved?'このパソコンに保存されています。':'この曲はまだ保存されていません。';
         if(handle){
             hint.textContent='「保存」でこのファイルを更新します。';
         }else{
-            hint.textContent=saved?'左上の曲名一覧から開けます。':'';
+            hint.textContent=saved?storageBrowserName()+'が管理するサイトデータです。左上の曲名一覧から開けます。':'';
             hint.append(direct?'「名前をつけて保存」でフォルダを指定できます。':'Google Chromeでは「保存」でフォルダを指定できます。','（',browserSaveHelp(),'）');
         }
         dialog.append(place,hint);
@@ -6079,7 +6098,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         const input=document.createElement('input'),note=document.createElement('p'),cancel=document.createElement('button'),accept=document.createElement('button');
         dialog.className='sc-location-dialog';dialog.setAttribute('aria-label','名前をつけて保存');
         input.value=title+'.json';input.required=true;label.append('ファイル名 ',input);
-        note.textContent='編集用JSONをダウンロードします。次回の「保存」は、この端末のブラウザ内にある曲を更新します。';
+        note.textContent='編集用JSONをダウンロードします。次回の「保存」は、このパソコンに保存した曲を更新します。';
         const help=document.createElement('details'),summary=document.createElement('summary');
         summary.textContent='ダウンロード先を選ぶには';
         const instructions=document.createElement('p');
