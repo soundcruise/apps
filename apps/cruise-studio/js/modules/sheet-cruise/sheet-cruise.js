@@ -1924,7 +1924,6 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-strum-preset-grid [data-stroke="×"]{--stroke-ink:var(--paper-strum-mute);font-weight:700;}
 .sc-strum-preset-grid [data-stroke="〜"]{--stroke-ink:var(--paper-strum-sustain);font-weight:600;}
 .sc-strum-preset-grid [data-stroke="・"]{--stroke-ink:#746e65;}
-.sc-batch-dialog header>[data-score-cancel]{margin-left:auto;}
 .sc-batch-dialog [hidden]{display:none!important;}
 
 .sc-batch-dialog .sc-preset-sidebar>section{padding:8px 0;}

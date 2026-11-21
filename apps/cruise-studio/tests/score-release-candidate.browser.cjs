@@ -436,26 +436,55 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     assert(!Object.keys(manifest.files).some(name=>name.startsWith('apps/cruise-studio/score-guide/') && name.endsWith('.mp4')));
     await guide.close();
 
+    async function checkChapter(owner,title,anchor,steps,images) {
+        const helpName=title+'の使い方';
+        await owner.getByRole('button',{name:helpName}).click();
+        const help=editor.getByRole('dialog',{name:helpName,exact:true});
+        await help.locator('img').evaluate(img=>img.decode());
+        assert.equal(await help.locator('ol li').count(),steps);
+        const opened=editor.waitForEvent('popup');
+        await help.getByRole('link',{name:/詳しくはこちら/}).click();
+        const details=await opened;
+        await details.waitForLoadState('load');
+        assert.equal(new URL(details.url()).hash,'#'+anchor);
+        const chapter=details.locator('#'+anchor);
+        const heading=await chapter.getByRole('heading',{level:2}).boundingBox();
+        assert(heading && heading.y>=-1 && heading.y<120,'Link lands on the corresponding instructions');
+        assert.equal(await chapter.locator('figure img').count(),images);
+        assert.equal(await chapter.locator('figure img').first().getAttribute('src'),
+            (await help.locator('img').getAttribute('src')).split('/').pop());
+        await details.close();
+        await help.getByRole('button',{name:'閉じる'}).click();
+    }
+    await editor.click('#sc-curve-menu-toggle');
+    await editor.click('#sc-edit-song');
+    const song=editor.locator('[data-score-dialog=settings]');
+    const bpm=song.getByLabel('BPM',{exact:true});
+    await bpm.fill('112');
+    await checkChapter(song,'曲情報','song',4,2);
+    assert.equal(await bpm.inputValue(),'112');
+    await song.locator('[data-score-apply]').click();
+    assert.match(await editor.locator('#sc-sheet-scale-box .sheet-header').innerText(),/BPM:\s*112/);
+
+    const {toolbarControl}=require('./helpers/score-toolbar.cjs');
+    const layout=editor.locator('[data-paper-layout]');
+    await (await toolbarControl(editor,'#sc-paper-settings')).click();
+    await layout.locator('[data-layout-setting=autoBarsPerLine]').uncheck();
+    const columns=layout.locator('[data-layout-setting=barsPerLine]');
+    await columns.selectOption('2');
+    await checkChapter(layout,'譜面の表示設定','view',5,2);
+    assert.equal(await columns.inputValue(),'2');
+    await layout.locator('[data-layout-save]').click();
+    await (await toolbarControl(editor,'#sc-paper-settings')).click();
+    assert.equal(await columns.inputValue(),'2');
+    await layout.locator('[data-layout-cancel]').click();
+
     await editor.click('#sc-curve-menu-toggle');
     await editor.click('#sc-edit-sections');
     const sections=editor.locator('[data-score-dialog=sections]');
     const name=sections.getByLabel('セクション名',{exact:true});
     await name.fill('未適用の編集');
-    await sections.getByRole('button',{name:'セクション編集の使い方'}).click();
-    const help=editor.getByRole('dialog',{name:'セクション編集の使い方',exact:true});
-    await help.locator('img').evaluate(img=>img.decode());
-    assert.equal(await help.locator('ol li').count(),4);
-    const detailsOpened=editor.waitForEvent('popup');
-    await help.getByRole('link',{name:/詳しくはこちら/}).click();
-    const details=await detailsOpened;
-    await details.waitForLoadState('load');
-    assert.equal(new URL(details.url()).hash,'#sections');
-    const sectionGuide=details.locator('#sections');
-    const heading=await sectionGuide.getByRole('heading',{level:2}).boundingBox();
-    assert(heading && heading.y>=-1 && heading.y<120,'Link lands on section editing instructions');
-    assert.equal(await sectionGuide.locator('figure img').count(),5);
-    await details.close();
-    await help.getByRole('button',{name:'閉じる'}).click();
+    await checkChapter(sections,'セクション編集','sections',4,5);
     assert.equal(await name.inputValue(),'未適用の編集');
 });
 

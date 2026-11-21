@@ -12,4 +12,12 @@ async function dismissNewSongSettings(page){
  await dialog.waitFor();await dialog.locator('[data-score-cancel]').click();
  await dialog.waitFor({state:'detached'});
 }
-module.exports={toolbarControl,dismissNewSongSettings};
+async function assertHelpBesideCancel(dialog){
+ const assert=require('node:assert/strict');
+ const help=await dialog.locator('.sc-page-help-trigger').boundingBox();
+ const cancel=await dialog.getByRole('button',{name:'キャンセル',exact:true}).first().boundingBox();
+ const gap=cancel.x-(help.x+help.width);
+ assert(gap>=0 && gap<=16 && Math.abs((help.y+help.height/2)-(cancel.y+cancel.height/2))<=2,
+  'The help button should sit immediately to the left of Cancel');
+}
+module.exports={toolbarControl,dismissNewSongSettings,assertHelpBesideCancel};

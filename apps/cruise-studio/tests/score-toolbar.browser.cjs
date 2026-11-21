@@ -258,6 +258,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   for(const [open,name,instruction] of cases){
    await open();
    const owner=p.getByRole('dialog',{name,exact:true}),helpName=name+'の使い方';
+   await require('./helpers/score-toolbar.cjs').assertHelpBesideCancel(owner);
    const button=owner.getByRole('button',{name:helpName});
    if(name==='曲情報')await owner.getByLabel('曲名',{exact:true}).fill('確定前の曲名');
    await button.click();
