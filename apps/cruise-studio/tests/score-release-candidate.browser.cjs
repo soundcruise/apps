@@ -407,6 +407,15 @@ for (const engine of ['chrome','webkit']) test('automatic measure layout survive
     });
 });
 
+async function openHelpBesideAction(owner, helpName, actionName) {
+    const trigger=owner.getByRole('button',{name:helpName,exact:true});
+    const action=owner.getByRole('button',{name:actionName,exact:true});
+    const [left,right]=await Promise.all([trigger.boundingBox(),action.boundingBox()]);
+    assert(left && right && left.x+left.width<=right.x+1 && right.x-left.x-left.width<=24 &&
+        Math.abs(left.y+left.height/2-right.y-right.height/2)<=6,helpName+' should be immediately left of '+actionName);
+    await trigger.click();
+}
+
 for(const engine of ['chrome','webkit'])
 test('packaged illustrated tutorial opens from the editor guide: '+engine,async t=>{
     const server=await startServer(), origin='http://127.0.0.1:'+server.address().port;
@@ -416,8 +425,19 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     const editor=await browser.newPage();
     await editor.goto(origin+'/apps/cruise-studio/');
     await editor.click('#open-sheet-cruise');
+    const manualLink=editor.getByRole('link',{name:'譜面クルーズの取扱説明書（新しいタブ）'});
+    const viewport=editor.viewportSize();
+    for(const width of [390,900,viewport.width]){
+        await editor.setViewportSize({...viewport,width});
+        assert(await manualLink.evaluate(link=>{
+            const header=link.closest('.sc-score-toolbar-head').getBoundingClientRect();
+            const box=link.getBoundingClientRect();
+            return Math.abs(header.right-box.right)<2 && box.top>=header.top && box.top-header.top<12 &&
+                document.elementFromPoint(box.x+box.width/2,box.y+box.height/2)===link;
+        }),'Manual link is visible at the top right at width '+width);
+    }
     const opened=editor.waitForEvent('popup');
-    await editor.click('#sc-score-guide');
+    await manualLink.click();
     const guide=await opened;
     await guide.waitForLoadState('load');
     const lesson=guide.locator('#lesson');
@@ -437,7 +457,8 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     await guide.close();
 
     async function checkChapter(owner,title,anchor,steps,images,helpName=title+'の使い方') {
-        await owner.getByRole('button',{name:helpName}).click();
+        const action=anchor==='edit'?'小節ルーペを閉じる':anchor==='sound-settings'?'完了':'キャンセル';
+        await openHelpBesideAction(owner,helpName,action);
         const help=editor.getByRole('dialog',{name:helpName,exact:true});
         await help.locator('img').evaluate(img=>img.decode());
         assert.equal(await help.locator('ol li').count(),steps);
@@ -450,11 +471,16 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
         const heading=await chapter.getByRole('heading',{level:2}).boundingBox();
         assert(heading && heading.y>=-1 && heading.y<120,'Link lands on the corresponding instructions');
         assert.equal(await chapter.locator('figure img').count(),images);
-        const numberedImage=(await help.locator('img').getAttribute('src')).split('/').pop();
-        assert.equal(await chapter.locator('figure img[src="'+numberedImage+'"]').count(),1);
+        const numberedImage=await help.locator('img').evaluate(img=>img.src);
+        assert(await chapter.locator('figure img').evaluateAll((imgs,src)=>imgs.some(img=>img.src===src),numberedImage));
         await details.close();
         await help.getByRole('button',{name:'閉じる'}).click();
     }
+    await editor.click('#sc-curve-menu-toggle');
+    await editor.click('#sc-new-project');
+    const newSong=editor.getByRole('dialog',{name:'新しい曲を作成',exact:true});
+    await checkChapter(newSong,'新しい曲を作成','lesson',6,15);
+    await newSong.getByRole('button',{name:'キャンセル'}).click();
     const {createUITestProject}=await import('../scripts/create-ui-test-project.mjs');
     const fixture=createUITestProject();
     await editor.locator('#sc-import-json').setInputFiles({name:'guide.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
@@ -466,6 +492,15 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     await chord.focus();
     await checkChapter(measure,'小節編集','edit',4,1,'編集の操作ガイド');
     assert(await chord.evaluate(el=>el===document.activeElement));
+    await measure.locator('[data-chord-toggle]').click();
+    const advanced=measure.locator('[data-chord-advanced]');
+    if(await advanced.getAttribute('aria-expanded')!=='true')await advanced.click();
+    const fretHelp=measure.getByRole('button',{name:'ハイフレット表示の説明'});
+    await fretHelp.click();
+    assert.equal(await fretHelp.getAttribute('aria-expanded'),'true');
+    assert.match(await measure.locator('#cc-high-fret-note').innerText(),/12〜25フレット/);
+    await fretHelp.click();
+    assert(await measure.locator('#cc-high-fret-note').isHidden());
     await measure.locator('.slot-overlay-close').click();
 
     await editor.click('#sc-playback-settings');
@@ -577,7 +612,7 @@ for (const engine of ['chrome','webkit']) test('packaged batch guides keep the s
         }
         const destinations=()=>dialog.locator('[data-preset-destination]').evaluateAll(items=>items.map(e=>Number(e.dataset.barNumber)));
         assert.deepEqual(await destinations(),targets);
-        await dialog.getByRole('button',{name:title+'の使い方'}).click();
+        await openHelpBesideAction(dialog,title+'の使い方','キャンセル');
         const help=page.getByRole('dialog',{name:title+'の使い方',exact:true});
         await help.locator('img').evaluate(img=>img.decode());
         assert.equal(await help.locator('ol li').count(),4);

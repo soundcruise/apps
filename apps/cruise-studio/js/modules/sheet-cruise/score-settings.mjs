@@ -27,7 +27,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   const current=dialog,head=node('header',undefined,current);node('h2',titles[mode],head);const dismiss=node('button','キャンセル',head);dismiss.type='button';dismiss.dataset.scoreCancel='';
   const body=node('div',undefined,current),status=node('p','',current);status.setAttribute('role','status');status.dataset.scoreStatus='';
   const apply=node('button',mode==='inline'?'確定':'適用',head);apply.type='button';apply.dataset.scoreApply='';apply.className='btn-primary';
-  addPageHelp(current,dismiss,mode);
+  addPageHelp(current,dismiss,mode==='settings' && args.newSong ? 'newSong' : mode);
   let collect=()=>null,mountPreview,keyEntry,composing=false,navigating=false;
   let draftRead=null,draftRestore=null,hasDataChanges=null,isDirty=()=>false;
   function input(label,value,key,type='text',parent=body){const wrap=node('label',undefined,parent);node('span',label,wrap);const field=node(type==='textarea'?'textarea':'input',undefined,wrap);if(type!=='textarea')field.type=type;field.value=value;field.dataset.scoreField=key;return field;}

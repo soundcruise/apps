@@ -13,7 +13,22 @@ for(const engine of ['chrome','webkit'])test('editor help and display storage di
  async function fresh(fn,{holdHelp=false}={}){const c=await b.newContext({viewport:{width:1440,height:1100}}),p=await c.newPage(),errors=[],external=[];let release;const gate=new Promise(r=>release=r);p.setDefaultTimeout(8000);p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());await c.route('**/*',async r=>{const url=new URL(r.request().url());if(url.origin!==origin){external.push(url.href);return r.abort();}if(holdHelp&&url.pathname.endsWith('/editor-help.mjs'))await gate;return r.continue();});try{await p.goto(origin);await p.click('#open-sheet-cruise');const project=createUITestProject();project.songInfo.bpm=400;await p.locator('#sc-import-json').setInputFiles({name:'help-synthetic.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(project))});await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,project.projectId);await fn(p,{release});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);}catch(e){console.error('HELP FAILURE',engine,e.stack);throw e;}finally{release();await c.close();}}
  try{
  await t.test('storage explanation accompanies Save and presets; cancel, save and reload keep settings separate from the Project',()=>fresh(async p=>{
-  await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const before=await state(p),layout=await p.evaluate(()=>CruiseStudio.localPaperLayout.value);await openPaperSettings(p);const note=p.locator('[data-layout-storage-note]');assert.match(await note.innerText(),/このブラウザに保存/);assert.match(await note.innerText(),/曲のJSONにも書き出されます/);assert.equal(await p.locator('[data-layout-save]').getAttribute('aria-describedby'),await note.getAttribute('id'));assert.match(await p.locator('[data-preset-storage-note]').innerText(),/このブラウザだけ/);
+  if(engine==='chrome')await p.evaluate(()=>{
+   window.showSaveFilePicker=async()=>(await navigator.storage.getDirectory()).getFileHandle('layout-fixture.json',{create:true});
+  });
+  await p.click('#sc-save');
+  if(engine==='chrome')await p.getByRole('button',{name:'保存を続ける',exact:true}).click();
+  await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  const before=await state(p),layout=await p.evaluate(()=>CruiseStudio.localPaperLayout.value);
+  if(engine==='chrome'){
+   const saved=await p.evaluate(async()=>{
+    const dir=await navigator.storage.getDirectory(),handle=await dir.getFileHandle('layout-fixture.json');
+    return JSON.parse(await (await handle.getFile()).text());
+   });
+   assert.equal(saved.projectId,before.project.projectId);
+   assert.deepEqual(saved.bars,before.project.bars);
+  }
+  await openPaperSettings(p);const note=p.locator('[data-layout-storage-note]');assert.match(await note.innerText(),/このブラウザに保存/);assert.match(await note.innerText(),/曲のJSONにも書き出されます/);assert.equal(await p.locator('[data-layout-save]').getAttribute('aria-describedby'),await note.getAttribute('id'));assert.match(await p.locator('[data-preset-storage-note]').innerText(),/このブラウザだけ/);
   await p.locator('[data-layout-setting=chordSize]').evaluate(e=>{e.value='22';e.dispatchEvent(new Event('input',{bubbles:true}));});await p.click('[data-layout-cancel]');await p.locator('[data-paper-layout]').waitFor({state:'detached'});assert.deepEqual(await p.evaluate(()=>CruiseStudio.localPaperLayout.value),layout);assert.deepEqual(await state(p),before);
   await openPaperSettings(p);await p.locator('[data-layout-setting=chordSize]').evaluate(e=>{e.value='22';e.dispatchEvent(new Event('input',{bubbles:true}));});await p.click('[data-preset-new]');await p.fill('[data-font-preset-name]','このブラウザ用');await p.click('[data-font-preset-action=save]');await p.click('[data-layout-save]');await p.locator('[data-paper-layout]').waitFor({state:'detached'});assert.deepEqual(await state(p),before);await p.click('#sc-curve-menu-toggle');const download=p.waitForEvent('download');await p.click('#sc-export-json');const path=await(await download).path(),{scorePresentation,...score}=JSON.parse(fs.readFileSync(path,'utf8'));assert.deepEqual(score,before.project);assert.equal(scorePresentation.layout.chordSize,22);
   await openPaperSettings(p);const reset=p.getByRole('button',{name:'デフォルトに戻す'});assert.ok(await reset.evaluate(el=>el===el.parentElement.firstElementChild));await reset.click();await p.click('[data-layout-save]');assert.notEqual(await p.evaluate(()=>CruiseStudio.localPaperLayout.value.chordSize),22);

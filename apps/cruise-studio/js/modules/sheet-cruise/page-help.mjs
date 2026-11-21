@@ -18,9 +18,18 @@ const guides = {
     sections: [
         '上の列で編集したい部分を選んでから、左側か右の譜面で変更します。',
         ['上の列', '「Aメロ」「サビ」など、編集したいセクションをクリックします。'],
-        ['左の操作欄', '名前や順番を変えます。繰り返すときは「コピー」→ 挿入先を選ぶ →「後ろに貼り付け」。'],
+        ['左の操作欄', '名前や順番を変えます。繰り返すときは「コピー」→ 挿入先を選ぶ →「後ろに貼り付け」。コピーするパートを選び、「実行」を押します。'],
         ['譜面の＋／−', 'そのセクションの末尾の小節を増やす・減らすボタンです。'],
         ['右上の「適用」', '順番と小節数を確認し、変更を曲に反映します。']
+    ],
+    newSong: [
+        '曲の情報を入力したら、この画面から小節の構成や伴奏を作れます。',
+        ['曲名', '左上に曲のタイトルを入力します。'],
+        ['BPM', 'テンポを入力します。拍子はその下で選びます。'],
+        ['セクション編集', 'イントロやサビを並べ、小節数を決めます。'],
+        ['コード一括入力', 'コード進行と入力先を選びます。'],
+        ['ストローク一括入力', '伴奏パターンを決め、弾き方をまとめて入力します。'],
+        ['右の譜面', '入力した内容を確認し、右上の「適用」で譜面に戻ります。']
     ],
     settings: [
         '左で入力し、右の譜面で仕上がりを確かめます。',
@@ -84,6 +93,8 @@ const illustratedGuides = {
         alt:'変更履歴。①選んだ時点、②表示中の履歴の説明、③決定。'},
     catalogue: {image:'catalogue-edit.png', width:920, height:530, anchor:'catalogue-edit',
         alt:'コードとフォームの一括編集。①対象の小節と拍、②コード名、③詳細設定、④5箇所に反映。'},
+    newSong: {image:'lesson/song.png', width:1120, height:810, anchor:'lesson',
+        alt:'新しい曲を作成。①曲名、②BPM、③セクション編集、④コード一括入力、⑤ストローク一括入力、⑥譜面プレビュー。'},
     settings: {image:'song.png', width:1120, height:544, anchor:'song',
         alt:'曲情報。①曲名とアーティスト名、②BPM・拍子・キー、③右の譜面の見出し、④右上の適用。'},
     layout: {image:'display.png', width:1080, height:546, anchor:'view',
@@ -133,7 +144,7 @@ export function addPageHelp(owner, before, topic, pageName = owner.getAttribute(
     const trigger = doc.createElement('button');
     trigger.type = 'button';
     trigger.className = 'sc-page-help-trigger';
-    trigger.textContent = '?';
+    trigger.textContent = '？';
     trigger.title = title;
     trigger.setAttribute('aria-label', title);
     trigger.setAttribute('aria-haspopup', 'dialog');
