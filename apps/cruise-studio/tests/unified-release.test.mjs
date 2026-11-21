@@ -13,7 +13,21 @@ test('one Studio package publishes the guarded client and read-only legacy compa
  try{
   assert.equal(packageProjectCanary,packagePortPC,'the old command has no separate product builder');
   const manifest=packagePortPC(out),names=Object.keys(manifest.files);
-  assert.deepEqual(names.filter(n=>n.startsWith('apps/cruise-studio/')).sort(),[...RELEASE_FILES,'index.html','manifest.webmanifest'].map(n=>'apps/cruise-studio/'+n).sort());
+  for(const name of [...RELEASE_FILES,'index.html','manifest.webmanifest'])assert(manifest.files['apps/cruise-studio/'+name],name);
+  assert(manifest.files[manifest.viewerEntry]);
+  for(const name of ['apps/cruise-studio/index.html','apps/cruise-studio/'+PRO_DIRECTORY+'/index.html']){
+   const entry=fs.readFileSync(path.join(out,name),'utf8');
+   assert(entry.includes('theme.css?v='+manifest.scoreVersion));
+   assert(entry.includes('score-editor-entry.mjs?v='+manifest.scoreVersion));
+  }
+  for(const name of ['apps/cruise-port/news-config.js','apps/shared/sync-account/production-config.js']){
+   assert.deepEqual(fs.readFileSync(path.join(out,name)),fs.readFileSync(new URL('../../../'+name,import.meta.url)));
+  }
+  for(const entry of manifest.portEntries){
+   const port=fs.readFileSync(path.join(out,entry),'utf8');
+   assert(port.includes('sync-account/production-config.js'));
+   assert(port.includes('/apps/score-viewer/standalone/?from='));
+  }
   const legacyRoot=new URL('../../cruise-studio-canary/',import.meta.url);
   assert.deepEqual(names.filter(n=>n.startsWith('apps/cruise-studio-canary/')).sort(),fs.readdirSync(legacyRoot,{recursive:true}).filter(n=>fs.statSync(new URL(n,legacyRoot)).isFile()).map(n=>'apps/cruise-studio-canary/'+n).sort());
   assert(RELEASE_FILES.includes('js/cloud/studio-session-adapter.mjs'));

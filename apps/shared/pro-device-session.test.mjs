@@ -51,13 +51,13 @@ async function fixture() {
             request: otherRequest, isCurrent: auth => current?.credential === auth.credential, ...options });
     }
     const session = client();
-    async function login(bound = true) {
+    async function login(bound = true, device = session) {
         const response = await request('/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ passcode: '0007', turnstileToken: 'isolated',
-                ...(bound ? { devicePublicKey: await session.publicKey() } : {}) }) });
+                ...(bound ? { devicePublicKey: await device.publicKey() } : {}) }) });
         assert.equal(response.status, 201);
         current = { v: 2, credential: response.body.credential, generation: response.body.generation, validatedAt: now };
-        if (bound) assert.equal(await session.accept(current, response.body.session), true);
+        if (bound) assert.equal(await device.accept(current, response.body.session), true);
         return current;
     }
     return { db, store, requests, session, client, login, request,
@@ -80,6 +80,21 @@ test('same browser restarts and several-day returns silently renew through the r
         const keys = f.store.values.get('device-key');
         assert.equal(keys.privateKey.extractable, false); assert.equal(keys.sealKey.extractable, false);
         await assert.rejects(webcrypto.subtle.exportKey('jwk', keys.privateKey));
+    } finally { f.db.close(); }
+});
+
+test('an existing Firefox ES256 public key keeps its binding across login and renewal', async () => {
+    const f = await fixture();
+    try {
+        const original = await f.session.publicKey();
+        const stored = f.store.values.get('device-key');
+        stored.publicKey = { ...original, alg: 'ES256' };
+        const reopened = f.client();
+        assert.deepEqual({ ...await reopened.publicKey() }, { ...original });
+        const auth = await f.login(true, reopened);
+        f.advance(DAY);
+        assert.equal((await f.client().validate(auth)).online, true);
+        assert.equal(f.store.values.get('device-key').privateKey, stored.privateKey);
     } finally { f.db.close(); }
 });
 

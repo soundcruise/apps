@@ -18,7 +18,7 @@
     }
     if (window.SoundCruiseProDeviceSession) { loadGate(); return; }
     const helper = document.createElement('script');
-    helper.src = '../../shared/pro-device-session.js?v=7';
+    helper.src = '../../shared/pro-device-session.js?v=8';
     helper.onload = loadGate;
     helper.onerror = fail;
     document.head.appendChild(helper);

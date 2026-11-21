@@ -87,6 +87,12 @@
                     keys = await store.install('device-key', { privateKey: pair.privateKey, publicKey, sealKey });
                 }
                 if (keys.privateKey?.extractable !== false || keys.sealKey?.extractable !== false) throw Error('Unsafe device key');
+                // Firefox includes the redundant JOSE algorithm in exported and previously stored JWKs.
+                if (keys.publicKey.alg === 'ES256') {
+                    const publicKey = { ...keys.publicKey };
+                    delete publicKey.alg;
+                    return { ...keys, publicKey };
+                }
                 return keys;
             })().catch(error => { materialPromise = null; throw error; });
             return materialPromise;

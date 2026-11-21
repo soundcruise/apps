@@ -5,7 +5,9 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {PRO_DIRECTORY,renderProEntry,renderProManifest,renderStandardEntry,renderStandardManifest} from './edition-layout.mjs';
+import {includeScoreDistribution} from './score-distribution.mjs';
 const studio=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+// Static Studio inputs. The final manifest also includes the generated score and viewer distribution.
 export const RELEASE_FILES=Object.freeze([
  'js/standard-surfaces.js','js/core/release-features.js','report-form.css','js/report-form.js','cloud-panel.css','js/cloud/document-codec.mjs','js/cloud/studio-transport.mjs','js/cloud/studio-session-adapter.mjs','js/cloud/studio-sync-client.mjs','js/cloud/cloud-panel.mjs','js/cloud/project-sync-host.mjs','js/cloud/canary-entry.mjs',
  PRO_DIRECTORY+'/manifest.webmanifest','assets/app-icons/pro/favicon-32.png','assets/app-icons/pro/apple-touch-icon-180.png','assets/app-icons/pro/icon-192.png','assets/app-icons/pro/icon-512.png','assets/app-icons/pro/icon-1024.png',
@@ -69,7 +71,7 @@ export const RELEASE_FILES=Object.freeze([
  'js/shell.js','js/port-pc.js','js/port-sync-status.mjs','js/modules/practice/port-surface.js','js/modules/tuner/port-surface.js','js/modules/metronome/port-surface.js','js/modules/library/port-surface.js',
  'js/modules/series/workspaces.js','js/modules/series/internal-app.mjs','js/modules/series/official-links.mjs','js/modules/series/presentation.mjs','js/modules/series/presentation.css'
 ]);
-export function packagePortPC(output){
+export function packagePortPC(output,{localCandidate=false}={}){
  const generated=fs.readFileSync(path.join(studio,PRO_DIRECTORY,'index.html'),'utf8');if(generated!==renderProEntry(fs.readFileSync(path.join(studio,'studio-template.html'),'utf8')))throw Error('pro-entry-out-of-date');
  const repo=path.resolve(studio,'../..'),out=path.resolve(output),parent=fs.realpathSync(path.dirname(out));
  if(parent===repo||parent.startsWith(repo+path.sep)||fs.existsSync(out))throw Error('new-external-output-directory-required');
@@ -78,11 +80,6 @@ export function packagePortPC(output){
   const source=path.join(studio,name),bytes=fs.readFileSync(source),target=path.join(destination,name);
   fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
  }
- // The preset catalogue uses the same SVG icons as the score viewer.
- const scoreIcons='apps/score-viewer/ui/icons.mjs';
- const iconBytes=fs.readFileSync(path.join(repo,scoreIcons)),iconTarget=path.join(out,scoreIcons);
- fs.mkdirSync(path.dirname(iconTarget),{recursive:true});fs.writeFileSync(iconTarget,iconBytes);
- files[scoreIcons]=createHash('sha256').update(iconBytes).digest('hex');
  // Generated root Standard entry is independently packaged, never the Pro template.
  for(const [name,bytes] of Object.entries({'index.html':renderStandardEntry(fs.readFileSync(path.join(studio,'studio-template.html'),'utf8')),'manifest.webmanifest':renderStandardManifest('0.88.1')})){
   const target=path.join(destination,name);fs.writeFileSync(target,bytes);files['apps/cruise-studio/'+name]=createHash('sha256').update(bytes).digest('hex');
@@ -93,10 +90,11 @@ export function packagePortPC(output){
  const version=fs.readFileSync(path.join(studio,'js/port-pc.js'),'utf8').match(/CS\.portPC=Object\.freeze\(\{version:'([^']+)'\}\)/)?.[1];
  if(!version)throw Error('studio-release-version-missing');
  if(fs.readFileSync(path.join(studio,PRO_DIRECTORY,'manifest.webmanifest'),'utf8')!==renderProManifest(version))throw Error('pro-manifest-out-of-date');
- const manifest={product:'Cruise Studio',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
+ const base={product:'Cruise Studio',version,sourceHead:execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),sourceDirty:!!execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),files,
   existingDeploymentDependencies:['apps/cruise-port/','apps/pitch-cruise/','apps/fretboard_cruise/','apps/rhythm-cruise/','apps/chord-cruise/','apps/shared/'],
   excluded:['development.html','legacy app.js and developer UI','Worker and migrations','native app releases/themes'],
   channel:'single-studio-operator-owner',edition:'standard-and-pro',entry:'apps/cruise-studio/'+PRO_DIRECTORY+'/',standardPublished:true,productionReady:false};
+ const manifest=includeScoreDistribution(out,base,localCandidate);
  fs.writeFileSync(path.join(out,'RELEASE-MANIFEST.json'),JSON.stringify(manifest,null,2)+'\n');return manifest;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

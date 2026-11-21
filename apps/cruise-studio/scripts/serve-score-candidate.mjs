@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 
 export function serveScoreCandidate(directory, port = 0) {
     const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'RELEASE-MANIFEST.json')));
-    if (manifest.channel !== 'local-score-release-candidate') throw Error('Score candidate required');
+    if (!['single-studio-operator-owner','local-score-release-candidate'].includes(manifest.channel) || !manifest.files[manifest.viewerEntry]) throw Error('Packaged score viewer required');
     const types = {html:'text/html',js:'text/javascript',mjs:'text/javascript',css:'text/css',json:'application/json',
         webmanifest:'application/manifest+json',svg:'image/svg+xml',png:'image/png',woff2:'font/woff2',wasm:'application/wasm'};
     const server = http.createServer((request,response) => {

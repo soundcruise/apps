@@ -4,21 +4,21 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const {createHash} = require('node:crypto');
-const {chromium, webkit} = require('playwright');
+const {chromium, firefox, webkit} = require('playwright');
 const {saveFromToolbar} = require('./helpers/viewer-regression-choices.cjs');
 
 let directory, manifest, output;
 const startServer=async()=> (await import('../scripts/serve-score-candidate.mjs')).serveScoreCandidate(output);
 const stopServer=server=>new Promise(resolve=>server.close(resolve));
 test.before(async () => {
-    const {packageScoreCandidate} = await import('../scripts/package-score-candidate.mjs');
+    const {packagePortPC} = await import('../scripts/package-port-pc.mjs');
     if (process.env.SCORE_CANDIDATE_DIR) {
         output = path.resolve(process.env.SCORE_CANDIDATE_DIR);
         manifest = JSON.parse(await fs.readFile(path.join(output,'RELEASE-MANIFEST.json'),'utf8'));
     } else {
         directory = await fs.mkdtemp(path.join(os.tmpdir(),'score-candidate-test-'));
         output = path.join(directory,'distribution');
-        manifest = packageScoreCandidate(output);
+        manifest = packagePortPC(output);
     }
     const {CRUISE_PORT_ROOT, PRO_ENTRY_PATH} = await import('../../cruise-port/cruise-port-edition.js');
     assert.deepEqual(manifest.portEntries, [CRUISE_PORT_ROOT, PRO_ENTRY_PATH].map(root => root.slice(1) + 'index.html'));
@@ -32,11 +32,11 @@ test.after(async () => {
     if(directory) await fs.rm(directory,{recursive:true,force:true});
 });
 
-for (const engine of ['chrome','webkit']) for (const edition of ['standard','pro'])
+for (const engine of ['chrome','webkit','firefox']) for (const edition of ['standard','pro'])
 test('packaged score creation, persistence, export and playback: '+engine+' '+edition,async t=>{
     const server=await startServer(), origin='http://127.0.0.1:'+server.address().port;
     t.after(()=>server.listening && stopServer(server));
-    const browser = await (engine==='chrome'?chromium.launch({channel:'chrome'}):webkit.launch());
+    const browser = await (engine==='chrome'?chromium.launch({channel:'chrome'}):engine==='firefox'?firefox.launch():webkit.launch());
     t.after(()=>browser.close());
     const missing = [], exceptions = [], external = [];
     async function open(url) {
@@ -117,7 +117,7 @@ test('packaged score creation, persistence, export and playback: '+engine+' '+ed
     });
     const exported=JSON.parse(bytes);
     assert.deepEqual(exported.score,saved);
-    assert.equal(exported.source.studioVersion,manifest.version);
+    assert.equal(exported.source.studioVersion,manifest.scoreVersion);
     await editor.click('[data-viewer-action=play]');
     await editor.waitForFunction(async()=>{
         const playing=(await CruiseStudio.scoreViewer.ready()).playback();
@@ -301,6 +301,9 @@ for (const model of ['iPhone 13', 'Pixel 7', 'iPad (gen 7)', 'Galaxy Tab S4']) {
                     if (url.origin === origin || ['blob:', 'data:'].includes(url.protocol)) return route.continue();
                     failures.push(url.origin);return route.abort();
                 });
+                // The Port requests news from its loopback preview API; the distribution supplies the UI.
+                await context.route(origin+'/__cruise_preview/news?*', route =>
+                    route.fulfill({json:{contractVersion:1, items:[]}}));
                 page.on('pageerror', e => failures.push(e.message));
                 page.on('response', r => {if(r.status()>=400) failures.push(r.status()+' '+new URL(r.url()).pathname);});
                 const home = origin + '/' + entry.replace(/index\.html$/, '');

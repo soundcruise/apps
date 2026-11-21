@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import path from 'node:path';
+import os from 'node:os';
 import { listComponents, getAppVersion } from '../js/core/component-metadata.mjs';
 import { verifyComponentVersion } from '../js/core/version-reader.mjs';
-import { RELEASE_FILES } from '../scripts/package-port-pc.mjs';
+import { packagePortPC } from '../scripts/package-port-pc.mjs';
 
 const studio = new URL('../', import.meta.url), root = new URL('../../../', import.meta.url);
 const read = url => readFileSync(url, 'utf8');
@@ -44,14 +46,18 @@ test('F3: every Studio HTML product asset has the current Studio cache key', () 
     for (const ref of refs) assert.equal(ref.search, '?v=' + getAppVersion('cruise-studio'), ref.href);
 });
 
-test('F3: published internal ESM dependencies resolve inside the release and share the current Studio cache identity', () => {
+test('F3: published internal ESM dependencies resolve inside the release and share the current Studio cache identity', t => {
+    const temp=mkdtempSync(path.join(os.tmpdir(),'studio-cache-'));
+    t.after(()=>rmSync(temp,{recursive:true,force:true}));
+    const out=path.join(temp,'distribution'), {files}=packagePortPC(out);
+    const root=pathToFileURL(out+'/'), studioPath=new URL('apps/cruise-studio/',root).pathname;
     const refs=[];
-    for (const name of RELEASE_FILES.filter(n=>n.endsWith('.mjs'))) {
-        const file=new URL(name,studio);
-        for (const match of read(file).matchAll(/(?:from\s*|import\s*\()\s*['"]([.][^'"\s]+)['"]/g)) {
+    for (const name of Object.keys(files).filter(n=>n.startsWith('apps/cruise-studio/js/') && n.endsWith('.mjs'))) {
+        const file=new URL(name,root);
+        for (const match of read(file).matchAll(/(?:from\s*|import\s*\(\s*)['"]([.][^'"\s]+)['"]/g)) {
             const ref=new URL(match[1],file);
-            if(!ref.pathname.startsWith(studio.pathname))continue;
-            assert(RELEASE_FILES.includes(ref.pathname.slice(studio.pathname.length)),name+': missing release dependency '+match[1]);
+            if(!ref.pathname.startsWith(studioPath))continue;
+            assert(Object.hasOwn(files,ref.pathname.slice(root.pathname.length)),name+': missing release dependency '+match[1]);
             if(ref.search)assert.equal(ref.search,'?v='+getAppVersion('cruise-studio'),name+': '+match[1]);
             refs.push(ref);
         }
