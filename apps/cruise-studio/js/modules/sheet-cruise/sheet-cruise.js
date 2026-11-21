@@ -669,7 +669,7 @@
         var actions=els.toolbar.querySelector('.sheet-toolbar-actions'),primary=group('sc-toolbar-primary');
         actions.prepend(primary);
         var caption=group('sc-playback-caption');caption.append(q('sc-song-target'),q('sc-song-position'));
-        countInEnabled=CS().storage.getAppSetting('scoreCountIn')===true;metronomeEnabled=CS().storage.getAppSetting('scoreMetronome')===true;
+        countInEnabled=CS().storage.getAppSetting('scoreCountIn')===true;metronomeEnabled=CS().storage.getAppSetting('scoreMetronome')!==false;
         playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(CS().storage.getAppSetting('scoreVisualDelayMs'))||0));metronomeSound=['click','wood','beep','hihat'].includes(CS().storage.getAppSetting('scoreMetronomeSound'))?CS().storage.getAppSetting('scoreMetronomeSound'):'click';var storedMix=CS().storage.getAppSetting('scorePlaybackMix');Object.keys(playbackMix).forEach(function(key){var value=storedMix?.[key];if(typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=100)playbackMix[key]=value;});
         var playbackSettingsButton=button('sc-playback-settings','音設定',function(){openPlaybackSettings(playbackSettingsButton);});playbackSettingsButton.setAttribute('aria-haspopup','dialog');playbackSettingsButton.addEventListener('pointerdown',function(e){if(e.button===0)e.preventDefault();});
         var history=group('sc-toolbar-history'),historyButton=button('sc-history','履歴',function(){openSheetAction('history',historyButton);});historyButton.classList.add('sc-history-toggle');historyButton.setAttribute('aria-haspopup','dialog');history.append(els.undoBtn,els.redoBtn,historyButton);
@@ -1427,6 +1427,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-file-list footer button{min-height:40px;padding:8px 14px;border-radius:8px;}
 .sc-file-list [role=status]:empty{display:none;}
 .sc-save-place .sc-save-source{display:inline-block;margin:0 0 18px;font-size:.82rem;}
+.sc-save-place p.sc-export-instructions{line-height:2.1;}
+
 .sc-save-place a[download]{font-weight:700;text-decoration:underline;white-space:nowrap;}
 .sc-save-place footer+details{margin:16px 0 0;padding-top:12px;border-top:1px solid var(--studio-border-default);font-size:.82rem;}
 .sc-file-command-list{display:grid;gap:4px;max-height:55vh;overflow:auto;}
@@ -2574,7 +2576,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             viewport.scrollLeft=overflow*progress;
         }
     }
-    var previewLoopPeriod=0,previewCountIn=null,countInEnabled=false,metronomeEnabled=false,playbackNotice=null,practiceBpm=null,practiceOwner=null,editorRepeat=false,autoRangeRepeat=false,lastAutoRange='',previewRangeActive=false,syncSoundModes=null,scoreFullscreen=null,practiceRestart=0,practicePending=null,previewStartOffset=0;
+    var previewLoopPeriod=0,previewCountIn=null,countInEnabled=false,metronomeEnabled=true,playbackNotice=null,practiceBpm=null,practiceOwner=null,editorRepeat=false,autoRangeRepeat=false,lastAutoRange='',previewRangeActive=false,syncSoundModes=null,scoreFullscreen=null,practiceRestart=0,practicePending=null,previewStartOffset=0;
     function paintPlayhead(){
         previewRAF=null;if(barPreviewPhase!=='playing'||!pianoAudition)return;
         if(!currentFrame(previewFrame)||!state.active||document.hidden){stopPianoAudition();return;}
@@ -6148,7 +6150,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         explanation.textContent=(browser==='Safari'||browser==='Firefox'?browser:'この環境')+'では「名前をつけて保存」は使えません。';
         const alternative=document.createElement('p');
         link.textContent='JSONを書き出す';
-        alternative.append(link,'と、ブラウザで指定したダウンロード先に譜面を保存できます。');
+        alternative.className='sc-export-instructions';
+        alternative.append(link,'と、ブラウザで指定したダウンロード先に譜面ファイルを保存できます。');
         link.addEventListener('click',event=>{
             if(state.session!==session || session.snapshotVersion!==version){
                 event.preventDefault();
