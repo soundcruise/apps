@@ -1,3 +1,4 @@
+import {diagramBarres} from './form-cycle.mjs';
 import {diagramFrets} from './form-range.mjs';
 // Form-only drawing: code names belong to the caller, so paper may reuse this without a title.
 // One adapter for the original owner renderer; gestures never write outside Session.
@@ -6,7 +7,7 @@ export function formDiagramOptions(snapshot,chord,explore,{monochrome=false,mode
         const midi=snapshot.tuningMidi[n.string-1]+snapshot.capo+n.relativeFret,pc=(midi%12+12)%12,interval=(pc-chord.rootPc+12)%12;
         const label=mode==='finger'?explore.readFingerLabel(n.finger)||(n.fingeringWarning?'⚠':''):explore.readMarkerLabel(chord,pc,interval,n.finger,n.fingeringWarning);
         return {string:n.string,fret:n.relativeFret,label,role:explore.readMarkerRole(chord,interval),fingeringWarning:mode==='finger'&&!!n.fingeringWarning,tappable:!!onSlotTap&&mode==='finger',ariaLabel:n.string+'弦 '+n.relativeFret+'フレット、'+(label||'指未指定')+'。クリックで指を変更'};
-    }),mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:snapshot.barres.map(b=>({...b,fret:b.relativeFret})),markerLabelSize:'medium',onSlotTap:mode==='finger'?onSlotTap:undefined,onEmptySlotTap:mode==='finger'?onEmptySlotTap:undefined};
+    }),mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:diagramBarres(snapshot).map(b=>({...b,fret:b.relativeFret})),markerLabelSize:'medium',onSlotTap:mode==='finger'?onSlotTap:undefined,onEmptySlotTap:mode==='finger'?onEmptySlotTap:undefined};
 }
 export function drawChordForm(fretboard,container,snapshot,chord,explore,monochrome=true,interaction={}){
     container.replaceChildren();if(!snapshot){container.textContent='フォーム候補がありません';return ()=>{};}

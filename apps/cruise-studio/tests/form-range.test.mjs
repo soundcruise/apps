@@ -27,3 +27,22 @@ test('manual windows distinguish stored diagrams and preserve the musical confir
     assert.notEqual(contentKey(original),contentKey(manual));
     assert.equal(basisKey(song,event,original,binding.playedStrings),basisKey(song,event,manual,binding.playedStrings));
 });
+
+test('infer index barres only across compatible strings, keeping explicit spans and the score intact',async()=>{
+    const {diagramBarres}=await import('../js/modules/sheet-cruise/form-cycle.mjs');
+    const barre={finger:1,relativeFret:5,fromString:1,toString:5};
+    function shape(middle,barres=[]){
+        const strings=[[5,1],...middle,[5,1],null].map((pair,i)=>pair?
+            {string:i+1,kind:'note',relativeFret:pair[0],finger:pair[1]}:{string:i+1,kind:'muted'});
+        return {strings,barres};
+    }
+    const dm=shape([[6,2],[7,4],[7,3]]);
+    assert.deepEqual(diagramBarres(dm),[barre]);
+    assert.deepEqual(dm.barres,[]);
+    const partial={...barre,toString:3};
+    assert.deepEqual(diagramBarres(shape([[7,4],[5,1],[7,3]],[partial])),[barre]);
+    assert.deepEqual(diagramBarres({...dm,barres:[barre]}),[barre]);
+    for(const gap of [null,[0,null],[4,2],[5,2],[7,1]]){
+        assert.deepEqual(diagramBarres(shape([[7,4],gap,[7,3]])),[]);
+    }
+});

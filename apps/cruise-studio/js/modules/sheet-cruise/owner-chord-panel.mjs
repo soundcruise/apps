@@ -443,6 +443,7 @@ const layoutCSS=`
 .score-detail-chord{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px;margin:10px 0;}
 .score-detail-chord #cc-explore-fretboard-name{margin:0;padding:0;font-size:32px;line-height:1.2;}
 .score-detail-play.cc-btn{font-size:12px;min-width:0;min-height:30px;line-height:1.3;padding:5px 10px;border-radius:8px;}
+.cc-fb-card [data-save-to-book]{display:block;width:fit-content;margin:14px 0 0 auto;padding:6px 12px;min-height:32px;font-size:13px;line-height:1.4;}
 .score-fretboard-modes{display:flex;width:fit-content;max-width:100%;margin:14px auto 0;}
 .score-fretboard-modes .cc-segment-btn{font-size:13px;padding:7px 14px;min-width:0;}
 .score-chord-diagram .cc-fb-mute[role=button]{cursor:pointer;}

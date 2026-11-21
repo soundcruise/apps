@@ -1352,7 +1352,7 @@
     var lastPaperColumns;
     function paperRenderOptions(project,version=state.session?.snapshotVersion,editableCatalogue=false){
         const owner=state.session;
-        var layout=CS().localPaperLayout?.renderOptions(project,els.root,editableCatalogue?id=>editRegisteredForm(owner,id):undefined),defaultForms=effectivePaperVisibility(project).forms;
+        var layout=CS().localPaperLayout?.renderOptions(project,els.root,editableCatalogue?selection=>{if(owner.snapshotVersion!==version)return;if(Array.isArray(selection))openCatalogueFormEditor(owner,selection);else editRegisteredForm(owner,selection);}:undefined),defaultForms=effectivePaperVisibility(project).forms;
         lastPaperColumns=layout?.barsPerLine;
         var forms=(defaultForms||layout?.sectionRules.some(rule=>rule.visibility?.forms))&&CS().localPaperForms?.view(project,{scale:CS().localPaperLayout?.value.formScale});
         const rowSettings=state.lyricBeatResV2.get(state.session);
@@ -1476,6 +1476,25 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-playback-dialog::backdrop{background:#10182066;}.sc-playback-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px;}.sc-playback-dialog h2{font-size:20px;margin:0;}.sc-playback-dialog header{flex-wrap:wrap}.sc-playback-dialog [data-playback-settings-play]{background:var(--studio-accent);color:#201b11;border-color:var(--studio-accent)}.sc-audio-sync{border-top:1px solid var(--studio-border-default);padding-top:12px;margin-top:16px}.sc-audio-sync summary{cursor:pointer;font-size:12px}.sc-audio-sync label{display:flex;align-items:center;gap:8px;margin:12px 0}.sc-audio-sync input{min-width:0;flex:1;accent-color:var(--studio-accent)}.sc-playback-dialog h3{font-size:14px;margin:0 0 8px;color:var(--studio-accent);}.sc-playback-dialog section{margin-top:20px;}.sc-playback-dialog button{font:inherit;padding:6px 12px;border:1px solid var(--studio-border-default);border-radius:7px;background:var(--studio-control);color:inherit;cursor:pointer;}.sc-playback-note{font-size:11px;color:var(--studio-text-secondary);margin:6px 0;}.sc-volume-row{display:block;margin:12px 0;}.sc-volume-row>span{display:flex;justify-content:space-between;gap:8px;}.sc-volume-row input{display:block;box-sizing:border-box;width:100%;margin:7px 0;accent-color:var(--studio-accent);}.sc-playback-dialog .sc-playback-reset{font-size:11px;padding:4px 8px;}.sc-playback-dialog .sc-playback-option{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0;}.sc-playback-dialog .sc-playback-option small{flex-basis:100%;padding-left:24px;color:var(--studio-text-secondary);font-size:11px;}.sc-playback-dialog input[type=checkbox]{accent-color:var(--studio-accent);width:16px;height:16px;margin:0;}.sc-playback-dialog [data-playback-settings-notice]{font-size:12px;color:#e9b8ac;}
 @media print{.sc-playback-dialog,.sc-playback-dialog::backdrop{display:none!important;}}
 
+.sc-catalogue-edit{width:min(590px,calc(100vw - 24px))}
+.sc-catalogue-edit h2{margin:0;font-size:20px}
+.sc-catalogue-edit p{margin:8px 0}
+.sc-catalogue-edit details{margin-bottom:16px;color:var(--studio-text-secondary)}
+.sc-catalogue-edit details p{max-height:5em;overflow:auto}
+.sc-catalogue-edit label{display:flex;align-items:center;gap:12px}
+.sc-catalogue-edit input,.sc-catalogue-edit select{box-sizing:border-box;min-height:32px;padding:4px 8px;border:1px solid var(--studio-border-default);border-radius:6px;background-color:var(--studio-control);color:inherit;font:inherit}
+.sc-catalogue-edit input{min-width:0;flex:1}
+.sc-bulk-form-body{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;margin:16px 0}
+.sc-bulk-form-body figure{margin:0;padding:8px;background:white;color:#252525;border-radius:8px}
+.sc-bulk-form-body svg{display:block;width:100%;height:auto}
+.sc-bulk-form-body table{border-spacing:4px}
+.sc-bulk-form-body select{width:100%;padding-right:28px}
+.sc-bulk-form-body select:disabled{opacity:.5}
+.sc-bulk-form-body th{font-size:12px;font-weight:600;text-align:left;padding-right:4px}
+.sc-catalogue-edit footer{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--studio-border-default);padding-top:14px;margin-top:16px}
+.sc-catalogue-edit footer button:last-child{background:var(--studio-accent);color:#211b12}
+.sc-catalogue-edit button:disabled{opacity:.5}
+@media(max-width:520px){.sc-bulk-form-body{grid-template-columns:1fr}.sc-bulk-form-body figure{max-width:150px;margin:auto}}
 .sc-form-dialog header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:6px;}
 .sc-form-dialog h2{margin:0;font-size:24px;}
 .sc-form-dialog button{border:1px solid #a0a7ae;border-radius:7px;background:white;color:#273440;padding:6px 12px;cursor:pointer;}
@@ -5624,6 +5643,34 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
     function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.204.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
+    async function openCatalogueFormEditor(owner,ids){
+        if(owner!==state.session||!editorCanMove()||historyPreview)return;
+        const C=CS(),project=owner.workingSnapshot(),ticket=C.structureOperations.capture(owner);
+        const selected=new Set(ids),positions=[];
+        for(const [index,bar] of project.bars.entries())for(const event of bar.chords){
+            if(selected.has(event.id))positions.push('第'+(index+1)+'小節・'+(1+event.onsetTick/480)+'拍目');
+        }
+        if(positions.length!==selected.size||selected.size<2)return;
+        let editor;
+        try{editor=await import('./catalogue-form-editor.mjs');}catch(_){setSaveStatus('一括編集画面を開けませんでした',true);return;}
+        if(!C.structureOperations.isCurrent(ticket,state.session)||!editorCanMove())return;
+        const entry=C.localPaperForms.catalogue(project).find(item=>item.eventId===ids[0]);
+        if(!entry)return;
+        closePaperForm();
+        const dialog=document.createElement('dialog');
+        dialog.className='sc-playback-dialog sc-catalogue-edit';
+        els.root.append(dialog);formDialog=dialog;
+        dialog.addEventListener('close',()=>{if(formDialog===dialog)formDialog=null;dialog.remove();},{once:true});
+        editor.buildCatalogueEditor(dialog,{project,entry,positions,forms:C.localChordForms,schema:C.model.schema2,paper:C.localPaperForms,
+            apply(symbol,replacement){
+                if(!C.structureOperations.isCurrent(ticket,state.session))return {ok:false,error:'譜面が変わりました。開き直してください。'};
+                const result=C.localChordForms.replaceCatalogueForms(owner,ids,symbol,replacement);
+                if(result.ok){closePaperForm();redrawSession(false);setSaveStatus(ids.length+'箇所を変更しました（未保存）');}
+                return result;
+            }
+        });
+        dialog.showModal();
+    }
     function editRegisteredForm(owner,eventId){
         if(owner!==state.session||!editorCanMove()||historyPreview)return;
         const project=owner.workingSnapshot(),index=project.bars.findIndex(bar=>bar.chords.some(chord=>chord.id===eventId));
@@ -5635,7 +5682,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         Object.assign(chordPicker,{open:true,owner,barId:bar.id,tick:chord.onsetTick,formEventId:eventId,formEntry:{unopened:true}});
         editSelectedBar();
         if(editorPlacement!=='right'){
-            state.loupe.y=clampLoupeY(0);
+            state.loupe.y=clampLoupeY(Math.min(112,getLoupeSafeArea().height*0.12));
             applyLoupeGeometry();
         }
         els.slotOverlay.scrollTop=0;

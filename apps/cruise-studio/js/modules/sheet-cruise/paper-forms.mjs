@@ -1,6 +1,6 @@
 import {bindOutsideDismiss} from '../score-ui.mjs';
 import {diagramFrets} from './form-range.mjs';
-import {playedSnapshot} from './form-cycle.mjs';
+import {playedSnapshot,diagramBarres} from './form-cycle.mjs';
 // Read-only registered forms, rendered with the owner's static SVG (no title/UI).
 export function registeredPaperForms(project){
     const materials=new Map(project.materials.forms.map(m=>[m.id,m])),bindings=new Map(project.performance.formBindings.map(b=>[b.chordEventId,b]));
@@ -31,7 +31,7 @@ export function createPaperForms(renderer,doc=document){
         const notes=snapshot.strings.filter(n=>n.kind==='note'),frets=diagramFrets(snapshot,showZero),open=frets[0]===0;
         const options={monochrome:true,frets,openStringNutOnly:open,monochromeViewportLeftCrop:open?12:0,monochromeFretNumberYOffset:10,
             markers:notes.map(n=>({string:n.string,fret:n.relativeFret,label:fingers?(labels[n.finger]||(n.fingeringWarning?'⚠':'')):'',role:'root'})),
-            mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:snapshot.barres.map(b=>({...b,fret:b.relativeFret})),markerLabelFontSize:18,fretNumberScale:19/13};
+            mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:diagramBarres(snapshot).map(b=>({...b,fret:b.relativeFret})),markerLabelFontSize:18,fretNumberScale:19/13};
         return options;
     }
     function svg(snapshot,fingers,showZero=false){
@@ -52,7 +52,13 @@ export function createPaperForms(renderer,doc=document){
     function styles(){if(doc.getElementById?.('sc-form-list-style'))return;const style=doc.createElement('style');style.id='sc-form-list-style';style.textContent=`
 .sc-form-list{max-width:738px;margin-top:28px;padding-top:18px;border-top:1px solid #aaa59b;break-before:auto}.sc-form-list h2{font:600 16px system-ui;margin:0 0 16px}.sc-form-list-grid{display:grid;grid-template-columns:repeat(auto-fill,min(100%,calc(100px * var(--sc-form-list-scale,1))));gap:16px}.sc-form-list .sc-form-list-item{display:grid;align-content:start;gap:6px;min-width:0;width:100%;box-sizing:border-box;background:transparent;border:0;color:#29251f;text-align:center;cursor:zoom-in;break-inside:avoid;padding:4px}.sc-form-list-item strong{color:#29251f;font:600 16px system-ui}.sc-form-list-item svg{display:block;width:100%;height:auto}.sc-readonly-form{position:fixed;inset:0;margin:auto;height:fit-content;box-sizing:border-box;width:min(400px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:18px;background:#fffdf7;color:#29251f;border:1px solid #8b857a;border-radius:14px}.sc-readonly-form::backdrop{background:#10182088}.sc-readonly-form header{display:flex;align-items:center;gap:12px}.sc-readonly-form h2{flex:1;text-align:center;font:650 26px system-ui;margin:8px 0}.sc-readonly-form label{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 0;color:#29251f;font:14px system-ui}.sc-readonly-form select{max-width:65%;padding:4px 8px}.sc-readonly-form button{color:inherit;font:14px system-ui;padding:8px 12px;border:1px solid #aaa59b;border-radius:7px;background:transparent;cursor:pointer}.sc-readonly-form figure{margin:12px 0 0}.sc-readonly-form svg{display:block;width:100%;height:auto}@media print{.sc-readonly-form{display:none!important}.sc-form-list-item{cursor:default}.sc-form-list{color:#29251f}}
 `;doc.head.append(style);}
-    function catalogue(project){const seen=new Set();return registeredPaperForms(project).flat().filter(e=>{const key=JSON.stringify([e.symbol,e.snapshot]);if(seen.has(key))return false;seen.add(key);return true;});}
+    function catalogueKey(entry){
+        const s=entry.snapshot;
+        const strings=s.strings.map(n=>n.kind==='muted'?'x':[n.relativeFret,n.finger,n.fingeringWarning]);
+        const barres=diagramBarres(s).map(b=>[Number(b.finger),b.relativeFret,b.fromString,b.toString]).sort();
+        return JSON.stringify([entry.symbol,s.capo,s.tuningMidi,s.maxAbsoluteFret,strings,barres,s.displayRange?.min,s.displayRange?.max]);
+    }
+    function catalogue(project){const seen=new Set();return registeredPaperForms(project).flat().filter(e=>{const key=catalogueKey(e);if(seen.has(key))return false;seen.add(key);return true;});}
     function closeZoom(){zoomDialog?.close();zoomDialog=null;}
     function zoom(project,eventId,onEdit){
         const rows=registeredPaperForms(project),entry=rows.flat().find(item=>item.eventId===eventId);
@@ -61,21 +67,24 @@ export function createPaperForms(renderer,doc=document){
         const previous=doc.activeElement,dialog=doc.createElement('dialog'),header=doc.createElement('header');
         const title=doc.createElement('h2'),close=doc.createElement('button'),figure=doc.createElement('figure');
         let targetId=eventId,editing=false;
+        const occurrences=[];
         zoomDialog=dialog;dialog.className='sc-readonly-form';dialog.setAttribute('aria-label',entry.symbol+'のコードフォーム');
         header.className='score-form-header';title.textContent=entry.symbol;close.type='button';close.textContent='閉じる';
         close.onclick=()=>dialog.close();header.append(title,close);dialog.append(header);
         if(onEdit){
             const edit=doc.createElement('button');edit.type='button';edit.textContent='編集';edit.dataset.paperFormEdit='';
-            edit.onclick=()=>{editing=true;dialog.close();onEdit(targetId);};header.prepend(edit);
-            const select=doc.createElement('select'),key=JSON.stringify(entry.snapshot);
+            edit.onclick=()=>{editing=true;dialog.close();onEdit(targetId || occurrences);};header.prepend(edit);
+            const select=doc.createElement('select'),key=catalogueKey(entry);
             rows.forEach((items,index)=>items.forEach(item=>{
-                if(item.symbol!==entry.symbol||JSON.stringify(item.snapshot)!==key)return;
+                if(item.symbol!==entry.symbol||catalogueKey(item)!==key)return;
+                occurrences.push(item.eventId);
                 const option=doc.createElement('option');option.value=item.eventId;
                 option.textContent='第'+(index+1)+'小節・'+(1+item.tick/480)+'拍目';select.append(option);
             }));
             if(select.options.length>1){
                 const label=doc.createElement('label');label.textContent='編集する位置 ';
-                select.value=eventId;select.onchange=()=>{targetId=select.value;};label.append(select);dialog.append(label);
+                const all=doc.createElement('option');all.value='';all.textContent='全て';select.prepend(all);
+                targetId=select.value='';select.onchange=()=>{targetId=select.value;};label.append(select);dialog.append(label);
             }
         }
         appendSvg(figure,svg(entry.snapshot,true,true));dialog.append(figure);

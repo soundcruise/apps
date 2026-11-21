@@ -8,14 +8,14 @@ async function fixture() {
     const {createUITestProject} = await import('../scripts/create-ui-test-project.mjs');
     const song = createUITestProject();
     const events = song.bars.flatMap(bar=>bar.chords).slice(0,3);
-    function place(event, symbol, frets) {
+    function place(event, symbol, frets, fingers=[]) {
         event.symbol=symbol;
         const binding=song.performance.formBindings.find(b=>b.chordEventId===event.id);
         const material=structuredClone(song.materials.forms.find(m=>m.id===binding.materialId));
         material.id=randomUUID();
         material.provenance.sourceSymbol=symbol;
         material.snapshot.strings=frets.map((f,i)=>f===null?{string:i+1,kind:'muted'}:
-            {string:i+1,kind:'note',relativeFret:f,finger:f?1:null,fingeringWarning:false});
+            {string:i+1,kind:'note',relativeFret:f,finger:f?(fingers[i]??1):null,fingeringWarning:false});
         material.snapshot.barres=[];
         song.materials.forms.push(material);
         binding.materialId=material.id;
@@ -29,7 +29,10 @@ async function fixture() {
     Object.assign(song.performance.formBindings.find(b=>b.chordEventId===events[2].id),
         {...g,id:randomUUID(),chordEventId:events[2].id});
     events[2].symbol='G';
-    return {song, ids:events.map(e=>e.id)};
+    const examples=song.bars[2].chords;
+    place(examples[0],'Dm',[5,6,7,7,5,null],[1,2,4,3,1]);
+    place(examples[1],'G7',[10,12,10,12,10,null],[1,4,1,3,1]);
+    return {song, ids:events.map(e=>e.id), barreIds:examples.map(e=>e.id)};
 }
 const labels = box=>box.locator('.cc-fb-fret-number').allTextContents();
 const model = p=>p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
@@ -38,7 +41,7 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
     try {
         const context=await browser.newContext({viewport:{width:1500,height:1100},serviceWorkers:'block'});
         await context.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
-        const page=await context.newPage(), {song,ids}=await fixture();
+        const page=await context.newPage(), {song,ids,barreIds}=await fixture();
         page.setDefaultTimeout(8000);
         await page.goto(origin);
         await page.click('#open-sheet-cruise');
@@ -77,12 +80,59 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         }
         await list.click();
         const zoom=page.locator('dialog.sc-readonly-form[open]');
+        async function expectBarres(p){
+            for(const id of barreIds){
+                const form=p.locator('.sheet-form-event[data-form-event="'+id+'"]').first();
+                assert.equal(await form.locator('rect[fill="#d8d8d8"]').count(),1);
+            }
+        }
+        await expectBarres(page);
+        const chooser=zoom.getByLabel('編集する位置');
+        assert.equal(await chooser.locator('option').first().textContent(),'全て');
+        assert.equal(await chooser.inputValue(),'');
+        const bulk=page.getByRole('dialog',{name:'コードとフォームの一括編集'});
+        const editAll=async()=>{
+            await zoom.getByRole('button',{name:'編集',exact:true}).click();
+            await bulk.getByLabel(/^コード名/).fill('Dm');
+            await bulk.getByLabel('2弦のフレット').selectOption('6');
+            await bulk.getByLabel('2弦の運指').selectOption('3');
+        };
+        const beforeBulk=await model(page);
+        await zoom.getByRole('button',{name:'編集',exact:true}).click();
+        await bulk.getByLabel(/^コード名/).fill('Em');
+        await bulk.getByRole('button',{name:'コードに合うフォームを使う'}).click();
+        assert.equal(await bulk.getByLabel('1弦のフレット').inputValue(),'0');
+        await bulk.getByText('キャンセル',{exact:true}).click();
+        assert.deepEqual(await model(page),beforeBulk);
+        await list.click();await editAll();
+        await bulk.getByRole('button',{name:'2箇所に反映'}).click();
+        if(await bulk.isVisible())assert.fail(await bulk.innerText());
+        const bulkSong=await model(page);
+        for(const [bi,bar] of bulkSong.bars.entries())for(const [ei,e] of bar.chords.entries()){
+            const binding=(p)=>p.performance.formBindings.find(b=>b.chordEventId===e.id);
+            if(e.id===ids[0]||e.id===ids[2]){
+                assert.equal(e.symbol,'Dm');
+                const note=bulkSong.materials.forms.find(m=>m.id===binding(bulkSong).materialId).snapshot.strings[1];
+                assert.equal(note.relativeFret,6);assert.equal(note.finger,3);
+            }else{
+                assert.deepEqual(e,beforeBulk.bars[bi].chords[ei]);
+                assert.deepEqual(binding(bulkSong),binding(beforeBulk));
+            }
+        }
+        await page.click('#sc-undo');
+        assert.deepEqual((await model(page)).bars,beforeBulk.bars);
+        assert.deepEqual((await model(page)).performance,beforeBulk.performance);
+        await page.click('#sc-redo');
+        assert.deepEqual((await model(page)).bars,bulkSong.bars);
+        assert.deepEqual((await model(page)).performance,bulkSong.performance);
+        await page.click('#sc-undo');
+        await list.click();
         await zoom.getByLabel('編集する位置').selectOption(ids[2]);
         await zoom.getByRole('button',{name:'編集',exact:true}).click();
         await openAdvancedFromForm();
         await page.locator('.score-form-range').waitFor();
         const overlay=page.locator('#sc-slot-overlay');
-        assert.equal(Math.round((await overlay.boundingBox()).y),0);
+        assert((await overlay.boundingBox()).y>=90 && (await overlay.boundingBox()).y<=113);
         const duplicateRange=page.locator('.score-form-range').getByLabel('開始');
         await duplicateRange.fill('7');await duplicateRange.press('Enter');
         await page.click('.slot-overlay-close');
@@ -119,8 +169,13 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
             await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+by*step,y,{steps:5});await page.mouse.up();
         }
         await expectRange(8,10,true);
-        assert.equal(Math.round((await overlay.boundingBox()).y),0);
+        assert((await overlay.boundingBox()).y>=90 && (await overlay.boundingBox()).y<=113);
         const saveToBook=page.getByRole('button',{name:'コード本棚に保存',exact:true});
+        const geometry=await saveToBook.evaluate(e=>{
+            const r=e.getBoundingClientRect(),card=e.closest('.cc-fb-card').getBoundingClientRect();
+            return {width:r.width,height:r.height,right:card.right-r.right,margin:parseFloat(getComputedStyle(e).marginTop)};
+        });
+        assert(geometry.width<=150&&geometry.height<=36&&geometry.margin>=10&&geometry.right>=8&&geometry.right<=26,JSON.stringify(geometry));
         const newBookTab=async()=>{
             const pending=context.waitForEvent('page');
             await saveToBook.click();
@@ -179,6 +234,7 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         await page.emulateMedia({media:'print'});
         await page.evaluate(()=>window.dispatchEvent(new Event('beforeprint')));
         assert(await g.isVisible());assert.deepEqual(await labels(g),manual);assert.deepEqual(await labels(am),['4','5','6']);
+        await expectBarres(page);
         if(engine==='chrome')assert((await page.pdf()).length>1000);
         await page.emulateMedia({media:'screen'});
         await page.click('#sc-curve-menu-toggle');await page.click('#sc-export-viewer');
@@ -194,7 +250,7 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         const viewer=await context.newPage();
         await viewer.goto(origin+'/apps/score-viewer/local/');
         await viewer.locator('[data-viewer-file]').setInputFiles({name:'range.cruise-score.json',mimeType:'application/json',buffer:Buffer.from(text)});
-        await box(viewer,0).waitFor();
+        await box(viewer,0).waitFor();await expectBarres(viewer);
         await viewer.locator('.sc-form-list-item').first().click();
         assert.equal(await viewer.locator('.sc-readonly-form[open] button').count(),1);
         await viewer.getByRole('dialog').getByRole('button',{name:'閉じる'}).click();

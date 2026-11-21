@@ -89,6 +89,50 @@ export function createFormAuthoring(C,base){
                 install(p,e,copy,'fixed',selectedStrings);const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));},{requireUndo:true,preserveAppliedUndo:true});
         }catch(e){return {ok:false,error:e.message};}
     }
+    function replaceCatalogueForms(session,ids,symbol,replacement){
+        const revision=C.repository.readRevision(session.target);
+        if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||
+           session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||
+           !revision.ok||revision.revision!==session.baseRevision)return {ok:false,error:'編集対象が変わりました。開き直してください。'};
+        if(!authorize(session))return {ok:false,error:'楽器条件の確認をキャンセルしました。'};
+        return session.runOperation('コードとフォームを一括変更',p=>{
+            const playKey=schema.readStructureProjection(p).songInfo.playKey;
+            const wanted=new Set(ids),bindings=new Map(p.performance.formBindings.map(b=>[b.chordEventId,b]));
+            const forms=new Map(p.materials.forms.map(m=>[m.id,m])),groups=new Map(),copies=new Map();
+            initialize(p);
+            for(const bar of p.bars)for(const event of bar.chords){
+                if(!wanted.delete(event.id))continue;
+                const binding=bindings.get(event.id),old=forms.get(binding?.materialId);
+                if(!old)throw Error('対象のフォームが見つかりません。');
+                const originalId=old.id;
+                // A rename retains each occurrence's muted notes and played-string selection.
+                const sourceKey=replacement?'replacement':originalId;
+                let stored=copies.get(sourceKey);
+                if(!stored){
+                    const source=replacement||old;
+                    if(source.snapshot.capo!==p.instrument.capo||source.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret||
+                        JSON.stringify(source.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning))throw Error('曲とフォームの楽器条件が異なります。');
+                    stored=storeMaterial(p,material(source.snapshot,symbol,'manual',null,source.provenance.shape));
+                    copies.set(sourceKey,stored);
+                }
+                if(event.symbol!==symbol){
+                    event.symbol=symbol;event.unresolved=false;
+                    event.provenance={origin:'user-set',sourceBasis:{playKey,capo:p.instrument.capo}};
+                }
+                if(replacement)binding.playedStrings=stored.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string);
+                binding.materialId=stored.id;binding.mode='fixed';
+                binding.confirmation={status:'confirmed',basisKey:basisKey(p,event,stored,binding.playedStrings)};
+                const key=JSON.stringify([stored.id,binding.playedStrings]);
+                if(!groups.has(key))groups.set(key,[]);
+                groups.get(key).push(binding);
+            }
+            if(wanted.size)throw Error('編集対象のコードが変わりました。');
+            for(const group of groups.values()){
+                const result=evaluateBinding(p,group[0],{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol});
+                if(!result.ready)for(const binding of group)binding.confirmation={status:'unconfirmed',basisKey:null};
+            }
+        },{requireUndo:true,preserveAppliedUndo:true});
+    }
     function configureStrings(session,barId,eventId,playedStrings,remove=false){
         try{const c=C.shellHost.getCommandContext(),raw=C.repository.readRevision(session.target);if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||c.activeModal||C.shellHost.modal.getActive()||C.shellHost.keyboard.isIMEBlocked({})||!raw.ok||raw.revision!==session.baseRevision)throw Error('編集対象・入力状態を確認してください');
             return session.runOperation(remove?'コードフォームを解除':'鳴らす弦を変更',p=>{const event=p.bars.find(b=>b.id===barId)?.chords.find(e=>e.id===eventId),binding=p.performance.formBindings.find(b=>b.chordEventId===eventId);if(!event||!binding)throw Error('対象コードのフォームが変わりました');if(remove){p.performance.formBindings=p.performance.formBindings.filter(b=>b.id!==binding.id);return;}
@@ -142,5 +186,5 @@ export function createFormAuthoring(C,base){
                 : {status:'unconfirmed', basisKey:null}
         };
     }
-    return Object.freeze({setDisplayRange,configureStrings,duplicateBinding,installPreset,material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
+    return Object.freeze({replaceCatalogueForms,setDisplayRange,configureStrings,duplicateBinding,installPreset,material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
 }
