@@ -58,6 +58,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             }
         });
         const page = await context.newPage();
+        await page.addInitScript(()=>{window.showSaveFilePicker=undefined;});
         page.setDefaultTimeout(5000);
         page.on('pageerror', error => errors.push(error.message));
         page.on('dialog', dialog => dialog.accept());
@@ -92,14 +93,14 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         await t.test('new projects are unique, active, focused and drafts survive cancellation and switching',()=>fresh(async page=>{
             const first=await snapshot(page);assert.equal(first.songInfo.title,'無題のプロジェクト 1');
             for(const n of [2,3]){
-                await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.equal((await snapshot(page)).songInfo.title,'無題のプロジェクト '+(n-1));
-                await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();
+                await (await toolbarControl(page,'#sc-new-project')).click();
+                assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),0);
                 const p=await snapshot(page);assert.equal(p.songInfo.title,'無題のプロジェクト '+n);assert.notEqual(p.projectId,first.projectId);
                 assert.equal(await page.evaluate(()=>document.activeElement.dataset.scoreField),'title');assert.equal(await page.locator('[data-score-field=title]').inputValue(),p.songInfo.title);await dismissNewSongSettings(page);assert(await page.locator('#sc-slot-overlay').evaluate(e=>e.classList.contains('hidden')));
             }
-            await page.locator('#sc-project-select').selectOption(first.projectId);assert.match(await page.getByRole('dialog',{name:'未保存の変更を確認'}).innerText(),/プロジェクト 1.*プロジェクト 2.*プロジェクト 3/);
-            await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().target.projectId===id,first.projectId);assert.equal((await snapshot(page)).projectId,first.projectId);
-            assert.equal(await page.evaluate(()=>CruiseStudio.sessions.listSessions().filter(s=>s.dirty).length),0);
+            await page.locator('#sc-project-select').selectOption(first.projectId);
+            assert.deepEqual(await snapshot(page),first);
+            assert.equal(await page.evaluate(()=>CruiseStudio.sessions.listSessions().filter(s=>s.dirty).length),3);
         }));
         await t.test('Enter moves same row only after valid input; IME and final bar do not advance',()=>fresh(async page=>{
             await select(page);await page.locator('[data-overlay-field=chord]').first().fill('C');await page.locator('[data-overlay-field=chord]').first().press('Enter');
@@ -113,15 +114,15 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             await select(page);await page.locator('[data-overlay-field=chord]').first().fill('C');await page.locator('.dock-lyrics-cell').first().fill('夜');await page.locator('[data-overlay-field=doremi]').first().fill('ド');await page.locator('[data-overlay-field=doremi]').first().press('Tab');await page.locator('.dock-strum-cell').first().click();
             const before=await snapshot(page);await page.locator('[data-bar-operation=duplicateBar]').click();const after=await snapshot(page);
             assert.notEqual(after.bars[0].id,after.bars[1].id);assert.deepEqual(after.bars[0],before.bars[0]);assert.equal(after.bars[1].chords[0].symbol,'C');
-            assert.equal(await page.locator('.sheet-bar[data-bar-number="2"] .sheet-bar-chord').innerText(),'C');assert.equal(await page.locator('[data-overlay-field=chord]').first().inputValue(),'C');assert.match(await page.locator('.sheet-bar[data-bar-number="2"]').innerText(),/夜/);
+            assert.equal((await page.locator('.sheet-bar[data-bar-number="2"] .sheet-bar-chord').innerText()).trim(),'C');assert.equal(await page.locator('[data-overlay-field=chord]').first().inputValue(),'C');assert.match(await page.locator('.sheet-bar[data-bar-number="2"]').innerText(),/夜/);
             assert.deepEqual(after.bars[1].melody.map(e=>e.provenance),before.bars[0].melody.map(e=>e.provenance));assert(after.performance.barRhythms.some(r=>r.barId===after.bars[1].id));
             await page.locator('[data-overlay-field=chord]').first().fill('Dm7');await page.locator('[data-overlay-field=chord]').first().press('Tab');assert.equal((await snapshot(page)).bars[0].chords[0].symbol,'C');await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),after);await page.locator('#sc-undo').click();assert.deepEqual(await snapshot(page),before);await page.locator('#sc-redo').click();assert.deepEqual(await snapshot(page),after);
             await page.locator('#sc-save').click();await page.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snapshot(page);
-            const d=page.waitForEvent('download');await (await toolbarControl(page,'#sc-export-json')).click();assert.deepEqual(JSON.parse(fs.readFileSync(await(await d).path(),'utf8')),saved);
-            await page.reload();await page.locator('#open-sheet-cruise').click();assert.deepEqual(await snapshot(page),saved);assert.equal(await page.locator('.sheet-bar[data-bar-number="2"] .sheet-bar-chord').innerText(),'C');
+            const d=page.waitForEvent('download');await (await toolbarControl(page,'#sc-export-json')).click();const {scorePresentation,...exported}=JSON.parse(fs.readFileSync(await(await d).path(),'utf8'));assert.deepEqual(exported,saved);
+            await page.reload();await page.locator('#open-sheet-cruise').click();assert.deepEqual(await snapshot(page),saved);assert.equal((await page.locator('.sheet-bar[data-bar-number="2"] .sheet-bar-chord').innerText()).trim(),'C');
         }));
         await t.test('save failure never continues or discards draft; repeated request cannot duplicate modal',()=>fresh(async page=>{
-            const before=await snapshot(page);await (await toolbarControl(page,'#sc-new-project')).click();await page.evaluate(()=>{CruiseStudio.sheetCruise.requestLeave(()=>{throw Error('duplicate continuation')});const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='cruiseStudio.projects.index')throw Error('synthetic quota');return original.call(this,k,v)};});
+            const before=await snapshot(page);await page.evaluate(()=>CruiseStudio.sheetCruise.requestLeave(()=>{}));await page.evaluate(()=>{CruiseStudio.sheetCruise.requestLeave(()=>{throw Error('duplicate continuation')});const original=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='cruiseStudio.projects.index')throw Error('synthetic quota');return original.call(this,k,v)};});
             assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),1);await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.getByText(/移動せずdraftを保持しています/).waitFor();assert.deepEqual(await snapshot(page),before);await page.getByRole('button',{name:'キャンセル',exact:true}).click();
         }));
         await t.test('pending input, external conflict and UNKNOWN block continuations',async()=>{
@@ -131,7 +132,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 await (await toolbarControl(page,'#sc-new-project')).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),0);assert.deepEqual(await snapshot(page),before);
             });
             await fresh(async page=>{
-                const before=await snapshot(page);await (await toolbarControl(page,'#sc-new-project')).click();await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('synthetic failure')};Storage.prototype.removeItem=function(){throw Error('synthetic rollback failure')};});await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.getByText(/移動せずdraftを保持しています/).waitFor();assert.deepEqual(await snapshot(page),before);await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),1);
+                const before=await snapshot(page);await page.evaluate(()=>CruiseStudio.sheetCruise.requestLeave(()=>{}));await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('synthetic failure')};Storage.prototype.removeItem=function(){throw Error('synthetic rollback failure')};});await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.getByText(/移動せずdraftを保持しています/).waitFor();assert.deepEqual(await snapshot(page),before);await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),1);
             });
         });
         await t.test('home, other workspaces and back resume the same unsaved score',()=>fresh(async page=>{
@@ -147,7 +148,7 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
         }));
         await t.test('unsaved dialog actions stay separated and usable at narrow widths and long titles',()=>fresh(async page=>{
             await page.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await page.locator('#sc-title').fill('検証用の長いプロジェクト名'.repeat(16));await page.locator('#sc-title').press('Tab');await settle(page);
-            await (await toolbarControl(page,'#sc-new-project')).click();
+            await page.evaluate(()=>CruiseStudio.sheetCruise.requestLeave(()=>{}));
             const dialog=page.getByRole('dialog',{name:'未保存の変更を確認'});
             for(const width of [320,390,768,1440]){
                 await page.setViewportSize({width,height:800});await settle(page);

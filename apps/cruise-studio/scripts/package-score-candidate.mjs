@@ -13,7 +13,7 @@ import {CRUISE_PORT_ROOT, PRO_ENTRY_PATH as portProEntry} from '../../cruise-por
 const repo=fileURLToPath(new URL('../../../',import.meta.url));
 const studio='apps/cruise-studio/', viewer='apps/score-viewer/', standalone=viewer+'standalone/';
 const candidate=studio+'edition-candidates/score/';
-const version='0.226.0-rc.1';
+const version='0.227.0-rc.1';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 
 function localDependencies(output,name) {
@@ -33,7 +33,7 @@ function localDependencies(output,name) {
 function enableScore(html,edition) {
     const panel='<section id="screen-score-viewer" class="screen hidden" hidden inert tabindex="-1" aria-label="譜面ビューワー"><header class="screen-header"><h1>譜面ビューワー</h1><button type="button" class="sv-dock-button" data-open-tool="scoreViewer">右窓で表示</button><a class="sv-standalone-link" href="/'+standalone+'?from='+edition+'">スマホ・オフライン画面</a></header><div id="score-viewer-host"></div></section>';
     const icon='<img class="home-port-icon" src="/'+studio+'assets/tool-sheet.svg" alt="">';
-    return html.replace(/((?:theme|print|shell|melody-editor)\.css|(?:modal-manager|melody-editor|melody-commands|melody-staff|melody-notation|schema2|common-music-model|editing-session|score-workspace|operation-adapter|song-model|sheet-renderer|sheet-cruise)\.js)\?v=[^"]+/g,'$1?v='+version)
+    return html.replace(/((?:theme|print|shell|melody-editor)\.css|(?:shell|modal-manager|melody-editor|melody-commands|melody-staff|melody-notation|schema2|common-music-model|editing-session|score-workspace|operation-adapter|song-model|sheet-renderer|sheet-cruise)\.js)\?v=[^"]+/g,'$1?v='+version)
         .replace(/<button\b[^>]*data-(?:home-)?workspace="sheetCruise"[^>]*>[\s\S]*?<\/button>/g,button=>
         button.replace(' disabled aria-disabled="true" data-coming-soon','').replace('<small class="coming-soon-label">Coming soon…</small>',''))
         .replace(/js\/core\/release-features\.js\?v=[^"]+/,'js/core/score-candidate-features.js?v='+version)

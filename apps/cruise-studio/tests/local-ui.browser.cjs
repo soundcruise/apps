@@ -25,7 +25,7 @@ for(const engine of ['chrome','webkit'])test('real local UI server '+engine,asyn
  p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
  try{
  const response=await p.goto(URL_LOCAL);assert(response.headers()['content-security-policy'].includes("connect-src http://127.0.0.1:18874/apps/score-viewer/vendor/pdfjs/;"));
- await p.locator('[data-local-ui-banner]').waitFor();await p.locator('#open-sheet-cruise').click();await (await toolbarControl(p,'#sc-new-project')).click();await p.getByRole('button',{name:'保存せず続行',exact:true}).click();await dismissNewSongSettings(p);
+ await p.locator('[data-local-ui-banner]').waitFor();await p.locator('#open-sheet-cruise').click();await (await toolbarControl(p,'#sc-new-project')).click();await dismissNewSongSettings(p);
  await p.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await p.locator('#sc-title').fill('LOCAL UI Original');await p.locator('#sc-bpm').fill('106');await p.locator('#sc-bpm').press('Tab');await p.locator('#sc-editor-drawer').evaluate(e=>e.open=false);
  await p.locator('.sheet-bar').first().focus();await p.keyboard.press('Enter');
  await p.locator('[data-overlay-field=chord]').first().fill('C');await p.locator('[data-overlay-field=chord]').first().press('Tab');await p.waitForFunction(()=>CruiseStudio.sheetCruise.getSession().draft.bars[0].chords[0]?.symbol==='C');await p.locator('.dock-lyrics-cell').first().fill('夜');await p.locator('[data-overlay-field=doremi]').first().fill('ドレミ');await p.locator('[data-overlay-field=doremi]').first().press('Tab');await p.locator('.dock-strum-cell').first().click();

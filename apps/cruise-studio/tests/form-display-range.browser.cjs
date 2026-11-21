@@ -79,6 +79,16 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
             assert(await page.locator('[data-chord-view=finger]').evaluate(e=>e.classList.contains('cc-segment-btn--active')));
             assert.equal(await page.locator('#cc-fretboard-host').getAttribute('data-score-finger-mode'),'true');
         }
+        await g.click();
+        const direct=page.locator('[data-paper-form-detail]');
+        await direct.getByRole('button',{name:'ここで運指を調整'}).click();
+        const finger=direct.locator('[data-form-finger="2"]'),initialFinger=await finger.getAttribute('aria-label');
+        await finger.click();const changedFinger=await finger.getAttribute('aria-label');
+        assert.notEqual(changedFinger,initialFinger);
+        await finger.press('Control+z');assert.equal(await finger.getAttribute('aria-label'),initialFinger);
+        await page.keyboard.press('Meta+Shift+z');assert.equal(await finger.getAttribute('aria-label'),changedFinger);
+        page.once('dialog',d=>d.dismiss());await direct.press('Escape');assert(await direct.isVisible());
+        await finger.press('Meta+z');await direct.press('Escape');await direct.waitFor({state:'detached'});
         await list.click();
         const zoom=page.locator('dialog.sc-readonly-form[open]');
         async function expectBarres(p){
@@ -116,7 +126,7 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         await page.keyboard.press('Meta+Shift+z');
         assert.equal(await bulk.getByLabel(/^コード名/).inputValue(),'Em');
         assert.deepEqual(await model(page),beforeBulk);
-        await bulk.getByText('キャンセル',{exact:true}).click();
+        page.once('dialog',d=>d.accept());await bulk.getByText('キャンセル',{exact:true}).click();
         assert.deepEqual(await model(page),beforeBulk);
         await list.click();await zoom.getByRole('button',{name:'編集',exact:true}).click();
         await bulk.locator('[data-chord-advanced]').click();

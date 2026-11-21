@@ -410,8 +410,8 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 for(const p of pairs){assert.equal(p.tick,p.other);assert(p.delta<2,JSON.stringify({width,p}));assert.equal(p.border,'1px');assert.notEqual(p.color,'rgba(0, 0, 0, 0)');}
             }
             assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
-            await (await toolbarControl(page,'#sc-new-project')).click();await page.getByRole('dialog').getByRole('button',{name:'保存せず続行',exact:true}).click();await dismissNewSongSettings(page);await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),8);assert.equal(await page.locator('.dock-strum-cell').count(),8);
-            await page.locator('#sc-project-select').selectOption(before.projectId);await page.getByRole('dialog').getByRole('button',{name:'保存せず続行',exact:true}).click();await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),10);assert.equal(await page.locator('.dock-strum-cell').count(),10);assert.deepEqual(await snapshot(page),before);
+            await (await toolbarControl(page,'#sc-new-project')).click();await dismissNewSongSettings(page);await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),8);assert.equal(await page.locator('.dock-strum-cell').count(),8);
+            await page.locator('#sc-project-select').selectOption(before.projectId);await select(page);assert.equal(await page.locator('[data-overlay-field=chord]').count(),10);assert.equal(await page.locator('.dock-strum-cell').count(),10);assert.deepEqual(await snapshot(page),before);
         }));
         await t.test('coarse stroke input replaces the selected interval and preserves other durations and accents',()=>fresh(async page=>{
             await page.evaluate(()=>{

@@ -213,7 +213,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
  await t.test('save and continue keeps the primary ring and handles a nested save reminder by keyboard',()=>fresh(async p=>{
   const before=await snap(p);
   if(engine==='chrome')await p.evaluate(()=>{window.showSaveFilePicker=async()=>{const dir=await navigator.storage.getDirectory();return dir.getFileHandle('continue.json',{create:true});};});
-  await p.click('#sc-curve-menu-toggle');await p.click('#sc-new-project');
+  await p.evaluate(()=>CruiseStudio.sheetCruise.requestLeave(()=>{}));
   const guard=p.getByRole('dialog',{name:'未保存の変更を確認'}),save=guard.getByRole('button',{name:'保存して続行'});
   for(const width of [1440,390]){
    await p.setViewportSize({width,height:1000});
@@ -242,6 +242,64 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    const stored=await p.evaluate(async()=>{const f=await (await navigator.storage.getDirectory()).getFileHandle('continue.json');return JSON.parse(await (await f.getFile()).text());});
    assert.equal(stored.projectId,before.projectId);
   }
+ }));
+ await t.test('unapplied settings own their history and only discarded edits prompt',()=>fresh(async p=>{
+  const song=await snap(p),prompts=[];
+  await p.exposeFunction('recordDiscard',message=>prompts.push(message));
+  await p.evaluate(()=>{window.allowDiscard=false;window.confirm=m=>{window.recordDiscard(m);return window.allowDiscard;};});
+  const open=async id=>{await p.click('#sc-curve-menu-toggle');await p.click(id);};
+  await open('#sc-edit-song');const card=p.locator('[data-score-dialog=settings]'),title=card.getByLabel('曲名',{exact:true});
+  await title.fill('仮の名前');await title.press('Tab');
+  await p.keyboard.press('Control+z');assert.equal(await title.inputValue(),song.songInfo.title);
+  await p.keyboard.press('Meta+Shift+z');assert.equal(await title.inputValue(),'仮の名前');
+  await p.locator('#screen-sheet-cruise .workspace-home').evaluate(e=>e.click());
+  assert(await card.isVisible());assert.equal(await title.inputValue(),'仮の名前');
+  assert.equal(prompts.pop(),'この画面の変更を破棄しますか？');
+  await card.press('Escape');assert(await card.isVisible());assert.equal(prompts.length,1);
+  await card.press('Meta+z');await card.press('Escape');await card.waitFor({state:'detached'});assert.equal(prompts.length,1);
+  await open('#sc-edit-instrument');const key=p.locator('[data-score-field=capo]'),old=await key.inputValue();
+  await key.fill(old==='3'?'4':'3');await key.press('Tab');await p.keyboard.press('Meta+z');
+  assert.equal(await key.inputValue(),old);await p.keyboard.press('Control+Shift+z');assert.notEqual(await key.inputValue(),old);
+  await p.evaluate(()=>window.allowDiscard=true);await p.click('[data-score-cancel]');assert.deepEqual(await snap(p),song);
+  await openPaperSettings(p);const layout=p.locator('[data-paper-layout]'),size=layout.locator('[data-layout-setting=chordSize]');
+  const initial=await size.inputValue();await size.focus();await size.press('ArrowRight');const updated=await size.inputValue();
+  assert.notEqual(updated,initial);await size.press('Control+z');assert.equal(await size.inputValue(),initial);
+  await size.press('Meta+Shift+z');assert.equal(await size.inputValue(),updated);
+  const cancel=layout.locator('[data-layout-cancel]');await p.evaluate(()=>window.allowDiscard=false);
+  await cancel.click();assert(await layout.isVisible());await size.press('Control+z');await cancel.click();await layout.waitFor({state:'detached'});
+  const unload=()=>p.evaluate(()=>!window.dispatchEvent(new Event('beforeunload',{cancelable:true})));
+  assert.equal(await unload(),false);
+  await open('#sc-edit-song');await title.fill('未適用');assert.equal(await unload(),true);
+  await p.evaluate(()=>window.allowDiscard=true);
+  await p.locator('#screen-sheet-cruise .workspace-home').evaluate(e=>e.click());
+  await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),song);
+  // Simulate storage eviction, then put back the test draft to verify both exit paths.
+  const missing=await p.evaluate(id=>{
+   const key=Object.keys(localStorage).find(k=>k.startsWith('cruiseStudio.scoreDraft.'+encodeURIComponent(id)+':'));
+   const data=localStorage.getItem(key);localStorage.removeItem(key);return {key,data};
+  },song.projectId);
+  assert.equal(await unload(),true);
+  await p.evaluate(({key,data})=>localStorage.setItem(key,data),missing);assert.equal(await unload(),false);
+  const prior=prompts.length;await open('#sc-new-project');await card.locator('[data-score-cancel]').click();
+  await p.locator('#sc-project-select').selectOption(song.projectId);assert.deepEqual(await snap(p),song);
+  await p.locator('#screen-sheet-cruise .workspace-home').click();await p.click('#open-sheet-cruise');
+  assert.deepEqual(await snap(p),song);assert.equal(prompts.length,prior);
+  await open('#sc-new-project');await card.locator('[data-score-cancel]').click();
+  const active=await snap(p);await p.reload();await p.click('#open-sheet-cruise');
+  assert.equal((await snap(p)).projectId,active.projectId);
+  const replacement=structuredClone(song);replacement.songInfo.title='別ファイルのタイトル';
+  await p.locator('#sc-import-json').setInputFiles({name:'another.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(replacement))});
+  await p.getByText(/同じ曲の下書きがあります/).first().waitFor({state:'attached'});
+  await p.locator('#sc-project-select').selectOption(song.projectId);assert.deepEqual(await snap(p),song);
+ }));
+ await t.test('undo and redo individual stroke cells before staging and retain draft on dismiss',()=>fresh(async p=>{
+  const song=await snap(p);await p.click('[data-shortcut=sc-edit-rhythm]');
+  const card=p.locator('[data-score-dialog=strumPreset]'),cell=card.locator('[data-stroke]').first();
+  const before=await cell.textContent();await cell.focus();await cell.press('x');const after=await cell.textContent();
+  assert.notEqual(after,before);await cell.press('Meta+z');assert.equal(await cell.textContent(),before);
+  await cell.press('Control+Shift+z');assert.equal(await cell.textContent(),after);
+  await p.evaluate(()=>{window.confirm=()=>false;});await card.press('Escape');assert(await card.isVisible());
+  await cell.press('Meta+z');await card.press('Escape');await card.waitFor({state:'detached'});assert.deepEqual(await snap(p),song);
  }));
  await t.test('preview a section copy with only chords, add a bar, apply and undo',()=>fresh(async p=>{
   const before=await snap(p);await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
@@ -274,7 +332,17 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const add=aside.getByRole('button',{name:'＋ セクションを追加'}),del=aside.getByRole('button',{name:'セクションを削除'});
   assert((await add.boundingBox()).y<(await del.boundingBox()).y);
   const tools=await aside.locator('.sc-song-tools').boundingBox(),paper=await dialog.locator('.sc-section-preview').boundingBox();
-  assert(Math.abs(tools.y+tools.height-paper.y-paper.height)<2);
+  assert(tools.y+tools.height<=paper.y+paper.height);
+  const initialCount=await tabs.count();
+  for(let i=initialCount;i<9;i++)await add.click();
+  for(const [width,height] of [[1920,1080],[1920,920],[1440,800]]){
+   await p.setViewportSize({width,height});
+   const row=await aside.locator('.sc-song-tools').boundingBox(),box=await dialog.boundingBox();
+   assert(row.y+row.height<box.y+box.height-8);
+   assert.equal(await dialog.evaluate(el=>el.scrollTop),0);
+  }
+  for(let i=initialCount;i<9;i++)await p.keyboard.press('Control+z');
+  assert.equal(await tabs.count(),initialCount);
   await add.click();await name.fill('コーダ');await name.press('Tab');
   await click('前へ移動');const labels=await tabs.allTextContents();
   await del.click();assert.equal(await tabs.count(),before.sections.length);

@@ -111,7 +111,9 @@
         function centerTool(){
             if((!dockedTool?.startsWith('app_')&&dockedTool!=='portSync'&&dockedTool!=='scoreViewer')||modal.getActive())return;
             var id=dockedTool,active=host.getActive();
-            if((realTools[active]||adapters[active])?.requestLeave?.(centerTool))return;
+            if(active==='sheetCruise'){
+                if(!CS.sheetCruise.canLeave())return;
+            }else if((realTools[active]||adapters[active])?.requestLeave?.(centerTool))return;
             if(!toolSlot.moveBefore&&id!=='scoreViewer'){doc.getElementById('tool-window-status').textContent='このブラウザでは画面を維持した移動ができません。';return;}
             moveNode(main.querySelector('.studio-container'),nodes[id]);toolWindow.hidden=true;shell.removeAttribute('data-tool-window');toolToggle.setAttribute('aria-expanded','false');host.activate(id);dockedTool=null;refreshGeometry();
         }
@@ -217,6 +219,7 @@
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(function () { navigate(id); })) return false;
             if (host.getActive() === 'portMyApps' && CS.portMyApps.requestLeave(function () { navigate(id); })) return false;
             var current = host.getActive();
+            if(current==='sheetCruise'&&!CS.sheetCruise.canLeave())return false;
             if(current==='scoreViewer'&&CS.scoreViewer.requestLeave(function(){navigate(id);}))return false;
             // Keep the main Port controller for its native explicit Sync Center.
             // This does not activate Sync or grant writer admission.
@@ -240,6 +243,7 @@
             if (host.getActive() === 'portPractice' && CS.portPractice.requestLeave(goBack)) return false;
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(goBack)) return false;
             if (host.getActive() === 'portMyApps' && CS.portMyApps.requestLeave(goBack)) return false;
+            if(host.getActive()==='sheetCruise'&&!CS.sheetCruise.canLeave())return false;
             var previous;
             do { previous = visitHistory.pop(); } while (previous === host.getActive());
             return host.activate(previous || 'home');

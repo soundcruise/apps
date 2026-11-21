@@ -1,4 +1,5 @@
 import {icon} from '../../../../score-viewer/ui/icons.mjs';
+import {guardDraft} from './draft-history.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 
 // Keep one ordered catalogue per instrument part on this device. Initially seed it
@@ -30,7 +31,7 @@ export function presetLibrary(storage, key, defaults, legacy, rhythm, valid) {
     };
 }
 
-export function presetWindow(parent, title, className = '') {
+export function presetWindow(parent, title, className = '', dirty = null) {
     const doc = parent.ownerDocument;
     const dialog = doc.createElement('dialog');
     dialog.className = 'sc-song-dialog sc-preset-window ' + className;
@@ -42,7 +43,8 @@ export function presetWindow(parent, title, className = '') {
     const close = doc.createElement('button');
     close.type = 'button';
     close.textContent = '閉じる';
-    close.onclick = () => dialog.close();
+    const dismiss=dirty?guardDraft(dialog,dirty):()=>dialog.close();
+    close.onclick=dismiss;
     header.append(close);
     dialog.append(header);
     const onParentClose = () => dialog.close();
@@ -51,7 +53,7 @@ export function presetWindow(parent, title, className = '') {
         parent.removeEventListener('close',onParentClose);
         dialog.remove();
     },{once:true});
-    bindOutsideDismiss(dialog);
+    bindOutsideDismiss(dialog,{close:dismiss});
     dialog.addEventListener('keydown',event => event.stopPropagation());
     dialog.showModal();
     return dialog;

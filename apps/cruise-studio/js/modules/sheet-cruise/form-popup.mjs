@@ -1,3 +1,4 @@
+import {draftHistory,guardDraft} from './draft-history.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 import {cycleFormNote,playedSnapshot,validBarres} from './form-cycle.mjs';
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -20,19 +21,29 @@ export function createFormDraft(snapshot,playedStrings,detectBarres){
  };
 }
 export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStrings,symbol,apply,detectBarres,onEdit}){
- bindOutsideDismiss(dialog);
+
  const original=JSON.stringify([playedSnapshot(snapshot,playedStrings),playedStrings.slice().sort((a,b)=>a-b)]),edit=createFormDraft(snapshot,playedStrings,detectBarres),node=(tag,text,parent=dialog)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;parent.appendChild(e);return e;};let editing=false;
- const head=node('header'),title=node('h2',symbol,head),actions=node('div',undefined,head),start=node('button','編集',actions),close=node('button','閉じる',actions);actions.className='sc-form-actions';head.classList.add('score-form-header');head.replaceChildren(start,title,close);start.type=close.type='button';start.dataset.paperFormEdit='';close.dataset.formClose='';close.onclick=()=>dialog.close();
+ const head=node('header'),title=node('h2',symbol,head),actions=node('div',undefined,head),start=node('button','編集',actions),close=node('button','閉じる',actions);actions.className='sc-form-actions';head.classList.add('score-form-header');head.replaceChildren(start,title,close);start.type=close.type='button';start.dataset.paperFormEdit='';close.dataset.formClose='';const history=draftHistory(()=>edit.draft,state=>{
+  const data=doc.activeElement?.dataset,string=data?.formFinger||data?.popupString;
+  Object.assign(edit.draft,state);
+  render(string?'[data-form-finger="'+string+'"],[data-popup-string="'+string+'"]':null);
+  if(!dialog.contains(doc.activeElement))close.focus({preventScroll:true});
+ });
+ const dismiss=guardDraft(dialog,history.dirty);close.onclick=dismiss;bindOutsideDismiss(dialog,{close:dismiss});
+ dialog.addEventListener('keydown',e=>{if(editing)history.shortcut(e);});
  const figure=node('div');figure.className='sc-form-touch';const hint=node('p','押さえている位置をクリックすると指が順に変わり、ミュートにもなります。');hint.className='sc-form-hint';
+ const quick=onEdit?node('button','ここで運指を調整'):null;
+ if(quick){quick.type='button';quick.className='sc-form-quick-edit';quick.onclick=()=>{editing=true;render('[data-form-finger]');};}
  const status=node('p','');status.setAttribute('role','status');status.className='sc-form-hint';const footer=node('footer'),save=node('button','譜面に反映',footer);save.type='button';save.dataset.formApply='';
  function cycle(string,selector){if(!editing||!dialog.open)return;if(!edit.cycle(string))status.textContent='1音以上、残してください。';else status.textContent='';render(selector);}
  function render(focus){
+  history.checkpoint();
   const {snapshot}=edit.draft,parts=diagram(snapshot);figure.replaceChildren();figure.dataset.formEditing=String(editing);figure.classList.toggle('is-editing',editing);const board=node('div',undefined,figure);board.className='sc-form-board';board.innerHTML=parts.svg;const svg=board.querySelector('svg'),[x,y,w,h]=svg.getAttribute('viewBox').split(/\s+/).map(Number);
   if(editing){for(const slot of parts.slots||[]){const n=snapshot.strings[slot.string-1];if((n.kind==='note'&&n.relativeFret===slot.fret)||(n.kind==='muted'&&slot.fret===0))continue;const b=node('button',undefined,board);b.type='button';b.className='sc-form-empty-hit';b.dataset.formSlot=slot.string+':'+slot.fret;b.style.left=(slot.x-x)/w*100+'%';b.style.top=(slot.y-y)/h*100+'%';b.setAttribute('aria-label',slot.string+'弦 '+slot.fret+'フレットに音を追加');b.onclick=()=>{if(editing&&dialog.open&&edit.place(slot.string,slot.fret))render('[data-form-finger="'+slot.string+'"]');};}
    for(const marker of parts.model.markers){const b=node('button',undefined,board);b.type='button';b.dataset.formFinger=marker.string;b.className='sc-form-finger-hit';b.style.left=(marker.x-x)/w*100+'%';b.style.top=(marker.y-y)/h*100+'%';b.setAttribute('aria-label',marker.string+'弦の指：'+(labels[snapshot.strings[marker.string-1].finger]||'なし')+'。クリックで変更');b.onclick=()=>cycle(marker.string,'[data-form-finger="'+marker.string+'"]');}
    for(const row of parts.rows.filter(row=>snapshot.strings[row.string-1].kind==='muted')){const b=node('button','×',board);b.type='button';b.className='sc-form-mute-hit';b.dataset.popupString=row.string;b.setAttribute('aria-label',row.string+'弦のミュートを開放弦に変更');b.style.top=(row.y-y)/h*100+'%';b.style.left=(parts.model.muteX-x)/w*100+'%';b.onclick=()=>cycle(row.string,'[data-form-finger="'+row.string+'"]');}
   }
-  hint.hidden=footer.hidden=!editing;start.hidden=editing;save.disabled=JSON.stringify([snapshot,edit.draft.playedStrings])===original;close.textContent=editing?'キャンセル':'閉じる';if(focus)figure.querySelector(focus)?.focus({preventScroll:true});
+  if(quick)quick.hidden=editing;hint.hidden=footer.hidden=!editing;start.hidden=editing;save.disabled=JSON.stringify([snapshot,edit.draft.playedStrings])===original;close.textContent=editing?'キャンセル':'閉じる';if(focus)figure.querySelector(focus)?.focus({preventScroll:true});
  }
  start.onclick=onEdit||(()=>{editing=true;render();});save.onclick=()=>{if(!editing||!dialog.open||!dialog.isConnected)return;const result=apply(clone(edit.draft));if(!result?.ok){status.textContent=result?.error||'フォームを反映できませんでした';return;}dialog.close();};render();return edit;
 }

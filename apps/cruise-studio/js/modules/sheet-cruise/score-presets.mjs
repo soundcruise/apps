@@ -1,3 +1,4 @@
+import {draftHistory} from './draft-history.mjs';
 import {movePaperPlayhead,bindScoreZoom} from '../score-ui.mjs';
 import {presetChordCells} from './preset-chord-cells.mjs';
 import {presetLibrary, presetWindow, managePresets} from './preset-library.mjs';
@@ -143,7 +144,7 @@ export function compactChordAudition(plan) {
     return {events,duration:end};
 }
 
-export function mountScorePresets({C, doc, node, body, status, apply, project, view, args, mode, navigate, createPreviewAudio, loadChordPicker, previewPaperOptions}) {
+export function mountScorePresets({C, doc, node, body, status, apply, project, view, args, mode, navigate, createPreviewAudio, loadChordPicker, previewPaperOptions,setDirty=()=>{}}) {
     const chords = mode === 'chordPreset';
     const measureTicks=C.model.schema2.barLength(project);
     const beatsPerBar=measureTicks/480;
@@ -206,6 +207,29 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     stage.dataset.presetStage = '';
     const steps = [], redoSteps = [];
     let previewProject = project;
+    const stagedPatterns=new WeakMap();
+    let patternHistory=null,patternBase;
+    function readPattern(){return chords?{timedChords}:{rows,sourceSlots,gridUnits,beatUnits};}
+    function patternChanged(){return JSON.stringify(readPattern())!==patternBase;}
+    function unstaged(){
+        const signature=JSON.stringify(readPattern());
+        return signature!==patternBase&&!steps.some(step=>stagedPatterns.get(step)===signature);
+    }
+    function startPatternHistory(){
+        patternBase=JSON.stringify(readPattern());
+        if(chords)return;
+        patternHistory=draftHistory(readPattern,state=>{
+            ({rows,sourceSlots,gridUnits,beatUnits}=state);
+            edited=patternChanged();paintGrid();update();
+            (grid.querySelector('[data-selected]')||grid.querySelector('[data-stroke]'))?.focus({preventScroll:true});
+        });
+    }
+    function patternShortcut(e){
+        if(!chords && (author || (!steps.length&&!redoSteps.length) || patternArea.contains(e.target)&&!rangeControls.contains(e.target)) &&
+            !e.target.closest('input[type=text],textarea'))patternHistory?.shortcut(e);
+    }
+    dialog.addEventListener('keydown',patternShortcut);
+    setDirty(()=>steps.length>0||unstaged());
     const editor = node('section', undefined, sidebar);
     editor.hidden = true;
     const presetActions=node('div',undefined,controls);presetActions.className='sc-preset-actions';
@@ -364,10 +388,13 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
     function openEditor(initialEntry) {
         if (author?.open) return;
         void stopAudio();
+        const outerHistory=patternHistory,outerBase=patternBase;
         savedDraft = structuredClone({current, key:key?.value, rows, sourceSlots, timedChords,
             edited, rangeIndices,selectionAnchor,sectionSelected,gridUnits,beatUnits});
         savedEntry = editingEntry = null;
-        author = presetWindow(dialog,initialEntry?'プリセットを編集':'譜面からプリセット追加','sc-batch-dialog sc-preset-author');
+        author = presetWindow(dialog,initialEntry?'プリセットを編集':'譜面からプリセット追加', 'sc-batch-dialog sc-preset-author',()=>!savedEntry&&patternChanged());
+        author.addEventListener('keydown',patternShortcut);
+        startPatternHistory();
         const authorBody = node('div',undefined,author); authorBody.className = 'sc-preset-dialog-body';
         authorHint=node('p','',authorBody);authorHint.className='sc-preset-guide';
         function editEntry(entry){
@@ -396,7 +423,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             const old = entries.find(item=>item.id===savedDraft.current?.id);
             populateOptions(savedEntry || old); choose();
             if (!savedEntry && old && JSON.stringify(old)===JSON.stringify(savedDraft.current)) {
-                restorePattern();
+                patternHistory=outerHistory;patternBase=outerBase;restorePattern();
             }
             patternTitle.textContent=partName;
             update();fitPaper?.();(initialEntry?edit:addPreset).focus();
@@ -971,6 +998,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         return {bars, pattern:patternSlots().slice(0, bars.length)};
     }
     function update() {
+        patternHistory?.checkpoint();
         if (audioKind === 'pattern') void stopAudio();
 
         try {
@@ -988,6 +1016,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         }
     }
     function choose() {
+        patternHistory=null;
         gridUnits=[];beatUnits=[]; selectedStroke=null;
         resetCellEditor();
         void stopAudio();
@@ -995,7 +1024,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
         if (!current) {
             rows=['・・・・']; sourceSlots=null; timedChords=[[]];
             if(chords)paintChords();else paintGrid();
-            update(); stage.disabled=true;patternPlay.disabled=true;return;
+            startPatternHistory();update(); stage.disabled=true;patternPlay.disabled=true;return;
         }
         patternPlay.disabled=false;
         edited = false;
@@ -1007,7 +1036,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             gridUnits=rows.map((row,i)=>[1,2,4,8,16].includes(current.gridUnits?.[i])?current.gridUnits[i]:row.length);
             beatUnits=rows.map((_,i)=>Array.from({length:4},(_,b)=>[8,16].includes(current.beatUnits?.[i]?.[b])?current.beatUnits[i][b]:null));
             sourceSlots = current.slots ? structuredClone(current.slots) : null; paintGrid(); }
-        status.textContent = '';
+        startPatternHistory();status.textContent = '';
         update();
     }
     function savePreset(win, text, message) {
@@ -1030,7 +1059,12 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             savedEntry=entry;win.close();author.close();
         } catch(error) { message.textContent=error.message; }
     }
-    preset.onchange = choose;
+    preset.onchange = ()=>{
+        if(unstaged()&&!doc.defaultView.confirm('編集中のパターンを破棄しますか？')){
+            preset.value=current?.id||'';return;
+        }
+        choose();
+    };
     if (chords) {
         key.value = view.songInfo.playKey;
         previousKey = key.value;
@@ -1062,7 +1096,7 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             const entry = structuredClone(chords ? {barIds, pattern, overwrite:true} :
                 {barIds, pattern, wholeSong:wholeSong.checked, leadingSustains:rows.map(row=>Math.min(measureTicks,leadingHold(row))), inputGrids:pattern.map((_,i)=>({unit:gridUnits[i]??rows[i].length, beats:beatUnits[i]??[]})), name:edited ? 'カスタムストローク' : current.name});
             stageEntry(entry);
-            usedPresets.set(entry,current.id);
+            usedPresets.set(entry,current.id);stagedPatterns.set(entry,JSON.stringify(readPattern()));
             stage.focus({preventScroll:true});
         } catch (error) { status.textContent = error.message; }
     }
@@ -1082,5 +1116,6 @@ export function mountScorePresets({C, doc, node, body, status, apply, project, v
             renderPaper();fitPaper();update();status.textContent='';
         }catch(error){status.textContent=error.message;}
     });
-    return () => !author && steps.length ? {kind:mode, args:{steps},onApplied(){const last=steps.findLast(step=>usedPresets.has(step));if(!chords&&last)C.storage.setAppSetting(lastKey,usedPresets.get(last));}} : null;
+    return () => !author && steps.length &&
+        (!unstaged()||doc.defaultView.confirm('譜面に適用していないパターンの変更を破棄しますか？')) ? {kind:mode, args:{steps},onApplied(){const last=steps.findLast(step=>usedPresets.has(step));if(!chords&&last)C.storage.setAppSetting(lastKey,usedPresets.get(last));}} : null;
 }

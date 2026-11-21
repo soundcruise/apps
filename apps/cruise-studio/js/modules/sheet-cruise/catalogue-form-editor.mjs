@@ -1,3 +1,4 @@
+import {guardDraft} from './draft-history.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 
 // Each picker write updates this dialog's draft. Only Apply touches the real session.
@@ -25,7 +26,8 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
     name.maxLength=64;
     const panel=node('section',null),notice=node('p','');notice.setAttribute('role','status');
     const footer=node('footer',null),cancel=node('button','キャンセル',footer),save=node('button',positions.length+'箇所に反映',footer);
-    cancel.onclick=()=>dialog.close();
+    const discard=guardDraft(dialog,()=>hasChanges()||name.value.trim()!==playName());
+    cancel.onclick=discard;
     save.onclick=()=>{
         if(!commitName()||save.disabled||session.inputPending)return;
         const result=apply(draft.symbol,draft.material,draft.range);
@@ -87,7 +89,7 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
                 change({...draft,range:range?.min===previous?.min&&range?.max===previous?.max?undefined:range});
                 return true;
             },
-            close:()=>dialog.close(),undo,preview:play,previewState,subscribePreview,
+            close:discard,undo,preview:play,previewState,subscribePreview,
             progression:()=>progression(previewProject,barIndex)
         });
         const board=panel.shadowRoot?.querySelector('#cc-fretboard-host .cc-fb-scroll');
@@ -104,5 +106,5 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
             event.preventDefault();undo(event.shiftKey);
         }
     });
-    bindOutsideDismiss(dialog);render();
+    bindOutsideDismiss(dialog,{close:discard});render();
 }
