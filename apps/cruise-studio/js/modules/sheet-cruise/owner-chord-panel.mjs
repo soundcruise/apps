@@ -261,6 +261,7 @@ export function createOwnerChordPicker(C,base){
         function saveRange(material,range){
             if(!eligible())return false;
             const binding=canonical && project.performance.formBindings.find(b=>b.chordEventId===canonical.id && b.materialId===material.id);
+            if(binding && target.writeRange)return target.writeRange(range);
             if(binding && !target.draftOnly){
                 const result=C.localChordForms.setDisplayRange(session,canonical.id,material.id,range);
                 if(result.ok)target.changed();else status.textContent=formMessage(result);
@@ -364,7 +365,8 @@ export function createOwnerChordPicker(C,base){
             if(!form)return;
             try{
                 const chord=owner.ui.explore.readSelectedChord();
-                const symbol=form.id&&canonical?.symbol===chord.symbol?canonical.symbol:form.provenance.sourceSymbol;
+                const sourceEvent=form.id&&canonical?.symbol===chord.symbol&&project.bars.find(b=>b.id===bar.id)?.chords.find(e=>e.id===canonical.id);
+                const symbol=sourceEvent?.symbol??form.provenance.sourceSymbol;
                 const record=createBookForm(C,base,chord,owner.state.settings,form,symbol);
                 openBookSave(record,source.bookEdition);
             }catch(error){status.textContent=error.message;}

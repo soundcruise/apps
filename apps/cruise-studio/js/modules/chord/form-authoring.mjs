@@ -89,7 +89,7 @@ export function createFormAuthoring(C,base){
                 install(p,e,copy,'fixed',selectedStrings);const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));},{requireUndo:true,preserveAppliedUndo:true});
         }catch(e){return {ok:false,error:e.message};}
     }
-    function replaceCatalogueForms(session,ids,symbol,replacement){
+    function replaceCatalogueForms(session,ids,symbol,replacement,range){
         const revision=C.repository.readRevision(session.target);
         if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||
            session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||
@@ -112,15 +112,22 @@ export function createFormAuthoring(C,base){
                     const source=replacement||old;
                     if(source.snapshot.capo!==p.instrument.capo||source.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret||
                         JSON.stringify(source.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning))throw Error('曲とフォームの楽器条件が異なります。');
-                    stored=storeMaterial(p,material(source.snapshot,symbol,'manual',null,source.provenance.shape));
+                    const next=!replacement&&symbol===event.symbol?clone(old):material(source.snapshot,symbol,'manual',null,source.provenance.shape);
+                    if(range!==undefined){
+                        if(range)next.snapshot.displayRange=range;else delete next.snapshot.displayRange;
+                    }
+                    stored=storeMaterial(p,next);
                     copies.set(sourceKey,stored);
                 }
+                binding.materialId=stored.id;
+                // A display-only change keeps the original musical binding and its confirmation.
+                if(!replacement&&symbol===event.symbol)continue;
                 if(event.symbol!==symbol){
                     event.symbol=symbol;event.unresolved=false;
                     event.provenance={origin:'user-set',sourceBasis:{playKey,capo:p.instrument.capo}};
                 }
                 if(replacement)binding.playedStrings=stored.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string);
-                binding.materialId=stored.id;binding.mode='fixed';
+                binding.mode='fixed';
                 binding.confirmation={status:'confirmed',basisKey:basisKey(p,event,stored,binding.playedStrings)};
                 const key=JSON.stringify([stored.id,binding.playedStrings]);
                 if(!groups.has(key))groups.set(key,[]);

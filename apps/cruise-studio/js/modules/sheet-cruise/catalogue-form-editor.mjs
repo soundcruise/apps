@@ -1,84 +1,100 @@
-import {diagramBarres} from './form-cycle.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 
-// Work on a detached fingering until the user applies the entire group.
-export function buildCatalogueEditor(dialog,{project,entry,positions,forms,schema,paper,apply}){
+// Each picker write updates this dialog's draft. Only Apply touches the real session.
+export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,schema,play,stop,previewState,subscribePreview,progression,apply}){
     const doc=dialog.ownerDocument,capo=project.instrument.capo;
-    const previous=project.materials.forms.find(form=>form.id===entry.materialId);
-    const original=schema.chord(entry.symbol,-capo)??entry.symbol;
-    let draft=structuredClone(entry.snapshot),shape=previous.provenance.shape;
+    const original=project.materials.forms.find(form=>form.id===entry.materialId);
+    const barIndex=project.bars.findIndex(bar=>bar.chords.some(event=>event.id===entry.eventId));
+    const selected=new Set(ids),draftMaterialId=schema.newId();
+    const initial={symbol:entry.symbol,material:null};
+    let draft=initial,activeMount=0,closed=false;
+    const history=[],future=[],formEntry={unopened:true};
+    const session={snapshotVersion:0,finishTextGroup(){},setInputPending(value){this.inputPending=value;}};
+
     function node(tag,text,parent=dialog){
         const element=doc.createElement(tag);
         if(text!==null)element.textContent=text;
         parent.append(element);return element;
     }
-    function option(select,text,value){
-        const item=node('option',text,select);item.value=value;
-    }
-    function button(parent,text,click){
-        const element=node('button',text,parent);element.type='button';element.onclick=click;return element;
-    }
     const title=node('h2','コードとフォームの一括編集');
     dialog.setAttribute('aria-label',title.textContent);
-    node('p',original+' の同じフォームを使っている'+positions.length+'箇所に反映します。');
     const locations=node('details',null);
-    node('summary','対象の小節を確認',locations);
+    node('summary','対象の'+positions.length+'箇所を確認',locations);
     node('p',positions.join('、'),locations);
-    const codeLabel=node('label',capo?'コード名（カポ'+capo+'・Playキー）':'コード名');
-    const name=node('input',null,codeLabel);name.type='text';name.maxLength=64;name.value=original;
-    const body=node('div',null);body.className='sc-bulk-form-body';
-    const preview=node('figure',null,body),table=node('table',null,body);
-    const headers=node('tr',null,node('thead',null,table));
-    for(const text of ['弦','フレット','運指'])node('th',text,headers).scope='col';
-    const controls=[],rows=node('tbody',null,table);
-    for(let string=1;string<=6;string++){
-        const row=node('tr',null,rows);node('th',string+'弦',row).scope='row';
-        const fret=node('select',null,node('td',null,row)),finger=node('select',null,node('td',null,row));
-        fret.setAttribute('aria-label',string+'弦のフレット');finger.setAttribute('aria-label',string+'弦の運指');
-        option(fret,'× ミュート','x');option(fret,'○ 開放','0');
-        for(let i=1;i<=draft.maxAbsoluteFret-capo;i++)option(fret,i+' F',String(i));
-        for(const [value,label] of [['','未指定'],['1','人差し指'],['2','中指'],['3','薬指'],['4','小指'],['T','親指']])option(finger,label,value);
-        controls.push({fret,finger});
-        fret.onchange=finger.onchange=()=>{
-            const old=draft.strings[string-1],n=Number(fret.value);
-            draft.strings[string-1]=fret.value==='x'?{string,kind:'muted'}:{
-                string,kind:'note',relativeFret:n,
-                finger:n&&finger.value?(finger.value==='T'?'T':Number(finger.value)):null,
-                fingeringWarning:false
-            };
-            if(old.kind!==draft.strings[string-1].kind||old.relativeFret!==n)shape=null;
-            draft.barres=diagramBarres(draft);
-            draft.playability='unknown';draft.ownerWarning='変更した押さえ方は未確認';
-            notice.textContent='';refresh();
-        };
-    }
-    button(dialog,'コードに合うフォームを使う',()=>{
-        const symbol=sounding(),suggestion=symbol&&forms.recommend(project,symbol);
-        if(!suggestion){notice.textContent='このコードのフォーム候補はありません。弦ごとに指定できます。';return;}
-        draft=structuredClone(suggestion.snapshot);shape=suggestion.provenance.shape;notice.textContent='';refresh();
-    });
-    const notice=node('p','');notice.setAttribute('role','status');
-    const footer=node('footer',null);button(footer,'キャンセル',()=>dialog.close());
-    const save=button(footer,positions.length+'箇所に反映',()=>{
-        const symbol=sounding();
-        if(!symbol){notice.textContent='コード名を確認してください。';name.focus();return;}
-        const result=apply(symbol,hasNewForm()?{snapshot:draft,provenance:{shape}}:null);
+    const name=node('input',null,node('label',capo?'コード名（Playキー）':'コード名'));
+    name.maxLength=64;
+    const panel=node('section',null),notice=node('p','');notice.setAttribute('role','status');
+    const footer=node('footer',null),cancel=node('button','キャンセル',footer),save=node('button',positions.length+'箇所に反映',footer);
+    cancel.onclick=()=>dialog.close();
+    save.onclick=()=>{
+        if(!commitName()||save.disabled||session.inputPending)return;
+        const result=apply(draft.symbol,draft.material,draft.range);
         if(!result.ok)notice.textContent=result.error||'一括変更できませんでした。';
-    });
-    function sounding(){return schema.chord(name.value.trim(),capo);}
-    function hasNewForm(){return JSON.stringify(draft)!==JSON.stringify(entry.snapshot)||shape!==previous.provenance.shape;}
-    function refresh(){
-        for(const [i,{fret,finger}] of controls.entries()){
-            const note=draft.strings[i];
-            fret.value=note.kind==='note'?String(note.relativeFret):'x';
-            finger.disabled=note.kind==='muted'||note.relativeFret===0;finger.value=String(note.finger??'');
-        }
-        const any=draft.strings.some(note=>note.kind==='note');
-        preview.innerHTML=any?paper.diagram(draft).svg:'';
-        if(!any)preview.textContent='鳴らす弦を選んでください。';
-        save.disabled=!any||!name.value.trim()||(original===name.value.trim()&&!hasNewForm());
+    };
+    function commitName(){
+        const value=name.value.trim(),symbol=schema.chord(value,capo);
+        if(!symbol){notice.textContent='コード名を確認してください。';name.focus();return false;}
+        if(value!==playName())change({...draft,symbol});
+        return true;
     }
-    name.oninput=()=>{notice.textContent='';refresh();};
+    function hasChanges(){return draft.symbol!==initial.symbol||!!draft.material||draft.range!==undefined;}
+    function playName(){return schema.chord(draft.symbol,-capo)??draft.symbol;}
+    name.oninput=()=>{save.disabled=!name.value.trim()||(name.value.trim()===playName()&&!hasChanges());};
+    name.onchange=commitName;
+    name.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();if(commitName())name.blur();}};
+    function change(next){
+        history.push(draft);if(history.length>50)history.shift();
+        future.length=0;draft=next;render();
+    }
+    function undo(redo){
+        const from=redo?future:history,to=redo?history:future;
+        if(from.length){to.push(draft);draft=from.pop();render();}
+    }
+    function render(){
+        const ticket=++activeMount,scroll=dialog.scrollTop;
+        const boardScroll=panel.shadowRoot?.querySelector('#cc-fretboard-host .cc-fb-scroll')?.scrollLeft;
+        panel._disposeOwnerChord?.();
+        session.snapshotVersion++;notice.textContent='';name.value=playName();
+        save.disabled=!hasChanges();
+        // Project the group's pending edit into its first measure for audition.
+        const sourceBar=project.bars[barIndex],bar={...sourceBar,chords:sourceBar.chords.map(event=>selected.has(event.id)?{...event,symbol:draft.symbol}:event)};
+        const bars=project.bars.slice();bars[barIndex]=bar;
+        const source=draft.material??original;
+        const material={...source,id:draftMaterialId,provenance:{...source.provenance,sourceSymbol:draft.symbol}};
+        if(draft.range!==undefined){
+            material.snapshot={...material.snapshot};
+            if(draft.range)material.snapshot.displayRange=draft.range;else delete material.snapshot.displayRange;
+        }
+        const bindings=project.performance.formBindings.map(binding=>{
+            if(!selected.has(binding.chordEventId)||(!draft.material&&binding.chordEventId!==entry.eventId))return binding;
+            const playedStrings=draft.material?material.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string):binding.playedStrings;
+            return {...binding,materialId:draftMaterialId,playedStrings};
+        });
+        const previewProject={...project,bars,materials:{...project.materials,forms:[...project.materials.forms,material]},
+            performance:{...project.performance,formBindings:bindings}};
+        const event=bar.chords.find(event=>event.id===entry.eventId);
+        const current=()=>!closed&&ticket===activeMount&&dialog.open;
+        picker.mount(panel,{draftOnly:true,session,formEntry,project:previewProject,
+            bar:{...bar,chords:[{...event,symbol:playName()}]},tick:event.onsetTick,eventId:event.id,
+            current,eligible:()=>current()&&!session.inputPending,
+            write:(name,form)=>{
+                const symbol=schema.chord(name,capo);
+                if(!symbol)return false;
+                change(form?{symbol,material:form}:{...draft,symbol});return true;
+            },
+            writeRange(range){
+                const previous=(draft.material??original).snapshot.displayRange??null;
+                change({...draft,range:range?.min===previous?.min&&range?.max===previous?.max?undefined:range});
+                return true;
+            },
+            close:()=>dialog.close(),undo,preview:play,previewState,subscribePreview,
+            progression:()=>progression(previewProject,barIndex)
+        });
+        const board=panel.shadowRoot?.querySelector('#cc-fretboard-host .cc-fb-scroll');
+        if(board&&Number.isFinite(boardScroll))board.scrollLeft=boardScroll;
+        dialog.scrollTop=scroll;
+    }
+    dialog.addEventListener('close',()=>{closed=true;panel._disposeOwnerChord?.();stop();},{once:true});
     dialog.addEventListener('keydown',event=>{event.stopPropagation();if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s')event.preventDefault();});
-    bindOutsideDismiss(dialog);refresh();
+    bindOutsideDismiss(dialog);render();
 }

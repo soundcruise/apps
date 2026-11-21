@@ -24,7 +24,8 @@ async function fixture() {
         binding.confirmation={status:'unconfirmed',basisKey:null};
         return binding;
     }
-    const g=place(events[0],'G',[null,8,0,9,10,null]);
+    const g=place(events[0],'G',[null,8,0,9,10,10]);
+    g.playedStrings=g.playedStrings.filter(string=>string!==6);
     place(events[1],'Am7',[null,5,5,5,null,5]);
     Object.assign(song.performance.formBindings.find(b=>b.chordEventId===events[2].id),
         {...g,id:randomUUID(),chordEventId:events[2].id});
@@ -93,17 +94,39 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         const bulk=page.getByRole('dialog',{name:'コードとフォームの一括編集'});
         const editAll=async()=>{
             await zoom.getByRole('button',{name:'編集',exact:true}).click();
-            await bulk.getByLabel(/^コード名/).fill('Dm');
-            await bulk.getByLabel('2弦のフレット').selectOption('6');
-            await bulk.getByLabel('2弦の運指').selectOption('3');
+            assert(await page.locator('#sc-slot-overlay').isHidden());
+            const advanced=bulk.locator('[data-chord-advanced]');
+            assert.equal(await advanced.getAttribute('aria-expanded'),'false');
+            await bulk.locator('[data-chord-symbol="Dm"]').click();
+            await advanced.click();
+            assert.equal(await bulk.locator('#cc-fretboard-host').getAttribute('data-score-finger-mode'),'true');
+            await bulk.locator('.score-chord-diagram .cc-fb-marker[data-string="1"]').click();
+            assert.equal(await advanced.getAttribute('aria-expanded'),'true');
+            assert(await bulk.locator('[data-save-to-book]').isVisible());
         };
         const beforeBulk=await model(page);
         await zoom.getByRole('button',{name:'編集',exact:true}).click();
         await bulk.getByLabel(/^コード名/).fill('Em');
-        await bulk.getByRole('button',{name:'コードに合うフォームを使う'}).click();
-        assert.equal(await bulk.getByLabel('1弦のフレット').inputValue(),'0');
+        await bulk.getByLabel(/^コード名/).press('Enter');
+        assert.equal(await bulk.locator('[data-selected-chord-name]').textContent(),'Em');
+        assert.deepEqual(await model(page),beforeBulk);
         await bulk.getByText('キャンセル',{exact:true}).click();
         assert.deepEqual(await model(page),beforeBulk);
+        await list.click();await zoom.getByRole('button',{name:'編集',exact:true}).click();
+        await bulk.locator('[data-chord-advanced]').click();
+        const groupMin=bulk.locator('.score-form-range').getByLabel('開始');
+        await groupMin.fill('7');await groupMin.press('Enter');
+        await bulk.getByRole('button',{name:'2箇所に反映'}).click();
+        const ranged=await model(page);
+        for(const id of [ids[0],ids[2]]){
+            const binding=ranged.performance.formBindings.find(b=>b.chordEventId===id);
+            const prior=beforeBulk.performance.formBindings.find(b=>b.chordEventId===id);
+            assert.deepEqual({...binding,materialId:prior.materialId},prior);
+            const snapshot=ranged.materials.forms.find(m=>m.id===binding.materialId).snapshot;
+            assert.deepEqual(snapshot.displayRange,{min:7,max:10});
+            assert.deepEqual(snapshot.strings,beforeBulk.materials.forms.find(m=>m.id===prior.materialId).snapshot.strings);
+        }
+        await page.click('#sc-undo');
         await list.click();await editAll();
         await bulk.getByRole('button',{name:'2箇所に反映'}).click();
         if(await bulk.isVisible())assert.fail(await bulk.innerText());
@@ -112,8 +135,8 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
             const binding=(p)=>p.performance.formBindings.find(b=>b.chordEventId===e.id);
             if(e.id===ids[0]||e.id===ids[2]){
                 assert.equal(e.symbol,'Dm');
-                const note=bulkSong.materials.forms.find(m=>m.id===binding(bulkSong).materialId).snapshot.strings[1];
-                assert.equal(note.relativeFret,6);assert.equal(note.finger,3);
+                const note=bulkSong.materials.forms.find(m=>m.id===binding(bulkSong).materialId).snapshot.strings[0];
+                assert.equal(note.relativeFret,1);assert.equal(note.finger,2);
             }else{
                 assert.deepEqual(e,beforeBulk.bars[bi].chords[ei]);
                 assert.deepEqual(binding(bulkSong),binding(beforeBulk));
@@ -202,9 +225,31 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         assert.deepEqual(saved.notes.map(n=>[n.string,n.fret]),[[2,8],[3,0],[4,9],[5,10]]);
         assert.deepEqual(saved.mutedStrings,[1,6]);
         assert.deepEqual(saved.fretRange,{min:8,max:10,includesOpen:true});
+        // Use the native Chord Cruise bookshelf and its actual A-shape fingerings.
+        const nativeExamples=await book.evaluate(template=>{
+            const app=ChordCruise;
+            return [['Dm',2,'m',5],['G7',7,'7',10]].map(([name,rootPc,qualityKey,fret])=>{
+                const form=app.caged.getForm('A',qualityKey,rootPc,13,0);
+                const record={...template,chordName:name,rootPc,qualityKey,shape:'A',keyContext:null,
+                    intervals:app.theory.QUALITIES[qualityKey].intervals,notes:form.notes,mutedStrings:form.mutedStrings,fretRange:form.fretRange};
+                delete record.id;
+                const item=app.storage.saveChord(record);
+                return {id:item.id,bars:app.caged.detectBarres(form.notes),fret};
+            });
+        },saved);
         await book.reload();
         await book.click('#cc-go-library');
         await folder.click();await book.getByText('G',{exact:true}).first().waitFor();
+        for(const {id,bars,fret} of nativeExamples){
+            assert.deepEqual(bars,[{finger:1,fret,fromString:1,toString:5}]);
+            const thumbnail=book.locator('[data-chord-thumb="'+id+'"]');
+            assert.equal(await thumbnail.locator('rect[rx="18"][width="36"]').count(),1);
+            await book.locator('[data-chord-id="'+id+'"]').click();
+            const barre=book.locator('#cc-lib-fb .cc-fb-barre');await barre.waitFor();
+            const color=await barre.evaluate(e=>getComputedStyle(e).backgroundColor);
+            assert(color!=='transparent' && color!=='rgba(0, 0, 0, 0)');
+            await book.evaluate(()=>ChordCruise.ui.library.back());
+        }
         await book.close();
         await drag('min',-1); await expectRange(7,10,false);
         await drag('max',1); await expectRange(7,11,false);
