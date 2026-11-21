@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {packagePortPC} from './package-port-pc.mjs';
 import {PRO_DIRECTORY} from './edition-layout.mjs';
+import {chordBookEntry} from './chord-book-entry.mjs';
 import {renderOwnerBundle} from './generate-local-chord-owner.mjs';
 import {CRUISE_APP_ICONS} from '../../cruise-port/cruise-app-links.js';
 import {CRUISE_PORT_ROOT, PRO_ENTRY_PATH as portProEntry} from '../../cruise-port/cruise-port-edition.js';
@@ -12,7 +13,7 @@ import {CRUISE_PORT_ROOT, PRO_ENTRY_PATH as portProEntry} from '../../cruise-por
 const repo=fileURLToPath(new URL('../../../',import.meta.url));
 const studio='apps/cruise-studio/', viewer='apps/score-viewer/', standalone=viewer+'standalone/';
 const candidate=studio+'edition-candidates/score/';
-const version='0.220.0-rc.1';
+const version='0.221.0-rc.1';
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 
 function localDependencies(output,name) {
@@ -121,7 +122,13 @@ export function packageScoreCandidate(output) {
     for(const icons of Object.values(CRUISE_APP_ICONS)){
         for(const icon of Object.values(icons))copy(new URL(icon,'https://candidate.invalid').pathname.slice(1));
     }
-    const portQueue=[...portPages,...['terms.html','privacy.html','pro-access.html'].map(file=>'apps/cruise-port/'+file)];
+    copy(candidate+'book-save-entry.mjs','apps/chord-cruise/js/ui/from-score.mjs');
+    const bookPages=['standard','pro'].map(edition=>{
+        const {name,html}=chordBookEntry(edition);
+        put(name,html);
+        return name;
+    });
+    const portQueue=['apps/chord-cruise/pro-access.html',...bookPages,...portPages,...['terms.html','privacy.html','pro-access.html'].map(file=>'apps/cruise-port/'+file)];
     const portFiles=new Set();
     while(portQueue.length){
         const name=portQueue.pop();

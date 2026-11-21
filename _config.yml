@@ -57,6 +57,7 @@ exclude:
   - apps/cruise-studio/assets/chord-owner
   - apps/cruise-studio/js/modules/chord/form-authoring.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/book-bridge.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/book-save.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/book-protocol.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/book-source.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/chord-audition.mjs

@@ -1212,7 +1212,7 @@
     }
 
     /** 保存済みコードを複製し、元データへ触れずに編集を開始する。 */
-    function openExisting(payload) {
+    function openExisting(payload, newForm) {
         ensureDom();
         previousFocus = document.activeElement;
         var original = clone(payload.chord || {});
@@ -1244,9 +1244,9 @@
         saveInProgress = false;
         var tensionPcs = normalizeTensionPcs(typeof original.rootPc === 'number' ? original.rootPc : null, original.tensionPcs);
         draft = {
-            mode: 'edit',
+            mode: newForm ? 'new' : 'edit',
             source: original.keyContext ? 'diatonic' : 'custom',
-            original: original,
+            original: newForm ? null : original,
             chordName: theory().displayChordName(original.chordName || ''),
             formName: original.formName || (shape ? shape + '型' : 'フォーム'),
             shape: shape,
@@ -1274,7 +1274,7 @@
             mutedStrings: Array.isArray(original.mutedStrings) ? original.mutedStrings.slice() : [],
             deletedNoteStrings: deletedNotes.map(function (note) { return note.string; }),
             startFret: highFret ? 12 : 0,
-            endFret: highFret ? 25 : 13,
+            endFret: Math.max(newForm ? max : 0, highFret ? 25 : 13),
             formRange: { min: min, max: max, hasOpen: includesOpen },
             range: { min: min, max: max, includesOpen: includesOpen },
             memo: original.memo || '',
@@ -1302,6 +1302,7 @@
     window.ChordCruise.ui.saveEditor = {
         open: open,
         openExisting: openExisting,
+        openScoreForm: function (payload) { openExisting(payload, true); },
         close: close,
         hasUnsavedChanges: hasUnsavedChanges,
         FINGER_LABELS: FINGER_LABELS

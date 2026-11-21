@@ -1,4 +1,5 @@
 import {addFormRangeControls} from './form-range-controls.mjs';
+import {createBookForm,openBookSave} from './book-save.mjs';
 import {rangeForForm} from './form-range.mjs';
 import {cycleFormNote,playedSnapshot} from './form-cycle.mjs';
 import {singleChordPlan} from './chord-audition.mjs';
@@ -37,7 +38,7 @@ export function createOwnerChordPicker(C,base){
         const scoreKey=base.theory.parseSpelledNoteName(project.songInfo.originalKey);
         if(scoreKey)memory.ui.settings.selectedKey=scoreKey.pc;
         owner.state=memory.ui;owner.storage={saveSettings:next=>{Object.assign(owner.state.settings,next);return true;}};
-        if(target.editForm){memory.advanced=true;owner.state.exploreFretboardDisplayMode='finger';}
+        if(target.formEntry?.unopened){memory.advanced=false;owner.state.exploreFretboardDisplayMode='finger';}
         let disposed=false,composing=false,importEpoch=0;
         const current=()=>!disposed&&host.isConnected&&target.current();
         const eligible=()=>current()&&!composing&&target.eligible();
@@ -101,8 +102,19 @@ export function createOwnerChordPicker(C,base){
         function refreshPlayback(){const state=target.previewState?.(),active=state?.scope==='chords'&&state.phase!=='idle',text=active?'■ 停止':'▶ コード進行を再生';if(progression.textContent!==text)progression.textContent=text;progression.setAttribute('aria-pressed',String(!!active));}
         const unsubscribePreview=target.subscribePreview?.(refreshPlayback);refreshPlayback();
         const actions=node('div',undefined,basicLayout,'cc-control-row score-chord-actions');
-        const advanced=button('詳細設定',()=>{memory.advanced=!memory.advanced;setAdvanced();},actions,{title:'任意コードやコードフォームの編集','aria-expanded':false,'data-chord-advanced':''});
-        function setAdvanced(){host.classList.toggle('score-chord-advanced',!!memory.advanced);advanced.setAttribute('aria-expanded',String(!!memory.advanced));}
+        const advanced=button('詳細設定',()=>{
+            memory.advanced=!memory.advanced;
+            if(memory.advanced){
+                if(target.formEntry)target.formEntry.unopened=false;
+                showFingers();
+            }
+            setAdvanced();
+        },actions,{title:'任意コードやコードフォームの編集','aria-expanded':false,'data-chord-advanced':''});
+        function setAdvanced(){
+            host.classList.toggle('score-chord-advanced',!!memory.advanced);
+            advanced.classList.toggle('score-advanced-invitation',!!target.formEntry?.unopened);
+            advanced.setAttribute('aria-expanded',String(!!memory.advanced));
+        }
         setAdvanced();
         const section=node('section');section.id='cc-screen-explore';
         const status=node('p','',body,'cc-fb-hint');status.setAttribute('role','status');
@@ -289,6 +301,15 @@ export function createOwnerChordPicker(C,base){
             addFormRangeControls(root,m.snapshot,owner.ui.fretboard.FRET_W,range=>saveRange(m,range));
             if(mode==='finger')wireMutedStrings(root,m.snapshot,s=>editSlot(s,0,false));
         };
+        function showFingers(){
+            if(!selectedMaterial())return;
+            owner.state.exploreFretboardDisplayMode='finger';
+            owner.state.exploreFretboardPresentationInitialized=true;
+            for(const mode of ['finger','note','solfege','degree']){
+                shadow.getElementById('cc-fbmode-'+mode)?.classList.toggle('cc-segment-btn--active',mode==='finger');
+            }
+            refreshAdoption();
+        }
         function refreshAdoption(){
             if(selectedMaterial())shadow.getElementById('cc-fbmode-finger')?.classList.remove('cc-segment-btn--disabled');
             const root=shadow.getElementById('cc-fretboard-host');if(root&&lastDetailOptions)owner.ui.fretboard.render(root,lastDetailOptions);
@@ -318,12 +339,12 @@ export function createOwnerChordPicker(C,base){
             for(const value of ['finger','note','solfege','degree'])shadow.getElementById('cc-fbmode-'+value)?.setAttribute('data-chord-view',value);
             const customRow=shadow.querySelector('.cc-custom-chord-row'),notice=shadow.querySelector('[data-custom-chord-notice]');if(customRow&&notice){if(customRow.nextElementSibling!==notice)customRow.after(notice);notice.hidden=!memory.builderSymbol||memory.builderSymbol!==owner.ui.explore.readSelectedChord()?.symbol;}
             refreshDiagram();refreshAdoption();
+            saveToBook.disabled=!selectedMaterial();
         }
         doc.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault();});
         doc.addEventListener('click',e=>{if(!eligible()){e.preventDefault();e.stopImmediatePropagation();return;}if(e.target.closest('[data-shape],#cc-high-fret-toggle,[data-fm7-variant]')){memory.scrollFrom=shadow.querySelector('#cc-fretboard-host .cc-fb-scroll')?.scrollLeft||0;memory.revealFormIdentity=identity;}if(e.target.closest('#cc-fbmode-finger')&&selectedMaterial()){
             // Imported/manual snapshots need no CAGED shape in order to edit fingers.
-            e.preventDefault();e.stopImmediatePropagation();owner.state.exploreFretboardDisplayMode='finger';owner.state.exploreFretboardPresentationInitialized=true;
-            for(const mode of ['finger','note','solfege','degree'])shadow.getElementById('cc-fbmode-'+mode)?.classList.toggle('cc-segment-btn--active',mode==='finger');refreshAdoption();
+            e.preventDefault();e.stopImmediatePropagation();showFingers();
         }},true);
         // These are explicit musical choices, after the owner handlers updated
         // selectedChord. Opening, mounting, scale/key changes never insert a code.
@@ -331,11 +352,23 @@ export function createOwnerChordPicker(C,base){
         doc.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&!e.altKey&&e.key.toLowerCase()==='z'&&!e.target.matches('input,textarea,[contenteditable]')){e.stopPropagation();if(target.draftOnly)target.undo?.(e.shiftKey);else if(eligible()&&!session.inputPending)C.shellHost.keyboard.localCommand(e,e.shiftKey?'studio.redo':'studio.undo','sheetCruise');e.preventDefault();return;}if(target.draftOnly || !((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'))e.stopPropagation();});
         doc.addEventListener('compositionstart',()=>{composing=true;host.classList.add('is-composing');session.setInputPending(true);});doc.addEventListener('compositionend',()=>{composing=false;host.classList.remove('is-composing');session.setInputPending(false);});
         // Owner popups remain inside this editor. Neither global IDs nor Shell theme are changed.
+        const initialFingers=owner.state.exploreFretboardDisplayMode==='finger';
         owner.ui.explore.render();
+        if(initialFingers)showFingers();
         const diatonic=shadow.getElementById('cc-chord-grid').closest('.cc-card');diatonic.classList.add('score-chord-diatonic');harmony.append(diatonic);basicLayout.append(actions);
         shadow.querySelector('.cc-explore-controls').append(shadow.querySelector('.cc-custom-chord-row'));
         const fretboardCard=shadow.querySelector('.cc-fb-card'),head=shadow.querySelector('.cc-fb-head');
         const modes=head.querySelector('.cc-segment');modes.classList.add('score-fretboard-modes');fretboardCard.append(modes);
+        const saveToBook=button('コード本棚に保存',()=>{
+            const form=selectedMaterial();
+            if(!form)return;
+            try{
+                const chord=owner.ui.explore.readSelectedChord();
+                const symbol=form.id&&canonical?.symbol===chord.symbol?canonical.symbol:form.provenance.sourceSymbol;
+                const record=createBookForm(C,base,chord,owner.state.settings,form,symbol);
+                openBookSave(record,source.bookEdition);
+            }catch(error){status.textContent=error.message;}
+        },fretboardCard,{'data-save-to-book':''});
         head.append(shadow.getElementById('cc-caged-row'));
         const hint=node('p','指板をクリックすると運指を変更できます。',head,'score-form-hint');head.after(hint);
         const chordTitle=node('div',undefined,undefined,'score-detail-chord');
@@ -380,6 +413,7 @@ const layoutCSS=`
 .score-chord-actions{grid-column:2;grid-row:2;align-self:start;display:flex;flex-wrap:wrap;gap:10px;margin-top:0;}
 .score-chord-actions button{min-height:36px;padding:8px 14px;font-size:14px;border-radius:8px;}
 .score-chord-actions [data-chord-advanced]{margin-left:auto;}
+.score-chord-actions .score-advanced-invitation{border-color:var(--cc-gold);background:color-mix(in srgb,var(--cc-gold) 14%,var(--cc-surface));color:var(--cc-text);font-weight:700;}
 :host(:not(.score-chord-advanced)) :is(#cc-screen-explore,.cc-custom-chord-row){display:none;}
 :host(.score-chord-advanced) #cc-screen-explore{grid-column:1/-1;}
 #cc-save-btn-row{display:none!important;}

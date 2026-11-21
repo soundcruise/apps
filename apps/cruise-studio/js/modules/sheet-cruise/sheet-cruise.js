@@ -1350,8 +1350,9 @@
     // Both the paper and its settings preview use the same snapshot and display choices.
     function effectivePaperVisibility(project){var show=CS().sheetRenderer.resolveShowSettings(project);return {chords:show.chords,strum:show.strum,lyrics:show.lyrics,doremi:show.doremi,forms:!!paperFormSessions.get(state.session),timingGrid:CS().localPaperLayout?.value.timingGrid??show.timingGrid,gridResolution:CS().localPaperLayout?.value.gridResolution??show.gridResolution,...CS().localPaperLayout?.value.appearance.visibility};}
     var lastPaperColumns;
-    function paperRenderOptions(project,version=state.session?.snapshotVersion){
-        var layout=CS().localPaperLayout?.renderOptions(project,els.root),defaultForms=effectivePaperVisibility(project).forms;
+    function paperRenderOptions(project,version=state.session?.snapshotVersion,editableCatalogue=false){
+        const owner=state.session;
+        var layout=CS().localPaperLayout?.renderOptions(project,els.root,editableCatalogue?id=>editRegisteredForm(owner,id):undefined),defaultForms=effectivePaperVisibility(project).forms;
         lastPaperColumns=layout?.barsPerLine;
         var forms=(defaultForms||layout?.sectionRules.some(rule=>rule.visibility?.forms))&&CS().localPaperForms?.view(project,{scale:CS().localPaperLayout?.value.formScale});
         const rowSettings=state.lyricBeatResV2.get(state.session);
@@ -1376,7 +1377,7 @@
         if(historyPreview&&(historyPreview.owner!==state.session||historyPreview.version!==state.session.snapshotVersion))historyPreview=null;
         els.scaleBox.toggleAttribute('data-history-preview',!!historyPreview);
         if (staffStyle === 'melody'&&!historyPreview) staffRequest();
-        else {var project=historyPreview?.project||state.session.workingSnapshot();CS().sheetRenderer.render(project,els.scaleBox,{...paperRenderOptions(project),reuseBars:reuseBars});}
+        else {var project=historyPreview?.project||state.session.workingSnapshot();CS().sheetRenderer.render(project,els.scaleBox,{...paperRenderOptions(project,state.session.snapshotVersion,!historyPreview),reuseBars:reuseBars});}
         els.scaleBox.querySelectorAll('[data-paper-edit]').forEach(function(el){if(el.dataset.paperEdit){el.tabIndex=0;el.setAttribute('role','button');el.title=el.dataset.paperEdit==='section'?'セクション編集を開く':'曲情報を開く';}});
         CS().localPaperLayout?.apply(els.scaleBox);
         updateSheetScale();
@@ -2875,7 +2876,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         syncEditorDisclosures();var tick=chordPicker.tick,frame=contentFrame();root.textContent='コードを読み込んでいます…';
         prepareChordPicker().then(function(module){
             if(!root.isConnected||!currentFrame(frame)||owner!==state.session||chordPicker.tick!==tick||chordPicker.formEventId!==eventId)return;
-            module.mount(root,{session:owner,bar:bar,tick:tick,eventId:eventId,editForm:!!eventId,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick&&chordPicker.formEventId===eventId;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
+            module.mount(root,{session:owner,bar:bar,tick:tick,eventId:eventId,formEntry:eventId?chordPicker.formEntry:null,project:owner.workingSnapshot(),current:function(){return currentFrame(frame)&&chordPicker.tick===tick&&chordPicker.formEventId===eventId;},eligible:editorCanMove,write:function(symbol,formMaterial,formMode){
                 if(!currentFrame(frame)||!editorCanMove())return false;var field=editorRoot().querySelector('[data-overlay-field="chord"][data-slot-tick="'+tick+'"]');if(!field||field.readOnly)return false;return field._applyBeatValue(symbol,formMaterial,formMode).ok;
             },close:function(){if(!currentFrame(frame)||!editorCanMove())return;stopPianoAudition();chordPicker.open=false;root.hidden=true;root._disposeOwnerChord?.();syncEditorDisclosures();},formDetail:function(id){var cell=getSheetBarByNumber(state.selectedBarNumber);if(cell&&currentFrame(frame))openPaperForm(cell,id,undefined,true);},changed:function(){renderPreview(true);},progression:function(){
                 if(!currentFrame(frame)||!editorCanMove())return false;
@@ -5623,6 +5624,22 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
     function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.204.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
+    function editRegisteredForm(owner,eventId){
+        if(owner!==state.session||!editorCanMove()||historyPreview)return;
+        const project=owner.workingSnapshot(),index=project.bars.findIndex(bar=>bar.chords.some(chord=>chord.id===eventId));
+        if(index<0)return;
+        const bar=project.bars[index],chord=bar.chords.find(item=>item.id===eventId);
+        selectedBarIds=[];rangeAnchor=index+1;
+        selectBarRange(index+1,false);
+        collapsedEditorRows.delete('chord');
+        Object.assign(chordPicker,{open:true,owner,barId:bar.id,tick:chord.onsetTick,formEventId:eventId,formEntry:{unopened:true}});
+        editSelectedBar();
+        if(editorPlacement!=='right'){
+            state.loupe.y=clampLoupeY(0);
+            applyLoupeGeometry();
+        }
+        els.slotOverlay.scrollTop=0;
+    }
     async function openPaperForm(cell,eventId,tick,fromEditor=false){
         if(!editorCanMove()||!CS().localPaperForms)return;
         var number=Number(cell.dataset.barNumber),p=state.session.workingSnapshot(),chord=p.bars[number-1]?.chords.find(function(c){return eventId?c.id===eventId:c.onsetTick===tick;}),binding=chord&&p.performance.formBindings.find(function(b){return b.chordEventId===chord.id;}),material=binding&&p.materials.forms.find(function(m){return m.id===binding.materialId;});
@@ -5634,13 +5651,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         formPopupModule.createFormPopup({document:document,dialog:dialog,onEdit:fromEditor?undefined:function(){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return;
             closePaperForm();
-            if(!editorCanMove())return;
-            selectedBarIds=[];rangeAnchor=number;
-            selectBarRange(number,false);
-            collapsedEditorRows.delete('chord');
-            Object.assign(chordPicker,{open:true,owner,barId,tick:chord.onsetTick,formEventId:chord.id});
-            editSelectedBar();
-            els.slotOverlay.querySelector('[data-chord-picker]')?.scrollIntoView({block:'nearest'});
+            editRegisteredForm(owner,chord.id);
         },symbol:chord.symbol,snapshot:material.snapshot,playedStrings:binding.playedStrings,diagram:CS().localPaperForms.diagram,detectBarres:window.ChordCruise.caged.detectBarres,apply:function(draft){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return {ok:false,error:'編集対象が変わりました。開き直してください'};
             draft.snapshot.playability='unknown';draft.snapshot.ownerWarning='変更した押さえ方は未確認';

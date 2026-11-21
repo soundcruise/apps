@@ -90,6 +90,7 @@ test('packaged score creation, persistence, export and playback: '+engine+' '+ed
         window.showSaveFilePicker=async()=>(await navigator.storage.getDirectory()).getFileHandle('candidate.json',{create:true});
     });
     await editor.click('#sc-save');
+    if(engine==='chrome') await editor.getByRole('button',{name:'保存を続ける',exact:true}).click();
     await editor.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
     const saved = await snapshot();
     assert.equal(saved.songInfo.title,title);
@@ -124,6 +125,21 @@ test('packaged score creation, persistence, export and playback: '+engine+' '+ed
     });
     await editor.click('[data-viewer-action=play]');
     assert.deepEqual(await snapshot(),saved);
+
+    // Exercise the native shelf bundled in each edition using the same tab handoff as the editor.
+    const shelfOpened=editor.context().waitForEvent('page');
+    await editor.evaluate(async()=>{
+        const {openBookSave}=await import('/apps/cruise-studio/js/modules/sheet-cruise/book-save.mjs');
+        openBookSave({chordName:'C',shape:'C',rootPc:0,intervals:[0,4,7],qualityKey:'major',
+            keyContext:{tonicPc:0,mode:'major',degreeLabel:'I'},fretRange:{min:1,max:3,includesOpen:true},
+            notes:[{string:1,fret:0,interval:4,finger:null}],mutedStrings:[2,3,4,5,6]});
+    });
+    const shelf=await shelfOpened;
+    if(edition==='pro')await shelf.getByRole('button',{name:'譜面のフォームをコード本棚に保存'}).click();
+    await shelf.locator('#cc-save-confirm').click();
+    await shelf.waitForFunction(()=>ChordCruise.storage.loadChordIndex().length===1);
+    assert.equal(await shelf.evaluate(()=>ChordCruise.storage.loadChordIndex()[0].chordName),'C');
+    await shelf.close();
 
     const link=await editor.locator('.sv-standalone-link').getAttribute('href');
     assert.equal(link,'/apps/score-viewer/standalone/?from='+edition);

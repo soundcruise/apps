@@ -39,6 +39,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.send_header('Content-Length', str(len(body)))
             self.end_headers(); self.wfile.write(body); return
+        if path in ['/apps/chord-cruise/standard/', '/apps/chord-cruise/standard/from-score.html']:
+            body = subprocess.check_output(['node', str(pathlib.Path(__file__).with_name('chord-book-entry.mjs'))], cwd=ROOT)
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers(); self.wfile.write(body); return
         if path == VIEWER_LOCAL + 'manifest.webmanifest':
             body = (ROOT / path.lstrip('/')).read_bytes()
             self.send_response(200); self.send_header('Content-Type', 'application/manifest+json')

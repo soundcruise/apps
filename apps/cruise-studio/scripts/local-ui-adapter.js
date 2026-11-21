@@ -11,7 +11,7 @@ if (location.protocol !== 'http:' || location.hostname !== '127.0.0.1' || locati
 }
 const C = window.CruiseStudio;
 C.localBookSource = createMockAccountBookshelf(location,!!document.querySelector('meta[name="local-ui-fixture"]'));
-C.localChordOwner = Object.freeze({createOwnerUI,ownerCSS,exportBookmarklet,createFormRenderer});
+C.localChordOwner = Object.freeze({bookEdition:"standard",createOwnerUI,ownerCSS,exportBookmarklet,createFormRenderer});
 C.localPaperForms = createPaperForms(createFormRenderer({ChordCruise:{ui:{},state:{settings:{}}}},document));
 C.localChordForms = createFormAuthoring(C,window.ChordCruise);
 C.localPaperLayout = createPaperLayout(C);
