@@ -459,6 +459,74 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     assert.equal(await name.inputValue(),'未適用の編集');
 });
 
+for (const engine of ['chrome','webkit']) test('packaged batch guides keep the selected range through preview and OK: '+engine,async t=>{
+    const server=await startServer(),origin='http://127.0.0.1:'+server.address().port;
+    t.after(()=>stopServer(server));
+    const browser=await(engine==='chrome'?chromium.launch({channel:'chrome'}):webkit.launch());
+    t.after(()=>browser.close());
+    const page=await browser.newPage({viewport:{width:1440,height:1000}});
+    await page.goto(origin+'/apps/cruise-studio/');
+    await page.click('#open-sheet-cruise');
+    const {createUITestProject}=await import('../scripts/create-ui-test-project.mjs');
+    const song=createUITestProject();
+    await page.locator('#sc-import-json').setInputFiles({name:'batch.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(song))});
+    await page.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,song.projectId);
+    const score=page.locator('#sc-sheet-scale-box');
+    const bar=(area,n)=>area.locator('.sheet-bar[data-bar-number="'+n+'"]');
+    for(const [command,title,anchor,preset,targets] of [
+        ['sc-edit-chord-preset','コード一括入力','batch-chords','王道進行',[4,5,6,7]],
+        ['sc-edit-rhythm','ストローク一括入力','batch-strokes','基本の8分',[2,3]]
+    ]){
+        await page.click('#sc-curve-menu-toggle');
+        await page.click('#'+command);
+        const dialog=page.getByRole('dialog',{name:title,exact:true});
+        await dialog.locator('[data-score-preset]').selectOption({label:preset});
+        const chords=anchor==='batch-chords';
+        const first=bar(dialog,targets[0]);
+        if(chords) await first.click({position:{x:10,y:14}});
+        else {
+            const start=await first.boundingBox(),end=await bar(dialog,3).boundingBox();
+            await page.mouse.move(start.x+14,start.y+18);
+            await page.mouse.down();
+            await page.mouse.move(end.x+20,end.y+18,{steps:10});
+            await page.mouse.up();
+        }
+        const destinations=()=>dialog.locator('[data-preset-destination]').evaluateAll(items=>items.map(e=>Number(e.dataset.barNumber)));
+        assert.deepEqual(await destinations(),targets);
+        await dialog.getByRole('button',{name:title+'の使い方'}).click();
+        const help=page.getByRole('dialog',{name:title+'の使い方',exact:true});
+        await help.locator('img').evaluate(img=>img.decode());
+        assert.equal(await help.locator('ol li').count(),4);
+        const opened=page.waitForEvent('popup');
+        await help.getByRole('link',{name:/詳しくはこちら/}).click();
+        const manual=await opened;
+        await manual.waitForLoadState('load');
+        assert.equal(new URL(manual.url()).hash,'#'+anchor);
+        const chapter=manual.locator('#'+anchor);
+        const heading=await chapter.getByRole('heading',{name:title,exact:true}).boundingBox();
+        assert(heading && heading.y>=-1 && heading.y<120);
+        assert.equal(await chapter.locator('figure img').count(),3);
+        await chapter.locator('img').evaluateAll(images=>Promise.all(images.map(img=>img.decode())));
+        await manual.close();
+        await help.getByRole('button',{name:'閉じる'}).click();
+        assert.deepEqual(await destinations(),targets);
+        const readBars=async area=>Promise.all(targets.map(async n=>{
+            const row=bar(area,n);
+            return chords ? (await row.locator('.sheet-chord-event').allTextContents()).join('') :
+                row.locator('[data-strum-arrow]').evaluateAll(arrows=>arrows.map(a=>a.dataset.strumArrow).join(' '));
+        }));
+        const before=await readBars(score);
+        await dialog.locator('[data-preset-stage]').click();
+        const eighths='down up down up down up down up';
+        const expected=chords?['F','G','Em','Am']:[eighths,eighths];
+        assert.deepEqual(await readBars(dialog),expected);
+        assert.deepEqual(await readBars(score),before);
+        await dialog.getByRole('button',{name:'OK',exact:true}).click();
+        await dialog.waitFor({state:'detached'});
+        assert.deepEqual(await readBars(score),expected);
+    }
+});
+
 for (const engine of ['chrome','webkit']) test('packaged chord names, capo and shelf forms agree: '+engine,async t=>{
     const server=await startServer(),origin='http://127.0.0.1:'+server.address().port;
     t.after(()=>stopServer(server));

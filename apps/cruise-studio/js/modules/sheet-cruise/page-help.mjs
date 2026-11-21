@@ -19,15 +19,18 @@ const guides = {
         ['結果を確かめる', 'カポや原曲キーを選び、「変更後」のPlayキー（押さえるキー）を確認して「適用」を押します。']
     ],
     chordPreset: [
-        '同じコード進行を、まとめて譜面に入力します。',
-        ['進行と入力先', 'プリセットを選び、右の譜面で入力を始める小節をクリックします。セクション全体に繰り返すときはセクション名を選びます。'],
-        ['確認して反映', '「適用」で譜面のプレビューを更新します。譜面を確認し、右上の「OK」で曲に反映します。']
+        'コード進行を選び、譜面のどの小節に入れるかを指定します。',
+        ['上の「プリセット」', '使いたい進行を選びます。下の白いマスにコードが並びます。'],
+        ['下の「曲の譜面」', '入力を始める小節をクリックすると、進行の長さに合わせて入力先に色が付きます。'],
+        ['中央の「適用」', '横に表示された小節番号を確かめて押し、下の譜面でコードを確認します。'],
+        ['右上の「OK」', '確認した進行を曲に反映します。']
     ],
     strumPreset: [
-        '選んだ範囲に、同じストロークパターンを入力します。',
-        ['パターンを選ぶ', 'プリセットを選びます。必要に応じてマスを選んでD（ダウン）やU（アップ）を入力し、再生して確かめます。'],
-        ['範囲を選ぶ', '譜面をドラッグして開始と終了の小節を選びます。セクション全体ならセクション名を、曲全体なら「曲全て」を選びます。'],
-        ['曲に反映', '「適用」でプレビューを確認し、「OK」で確定します。']
+        'ストロークを選び、指定した小節に同じパターンを入れます。',
+        ['上の「プリセット」', '使いたいパターンを選びます。上段の「再生」で試聴できます。'],
+        ['下の「曲の譜面」', '入力したい最初の小節から最後の小節までドラッグします。セクション全体なら見出しをクリックします。'],
+        ['中央の「適用」', '横に表示された小節番号を確かめて押し、下の譜面で矢印を確認します。'],
+        ['右上の「OK」', '選んだ小節のストロークを、確認したパターンに置き換えます。']
     ],
     layout: [
         '1行の小節数や、コード・歌詞などの見え方を調整します。',
@@ -45,6 +48,15 @@ const guides = {
         ['対象を確認', '画面上部の対象件数をクリックすると、該当する小節が分かります。'],
         ['まとめて反映', 'コード名や押さえ方を変更し、右下のボタンで選んだ箇所に反映します。']
     ]
+};
+
+const illustratedGuides = {
+    sections: {image:'sections.png', width:1050, height:430, anchor:'sections',
+        alt:'セクション編集の画面。①上の列、②左の操作欄、③譜面の＋／−、④右上の適用。'},
+    chordPreset: {image:'chords.png', width:960, height:589, anchor:'batch-chords',
+        alt:'コード一括入力の画面。①王道進行、②入力先の4〜7小節、③適用、④OK。'},
+    strumPreset: {image:'strokes.png', width:960, height:653, anchor:'batch-strokes',
+        alt:'ストローク一括入力の画面。①基本の8分、②入力先の2〜3小節、③適用、④OK。'}
 };
 
 export function addPageHelp(owner, before, topic) {
@@ -75,13 +87,14 @@ export function addPageHelp(owner, before, topic) {
         const close = append('button', '閉じる', head);
         close.type = 'button';
         append('p', guide[0]);
-        if (topic === 'sections') {
-            card.classList.add('sc-sections-help');
+        const illustration = illustratedGuides[topic];
+        if (illustration) {
+            card.classList.add('sc-illustrated-help');
             const picture = append('img', '');
-            picture.src = '/apps/cruise-studio/score-guide/sections.png';
-            picture.width = 1050;
-            picture.height = 430;
-            picture.alt = 'セクション編集の画面。①上の列、②左の操作欄、③譜面の＋／−、④右上の適用。';
+            picture.src = '/apps/cruise-studio/score-guide/' + illustration.image;
+            picture.width = illustration.width;
+            picture.height = illustration.height;
+            picture.alt = illustration.alt;
             const steps = append('ol', '');
             for (const [label, detail] of guide.slice(1)) {
                 const step = append('li', '', steps);
@@ -89,10 +102,10 @@ export function addPageHelp(owner, before, topic) {
                 step.append('　' + detail);
             }
             const link = append('a', '詳しくはこちら（画像付きの取扱説明書）');
-            link.href = '/apps/cruise-studio/score-guide/index.html#sections';
+            link.href = '/apps/cruise-studio/score-guide/index.html#' + illustration.anchor;
             link.target = '_blank';
             link.rel = 'noopener';
-            link.title = 'セクション編集の手順を新しいタブで開く';
+            link.title = owner.getAttribute('aria-label') + 'の手順を新しいタブで開く';
         } else {
             const list = append('dl', '');
             for (const [label, detail] of guide.slice(1)) {
