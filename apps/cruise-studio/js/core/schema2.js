@@ -102,7 +102,13 @@
         formKeys(m,['id','encoding','snapshot','provenance']);
         var v2=m.encoding==='studio-chord-form-v2';
         insist(v2||m.encoding==='studio-chord-form-v1','unsupported-form-encoding');
-        var s=m.snapshot;formKeys(s,['capo','tuningMidi','maxAbsoluteFret','strings','barres','playability','ownerWarning']);
+        var s=m.snapshot,fields=['capo','tuningMidi','maxAbsoluteFret','strings','barres','playability','ownerWarning'];
+        if(s && Object.hasOwn(s,'displayRange')){
+            fields.push('displayRange');
+            var range=s.displayRange;formKeys(range,['min','max']);
+            insist(integer(range.min)&&integer(range.max)&&range.min>=1&&range.min<=range.max&&range.max<=s.maxAbsoluteFret-s.capo,'invalid-form-display-range');
+        }
+        formKeys(s,fields);
         insist(integer(s.capo)&&s.capo>=0&&s.capo<=11&&standardTuning(s.tuningMidi),'invalid-form-instrument');
         insist(integer(s.maxAbsoluteFret)&&s.maxAbsoluteFret>=s.capo&&s.maxAbsoluteFret<=36,'invalid-form-fret-bound');
         insist(Array.isArray(s.strings)&&s.strings.length===6,'invalid-form-strings');

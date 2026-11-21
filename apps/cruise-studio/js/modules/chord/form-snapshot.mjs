@@ -29,17 +29,17 @@ export function materialFromResult(result) {
     };
 }
 // Derived only. Schema validation must precede these readers; no content key is persisted.
-export function contentKey(material) {
+export function contentKey(material, includeDisplay = true) {
     const s = material.snapshot, v = material.provenance;
     return JSON.stringify([material.encoding, s.capo, s.tuningMidi, s.maxAbsoluteFret,
         s.strings.map(n => n.kind === 'muted' ? [n.string, n.kind] : [n.string, n.kind, n.relativeFret, n.finger, n.fingeringWarning]),
         s.barres.map(b => [b.finger, b.relativeFret, b.fromString, b.toString]), s.playability, s.ownerWarning,
         v.origin, v.ownerApp, v.ownerVersion, v.adapterVersion, v.sourceSymbol, v.shape, v.recommendationSource,
-        [v.generation.minRelativeFret, v.generation.maxRelativeFret], v.externalMaterialId]);
+        [v.generation.minRelativeFret, v.generation.maxRelativeFret], v.externalMaterialId, ...(includeDisplay && s.displayRange ? [s.displayRange.min, s.displayRange.max] : [])]);
 }
 export function basisKey(project, event, material, playedStrings) {
     return JSON.stringify([project.projectId, event.id, event.symbol, event.unresolved, project.instrument.capo,
-        project.instrument.tuning, project.instrument.maxAbsoluteFret ?? null, contentKey(material), playedStrings.slice().sort((a,b) => a-b)]);
+        project.instrument.tuning, project.instrument.maxAbsoluteFret ?? null, contentKey(material, false), playedStrings.slice().sort((a,b) => a-b)]);
 }
 export function evaluateBinding(project, binding, { schema, chordTheory, parseChordSymbol }) {
     const invalid = reason => freezeData({ ready: false, scope: 'voicing-only', reasons: [reason], soundingMidi: [] });

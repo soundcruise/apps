@@ -1,3 +1,4 @@
+import {diagramFrets} from './form-range.mjs';
 // Form-only drawing: code names belong to the caller, so paper may reuse this without a title.
 // One adapter for the original owner renderer; gestures never write outside Session.
 export function formDiagramOptions(snapshot,chord,explore,{monochrome=false,mode='finger',onSlotTap,onEmptySlotTap,...options}={}){
@@ -7,11 +8,9 @@ export function formDiagramOptions(snapshot,chord,explore,{monochrome=false,mode
         return {string:n.string,fret:n.relativeFret,label,role:explore.readMarkerRole(chord,interval),fingeringWarning:mode==='finger'&&!!n.fingeringWarning,tappable:!!onSlotTap&&mode==='finger',ariaLabel:n.string+'弦 '+n.relativeFret+'フレット、'+(label||'指未指定')+'。クリックで指を変更'};
     }),mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:snapshot.barres.map(b=>({...b,fret:b.relativeFret})),markerLabelSize:'medium',onSlotTap:mode==='finger'?onSlotTap:undefined,onEmptySlotTap:mode==='finger'?onEmptySlotTap:undefined};
 }
-export function drawChordForm(fretboard,container,snapshot,chord,explore,monochrome=true,saveRange=null,interaction={}){
+export function drawChordForm(fretboard,container,snapshot,chord,explore,monochrome=true,interaction={}){
     container.replaceChildren();if(!snapshot){container.textContent='フォーム候補がありません';return ()=>{};}
-    const notes=snapshot.strings.filter(n=>n.kind==='note'),fretsOfNotes=notes.map(n=>n.relativeFret),includesOpen=fretsOfNotes.includes(0);
-    const range=saveRange||{min:fretsOfNotes.length?Math.min(...fretsOfNotes):1,max:Math.max(includesOpen?3:1,...fretsOfNotes),includesOpen};
-    const frets=[];if(range.includesOpen||snapshot.strings.some(n=>n.kind==='muted')||interaction.onEmptySlotTap)frets.push(0);for(let f=Math.max(1,range.min);f<=range.max;f++)frets.push(f);
+    const notes=snapshot.strings.filter(n=>n.kind==='note'),frets=diagramFrets(snapshot,!!interaction.onEmptySlotTap);
     const hasOpenColumn=frets[0]===0,offset=hasOpenColumn||snapshot.barres.some(b=>b.relativeFret===1)||notes.some(n=>n.string===6);
     const options=formDiagramOptions(snapshot,chord,explore,{...interaction,monochrome,frets,openStringNutOnly:monochrome&&hasOpenColumn,monochromeViewportLeftCrop:monochrome&&hasOpenColumn?12:0,monochromeRightPadding:monochrome&&hasOpenColumn?18:0,monochromeFretNumberYOffset:monochrome&&offset?(snapshot.barres.some(b=>b.fromString===6||b.toString===6)?10:5):0});
     const board=container.ownerDocument.createElement('div');board.className='score-chord-diagram-board';container.append(board);fretboard.render(board,options);

@@ -65,6 +65,8 @@ exclude:
   - apps/cruise-studio/js/modules/sheet-cruise/chord-name-transfer.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/chord-picker.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/editor-help.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/form-range.mjs
+  - apps/cruise-studio/js/modules/sheet-cruise/form-range-controls.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/form-cycle.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/form-popup.mjs
   - apps/cruise-studio/js/modules/sheet-cruise/owner-chord-panel.mjs

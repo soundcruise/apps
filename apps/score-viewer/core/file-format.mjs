@@ -10,13 +10,14 @@ export const MAX_PRESENTATION_BYTES = 64 * 1024;
 // The 1 MiB envelope reserves 64 KiB each for general settings and other metadata.
 const MAX_GRID_ROWS_BYTES = 896 * 1024;
 export const CAPABILITIES = Object.freeze(['schema2', 'meter:4/4', 'meter:3/4', 'layout:scoreLayoutV1', 'melody:bar-ties-v1',
-    'form:studio-chord-form-v1', 'form:studio-chord-form-v2',
+    'form:studio-chord-form-v1', 'form:studio-chord-form-v2', 'form:display-range-v1',
     'rhythm:studio-strum-v1', 'rhythm:rhythm-owner-cells-v1']);
 const encoder = new TextEncoder();
 const identifier = v => typeof v === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,159}$/.test(v);
 function requirements(score) {
     return [...new Set(['schema2', 'meter:'+score.songInfo.timeSignature.beats+'/'+score.songInfo.timeSignature.beatUnit,
         ...score.materials.forms.map(m => 'form:' + m.encoding),
+        ...(score.materials.forms.some(m => m.snapshot.displayRange) ? ['form:display-range-v1'] : []),
         ...score.materials.rhythms.map(m => 'rhythm:' + m.encoding),
         ...(score.bars.some(bar=>bar.melody.some(note=>note.tieToNext))?['melody:bar-ties-v1']:[]),
         ...(score.extensions?.scoreLayoutV1 ? ['layout:scoreLayoutV1'] : [])])].sort();

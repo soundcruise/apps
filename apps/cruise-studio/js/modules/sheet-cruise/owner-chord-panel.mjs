@@ -1,3 +1,5 @@
+import {addFormRangeControls} from './form-range-controls.mjs';
+import {rangeForForm} from './form-range.mjs';
 import {cycleFormNote,playedSnapshot} from './form-cycle.mjs';
 import {singleChordPlan} from './chord-audition.mjs';
 import {readBookSource,bookSourceCurrent} from './book-source.mjs';
@@ -218,7 +220,7 @@ export function createOwnerChordPicker(C,base){
             const displayMaterial=material||C.localChordForms?.recommend(project,chord.symbol);const snapshot=displayMaterial&&playedSnapshot(displayMaterial.snapshot,binding?.playedStrings);
             formName.textContent=chord.symbol;diagram.setAttribute('aria-label',chord.symbol+'のコードフォーム');
             diagram.dataset.chordDiagramTick=tick;if(material)diagram.dataset.formMaterial=material.id;else delete diagram.dataset.formMaterial;
-            disposeDiagram();disposeDiagram=drawChordForm(owner.ui.fretboard,diagram,snapshot,chord,owner.ui.explore,true,displayMaterial?savedRange(displayMaterial,chord):null,{onSlotTap:(s,f)=>editSlot(s,f,true),onEmptySlotTap:(s,f)=>editSlot(s,f,false),onMutedTap:s=>editSlot(s,0,false)});
+            disposeDiagram();disposeDiagram=drawChordForm(owner.ui.fretboard,diagram,snapshot,chord,owner.ui.explore,true,{onSlotTap:(s,f)=>editSlot(s,f,true),onEmptySlotTap:(s,f)=>editSlot(s,f,false),onMutedTap:s=>editSlot(s,0,false)});
         }
         diagram.title='指をクリックすると運指を変更できます';
         diagram.addEventListener('click',e=>e.stopPropagation());
@@ -232,8 +234,8 @@ export function createOwnerChordPicker(C,base){
                 delete memory.revealFormIdentity;const scrollFrom=memory.scrollFrom;delete memory.scrollFrom;
                 const root=shadow.getElementById('cc-fretboard-host'),m=selectedMaterial(),chord=owner.ui.explore.readSelectedChord();
                 if(!root||!m||!chord||!lastDetailOptions)return;
-                const range=savedRange(m,chord),fret=range.includesOpen?0:(range.min+range.max)/2;
-                owner.ui.fretboard.centerOnFret(root,fret,{...lastDetailOptions,animate:!window.matchMedia('(prefers-reduced-motion: reduce)').matches,initialScroll:scrollFrom,startFret:Math.min(lastDetailOptions.startFret??0,range.min),endFret:Math.max(lastDetailOptions.endFret??13,range.max)});
+                const range=rangeForForm(m.snapshot),fret=(range.min+range.max)/2;
+                owner.ui.fretboard.centerOnFret(root,fret,{...lastDetailOptions,animate:!window.matchMedia('(prefers-reduced-motion: reduce)').matches,initialScroll:scrollFrom,startFret:0,endFret:m.snapshot.maxAbsoluteFret-m.snapshot.capo});
             });
         }
         const nativeRender=owner.ui.fretboard.render.bind(owner.ui.fretboard);
@@ -244,13 +246,19 @@ export function createOwnerChordPicker(C,base){
             if(!owner.state.exploreShape)return null;
             return candidateFor(chord,owner.state.exploreShape,owner.state.settings.highFretMode?{minRelativeFret:12,maxRelativeFret:25}:null);
         }
-        function savedRange(m,chord){
-            const notes=m.snapshot.strings.filter(n=>n.kind==='note'),frets=notes.map(n=>n.relativeFret),includesOpen=frets.includes(0);
-            let range={min:frets.length?Math.min(...frets):1,max:frets.length?Math.max(...frets):1,includesOpen};
-            const shape=m.provenance.shape,quality=ownerQuality(base.theory,C.theory.parseBasicChordSymbol(chord.symbol)?.quality),g=m.provenance.generation;
-            if(shape&&quality){const raw=base.caged.getForm(shape,quality,(chord.rootPc-m.snapshot.capo+12)%12,g.maxRelativeFret,g.minRelativeFret);const actual=JSON.stringify(notes.map(n=>[n.string,n.relativeFret]).sort()),original=raw.available&&JSON.stringify(raw.notes.filter(n=>!n.fingeringWarning).map(n=>[n.string,n.fret]).sort());if(actual===original)range=raw.displayRange||raw.fretRange;}
-            const relativeChord={...chord,rootPc:(chord.rootPc-m.snapshot.capo+12)%12,bassPc:chord.bassPc==null?null:(chord.bassPc-m.snapshot.capo+12)%12};
-            return owner.ui.saveEditor.readAutomaticSaveRange(relativeChord,{displayRange:range});
+        function saveRange(material,range){
+            if(!eligible())return false;
+            const binding=canonical && project.performance.formBindings.find(b=>b.chordEventId===canonical.id && b.materialId===material.id);
+            if(binding && !target.draftOnly){
+                const result=C.localChordForms.setDisplayRange(session,canonical.id,material.id,range);
+                if(result.ok)target.changed();else status.textContent=formMessage(result);
+                return result.ok;
+            }
+            const original=binding?project.materials.forms.find(m=>m.id===binding.materialId):material;
+            const copy=JSON.parse(JSON.stringify(original));
+            delete copy.id;
+            if(range)copy.snapshot.displayRange=range;else delete copy.snapshot.displayRange;
+            return write(owner.ui.explore.readSelectedChord().symbol,copy,binding?.mode);
         }
         function adoptMaterial(m){
             if(!eligible()||!m)return false;const chord=owner.ui.explore.readSelectedChord();
@@ -274,10 +282,11 @@ export function createOwnerChordPicker(C,base){
             const mode=owner.state.exploreFretboardDisplayMode||owner.state.settings.fretboardDisplayMode||'finger';
             const overlays=(options.markers||[]).filter(n=>n.isOverlay&&(n.isTensionCandidate||n.isBassCandidate));
             const key=JSON.stringify([m.snapshot,mode,options.startFret,options.endFret,overlays]);if(lastDetailHost===root&&lastDetailKey===key&&root.querySelector('.cc-fb-stage'))return;
-            lastDetailHost=root;lastDetailKey=key;const range=savedRange(m,chord),max=m.snapshot.maxAbsoluteFret-m.snapshot.capo;
-            const rendered=formDiagramOptions(m.snapshot,chord,owner.ui.explore,{...options,animateScroll:false,...(memory.revealFormIdentity===identity?{preserveScroll:memory.scrollFrom}:{}),mode,startFret:Math.min(options.startFret??0,range.min),endFret:Math.min(max,Math.max(options.endFret??13,range.max)),rangeHighlight:{minFret:range.min,maxFret:range.max,includesOpen:range.includesOpen},onSlotTap:(s,f)=>editSlot(s,f,true),onEmptySlotTap:(s,f)=>editSlot(s,f,false)});
+            lastDetailHost=root;lastDetailKey=key;const max=m.snapshot.maxAbsoluteFret-m.snapshot.capo;
+            const rendered=formDiagramOptions(m.snapshot,chord,owner.ui.explore,{...options,animateScroll:false,...(memory.revealFormIdentity===identity?{preserveScroll:memory.scrollFrom}:{}),mode,startFret:0,endFret:max,rangeHighlight:null,onSlotTap:(s,f)=>editSlot(s,f,true),onEmptySlotTap:(s,f)=>editSlot(s,f,false)});
             for(const n of overlays)if(!rendered.markers.some(m=>m.string===n.string&&m.fret===n.fret))rendered.markers.push({...n,tappable:mode==='finger',ariaLabel:n.string+'弦 '+n.fret+'フレットの候補を選択'});
             nativeRender(root,rendered);
+            addFormRangeControls(root,m.snapshot,owner.ui.fretboard.FRET_W,range=>saveRange(m,range));
             if(mode==='finger')wireMutedStrings(root,m.snapshot,s=>editSlot(s,0,false));
         };
         function refreshAdoption(){
@@ -387,6 +396,15 @@ const layoutCSS=`
 .cc-fb-head .cc-caged-btn{min-width:42px;padding:5px 10px;}
 .cc-fb-head .cc-caged-btn-label{font-size:14px;}
 .cc-fb-head .cc-caged-btn-root{font-size:10px;}
+.score-form-range{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;min-width:0;margin:10px 0 0;padding:6px 12px 10px;border:1px solid var(--cc-border);border-radius:8px;color:var(--cc-text);font-size:13px;}
+.score-form-range legend{padding:0 4px;font-weight:600;}
+.score-form-range label{display:inline-flex;align-items:center;gap:6px;}
+.score-form-range input[type=number]{width:4.5em;padding:4px;color:var(--cc-text);background:var(--cc-surface);border:1px solid var(--cc-border);border-radius:4px;}
+.score-range-band{position:absolute;top:0;bottom:0;box-sizing:border-box;background:rgba(212,175,55,.12);border-inline:1px solid var(--cc-gold);border-bottom:2px solid var(--cc-gold);pointer-events:none;}
+.score-range-grip{position:absolute;bottom:0;width:16px;height:26px;box-sizing:border-box;border:1px solid var(--cc-border);border-radius:5px;background:var(--cc-gold);pointer-events:auto;touch-action:none;cursor:ew-resize;}
+.score-range-grip::after{content:'';position:absolute;inset:6px 5px;border-inline:1px solid #45391e;}
+.score-range-grip[data-range-edge=min]{left:0;}
+.score-range-grip[data-range-edge=max]{right:0;}
 .score-form-hint{font-size:12px;line-height:1.5;color:var(--cc-text-muted);margin:6px 0 10px;}
 .score-detail-chord{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px;margin:10px 0;}
 .score-detail-chord #cc-explore-fretboard-name{margin:0;padding:0;font-size:32px;line-height:1.2;}

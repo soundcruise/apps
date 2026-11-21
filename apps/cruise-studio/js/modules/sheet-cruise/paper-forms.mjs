@@ -1,4 +1,5 @@
 import {bindOutsideDismiss} from '../score-ui.mjs';
+import {diagramFrets} from './form-range.mjs';
 import {playedSnapshot} from './form-cycle.mjs';
 // Read-only registered forms, rendered with the owner's static SVG (no title/UI).
 export function registeredPaperForms(project){
@@ -27,8 +28,7 @@ export function createPaperForms(renderer,doc=document){
     const svgCache=new Map(),templates=new Map(),lists=new WeakMap();let zoomDialog=null;
     const labels={1:'人',2:'中',3:'薬',4:'小',T:'親'};
     function optionsFor(snapshot,fingers,showZero=false){
-        const notes=snapshot.strings.filter(n=>n.kind==='note'),fretsOf=notes.map(n=>n.relativeFret),openNote=fretsOf.includes(0),open=showZero||openNote||snapshot.strings.some(n=>n.kind==='muted'),min=openNote?0:Math.min(...fretsOf,notes.length?Infinity:1),max=Math.max(openNote?3:min,...fretsOf),frets=[];
-        if(open)frets.push(0);for(let f=Math.max(1,min);f<=max;f++)frets.push(f);
+        const notes=snapshot.strings.filter(n=>n.kind==='note'),frets=diagramFrets(snapshot,showZero),open=frets[0]===0;
         const options={monochrome:true,frets,openStringNutOnly:open,monochromeViewportLeftCrop:open?12:0,monochromeFretNumberYOffset:10,
             markers:notes.map(n=>({string:n.string,fret:n.relativeFret,label:fingers?(labels[n.finger]||(n.fingeringWarning?'⚠':'')):'',role:'root'})),
             mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:snapshot.barres.map(b=>({...b,fret:b.relativeFret})),markerLabelFontSize:18,fretNumberScale:19/13};

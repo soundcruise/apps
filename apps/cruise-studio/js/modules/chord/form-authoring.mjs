@@ -30,9 +30,29 @@ export function createFormAuthoring(C,base){
         const result=material(snapshot,symbol,overridden?'manual':'owner-recommendation',null,selected,overridden?null:recommendation?.source||'recommended');
         result.provenance.generation={minRelativeFret:min,maxRelativeFret:end};return result;
     }
+    function storeMaterial(project, material) {
+        const key=contentKey(material);
+        const prior=project.materials.forms.find(form=>contentKey(form)===key);
+        if(prior)return prior;
+        const stored={...clone(material),id:schema.newId()};
+        project.materials.forms.push(stored);
+        return stored;
+    }
+    // A display edit can share the musical material with other events. Keep their
+    // original diagram, played strings, playback confirmation and binding mode.
+    function setDisplayRange(session,eventId,materialId,range) {
+        return session.runOperation('フォームの表示範囲',p=>{
+            const binding=p.performance.formBindings.find(b=>b.chordEventId===eventId);
+            if(!binding||binding.materialId!==materialId)throw Error('対象のフォームが変わりました');
+            const copy=clone(p.materials.forms.find(m=>m.id===materialId));
+            if(range)copy.snapshot.displayRange=range;
+            else delete copy.snapshot.displayRange;
+            binding.materialId=storeMaterial(p,copy).id;
+        },{requireUndo:true,preserveAppliedUndo:true});
+    }
     function install(p,event,m,mode='fixed',selectedStrings){
-        const prior=p.performance.formBindings.find(b=>b.chordEventId===event.id),key=contentKey(m);
-        let stored=p.materials.forms.find(x=>contentKey(x)===key);if(!stored){stored={id:schema.newId(),...clone(m)};p.materials.forms.push(stored);}
+        const prior=p.performance.formBindings.find(b=>b.chordEventId===event.id);
+        const stored=storeMaterial(p,m);
         const playedStrings=selectedStrings===undefined?stored.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string):selectedStrings.slice();
         const b={id:prior?.id||schema.newId(),chordEventId:event.id,materialId:stored.id,playedStrings,mode,confirmation:{status:'confirmed',basisKey:basisKey(p,event,stored,playedStrings)}};
         p.performance.formBindings=p.performance.formBindings.filter(x=>x.chordEventId!==event.id);p.performance.formBindings.push(b);
@@ -96,6 +116,10 @@ export function createFormAuthoring(C,base){
             if(n.relativeFret===0)n.finger=null;
         }
         snap.barres=snap.barres.map(b=>({...b,relativeFret:b.relativeFret+shift})).filter(b=>b.relativeFret>0);
+        if(snap.displayRange){
+            if(limit>0)snap.displayRange={min:Math.max(1,Math.min(limit,snap.displayRange.min+shift)),max:Math.max(1,Math.min(limit,snap.displayRange.max+shift))};
+            else delete snap.displayRange;
+        }
         snap.capo=project.instrument.capo;snap.maxAbsoluteFret=project.instrument.maxAbsoluteFret;
         m.provenance.sourceSymbol=event.symbol;
         if (shift || m.provenance.generation.maxRelativeFret>limit) m.provenance.generation={minRelativeFret:0,maxRelativeFret:limit};
@@ -118,5 +142,5 @@ export function createFormAuthoring(C,base){
                 : {status:'unconfirmed', basisKey:null}
         };
     }
-    return Object.freeze({configureStrings,duplicateBinding,installPreset,material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
+    return Object.freeze({setDisplayRange,configureStrings,duplicateBinding,installPreset,material,recommend,install,initialize,authorize,syncEvent,reconcile,adopt,evaluate:(p,b)=>evaluateBinding(p,b,{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol})});
 }
