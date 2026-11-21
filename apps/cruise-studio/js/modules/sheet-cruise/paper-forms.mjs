@@ -1,11 +1,11 @@
 import {bindOutsideDismiss} from '../score-ui.mjs';
 import {diagramFrets} from './form-range.mjs';
-import {playedSnapshot,diagramBarres} from './form-cycle.mjs';
+import {boundSnapshot,diagramBarres} from './form-cycle.mjs';
 // Read-only registered forms, rendered with the owner's static SVG (no title/UI).
 export function registeredPaperForms(project){
     const materials=new Map(project.materials.forms.map(m=>[m.id,m])),bindings=new Map(project.performance.formBindings.map(b=>[b.chordEventId,b]));
     return project.bars.map(bar=>bar.chords.flatMap(chord=>{const binding=bindings.get(chord.id),material=materials.get(binding?.materialId);if(!material?.snapshot?.strings.some(n=>n.kind==='note'))return [];
-        const snapshot=playedSnapshot(material.snapshot,binding.playedStrings);
+        const snapshot=boundSnapshot(chord,material,binding);if(!snapshot)return [];
         return [{eventId:chord.id,tick:chord.onsetTick,symbol:chord.symbol,snapshot,materialId:material.id}];}).sort((a,b)=>a.tick-b.tick));
 }
 // Geometry is independent of the SVG artwork and of the Project snapshot.

@@ -75,7 +75,7 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
         const event=bar.chords.find(event=>event.id===entry.eventId);
         const current=()=>!closed&&ticket===activeMount&&dialog.open;
         picker.mount(panel,{draftOnly:true,session,formEntry,project:previewProject,
-            bar:{...bar,chords:[{...event,symbol:playName()}]},tick:event.onsetTick,eventId:event.id,
+            bar,tick:event.onsetTick,eventId:event.id,
             current,eligible:()=>current()&&!session.inputPending,
             write:(name,form)=>{
                 const symbol=schema.chord(name,capo);

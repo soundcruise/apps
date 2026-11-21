@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),{createAdapter}=require('../js/modules/chord/read-model.js');
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8'),plain=x=>JSON.parse(JSON.stringify(x));
-function owner(){const window={ChordCruise:{},CruiseStudio:{},requestAnimationFrame:()=>1,cancelAnimationFrame(){}};const context=vm.createContext({window,document:{},console});
+function owner(){const window={ChordCruise:{},CruiseStudio:{},requestAnimationFrame:()=>1,cancelAnimationFrame(){}};const context=vm.createContext({window,document:{getElementById:()=>null},console});
  for(const file of ['../../chord-cruise/js/core/music-theory.js','../../chord-cruise/js/core/chord-model.js','../js/core/music-theory.js','../js/core/song-model.js','../js/modules/sheet-cruise/operation-adapter.js'])vm.runInContext(read(file),context);
  return {window,context,adapter:createAdapter({chordTheory:window.ChordCruise.theory,chordModel:window.ChordCruise.chordModel,studioTheory:window.CruiseStudio.theory})};}
 const f=owner(),selection=s=>({active:true,barNumbers:[1],chords:[{tick:0,symbol:s}],dirty:false,editing:false,deleted:false});

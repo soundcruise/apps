@@ -1288,8 +1288,7 @@
     /**
      * ノート列からバレー（同じ指で同フレットの複数弦を押さえる箇所）を検出する。
      * - 対象: fret > 0 かつ finger が null / undefined / 'T' でないノート
-     * - 人差し指(1): 弦が非連続でも最低弦〜最高弦を1本のバレーとしてつなぐ
-     * - 中指〜小指(2〜4): 連続する弦をミニバレーにする。間の弦を別指で
+     * - 同じ指の連続する弦をバレーにする。間の弦を別指で
      *   より高いフレットに押さえる「上書き」も、1本の指が連続して届くためバレーとみなす。
      * 保存済みコードの notes からも導出できる（マイグレーション不要）。
      * @param {Array} notes [{string, fret, finger, ...}]
@@ -1318,18 +1317,8 @@
             if (group.strings.length < 2) return;
             var sorted = group.strings.slice().sort(function (a, b) { return a - b; });
 
-            if (String(group.finger) === '1') {
-                // 人差し指: 全体を1本のバレーにする
-                barres.push({
-                    finger: group.finger,
-                    fret: group.fret,
-                    fromString: sorted[0],
-                    toString: sorted[sorted.length - 1]
-                });
-                return;
-            }
-
-            // 中指〜小指: 連続区間、または途中をより高いフレットで上書きした区間を検出する
+            // A barre may pass behind a higher fretted note, but an open,
+            // muted or lower note breaks the inferred span.
             var runStart = sorted[0];
             var prev = sorted[0];
             var i;
@@ -1338,7 +1327,8 @@
                 var gapIsCovered = typeof current === 'number';
                 var coveredString;
                 for (coveredString = prev + 1; gapIsCovered && coveredString < current; coveredString++) {
-                    gapIsCovered = !!frettedByString[coveredString] && frettedByString[coveredString].fret > group.fret;
+                    gapIsCovered = !!frettedByString[coveredString] && frettedByString[coveredString].fret > group.fret &&
+                        String(frettedByString[coveredString].finger) !== String(group.finger);
                 }
                 if (current === prev + 1 || gapIsCovered) {
                     prev = current;

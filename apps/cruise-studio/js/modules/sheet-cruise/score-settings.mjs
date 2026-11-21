@@ -28,12 +28,26 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   let collect=()=>null,mountPreview,keyEntry,composing=false,navigating=false;
   function input(label,value,key,type='text',parent=body){const wrap=node('label',undefined,parent);node('span',label,wrap);const field=node(type==='textarea'?'textarea':'input',undefined,wrap);if(type!=='textarea')field.type=type;field.value=value;field.dataset.scoreField=key;return field;}
   function button(text,fn,parent=body){const b=node('button',text,parent);b.type='button';b.addEventListener('click',fn);return b;}
+  function wholeScoreTools(parent){
+   const tools=node('fieldset',undefined,parent);tools.className='sc-song-tools';
+   node('legend','譜面の全体編集',tools);
+   const actions=node('div',undefined,tools);actions.className='sc-song-tool-buttons';
+   for(const child of ['sections','chordPreset','strumPreset']){
+    const link=button(titles[child],()=>commit(child),actions);
+    if(child===mode){link.disabled=true;link.setAttribute('aria-current','page');}
+   }
+   return tools;
+  }
   function navigate(next){navigating=true;current.addEventListener('close',()=>open(next,{parentCard:args.parentCard}),{once:true});current.close();}
   function commit(next,sectionId){
    if(composing)return;const now=getSession();if(now!==owner||!C.structureOperations.isCurrent(frame,now)){status.textContent='編集対象が変わりました。入力を保持しています。開き直してください。';return;}
    try{const request=collect();if(!request)return;applying=true;let result;try{if(!canEdit())throw Error('入力・保存・競合の状態を確認してください');result=execute(request.kind,request.args,frame);}finally{applying=false;}
     if(!result.ok){status.textContent=result.error||'変更を適用できませんでした';return;}request.onApplied?.();
-    if(typeof next==='string')current.addEventListener('close',()=>open(next,{parentCard:{...args,field:args.field==='instrument'?undefined:args.field,selectTitle:false},barIds:args.barIds,sectionId}),{once:true});
+    if(typeof next==='string'){
+     navigating=true;
+     const parentCard=mode==='sections'?args.parentCard:{...args,field:args.field==='instrument'?undefined:args.field,selectTitle:false};
+     current.addEventListener('close',()=>open(next,{parentCard,barIds:args.barIds,sectionId}),{once:true});
+    }
     current.close();changed({mode,previous:project,slot:args.slot});
    }catch(e){applying=false;status.textContent=e.message;}
   }
@@ -84,6 +98,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    }
    const clipName=node('small','',aside);
    button('＋ セクションを追加',()=>{const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};rows.push(item);selected=item.id;paint();},aside);
+   const sectionTools=wholeScoreTools(aside);
    const paper=node('div',undefined,body);paper.className='sc-section-preview';
    const fitSectionPaper=zoomablePreview(paper);
    function scrollToSelected(behavior){
@@ -156,7 +171,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
      const copy={...clipboard,id:C.model.schema2.newId(),isNew:true,name:clipboard.name+' コピー',copyFrom:clipboard.copyFrom||clipboard.id,parts:checked};
      rows.splice(i+1,0,copy);selected=copy.id;paint();
     },copies);paste.disabled=!clipboard;
-    const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},aside);remove.className='sc-section-delete';remove.disabled=rows.length===1;
+    const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},aside);sectionTools.before(remove);remove.className='sc-section-delete';remove.disabled=rows.length===1;
     preview();
    }
    mountPreview=()=>{paint();if(args.sectionId)scrollToSelected('instant');};
@@ -214,10 +229,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     }catch(err){status.textContent=err.message;}
    };
    form.addEventListener('input',preview);mountPreview=preview;
-   const tools=node('fieldset',undefined,form);tools.className='sc-song-tools';
-   node('legend','譜面の全体編集',tools);
-   const actions=node('div',undefined,tools);actions.className='sc-song-tool-buttons';
-   for(const child of ['sections','chordPreset','strumPreset'])button(titles[child],()=>commit(child),actions);
+   wholeScoreTools(form);
 
   }
   dismiss.addEventListener('click',()=>current.close());apply.addEventListener('click',commit);

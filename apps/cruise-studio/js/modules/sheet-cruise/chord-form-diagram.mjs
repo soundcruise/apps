@@ -4,7 +4,7 @@ import {diagramFrets} from './form-range.mjs';
 // One adapter for the original owner renderer; gestures never write outside Session.
 export function formDiagramOptions(snapshot,chord,explore,{monochrome=false,mode='finger',onSlotTap,onEmptySlotTap,...options}={}){
     return {...options,monochrome,markers:snapshot.strings.filter(n=>n.kind==='note').map(n=>{
-        const midi=snapshot.tuningMidi[n.string-1]+snapshot.capo+n.relativeFret,pc=(midi%12+12)%12,interval=(pc-chord.rootPc+12)%12;
+        const midi=snapshot.tuningMidi[n.string-1]+n.relativeFret,pc=(midi%12+12)%12,interval=(pc-chord.rootPc+12)%12;
         const label=mode==='finger'?explore.readFingerLabel(n.finger)||(n.fingeringWarning?'⚠':''):explore.readMarkerLabel(chord,pc,interval,n.finger,n.fingeringWarning);
         return {string:n.string,fret:n.relativeFret,label,role:explore.readMarkerRole(chord,interval),fingeringWarning:mode==='finger'&&!!n.fingeringWarning,tappable:!!onSlotTap&&mode==='finger',ariaLabel:n.string+'弦 '+n.relativeFret+'フレット、'+(label||'指未指定')+'。クリックで指を変更'};
     }),mutedStrings:snapshot.strings.filter(n=>n.kind==='muted').map(n=>n.string),barres:diagramBarres(snapshot).map(b=>({...b,fret:b.relativeFret})),markerLabelSize:'medium',onSlotTap:mode==='finger'?onSlotTap:undefined,onEmptySlotTap:mode==='finger'?onEmptySlotTap:undefined};

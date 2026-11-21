@@ -5,6 +5,16 @@ export function ownerQuality(theory,quality){
     return Object.keys(theory.QUALITIES).find(k=>[k,theory.QUALITIES[k].symbolSuffix,theory.QUALITIES[k].romanSuffix].some(s=>s!==undefined&&normalize(s)===normalize(quality)));
 }
 
+// Native builder labels use compound intervals so a ninth stays distinct from a second.
+export function extendedQuality(theory,suffix){
+    const match=/^(.*?)\(([^()]+)\)$/.exec(suffix) || /^(.*?)add(.+)$/.exec(suffix);
+    if(!match)return null;
+    const quality=ownerQuality(theory,match[1]);
+    const labels={'b9':13,'9':14,'#9':15,'11':17,'#11':18,'b13':20,'13':21};
+    const tensions=match[2].replaceAll('♭','b').replaceAll('♯','#').split(',').map(name=>labels[name.trim()]);
+    return quality&&tensions.every(Number.isInteger)?{quality,tensions}:null;
+}
+
 const clone = x => JSON.parse(JSON.stringify(x));
 const pc = n => (n % 12 + 12) % 12;
 export function freezeData(x) { if (x && typeof x === 'object') { Object.values(x).forEach(freezeData); Object.freeze(x); } return x; }
@@ -63,6 +73,10 @@ export function evaluateBinding(project, binding, { schema, chordTheory, parseCh
         bass = parsed.bass ? chordTheory.parseSpelledNoteName(parsed.bass).pc : root;
         const q = material.encoding==='studio-chord-form-v2'?ownerQuality(chordTheory,parsed.quality):['maj','m','7','maj7','m7','6','m6','sus4'].find(k => k === parsed.quality || chordTheory.QUALITIES[k]?.symbolSuffix === parsed.quality);
         definition = chordTheory.QUALITIES[q];
+        if (!definition && material.encoding==='studio-chord-form-v2'){
+            const extra=extendedQuality(chordTheory,parsed.quality);
+            if(extra)definition={intervals:[...chordTheory.QUALITIES[extra.quality].intervals,...extra.tensions]};
+        }
         if (!definition) return invalid('unsupported-quality');
     } catch { return invalid('unsupported-symbol'); }
     const required = [...new Set(definition.intervals.map(i => pc(root+i)).concat(bass))];

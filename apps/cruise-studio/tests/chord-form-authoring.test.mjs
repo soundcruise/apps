@@ -49,3 +49,41 @@ test('portable preset forms follow Play key and capo, retaining the source finge
     target.instrument.tuning[5]-=2;
     assert.throws(()=>a.installPreset(target,event,preset),/チューニング/);
 });
+
+test('recommended slash bass and written tensions agree with the notes actually played',async()=>{
+ const {f,a}=setup();
+ const {chordNotes}=await import('../js/modules/sheet-cruise/chord-audition.mjs');
+ const {registeredPaperForms}=await import('../js/modules/sheet-cruise/paper-forms.mjs');
+ for(const capo of [0,2])for(const [play,lowest] of [['G/B',11],['C/E',4],['F/A',9],['C/D',2],['C/F#',6],['C7(9)',0],['C6',0],['Am6',9]]){
+  const p=clone(f.s().workingSnapshot());p.instrument.capo=capo;
+  const event=p.bars[0].chords[0];event.symbol=f.api.chord(play,capo);
+  a.syncEvent(p,event);ok(f.api.validate(p));const binding=p.performance.formBindings.find(b=>b.chordEventId===event.id);
+  assert(binding,play);
+  const notes=chordNotes(p,event,{}),paper=registeredPaperForms(p)[0].find(e=>e.eventId===event.id).snapshot;
+  assert.equal(notes[0]%12,(lowest+capo)%12,play);
+  const sounding=paper.strings.filter(n=>n.kind==='note').map(n=>paper.tuningMidi[n.string-1]+capo+n.relativeFret).sort((a,b)=>a-b);
+  assert.deepEqual(notes,sounding);
+  if(play.endsWith('6'))assert(notes.some(n=>(n-capo+12)%12===(lowest+9)%12));
+  if(play==='C7(9)')assert.deepEqual([...new Set(notes.map(n=>(n-capo)%12))].sort((a,b)=>a-b),[0,2,4,7,10]);
+ }
+});
+
+test('old automatic inversions are corrected on paper and in playback without changing the source or a fixed form',async()=>{
+ const {f,a}=setup(),p=clone(f.s().workingSnapshot());const e=p.bars[0].chords[0];e.symbol='G/B';a.initialize(p);
+ const old=a.recommend(p,'G');old.provenance.sourceSymbol=e.symbol;a.install(p,e,old,'auto');
+ const binding=p.performance.formBindings.find(b=>b.chordEventId===e.id);
+ const {chordNotes}=await import('../js/modules/sheet-cruise/chord-audition.mjs');
+ const {registeredPaperForms}=await import('../js/modules/sheet-cruise/paper-forms.mjs');
+ const before=JSON.stringify(p);
+ assert.equal(chordNotes(p,e,{})[0]%12,11);assert.equal(registeredPaperForms(p)[0][0].snapshot.strings[5].kind,'muted');
+ assert.equal(JSON.stringify(p),before);
+ binding.mode='fixed';assert.equal(chordNotes(p,e,{})[0]%12,7);assert.equal(registeredPaperForms(p)[0][0].snapshot.strings[5].kind,'note');
+});
+
+test('the native shelf display range survives form transfer, including old records with no range',()=>{
+ const record={notes:[{string:1,fret:5,finger:1}],mutedStrings:[2,3,4,5,6],fretRange:{min:3,max:8}};
+ const snapshot=savedChordForm(record);
+ const file=makeChordForms([{id:'folder',name:'本棚'}],[{id:'form',name:'A',folderId:'folder',form:snapshot}]);
+ assert.deepEqual(parseChordForms(JSON.stringify(file)).chords[0].form.displayRange,{min:3,max:8});
+ delete record.fretRange;assert(!Object.hasOwn(savedChordForm(record),'displayRange'));
+});

@@ -1,3 +1,5 @@
+import {extendedQuality} from '../chord/form-snapshot.mjs';
+import {automaticVoicingSnapshot} from '../chord/form-voicing.mjs';
 // Read-only acoustic projection. String identity is ephemeral, never Project data.
 export function chordVoicing(project, chord, deps, explicitForm) {
     if (!chord || chord.unresolved) throw Error('コードを確認してください');
@@ -6,7 +8,7 @@ export function chordVoicing(project, chord, deps, explicitForm) {
     const binding = bindings[0];
     const material = binding && project.materials.forms.find(m => m.id === binding.materialId);
     if (!explicitForm && binding && !material?.snapshot) throw Error('登録フォームを読み込めません');
-    const form = explicitForm || material?.snapshot;
+    const form = explicitForm || (material && automaticVoicingSnapshot(chord,material,binding));
     if (form) {
         if (!Array.isArray(form.tuningMidi) || form.tuningMidi.length !== 6 ||
             !form.tuningMidi.every(Number.isInteger) || !Number.isInteger(form.capo) || form.capo < 0 || form.capo > 11 ||
@@ -14,8 +16,8 @@ export function chordVoicing(project, chord, deps, explicitForm) {
             form.strings.some(n => !Number.isInteger(n.string) || n.string < 1 || n.string > 6 ||
                 !['note', 'muted'].includes(n.kind) || n.kind === 'note' && (!Number.isInteger(n.relativeFret) || n.relativeFret < 0 || n.relativeFret + form.capo > 36)))
             throw Error('フォームの楽器条件を確認してください');
-        const played = !explicitForm && binding ? binding.playedStrings : null;
-        if (!explicitForm && binding && !Array.isArray(played)) throw Error('フォームの使用弦を確認してください');
+        const played = !explicitForm && binding && form===material.snapshot ? binding.playedStrings : null;
+        if (!explicitForm && binding && !Array.isArray(binding.playedStrings)) throw Error('フォームの使用弦を確認してください');
         if (played && (!played.length || new Set(played).size !== played.length || played.some(i => !form.strings.some(n => n.string === i && n.kind === 'note'))))
             throw Error('フォームの使用弦を確認してください');
         const notes = form.strings.filter(n => n.kind === 'note' && (!played || played.includes(n.string)))
@@ -25,11 +27,13 @@ export function chordVoicing(project, chord, deps, explicitForm) {
     }
     const parsed = deps.parseChord(chord.symbol), quality = parsed && Object.keys(deps.qualities)
         .find(k => k === parsed.quality || deps.qualities[k].symbolSuffix === parsed.quality);
-    if (!quality) throw Error('このコードの試聴用フォームを確認してください');
+    const extension=parsed && !quality && extendedQuality({QUALITIES:deps.qualities},parsed.quality);
+    const intervals=quality?deps.qualities[quality].intervals:extension&&[...deps.qualities[extension.quality].intervals,...extension.tensions];
+    if (!intervals) throw Error('このコードの試聴用フォームを確認してください');
     const root = deps.notePc(parsed.root), bass = deps.notePc(parsed.bass || parsed.root);
     if (!Number.isInteger(root) || !Number.isInteger(bass)) throw Error('コードの音名を確認してください');
     const low = 40 + (bass - 4 + 12) % 12;
-    const midi = [...new Set([low, ...deps.qualities[quality].intervals.map(i => {
+    const midi = [...new Set([low, ...intervals.map(i => {
         let n = 48 + root + i; while (n < low) n += 12; return n;
     })])].sort((a, b) => a - b);
     // No invented physical string for a theoretical fallback.

@@ -1,13 +1,13 @@
 import {addFormRangeControls} from './form-range-controls.mjs';
 import {createBookForm,openBookSave} from './book-save.mjs';
 import {rangeForForm} from './form-range.mjs';
-import {cycleFormNote,playedSnapshot} from './form-cycle.mjs';
+import {cycleFormNote,boundSnapshot} from './form-cycle.mjs';
 import {singleChordPlan} from './chord-audition.mjs';
 import {readBookSource,bookSourceCurrent} from './book-source.mjs';
 import {openBookPicker} from './book-bridge.mjs';
 import {parseChordNames,MAX_BYTES} from './chord-name-transfer.mjs';
 import {parseChordForms,FORM_FORMAT} from './chord-form-transfer.mjs';
-import {ownerQuality} from '../chord/form-snapshot.mjs?v=0.88.1';
+import {ownerQuality,extendedQuality} from '../chord/form-snapshot.mjs?v=0.88.1';
 import {formMessage} from '../chord/form-panel.mjs?v=0.88.1';
 import {drawChordForm,formDiagramOptions,wireMutedStrings} from './chord-form-diagram.mjs';
 
@@ -36,7 +36,7 @@ export function createOwnerChordPicker(C,base){
         if(!memory.ui)memory.ui={exploreFretboardDisplayMode:'finger',settings:defaults,exploreSelectedChordIndex:0,exploreShape:'',exploreCustomChord:null};
         // Follow the score on every mount; preview settings never rewrite songInfo.
         const scoreKey=base.theory.parseSpelledNoteName(project.songInfo.originalKey);
-        if(scoreKey)memory.ui.settings.selectedKey=scoreKey.pc;
+        if(scoreKey)memory.ui.settings.selectedKey=(scoreKey.pc-project.instrument.capo+12)%12;
         owner.state=memory.ui;owner.storage={saveSettings:next=>{Object.assign(owner.state.settings,next);return true;}};
         if(target.formEntry?.unopened){memory.advanced=false;owner.state.exploreFretboardDisplayMode='finger';}
         let disposed=false,composing=false,importEpoch=0;
@@ -58,26 +58,30 @@ export function createOwnerChordPicker(C,base){
         function setChord(name){
             const parsed=C.theory.parseBasicChordSymbol(name),root=parsed&&base.theory.parseSpelledNoteName(parsed.root),quality=parsed&&ownerQuality(base.theory,parsed.quality);
             if(!root)return false;
-            if(!quality&&parsed.quality==='add9'){
-                owner.state.exploreCustomChord=base.chordModel.buildCustomChord({rootPc:root.pc,third:4,fifth:7,seventh:null,tensions:[14],bassPc:parsed.bass?base.theory.parseSpelledNoteName(parsed.bass)?.pc:null});owner.state.exploreCustomChord.symbol=name;owner.state.exploreSelectedChordIndex=null;return true;
+            const extension=!quality&&extendedQuality(base.theory,parsed.quality);
+            if(extension){
+                const core=base.theory.QUALITIES[extension.quality].intervals;
+                const chord=base.chordModel.buildCustomChord({rootPc:root.pc,third:core.find(n=>[2,3,4,5].includes(n))??null,fifth:core.find(n=>[6,7,8].includes(n))??null,seventh:core.find(n=>[9,10,11].includes(n))??null,tensions:extension.tensions,bassPc:parsed.bass?base.theory.parseSpelledNoteName(parsed.bass)?.pc:null});
+                chord.symbol=name;owner.state.exploreCustomChord=chord;owner.state.exploreSelectedChordIndex=null;return true;
             }
             if(!quality){
                 // Keep a builder's actual intervals while it is open. On reload,
                 // a manual snapshot can still be drawn/edited without inventing a quality.
                 if(owner.state.exploreCustomChord?.symbol===name)return true;
-                const event=bar.chords.find(e=>(target.eventId?e.id===target.eventId:e.onsetTick===tick)&&e.symbol===name),binding=event&&project.performance.formBindings.find(b=>b.chordEventId===event.id),m=binding&&project.materials.forms.find(m=>m.id===binding.materialId);
-                if(!m)return false;
-                const pcs=[...new Set(m.snapshot.strings.filter(n=>n.kind==='note').map(n=>(m.snapshot.tuningMidi[n.string-1]+m.snapshot.capo+n.relativeFret)%12))],intervals=pcs.map(pc=>(pc-root.pc+12)%12).sort((a,b)=>a-b);
+                const event=canonical?.symbol===name&&canonical,binding=event&&project.performance.formBindings.find(b=>b.chordEventId===event.id),m=binding&&project.materials.forms.find(m=>m.id===binding.materialId);
+                const pcs=[...new Set((m?.snapshot.strings||[]).filter(n=>n.kind==='note').map(n=>(m.snapshot.tuningMidi[n.string-1]+n.relativeFret)%12))],intervals=pcs.map(pc=>(pc-root.pc+12)%12).sort((a,b)=>a-b);
                 owner.state.exploreCustomChord={symbol:name,source:'custom',rootPc:root.pc,rootName:parsed.root,qualityKey:null,intervals,notePcs:pcs,bassPc:parsed.bass?base.theory.parseSpelledNoteName(parsed.bass)?.pc:null};owner.state.exploreSelectedChordIndex=null;return true;
             }
             const definition=base.theory.QUALITIES[quality];owner.state.exploreCustomChord={symbol:name,source:'custom',rootPc:root.pc,rootName:parsed.root,qualityKey:quality,intervals:definition.intervals.slice(),notePcs:definition.intervals.map(n=>(root.pc+n)%12),bassPc:parsed.bass?base.theory.parseSpelledNoteName(parsed.bass)?.pc:null};owner.state.exploreSelectedChordIndex=null;return true;
         }
-        const canonical=bar.chords.find(e=>target.eventId?e.id===target.eventId:e.onsetTick===tick),identity=(target.cellKey??(bar.id+':'+tick+':'+(canonical?.id||'')))+':'+(canonical?.symbol||'');
+        const toSound=name=>C.model.schema2.chord(name,project.instrument.capo);
+        const soundingEvent=bar.chords.find(e=>target.eventId?e.id===target.eventId:e.onsetTick===tick);
+        const canonical=soundingEvent&&{...soundingEvent,symbol:C.model.schema2.chord(soundingEvent.symbol,-project.instrument.capo)??soundingEvent.symbol},identity=(target.cellKey??(bar.id+':'+tick+':'+(canonical?.id||'')))+':'+(canonical?.symbol||'');
         if(memory.revealFormIdentity&&memory.revealFormIdentity!==identity)delete memory.revealFormIdentity;
         if(memory.identity!==identity){memory.identity=identity;owner.state.exploreFretboardDisplayMode='finger';if(canonical){setChord(canonical.symbol);const binding=project.performance.formBindings.find(b=>b.chordEventId===canonical.id),saved=binding&&project.materials.forms.find(m=>m.id===binding.materialId);if(saved?.provenance.shape){owner.state.exploreShape=saved.provenance.shape;owner.state.exploreFretboardDisplayMode='finger';}}else{owner.state.exploreCustomChord=null;owner.state.exploreSelectedChordIndex=0;}}
         if(canonical){const binding=project.performance.formBindings.find(b=>b.chordEventId===canonical.id),saved=project.materials.forms.find(m=>m.id===binding?.materialId),parsed=C.theory.parseBasicChordSymbol(canonical.symbol);
-            if(saved&&parsed){const quality=ownerQuality(base.theory,parsed.quality),root=base.theory.parseSpelledNoteName(parsed.root),end=Math.min(13,saved.snapshot.maxAbsoluteFret-saved.snapshot.capo),common=base.caged.getForm(saved.provenance.shape,quality,root.pc-saved.snapshot.capo,end,0);
-                if(common.fm7Alternative){const formal=base.caged.getForm(saved.provenance.shape,quality,root.pc-saved.snapshot.capo,end,0,{variant:'formal'}),matches=form=>saved.snapshot.strings.filter(n=>n.kind==='note'&&form.notes.some(note=>note.string===n.string&&note.fret===n.relativeFret)).length;owner.state.exploreFormVariant=matches(formal)>matches(common)?'formal':null;}
+            if(saved&&parsed){const quality=ownerQuality(base.theory,parsed.quality),root=base.theory.parseSpelledNoteName(parsed.root),end=Math.min(13,saved.snapshot.maxAbsoluteFret-saved.snapshot.capo),common=base.caged.getForm(saved.provenance.shape,quality,root.pc,end,0);
+                if(common.fm7Alternative){const formal=base.caged.getForm(saved.provenance.shape,quality,root.pc,end,0,{variant:'formal'}),matches=form=>saved.snapshot.strings.filter(n=>n.kind==='note'&&form.notes.some(note=>note.string===n.string&&note.fret===n.relativeFret)).length;owner.state.exploreFormVariant=matches(formal)>matches(common)?'formal':null;}
             }
         }
         body.className='score-chord-layout';
@@ -87,12 +91,12 @@ export function createOwnerChordPicker(C,base){
         const formView=node('figure',undefined,basicLayout,'score-chord-selected-form');
         const formCaption=node('figcaption',undefined,formView),formName=node('span','',formCaption),diagram=node('div',undefined,formView,'score-chord-diagram');formName.dataset.selectedChordName='';
         const soundDeps={parseChord:C.theory.parseBasicChordSymbol,qualities:base.theory.QUALITIES,notePc:C.theory.keyToSemitone};
-        function audition(name,snapshot){if(!eligible())return;try{target.preview?.(singleChordPlan(project,{symbol:name},soundDeps,snapshot),'chord');}catch(e){status.textContent=e.message;}}
+        function audition(name,snapshot){if(!eligible())return;try{target.preview?.(singleChordPlan(project,{symbol:toSound(name)},soundDeps,snapshot),'chord');}catch(e){status.textContent=e.message;}}
         function auditionSelected(){
             const chord=owner.ui.explore.readSelectedChord();if(!chord||!eligible())return;
             const binding=canonical?.symbol===chord.symbol&&!pickedShape&&project.performance.formBindings.find(b=>b.chordEventId===canonical.id);
-            if(binding){try{target.preview?.(singleChordPlan(project,canonical,soundDeps),'chord');}catch(e){status.textContent=e.message;}return;}
-            audition(chord.symbol,(selectedMaterial()||C.localChordForms?.recommend(project,chord.symbol))?.snapshot);
+            if(binding){try{target.preview?.(singleChordPlan(project,soundingEvent,soundDeps),'chord');}catch(e){status.textContent=e.message;}return;}
+            audition(chord.symbol,(selectedMaterial()||C.localChordForms?.recommend(project,toSound(chord.symbol)))?.snapshot);
         }
         button('▶',auditionSelected,formCaption,{'data-chord-audition':'selected','aria-label':'表示中のコードを試聴',title:'表示中の押さえ方をアコギで試聴'}).classList.add('score-form-play');
         node('p','クリックすると運指が変更できます。',formView,'score-form-instruction');
@@ -139,7 +143,7 @@ export function createOwnerChordPicker(C,base){
         const update=provider&&button('再試行',()=>loadBook(),sourceTools,{'data-book-refresh':'',title:'本棚を読み直す。譜面や元本棚は変更しません'});
         if(update)update.hidden=true;
         const legacy=node('details',undefined,shelfPanel);node('summary','従来の取込み方法（予備）',legacy);legacy.open=!provider;legacy.hidden=!!provider;
-        const importOption=node('label',undefined,legacy);const importForms=node('input',undefined,importOption);importForms.type='checkbox';importForms.dataset.importForms='';importForms.checked=!!memory.withForms;importOption.append(' フォームも取り込み・採用する（カポ0・標準6弦と押さえ方を確認）');
+        const importOption=node('label',undefined,legacy);const importForms=node('input',undefined,importOption);importForms.type='checkbox';importForms.dataset.importForms='';importForms.checked=!!memory.withForms;importOption.append(' 押さえ方も取り込む（標準6弦・フレットは曲のカポから数えます）');
         const tools=node('div',undefined,legacy,'cc-control-row');
         if(source.exportBookmarklet)button('別タブの本棚から取り込む（従来方式）',()=>{if(provider)return;bookRequest?.cancel();const forms=importForms.checked;bookRequest=openBookPicker({catalogue:true,isCurrent:()=>eligible()&&memory.bookOpen&&importForms.checked===forms,onSelect:payload=>{if(!eligible())return false;cancelRead();memory.catalogue=payload;memory.source=null;memory.folder='';catalogue();return true;},onStatus:message=>{if(current())status.textContent=message;},withForms:forms});},tools,{'data-book-import':'',title:'初回の読取りだけPro別タブで行い、この画面へコピーする'});
         importForms.addEventListener('change',()=>{memory.withForms=importForms.checked;bookRequest?.cancel();bookRequest=null;});
@@ -161,13 +165,25 @@ export function createOwnerChordPicker(C,base){
             }catch{if(current()&&epoch===readEpoch){memory.catalogue=null;memory.source=null;catalogue();update.hidden=false;bookHint.textContent='本棚を読み込めませんでした。接続・編集先を確認し、再試行してください。';}}
             finally{if(current()&&epoch===readEpoch){update.disabled=false;shelfPanel.removeAttribute('aria-busy');readRequest=null;}}
         }
-        function chooseChord(chord,withForms=memory.source?true:importForms.checked){
+        function shelfSnapshot(form){
+            if(!form)return null;
+            const snapshot=structuredClone(form);
+            snapshot.capo??=project.instrument.capo;
+            snapshot.tuningMidi??=[64,59,55,50,45,40];
+            snapshot.maxAbsoluteFret??=project.instrument.maxAbsoluteFret??22;
+            return snapshot;
+        }
+        function chooseChord(chord){
             if(!eligible())return false;
             if(memory.source&&(C.localBookSource!==provider||memory.sourceProvider!==provider||!bookSourceCurrent(provider,memory.source))){clearSource();return false;}
             if(!C.theory.parseBasicChordSymbol(chord.name)){status.textContent='コード名として入力できない名前です。元のマスを保持しています。';return false;}
             let m;
-            try{if(withForms){if(!chord.form){status.textContent='名前のみの本棚です。「フォームも取り込み・採用する」を選んで取り込み直してください';return false;}
-                const snapshot=JSON.parse(JSON.stringify(chord.form));if(snapshot.capo===null)snapshot.capo=0;if(snapshot.tuningMidi===null)snapshot.tuningMidi=[64,59,55,50,45,40];if(snapshot.maxAbsoluteFret===null)snapshot.maxAbsoluteFret=project.instrument.maxAbsoluteFret??22;snapshot.playability='standard';snapshot.ownerWarning=null;
+            try{if(chord.form){
+                const snapshot=shelfSnapshot(chord.form);
+                if(snapshot.capo!==project.instrument.capo || snapshot.maxAbsoluteFret!==(project.instrument.maxAbsoluteFret??22) ||
+                   JSON.stringify(snapshot.tuningMidi)!==JSON.stringify(project.instrument.tuning??[64,59,55,50,45,40]) ||
+                   snapshot.displayRange?.max>snapshot.maxAbsoluteFret-snapshot.capo ||
+                   snapshot.strings.some(n=>n.kind==='note' && n.relativeFret+snapshot.capo>snapshot.maxAbsoluteFret))throw Error();
                 m=C.localChordForms.material(snapshot,C.model.schema2.chord(chord.name,project.instrument.capo),'bookshelf',chord.id);
             }
             }catch{status.textContent='フォームの名前・楽器条件を確認してください。元のマスを保持しています。';return false;}
@@ -207,10 +223,10 @@ export function createOwnerChordPicker(C,base){
                 visible++;const folder=memory.catalogue.folders.find(f=>f.id===chord.folderId);
                 const wrapper=node('div',undefined,items,'score-book-chord');
                 const card=button('',()=>chooseChord(chord),wrapper,{'data-transfer-chord':chord.id,'aria-label':chord.name+' ／ '+folder.name,title:folder.name+' ／ '+chord.id+(chord.form?'（フォーム付き）':'（名前のみ）')});card.classList.add('score-book-choose');
-                button('▶',()=>{if(memory.source&&(C.localBookSource!==provider||!bookSourceCurrent(provider,memory.source))){clearSource();return;}audition(chord.name,chord.form);},wrapper,{'data-chord-audition':chord.id,'aria-label':chord.name+'を試聴',title:'この押さえ方を試聴（譜面へ入力しません）'}).classList.add('score-form-play');
+                button('▶',()=>{if(memory.source&&(C.localBookSource!==provider||!bookSourceCurrent(provider,memory.source))){clearSource();return;}audition(chord.name,shelfSnapshot(chord.form));},wrapper,{'data-chord-audition':chord.id,'aria-label':chord.name+'を試聴',title:'この押さえ方を試聴（譜面へ入力しません）'}).classList.add('score-form-play');
                 node('strong',chord.name,card);const preview=node('div',undefined,card,'score-book-diagram');preview.setAttribute('aria-hidden','true');
                 const parsed=C.theory.parseBasicChordSymbol(chord.name),root=parsed&&base.theory.parseSpelledNoteName(parsed.root);
-                if(chord.form&&root){const snapshot=JSON.parse(JSON.stringify(chord.form));snapshot.capo??=0;snapshot.tuningMidi??=[64,59,55,50,45,40];bookDiagrams.push(drawChordForm(owner.ui.fretboard,preview,snapshot,{rootPc:root.pc},owner.ui.explore));}
+                if(chord.form&&root){const snapshot=shelfSnapshot(chord.form);bookDiagrams.push(drawChordForm(owner.ui.fretboard,preview,snapshot,{rootPc:root.pc},owner.ui.explore));}
                 else preview.textContent='コード名のみ';
                 if(!provider)node('small',folder.name,card);
             }
@@ -229,7 +245,7 @@ export function createOwnerChordPicker(C,base){
         function refreshDiagram(){
             const chord=owner.ui.explore.readSelectedChord();if(!chord)return;
             const binding=canonical?.symbol===chord.symbol&&project.performance.formBindings.find(b=>b.chordEventId===canonical.id),material=binding&&project.materials.forms.find(m=>m.id===binding.materialId);
-            const displayMaterial=material||C.localChordForms?.recommend(project,chord.symbol);const snapshot=displayMaterial&&playedSnapshot(displayMaterial.snapshot,binding?.playedStrings);
+            const displayMaterial=material||C.localChordForms?.recommend(project,toSound(chord.symbol));const snapshot=binding&&material?boundSnapshot(soundingEvent,material,binding):displayMaterial?.snapshot;
             formName.textContent=chord.symbol;diagram.setAttribute('aria-label',chord.symbol+'のコードフォーム');
             diagram.dataset.chordDiagramTick=tick;if(material)diagram.dataset.formMaterial=material.id;else delete diagram.dataset.formMaterial;
             disposeDiagram();disposeDiagram=drawChordForm(owner.ui.fretboard,diagram,snapshot,chord,owner.ui.explore,true,{onSlotTap:(s,f)=>editSlot(s,f,true),onEmptySlotTap:(s,f)=>editSlot(s,f,false),onMutedTap:s=>editSlot(s,0,false)});
@@ -254,8 +270,8 @@ export function createOwnerChordPicker(C,base){
         function selectedMaterial(){
             const chord=owner.ui.explore.readSelectedChord();if(!chord)return null;
             const binding=canonical&&project.performance.formBindings.find(b=>b.chordEventId===canonical.id),saved=canonical?.symbol===chord.symbol&&project.materials.forms.find(m=>m.id===binding?.materialId);
-            if(!pickedShape&&saved)return {...saved,snapshot:playedSnapshot(saved.snapshot,binding.playedStrings)};
-            if(!owner.state.exploreShape)return null;
+            if(!pickedShape&&saved){const snapshot=boundSnapshot(soundingEvent,saved,binding);return snapshot?{...saved,snapshot}:null;}
+            if(!owner.state.exploreShape)return canonical&&C.localChordForms.recommend(project,toSound(chord.symbol));
             return candidateFor(chord,owner.state.exploreShape,owner.state.settings.highFretMode?{minRelativeFret:12,maxRelativeFret:25}:null);
         }
         function saveRange(material,range){
@@ -275,7 +291,7 @@ export function createOwnerChordPicker(C,base){
         }
         function adoptMaterial(m){
             if(!eligible()||!m)return false;const chord=owner.ui.explore.readSelectedChord();
-            const authored=C.localChordForms.material(m.snapshot,chord.symbol,'manual',null,m.provenance.shape);
+            const authored=C.localChordForms.material(m.snapshot,toSound(chord.symbol),'manual',null,m.provenance.shape);
             if(target.draftOnly || canonical?.symbol!==chord.symbol)return write(chord.symbol,authored);
             const result=C.localChordForms.adopt(session,bar.id,canonical.id,authored);if(result.ok)target.changed();else status.textContent=formMessage(result);return result.ok;
         }
@@ -293,7 +309,7 @@ export function createOwnerChordPicker(C,base){
             root.dataset.scoreFingerMode=String((owner.state.exploreFretboardDisplayMode||owner.state.settings.fretboardDisplayMode||'finger')==='finger');
             lastDetailOptions=options;const m=selectedMaterial(),chord=owner.ui.explore.readSelectedChord();if(!m||!chord){const key=JSON.stringify(['native',options]);if(lastDetailHost===root&&lastDetailKey===key&&root.querySelector('.cc-fb-stage'))return;lastDetailHost=root;lastDetailKey=key;return nativeRender(root,options);}
             const mode=owner.state.exploreFretboardDisplayMode||owner.state.settings.fretboardDisplayMode||'finger';
-            const overlays=(options.markers||[]).filter(n=>n.isOverlay&&(n.isTensionCandidate||n.isBassCandidate));
+            const overlays=(options.markers||[]).filter(n=>n.isOverlay&&(n.isTensionCandidate||n.isBassCandidate||n.overlayType==='sixth'));
             const key=JSON.stringify([m.snapshot,mode,options.startFret,options.endFret,overlays]);if(lastDetailHost===root&&lastDetailKey===key&&root.querySelector('.cc-fb-stage'))return;
             lastDetailHost=root;lastDetailKey=key;const max=m.snapshot.maxAbsoluteFret-m.snapshot.capo;
             const rendered=formDiagramOptions(m.snapshot,chord,owner.ui.explore,{...options,animateScroll:false,...(memory.revealFormIdentity===identity?{preserveScroll:memory.scrollFrom}:{}),mode,startFret:0,endFret:max,rangeHighlight:null,onSlotTap:(s,f)=>editSlot(s,f,true),onEmptySlotTap:(s,f)=>editSlot(s,f,false)});
@@ -317,7 +333,7 @@ export function createOwnerChordPicker(C,base){
         }
         function candidateFor(chord,shape=null,generation=null){
             const symbol=C.model.schema2.chord(chord.symbol,project.instrument.capo);let m=C.localChordForms.recommend(project,symbol,shape,{...generation,formVariant:owner.state.exploreFormVariant});
-            if(!m&&chord.source==='custom'&&base.theory.QUALITIES[chord.qualityKey]){
+            if(!m&&chord.source==='custom'&&chord.bassPc==null&&base.theory.QUALITIES[chord.qualityKey]){
                 const core=C.theory.parseBasicChordSymbol(chord.symbol).root+base.theory.QUALITIES[chord.qualityKey].symbolSuffix,candidate=C.localChordForms.recommend(project,C.model.schema2.chord(core,project.instrument.capo),shape,generation);
                 if(candidate){const snapshot=JSON.parse(JSON.stringify(candidate.snapshot));snapshot.playability='unknown';snapshot.ownerWarning='任意コードの追加構成音と押さえ方は未確認';m=C.localChordForms.material(snapshot,symbol,'manual',null,candidate.provenance.shape);}
             }return m;
@@ -340,7 +356,11 @@ export function createOwnerChordPicker(C,base){
             for(const value of ['finger','note','solfege','degree'])shadow.getElementById('cc-fbmode-'+value)?.setAttribute('data-chord-view',value);
             const customRow=shadow.querySelector('.cc-custom-chord-row'),notice=shadow.querySelector('[data-custom-chord-notice]');if(customRow&&notice){if(customRow.nextElementSibling!==notice)customRow.after(notice);notice.hidden=!memory.builderSymbol||memory.builderSymbol!==owner.ui.explore.readSelectedChord()?.symbol;}
             refreshDiagram();refreshAdoption();
-            saveToBook.disabled=!selectedMaterial();
+            const form=selectedMaterial(),selected=owner.ui.explore.readSelectedChord();
+            const missingTension=selected?.tensionIntervals?.some(interval=>!form?.snapshot.strings.some(n=>
+                n.kind==='note'&&(form.snapshot.tuningMidi[n.string-1]+n.relativeFret)%12===(selected.rootPc+interval)%12));
+            saveToBook.disabled=!canonical||!form||!!missingTension;
+            saveToBook.title=missingTension?'指板でテンションの音を選ぶと本棚に保存できます。':'';
         }
         doc.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault();});
         doc.addEventListener('click',e=>{if(!eligible()){e.preventDefault();e.stopImmediatePropagation();return;}if(e.target.closest('[data-shape],#cc-high-fret-toggle,[data-fm7-variant]')){memory.scrollFrom=shadow.querySelector('#cc-fretboard-host .cc-fb-scroll')?.scrollLeft||0;memory.revealFormIdentity=identity;}if(e.target.closest('#cc-fbmode-finger')&&selectedMaterial()){

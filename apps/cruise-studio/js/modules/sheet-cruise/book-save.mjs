@@ -9,7 +9,7 @@ export function createBookForm(C,base,chord,settings,material,soundingSymbol){
     const parsed=chordName&&C.theory.parseBasicChordSymbol(chordName);
     if(!parsed)throw Error('コード名を確認してから、もう一度保存してください。');
     const theory=base.theory,rootPc=theory.parseSpelledNoteName(parsed.root).pc;
-    const tonicPc=(settings.selectedKey-capo+24)%12;
+    const tonicPc=settings.selectedKey;
     const mode=settings.scaleType,bassPc=parsed.bass?theory.parseSpelledNoteName(parsed.bass).pc:null;
     const degree=bassPc===null && ['3','7'].flatMap(type=>theory.getDiatonicChords(tonicPc,mode,type))
         .find(item=>item.rootPc===rootPc&&item.qualityKey===chord.qualityKey);

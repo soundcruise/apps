@@ -12,8 +12,24 @@ for(const engine of ['chrome','webkit'])test('direct song menu and capo transpos
  async function fresh(fn){const c=await b.newContext({viewport:{width:1440,height:1100}}),p=await c.newPage(),errors=[],external=[];p.setDefaultTimeout(7000);p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());await c.route('**/*',r=>{if(new URL(r.request().url()).origin!==origin){external.push(r.request().url());return r.abort();}return r.continue();});try{await p.goto(origin);await p.click('#open-sheet-cruise');const project=createUITestProject();await p.locator('#sc-import-json').setInputFiles({name:'key-capo.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(project))});await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,project.projectId);await fn(p);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);}finally{await c.close();}}
  try{
  await t.test('song settings and batch entry are directly accessible; sections, song info and rhythm stage independently',()=>fresh(async p=>{
-  const before=await snap(p);for(const[id,title,mode]of[['sc-edit-song','曲情報','settings'],['sc-edit-instrument','キー・カポ','instrument'],['sc-edit-chord-preset','コード一括入力','chordPreset'],['sc-edit-rhythm','ストローク一括入力','strumPreset'],['sc-edit-sections','セクション編集','sections']]){await open(p,id);const d=p.locator('[data-score-dialog]');assert.equal(await d.getAttribute('data-score-dialog'),mode);assert.equal(await d.locator('h2').innerText(),title);assert.equal(await d.locator('[role=tab]').count(),0);await p.click('[data-score-cancel]');await d.waitFor({state:'detached'});assert.deepEqual(await snap(p),before);}
+  const before=await snap(p);for(const[id,title,mode]of[['sc-edit-song','曲情報','settings'],['sc-edit-instrument','キー・カポ','instrument'],['sc-edit-chord-preset','コード一括入力','chordPreset'],['sc-edit-rhythm','ストローク一括入力','strumPreset'],['sc-edit-sections','セクション編集','sections']]){await open(p,id);const d=p.locator('[data-score-dialog]');assert.equal(await d.getAttribute('data-score-dialog'),mode);assert.equal(await d.locator(':scope > header h2').innerText(),title);assert.equal(await d.locator('[role=tab]').count(),0);await p.click('[data-score-cancel]');await d.waitFor({state:'detached'});assert.deepEqual(await snap(p),before);}
   await p.click('#sc-curve-menu-toggle');assert(await p.locator('#sc-transpose-menu').isHidden());await p.keyboard.press('Escape');await open(p,'sc-edit-sections');await p.locator('.sc-section-workspace aside').getByLabel('セクション名',{exact:true}).fill('新しい前奏');await apply(p);assert.equal((await snap(p)).songInfo.title,before.songInfo.title);assert.equal((await snap(p)).sections[0].name,'新しい前奏');await p.click('#sc-undo');assert.deepEqual(await snap(p),before);
+ }));
+ await t.test('section shortcuts apply the draft and open each batch editor',()=>fresh(async p=>{
+  for(const [label,target] of [['コード一括入力','chordPreset'],['ストローク一括入力','strumPreset']]){
+   await open(p,'sc-edit-song');
+   await p.locator('.sc-song-tools').getByRole('button',{name:'セクション編集'}).click();
+   const aside=p.locator('.sc-section-workspace aside'),tools=aside.locator('.sc-song-tools');
+   assert(await tools.getByRole('button',{name:'セクション編集'}).isDisabled());
+   const controls=await tools.boundingBox(),preview=await p.locator('.sc-section-preview').boundingBox();
+   assert(controls.x+controls.width<=preview.x && controls.y>(await aside.locator('.sc-section-delete').boundingBox()).y);
+   await aside.getByLabel('セクション名',{exact:true}).fill(label+'へ');
+   await tools.getByRole('button',{name:label,exact:true}).click();
+   await p.locator('[data-score-dialog='+target+']').waitFor();
+   assert.equal((await snap(p)).sections[0].name,label+'へ');
+   await p.click('[data-score-cancel]');await p.locator('[data-score-dialog=settings]').waitFor();
+   await p.click('[data-score-cancel]');await p.locator('[data-score-dialog]').waitFor({state:'detached'});
+  }
  }));
  await t.test('transpose capo 0→2 retains Play C, shifts the entire song +2 and rebuilds forms in one Undo',()=>fresh(async p=>{
   const before=await snap(p),cursor=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory().cursor);await open(p,'sc-edit-instrument');await p.selectOption('[data-score-field=keyMode]','transpose');await p.fill('[data-score-field=capo]','2');assert.equal(await after(p,'originalKey'),'D');assert.equal(await after(p,'playKey'),'C');assert.equal(await after(p,'capo'),'2');assert.deepEqual(await snap(p),before);await apply(p);

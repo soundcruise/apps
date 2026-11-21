@@ -359,3 +359,9 @@ assert(fiveStagePngSvg.includes('font-size:20px'), 'xlarge PNG fret numbers use 
 assert(fiveStagePngSvg.includes('font-size:16.8px'), 'xlarge PNG marker labels use 16.8px');
 
 console.log('common-caged-forms: 12 roots x 11 qualities x 2 fret ranges OK');
+
+for (const middle of [null,0,3,7]) {
+    const notes=[{string:1,fret:5,finger:1},{string:3,fret:5,finger:1}];
+    if(middle!==null)notes.push({string:2,fret:middle,finger:middle?2:null});
+    assert.strictEqual(caged.detectBarres(notes).length,middle===7?1:0,'index barre with middle fret '+middle);
+}

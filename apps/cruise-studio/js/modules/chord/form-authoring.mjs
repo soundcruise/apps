@@ -1,4 +1,5 @@
-import {contentKey,basisKey,evaluateBinding,ownerQuality} from './form-snapshot.mjs';
+import {voiceAlteration} from './form-voicing.mjs';
+import {contentKey,basisKey,evaluateBinding,ownerQuality,extendedQuality} from './form-snapshot.mjs';
 import {getAppVersion} from '../../core/component-metadata.mjs';
 export const STANDARD=[64,59,55,50,45,40];
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -11,19 +12,31 @@ export function createFormAuthoring(C,base){
     function recommend(p,symbol,shape=null,generation=null){
         const parsed=C.theory.parseBasicChordSymbol(symbol);if(!parsed)return null;
         const root=base.theory.parseSpelledNoteName(parsed.root);if(!root)return null;
-        const quality=ownerQuality(base.theory,parsed.quality);if(!quality)return null;
+        const extra=parsed.quality.includes('(')&&extendedQuality(base.theory,parsed.quality);
+        const quality=ownerQuality(base.theory,parsed.quality)||extra?.quality;if(!quality)return null;
         const capo=p.instrument.capo,max=p.instrument.maxAbsoluteFret??22,formRoot=(root.pc-capo+12)%12;
         const min=generation?.minRelativeFret??0,end=Math.min(generation?.maxRelativeFret??13,max-capo);if(!Number.isInteger(min)||!Number.isInteger(end)||min<0||end<min)return null;
         const recommendation=base.caged.getCommonForm(quality,formRoot,end,min);if(!recommendation&&!shape)return null;
         const selected=shape||recommendation.shape,raw=base.caged.getForm(selected,quality,formRoot,end,min,{variant:generation?.formVariant});if(!raw?.available)return null;
         // Explicit owner warnings are removed from this candidate, never silently played.
         // Missing strings must have an explicit owner mute, not an invented state.
-        const notes=raw.notes.filter(n=>!n.fingeringWarning),removed=raw.notes.filter(n=>n.fingeringWarning).map(n=>n.string);
+        let notes=raw.notes.filter(n=>!n.fingeringWarning);const removed=raw.notes.filter(n=>n.fingeringWarning).map(n=>n.string);
         if(!notes.length||[1,2,3,4,5,6].some(s=>!raw.notes.some(n=>n.string===s)&&!raw.mutedStrings.includes(s)))return null;
+        const originalNotes=notes;
+        if(parsed.bass||extra||quality==='6'||quality==='m6'){
+            const bass=parsed.bass?base.theory.parseSpelledNoteName(parsed.bass).pc:root.pc;
+            const pcs=[...new Set([...base.theory.QUALITIES[quality].intervals,...(extra?.tensions||[])].map(i=>(root.pc+i)%12).concat(bass))];
+            if(pcs.length>6)return null;
+            notes=voiceAlteration(notes,p.instrument.tuning||STANDARD,capo,pcs,bass,min,end);
+            if(!notes)return null;
+        }
         const snapshot={capo,tuningMidi:(p.instrument.tuning||STANDARD).slice(),maxAbsoluteFret:max,
             strings:[1,2,3,4,5,6].map(string=>{const n=notes.find(n=>n.string===string);return n?{string,kind:'note',relativeFret:n.fret,finger:n.finger??null,fingeringWarning:false}:{string,kind:'muted'};}),
             barres:base.caged.detectBarres(notes).map(b=>({finger:b.finger,relativeFret:b.fret,fromString:b.fromString,toString:b.toString})),
             playability:raw.playability??'unknown',ownerWarning:raw.formVariant==='fm7-open'?null:(raw.warning||null)};
+        if(notes.some(n=>n.fret>0&&!originalNotes.includes(n))){
+            snapshot.playability='unknown';snapshot.ownerWarning='追加した音の運指は未指定です';
+        }
         if(removed.length)snapshot.ownerWarning='注意付きの弦を省略。構成音と演奏条件は要確認';
         if(raw.hasOutOfRangeNotes!==false||raw.omittedNoteCount!==0||!Array.isArray(raw.outOfRangeNotes)||raw.outOfRangeNotes.length)snapshot.ownerWarning='元フォームに範囲外または未確認の音があります';
         const overridden=shape&&shape!==recommendation?.shape;

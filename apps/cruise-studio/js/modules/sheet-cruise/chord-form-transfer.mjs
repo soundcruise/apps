@@ -3,8 +3,12 @@ export const FORM_FORMAT='sound-cruise/chord-forms';
 const formBad=()=>{throw Error('フォームJSONの形式・弦・フレット・楽器条件を確認してください');};
 function formRecord(x,keys){if(!x||typeof x!=='object'||Array.isArray(x)||Object.keys(x).some(k=>!keys.includes(k)))formBad();}
 export function validateTransferForm(s){
-    formRecord(s,['capo','tuningMidi','maxAbsoluteFret','strings','barres','playability','ownerWarning']);
+    formRecord(s,['capo','tuningMidi','maxAbsoluteFret','strings','barres','playability','ownerWarning','displayRange']);
     const integer=(v,min,max)=>Number.isInteger(v)&&v>=min&&v<=max;
+    if(s.displayRange!==undefined){
+        formRecord(s.displayRange,['min','max']);
+        if(!integer(s.displayRange.min,1,36)||!integer(s.displayRange.max,s.displayRange.min,(s.maxAbsoluteFret??36)-(s.capo??0)))formBad();
+    }
     if(!(s.capo===null||integer(s.capo,0,11))||!(s.maxAbsoluteFret===null||integer(s.maxAbsoluteFret,s.capo??0,36))||!(s.tuningMidi===null||JSON.stringify(s.tuningMidi)==='[64,59,55,50,45,40]'))formBad();
     if(!Array.isArray(s.strings)||s.strings.length!==6||!Array.isArray(s.barres)||s.barres.length>6)formBad();
     for(const [i,n]of s.strings.entries()){formRecord(n,n.kind==='muted'?['string','kind']:['string','kind','relativeFret','finger','fingeringWarning']);if(n.string!==i+1||!['note','muted'].includes(n.kind))formBad();if(n.kind==='note'&&(!integer(n.relativeFret,0,(s.maxAbsoluteFret??36)-(s.capo??0))||![null,1,2,3,4,'T'].includes(n.finger)||typeof n.fingeringWarning!=='boolean'))formBad();}
@@ -26,5 +30,7 @@ export function savedChordForm(c,detectBarres=()=>[]){
     const seen=new Set();for(const n of c.notes){if(!Number.isInteger(n.string)||n.string<1||n.string>6||seen.has(n.string)||c.mutedStrings.includes(n.string))formBad();seen.add(n.string);}
     const strings=[1,2,3,4,5,6].map(string=>{const n=c.notes.find(n=>n.string===string);if(n)return {string,kind:'note',relativeFret:n.fret,finger:n.finger??null,fingeringWarning:n.fingeringWarning===true};if(c.mutedStrings.includes(string))return {string,kind:'muted'};formBad();});
     // Historical bookshelf records do not declare capo/tuning/fret limit.
-    return validateTransferForm({capo:null,tuningMidi:null,maxAbsoluteFret:null,strings,barres:detectBarres(c.notes).map(b=>({finger:b.finger,relativeFret:b.fret,fromString:b.fromString,toString:b.toString})),playability:'unknown',ownerWarning:'本棚由来の演奏条件を確認してください'});
+    const range=c.fretRange;
+    const displayRange=range&&range.max>0?{displayRange:{min:Math.max(1,range.min),max:range.max}}:{};
+    return validateTransferForm({...displayRange,capo:null,tuningMidi:null,maxAbsoluteFret:null,strings,barres:detectBarres(c.notes).map(b=>({finger:b.finger,relativeFret:b.fret,fromString:b.fromString,toString:b.toString})),playability:'unknown',ownerWarning:'本棚由来の演奏条件を確認してください'});
 }

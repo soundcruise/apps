@@ -2033,6 +2033,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-section-command-row{grid-template-columns:repeat(2,minmax(0,1fr));}
 .sc-section-workspace aside button{margin:0;min-width:0;}
 .sc-section-workspace aside fieldset{display:grid;grid-template-columns:1fr 1fr;padding:8px 10px;gap:8px;margin:0;min-width:0;border:1px solid var(--studio-border-default);border-radius:8px;}
+.sc-section-workspace aside .sc-song-tools{display:block;}
+.sc-section-workspace aside .sc-song-tool-buttons{display:grid;}
 .sc-section-workspace aside fieldset label{margin:0;align-items:center!important;}
 .sc-section-workspace aside small{color:var(--studio-text-secondary);overflow-wrap:anywhere;}
 .sc-section-workspace aside .sc-section-delete{justify-self:start;border:0;background:transparent;color:#efb3ae;}
