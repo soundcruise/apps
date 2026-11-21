@@ -649,10 +649,11 @@
         const canPickFile=typeof window.showSaveFilePicker==='function';
         if(canPickFile)els.saveBtn.title='初回は保存先を選びます。ブラウザの警告は、選んだファイルの読み書きについての案内です。';
         curve.body.appendChild(button('sc-save-overwrite',canPickFile?'上書き保存':'保存（このブラウザ内）',function(){els.saveBtn.click();}));
-        const saveAs=button('sc-save-as','名前をつけて保存',function(){
+        const saveAs=button('sc-save-as',canPickFile?'名前をつけて保存':'ファイルに保存するには…',function(){
+            if(typeof window.showSaveFilePicker!=='function'){openExportGuide();return;}
             if(prepareExplicitOutput())void commitSession(state.session,{chooseFile:true});
         });
-        saveAs.title=canPickFile?'ファイル名と保存先を選ぶ':'名前を指定してJSONファイルをダウンロード';
+        saveAs.title=canPickFile?'ファイル名と保存先を選ぶ':'編集用のJSONを書き出す方法を見る';
         curve.body.append(saveAs,button('sc-duplicate-project','曲を複製',function(){openSheetAction('duplicate',q('sc-duplicate-project'));}));
         divider(curve.body);menuLabel('曲の設定');[['sc-edit-song','曲情報','settings'],['sc-edit-instrument','キー・カポ','instrument'],['sc-edit-chord-preset','コード一括','chordPreset'],['sc-edit-rhythm','ストローク一括','strumPreset'],['sc-edit-sections','セクション編集','sections']].forEach(function(item){curve.body.appendChild(button(item[0],item[1],function(){openScoreSettings(item[2],{barIds:selectedIDs(),returnFocus:curve.root.querySelector(':scope > summary')});}));});
         var transpose=els.toolbar.querySelector('.sc-transpose-tools');if(transpose){transpose.id='sc-transpose-menu';transpose.hidden=true;curve.body.appendChild(transpose);}
@@ -877,7 +878,8 @@
         projects.forEach(function (meta) {
             var opt = document.createElement('option');
             opt.value = meta.projectId;
-            opt.textContent = meta.title + (meta.artist ? ' / ' + meta.artist : '');
+            opt.textContent = fileHandles.get(meta.projectId)?.name || meta.title + (meta.artist ? ' / ' + meta.artist : '');
+            restoreFileHandle(meta.projectId);
             els.projectSelect.appendChild(opt);
         });
         const actions=document.createElement('optgroup');
@@ -942,7 +944,7 @@
         var session = state.session;
         if (!session) return;
         var selected = els.projectSelect.selectedOptions[0];
-        if (selected && selected.value === session.target.projectId) selected.textContent = (session.draft.songInfo.title || '無題') +
+        if (selected && selected.value === session.target.projectId) selected.textContent = (fileHandles.get(session.target.projectId)?.name || session.draft.songInfo.title || '無題') +
             (session.conflict && session.conflict.deleted ? '（削除・draft保持）' : session.baseRevision === null ? '（新規・未保存）' : session.dirty ? '（未保存）' : '');
         els.saveBtn.disabled = !session.dirty || !session.canCommit() || !!textDiagnostic(session) || !!schemaViewError;
         if(q('sc-save-overwrite'))q('sc-save-overwrite').disabled=els.saveBtn.disabled;
@@ -972,9 +974,7 @@
         cancelRangeSelection();cancelBarDrag();editorHelp?.close({restoreFocus:false});scoreSettings?.close();emptySlotSelection=null;selectedBarIds = []; rangeAnchor = null;
         state.session = session;
         const fileId=session.target.projectId;
-        if(typeof window.showSaveFilePicker==='function'&&!handleReads.has(fileId)){
-            handleReads.set(fileId,storedHandle(fileId).then(handle=>{if(handle&&!fileHandles.has(fileId))fileHandles.set(fileId,handle);}).catch(()=>{}));
-        }
+        restoreFileHandle(fileId);
         structureIdentity = CS().structureOperations.structureKey(session.draft);
         publishedBars = session.draft.bars;
         selectionDeleted = false;
@@ -1058,14 +1058,14 @@
         var modal=CS().shellHost.modal;if(modal.getActive())return false;
         stopPianoAudition();
         var body=document.createElement('div'),message=document.createElement('p'),actions=document.createElement('div');
-        actions.style.display='flex';actions.style.flexWrap='wrap';actions.style.gap='12px';actions.style.padding='4px';
+        actions.className='sc-leave-actions';
         message.style.overflowWrap='anywhere';
-        body.style.padding='12px';message.style.margin='0 0 24px';message.style.lineHeight='1.7';actions.style.gap='16px';actions.style.padding='4px';
-        message.textContent='未保存のProject: '+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。変更を保存してから移動しますか？';body.appendChild(message);
+        body.style.padding='12px';message.style.margin='0 0 24px';message.style.lineHeight='1.7';
+        message.textContent='未保存の曲：'+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。変更を保存してから移動しますか？';body.appendChild(message);
         var buttons=[],record={active:true,saving:false};leavePending=record;
         function current(){return record.active&&leavePending===record&&state.session===owner&&CS().shellHost.getActiveWorkspace()===workspace&&CS().entryAuth.isAuthorized();}
         function proceed(){if(!current())return;if(CS().sessions.listSessions().some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;})){message.textContent='入力・保存結果・競合を解決してください。移動せずdraftを保持しています';return;}modal.close();continueAction();}
-        function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;b.style.maxWidth='100%';actions.appendChild(b);buttons.push(b);}
+        function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;b.className=label==='保存して続行'?'btn-primary':'btn-ghost';actions.appendChild(b);buttons.push(b);}
         button('保存して続行',async function(){
             if(!current()||record.saving)return;record.saving=true;buttons.forEach(function(b){b.disabled=true;});
             try {
@@ -1418,6 +1418,14 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-save-place a{color:inherit;text-underline-offset:3px}.sc-save-place footer{margin-top:16px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .sc-save-place footer button{min-height:40px;padding:8px 14px;border-radius:8px;font-size:.875rem}
 
+.sc-save-place p.sc-save-footnote{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--studio-border-default);color:var(--studio-text-secondary);font-size:.82rem;line-height:1.65;}
+.sc-save-place .sc-save-footnote a{white-space:nowrap;}
+.sc-leave-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;}
+.sc-leave-actions button{max-width:100%;min-height:40px;padding:8px 14px;border-radius:8px;}
+.sc-file-list>div{padding:4px;}
+.sc-file-list footer{display:flex;justify-content:flex-end;margin-top:16px;}
+.sc-file-list footer button{min-height:40px;padding:8px 14px;border-radius:8px;}
+.sc-file-list [role=status]:empty{display:none;}
 .sc-file-command-list{display:grid;gap:4px;max-height:55vh;overflow:auto;}
 .sc-file-command-list button{text-align:start;padding:8px 12px;}
 .sc-reminder-frequency{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:.875rem;}
@@ -5889,6 +5897,19 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             recoverySources.delete(session);
         }catch{setSaveStatus('下書きをブラウザに保存できません。曲を保存してください。',true);}
     }
+    function restoreFileHandle(id){
+        if(typeof window.showSaveFilePicker!=='function' || handleReads.has(id))return;
+        const read=storedHandle(id).then(handle=>{
+            if(!handle || fileHandles.has(id))return;
+            fileHandles.set(id,handle);
+            const option=Array.from(els.projectSelect.options).find(item=>item.value===id);
+            if(option){
+                if(state.session?.target.projectId===id)refreshSessionStatus();
+                else option.textContent=handle.name;
+            }
+        }).catch(()=>{ /* A browser-only song can still be opened by its title. */ });
+        handleReads.set(id,read);
+    }
     function storedHandle(id,handle){
         if(!fileDatabase)fileDatabase=new Promise((resolve,reject)=>{
             const req=indexedDB.open('cruiseStudio.scoreFiles',1);
@@ -5996,7 +6017,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
     function confirmFileSave(setting){
         const dialog=fileDialog('ファイル保存時のご案内'),text=document.createElement('p');
-        text.textContent='保存画面の「警告」は、譜面クルーズが選んだファイルを開き、編集内容を書き込めるようにするための確認です。エラーを知らせる表示ではありません。保存先とファイル名が合っていれば、「保存」で進めます。';
+        text.textContent='保存画面に「警告」と出るのは、選んだ譜面ファイルに編集内容を書き込むためです。ブラウザが表示する通常の確認なので、この表示だけで曲やパソコンに問題があるわけではありません。';
         const {label,select}=reminderSelect(setting),footer=document.createElement('footer');
         return new Promise(resolve=>{
             const proceed=dialogButton('保存を続ける',()=>{
@@ -6009,11 +6030,14 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             dialog.showModal();proceed.focus();
         });
     }
-    function openFileList(){
+    async function openFileList(){
+        const ownerSession=state.session;
+        await Promise.all(handleReads.values());
+        if(!state.active || state.session!==ownerSession)return;
         const dialog=document.createElement('dialog'),list=document.createElement('div'),title=document.createElement('h2');
         const message=document.createElement('p'),close=document.createElement('button');
         dialog.className='sc-location-dialog sc-file-list';dialog.setAttribute('aria-label','ファイル一覧');
-        title.textContent='ファイル一覧';message.setAttribute('role','status');close.textContent='閉じる';close.onclick=()=>dialog.close();
+        title.textContent='ファイル一覧';message.setAttribute('role','status');close.className='btn-ghost';close.textContent='閉じる';close.onclick=()=>dialog.close();
         let deleting=false;
         function refresh(){
             refreshProjectSelect();list.replaceChildren();
@@ -6055,7 +6079,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                 };
             }
         }
-        dialog.append(title,list,message,close);els.root.append(dialog);refresh();dialog.showModal();
+        const footer=document.createElement('footer');footer.append(close);
+        dialog.append(title,list,message,footer);els.root.append(dialog);refresh();dialog.showModal();
         dialog.onclose=()=>dialog.remove();
     }
 
@@ -6068,14 +6093,19 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         const handle=fileHandles.get(id), saved=session.baseRevision!==null;
         const dialog=fileDialog('保存場所'),place=document.createElement('strong'),hint=document.createElement('p');
         const direct=typeof window.showSaveFilePicker==='function';
-        place.textContent=handle?handle.name:saved?'このパソコンに保存されています。':'この曲はまだ保存されていません。';
+        place.textContent=handle?handle.name:saved?storageBrowserName()+'のサイトデータ（このパソコン内）':'この曲はまだ保存されていません。';
         if(handle){
             hint.textContent='「保存」でこのファイルを更新します。';
         }else{
-            hint.textContent=saved?storageBrowserName()+'が管理するサイトデータです。左上の曲名一覧から開けます。':'';
-            hint.append(direct?'「名前をつけて保存」でフォルダを指定できます。':'Google Chromeでは「保存」でフォルダを指定できます。','（',browserSaveHelp(),'）');
+            hint.textContent=saved?'曲をここから別のフォルダへ直接移動することはできません。ファイルとして持ち出すには「JSON書き出し」を使います。':'「保存」を押すと、この曲を保存できます。';
         }
         dialog.append(place,hint);
+        if(!handle){
+            const note=document.createElement('p');
+            note.className='sc-save-footnote';
+            note.append(direct?'※「名前をつけて保存」で、保存先のフォルダを指定できます。':'※ Chromeでは「名前をつけて保存」でフォルダを指定できます。',' ',browserSaveHelp());
+            dialog.append(note);
+        }
         if(direct){
             const details=document.createElement('details'),summary=document.createElement('summary');
             summary.textContent='保存時の案内設定';
@@ -6093,49 +6123,21 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         }
         dialog.append(footer);dialog.showModal();
     }
-    function chooseDownloadName(title){
-        const dialog=document.createElement('dialog'),form=document.createElement('form'),label=document.createElement('label');
-        const input=document.createElement('input'),note=document.createElement('p'),cancel=document.createElement('button'),accept=document.createElement('button');
-        dialog.className='sc-location-dialog';dialog.setAttribute('aria-label','名前をつけて保存');
-        input.value=title+'.json';input.required=true;label.append('ファイル名 ',input);
-        note.textContent='編集用JSONをダウンロードします。次回の「保存」は、このパソコンに保存した曲を更新します。';
-        const help=document.createElement('details'),summary=document.createElement('summary');
-        summary.textContent='ダウンロード先を選ぶには';
-        const instructions=document.createElement('p');
-        if(storageBrowserName()==='Safari'){
-            instructions.textContent='Macでは Safari → 設定 → 一般 →「ファイルのダウンロード先」でフォルダを指定できます。毎回選ぶこともできます。';
-        }else if(storageBrowserName()==='Firefox'){
-            instructions.textContent='Firefoxの設定で「ダウンロード」を検索し、保存先を指定するか、保存先を毎回確認する設定を選びます。';
-        }else{
-            instructions.textContent='ブラウザのダウンロード設定で、保存先のフォルダを選べます。';
-        }
-        help.append(summary,instructions);
-        cancel.type='button';cancel.textContent='キャンセル';
-        accept.type='submit';accept.textContent='保存';form.append(label,note,help,cancel,accept);dialog.append(form);els.root.append(dialog);
-        return new Promise(resolve=>{
-            function finish(name){dialog.close();dialog.remove();resolve(name);}
-            cancel.onclick=()=>finish('');
-            dialog.oncancel=event=>{event.preventDefault();finish('');};
-            form.onsubmit=event=>{event.preventDefault();const name=input.value.trim();if(name)finish(/\.json$/i.test(name)?name:name+'.json');};
-            dialog.showModal();input.select();
-        });
-    }
-    async function saveNamedDownload(session){
-        const version=session.snapshotVersion,name=await chooseDownloadName(session.draft.songInfo.title||'無題');
-        if(!name||state.session!==session||version!==session.snapshotVersion){
-            if(state.session===session)showSaveNotice('保存を中止しました。');
-            return {ok:false,error:'保存を中止しました'};
-        }
-        if(!downloadCurrentProjectJson(name))return {ok:false,error:'書き出しを中止しました'};
-        const id=session.target.projectId;
-        await handleReads.get(id);
-        if(fileHandles.has(id)){
-            await storedHandle(id,null);
-            fileHandles.delete(id);
-        }
-        const result=await commitBrowserSession(session);
-        if(result.ok && state.session===session)showSaveReceipt('保存しました。「'+name+'」のダウンロードを開始しました。', { recommendChrome: true });
-        return result;
+    function openExportGuide(){
+        const session=state.session;
+        const dialog=fileDialog('編集用ファイルの書き出し');
+        const description=document.createElement('p');
+        description.textContent='「JSONを書き出す」で、この曲の編集用ファイルをダウンロードできます。';
+        const note=document.createElement('p');
+        note.className='sc-save-footnote';
+        note.append('※ パソコン版Chrome・Edgeでは「名前をつけて保存」でフォルダとファイル名を選べます。',' ',browserSaveHelp());
+        const footer=document.createElement('footer');
+        footer.append(dialogButton('閉じる',()=>dialog.close()),dialogButton('JSONを書き出す',()=>{
+            dialog.close();
+            if(session===state.session)downloadCurrentProjectJson();
+        },true));
+        dialog.append(description,note,footer);
+        dialog.showModal();
     }
     async function commitSession(session,{chooseFile=false}={}){
         if(fileSaves.has(session))return {ok:false,error:'保存中です'};
@@ -6144,7 +6146,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         const id=session.target.projectId,version=session.snapshotVersion,project=session.workingSnapshot();
         fileSaves.add(session);
         try{
-            if(typeof window.showSaveFilePicker!=='function')return chooseFile?await saveNamedDownload(session):await commitBrowserSession(session);
+            if(typeof window.showSaveFilePicker!=='function')return await commitBrowserSession(session);
             const check=CS().model.validateProject(project);if(!check.ok)throw Error(check.errors.join(' / '));
             const setting=CS().storage.getAppSetting(reminderKey);
             const recent=setting?.mode==='sometimes' && Date.now()-setting.lastShown<30*24*60*60*1000;
@@ -6163,7 +6165,11 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                 handle=await window.showSaveFilePicker({suggestedName:(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
             }catch(error){
                 dismissSaveNotice();
-                if(error.name==='SecurityError')return chooseFile?await saveNamedDownload(session):await commitBrowserSession(session);
+                if(error.name==='SecurityError'){
+                    if(!chooseFile)return await commitBrowserSession(session);
+                    openExportGuide();
+                    return {ok:false,error:'ファイルの保存先を選べないため、JSON書き出しをご利用ください。'};
+                }
                 throw error;
             }
             const writable=await handle.createWritable();

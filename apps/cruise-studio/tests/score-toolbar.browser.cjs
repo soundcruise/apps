@@ -305,7 +305,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.evaluate(()=>Object.defineProperty(window,'showSaveFilePicker',{configurable:true,value:undefined}));
   await p.locator('#sc-save').click();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);assert.equal((await snap(p)).songInfo.title,'Toolbar working title');assert.equal(await p.locator('#sc-curve-menu').getAttribute('open'),null);
  }));
- await t.test('song selector and menu share file commands, including named downloads',()=>fresh(async p=>{
+ await t.test('song selector and menu share file commands, and provide a distinct export path on browsers without a picker',()=>fresh(async p=>{
   const select=p.locator('#sc-project-select');
   const commands=await p.locator('#sc-curve-menu [data-file-command]').evaluateAll(items=>items.map(item=>[item.id,item.textContent.trim()]));
   assert(commands.length>=10);
@@ -321,24 +321,22 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await select.selectOption({label:'ファイル一覧・削除…'});
   await p.locator('.sc-file-list').getByText('閉じる').click();
   await p.evaluate(()=>window.showSaveFilePicker=undefined);
-  const named=p.getByRole('dialog',{name:'名前をつけて保存'});
-  await more('名前をつけて保存');
-  await named.getByRole('button',{name:'キャンセル'}).click();
+  const card=p.getByRole('dialog',{name:'編集用ファイルの書き出し'});
+  const command=engine==='webkit'?'ファイルに保存するには…':'名前をつけて保存';
+  await more(command);
+  await card.getByRole('button',{name:'閉じる'}).click();
   assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
-  await more('名前をつけて保存');
-  await named.getByText('ダウンロード先を選ぶには').click();
-  assert(await named.getByText(engine==='webkit'?/Safari → 設定/:/ブラウザのダウンロード設定/).isVisible());
-  await named.getByLabel('ファイル名').fill('練習用');
+  await more(command);
+  assert.equal(await card.locator('input').count(),0);
+  assert.match(await card.innerText(),/Chrome・Edge/);
   const output=p.waitForEvent('download');
-  await named.getByRole('button',{name:'保存',exact:true}).click();
+  await card.getByRole('button',{name:'JSONを書き出す'}).click();
   const file=await output;
-  assert.equal(file.suggestedFilename(),'練習用.json');
+  assert(file.suggestedFilename().endsWith('.json'));
   const {scorePresentation,...contents}=JSON.parse(fs.readFileSync(await file.path(),'utf8'));
   assert.deepEqual(contents,before);
-  await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
-  const committed=await snap(p);
-  assert(Date.parse(committed.updatedAt)>=Date.parse(before.updatedAt));
-  assert.deepEqual({...committed,updatedAt:before.updatedAt},before);
+  assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
+  assert.deepEqual(await snap(p),before);
  }));
  await t.test('restore unsaved work, cancel the picker, then save twice to one file',()=>fresh(async p=>{
   const before=await snap(p);
@@ -363,16 +361,16 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});
 
    const location=p.getByRole('dialog',{name:'保存場所'});
-   assert.match(await location.innerText(),/曲名一覧/);
+   assert.match(await location.innerText(),/直接移動することはできません/);
    const exportedSnapshot=await snap(p);
-   assert.match(await location.innerText(),/このパソコンに保存されています。/);
-   assert.match(await location.innerText(),/Safariが管理するサイトデータ/);
+   assert.match(await location.innerText(),/このパソコン内/);
+   assert.match(await location.innerText(),/Safariのサイトデータ/);
    assert.equal(await location.getByRole('button').count(),1);
    await location.getByRole('button',{name:'閉じる'}).click();
    await p.locator('#sc-project-select').selectOption({label:'その他のファイル操作…'});
-   await p.getByRole('dialog',{name:'その他のファイル操作'}).getByRole('button',{name:'名前をつけて保存'}).click();
+   await p.getByRole('dialog',{name:'その他のファイル操作'}).getByRole('button',{name:'ファイルに保存するには…'}).click();
    const download=p.waitForEvent('download');
-   await p.getByRole('dialog',{name:'名前をつけて保存'}).getByRole('button',{name:'保存',exact:true}).click();
+   await p.getByRole('dialog',{name:'編集用ファイルの書き出し'}).getByRole('button',{name:'JSONを書き出す'}).click();
    const {scorePresentation,...file}=JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));
    assert.deepEqual(file,exportedSnapshot);
    return;
@@ -387,7 +385,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   });
   const reminder=p.getByRole('dialog',{name:'ファイル保存時のご案内'}),go=()=>reminder.getByRole('button',{name:'保存を続ける'}).click();
   await p.click('#sc-save');
-  assert.match(await reminder.innerText(),/エラーを知らせる表示ではありません/);
+  assert.match(await reminder.innerText(),/通常の確認/);
   for(const field of [reminder.getByLabel('案内の表示'),p.locator('#sc-project-select')]){
    const style=await field.evaluate(el=>{const s=getComputedStyle(el);return [s.appearance,s.paddingInlineEnd,s.backgroundPositionX];});
    assert.equal(style[0],'none');assert.equal(style[1],'32px');assert.match(style[2],/12px/);
@@ -420,9 +418,12 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.getByRole('dialog',{name:'保存場所'}).getByRole('button',{name:'閉じる'}).click();
   assert.equal(await p.locator('#sc-save-notice').count(),0);
   assert.equal(await p.evaluate(()=>window.suggested),'second save.json');
+  assert.equal(await p.locator('#sc-project-select :checked').textContent(),'renamed.json');
+  assert.equal((await snap(p)).songInfo.title,'second save');
   assert.equal((await snap(p)).projectId,before.projectId);
   assert.equal(await p.locator('#sc-project-select option').count(),rows);
   await p.reload();await p.click('#open-sheet-cruise');
+  await p.waitForFunction(()=>document.querySelector('#sc-project-select :checked')?.textContent==='renamed.json');
   await p.evaluate(()=>{window.showOpenFilePicker=async({startIn})=>{window.locationFilename=startIn.name;throw new DOMException('cancel','AbortError');};});
   await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});const card=p.getByRole('dialog',{name:'保存場所'});assert.equal(await card.locator('strong').textContent(),'renamed.json');
   await card.getByRole('button',{name:'保存フォルダを開く',exact:true}).click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');await card.getByText('閉じる').click();
@@ -444,6 +445,10 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   });
   assert.equal(files[0],1);assert.equal(files[1],oldBytes);
   assert.equal(files[2].projectId,before.projectId);assert.equal(files[2].songInfo.title,'after rename');
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-new-project');
+  await p.click('[data-score-apply]');
+  await p.reload();await p.click('#open-sheet-cruise');
+  await p.waitForFunction(id=>Array.from(document.querySelector('#sc-project-select').options).some(o=>o.value===id && !o.selected && o.textContent==='renamed.json'),before.projectId);
  }));
  await t.test('menus fit narrow screens and print hides all toolbar controls',()=>fresh(async p=>{
   await select(p,1);
