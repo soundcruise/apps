@@ -451,11 +451,15 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
         const heading=await chapter.getByRole('heading',{level:2}).boundingBox();
         assert(heading && heading.y>=-1 && heading.y<120,'Link lands on the corresponding instructions');
         assert.equal(await chapter.locator('figure img').count(),images);
-        assert.equal(await chapter.locator('figure img').first().getAttribute('src'),
-            (await help.locator('img').getAttribute('src')).split('/').pop());
+        const numberedImage=(await help.locator('img').getAttribute('src')).split('/').pop();
+        assert.equal(await chapter.locator('figure img[src="'+numberedImage+'"]').count(),1);
         await details.close();
         await help.getByRole('button',{name:'閉じる'}).click();
     }
+    const {createUITestProject}=await import('../scripts/create-ui-test-project.mjs');
+    const fixture=createUITestProject();
+    await editor.locator('#sc-import-json').setInputFiles({name:'guide.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+    await editor.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,fixture.projectId);
     await editor.click('#sc-curve-menu-toggle');
     await editor.click('#sc-edit-song');
     const song=editor.locator('[data-score-dialog=settings]');
@@ -465,6 +469,39 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     assert.equal(await bpm.inputValue(),'112');
     await song.locator('[data-score-apply]').click();
     assert.match(await editor.locator('#sc-sheet-scale-box .sheet-header').innerText(),/BPM:\s*112/);
+
+    await editor.click('#sc-curve-menu-toggle');
+    await editor.click('#sc-edit-instrument');
+    const instrument=editor.locator('[data-score-dialog=instrument]');
+    await instrument.locator('[data-score-field=capo]').fill('5');
+    await checkChapter(instrument,'キー・カポ','key-capo',4,2);
+    assert.equal(await instrument.locator('[data-key-after=playKey]').textContent(),'G');
+    await instrument.locator('[data-score-apply]').click();
+
+    await editor.click('#sc-history');
+    const history=editor.locator('.sc-history-dialog');
+    const prior=history.locator('[data-history-cursor]').nth(1);
+    await prior.click();
+    await checkChapter(history,'変更履歴','history',3,2);
+    assert.equal(await prior.getAttribute('aria-pressed'),'true');
+    await history.locator('[data-history-apply]').click();
+    assert(await history.getByRole('button',{name:'この時点に戻す'}).isVisible());
+    await history.locator('[data-history-cancel]').click();
+    assert.equal(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().draft.instrument.capo),5);
+    await editor.click('#sc-undo');
+
+    await editor.locator('.sc-form-list-item').first().click();
+    const zoom=editor.locator('dialog.sc-readonly-form[open]');
+    await zoom.getByLabel('編集する位置').selectOption({label:'全て'});
+    await zoom.getByRole('button',{name:'編集',exact:true}).click();
+    const bulk=editor.getByRole('dialog',{name:'コードとフォームの一括編集',exact:true});
+    await bulk.locator(':scope > details > summary').click();
+    await bulk.locator('[data-chord-symbol="Dm"]').click();
+    await checkChapter(bulk,'コードとフォームの一括編集','catalogue-edit',4,2);
+    assert(await bulk.locator(':scope > details').evaluate(el=>el.open));
+    assert.equal(await bulk.getByLabel(/^コード名/).inputValue(),'Dm');
+    await bulk.getByRole('button',{name:'5箇所に反映'}).click();
+    await bulk.waitFor({state:'detached'});
 
     const {toolbarControl}=require('./helpers/score-toolbar.cjs');
     const layout=editor.locator('[data-paper-layout]');

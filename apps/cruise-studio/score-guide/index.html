@@ -12,12 +12,12 @@
 .section-map-key{margin:.8rem 0;padding-left:1.8rem;font-size:.97rem;color:#292722}.section-map-key li::marker{color:#a42b22;font-weight:700}.section-copy-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.2rem}.section-copy-steps figure{margin:0}.section-copy-steps figcaption,.section-result figcaption{margin:0 0 .6rem;color:#292722;font-size:1rem}.section-copy-steps b,.section-result b{display:block}.section-result{margin-top:1.3rem}@media(min-width:651px){.section-copy-steps figure:last-child{grid-column:1/-1;display:flex;align-items:center;gap:1.4rem}.section-copy-steps figure:last-child img{order:-1}}@media(max-width:650px){.section-copy-steps{grid-template-columns:1fr}}@media print{.section-copy-steps{display:block}.section-copy-steps figure{margin:1rem 0}.section-copy-steps img{max-height:55mm}}
 #batch article+article{margin-top:3rem}#batch h4{margin:1.6rem 0 .4rem}#batch h4+p{margin-top:0}#batch figcaption{margin-top:.35rem}
 </style>
-<header id="top"><p>Cruise Studio · Ver. 0.228.3-rc.1</p><h1>譜面クルーズ 取扱説明書</h1><p>曲を作り、小節に演奏を入力し、印刷・配布するまでの操作を説明します。チュートリアルでは「そらまで」、機能別の解説では「海辺の散歩」を使います。</p></header>
+<header id="top"><p>Cruise Studio · Ver. 0.228.4-rc.1</p><h1>譜面クルーズ 取扱説明書</h1><p>曲を作り、小節に演奏を入力し、印刷・配布するまでの操作を説明します。チュートリアルでは「そらまで」、機能別の解説では「海辺の散歩」を使います。</p></header>
 <section id="overview" class="opening"><h2>画面の見かた</h2><p>操作は上、譜面は中央、再生は下にあります。左のスタジオメニューから他のツールにも移動できます。</p>
 <figure><div class="capture"><img src="overview.png" width="1440" height="1000" alt="スタジオの中で譜面クルーズを開いた画面全体"><svg aria-hidden="true" viewBox="0 0 1440 1000"><rect x="241" y="178" width="1159" height="201" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="238" cy="175" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="238" y="182.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">1</text><rect x="481" y="594" width="678" height="111" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="478" cy="591" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="478" y="598.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">2</text><rect x="241" y="929" width="1159" height="60" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="238" cy="926" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="238" y="933.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">3</text></svg></div><figcaption><ul class="legend"><li><b>1</b>上部カードで曲とツールを選ぶ</li><li><b>2</b>譜面で編集・再生する小節を選ぶ</li><li><b>3</b>再生、テンポ、音量を操作する</li></ul></figcaption></figure>
 <p><a href="#lesson">最初の1曲を作ってみる ↓</a></p></section>
 <nav id="contents" aria-label="目次"><strong>目次</strong><ul>
-<li><a href="#overview">画面の見かた</a></li><li><a href="#lesson">はじめての1曲</a></li><li><a href="#start">曲を作る・開く</a></li><li><a href="#save">保存場所・複製・変更履歴</a></li><li><a href="#song">曲情報・キー・カポ</a></li><li><a href="#bars">小節を選ぶ・移動する</a></li><li><a href="#edit">小節編集と鍵盤・フォーム入力</a></li><li><a href="#sections">セクションを組み立てる</a></li><li><a href="#batch">コード・ストローク一括入力</a></li><li><a href="#view">譜面の表示設定</a></li><li><a href="#play">再生と練習</a></li><li><a href="#share">書き出し・印刷・ビューワー</a></li><li><a href="#keys">キー操作・困ったとき</a></li><li><a href="#contact">お問い合わせ</a></li></ul></nav>
+<li><a href="#overview">画面の見かた</a></li><li><a href="#lesson">はじめての1曲</a></li><li><a href="#start">曲を作る・開く</a></li><li><a href="#save">保存場所・複製・変更履歴</a></li><li><a href="#history">変更履歴から戻す</a></li><li><a href="#song">曲情報</a></li><li><a href="#key-capo">キー・カポ</a></li><li><a href="#bars">小節を選ぶ・移動する</a></li><li><a href="#edit">小節編集と鍵盤・フォーム入力</a></li><li><a href="#catalogue-edit">コードとフォームの一括編集</a></li><li><a href="#sections">セクションを組み立てる</a></li><li><a href="#batch">コード・ストローク一括入力</a></li><li><a href="#view">譜面の表示設定</a></li><li><a href="#play">再生と練習</a></li><li><a href="#share">書き出し・印刷・ビューワー</a></li><li><a href="#keys">キー操作・困ったとき</a></li><li><a href="#contact">お問い合わせ</a></li></ul></nav>
 <main><section id="lesson"><h2>はじめての1曲「そらまで」</h2>
 <p>4/4拍子、BPM 100の4小節を作ります。コードとストロークは一括入力し、歌詞とメロディは各拍の先頭に入れます。</p>
 <h3>1. 曲を作る</h3><p>「メニュー」→「新しい曲を作成」を開き、曲名に「そらまで」、BPMに100を入力します。拍子は4/4です。右の譜面に曲名とBPMが反映されたことを確認します。この画面を開いたまま、手順2に進みます。</p>
@@ -65,6 +65,14 @@
 <figure><div class="capture"><img src="files.png" width="512" height="211" alt="ファイル一覧の曲名と削除ボタン"><svg aria-hidden="true" viewBox="0 0 512 210"><rect x="22" y="67" width="405" height="37" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="19" cy="64" r="13" fill="#ab271e" stroke="white" stroke-width="2"/><text x="19" y="68.9" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold" fill="white">1</text><rect x="439" y="67" width="51" height="37" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="436" cy="64" r="13" fill="#ab271e" stroke="white" stroke-width="2"/><text x="436" y="68.9" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold" fill="white">2</text></svg></div><figcaption><ul class="legend"><li><b>1</b>曲を開く</li><li><b>2</b>一覧から削除</li></ul></figcaption></figure><dl>
 <dt>曲を複製</dt><dd>メニューから「曲を複製」を選び、別の曲として作業を続けます。編曲案を分けたいときに使います。</dd>
 <dt>取り消し・履歴</dt><dd>表示設定、曲情報・キー／カポ、ストロークのパターン、拡大フォームの「ここで運指を調整」では、確定前に Ctrl＋Z（Macは⌘Z）で一手戻せます。Shiftを加えるとやり直せます。ホームへの移動や曲の切り替えでも、編集中の曲は下書きに残ります。</dd><dd>保存ボタンの横の矢印で編集を一手ずつ取り消し・やり直しできます。「履歴」で過去の状態を選ぶと譜面を確認できます。「この時点に戻す」を確定すると、それ以降の履歴が失われます。ファイルへ反映するには保存します。</dd></dl></section>
+<section id="history"><h2>変更履歴から戻す</h2>
+<p>上部カードの「履歴」を開きます。例では「キー・カポを変更」する前の譜面を確認します。</p>
+<figure><img src="history-choose.png" width="350" height="220" alt="変更履歴で「曲情報を変更」を選んだ画面。選んだ行、表示中の時点の説明、決定ボタンに番号を表示"><figcaption><ol class="section-map-key">
+<li><strong>一覧で見たい時点を選びます。</strong> 「現在」の一つ下にある「曲情報を変更」をクリックします。</li>
+<li><strong>一覧の上に表示された時点と、背後の譜面を確認します。</strong> 別の行もクリックして見比べられます。確認だけなら「キャンセル」で元の譜面に戻ります。</li>
+<li><strong>選んだ時点に戻すには「決定」を押します。</strong> 続いて、消える履歴の件数が表示されます。</li>
+</ol></figcaption></figure>
+<figure><img src="history-confirm.png" width="350" height="305" alt="確認画面。以後の履歴が1件失われることを示す説明と、右上の「この時点に戻す」"><figcaption>「この時点に戻す」で復元を確定します。これより後の履歴は消え、やり直しはできません。復元した曲を保存するには、上部カードの「保存」を押します。</figcaption></figure></section>
 <section id="song"><h2>曲情報・キー・カポ</h2>
 <p>上部の「メニュー」→「曲情報」を開きます。譜面のタイトルやBPMからも開けます。</p>
 <figure><img src="song.png" width="1120" height="544" alt="曲情報。曲名とアーティスト名、演奏の設定、譜面の見出し、適用ボタンを赤枠と番号で表示"><figcaption><ol class="section-map-key">
@@ -75,6 +83,17 @@
 </ol></figcaption></figure>
 <figure><img src="song-applied.png" width="681" height="80" alt="適用後の譜面。海辺の散歩の見出しにBPM 112、拍子4/4が表示されている"><figcaption>「適用」した後の譜面の見出し。曲を保存するには、上部カードの「保存」を押します。</figcaption></figure>
 <p>ORGキーは原曲の調、Playキーは演奏に使うキー・カポの組み合わせです。「移調・カポの変更前後を確認」またはメニューの「キー・カポ」を開き、コードの変更前後を見比べて適用します。左下の「譜面の全体編集」からは、入力内容を反映して「セクション編集」「コード一括入力」「ストローク一括入力」へ進めます。</p></section>
+<section id="key-capo"><h2>キー・カポ</h2>
+<p>「メニュー」→「キー・カポ」を開きます。「曲情報」の「移調・カポの変更前後を確認」からも開けます。</p>
+<figure><img src="key-capo.png" width="580" height="552" alt="原曲キーCを保ってカポを5にする例。変更方法、カポ、比較表、適用を赤枠で表示"><figcaption><ol class="section-map-key">
+<li><strong>上で変更方法を選びます。</strong> 今の高さで演奏する例なので「曲の高さを保ってカポを変える」を選びます。</li>
+<li><strong>「カポ」に5を入力します。</strong> カポなしにするときは0です。</li>
+<li><strong>表の「変更後」を確認します。</strong> 原曲キー（実音）はCのまま、PlayキーはGになります。5フレットにカポを付け、Gの押さえ方でCが鳴ります。</li>
+<li><strong>右上の「適用」で確定します。</strong> 確認だけなら「キャンセル」で閉じます。</li>
+</ol></figcaption></figure>
+<h3>歌う高さも変えたいとき</h3>
+<p>①で「曲の高さを変える（移調）」を選び、「原曲キー（実音）」で目標のキーを選びます。</p>
+<figure><img src="key-transpose.png" width="538" height="146" alt="カポなしでCからDへ移調した比較表。原曲キーとPlayキーがともにDになる"><figcaption>カポなしでCからDに移調する例。原曲キーとPlayキーがともにDになることを確認して「適用」を押します。</figcaption></figure></section>
 <section id="bars"><h2>小節を選ぶ・移動する</h2><p>小節をクリックすると上部カードに小節操作が出ます。続けて同じ小節をクリックするか「編集」で入力へ進みます。複数小節は先頭から末尾へドラッグするか、最初をクリックして最後をShift＋クリックします。譜面の余白で選択を解除します。</p><dl><dt>小節追加・複製</dt><dd>選択位置の後ろに空の小節、または選んだ内容のコピーを追加します。</dd><dt>コピー・貼り付け</dt><dd>元の範囲をコピーし、貼り始める位置を選びます。「上書き貼り付け」は既存の位置を置き換え、「挿入して貼り付け」は後ろの小節を送ります。</dd><dt>移動</dt><dd>前へ・後ろへ移動するボタンで並びを変えます。セクション境界では移動後の所属も確認します。</dd><dt>削除</dt><dd>「枠を残して削除」は譜面上の場所を空き枠として残します。「詰めて削除」は後ろの小節を前へ詰めます。空き枠は再生されません。</dd></dl></section>
 <section id="edit"><h2>小節編集と鍵盤・フォーム入力</h2><figure><div class="capture"><img src="editor.png" width="960" height="339" alt="小節編集のコード・ストローク・歌詞・メロディの行と拍の区切り"><svg aria-hidden="true" viewBox="0 0 960 338"><rect x="113" y="71" width="101" height="40" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="110" cy="68" r="13" fill="#ab271e" stroke="white" stroke-width="2"/><text x="110" y="72.9" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold" fill="white">1</text><rect x="113" y="118" width="101" height="40" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="110" cy="115" r="13" fill="#ab271e" stroke="white" stroke-width="2"/><text x="110" y="119.9" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold" fill="white">2</text></svg></div><figcaption><ul class="legend"><li><b>1</b>コードを入力</li><li><b>2</b>ストロークを入力</li></ul></figcaption></figure><p>上の「1小節」〜「4小節」は編集する範囲、「前へ」「次へ」は小節移動です。倍率ボタンでマスを拡大できます。「右窓へ」で編集画面の置き場所を切り替えます。編集画面内の「？」で入力中にも操作を確認できます。</p>
 <dl><dt>コード本棚のフォームを取り込む</dt><dd>コードの編集カードで「コード本棚を開く」→「本棚からフォームを書き出す」を押します。別タブの本棚でコードを選び、元のタブの「JSONファイルを読み込む」で取り込んでください。コード図を押すと、選んだマスにコードとフォームが入ります。ベース・テンションに指定した運指も使えます。</dd><dt>コード・フォーム</dt><dd>コード行のマスをクリックしてEmやG/Bなどを入力します。選択中のマスをもう一度クリックすると文字単位で直せます。行名の▼からコード・フォームを選べます。譜面または譜面下のフォーム一覧で図をクリックし、拡大図の「編集」を押すと、そのコードの小節編集が開きます。「詳細設定」を押すと、指板が「運指」で開きます。一覧で同じフォームが複数箇所にあるときは、「編集する位置」で小節と拍を選ぶと、その箇所だけを編集できます。「全て」を選んで「編集」を押すと、小節編集と同じフォームパネルが単独で開きます。コード名やダイアトニックコードを選び、図または「詳細設定」の指板で押さえ方を変更できます。最後に「反映」を押します。「コード本棚に保存」を押すと、コードクルーズが別タブで開きます。フォルダを選び、「保存する」を押すと本棚に追加されます。「詳細設定」の「表示範囲」は、押さえる位置に合わせて自動で決まります。指板の番号帯にある左右のつまみをドラッグするか、「開始」「終了」にフレット番号を入力すると、そのフォームの範囲を指定できます。「自動」にチェックを戻すと解除できます。</dd>
@@ -82,6 +101,16 @@
 <dt>歌詞・メロディ</dt><dd>歌い始めるマスに文字を入れます。メロディは行名横の▼から鍵盤でも入力できます。音の高さを確認して試聴します。表示設定では歌詞・メロディの文字サイズと字間を個別に調節できます。</dd>
 <dt>音価・拍ごとの固定</dt><dd>行名横の数字で行の入力単位を選びます。特定の拍だけ細かくしたい場合は拍の右下の数字を押します。鍵付きの拍は行の単位を変えても固定されます。「…」のマスは、単位を細かくすると中の入力を確認できます。</dd>
 <dt>マスのコピー・移動</dt><dd>同じ行をドラッグまたはShift＋クリックで選び、⌘／Ctrl＋C、貼り始めるマスで⌘／Ctrl＋V。伸ばしは先頭の音と一緒に選びます。入力済みマスの左下の点をドラッグすると移動先を上書きします。</dd></dl></section>
+<section id="catalogue-edit"><h2>コードとフォームの一括編集</h2>
+<p>譜面下の「コードフォーム一覧」で、複数の箇所に使っているフォームをクリックします。拡大画面で「編集する位置」を「全て」にして、左上の「編集」を押します。</p>
+<figure><img src="catalogue-all.png" width="400" height="418" alt="フォーム一覧でCを拡大した画面。「編集する位置」は「全て」、左上に「編集」ボタン"><figcaption>特定の1箇所だけを変えたい場合は、「全て」の代わりに小節と拍を選びます。</figcaption></figure>
+<h3>同じフォームを使う5箇所を、CからDmに変える例</h3>
+<figure><img src="catalogue-edit.png" width="920" height="530" alt="一括編集画面。対象の5箇所を表示し、コード名とコード図をDmに変更した状態"><figcaption><ol class="section-map-key">
+<li><strong>上の「対象の5箇所を確認」を開きます。</strong> 第1小節・1拍目など、変更される位置が並びます。対象は一覧で選んだフォームを使う箇所です。</li>
+<li><strong>コード名を変えます。</strong> 「コード名」にDmと入力してEnterを押すか、候補の「Dm」をクリックします。左の図がDmに変わります。</li>
+<li><strong>押さえ方を調整します。</strong> 「詳細設定」で指板を開きます。左のコード図では運指を変えられます。表示されたフォームでよければ、そのまま進みます。</li>
+<li><strong>右下の「5箇所に反映」を押します。</strong> 対象のコード名とフォームがまとめて譜面に反映されます。</li>
+</ol></figcaption></figure></section>
 <section id="sections"><h2>セクションを組み立てる</h2>
 <p>上部カードの「メニュー」→「セクション編集」を開きます。譜面の「イントロ」「Aメロ」などの見出しからも開けます。</p>
 <figure><img src="sections.png" width="1050" height="430" alt="セクション編集。画面上部のセクションの列、左の操作欄、譜面の小節数ボタン、右上の適用を番号で表示"><figcaption><ol class="section-map-key">
