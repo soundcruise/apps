@@ -19,7 +19,7 @@ export function createFormDraft(snapshot,playedStrings,detectBarres){
   toggle(string){const at=draft.playedStrings.indexOf(string);if(at>=0){if(draft.playedStrings.length===1)return false;draft.playedStrings.splice(at,1);}else{const n=draft.snapshot.strings.find(n=>n.string===string);if(n.kind==='muted')Object.assign(n,{kind:'note',relativeFret:0,finger:null,fingeringWarning:false});draft.playedStrings.push(string);draft.playedStrings.sort((a,b)=>a-b);}return true;}
  };
 }
-export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStrings,symbol,apply,detectBarres}){
+export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStrings,symbol,apply,detectBarres,onEdit}){
  bindOutsideDismiss(dialog);
  const original=JSON.stringify([playedSnapshot(snapshot,playedStrings),playedStrings.slice().sort((a,b)=>a-b)]),edit=createFormDraft(snapshot,playedStrings,detectBarres),node=(tag,text,parent=dialog)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;parent.appendChild(e);return e;};let editing=false;
  const head=node('header'),title=node('h2',symbol,head),actions=node('div',undefined,head),start=node('button','編集',actions),close=node('button','閉じる',actions);actions.className='sc-form-actions';head.classList.add('score-form-header');head.replaceChildren(start,title,close);start.type=close.type='button';start.dataset.paperFormEdit='';close.dataset.formClose='';close.onclick=()=>dialog.close();
@@ -34,5 +34,5 @@ export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStri
   }
   hint.hidden=footer.hidden=!editing;start.hidden=editing;save.disabled=JSON.stringify([snapshot,edit.draft.playedStrings])===original;close.textContent=editing?'キャンセル':'閉じる';if(focus)figure.querySelector(focus)?.focus({preventScroll:true});
  }
- start.onclick=()=>{editing=true;render();};save.onclick=()=>{if(!editing||!dialog.open||!dialog.isConnected)return;const result=apply(clone(edit.draft));if(!result?.ok){status.textContent=result?.error||'フォームを反映できませんでした';return;}dialog.close();};render();return edit;
+ start.onclick=onEdit||(()=>{editing=true;render();});save.onclick=()=>{if(!editing||!dialog.open||!dialog.isConnected)return;const result=apply(clone(edit.draft));if(!result?.ok){status.textContent=result?.error||'フォームを反映できませんでした';return;}dialog.close();};render();return edit;
 }
