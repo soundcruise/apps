@@ -243,6 +243,53 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    assert.equal(stored.projectId,before.projectId);
   }
  }));
+ await t.test('page guides explain the open editor and return focus without changing the draft',()=>fresh(async p=>{
+  const initial=await snap(p);
+  const menu=async id=>{await p.click('#sc-curve-menu-toggle');await p.click(id);};
+  const cases=[
+   [()=>menu('#sc-edit-sections'),'セクション編集','貼り付け'],
+   [()=>menu('#sc-edit-song'),'曲情報','BPM'],
+   [()=>menu('#sc-edit-instrument'),'キー・カポ','Playキー'],
+   [()=>menu('#sc-edit-chord-preset'),'コード一括入力','入力を始める小節'],
+   [()=>menu('#sc-edit-rhythm'),'ストローク一括入力','ドラッグ'],
+   [()=>openPaperSettings(p),'譜面の表示設定','セクション別の表示'],
+   [()=>p.click('#sc-history'),'変更履歴','この時点に戻す']
+  ];
+  for(const [open,name,instruction] of cases){
+   await open();
+   const owner=p.getByRole('dialog',{name,exact:true}),helpName=name+'の使い方';
+   const button=owner.getByRole('button',{name:helpName});
+   if(name==='曲情報')await owner.getByLabel('曲名',{exact:true}).fill('確定前の曲名');
+   await button.click();
+   const help=p.getByRole('dialog',{name:helpName,exact:true});
+   assert((await help.innerText()).includes(instruction));
+   await p.keyboard.press('Control+z');await p.keyboard.press('Escape');
+   await help.waitFor({state:'detached'});assert(await owner.isVisible());
+   assert(await button.evaluate(e=>e===document.activeElement));
+   if(name==='曲情報')assert.equal(await owner.getByLabel('曲名',{exact:true}).inputValue(),'確定前の曲名');
+   await owner.getByRole('button',{name:'キャンセル',exact:true}).click();
+  }
+  assert.deepEqual(await snap(p),initial);
+ }));
+ await t.test('section copy and paste keys open the part chooser and preserve native text editing',()=>fresh(async p=>{
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
+  const card=p.locator('[data-score-dialog=sections]'),tabs=card.locator('nav button'),name=card.getByLabel('セクション名',{exact:true});
+  const count=await tabs.count(),source=await tabs.first().innerText(),chooser=card.getByRole('group',{name:'貼り付ける内容'});
+  await tabs.first().click();await p.keyboard.press('Meta+c');await tabs.nth(1).click();
+  await name.focus();await name.evaluate(e=>e.select());
+  for(const key of ['c','v']){
+   const native=await name.evaluate((e,key)=>e.dispatchEvent(new KeyboardEvent('keydown',{key,ctrlKey:true,bubbles:true,cancelable:true})),key);
+   assert(native);assert.equal(await chooser.count(),0);
+  }
+  await tabs.nth(1).click();await p.keyboard.press('Control+v');await chooser.waitFor();
+  assert.equal(await tabs.count(),count);
+  await chooser.getByRole('button',{name:'キャンセル'}).click();
+  await p.keyboard.press('Meta+v');await chooser.getByLabel('歌詞').uncheck();
+  await chooser.getByRole('button',{name:'実行'}).click();assert.equal(await tabs.count(),count+1);
+  assert((await tabs.nth(2).innerText()).startsWith(source.split(' ')[0]+' コピー'));
+  await name.press('Tab');await p.keyboard.press('Control+z');assert.equal(await tabs.count(),count);
+  await card.locator('[data-score-cancel]').click();
+ }));
  await t.test('unapplied settings own their history and only discarded edits prompt',()=>fresh(async p=>{
   const song=await snap(p),prompts=[];
   await p.exposeFunction('recordDiscard',message=>prompts.push(message));

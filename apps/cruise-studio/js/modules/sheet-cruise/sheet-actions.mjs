@@ -1,3 +1,4 @@
+import {addPageHelp} from './page-help.mjs';
 import {basisKey} from '../chord/form-snapshot.mjs';
 // New document identity, same canonical content/references. Never mutate the source.
 export function copyProject(project,title,newId,now){
@@ -25,6 +26,7 @@ export function createSheetActions({document:doc,host,closed}){
   const list=node('ol');list.className='sc-history-list';
   const warning=node('p','');warning.hidden=true;warning.dataset.historyWarning='';warning.setAttribute('role','alert');
   const header=d.querySelector('header'),cancel=node('button','キャンセル',header),apply=node('button','決定',header);cancel.type=apply.type='button';cancel.dataset.historyCancel='';apply.dataset.historyApply='';apply.disabled=true;
+  addPageHelp(d,cancel,'history');
   cancel.onclick=()=>close(true);
   function stale(){status.textContent='履歴が変わりました。開き直してください。現在の内容は保持しています。';apply.disabled=true;preview?.(null);}
   if(!h.entries.length)status.textContent=h.status==='overflow'?'この変更は履歴の容量を超えたため、巻き戻しできません。':'この曲の変更履歴はまだありません。';

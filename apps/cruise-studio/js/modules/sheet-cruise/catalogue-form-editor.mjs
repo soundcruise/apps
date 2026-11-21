@@ -1,3 +1,4 @@
+import {addPageHelp} from './page-help.mjs';
 import {guardDraft} from './draft-history.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 
@@ -26,6 +27,7 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
     name.maxLength=64;
     const panel=node('section',null),notice=node('p','');notice.setAttribute('role','status');
     const footer=node('footer',null),cancel=node('button','キャンセル',footer),save=node('button',positions.length+'箇所に反映',footer);
+    addPageHelp(dialog,cancel,'catalogue');
     const discard=guardDraft(dialog,()=>hasChanges()||name.value.trim()!==playName());
     cancel.onclick=discard;
     save.onclick=()=>{

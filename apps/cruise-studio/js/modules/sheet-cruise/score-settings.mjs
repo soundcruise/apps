@@ -1,3 +1,4 @@
+import {addPageHelp} from './page-help.mjs';
 import {draftHistory,guardDraft} from './draft-history.mjs';
 import {mountScorePresets} from './score-presets.mjs';
 import {bindOutsideDismiss,bindScoreZoom} from '../score-ui.mjs';
@@ -26,6 +27,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
   const current=dialog,head=node('header',undefined,current);node('h2',titles[mode],head);const dismiss=node('button','キャンセル',head);dismiss.type='button';dismiss.dataset.scoreCancel='';
   const body=node('div',undefined,current),status=node('p','',current);status.setAttribute('role','status');status.dataset.scoreStatus='';
   const apply=node('button',mode==='inline'?'確定':'適用',head);apply.type='button';apply.dataset.scoreApply='';apply.className='btn-primary';
+  addPageHelp(current,dismiss,mode);
   let collect=()=>null,mountPreview,keyEntry,composing=false,navigating=false;
   let draftRead=null,draftRestore=null,hasDataChanges=null,isDirty=()=>false;
   function input(label,value,key,type='text',parent=body){const wrap=node('label',undefined,parent);node('span',label,wrap);const field=node(type==='textarea'?'textarea':'input',undefined,wrap);if(type!=='textarea')field.type=type;field.value=value;field.dataset.scoreField=key;return field;}
@@ -120,6 +122,19 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     paint();scrollToSelected('instant');
     (wasName?list.querySelector('input[data-score-field]'):current).focus({preventScroll:true});
    });
+   current.addEventListener('keydown',event=>{
+    if(event.defaultPrevented||event.repeat||event.isComposing||composing||event.keyCode===229||
+       event.altKey||event.shiftKey||!(event.ctrlKey||event.metaKey))return;
+    if(event.target.closest('input,textarea,select,[contenteditable=true],[role=textbox]')||
+       doc.getSelection()?.toString())return;
+    const key=event.key.toLowerCase();
+    if(key!=='c'&&key!=='v')return;
+    const command=list.querySelector(key==='c'?'[data-section-copy]':'[data-section-paste]');
+    if(!command||command.disabled)return;
+    event.preventDefault();event.stopPropagation();
+    if(command.getAttribute('aria-expanded')!=='true')command.click();
+    if(key==='v')list.querySelector('fieldset input:enabled')?.focus();
+   });
    wholeScoreTools(aside);
    const paper=node('div',undefined,body);paper.className='sc-section-preview';
    const fitSectionPaper=zoomablePreview(paper);
@@ -192,8 +207,9 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
      const move=button(text,()=>{remember();[rows[i],rows[i+d]]=[rows[i+d],rows[i]];paint();},moves);move.dataset.icon=d<0?'←':'→';move.setAttribute('aria-label',text);move.disabled=!rows[i+d];
     }
     const copies=node('div',undefined,list);copies.className='sc-section-command-row';
-    const copyButton=button('コピー',()=>{clipboard=structuredClone(s);paint();},copies);
-    copyButton.dataset.icon='⧉';copyButton.setAttribute('aria-label','コピー');
+    const copyButton=button('コピー',()=>{clipboard=structuredClone(s);paint();status.textContent='「'+s.name+'」をコピーしました。';},copies);
+    copyButton.setAttribute('aria-keyshortcuts','Control+C Meta+C');
+    copyButton.dataset.sectionCopy='';copyButton.dataset.icon='⧉';copyButton.setAttribute('aria-label','コピー');
     const paste=button('後ろに貼り付け',()=>{
      if(paste.getAttribute('aria-expanded')==='true'){panel.remove();paste.setAttribute('aria-expanded','false');return;}
      paste.setAttribute('aria-expanded','true');
@@ -214,7 +230,8 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
      },panel).className='btn-primary';
     },copies);
     let panel;
-    paste.disabled=!clipboard;paste.setAttribute('aria-expanded','false');
+    paste.setAttribute('aria-keyshortcuts','Control+V Meta+V');
+    paste.dataset.sectionPaste='';paste.disabled=!clipboard;paste.setAttribute('aria-expanded','false');
     button('＋ セクションを追加',()=>{
      remember();const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};
      rows.push(item);selected=item.id;paint();

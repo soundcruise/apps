@@ -116,6 +116,8 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         };
         const beforeBulk=await model(page);
         await zoom.getByRole('button',{name:'編集',exact:true}).click();
+        await bulk.getByRole('button',{name:'コードとフォームの一括編集の使い方'}).click();
+        await page.getByRole('dialog',{name:'コードとフォームの一括編集の使い方'}).getByRole('button',{name:'閉じる'}).click();
         const originalName=await bulk.getByLabel(/^コード名/).inputValue();
         await bulk.getByLabel(/^コード名/).fill('Em');
         await bulk.getByLabel(/^コード名/).press('Enter');
