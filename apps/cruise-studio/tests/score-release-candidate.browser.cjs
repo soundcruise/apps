@@ -436,8 +436,7 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     assert(!Object.keys(manifest.files).some(name=>name.startsWith('apps/cruise-studio/score-guide/') && name.endsWith('.mp4')));
     await guide.close();
 
-    async function checkChapter(owner,title,anchor,steps,images) {
-        const helpName=title+'の使い方';
+    async function checkChapter(owner,title,anchor,steps,images,helpName=title+'の使い方') {
         await owner.getByRole('button',{name:helpName}).click();
         const help=editor.getByRole('dialog',{name:helpName,exact:true});
         await help.locator('img').evaluate(img=>img.decode());
@@ -460,6 +459,25 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     const fixture=createUITestProject();
     await editor.locator('#sc-import-json').setInputFiles({name:'guide.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
     await editor.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,fixture.projectId);
+    await editor.locator('.sheet-bar[data-bar-number="1"]').first().focus();
+    await editor.keyboard.press('Enter');
+    const measure=editor.locator('#sc-slot-overlay');
+    const chord=measure.locator('[data-overlay-field=chord]').first();
+    await chord.focus();
+    await checkChapter(measure,'小節編集','edit',4,1,'編集の操作ガイド');
+    assert(await chord.evaluate(el=>el===document.activeElement));
+    await measure.locator('.slot-overlay-close').click();
+
+    await editor.click('#sc-playback-settings');
+    const sound=editor.getByRole('dialog',{name:'音設定',exact:true});
+    const melody=sound.locator('[data-playback-volume=melody]');
+    await melody.focus();
+    await melody.press('Home');
+    await melody.press('ArrowRight');
+    await checkChapter(sound,'音設定','sound-settings',4,1);
+    assert.equal(await melody.inputValue(),'1');
+    await sound.locator('[data-playback-done]').click();
+
     await editor.click('#sc-curve-menu-toggle');
     await editor.click('#sc-edit-song');
     const song=editor.locator('[data-score-dialog=settings]');

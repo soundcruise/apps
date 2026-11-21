@@ -1,6 +1,20 @@
 import {bindOutsideDismiss} from '../score-ui.mjs';
 
 const guides = {
+    editor: [
+        '小節を選び、入力したい拍のマスをクリックします。',
+        ['編集する小節', '「前へ」「次へ」で小節を移動します。「1小節」〜「4小節」で並べて見る小節数を選べます。'],
+        ['入力するマス', '上からコード・ストローク・歌詞・メロディです。コードや歌詞は文字を入力し、ストロークはDでダウン、Uでアップを入れます。'],
+        ['行名の横の数字と▼', '数字でマスの細かさを変えます。コード行の▼でフォーム、メロディ行の▼で鍵盤が開きます。'],
+        ['上の「再生」', '編集した小節を聴いて確かめます。']
+    ],
+    audio: [
+        '再生しながら、聞きたいパートの音量と拍のガイドを調整できます。',
+        ['音量', 'コード・メロディ・拍音のスライダーを動かします。0%にすると、そのパートだけ消音できます。'],
+        ['拍のガイド', '再生前に1小節数えるには「カウントイン」、再生中も拍を聞くには「メトロノーム」を選びます。次の再生から反映されます。'],
+        ['音と棒の同期', '聞こえる音と再生棒がずれるときに調整します。棒の表示だけが動き、演奏のテンポは保たれます。'],
+        ['再生と完了', '「再生」で試し、調整が済んだら「完了」で譜面に戻ります。音設定はこのブラウザに記憶されます。']
+    ],
     sections: [
         '上の列で編集したい部分を選んでから、左側か右の譜面で変更します。',
         ['上の列', '「Aメロ」「サビ」など、編集したいセクションをクリックします。'],
@@ -60,6 +74,10 @@ const guides = {
 };
 
 const illustratedGuides = {
+    editor: {image:'editor.png', width:960, height:339, anchor:'edit',
+        alt:'小節編集。①小節の移動と表示数、②各行の入力マス、③マスの細かさとフォーム・鍵盤の開閉、④再生。'},
+    audio: {image:'sound-settings.png', width:420, height:682, anchor:'sound-settings',
+        alt:'音設定。①パート別の音量、②カウントインとメトロノーム、③音と棒の同期、④再生と完了。'},
     instrument: {image:'key-capo.png', width:580, height:552, anchor:'key-capo',
         alt:'キー・カポ。①変更方法、②カポの位置、③変更前と変更後の比較表、④適用。'},
     history: {image:'history-choose.png', width:350, height:220, anchor:'history',
@@ -78,11 +96,40 @@ const illustratedGuides = {
         alt:'ストローク一括入力の画面。①基本の8分、②入力先の2〜3小節、③適用、④OK。'}
 };
 
-export function addPageHelp(owner, before, topic) {
+function addElement(parent, tag, text = '') {
+    const element = parent.ownerDocument.createElement(tag);
+    element.textContent = text;
+    parent.append(element);
+    return element;
+}
+
+export function appendIllustratedGuide(container, topic, title) {
     const guide = guides[topic];
-    if (!guide) return;
+    const illustration = illustratedGuides[topic];
+    container.classList.add('sc-illustrated-help');
+    addElement(container, 'p', guide[0]);
+    const picture = addElement(container, 'img');
+    picture.src = '/apps/cruise-studio/score-guide/' + illustration.image;
+    picture.width = illustration.width;
+    picture.height = illustration.height;
+    picture.alt = illustration.alt;
+    const steps = addElement(container, 'ol');
+    for (const [label, detail] of guide.slice(1)) {
+        const step = addElement(steps, 'li');
+        addElement(step, 'strong', label);
+        step.append('　' + detail);
+    }
+    const link = addElement(container, 'a', '詳しくはこちら（画像付きの取扱説明書）');
+    link.href = '/apps/cruise-studio/score-guide/index.html#' + illustration.anchor;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.title = title + 'の手順を新しいタブで開く';
+}
+
+export function addPageHelp(owner, before, topic, pageName = owner.getAttribute('aria-label')) {
+    if (!guides[topic]) return;
     const doc = owner.ownerDocument;
-    const title = owner.getAttribute('aria-label') + 'の使い方';
+    const title = pageName + 'の使い方';
     const trigger = doc.createElement('button');
     trigger.type = 'button';
     trigger.className = 'sc-page-help-trigger';
@@ -96,43 +143,11 @@ export function addPageHelp(owner, before, topic) {
         card.className = 'sc-page-help';
         card.dataset.helpTopic = topic;
         card.setAttribute('aria-label', title);
-        function append(tag, text, parent = card) {
-            const node = doc.createElement(tag);
-            node.textContent = text;
-            parent.append(node);
-            return node;
-        }
-        const head = append('header', '');
-        append('h2', title, head);
-        const close = append('button', '閉じる', head);
+        const head = addElement(card, 'header');
+        addElement(head, 'h2', title);
+        const close = addElement(head, 'button', '閉じる');
         close.type = 'button';
-        append('p', guide[0]);
-        const illustration = illustratedGuides[topic];
-        if (illustration) {
-            card.classList.add('sc-illustrated-help');
-            const picture = append('img', '');
-            picture.src = '/apps/cruise-studio/score-guide/' + illustration.image;
-            picture.width = illustration.width;
-            picture.height = illustration.height;
-            picture.alt = illustration.alt;
-            const steps = append('ol', '');
-            for (const [label, detail] of guide.slice(1)) {
-                const step = append('li', '', steps);
-                append('strong', label, step);
-                step.append('　' + detail);
-            }
-            const link = append('a', '詳しくはこちら（画像付きの取扱説明書）');
-            link.href = '/apps/cruise-studio/score-guide/index.html#' + illustration.anchor;
-            link.target = '_blank';
-            link.rel = 'noopener';
-            link.title = owner.getAttribute('aria-label') + 'の手順を新しいタブで開く';
-        } else {
-            const list = append('dl', '');
-            for (const [label, detail] of guide.slice(1)) {
-                append('dt', label, list);
-                append('dd', detail, list);
-            }
-        }
+        appendIllustratedGuide(card, topic, pageName);
         const dismiss = () => card.close();
         close.addEventListener('click', dismiss);
         owner.addEventListener('close', dismiss, {once:true});

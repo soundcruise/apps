@@ -1,3 +1,4 @@
+import {appendIllustratedGuide} from './page-help.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 // Read-only help. Editing, storage and playback remain owned by the existing editor.
 const TOPICS=[
@@ -49,6 +50,7 @@ export function createEditorHelp({document:doc,closed=()=>{}}){
   current.id='sc-editor-help';current.className='sc-editor-help-dialog';current.dataset.editorHelp='';current.setAttribute('aria-labelledby','sc-editor-help-title');current.restoreHelpFocus=true;
   const head=node('header',undefined,current),title=node('h2','編集の操作ガイド',head),dismiss=node('button','閉じる',head);title.id='sc-editor-help-title';dismiss.type='button';dismiss.dataset.editorHelpClose='';
   const body=node('div',undefined,current);body.className='sc-editor-help-body';body.tabIndex=0;body.setAttribute('aria-label','操作一覧');
+  appendIllustratedGuide(body,'editor','小節編集');
   for(const [i,[name,rows]] of TOPICS.entries()){
    const topic=node('details',undefined,body);
    topic.name='sc-editor-help-topic';topic.open=i===0;
@@ -57,11 +59,11 @@ export function createEditorHelp({document:doc,closed=()=>{}}){
    for(const [label,description] of rows){node('dt',label,list);node('dd',description,list);}
   }
   dismiss.addEventListener('click',()=>close());
-  current.addEventListener('keydown',event=>{event.stopPropagation();if(event.isComposing||event.keyCode===229)return;if(event.key==='Tab'){event.preventDefault();const items=Array.from(current.querySelectorAll('button,summary,[tabindex="0"]')),index=items.indexOf(doc.activeElement),next=(index+(event.shiftKey?-1:1)+items.length)%items.length;items[next].focus();}else if(event.key==='Escape'){event.preventDefault();close();}else if(['Backspace','Delete'].includes(event.key))event.preventDefault();else if((event.ctrlKey||event.metaKey)&&['s','z'].includes(event.key.toLowerCase()))event.preventDefault();});
+  current.addEventListener('keydown',event=>{event.stopPropagation();if(event.isComposing||event.keyCode===229)return;if(event.key==='Tab'){event.preventDefault();const items=Array.from(current.querySelectorAll('button,a[href],summary,[tabindex="0"]')),index=items.indexOf(doc.activeElement),next=(index+(event.shiftKey?-1:1)+items.length)%items.length;items[next].focus();}else if(event.key==='Escape'){event.preventDefault();close();}else if(['Backspace','Delete'].includes(event.key))event.preventDefault();else if((event.ctrlKey||event.metaKey)&&['s','z'].includes(event.key.toLowerCase()))event.preventDefault();});
   current.addEventListener('cancel',event=>{event.preventDefault();close();});
   current.addEventListener('close',()=>{if(dialog===current)dialog=null;current.remove();trigger?.setAttribute('aria-expanded','false');closed();if(current.restoreHelpFocus){const target=previous?.isConnected?previous:trigger?.isConnected?trigger:null;target?.focus({preventScroll:true});}});
   if(!doc.getElementById('sc-editor-help-style')){const style=node('style');style.id='sc-editor-help-style';style.textContent=`
-.sc-editor-help-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;box-sizing:border-box;width:min(660px,calc(100vw - 24px));max-height:88dvh;overflow:auto;padding:20px;border:1px solid var(--studio-border-default);border-radius:14px;background:var(--studio-panel);color:var(--studio-text-primary);font:14px/1.65 sans-serif;}
+.sc-editor-help-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;box-sizing:border-box;width:min(860px,calc(100vw - 24px));max-height:88dvh;overflow:auto;padding:20px;border:1px solid var(--studio-border-default);border-radius:14px;background:var(--studio-panel);color:var(--studio-text-primary);font:14px/1.65 sans-serif;}
 .sc-editor-help-dialog::backdrop{background:rgba(0,0,0,.45);}.sc-editor-help-dialog header{position:sticky;top:-20px;background:var(--studio-panel);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;z-index:1;}.sc-editor-help-dialog h2{font-size:19px;margin:0;}.sc-editor-help-dialog button{font:inherit;padding:7px 12px;white-space:nowrap;border:1px solid var(--studio-border-default);border-radius:7px;background:var(--studio-control);color:inherit;}.sc-editor-help-body details{border-top:1px solid var(--studio-border-default);}.sc-editor-help-body summary{padding:11px 4px;font-weight:600;cursor:pointer;}.sc-editor-help-body dl{margin:0 4px 14px 20px;}.sc-editor-help-body dt{font-weight:600;margin-top:9px;}.sc-editor-help-body dd{margin:1px 0 0;line-height:1.55;}.sc-editor-help-body summary:focus-visible{outline:2px solid var(--studio-accent);}.sc-editor-help-body:focus-visible{outline:2px solid var(--studio-accent);outline-offset:2px;}
 @media(max-width:480px){.sc-editor-help-dialog{padding:14px;}.sc-editor-help-dialog header{top:-14px;}.sc-editor-help-dialog h2{font-size:17px;}}
 @media print{.sc-editor-help-dialog,.sc-editor-help-dialog::backdrop{display:none!important;}}
