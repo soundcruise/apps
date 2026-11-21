@@ -853,6 +853,10 @@
 
     /* ══════════ プロジェクト管理 ══════════ */
 
+    const fileLabelPrefix='cruiseStudio.scoreFileLabel.';
+    function scoreFileName(id){
+        return localStorage.getItem(fileLabelPrefix+id) || fileHandles.get(id)?.name;
+    }
     function refreshProjectSelect() {
         var storage = CS().storage;
         var projects = storage.listProjects();
@@ -863,7 +867,7 @@
         CS().sessions.listSessions().filter(function (session) { return session.domain === 'structure'; }).forEach(function (session) {
             if (projects.some(function (meta) { return meta.projectId === session.target.projectId; })) return;
             var draft = document.createElement('option'); draft.value = session.target.projectId;
-            draft.textContent = (session.draft.songInfo.title || '無題') + '（未保存）';
+            draft.textContent = (scoreFileName(session.target.projectId) || session.draft.songInfo.title || '無題') + '（未保存）';
             els.projectSelect.appendChild(draft);
         });
         try{
@@ -872,13 +876,13 @@
                 const id=decodeURIComponent(key.slice(draftPrefix.length).split(':')[0]);
                 if(projects.some(p=>p.projectId===id)||Array.from(els.projectSelect.options).some(o=>o.value===id))continue;
                 const draft=draftRecord(id,null);
-                if(draft?.base===null)els.projectSelect.add(new Option((draft.project.songInfo.title||'無題')+'（下書き）',id));
+                if(draft?.base===null)els.projectSelect.add(new Option((scoreFileName(id)||draft.project.songInfo.title||'無題')+'（下書き）',id));
             }
         }catch{/* Browser storage may be unavailable. */}
         projects.forEach(function (meta) {
             var opt = document.createElement('option');
             opt.value = meta.projectId;
-            opt.textContent = fileHandles.get(meta.projectId)?.name || meta.title + (meta.artist ? ' / ' + meta.artist : '');
+            opt.textContent = scoreFileName(meta.projectId) || meta.title + (meta.artist ? ' / ' + meta.artist : '');
             restoreFileHandle(meta.projectId);
             els.projectSelect.appendChild(opt);
         });
@@ -944,7 +948,7 @@
         var session = state.session;
         if (!session) return;
         var selected = els.projectSelect.selectedOptions[0];
-        if (selected && selected.value === session.target.projectId) selected.textContent = (fileHandles.get(session.target.projectId)?.name || session.draft.songInfo.title || '無題') +
+        if (selected && selected.value === session.target.projectId) selected.textContent = (scoreFileName(session.target.projectId) || session.draft.songInfo.title || '無題') +
             (session.conflict && session.conflict.deleted ? '（削除・draft保持）' : session.baseRevision === null ? '（新規・未保存）' : session.dirty ? '（未保存）' : '');
         els.saveBtn.disabled = !session.dirty || !session.canCommit() || !!textDiagnostic(session) || !!schemaViewError;
         if(q('sc-save-overwrite'))q('sc-save-overwrite').disabled=els.saveBtn.disabled;
@@ -1006,6 +1010,7 @@
             session.replaceDraft(project);
         }
         if (!session) session = CS().sessions.getOrCreateSession('structure', target, options && options.dirty ? project : undefined);
+        if(options?.importName)localStorage.setItem(fileLabelPrefix+project.projectId,options.importName);
         showSession(session, options && options.statusMessage);
         if(options?.presentation){
             const imported=CS().localPaperLayout?.readGridRows(options.presentation.gridRows,project)||new Map();
@@ -5856,6 +5861,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             setProject(res.project, {
                 dirty: true,
                 presentation: res.presentation,
+                importName: file.name,
                 statusMessage: 'JSONを読み込みました（未保存）' + warnText
             });
             if (state.session && state.session.target.projectId === res.project.projectId &&
@@ -5915,7 +5921,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             const option=Array.from(els.projectSelect.options).find(item=>item.value===id);
             if(option){
                 if(state.session?.target.projectId===id)refreshSessionStatus();
-                else option.textContent=handle.name;
+                else option.textContent=scoreFileName(id);
             }
         }).catch(()=>{ /* A browser-only song can still be opened by its title. */ });
         handleReads.set(id,read);
@@ -6087,6 +6093,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                             const other=Array.from(els.projectSelect.querySelectorAll(':scope > option:not([data-more-file-actions])')).find(o=>o.value!==id);
                             if(!other||!openProject(other.value))createNewProject(false);
                         }
+                        localStorage.removeItem(fileLabelPrefix+id);
                         await handleReads.get(id);handleReads.delete(id);fileHandles.delete(id);
                         if(typeof window.showSaveFilePicker==='function')await storedHandle(id,null);
                         message.textContent='「'+item.textContent+'」を削除しました。';
@@ -6209,6 +6216,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                 throw Error('ファイルには保存しましたが、次の上書き先を登録できませんでした。「名前をつけて保存」で保存先を選び直してください。');
             }
             fileHandles.set(id,handle);
+            localStorage.removeItem(fileLabelPrefix+id);
             if(session.snapshotVersion!==version)throw Error('ファイル保存後に編集が加わりました。もう一度保存してください');
             return await commitBrowserSession(session, { fileSaved: true });
         }catch(error){
