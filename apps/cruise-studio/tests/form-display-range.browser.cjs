@@ -106,9 +106,15 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         };
         const beforeBulk=await model(page);
         await zoom.getByRole('button',{name:'編集',exact:true}).click();
+        const originalName=await bulk.getByLabel(/^コード名/).inputValue();
         await bulk.getByLabel(/^コード名/).fill('Em');
         await bulk.getByLabel(/^コード名/).press('Enter');
         assert.equal(await bulk.locator('[data-selected-chord-name]').textContent(),'Em');
+        await bulk.getByRole('button',{name:'キャンセル'}).focus();
+        await page.keyboard.press('Control+z');
+        assert.equal(await bulk.getByLabel(/^コード名/).inputValue(),originalName);
+        await page.keyboard.press('Meta+Shift+z');
+        assert.equal(await bulk.getByLabel(/^コード名/).inputValue(),'Em');
         assert.deepEqual(await model(page),beforeBulk);
         await bulk.getByText('キャンセル',{exact:true}).click();
         assert.deepEqual(await model(page),beforeBulk);

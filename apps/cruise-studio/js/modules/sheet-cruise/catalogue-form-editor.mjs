@@ -95,6 +95,14 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
         dialog.scrollTop=scroll;
     }
     dialog.addEventListener('close',()=>{closed=true;panel._disposeOwnerChord?.();stop();},{once:true});
-    dialog.addEventListener('keydown',event=>{event.stopPropagation();if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s')event.preventDefault();});
+    dialog.addEventListener('keydown',event=>{
+        event.stopPropagation();
+        if(event.defaultPrevented||event.isComposing||event.keyCode===229||event.altKey||!(event.ctrlKey||event.metaKey))return;
+        const key=event.key.toLowerCase();
+        if(key==='s')event.preventDefault();
+        if(key==='z'&&!session.inputPending&&!event.target.closest('input,textarea,[contenteditable]')){
+            event.preventDefault();undo(event.shiftKey);
+        }
+    });
     bindOutsideDismiss(dialog);render();
 }

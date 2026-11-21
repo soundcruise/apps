@@ -92,7 +92,25 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const flow=node('nav',undefined,body);flow.className='sc-section-flow';flow.setAttribute('aria-label','セクションの流れ');
    const aside=node('aside',undefined,body);aside.append(list);
    body.className='sc-section-workspace';
-   button('＋ セクションを追加',()=>{const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};rows.push(item);selected=item.id;paint();},aside);
+   // Section drafts contain row descriptors only. The score itself changes once, on Apply.
+   const past=[],future=[];
+   const snapshot=()=>({rows:structuredClone(rows),selected});
+   function remember(){
+    past.push(snapshot());if(past.length>100)past.shift();
+    future.length=0;
+   }
+   current.tabIndex=-1;
+   current.addEventListener('keydown',event=>{
+    if(event.defaultPrevented||event.isComposing||composing||event.keyCode===229||event.altKey||
+       !(event.ctrlKey||event.metaKey)||event.key.toLowerCase()!=='z')return;
+    event.preventDefault();event.stopPropagation();
+    const from=event.shiftKey?future:past,to=event.shiftKey?past:future;
+    if(!from.length)return;
+    const wasName=event.target.matches('input[data-score-field]');
+    to.push(snapshot());({rows,selected}=from.pop());
+    paint();scrollToSelected('instant');
+    (wasName?list.querySelector('input[data-score-field]'):current).focus({preventScroll:true});
+   });
    wholeScoreTools(aside);
    const paper=node('div',undefined,body);paper.className='sc-section-preview';
    const fitSectionPaper=zoomablePreview(paper);
@@ -120,7 +138,10 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
       tab.ondragend=()=>{dragged=null;flow.querySelectorAll('[data-drop]').forEach(b=>delete b.dataset.drop);};
       tab.ondrop=e=>{
        e.preventDefault();if(!dragged||dragged===row.id)return;
-       const source=rows.splice(rows.findIndex(r=>r.id===dragged),1)[0];
+       const oldIndex=rows.findIndex(r=>r.id===dragged);
+       const insertIndex=rows.indexOf(row)+Number(after(e));
+       if(oldIndex<0||insertIndex===oldIndex||insertIndex===oldIndex+1)return;
+       remember();const source=rows.splice(oldIndex,1)[0];
        rows.splice(rows.indexOf(row)+Number(after(e)),0,source);
        dragged=null;selectSection(source.id);
       };
@@ -134,14 +155,14 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
       label.setAttribute('aria-pressed',String(selected===row.id));
       label.onclick=()=>{selected=row.id;paint();};
       label.onkeydown=e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();label.click();}};
-      const plus=button('＋',()=>{selected=row.id;row.count++;paint();},heading);
+      const plus=button('＋',()=>{remember();selected=row.id;row.count++;paint();},heading);
       plus.setAttribute('aria-label',row.name+'の末尾に小節を追加');
       const minus=button('−',()=>{const last=draft.bars.filter(b=>b.sectionId===row.id).at(-1);
        const binding=draft.performance.barRhythms.find(r=>r.barId===last?.id);
        const rhythm=binding&&draft.materials.rhythms.find(m=>m.id===binding.materialId);
        const hasStroke=rhythm&&(rhythm.encoding!=='studio-strum-v1'||rhythm.snapshot.slots.length||rhythm.snapshot.leadingSustainTicks);
        const hasData=last&&(last.chords.length||last.lyrics.length||last.melody.length||hasStroke);
-       if(!hasData||window.confirm(row.name+'の最後の小節を削除しますか？')){selected=row.id;row.count--;row.keep=Math.min(row.keep??row.count,row.count);paint();}},heading);
+       if(!hasData||window.confirm(row.name+'の最後の小節を削除しますか？')){remember();selected=row.id;row.count--;row.keep=Math.min(row.keep??row.count,row.count);paint();}},heading);
       minus.setAttribute('aria-label',row.name+'の最後の小節を削除');minus.disabled=row.count<=1;
      }
      for(const bar of paper.querySelectorAll('.sheet-bar[data-bar-number]')){
@@ -152,14 +173,18 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     }catch(error){apply.disabled=true;status.textContent=error.message;}
    }
    function paint(){
+    const hadFocus=current.contains(doc.activeElement);
     list.replaceChildren();const i=rows.findIndex(r=>r.id===selected),s=rows[i];
-    const name=input('セクション名',s.name,'section-'+s.id,'text',list);name.oninput=()=>{s.name=name.value;preview();};
+    const name=input('セクション名',s.name,'section-'+s.id,'text',list);let typing=false;
+    name.onblur=()=>{typing=false;};
+    name.oninput=()=>{if(name.value===s.name)return;if(!typing)remember();typing=true;s.name=name.value;preview();};
     const moves=node('div',undefined,list);moves.className='sc-section-command-row';
     for(const [d,text] of [[-1,'前へ移動'],[1,'後ろへ移動']]){
-     const move=button(text,()=>{[rows[i],rows[i+d]]=[rows[i+d],rows[i]];paint();},moves);move.dataset.icon=d<0?'←':'→';move.setAttribute('aria-label',text);move.disabled=!rows[i+d];
+     const move=button(text,()=>{remember();[rows[i],rows[i+d]]=[rows[i+d],rows[i]];paint();},moves);move.dataset.icon=d<0?'←':'→';move.setAttribute('aria-label',text);move.disabled=!rows[i+d];
     }
     const copies=node('div',undefined,list);copies.className='sc-section-command-row';
-    button('コピー',()=>{clipboard=structuredClone(s);paint();},copies).dataset.icon='⧉';
+    const copyButton=button('コピー',()=>{clipboard=structuredClone(s);paint();},copies);
+    copyButton.dataset.icon='⧉';copyButton.setAttribute('aria-label','コピー');
     const paste=button('後ろに貼り付け',()=>{
      if(paste.getAttribute('aria-expanded')==='true'){panel.remove();paste.setAttribute('aria-expanded','false');return;}
      paste.setAttribute('aria-expanded','true');
@@ -175,15 +200,20 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
      button('キャンセル',()=>{paste.click();paste.focus();},panel);
      button('実行',()=>{
       const copy={...clipboard,id:C.model.schema2.newId(),isNew:true,name:clipboard.name+' コピー',copyFrom:clipboard.copyFrom||clipboard.id,parts:parts.filter(c=>c.checked).map(c=>c.value)};
-      rows.splice(i+1,0,copy);selected=copy.id;paint();
+      remember();rows.splice(i+1,0,copy);selected=copy.id;paint();
       list.querySelector('input')?.focus();
      },panel).className='btn-primary';
     },copies);
     let panel;
     paste.disabled=!clipboard;paste.setAttribute('aria-expanded','false');
-    const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},list);
+    button('＋ セクションを追加',()=>{
+     remember();const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};
+     rows.push(item);selected=item.id;paint();
+    },list);
+    const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){remember();rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},list);
     remove.className='sc-section-delete';remove.disabled=rows.length===1;
     preview();
+    if(hadFocus&&!current.contains(doc.activeElement))current.focus({preventScroll:true});
    }
    mountPreview=()=>{paint();if(args.sectionId)scrollToSelected('instant');};
    collect=()=>({kind:'songInfo',args:{values:{},sections:rows}});

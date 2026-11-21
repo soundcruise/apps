@@ -198,13 +198,13 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert(menu.x>=title.x+title.width&&tools.x>=menu.x+menu.width&&Math.abs(title.y-tools.y)<4);
   await p.click('#sc-curve-menu-toggle');assert(await p.locator('#sc-menu-staff-toggle').isHidden());
  }));
- await t.test('the score toolbar reaches the top and other workspaces retain sticky navigation',()=>fresh(async p=>{
+ await t.test('the score toolbar leaves a small top inset and other workspaces retain sticky navigation',()=>fresh(async p=>{
   const main=p.locator('#studio-main'),nav=p.locator('#screen-sheet-cruise>.workspace-local-nav'),toolbar=p.locator('.sc-compact-toolbar');
   const start=await nav.boundingBox();assert(start.y>=0);
   await main.evaluate(e=>e.scrollTop=e.scrollHeight);
   const top=(await main.boundingBox()).y,end=await nav.boundingBox();
   assert(end.y+end.height<=top);
-  assert(Math.abs((await toolbar.boundingBox()).y-top)<2);
+  assert(Math.abs((await toolbar.boundingBox()).y-top-6)<2);
   await p.locator('.studio-nav [data-workspace=preDtm]').click();
   assert.equal(await p.locator('#screen-pre-dtm>.workspace-local-nav').evaluate(e=>getComputedStyle(e).position),'sticky');
   await p.locator('#screen-pre-dtm .workspace-back').click();
@@ -215,6 +215,18 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   if(engine==='chrome')await p.evaluate(()=>{window.showSaveFilePicker=async()=>{const dir=await navigator.storage.getDirectory();return dir.getFileHandle('continue.json',{create:true});};});
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-new-project');
   const guard=p.getByRole('dialog',{name:'未保存の変更を確認'}),save=guard.getByRole('button',{name:'保存して続行'});
+  for(const width of [1440,390]){
+   await p.setViewportSize({width,height:1000});
+   const sizes=await guard.locator('.sc-leave-actions').evaluate(el=>{
+    const box=el.getBoundingClientRect(),buttons=Array.from(el.children,b=>b.getBoundingClientRect());
+    return {widths:buttons.map(b=>b.width),left:buttons[0].left-box.left,right:box.right-buttons[2].right,
+     gaps:buttons.slice(1).map((b,i)=>b.top===buttons[i].top?b.left-buttons[i].right:b.top-buttons[i].bottom)};
+   });
+   assert(Math.max(...sizes.widths)-Math.min(...sizes.widths)<1);
+   assert(Math.abs(sizes.left-sizes.right)<1);
+   assert(sizes.gaps.every(g=>Math.abs(g-12)<1));
+  }
+  await p.setViewportSize({width:1440,height:1000});
   const outline=()=>save.evaluate(e=>getComputedStyle(e).outlineStyle);
   assert.equal(await outline(),'solid');await guard.locator('p').click();assert.equal(await outline(),'solid');
   await save.click();
@@ -253,6 +265,39 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.notEqual(copies[0].chords[0].id,before.bars[0].chords[0].id);
   assert(copies.every(b=>!b.lyrics.length&&!b.melody.length),JSON.stringify(copies.map(b=>[b.lyrics.length,b.melody.map(e=>e.kind)])));
   await p.click('#sc-undo');assert.deepEqual(await snap(p),before);
+ }));
+ await t.test('undo and redo local section edits before applying or cancelling',()=>fresh(async p=>{
+  const before=await snap(p);await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
+  const dialog=p.locator('[data-score-dialog=sections]'),aside=dialog.locator('aside');
+  const name=aside.getByLabel('セクション名',{exact:true}),tabs=dialog.locator('nav button');
+  const click=label=>aside.getByRole('button',{name:label,exact:true}).click();
+  const add=aside.getByRole('button',{name:'＋ セクションを追加'}),del=aside.getByRole('button',{name:'セクションを削除'});
+  assert((await add.boundingBox()).y<(await del.boundingBox()).y);
+  const tools=await aside.locator('.sc-song-tools').boundingBox(),paper=await dialog.locator('.sc-section-preview').boundingBox();
+  assert(Math.abs(tools.y+tools.height-paper.y-paper.height)<2);
+  await add.click();await name.fill('コーダ');await name.press('Tab');
+  await click('前へ移動');const labels=await tabs.allTextContents();
+  await del.click();assert.equal(await tabs.count(),before.sections.length);
+  await p.keyboard.press('Control+z');assert.deepEqual(await tabs.allTextContents(),labels);
+  await p.keyboard.press('Meta+z');assert.equal(await tabs.last().innerText(),'コーダ 4小節');
+  await p.keyboard.press('Control+z');assert.equal(await name.inputValue(),'新しいセクション');
+  await p.keyboard.press('Meta+Shift+z');assert.equal(await name.inputValue(),'コーダ');
+  await p.keyboard.press('Control+Shift+z');assert.deepEqual(await tabs.allTextContents(),labels);
+  await click('コピー');await click('後ろに貼り付け');await click('実行');
+  await p.keyboard.press('Control+z');assert.deepEqual(await tabs.allTextContents(),labels);
+  const plus=dialog.getByRole('button',{name:'コーダの末尾に小節を追加'});await plus.click();
+  assert((await tabs.allTextContents()).includes('コーダ 5小節'));
+  await p.keyboard.press('Meta+z');assert.deepEqual(await tabs.allTextContents(),labels);
+  const first=tabs.first(),last=tabs.last(),target=await last.boundingBox();
+  const transfer=await p.evaluateHandle(()=>new DataTransfer());
+  await first.dispatchEvent('dragstart',{dataTransfer:transfer});
+  await last.dispatchEvent('drop',{dataTransfer:transfer,clientX:target.x+target.width-1});
+  assert.equal(await tabs.last().innerText(),labels[0]);
+  await p.keyboard.press('Control+z');assert.deepEqual(await tabs.allTextContents(),labels);
+  await name.fill('別の編集');await name.press('Tab');
+  await p.keyboard.press('Meta+Shift+z');assert.equal(await name.inputValue(),'別の編集');
+  await dialog.getByRole('button',{name:'キャンセル',exact:true}).click();
+  assert.deepEqual(await snap(p),before);
  }));
  await t.test('navigate the section flow and copy empty measures without materializing the basic rhythm',()=>fresh(async p=>{
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
