@@ -435,6 +435,28 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     assert.deepEqual(brokenLinks,[]);
     assert(!Object.keys(manifest.files).some(name=>name.startsWith('apps/cruise-studio/score-guide/') && name.endsWith('.mp4')));
     await guide.close();
+
+    await editor.click('#sc-curve-menu-toggle');
+    await editor.click('#sc-edit-sections');
+    const sections=editor.locator('[data-score-dialog=sections]');
+    const name=sections.getByLabel('セクション名',{exact:true});
+    await name.fill('未適用の編集');
+    await sections.getByRole('button',{name:'セクション編集の使い方'}).click();
+    const help=editor.getByRole('dialog',{name:'セクション編集の使い方',exact:true});
+    await help.locator('img').evaluate(img=>img.decode());
+    assert.equal(await help.locator('ol li').count(),4);
+    const detailsOpened=editor.waitForEvent('popup');
+    await help.getByRole('link',{name:/詳しくはこちら/}).click();
+    const details=await detailsOpened;
+    await details.waitForLoadState('load');
+    assert.equal(new URL(details.url()).hash,'#sections');
+    const sectionGuide=details.locator('#sections');
+    const heading=await sectionGuide.getByRole('heading',{level:2}).boundingBox();
+    assert(heading && heading.y>=-1 && heading.y<120,'Link lands on section editing instructions');
+    assert.equal(await sectionGuide.locator('figure img').count(),5);
+    await details.close();
+    await help.getByRole('button',{name:'閉じる'}).click();
+    assert.equal(await name.inputValue(),'未適用の編集');
 });
 
 for (const engine of ['chrome','webkit']) test('packaged chord names, capo and shelf forms agree: '+engine,async t=>{

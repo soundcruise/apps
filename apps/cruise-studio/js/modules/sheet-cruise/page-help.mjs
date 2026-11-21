@@ -2,12 +2,11 @@ import {bindOutsideDismiss} from '../score-ui.mjs';
 
 const guides = {
     sections: [
-        'イントロ・Aメロ・サビなど、曲の順番と小節数を組み立てます。',
-        ['順番と名前', '上の列でセクションを選び、左で名前を変えます。「前へ移動」「後ろへ移動」や、上の列のドラッグで並べ替えられます。'],
-        ['追加と削除', '左のボタンでセクションを追加・削除します。小節だけを増減するときは、譜面のセクション名の右にある＋／−を使います。'],
-        ['繰り返す部分', '元のセクションをコピーし、挿入先で「後ろに貼り付け」を選びます。コピーするパートにチェックを入れて「実行」を押します。'],
-        ['キー操作', 'コピーはCtrl＋C、貼り付けはCtrl＋V。Ctrl＋Zで一手戻り、Shiftを加えるとやり直せます。MacはCtrlの代わりに⌘を使います。'],
-        ['曲に反映', '右上の「適用」で確定します。下の「譜面の全体編集」から一括入力へ進むときも、ここでの変更が反映されます。']
+        '上の列で編集したい部分を選んでから、左側か右の譜面で変更します。',
+        ['上の列', '「Aメロ」「サビ」など、編集したいセクションをクリックします。'],
+        ['左の操作欄', '名前や順番を変えます。繰り返すときは「コピー」→ 挿入先を選ぶ →「後ろに貼り付け」。'],
+        ['譜面の＋／−', 'そのセクションの末尾の小節を増やす・減らすボタンです。'],
+        ['右上の「適用」', '順番と小節数を確認し、変更を曲に反映します。']
     ],
     settings: [
         '曲名・テンポ・拍子など、曲全体に使う情報を設定します。',
@@ -76,10 +75,30 @@ export function addPageHelp(owner, before, topic) {
         const close = append('button', '閉じる', head);
         close.type = 'button';
         append('p', guide[0]);
-        const list = append('dl', '');
-        for (const [label, detail] of guide.slice(1)) {
-            append('dt', label, list);
-            append('dd', detail, list);
+        if (topic === 'sections') {
+            card.classList.add('sc-sections-help');
+            const picture = append('img', '');
+            picture.src = '/apps/cruise-studio/score-guide/sections.png';
+            picture.width = 1050;
+            picture.height = 430;
+            picture.alt = 'セクション編集の画面。①上の列、②左の操作欄、③譜面の＋／−、④右上の適用。';
+            const steps = append('ol', '');
+            for (const [label, detail] of guide.slice(1)) {
+                const step = append('li', '', steps);
+                append('strong', label, step);
+                step.append('　' + detail);
+            }
+            const link = append('a', '詳しくはこちら（画像付きの取扱説明書）');
+            link.href = '/apps/cruise-studio/score-guide/index.html#sections';
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.title = 'セクション編集の手順を新しいタブで開く';
+        } else {
+            const list = append('dl', '');
+            for (const [label, detail] of guide.slice(1)) {
+                append('dt', label, list);
+                append('dd', detail, list);
+            }
         }
         const dismiss = () => card.close();
         close.addEventListener('click', dismiss);
