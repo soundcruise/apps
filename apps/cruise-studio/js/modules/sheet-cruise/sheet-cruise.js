@@ -649,7 +649,7 @@
         const canPickFile=typeof window.showSaveFilePicker==='function';
         if(canPickFile)els.saveBtn.title='初回は保存先を選びます。ブラウザの警告は、選んだファイルの読み書きについての案内です。';
         curve.body.appendChild(button('sc-save-overwrite',canPickFile?'上書き保存':'保存（このブラウザ内）',function(){els.saveBtn.click();}));
-        const saveAs=button('sc-save-as',canPickFile?'名前をつけて保存':'ファイルに保存するには…',function(){
+        const saveAs=button('sc-save-as','名前をつけて保存',function(){
             if(typeof window.showSaveFilePicker!=='function'){openExportGuide();return;}
             if(prepareExplicitOutput())void commitSession(state.session,{chooseFile:true});
         });
@@ -1426,6 +1426,9 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-file-list footer{display:flex;justify-content:flex-end;margin-top:16px;}
 .sc-file-list footer button{min-height:40px;padding:8px 14px;border-radius:8px;}
 .sc-file-list [role=status]:empty{display:none;}
+.sc-save-place .sc-save-source{display:inline-block;margin:0 0 18px;font-size:.82rem;}
+.sc-save-place a[download]{font-weight:700;text-decoration:underline;white-space:nowrap;}
+.sc-save-place footer+details{margin:16px 0 0;padding-top:12px;border-top:1px solid var(--studio-border-default);font-size:.82rem;}
 .sc-file-command-list{display:grid;gap:4px;max-height:55vh;overflow:auto;}
 .sc-file-command-list button{text-align:start;padding:8px 12px;}
 .sc-reminder-frequency{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:.875rem;}
@@ -5807,8 +5810,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         }catch(error){setSaveStatus('ビューワー用の書き出しに失敗しました。元の譜面は保持しています',true);}
         finally{viewerExportFlight=false;refreshToolbarActions();}
     }
-    function downloadCurrentProjectJson(name) {
-        if(!prepareExplicitOutput())return false;
+    function createProjectDownloadLink() {
+        if(!prepareExplicitOutput())return null;
         var project = state.session.workingSnapshot();
         var json = CS().storage.exportProjectJson(project, scorePresentation(project));
         var blob = new Blob([json], { type: 'application/json' });
@@ -5816,11 +5819,16 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         var a = document.createElement('a');
         var title = state.project.songInfo.title || 'project';
         a.href = url;
-        a.download = typeof name==='string'?name:'cruise-studio_' + title.replace(/[\\/:*?"<>|\s]+/g, '_') + '.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        a.download = 'cruise-studio_' + title.replace(/[\\/:*?"<>|\s]+/g, '_') + '.json';
+        return a;
+    }
+    function downloadCurrentProjectJson() {
+        const link=createProjectDownloadLink();
+        if(!link)return false;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
         setSaveStatus('JSONファイルへ書き出しました');
         return true;
     }
@@ -6017,7 +6025,13 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     }
     function confirmFileSave(setting){
         const dialog=fileDialog('ファイル保存時のご案内'),text=document.createElement('p');
-        text.textContent='保存画面に「警告」と出るのは、選んだ譜面ファイルに編集内容を書き込むためです。ブラウザが表示する通常の確認なので、この表示だけで曲やパソコンに問題があるわけではありません。';
+        text.textContent='保存画面の「警告」は、選んだ譜面ファイルに編集内容を書き込むための、ブラウザの通常の確認です。';
+        const reassurance=document.createElement('p');
+        reassurance.textContent='アプリやブラウザに問題があるわけではありません。';
+        const source=document.createElement('a');
+        source.href='https://developer.chrome.com/docs/capabilities/web-apis/file-system-access?hl=ja#security_and_permissions';
+        source.target='_blank';source.rel='noopener noreferrer';
+        source.className='sc-save-source';source.textContent='Chrome公式の説明（日本語）';
         const {label,select}=reminderSelect(setting),footer=document.createElement('footer');
         return new Promise(resolve=>{
             const proceed=dialogButton('保存を続ける',()=>{
@@ -6025,7 +6039,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                 dialog.close('continue');
             },true);
             footer.append(dialogButton('キャンセル',()=>dialog.close()),proceed);
-            dialog.append(text,label,footer);
+            dialog.append(text,reassurance,source,label,footer);
             dialog.addEventListener('close',()=>resolve(dialog.returnValue==='continue'),{once:true});
             dialog.showModal();proceed.focus();
         });
@@ -6095,7 +6109,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         const direct=typeof window.showSaveFilePicker==='function';
         place.textContent=handle?handle.name:saved?storageBrowserName()+'のサイトデータ（このパソコン内）':'この曲はまだ保存されていません。';
         if(handle){
-            hint.textContent='「保存」でこのファイルを更新します。';
+            hint.hidden=true;
         }else{
             hint.textContent=saved?'曲をここから別のフォルダへ直接移動することはできません。ファイルとして持ち出すには「JSON書き出し」を使います。':'「保存」を押すと、この曲を保存できます。';
         }
@@ -6106,6 +6120,15 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             note.append(direct?'※「名前をつけて保存」で、保存先のフォルダを指定できます。':'※ Chromeでは「名前をつけて保存」でフォルダを指定できます。',' ',browserSaveHelp());
             dialog.append(note);
         }
+        const footer=document.createElement('footer');
+        footer.append(dialogButton('閉じる',()=>dialog.close()));
+        if(handle && typeof window.showOpenFilePicker==='function'){
+            footer.append(dialogButton('保存フォルダを開く',async()=>{
+                try{await window.showOpenFilePicker({startIn:handle,multiple:false});}
+                catch(error){if(error.name!=='AbortError'){hint.hidden=false;hint.textContent='フォルダを開けませんでした。「名前をつけて保存」で保存先を選び直せます。';}}
+            },true));
+        }
+        dialog.append(footer);
         if(direct){
             const details=document.createElement('details'),summary=document.createElement('summary');
             summary.textContent='保存時の案内設定';
@@ -6113,30 +6136,35 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             select.onchange=()=>CS().storage.setAppSetting(reminderKey,{mode:select.value,lastShown:Date.now()});
             details.append(summary,label);dialog.append(details);
         }
-        const footer=document.createElement('footer');
-        footer.append(dialogButton('閉じる',()=>dialog.close()));
-        if(handle && typeof window.showOpenFilePicker==='function'){
-            footer.append(dialogButton('保存フォルダを開く',async()=>{
-                try{await window.showOpenFilePicker({startIn:handle,multiple:false});}
-                catch(error){if(error.name!=='AbortError')hint.textContent='フォルダを開けませんでした。「名前をつけて保存」で保存先を選び直せます。';}
-            },true));
-        }
-        dialog.append(footer);dialog.showModal();
+        dialog.showModal();
     }
     function openExportGuide(){
-        const session=state.session;
-        const dialog=fileDialog('編集用ファイルの書き出し');
-        const description=document.createElement('p');
-        description.textContent='「JSONを書き出す」で、この曲の編集用ファイルをダウンロードできます。';
+        const link=createProjectDownloadLink();
+        if(!link)return;
+        const session=state.session,version=session.snapshotVersion;
+        const dialog=fileDialog('名前をつけて保存');
+        const explanation=document.createElement('p');
+        const browser=storageBrowserName();
+        explanation.textContent=(browser==='Safari'||browser==='Firefox'?browser:'この環境')+'では「名前をつけて保存」は使えません。';
+        const alternative=document.createElement('p');
+        link.textContent='JSONを書き出す';
+        alternative.append(link,'と、ブラウザで指定したダウンロード先に譜面を保存できます。');
+        link.addEventListener('click',event=>{
+            if(state.session!==session || session.snapshotVersion!==version){
+                event.preventDefault();
+                showSaveNotice('曲が変わりました。もう一度「名前をつけて保存」を開いてください。');
+            }else{
+                setSaveStatus('JSONファイルへ書き出しました');
+            }
+            dialog.close();
+        });
+        dialog.addEventListener('close',()=>URL.revokeObjectURL(link.href),{once:true});
         const note=document.createElement('p');
         note.className='sc-save-footnote';
-        note.append('※ パソコン版Chrome・Edgeでは「名前をつけて保存」でフォルダとファイル名を選べます。',' ',browserSaveHelp());
+        note.append('パソコン版Chrome・Edgeでは、保存時にフォルダとファイル名を選べます。',' ',browserSaveHelp());
         const footer=document.createElement('footer');
-        footer.append(dialogButton('閉じる',()=>dialog.close()),dialogButton('JSONを書き出す',()=>{
-            dialog.close();
-            if(session===state.session)downloadCurrentProjectJson();
-        },true));
-        dialog.append(description,note,footer);
+        footer.append(dialogButton('閉じる',()=>dialog.close()));
+        dialog.append(explanation,alternative,note,footer);
         dialog.showModal();
     }
     async function commitSession(session,{chooseFile=false}={}){

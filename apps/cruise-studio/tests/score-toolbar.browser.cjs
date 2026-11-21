@@ -321,16 +321,18 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await select.selectOption({label:'ファイル一覧・削除…'});
   await p.locator('.sc-file-list').getByText('閉じる').click();
   await p.evaluate(()=>window.showSaveFilePicker=undefined);
-  const card=p.getByRole('dialog',{name:'編集用ファイルの書き出し'});
-  const command=engine==='webkit'?'ファイルに保存するには…':'名前をつけて保存';
+  const card=p.getByRole('dialog',{name:'名前をつけて保存'});
+  const command='名前をつけて保存';
   await more(command);
   await card.getByRole('button',{name:'閉じる'}).click();
   assert(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
   await more(command);
   assert.equal(await card.locator('input').count(),0);
+  assert.match(await card.innerText(),/「名前をつけて保存」は使えません/);
+  assert(await card.locator('p a[download]').isVisible());
   assert.match(await card.innerText(),/Chrome・Edge/);
   const output=p.waitForEvent('download');
-  await card.getByRole('button',{name:'JSONを書き出す'}).click();
+  await card.getByRole('link',{name:'JSONを書き出す'}).click();
   const file=await output;
   assert(file.suggestedFilename().endsWith('.json'));
   const {scorePresentation,...contents}=JSON.parse(fs.readFileSync(await file.path(),'utf8'));
@@ -368,9 +370,9 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    assert.equal(await location.getByRole('button').count(),1);
    await location.getByRole('button',{name:'閉じる'}).click();
    await p.locator('#sc-project-select').selectOption({label:'その他のファイル操作…'});
-   await p.getByRole('dialog',{name:'その他のファイル操作'}).getByRole('button',{name:'ファイルに保存するには…'}).click();
+   await p.getByRole('dialog',{name:'その他のファイル操作'}).getByRole('button',{name:'名前をつけて保存'}).click();
    const download=p.waitForEvent('download');
-   await p.getByRole('dialog',{name:'編集用ファイルの書き出し'}).getByRole('button',{name:'JSONを書き出す'}).click();
+   await p.getByRole('dialog',{name:'名前をつけて保存'}).getByRole('link',{name:'JSONを書き出す'}).click();
    const {scorePresentation,...file}=JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));
    assert.deepEqual(file,exportedSnapshot);
    return;
@@ -386,6 +388,9 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const reminder=p.getByRole('dialog',{name:'ファイル保存時のご案内'}),go=()=>reminder.getByRole('button',{name:'保存を続ける'}).click();
   await p.click('#sc-save');
   assert.match(await reminder.innerText(),/通常の確認/);
+  assert.equal(await reminder.locator('p').nth(1).textContent(),'アプリやブラウザに問題があるわけではありません。');
+  const official=reminder.getByRole('link',{name:'Chrome公式の説明（日本語）'});
+  assert.equal(new URL(await official.getAttribute('href')).host,'developer.chrome.com');
   for(const field of [reminder.getByLabel('案内の表示'),p.locator('#sc-project-select')]){
    const style=await field.evaluate(el=>{const s=getComputedStyle(el);return [s.appearance,s.paddingInlineEnd,s.backgroundPositionX];});
    assert.equal(style[0],'none');assert.equal(style[1],'32px');assert.match(style[2],/12px/);

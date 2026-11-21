@@ -10,7 +10,7 @@
 #browser-saving h3{margin:0}#browser-saving dl{margin-bottom:0}#browser-saving dt{padding-top:.7rem;border-top:1px solid #e0dbce}#browser-saving dd+dd{margin-top:.4em}
 .save-recommendation{text-decoration:underline;text-decoration-color:#b39050;text-underline-offset:.22em;text-decoration-thickness:2px}
 </style>
-<header id="top"><p>Cruise Studio · Ver. 0.217.0-rc.1</p><h1>譜面クルーズ 取扱説明書</h1><p>曲を作り、小節に演奏を入力し、印刷・配布するまでの操作を説明します。チュートリアルでは「そらまで」、機能別の解説では「海辺の散歩」を使います。</p></header>
+<header id="top"><p>Cruise Studio · Ver. 0.218.0-rc.1</p><h1>譜面クルーズ 取扱説明書</h1><p>曲を作り、小節に演奏を入力し、印刷・配布するまでの操作を説明します。チュートリアルでは「そらまで」、機能別の解説では「海辺の散歩」を使います。</p></header>
 <section id="overview" class="opening"><h2>画面の見かた</h2><p>操作は上、譜面は中央、再生は下にあります。左のスタジオメニューから他のツールにも移動できます。</p>
 <figure><div class="capture"><img src="overview.png" width="1440" height="1000" alt="スタジオの中で譜面クルーズを開いた画面全体"><svg aria-hidden="true" viewBox="0 0 1440 1000"><rect x="241" y="178" width="1159" height="201" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="238" cy="175" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="238" y="182.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">1</text><rect x="481" y="594" width="678" height="111" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="478" cy="591" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="478" y="598.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">2</text><rect x="241" y="929" width="1159" height="60" rx="5" fill="none" stroke="#c32820" stroke-width="3"/><circle cx="238" cy="926" r="20" fill="#ab271e" stroke="white" stroke-width="2"/><text x="238" y="933.6" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="bold" fill="white">3</text></svg></div><figcaption><ul class="legend"><li><b>1</b>上部カードで曲とツールを選ぶ</li><li><b>2</b>譜面で編集・再生する小節を選ぶ</li><li><b>3</b>再生、テンポ、音量を操作する</li></ul></figcaption></figure>
 <p><a href="#lesson">最初の1曲を作ってみる ↓</a></p></section>
@@ -36,8 +36,8 @@
 <figure><img src="lesson/lyrics.png" width="480" height="338" alt="編集画面の1小節目。コードCの下の歌詞行に「あ・さ・の・ひ」が並ぶ"><figcaption>①4小節表示　②1拍目「あ」　③4拍目「ひ」</figcaption></figure>
 <h3>7. メロディを入れる</h3><p>メロディ行で、歌詞と同じ位置に音名を入力します。「ファ」は1つのマスにまとめます。4小節分を入力したら編集画面を閉じ、歌詞の真下に各音が並んでいることを確認します。</p>
 <figure><img src="lesson/notes.png" width="480" height="338" alt="1小節目の歌詞の真下に「ド・ミ・ソ・ミ」が並ぶ"><figcaption>①4小節表示　②1拍目「ド」　③4拍目「ミ」</figcaption></figure><figure><img src="lesson/score.png" width="697" height="130" alt="コード、ストローク、歌詞、メロディの4段がそろった完成譜"><figcaption>4小節すべてにコードと4本の矢印があり、その下に歌詞とメロディが並びます。</figcaption></figure>
-<h3>8. 編集用のファイルを保存する</h3><p>Chrome・Edgeでは「メニュー」→「名前をつけて保存」でフォルダとファイル名を選びます。Safari・Firefoxでは「ファイルに保存するには…」を開き、「JSONを書き出す」を押します。このファイルは「ファイルを開く(JSON)」で再編集できます。</p>
-<figure><img src="lesson/save.png" alt="編集用ファイルの書き出し。右下の「JSONを書き出す」を押します"><figcaption>Safari・Firefoxでは右下の「JSONを書き出す」を押します。</figcaption></figure><p><a href="#save">Safariで端末内の保存先を選ぶ方法</a></p>
+<h3>8. 編集用のファイルを保存する</h3><p>Chrome・Edgeでは「メニュー」→「名前をつけて保存」でフォルダとファイル名を選びます。Safari・Firefoxでは同じメニューを開き、説明文中の「JSONを書き出す」を押します。このファイルは「ファイルを開く(JSON)」で再編集できます。</p>
+<figure><img src="lesson/save.png" alt="Safariの「名前をつけて保存」画面。説明文中の「JSONを書き出す」リンク"><figcaption>Safari・Firefoxでは説明文中の「JSONを書き出す」を押します。</figcaption></figure><p><a href="#save">Safariで端末内の保存先を選ぶ方法</a></p>
 <h3>9. ビューワーに書き出して再生する</h3><p>メニュー → 譜面ビューワーに書き出す。ビューワーのライブラリ内のフォルダを選びます。最初は「未分類」のまま「書き出す」を押します。完了画面の「譜面ビューワーに移動」を押し、下の「再生」で演奏を聴きます。同じボタンで一時停止できます。</p>
 <figure><img src="lesson/export.png" width="476" height="408" alt="演奏用譜面の書き出し先を選ぶ画面"><figcaption>①ライブラリ内のフォルダ　②書き出す</figcaption></figure><figure><img src="lesson/open.png" width="476" height="276" alt="書き出し完了画面"><figcaption>①譜面ビューワーに移動</figcaption></figure><figure><img src="lesson/play.png" width="1256" height="908" alt="完成した曲をビューワーで再生している画面"><figcaption>①再生・一時停止</figcaption></figure>
 </section><section id="start"><h2>曲を作る・開く</h2><dl><dt>新しく作る</dt><dd>「メニュー」または曲名欄の「その他のファイル操作…」で「新しい曲を作成」を選びます。<a href="#lesson">4小節の練習曲を作る手順</a></dd><dt>このブラウザの曲を開く</dt><dd>左上の曲名欄を開き、一覧から曲名を選びます。</dd><dt>端末のJSONファイルを開く</dt><dd>曲名欄の「その他のファイル操作…」→「ファイルを開く(JSON)」を選び、保存しておいた編集用ファイルを開きます。</dd></dl>
@@ -49,14 +49,14 @@
 <p><strong class="save-recommendation">Google Chromeをおすすめします。「保存」でフォルダを選び、同じファイルに上書きできます。</strong> Safari・Firefoxの「保存」は、このパソコンに記録した曲を更新します。</p>
 <dl><dt>Google Chrome・Microsoft Edge（パソコン）</dt>
 <dd>最初の「保存」でフォルダとファイル名を選びます。次からは「保存」を押すと、そのJSONファイルに上書きします。</dd>
-<dd>保存画面の「警告：このサイトはあなたが行った編集内容を参照できます」は、選んだ譜面ファイルを開き、編集内容を書き込むための確認です。ブラウザが表示する通常の確認です。この表示だけで曲やパソコンに問題があるわけではありません。アプリの案内は毎回、30日ごと、または非表示にできます。「この曲の保存場所」の「保存時の案内設定」から変更できます。</dd>
+<dd>保存画面の「警告：このサイトはあなたが行った編集内容を参照できます」は、選んだ譜面ファイルを開き、編集内容を書き込むための確認です。ブラウザが表示する通常の確認です。アプリやブラウザに問題があるわけではありません。<br><a href="https://developer.chrome.com/docs/capabilities/web-apis/file-system-access?hl=ja#security_and_permissions" target="_blank" rel="noopener noreferrer">Chrome公式の説明（日本語）</a><br>アプリの案内は毎回、30日ごと、または非表示にできます。「この曲の保存場所」の「保存時の案内設定」から変更できます。</dd>
 <dt>Safari・Firefox</dt>
 <dd>「保存」を押すと、曲はこのパソコンに保存されます。Safari・Firefoxが、このサイト専用のデータとして管理します。この操作で曲がインターネットに送られることはありません。次は同じブラウザの左上の曲名一覧から開けます。</dd>
 <dd>曲をサイトデータから別のフォルダへ直接移動することはできません。「メニュー」→「JSON書き出し」で編集用ファイルを取り出せます。保存先はブラウザのダウンロード設定で選べます。編集を続けたら、最新版をもう一度書き出してください。</dd></dl>
 </section>
 <dl>
 <dt>保存／名前をつけて保存</dt><dd>ファイル保存に対応したPCブラウザでは、初回の「保存」で場所と名前を選びます。次の「保存」は関連付けたファイルを更新します。「メニュー」→「名前をつけて保存」で別名を選ぶと、それ以降の保存先は新しいファイルになります。左上の曲の選択欄にはファイル名が表示され、譜面のタイトルはそのままです。</dd>
-<dt>保存場所</dt><dd>保存後の「保存場所」、または曲名欄の「この曲の保存場所」で確認できます。Chrome・Edgeでファイルに保存した曲はファイル名が表示されます。「保存フォルダを開く」でフォルダを確認し、キャンセルで戻れます。サイトデータに保存した曲を別のフォルダで扱うには「JSON書き出し」を使います。</dd>
+<dt>保存場所</dt><dd>保存後の「保存場所」、または曲名欄の「この曲の保存場所」で確認できます。Chrome・Edgeでファイルに保存した曲はファイル名が表示されます。保存先のフルパスはブラウザから取得できません。「保存フォルダを開く」でファイル選択画面に保存先を表示し、キャンセルで戻れます。サイトデータに保存した曲を別のフォルダで扱うには「JSON書き出し」を使います。</dd>
 <dt>Safariで端末内のフォルダに保存する</dt><dd>「保存」はこのMacに曲を記録し、Safariがサイトデータとして管理します。サイトデータを消す前や、別の端末に渡すときは「JSON書き出し」で編集用ファイルをダウンロードしてください。
 <ul><li><strong>Mac</strong>　Safari → 設定 → 一般 → ファイルのダウンロード先で、保存時に毎回確認する設定か、Mac内のフォルダを選びます。</li></ul>再編集は曲名欄の「その他のファイル操作…」→「ファイルを開く(JSON)」から。編集を続けたあとは、更新版のJSONをもう一度書き出してください。</dd>
 <dt>不要な曲を削除する</dt><dd>曲名の選択欄で「ファイル一覧・削除…」を選び、対象の曲の「削除」を押します。確認画面で曲名を確かめて確定します。続けて別の下書きも整理できます。削除するのはブラウザの曲とその下書きです。PCに書き出したJSONは手元に残ります。</dd></dl>
