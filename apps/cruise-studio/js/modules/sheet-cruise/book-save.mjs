@@ -25,12 +25,16 @@ export function createBookForm(C,base,chord,settings,material,soundingSymbol){
         memo:capo?'譜面ではカポ'+capo+'を使用':''};
 }
 
+export function localBookPage(edition=document.documentElement.dataset.studioEdition){
+    return resolveCruiseAppHref('chord',edition)+'from-score.html';
+}
+
 export function openBookSave(record,edition=document.documentElement.dataset.studioEdition){
     const tab=window.open('about:blank','_blank');
     if(!tab)throw Error('コード本棚を開くには、このサイトのポップアップを許可してください。');
     try{
         tab.opener=null;
         tab.sessionStorage.setItem(bookDraftKey,JSON.stringify(record));
-        tab.location.replace(resolveCruiseAppHref('chord',edition)+'from-score.html');
+        tab.location.replace(localBookPage(edition));
     }catch(error){tab.close();throw error;}
 }

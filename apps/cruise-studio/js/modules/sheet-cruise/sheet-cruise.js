@@ -1051,7 +1051,7 @@
     }
 
     var leavePending = null;
-    // B-owned continuation contract. Shell must call this before changing workspace.
+    // Confirm explicit song changes. Studio workspace switches retain editing sessions.
     function requestLeave(continueAction) {
         if(leavePending || typeof continueAction!=='function')return false;
         var sessions=CS().sessions.listSessions(), owner=state.session, workspace=CS().shellHost.getActiveWorkspace();
@@ -1426,6 +1426,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 
 .sc-save-place p.sc-save-footnote{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--studio-border-default);color:var(--studio-text-secondary);font-size:.82rem;line-height:1.65;}
 .sc-save-place .sc-save-footnote a{white-space:nowrap;}
+.sc-leave-actions .btn-primary:enabled,.sc-save-place footer .btn-primary:focus{outline:2px solid var(--studio-focus);outline-offset:2px;}
+.sc-leave-actions:has(.btn-ghost:focus-visible) .btn-primary{outline:none;}
 .sc-leave-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;}
 .sc-leave-actions button{max-width:100%;min-height:40px;padding:8px 14px;border-radius:8px;}
 .sc-file-list>div{padding:4px;}
@@ -1688,9 +1690,9 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 #sc-slot-overlay .dock-lyrics-cell:focus {background:var(--slot-input-surface);}
 #sc-slot-overlay .slot-overlay-row-note {font-size:calc(10px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-resize-handle {width:calc(24px * var(--bar-loupe-scale,1));height:calc(24px * var(--bar-loupe-scale,1));}
-#screen-sheet-cruise>.workspace-local-nav{top:0;}
+#screen-sheet-cruise>.workspace-local-nav{position:static;}
 #screen-sheet-cruise .form-field:has(#sc-basic-strum),#screen-sheet-cruise:has(.sc-compact-toolbar) #sc-editor-drawer:not([open]){display:none;}
-#screen-sheet-cruise .sc-compact-toolbar{gap:10px;overflow:visible;zoom:var(--sc-toolbar-scale,1);top:calc(52px / var(--sc-toolbar-scale,1));}
+#screen-sheet-cruise .sc-compact-toolbar{gap:10px;overflow:visible;zoom:var(--sc-toolbar-scale,1);top:0;}
 #screen-sheet-cruise .sc-toolbar-scale{position:absolute;right:1px;bottom:1px;width:18px;height:18px;min-height:0;padding:0;border:0;border-radius:0 0 5px 0;background:repeating-linear-gradient(135deg,transparent 0 2px,var(--studio-text-secondary) 2px 3px,transparent 3px 5px);clip-path:polygon(100% 0,100% 100%,0 100%);cursor:nwse-resize;touch-action:none;}
 #screen-sheet-cruise .sc-toolbar-scale:focus-visible{background:var(--studio-focus);}
 @media(pointer:coarse){#screen-sheet-cruise .sc-compact-toolbar{zoom:1;}#screen-sheet-cruise .sc-toolbar-scale{display:none;}}
@@ -2037,7 +2039,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-section-workspace aside .sc-song-tool-buttons{display:grid;}
 .sc-section-workspace aside fieldset label{margin:0;align-items:center!important;}
 .sc-section-workspace aside small{color:var(--studio-text-secondary);overflow-wrap:anywhere;}
-.sc-section-workspace aside .sc-section-delete{justify-self:start;border:0;background:transparent;color:#efb3ae;}
+.sc-section-workspace .sc-paste-source{grid-column:1/-1;}
+.sc-section-workspace aside .sc-section-delete{border:1px solid #996e68;color:#efb3ae;margin-top:4px;}
 .sc-song-dialog>header>h2,.sc-actions-dialog>header>h2{margin-right:auto;}
 .sc-section-preview{max-height:70vh;overflow:auto;min-width:0;background:#18232b;}
 .sc-section-preview .sheet-section-heading{display:flex;align-items:center;gap:5px;}
@@ -6056,7 +6059,8 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         const dialog=document.createElement('dialog'),title=document.createElement('h2');
         dialog.className='sc-location-dialog sc-save-place';
         dialog.setAttribute('aria-label',heading);title.textContent=heading;
-        dialog.append(title);els.root.append(dialog);
+        const parent=leavePending?.saving ? CS().shellHost.modal.getActive() : null;
+        dialog.append(title);(parent || els.root).append(dialog);
         dialog.addEventListener('close',()=>dialog.remove(),{once:true});
         return dialog;
     }
@@ -6098,7 +6102,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
     const reminderKey='scoreFilePermissionReminder';
     function reminderSelect(setting){
         const label=document.createElement('label'),select=document.createElement('select');
-        label.className='sc-reminder-frequency';label.append('案内の表示',select);
+        label.className='sc-reminder-frequency';label.append('この案内',select);
         for(const [value,text] of [['always','毎回表示する'],['sometimes','ときどき表示する（30日ごと）'],['never','次回から表示しない']]){
             select.add(new Option(text,value));
         }
@@ -6465,7 +6469,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         q('sc-goto-pre-dtm').addEventListener('click', function () {
             if (state.session && state.session.inputPending) { setSaveStatus('入力の確定を待ってください', true); return; }
             finishTextInputs();
-            requestLeave(function(){CS().shellHost.navigate('preDtm');});
+            CS().shellHost.navigate('preDtm');
         });
         [els.undoBtn, els.redoBtn].forEach(function (button) {
             button.addEventListener('pointerdown', function (event) {

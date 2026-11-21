@@ -97,7 +97,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const id=(await snap(p)).projectId,select=p.locator('#sc-project-select'),list=p.getByRole('dialog',{name:'ファイル一覧'});
   const manage=()=>select.selectOption({label:'ファイル一覧・削除…'});
   await manage();
-  const target=list.getByRole('button',{name:/海辺の散歩.*削除/});
+  const target=list.getByRole('button',{name:/toolbar-test\.json.*削除/});
   p.removeAllListeners('dialog');p.once('dialog',d=>d.dismiss());await target.click();
   assert(await target.isVisible());
   p.on('dialog',d=>d.accept());await target.click();
@@ -198,12 +198,50 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert(menu.x>=title.x+title.width&&tools.x>=menu.x+menu.width&&Math.abs(title.y-tools.y)<4);
   await p.click('#sc-curve-menu-toggle');assert(await p.locator('#sc-menu-staff-toggle').isHidden());
  }));
+ await t.test('the score toolbar reaches the top and other workspaces retain sticky navigation',()=>fresh(async p=>{
+  const main=p.locator('#studio-main'),nav=p.locator('#screen-sheet-cruise>.workspace-local-nav'),toolbar=p.locator('.sc-compact-toolbar');
+  const start=await nav.boundingBox();assert(start.y>=0);
+  await main.evaluate(e=>e.scrollTop=e.scrollHeight);
+  const top=(await main.boundingBox()).y,end=await nav.boundingBox();
+  assert(end.y+end.height<=top);
+  assert(Math.abs((await toolbar.boundingBox()).y-top)<2);
+  await p.locator('.studio-nav [data-workspace=preDtm]').click();
+  assert.equal(await p.locator('#screen-pre-dtm>.workspace-local-nav').evaluate(e=>getComputedStyle(e).position),'sticky');
+  await p.locator('#screen-pre-dtm .workspace-back').click();
+  assert.equal(await p.getByRole('dialog',{name:'未保存の変更を確認'}).count(),0);
+ }));
+ await t.test('save and continue keeps the primary ring and handles a nested save reminder by keyboard',()=>fresh(async p=>{
+  const before=await snap(p);
+  if(engine==='chrome')await p.evaluate(()=>{window.showSaveFilePicker=async()=>{const dir=await navigator.storage.getDirectory();return dir.getFileHandle('continue.json',{create:true});};});
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-new-project');
+  const guard=p.getByRole('dialog',{name:'未保存の変更を確認'}),save=guard.getByRole('button',{name:'保存して続行'});
+  const outline=()=>save.evaluate(e=>getComputedStyle(e).outlineStyle);
+  assert.equal(await outline(),'solid');await guard.locator('p').click();assert.equal(await outline(),'solid');
+  await save.click();
+  if(engine==='chrome'){
+   const reminder=p.getByRole('dialog',{name:'ファイル保存時のご案内'});
+   await reminder.press('Escape');assert(await guard.isVisible());await save.click();
+   await reminder.getByLabel('この案内').selectOption('never');
+   await reminder.getByRole('button',{name:'保存を続ける'}).press('Enter');
+  }
+  await guard.waitFor({state:'detached'});
+  assert(await p.evaluate(id=>CruiseStudio.repository.read({type:'project',projectId:id}).exists,before.projectId));
+  if(engine==='chrome'){
+   const stored=await p.evaluate(async()=>{const f=await (await navigator.storage.getDirectory()).getFileHandle('continue.json');return JSON.parse(await (await f.getFile()).text());});
+   assert.equal(stored.projectId,before.projectId);
+  }
+ }));
  await t.test('preview a section copy with only chords, add a bar, apply and undo',()=>fresh(async p=>{
   const before=await snap(p);await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
   const dialog=p.locator('[data-score-dialog=sections]'),rows=dialog.locator('aside');
   await rows.first().getByText('コピー',{exact:true}).click();
-  for(const name of ['ストローク','メロディ','歌詞'])await dialog.getByLabel(name,{exact:true}).uncheck();
-  await rows.first().getByRole('button',{name:/後ろに貼り付け/}).click();
+  const paste=rows.getByRole('button',{name:'後ろに貼り付け'}),parts=rows.getByRole('group',{name:'貼り付ける内容'});
+  assert.equal(await parts.count(),0);await paste.click();
+  await parts.getByRole('button',{name:'キャンセル'}).click();
+  assert.equal(await dialog.locator('nav button').count(),before.sections.length);
+  await paste.click();
+  for(const name of ['ストローク','メロディ','歌詞'])await parts.getByLabel(name,{exact:true}).uncheck();
+  await parts.getByRole('button',{name:'実行'}).click();
   await dialog.getByRole('button',{name:/コピーの末尾に小節を追加/}).click();
   await dialog.getByRole('button',{name:/コピーの最後の小節を削除/}).click();
   await dialog.getByRole('button',{name:/コピーの末尾に小節を追加/}).click();
@@ -233,7 +271,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await dialog.locator('[data-score-apply]').click();
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-sections');
   await flow.getByRole('button',{name:'新しいセクション 3小節'}).click();
-  await aside.getByText('コピー',{exact:true}).click();await aside.getByRole('button',{name:'後ろに貼り付け'}).click();
+  await aside.getByText('コピー',{exact:true}).click();await aside.getByRole('button',{name:'後ろに貼り付け'}).click();await aside.getByRole('button',{name:'実行'}).click();
   await dialog.locator('[data-score-apply]').click();
   const song=await snap(p),ids=song.bars.filter(b=>b.sectionId===song.sections.at(-1).id).map(b=>b.id);
   assert.equal(ids.length,3);assert(!song.performance.barRhythms.some(r=>ids.includes(r.barId)));
@@ -344,7 +382,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const before=await snap(p);
   await p.reload();await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),before);
   await p.locator('#screen-sheet-cruise .workspace-home').first().click();
-  await p.getByRole('button',{name:'キャンセル',exact:true}).last().click();
+  await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),before);
   if(engine==='webkit'){
    await p.click('#sc-curve-menu-toggle');
    assert(await p.locator('#sc-save-as').isVisible());
@@ -391,7 +429,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   assert.equal(await reminder.locator('p').nth(1).textContent(),'アプリやブラウザに問題があるわけではありません。');
   const official=reminder.getByRole('link',{name:'Chrome公式の説明（日本語）'});
   assert.equal(new URL(await official.getAttribute('href')).host,'developer.chrome.com');
-  for(const field of [reminder.getByLabel('案内の表示'),p.locator('#sc-project-select')]){
+  for(const field of [reminder.getByLabel('この案内'),p.locator('#sc-project-select')]){
    const style=await field.evaluate(el=>{const s=getComputedStyle(el);return [s.appearance,s.paddingInlineEnd,s.backgroundPositionX];});
    assert.equal(style[0],'none');assert.equal(style[1],'32px');assert.match(style[2],/12px/);
   }
@@ -402,7 +440,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.reload();await p.click('#open-sheet-cruise');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=()=>{window.picks++;throw Error('unexpected picker');};});
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');await p.locator('[data-score-field=title]').fill('second save');await p.click('[data-score-apply]');
-  await p.click('#sc-save');await reminder.getByLabel('案内の表示').selectOption('sometimes');await go();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
+  await p.click('#sc-save');await reminder.getByLabel('この案内').selectOption('sometimes');await go();await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);
   const result=await p.evaluate(async()=>{const dir=await navigator.storage.getDirectory(),f=await dir.getFileHandle('test-score.json');return [window.picks,JSON.parse(await (await f.getFile()).text()).songInfo.title];});
   assert.deepEqual(result,[0,'second save']);
   const oldBytes=await p.evaluate(async()=>{
@@ -436,7 +474,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});
   await p.evaluate(()=>CruiseStudio.storage.setAppSetting('scoreFilePermissionReminder',{mode:'sometimes',lastShown:Date.now()-31*86400000}));
-  await saveAs();await reminder.getByLabel('案内の表示').selectOption('never');await go();
+  await saveAs();await reminder.getByLabel('この案内').selectOption('never');await go();
   await p.waitForFunction(()=>document.querySelector('#sc-save-notice')?.textContent.includes('キャンセル'));
   await p.evaluate(()=>{window.showSaveFilePicker=async()=>({createWritable:async()=>{throw Error('テスト書き込み失敗');}});});
   await saveAs();

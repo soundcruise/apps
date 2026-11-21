@@ -1,17 +1,4 @@
 export function bindScoreEditor(studio) {
-    let replayingNavigation = false;
-    document.addEventListener('click', event => {
-        const button = event.target.closest('button');
-        if (replayingNavigation || !button || button.disabled || !studio.sheetCruise.requestLeave) return;
-        if (!button.matches('[data-workspace],[data-home-workspace],.workspace-back,.workspace-home')) return;
-        if (button.dataset.workspace === studio.shellHost.getActiveWorkspace()) return;
-        event.preventDefault(); event.stopImmediatePropagation();
-        studio.sheetCruise.requestLeave(() => {
-            replayingNavigation = true;
-            try { button.click(); } finally { replayingNavigation = false; }
-        });
-    }, true);
-
     // Dock the editor in the existing Studio tool window.
     let mounted = null;
     function release(closeWindow = false) {

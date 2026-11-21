@@ -1,5 +1,5 @@
 import {addFormRangeControls} from './form-range-controls.mjs';
-import {createBookForm,openBookSave} from './book-save.mjs';
+import {createBookForm,openBookSave,localBookPage} from './book-save.mjs';
 import {rangeForForm} from './form-range.mjs';
 import {cycleFormNote,boundSnapshot} from './form-cycle.mjs';
 import {singleChordPlan} from './chord-audition.mjs';
@@ -142,7 +142,7 @@ export function createOwnerChordPicker(C,base){
         sourceTools.after(bookHint);
         const update=provider&&button('再試行',()=>loadBook(),sourceTools,{'data-book-refresh':'',title:'本棚を読み直す。譜面や元本棚は変更しません'});
         if(update)update.hidden=true;
-        const legacy=node('details',undefined,shelfPanel);node('summary','従来の取込み方法（予備）',legacy);legacy.open=!provider;legacy.hidden=!!provider;
+        const legacy=node('details',undefined,shelfPanel);node('summary','従来の取込み方法（予備）',legacy);legacy.open=!provider;legacy.hidden=!!provider||!source.exportBookmarklet;
         const importOption=node('label',undefined,legacy);const importForms=node('input',undefined,importOption);importForms.type='checkbox';importForms.dataset.importForms='';importForms.checked=!!memory.withForms;importOption.append(' 押さえ方も取り込む（標準6弦・フレットは曲のカポから数えます）');
         const tools=node('div',undefined,legacy,'cc-control-row');
         if(source.exportBookmarklet)button('別タブの本棚から取り込む（従来方式）',()=>{if(provider)return;bookRequest?.cancel();const forms=importForms.checked;bookRequest=openBookPicker({catalogue:true,isCurrent:()=>eligible()&&memory.bookOpen&&importForms.checked===forms,onSelect:payload=>{if(!eligible())return false;cancelRead();memory.catalogue=payload;memory.source=null;memory.folder='';catalogue();return true;},onStatus:message=>{if(current())status.textContent=message;},withForms:forms});},tools,{'data-book-import':'',title:'初回の読取りだけPro別タブで行い、この画面へコピーする'});
@@ -200,7 +200,7 @@ export function createOwnerChordPicker(C,base){
             const selected=folders.find(f=>f.id===memory.folder);
             books.hidden=!provider||!!selected;bookNav.hidden=!provider||!selected;items.hidden=!!provider&&!selected;
             bookName.textContent=selected?.name||'';if(update)update.hidden=true;
-            bookHint.textContent=provider?(folders.length?'':'本棚を読み込んでいます…'):(chords.length?chords.length+'件。コード図を選ぶと選択中のマスへ入力します。':'この開発版は同期アカウントの本棚に未接続です。予備の取込み方法を利用できます。');
+            bookHint.textContent=provider?(folders.length?'':'本棚を読み込んでいます…'):(chords.length?chords.length+'件。コード図を選ぶと選択中のマスへ入力します。':'本棚からフォームを書き出し、ここでJSONファイルを読み込んでください。');
             if(provider&&!selected){
                 // Only the owner's book presentation, with no management or Sync UI.
                 for(let start=0;start<folders.length;start+=4){
@@ -234,11 +234,15 @@ export function createOwnerChordPicker(C,base){
         }
         filter.addEventListener('change',()=>{memory.folder=filter.value;catalogue();});
         function showBook(){shelf.hidden=!memory.bookOpen;shelfToggle.textContent=memory.bookOpen?'コード本棚を閉じる':'コード本棚を開く';shelfToggle.setAttribute('aria-expanded',String(!!memory.bookOpen));if(!memory.bookOpen){shelfPanel.removeAttribute('aria-busy');if(update)update.disabled=false;}}showBook();
-        const fallback=node('details',undefined,legacy);node('summary','JSONファイルから読み込む（予備）',fallback);const label=node('label','JSONファイルを選ぶ',fallback,'cc-btn cc-btn-secondary');const file=node('input',undefined,label);file.type='file';file.accept='.json,application/json';file.dataset.chordNamesImport='';
+        const fileTools=node('div',undefined,shelfPanel,'cc-control-row');
+        const exportLink=node('a','本棚からフォームを書き出す',fileTools,'cc-btn cc-btn-secondary');
+        exportLink.href=localBookPage(source.bookEdition)+'?export=form';exportLink.target='_blank';exportLink.rel='noopener';
+        const file=node('input',undefined,fileTools);file.type='file';file.accept='.json,application/json';file.dataset.chordNamesImport='';
+        button('JSONファイルを読み込む',()=>file.click(),fileTools);
         file.addEventListener('change',async()=>{const selected=file.files[0],epoch=++importEpoch;if(!selected||!eligible())return;try{if(selected.size>MAX_BYTES)throw Error('JSONファイルが大きすぎます');const text=await selected.text();if(epoch!==importEpoch||!file.isConnected||!eligible())return;const parsed=JSON.parse(text)?.format===FORM_FORMAT?parseChordForms(text):parseChordNames(text);cancelRead();memory.source=null;memory.catalogue=parsed;memory.folder='';memory.bookOpen=true;showBook();catalogue();status.textContent=parsed.chords.length+'件を読み込みました。譜面はまだ変更していません。';}catch(e){if(current())status.textContent=e.message;}finally{if(file.isConnected)file.value='';}});catalogue();
         if(source.exportBookmarklet){
             const help=node('details',undefined,legacy);node('summary','読取り専用ブックマークを登録',help);node('p','従来方式を使う場合だけ、リンクをブックマークバーへ登録し、別タブのコード本棚で実行します。',help,'cc-fb-hint');const link=node('a','本棚から譜面へ（読取り専用）',help,'cc-btn cc-btn-secondary');link.href=source.exportBookmarklet;link.dataset.chordExportBookmarklet='';link.addEventListener('click',e=>{e.preventDefault();status.textContent='このリンクをブックマークバーへ登録し、コードクルーズProの本棚上で使ってください。';});
-        }else{importOption.hidden=true;fallback.open=true;}
+        }
         shelfPanel.append(legacy);
         const unsubscribeBook=provider?.subscribe?.(()=>{if(current())clearSource();});
         let disposeDiagram=()=>{};

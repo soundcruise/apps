@@ -92,13 +92,8 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
    const flow=node('nav',undefined,body);flow.className='sc-section-flow';flow.setAttribute('aria-label','セクションの流れ');
    const aside=node('aside',undefined,body);aside.append(list);
    body.className='sc-section-workspace';
-   const parts=new Map(),controls=node('fieldset',undefined,aside);node('legend','貼り付ける内容',controls);
-   for(const [key,title] of [['chords','コード'],['strum','ストローク'],['melody','メロディ'],['lyrics','歌詞']]){
-    const label=node('label',undefined,controls),check=node('input',undefined,label);check.type='checkbox';check.checked=true;parts.set(key,check);label.append(title);
-   }
-   const clipName=node('small','',aside);
    button('＋ セクションを追加',()=>{const item={id:C.model.schema2.newId(),name:'新しいセクション',count:4,isNew:true};rows.push(item);selected=item.id;paint();},aside);
-   const sectionTools=wholeScoreTools(aside);
+   wholeScoreTools(aside);
    const paper=node('div',undefined,body);paper.className='sc-section-preview';
    const fitSectionPaper=zoomablePreview(paper);
    function scrollToSelected(behavior){
@@ -157,7 +152,7 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     }catch(error){apply.disabled=true;status.textContent=error.message;}
    }
    function paint(){
-    aside.querySelector('.sc-section-delete')?.remove();list.replaceChildren();const i=rows.findIndex(r=>r.id===selected),s=rows[i];
+    list.replaceChildren();const i=rows.findIndex(r=>r.id===selected),s=rows[i];
     const name=input('セクション名',s.name,'section-'+s.id,'text',list);name.oninput=()=>{s.name=name.value;preview();};
     const moves=node('div',undefined,list);moves.className='sc-section-command-row';
     for(const [d,text] of [[-1,'前へ移動'],[1,'後ろへ移動']]){
@@ -165,13 +160,29 @@ export function createScoreSettings({C,document:doc,getSession,canEdit,execute,c
     }
     const copies=node('div',undefined,list);copies.className='sc-section-command-row';
     button('コピー',()=>{clipboard=structuredClone(s);paint();},copies).dataset.icon='⧉';
-    clipName.hidden=!clipboard;clipName.textContent=clipboard?'コピー元　'+clipboard.name:'';
     const paste=button('後ろに貼り付け',()=>{
-     const checked=[...parts].filter(([k,c])=>c.checked&&(!clipboard.parts||clipboard.parts.includes(k))).map(([k])=>k);
-     const copy={...clipboard,id:C.model.schema2.newId(),isNew:true,name:clipboard.name+' コピー',copyFrom:clipboard.copyFrom||clipboard.id,parts:checked};
-     rows.splice(i+1,0,copy);selected=copy.id;paint();
-    },copies);paste.disabled=!clipboard;
-    const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},aside);sectionTools.before(remove);remove.className='sc-section-delete';remove.disabled=rows.length===1;
+     if(paste.getAttribute('aria-expanded')==='true'){panel.remove();paste.setAttribute('aria-expanded','false');return;}
+     paste.setAttribute('aria-expanded','true');
+     panel=node('fieldset');copies.after(panel);
+     node('legend','貼り付ける内容',panel);
+     node('small','コピー元　'+clipboard.name,panel).className='sc-paste-source';
+     const parts=[];
+     for(const [key,title] of [['chords','コード'],['strum','ストローク'],['melody','メロディ'],['lyrics','歌詞']]){
+      const label=node('label',undefined,panel),check=node('input',undefined,label);
+      check.type='checkbox';check.value=key;check.disabled=!!clipboard.parts&&!clipboard.parts.includes(key);
+      check.checked=!check.disabled;label.append(title);parts.push(check);
+     }
+     button('キャンセル',()=>{paste.click();paste.focus();},panel);
+     button('実行',()=>{
+      const copy={...clipboard,id:C.model.schema2.newId(),isNew:true,name:clipboard.name+' コピー',copyFrom:clipboard.copyFrom||clipboard.id,parts:parts.filter(c=>c.checked).map(c=>c.value)};
+      rows.splice(i+1,0,copy);selected=copy.id;paint();
+      list.querySelector('input')?.focus();
+     },panel).className='btn-primary';
+    },copies);
+    let panel;
+    paste.disabled=!clipboard;paste.setAttribute('aria-expanded','false');
+    const remove=button('セクションを削除',()=>{if(window.confirm(s.name+'と中の小節を削除しますか？')){rows.splice(i,1);selected=rows[Math.min(i,rows.length-1)].id;paint();}},list);
+    remove.className='sc-section-delete';remove.disabled=rows.length===1;
     preview();
    }
    mountPreview=()=>{paint();if(args.sectionId)scrollToSelected('instant');};

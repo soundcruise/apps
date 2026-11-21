@@ -26,11 +26,39 @@ export function parseChordForms(text){if(typeof text!=='string'||new TextEncoder
 // Read only the explicit saved coordinates. Missing string states are not mutes.
 export function savedChordForm(c,detectBarres=()=>[]){
     if(!Array.isArray(c.notes)||c.notes.length>6||!Array.isArray(c.mutedStrings)||new Set(c.mutedStrings).size!==c.mutedStrings.length||c.mutedStrings.some(s=>!Number.isInteger(s)||s<1||s>6))formBad();
-    if(c.bassFingerings?.length||c.tensionFingerings?.length||c.notes.some(n=>n.pendingDelete))throw Error('ベース／テンションの個別指定や未確定の編集があります。コード名のみを書き出すか、本棚で弦ごとの位置を確認してください');
-    const seen=new Set();for(const n of c.notes){if(!Number.isInteger(n.string)||n.string<1||n.string>6||seen.has(n.string)||c.mutedStrings.includes(n.string))formBad();seen.add(n.string);}
-    const strings=[1,2,3,4,5,6].map(string=>{const n=c.notes.find(n=>n.string===string);if(n)return {string,kind:'note',relativeFret:n.fret,finger:n.finger??null,fingeringWarning:n.fingeringWarning===true};if(c.mutedStrings.includes(string))return {string,kind:'muted'};formBad();});
+    const notes=new Map();
+    for(const n of c.notes){
+        if(!n||!Number.isInteger(n.string)||n.string<1||n.string>6||notes.has(n.string)||c.mutedStrings.includes(n.string)||n.pendingDelete)formBad();
+        notes.set(n.string,n);
+    }
+    // The bookshelf also paints optional candidates. Only a saved choice contributes a note.
+    const chosen=new Set(),tuning=[64,59,55,50,45,40];
+    for(const [kind,entries] of [['bass',c.bassFingerings],['tension',c.tensionFingerings]]){
+        if(entries==null)continue;
+        if(!Array.isArray(entries))formBad();
+        for(const entry of entries){
+            if(!entry||!Number.isInteger(entry.string)||!Number.isInteger(entry.fret)||entry.fret<0||entry.fret>36)formBad();
+            const {string,fret}=entry;
+            if(kind==='bass'?string<4||string>6:string<1||string>3)formBad();
+            if(entry.pendingDelete || (entry.finger==null && !entry.fingeringWarning))continue;
+            const pc=(tuning[string-1]+fret)%12;
+            if(kind==='bass'?pc!==c.bassPc:pc!==entry.pc||!c.tensionPcs?.includes(pc))continue;
+            const range=c.fretRange;
+            if(range&&(fret===0?range.includesOpen===false:fret<range.min||fret>range.max))continue;
+            if(chosen.has(string))throw Error(string+'弦に複数の運指があります。本棚で使う位置を1つに絞ってください。');
+            chosen.add(string);
+            // A marker on an existing note uses that note's finger in the native diagram.
+            if(notes.get(string)?.fret!==fret)notes.set(string,entry);
+        }
+    }
+    const strings=[1,2,3,4,5,6].map(string=>{
+        const n=notes.get(string);
+        if(n)return {string,kind:'note',relativeFret:n.fret,finger:n.finger??null,fingeringWarning:n.fingeringWarning===true};
+        if(c.mutedStrings.includes(string))return {string,kind:'muted'};
+        formBad();
+    });
     // Historical bookshelf records do not declare capo/tuning/fret limit.
     const range=c.fretRange;
     const displayRange=range&&range.max>0?{displayRange:{min:Math.max(1,range.min),max:range.max}}:{};
-    return validateTransferForm({...displayRange,capo:null,tuningMidi:null,maxAbsoluteFret:null,strings,barres:detectBarres(c.notes).map(b=>({finger:b.finger,relativeFret:b.fret,fromString:b.fromString,toString:b.toString})),playability:'unknown',ownerWarning:'本棚由来の演奏条件を確認してください'});
+    return validateTransferForm({...displayRange,capo:null,tuningMidi:null,maxAbsoluteFret:null,strings,barres:detectBarres([...notes.values()]).map(b=>({finger:b.finger,relativeFret:b.fret,fromString:b.fromString,toString:b.toString})),playability:'unknown',ownerWarning:'本棚由来の演奏条件を確認してください'});
 }

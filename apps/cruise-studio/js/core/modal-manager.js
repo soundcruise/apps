@@ -53,6 +53,9 @@
             close: close,
             capture: function (event) {
                 if (!active || active.suspended || event.defaultPrevented) return;
+                // A nested native dialog (for example the file-save reminder) owns its keyboard interaction.
+                var nested = event.target.closest?.('dialog[open]');
+                if (nested && nested !== active.element && active.element.contains(nested)) return;
                 // Browser-owned chords (including Ctrl+Tab and developer tools) stay native.
                 if (event.metaKey || event.ctrlKey || event.altKey || /^F\d+$/.test(event.key)) {
                     if (!active.element.contains(event.target)) event.stopImmediatePropagation();

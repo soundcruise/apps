@@ -221,7 +221,7 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
     font: inherit; color: var(--studio-text-primary); background: var(--studio-control);
     border: 1px solid var(--studio-field-border); border-radius: 4px; padding: 8px;
 }
-.studio-modal:focus-visible, .studio-modal :focus-visible, .studio-dock:focus-visible, .studio-dock :focus-visible,
+.studio-modal:focus-visible, .studio-modal :focus-visible, .studio-modal button:focus, .studio-dock:focus-visible, .studio-dock :focus-visible,
 .studio-main .screen:focus-visible, .studio-main .pd-setting-field select:focus-visible {
     outline: 2px solid var(--studio-focus); outline-offset: 2px;
 }

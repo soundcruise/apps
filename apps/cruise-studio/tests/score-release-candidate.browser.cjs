@@ -493,3 +493,73 @@ for (const engine of ['chrome','webkit']) test('packaged chord names, capo and s
     assert(await page.locator('[data-save-to-book]').isDisabled());
     assert.deepEqual(errors,[]);
 });
+
+for(const engine of ['chrome','webkit'])test('native bookshelf bass and tension survive score, enlargement and viewer playback: '+engine,async t=>{
+    const server=await startServer(),origin='http://127.0.0.1:'+server.address().port;
+    t.after(()=>stopServer(server));
+    const browser=await(engine==='chrome'?chromium.launch({channel:'chrome'}):webkit.launch());
+    t.after(()=>browser.close());
+    const context=await browser.newContext({viewport:{width:1440,height:1000}});
+    await context.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
+    const page=await context.newPage();page.setDefaultTimeout(9000);
+    await page.goto(origin+'/apps/cruise-studio/');await page.click('#open-sheet-cruise');
+    const {createUITestProject}=await import('../scripts/create-ui-test-project.mjs');
+    const score=createUITestProject(),id=score.bars[0].chords[0].id;
+    await page.locator('#sc-import-json').setInputFiles({name:'song.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(score))});
+    const diagram='.sheet-form-event[data-form-event="'+id+'"]';
+    await page.locator(diagram).first().click();await page.click('[data-paper-form-edit]');
+    await page.click('[data-book-open]');
+    const popup=context.waitForEvent('page');
+    await page.getByRole('link',{name:'本棚からフォームを書き出す'}).click();
+    const book=await popup;book.setDefaultTimeout(9000);await book.locator('[data-folder-id]').first().waitFor();
+    const record=await book.evaluate(()=>{
+        const store=ChordCruise.storage;
+        return store.saveChord({chordName:'Cadd9/G',formName:'テスト',folderId:store.loadFolders()[0].id,
+            shape:'C',rootPc:0,qualityKey:'major',intervals:[0,4,7],keyContext:null,
+            fretRange:{min:1,max:3,includesOpen:true},bassPc:7,tensionPcs:[2],
+            notes:[{string:2,fret:1,finger:1,interval:0},{string:3,fret:0,finger:null,interval:7},
+                {string:4,fret:2,finger:2,interval:4},{string:5,fret:3,finger:3,interval:0}],
+            mutedStrings:[1,6],bassFingerings:[{string:6,fret:3,finger:'T'}],
+            tensionFingerings:[{string:2,fret:3,pc:2,finger:4}]});
+    });
+    await book.locator('[data-folder-id="'+record.folderId+'"]').click();
+    const download=book.waitForEvent('download',{timeout:9000});
+    await book.locator('button[data-chord-id="'+record.id+'"]').click();
+    const file=await download;
+    assert.deepEqual(await book.evaluate(id=>ChordCruise.storage.loadChord(id),record.id),record);
+    await page.locator('[data-chord-names-import]').setInputFiles(await file.path());
+    await book.close();await page.locator('[data-transfer-chord="'+record.id+'"]').click();
+    await page.click('.slot-overlay-close');
+    const snapshot=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
+    const binding=snapshot.performance.formBindings.find(b=>b.chordEventId===id);
+    assert.equal(snapshot.bars[0].chords[0].symbol,'Cadd9/G');
+    const actual=snapshot.materials.forms.find(f=>f.id===binding.materialId).snapshot;
+    assert.deepEqual(actual.strings.map(n=>n.kind==='muted'?null:[n.relativeFret,n.finger]),[null,[3,4],[0,null],[2,2],[3,3],[3,'T']]);
+    const artwork=scope=>scope.locator('svg').evaluate(s=>[...s.querySelectorAll('circle,text')].map(e=>[e.tagName,e.getAttribute('cx')||e.getAttribute('x'),e.getAttribute('cy')||e.getAttribute('y'),e.textContent]));
+    const editorPaper=await artwork(page.locator(diagram).first());
+    await page.locator(diagram).first().click();
+    const editorZoom=await artwork(page.locator('[data-paper-form-detail]'));
+    for(const finger of ['小','親'])assert(editorZoom.some(mark=>mark.at(-1)===finger));
+    await page.click('[data-form-close]');
+    await page.click('#sc-song-preview');
+    await page.locator('.sheet-bar.sc-playing-bar[data-bar-number="1"]').waitFor();
+    await page.click('#sc-song-preview');
+    await page.click('#sc-curve-menu-toggle');await page.click('#sc-export-viewer');
+    await page.click('[data-export-choice=export-save]');await page.click('[data-export-complete=open]');
+    const view=page.locator('.sv-paper');await view.locator(diagram).waitFor();
+    assert.deepEqual(await artwork(view.locator(diagram)),editorPaper);
+    await view.locator(diagram).click();
+    assert.deepEqual(await artwork(page.locator('.sc-readonly-form[open]')),editorZoom);
+    await page.getByRole('dialog').getByRole('button',{name:'閉じる'}).click();
+    const notes=await page.evaluate(async id=>{
+        const host=await CruiseStudio.scoreViewer.ready(),song=host.read().document.score;
+        const {createStudioViewerContract}=await import('/apps/cruise-studio/js/modules/sheet-cruise/viewer-contract.mjs');
+        const audio=createStudioViewerContract({schema:CruiseStudio.model.schema2});
+        return [audio.playbackPlan(song),audio.tickPlan(song)].map(plan=>plan.events
+            .filter(e=>e.part==='guitar'&&e.sourceEventId===id&&e.tick===0).map(e=>[e.string,e.midi]));
+    },id);
+    for(const played of notes)assert.deepEqual(played,[[6,43],[5,48],[4,52],[3,55],[2,62]]);
+    await page.click('[data-viewer-action=play]');
+    await page.waitForFunction(async()=>(await CruiseStudio.scoreViewer.ready()).playback()?.stats.parts.guitar>0);
+    await page.click('[data-viewer-action=play]');
+});

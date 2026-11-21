@@ -134,11 +134,16 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 const before=await snapshot(page);await (await toolbarControl(page,'#sc-new-project')).click();await page.evaluate(()=>{Storage.prototype.setItem=function(){throw Error('synthetic failure')};Storage.prototype.removeItem=function(){throw Error('synthetic rollback failure')};});await page.getByRole('button',{name:'保存して続行',exact:true}).click();await page.getByText(/移動せずdraftを保持しています/).waitFor();assert.deepEqual(await snapshot(page),before);await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.equal(await page.getByRole('dialog',{name:'未保存の変更を確認'}).count(),1);
             });
         });
-        await t.test('local Shell home/back navigation asks first and preserves drafts',()=>fresh(async page=>{
-            const before=await snapshot(page);await page.locator('#screen-sheet-cruise .workspace-home').click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.deepEqual(await snapshot(page),before);
-            await page.locator('#screen-sheet-cruise .workspace-home').click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.equal(await page.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'home');
-            await page.locator('#open-sheet-cruise').click();if(await page.getByRole('button',{name:'保存せず続行',exact:true}).count())await page.getByRole('button',{name:'保存せず続行',exact:true}).click();assert.deepEqual(await snapshot(page),before);
-            await page.locator('.studio-nav [data-workspace=preDtm]').click();await page.getByRole('button',{name:'保存せず続行',exact:true}).click();await page.locator('#screen-pre-dtm .workspace-back').click();await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert.deepEqual(await snapshot(page),before);
+        await t.test('home, other workspaces and back resume the same unsaved score',()=>fresh(async page=>{
+            const before=await snapshot(page),modal=page.getByRole('dialog',{name:'未保存の変更を確認'});
+            await page.locator('#screen-sheet-cruise .workspace-home').click();
+            assert.equal(await page.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'home');
+            await page.locator('#open-sheet-cruise').click();assert.deepEqual(await snapshot(page),before);
+            await page.locator('.studio-nav [data-workspace=preDtm]').click();
+            await page.locator('#screen-pre-dtm .workspace-back').click();
+            assert.equal(await page.evaluate(()=>CruiseStudio.shellHost.getActiveWorkspace()),'sheetCruise');
+            assert.equal(await modal.count(),0);assert.deepEqual(await snapshot(page),before);
+            assert(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty));
         }));
         await t.test('unsaved dialog actions stay separated and usable at narrow widths and long titles',()=>fresh(async page=>{
             await page.locator('#sc-editor-drawer').evaluate(e=>e.open=true);await page.locator('#sc-title').fill('検証用の長いプロジェクト名'.repeat(16));await page.locator('#sc-title').press('Tab');await settle(page);

@@ -87,3 +87,16 @@ test('the native shelf display range survives form transfer, including old recor
  assert.deepEqual(parseChordForms(JSON.stringify(file)).chords[0].form.displayRange,{min:3,max:8});
  delete record.fretRange;assert(!Object.hasOwn(savedChordForm(record),'displayRange'));
 });
+
+test('explicit bass and tension fingerings replace only their strings, without changing the native record',()=>{
+ const record={bassPc:7,tensionPcs:[2],fretRange:{min:1,max:15},mutedStrings:[1,6],
+  notes:[{string:2,fret:1,finger:1},{string:3,fret:0},{string:4,fret:2,finger:2},{string:5,fret:3,finger:3}],
+  bassFingerings:[{string:6,fret:3,finger:'T'},{string:4,fret:5,finger:1,pendingDelete:true}],
+  tensionFingerings:[{string:2,fret:3,pc:2,finger:4}]};
+ const before=structuredClone(record),form=savedChordForm(record);
+ assert.deepEqual(form.strings.map(n=>n.kind==='muted'?null:[n.relativeFret,n.finger]),[null,[3,4],[0,null],[2,2],[3,3],[3,'T']]);
+ assert.deepEqual(record,before);
+ const alternate={string:6,fret:15,finger:1};
+ assert.throws(()=>savedChordForm({...record,bassFingerings:[...record.bassFingerings,alternate]}),/6弦/);
+ assert.deepEqual(savedChordForm({...record,bassFingerings:[...record.bassFingerings,{...alternate,pendingDelete:true}]}),form);
+});
