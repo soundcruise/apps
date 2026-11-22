@@ -1,7 +1,7 @@
 /* Bundled first-party NEWS detail. Scoped so existing Port layouts/themes stay unchanged. */
 .port-shell:has(#news-article-view:not([hidden])) { width: min(100%, 1240px); }
 #news-article-view .view-panel { max-width: 1200px; margin-inline: auto; }
-#news-article-view .view-back + .view-title { margin-block-start: 16px; }
+#news-article-view .view-back + .view-title { margin-block-start: 22px; }
 #news-article-view .view-title { line-height: 1.5; overflow-wrap: anywhere; text-wrap: balance; }
 #news-article-content { color: var(--port-text); line-height: 1.85; }
 #news-article-content h2 { font-size: 1.05rem; margin: 28px 0 10px; }

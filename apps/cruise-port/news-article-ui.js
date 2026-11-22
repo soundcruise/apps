@@ -2,17 +2,16 @@ import { CRUISE_STUDIO_NEWS_ITEM, NEWS_ARTICLES, parseNewsArticleRoute } from '.
 import { confirmMembersVideo } from './news-members-video.js?v=1.38.1';
 
 function appendBrowserCorrection(doc, content, article, node) {
-    content.append(node('p', article.intro));
-    const overview = node('p');
-    overview.append(doc.createTextNode(article.overview), node('strong', article.recommendation));
-    content.append(overview);
+    const intro = node('p', article.intro);
+    intro.append(doc.createTextNode(' '), node('strong', article.recommendation));
+    content.append(intro, node('p', article.overview), node('p', article.compatibility));
 
     const steps = node('ol', undefined, 'news-article-steps');
     article.steps.forEach(copy => steps.append(node('li', copy)));
     const platforms = node('ul');
     article.platforms.forEach(copy => platforms.append(node('li', copy)));
     steps.lastElementChild.append(platforms);
-    content.append(node('h2', 'Chromeでアプリアイコンを追加する方法'), steps);
+    content.append(node('h2', 'Chromeでアプリを追加する手順'), steps);
 
     const actions = node('div', undefined, 'news-article-actions');
     const pdf = node('a', '画像付きの手順を見る（PDF）', 'action-button secondary-action');
