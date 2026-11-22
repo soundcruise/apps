@@ -98,9 +98,9 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const manage=()=>select.selectOption({label:'ファイル一覧・削除…'});
   await manage();
   const target=list.getByRole('button',{name:/toolbar-test\.json.*削除/});
-  p.removeAllListeners('dialog');p.once('dialog',d=>d.dismiss());await target.click();
+  const confirm=p.getByRole('dialog',{name:'削除の確認'});await target.click();await confirm.getByRole('button',{name:'キャンセル'}).click();
   assert(await target.isVisible());
-  p.on('dialog',d=>d.accept());await target.click();
+  await target.click();await confirm.getByRole('button',{name:'削除する'}).click();
   await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().target.projectId!==id,id);
   await list.getByRole('button',{name:'閉じる'}).click();
   assert.equal(await select.locator('option[value="'+id+'"]').count(),0);
@@ -108,12 +108,24 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('#sc-save');
   const saved=(await snap(p)).projectId;
   await p.waitForFunction(id=>CruiseStudio.repository.read({type:'project',projectId:id}).exists,saved);
-  await manage();await list.getByRole('button',{name:/を削除$/}).first().click();
+  await manage();await list.getByRole('button',{name:/を削除$/}).first().click();await confirm.getByRole('button',{name:'削除する'}).click();
   await p.waitForFunction(id=>!CruiseStudio.repository.read({type:'project',projectId:id}).exists,saved);
   await list.getByText(/削除しました/).waitFor();
   await p.reload();await p.click('#open-sheet-cruise');
   for(const gone of [id,saved])assert.equal(await select.locator('option[value="'+gone+'"]').count(),0);
   assert(await select.locator(':scope > option').count()>0);
+ }));
+ await t.test('leaving through Back can be cancelled or saved, and re-entry resumes without prompting',()=>fresh(async p=>{
+  const id=(await snap(p)).projectId,back=p.locator('#screen-sheet-cruise .workspace-back');
+  const save=p.getByRole('button',{name:'保存して進む',exact:true});
+  await back.click();await save.waitFor();await p.getByRole('button',{name:'キャンセル',exact:true}).click();
+  assert.equal((await snap(p)).projectId,id);assert(await back.isVisible());
+  await p.evaluate(()=>window.showSaveFilePicker=undefined);
+  await back.click();await save.click();await p.click('#open-sheet-cruise');
+  assert.equal((await snap(p)).projectId,id);assert.equal(await save.isVisible(),false);
+  assert.equal(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().dirty),false);
+  await p.locator('#screen-sheet-cruise .workspace-home').click();await p.click('#open-sheet-cruise');
+  assert.equal((await snap(p)).projectId,id);
  }));
  await t.test('shortcut settings remain reachable with all commands on a narrow screen',()=>fresh(async p=>{
   const picker=p.locator('#sc-shortcut-menu'),toggle=picker.locator('summary');
@@ -320,7 +332,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await open('#sc-edit-song');await title.fill('未適用');assert.equal(await unload(),true);
   await p.evaluate(()=>window.allowDiscard=true);
   await p.locator('#screen-sheet-cruise .workspace-home').evaluate(e=>e.click());
-  await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),song);
+  await p.getByRole('button',{name:'保存せず続行'}).click();await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),song);
   // Simulate storage eviction, then put back the test draft to verify both exit paths.
   const missing=await p.evaluate(id=>{
    const key=Object.keys(localStorage).find(k=>k.startsWith('cruiseStudio.scoreDraft.'+encodeURIComponent(id)+':'));
@@ -328,16 +340,16 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   },song.projectId);
   assert.equal(await unload(),true);
   await p.evaluate(({key,data})=>localStorage.setItem(key,data),missing);assert.equal(await unload(),false);
-  const prior=prompts.length;await open('#sc-new-project');await card.locator('[data-score-cancel]').click();
+  const prior=prompts.length;await open('#sc-new-project');await p.getByRole('button',{name:'保存せず続行'}).click();await card.locator('[data-score-cancel]').click();
   await p.locator('#sc-project-select').selectOption(song.projectId);assert.deepEqual(await snap(p),song);
-  await p.locator('#screen-sheet-cruise .workspace-home').click();await p.click('#open-sheet-cruise');
+  await p.locator('#screen-sheet-cruise .workspace-home').click();await p.getByRole('button',{name:'保存せず続行'}).click();await p.click('#open-sheet-cruise');
   assert.deepEqual(await snap(p),song);assert.equal(prompts.length,prior);
-  await open('#sc-new-project');await card.locator('[data-score-cancel]').click();
+  await open('#sc-new-project');await p.getByRole('button',{name:'保存せず続行'}).click();await card.locator('[data-score-cancel]').click();
   const active=await snap(p);await p.reload();await p.click('#open-sheet-cruise');
   assert.equal((await snap(p)).projectId,active.projectId);
   const replacement=structuredClone(song);replacement.songInfo.title='別ファイルのタイトル';
   await p.locator('#sc-import-json').setInputFiles({name:'another.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(replacement))});
-  await p.getByText(/同じ曲の下書きがあります/).first().waitFor({state:'attached'});
+  await p.waitForFunction(()=>CruiseStudio.sheetCruise.getSession().draft.songInfo.title==='別ファイルのタイトル');assert.notEqual((await snap(p)).projectId,song.projectId);
   await p.locator('#sc-project-select').selectOption(song.projectId);assert.deepEqual(await snap(p),song);
  }));
  await t.test('undo and redo individual stroke cells before staging and retain draft on dismiss',()=>fresh(async p=>{
@@ -543,6 +555,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const before=await snap(p);
   await p.reload();await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),before);
   await p.locator('#screen-sheet-cruise .workspace-home').first().click();
+  await p.getByRole('button',{name:'保存せず続行'}).click();
   await p.click('#open-sheet-cruise');assert.deepEqual(await snap(p),before);
   if(engine==='webkit'){
    await p.click('#sc-curve-menu-toggle');

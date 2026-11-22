@@ -1014,7 +1014,7 @@
             }
         }
         if (session && options && options.dirty) {
-            if (session.dirty || session.commitInFlight) { setSaveStatus('同じprojectの未保存内容を保持しています。保存または明示cancel後に読み込んでください。', true); return; }
+            if (session.dirty || session.commitInFlight) { setSaveStatus('このファイルには未保存の変更があります。曲を保存してから、もう一度開いてください。', true); return; }
             session.replaceDraft(project);
         }
         if (!session) session = CS().sessions.getOrCreateSession('structure', target, options && options.dirty ? project : undefined);
@@ -1067,13 +1067,14 @@
     }
     var leavePending = null;
     // Explicit discard/save flow. Ordinary song and workspace switches keep sessions.
-    function requestLeave(continueAction) {
+    function requestLeave(continueAction,currentOnly=false) {
         if(leavePending || typeof continueAction!=='function')return false;
-        var sessions=CS().sessions.listSessions(), owner=state.session, workspace=CS().shellHost.getActiveWorkspace();
-        if(sessions.some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;}) || textDiagnostic(owner)) {
+        var owner=state.session, workspace=CS().shellHost.getActiveWorkspace();
+        const affected=()=>currentOnly?(owner?[owner]:[]):CS().sessions.listSessions();
+        if(affected().some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;}) || textDiagnostic(owner)) {
             setSaveStatus('入力・保存結果・競合を解決してから移動してください',true);return false;
         }
-        var dirty=sessions.filter(function(s){return s.dirty;});
+        var dirty=affected().filter(function(s){return s.dirty;});
         if(!dirty.length){continueAction();return true;}
         var modal=CS().shellHost.modal;if(modal.getActive())return false;
         stopPianoAudition();
@@ -1081,20 +1082,20 @@
         actions.className='sc-leave-actions';
         message.style.overflowWrap='anywhere';
         body.style.padding='12px';message.style.margin='0 0 24px';message.style.lineHeight='1.7';
-        message.textContent='未保存の曲：'+dirty.map(function(s){return s.draft.songInfo.title;}).join('、')+'。変更を保存してから移動しますか？';body.appendChild(message);
+        message.textContent='未保存の曲：'+dirty.map(function(s){return scoreFileName(s.target.projectId)||s.draft.songInfo.title;}).join('、')+'。変更を保存してから移動しますか？';body.appendChild(message);
         var buttons=[],record={active:true,saving:false};leavePending=record;
         function current(){return record.active&&leavePending===record&&state.session===owner&&CS().shellHost.getActiveWorkspace()===workspace&&CS().entryAuth.isAuthorized();}
-        function proceed(){if(!current())return;if(CS().sessions.listSessions().some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;})){message.textContent='入力・保存結果・競合を解決してください。移動せずdraftを保持しています';return;}modal.close();continueAction();}
-        function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;b.className=label==='保存して続行'?'btn-primary':'btn-ghost';actions.appendChild(b);buttons.push(b);}
-        button('保存して続行',async function(){
+        function proceed(){if(!current())return;if(affected().some(function(s){return s.inputPending||s.commitInFlight||s.externalUpdatePending||s.conflict||s.commitError;})){message.textContent='入力・保存結果・競合を解決してください。移動せずdraftを保持しています';return;}modal.close();continueAction();}
+        function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=fn;b.className=buttons.length===0?'btn-primary':'btn-ghost';actions.appendChild(b);buttons.push(b);}
+        button(currentOnly?'保存して進む':'保存して続行',async function(){
             if(!current()||record.saving)return;record.saving=true;buttons.forEach(function(b){b.disabled=true;});
             try {
-                for(var session of CS().sessions.listSessions().filter(function(s){return s.dirty;})){
+                for(var session of affected().filter(function(s){return s.dirty;})){
                     if(!current())return;
                     var result=await commitSession(session);
                     if(!result.ok||session.dirty||session.externalUpdatePending||session.conflict)throw Error(result.error||'保存完了を確認できませんでした');
                 }
-                if(CS().sessions.listSessions().some(function(s){return s.dirty||s.inputPending||s.commitInFlight||s.conflict||s.externalUpdatePending;}))throw Error('保存対象の状態が変わりました');
+                if(affected().some(function(s){return s.dirty||s.inputPending||s.commitInFlight||s.conflict||s.externalUpdatePending;}))throw Error('保存対象の状態が変わりました');
                 proceed();
             }catch(error){if(current())message.textContent=error.message+'。移動せずdraftを保持しています';}
             finally{record.saving=false;buttons.forEach(function(b){b.disabled=false;});}
@@ -5972,7 +5973,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         if (!file) return;
         var reader = new FileReader();
         var intent = CS().documents.ticket(), importFrame = CS().structureOperations.capture(state.session);
-        reader.onload = function () {
+        reader.onload = async function () {
             if (!CS().documents.isSelected(intent)) {
                 if (CS().structureOperations.isCurrent(importFrame, state.session)) setSaveStatus('対象の曲が変わったため読み込みを中止しました', true);
                 return;
@@ -5983,6 +5984,16 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                 setSaveStatus(res.error, true);
                 return;
             }
+            // File copies share an embedded project ID, but must not share a draft or overwrite handle.
+            const sourceId=res.project.projectId, filename=file.name.normalize('NFC');
+            const importKey='cruiseStudio.scoreImport.'+JSON.stringify([sourceId,filename]);
+            let id=localStorage.getItem(importKey)||sourceId;
+            restoreFileHandle(id);
+            await handleReads.get(id);
+            if(!CS().documents.isSelected(intent)||!CS().structureOperations.isCurrent(importFrame,state.session))return;
+            const knownName=scoreFileName(id);
+            if(knownName && knownName.normalize('NFC')!==filename)id=CS().model.schema2.newId();
+            res.project.projectId=id;
             var warnText = res.warnings.length ? '（警告: ' + res.warnings.join(' / ') + '）' : '';
             setProject(res.project, {
                 dirty: true,
@@ -5990,6 +6001,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                 importName: file.name,
                 statusMessage: 'JSONを読み込みました（未保存）' + warnText
             });
+            if(id!==sourceId && state.session?.target.projectId===id)localStorage.setItem(importKey,id);
             if (state.session && state.session.target.projectId === res.project.projectId &&
                 !state.session.dirty && !state.session.inputPending && !state.session.commitInFlight && state.session.baseRevision !== null) {
                 setSaveStatus('JSONを読み込みました（保存済みの内容と一致）' + warnText);
@@ -6204,9 +6216,19 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                         message.textContent=record.error||'入力・保存の完了後にもう一度お試しください。';return;
                     }
                     if(saved.has(id)!==record.exists){message.textContent='曲の状態が変わりました。もう一度選んでください。';refresh();return;}
-                    if(!window.confirm('「'+item.textContent+'」を'+(record.exists?'このブラウザから削除しますか？ パソコンのJSONファイルは保持されます。':'下書きごと破棄しますか？')))return;
-                    deleting=true;list.inert=true;
+                    const version=owner?.snapshotVersion;
+                    const confirm=fileDialog('削除の確認'),description=document.createElement('p'),actions=document.createElement('footer');
+                    description.textContent='「'+item.textContent+'」を一覧から削除しますか？ パソコンのJSONファイルは保持されます。';
+                    actions.append(dialogButton('キャンセル',()=>confirm.close()),dialogButton('削除する',()=>confirm.close('delete')));
+                    confirm.append(description,actions);
+                    deleting=true;
+                    const accepted=new Promise(resolve=>confirm.addEventListener('close',()=>resolve(confirm.returnValue==='delete'),{once:true}));
+                    confirm.showModal();
+                    if(!await accepted){deleting=false;remove.focus();return;}
+                    list.inert=true;
                     try{
+                        if(CS().sessions.getSession('structure',target)!==owner || owner?.snapshotVersion!==version || owner?.inputPending || owner?.commitInFlight || fileSaves.has(owner))
+                            throw Error('曲の状態が変わりました。もう一度選んでください。');
                         if(record.exists){
                             const result=await CS().repository.remove(target,record.revision);
                             if(!result.ok)throw Error(result.error||'保存済みの曲を削除できませんでした。');
@@ -6327,7 +6349,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             }
             if(handle && handle.requestPermission && await handle.requestPermission({mode:'readwrite'})!=='granted')handle=null;
             if(!handle)try{
-                handle=await window.showSaveFilePicker({suggestedName:(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
+                handle=await window.showSaveFilePicker({suggestedName:(!chooseFile&&scoreFileName(id))||(project.songInfo.title||'無題').replace(/[\\/:*?"<>|]/g,'_')+'.json',types:[{description:'譜面クルーズの曲',accept:{'application/json':['.json']}}]});
             }catch(error){
                 dismissSaveNotice();
                 if(error.name==='SecurityError'){
@@ -6470,7 +6492,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             refreshProjectSelect();
             switchSong(function(){openProject(selectedId);});
         });
-        els.newProjectBtn.addEventListener('click', function(){switchSong(createNewProject);});
+        els.newProjectBtn.addEventListener('click', function(){switchSong(()=>requestLeave(createNewProject,true));});
         els.scaleBox.addEventListener('dragstart',function(e){
             cancelBarDrag();var cell=e.target.closest('.sheet-bar[data-bar-number]');
             if(rangeDrag||!state.selectedBarNumber||!cell||!editorCanMove()||!e.dataTransfer){e.preventDefault();return;}

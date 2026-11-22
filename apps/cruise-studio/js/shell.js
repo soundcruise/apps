@@ -228,11 +228,15 @@
                 var open=child?.getElementById('settings-sync-center-open');
                 if(child?.body?.dataset.componentState==='ready'&&open){open.click();return true;}
             }
-            if (current) {
-                visitHistory.push(current);
-                if (visitHistory.length > 40) visitHistory.shift();
+            if(current==='sheetCruise'&&id==='home')return CS.sheetCruise.requestLeave(activateDestination,true);
+            return activateDestination();
+            function activateDestination(){
+                if (current) {
+                    visitHistory.push(current);
+                    if (visitHistory.length > 40) visitHistory.shift();
+                }
+                return host.activate(id);
             }
-            return host.activate(id);
         }
         function goBack() {
             if(host.getActive()==='scoreViewer'&&CS.scoreViewer.requestLeave(goBack))return false;
@@ -244,6 +248,10 @@
             if (host.getActive() === 'portGear' && CS.portGear.requestLeave(goBack)) return false;
             if (host.getActive() === 'portMyApps' && CS.portMyApps.requestLeave(goBack)) return false;
             if(host.getActive()==='sheetCruise'&&!CS.sheetCruise.canLeave())return false;
+            if(host.getActive()==='sheetCruise')return CS.sheetCruise.requestLeave(activatePrevious,true);
+            return activatePrevious();
+        }
+        function activatePrevious(){
             var previous;
             do { previous = visitHistory.pop(); } while (previous === host.getActive());
             return host.activate(previous || 'home');
