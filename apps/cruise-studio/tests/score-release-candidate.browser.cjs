@@ -465,6 +465,11 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
         const help=editor.getByRole('dialog',{name:helpName,exact:true});
         await help.locator('img').evaluate(img=>img.decode());
         assert.equal(await help.locator('ol li').count(),steps);
+        if(anchor==='edit'){
+            const stroke=help.getByText('ストロークを入れる・消す',{exact:true});
+            await stroke.click();
+            assert.match(await stroke.locator('..').innerText(),/Dでダウン、Uでアップ/);
+        }
         const opened=editor.waitForEvent('popup');
         await help.getByRole('link',{name:/詳しくはこちら/}).click();
         const details=await opened;
@@ -495,7 +500,8 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     const measure=editor.locator('#sc-slot-overlay');
     const chord=measure.locator('[data-overlay-field=chord]').first();
     await chord.focus();
-    await checkChapter(measure,'小節編集','edit',4,1,'編集の操作ガイド');
+    assert.doesNotMatch(await measure.innerText(),/ストローク[：:]\s*↓/);
+    await checkChapter(measure,'小節編集','edit',6,4,'編集の操作ガイド');
     assert(await chord.evaluate(el=>el===document.activeElement));
     await measure.locator('[data-chord-toggle]').click();
     const advanced=measure.locator('[data-chord-advanced]');

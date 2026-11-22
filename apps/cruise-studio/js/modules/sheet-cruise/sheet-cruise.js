@@ -118,7 +118,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.242.0-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.242.2-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -1585,7 +1585,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 #sc-slot-overlay .slot-overlay-ruler-cell {font-size:calc(9.5px * var(--bar-loupe-scale,1));padding-left:calc(2px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-ruler-cell.is-offbeat-dot::after {width:calc(3px * var(--bar-loupe-scale,1));height:calc(3px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-grid {gap:calc(3px * var(--bar-loupe-scale,1));}
-#sc-slot-overlay .slot-overlay-head,#sc-slot-overlay .slot-overlay-ruler,#sc-slot-overlay .slot-overlay-grid,#sc-slot-overlay .strum-state-legend {flex-shrink:0;}
+#sc-slot-overlay .slot-overlay-head,#sc-slot-overlay .slot-overlay-ruler,#sc-slot-overlay .slot-overlay-grid {flex-shrink:0;}
 #sc-slot-overlay .dock-lyrics-beat-cells {padding-bottom:0;min-height:calc(42px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-row--lyrics .dock-lyrics-beat-cells,#sc-slot-overlay .slot-overlay-row--doremi .dock-lyrics-beat-cells {min-height:calc(46px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .dock-lyrics-beat-cells > input,#sc-slot-overlay .dock-lyrics-beat-cells > button {height:100%;}
@@ -1797,7 +1797,6 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 #sc-slot-overlay .dock-lyrics-beat-res-btn {width:calc(24px * var(--bar-loupe-scale,1));min-height:calc(12px * var(--bar-loupe-scale,1));font-size:calc(8px * var(--bar-loupe-scale,1));gap:calc(1.5px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .dock-lyrics-beat-res-btn.is-local::before {width:calc(6.5px * var(--bar-loupe-scale,1));height:calc(6.5px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .dock-strum-grid.is-inherited {opacity:1;}
-#sc-slot-overlay .strum-state-legend {font-size:calc(10px * var(--bar-loupe-scale,1));color:var(--slot-muted);margin:calc(4px * var(--bar-loupe-scale,1)) 0 0;}
 #sc-slot-overlay .dock-lyrics-grid {background:var(--slot-input-surface);}
 
 #sc-slot-overlay .dock-lyrics-cell.has-content {background:transparent;}
@@ -5996,7 +5995,6 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         content.appendChild(pianoPanel);
         placeFullEditorPiano(pianoPanel);
         syncEditorDisclosures();
-        var legend=document.createElement('p');legend.className='strum-state-legend';legend.textContent='ストローク：↓ ダウン　↑ アップ　× ミュート　〜 伸ばす　｜　R・Spaceで休符、Deleteで空欄';content.appendChild(legend);
 
 
 
