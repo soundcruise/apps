@@ -115,6 +115,28 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   for(const gone of [id,saved])assert.equal(await select.locator('option[value="'+gone+'"]').count(),0);
   assert(await select.locator(':scope > option').count()>0);
  }));
+ if(engine==='chrome')await t.test('delete confirmation remembers the imported file of the chosen row across reload',()=>fresh(async p=>{
+  const original=await snap(p),source=createUITestProject();
+  await p.evaluate(async project=>{
+   const dir=await navigator.storage.getDirectory(),handle=await dir.getFileHandle('renamed-copy.json',{create:true});
+   const writer=await handle.createWritable();await writer.write(JSON.stringify(project));await writer.close();
+   window.showOpenFilePicker=async()=>[handle];
+  },source);
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-import-json-button');
+  await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().target.projectId===id,source.projectId);
+  await p.reload();await p.click('#open-sheet-cruise');
+  const select=p.locator('#sc-project-select');await select.selectOption(original.projectId);
+  await select.selectOption({label:'ファイル一覧・削除…'});
+  const list=p.getByRole('dialog',{name:'ファイル一覧'}),confirm=p.getByRole('dialog',{name:'削除の確認'});
+  await list.getByRole('button',{name:/renamed-copy.*を削除/}).click();
+  await p.evaluate(()=>window.showOpenFilePicker=async options=>{
+   const handle=await (await navigator.storage.getDirectory()).getFileHandle('renamed-copy.json');
+   window.sameEntry=await handle.isSameEntry(options.startIn);throw new DOMException('cancel','AbortError');
+  });
+  await confirm.getByRole('button',{name:'読み込み元のフォルダを開く'}).click();await p.waitForFunction(()=>window.sameEntry===true);
+  await confirm.getByRole('button',{name:'キャンセル'}).click();assert(await list.getByRole('button',{name:/renamed-copy.*を削除/}).isVisible());
+  assert.deepEqual(await snap(p),original);
+ }));
  await t.test('leaving through Back can be cancelled or saved, and re-entry resumes without prompting',()=>fresh(async p=>{
   const id=(await snap(p)).projectId,back=p.locator('#screen-sheet-cruise .workspace-back');
   const save=p.getByRole('button',{name:'保存して進む',exact:true});
@@ -644,6 +666,12 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.evaluate(()=>{window.showOpenFilePicker=async({startIn})=>{window.locationFilename=startIn.name;throw new DOMException('cancel','AbortError');};});
   await p.locator('#sc-project-select').selectOption({label:'この曲の保存場所'});const card=p.getByRole('dialog',{name:'保存場所'});assert.equal(await card.locator('strong').textContent(),'renamed.json');
   await card.getByRole('button',{name:'保存フォルダを開く',exact:true}).click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');await card.getByText('閉じる').click();
+  await p.locator('#sc-project-select').selectOption({label:'ファイル一覧・削除…'});
+  const list=p.getByRole('dialog',{name:'ファイル一覧'}),confirm=p.getByRole('dialog',{name:'削除の確認'});
+  await list.getByRole('button',{name:/renamed.json.*を削除/}).click();
+  await p.evaluate(()=>window.locationFilename=null);
+  await confirm.getByRole('button',{name:'保存フォルダを開く'}).click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');
+  await confirm.getByRole('button',{name:'キャンセル'}).click();await list.getByRole('button',{name:'閉じる'}).click();
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
   await p.evaluate(()=>{window.picks=0;window.showSaveFilePicker=async()=>{window.picks++;throw new DOMException('cancel','AbortError');};});

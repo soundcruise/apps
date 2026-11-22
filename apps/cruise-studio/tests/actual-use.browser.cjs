@@ -13,6 +13,8 @@ for(const engine of ['chrome','webkit'])test('actual use regression: '+engine,as
  await t.test('JSON import is a named button in Tab order; Enter and Space open exactly one native chooser',()=>fresh(async(p,project)=>{
   await p.click('#sc-curve-menu-toggle');const importer=p.getByRole('button',{name:'ファイルを開く(JSON)',exact:true});await importer.waitFor();assert.equal(await importer.count(),1);
   await p.locator('#sc-new-project').focus();let found=false;for(let i=0;i<20;i++){await p.keyboard.press(engine==='webkit'?'Alt+Tab':'Tab');if(await importer.evaluate(e=>document.activeElement===e)){found=true;break;}}assert(found,'Import must be reachable using Tab');
+  // Exercise the HTML file input path available when the handle picker is unavailable.
+  await p.evaluate(()=>window.showOpenFilePicker=undefined);
   let choosers=0;p.on('filechooser',()=>choosers++);const first=p.waitForEvent('filechooser');await p.keyboard.press('Enter');await (await first).setFiles({name:'actual-use.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(project))});await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,project.projectId);assert.equal(choosers,1);
   const before=await snap(p);await p.click('#sc-curve-menu-toggle');await importer.focus();const second=p.waitForEvent('filechooser');await p.keyboard.press('Space');await(await second).setFiles([]);await settle(p);assert.equal(choosers,2);assert.deepEqual(await snap(p),before);
  }));

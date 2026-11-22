@@ -661,7 +661,7 @@
         // A label around a hidden file input is not keyboard reachable in Safari.
         // Use a native button, keeping the existing file-change/import transaction.
         var importLabel=els.importInput.closest('label');importLabel.remove();els.importInput.hidden=true;
-        var importButton=button('sc-import-json-button','ファイルを開く(JSON)',function(){els.importInput.click();});
+        var importButton=button('sc-import-json-button','ファイルを開く(JSON)',pickScoreJson);
         menuLabel('ファイル');curve.body.append(importButton,els.importInput,els.exportBtn,els.printBtn);
         if(CS().scoreViewer)curve.body.insertBefore(button('sc-export-viewer','譜面ビューワーに書き出す',downloadViewerScore),importButton);
         if(CS().scoreViewer)curve.body.insertBefore(button('sc-export-pdf','PDFとして保存',downloadProjectPDF),importButton);
@@ -1032,6 +1032,7 @@
             CS().localPaperLayout?.importPresentation(project,options.presentation);
             if(imported.size)renderPreview(true);
         }
+        return true;
     }
 
     function openProject(projectId) {
@@ -5967,10 +5968,26 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         return true;
     }
 
+    async function pickScoreJson(){
+        if(typeof window.showOpenFilePicker!=='function'){els.importInput.click();return;}
+        const intent=CS().documents.ticket(),frame=CS().structureOperations.capture(state.session);
+        try{
+            const [handle]=await window.showOpenFilePicker({types:[{description:'譜面ファイル',accept:{'application/json':['.json']}}]});
+            const file=await handle.getFile();
+            if(!CS().documents.isSelected(intent)||!CS().structureOperations.isCurrent(frame,state.session))return;
+            document.getElementById('sc-curve-menu').open=false;
+            importScoreJson(file,handle);
+        }catch(error){
+            if(error.name==='SecurityError')els.importInput.click();
+            else if(error.name!=='AbortError')setSaveStatus('ファイルを開けませんでした。もう一度選んでください。',true);
+        }
+    }
     function onImportJsonFile(event) {
         var file = event.target.files && event.target.files[0];
         event.target.value = '';
-        if (!file) return;
+        if(file)importScoreJson(file);
+    }
+    function importScoreJson(file,sourceHandle){
         var reader = new FileReader();
         var intent = CS().documents.ticket(), importFrame = CS().structureOperations.capture(state.session);
         reader.onload = async function () {
@@ -5995,13 +6012,18 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
             if(knownName && knownName.normalize('NFC')!==filename)id=CS().model.schema2.newId();
             res.project.projectId=id;
             var warnText = res.warnings.length ? '（警告: ' + res.warnings.join(' / ') + '）' : '';
-            setProject(res.project, {
+            const imported=setProject(res.project, {
                 dirty: true,
                 presentation: res.presentation,
                 importName: file.name,
                 statusMessage: 'JSONを読み込みました（未保存）' + warnText
             });
-            if(id!==sourceId && state.session?.target.projectId===id)localStorage.setItem(importKey,id);
+            if(!imported)return;
+            if(id!==sourceId)localStorage.setItem(importKey,id);
+            if(typeof window.showOpenFilePicker==='function'){
+                // Remember where the file came from independently of its future overwrite target.
+                await storedHandle(['import',id],sourceHandle||null).catch(()=>{});
+            }
             if (state.session && state.session.target.projectId === res.project.projectId &&
                 !state.session.dirty && !state.session.inputPending && !state.session.commitInFlight && state.session.baseRevision !== null) {
                 setSaveStatus('JSONを読み込みました（保存済みの内容と一致）' + warnText);
@@ -6216,12 +6238,28 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                         message.textContent=record.error||'入力・保存の完了後にもう一度お試しください。';return;
                     }
                     if(saved.has(id)!==record.exists){message.textContent='曲の状態が変わりました。もう一度選んでください。';refresh();return;}
+                    deleting=true;
                     const version=owner?.snapshotVersion;
+                    const canBrowse=typeof window.showOpenFilePicker==='function';
+                    if(canBrowse){restoreFileHandle(id);await handleReads.get(id);}
+                    const savedHandle=fileHandles.get(id);
+                    const location=savedHandle || (canBrowse && await storedHandle(['import',id]).catch(()=>null));
+                    if(!dialog.open)return;
                     const confirm=fileDialog('削除の確認'),description=document.createElement('p'),actions=document.createElement('footer');
                     description.textContent='「'+item.textContent+'」を一覧から削除しますか？ パソコンのJSONファイルは保持されます。';
                     actions.append(dialogButton('キャンセル',()=>confirm.close()),dialogButton('削除する',()=>confirm.close('delete')));
-                    confirm.append(description,actions);
-                    deleting=true;
+                    confirm.append(description);
+                    if(canBrowse && location){
+                        const hint=document.createElement('p');
+                        hint.className='sc-save-footnote';hint.hidden=true;hint.setAttribute('role','status');
+                        confirm.append(folderButton(location,hint,savedHandle?'保存フォルダを開く':'読み込み元のフォルダを開く'),hint);
+                    }else if(scoreFileName(id)){
+                        const hint=document.createElement('p');
+                        hint.className='sc-save-footnote';hint.textContent='元のファイルは、パソコンで「'+scoreFileName(id)+'」を検索して確認できます。';
+                        confirm.append(hint);
+                    }
+                    confirm.append(actions);
+                    actions.firstElementChild.autofocus=true;
                     const accepted=new Promise(resolve=>confirm.addEventListener('close',()=>resolve(confirm.returnValue==='delete'),{once:true}));
                     confirm.showModal();
                     if(!await accepted){deleting=false;remove.focus();return;}
@@ -6244,6 +6282,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                         }
                         localStorage.removeItem(fileLabelPrefix+id);
                         await handleReads.get(id);handleReads.delete(id);fileHandles.delete(id);
+                        if(canBrowse)await storedHandle(['import',id],null);
                         if(typeof window.showSaveFilePicker==='function')await storedHandle(id,null);
                         message.textContent='「'+item.textContent+'」を削除しました。';
                     }catch(error){message.textContent=error.message;}
@@ -6256,6 +6295,17 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         dialog.onclose=()=>dialog.remove();
     }
 
+    function folderButton(handle,hint,label,primary=false){
+        return dialogButton(label,async()=>{
+            try{await window.showOpenFilePicker({startIn:handle,multiple:false});}
+            catch(error){
+                if(error.name!=='AbortError'){
+                    hint.hidden=false;
+                    hint.textContent='フォルダを開けませんでした。パソコンで「'+handle.name+'」を検索してください。';
+                }
+            }
+        },primary);
+    }
     async function showFileLocation(){
         const session=state.session;
         if(!session)return;
@@ -6281,10 +6331,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         const footer=document.createElement('footer');
         footer.append(dialogButton('閉じる',()=>dialog.close()));
         if(handle && typeof window.showOpenFilePicker==='function'){
-            footer.append(dialogButton('保存フォルダを開く',async()=>{
-                try{await window.showOpenFilePicker({startIn:handle,multiple:false});}
-                catch(error){if(error.name!=='AbortError'){hint.hidden=false;hint.textContent='フォルダを開けませんでした。「名前をつけて保存」で保存先を選び直せます。';}}
-            },true));
+            footer.append(folderButton(handle,hint,'保存フォルダを開く',true));
         }
         dialog.append(footer);
         if(direct){
