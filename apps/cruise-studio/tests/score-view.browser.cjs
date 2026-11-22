@@ -445,14 +445,42 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             }
             const field=page.locator('[data-overlay-field=chord]').last();await field.fill('invalid!');await field.press('ArrowRight');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
         }));
-        await t.test('resizing the actual handle scales buttons, row names, beat labels and resolution controls',()=>fresh(async page=>{
-            await select(page);await page.locator('[data-resolution-row=chord]').first().click();await settle(page);
-            const before=await snapshot(page),history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
-            async function metrics(){return page.evaluate(()=>{const root=document.querySelector('#sc-slot-overlay');const selectors=['.slot-overlay-nav-btn','.slot-overlay-res-btn','[data-bar-preview]','.slot-overlay-close','.slot-overlay-row-label','.slot-overlay-ruler-cell','.dock-lyrics-beat-res-btn'];return {width:root.getBoundingClientRect().width,fonts:selectors.map(s=>parseFloat(getComputedStyle(root.querySelector(s)).fontSize)),button:root.querySelector('.dock-lyrics-beat-res-btn').getBoundingClientRect().width};});}
-            const small=await metrics(),handle=await page.locator('.slot-overlay-resize-handle').boundingBox();await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+handle.width/2+220,handle.y+handle.height/2,{steps:8});await page.mouse.up();await settle(page);const large=await metrics(),ratio=large.width/small.width;assert(ratio>1.15);
-            small.fonts.forEach((size,i)=>assert(Math.abs(large.fonts[i]/size-ratio)<.02));assert(Math.abs(large.button/small.button-ratio)<.02);
-            const boxes=await page.locator('.dock-lyrics-beat-res-btn').evaluateAll(elements=>elements.map(e=>{const a=e.getBoundingClientRect(),b=e.parentElement.getBoundingClientRect();return a.left>=b.left-1&&a.right<=b.right+1&&a.bottom<=b.bottom+1;}));assert(boxes.every(Boolean));
-            if(output)await page.screenshot({path:path.join(output,'loupe-enlarged.png')});assert.deepEqual(await snapshot(page),before);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
+        await t.test('measure editor edges resize independently and the corner fills the workspace',()=>fresh(async page=>{
+            await page.setViewportSize({width:1920,height:1080});
+            await select(page);
+            const before=await snapshot(page);
+            const history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
+            const card=page.locator('#sc-slot-overlay');
+            const drag=async (axis,dx,dy,cursor)=>{
+                const edge=card.locator('[data-loupe-resize="'+axis+'"]');
+                const r=await edge.boundingBox(), x=r.x+r.width/2, y=r.y+r.height/2;
+                assert.match(await edge.getAttribute('title'),/ドラッグして/);
+                assert.equal(await edge.evaluate(e=>getComputedStyle(e).cursor),cursor);
+                await page.mouse.move(x,y);
+                await page.mouse.down();
+                await page.mouse.move(x+dx,y+dy,{steps:6});
+                await page.mouse.up();
+                await settle(page);
+            };
+            const start=await card.boundingBox();
+            await drag('width',140,30,'ew-resize');
+            const wider=await card.boundingBox();
+            assert.equal(wider.width,start.width+140);
+            assert.equal(wider.height,start.height);
+            await drag('height',50,120,'ns-resize');
+            const taller=await card.boundingBox();
+            assert.equal(taller.width,wider.width);
+            assert.equal(taller.height,wider.height+120);
+            await drag('both',1600,1600,'nwse-resize');
+            const full=await card.boundingBox();
+            assert(full.width>1240);
+            assert.equal(full.y,0);
+            const main=await page.locator('#studio-main').evaluate(e=>e.getBoundingClientRect().left+e.clientWidth);
+            assert(Math.abs(full.x+full.width-main+8)<1);
+            const close=card.locator('.slot-overlay-close');
+            assert(await close.evaluate(e=>{const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}));
+            assert.deepEqual(await snapshot(page),before);
+            assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
         }));
         await t.test('explicit rests, blanks and stretches differ on screen, in JSON and after reload',()=>fresh(async page=>{
             await page.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession();const r=s.runOperation('Synthetic nonempty basic rhythm',p=>CruiseStudio.model.setBasicStrumText(p,'↓'));if(!r.ok)throw Error(r.error);});

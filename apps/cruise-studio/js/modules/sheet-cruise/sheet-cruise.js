@@ -41,21 +41,13 @@
     var STRUM_GLYPHS = { down: '↓', up: '↑', mute: 'x', empty: '', sustain: '〜' };
 
     // F1: フローティング小節ルーペのサイズ定数（docs/DECISIONS.md ADR-027）
-    var LOUPE_BASE_WIDTH = 960;     // --bar-loupe-scale = 現在幅 / この値
     var LOUPE_DEFAULT_WIDTH = 960;
-    var LOUPE_MIN_WIDTH = 680;
-    var LOUPE_MAX_WIDTH = 1240;
-    var LOUPE_MAX_WIDTH_MARGIN = 32;  // 最大幅は min(1240, viewportWidth - 32)
-    var LOUPE_TOP_MARGIN = 8;         // topは8px以上
-    var LOUPE_SIDE_VISIBLE = 120;     // 左右は最低120pxを画面内へ残す
-    var LOUPE_HEADER_RESERVE = 56;    // タイトルバーが画面内に残るための下限余白
-    var LOUPE_NARROW_BREAKPOINT = 680; // これ未満はPCファーストの安全フォールバック
-    var LOUPE_NARROW_MARGIN = 28;
-    var LOUPE_MOVE_STEP = 16;         // Alt+Shift+矢印キーでの移動量(px)
+    var LOUPE_MARGIN = 8;
+    var LOUPE_MIN_WIDTH = 280;
+    var LOUPE_MIN_HEIGHT = 160;
+    var LOUPE_NARROW_BREAKPOINT = 680;
+    var LOUPE_MOVE_STEP = 16;
     var LOUPE_APP_SETTING_KEY = 'barLoupe';
-    var LOUPE_BOTTOM_MARGIN = 8;          // v0.22.4後修正: 動的max-height算出時の下端余白
-    var LOUPE_MIN_AVAILABLE_HEIGHT = 160; // 同: 上端がbottomMarginの分だけ下がっても、
-                                           // ヘッダー・拍ルーラー・最低1行程度は必ず触れる高さ
 
     var state = {
         session: null,   // One source of truth: session-owned observable draft
@@ -81,7 +73,7 @@
         lyricBeatRes: new WeakMap(),
         // Session -> stable bar ID -> beat map. Derived views never own this UI state.
         lyricBeatResV2: new WeakMap(),
-        loupe: { x: 0, y: 0, width: LOUPE_DEFAULT_WIDTH } // F1: ルーペの位置/幅。UI状態のみ（projectに保存しない）
+        loupe: { x: 0, y: 0, width: LOUPE_DEFAULT_WIDTH, height: null } // UI geometry, stored separately from the score
     };
 
     var schemaViewVersion=null,schemaView=null,schemaViewError=null;
@@ -123,7 +115,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.239.0-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.240.0-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -1548,7 +1540,10 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 .sc-form-dialog button{border:1px solid #a0a7ae;border-radius:7px;background:white;color:#273440;padding:6px 12px;cursor:pointer;}
 .sc-form-dialog svg{display:block;width:100%;height:auto;max-height:65vh;}
 @media print{[data-edit-selected-bar],.sc-form-dialog{display:none!important;}:is(#sc-sheet-scale-box,.sc-preset-sheet-frame,.sc-song-preview,.sc-section-preview) .sheet-bar-num{min-height:0;}}
-#sc-slot-overlay {--editor-label-width:max(100px,calc(100px * var(--bar-loupe-scale,1)));--editor-label-offset:calc(var(--editor-label-width) + 8px * var(--bar-loupe-scale,1));--editor-min-cell:max(9px,calc(max(18px,24px * var(--bar-loupe-scale,1)) * var(--editor-horizontal-scale,1)));gap:calc(6px * var(--bar-loupe-scale,1));padding:calc(8px * var(--bar-loupe-scale,1)) calc(20px * var(--bar-loupe-scale,1)) calc(16px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay {--editor-label-width:max(100px,calc(100px * var(--bar-loupe-scale,1)));--editor-label-offset:calc(var(--editor-label-width) + 8px * var(--bar-loupe-scale,1));--editor-min-cell:max(9px,calc(max(18px,24px * var(--bar-loupe-scale,1)) * var(--editor-horizontal-scale,1)));padding:0;gap:0;overflow:hidden;box-sizing:border-box;}
+#sc-slot-overlay .slot-overlay-content{display:flex;flex-direction:column;gap:6px;min-height:0;overflow:auto;padding:8px 20px 16px;}
+#sc-slot-overlay .slot-overlay-content > *{flex-shrink:0;}
+#sc-slot-overlay.editor-right .slot-overlay-content{overflow:visible;}
 #sc-slot-overlay .slot-overlay-head {gap:calc(14px * var(--bar-loupe-scale,1));padding-bottom:calc(6px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-head-main,#sc-slot-overlay .slot-overlay-head-actions {gap:calc(8px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-section {font-size:calc(11px * var(--bar-loupe-scale,1));padding:calc(2px * var(--bar-loupe-scale,1)) calc(10px * var(--bar-loupe-scale,1));}
@@ -1682,11 +1677,11 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 #sc-slot-overlay.editor-right{position:relative!important;top:auto!important;left:auto!important;margin:0;width:100%;max-width:100%;min-width:0;z-index:auto;box-sizing:border-box;max-height:none!important;}
 #sc-slot-overlay.editor-right .slot-overlay-head{cursor:default;flex-wrap:wrap;gap:6px;}
 #sc-slot-overlay.editor-right .slot-overlay-head-actions{flex:1 1 100%;}
-#sc-slot-overlay.editor-right .slot-overlay-resize-handle{display:none;}
+#sc-slot-overlay.editor-right [data-loupe-resize]{display:none;}
 
 #sc-slot-overlay.editor-right .piano-keys{min-width:420px;}
 #sc-slot-overlay.editor-right .piano-keys button{font-size:10px;}
-#sc-slot-overlay .slot-overlay-head {position:sticky;top:0;z-index:5;background:var(--slot-surface);padding-left:0;padding-right:0;}
+#sc-slot-overlay .slot-overlay-head {position:sticky;top:0;z-index:5;background:var(--slot-surface);padding-left:0;padding-right:var(--loupe-tool-clearance,0px);}
 #sc-slot-overlay .slot-overlay-head-actions{--editor-header-height:max(28px,calc(28px * var(--bar-loupe-scale,1)));align-items:center;}
 #sc-slot-overlay .slot-overlay-head-actions :is(.slot-overlay-nav-btn,.slot-overlay-close,.slot-overlay-res-toggle){box-sizing:border-box;height:var(--editor-header-height);min-height:0;}
 #sc-slot-overlay .slot-overlay-head-actions button{display:inline-flex;align-items:center;justify-content:center;line-height:1;padding-block:0;}
@@ -1755,7 +1750,12 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 #sc-slot-overlay .dock-lyrics-cell.is-composing {background:rgba(74,101,126,.30);}
 #sc-slot-overlay .dock-lyrics-cell:focus {background:var(--slot-input-surface);}
 #sc-slot-overlay .slot-overlay-row-note {font-size:calc(10px * var(--bar-loupe-scale,1));}
-#sc-slot-overlay .slot-overlay-resize-handle {width:calc(24px * var(--bar-loupe-scale,1));height:calc(24px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay [data-loupe-resize]{position:absolute;z-index:6;touch-action:none;}
+#sc-slot-overlay [data-loupe-resize="width"]{top:8px;bottom:27px;right:0;width:9px;cursor:ew-resize;background:linear-gradient(var(--slot-border),var(--slot-border)) center / 2px 24px no-repeat;}
+#sc-slot-overlay [data-loupe-resize="height"]{left:8px;right:27px;bottom:0;height:9px;cursor:ns-resize;background:linear-gradient(var(--slot-border),var(--slot-border)) center / 24px 2px no-repeat;}
+#sc-slot-overlay [data-loupe-resize="both"]{display:block;}
+#sc-slot-overlay [data-loupe-resize]:hover{background-color:var(--slot-divider);}
+body.loupe-resizing,body.loupe-resizing *{cursor:var(--loupe-resize-cursor,nwse-resize)!important;user-select:none;}
 #screen-sheet-cruise>.workspace-local-nav{position:static;}
 #screen-sheet-cruise .form-field:has(#sc-basic-strum),#screen-sheet-cruise:has(.sc-compact-toolbar) #sc-editor-drawer:not([open]){display:none;}
 #screen-sheet-cruise .sc-compact-toolbar{gap:10px;overflow:visible;zoom:var(--sc-toolbar-scale,1);top:6px;}
@@ -2429,12 +2429,13 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             saved.every((tick, i) => Number.isInteger(tick) && tick < length && (!i || tick > saved[i - 1]));
         const cuts = new Set(valid ? saved : CS().model.strumCellStarts(base, locks, length));
         const events = rowEvents(bar, row);
+        const dividedStrokes = row === 'strum' && valid && grid.strumBeatGrouping === true;
         // Existing notes, rests and off-grid attacks define real boundaries, including in legacy scores.
         for (const event of events) {
             const start = event.onsetTick ?? event.tick;
             const end = start + event.durationTicks;
             if (end > start) {
-                for (const tick of cuts) if (tick > start && tick < end) cuts.delete(tick);
+                if (!dividedStrokes) for (const tick of cuts) if (tick > start && tick < end) cuts.delete(tick);
                 if (end < length) cuts.add(end);
             }
         }
@@ -3405,7 +3406,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
     function repaintPianoColors(){
         els.slotOverlay.querySelectorAll('[data-overlay-field="doremi"]').forEach(function(field){if(field._refreshColors)field._refreshColors();});renderPreview(true);refreshPiano();
     }
-    function togglePianoPanel(){var c=pianoContext();if(pianoBlocked(c))return;piano.open=!piano.open;if(!piano.open)stopPianoAudition();refreshPiano();var field=editorRoot().querySelector('[data-overlay-field="doremi"][data-slot-tick="'+c.range.tick+'"]');if(field)field.parentElement.classList.toggle('piano-color-mode',piano.open);if(piano.open){focusPianoCell(c);void ensurePianoBank().catch(function(){if(piano.open)setSaveStatus('ピアノ音源を読み込めませんでした。鍵盤を押して再試行してください。',true);});if(editorPlacement!=='right'){var area=getLoupeSafeArea();state.loupe.y=clampLoupeY(Math.min(state.loupe.y,area.bottom-area.bottomMargin-els.slotOverlay.scrollHeight-2));}els.slotOverlay.scrollTop=0;}positionSlotOverlay();}
+    function togglePianoPanel(){var c=pianoContext();if(pianoBlocked(c))return;piano.open=!piano.open;if(!piano.open)stopPianoAudition();refreshPiano();var field=editorRoot().querySelector('[data-overlay-field="doremi"][data-slot-tick="'+c.range.tick+'"]');if(field)field.parentElement.classList.toggle('piano-color-mode',piano.open);if(piano.open){focusPianoCell(c);void ensurePianoBank().catch(function(){if(piano.open)setSaveStatus('ピアノ音源を読み込めませんでした。鍵盤を押して再試行してください。',true);});if(editorPlacement!=='right'){var area=getLoupeSafeArea();state.loupe.y=clampLoupeY(Math.min(state.loupe.y,area.bottom-area.bottomMargin-editorScrollArea().scrollHeight-2));}editorScrollArea().scrollTop=0;}positionSlotOverlay();}
     function populatePiano(root){
         var c=pianoContext();root.replaceChildren();if(!c)return;syncPianoSelection(c);
         function button(label,action,attrs){
@@ -4983,41 +4984,28 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         return getLoupeSafeArea().width < LOUPE_NARROW_BREAKPOINT;
     }
 
-    /**
-     * ルーペ幅のクランプ。ShellではMain実幅の左右余白内に収める。
-     * 280pxの操作幅も可用幅より大きくしない。狭幅でも範囲内でresizeできる。
-     */
-    function clampLoupeWidth(width) {
-        var area = getLoupeSafeArea();
-        var vw = area.width;
-        var maxW = Math.max(1, Math.min(LOUPE_MAX_WIDTH, vw - (area.contain ? 16 : LOUPE_MAX_WIDTH_MARGIN)));
-        var minW = Math.min(area.contain ? 280 : LOUPE_MIN_WIDTH, maxW);
-        var w = (typeof width === 'number' && isFinite(width)) ? width : LOUPE_DEFAULT_WIDTH;
-        return Math.max(minW, Math.min(maxW, w));
+    function clampLoupeWidth(width, area = getLoupeSafeArea()) {
+        const max = Math.max(1, area.width - 2 * LOUPE_MARGIN);
+        return Math.max(Math.min(LOUPE_MIN_WIDTH, max), Math.min(max, width));
     }
 
-    /**
-     * 水平位置のクランプ。Shellのcontain領域では左右をMain境界内に保つ。
-     * standalone fallbackのみ従来の120px可視制約を使う。
-     */
-    function clampLoupeX(x, width) {
-        var vw = getLoupeSafeArea().width;
-        var area = getLoupeSafeArea();
-        var minX = area.contain ? area.left + 8 : LOUPE_SIDE_VISIBLE - width;
-        var maxX = area.contain ? area.right - width - 8 : vw - LOUPE_SIDE_VISIBLE;
-        if (minX > maxX) return Math.round(area.contain ? area.left + (vw - width) / 2 : (vw - width) / 2);
-        var v = (typeof x === 'number' && isFinite(x)) ? x : (vw - width) / 2;
-        return Math.round(Math.max(minX, Math.min(maxX, v)));
+    function clampLoupeX(x, width, area = getLoupeSafeArea()) {
+        const left = area.left + LOUPE_MARGIN;
+        return Math.max(left, Math.min(area.right - LOUPE_MARGIN - width, x));
     }
 
-    // Overlap with the Project toolbar is allowed. Keep global navigation usable.
+    function clampLoupeHeight(height, area) {
+        const max = Math.max(1, area.bottom - area.top - area.bottomMargin);
+        return Math.max(Math.min(LOUPE_MIN_HEIGHT, max), Math.min(max, height));
+    }
+
     function readDefaultLoupeSafeArea() {
-        return {width:window.innerWidth,height:window.innerHeight,top:0,bottom:window.innerHeight,bottomMargin:LOUPE_BOTTOM_MARGIN};
+        return {left:0, right:window.innerWidth, width:window.innerWidth, height:window.innerHeight,
+            top:0, bottom:window.innerHeight, bottomMargin:LOUPE_MARGIN};
     }
 
     // viewport座標のまま、将来Header / Dockの境界だけを注入する。
     // providerはwidth / height / top / bottom / bottomMarginを返す。
-    var loupeInspectorWidth = null;
     function wideInspectorOpen() {
         var inspector = document.getElementById('sc-melody-inspector');
         return window.innerWidth >= 1280 && inspector && !inspector.hidden;
@@ -5046,68 +5034,31 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         scheduleOverlayPosition(false);
     }
 
-    function getLoupeMinTop() {
-        return getLoupeSafeArea().top;
+    function clampLoupeY(y, area = getLoupeSafeArea()) {
+        const reserve = clampLoupeHeight(state.loupe.height ?? LOUPE_MIN_HEIGHT, area);
+        return Math.max(area.top, Math.min(area.bottom - area.bottomMargin - reserve, y));
     }
 
-    /**
-     * 垂直位置のクランプ。topはviewportの0px以上（ローカルナビとの重なりを許可）、
-     * 下端はタイトルバー（閉じるボタン含む）が必ず画面内に残る位置までに制限する。
-     */
-    function clampLoupeY(y) {
-        var bottom = getLoupeSafeArea().bottom;
-        var minY = getLoupeMinTop();
-        var area = getLoupeSafeArea();
-        var reserve = area.contain ? LOUPE_MIN_AVAILABLE_HEIGHT + area.bottomMargin : LOUPE_HEADER_RESERVE;
-        var maxY = Math.max(minY, bottom - reserve);
-        var v = (typeof y === 'number' && isFinite(y)) ? y : minY;
-        return Math.round(Math.max(minY, Math.min(maxY, v)));
-    }
-
-    function loadLoupeSettings() {
-        var storage = CS().storage;
-        if (!storage || !storage.getAppSetting) return null;
-        var saved = storage.getAppSetting(LOUPE_APP_SETTING_KEY);
-        if (!saved || typeof saved !== 'object') return null;
-        if (typeof saved.x !== 'number' || typeof saved.y !== 'number' || typeof saved.width !== 'number' ||
-            !isFinite(saved.x) || !isFinite(saved.y) || !isFinite(saved.width)) {
-            return null; // 壊れた値・異常値は無視して初期値へ戻す
-        }
-        return { x: saved.x, y: saved.y, width: saved.width };
+    function editorScrollArea() {
+        return els.slotOverlay.querySelector('.slot-overlay-content') || els.slotOverlay;
     }
 
     function saveLoupeSettings() {
-        var storage = CS().storage;
-        if (!storage || !storage.setAppSetting) return;
-        storage.setAppSetting(LOUPE_APP_SETTING_KEY, {
-            x: state.loupe.x, y: state.loupe.y, width: state.loupe.width
-        });
+        CS().storage?.setAppSetting?.(LOUPE_APP_SETTING_KEY, {...state.loupe});
     }
 
-    /**
-     * 起動時に1度だけ呼ぶ。保存済み位置があれば復元（現在の画面サイズへクランプ）、
-     * なければ初期位置（水平中央・垂直はやや下寄り）を計算する。
-     */
     function initLoupeGeometry() {
-        var saved = loadLoupeSettings();
-        var width = clampLoupeWidth(saved ? saved.width : LOUPE_DEFAULT_WIDTH);
-        var x, y;
-        if (saved) {
-            x = clampLoupeX(saved.x, width);
-            y = clampLoupeY(saved.y);
-        } else {
-            var safeArea = getLoupeSafeArea();
-            x = clampLoupeX((safeArea.width - width) / 2, width);
-            y = clampLoupeY(safeArea.height * 0.52);
-        }
-        state.loupe = { x: x, y: y, width: width };
+        const saved = CS().storage?.getAppSetting?.(LOUPE_APP_SETTING_KEY);
+        const area = getLoupeSafeArea();
+        const width = Number.isFinite(saved?.width) && saved.width > 0 ? saved.width : LOUPE_DEFAULT_WIDTH;
+        state.loupe = {
+            x: Number.isFinite(saved?.x) ? saved.x : area.left + (area.width - width) / 2,
+            y: Number.isFinite(saved?.y) ? saved.y : area.height * 0.52,
+            width,
+            height: Number.isFinite(saved?.height) && saved.height > 0 ? saved.height : null
+        };
     }
 
-    /**
-     * state.loupe を実DOMへ反映する。#sc-slot-overlay はrenderSlotOverlayContent()が
-     * innerHTML='' で子要素だけを作り直すため、この関数はルート要素自身のインラインstyle
-     * （left/top/width/--bar-loupe-scale）を書くだけでよく、再描画のたびに呼んでも安全。
-     */
     function setEditorPlacement(mode){
         finishTextInputs();var bridge=CS().localEditorPane;
         if(!bridge){setSaveStatus('右窓への移動はローカル開発入口で利用できます',true);return;}
@@ -5119,66 +5070,36 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         }else bridge.unmount(els.slotOverlay);
     }
     function applyLoupeGeometry() {
-        if (!els.slotOverlay) return;
-        if(editorPlacement==='right'){els.slotOverlay.style.left='';els.slotOverlay.style.top='';els.slotOverlay.style.width='';els.slotOverlay.style.maxHeight='calc(100vh - 24px)';els.slotOverlay.style.setProperty('--bar-loupe-scale','1');els.slotOverlay.classList.add('slot-overlay--narrow');return;}
-        // v0.22.4後修正: initLoupeGeometry()はアプリ起動直後（まだTOP画面でapp-navが
-        // hidden化されている時点）に1度だけ呼ばれるため、その時点のclampLoupeYは
-        // #app-navの高さを0として計算してしまい、実際に譜面クルーズ画面でルーペが
-        // 開かれる頃にはタイトルバーがapp-navの裏へ入り込む不具合があった。
-        // DOMへ実際に反映するこの関数の入口でY座標を都度再クランプすることで、
-        // ルーペが表示されるたび（renderSlotOverlayContent経由）に、その時点の
-        // app-nav表示状態・viewportに合わせて必ず補正する。ドラッグ・リサイズの
-        // 呼び出し元は既にclampLoupeY済みの値を渡すため、ここでの再クランプは
-        // 冪等（値が変わらない）で、意図した位置を余分にリセットすることはない。
-        // Inspector occupancy is temporary UI geometry, not a saved width preference.
-        if (wideInspectorOpen()) {
-            if (loupeInspectorWidth === null) loupeInspectorWidth = state.loupe.width;
-        } else if (loupeInspectorWidth !== null) {
-            state.loupe.width = loupeInspectorWidth; loupeInspectorWidth = null;
+        const overlay = els.slotOverlay;
+        if (!overlay) return;
+        if (editorPlacement === 'right') {
+            Object.assign(overlay.style, {left:'', top:'', width:'', height:'', maxHeight:''});
+            overlay.classList.add('slot-overlay--narrow');
+            overlay.style.removeProperty('--loupe-tool-clearance');
+            return;
         }
-        state.loupe.width = clampLoupeWidth(state.loupe.width);
-        state.loupe.x = clampLoupeX(state.loupe.x, state.loupe.width);
-        state.loupe.y = clampLoupeY(state.loupe.y);
-        els.slotOverlay.style.left = state.loupe.x + 'px';
-        els.slotOverlay.style.top = state.loupe.y + 'px';
-        els.slotOverlay.style.width = state.loupe.width + 'px';
-        // v0.22.4後修正: 上端clamp強化（#app-nav・.sheet-toolbar考慮）でtopの下限が
-        // 上がったため、CSS側の固定`max-height: calc(100vh - 16px)`のままだと
-        // 下端がviewportを超えうる。実際のtopを引いた利用可能高さをinline styleで
-        // 都度設定し、CSSのmax-heightより優先させる（CSS側はJS無効時のフォールバック
-        // として残す）。最低LOUPE_MIN_AVAILABLE_HEIGHTは確保し、極端に低いviewportでも
-        // ヘッダー・拍ルーラー等の主要操作部には触れられるようにする。
-        var safeArea = getLoupeSafeArea();
-        var availableHeight = Math.max(
-            safeArea.contain ? 1 : LOUPE_MIN_AVAILABLE_HEIGHT,
-            safeArea.bottom - state.loupe.y - safeArea.bottomMargin
-        );
-        els.slotOverlay.style.maxHeight = availableHeight + 'px';
-        els.slotOverlay.style.setProperty('--bar-loupe-scale', String(state.loupe.width / LOUPE_BASE_WIDTH));
-        els.slotOverlay.classList.toggle('slot-overlay--narrow', isNarrowViewport() || state.loupe.width < LOUPE_NARROW_BREAKPOINT);
+        // Temporary shell constraints never overwrite the user's size and position.
+        const area = getLoupeSafeArea();
+        const loupe = state.loupe;
+        const width = clampLoupeWidth(loupe.width, area);
+        const x = clampLoupeX(loupe.x, width, area);
+        const y = clampLoupeY(loupe.y, area);
+        const availableHeight = Math.max(1, area.bottom - y - area.bottomMargin);
+        Object.assign(overlay.style, {
+            left:x + 'px', top:y + 'px', width:width + 'px',
+            maxHeight:availableHeight + 'px',
+            height:loupe.height === null ? '' : clampLoupeHeight(loupe.height, area) + 'px'
+        });
+        const tool = q('studio-tool-toggle')?.getBoundingClientRect();
+        const headerClearance = tool?.width && y < tool.bottom ? Math.max(0, x + width - 20 - tool.left + 8) : 0;
+        overlay.style.setProperty('--loupe-tool-clearance', headerClearance + 'px');
+        overlay.classList.toggle('slot-overlay--narrow', isNarrowViewport() || width - headerClearance < LOUPE_NARROW_BREAKPOINT);
         positionBulkPopover();
-    }
-
-    /**
-     * ウィンドウリサイズ時の再クランプ（幅→位置の順）。幅が変わった場合はappSettingsも
-     * 補正後の値へ更新する（仕様上「更新してよい」とされているため、ずれを溜め込まない）。
-     */
-    function reclampLoupeOnResize() {
-        if (!els.slotOverlay) return;
-        if(editorPlacement==='right'){applyLoupeGeometry();return;}
-        if (wideInspectorOpen() || loupeInspectorWidth !== null) { applyLoupeGeometry(); return; }
-        var newWidth = clampLoupeWidth(state.loupe.width);
-        var widthChanged = newWidth !== state.loupe.width;
-        state.loupe.width = newWidth;
-        state.loupe.x = clampLoupeX(state.loupe.x, newWidth);
-        state.loupe.y = clampLoupeY(state.loupe.y);
-        applyLoupeGeometry();
-        if (widthChanged) saveLoupeSettings();
     }
 
     // ドラッグを開始しない要素（ボタン・入力欄・ポップオーバー・リサイズハンドル等）
     var LOUPE_DRAG_IGNORE_SELECTOR =
-        'button, input, select, textarea, a, .slot-overlay-bulk-popover, .slot-overlay-resize-handle';
+        'button, input, select, textarea, a, .slot-overlay-bulk-popover, [data-loupe-resize]';
 
     function onLoupeHeaderPointerDown(event) {
         if(editorPlacement==='right')return;
@@ -5189,15 +5110,14 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         var pointerId = event.pointerId;
         var startX = event.clientX;
         var startY = event.clientY;
-        var originX = state.loupe.x;
-        var originY = state.loupe.y;
+        const start = els.slotOverlay.getBoundingClientRect();
         try { header.setPointerCapture(pointerId); } catch (_) { /* ignore */ }
         document.body.classList.add('loupe-dragging');
 
         function onMove(e) {
             if (e.pointerId !== pointerId) return;
-            state.loupe.x = clampLoupeX(originX + (e.clientX - startX), state.loupe.width);
-            state.loupe.y = clampLoupeY(originY + (e.clientY - startY));
+            state.loupe.x = clampLoupeX(start.left + (e.clientX - startX), start.width);
+            state.loupe.y = clampLoupeY(start.top + (e.clientY - startY));
             applyLoupeGeometry();
         }
         function onUp(e) {
@@ -5228,53 +5148,65 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         else if (event.key === 'ArrowDown') dy = LOUPE_MOVE_STEP;
         else return;
         event.preventDefault();
-        state.loupe.x = clampLoupeX(state.loupe.x + dx, state.loupe.width);
-        state.loupe.y = clampLoupeY(state.loupe.y + dy);
+        const rect = els.slotOverlay.getBoundingClientRect();
+        state.loupe.x = clampLoupeX(rect.left + dx, rect.width);
+        state.loupe.y = clampLoupeY(rect.top + dy);
         applyLoupeGeometry();
         saveLoupeSettings();
     }
 
-    /**
-     * 右下ハンドルでの比例リサイズ。幅だけをドラッグで変え、--bar-loupe-scaleの更新を通じて
-     * フォントサイズ・行高さ・セル等がCSS側で比例拡大縮小する（高さは内容に応じた自動のまま）。
-     */
     function onLoupeResizePointerDown(event) {
-        if(editorPlacement==='right')return;
-        if (event.button !== undefined && event.button !== 0) return;
+        if (editorPlacement === 'right' || event.button !== 0 || !event.isPrimary) return;
         event.preventDefault();
         event.stopPropagation();
-        var handle = event.currentTarget;
-        var pointerId = event.pointerId;
-        var startX = event.clientX;
-        var startWidth = state.loupe.width;
-        try { handle.setPointerCapture(pointerId); } catch (_) { /* ignore */ }
+        const handle = event.currentTarget;
+        const {pointerId, clientX, clientY} = event;
+        const axis = handle.dataset.loupeResize;
+        const start = els.slotOverlay.getBoundingClientRect();
+        let resized = false;
+        handle.setPointerCapture(pointerId);
         document.body.classList.add('loupe-resizing');
+        document.body.style.setProperty('--loupe-resize-cursor', getComputedStyle(handle).cursor);
 
-        function onMove(e) {
+        function move(e) {
             if (e.pointerId !== pointerId) return;
-            var newWidth = clampLoupeWidth(startWidth + (e.clientX - startX));
-            state.loupe.width = newWidth;
-            if (loupeInspectorWidth !== null) loupeInspectorWidth = newWidth;
-            state.loupe.x = clampLoupeX(state.loupe.x, newWidth);
+            const dx = axis === 'height' ? 0 : e.clientX - clientX;
+            const dy = axis === 'width' ? 0 : e.clientY - clientY;
+            if (!resized && !dx && !dy) return;
+            resized = true;
+            const area = getLoupeSafeArea();
+            const loupe = state.loupe;
+            // Capture the initial rendered height so wrapping after a horizontal drag
+            // cannot change it. Keep moving the origin when a growing edge hits a limit.
+            loupe.height = axis === 'width' ? start.height : clampLoupeHeight(start.height + dy, area);
+            if (axis !== 'height') {
+                loupe.width = clampLoupeWidth(start.width + dx, area);
+                loupe.x = start.left;
+            }
+            loupe.y = start.top;
             applyLoupeGeometry();
         }
-        function onUp(e) {
+        function end(e) {
             if (e.pointerId !== pointerId) return;
-            try { handle.releasePointerCapture(pointerId); } catch (_) { /* ignore */ }
-            handle.removeEventListener('pointermove', onMove);
-            handle.removeEventListener('pointerup', onUp);
-            handle.removeEventListener('pointercancel', onUp);
+            handle.removeEventListener('pointermove', move);
+            handle.removeEventListener('lostpointercapture', end);
+            window.removeEventListener('pointerup', end, true);
+            window.removeEventListener('pointercancel', end, true);
             document.body.classList.remove('loupe-resizing');
-            saveLoupeSettings();
+            document.body.style.removeProperty('--loupe-resize-cursor');
+            if (resized) saveLoupeSettings();
         }
-        handle.addEventListener('pointermove', onMove);
-        handle.addEventListener('pointerup', onUp);
-        handle.addEventListener('pointercancel', onUp);
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('lostpointercapture', end);
+        window.addEventListener('pointerup', end, true);
+        window.addEventListener('pointercancel', end, true);
     }
 
-    function buildLoupeResizeHandle() {
-        var handle = document.createElement('div');
-        handle.className = 'slot-overlay-resize-handle';
+    function buildLoupeResizeHandle(axis, title) {
+        const handle = document.createElement('div');
+        if (axis === 'both') handle.className = 'slot-overlay-resize-handle';
+        handle.dataset.loupeResize = axis;
+        handle.title = title;
         handle.setAttribute('aria-hidden', 'true');
         handle.addEventListener('pointerdown', onLoupeResizePointerDown);
         return handle;
@@ -5634,11 +5566,14 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         windowActions.append(placement, helpBtn, closeBtn);
         headActions.appendChild(windowActions);
         head.appendChild(headActions);
-        els.slotOverlay.appendChild(head);
+        const content = document.createElement('div');
+        content.className = 'slot-overlay-content';
+        content.appendChild(head);
+        els.slotOverlay.appendChild(content);
 
         var canonical=state.session.draft,anchor=canonical.bars.findIndex(function(b){return b.id===editorAnchorId;});
         if(editorBars===1||anchor<0||state.selectedBarNumber<anchor+1||state.selectedBarNumber>anchor+editorBars){anchor=Math.max(0,state.selectedBarNumber-1);editorAnchorId=canonical.bars[anchor].id;}
-        var viewport=document.createElement('div');viewport.className='editor-score-scroll';viewport.dataset.anchor=editorAnchorId;els.slotOverlay.appendChild(viewport);var measures=document.createElement('div');measures.className='editor-measures';measures.dataset.count=Math.min(editorBars,canonical.bars.length-anchor);measures.style.setProperty('--editor-count',measures.dataset.count);viewport.appendChild(measures);
+        var viewport=document.createElement('div');viewport.className='editor-score-scroll';viewport.dataset.anchor=editorAnchorId;content.appendChild(viewport);var measures=document.createElement('div');measures.className='editor-measures';measures.dataset.count=Math.min(editorBars,canonical.bars.length-anchor);measures.style.setProperty('--editor-count',measures.dataset.count);viewport.appendChild(measures);
         const displayedBars=state.project.bars.slice(anchor,anchor+editorBars);
         scoreUI?.bindScoreZoom(viewport,{read:()=>editorHorizontalZoom/100,write:value=>changeHorizontalZoom(value*100),enabled:editorCanMove});
         displayedBars.forEach(function(bar){
@@ -5696,14 +5631,17 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         });
         bindEditorRanges(viewport, priorAnchor===editorAnchorId ? selectedStrokeStart : undefined);
         measures.classList.toggle('has-fine-values',Array.from(measures.querySelectorAll('[data-slot-ticks]')).some(cell=>Number(cell.dataset.slotTicks)<120));
-        els.slotOverlay.appendChild(buildPianoPanel());
+        content.appendChild(buildPianoPanel());
         syncEditorDisclosures();
-        var legend=document.createElement('p');legend.className='strum-state-legend';legend.textContent='ストローク：↓ ダウン　↑ アップ　× ミュート　〜 伸ばす　｜　R・Spaceで休符、Deleteで空欄';els.slotOverlay.appendChild(legend);
+        var legend=document.createElement('p');legend.className='strum-state-legend';legend.textContent='ストローク：↓ ダウン　↑ アップ　× ミュート　〜 伸ばす　｜　R・Spaceで休符、Deleteで空欄';content.appendChild(legend);
 
 
 
-        // F1: 右下ハンドル（比例リサイズ）。狭い画面ではCSS側で非表示にする
-        els.slotOverlay.appendChild(buildLoupeResizeHandle());
+        els.slotOverlay.append(
+            buildLoupeResizeHandle('width', '左右にドラッグして幅を変える'),
+            buildLoupeResizeHandle('height', '上下にドラッグして高さを変える'),
+            buildLoupeResizeHandle('both', 'ドラッグして幅と高さを変える')
+        );
 
         els.slotOverlay.classList.remove('hidden');
         els.slotOverlay.setAttribute('aria-hidden', 'false');
@@ -5792,7 +5730,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             updateSheetScale();
             if (refresh) syncSheetSelection();
             else positionSlotOverlay();
-            reclampLoupeOnResize(); // F1: ウィンドウサイズ変更のたびにルーペの位置・幅も再クランプする
+            applyLoupeGeometry();
         });
     }
 
@@ -6051,7 +5989,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             state.loupe.y=clampLoupeY(Math.min(112,getLoupeSafeArea().height*0.12));
             applyLoupeGeometry();
         }
-        els.slotOverlay.scrollTop=0;
+        editorScrollArea().scrollTop=0;
     }
     async function openPaperForm(cell,eventId,tick,fromEditor=false,positions=null){
         if(!editorCanMove()||!CS().localPaperForms)return;
@@ -6931,7 +6869,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         document.addEventListener('keydown',onPlaybackSpace);
         document.addEventListener('keydown',onBarClipboardKey);
         document.addEventListener('keydown',onPaperNavigationKey);
-        els.slotOverlay.tabIndex=-1;els.slotOverlay.addEventListener('pointerdown',function(e){if(e.composedPath().some(function(node){return node?.matches?.('[data-chord-picker]');}))return;if(!e.target.closest('button,input,textarea,select,a,[contenteditable],[data-piano-event],.slot-overlay-resize-handle')&&editorCanMove())els.slotOverlay.focus({preventScroll:true});});
+        els.slotOverlay.tabIndex=-1;els.slotOverlay.addEventListener('pointerdown',function(e){if(e.composedPath().some(function(node){return node?.matches?.('[data-chord-picker]');}))return;if(!e.target.closest('button,input,textarea,select,a,[contenteditable],[data-piano-event],[data-loupe-resize]')&&editorCanMove())els.slotOverlay.focus({preventScroll:true});});
         document.addEventListener('focusin', function () { focusEpoch++; finishTextInputs(); }, true);
         // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
         els.root.addEventListener('compositionstart', function (event) {

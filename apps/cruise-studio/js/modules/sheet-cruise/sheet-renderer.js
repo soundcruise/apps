@@ -290,7 +290,7 @@
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,inputGridForRow,octaveForNote,songInfo,rests,heldForNote,formRow,melodyStarts,savedLyrics) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,inputGridForRow,octaveForNote,songInfo,rests,heldForNote,formRow,melodyStarts,savedLyrics,savedStrum) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -344,7 +344,7 @@
         // This adds no rhythm events; blank-stroke playback remains a projection.
         if (show.strum) {
             appendRow(unsupportedStrum?el('div','sheet-bar-row sheet-bar-strum',strum.name+'：採用リズムの印刷は未対応'):
-                buildPresetStrumRow(strum?.slots||[],length,startsFor('strum'),strum?.leadingSustainTicks),null);
+                buildPresetStrumRow(strum?.slots||[],length,validStarts(savedStrum,length) ? savedStrum : startsFor('strum'),strum?.leadingSustainTicks),null);
         }
         const lyricStarts = validStarts(savedLyrics,length)
             ? [...new Set([...savedLyrics,...bar.lyrics.map(e=>e.tick)])].sort((a,b)=>a-b) : startsFor('lyrics');
@@ -440,7 +440,7 @@
                     const source=canonical?.bars[bar.barNumber-1];
                     const savedGrid=source && canonical.extensions?.scoreCellValuesV1?.[source.id];
                     const written=source && writtenMelodyStarts(savedGrid,source.melody,beats*CS().model.TICKS_PER_BEAT,true);
-                    const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.inputGridForRow,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index],written,savedGrid?.lyrics);
+                    const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.inputGridForRow,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index],written,savedGrid?.lyrics,savedGrid?.strumBeatGrouping === true ? savedGrid.strum : null);
                     if(section?.sizes){
                         for(const [key,size] of Object.entries(section.sizes))cell.style.setProperty('--sc-section-'+key,size+'px');
                         if(section.sizes.formScale&&formRows[index])formRows[index].dataset.sectionFormScale=section.sizes.formScale;
