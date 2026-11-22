@@ -1365,9 +1365,24 @@
     // Both the paper and its settings preview use the same snapshot and display choices.
     function effectivePaperVisibility(project){var show=CS().sheetRenderer.resolveShowSettings(project);return {chords:show.chords,strum:show.strum,lyrics:show.lyrics,doremi:show.doremi,forms:!!paperFormSessions.get(state.session),timingGrid:CS().localPaperLayout?.value.timingGrid??show.timingGrid,gridResolution:CS().localPaperLayout?.value.gridResolution??show.gridResolution,...CS().localPaperLayout?.value.appearance.visibility};}
     var lastPaperColumns;
+    function catalogueEditHandler(owner,version){
+        return selection=>{
+            if(owner!==state.session||owner.snapshotVersion!==version||historyPreview)return;
+            if(Array.isArray(selection))openCatalogueFormEditor(owner,selection);
+            else editRegisteredForm(owner,selection);
+        };
+    }
+    function refreshSavedCatalogue(owner){
+        const list=els.scaleBox.querySelector('.sc-form-list');
+        if(!list||historyPreview)return;
+        const current=CS().localPaperForms.list(owner.workingSnapshot(),{onEdit:catalogueEditHandler(owner,owner.snapshotVersion)});
+        if(!current){list.remove();return;}
+        list.replaceWith(current);
+        CS().localPaperForms.resizeList(els.scaleBox,CS().localPaperLayout.value.formListScale);
+    }
     function paperRenderOptions(project,version=state.session?.snapshotVersion,editableCatalogue=false){
         const owner=state.session;
-        var layout=CS().localPaperLayout?.renderOptions(project,els.root,editableCatalogue?selection=>{if(owner.snapshotVersion!==version)return;if(Array.isArray(selection))openCatalogueFormEditor(owner,selection);else editRegisteredForm(owner,selection);}:undefined),defaultForms=effectivePaperVisibility(project).forms;
+        var layout=CS().localPaperLayout?.renderOptions(project,els.root,editableCatalogue?catalogueEditHandler(owner,version):undefined),defaultForms=effectivePaperVisibility(project).forms;
         lastPaperColumns=layout?.barsPerLine;
         var forms=(defaultForms||layout?.sectionRules.some(rule=>rule.visibility?.forms))&&CS().localPaperForms?.view(project,{scale:CS().localPaperLayout?.value.formScale});
         const rowSettings=state.lyricBeatResV2.get(state.session);
@@ -6538,6 +6553,7 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
         CS().sessions.subscribe(function (session, kind) {
             backupDraft(session);
             if (state.session !== session) return;
+            if(kind==='commit-success')refreshSavedCatalogue(session);
             if(kind==='operation'&&pianoAudition?.snapshot().mode)pianoAudition.cancel();
             if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)){cancelRangeSelection();cancelBarDrag();editorHelp?.close({restoreFocus:false});stopPianoAudition();textDiagnostics.delete(session);}
             if(!state.project){renderInvalidProject();refreshSessionStatus();publishSelection();return;}

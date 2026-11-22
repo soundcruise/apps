@@ -89,6 +89,9 @@ for (const engine of ['chrome','webkit']) test('edit the selected form from pape
         await page.keyboard.press('Meta+Shift+z');assert.equal(await finger.getAttribute('aria-label'),changedFinger);
         page.once('dialog',d=>d.dismiss());await direct.press('Escape');assert(await direct.isVisible());
         await finger.press('Meta+z');await direct.press('Escape');await direct.waitFor({state:'detached'});
+        // Saving advances the session version while the same paper stays visible.
+        const committed=await page.evaluate(async()=> (await CruiseStudio.sheetCruise.getSession().commit()).ok);
+        assert.equal(committed,true);
         await list.click();
         const zoom=page.locator('dialog.sc-readonly-form[open]');
         async function expectBarres(p){
