@@ -847,9 +847,26 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
         el.querySelector('select').getBoundingClientRect().left - el.firstElementChild.getBoundingClientRect().right);
     assert(labelGap >= 5, 'stroke label gap: '+labelGap);
     assert.equal(await cell(0).evaluate(el=>getComputedStyle(el).fontSize),'9px');
-    await cell(0).selectOption('8.');
-    assert.equal(await cell(0).locator(':checked').textContent(),'8·');
-    assert.equal(await cell(360).inputValue(),'16');
+    const picker=page.getByRole('dialog',{name:'マスの音価'});
+    const dot=picker.getByRole('checkbox',{name:'付点'});
+    await cell(0).click();
+    for (const name of ['全','2分','4分','8分','16分']) {
+        await picker.getByRole('radio',{name,exact:true}).check();
+        assert.equal(await dot.isEnabled(), name!=='全');
+    }
+    for (const [name,ticks] of [['2分',1440],['4分',720],['16分',180]]) {
+        await picker.getByRole('radio',{name,exact:true}).check();
+        await dot.check();
+        await picker.getByText('適用',{exact:true}).click();
+        assert.equal(await field(0).getAttribute('data-slot-ticks'),String(ticks));
+        await page.click('#sc-undo',{force:true});
+        await cell(0).click();
+    }
+    await picker.getByRole('radio',{name:'8分',exact:true}).check();
+    await dot.check();
+    await picker.getByText('適用',{exact:true}).click();
+    assert.equal(await cell(0).textContent(),'8·');
+    assert.equal(await cell(360).textContent(),'16');
     for (const [tick,pitch] of [[0,'ド'],[360,'レ']]) {
         await field(tick).fill(pitch);
         await field(tick).press('Tab');
@@ -866,7 +883,9 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     for (let i=0;i<3;i++) await page.click('#sc-undo',{force:true});
     assert.deepEqual(await snapshot(),before);
     await row.selectOption('8');
-    assert.deepEqual(await cell(240).locator('option').allTextContents(),['1','2','4','8·','8','16']);
+    await cell(1680).click();
+    assert(await dot.isDisabled());
+    await picker.getByText('キャンセル',{exact:true}).click();
     await cell(240).press('ArrowDown');
     assert.equal(await row.inputValue(),'');
     assert.equal(await row.locator(':checked').textContent(),'混在');
@@ -882,7 +901,9 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     assert.equal(await row.inputValue(),'8');
     await page.click('#sc-redo',{force:true});
     assert.deepEqual((await snapshot()).extensions,mixed.extensions);
-    await cell(480).selectOption('2');
+    await cell(480).click();
+    await picker.getByRole('radio',{name:'2分',exact:true}).check();
+    await picker.getByText('適用',{exact:true}).click();
     await field(480).fill('ド');
     await field(480).press('Tab');
     await page.waitForFunction(() => CruiseStudio.sheetCruise.getSession().draft.bars[0].melody.some(e=>e.onsetTick===480 && e.durationTicks===960));
@@ -898,8 +919,11 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     await page.locator('[data-bar-preview]').click();
     await page.waitForFunction(bpm=>window.playedLengths.some(n=>Math.abs(n-120/bpm)<0.001),song.songInfo.bpm);
     await page.locator('[data-bar-preview]').click();
-    await cell(0).focus();
-    assert(await cell(0).locator('option[value="2"]').isDisabled());
+    await cell(0).click();
+    assert(await picker.getByRole('radio',{name:'2分',exact:true}).isDisabled());
+    await picker.getByRole('radio',{name:'4分',exact:true}).check();
+    assert(await dot.isDisabled());
+    await picker.getByText('キャンセル',{exact:true}).click();
     assert.equal(await field(480).inputValue(),'ド');
     await row.selectOption('4');
     await page.getByRole('dialog',{name:'行の音価をそろえる'}).getByText('適用',{exact:true}).click();

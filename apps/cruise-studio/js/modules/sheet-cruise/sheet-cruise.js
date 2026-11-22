@@ -2026,12 +2026,12 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 .sc-pattern-onset{position:relative;padding-bottom:10px;}
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
-#sc-slot-overlay select.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
-#sc-slot-overlay select.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;padding:0;background:transparent;border:0;color:#526573;font-size:max(9px,calc(9px * var(--bar-loupe-scale,1)));font-variant-numeric:tabular-nums;}
-#sc-slot-overlay select.editor-cell-value:hover,#sc-slot-overlay select.editor-cell-value:focus-visible{background:#e6edf2;color:#233f53;}
-#sc-slot-overlay select.editor-cell-value[data-unusual-value]{width:auto;max-width:calc(100% - 2px);}
+#sc-slot-overlay button.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
+#sc-slot-overlay button.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0 2px 1px;background:transparent;border:0;color:#526573;font-size:max(9px,calc(9px * var(--bar-loupe-scale,1)));font-variant-numeric:tabular-nums;}
+#sc-slot-overlay button.editor-cell-value:hover,#sc-slot-overlay button.editor-cell-value:focus-visible{background:#e6edf2;color:#233f53;}
+#sc-slot-overlay button.editor-cell-value[data-unusual-value]{width:auto;max-width:calc(100% - 2px);}
 #sc-slot-overlay select.editor-row-resolution{width:max(27px,calc(31px * var(--bar-loupe-scale,1)));}
-#sc-slot-overlay select.editor-cell-value:focus-visible,#sc-slot-overlay select.editor-row-resolution:focus-visible{outline:2px solid #3676a6;z-index:4;}
+#sc-slot-overlay button.editor-cell-value:focus-visible,#sc-slot-overlay select.editor-row-resolution:focus-visible{outline:2px solid #3676a6;z-index:4;}
 #sc-slot-overlay .editor-measure:not(:first-child) :is(.slot-overlay-row-label,.slot-overlay-ruler-label){display:flex;}
 #sc-slot-overlay .sc-editor-transfer-cell> :is(.dock-strum-cell,.dock-lyrics-cell){height:100%;width:100%;min-width:0;}
 #sc-slot-overlay .dock-strum-cell > *{pointer-events:none;}
@@ -2118,6 +2118,10 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 .sc-song-dialog .sc-song-section-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--studio-border-default);}
 .sc-song-dialog .sc-song-section-row label{flex:1 1 180px;min-width:0;margin:0;}.sc-song-section-row label>span{display:none;}
 
+.sc-cell-value-dialog>div{display:flex;flex-wrap:wrap;gap:8px;}
+.sc-cell-value-dialog label{display:inline-flex;align-items:center;gap:4px;padding:5px;cursor:pointer;}
+.sc-cell-value-dialog label:has(:disabled){opacity:.48;cursor:default;}
+.sc-cell-value-dialog>label{margin:10px 0;}
 /* One inset for single-line selects, including score dialogs mounted under body. */
 :is(#screen-sheet-cruise,#sc-slot-overlay,body:has(#screen-sheet-cruise:not([hidden]):not(.hidden)) dialog) select:not(.editor-cell-value,.editor-row-resolution,[multiple]):is(:not([size]),[size="1"]){
     appearance:none;
@@ -2411,11 +2415,49 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
     }
 
     function noteValueTicks(value) {
-        return value === '8.' ? wholeNoteTicks * 1.5 / 8 : wholeNoteTicks / Number(value);
+        const dotted = value.endsWith('.');
+        return wholeNoteTicks / parseInt(value, 10) * (dotted ? 1.5 : 1);
+    }
+
+    function cellValuePicker(trigger, initial, allowed, commit) {
+        const dialog = fileDialog('マスの音価', {browse:true});
+        dialog.classList.add('sc-cell-value-dialog');
+        const group = document.createElement('div'), dotLabel = document.createElement('label');
+        const dot = document.createElement('input'), actions = document.createElement('footer');
+        dot.type = 'checkbox';
+        dot.checked = initial.endsWith('.');
+        dotLabel.append(dot, '付点');
+        const radios = noteValues.map(unit => {
+            const label = document.createElement('label'), radio = document.createElement('input');
+            radio.type = 'radio'; radio.name = 'base-note'; radio.value = String(unit);
+            radio.checked = unit === parseInt(initial, 10);
+            label.append(radio, unit === 1 ? '全' : unit + '分');
+            group.append(label);
+            return radio;
+        });
+        const selected = () => radios.find(r => r.checked)?.value;
+        const value = () => selected() + (dot.checked ? '.' : '');
+        const apply = dialogButton('適用', () => {
+            if (!allowed(value())) return;
+            dialog.close();
+            commit(value());
+        }, true);
+        function refresh() {
+            for (const radio of radios) radio.disabled = !allowed(radio.value + (dot.checked ? '.' : ''));
+            dot.disabled = !dot.checked && (!selected() || !allowed(selected() + '.'));
+            apply.disabled = !selected() || !allowed(value()) || value() === initial;
+        }
+        actions.append(dialogButton('キャンセル', () => dialog.close()), apply);
+        dialog.append(group, dotLabel, actions);
+        dialog.addEventListener('change', refresh);
+        dialog.addEventListener('close', () => { if (trigger.isConnected) trigger.focus({preventScroll:true}); }, {once:true});
+        refresh();
+        dialog.showModal();
     }
 
     function planNoteValue(bar, row, ranges, tick, value) {
         const span = noteValueTicks(value), length = CS().model.getBarLengthTicks(state.project);
+        if (value === '1.') return {error:'全音符には付点を付けられません'};
         const bulk = tick === null;
         const source = bulk ? null : ranges.find(r => r.tick === tick);
         if (bulk ? length % span : !source || tick + span > length) return {error:'小節内に収まりません'};
@@ -2476,85 +2518,65 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
     function noteValueControl(bar, row, range, ranges) {
         const owner = state.session, bulk = !range;
         const length = CS().model.getBarLengthTicks(state.project);
-        const select = document.createElement('select');
+        const select = document.createElement(bulk ? 'select' : 'button');
         const values = new Set(bulk ? ranges.map(r => r.span) : [range.span]);
         const span = values.size === 1 ? values.values().next().value : 0;
         const unit = wholeNoteTicks / span;
-        const current = !bulk && span === noteValueTicks('8.') ? '8.' : noteValues.includes(unit) ? String(unit) : '';
-        select.className = bulk ? 'editor-row-resolution' : 'editor-cell-value';
-        if (bulk) select.dataset.rowResolution = row;
-        else select.dataset.cellValue = range.tick;
-        select.title = bar.barNumber + '小節目・' + DOCK_ROW_LABELS[row] + (bulk ? '行の音価をそろえる' : '・このマスの音価');
-        select.setAttribute('aria-label', select.title);
-        if (current === '8.') select.title += '（付点8分音符）';
-        else if (current) select.title += '（' + (unit === 1 ? '全音符' : unit + '分音符') + '）';
-        if (!current) {
-            if (span) select.dataset.unusualValue = '';
-            let label = '混在';
-            if (span) {
-                const dotted = noteValues.find(value => wholeNoteTicks * 1.5 / value === span);
-                if (dotted) {
-                    label = dotted + '·';
-                    select.title += '（付点' + dotted + '分音符）';
-                } else {
-                    let a = wholeNoteTicks, b = span;
-                    while (b) [a, b] = [b, a % b];
-                    label = (span / a) + '/' + (wholeNoteTicks / a);
-                    select.title += '（全音符の' + label + '）';
-                }
-            }
-            const other = new Option(label, '');
-            other.disabled = true;
-            select.add(other);
+        const dotted = noteValues.find(v => noteValueTicks(v + '.') === span);
+        const current = noteValues.includes(unit) ? String(unit) : dotted ? dotted + '.' : '';
+        let label = current.replace('.', '·') || '混在';
+        if (!current && span) {
+            let a = wholeNoteTicks, b = span;
+            while (b) [a,b] = [b,a%b];
+            label = (span/a) + '/' + (wholeNoteTicks/a);
+            select.dataset.unusualValue = '';
         }
-        for (const value of noteValues) {
-            if (!bulk && value === 8) {
-                const dotted = new Option('8·', '8.');
-                dotted.setAttribute('aria-label', '付点8分音符');
-                select.add(dotted);
-            }
-            const option = new Option(String(value), String(value));
-            option.setAttribute('aria-label', value === 1 ? '全音符' : value + '分音符');
-            select.add(option);
-        }
-        select.value = current;
-        if (bulk && row === 'strum' && CS().model.rhythmForBar(state.project,bar.barNumber)?.encoding === 'rhythm-owner-cells-v1') select.disabled = true;
-        if (owner.draft.schemaVersion !== 2) select.disabled = true;
         const position = range?.tick ?? null;
         const liveRanges = () => editorCellRanges(bar, null, row);
-        function refresh() {
-            const active = liveRanges();
-            for (const option of select.options) {
-                if (!option.value) continue;
-                const {error} = planNoteValue(bar, row, active, position, option.value);
-                option.disabled = !!error;
-                option.title = error || '';
-            }
+        const allowed = value => !planNoteValue(bar, row, liveRanges(), position, value).error;
+        select.title = bar.barNumber + '小節目・' + DOCK_ROW_LABELS[row] + (bulk ? '行の音価をそろえる' : '・このマスの音価');
+        select.setAttribute('aria-label', select.title);
+        if (bulk) {
+            select.className = 'editor-row-resolution';
+            select.dataset.rowResolution = row;
+            if (!noteValues.includes(unit)) select.add(new Option(label, current));
+            for (const value of noteValues) select.add(new Option(String(value),String(value)));
+            select.value = current;
+            const refresh = () => {
+                for (const option of select.options) option.disabled = !noteValues.includes(Number(option.value)) || !allowed(option.value);
+            };
+            select.addEventListener('focus', refresh);
+            select.addEventListener('pointerdown', refresh);
+            select.addEventListener('change', () => {
+                const value = select.value;
+                select.value = current;
+                commit(value);
+            });
+            if (row === 'strum' && CS().model.rhythmForBar(state.project,bar.barNumber)?.encoding === 'rhythm-owner-cells-v1') select.disabled = true;
+        } else {
+            select.type = 'button';
+            select.className = 'editor-cell-value';
+            select.dataset.cellValue = position;
+            select.textContent = label;
+            select.setAttribute('aria-haspopup','dialog');
+            select.addEventListener('click', e => {
+                e.stopPropagation();
+                if (editorCanMove()) cellValuePicker(select, current, allowed, commit);
+            });
+            select.addEventListener('keydown', e => {
+                if (e.isComposing || e.altKey || e.metaKey || e.ctrlKey || !['ArrowDown','ArrowUp'].includes(e.key)) return;
+                e.preventDefault(); e.stopPropagation();
+                const choices = e.key === 'ArrowDown' ? noteValues : [...noteValues].reverse();
+                const next = choices.find(v => (e.key === 'ArrowDown' ? v > unit : v < unit) && allowed(String(v)));
+                if (next) commit(String(next));
+            });
         }
         select.addEventListener('pointerdown', e => {
             e.stopPropagation();
             if (!prepareLyricResolutionChange(getSelectedBar() || bar).ok) e.preventDefault();
-            else refresh();
         });
-        select.addEventListener('focus', refresh);
-        select.addEventListener('click', e => e.stopPropagation());
-        select.addEventListener('keydown', event => {
-            if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey ||
-                !['ArrowUp','ArrowDown'].includes(event.key)) return;
-            event.preventDefault();
-            event.stopPropagation();
-            refresh();
-            const step = event.key === 'ArrowDown' ? 1 : -1;
-            for (let i = select.selectedIndex + step; i >= 0 && i < select.length; i += step) {
-                if (select.options[i].disabled) continue;
-                select.selectedIndex = i;
-                select.dispatchEvent(new Event('change', {bubbles:true}));
-                break;
-            }
-        });
-        select.addEventListener('change', () => {
-            const value = select.value;
-            select.value = current;
+        if (owner.draft.schemaVersion !== 2) select.disabled = true;
+        function commit(value) {
             if (!select.isConnected || state.session !== owner || !editorCanMove()) return;
             finishTextInputs();
             const plan = planNoteValue(bar, row, liveRanges(), position, value);
@@ -2588,7 +2610,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
                 dialog.append(message, actions);
                 dialog.showModal();
             } else apply();
-        });
+        }
         return select;
     }
 
