@@ -1,6 +1,6 @@
-import { CRUISE_APPS_NEWS_ITEMS } from './news-articles.js?v=1.36.0';
+import { CRUISE_APPS_NEWS_ITEMS, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
-import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.37.0';
+import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.38.0';
 import { NEWS_PROVIDER, NEWS_API_BASE } from './news-config.js?v=1.11.1';
 export class NewsDisabledError extends Error { constructor(){super('news_disabled');this.name='NewsDisabledError';} }
 // Only the loopback preview server supplies this read-only proxy. Production
@@ -69,4 +69,11 @@ export async function loadNewsPresentation(options) {
   // is local, independently published and remains available.
   return {items:[...CRUISE_APPS_NEWS_ITEMS],mode:'on',notice:'外部ニュースを読み込めませんでした。時間をおいてページを更新してください。'};
  }
+}
+
+// Port owns the correction article and its detail view. Other clients continue
+// to receive the shared first-party feed from loadNewsPresentation.
+export async function loadPortNewsPresentation(options) {
+    const result = await loadNewsPresentation(options);
+    return { ...result, items: [...result.items, STUDIO_BROWSER_CORRECTION] };
 }
