@@ -52,16 +52,16 @@ test('source-backed candidate drafts stay unconfirmed and use the same publicati
  const {candidateAssistedDraft}=await import('../src/candidate-draft.js');
  const {draftRequirements}=await import('../src/review-presentation.js');
  const {assistedSource}=await import('../src/assisted-facts.js');
- const local=await setup(),day=Date.parse('2026-11-20T08:00:00+09:00');
+ const local=await setup(),day=Date.parse('2026-11-23T08:00:00+09:00');
  for(const {information} of entries){
   const sourceId=assistedSource(information.url).id;
-  const row={source_id:sourceId,source_url:information.url,origin:'automatic_collection',published_at:'2026-11-18T15:00:00Z'};
+  const row={source_id:sourceId,source_url:information.url,origin:'automatic_collection',published_at:new Date(Date.parse(information.fields.publishedAt+'T00:00:00+09:00')).toISOString()};
   const draft=await candidateAssistedDraft(local,row,day);
   assert.deepEqual(draftRequirements(draft,day).missing,[]);
   assert.equal(draft.fields.label,information.fields.label);
   assert.equal(draft.fieldSources.publishedAt.kind,'candidate_record');
   assert.equal(draft.fieldSources.product.kind,'provided_information');
-  assert.equal(draft.fields.publishedAt,'2026-11-19');
+  assert.equal(draft.fields.publishedAt,information.fields.publishedAt);
   assert.equal(draft.formalFacts,false);
   assert.equal(draft.humanConfirmed,false);
  }
