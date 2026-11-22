@@ -2027,7 +2027,9 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
 #sc-slot-overlay select.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
-#sc-slot-overlay select.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:auto;max-width:calc(100% - 2px);}
+#sc-slot-overlay select.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;padding:0;background:transparent;border:0;color:#526573;font-variant-numeric:tabular-nums;}
+#sc-slot-overlay select.editor-cell-value:hover,#sc-slot-overlay select.editor-cell-value:focus-visible{background:#e6edf2;color:#233f53;}
+#sc-slot-overlay select.editor-cell-value[data-unusual-value]{width:auto;max-width:calc(100% - 2px);}
 #sc-slot-overlay select.editor-row-resolution{width:max(27px,calc(31px * var(--bar-loupe-scale,1)));}
 #sc-slot-overlay select.editor-cell-value:focus-visible,#sc-slot-overlay select.editor-row-resolution:focus-visible{outline:2px solid #3676a6;z-index:4;}
 #sc-slot-overlay .editor-measure:not(:first-child) :is(.slot-overlay-row-label,.slot-overlay-ruler-label){display:flex;}
@@ -2480,12 +2482,31 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         else select.dataset.cellValue = range.tick;
         select.title = bar.barNumber + '小節目・' + DOCK_ROW_LABELS[row] + (bulk ? '行の音価をそろえる' : '・このマスの音価');
         select.setAttribute('aria-label', select.title);
+        if (current) select.title += '（' + (unit === 1 ? '全音符' : unit + '分音符') + '）';
         if (!current) {
-            const other = new Option(span ? span + ' tick' : '混在', '');
+            if (span) select.dataset.unusualValue = '';
+            let label = '混在';
+            if (span) {
+                const dotted = noteValues.find(value => wholeNoteTicks * 1.5 / value === span);
+                if (dotted) {
+                    label = dotted + '·';
+                    select.title += '（付点' + dotted + '分音符）';
+                } else {
+                    let a = wholeNoteTicks, b = span;
+                    while (b) [a, b] = [b, a % b];
+                    label = (span / a) + '/' + (wholeNoteTicks / a);
+                    select.title += '（全音符の' + label + '）';
+                }
+            }
+            const other = new Option(label, '');
             other.disabled = true;
             select.add(other);
         }
-        for (const value of noteValues) select.add(new Option(value === 1 ? '全' : value + '分', String(value)));
+        for (const value of noteValues) {
+            const option = new Option(String(value), String(value));
+            option.setAttribute('aria-label', value === 1 ? '全音符' : value + '分音符');
+            select.add(option);
+        }
         select.value = current;
         if (bulk && row === 'strum' && CS().model.rhythmForBar(state.project,bar.barNumber)?.encoding === 'rhythm-owner-cells-v1') select.disabled = true;
         if (owner.draft.schemaVersion !== 2) select.disabled = true;
@@ -2507,6 +2528,20 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         });
         select.addEventListener('focus', refresh);
         select.addEventListener('click', e => e.stopPropagation());
+        select.addEventListener('keydown', event => {
+            if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey ||
+                !['ArrowUp','ArrowDown'].includes(event.key)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            refresh();
+            const step = event.key === 'ArrowDown' ? 1 : -1;
+            for (let i = select.selectedIndex + step; i >= 0 && i < select.length; i += step) {
+                if (select.options[i].disabled) continue;
+                select.selectedIndex = i;
+                select.dispatchEvent(new Event('change', {bubbles:true}));
+                break;
+            }
+        });
         select.addEventListener('change', () => {
             const value = Number(select.value);
             select.value = current;

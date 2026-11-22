@@ -840,7 +840,8 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     const field = tick => measure.locator('[data-overlay-field=doremi][data-slot-tick="'+tick+'"]');
     const before = await snapshot();
     await row.selectOption('8');
-    await cell(240).selectOption('16');
+    assert.deepEqual(await cell(240).locator('option').allTextContents(),['1','2','4','8','16']);
+    await cell(240).press('ArrowDown');
     assert.equal(await row.inputValue(),'');
     assert.equal(await row.locator(':checked').textContent(),'混在');
     assert(await row.evaluate(el=>{
