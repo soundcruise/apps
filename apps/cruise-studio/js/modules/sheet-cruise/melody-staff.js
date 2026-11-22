@@ -72,7 +72,7 @@
             detail.textContent=Array.from(grouped,function(pair){var code=pair[0],entry=pair[1];return code+
                 (entry.bars.size?'（'+Array.from(entry.bars).join('・')+'小節目）':'')+(entry.count>1?' ×'+entry.count:'');}).join('\n');
         }
-        function render(project){
+        function render(project,writtenGrids){
             var started=performance.now(),timing={conversionMs:0,projectionMs:0,voicePreparationMs:0,widthMs:0,layoutMs:0,renderMs:0,domMs:0,rafWaitMs:0};
             cancel();if(!project){invalidate();return;}prepare(project);timing.domMs+=performance.now()-started;
             var keep=retain(project);root.classList.toggle('melody-unready',!keep);root.classList.toggle('melody-pending',keep);root.dataset.ready='false';
@@ -84,7 +84,7 @@
                 if(!result.ok){var fatal=result.diagnostics.filter(function(d){return d.severity==='fatal';}),codes=(fatal.length?fatal:result.diagnostics).map(function(d){return d.code;});
                     if(codes.every(function(c){return c==='input-or-modal-pending';})&&retain(project)&&!CruiseStudio.shellHost.modal.getActive())return;
                     failure(codes,null,result.diagnostics,project);return;}
-                var projectionStart=performance.now(),score=CruiseStudio.melodyNotation.project(result);timing.projectionMs+=performance.now()-projectionStart;if(!score.ok){failure([score.code],score.barNumber);return;}
+                var projectionStart=performance.now(),score=CruiseStudio.melodyNotation.project(result,writtenGrids);timing.projectionMs+=performance.now()-projectionStart;if(!score.ok){failure([score.code],score.barNumber);return;}
                 var show=CruiseStudio.sheetRenderer.resolveShowSettings(project),available=Math.max(280,grid.clientWidth),bars=[],i=0,drawn=0,maxFrame=0;
                 // Focus restoration may synchronously request a newer render. A retired
                 // job must never invalidate or overwrite the new job's RAF ownership.

@@ -23,7 +23,7 @@
         }
         return freeze({ok:true,segments:result});
     }
-    function project(result){
+    function project(result,writtenGrids){
         if(!result||result.ok!==true||!result.model)return failure('conversion-not-ready');
         var m=result.model;
         if(![1,2].includes(m.modelVersion)||m.ppq!==480||![3,4].includes(m.meter?.beats)||m.meter?.beatUnit!==4)return failure('unsupported-meter-or-model');
@@ -41,6 +41,16 @@
                 var isRest=ev.kind==='silence'||ev.kind==='rest',pitch=ev.pitch;
                 var wholeRest=isRest&&ev.onsetTick===0&&ev.durationTicks===barTicks;
                 var parts=wholeRest?{ok:true,segments:[{onsetTick:0,durationTicks:barTicks,duration:'w',dots:0}]}:segment(ev.onsetTick,ev.durationTicks,barTicks);
+                const grid=writtenGrids?.[bar.sourceBarId];
+                if (!isRest && grid?.melodyBeatGrouping === true && Array.isArray(grid.doremi)) {
+                    const end=ev.onsetTick+ev.durationTicks;
+                    const cuts=grid.doremi.filter(t=>Number.isInteger(t) && t>ev.onsetTick && t<end);
+                    if (cuts.length && cuts.every((t,i)=>!i || t>cuts[i-1])) {
+                        const starts=[ev.onsetTick,...cuts];
+                        const groups=starts.map((t,i)=>segment(t,(starts[i+1]??end)-t,barTicks));
+                        if (groups.every(g=>g.ok)) parts={ok:true,segments:groups.flatMap(g=>g.segments)};
+                    }
+                }
                 if(!parts.ok)return failure(parts.code,bar.barNumber);
                 if(!isRest&&(!pitch||!['C','D','E','F','G','A','B'].includes(pitch.step)||
                     !Number.isSafeInteger(pitch.octave)||!Number.isSafeInteger(pitch.alter)||Math.abs(pitch.alter)>2||

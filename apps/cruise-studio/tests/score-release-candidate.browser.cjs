@@ -1013,5 +1013,19 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     assert.equal(await melody.locator('[data-piano-sustain]').innerText(),'〜');
     assert.equal(await reader.locator('.sheet-bar').first().locator('.sheet-bar-doremi [data-slot-tick="480"]').innerText(),'〜');
     assert.deepEqual(await reader.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot().bars[0].melody),firstBar.melody);
+    // The field and the duration badge share shortcuts and retain keyboard focus after redraw.
+    const quarter=melody.locator('[data-overlay-field="doremi"][data-slot-tick="960"]');
+    const value=melody.locator('[data-cell-value="960"]');
+    await quarter.focus();
+    await reader.keyboard.press('Shift++');
+    assert.equal(await value.textContent(),'8');
+    assert(await quarter.evaluate(e=>document.activeElement===e));
+    await reader.keyboard.press('.');
+    assert.equal(await value.textContent(),'8·');
+    await value.focus();
+    await reader.keyboard.press('.');
+    await reader.keyboard.press('Shift+-');
+    assert.equal(await value.textContent(),'4');
+    assert(await value.evaluate(e=>document.activeElement===e));
     assert.deepEqual(errors,[]);
 });

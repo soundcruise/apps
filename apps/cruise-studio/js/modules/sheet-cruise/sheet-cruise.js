@@ -123,7 +123,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.233.0-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.239.0-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -207,7 +207,7 @@
             onTarget:function(t,n,open){return CS().melodyInspector&&CS().melodyInspector.select(t,n,open);},
             onTargetKey:function(t,n,e){if(CS().melodyInspector)CS().melodyInspector.key(t,n,e);}
         });
-        staffView.render(state.project);
+        staffView.render(state.project, state.session?.draft.extensions?.scoreCellValuesV1);
     }
     function prepareCodePrint() {
         if (staffStyle !== 'melody' || !state.project) return;
@@ -1622,7 +1622,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 #sc-slot-overlay .slot-overlay-head-actions{flex-wrap:wrap;}
 #sc-slot-overlay .slot-overlay-head-actions>*{flex-shrink:0;}
 #sc-slot-overlay [data-active-resolution]{display:flex;}
-#sc-slot-overlay [data-editor-placement]{margin-left:auto;}
+
 #sc-slot-overlay .slot-overlay-head-actions{width:100%;}
 #sc-slot-overlay .editor-size-tabs{display:inline-flex;}
 /* Keep trackpad overscroll inside the editor, including when a single bar fits. */
@@ -1686,8 +1686,13 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 
 #sc-slot-overlay.editor-right .piano-keys{min-width:420px;}
 #sc-slot-overlay.editor-right .piano-keys button{font-size:10px;}
-#sc-slot-overlay .slot-overlay-head {position:sticky;top:0;z-index:5;background:var(--slot-surface);padding-left:0;padding-right:calc(34px * var(--bar-loupe-scale,1) + 40px);}
-#sc-slot-overlay .slot-overlay-close{position:absolute;left:auto;right:0;top:0;}
+#sc-slot-overlay .slot-overlay-head {position:sticky;top:0;z-index:5;background:var(--slot-surface);padding-left:0;padding-right:0;}
+#sc-slot-overlay .slot-overlay-head-actions{--editor-header-height:max(28px,calc(28px * var(--bar-loupe-scale,1)));align-items:center;}
+#sc-slot-overlay .slot-overlay-head-actions :is(.slot-overlay-nav-btn,.slot-overlay-close,.slot-overlay-res-toggle){box-sizing:border-box;height:var(--editor-header-height);min-height:0;}
+#sc-slot-overlay .slot-overlay-head-actions button{display:inline-flex;align-items:center;justify-content:center;line-height:1;padding-block:0;}
+#sc-slot-overlay .slot-overlay-head-actions .slot-overlay-res-btn{height:100%;box-sizing:border-box;}
+#sc-slot-overlay .editor-window-actions{display:inline-flex;align-items:center;gap:inherit;margin-left:auto;}
+#sc-slot-overlay .editor-window-actions :is(.slot-overlay-close,.editor-help-trigger){width:var(--editor-header-height);min-width:0;padding:0;}
 #sc-slot-overlay .doremi-piano {margin:calc(-6px * var(--bar-loupe-scale,1)) 0 0 var(--editor-label-offset);padding:calc(3px * var(--bar-loupe-scale,1)) calc(10px * var(--bar-loupe-scale,1)) calc(10px * var(--bar-loupe-scale,1));background:var(--slot-input-surface);border:1px solid var(--slot-border);border-radius:0 0 8px 8px;flex-shrink:0;border-color:#9baac2;background:#f8faff;}
 #sc-slot-overlay .doremi-piano.is-collapsed{padding:0;border:0;background:transparent;border-radius:0;}
 #sc-slot-overlay .doremi-piano.is-collapsed .piano-heading{display:flex!important;min-height:0;margin:0;}
@@ -1880,7 +1885,7 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 #sc-sheet-scale-box.sc-range-selecting{user-select:none;cursor:crosshair;}
 #sc-sheet-scale-box .sheet-artist--empty{opacity:.5;font-size:12px;}
 .sc-layout-example-paper .sheet-artist--empty{display:none;}
-#sc-slot-overlay .editor-help-trigger{position:absolute;right:calc(34px * var(--bar-loupe-scale,1));top:0;border-radius:50%!important;min-width:32px!important;padding:6px!important;font-weight:700!important;}
+#sc-slot-overlay .editor-help-trigger{border-radius:50%;font-weight:700;}
 .sc-song-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);margin:0;width:min(580px,calc(100vw - 24px));max-height:88dvh;overflow:auto;box-sizing:border-box;padding:20px;border:1px solid var(--studio-border-default);border-radius:14px;background:var(--studio-panel);color:var(--studio-text-primary);font:14px/1.5 sans-serif;}
 .sc-song-dialog::backdrop{background:rgba(0,0,0,.45);}
 .sc-song-dialog header,.sc-song-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px;}
@@ -2550,7 +2555,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         }
     }
 
-    function noteValueControl(bar, row, range, ranges, targets = [bar]) {
+    function noteValueControl(bar, row, range, {ranges, targets = [bar], cell} = {}) {
         const owner = state.session, bulk = !range;
         const length = CS().model.getBarLengthTicks(state.project);
         const select = document.createElement(bulk ? 'select' : 'button');
@@ -2598,6 +2603,32 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
                 e.stopPropagation();
                 if (editorCanMove()) cellValuePicker(select, current, allowed, commit);
             });
+            cell.addEventListener('keydown', event => {
+                if (event.isComposing || event.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey ||
+                    CS().shellHost.keyboard.isIMEBlocked({}) || state.session?.inputPending) return;
+                const shorter = event.shiftKey && (event.key === '+' || event.code === 'NumpadAdd');
+                const longer = event.shiftKey && (event.code === 'Minus' || event.key === '-' || event.code === 'NumpadSubtract');
+                const toggleDot = !event.shiftKey && event.key === '.';
+                if (!shorter && !longer && !toggleDot) return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (select.disabled || !editorCanMove() || !prepareLyricResolutionChange(bar).ok) return;
+                let value;
+                if (toggleDot && current) value = current.endsWith('.') ? current.slice(0,-1) : current + '.';
+                if (shorter || longer) {
+                    const dot = current.endsWith('.') ? '.' : '';
+                    const next = (shorter ? noteValues : [...noteValues].reverse()).map(n => String(n) + (n===1 || n===32 ? '' : dot))
+                        .find(v => shorter ? noteValueTicks(v) < span : noteValueTicks(v) > span);
+                    value = next;
+                }
+                if (!value || !allowed(value)) return;
+                const wasButton = event.target === select;
+                commit(value);
+                const group = els.slotOverlay.querySelector('.editor-measure[data-bar-number="'+bar.barNumber+'"] .slot-overlay-row--'+row);
+                const button = group?.querySelector('[data-cell-value="'+position+'"]');
+                const focus = wasButton ? button : button?.parentElement.querySelector('[data-slot-tick]');
+                focus?.focus({preventScroll:true});
+            }, true);
             select.addEventListener('keydown', e => {
                 if (e.isComposing || e.altKey || e.metaKey || e.ctrlKey || !['ArrowDown','ArrowUp'].includes(e.key)) return;
                 e.preventDefault(); e.stopPropagation();
@@ -3620,7 +3651,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         var field = row === 'strum' ? '.dock-strum-cell' : row === 'lyrics' ? '.dock-lyrics-cell' : '[data-overlay-field="' + row + '"]';
         var tickField = row === 'strum' ? 'tick' : 'onsetTick';
         cell.classList.add('sc-editor-transfer-cell');
-        cell.appendChild(noteValueControl(bar, row, range));
+        cell.appendChild(noteValueControl(bar, row, range, {cell}));
         cell.dataset.rangeRow = row;
         cell.dataset.rangeStart = (bar.barNumber - 1) * CS().model.getBarLengthTicks(state.project) + tick;
         function eventsAtCell() {
@@ -4156,7 +4187,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         return map.get('row:'+row)||Math.max(map.get('initial:'+row)||8,preference===16?16:8);
     }
     function buildRowResolutionButton(bars,rowId){
-        return noteValueControl(bars[0], rowId, null, bars.flatMap(bar=>editorCellRanges(bar,null,rowId)), bars);
+        return noteValueControl(bars[0], rowId, null, {ranges:bars.flatMap(bar=>editorCellRanges(bar,null,rowId)), targets:bars});
     }
     function prepareLyricResolutionChange(bar) {
         // Subdivision also rebuilds solfege: preserve uncommitted/invalid buffers.
@@ -5550,8 +5581,11 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         closeBtn.addEventListener('mousedown', function (event) {
             event.stopPropagation();
         });
-        headActions.appendChild(placement);
-        head.append(headActions,helpBtn,closeBtn);
+        const windowActions = document.createElement('div');
+        windowActions.className = 'editor-window-actions';
+        windowActions.append(placement, helpBtn, closeBtn);
+        headActions.appendChild(windowActions);
+        head.appendChild(headActions);
         els.slotOverlay.appendChild(head);
 
         var canonical=state.session.draft,anchor=canonical.bars.findIndex(function(b){return b.id===editorAnchorId;});
