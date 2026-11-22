@@ -1367,24 +1367,23 @@
     // Both the paper and its settings preview use the same snapshot and display choices.
     function effectivePaperVisibility(project){var show=CS().sheetRenderer.resolveShowSettings(project);return {chords:show.chords,strum:show.strum,lyrics:show.lyrics,doremi:show.doremi,forms:!!paperFormSessions.get(state.session),timingGrid:CS().localPaperLayout?.value.timingGrid??show.timingGrid,gridResolution:CS().localPaperLayout?.value.gridResolution??show.gridResolution,...CS().localPaperLayout?.value.appearance.visibility};}
     var lastPaperColumns;
-    function catalogueEditHandler(owner,version){
-        return selection=>{
-            if(owner!==state.session||owner.snapshotVersion!==version||historyPreview)return;
-            if(Array.isArray(selection))openCatalogueFormEditor(owner,selection);
-            else editRegisteredForm(owner,selection);
+    function catalogueZoomHandler(owner,version){
+        return (button,positions)=>{
+            if(owner!==state.session||owner.snapshotVersion!==version||historyPreview||!positions.length)return;
+            openPaperForm(button,positions[0].id,undefined,false,positions);
         };
     }
     function refreshSavedCatalogue(owner){
         const list=els.scaleBox.querySelector('.sc-form-list');
         if(!list||historyPreview)return;
-        const current=CS().localPaperForms.list(owner.workingSnapshot(),{onEdit:catalogueEditHandler(owner,owner.snapshotVersion)});
+        const current=CS().localPaperForms.list(owner.workingSnapshot(),{onZoom:catalogueZoomHandler(owner,owner.snapshotVersion)});
         if(!current){list.remove();return;}
         list.replaceWith(current);
         CS().localPaperForms.resizeList(els.scaleBox,CS().localPaperLayout.value.formListScale);
     }
     function paperRenderOptions(project,version=state.session?.snapshotVersion,editableCatalogue=false){
         const owner=state.session;
-        var layout=CS().localPaperLayout?.renderOptions(project,els.root,editableCatalogue?catalogueEditHandler(owner,version):undefined),defaultForms=effectivePaperVisibility(project).forms;
+        var layout=CS().localPaperLayout?.renderOptions(project,els.root,editableCatalogue?catalogueZoomHandler(owner,version):undefined),defaultForms=effectivePaperVisibility(project).forms;
         lastPaperColumns=layout?.barsPerLine;
         var forms=(defaultForms||layout?.sectionRules.some(rule=>rule.visibility?.forms))&&CS().localPaperForms?.view(project,{scale:CS().localPaperLayout?.value.formScale});
         const rowSettings=state.lyricBeatResV2.get(state.session);
@@ -5756,19 +5755,26 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         }
         els.slotOverlay.scrollTop=0;
     }
-    async function openPaperForm(cell,eventId,tick,fromEditor=false){
+    async function openPaperForm(cell,eventId,tick,fromEditor=false,positions=null){
         if(!editorCanMove()||!CS().localPaperForms)return;
-        var number=Number(cell.dataset.barNumber),p=state.session.workingSnapshot(),chord=p.bars[number-1]?.chords.find(function(c){return eventId?c.id===eventId:c.onsetTick===tick;}),binding=chord&&p.performance.formBindings.find(function(b){return b.chordEventId===chord.id;}),material=binding&&p.materials.forms.find(function(m){return m.id===binding.materialId;});
+        var p=state.session.workingSnapshot(),number=positions?p.bars.findIndex(bar=>bar.chords.some(event=>event.id===eventId))+1:Number(cell.dataset.barNumber),chord=p.bars[number-1]?.chords.find(function(c){return eventId?c.id===eventId:c.onsetTick===tick;}),binding=chord&&p.performance.formBindings.find(function(b){return b.chordEventId===chord.id;}),material=binding&&p.materials.forms.find(function(m){return m.id===binding.materialId;});
         if(!material){setSaveStatus('このコードのフォームは未登録です');return;}
         var owner=state.session,ticket=CS().structureOperations.capture(owner),barId=p.bars[number-1].id,request=++formPopupEpoch;
         if(!formPopupModule&&!await prepareFormPopup()){setSaveStatus('フォームを開けませんでした',true);return;}
         if(request!==formPopupEpoch||state.session!==owner||!cell.isConnected||!CS().structureOperations.isCurrent(ticket,owner)||!editorCanMove())return;
-        closePaperForm();var previous=document.activeElement,dialog=document.createElement('dialog');dialog.className='sc-form-dialog sc-unified-form';dialog.dataset.paperFormDetail=chord.id;dialog.setAttribute('aria-label',chord.symbol+'のコードフォーム');els.root.appendChild(dialog);formDialog=dialog;
-        formPopupModule.createFormPopup({document:document,dialog:dialog,onEdit:fromEditor?undefined:function(){
+        closePaperForm();var previous=document.activeElement,dialog=document.createElement('dialog');dialog.className='sc-form-dialog sc-unified-form'+(positions?' sc-readonly-form':'');dialog.dataset.paperFormDetail=chord.id;dialog.setAttribute('aria-label',chord.symbol+'のコードフォーム');els.root.appendChild(dialog);formDialog=dialog;
+        const shown=formPopupModule.automaticVoicingSnapshot(chord,material,binding)||material.snapshot;
+        formPopupModule.createFormPopup({document:document,dialog:dialog,positions,onEdit:fromEditor?undefined:function(ids){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return;
             closePaperForm();
-            editRegisteredForm(owner,chord.id);
-        },symbol:chord.symbol,snapshot:material.snapshot,playedStrings:binding.playedStrings,diagram:CS().localPaperForms.diagram,detectBarres:window.ChordCruise.caged.detectBarres,apply:function(draft){
+            if(ids?.length>1)openCatalogueFormEditor(owner,ids);
+            else editRegisteredForm(owner,ids?.[0]||chord.id);
+        },applyFingers:function(ids,changes){
+            if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return {ok:false,error:'譜面が変わりました。開き直してください。'};
+            const result=CS().localChordForms.changeFingers(owner,ids||[chord.id],changes);
+            if(result.ok){closePaperForm();redrawSession(false);setSaveStatus('運指を変更しました（未保存）');}
+            return result;
+        },symbol:chord.symbol,snapshot:shown,playedStrings:shown===material.snapshot?binding.playedStrings:shown.strings.filter(n=>n.kind==='note').map(n=>n.string),diagram:CS().localPaperForms.diagram,detectBarres:window.ChordCruise.caged.detectBarres,apply:function(draft){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return {ok:false,error:'編集対象が変わりました。開き直してください'};
             draft.snapshot.playability='unknown';draft.snapshot.ownerWarning='変更した押さえ方は未確認';
             var authored=CS().localChordForms.material(draft.snapshot,chord.symbol,'manual',material.provenance.externalMaterialId,material.provenance.shape);

@@ -44,7 +44,7 @@ export function createRhythmAdoptionService({owner,schema,rhythmSnapshots,adapte
                 if(data.target.kind==='basic')project.performance.basicRhythmId=material.id;
                 else for(const barId of data.target.barIds){const binding=project.performance.barRhythms.find(b=>b.barId===barId);if(binding)binding.materialId=material.id;else project.performance.barRhythms.push({id:schema.newId(),barId,materialId:material.id});}
                 // Session owns full validation, immutable guards, Project/history reservation and publication.
-            },{requireUndo:true,preserveAppliedUndo:true});
+            },{requireUndo:true});
         }catch(error){return reject('adoption-rejected',error.message);}
     }
     return Object.freeze({prepare,prepareReuse,prepareClear,apply});

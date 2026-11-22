@@ -100,3 +100,24 @@ test('explicit bass and tension fingerings replace only their strings, without c
  assert.throws(()=>savedChordForm({...record,bassFingerings:[...record.bassFingerings,alternate]}),/6弦/);
  assert.deepEqual(savedChordForm({...record,bassFingerings:[...record.bassFingerings,{...alternate,pendingDelete:true}]}),form);
 });
+
+test('changing fingers keeps unplayed fretted notes and string selection through undo rollover',()=>{
+    const {f,a}=setup({limits:{maxEntries:1}}),session=f.s();
+    ok(enter(f,a,'C'));
+    ok(session.runOperation('play a subset',p=>{
+        const binding=p.performance.formBindings[0];
+        binding.playedStrings=[2,3,4];
+        binding.confirmation={status:'unconfirmed',basisKey:null};
+    }));
+    const before=session.workingSnapshot(),event=before.bars[0].chords[0];
+    ok(a.changeFingers(session,[event.id],[{string:2,relativeFret:1,finger:4}]));
+    const after=session.workingSnapshot(),binding=after.performance.formBindings[0];
+    const material=after.materials.forms.find(m=>m.id===binding.materialId);
+    const original=before.materials.forms.find(m=>m.id===before.performance.formBindings[0].materialId);
+    assert.deepEqual(binding.playedStrings,[2,3,4]);
+    assert.deepEqual(binding.confirmation,before.performance.formBindings[0].confirmation);
+    assert.deepEqual(material.snapshot.strings,original.snapshot.strings.map(n=>n.string===2?{...n,finger:4}:n));
+    assert.deepEqual(after.bars,before.bars);
+    ok(session.undo());assert.deepEqual(session.workingSnapshot(),before);
+    ok(session.redo());assert.deepEqual(session.workingSnapshot(),after);
+});

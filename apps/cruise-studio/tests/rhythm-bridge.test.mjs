@@ -490,9 +490,9 @@ for(const [name,edit]of[
 });
 test('Phase5 reflected refusal preserves open text group, bounded history and Redo; explicit Save still works',async()=>{
  const f=phase3Fixture({maxEntries:2}),s=f.s;assert(s.runTextOperation('title','title',p=>p.songInfo.title='First').ok);
- const before=f.state();assert(s.getHistory().textGroup);assert.equal(s.runOperation('unsafe callback',p=>Object.freeze(p.songInfo),{requireUndo:true,preserveAppliedUndo:true}).ok,false);assert.equal(f.state(),before);
+ const before=f.state();assert(s.getHistory().textGroup);assert.equal(s.runOperation('unsafe callback',p=>Object.freeze(p.songInfo),{requireUndo:true}).ok,false);assert.equal(f.state(),before);
  assert(s.runTextOperation('title','title',p=>p.songInfo.title='Second').ok);assert.equal(s.getHistory().entries.length,1);s.finishTextGroup();assert(s.runOperation('artist',p=>p.songInfo.artist='Edited').ok);assert(s.undo().ok);const redo=f.state();
- assert.equal(s.runOperation('unsafe callback',p=>Object.setPrototypeOf(p.songInfo,null),{requireUndo:true,preserveAppliedUndo:true}).ok,false);assert.equal(f.state(),redo);assert(s.canRedo());assert(s.redo().ok);assert.equal(f.writes(),0);
+ assert.equal(s.runOperation('unsafe callback',p=>Object.setPrototypeOf(p.songInfo,null),{requireUndo:true}).ok,false);assert.equal(f.state(),redo);assert(s.canRedo());assert(s.redo().ok);assert.equal(f.writes(),0);
  const raw=s.baseRevision;assert((await s.commit()).ok);assert.notEqual(s.baseRevision,raw);assert.equal(s.dirty,false);const saved=s.baseRevision;assert(s.undo().ok);assert(s.dirty);assert.equal(s.baseRevision,saved);assert(s.redo().ok);assert.equal(s.dirty,false);assert.equal(s.baseRevision,saved);assert.equal(s.getHistory().entries.length,2);
 });
 

@@ -454,7 +454,7 @@
                         if (tracker.raw.schemaVersion === 2) fixed.provenance = {legacySource:tracker.raw.provenance.legacySource};
                         var handle = Object.freeze({ operationId: sessionId + ':operation-' + (++operationSequence), sessionId: sessionId,
                             historyEpoch: history.epoch, contentVersion: session.snapshotVersion, draft: staged.draft });
-                        openGroup = { handle: handle, tracker: staged, before: matchingHistoryContent(tracker.raw) || contentSnapshot(tracker.raw, true), fixed: fixed, label: String(label || '編集').slice(0, 120), preserveAppliedUndo: !!(policy && policy.preserveAppliedUndo), requireUndo: !!(policy && policy.requireUndo) || tracker.raw.schemaVersion === 2, previousTextGroup:previousTextGroup };
+                        openGroup = { handle: handle, tracker: staged, before: matchingHistoryContent(tracker.raw) || contentSnapshot(tracker.raw, true), fixed: fixed, label: String(label || '編集').slice(0, 120), requireUndo: !!(policy && policy.requireUndo) || tracker.raw.schemaVersion === 2, previousTextGroup:previousTextGroup };
                         return { ok: true, operation: handle };
                     } catch (error) { return { ok: false, code: 'operation-failed', error: error.message || String(error) }; }
                 },
@@ -493,10 +493,6 @@
                     var before = merging ? history.entries[history.cursor - 1].before : group.before;
                     var bytes = byteSize(before) + byteSize(after);
                     if(group.requireUndo && bytes > limits.maxBytes) return reject('undo-budget');
-                    if(group.preserveAppliedUndo){
-                        var retained=history.entries.slice(0,history.cursor-(merging?1:0));
-                        if(retained.length+1>limits.maxEntries||retained.reduce(function(sum,e){return sum+e.bytes;},0)+bytes>limits.maxBytes)return reject('undo-budget');
-                    }
                     abandonGroup();
                     if (bytes > limits.maxBytes) {
                         resetHistory('operation-too-large', 'overflow');
