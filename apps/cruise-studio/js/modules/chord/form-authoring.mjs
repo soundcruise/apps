@@ -61,7 +61,7 @@ export function createFormAuthoring(C,base){
             if(range)copy.snapshot.displayRange=range;
             else delete copy.snapshot.displayRange;
             binding.materialId=storeMaterial(p,copy).id;
-        },{requireUndo:true,preserveAppliedUndo:true});
+        },{requireUndo:true});
     }
     function install(p,event,m,mode='fixed',selectedStrings){
         const prior=p.performance.formBindings.find(b=>b.chordEventId===event.id);
@@ -99,7 +99,7 @@ export function createFormAuthoring(C,base){
             schema.assertJson(m);const copy=clone(m);session.finishTextGroup();
             return session.runOperation('コードフォームを固定',p=>{const e=p.bars.find(b=>b.id===barId)?.chords.find(e=>e.id===eventId);if(!e||e.symbol!==copy.provenance.sourceSymbol)throw Error('コードの選択が変わりました');
                 initialize(p);if(p.instrument.capo!==copy.snapshot.capo||JSON.stringify(p.instrument.tuning)!==JSON.stringify(copy.snapshot.tuningMidi)||p.instrument.maxAbsoluteFret!==copy.snapshot.maxAbsoluteFret)throw Error('フォームとProjectの楽器条件が一致しません');
-                install(p,e,copy,'fixed',selectedStrings);const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));},{requireUndo:true,preserveAppliedUndo:true});
+                install(p,e,copy,'fixed',selectedStrings);const valid=schema.validate(p);if(!valid.ok)throw Error(valid.errors.join('/'));},{requireUndo:true});
         }catch(e){return {ok:false,error:e.message};}
     }
     function replaceCatalogueForms(session,ids,symbol,replacement,range){
@@ -151,7 +151,7 @@ export function createFormAuthoring(C,base){
                 const result=evaluateBinding(p,group[0],{schema,chordTheory:base.theory,parseChordSymbol:C.theory.parseBasicChordSymbol});
                 if(!result.ready)for(const binding of group)binding.confirmation={status:'unconfirmed',basisKey:null};
             }
-        },{requireUndo:true,preserveAppliedUndo:true});
+        },{requireUndo:true});
     }
     function configureStrings(session,barId,eventId,playedStrings,remove=false){
         try{const c=C.shellHost.getCommandContext(),raw=C.repository.readRevision(session.target);if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||c.activeModal||C.shellHost.modal.getActive()||C.shellHost.keyboard.isIMEBlocked({})||!raw.ok||raw.revision!==session.baseRevision)throw Error('編集対象・入力状態を確認してください');

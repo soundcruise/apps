@@ -109,14 +109,22 @@ test('preview, rejection and Undo/Redo have no writes; only explicit Save writes
  ok(f.adopt());ok(f.s().undo());ok(f.s().redo());assert.equal(f.ledger.length,0);ok(await f.s().commit());assert.deepEqual(f.ledger.map(x=>x.key),['cruiseStudio.project.A','cruiseStudio.projects.index']);
  const saved=f.s().workingSnapshot();ok(f.s().undo());assert(f.s().dirty);ok(f.s().redo());assert(!f.s().dirty);assert.deepEqual(f.s().workingSnapshot(),saved);
 });
-test('100-entry adoption boundary preserves all applied history and failure preserves Redo',()=>{
- const f=fixture();for(let i=0;i<99;i++)ok(f.s().runOperation('edit',p=>p.songInfo.title='T'+i));ok(f.adopt());assert.equal(f.s().getHistory().cursor,100);assert.equal(f.s().getHistory().evictedCount,0);
- const h=f.service.prepare(f.request({playedStrings:[2,3,4,5]})),before=state(f);assert.equal(f.service.apply(h).code,'undo-budget');assert.equal(state(f),before);
- ok(f.s().undo());assert(f.s().canRedo());const old=f.s().getHistory();const candidate=f.service.prepare(f.request());ok(f.service.apply(candidate));assert.equal(f.s().getHistory().cursor,100);assert(!f.s().canRedo());assert.equal(f.s().getHistory().evictedCount,old.evictedCount);
+test('adoption rolls the oldest entry off a full history and a new branch replaces Redo',()=>{
+ const f=fixture(),s=f.s();
+ for(let i=0;i<99;i++)ok(s.runOperation('edit',p=>p.songInfo.title='T'+i));
+ ok(f.adopt());const before=s.workingSnapshot(),old=s.getHistory();
+ ok(f.adopt({playedStrings:[2,3,4,5]}));const after=s.getHistory();
+ assert.equal(after.cursor,100);assert.equal(after.evictedCount,1);
+ assert.equal(after.entries[0].entryId,old.entries[1].entryId);
+ ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);assert(s.canRedo());
+ ok(s.runOperation('new branch',p=>p.songInfo.title='new'));assert(!s.canRedo());assert.equal(s.getHistory().evictedCount,1);
 });
-test('cumulative 8MiB admission refuses without evicting existing Undo or changing state',()=>{
- const seed=fixture(),p=clone(seed.s().workingSnapshot());p.extensions={padding:'x'.repeat(2100000)};const f=fixture({project:p});ok(f.s().runOperation('existing undo',d=>d.songInfo.title='before'));
- assert.equal(f.s().getHistory().limits.maxBytes,8*1024*1024);assert(f.s().getHistory().bytes<8*1024*1024);const before=state(f);assert.equal(f.adopt().code,'undo-budget');assert.equal(state(f),before);assert.equal(f.s().getHistory().evictedCount,0);
+test('a form edit at the cumulative 8 MiB limit still supports undo and redo',()=>{
+ const seed=fixture(),p=clone(seed.s().workingSnapshot());p.extensions={padding:'x'.repeat(2100000)};
+ const f=fixture({project:p}),s=f.s();ok(s.runOperation('existing undo',d=>d.songInfo.title='before'));
+ const before=s.workingSnapshot();ok(f.adopt());const after=s.workingSnapshot(),h=s.getHistory();
+ assert.equal(h.evictedCount,1);assert(h.bytes<=h.limits.maxBytes);
+ ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);ok(s.redo());assert.deepEqual(s.workingSnapshot(),after);
 });
 test('exact entry byte budget accepts equality and rejects one byte less without losing Redo',()=>{
  const f=adopted(),bytes=f.s().getHistory().entries[0].bytes;const exact=fixture({limits:{maxBytes:bytes}});ok(exact.adopt());const less=fixture({limits:{maxBytes:bytes-1}}),before=state(less);assert.equal(less.adopt().code,'undo-budget');assert.equal(state(less),before);
@@ -145,8 +153,10 @@ test('untrusted owner version and material ID collision refuse without publicati
  const wrong=createFormAdoptionService({...options,ownerVersion:'1.21.1'}),before=state(f);assert(!wrong.prepare(f.request()).ok);assert.equal(state(f),before);
  const collide=createFormAdoptionService({...options,schema:{...f.api,newId:()=>f.s().target.projectId}});assert(!collide.apply(collide.prepare(f.request())).ok);assert.equal(state(f),before);assert.equal(f.ledger.length,0);
 });
-test('failed cumulative budget preserves an open native text group and Redo',()=>{
- const f=fixture({limits:{maxEntries:1}});ok(f.s().runTextOperation('title','title',p=>p.songInfo.title='changed'));const before=state(f);assert(f.s().getHistory().textGroup);assert.equal(f.adopt().code,'undo-budget');assert.equal(state(f),before);
+test('rolling history keeps the applied text when undoing the next form edit',()=>{
+ const f=fixture({limits:{maxEntries:1}}),s=f.s();ok(s.runTextOperation('title','title',p=>p.songInfo.title='changed'));
+ assert(s.getHistory().textGroup);const before=s.workingSnapshot();ok(f.adopt());
+ assert.equal(s.getHistory().evictedCount,1);ok(s.undo());assert.deepEqual(s.workingSnapshot(),before);
 });
 
 test('content comparison preserves independent history and detached operation ownership',()=>{

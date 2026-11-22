@@ -63,7 +63,7 @@ export function createFormAdoptionService({ owner, schema, adapter, repository, 
                 p.performance.formBindings=p.performance.formBindings.filter(b=>b.chordEventId!==event.id);p.performance.formBindings.push(binding);
                 const check=schema.validate(p);if(!check.ok)throw Error(check.errors.join('/'));
                 const readiness=evaluateBinding(p,binding,{schema,chordTheory,parseChordSymbol});if(!readiness.ready)throw Error(readiness.reasons.join('/'));
-            },{requireUndo:true,preserveAppliedUndo:true});
+            },{requireUndo:true});
             if(result.ok)issued.delete(handle);
             return result;
         } catch(error){return reject('adoption-rejected',error.message);}
