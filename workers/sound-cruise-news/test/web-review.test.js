@@ -89,3 +89,18 @@ test('a changed source headline cannot inherit prepared facts and operator defer
  assert.equal(deferred.webReview.reason,'operator_deferred');
  assert.equal(deferred.reviewPresentation,null);
 });
+
+test('the verified Martin discovery offers the US primary announcement for human confirmation',async()=>{
+ const s=await store(),at=Date.parse('2026-11-23T09:00:00+09:00');
+ const hint={
+  url:'https://guitarmagazine.jp/news/2026-1118-martin-om-omc-13e-john-mayer/',
+  title:'マーティンより、ジョン・メイヤーの新たなシグネチャー・ギター2モデルがリリース　本人が好む仕様をロード・シリーズで実現 | ギター・マガジンWEB｜Guitar magazine',
+  articleDraft:{},estimate:{relevance:'high'}
+ };
+ const [item,changed]=await addWebReview(s.db,[hint,{...hint,title:hint.title+' 続報'}],at);
+ assert.equal(item.reviewPresentation.group,'approvable');
+ assert.equal(item.reviewPresentation.formalReady,false);
+ assert.equal(item.primaryReview.draft.fields.publishedAt,'2026-11-10');
+ assert.equal(item.primaryReview.draft.fields.product,'OM-13E John Mayer／OMC-13E John Mayer');
+ assert.equal(changed.primaryReview,undefined);
+});

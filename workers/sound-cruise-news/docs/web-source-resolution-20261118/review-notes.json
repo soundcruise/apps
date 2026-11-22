@@ -109,5 +109,30 @@
       ]
     },
     "reason": "二次記事の正式登録は対象外です。メーカー一次記事の確認経路と利用条件を確認してください。"
+  },
+  {
+    "key": "martin-john-mayer-primary",
+    "hints": [
+      {
+        "url": "https://guitarmagazine.jp/news/2026-1118-martin-om-omc-13e-john-mayer/",
+        "titleHash": "91ab8b338426ec6547c7d6b086e03351672571b3e94f47e7270c3640b0c27da2"
+      }
+    ],
+    "observedAt": "2026-11-23",
+    "reference": {
+      "url": "https://www.martinguitar.com/news-111026-martin-guitar-brings-john-mayer-signature-artist-models-to-the-road-series.html",
+      "publishedAt": "2026-11-10",
+      "headline": "Martin、ジョン・メイヤー仕様のエレアコ「OM-13E John Mayer／OMC-13E John Mayer」を発表",
+      "productKind": "エレアコ",
+      "models": [
+        "OM-13E John Mayer",
+        "OMC-13E John Mayer"
+      ],
+      "notes": [
+        "メーカーの発表日は11月10日。国内発売日とは区別してください。",
+        "公開された製品情報を独自の見出しと公式ページへのリンクで紹介します。公式の本文・写真は転載しません。"
+      ]
+    },
+    "reason": "Martin公式発表で対象2機種と紹介条件を確認してください。"
   }
 ]
