@@ -21,7 +21,7 @@ export function createFormDraft(snapshot,playedStrings,detectBarres){
   toggle(string){const at=draft.playedStrings.indexOf(string);if(at>=0){if(draft.playedStrings.length===1)return false;draft.playedStrings.splice(at,1);}else{const n=draft.snapshot.strings.find(n=>n.string===string);if(n.kind==='muted')Object.assign(n,{kind:'note',relativeFret:0,finger:null,fingeringWarning:false});draft.playedStrings.push(string);draft.playedStrings.sort((a,b)=>a-b);}return true;}
  };
 }
-export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStrings,symbol,apply,detectBarres,onEdit,applyFingers,positions}){
+export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStrings,symbol,apply,detectBarres,onEdit,applyFingers,positions,onDetail}){
 
  const original=JSON.stringify([playedSnapshot(snapshot,playedStrings),playedStrings.slice().sort((a,b)=>a-b)]),edit=createFormDraft(snapshot,playedStrings,detectBarres),node=(tag,text,parent=dialog)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;parent.appendChild(e);return e;};let editing=false,fingersOnly=false;
  const initialSnapshot=clone(edit.draft.snapshot);
@@ -45,7 +45,7 @@ export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStri
  const figure=node('div');figure.className='sc-form-touch';const hint=node('p','押さえている位置をクリックすると指が順に変わり、ミュートにもなります。');hint.className='sc-form-hint';
  const quick=onEdit&&!positions?node('button','ここで運指を調整'):null;
  if(quick){quick.type='button';quick.className='sc-form-quick-edit';quick.onclick=()=>{editing=true;render('[data-form-finger]');};}
- const status=node('p','');status.setAttribute('role','status');status.className='sc-form-hint';const footer=node('footer'),save=node('button','譜面に反映',footer);save.type='button';save.dataset.formApply='';
+ const status=node('p','');status.setAttribute('role','status');status.className='sc-form-hint';const footer=node('footer'),detail=node('button','詳しく編集',footer),save=node('button','譜面に反映',footer);detail.type=save.type='button';detail.title='変更を反映してコード編集を開く';save.dataset.formApply='';
  function cycle(string,selector){if(!editing||!dialog.open)return;if(!edit.cycle(string))status.textContent='1音以上、残してください。';else status.textContent='';render(selector);}
  function render(focus){
   history.checkpoint();
@@ -74,8 +74,11 @@ export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStri
   }
   if(quick)quick.hidden=editing;hint.hidden=false;hint.textContent=editing&&!fingersOnly?'押さえている位置をクリックすると指が順に変わり、ミュートにもなります。':'押さえている指をクリックすると、運指を変更できます。';
   if(scope)scope.disabled=editing;
-  footer.hidden=!editing;start.hidden=editing;save.disabled=JSON.stringify([snapshot,edit.draft.playedStrings])===original;close.textContent=editing?'キャンセル':'閉じる';if(focus)figure.querySelector(focus)?.focus({preventScroll:true});
+  detail.hidden=!onDetail;footer.hidden=!editing;start.hidden=editing;save.disabled=JSON.stringify([snapshot,edit.draft.playedStrings])===original;close.textContent=editing?'キャンセル':'閉じる';if(focus)figure.querySelector(focus)?.focus({preventScroll:true});
  }
- start.onclick=onEdit?()=>onEdit(selectedIds()):(()=>{editing=true;render();});save.onclick=()=>{if(!editing||!dialog.open||!dialog.isConnected)return;const changes=edit.draft.snapshot.strings.filter((n,i)=>n.kind==='note'&&(n.finger!==initialSnapshot.strings[i].finger||n.fingeringWarning!==initialSnapshot.strings[i].fingeringWarning));
-  const result=fingersOnly?applyFingers(selectedIds(),changes):apply(clone(edit.draft));if(!result?.ok){status.textContent=result?.error||'フォームを反映できませんでした';return;}dialog.close();};render();return edit;
+ start.onclick=onEdit?()=>onEdit(selectedIds()):(()=>{editing=true;render();});detail.onclick=()=>finish(true);save.onclick=()=>finish(false);
+ function finish(openEditor){if(!editing||!dialog.open||!dialog.isConnected)return;if(openEditor&&save.disabled){onDetail(selectedIds());return;}
+  const changes=edit.draft.snapshot.strings.filter((n,i)=>n.kind==='note'&&(n.finger!==initialSnapshot.strings[i].finger||n.fingeringWarning!==initialSnapshot.strings[i].fingeringWarning));
+  const result=fingersOnly?applyFingers(selectedIds(),changes):apply(clone(edit.draft));if(!result?.ok){status.textContent=result?.error||'フォームを反映できませんでした';return;}if(openEditor)onDetail(selectedIds());else dialog.close();}
+ render();return edit;
 }

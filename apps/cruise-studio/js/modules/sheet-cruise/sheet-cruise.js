@@ -5764,21 +5764,22 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         if(request!==formPopupEpoch||state.session!==owner||!cell.isConnected||!CS().structureOperations.isCurrent(ticket,owner)||!editorCanMove())return;
         closePaperForm();var previous=document.activeElement,dialog=document.createElement('dialog');dialog.className='sc-form-dialog sc-unified-form'+(positions?' sc-readonly-form':'');dialog.dataset.paperFormDetail=chord.id;dialog.setAttribute('aria-label',chord.symbol+'のコードフォーム');els.root.appendChild(dialog);formDialog=dialog;
         const shown=formPopupModule.automaticVoicingSnapshot(chord,material,binding)||material.snapshot;
-        formPopupModule.createFormPopup({document:document,dialog:dialog,positions,onEdit:fromEditor?undefined:function(ids){
+        function continueFormEdit(ids){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return;
             closePaperForm();
             if(ids?.length>1)openCatalogueFormEditor(owner,ids);
             else editRegisteredForm(owner,ids?.[0]||chord.id);
-        },applyFingers:function(ids,changes){
+        }
+        formPopupModule.createFormPopup({document:document,dialog:dialog,positions,onDetail:continueFormEdit,onEdit:fromEditor?undefined:continueFormEdit,applyFingers:function(ids,changes){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return {ok:false,error:'譜面が変わりました。開き直してください。'};
             const result=CS().localChordForms.changeFingers(owner,ids||[chord.id],changes);
-            if(result.ok){closePaperForm();redrawSession(false);setSaveStatus('運指を変更しました（未保存）');}
+            if(result.ok){ticket=CS().structureOperations.capture(owner);closePaperForm();redrawSession(false);setSaveStatus('運指を変更しました（未保存）');}
             return result;
         },symbol:chord.symbol,snapshot:shown,playedStrings:shown===material.snapshot?binding.playedStrings:shown.strings.filter(n=>n.kind==='note').map(n=>n.string),diagram:CS().localPaperForms.diagram,detectBarres:window.ChordCruise.caged.detectBarres,apply:function(draft){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return {ok:false,error:'編集対象が変わりました。開き直してください'};
             draft.snapshot.playability='unknown';draft.snapshot.ownerWarning='変更した押さえ方は未確認';
             var authored=CS().localChordForms.material(draft.snapshot,chord.symbol,'manual',material.provenance.externalMaterialId,material.provenance.shape);
-            var result=CS().localChordForms.adopt(owner,barId,chord.id,authored,draft.playedStrings);if(result.ok){closePaperForm();redrawSession(false);setSaveStatus('フォームを変更しました（未保存）');}return result;
+            var result=CS().localChordForms.adopt(owner,barId,chord.id,authored,draft.playedStrings);if(result.ok){ticket=CS().structureOperations.capture(owner);closePaperForm();redrawSession(false);setSaveStatus('フォームを変更しました（未保存）');}return result;
         }});
         dialog.addEventListener('close',function(){if(formDialog===dialog)formDialog=null;dialog.remove();if(!dialog.noRestore&&previous?.isConnected)previous.focus({preventScroll:true});});dialog.addEventListener('keydown',function(e){e.stopPropagation();if(e.isComposing||e.keyCode===229)return;if((e.ctrlKey||e.metaKey)&&['s','z'].includes(e.key.toLowerCase()))e.preventDefault();});dialog.showModal();
     }
