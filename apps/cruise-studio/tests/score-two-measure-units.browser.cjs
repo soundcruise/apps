@@ -9,6 +9,8 @@ for(const engine of ['chrome','webkit'])test('two measure units and unified chor
  for(const count of [1,2,3,4,2,1]){
     await p.locator('[data-editor-bars="'+count+'"]').click();
     assert.equal(await p.locator('.editor-measure').count(),Math.min(count,f.score.bars.length));
+    const numbers=nodes=>nodes.map(n=>n.dataset.barNumber);
+    assert.deepEqual(await p.locator('#sc-sheet-scale-box .sc-in-editor').evaluateAll(numbers),await p.locator('.editor-measure').evaluateAll(numbers));
     assert.equal(await scroller.evaluate(e=>getComputedStyle(e).overscrollBehaviorX),'contain');
     assert.equal(await p.evaluate(()=>getComputedStyle(document.documentElement).overscrollBehaviorX),'contain');
     await scroller.hover();
@@ -19,7 +21,17 @@ for(const engine of ['chrome','webkit'])test('two measure units and unified chor
  await p.getByRole('button',{name:'横に拡大',exact:true}).click();
  const viewport=p.locator('.editor-score-scroll'), label=viewport.locator('.slot-overlay-row--strum .slot-overlay-row-label').first();
  const originalX=(await label.boundingBox()).x;
- await viewport.evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+ const offsets=await viewport.evaluate(el=>{
+    const first=el.querySelector('.editor-measure');
+    const labels=[...first.querySelectorAll('.slot-overlay-row-label')];
+    const tracks=[...first.querySelectorAll('.slot-overlay-row-body,.slot-overlay-ruler-track')];
+    return [40,180,90,el.scrollWidth].map(x=>{
+       el.scrollLeft=x;
+       const ends=tracks.map(t=>t.getBoundingClientRect().right);
+       return Math.max(Math.max(...ends)-Math.min(...ends),...labels.map(l=>Math.abs(l.getBoundingClientRect().left-el.getBoundingClientRect().left)));
+    });
+ });
+ assert(offsets.every(x=>x<.1),'Row labels and barlines must align even before scroll events are delivered');
  await p.waitForFunction(x=>{
     const view=document.querySelector('.editor-score-scroll'), rows=view.querySelectorAll('.slot-overlay-row--strum');
     const label=rows[0].querySelector('.slot-overlay-row-label'), box=label.getBoundingClientRect();

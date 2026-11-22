@@ -106,6 +106,7 @@
     var staffStyle = 'code', staffView = null;
     var paperFormSessions=new WeakMap(),barClipboards=new WeakMap(),formDialog=null,formPopupModule=null,formPopupPending=null,formPopupEpoch=0;
     var sheetActions=null,sheetActionsPending=null,duplicateFlight=false,historyPreview=null;
+    var enabledParts={chords:true,melody:true};
     var playbackSettings=null,playbackSettingsPending=null,playbackMix={chords:100,melody:100,metronome:100},playbackVisualDelay=0,metronomeSound='click',previewPaperCursor=null,playingPaperBar=null,previewEditorCursor=null,playingEditorMeasure=null;
     var editorOpen=false;
     var editorHorizontalZoom=100,editorBars=1,editorAnchorId=null,editorPlacement='floating',collapsedEditorRows=new Set();
@@ -677,8 +678,10 @@
         var actions=els.toolbar.querySelector('.sheet-toolbar-actions'),primary=group('sc-toolbar-primary');
         actions.prepend(primary);
         var caption=group('sc-playback-caption');caption.append(q('sc-song-target'),q('sc-song-position'));
+        const storedParts=CS().storage.getAppSetting('scoreEnabledParts');
         countInEnabled=CS().storage.getAppSetting('scoreCountIn')===true;metronomeEnabled=CS().storage.getAppSetting('scoreMetronome')!==false;
         playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(CS().storage.getAppSetting('scoreVisualDelayMs'))||0));metronomeSound=['click','wood','beep','hihat'].includes(CS().storage.getAppSetting('scoreMetronomeSound'))?CS().storage.getAppSetting('scoreMetronomeSound'):'click';var storedMix=CS().storage.getAppSetting('scorePlaybackMix');Object.keys(playbackMix).forEach(function(key){var value=storedMix?.[key];if(typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=100)playbackMix[key]=value;});
+        for (const part of ['chords','melody']) enabledParts[part]=storedParts?.[part]??(playbackMix[part]>0);
         var playbackSettingsButton=button('sc-playback-settings','音設定',function(){openPlaybackSettings(playbackSettingsButton);});playbackSettingsButton.setAttribute('aria-haspopup','dialog');playbackSettingsButton.addEventListener('pointerdown',function(e){if(e.button===0)e.preventDefault();});
         var history=group('sc-toolbar-history'),historyButton=button('sc-history','履歴',function(){openSheetAction('history',historyButton);});historyButton.classList.add('sc-history-toggle');historyButton.setAttribute('aria-haspopup','dialog');history.append(els.undoBtn,els.redoBtn,historyButton);
         primary.append(els.saveBtn,history,els.saveStatus);var transport=group('score-transport sc-bottom-transport'),transportMain=group('score-transport-main'),transportOptions=group('score-transport-options'),bpm=document.createElement('span');transport.id='sc-transport';transport.setAttribute('role','toolbar');transport.setAttribute('aria-label','再生操作');bpm.id='sc-transport-tempo';bpm.className='score-tempo sv-tempo-group';bpm.setAttribute('aria-label','練習BPM');bpm.setAttribute('role','group');bpm.textContent='BPM';var tempo=document.createElement('input');tempo.type='number';tempo.id='sc-practice-tempo';tempo.min=20;tempo.max=400;tempo.setAttribute('aria-label','練習テンポ');tempo.title='元の曲のBPMは変わりません';bpm.appendChild(tempo);tempo.onchange=function(){setPracticeTempo(Number(tempo.value));};var previewButton=q('sc-song-preview');previewButton.classList.add('score-play');transportMain.append(previewButton);var repeatButton=button('sc-repeat','↻',function(){if(!editorCanMove())return;editorRepeat=!editorRepeat;autoRangeRepeat=false;refreshPracticeTransport();restartPracticePlayback();});repeatButton.setAttribute('aria-label','繰り返し');repeatButton.title='繰り返し';repeatButton.setAttribute('aria-pressed','false');transportMain.append(repeatButton);playbackSettingsButton.classList.add('score-audio-button');transportOptions.append(bpm,playbackSettingsButton);transport.append(transportMain,transportOptions,caption);els.root.appendChild(transport);
@@ -1595,6 +1598,10 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 #sc-sheet-scale-box .sc-playing-cell {box-shadow:inset 0 0 0 2px var(--score-border,#408aa7)!important;background-color:var(--score-fill,rgba(64,138,167,.12))!important;}
 #sc-sheet-scale-box{--paper-selection-bg:var(--score-fill,rgba(64,138,167,.12));--paper-selection-border:var(--score-border,#408aa7);--paper-selection-number:var(--score-ink,#265d72);--paper-selection-shadow-edge:var(--score-fill);--paper-focus:var(--score-border,#408aa7);}
 #sc-sheet-scale-box .sheet-bar.is-selected,#sc-sheet-scale-box .sheet-bar.sc-playing-bar{background:var(--paper-selection-bg);box-shadow:inset 0 0 0 1px var(--paper-selection-border);}
+@media screen{
+#sc-sheet-scale-box .sheet-bar.sc-in-editor{background:var(--paper-selection-bg);box-shadow:inset 0 0 0 1px var(--paper-selection-border);}
+#sc-sheet-scale-box .sheet-bar.sc-in-editor .sheet-bar-num{color:var(--paper-selection-number);}
+}
 #sc-sheet-scale-box:not(.sc-score-playing) .sheet-bar.is-selected:focus-visible{outline:1px solid var(--paper-focus);outline-offset:1px;}
 #sc-sheet-scale-box.sc-score-playing .sheet-bar{transition:none;}
 #sc-sheet-scale-box.sc-score-playing .sheet-bar:focus-visible{outline:none;}
@@ -1621,23 +1628,31 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 /* Keep trackpad overscroll inside the editor, including when a single bar fits. */
 html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:not(.hidden)){overscroll-behavior-x:contain;}
 #sc-slot-overlay .editor-score-scroll{min-width:0;overflow-x:auto;overscroll-behavior-x:contain;flex-shrink:0;}
-#sc-slot-overlay .editor-measures{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:0;width:var(--editor-horizontal-width,100%);min-width:calc(var(--editor-label-offset) + 16 * var(--editor-min-cell) + 2px);}
-#sc-slot-overlay .editor-measures:not([data-count="1"]){min-width:calc(var(--editor-label-offset) + var(--editor-count) * (16 * var(--editor-min-cell) + 2px));grid-template-columns:calc((100% - var(--editor-label-offset)) / var(--editor-count) + var(--editor-label-offset)) repeat(calc(var(--editor-count) - 1),minmax(0,1fr));}
-#sc-slot-overlay .editor-measures.has-chord-panel{grid-template-rows:auto auto auto auto auto auto;}
-#sc-slot-overlay .editor-measures.has-chord-panel .editor-measure,#sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-grid{display:contents;}
-#sc-slot-overlay .editor-measures.has-chord-panel .editor-measure :is(.slot-overlay-ruler,.slot-overlay-row){grid-column:var(--editor-column);}
-#sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-ruler{grid-row:1;}
-#sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-row--chord{grid-row:2;}
-#sc-slot-overlay .editor-measures.has-chord-panel [data-chord-picker]{grid-row:3;grid-column:1/-1;}
-#sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-row--strum{grid-row:4;}
-#sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-row--lyrics{grid-row:5;}
-#sc-slot-overlay .editor-measures.has-chord-panel .slot-overlay-row--doremi{grid-row:6;}
-#sc-slot-overlay .editor-measure{min-width:0;border:0;padding:0;border-radius:0;}
-#sc-slot-overlay .editor-measure:not(:first-child) .slot-overlay-row-label,#sc-slot-overlay .editor-measure:not(:first-child) .slot-overlay-ruler-label{display:none;}
-#sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:last-child) .slot-overlay-row-body{border-top-right-radius:0;border-bottom-right-radius:0;border-right-width:2px;}
-#sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:first-child) .slot-overlay-row-body{border-top-left-radius:0;border-bottom-left-radius:0;border-left:0;}
-#sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:last-child) :is(.dock-strum-grid,.dock-lyrics-grid){border-top-right-radius:0;border-bottom-right-radius:0;}
-#sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:first-child) :is(.dock-strum-grid,.dock-lyrics-grid){border-top-left-radius:0;border-bottom-left-radius:0;}
+#sc-slot-overlay .editor-measures{position:relative;display:grid;grid-template-columns:var(--editor-label-offset) repeat(var(--editor-count),minmax(0,1fr));width:var(--editor-horizontal-width,100%);min-width:calc(var(--editor-label-offset) + var(--editor-count) * (16 * var(--editor-min-cell) + 2px));}
+#sc-slot-overlay .editor-measure,#sc-slot-overlay .editor-measure .slot-overlay-grid{display:contents;}
+#sc-slot-overlay .editor-measure :is(.slot-overlay-row,.slot-overlay-ruler){grid-column:calc(var(--editor-column) + 1);min-width:0;}
+#sc-slot-overlay .slot-overlay-ruler{grid-row:1;}
+#sc-slot-overlay .slot-overlay-row--chord{grid-row:2;}
+#sc-slot-overlay [data-chord-picker]{grid-row:3;grid-column:1/-1;}
+#sc-slot-overlay .slot-overlay-row--strum{grid-row:4;}
+#sc-slot-overlay .slot-overlay-row--lyrics{grid-row:5;}
+#sc-slot-overlay .slot-overlay-row--doremi{grid-row:6;}
+#sc-slot-overlay :is(.slot-overlay-row--strum,.slot-overlay-row--lyrics,.slot-overlay-row--doremi){margin-top:calc(3px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay .editor-measure:first-child :is(.slot-overlay-ruler,.slot-overlay-row){display:grid;grid-column:1/-1;grid-template-columns:subgrid;column-gap:0;pointer-events:none;}
+#sc-slot-overlay .editor-measure:first-child :is(.slot-overlay-ruler-track,.slot-overlay-row-body){grid-area:1/2;pointer-events:auto;}
+#sc-slot-overlay .editor-measure:first-child :is(.slot-overlay-row-label,.slot-overlay-ruler-label){grid-area:1/1/2/-1;justify-self:start;position:sticky;left:0;width:var(--editor-label-width);background:var(--slot-surface);box-shadow:calc(var(--editor-label-offset) - var(--editor-label-width)) 0 var(--slot-surface);z-index:4;pointer-events:auto;}
+#sc-slot-overlay .editor-measure:not(:first-child) :is(.slot-overlay-row-label,.slot-overlay-ruler-label){display:none;}
+/* Each lane draws its barline on the outer track, including lanes with a nested input grid. */
+#sc-slot-overlay .editor-measures .slot-overlay-row-body{box-sizing:border-box;border:1px solid var(--slot-border);border-radius:6px;background:var(--slot-input-surface);}
+#sc-slot-overlay .editor-measures :is(.dock-strum-grid,.dock-lyrics-grid){border:0;border-radius:0;width:100%;box-shadow:none;}
+#sc-slot-overlay .editor-measures .slot-overlay-ruler-track{box-sizing:border-box;border-inline:1px solid transparent;}
+#sc-slot-overlay .editor-measure:not(:last-child) :is(.slot-overlay-row-body,.slot-overlay-ruler-track){border-right:2px solid var(--slot-border);border-top-right-radius:0;border-bottom-right-radius:0;}
+#sc-slot-overlay .editor-measure:not(:first-child) :is(.slot-overlay-row-body,.slot-overlay-ruler-track){border-left:0;border-top-left-radius:0;border-bottom-left-radius:0;}
+#sc-slot-overlay .slot-overlay-input{border-right:1px solid transparent;}
+#sc-slot-overlay .slot-overlay-input.is-beat{border-right-color:var(--paper-line-beat);}
+#sc-slot-overlay .slot-overlay-input.is-8th{border-right-color:var(--paper-line-eighth);}
+#sc-slot-overlay .slot-overlay-input.is-16th{border-right-color:var(--paper-line-sixteenth);}
+#sc-slot-overlay .editor-measures .is-barend{border-right-color:transparent;}
 #sc-slot-overlay .slot-overlay-row-label{font-size:max(11px,calc(11.5px * var(--bar-loupe-scale,1)));white-space:nowrap;justify-content:space-between;gap:3px;}
 #sc-slot-overlay .editor-row-tools{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;}
 #sc-slot-overlay .slot-overlay-row-label{position:relative;}
@@ -1668,8 +1683,6 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 #sc-slot-overlay.editor-right .slot-overlay-head{cursor:default;flex-wrap:wrap;gap:6px;}
 #sc-slot-overlay.editor-right .slot-overlay-head-actions{flex:1 1 100%;}
 #sc-slot-overlay.editor-right .slot-overlay-resize-handle{display:none;}
-#sc-slot-overlay.editor-right .editor-measures[data-count] .editor-measure .slot-overlay-row-body{border-radius:6px;border-left-width:1px;border-right-width:1px;}
-#sc-slot-overlay.editor-right .editor-measures[data-count] .editor-measure :is(.dock-strum-grid,.dock-lyrics-grid){border-radius:8px;}
 
 #sc-slot-overlay.editor-right .piano-keys{min-width:420px;}
 #sc-slot-overlay.editor-right .piano-keys button{font-size:10px;}
@@ -2034,12 +2047,11 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
 #sc-slot-overlay button.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
-#sc-slot-overlay button.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0 3px 1px;background:transparent;border:0;color:#526573;font-size:max(9px,calc(9px * var(--bar-loupe-scale,1)));font-variant-numeric:tabular-nums;}
+#sc-slot-overlay button.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0 3px;background:transparent;border:0;color:#526573;font-size:max(9px,calc(9px * var(--bar-loupe-scale,1)));font-variant-numeric:tabular-nums;}
 #sc-slot-overlay button.editor-cell-value:hover,#sc-slot-overlay button.editor-cell-value:focus-visible{background:#e6edf2;color:#233f53;}
 #sc-slot-overlay button.editor-cell-value[data-unusual-value]{width:auto;max-width:calc(100% - 2px);}
 #sc-slot-overlay select.editor-row-resolution{width:max(27px,calc(31px * var(--bar-loupe-scale,1)));}
 #sc-slot-overlay button.editor-cell-value:focus-visible,#sc-slot-overlay select.editor-row-resolution:focus-visible{outline:2px solid #3676a6;z-index:4;}
-#sc-slot-overlay .editor-measure:first-child :is(.slot-overlay-row-label,.slot-overlay-ruler-label){position:relative;z-index:4;background:var(--slot-surface);transform:translateX(var(--editor-scroll-x,0px));box-shadow:5px 0 var(--slot-surface);}
 #sc-slot-overlay .editor-measures.has-fine-values{--editor-min-cell:max(36px,calc(48px * var(--bar-loupe-scale,1) * var(--editor-horizontal-scale,1)));}
 #sc-slot-overlay .sc-editor-transfer-cell> :is(.dock-strum-cell,.dock-lyrics-cell){height:100%;width:100%;min-width:0;}
 #sc-slot-overlay .dock-strum-cell > *{pointer-events:none;}
@@ -2126,7 +2138,19 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 .sc-song-dialog .sc-song-section-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--studio-border-default);}
 .sc-song-dialog .sc-song-section-row label{flex:1 1 180px;min-width:0;margin:0;}.sc-song-section-row label>span{display:none;}
 
-.sc-cell-value-dialog>div{display:flex;flex-wrap:wrap;gap:8px;}
+.sc-part-checks{display:flex;align-items:center;gap:10px;}
+.sc-part-checks label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;}
+.sc-part-checks input[type=checkbox]{margin:0;accent-color:var(--studio-accent,#d0b77c);}
+#sc-transport .sc-part-checks{border:1px solid var(--studio-border-default);border-radius:8px;padding:0 10px;}
+#sc-transport .sc-part-checks label{min-height:36px;font-size:13px;}
+#sc-transport .sc-parts-toggle{display:none;}
+#sc-transport .sc-parts-popup{inset:auto 8px 66px auto;background:var(--studio-panel,#202a35);color:var(--studio-text-primary,#fff);border:1px solid var(--studio-border-default);border-radius:8px;padding:6px;}
+#sc-transport .sc-parts-popup .sc-part-checks{border:0;}
+@container score (max-width:680px){#sc-transport .sc-sound-parts{display:none;}#sc-transport .sc-parts-toggle{display:inline-flex;font-size:12px;padding:5px;}}
+dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
+.sc-cell-value-dialog>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;}
+.sc-cell-value-dialog>div label{justify-content:center;white-space:nowrap;padding:6px 0;}
+.sc-cell-value-dialog>div input{margin:0;}
 .sc-cell-value-dialog label{display:inline-flex;align-items:center;gap:4px;padding:5px;cursor:pointer;}
 .sc-cell-value-dialog label:has(:disabled){opacity:.48;cursor:default;}
 .sc-cell-value-dialog>label{margin:10px 0;}
@@ -2465,7 +2489,7 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
 
     function planNoteValue(bar, row, ranges, tick, value) {
         const span = noteValueTicks(value), length = CS().model.getBarLengthTicks(state.project);
-        if (value === '1.') return {error:'全音符には付点を付けられません'};
+        if (value === '1.' || value === '32.') return {error:'この音価には付点を付けられません'};
         const bulk = tick === null;
         const source = bulk ? null : ranges.find(r => r.tick === tick);
         if (bulk ? length % span : !source || tick + span > length) return {error:'小節内に収まりません'};
@@ -2904,17 +2928,12 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         }});
         var viewport=measures.parentElement,overflow=viewport.scrollWidth-viewport.clientWidth;
         if(overflow>0){
-            // Distribute the entire scroll distance over the visible timeline.
-            // In the stacked right pane each measure has its own horizontal timeline.
-            var progress=tick/barTicks;
-            if(editorPlacement!=='right'){
-                var first=Number(measures.firstElementChild.dataset.barNumber);
-                progress=(number-first+progress)/Number(measures.dataset.count);
-            }
+            var first=Number(measures.firstElementChild.dataset.barNumber);
+            var progress=(number-first+tick/barTicks)/Number(measures.dataset.count);
             viewport.scrollLeft=overflow*progress;
         }
     }
-    var previewLoopPeriod=0,previewCountIn=null,countInEnabled=false,metronomeEnabled=true,playbackNotice=null,practiceBpm=null,practiceOwner=null,editorRepeat=false,autoRangeRepeat=false,lastAutoRange='',previewRangeActive=false,syncSoundModes=null,scoreFullscreen=null,practiceRestart=0,practicePending=null,previewStartOffset=0;
+    var previewLoopPeriod=0,previewCountIn=null,countInEnabled=false,metronomeEnabled=true,playbackNotice=null,practiceBpm=null,practiceOwner=null,editorRepeat=false,autoRangeRepeat=false,lastAutoRange='',previewRangeActive=false,syncSoundParts=null,scoreFullscreen=null,practiceRestart=0,practicePending=null,previewStartOffset=0;
     function paintPlayhead(){
         previewRAF=null;if(barPreviewPhase!=='playing'||!pianoAudition)return;
         if(!currentFrame(previewFrame)||!state.active||document.hidden){stopPianoAudition();return;}
@@ -2954,7 +2973,7 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         previewRAF=requestAnimationFrame(paintPlayhead);
     }
     function ensureAudition(){
-        if(!pianoAudition)pianoAudition=createPianoAudition({coordinator:CS().audio,mix:playbackMix,isMetronomeEnabled:function(){return metronomeEnabled;},metronomeSample:function(ctx,midi){return scoreUI.metronomeSample(ctx,midi,metronomeSound);},outputTime:function(ctx){return scoreUI?.outputContextTime?scoreUI.outputContextTime(ctx,performance.now()):ctx.currentTime;},createContext:function(){return new (window.AudioContext||window.webkitAudioContext)();},setTimer:window.setTimeout.bind(window),clearTimer:window.clearTimeout.bind(window),loadSample:loadPianoSample,onError:function(message){if(currentFrame(previewFrame))previewMessage(message);},onState:function(phase,mode){var stopped=phase==='idle'&&barPreviewPhase==='playing'&&barPreviewScope==='song'&&previewSelectOnStop&&!previewLoopPeriod&&!previewRangeActive&&currentFrame(previewFrame)&&state.active?previewLastBar:null;barPreviewPhase=['bar','song'].includes(mode)?phase:'idle';if(phase==='idle'){previewSelectOnStop=false;clearPlaybackNotice();}updateBarPlayButton();clearPlayhead();if(stopped)selectStoppedPlaybackBar(stopped);if(barPreviewPhase==='playing'){beginPlaybackFollow();previewRAF=requestAnimationFrame(paintPlayhead);}else if(els.slotOverlay){delete els.slotOverlay.dataset.playbackTick;delete els.slotOverlay.dataset.playbackBar;}}});
+        if(!pianoAudition)pianoAudition=createPianoAudition({coordinator:CS().audio,mix:audibleMix(),isMetronomeEnabled:function(){return metronomeEnabled;},metronomeSample:function(ctx,midi){return scoreUI.metronomeSample(ctx,midi,metronomeSound);},outputTime:function(ctx){return scoreUI?.outputContextTime?scoreUI.outputContextTime(ctx,performance.now()):ctx.currentTime;},createContext:function(){return new (window.AudioContext||window.webkitAudioContext)();},setTimer:window.setTimeout.bind(window),clearTimer:window.clearTimeout.bind(window),loadSample:loadPianoSample,onError:function(message){if(currentFrame(previewFrame))previewMessage(message);},onState:function(phase,mode){var stopped=phase==='idle'&&barPreviewPhase==='playing'&&barPreviewScope==='song'&&previewSelectOnStop&&!previewLoopPeriod&&!previewRangeActive&&currentFrame(previewFrame)&&state.active?previewLastBar:null;barPreviewPhase=['bar','song'].includes(mode)?phase:'idle';if(phase==='idle'){previewSelectOnStop=false;clearPlaybackNotice();}updateBarPlayButton();clearPlayhead();if(stopped)selectStoppedPlaybackBar(stopped);if(barPreviewPhase==='playing'){beginPlaybackFollow();previewRAF=requestAnimationFrame(paintPlayhead);}else if(els.slotOverlay){delete els.slotOverlay.dataset.playbackTick;delete els.slotOverlay.dataset.playbackBar;}}});
         return pianoAudition;
     }
     // Preload on workspace activation; never await an import inside the audio gesture.
@@ -2969,12 +2988,63 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         var input=q('sc-practice-tempo'),repeat=q('sc-repeat'),eligible=!!state.session&&state.active&&editorCanMove();
         if(input){if(document.activeElement!==input)input.value=practiceBpm||state.project?.songInfo.bpm||100;input.disabled=!eligible||barPreviewPhase==='loading';}
         if(repeat){repeat.disabled=!eligible||barPreviewPhase==='loading';repeat.setAttribute('aria-pressed',String(editorRepeat));}
-        syncSoundModes?.();
+        syncSoundParts?.();
+    }
+    const soundPartNames={chords:'コード',melody:'メロディ',metronome:'メトロノーム'};
+    function partEnabled(key){return key==='metronome'?metronomeEnabled:enabledParts[key];}
+    function audibleMix(){
+        return Object.fromEntries(Object.keys(soundPartNames).map(key=>[key,partEnabled(key)?playbackMix[key]:0]));
+    }
+    function syncPartChecks(group){
+        for(const input of group.querySelectorAll('[data-sound-part]')){
+            input.checked=partEnabled(input.dataset.soundPart)&&playbackMix[input.dataset.soundPart]>0;
+            input.disabled=!state.session||!state.active;
+        }
+    }
+    function buildPartChecks(place){
+        const group=document.createElement('div');
+        group.className='sc-part-checks';group.setAttribute('role','group');group.setAttribute('aria-label','再生する音');
+        for(const [key,name] of Object.entries(soundPartNames)){
+            const label=document.createElement('label'), input=document.createElement('input');
+            input.type='checkbox';input.dataset.soundPart=key;
+            if(place==='settings'&&key==='metronome')input.id='sc-metronome';
+            input.onchange=()=>{
+                if(key==='metronome')metronomeEnabled=input.checked;
+                else enabledParts[key]=input.checked;
+                const setting=key==='metronome'?'scoreMetronome':'scoreEnabledParts';
+                let volumeSaved=true;
+                if(input.checked&&playbackMix[key]===0){
+                    playbackMix={...playbackMix,[key]:100};
+                    volumeSaved=CS().storage.setAppSetting('scorePlaybackMix',playbackMix).ok;
+                }
+                const result=CS().storage.setAppSetting(setting,key==='metronome'?metronomeEnabled:{...enabledParts});
+                if(!result.ok||!volumeSaved)setSaveStatus('音の設定は、この画面にのみ適用しています');
+                pianoAudition?.setMix(audibleMix());
+                refreshPracticeTransport();
+                playbackSettings?.refresh();
+            };
+            label.append(input,name);group.append(label);
+        }
+        syncPartChecks(group);
+        return group;
     }
     function mountPracticeTransport(){
-        if(syncSoundModes||!q('sc-transport'))return;
+        if(syncSoundParts||!q('sc-transport'))return;
         var parent=q('sc-transport').querySelector('.score-transport-options'),audio=q('sc-playback-settings');
-        syncSoundModes=scoreUI.mountSoundModes({parent:parent,button:function(text,id,target){var b=document.createElement('button');b.type='button';b.id='sc-'+id;b.className='btn-ghost btn-compact';b.textContent=text;target.append(b);return b;},read:function(){return state.session&&editorCanMove()?{settings:{mix:playbackMix,metronome:metronomeEnabled}}:null;},change:function(value){if(!editorCanMove())return;playbackMix=value.mix;metronomeEnabled=value.metronome;pianoAudition?.setMix(playbackMix);try{var raw=JSON.parse(localStorage.getItem('cruiseStudio.appSettings')||'{}');if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error();for(var key of ['scorePlaybackMix','scoreMetronome'])if(CS().storage.setAppSetting(key,key==='scoreMetronome'?metronomeEnabled:playbackMix)?.ok===false)throw Error();}catch(_){setSaveStatus('音の設定は、この画面にのみ適用しています');}refreshPracticeTransport();}});
+        const group=document.createElement('div');
+        group.className='sc-sound-parts';
+        const parts=buildPartChecks('toolbar');
+        group.append(parts);
+        parent.append(group);
+        const compact=document.createElement('button');
+        compact.type='button';compact.className='sc-parts-toggle btn-ghost btn-compact';
+        compact.textContent='パート';compact.setAttribute('aria-label','再生するパートを選ぶ');
+        const popup=document.createElement('div');
+        popup.popover='auto';popup.className='sc-parts-popup';
+        const options=buildPartChecks('compact');popup.append(options);
+        compact.popoverTargetElement=popup;
+        parent.append(compact,popup);
+        syncSoundParts=()=>{syncPartChecks(parts);syncPartChecks(options);};
         parent.append(audio);scoreUI.styleRepeatButton(q('sc-repeat'));refreshPracticeTransport();
     }
     function practiceProject(project){refreshPracticeTransport();return practiceBpm?Object.assign({},project,{songInfo:Object.assign({},project.songInfo,{bpm:practiceBpm})}):project;}
@@ -3011,12 +3081,12 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
     function createLayoutPreview(project,options){
         var owner=state.session,version=owner.snapshotVersion,runtime=null,phase='idle',plan=null,preRoll=null,generation=0,disposed=false;
         function current(){return !disposed&&state.active&&state.session===owner&&owner.snapshotVersion===version&&options.isOpen()&&!document.hidden;}
-        function audio(){if(!runtime)runtime=createPianoAudition({sessionId:'studio.sheet.layout.'+crypto.randomUUID(),coordinator:CS().audio,mix:playbackMix,isMetronomeEnabled:function(){return metronomeEnabled;},metronomeSample:function(ctx,midi){return scoreUI.metronomeSample(ctx,midi,metronomeSound);},outputTime:function(ctx){return scoreUI.outputContextTime(ctx,performance.now());},createContext:function(){return new (window.AudioContext||window.webkitAudioContext)();},setTimer:window.setTimeout.bind(window),clearTimer:window.clearTimeout.bind(window),loadSample:loadPianoSample,onState:function(value){phase=value;options.changed(value);},onError:function(text){options.message(text);}});return runtime;}
+        function audio(){if(!runtime)runtime=createPianoAudition({sessionId:'studio.sheet.layout.'+crypto.randomUUID(),coordinator:CS().audio,mix:audibleMix(),isMetronomeEnabled:function(){return metronomeEnabled;},metronomeSample:function(ctx,midi){return scoreUI.metronomeSample(ctx,midi,metronomeSound);},outputTime:function(ctx){return scoreUI.outputContextTime(ctx,performance.now());},createContext:function(){return new (window.AudioContext||window.webkitAudioContext)();},setTimer:window.setTimeout.bind(window),clearTimer:window.clearTimeout.bind(window),loadSample:loadPianoSample,onState:function(value){phase=value;options.changed(value);},onError:function(text){options.message(text);}});return runtime;}
         return {async play(){var ticket=++generation,stopGeneration=CS().audio.getStopGeneration();if(!current())return;phase='loading';options.changed(phase);await prepareScorePlayback();if(ticket!==generation||stopGeneration!==CS().audio.getStopGeneration()||!current()||!scorePlayback){if(ticket===generation){phase='idle';options.changed(phase);}return;}try{var practice=practiceProject(project);var deps=previewDependencies(practice,false);
             plan=options.auditionPlan || buildSongPreviewPlan(practice,deps,0);
             if(!options.patternOnly)plan=scorePlayback.withMetronome(practice,plan);
             var schedule=options.auditionTiming?options.auditionTiming(plan):plan;
-            preRoll=!options.patternOnly&&countInEnabled?scorePlayback.buildCountIn(practice):null;var result=await audio().playEvents(schedule.events,function(){return ticket===generation&&stopGeneration===CS().audio.getStopGeneration()&&current();},schedule.duration,true,undefined,preRoll);if(!result.ok){phase='idle';options.changed(phase);if(result.error)options.message(result.error);}}catch(error){phase='idle';options.changed(phase);options.message(error.message||'音を開始できませんでした');}},
+            preRoll=!options.patternOnly&&countInEnabled&&metronomeEnabled?scorePlayback.buildCountIn(practice):null;var result=await audio().playEvents(schedule.events,function(){return ticket===generation&&stopGeneration===CS().audio.getStopGeneration()&&current();},schedule.duration,true,undefined,preRoll);if(!result.ok){phase='idle';options.changed(phase);if(result.error)options.message(result.error);}}catch(error){phase='idle';options.changed(phase);options.message(error.message||'音を開始できませんでした');}},
             position(){if(phase!=='playing'||!runtime||!plan)return null;var snapshot=runtime.snapshot(),elapsed=(snapshot.visualElapsedSeconds??snapshot.elapsedSeconds)-.03-playbackVisualDelay/1000-(preRoll?.duration||0);if(elapsed<0)return null;var span=plan.spans.find(function(s){return elapsed<s.end;})||plan.spans[plan.spans.length-1];var next=span && plan.spans[plan.spans.indexOf(span)+1];return span?{barNumber:span.index+1,nextBarNumber:next?next.index+1:null,barTicks:plan.barTicks,barSeconds:plan.barTicks*plan.secondsPerTick,tick:Math.max(0,Math.min(plan.barTicks-.001,(elapsed-span.start)/plan.secondsPerTick))}:null;},
             stop(){generation++;phase='idle';options.changed(phase);if(runtime)void runtime.stop();},dispose(){disposed=true;generation++;return runtime?runtime.dispose():Promise.resolve({ok:true});}};
     }
@@ -3030,7 +3100,7 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         if(!owner||owner.draft.schemaVersion!==2||!operationEligible(fromSettings===true)||owner.inputPending||owner.commitInFlight||owner.conflict||owner.externalUpdatePending||textDiagnostic(owner)||(scope!=='song'&&pianoBlocked(c))){pianoMessage('未確定の入力・保存・競合を確認してください');return;}
         try{var project=practiceProject(owner.workingSnapshot()),deps=previewDependencies(project,scope==='melody'),plan=scope==='song'?practiceSongPlan(project,deps):editorBars>1?buildSongPreviewPlan(project,deps,editorStartIndex(project),editorBars):buildBarPreviewPlan(project,state.selectedBarNumber-1,deps);
             if(scope==='song')plan=scorePlayback.withMetronome(project,plan);
-            var offset=restart?.barNumber?plan.spans?.find(function(s){return s.index+1===restart.barNumber;})?.start||0:0;playPreviewPlan(plan,scope,!restart&&scope==='song'&&countInEnabled?scorePlayback.buildCountIn(project):null,offset);
+            var offset=restart?.barNumber?plan.spans?.find(function(s){return s.index+1===restart.barNumber;})?.start||0:0;playPreviewPlan(plan,scope,!restart&&scope==='song'&&countInEnabled&&metronomeEnabled?scorePlayback.buildCountIn(project):null,offset);
         }catch(e){pianoMessage(e.message);}
     }
     function clearPlaybackNotice(){var old=playbackNotice;playbackNotice=null;if(!old)return;if(piano.message===old)piano.message='';if(els.saveStatus?.textContent===old)refreshSessionStatus();}
@@ -3686,7 +3756,7 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
             input.style.minHeight=kind==='chord'?'max(26px, calc(30px * var(--bar-loupe-scale,1)))':'max(28px, calc(34px * var(--bar-loupe-scale,1)))';
             var boundary=range.boundary;
             input.classList.add(boundary);
-            input.style.borderRight='1px solid var('+(boundary==='is-beat'?'--paper-line-beat':boundary==='is-8th'?'--paper-line-eighth':boundary==='is-16th'?'--paper-line-sixteenth':'--slot-border')+')';
+
             if(kind==='doremi'){input.style.fontFamily='var(--paper-font)';input.style.fontSize='max(11px, calc(13px * var(--bar-loupe-scale, 1)))';input.style.fontWeight='600';input.style.letterSpacing='0';}
             input.dataset.overlayField=kind;input.dataset.slotTick=tick;input.dataset.slotTicks=span;input.setAttribute('aria-label',bar.barNumber+'小節目の'+(kind==='chord'?'コード':'メロディ')+' '+(tick/480+1)+'拍');
             input.value=kind==='chord'?(exact?(bar.chords.find(function(e){return e.tick===tick;})||{}).symbol||'':''):((exact&&exact.kind==='note')||batch?cellDoremiText(events,span,canonical):'');
@@ -5398,6 +5468,7 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
             els.slotOverlay.classList.add('hidden');
             els.slotOverlay.setAttribute('aria-hidden', 'true');
             document.body.classList.remove('dock-open');
+            syncEditorRangeHighlight();
             return;
         }
 
@@ -5471,7 +5542,6 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         var canonical=state.session.draft,anchor=canonical.bars.findIndex(function(b){return b.id===editorAnchorId;});
         if(editorBars===1||anchor<0||state.selectedBarNumber<anchor+1||state.selectedBarNumber>anchor+editorBars){anchor=Math.max(0,state.selectedBarNumber-1);editorAnchorId=canonical.bars[anchor].id;}
         var viewport=document.createElement('div');viewport.className='editor-score-scroll';viewport.dataset.anchor=editorAnchorId;els.slotOverlay.appendChild(viewport);var measures=document.createElement('div');measures.className='editor-measures';measures.dataset.count=Math.min(editorBars,canonical.bars.length-anchor);measures.style.setProperty('--editor-count',measures.dataset.count);viewport.appendChild(measures);
-        viewport.addEventListener('scroll', () => measures.style.setProperty('--editor-scroll-x', viewport.scrollLeft+'px'), {passive:true});
         const displayedBars=state.project.bars.slice(anchor,anchor+editorBars);
         scoreUI?.bindScoreZoom(viewport,{read:()=>editorHorizontalZoom/100,write:value=>changeHorizontalZoom(value*100),enabled:editorCanMove});
         displayedBars.forEach(function(bar){
@@ -5529,7 +5599,6 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         });
         bindEditorRanges(viewport, priorAnchor===editorAnchorId ? selectedStrokeStart : undefined);
         measures.classList.toggle('has-fine-values',Array.from(measures.querySelectorAll('[data-slot-ticks]')).some(cell=>Number(cell.dataset.slotTicks)<120));
-        measures.classList.toggle('has-chord-panel',Number(measures.dataset.count)>1&&chordPicker.open);
         els.slotOverlay.appendChild(buildPianoPanel());
         syncEditorDisclosures();
         var legend=document.createElement('p');legend.className='strum-state-legend';legend.textContent='ストローク：↓ ダウン　↑ アップ　× ミュート　〜 伸ばす　｜　R・Spaceで休符、Deleteで空欄';els.slotOverlay.appendChild(legend);
@@ -5543,7 +5612,15 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         els.slotOverlay.setAttribute('aria-hidden', 'false');
         els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集');
         document.body.classList.add('dock-open');
-        refreshEditorHeader();applyLoupeGeometry();if(priorAnchor===editorAnchorId)viewport.scrollLeft=priorScroll;
+        syncEditorRangeHighlight();refreshEditorHeader();applyLoupeGeometry();if(priorAnchor===editorAnchorId)viewport.scrollLeft=priorScroll;
+    }
+
+    function syncEditorRangeHighlight(){
+        const visible=new Set(editorOpen && !els.slotOverlay.classList.contains('hidden')
+            ? Array.from(els.slotOverlay.querySelectorAll('.editor-measure'),m=>m.dataset.barNumber) : []);
+        for(const cell of els.scaleBox.querySelectorAll('.sheet-bar[data-bar-number]')){
+            cell.classList.toggle('sc-in-editor',visible.has(cell.dataset.barNumber));
+        }
     }
 
     function syncSheetSelection(preserveInputs) {
@@ -5567,6 +5644,7 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
         els.scaleBox.querySelectorAll('[data-editable-empty]').forEach(function(cell){cell.classList.toggle('is-selected',emptySlotSelection?.owner===state.session&&cell.dataset.emptySlot===emptySlotSelection.key);});
         var section=selectedPlaybackSection();els.scaleBox.querySelectorAll('.sheet-section-label[data-section-id]').forEach(function(label){var selected=label.dataset.sectionId===section?.id;label.classList.toggle('is-selected-section',selected);label.setAttribute('aria-pressed',String(selected));});
         if (!preserveInputs) renderSlotOverlayContent();
+        else syncEditorRangeHighlight();
         positionSlotOverlay();
         publishSelection();refreshToolbarActions();
     }
@@ -5816,8 +5894,8 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
     }
     function openPlaybackSettings(trigger){
         if(!editorCanMove())return;var owner=state.session;
-        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.204.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
-            if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);pianoAudition?.setMix(playbackMix);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(playbackMix);refreshPracticeTransport();
+        if(!playbackSettingsPending)playbackSettingsPending=import('./playback-settings.mjs?v=0.204.0-dev.1').then(function(module){playbackSettings=module.createPlaybackSettings({document:document,host:els.root,partChecks:()=>buildPartChecks('settings'),syncPartChecks:syncPartChecks,resetTempo:resetPracticeTempo,read:function(){return {mix:playbackMix,scoreCountIn:countInEnabled,scoreMetronome:metronomeEnabled,visualDelayMs:playbackVisualDelay,metronomeSound:metronomeSound,phase:barPreviewPhase};},toggle:function(){startPreview('song',true);},change:function(key,value,notice){
+            if(key==='scorePlaybackMix'){playbackMix=module.normalizeMix(value);value=playbackMix;}else if(key==='scoreCountIn')countInEnabled=value;else if(key==='scoreMetronomeSound'){metronomeSound=['click','wood','beep','hihat'].includes(value)?value:'click';value=metronomeSound;}else if(key==='scoreVisualDelayMs'){playbackVisualDelay=Math.max(-1000,Math.min(1000,Number(value)||0));value=playbackVisualDelay;}else metronomeEnabled=value;pianoAudition?.setMix(audibleMix());refreshPracticeTransport();
             try{var raw=localStorage.getItem('cruiseStudio.appSettings'),settings=raw===null?{}:JSON.parse(raw);if(!settings||typeof settings!=='object'||Array.isArray(settings))throw Error('invalid-settings');var result=CS().storage.setAppSetting(key,value);if(!result.ok)throw Error(result.error);notice.textContent='';}catch(_){notice.textContent='設定を保存できませんでした。この画面にのみ適用しています';}
         },closed:refreshToolbarActions});return playbackSettings;}).catch(function(){playbackSettingsPending=null;setSaveStatus('音設定を読み込めませんでした',true);});
         playbackSettingsPending.then(function(settings){if(settings&&state.session===owner&&editorCanMove())settings.open(trigger);});

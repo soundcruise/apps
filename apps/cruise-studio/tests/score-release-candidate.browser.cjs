@@ -850,11 +850,13 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     const picker=page.getByRole('dialog',{name:'マスの音価'});
     const dot=picker.getByRole('checkbox',{name:'付点'});
     await cell(0).click();
+    const optionTops=await picker.getByRole('radio').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
+    assert(Math.max(...optionTops)-Math.min(...optionTops)<1);
     for (const name of ['全','2分','4分','8分','16分','32分']) {
         await picker.getByRole('radio',{name,exact:true}).check();
-        assert.equal(await dot.isEnabled(), name!=='全');
+        assert.equal(await dot.isEnabled(), name!=='全' && name!=='32分');
     }
-    for (const [name,ticks] of [['2分',1440],['4分',720],['16分',180],['32分',90]]) {
+    for (const [name,ticks] of [['2分',1440],['4分',720],['16分',180]]) {
         await picker.getByRole('radio',{name,exact:true}).check();
         await dot.check();
         await picker.getByText('適用',{exact:true}).click();
