@@ -481,6 +481,8 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     }
     await editor.click('#sc-curve-menu-toggle');
     await editor.click('#sc-new-project');
+    const discard=editor.getByRole('button',{name:'保存せず続行',exact:true});
+    if(await discard.isVisible())await discard.click();
     const newSong=editor.getByRole('dialog',{name:'新しい曲を作成',exact:true});
     await checkChapter(newSong,'新しい曲を作成','lesson',6,15);
     await newSong.getByRole('button',{name:'キャンセル'}).click();
@@ -548,7 +550,13 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
 
     await editor.locator('.sc-form-list-item').first().click();
     const zoom=editor.locator('dialog.sc-readonly-form[open]');
+    const beforeFingering=await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
     await zoom.getByLabel('編集する位置').selectOption({label:'全て'});
+    await zoom.locator('[data-quick-finger]').first().click();
+    await zoom.getByRole('button',{name:'譜面に反映'}).click();
+    await editor.click('#sc-undo');
+    assert.deepEqual(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),beforeFingering);
+    await editor.locator('.sc-form-list-item').first().click();
     await zoom.getByRole('button',{name:'編集',exact:true}).click();
     const bulk=editor.getByRole('dialog',{name:'コードとフォームの一括編集',exact:true});
     await bulk.locator(':scope > details > summary').click();
