@@ -1,16 +1,28 @@
+import {validBarres} from './form-cycle.mjs';
 import {addPageHelp} from './page-help.mjs';
 import {guardDraft} from './draft-history.mjs';
 import {bindOutsideDismiss} from '../score-ui.mjs';
 
 // Each picker write updates this dialog's draft. Only Apply touches the real session.
-export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,schema,play,stop,previewState,subscribePreview,progression,apply}){
+export function buildCatalogueEditor(dialog,{project,entry,ids,positions,fingers,picker,schema,play,stop,previewState,subscribePreview,progression,apply}){
     const doc=dialog.ownerDocument,capo=project.instrument.capo;
     const original=project.materials.forms.find(form=>form.id===entry.materialId);
     const barIndex=project.bars.findIndex(bar=>bar.chords.some(event=>event.id===entry.eventId));
     const selected=new Set(ids),draftMaterialId=schema.newId();
     const initial={symbol:entry.symbol,material:null};
-    let draft=initial,activeMount=0,closed=false;
-    const history=[],future=[],formEntry={unopened:true};
+    let fingerPreview;
+    if(fingers?.length){
+        const snapshot=structuredClone(entry.snapshot);
+        for(const note of fingers){
+            const target=snapshot.strings.find(n=>n.string===note.string);
+            target.finger=note.finger;
+            target.fingeringWarning=false;
+        }
+        snapshot.barres=validBarres(snapshot);
+        fingerPreview={...original,snapshot};
+    }
+    let draft=fingerPreview?{...initial,fingers}:initial,activeMount=0,closed=false;
+    const history=fingerPreview?[initial]:[],future=[],formEntry={unopened:true};
     const session={snapshotVersion:0,finishTextGroup(){},setInputPending(value){this.inputPending=value;}};
 
     function node(tag,text,parent=dialog){
@@ -32,7 +44,7 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
     cancel.onclick=discard;
     save.onclick=()=>{
         if(!commitName()||save.disabled||session.inputPending)return;
-        const result=apply(draft.symbol,draft.material,draft.range);
+        const result=apply(draft.symbol,draft.material,draft.range,draft.fingers);
         if(!result.ok)notice.textContent=result.error||'一括変更できませんでした。';
     };
     function commitName(){
@@ -41,7 +53,7 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
         if(value!==playName())change({...draft,symbol});
         return true;
     }
-    function hasChanges(){return draft.symbol!==initial.symbol||!!draft.material||draft.range!==undefined;}
+    function hasChanges(){return !!draft.fingers||draft.symbol!==initial.symbol||!!draft.material||draft.range!==undefined;}
     function playName(){return schema.chord(draft.symbol,-capo)??draft.symbol;}
     name.oninput=()=>{save.disabled=!name.value.trim()||(name.value.trim()===playName()&&!hasChanges());};
     name.onchange=commitName;
@@ -63,15 +75,16 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
         // Project the group's pending edit into its first measure for audition.
         const sourceBar=project.bars[barIndex],bar={...sourceBar,chords:sourceBar.chords.map(event=>selected.has(event.id)?{...event,symbol:draft.symbol}:event)};
         const bars=project.bars.slice();bars[barIndex]=bar;
-        const source=draft.material??original;
+        const preview=draft.material??(draft.fingers?fingerPreview:null);
+        const source=preview??original;
         const material={...source,id:draftMaterialId,provenance:{...source.provenance,sourceSymbol:draft.symbol}};
         if(draft.range!==undefined){
             material.snapshot={...material.snapshot};
             if(draft.range)material.snapshot.displayRange=draft.range;else delete material.snapshot.displayRange;
         }
         const bindings=project.performance.formBindings.map(binding=>{
-            if(!selected.has(binding.chordEventId)||(!draft.material&&binding.chordEventId!==entry.eventId))return binding;
-            const playedStrings=draft.material?material.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string):binding.playedStrings;
+            if(!selected.has(binding.chordEventId)||(!preview&&binding.chordEventId!==entry.eventId))return binding;
+            const playedStrings=preview?material.snapshot.strings.filter(n=>n.kind==='note').map(n=>n.string):binding.playedStrings;
             return {...binding,materialId:draftMaterialId,playedStrings};
         });
         const previewProject={...project,bars,materials:{...project.materials,forms:[...project.materials.forms,material]},
@@ -84,7 +97,7 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,
             write:(name,form)=>{
                 const symbol=schema.chord(name,capo);
                 if(!symbol)return false;
-                change(form?{symbol,material:form}:{...draft,symbol});return true;
+                change(form?{...draft,symbol,material:form,range:undefined}:{...draft,symbol});return true;
             },
             writeRange(range){
                 const previous=(draft.material??original).snapshot.displayRange??null;

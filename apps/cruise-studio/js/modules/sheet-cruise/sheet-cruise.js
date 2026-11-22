@@ -5701,7 +5701,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
     }
     function prepareFormPopup(){if(!formPopupPending)formPopupPending=import('./form-popup.mjs?v=0.204.0-dev.1').then(function(m){formPopupModule=m;return m;}).catch(function(){formPopupPending=null;return null;});return formPopupPending;}
     function closePaperForm(){CS().localPaperForms?.closeZoom?.();formPopupEpoch++;if(formDialog){var dialog=formDialog;formDialog=null;dialog.noRestore=true;dialog.close();dialog.remove();}}
-    async function openCatalogueFormEditor(owner,ids){
+    async function openCatalogueFormEditor(owner,ids,fingers){
         if(owner!==state.session||!editorCanMove()||historyPreview)return;
         const C=CS(),project=owner.workingSnapshot(),ticket=C.structureOperations.capture(owner);
         const selected=new Set(ids),positions=[];
@@ -5723,7 +5723,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         let auditioning=false;
         function play(plan,scope){auditioning=true;playPreviewPlan(plan,scope);}
         function stop(){if(auditioning){auditioning=false;stopPianoAudition();}}
-        editor.buildCatalogueEditor(dialog,{project,entry,ids,positions,picker,schema:C.model.schema2,play,stop,
+        editor.buildCatalogueEditor(dialog,{project,entry,ids,positions,fingers,picker,schema:C.model.schema2,play,stop,
             previewState:()=>({phase:barPreviewPhase,scope:barPreviewScope}),
             subscribePreview(listener){chordPreviewListeners.add(listener);return ()=>chordPreviewListeners.delete(listener);},
             progression(draft,index){
@@ -5731,9 +5731,9 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
                 const deps=previewDependencies(draft,false);deps.chordsOnly=true;
                 play(buildBarPreviewPlan(draft,index,deps),'chords');
             },
-            apply(symbol,replacement,range){
+            apply(symbol,replacement,range,pendingFingers){
                 if(!C.structureOperations.isCurrent(ticket,state.session))return {ok:false,error:'譜面が変わりました。開き直してください。'};
-                const result=C.localChordForms.replaceCatalogueForms(owner,ids,symbol,replacement,range);
+                const result=C.localChordForms.replaceCatalogueForms(owner,ids,symbol,replacement,range,pendingFingers);
                 if(result.ok){closePaperForm();redrawSession(false);setSaveStatus(ids.length+'箇所を変更しました（未保存）');}
                 return result;
             }
@@ -5764,10 +5764,10 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         if(request!==formPopupEpoch||state.session!==owner||!cell.isConnected||!CS().structureOperations.isCurrent(ticket,owner)||!editorCanMove())return;
         closePaperForm();var previous=document.activeElement,dialog=document.createElement('dialog');dialog.className='sc-form-dialog sc-unified-form'+(positions?' sc-readonly-form':'');dialog.dataset.paperFormDetail=chord.id;dialog.setAttribute('aria-label',chord.symbol+'のコードフォーム');els.root.appendChild(dialog);formDialog=dialog;
         const shown=formPopupModule.automaticVoicingSnapshot(chord,material,binding)||material.snapshot;
-        function continueFormEdit(ids){
+        function continueFormEdit(ids,fingers){
             if(state.session!==owner||!CS().structureOperations.isCurrent(ticket,owner))return;
             closePaperForm();
-            if(ids?.length>1)openCatalogueFormEditor(owner,ids);
+            if(ids?.length>1)openCatalogueFormEditor(owner,ids,fingers);
             else editRegisteredForm(owner,ids?.[0]||chord.id);
         }
         formPopupModule.createFormPopup({document:document,dialog:dialog,positions,onDetail:continueFormEdit,onEdit:fromEditor?undefined:continueFormEdit,applyFingers:function(ids,changes){

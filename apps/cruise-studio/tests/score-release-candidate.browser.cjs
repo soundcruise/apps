@@ -553,7 +553,13 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     const beforeFingering=await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
     await zoom.getByLabel('編集する位置').selectOption({label:'全て'});
     await zoom.locator('[data-quick-finger]').first().click();
-    await zoom.getByRole('button',{name:'譜面に反映'}).click();
+    await zoom.getByRole('button',{name:'詳しく編集',exact:true}).click();
+    const handoff=editor.getByRole('dialog',{name:'コードとフォームの一括編集',exact:true});
+    const confirmFingers=handoff.getByRole('button',{name:'5箇所に反映',exact:true});
+    await confirmFingers.waitFor();
+    assert(await confirmFingers.isEnabled());
+    assert.deepEqual(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),beforeFingering);
+    await confirmFingers.click();
     await editor.click('#sc-undo');
     assert.deepEqual(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),beforeFingering);
     await editor.locator('.sc-form-list-item').first().click();

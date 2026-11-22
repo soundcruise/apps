@@ -79,6 +79,7 @@ export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStri
  start.onclick=onEdit?()=>onEdit(selectedIds()):(()=>{editing=true;render();});detail.onclick=()=>finish(true);save.onclick=()=>finish(false);
  function finish(openEditor){if(!editing||!dialog.open||!dialog.isConnected)return;if(openEditor&&save.disabled){onDetail(selectedIds());return;}
   const changes=edit.draft.snapshot.strings.filter((n,i)=>n.kind==='note'&&(n.finger!==initialSnapshot.strings[i].finger||n.fingeringWarning!==initialSnapshot.strings[i].fingeringWarning));
+  if(openEditor&&fingersOnly&&selectedIds()?.length>1){onDetail(selectedIds(),changes);return;}
   const result=fingersOnly?applyFingers(selectedIds(),changes):apply(clone(edit.draft));if(!result?.ok){status.textContent=result?.error||'フォームを反映できませんでした';return;}if(openEditor)onDetail(selectedIds());else dialog.close();}
  render();return edit;
 }

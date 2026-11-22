@@ -105,43 +105,45 @@ export function createFormAuthoring(C,base){
     }
     function changeFingers(session,ids,changes){
         if(!authorize(session))return {ok:false,error:'楽器条件の確認をキャンセルしました。'};
-        return session.runOperation('フォームの運指を変更',p=>{
-            const wanted=new Set(ids);
-            const bindings=new Map(p.performance.formBindings.map(b=>[b.chordEventId,b]));
-            const forms=new Map(p.materials.forms.map(m=>[m.id,m]));
-            initialize(p);
-            for(const bar of p.bars)for(const event of bar.chords){
-                if(!wanted.delete(event.id))continue;
-                const binding=bindings.get(event.id),old=forms.get(binding?.materialId);
-                if(!old)throw Error('対象のフォームが変わりました。');
-                const source=clone(old),effective=automaticVoicingSnapshot(event,source,binding);
-                if(!effective)throw Error('フォームを読み直してください。');
-                const played=effective===source.snapshot?binding.playedStrings.slice():effective.strings.filter(n=>n.kind==='note').map(n=>n.string);
-                for(const change of changes){
-                    const note=effective.strings.find(n=>n.string===change.string);
-                    if(!note||note.kind!=='note'||note.relativeFret!==change.relativeFret||!played.includes(note.string))throw Error('対象の押さえ方が変わりました。');
-                    note.finger=change.finger;
-                    note.fingeringWarning=false;
-                }
-                effective.barres=validBarres(effective);
-                const next=material(effective,event.symbol,'manual',source.provenance.externalMaterialId,source.provenance.shape);
-                const confirmed=binding.confirmation?.status==='confirmed';
-                install(p,event,next,'fixed',played);
-                if(!confirmed){
-                    const edited=p.performance.formBindings.find(b=>b.chordEventId===event.id);
-                    edited.confirmation={status:'unconfirmed',basisKey:null};
-                }
-            }
-            if(wanted.size)throw Error('対象のコードが見つかりません。');
-        },{requireUndo:true});
+        return session.runOperation('フォームの運指を変更',p=>applyFingerChanges(p,ids,changes),{requireUndo:true});
     }
-    function replaceCatalogueForms(session,ids,symbol,replacement,range){
+    function applyFingerChanges(p,ids,changes){
+        const wanted=new Set(ids);
+        const bindings=new Map(p.performance.formBindings.map(b=>[b.chordEventId,b]));
+        const forms=new Map(p.materials.forms.map(m=>[m.id,m]));
+        initialize(p);
+        for(const bar of p.bars)for(const event of bar.chords){
+            if(!wanted.delete(event.id))continue;
+            const binding=bindings.get(event.id),old=forms.get(binding?.materialId);
+            if(!old)throw Error('対象のフォームが変わりました。');
+            const source=clone(old),effective=automaticVoicingSnapshot(event,source,binding);
+            if(!effective)throw Error('フォームを読み直してください。');
+            const played=effective===source.snapshot?binding.playedStrings.slice():effective.strings.filter(n=>n.kind==='note').map(n=>n.string);
+            for(const change of changes){
+                const note=effective.strings.find(n=>n.string===change.string);
+                if(!note||note.kind!=='note'||note.relativeFret!==change.relativeFret||!played.includes(note.string))throw Error('対象の押さえ方が変わりました。');
+                note.finger=change.finger;
+                note.fingeringWarning=false;
+            }
+            effective.barres=validBarres(effective);
+            const next=material(effective,event.symbol,'manual',source.provenance.externalMaterialId,source.provenance.shape);
+            const confirmed=binding.confirmation?.status==='confirmed';
+            install(p,event,next,'fixed',played);
+            if(!confirmed){
+                const edited=p.performance.formBindings.find(b=>b.chordEventId===event.id);
+                edited.confirmation={status:'unconfirmed',basisKey:null};
+            }
+        }
+        if(wanted.size)throw Error('対象のコードが見つかりません。');
+    }
+    function replaceCatalogueForms(session,ids,symbol,replacement,range,fingers){
         const revision=C.repository.readRevision(session.target);
         if(C.documents.getSession()!==session||session.destroyed||session.inputPending||session.commitInFlight||
            session.conflict||session.externalUpdatePending||C.shellHost.getActiveWorkspace()!=='sheetCruise'||
            !revision.ok||revision.revision!==session.baseRevision)return {ok:false,error:'編集対象が変わりました。開き直してください。'};
         if(!authorize(session))return {ok:false,error:'楽器条件の確認をキャンセルしました。'};
         return session.runOperation('コードとフォームを一括変更',p=>{
+            if(fingers?.length&&!replacement)applyFingerChanges(p,ids,fingers);
             const playKey=schema.readStructureProjection(p).songInfo.playKey;
             const wanted=new Set(ids),bindings=new Map(p.performance.formBindings.map(b=>[b.chordEventId,b]));
             const forms=new Map(p.materials.forms.map(m=>[m.id,m])),groups=new Map(),copies=new Map();
