@@ -445,12 +445,18 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             }
             const field=page.locator('[data-overlay-field=chord]').last();await field.fill('invalid!');await field.press('ArrowRight');await settle(page);assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSelectionSnapshot().barNumbers),[1]);
         }));
-        await t.test('measure editor edges resize independently and the corner fills the workspace',()=>fresh(async page=>{
+        await t.test('measure editor adjusts width, scales its contents and restores after maximizing',()=>fresh(async page=>{
             await page.setViewportSize({width:1920,height:1080});
             await select(page);
             const before=await snapshot(page);
             const history=await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory());
             const card=page.locator('#sc-slot-overlay');
+            const metrics=()=>card.evaluate(e=>{
+                const cell=e.querySelector('[data-overlay-field="chord"]');
+                const r=e.getBoundingClientRect();
+                return {width:r.width,height:r.height,x:r.x,y:r.y,
+                    cellHeight:cell.getBoundingClientRect().height,font:parseFloat(getComputedStyle(cell).fontSize)};
+            });
             const drag=async (axis,dx,dy,cursor)=>{
                 const edge=card.locator('[data-loupe-resize="'+axis+'"]');
                 const r=await edge.boundingBox(), x=r.x+r.width/2, y=r.y+r.height/2;
@@ -462,23 +468,31 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 await page.mouse.up();
                 await settle(page);
             };
-            const start=await card.boundingBox();
+            const start=await metrics();
             await drag('width',140,30,'ew-resize');
-            const wider=await card.boundingBox();
+            const wider=await metrics();
             assert.equal(wider.width,start.width+140);
             assert.equal(wider.height,start.height);
-            await drag('height',50,120,'ns-resize');
-            const taller=await card.boundingBox();
-            assert.equal(taller.width,wider.width);
-            assert.equal(taller.height,wider.height+120);
-            await drag('both',1600,1600,'nwse-resize');
-            const full=await card.boundingBox();
-            assert(full.width>1240);
+            assert.equal(wider.cellHeight,start.cellHeight);
+            assert.equal(wider.font,start.font);
+            await drag('scale',180,65,'nwse-resize');
+            const enlarged=await metrics();
+            assert(enlarged.width>wider.width && enlarged.height>wider.height);
+            assert(enlarged.cellHeight>wider.cellHeight && enlarged.font>wider.font);
+            assert.equal(await card.locator('[data-loupe-resize]').count(),2);
+
+            await card.getByRole('button',{name:'小節編集カードを最大化'}).click();
+            const full=await metrics();
+            assert(full.width>enlarged.width && full.height>enlarged.height);
             assert.equal(full.y,0);
+            assert.equal(full.font,enlarged.font);
             const main=await page.locator('#studio-main').evaluate(e=>e.getBoundingClientRect().left+e.clientWidth);
             assert(Math.abs(full.x+full.width-main+8)<1);
+            assert.equal(await card.locator('[data-loupe-resize]:visible').count(),0);
             const close=card.locator('.slot-overlay-close');
             assert(await close.evaluate(e=>{const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}));
+            await card.getByRole('button',{name:'元の大きさと位置に戻す'}).press('Enter');
+            assert.deepEqual(await metrics(),enlarged);
             assert.deepEqual(await snapshot(page),before);
             assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
         }));
