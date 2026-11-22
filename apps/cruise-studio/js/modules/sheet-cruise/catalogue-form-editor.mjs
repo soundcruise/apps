@@ -41,7 +41,7 @@ export function buildCatalogueEditor(dialog,{project,entry,ids,positions,fingers
     const footer=node('footer',null),cancel=node('button','キャンセル',footer),save=node('button',positions.length+'箇所に反映',footer);
     addPageHelp(dialog,cancel,'catalogue');
     const discard=guardDraft(dialog,()=>hasChanges()||name.value.trim()!==playName());
-    cancel.onclick=discard;
+    cancel.onclick=()=>dialog.close();
     save.onclick=()=>{
         if(!commitName()||save.disabled||session.inputPending)return;
         const result=apply(draft.symbol,draft.material,draft.range,draft.fingers);

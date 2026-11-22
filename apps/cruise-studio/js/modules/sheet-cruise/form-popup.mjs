@@ -31,7 +31,7 @@ export function createFormPopup({document:doc,dialog,diagram,snapshot,playedStri
   render(string?'[data-quick-finger="'+string+'"],[data-form-finger="'+string+'"],[data-popup-string="'+string+'"]':null);
   if(!dialog.contains(doc.activeElement))close.focus({preventScroll:true});
  });
- const dismiss=guardDraft(dialog,history.dirty);close.onclick=dismiss;bindOutsideDismiss(dialog,{close:dismiss});
+ const dismiss=guardDraft(dialog,history.dirty);close.onclick=()=>dialog.close();bindOutsideDismiss(dialog,{close:dismiss});
  dialog.addEventListener('keydown',e=>{if(editing)history.shortcut(e);});
  let scope;
  if(positions?.length>1){

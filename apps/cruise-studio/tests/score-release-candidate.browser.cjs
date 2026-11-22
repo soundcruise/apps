@@ -559,6 +559,17 @@ test('packaged illustrated tutorial opens from the editor guide: '+engine,async 
     await confirmFingers.waitFor();
     assert(await confirmFingers.isEnabled());
     assert.deepEqual(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),beforeFingering);
+    await handoff.getByRole('button',{name:'キャンセル',exact:true}).click();
+    await handoff.waitFor({state:'detached'});
+    assert.deepEqual(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),beforeFingering);
+    await editor.locator('.sc-form-list-item').first().click();
+    await zoom.locator('[data-quick-finger]').first().click();
+    await zoom.getByRole('button',{name:'キャンセル',exact:true}).click();
+    await zoom.waitFor({state:'detached'});
+    assert.deepEqual(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),beforeFingering);
+    await editor.locator('.sc-form-list-item').first().click();
+    await zoom.locator('[data-quick-finger]').first().click();
+    await zoom.getByRole('button',{name:'詳しく編集',exact:true}).click();
     await confirmFingers.click();
     await editor.click('#sc-undo');
     assert.deepEqual(await editor.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),beforeFingering);
