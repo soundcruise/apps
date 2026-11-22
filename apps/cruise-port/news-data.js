@@ -1,5 +1,5 @@
-import { membersVideoHref } from './news-members-video.js?v=1.36.0';
-import { articlePath, CRUISE_STUDIO_NEWS_ITEM } from './news-articles.js?v=1.36.0';
+import { membersVideoHref } from './news-members-video.js?v=1.38.0';
+import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.0';
 import {labelInformationScore,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
@@ -35,6 +35,8 @@ const categoryMatches = (raw, filter) => !filter || (filter === RECORDING_STREAM
 const PRIORITY = ['official', 'distributor', 'retailer_editorial', 'media'];
 const GUITAR_EVIDENCE = ['acoustic_guitar_vocal', 'guitar_performance', 'guitar_gear', 'guitar_recording', 'manual_guitar_review'];
 const DAY = 86400000;
+const jstFormatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' });
+export const newsDay = publishedAt => jstFormatter.format(new Date(publishedAt));
 const text = (value, max) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 19) === value.slice(0, 19);
 export const validSaleDeadline = value => value == null || (Number.isSafeInteger(value) && value >= 0);
@@ -82,6 +84,13 @@ export function nextStudioFeatureChange(items, now) {
 export function isFeaturedStudioNotice(item, now) {
     return now >= studioFeatureStart && now < studioFeatureEnd && isStudioNotice(item);
 }
+export function isStudioBrowserCorrection(item) {
+    return item.id === STUDIO_BROWSER_CORRECTION.id && item.articleId === STUDIO_BROWSER_CORRECTION.articleId &&
+        item.linkType === 'internal' && item.category === 'cruise_apps' && item.sourceKind === 'official';
+}
+export function isFeaturedNews(item, now) {
+    return isStudioBrowserCorrection(item) || isFeaturedStudioNotice(item, now);
+}
 export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) {
     if (mode === 'off') return [];
     if (!['beta', 'on'].includes(mode) || !Array.isArray(input) || !Number.isFinite(now)) throw new TypeError('Invalid news input');
@@ -90,19 +99,19 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
         const item = normalizeNewsItem(candidate);
         if (!item || !saleVisible(item, now) || !eventVisible(item, now)) continue;
         const age = now - Date.parse(item.publishedAt);
-        if (age < 0 || age > 90 * DAY) continue;
+        if (age < 0 || (age > 90 * DAY && !isStudioBrowserCorrection(item))) continue;
         const previous = topics.get(item.topicKey);
         if (!previous || labelInformationScore(item.label) > labelInformationScore(previous.label) ||
             (labelInformationScore(item.label) === labelInformationScore(previous.label) && (PRIORITY.indexOf(item.sourceKind) < PRIORITY.indexOf(previous.sourceKind) ||
             (item.sourceKind === previous.sourceKind && item.publishedAt > previous.publishedAt)))) topics.set(item.topicKey, item);
     }
     return [...topics.values()].sort((a,b) => {
-        const day = s => new Date(Date.parse(s) + 9 * 3600000).toISOString().slice(0,10);
-        // Reserve the approved official notice's zero slot within its JST day,
-        // including a tie with another zero. The temporary feature is the only cross-day priority.
+        // The correction remains pinned, followed by the time-limited Studio notice.
+        // Ordinary entries retain their JST day and within-day priority.
         const officialFirst = item => item.displayOrder === 0 && membersVideoHref(item) ? 1 : 0;
-        return Number(isFeaturedStudioNotice(b, now)) - Number(isFeaturedStudioNotice(a, now)) ||
-            day(b.publishedAt).localeCompare(day(a.publishedAt)) ||
+        return Number(isStudioBrowserCorrection(b)) - Number(isStudioBrowserCorrection(a)) ||
+            Number(isFeaturedStudioNotice(b, now)) - Number(isFeaturedStudioNotice(a, now)) ||
+            newsDay(b.publishedAt).localeCompare(newsDay(a.publishedAt)) ||
             (a.displayOrder ?? 100000) - (b.displayOrder ?? 100000) ||
             officialFirst(b) - officialFirst(a) ||
             b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id);
@@ -117,10 +126,11 @@ export function tickerNews(items, now = Date.now()) {
 export function groupNews(items, category = '', now = Date.now()) {
     const groups = [];
     for (const item of items.filter(item => saleVisible(item, now) && eventVisible(item, now) && categoryMatches(item.category, category))) {
-        const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(item.publishedAt));
-        // Preserve list order when the featured and regular sections share a date.
+        const day = newsDay(item.publishedAt);
+        const featured = isFeaturedNews(item, now);
         const previous = groups.at(-1);
-        if (!previous || previous[0] !== day || isFeaturedStudioNotice(previous[1][0], now)) groups.push([day, [item]]);
+        const previousFeatured = previous ? isFeaturedNews(previous[1][0], now) : false;
+        if (!previous || featured !== previousFeatured || (!featured && previous[0] !== day)) groups.push([day, [item]]);
         else previous[1].push(item);
     }
     return groups;

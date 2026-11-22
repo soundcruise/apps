@@ -195,7 +195,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.37.1';
+} from './app-version.js?v=1.38.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.37.1';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.37.1';
 import { initTuner } from './tuner-app.js?v=1.37.1';
@@ -2165,11 +2165,11 @@ async function renderNewsSafely() {
     document.getElementById('news-entry').hidden = false;
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.37.0');
+        const news = await import('./news-ui.js?v=1.38.0');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadNewsPresentation } = await import('./news-provider.js?v=1.37.0');
-        const result = await loadNewsPresentation();
+        const { loadPortNewsPresentation } = await import('./news-provider.js?v=1.38.0');
+        const result = await loadPortNewsPresentation();
         if (revision === newsLoadRevision) news.renderNews({ ...result, category: document.getElementById('news-category')?.value ?? '' });
     } catch (error) {
         if (revision !== newsLoadRevision) return;
@@ -2185,7 +2185,7 @@ async function renderNewsArticleSafely(hash) {
     title.textContent = '記事を読み込んでいます…';
     document.getElementById('news-article-content').replaceChildren();
     try {
-        const { renderNewsArticle } = await import('./news-article-ui.js?v=1.36.0');
+        const { renderNewsArticle } = await import('./news-article-ui.js?v=1.38.0');
         if (revision !== newsArticleRevision || location.hash !== hash) return;
         renderNewsArticle({ hash });
     } catch (_) {
@@ -6683,7 +6683,7 @@ document.querySelectorAll('.port-refresh-app').forEach((button) => button.addEve
 document.getElementById('news-article-view').addEventListener('click', async (event) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !event.target.closest('a[href="#news"]')) return;
     event.preventDefault();
-    const { replaceNewsListRoute } = await import('./news-articles.js?v=1.36.0');
+    const { replaceNewsListRoute } = await import('./news-articles.js?v=1.38.0');
     // A fast route change while the chunk loads must not redirect another view.
     if (!location.hash.startsWith('#news/')) return;
     replaceNewsListRoute();
