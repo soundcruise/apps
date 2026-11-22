@@ -811,11 +811,15 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     await page.route('**/*', r => new URL(r.request().url()).origin === origin ? r.continue() : r.abort());
     await page.addInitScript(() => {
         window.playedLengths = [];
+        window.playedSpans = [];
         const proto = AudioBufferSourceNode.prototype, originalStart = proto.start, originalStop = proto.stop;
         const starts = new WeakMap();
         proto.start = function(time,...args) { starts.set(this,time); return originalStart.call(this,time,...args); };
         proto.stop = function(time) {
-            if (starts.has(this) && Number.isFinite(time)) window.playedLengths.push(time-starts.get(this));
+            if (starts.has(this) && Number.isFinite(time)) {
+                window.playedLengths.push(time-starts.get(this));
+                window.playedSpans.push([starts.get(this),time]);
+            }
             return originalStop.apply(this,arguments);
         };
     });
@@ -839,8 +843,30 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     const cell = tick => measure.locator('.slot-overlay-row--doremi [data-cell-value="'+tick+'"]');
     const field = tick => measure.locator('[data-overlay-field=doremi][data-slot-tick="'+tick+'"]');
     const before = await snapshot();
+    const labelGap = await measure.locator('.slot-overlay-row--strum .slot-overlay-row-label').evaluate(el =>
+        el.querySelector('select').getBoundingClientRect().left - el.firstElementChild.getBoundingClientRect().right);
+    assert(labelGap >= 5, 'stroke label gap: '+labelGap);
+    assert.equal(await cell(0).evaluate(el=>getComputedStyle(el).fontSize),'9px');
+    await cell(0).selectOption('8.');
+    assert.equal(await cell(0).locator(':checked').textContent(),'8·');
+    assert.equal(await cell(360).inputValue(),'16');
+    for (const [tick,pitch] of [[0,'ド'],[360,'レ']]) {
+        await field(tick).fill(pitch);
+        await field(tick).press('Tab');
+    }
+    const dotted = await snapshot();
+    assert.deepEqual(dotted.bars[0].melody.map(e=>[e.pitch.step,e.onsetTick,e.durationTicks]),[['C',0,360],['D',360,120]]);
+    await page.locator('[data-bar-preview]').click();
+    await page.waitForFunction(bpm=>{
+        const beat=60/bpm, close=(a,b)=>Math.abs(a-b)<.001;
+        return window.playedSpans.some(([start,end])=>close(end-start,beat*.75) &&
+            window.playedSpans.some(([next,stop])=>close(end,next) && close(stop-next,beat*.25)));
+    },dotted.songInfo.bpm);
+    await page.locator('[data-bar-preview]').click();
+    for (let i=0;i<3;i++) await page.click('#sc-undo',{force:true});
+    assert.deepEqual(await snapshot(),before);
     await row.selectOption('8');
-    assert.deepEqual(await cell(240).locator('option').allTextContents(),['1','2','4','8','16']);
+    assert.deepEqual(await cell(240).locator('option').allTextContents(),['1','2','4','8·','8','16']);
     await cell(240).press('ArrowDown');
     assert.equal(await row.inputValue(),'');
     assert.equal(await row.locator(':checked').textContent(),'混在');

@@ -1537,7 +1537,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 .sc-form-dialog button{border:1px solid #a0a7ae;border-radius:7px;background:white;color:#273440;padding:6px 12px;cursor:pointer;}
 .sc-form-dialog svg{display:block;width:100%;height:auto;max-height:65vh;}
 @media print{[data-edit-selected-bar],.sc-form-dialog{display:none!important;}:is(#sc-sheet-scale-box,.sc-preset-sheet-frame,.sc-song-preview,.sc-section-preview) .sheet-bar-num{min-height:0;}}
-#sc-slot-overlay {--editor-label-width:max(82px,calc(82px * var(--bar-loupe-scale,1)));--editor-label-offset:calc(var(--editor-label-width) + 8px * var(--bar-loupe-scale,1));--editor-min-cell:max(9px,calc(max(18px,24px * var(--bar-loupe-scale,1)) * var(--editor-horizontal-scale,1)));gap:calc(6px * var(--bar-loupe-scale,1));padding:calc(8px * var(--bar-loupe-scale,1)) calc(20px * var(--bar-loupe-scale,1)) calc(16px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay {--editor-label-width:max(96px,calc(96px * var(--bar-loupe-scale,1)));--editor-label-offset:calc(var(--editor-label-width) + 8px * var(--bar-loupe-scale,1));--editor-min-cell:max(9px,calc(max(18px,24px * var(--bar-loupe-scale,1)) * var(--editor-horizontal-scale,1)));gap:calc(6px * var(--bar-loupe-scale,1));padding:calc(8px * var(--bar-loupe-scale,1)) calc(20px * var(--bar-loupe-scale,1)) calc(16px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-head {gap:calc(14px * var(--bar-loupe-scale,1));padding-bottom:calc(6px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-head-main,#sc-slot-overlay .slot-overlay-head-actions {gap:calc(8px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-section {font-size:calc(11px * var(--bar-loupe-scale,1));padding:calc(2px * var(--bar-loupe-scale,1)) calc(10px * var(--bar-loupe-scale,1));}
@@ -2027,7 +2027,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
 #sc-slot-overlay select.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
-#sc-slot-overlay select.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;padding:0;background:transparent;border:0;color:#526573;font-variant-numeric:tabular-nums;}
+#sc-slot-overlay select.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;padding:0;background:transparent;border:0;color:#526573;font-size:max(9px,calc(9px * var(--bar-loupe-scale,1)));font-variant-numeric:tabular-nums;}
 #sc-slot-overlay select.editor-cell-value:hover,#sc-slot-overlay select.editor-cell-value:focus-visible{background:#e6edf2;color:#233f53;}
 #sc-slot-overlay select.editor-cell-value[data-unusual-value]{width:auto;max-width:calc(100% - 2px);}
 #sc-slot-overlay select.editor-row-resolution{width:max(27px,calc(31px * var(--bar-loupe-scale,1)));}
@@ -2410,8 +2410,12 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         });
     }
 
-    function planNoteValue(bar, row, ranges, tick, unit) {
-        const span = wholeNoteTicks / unit, length = CS().model.getBarLengthTicks(state.project);
+    function noteValueTicks(value) {
+        return value === '8.' ? wholeNoteTicks * 1.5 / 8 : wholeNoteTicks / Number(value);
+    }
+
+    function planNoteValue(bar, row, ranges, tick, value) {
+        const span = noteValueTicks(value), length = CS().model.getBarLengthTicks(state.project);
         const bulk = tick === null;
         const source = bulk ? null : ranges.find(r => r.tick === tick);
         if (bulk ? length % span : !source || tick + span > length) return {error:'小節内に収まりません'};
@@ -2476,13 +2480,14 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         const values = new Set(bulk ? ranges.map(r => r.span) : [range.span]);
         const span = values.size === 1 ? values.values().next().value : 0;
         const unit = wholeNoteTicks / span;
-        const current = noteValues.includes(unit) ? String(unit) : '';
+        const current = !bulk && span === noteValueTicks('8.') ? '8.' : noteValues.includes(unit) ? String(unit) : '';
         select.className = bulk ? 'editor-row-resolution' : 'editor-cell-value';
         if (bulk) select.dataset.rowResolution = row;
         else select.dataset.cellValue = range.tick;
         select.title = bar.barNumber + '小節目・' + DOCK_ROW_LABELS[row] + (bulk ? '行の音価をそろえる' : '・このマスの音価');
         select.setAttribute('aria-label', select.title);
-        if (current) select.title += '（' + (unit === 1 ? '全音符' : unit + '分音符') + '）';
+        if (current === '8.') select.title += '（付点8分音符）';
+        else if (current) select.title += '（' + (unit === 1 ? '全音符' : unit + '分音符') + '）';
         if (!current) {
             if (span) select.dataset.unusualValue = '';
             let label = '混在';
@@ -2503,6 +2508,11 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             select.add(other);
         }
         for (const value of noteValues) {
+            if (!bulk && value === 8) {
+                const dotted = new Option('8·', '8.');
+                dotted.setAttribute('aria-label', '付点8分音符');
+                select.add(dotted);
+            }
             const option = new Option(String(value), String(value));
             option.setAttribute('aria-label', value === 1 ? '全音符' : value + '分音符');
             select.add(option);
@@ -2516,7 +2526,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             const active = liveRanges();
             for (const option of select.options) {
                 if (!option.value) continue;
-                const {error} = planNoteValue(bar, row, active, position, Number(option.value));
+                const {error} = planNoteValue(bar, row, active, position, option.value);
                 option.disabled = !!error;
                 option.title = error || '';
             }
@@ -2543,7 +2553,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             }
         });
         select.addEventListener('change', () => {
-            const value = Number(select.value);
+            const value = select.value;
             select.value = current;
             if (!select.isConnected || state.session !== owner || !editorCanMove()) return;
             finishTextInputs();
