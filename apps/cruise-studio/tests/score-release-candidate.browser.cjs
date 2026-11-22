@@ -971,6 +971,17 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
         await page.keyboard.press(engine==='webkit'?'Meta+Shift+z':'Control+Shift+z');
         assert.equal(await select.inputValue(),'16');
     }
+    // Focusing another bar changes the editing cursor, but not the page stride.
+    const visibleBars = () => page.locator('.editor-measure').evaluateAll(nodes => nodes.map(n => Number(n.dataset.barNumber)));
+    await second.locator('[data-overlay-field="chord"]').first().focus();
+    await page.getByRole('button',{name:'次へ →',exact:true}).click();
+    assert.deepEqual(await visibleBars(),[3,4]);
+    await page.locator('.editor-measure').first().locator('.dock-lyrics-cell').first().press('Shift+Tab');
+    assert.deepEqual(await visibleBars(),[1,2]);
+    await second.locator('.dock-lyrics-cell').last().press('Enter');
+    assert.deepEqual(await visibleBars(),[3,4]);
+    await page.getByRole('button',{name:'← 前へ',exact:true}).click();
+    assert.deepEqual(await visibleBars(),[1,2]);
     const edited = await snapshot();
     const exported = await page.evaluate(() => CruiseStudio.storage.exportProjectJson(CruiseStudio.sheetCruise.getSession().workingSnapshot()));
     // Read back the exported file in a fresh tab with an isolated browser store.
@@ -985,5 +996,22 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     const reopened=await reader.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
     assert.deepEqual(reopened.extensions,edited.extensions);
     assert.deepEqual(reopened.bars,edited.bars);
+
+    // A beat division is visible in both grids while the sounding note keeps its duration.
+    const grouped=structuredClone(reopened), firstBar=grouped.bars[0];
+    grouped.projectId=crypto.randomUUID();
+    firstBar.melody=[{...legacy[0],id:crypto.randomUUID(),onsetTick:360,durationTicks:360}];
+    grouped.extensions.scoreCellValuesV1[firstBar.id].doremi=[0,360,480,720,960,1440];
+    grouped.extensions.scoreCellValuesV1[firstBar.id].melodyBeatGrouping=true;
+    await reader.locator('.slot-overlay-close').click();
+    await reader.locator('#sc-import-json').setInputFiles({name:'拍をまたぐ音.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(grouped))});
+    await reader.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,grouped.projectId);
+    await reader.locator('.sheet-bar').first().press('Enter');
+    const melody=reader.locator('.editor-measure').first().locator('.slot-overlay-row--doremi');
+    assert.equal(await melody.locator('[data-cell-value="360"]').innerText(),'16');
+    assert.equal(await melody.locator('[data-cell-value="480"]').innerText(),'8');
+    assert.equal(await melody.locator('[data-piano-sustain]').innerText(),'〜');
+    assert.equal(await reader.locator('.sheet-bar').first().locator('.sheet-bar-doremi [data-slot-tick="480"]').innerText(),'〜');
+    assert.deepEqual(await reader.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot().bars[0].melody),firstBar.melody);
     assert.deepEqual(errors,[]);
 });

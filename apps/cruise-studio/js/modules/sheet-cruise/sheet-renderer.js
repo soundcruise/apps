@@ -92,6 +92,20 @@
         const events=row==='lyrics'?bar.lyrics:row==='doremi'?bar.melody:null;
         return resolution===16 || events?.some(event=>event.tick%240) ? 16 : 8;
     }
+    // The written divisions of a held note do not create new playback events.
+    function writtenMelodyStarts(grid, events, length) {
+        const saved = grid?.doremi;
+        if (grid?.melodyBeatGrouping !== true || !Array.isArray(saved) || saved[0] !== 0 ||
+            !saved.every((tick,i) => Number.isInteger(tick) && tick < length && (!i || tick > saved[i-1]))) return null;
+        const cuts = new Set(saved);
+        for (const event of events) {
+            const start = event.onsetTick, end = start + event.durationTicks;
+            cuts.add(start);
+            if (end < length) cuts.add(end);
+            if (event.kind === 'rest') for (const cut of cuts) if (cut > start && cut < end) cuts.delete(cut);
+        }
+        return [...cuts].sort((a,b) => a-b);
+    }
     function gridColumns(starts,length){
         return starts.map((tick,i)=>'minmax(0,'+((starts[i+1]??length)-tick)+'fr)').join(' ');
     }
@@ -273,7 +287,7 @@
 
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats, strum,inputGridForRow,octaveForNote,songInfo,rests,heldForNote,formRow) {
+    function buildBarCell(bar, show, hasVocal, beats, strum,inputGridForRow,octaveForNote,songInfo,rests,heldForNote,formRow,melodyStarts) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
@@ -335,7 +349,7 @@
         }
 
         if (hasVocal && show.doremi) {
-            const starts=startsFor('doremi');
+            const starts=melodyStarts || startsFor('doremi');
             var tokens=theory.melodyEventsToDoremiTokens((bar.melody||[]).map(function(e){return Object.assign({},e,{durationTicks:1});}));
             var ordered=(bar.melody||[]).slice().sort(function(a,b){return a.tick-b.tick;});
             var doremi=buildTimedTextRow('sheet-bar-doremi',ordered.map(function(e,i){var octave=octaveForNote?octaveForNote(bar.barNumber,e.tick):undefined;if(octave===undefined){var midi=theory.melodyEventToMidiNote(e,songInfo.playKey,songInfo.capo);octave=midi===null?undefined:Math.floor(midi/12)-1;}return {tick:e.tick,text:tokens[i].text.replace(/[↑↓]/g,''),octave:octave,durationTicks:e.durationTicks,held:!!heldForNote&&heldForNote(bar.barNumber,e.tick)};}).concat((rests||[]).map(function(e){return {tick:e.onsetTick,restTicks:e.durationTicks};})),starts,length);
@@ -408,7 +422,10 @@
                 }
                 var nextReal=slots.slice(i+lineSlots.length).find(function(s){return !s.empty;});
                 function emptyCell(descriptor){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.dataset.emptySlot=JSON.stringify(descriptor);empty.setAttribute('role',options?.editableSlots?'button':'img');empty.setAttribute('aria-label','空き枠（再生なし。編集開始・貼り付けで小節に戻す）');if(options?.editableSlots){empty.tabIndex=0;empty.dataset.editableEmpty='';}return empty;}
-                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=lineShow.strum?resolveBarStrum(project,bar):null;const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.inputGridForRow,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index]);
+                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=lineShow.strum?resolveBarStrum(project,bar):null;
+                    const source=canonical?.bars[bar.barNumber-1];
+                    const written=source && writtenMelodyStarts(canonical.extensions?.scoreCellValuesV1?.[source.id],source.melody,beats*CS().model.TICKS_PER_BEAT);
+                    const cell=(canReuse&&retained.get(bar.barNumber))||buildBarCell(bar,lineShow,!!(lineShow.lyrics||lineShow.doremi),beats,strum,options?.inputGridForRow,options?.octaveForNote,project.songInfo,restsForBar(bar.barNumber),heldForNote,formRows[index],written);
                     if(section?.sizes){
                         for(const [key,size] of Object.entries(section.sizes))cell.style.setProperty('--sc-section-'+key,size+'px');
                         if(section.sizes.formScale&&formRows[index])formRows[index].dataset.sectionFormScale=section.sizes.formScale;
@@ -440,7 +457,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetRenderer = {
         render: render,
-        defaultRowUnit,
+        defaultRowUnit, writtenMelodyStarts,
         resolveShowSettings: resolveShowSettings,
         // D3a: 下部ドックのタイムグリッド解像度判定（8分/16分）が紙面と同じ基準を使うための公開。
         // ロジック自体は無変更（紙面のストローク段描画とドックのセル表示解像度の両方から使う）

@@ -553,7 +553,7 @@
                 canonical.bars.push(bar);
                 const grids=original.extensions?.scoreCellValuesV1?.[source.id];
                 if(grids){
-                    const names={chord:'chords',lyrics:'lyrics',doremi:'melody',strum:'strum'};
+                    const names={chord:'chords',lyrics:'lyrics',doremi:'melody',melodyBeatGrouping:'melody',strum:'strum'};
                     const copiedRows=Object.entries(grids).filter(([key])=>row.parts.includes(names[key]));
                     if(copiedRows.length)canonical.extensions.scoreCellValuesV1[bar.id]=Object.fromEntries(copiedRows);
                 }

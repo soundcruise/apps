@@ -2416,7 +2416,8 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         const length = CS().model.getBarLengthTicks(state.project);
         const base = rowResolution(bar, row);
         const locks = Array.from({length:length / 480}, (_, beat) => getLyricBeatLocalRes(bar, beat, row));
-        const saved = state.session.draft.extensions?.scoreCellValuesV1?.[bar.sourceId]?.[row];
+        const grid = state.session.draft.extensions?.scoreCellValuesV1?.[bar.sourceId];
+        const saved = grid?.[row];
         const valid = Array.isArray(saved) && saved[0] === 0 &&
             saved.every((tick, i) => Number.isInteger(tick) && tick < length && (!i || tick > saved[i - 1]));
         const cuts = new Set(valid ? saved : CS().model.strumCellStarts(base, locks, length));
@@ -2434,7 +2435,8 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             const start = event.onsetTick ?? event.tick;
             if (start < length) cuts.add(start);
         }
-        const starts = Array.from(cuts).sort((a, b) => a - b);
+        const written = row === 'doremi' && CS().sheetRenderer.writtenMelodyStarts(grid, events, length);
+        const starts = written || Array.from(cuts).sort((a, b) => a - b);
         return starts.map((tick, index) => {
             const span = (starts[index + 1] ?? length) - tick, beat = Math.floor(tick / 480);
             const unit = wholeNoteTicks / span, res = noteValues.includes(unit) ? unit : 16;
@@ -2501,7 +2503,8 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             if (bulk ? start % span !== 0 : start > tick && start < tick + span) return {error:'入力済みの位置を保持します'};
             if ((!bulk && start !== tick) || row === 'lyrics') continue;
             const previous = ranges.find(r => r.tick === start)?.span;
-            if (previous === span && (event.durationTicks == null || event.durationTicks === span)) continue;
+            const writtenSegment = !bulk && row === 'doremi' && state.session.draft.extensions?.scoreCellValuesV1?.[bar.sourceId]?.melodyBeatGrouping === true;
+            if (previous === span && (writtenSegment || event.durationTicks == null || event.durationTicks === span)) continue;
             if (event.tieToNext) return {error:'次の小節へのタイを保持します'};
             changes.set(start, span);
         }
@@ -3904,6 +3907,12 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         return state.project.bars[nextIndex] || null;
     }
 
+    function adjacentEditorPage(delta) {
+        const project = state.session.draft, start = editorStartIndex(project);
+        const next = Math.max(0, start + delta * editorBars);
+        return next !== start && next < project.bars.length ? next : null;
+    }
+
     function focusOverlayField(rowId,last) {
         if (!rowId || !els.slotOverlay||collapsedEditorRows.has(rowId)) return;
         queueEditorFrame(function () {
@@ -3915,8 +3924,14 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
 
     function moveSelectedBar(delta, options) {
         finishTextInputs();
-        var target = getMoveTarget(delta);
-        if (!target || target.barNumber === state.selectedBarNumber) return;
+        const project = state.session.draft, start = editorStartIndex(project);
+        const page = adjacentEditorPage(delta);
+        const target = options?.page ? (page === null ? null : state.project.bars[page]) : getMoveTarget(delta);
+        if (!target || (!options?.page && target.barNumber === state.selectedBarNumber)) return;
+        const index = target.barNumber - 1;
+        if (options?.page || index < start || index >= start + editorBars) {
+            editorAnchorId = project.bars[page ?? index].id;
+        }
         stopPianoAudition();
         state.selectedBarNumber = target.barNumber;
         state.overlayWarnings = {};
@@ -3949,11 +3964,11 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         button.type = 'button';
         button.className = 'slot-overlay-nav-btn';
         button.textContent = label;
-        button.disabled = !getMoveTarget(delta) || getMoveTarget(delta).barNumber === state.selectedBarNumber;
+        button.disabled = adjacentEditorPage(delta) === null;
         button.addEventListener('click', function (event) {
             event.stopPropagation();
             var focusRowId = commitActiveOverlayInput({ skipRender: true });
-            moveSelectedBar(delta, { focusRowId: focusRowId });
+            moveSelectedBar(delta, { page:true, focusRowId:focusRowId });
         });
         button.addEventListener('mousedown', function (event) {
             event.stopPropagation();
