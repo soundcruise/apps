@@ -1,4 +1,4 @@
-import { OFFICIAL_VIDEO_CHANNEL_ID, OFFICIAL_VIDEO_SOURCE_ID, CRUISE_STUDIO_VIDEO } from './news-articles.js?v=1.38.0';
+import { OFFICIAL_VIDEO_CHANNEL_ID, OFFICIAL_VIDEO_SOURCE_ID, CRUISE_STUDIO_VIDEO } from './news-articles.js?v=1.38.1';
 
 // Only the bundled, owner-reviewed official announcement can use this link type.
 // Public API articles do not acquire this authority from their URL or title.
