@@ -78,7 +78,7 @@ test('theme update represents all five apps and identifies screenshots as Port e
 });
 test('direct NEWS URLs survive startup without appending a history entry; both editions include article view',()=>{
  for(const hash of ['#news',articlePath('theme-colors'),'#news/cruise-apps/unknown'])normalizeInitialHome({locationObject:{hash},historyObject:{replaceState(){assert.fail('no redirect/history loop');}}});
- for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.38\.1/);}
+ for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.38\.2/);}
 });
 
 test('explicit return replaces detail rather than appending a route (no back loop)',()=>{

@@ -1,5 +1,5 @@
-import { CRUISE_STUDIO_NEWS_ITEM, NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.38.1';
-import { confirmMembersVideo } from './news-members-video.js?v=1.38.1';
+import { CRUISE_STUDIO_NEWS_ITEM, NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.38.2';
+import { confirmMembersVideo } from './news-members-video.js?v=1.38.2';
 
 function appendBrowserCorrection(doc, content, article, node) {
     const intro = node('p', article.intro);
@@ -18,7 +18,11 @@ function appendBrowserCorrection(doc, content, article, node) {
     pdf.href = article.pdfUrl;
     pdf.target = '_blank';
     pdf.rel = 'noopener noreferrer';
-    const video = node('button', '紹介動画を見る（メンバー限定）', 'action-button secondary-action');
+    const video = node('button', undefined, 'action-button secondary-action news-article-video');
+    video.append(
+        node('span', 'クルーズスタジオの紹介動画'),
+        node('small', '(メンバー限定)')
+    );
     video.type = 'button';
     video.setAttribute('aria-haspopup', 'dialog');
     video.addEventListener('click', () => confirmMembersVideo(doc, CRUISE_STUDIO_NEWS_ITEM, video));
