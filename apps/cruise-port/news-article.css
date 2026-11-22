@@ -22,3 +22,6 @@
 .news-article-steps ul { margin-top: 5px; padding-inline-start: 1.25em; }
 .news-article-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .news-article-actions .action-button { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; white-space: normal; text-align: center; text-decoration: none; }
+
+.news-article-actions .news-article-video { flex-direction: column; justify-content: center; gap: 2px; }
+.news-article-video small { font-size: .8em; }

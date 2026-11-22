@@ -1,5 +1,5 @@
-import { membersVideoHref } from './news-members-video.js?v=1.38.1';
-import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.1';
+import { membersVideoHref } from './news-members-video.js?v=1.38.2';
+import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.2';
 import {labelInformationScore,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
