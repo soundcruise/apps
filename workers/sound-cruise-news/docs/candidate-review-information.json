@@ -310,5 +310,101 @@
         }
       ]
     }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/116082/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/116082/"
+      },
+      "fields": {
+        "brand": "KIWARA AUDIO",
+        "product": "KA-87／KA-47／KA-251E",
+        "productType": "condenser_microphone",
+        "action": "introduction",
+        "publishedAt": "2026-11-22",
+        "label": "KIWARA AUDIOのコンデンサーマイク「KA-87／KA-47／KA-251E」を島村楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "原記事の公開日は11/22、3機種の発売予定日は11/26です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/116033/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/116033/"
+      },
+      "fields": {
+        "brand": "KODAK",
+        "product": "SPIN",
+        "productType": "wireless_speaker",
+        "action": "introduction",
+        "publishedAt": "2026-11-22",
+        "label": "KODAKのカメラ型ワイヤレススピーカー SPIN を島村楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "11/11発売。音楽鑑賞向けの機器です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/116005/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/116005/"
+      },
+      "fields": {
+        "brand": "KODAK",
+        "product": "SOUNDBRIX PLUS",
+        "productType": "wireless_speaker",
+        "action": "introduction",
+        "publishedAt": "2026-11-22",
+        "label": "KODAKの連結式ワイヤレススピーカー SOUNDBRIX PLUS を島村楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "2台を磁石で連結できる音楽鑑賞向けの製品です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/113755/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/113755/"
+      },
+      "fields": {
+        "brand": "Marshall",
+        "product": "Bromley 150",
+        "productType": "party_speaker",
+        "action": "introduction",
+        "publishedAt": "2026-11-22",
+        "label": "Marshallのマイク・楽器入力付きパーティースピーカー Bromley 150 を島村楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "11/20発売。紹介記事の公開日は11/22です。"
+        }
+      ]
+    }
   }
 ]
