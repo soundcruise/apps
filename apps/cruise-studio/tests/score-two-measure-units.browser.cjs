@@ -5,6 +5,16 @@ for(const engine of ['chrome','webkit'])test('two measure units and unified chor
  await p.locator('#sc-sheet-scale-box .sheet-bar').first().click({position:{x:3,y:3}});await p.locator('#sc-sheet-scale-box .sheet-bar').first().click({position:{x:3,y:3}});await p.locator('[data-row-resolution=chord]').waitFor();
  const before=await p.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()));
  assert.equal(await p.locator('[data-chord-cell-toggle]').count(),0);
+ const entry=p.url(), scroller=p.locator('.editor-score-scroll');
+ for(const count of [1,2,3,4,2,1]){
+    await p.locator('[data-editor-bars="'+count+'"]').click();
+    assert.equal(await p.locator('.editor-measure').count(),Math.min(count,f.score.bars.length));
+    assert.equal(await scroller.evaluate(e=>getComputedStyle(e).overscrollBehaviorX),'contain');
+    assert.equal(await p.evaluate(()=>getComputedStyle(document.documentElement).overscrollBehaviorX),'contain');
+    await scroller.hover();
+    await p.mouse.wheel(-900,0);
+    assert.equal(p.url(),entry);
+ }
  await p.locator('[data-editor-bars="2"]').click();
  await p.getByRole('button',{name:'横に拡大',exact:true}).click();
  const viewport=p.locator('.editor-score-scroll'), label=viewport.locator('.slot-overlay-row--strum .slot-overlay-row-label').first();

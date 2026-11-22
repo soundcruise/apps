@@ -1618,7 +1618,9 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 #sc-slot-overlay [data-editor-placement]{margin-left:auto;}
 #sc-slot-overlay .slot-overlay-head-actions{width:100%;}
 #sc-slot-overlay .editor-size-tabs{display:inline-flex;}
-#sc-slot-overlay .editor-score-scroll{min-width:0;overflow-x:auto;flex-shrink:0;}
+/* Keep trackpad overscroll inside the editor, including when a single bar fits. */
+html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:not(.hidden)){overscroll-behavior-x:contain;}
+#sc-slot-overlay .editor-score-scroll{min-width:0;overflow-x:auto;overscroll-behavior-x:contain;flex-shrink:0;}
 #sc-slot-overlay .editor-measures{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:0;width:var(--editor-horizontal-width,100%);min-width:calc(var(--editor-label-offset) + 16 * var(--editor-min-cell) + 2px);}
 #sc-slot-overlay .editor-measures:not([data-count="1"]){min-width:calc(var(--editor-label-offset) + var(--editor-count) * (16 * var(--editor-min-cell) + 2px));grid-template-columns:calc((100% - var(--editor-label-offset)) / var(--editor-count) + var(--editor-label-offset)) repeat(calc(var(--editor-count) - 1),minmax(0,1fr));}
 #sc-slot-overlay .editor-measures.has-chord-panel{grid-template-rows:auto auto auto auto auto auto;}
