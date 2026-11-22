@@ -496,6 +496,73 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
             assert.deepEqual(await snapshot(page),before);
             assert.deepEqual(await page.evaluate(()=>CruiseStudio.sheetCruise.getSession().getHistory()),history);
         }));
+        await t.test('maximized editor follows score lines and edits only the chosen line',()=>fresh(async page=>{
+            await page.setViewportSize({width:1550,height:900});
+            await page.evaluate(()=>{
+                const C=CruiseStudio, owner=C.sheetCruise.getSession();
+                const result=owner.runOperation('Long score fixture',project=>{
+                    const first=project.sections[0], second={...first,id:crypto.randomUUID(),name:'サビ'};
+                    first.name='イントロ';
+                    project.sections=[first,second];
+                    project.bars=Array.from({length:160},(_,i)=>({
+                        id:crypto.randomUUID(),sectionId:i<8?first.id:second.id,chords:[],lyrics:[],melody:[]
+                    }));
+                    project.performance.barRhythms=[];
+                    project.performance.formBindings=[];
+                    project.notation.lineBreakAfter=[];
+                    project.extensions={scoreLayoutV1:{version:1,fills:[],holes:[
+                        {id:crypto.randomUUID(),sectionId:first.id,beforeBarId:project.bars[0].id}
+                    ]}};
+                });
+                if(!result.ok)throw Error(result.error);
+                const project=owner.workingSnapshot();
+                C.localPaperLayout.replacePresentation(project,{
+                    layout:{...C.localPaperLayout.value,autoBarsPerLine:false,barsPerLine:4,
+                        sections:[{sectionId:project.sections[1].id,barsPerLine:3}]},
+                    rows:[{barId:project.bars[11].id,columns:2,used:2}]
+                });
+            });
+            await page.locator('#sc-sheet-scale-box .sheet-bar[data-bar-number="10"]').press('Enter');
+            const card=page.locator('#sc-slot-overlay');
+            await card.getByRole('button',{name:'小節編集カードを最大化'}).click();
+            const rows=card.locator('[data-editor-line]');
+            const paper=page.locator('#sc-sheet-scale-box');
+            assert.deepEqual(await card.locator('.editor-section-heading').allTextContents(),['イントロ','サビ']);
+            assert.deepEqual(await rows.evaluateAll(lines=>lines.map(line=>[line.dataset.editorColumns,line.dataset.editorBarsInLine])),
+                await paper.locator('.sheet-line').evaluateAll(lines=>lines.map(line=>[
+                    line.dataset.lineCapacity,Array.from(line.querySelectorAll('.sheet-bar[data-bar-number]'),bar=>bar.dataset.barNumber).join(' ')
+                ])));
+            const line=number=>card.locator('[data-editor-bars-in-line~="'+number+'"]');
+            async function atTop(number){
+                await settle(page);
+                assert.equal(await card.locator('.is-active-measure').getAttribute('data-bar-number'),String(number));
+                const row=await line(number).boundingBox(),pane=await card.locator('.editor-score-scroll').boundingBox();
+                assert(Math.abs(row.y-pane.y)<2,JSON.stringify({number,row,pane}));
+            }
+            await atTop(10);
+            await card.getByRole('button',{name:'次へ →',exact:true}).click();
+            await atTop(12);
+            assert.equal(await line(12).getAttribute('data-editor-bars-in-line'),'12 13');
+            await card.getByRole('button',{name:'← 前へ',exact:true}).click();
+            await atTop(9);
+            const before=await snapshot(page);
+            await line(12).locator('[data-row-resolution="lyrics"]').selectOption('16');
+            const edited=await snapshot(page);
+            const changes=edited.bars.filter(bar=>edited.extensions.scoreCellValuesV1[bar.id]?.lyrics);
+            assert.deepEqual(changes.map(bar=>bar.id),before.bars.slice(11,13).map(bar=>bar.id));
+            assert.deepEqual(edited.bars,before.bars);
+            const pane=card.locator('.editor-score-scroll');
+            await pane.evaluate(e=>e.scrollTop=0);
+            assert.equal(await line(1).locator('.editor-line-empty').first().evaluate(e=>getComputedStyle(e).gridColumnStart),'2');
+            await pane.evaluate(e=>e.scrollTop=e.scrollHeight);
+            await rows.last().locator('.dock-lyrics-cell').first().waitFor();
+            assert((await card.locator('.editor-measure').count())<40);
+            const field=card.locator('.editor-measure[data-bar-number="160"] .dock-lyrics-cell').first();
+            await field.click();await field.fill('末尾');
+            assert.equal((await snapshot(page)).bars.at(-1).lyrics[0].text,'末尾');
+            await field.press(process.env.SCORE_ENGINE==='webkit'?'Meta+z':'Control+z');
+            assert.deepEqual((await snapshot(page)).bars.at(-1).lyrics,[]);
+        }));
         await t.test('explicit rests, blanks and stretches differ on screen, in JSON and after reload',()=>fresh(async page=>{
             await page.evaluate(()=>{const s=CruiseStudio.sheetCruise.getSession();const r=s.runOperation('Synthetic nonempty basic rhythm',p=>CruiseStudio.model.setBasicStrumText(p,'↓'));if(!r.ok)throw Error(r.error);});
             await select(page);const cells=page.locator('.dock-strum-cell');assert.equal(await glyphOf(cells.first()),'↓');await cells.first().press('r');await settle(page);assert.equal(await glyphOf(cells.first()),'𝄾');assert.equal(await cells.first().getAttribute('data-strum-state'),'rest');

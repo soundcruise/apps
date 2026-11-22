@@ -375,6 +375,48 @@
 
     /* ══════════ 本体 ══════════ */
 
+    // Both the sheet and the expanded editor consume the same line breaks and slots.
+    function planPaperSections(project, canonical, options) {
+        const show = {...resolveShowSettings(project), ...options?.visibility};
+        const fills = new Map((canonical?.extensions?.scoreLayoutV1?.fills || []).map(fill => [fill.anchorId,fill]));
+        const barsBySection = new Map();
+        if (!canonical || !CS().structureOperations?.scoreSlots) {
+            for (const bar of project.bars) {
+                if (!barsBySection.has(bar.sectionId)) barsBySection.set(bar.sectionId, []);
+                barsBySection.get(bar.sectionId).push({id:'bar-'+bar.barNumber,barNumber:bar.barNumber,sectionId:bar.sectionId});
+            }
+        }
+        return project.sections.map(section => {
+            const slots = canonical && CS().structureOperations?.scoreSlots
+                ? CS().structureOperations.scoreSlots(canonical,section.id) : barsBySection.get(section.id) || [];
+            const settings = options?.sectionRules?.find(rule => rule.sectionId === section.id);
+            const lineShow = {...show,forms:!!options?.formsForBar && (show.forms??options?.defaultForms??true),...settings?.visibility};
+            const hasVocal = lineShow.lyrics || lineShow.doremi, hasForms = lineShow.forms && !!options?.formsForBar;
+            const requested = settings?.barsPerLine ?? options?.barsPerLine;
+            const columns = Number.isInteger(requested) && requested>=1 && requested<=8
+                ? requested : Math.min(8,(hasVocal||hasForms?1:2)*show.barsPerLine);
+            const lines = [];
+            const priorHoles = [];
+            const nextRealAt = new Array(slots.length+1);
+            for (let i=slots.length-1;i>=0;i--) nextRealAt[i]=slots[i].empty?nextRealAt[i+1]:slots[i];
+            for (let i=0;i<slots.length||i===0;) {
+                const first = slots[i], firstReal = nextRealAt[i];
+                const rule = options?.lineLayoutForSlot?.(first?.id,firstReal?.barNumber) || options?.lineLayoutForBar?.(firstReal?.barNumber);
+                const capacity = rule?.columns>=1 && rule.columns<=8 ? rule.columns : columns;
+                const baseUsed = rule?.used>0 ? Math.min(rule.used,capacity) : capacity;
+                const fill = fills.get(first?.id);
+                const used = fill?.columns===capacity && fill.baseUsed===baseUsed ? fill.used : baseUsed;
+                const lineSlots = slots.slice(i,i+used);
+                priorHoles.push(...lineSlots.filter(slot=>slot.empty).map(slot=>slot.id));
+                lines.push({key:first?.id||'empty-'+section.id,firstReal,capacity,baseUsed,rule,slots:lineSlots,
+                    precedingHoleIds:lineSlots.length<capacity?priorHoles.slice():[],
+                    nextReal:nextRealAt[i+lineSlots.length]});
+                i += Math.max(1,lineSlots.length);
+            }
+            return {section,settings,lineShow,hasVocal,hasForms,lines};
+        });
+    }
+
     /**
      * StudioProject をA4紙面DOMとしてレンダリングし、container を置き換える。
      * @returns {HTMLElement} 生成した .sheet-page（複数ページ化する将来は配列先頭）
@@ -386,8 +428,6 @@
         var restsForBar=options&&options.restsForBar?options.restsForBar:function(number){return canonical?canonical.bars[number-1].melody.filter(function(e){return e.kind==='rest';}):[];};
         if(project.schemaVersion===2) project=options?.structureView?.sourceSchemaVersion===2&&options.structureView.projectId===project.projectId?options.structureView:CS().model.toStructureView(project);
         else if(project.schemaVersion!==1&&project.purpose!=='structure-read') throw Error('unsupported-schema');
-        var model = CS().model;
-        var show = Object.assign(resolveShowSettings(project),options?.visibility||{});
         var ts = project.songInfo && project.songInfo.timeSignature;
         var beats = (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
 
@@ -405,38 +445,30 @@
         page._sourceKey=options?.contentKey;
         page._readOnly=readOnly;
 
-        project.sections.forEach(function (sec) {
-            var bars = model.getSectionBars(project, sec.id);
-
-
-            var slots=canonical&&CS().structureOperations?.scoreSlots?CS().structureOperations.scoreSlots(canonical,sec.id):bars.map(function(b){return {id:'bar-'+b.barNumber,barNumber:b.barNumber,sectionId:sec.id};});
+        const barsByNumber=new Map(project.bars.map(bar=>[bar.barNumber,bar]));
+        planPaperSections(project,canonical,options).forEach(function ({section:sec,settings:section,lineShow,hasVocal,hasForms,lines}) {
             var label=el('div','sheet-section-label',sec.name);label.dataset.sectionId=sec.id;label.dataset.paperEdit='section';label.tabIndex=0;label.setAttribute('role','button');label.title='セクション編集を開く';
             var sectionHead=heads.get(sec.id)||el('div','sheet-section-heading');if(!heads.has(sec.id))sectionHead.appendChild(label);if(!readOnly&&options?.editableSlots&&!heads.has(sec.id)){var play=el('button','sheet-section-play','▶ ここから');play.type='button';play.dataset.playSection=sec.id;play.setAttribute('aria-label',sec.name+'から再生');sectionHead.appendChild(play);}page.appendChild(sectionHead);
-            const section=options?.sectionRules?.find(r=>r.sectionId===sec.id);
             sectionHead.querySelector('.sheet-section-layout-mark')?.remove();
             if(section && !readOnly && options?.editableSlots){
                 const marker=el('button','sheet-section-layout-mark','⚙');marker.type='button';marker.dataset.layoutSection=sec.id;
                 marker.title=sec.name+'のセクション別表示設定';marker.setAttribute('aria-label',marker.title);
                 sectionHead.firstElementChild.after(marker);
             }
-            const lineShow={...show,forms:!!options?.formsForBar && (show.forms??options?.defaultForms??true),...section?.visibility};
-            const hasVocal=lineShow.lyrics||lineShow.doremi,hasForms=lineShow.forms&&!!options?.formsForBar;
-            const requested=section?.barsPerLine??options?.barsPerLine;
-            const cols=Number.isInteger(requested)&&requested>=1&&requested<=8?requested:Math.min(8,(hasVocal||hasForms?1:2)*show.barsPerLine);
-            for(var i=0;i<slots.length||i===0;){
-                var first=slots[i],firstReal=slots.slice(i).find(function(s){return !s.empty;}),rule=options?.lineLayoutForSlot?.(first?.id,firstReal?.barNumber)||options?.lineLayoutForBar?.(firstReal?.barNumber),capacity=rule?.columns>=1&&rule.columns<=8?rule.columns:cols,baseUsed=rule?.used>0?Math.min(rule.used,capacity):capacity;
-                var fill=canonical?.extensions?.scoreLayoutV1?.fills.find(function(f){return f.anchorId===first?.id&&f.columns===capacity&&f.baseUsed===baseUsed;}),used=fill?fill.used:baseUsed;
-                var line=el('div','sheet-line'+(hasVocal?'':' sheet-line--compact'));line.style.gridTemplateColumns='repeat('+capacity+', 1fr)';line.dataset.lineStart=firstReal?.barNumber||0;line.dataset.lineAnchor=first?.id||'empty-'+sec.id;line.dataset.lineCapacity=capacity;line.dataset.lineBaseUsed=baseUsed;if(rule)line.dataset.lineCustom='';
-                var lineSlots=slots.slice(i,i+used);line.dataset.lineUsed=lineSlots.length;
+            for (const {key,firstReal,capacity,baseUsed,rule,slots:lineSlots,nextReal,precedingHoleIds} of lines) {
+                var line=el('div','sheet-line'+(hasVocal?'':' sheet-line--compact'));
+                line.style.gridTemplateColumns='repeat('+capacity+', 1fr)';
+                line.dataset.lineStart=firstReal?.barNumber||0;line.dataset.lineAnchor=key;
+                line.dataset.lineCapacity=capacity;line.dataset.lineBaseUsed=baseUsed;line.dataset.lineUsed=lineSlots.length;
+                if(rule)line.dataset.lineCustom='';
                 var formRows=hasForms?lineSlots.map(function(s){return s.empty||canReuse?null:options.formsForBar(s.barNumber);}):[];
                 var rowCount=1+Number(!!lineShow.chords)+Number(!!lineShow.forms)+Number(!!lineShow.strum)+Number(!!lineShow.lyrics)+Number(!!lineShow.doremi);line.style.setProperty('--sheet-row-count',rowCount);
                 for(const [name,style] of Object.entries(section?.text||{})){
                     if(style.color){line.dataset['ink'+name[0].toUpperCase()+name.slice(1)]='';line.style.setProperty('--sc-section-color-'+name,style.color);}
                     if(style.font)line.dataset['font'+name[0].toUpperCase()+name.slice(1)]=style.font;
                 }
-                var nextReal=slots.slice(i+lineSlots.length).find(function(s){return !s.empty;});
                 function emptyCell(descriptor){var empty=el('div','sheet-bar sheet-bar--empty');empty.style.gridRow='1 / span '+rowCount;empty.dataset.emptySlot=JSON.stringify(descriptor);empty.setAttribute('role',options?.editableSlots?'button':'img');empty.setAttribute('aria-label','空き枠（再生なし。編集開始・貼り付けで小節に戻す）');if(options?.editableSlots){empty.tabIndex=0;empty.dataset.editableEmpty='';}return empty;}
-                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=bars.find(function(b){return b.barNumber===slot.barNumber;}),strum=lineShow.strum?resolveBarStrum(project,bar):null;
+                lineSlots.forEach(function(slot,index){if(slot.empty){line.appendChild(emptyCell({id:slot.id,sectionId:sec.id}));return;}var bar=barsByNumber.get(slot.barNumber),strum=lineShow.strum?resolveBarStrum(project,bar):null;
                     const source=canonical?.bars[bar.barNumber-1];
                     const savedGrid=source && canonical.extensions?.scoreCellValuesV1?.[source.id];
                     const written=source && writtenMelodyStarts(savedGrid,source.melody,beats*CS().model.TICKS_PER_BEAT,true);
@@ -447,8 +479,8 @@
                     }
                     line.appendChild(cell);
                 });
-                for(var pad=lineSlots.length;pad<capacity;pad++)line.appendChild(emptyCell({sectionId:sec.id,beforeBarId:nextReal?nextReal.barId:null,anchorId:first?.id||null,columns:capacity,baseUsed:baseUsed,liveUsed:lineSlots.length,padIndex:pad-lineSlots.length,precedingHoleIds:slots.slice(0,i+lineSlots.length).filter(function(s){return s.empty;}).map(function(s){return s.id;})}));
-                page.appendChild(line);i+=Math.max(1,lineSlots.length);
+                for(var pad=lineSlots.length;pad<capacity;pad++)line.appendChild(emptyCell({sectionId:sec.id,beforeBarId:nextReal?nextReal.barId:null,anchorId:lineSlots[0]?.id||null,columns:capacity,baseUsed:baseUsed,liveUsed:lineSlots.length,padIndex:pad-lineSlots.length,precedingHoleIds}));
+                page.appendChild(line);
             }
         });
 
@@ -471,7 +503,7 @@
 
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetRenderer = {
-        render: render,
+        render: render, planPaperSections,
         defaultRowUnit, writtenMelodyStarts,
         resolveShowSettings: resolveShowSettings,
         // D3a: 下部ドックのタイムグリッド解像度判定（8分/16分）が紙面と同じ基準を使うための公開。
