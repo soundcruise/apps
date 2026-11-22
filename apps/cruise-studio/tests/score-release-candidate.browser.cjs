@@ -1027,5 +1027,23 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     await reader.keyboard.press('Shift+-');
     assert.equal(await value.textContent(),'4');
     assert(await value.evaluate(e=>document.activeElement===e));
+
+    // macOS Japanese input: WebKit can deliver marked text before the first keydown.
+    await quarter.focus();
+    const beforeIme=await quarter.inputValue();
+    await quarter.evaluate(field=>{
+        const composition=(type,data)=>new CompositionEvent(type,{bubbles:true,data});
+        field.dispatchEvent(composition('compositionstart',''));
+        field.dispatchEvent(composition('compositionupdate','＋'));
+        field.value='＋';
+        field.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true,data:'＋',inputType:'insertCompositionText'}));
+        field.addEventListener('blur',()=>field.dispatchEvent(composition('compositionend','＋')),{once:true});
+        field.dispatchEvent(new KeyboardEvent('keydown',{
+            bubbles:true,cancelable:true,key:'+',code:'Semicolon',shiftKey:true,isComposing:true,keyCode:229
+        }));
+    });
+    await reader.waitForFunction(()=>document.querySelector('.slot-overlay-row--doremi [data-cell-value="960"]')?.textContent==='8');
+    assert.equal(await quarter.inputValue(),beforeIme);
+    assert.deepEqual(await reader.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot().bars[0].melody),firstBar.melody);
     assert.deepEqual(errors,[]);
 });

@@ -2131,6 +2131,8 @@ html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:n
  .sc-page-help:is([data-help-topic=instrument],[data-help-topic=audio]) ol{margin-top:0;}
  .sc-page-help:is([data-help-topic=instrument],[data-help-topic=audio]) a{justify-self:start;margin-top:10px;}
 }
+#screen-sheet-cruise :is(.sc-playback-dialog header,.sc-layout-actions) button{box-sizing:border-box;height:36px;min-height:36px;padding-block:0;display:inline-flex;align-items:center;justify-content:center;}
+#screen-sheet-cruise :is(.sc-playback-dialog header,.sc-layout-actions) .sc-page-help-trigger{width:36px;min-width:36px;}
 @media print{.sc-page-help,.sc-page-help::backdrop,.sc-page-help-trigger{display:none!important;}}
 .sc-song-dialog>header>h2,.sc-actions-dialog>header>h2{margin-right:auto;}
 .sc-section-preview{max-height:70vh;overflow:auto;min-width:0;background:#18232b;}
@@ -2603,16 +2605,42 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
                 e.stopPropagation();
                 if (editorCanMove()) cellValuePicker(select, current, allowed, commit);
             });
+            // WebKit may send the first marked character before the physical keydown.
+            let marked = null;
+            cell.addEventListener('compositionstart', e => {
+                marked = { field:e.target, before:e.target.value, updates:0 };
+            }, true);
+            cell.addEventListener('compositionupdate', e => {
+                if (marked) { marked.text = e.data; marked.updates++; }
+            }, true);
+            cell.addEventListener('compositionend', () => {
+                if (marked?.shortcut) marked.field.value = marked.before;
+                marked = null;
+            }, true);
             cell.addEventListener('keydown', event => {
-                if (event.isComposing || event.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey ||
-                    CS().shellHost.keyboard.isIMEBlocked({}) || state.session?.inputPending) return;
-                const shorter = event.shiftKey && (event.key === '+' || event.code === 'NumpadAdd');
+                if (event.metaKey || event.ctrlKey || event.altKey) return;
+                const shorter = event.shiftKey && (event.key === '+' || event.code === 'NumpadAdd' || event.key === 'Process' && ['Equal','Semicolon'].includes(event.code));
                 const longer = event.shiftKey && (event.code === 'Minus' || event.key === '-' || event.code === 'NumpadSubtract');
-                const toggleDot = !event.shiftKey && event.key === '.';
+                const toggleDot = !event.shiftKey && (event.key === '.' || event.code === 'Period' || event.code === 'NumpadDecimal');
                 if (!shorter && !longer && !toggleDot) return;
+                const markedShortcut = marked?.field === event.target && marked.updates === 1 &&
+                    (shorter ? /^[+＋]$/ : longer ? /^[-_=ー＿＝−]$/ : /^[.。．]$/).test(marked.text);
+                if (!markedShortcut && (event.isComposing || CS().shellHost.keyboard.isIMEBlocked({}) || owner.inputPending)) return;
                 event.preventDefault();
                 event.stopPropagation();
-                if (select.disabled || !editorCanMove() || !prepareLyricResolutionChange(bar).ok) return;
+                const changeValue = () => applyShortcut(event, shorter, longer, toggleDot, markedShortcut);
+                if (markedShortcut) {
+                    marked.shortcut = true;
+                    event.target.value = marked.before;
+                    select.focus({preventScroll:true});
+                    // compositionend clears the shared IME guard in the next task.
+                    window.setTimeout(() => {
+                        if (document.activeElement === select && state.session === owner) changeValue();
+                    }, 0);
+                } else changeValue();
+            }, true);
+            function applyShortcut(event, shorter, longer, toggleDot, markedShortcut) {
+                if (!select.isConnected || select.disabled || !editorCanMove() || !prepareLyricResolutionChange(bar).ok) return;
                 let value;
                 if (toggleDot && current) value = current.endsWith('.') ? current.slice(0,-1) : current + '.';
                 if (shorter || longer) {
@@ -2621,14 +2649,34 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
                         .find(v => shorter ? noteValueTicks(v) < span : noteValueTicks(v) > span);
                     value = next;
                 }
-                if (!value || !allowed(value)) return;
                 const wasButton = event.target === select;
-                commit(value);
+                // A native IME can still deliver marked text after a canceled 229 keydown.
+                // Keep focus on a non-text control until that key has been processed.
+                const imeStart = !markedShortcut && !wasButton && event.keyCode === 229;
+                const originalInput = imeStart && event.target.matches('input:not([readonly])') ? event.target : null;
+                if (originalInput) originalInput.readOnly = true;
+                if (imeStart) select.focus({preventScroll:true});
+                if (value && allowed(value)) commit(value);
                 const group = els.slotOverlay.querySelector('.editor-measure[data-bar-number="'+bar.barNumber+'"] .slot-overlay-row--'+row);
                 const button = group?.querySelector('[data-cell-value="'+position+'"]');
                 const focus = wasButton ? button : button?.parentElement.querySelector('[data-slot-tick]');
-                focus?.focus({preventScroll:true});
-            }, true);
+                if (imeStart && button) {
+                    button.focus({preventScroll:true});
+                    const release = new AbortController();
+                    function finishKey() {
+                        release.abort();
+                        if (originalInput) originalInput.readOnly = false;
+                    }
+                    window.addEventListener('blur', finishKey, {once:true,signal:release.signal});
+                    window.addEventListener('pointerdown', finishKey, {capture:true,once:true,signal:release.signal});
+                    window.addEventListener('keyup', up => {
+                        if (up.code !== event.code) return;
+                        finishKey();
+                        if (document.activeElement === button)
+                            queueEditorFrame(() => focus?.focus({preventScroll:true}));
+                    }, {capture:true,signal:release.signal});
+                } else focus?.focus({preventScroll:true});
+            }
             select.addEventListener('keydown', e => {
                 if (e.isComposing || e.altKey || e.metaKey || e.ctrlKey || !['ArrowDown','ArrowUp'].includes(e.key)) return;
                 e.preventDefault(); e.stopPropagation();
