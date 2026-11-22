@@ -7,7 +7,7 @@ export const NEWS_ARTICLES = Object.freeze({
         publishedAt: '2026-11-19T15:00:00.000Z',
         dateNote: '2026年11月20日',
         intro: '紹介動画でご案内したブラウザについて訂正します。',
-        overview: '現在開発中の譜面クルーズを検証したところ、Google Chromeでは譜面ファイルの保存がしやすいことがわかりました。クルーズスタジオはSafariやEdgeでも引き続きお使いいただけますが、',
+        overview: '現在開発中の譜面クルーズを検証したところ、Google Chromeの方が譜面ファイルの保存管理がしやすいことがわかりました。クルーズスタジオはSafariやEdgeでも引き続きお使いいただけますが、',
         recommendation: 'Mac・WindowsともにGoogle Chromeを推奨いたします。',
         steps: Object.freeze([
             'Google ChromeでクルーズスタジオProを開きます。',
