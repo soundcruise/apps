@@ -93,6 +93,25 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const info=p.getByRole('dialog',{name:'保存場所'});assert.match(await info.textContent(),/まだ保存されていません/);
   await info.getByRole('button',{name:'閉じる'}).click();assert.deepEqual(await snap(p),before);
  }));
+ await t.test('backdrop dismisses browsing cards without dismissing a delete decision or changing the draft',()=>fresh(async p=>{
+  const before=await snap(p),select=p.locator('#sc-project-select'),outside=()=>p.mouse.click(3,3);
+  const list=p.getByRole('dialog',{name:'ファイル一覧'});
+  await select.selectOption({label:'ファイル一覧・削除…'});await list.waitFor();
+  const rect=await list.boundingBox();await p.mouse.move(rect.x+8,rect.y+8);await p.mouse.down();await p.mouse.move(3,3);await p.mouse.up();
+  assert(await list.isVisible());
+  await list.getByRole('button',{name:/toolbar-test.*を削除/}).click();
+  const confirm=p.getByRole('dialog',{name:'削除の確認'});await confirm.waitFor();await outside();
+  assert(await confirm.isVisible());await confirm.getByRole('button',{name:'キャンセル'}).click();
+  await outside();await list.waitFor({state:'detached'});
+  for(const [label,title] of [['この曲の保存場所','保存場所'],['その他のファイル操作…','その他のファイル操作']]){
+   await select.selectOption({label});const card=p.getByRole('dialog',{name:title});await card.waitFor();
+   await outside();await card.waitFor({state:'detached'});
+  }
+  await p.evaluate(()=>window.showSaveFilePicker=undefined);
+  await p.click('#sc-curve-menu-toggle');await p.click('#sc-save-as');
+  const guide=p.getByRole('dialog',{name:'名前をつけて保存'});await guide.waitFor();await outside();await guide.waitFor({state:'detached'});
+  assert.deepEqual(await snap(p),before);
+ }));
  await t.test('discard an unsaved song, remove a browser song and keep other entries across reload',()=>fresh(async p=>{
   const id=(await snap(p)).projectId,select=p.locator('#sc-project-select'),list=p.getByRole('dialog',{name:'ファイル一覧'});
   const manage=()=>select.selectOption({label:'ファイル一覧・削除…'});

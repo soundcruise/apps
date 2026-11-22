@@ -6145,12 +6145,20 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             notice.append(note);
         }
     }
-    function fileDialog(heading){
+    function bindBrowsingCard(dialog,options){
+        // The file menu is available even before the playback UI has finished loading.
+        if(scoreUI)scoreUI.bindOutsideDismiss(dialog,options);
+        else import('../score-ui.mjs?v=0.204.0-dev.1').then(ui=>{
+            if(dialog.open)ui.bindOutsideDismiss(dialog,options);
+        });
+    }
+    function fileDialog(heading,{browse=false}={}){
         const dialog=document.createElement('dialog'),title=document.createElement('h2');
         dialog.className='sc-location-dialog sc-save-place';
         dialog.setAttribute('aria-label',heading);title.textContent=heading;
         const parent=leavePending?.saving ? CS().shellHost.modal.getActive() : null;
         dialog.append(title);(parent || els.root).append(dialog);
+        if(browse)bindBrowsingCard(dialog);
         dialog.addEventListener('close',()=>dialog.remove(),{once:true});
         return dialog;
     }
@@ -6161,7 +6169,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         return button;
     }
     function openMoreFileActions(){
-        const dialog=fileDialog('その他のファイル操作'),list=document.createElement('div');
+        const dialog=fileDialog('その他のファイル操作',{browse:true}),list=document.createElement('div');
         list.className='sc-file-command-list';
         const direct=new Set(Array.from(els.projectSelect.querySelectorAll('[data-file-action]'),o=>o.dataset.fileAction));
         for(const command of els.toolbar.querySelectorAll('#sc-curve-menu [data-file-command]')){
@@ -6306,7 +6314,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             }
         }
         const footer=document.createElement('footer');footer.append(close);
-        dialog.append(title,list,message,footer);els.root.append(dialog);refresh();dialog.showModal();
+        dialog.append(title,list,message,footer);els.root.append(dialog);refresh();bindBrowsingCard(dialog,{canClose:()=>!list.inert});dialog.showModal();
         dialog.onclose=()=>dialog.remove();
     }
 
@@ -6328,7 +6336,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         await handleReads.get(id);
         if(state.session!==session)return;
         const handle=fileHandles.get(id), saved=session.baseRevision!==null;
-        const dialog=fileDialog('保存場所'),place=document.createElement('strong'),hint=document.createElement('p');
+        const dialog=fileDialog('保存場所',{browse:true}),place=document.createElement('strong'),hint=document.createElement('p');
         const direct=typeof window.showSaveFilePicker==='function';
         place.textContent=handle?handle.name:saved?storageBrowserName()+'のサイトデータ（このパソコン内）':'この曲はまだ保存されていません。';
         if(handle){
@@ -6362,7 +6370,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         const link=createProjectDownloadLink();
         if(!link)return;
         const session=state.session,version=session.snapshotVersion;
-        const dialog=fileDialog('名前をつけて保存');
+        const dialog=fileDialog('名前をつけて保存',{browse:true});
         const explanation=document.createElement('p');
         const browser=storageBrowserName();
         explanation.textContent=(browser==='Safari'||browser==='Firefox'?browser:'この環境')+'では「名前をつけて保存」は使えません。';

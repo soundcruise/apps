@@ -22,6 +22,13 @@ function complete(f, symbol, extra = {}) {
     const first = f.adapter.resolve(query(symbol, extra));
     return f.adapter.resolve(query(symbol, { ...extra, playedStrings: first.form.notes.map(n => n.string) }));
 }
+test('open G uses middle, index and little fingers while movable G shapes retain the barre',()=>{
+    const f=fixture(),r=complete(f,'G');
+    const fingering=notes=>Array.from(notes).sort((a,b)=>b.string-a.string).map(n=>n.finger??null);
+    assert.deepEqual(fingering(r.form.notes),[2,1,null,null,null,4]);
+    const movable=f.options.caged.getForm('G','maj',9,13,0);
+    assert.deepEqual(fingering(movable.notes),[3,2,1,1,1,4]);
+});
 for (const symbol of ['C', 'Am', 'G7', 'CM7', 'Cmaj7', 'Dm7', 'Dsus4']) test('released owner full voicing: ' + symbol, () => {
     const f = fixture(), r = complete(f, symbol);
     assert(r.display.possible); assert(r.completeness.complete); assert(r.performance.voicingUsable, JSON.stringify(r));
@@ -177,7 +184,7 @@ test('raw project, real Editing Session history/base/draft/undo/redo and schema 
 test('adapter stays pure and the product explicitly connects only owner CAGED plus form UI', () => {
     const source = read('../js/modules/chord/form-adapter.mjs');
     assert.doesNotMatch(source, /\b(?:localStorage|indexedDB|fetch|XMLHttpRequest|navigator|document|window)\b|^import /m);
-    assert.match(read('../index.html'), /caged-forms.js\?v=1.23.0/);
+    assert.match(read('../index.html'), /caged-forms.js\?v=1.23.1/);
     assert.match(read('../index.html'), /form-panel\.mjs\?v=0\.88\.1/);
     assert.doesNotMatch(read('../js/modules/chord/form-panel.mjs'), /\b(?:localStorage|indexedDB|fetch|saveChord|featureAccess)\b/);
 });

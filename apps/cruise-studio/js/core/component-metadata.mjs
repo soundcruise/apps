@@ -21,7 +21,7 @@ const components = Object.freeze([
         })
     }),
     mirror('chord-cruise', 'Chord Cruise', 'apps/chord-cruise/js/app.js',
-        'CHORD_CRUISE_APP_VERSION', '1.23.0'),
+        'CHORD_CRUISE_APP_VERSION', '1.23.1'),
     mirror('pitch-cruise', 'Pitch Cruise', 'apps/pitch-cruise/script.js',
         'PITCH_TRAINER_APP_VERSION', '2.32.0'),
     mirror('fretboard-cruise', 'Fretboard Cruise', 'apps/fretboard_cruise/script.js',

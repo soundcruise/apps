@@ -9,7 +9,7 @@
 (function () {
     'use strict';
 
-    var CHORD_CRUISE_APP_VERSION = '1.23.0';
+    var CHORD_CRUISE_APP_VERSION = '1.23.1';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
     // Unreleased local renderer candidate; formal/public version remains unchanged.
     window.CHORD_CRUISE_DEVELOPMENT_VERSION = '1.25.0-dev.1';
