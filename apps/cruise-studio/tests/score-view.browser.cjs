@@ -455,7 +455,15 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 const cell=e.querySelector('[data-overlay-field="chord"]');
                 const r=e.getBoundingClientRect();
                 return {width:r.width,height:r.height,x:r.x,y:r.y,
-                    cellHeight:cell.getBoundingClientRect().height,font:parseFloat(getComputedStyle(cell).fontSize)};
+                    cellWidth:cell.getBoundingClientRect().width,cellHeight:cell.getBoundingClientRect().height,
+                    font:parseFloat(getComputedStyle(cell).fontSize)};
+            });
+            const visibleCells=()=>card.evaluate(e=>{
+                const viewport=e.querySelector('.editor-score-scroll').getBoundingClientRect();
+                return Array.from(e.querySelectorAll('.dock-lyrics-cell')).filter(cell=>{
+                    const rect=cell.getBoundingClientRect();
+                    return rect.left>=viewport.left && rect.right<=viewport.right;
+                }).length;
             });
             const drag=async (axis,dx,dy,cursor)=>{
                 const edge=card.locator('[data-loupe-resize="'+axis+'"]');
@@ -468,17 +476,26 @@ test('Phase 1 score editor in an isolated synthetic browser', async t => {
                 await page.mouse.up();
                 await settle(page);
             };
+            const zoom=card.getByRole('button',{name:'横に拡大',exact:true});
+            const initial=await metrics();
+            await zoom.click();
+            await zoom.click();
             const start=await metrics();
+            assert(start.cellWidth>initial.cellWidth);
+            assert.equal(start.width,initial.width);
+            const visibleBefore=await visibleCells();
             await drag('width',140,30,'ew-resize');
             const wider=await metrics();
             assert.equal(wider.width,start.width+140);
             assert.equal(wider.height,start.height);
+            assert.equal(wider.cellWidth,start.cellWidth);
             assert.equal(wider.cellHeight,start.cellHeight);
+            assert((await visibleCells())>visibleBefore);
             assert.equal(wider.font,start.font);
             await drag('scale',180,65,'nwse-resize');
             const enlarged=await metrics();
             assert(enlarged.width>wider.width && enlarged.height>wider.height);
-            assert(enlarged.cellHeight>wider.cellHeight && enlarged.font>wider.font);
+            assert(enlarged.cellWidth>wider.cellWidth && enlarged.cellHeight>wider.cellHeight && enlarged.font>wider.font);
             assert.equal(await card.locator('[data-loupe-resize]').count(),2);
 
             await card.getByRole('button',{name:'小節編集カードを最大化'}).click();

@@ -1650,7 +1650,13 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 /* Keep trackpad overscroll inside the editor, including when a single bar fits. */
 html:has(#screen-sheet-cruise:not(.hidden):not([hidden])):has(#sc-slot-overlay:not(.hidden)){overscroll-behavior-x:contain;}
 #sc-slot-overlay .editor-score-scroll{min-width:0;overflow-x:auto;overscroll-behavior-x:contain;flex-shrink:0;}
-#sc-slot-overlay .editor-measures{position:relative;display:grid;grid-template-columns:var(--editor-label-offset) repeat(var(--editor-count),minmax(0,1fr));width:var(--editor-horizontal-width,100%);min-width:calc(var(--editor-label-offset) + var(--editor-count) * (16 * var(--editor-min-cell) + 2px));}
+#sc-slot-overlay .editor-measures{
+    position:relative;display:grid;
+    grid-template-columns:var(--editor-label-offset) repeat(var(--editor-count),minmax(0,1fr));
+    /* The grid uses the standard card width as its reference. The visible area may resize independently. */
+    --editor-track-baseline:calc((${LOUPE_DEFAULT_WIDTH - 40}px * var(--bar-loupe-scale,1) - 2px - var(--editor-label-offset)) * var(--editor-horizontal-scale,1));
+    width:calc(var(--editor-label-offset) + max(var(--editor-track-baseline), var(--editor-count) * (16 * var(--editor-min-cell) + 2px)));
+}
 #sc-slot-overlay .editor-measure,#sc-slot-overlay .editor-measure .slot-overlay-grid{display:contents;}
 #sc-slot-overlay .editor-measure :is(.slot-overlay-row,.slot-overlay-ruler){grid-column:calc(var(--editor-column) + 1);min-width:0;}
 #sc-slot-overlay .slot-overlay-ruler{grid-row:1;}
@@ -5910,7 +5916,6 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             value=Math.round(Math.min(scoreUI.MAX_SCORE_ZOOM*100,Math.max(scoreUI.MIN_SCORE_ZOOM*100,value)));
             editorHorizontalZoom=value;
             els.slotOverlay.style.setProperty('--editor-horizontal-scale',String(value/100));
-            els.slotOverlay.style.setProperty('--editor-horizontal-width',value+'%');
             zoomValue.textContent=value+'%';
             zoomOut.disabled=value<=scoreUI.MIN_SCORE_ZOOM*100;zoomIn.disabled=value>=scoreUI.MAX_SCORE_ZOOM*100;
         }
