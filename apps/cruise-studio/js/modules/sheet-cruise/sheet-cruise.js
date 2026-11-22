@@ -1455,6 +1455,13 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
 .sc-save-place p{margin:6px 0 20px;font-size:.9rem;line-height:1.6;overflow-wrap:anywhere}
 .sc-save-place a{color:inherit;text-underline-offset:3px}.sc-save-place footer{margin-top:16px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .sc-save-place footer button{min-height:40px;padding:8px 14px;border-radius:8px;font-size:.875rem}
+dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,4vw,24px)}
+.sc-delete-confirm p{margin:0}
+.sc-delete-confirm .sc-delete-note{margin-top:6px;color:var(--studio-text-secondary);font-size:.85rem}
+.sc-delete-confirm footer{margin-top:22px;gap:8px;flex-wrap:nowrap}
+.sc-delete-confirm footer button{min-width:0;padding:8px clamp(6px,2vw,14px);line-height:1.35}
+.sc-delete-confirm footer:has(button:nth-child(3)) button{flex:1 1 auto}
+.sc-delete-confirm footer button:last-child{color:var(--studio-danger);border-color:var(--studio-danger)}
 
 .sc-save-place p.sc-save-footnote{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--studio-border-default);color:var(--studio-text-secondary);font-size:.82rem;line-height:1.65;}
 .sc-save-place .sc-save-footnote a{white-space:nowrap;}
@@ -6245,21 +6252,26 @@ dialog.sc-save-place{box-sizing:border-box;width:min(25rem,calc(100vw - 32px));m
                     const savedHandle=fileHandles.get(id);
                     const location=savedHandle || (canBrowse && await storedHandle(['import',id]).catch(()=>null));
                     if(!dialog.open)return;
-                    const confirm=fileDialog('削除の確認'),description=document.createElement('p'),actions=document.createElement('footer');
-                    description.textContent='「'+item.textContent+'」を一覧から削除しますか？ パソコンのJSONファイルは保持されます。';
-                    actions.append(dialogButton('キャンセル',()=>confirm.close()),dialogButton('削除する',()=>confirm.close('delete')));
-                    confirm.append(description);
+                    const confirm=fileDialog('削除の確認'),description=document.createElement('strong'),actions=document.createElement('footer');
+                    confirm.classList.add('sc-delete-confirm');
+                    description.textContent=item.textContent;
+                    const note=document.createElement('p');
+                    note.className='sc-delete-note';note.textContent='一覧から削除しても、パソコンのJSONファイルは残ります。';
+                    confirm.append(description,note);
                     if(canBrowse && location){
                         const hint=document.createElement('p');
                         hint.className='sc-save-footnote';hint.hidden=true;hint.setAttribute('role','status');
-                        confirm.append(folderButton(location,hint,savedHandle?'保存フォルダを開く':'読み込み元のフォルダを開く'),hint);
+                        actions.append(folderButton(location,hint,'元のフォルダを開く'));
+                        confirm.append(hint);
                     }else if(scoreFileName(id)){
                         const hint=document.createElement('p');
                         hint.className='sc-save-footnote';hint.textContent='元のファイルは、パソコンで「'+scoreFileName(id)+'」を検索して確認できます。';
                         confirm.append(hint);
                     }
+                    const cancel=dialogButton('キャンセル',()=>confirm.close());
+                    cancel.autofocus=true;
+                    actions.append(cancel,dialogButton('削除する',()=>confirm.close('delete')));
                     confirm.append(actions);
-                    actions.firstElementChild.autofocus=true;
                     const accepted=new Promise(resolve=>confirm.addEventListener('close',()=>resolve(confirm.returnValue==='delete'),{once:true}));
                     confirm.showModal();
                     if(!await accepted){deleting=false;remove.focus();return;}

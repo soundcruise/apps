@@ -133,7 +133,7 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
    const handle=await (await navigator.storage.getDirectory()).getFileHandle('renamed-copy.json');
    window.sameEntry=await handle.isSameEntry(options.startIn);throw new DOMException('cancel','AbortError');
   });
-  await confirm.getByRole('button',{name:'読み込み元のフォルダを開く'}).click();await p.waitForFunction(()=>window.sameEntry===true);
+  await confirm.getByRole('button',{name:'元のフォルダを開く'}).click();await p.waitForFunction(()=>window.sameEntry===true);
   await confirm.getByRole('button',{name:'キャンセル'}).click();assert(await list.getByRole('button',{name:/renamed-copy.*を削除/}).isVisible());
   assert.deepEqual(await snap(p),original);
  }));
@@ -670,7 +670,16 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const list=p.getByRole('dialog',{name:'ファイル一覧'}),confirm=p.getByRole('dialog',{name:'削除の確認'});
   await list.getByRole('button',{name:/renamed.json.*を削除/}).click();
   await p.evaluate(()=>window.locationFilename=null);
-  await confirm.getByRole('button',{name:'保存フォルダを開く'}).click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');
+  const actions=confirm.locator('footer button');
+  assert.deepEqual(await actions.allTextContents(),['元のフォルダを開く','キャンセル','削除する']);
+  for(const width of [1440,390,320]){
+   await p.setViewportSize({width,height:900});
+   const boxes=await actions.evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().toJSON()));
+   assert(boxes.every(b=>b.y===boxes[0].y && b.height===boxes[0].height && b.x>=0 && b.right<=width));
+   assert.equal(boxes[1].left-boxes[0].right,boxes[2].left-boxes[1].right);
+  }
+  await p.setViewportSize({width:1440,height:1000});
+  await confirm.getByRole('button',{name:'元のフォルダを開く'}).click();await p.waitForFunction(()=>window.locationFilename==='renamed.json');
   await confirm.getByRole('button',{name:'キャンセル'}).click();await list.getByRole('button',{name:'閉じる'}).click();
   await p.click('#sc-curve-menu-toggle');await p.click('#sc-edit-song');
   await p.locator('[data-score-field=title]').fill('after rename');await p.click('[data-score-apply]');
