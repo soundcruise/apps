@@ -551,6 +551,12 @@
                     for(const event of bar[part]){const id=api.newId();ids.set(event.id,id);event.id=id;}
                 }
                 canonical.bars.push(bar);
+                const grids=original.extensions?.scoreCellValuesV1?.[source.id];
+                if(grids){
+                    const names={chord:'chords',lyrics:'lyrics',doremi:'melody',strum:'strum'};
+                    const copiedRows=Object.entries(grids).filter(([key])=>row.parts.includes(names[key]));
+                    if(copiedRows.length)canonical.extensions.scoreCellValuesV1[bar.id]=Object.fromEntries(copiedRows);
+                }
                 copied.push(...bar.melody);
                 if(row.parts.includes('strum')){
                     const rhythm=original.performance.barRhythms.find(r=>r.barId===source.id);

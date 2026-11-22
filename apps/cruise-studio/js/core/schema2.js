@@ -203,6 +203,11 @@
         }
         // Optional, versioned score spacing. Holes never enter the musical bar timeline.
         function reconcileScoreLayout(p,before){
+            const grids=p.extensions?.scoreCellValuesV1;
+            if(grids){
+                const ids=new Set(p.bars.map(b=>b.id));
+                for(const barId of Object.keys(grids))if(!ids.has(barId))delete grids[barId];
+            }
             var layout=p.extensions?.scoreLayoutV1;if(!layout)return;
             var live=new Map(p.bars.map(function(b){return [b.id,b];})),sections=new Set(p.sections.map(function(s){return s.id;}));
             layout.holes=layout.holes.filter(function(h){return sections.has(h.sectionId);}).map(function(h){
@@ -585,6 +590,8 @@
             var next=copy(project),source=next.bars[index],bar=copy(source),chordMap=new Map();bar.id=id();
             ['melody','lyrics','chords'].forEach(function(k){bar[k].forEach(function(e){var old=e.id;e.id=id();if(k==='chords')chordMap.set(old,e.id);if(k==='melody')delete e.tieToNext;});});
             next.bars.splice(index+1,0,bar);
+            const grids=next.extensions?.scoreCellValuesV1;
+            if(grids && Object.hasOwn(grids,barId))grids[bar.id]=copy(grids[barId]);
             next.performance.formBindings=next.performance.formBindings.concat(project.performance.formBindings.filter(function(b){return chordMap.has(b.chordEventId);}).map(function(b){var result=copy(b);result.id=id();result.chordEventId=chordMap.get(b.chordEventId);result.confirmation.status='unconfirmed';return result;}));
             next.performance.barRhythms=next.performance.barRhythms.concat(project.performance.barRhythms.filter(function(b){return b.barId===barId;}).map(function(b){return {id:id(),barId:bar.id,materialId:b.materialId};}));
             if(next.notation.lineBreakAfter.includes(barId))next.notation.lineBreakAfter.push(bar.id);

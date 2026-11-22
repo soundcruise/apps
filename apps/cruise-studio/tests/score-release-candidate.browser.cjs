@@ -800,3 +800,118 @@ for(const engine of ['chrome','webkit'])test('native bookshelf bass and tension 
     await page.waitForFunction(async()=>(await CruiseStudio.scoreViewer.ready()).playback()?.stats.parts.guitar>0);
     await page.click('[data-viewer-action=play]');
 });
+
+for (const engine of ['chrome','webkit']) test('measure note values, legacy sustains and history: '+engine, async t => {
+    const server = await startServer(), origin = 'http://127.0.0.1:'+server.address().port;
+    t.after(() => stopServer(server));
+    const browser = engine === 'chrome' ? await chromium.launch({channel:'chrome'}) : await webkit.launch();
+    t.after(() => browser.close());
+    const page = await browser.newPage({viewport:{width:1450,height:950},serviceWorkers:'block'});
+    page.setDefaultTimeout(5500);
+    await page.route('**/*', r => new URL(r.request().url()).origin === origin ? r.continue() : r.abort());
+    await page.addInitScript(() => {
+        window.playedLengths = [];
+        const proto = AudioBufferSourceNode.prototype, originalStart = proto.start, originalStop = proto.stop;
+        const starts = new WeakMap();
+        proto.start = function(time,...args) { starts.set(this,time); return originalStart.call(this,time,...args); };
+        proto.stop = function(time) {
+            if (starts.has(this) && Number.isFinite(time)) window.playedLengths.push(time-starts.get(this));
+            return originalStop.apply(this,arguments);
+        };
+    });
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.stack));
+    await page.goto(origin+'/apps/cruise-studio/');
+    await page.click('#open-sheet-cruise');
+    const snapshot = () => page.evaluate(() => CruiseStudio.sheetCruise.getSession().workingSnapshot());
+    const fixture = await page.evaluate(() => {
+        const model = CruiseStudio.model, song = model.createEmptyProject();
+        model.setBarDoremiText(song,2,'ソ〜〜〜ラ');
+        return song;
+    });
+    await page.locator('#sc-import-json').setInputFiles({name:'音価テスト.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+    await page.waitForFunction(id => CruiseStudio.sheetCruise.getSession().draft.projectId===id,fixture.projectId);
+    const imported = await snapshot(), legacy = imported.bars[1].melody;
+    assert.deepEqual(legacy.map(e=>[e.onsetTick,e.durationTicks]),[[0,960],[960,240]]);
+    await page.locator('.sheet-bar').first().press('Enter');
+    const measure = page.locator('.editor-measure').first();
+    const row = measure.locator('[data-row-resolution=doremi]');
+    const cell = tick => measure.locator('.slot-overlay-row--doremi [data-cell-value="'+tick+'"]');
+    const field = tick => measure.locator('[data-overlay-field=doremi][data-slot-tick="'+tick+'"]');
+    const before = await snapshot();
+    await row.selectOption('8');
+    await cell(240).selectOption('16');
+    assert.equal(await row.inputValue(),'');
+    assert.equal(await row.locator(':checked').textContent(),'混在');
+    assert(await row.evaluate(el=>{
+        const style=getComputedStyle(el), canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+        ctx.font=style.font;
+        return el.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight)>=ctx.measureText('混在').width;
+    }));
+    assert.deepEqual(await measure.locator('.slot-overlay-row--doremi input[data-slot-tick]').evaluateAll(nodes=>nodes.slice(0,3).map(n=>[+n.dataset.slotTick,+n.dataset.slotTicks])), [[0,240],[240,120],[360,120]]);
+    const mixed = await snapshot();
+    assert.deepEqual(mixed.bars,before.bars);
+    await page.click('#sc-undo',{force:true});
+    assert.equal(await row.inputValue(),'8');
+    await page.click('#sc-redo',{force:true});
+    assert.deepEqual((await snapshot()).extensions,mixed.extensions);
+    await cell(480).selectOption('2');
+    await field(480).fill('ド');
+    await field(480).press('Tab');
+    await page.waitForFunction(() => CruiseStudio.sheetCruise.getSession().draft.bars[0].melody.some(e=>e.onsetTick===480 && e.durationTicks===960));
+    let song = await snapshot();
+    assert.deepEqual(song.bars[1].melody,legacy);
+    const playback = await page.evaluate(async () => {
+        const song=CruiseStudio.sheetCruise.getSession().workingSnapshot();
+        const {buildBarPreviewPlan} = await import('/apps/cruise-studio/js/modules/sheet-cruise/score-playback.mjs');
+        const plan=buildBarPreviewPlan(song,0,{melodyOnly:true,pitchMidi:CruiseStudio.model.schema2.pitchMidi});
+        return plan.events.filter(e=>e.part==='piano').map(e=>[e.tick,e.duration*song.songInfo.bpm/60]);
+    });
+    assert.deepEqual(playback,[[480,2]]);
+    await page.locator('[data-bar-preview]').click();
+    await page.waitForFunction(bpm=>window.playedLengths.some(n=>Math.abs(n-120/bpm)<0.001),song.songInfo.bpm);
+    await page.locator('[data-bar-preview]').click();
+    await cell(0).focus();
+    assert(await cell(0).locator('option[value="2"]').isDisabled());
+    assert.equal(await field(480).inputValue(),'ド');
+    await row.selectOption('4');
+    await page.getByRole('dialog',{name:'行の音価をそろえる'}).getByText('適用',{exact:true}).click();
+    assert.equal((await snapshot()).bars[0].melody[0].durationTicks,480);
+    await page.click('#sc-undo',{force:true});
+    assert.deepEqual((await snapshot()).bars,song.bars);
+    await page.click('#sc-redo',{force:true});
+    assert.equal((await snapshot()).bars[0].melody[0].durationTicks,480);
+    assert.deepEqual((await snapshot()).bars[1].melody,legacy);
+    // Every lane is independent, including when two measures are edited side by side.
+    await page.locator('[data-editor-bars="2"]').click();
+    const second = page.locator('.editor-measure').nth(1);
+    for (const lane of ['lyrics','chord','strum']) {
+        const stateBefore = await snapshot();
+        const select = second.locator('[data-row-resolution="'+lane+'"]');
+        await select.selectOption('16');
+        const confirm = page.getByRole('dialog',{name:'行の音価をそろえる'});
+        if (await confirm.isVisible()) await confirm.getByText('適用',{exact:true}).click();
+        assert.equal(await select.inputValue(),'16');
+        assert.deepEqual((await snapshot()).bars[0],stateBefore.bars[0]);
+        assert.deepEqual((await snapshot()).bars[1].melody,legacy);
+        await page.keyboard.press(engine==='webkit'?'Meta+z':'Control+z');
+        assert.deepEqual(await snapshot(),stateBefore);
+        await page.keyboard.press(engine==='webkit'?'Meta+Shift+z':'Control+Shift+z');
+        assert.equal(await select.inputValue(),'16');
+    }
+    const edited = await snapshot();
+    const exported = await page.evaluate(() => CruiseStudio.storage.exportProjectJson(CruiseStudio.sheetCruise.getSession().workingSnapshot()));
+    // Read back the exported file in a fresh tab with an isolated browser store.
+    const reader = await browser.newPage({serviceWorkers:'block'});
+    await reader.route('**/*', r=>new URL(r.request().url()).origin===origin ? r.continue() : r.abort());
+    await reader.goto(origin+'/apps/cruise-studio/');
+    await reader.click('#open-sheet-cruise');
+    await reader.locator('#sc-import-json').setInputFiles({name:'音価を変更した譜面.json',mimeType:'application/json',buffer:Buffer.from(exported)});
+    await reader.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,edited.projectId);
+    await reader.locator('.sheet-bar').first().press('Enter');
+    assert.equal(await reader.locator('[data-row-resolution=doremi]').first().inputValue(),'4');
+    const reopened=await reader.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());
+    assert.deepEqual(reopened.extensions,edited.extensions);
+    assert.deepEqual(reopened.bars,edited.bars);
+    assert.deepEqual(errors,[]);
+});

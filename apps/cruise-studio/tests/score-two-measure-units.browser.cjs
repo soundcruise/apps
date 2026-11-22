@@ -6,16 +6,21 @@ for(const engine of ['chrome','webkit'])test('two measure units and unified chor
  const before=await p.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()));
  assert.equal(await p.locator('[data-chord-cell-toggle]').count(),0);
  await p.locator('[data-editor-bars="2"]').click();
- for(const row of ['chord','strum','lyrics','doremi']){const btn=p.locator('[data-row-resolution='+row+']').first();for(const [label,count]of [['16',16],['4',4],['全',1],['2',2],['8',8]]){await btn.click();assert.equal(await btn.textContent(),label);for(const n of [1,2])assert.equal(await p.locator('.editor-measure[data-bar-number="'+n+'"] .slot-overlay-row--'+row+' [data-slot-tick]').count(),count);assert.equal(await p.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),before);}}
- for(const row of ['chord','strum','lyrics','doremi']){
- const first=p.locator('.editor-measure[data-bar-number="1"] .slot-overlay-row--'+row),second=p.locator('.editor-measure[data-bar-number="2"] .slot-overlay-row--'+row);
- await first.locator('[data-beat-index="1"] [data-resolution-row]').click();await second.locator('[data-beat-index="2"] [data-resolution-row]').click();await second.locator('[data-beat-index="2"] [data-resolution-row]').click();
- const rowButton=first.locator('[data-row-resolution]');for(const label of ['16','4','全','2']){await rowButton.click();assert.equal(await rowButton.textContent(),label);assert.equal(await first.locator('[data-beat-index="1"] .is-local').textContent(),'16');assert.equal(await second.locator('[data-beat-index="2"] .is-local').textContent(),'8');if(['全','2'].includes(label)){assert.deepEqual(await first.locator('[data-slot-tick]').evaluateAll(es=>es.map(e=>Number(e.dataset.slotTick))),[0,480,600,720,840,960]);assert.deepEqual(await second.locator('[data-slot-tick]').evaluateAll(es=>es.map(e=>Number(e.dataset.slotTick))),[0,960,1200,1440]);}}
- // Release each lock from the coarse grid: adjacent segments merge back.
- await first.locator('[data-beat-index="1"] [data-resolution-row]').click();assert.equal(await first.locator('[data-slot-tick]').count(),2);await second.locator('[data-beat-index="2"] [data-resolution-row]').click();await second.locator('[data-beat-index="2"] [data-resolution-row]').click();assert.equal(await second.locator('[data-slot-tick]').count(),2);await rowButton.click();assert.equal(await rowButton.textContent(),'8');
- assert.equal(await p.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot())),before);
+ for (const lane of ['chord','strum','lyrics','doremi']) {
+    const first=p.locator('.editor-measure').nth(0).locator('.slot-overlay-row--'+lane);
+    const second=p.locator('.editor-measure').nth(1).locator('.slot-overlay-row--'+lane);
+    const secondStarts=await second.locator('[data-cell-value]').evaluateAll(es=>es.map(e=>e.dataset.cellValue));
+    const unit=first.locator('[data-row-resolution]'),previous=await unit.inputValue();
+    if(previous==='16')continue;
+    await unit.selectOption('16');
+    const confirm=p.getByRole('dialog',{name:'行の音価をそろえる'});
+    if(await confirm.isVisible())await confirm.getByText('適用',{exact:true}).click();
+    assert.equal(await unit.inputValue(),'16');
+    assert.deepEqual(await second.locator('[data-cell-value]').evaluateAll(es=>es.map(e=>e.dataset.cellValue)),secondStarts);
+    await p.locator('#sc-undo').click({force:true});
+    assert.deepEqual(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),JSON.parse(before));
  }
- const secondLyric=p.locator('.editor-measure[data-bar-number="2"] .slot-overlay-row--lyrics input').first();await secondLyric.fill('試');await p.locator('[data-row-resolution=lyrics]').first().click();const afterText=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());assert.deepEqual(afterText.bars[0].lyrics,JSON.parse(before).bars[0].lyrics);assert(JSON.stringify(afterText.bars[1].lyrics).includes('試'));await p.locator('#sc-undo').click();const undone=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());assert.deepEqual(undone,JSON.parse(before));
+ const secondLyric=p.locator('.editor-measure[data-bar-number="2"] .slot-overlay-row--lyrics input').first();await secondLyric.fill('試');await secondLyric.press('Tab');const afterText=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());assert.deepEqual(afterText.bars[0].lyrics,JSON.parse(before).bars[0].lyrics);assert(JSON.stringify(afterText.bars[1].lyrics).includes('試'));await p.locator('#sc-undo').click();const undone=await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot());assert.deepEqual(undone,JSON.parse(before));
  await p.locator('.editor-measure[data-bar-number="2"] [data-overlay-field=chord][data-slot-tick="960"]').focus();await p.locator('[data-chord-toggle]').click();await p.locator('[data-selected-chord-name]').waitFor();assert.equal(await p.locator('[data-selected-chord-name]').textContent(),'F');
  const rect=await p.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return {chord:r('.slot-overlay-row--chord').bottom,panelTop:r('[data-chord-picker]').top,panelBottom:r('[data-chord-picker]').bottom,strum:r('.slot-overlay-row--strum').top,strum2:r('.editor-measure:nth-child(2) .slot-overlay-row--strum').top,width:r('[data-chord-picker]').width};});assert(rect.panelTop>=rect.chord-2&&rect.strum>=rect.panelBottom-2&&Math.abs(rect.strum-rect.strum2)<2,JSON.stringify(rect));
  await p.screenshot({path:'/private/tmp/score160-'+engine+'-chord.png'});

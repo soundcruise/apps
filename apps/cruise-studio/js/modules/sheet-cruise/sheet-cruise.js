@@ -122,7 +122,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.204.0-dev.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.233.0-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -2026,6 +2026,11 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 .sc-pattern-onset{position:relative;padding-bottom:10px;}
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
+#sc-slot-overlay select.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
+#sc-slot-overlay select.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:auto;max-width:calc(100% - 2px);}
+#sc-slot-overlay select.editor-row-resolution{width:max(27px,calc(31px * var(--bar-loupe-scale,1)));}
+#sc-slot-overlay select.editor-cell-value:focus-visible,#sc-slot-overlay select.editor-row-resolution:focus-visible{outline:2px solid #3676a6;z-index:4;}
+#sc-slot-overlay .editor-measure:not(:first-child) :is(.slot-overlay-row-label,.slot-overlay-ruler-label){display:flex;}
 #sc-slot-overlay .sc-editor-transfer-cell> :is(.dock-strum-cell,.dock-lyrics-cell){height:100%;width:100%;min-width:0;}
 #sc-slot-overlay .dock-strum-cell > *{pointer-events:none;}
 #sc-slot-overlay [data-range-row] :is(input,button){touch-action:pan-y;}
@@ -2112,7 +2117,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 .sc-song-dialog .sc-song-section-row label{flex:1 1 180px;min-width:0;margin:0;}.sc-song-section-row label>span{display:none;}
 
 /* One inset for single-line selects, including score dialogs mounted under body. */
-:is(#screen-sheet-cruise,#sc-slot-overlay,body:has(#screen-sheet-cruise:not([hidden]):not(.hidden)) dialog) select:not([multiple]):is(:not([size]),[size="1"]){
+:is(#screen-sheet-cruise,#sc-slot-overlay,body:has(#screen-sheet-cruise:not([hidden]):not(.hidden)) dialog) select:not(.editor-cell-value,.editor-row-resolution,[multiple]):is(:not([size]),[size="1"]){
     appearance:none;
     padding-inline-end:var(--sc-select-end,32px);
     background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
@@ -2121,7 +2126,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
     background-size:4px 4px;
 }
 @media(forced-colors:active){
-    :is(#screen-sheet-cruise,#sc-slot-overlay,body:has(#screen-sheet-cruise:not([hidden]):not(.hidden)) dialog) select:not([multiple]):is(:not([size]),[size="1"]){appearance:auto;background-image:none;}
+    :is(#screen-sheet-cruise,#sc-slot-overlay,body:has(#screen-sheet-cruise:not([hidden]):not(.hidden)) dialog) select:not(.editor-cell-value,.editor-row-resolution,[multiple]):is(:not([size]),[size="1"]){appearance:auto;background-image:none;}
 }
 #screen-sheet-cruise .sv-sound-select{--sc-select-end:20px;--sc-select-inset:6px;}
 @media print{.sc-song-dialog,.sheet-section-play,.sheet-artist--empty{display:none!important;}#sc-sheet-scale-box [data-paper-edit]:hover{outline:none;}}
@@ -2360,15 +2365,186 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         return input;
     }
 
-    function editorCellRanges(bar,globalRes,rowId){
-        const length=CS().model.getBarLengthTicks(state.project),base=rowResolution(bar,rowId);
-        const locks=Array.from({length:length/480},(_,beat)=>getLyricBeatLocalRes(bar,beat,rowId));
-        const starts=CS().model.strumCellStarts(base,locks,length);
-        return starts.map((tick,i)=>{
-            const beat=Math.floor(tick/480),res=locks[beat]||base,count=Math.max(1,res/4);
-            return {tick,span:(starts[i+1]??length)-tick,beat,res,count,
-                slot:Math.floor(tick%480/480*count),previousTick:i?starts[i-1]:null};
+    const noteValues = [1, 2, 4, 8, 16];
+    const wholeNoteTicks = 1920;
+
+    function rowEvents(bar, row) {
+        if (row === 'strum') return effectiveStrumSlots(bar);
+        const source = state.session.draft.bars[bar.barNumber - 1];
+        return source[{chord:'chords', lyrics:'lyrics', doremi:'melody'}[row]] || [];
+    }
+
+    function editorCellRanges(bar, globalRes, row) {
+        const length = CS().model.getBarLengthTicks(state.project);
+        const base = rowResolution(bar, row);
+        const locks = Array.from({length:length / 480}, (_, beat) => getLyricBeatLocalRes(bar, beat, row));
+        const saved = state.session.draft.extensions?.scoreCellValuesV1?.[bar.sourceId]?.[row];
+        const valid = Array.isArray(saved) && saved[0] === 0 &&
+            saved.every((tick, i) => Number.isInteger(tick) && tick < length && (!i || tick > saved[i - 1]));
+        const cuts = new Set(valid ? saved : CS().model.strumCellStarts(base, locks, length));
+        const events = rowEvents(bar, row);
+        // Existing notes, rests and off-grid attacks define real boundaries, including in legacy scores.
+        for (const event of events) {
+            const start = event.onsetTick ?? event.tick;
+            const end = start + event.durationTicks;
+            if (end > start) {
+                for (const tick of cuts) if (tick > start && tick < end) cuts.delete(tick);
+                if (end < length) cuts.add(end);
+            }
+        }
+        for (const event of events) {
+            const start = event.onsetTick ?? event.tick;
+            if (start < length) cuts.add(start);
+        }
+        const starts = Array.from(cuts).sort((a, b) => a - b);
+        return starts.map((tick, index) => {
+            const span = (starts[index + 1] ?? length) - tick, beat = Math.floor(tick / 480);
+            const unit = wholeNoteTicks / span, res = noteValues.includes(unit) ? unit : 16;
+            const end = tick + span;
+            const boundary = end === length ? 'is-barend' : end % 480 === 0 ? 'is-beat' :
+                end % 240 === 0 ? 'is-8th' : 'is-16th';
+            return {tick, span, beat, res, boundary,
+                previousTick:index ? starts[index - 1] : null};
         });
+    }
+
+    function planNoteValue(bar, row, ranges, tick, unit) {
+        const span = wholeNoteTicks / unit, length = CS().model.getBarLengthTicks(state.project);
+        const bulk = tick === null;
+        const source = bulk ? null : ranges.find(r => r.tick === tick);
+        if (bulk ? length % span : !source || tick + span > length) return {error:'小節内に収まりません'};
+        const events = rowEvents(bar, row);
+        const changes = new Map();
+        for (const event of events) {
+            const start = event.onsetTick ?? event.tick;
+            if (start >= length) continue;
+            if (bulk ? start % span !== 0 : start > tick && start < tick + span) return {error:'入力済みの位置を保持します'};
+            if ((!bulk && start !== tick) || row === 'lyrics') continue;
+            const previous = ranges.find(r => r.tick === start)?.span;
+            if (previous === span && (event.durationTicks == null || event.durationTicks === span)) continue;
+            if (event.tieToNext) return {error:'次の小節へのタイを保持します'};
+            changes.set(start, span);
+        }
+        let starts;
+        if (bulk) starts = Array.from({length:length / span}, (_, i) => i * span);
+        else {
+            const cuts = new Set(ranges.map(r => r.tick));
+            for (const cut of cuts) if (cut > tick && cut < tick + span) cuts.delete(cut);
+            for (let cut = tick + span; cut < tick + source.span; cut += span) cuts.add(cut);
+            if (tick + span < length) cuts.add(tick + span);
+            starts = Array.from(cuts).sort((a, b) => a - b);
+        }
+        return {starts, changes};
+    }
+
+    function resizeStrumEvents(project, barId, changes, length) {
+        const bindings = project.performance.barRhythms;
+        const binding = bindings.find(b => b.barId === barId);
+        const id = binding?.materialId || project.performance.basicRhythmId;
+        const materials = project.materials.rhythms;
+        const index = materials.findIndex(m => m.id === id);
+        const material = JSON.parse(JSON.stringify(materials[index]));
+        const shared = project.performance.basicRhythmId === id || bindings.some(b => b.barId !== barId && b.materialId === id);
+        const newId = CS().model.schema2.newId;
+        if (shared) {
+            material.id = newId();
+            material.provenance = {origin:'user-set'};
+        }
+        for (const slot of material.snapshot.slots) {
+            if (shared) slot.id = newId();
+            if (changes.has(slot.tick)) slot.durationTicks = changes.get(slot.tick);
+        }
+        if (material.snapshot.lengthTicks < length) {
+            material.snapshot.lengthTicks = length;
+            delete material.snapshot.inputGrid;
+            delete material.snapshot.cellStarts;
+        }
+        if (!shared) materials[index] = material;
+        else {
+            materials.push(material);
+            if (binding) binding.materialId = material.id;
+            else bindings.push({id:newId(), barId, materialId:material.id});
+        }
+    }
+
+    function noteValueControl(bar, row, range, ranges) {
+        const owner = state.session, bulk = !range;
+        const length = CS().model.getBarLengthTicks(state.project);
+        const select = document.createElement('select');
+        const values = new Set(bulk ? ranges.map(r => r.span) : [range.span]);
+        const span = values.size === 1 ? values.values().next().value : 0;
+        const unit = wholeNoteTicks / span;
+        const current = noteValues.includes(unit) ? String(unit) : '';
+        select.className = bulk ? 'editor-row-resolution' : 'editor-cell-value';
+        if (bulk) select.dataset.rowResolution = row;
+        else select.dataset.cellValue = range.tick;
+        select.title = bar.barNumber + '小節目・' + DOCK_ROW_LABELS[row] + (bulk ? '行の音価をそろえる' : '・このマスの音価');
+        select.setAttribute('aria-label', select.title);
+        if (!current) {
+            const other = new Option(span ? span + ' tick' : '混在', '');
+            other.disabled = true;
+            select.add(other);
+        }
+        for (const value of noteValues) select.add(new Option(value === 1 ? '全' : value + '分', String(value)));
+        select.value = current;
+        if (bulk && row === 'strum' && CS().model.rhythmForBar(state.project,bar.barNumber)?.encoding === 'rhythm-owner-cells-v1') select.disabled = true;
+        if (owner.draft.schemaVersion !== 2) select.disabled = true;
+        const position = range?.tick ?? null;
+        const liveRanges = () => editorCellRanges(bar, null, row);
+        function refresh() {
+            const active = liveRanges();
+            for (const option of select.options) {
+                if (!option.value) continue;
+                const {error} = planNoteValue(bar, row, active, position, Number(option.value));
+                option.disabled = !!error;
+                option.title = error || '';
+            }
+        }
+        select.addEventListener('pointerdown', e => {
+            e.stopPropagation();
+            if (!prepareLyricResolutionChange(getSelectedBar() || bar).ok) e.preventDefault();
+            else refresh();
+        });
+        select.addEventListener('focus', refresh);
+        select.addEventListener('click', e => e.stopPropagation());
+        select.addEventListener('change', () => {
+            const value = Number(select.value);
+            select.value = current;
+            if (!select.isConnected || state.session !== owner || !editorCanMove()) return;
+            finishTextInputs();
+            const plan = planNoteValue(bar, row, liveRanges(), position, value);
+            if (plan.error) return;
+            const frame = contentFrame();
+            function apply() {
+                if (!select.isConnected || state.session !== owner || !currentFrame(frame) || !editorCanMove()) return;
+                stopPianoAudition();
+                const result = owner.runOperation(DOCK_ROW_LABELS[row] + 'の音価を変更', project => {
+                    const source = project.bars[bar.barNumber - 1];
+                    if (source.id !== bar.sourceId) throw Error('対象の小節が変わりました');
+                    project.extensions ||= {};
+                    const grids = project.extensions.scoreCellValuesV1 || {};
+                    project.extensions.scoreCellValuesV1 = {...grids, [source.id]:{...grids[source.id], [row]:plan.starts}};
+                    if (row === 'strum' && plan.changes.size) resizeStrumEvents(project, source.id, plan.changes, length);
+                    if (row === 'chord' || row === 'doremi') {
+                        for (const event of source[row === 'chord' ? 'chords' : 'melody']) {
+                            if (!plan.changes.has(event.onsetTick)) continue;
+                            event.durationTicks = plan.changes.get(event.onsetTick);
+                            if (row === 'doremi') event.provenance.timing.duration = {origin:'user-set', confirmed:true};
+                        }
+                    }
+                });
+                if (result.ok) redrawSession(false);
+                else setSaveStatus(result.error, true);
+            }
+            if (bulk && plan.changes.size) {
+                const dialog = fileDialog('行の音価をそろえる'), message = document.createElement('p'), actions = document.createElement('footer');
+                message.textContent = bar.barNumber + '小節目の' + DOCK_ROW_LABELS[row] + 'で、入力済みの' + plan.changes.size + '箇所の長さを変更します。';
+                actions.append(dialogButton('キャンセル', () => dialog.close()), dialogButton('適用', () => {dialog.close(); apply();}, true));
+                dialog.append(message, actions);
+                dialog.showModal();
+            } else apply();
+        });
+        return select;
     }
 
     function editorBeatGroups(wrap,bar,globalRes,rowId,ranges){
@@ -2377,13 +2553,14 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         Array.from(new Set(ranges.map(function(r){return r.beat;}))).forEach(function(beat){
             var items=ranges.filter(function(r){return r.beat===beat;}),span=items.reduce(function(n,r){return n+r.span;},0);
             var group=document.createElement('div');group.className='beat-group dock-lyrics-beat-group';group.dataset.beatIndex=beat;group.style.flex=span+' 1 0px';
-            var cells=document.createElement('div');cells.className='dock-lyrics-beat-cells';cells.style.gridTemplateColumns='repeat('+items.length+',minmax(0,1fr))';group.appendChild(cells);
-            if(rowResolution(bar,rowId)>2||getLyricBeatLocalRes(bar,beat,rowId))group.appendChild(buildLyricBeatResButton(bar,beat,globalRes,rowId));wrap.appendChild(group);groups[beat]=cells;
+            var cells=document.createElement('div');cells.className='dock-lyrics-beat-cells';cells.style.gridTemplateColumns=items.map(r=>'minmax(0,'+r.span+'fr)').join(' ');group.appendChild(cells);
+            wrap.appendChild(group);groups[beat]=cells;
         });
         return groups;
     }
 
     function cellDoremiText(events,span,project){
+        if(events.length===1 && events[0].kind==='note' && events[0].durationTicks===span)return pianoToken(events[0].pitch,project);
         var unit=events.length===1?events[0].durationTicks:span;function gcd(a,b){while(b){var r=a%b;a=b;b=r;}return a;}events.forEach(function(e){unit=gcd(unit,e.durationTicks);});
         return events.filter(function(e){return e.kind==='note';}).map(function(e){var held=e.provenance.timing.onset.origin==='auto-assigned'&&e.provenance.timing.duration.origin==='user-set';return pianoToken(e.pitch,project)+(e.durationTicks<=span?'〜'.repeat(Math.min(16,Math.max(held?1:0,e.durationTicks/unit-1))):'');}).join('');
     }
@@ -3292,6 +3469,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         var field = row === 'strum' ? '.dock-strum-cell' : row === 'lyrics' ? '.dock-lyrics-cell' : '[data-overlay-field="' + row + '"]';
         var tickField = row === 'strum' ? 'tick' : 'onsetTick';
         cell.classList.add('sc-editor-transfer-cell');
+        cell.appendChild(noteValueControl(bar, row, range));
         cell.dataset.rangeRow = row;
         cell.dataset.rangeStart = (bar.barNumber - 1) * CS().model.getBarLengthTicks(state.project) + tick;
         function eventsAtCell() {
@@ -3428,7 +3606,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             var input=document.createElement('input');input.type='text';input.className='slot-overlay-input';
             input.style.minWidth='0';input.style.width='100%';input.style.padding='0 3px';input.style.boxSizing='border-box';input.style.textAlign='center';
             input.style.minHeight=kind==='chord'?'max(26px, calc(30px * var(--bar-loupe-scale,1)))':'max(28px, calc(34px * var(--bar-loupe-scale,1)))';
-            var boundary=lyricLocalBoundaryClass(range.slot,range.count,range.res,range.beat===getBeats(state.project)-1);
+            var boundary=range.boundary;
             input.classList.add(boundary);
             input.style.borderRight='1px solid var('+(boundary==='is-beat'?'--paper-line-beat':boundary==='is-8th'?'--paper-line-eighth':boundary==='is-16th'?'--paper-line-sixteenth':'--slot-border')+')';
             if(kind==='doremi'){input.style.fontFamily='var(--paper-font)';input.style.fontSize='max(11px, calc(13px * var(--bar-loupe-scale, 1)))';input.style.fontWeight='600';input.style.letterSpacing='0';}
@@ -3457,6 +3635,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
                         if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
                         if(!old||old.symbol!==symbol||old.unresolved)addedStroke=api.addChordStroke(p,b.id,tick,range.res);
                         if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
+                        if(!old && p.extensions?.scoreCellValuesV1?.[b.id]?.chord)list.find(e=>e.onsetTick===tick).durationTicks=span;
                         if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,formMode==='auto'?'auto':'fixed');}else{if(formMode==='auto')p.performance.formBindings=p.performance.formBindings.filter(function(b){return b.chordEventId!==chordEvent.id;});CS().localChordForms.syncEvent(p,chordEvent);}}
                     }else{
                         var parsed=CS().theory.parseDoremiString(raw);
@@ -3533,7 +3712,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
                 function refreshColors(){colors.replaceChildren();var events=owner.draft.bars.find(function(b){return b.id===source.id;})?.melody.filter(function(e){return e.onsetTick>=tick&&e.onsetTick<tick+span;})||[];
                             input.style.color=events.length&&events.every(function(e){return e.kind==='note'&&e.pitch.octave===events[0].pitch?.octave;})?CS().sheetRenderer.octaveColor(events[0].pitch.octave):'var(--paper-doremi)';
                     var unit=events.length===1?events[0].durationTicks:span;function gcd(a,b){while(b){var r=a%b;a=b;b=r;}return a;}events.forEach(function(e){unit=gcd(unit,e.durationTicks);});
-                    events.forEach(function(e){var token=document.createElement('span');if(e.kind==='rest'){token.appendChild(CS().sheetRenderer.createStrumRestSymbol(e.durationTicks));token.style.color='#746e65';}else token.textContent=pianoToken(e.pitch,owner.draft,true)+(e.onsetTick+e.durationTicks<=tick+span?'〜'.repeat(Math.min(16,Math.max(e.provenance.timing.onset.origin==='auto-assigned'&&e.provenance.timing.duration.origin==='user-set'?1:0,e.durationTicks/unit-1))):'');if(e.kind==='note'){token.style.color=CS().sheetRenderer.octaveColor(e.pitch.octave);token.dataset.noteOctave=e.pitch.octave;}token.dataset.pianoEvent=e.id;token.setAttribute('role','button');token.setAttribute('aria-label',(e.kind==='rest'?'休符':pianoToken(e.pitch,owner.draft,true)+' オクターブ'+e.pitch.octave)+'を編集');
+                    events.forEach(function(e){var token=document.createElement('span');if(e.kind==='rest'){token.appendChild(CS().sheetRenderer.createStrumRestSymbol(e.durationTicks));token.style.color='#746e65';}else token.textContent=pianoToken(e.pitch,owner.draft,true)+(events.length>1&&e.onsetTick+e.durationTicks<=tick+span?'〜'.repeat(Math.min(16,Math.max(e.provenance.timing.onset.origin==='auto-assigned'&&e.provenance.timing.duration.origin==='user-set'?1:0,e.durationTicks/unit-1))):'');if(e.kind==='note'){token.style.color=CS().sheetRenderer.octaveColor(e.pitch.octave);token.dataset.noteOctave=e.pitch.octave;}token.dataset.pianoEvent=e.id;token.setAttribute('role','button');token.setAttribute('aria-label',(e.kind==='rest'?'休符':pianoToken(e.pitch,owner.draft,true)+' オクターブ'+e.pitch.octave)+'を編集');
                         token.addEventListener('pointerdown',function(event){if(piano.open){event.preventDefault();event.stopPropagation();}});
                         function choose(event){if(!piano.open||!token.isConnected||state.session!==owner||state.session.draft.bars[state.selectedBarNumber-1]?.id!==source.id)return;event.preventDefault();event.stopPropagation();bindPianoCell(owner,source.id,tick,span);piano.eventId=e.id;piano.adding=false;refreshPiano();focusPianoCell(pianoContext());}token.addEventListener('click',choose);token.addEventListener('keydown',function(event){if(event.key==='Enter'||event.key===' ')choose(event);else if(piano.open&&['Delete','Backspace'].includes(event.key)&&!event.isComposing&&event.keyCode!==229){choose(event);pianoWrite(pianoContext(),'delete');}});colors.appendChild(token);});
                     if(!events.length){var held=owner.draft.bars.find(function(b){return b.id===source.id;})?.melody.find(function(e){return e.kind==='note'&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick;});if(held){var wave=document.createElement('span');wave.textContent='〜';wave.dataset.pianoSustain='';wave.style.color=CS().sheetRenderer.octaveColor(held.pitch.octave);wave.title='前の音を伸ばしています';colors.appendChild(wave);}}
@@ -3814,68 +3993,12 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         return map.get('row:'+row)||Math.max(map.get('initial:'+row)||8,preference===16?16:8);
     }
     function buildRowResolutionButton(bar,rowId){
-        var session=state.session,sourceId=bar.sourceId,value=rowResolution(bar,rowId),next={8:16,16:4,4:1,1:2,2:8}[value];
-        var button=document.createElement('button');button.type='button';button.className='editor-row-resolution';button.dataset.rowResolution=rowId;
-        button.textContent=value===1?'全':String(value);
-        button.title=DOCK_ROW_LABELS[rowId]+'の入力単位：'+(value===1?'小節全体':value+'分')+'。クリックで'+(next===1?'小節全体':next+'分')+'に変更。表示中の小節に適用し、ロックした拍と既存の入力は保持します';button.setAttribute('aria-label',button.title);
-        button.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();});
-        button.addEventListener('click',function(e){e.stopPropagation();if(state.session!==session||session?.draft.bars[bar.barNumber-1]?.id!==sourceId)return;var activeBar=getSelectedBar()||bar,prep=prepareLyricResolutionChange(activeBar);if(!prep.ok)return;finishTextInputs();stopPianoAudition();var numbers=Array.from(els.slotOverlay.querySelectorAll('.editor-measure')).map(function(e){return Number(e.dataset.barNumber);});numbers.forEach(function(n){var target=state.project.bars[n-1];if(!target)return;editorResolutionMap(target,rowId).set('row:'+rowId,next);});finishLyricResolutionChange(activeBar,prep.snapshot);});
-        return button;
+        return noteValueControl(bar, rowId, null, editorCellRanges(bar, null, rowId));
     }
-    function getLyricBeatEffectiveRes(bar, globalRes, beatIndex, rowId) {
-        var local = getLyricBeatLocalRes(bar, beatIndex, rowId);
-        return local || rowResolution(bar,rowId||'lyrics');
-    }
-
-    /**
-     * 拍別ローカル解像度ボタンのクリックサイクル。
-     * 全体が8分で自動状態: 自8 → 16 → 8 → 自8
-     * 全体が16分で自動状態: 自16 → 8 → 16 → 自16
-     * つまり自動からの最初のクリックは必ず全体設定と逆の解像度へ固定し、
-     * 見た目が必ず変化するようにする。ローカル固定同士を1往復した後、再度押すと自動へ戻る。
-     * @returns {8|16|null} 次の状態（nullは自動へ戻すことを意味する）
-     */
-    function nextLyricBeatResState(isAuto, local, globalRes) {
-        if(globalRes<=4)return isAuto?8:local===8?16:null;
-        var opposite = (globalRes === 8) ? 16 : 8;
-        if (isAuto) return opposite;
-        if (local === opposite) return globalRes;
-        return null;
-    }
-
-    /**
-     * 拍内でのセル境界の強弱class（is-beat/is-8th/is-16th/is-barend）を、
-     * その拍「だけ」のローカル解像度基準で求める（G2b）。既存の timelineBoundaryClass は
-     * 小節全体で単一の解像度を前提にしたグローバルboundary番号を使うため、拍ごとに
-     * 解像度が異なりうる歌詞行では使えない。1拍分に閉じた同等ロジックとして実装する
-     * （全拍が同じ解像度のときは timelineBoundaryClass と完全に同じ結果になる）。
-     */
-    function lyricLocalBoundaryClass(slotIndexInBeat, slotsPerBeat, beatRes, isLastBeat) {
-        var boundaryWithinBeat = slotIndexInBeat + 1;
-        if (boundaryWithinBeat >= slotsPerBeat) {
-            return isLastBeat ? 'is-barend' : 'is-beat';
-        }
-        if (beatRes === 16) {
-            return (boundaryWithinBeat % 2 === 0) ? 'is-8th' : 'is-16th';
-        }
-        return 'is-8th';
-    }
-
-    /**
-     * ローカル拍ボタン・全体8分/16分ボタンの両方が使う、解像度変更前の安全処理（G2b）。
-     * 1) 現在フォーカス中の要素が歌詞セルで、かつIME変換中なら何もせず中止する
-     *    （{ok:false}を返す。呼び出し側は解像度状態を変更してはいけない）
-     * 2) 歌詞セルがアクティブなら、変更があるときだけG2aの無変更ガード経由で1回だけ
-     *    commitする（無変更なら書き込まない。renderPreviewはさせない= skipRender）
-     * 3) フォーカス復元用に、そのセルのtick・選択範囲・値をキャプチャして返す
-     * 呼び出し側は、続けて解像度状態を変更し、renderSlotOverlayContent()を1回だけ呼び、
-     * 戻り値のsnapshotをrestoreLyricCellFocusAfterRender()等でフォーカス復元に使う
-     * （G2aのtick中心フォールバック: 同tick→含む→直前→先頭をそのまま再利用する）。
-     */
     function prepareLyricResolutionChange(bar) {
         // Subdivision also rebuilds solfege: preserve uncommitted/invalid buffers.
         if(!operationEligible()||textDiagnostic(state.session)||els.slotOverlay.querySelector('.is-composing')){
-            setSaveStatus('入力を確定・修正してから8／16分を切り替えてください。',true);
+            setSaveStatus('入力を確定してから音価を変更してください。',true);
             return {ok:false};
         }
         var active = document.activeElement;
@@ -4096,7 +4219,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         ranges.forEach(function(range,index){
             var value=strumCellState(bar,range),action=value.action;
             var cell=document.createElement('button');cell.type='button';
-            cell.className='dock-strum-cell is-'+action+' '+lyricLocalBoundaryClass(range.slot,range.count,range.res,range.beat===getBeats(state.project)-1);
+            cell.className='dock-strum-cell is-'+action+' '+range.boundary;
             if(value.multiple)cell.textContent='…';
             else CS().sheetRenderer.renderStrumCell(cell,action,range.span);
             cell.dataset.strumState=action;
@@ -4510,89 +4633,8 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         return input;
     }
 
-    /**
-     * 拍beatIndexの右下に置く、歌詞のローカル解像度切替ボタン（G2b）。
-     * 自動状態: 「自8」「自16」（全体設定に追従中）。ローカル固定: 「8」「16」。
-     * クリックサイクル・安全処理（IME中は無操作・編集中セルの保全）は
-     * nextLyricBeatResState() / prepareLyricResolutionChange() を参照。
-     */
-    function buildLyricBeatResButton(bar, beatIndex, globalRes, rowId) {
-        rowId=rowId||'lyrics';
-        var local = getLyricBeatLocalRes(bar, beatIndex, rowId);
-        var isAuto = (local === null);
-        globalRes=rowResolution(bar,rowId);
-        var effectiveRes = local || globalRes;
-
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.dataset.resolutionRow=rowId;
-        btn.className = 'dock-lyrics-beat-res-btn' + (isAuto ? ' is-auto' : ' is-local');
-        // v0.22.3後修正: ユーザー最終決定により、表示テキストは常に有効解像度の数字
-        // だけ（自動「自8/自16」・固定「固8/固16」という接頭辞文字は廃止）にする。
-        // 固定状態は代わりにCSS側（.dock-lyrics-beat-res-btn.is-local::before）が
-        // currentColorのモノクロ線画アイコン（南京錠。Unicode絵文字は不使用）を
-        // 表示することで区別する。状態サイクル・内部値（WeakMapへ保持する8/16の数値）・
-        // 変数名・className（is-auto/is-local）は無変更。
-        btn.textContent = String(effectiveRes);
-
-        var stateText = isAuto ?
-            ('この行の設定へ自動追従中（現在は' + globalRes + '分）') :
-            ('この拍だけ' + effectiveRes + '分に固定中。この行の設定を変えても追従しません');
-        var next = nextLyricBeatResState(isAuto, local, globalRes);
-        var nextText = (next === null) ?
-            'クリックすると、自動追従へ戻します' :
-            ('クリックすると、この拍だけ' + next + '分に固定します');
-        var label = (beatIndex + 1) + '拍目の'+DOCK_ROW_LABELS[rowId]+'セル解像度: ' + stateText + '。' + nextText;
-        btn.title = label;
-        btn.setAttribute('aria-label', label);
-
-        btn.addEventListener('click', function (event) {
-            event.stopPropagation();
-            switchLyricBeatResolution(bar, beatIndex, rowId);
-        });
-        btn.addEventListener('mousedown', function (event) { event.stopPropagation(); });
-        // G2b: pointerdown preventDefaultで編集中セルの先行blurを止める
-        // （理由はbuildResolutionToggle()内の同種コメントを参照）。
-        btn.addEventListener('pointerdown', function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        });
-
-        return btn;
-    }
-
-    /**
-     * 拍別ローカル解像度ボタンのクリック処理本体（G2b）。安全処理→状態変更→
-     * 1回だけ再描画→フォーカス復元、の順を厳守する。
-     */
-    function switchLyricBeatResolution(bar, beatIndex, rowId) {
-        var prep = prepareLyricResolutionChange(bar);
-        if (!prep.ok) return; // IME変換中は何もしない
-
-        var globalRes = rowResolution(bar,rowId||'lyrics');
-        var local = getLyricBeatLocalRes(bar, beatIndex, rowId);
-        var isAuto = (local === null);
-        var next = nextLyricBeatResState(isAuto, local, globalRes);
-        setLyricBeatLocalRes(bar, beatIndex, next, rowId);
-
-        finishLyricResolutionChange(bar, prep.snapshot);
-    }
-
-    /**
-     * 歌詞行のDOMを組み立てる（G2b: 拍ごとに異なる解像度が混在しうる）。
-     * 外側の拍グループ構造（拍の数だけ均等幅）はG1のpopulateBeatGroups()と同じ考え方だが、
-     * 拍内のスロット数が拍ごとに変わりうるため、専用のループで組み立てる。
-     * 各拍の実効解像度からセルrangeを一括生成し、getBarLyricSlotRanges()（G2a）で
-     * まとめて読み出す。8分セルの範囲に複数の16分イベントが入っていれば、tick順に
-     * 連結されたテキストとisMultiが返る（bar.lyrics自体は変更しない）。
-     * DOM順は必ずslotTick昇順（拍0の左端スロット→…→拍最後の右端スロット）。
-     */
     function buildLyricsGridRow(bar, globalRes) {
         var model = CS().model;
-        var beats = getBeats(state.project);
-        var barTicks = model.getBarLengthTicks(state.project);
-        var beatTicks = barTicks / beats;
-
         var wrap = document.createElement('div');
         wrap.className = 'dock-lyrics-grid beat-groups';
         wrap.dataset.overlayField = 'lyrics';
@@ -4600,7 +4642,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         var ranges=editorCellRanges(bar,globalRes,'lyrics'),groups=editorBeatGroups(wrap,bar,globalRes,'lyrics',ranges);
         var infos=model.getBarLyricSlotRanges(state.project,bar.barNumber,ranges.map(function(r){return {slotTick:r.tick,slotTicks:r.span};}));
         ranges.forEach(function(r,i){
-            var input=buildLyricCellInput(bar,r.tick,r.span,infos[i],lyricLocalBoundaryClass(r.slot,r.count,r.res,r.beat===beats-1),i);
+            var input=buildLyricCellInput(bar,r.tick,r.span,infos[i],r.boundary,i);
             var host=document.createElement('div');host.appendChild(input);
             wireEditorCell('lyrics',host,input,bar,r,!!infos[i].text);
             groups[r.beat].appendChild(host);
@@ -5354,7 +5396,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         scoreUI?.bindScoreZoom(viewport,{read:()=>editorHorizontalZoom/100,write:value=>changeHorizontalZoom(value*100),enabled:editorCanMove});
         state.project.bars.slice(anchor,anchor+editorBars).forEach(function(bar){
             var measure=document.createElement('section');measure.className='editor-measure';measure.dataset.barNumber=bar.barNumber;measure.style.setProperty('--editor-column',bar.barNumber-anchor);measure.setAttribute('aria-label',bar.barNumber+'小節目を編集');
-            function activate(event){if(event.target.closest('.editor-row-tools,[data-chord-cell-toggle]'))return;if(!activateEditorMeasure(bar.barNumber)){event.preventDefault();event.stopImmediatePropagation();if(event.type==='focus'){event.target.blur();editorRoot().querySelector('.is-invalid')?.focus({preventScroll:true});}}else if(event.type==='focus')revealEditorCell(event.target);}
+            function activate(event){if(event.target.closest('.editor-row-tools,.editor-cell-value,[data-chord-cell-toggle]'))return;if(!activateEditorMeasure(bar.barNumber)){event.preventDefault();event.stopImmediatePropagation();if(event.type==='focus'){event.target.blur();editorRoot().querySelector('.is-invalid')?.focus({preventScroll:true});}}else if(event.type==='focus')revealEditorCell(event.target);}
             measure.addEventListener('pointerdown',activate,true);measure.addEventListener('focus',activate,true);
         // 拍ルーラー（コード/ストローク/歌詞/メロディの共通時間軸）
         var res = getStrumGridResolution(bar);
