@@ -6256,7 +6256,10 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
                     confirm.classList.add('sc-delete-confirm');
                     description.textContent=item.textContent;
                     const note=document.createElement('p');
-                    note.className='sc-delete-note';note.textContent='一覧から削除しても、パソコンのJSONファイルは残ります。';
+                    note.className='sc-delete-note';
+                    if(location || scoreFileName(id))note.textContent='一覧から削除しても、パソコンのJSONファイルは残ります。';
+                    else if(record.exists)note.textContent='このブラウザに保存した曲と、その下書きを削除します。';
+                    else note.textContent='このブラウザにある未保存の下書きを削除します。';
                     confirm.append(description,note);
                     if(canBrowse && location){
                         const hint=document.createElement('p');

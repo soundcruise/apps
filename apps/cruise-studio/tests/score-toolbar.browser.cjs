@@ -98,7 +98,13 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   const manage=()=>select.selectOption({label:'ファイル一覧・削除…'});
   await manage();
   const target=list.getByRole('button',{name:/toolbar-test\.json.*削除/});
-  const confirm=p.getByRole('dialog',{name:'削除の確認'});await target.click();await confirm.getByRole('button',{name:'キャンセル'}).click();
+  const confirm=p.getByRole('dialog',{name:'削除の確認'});
+  await list.getByRole('button',{name:/無題.*を削除/}).first().click();
+  await confirm.getByText('このブラウザにある未保存の下書きを削除します。',{exact:true}).waitFor();
+  assert.equal(await confirm.getByRole('button',{name:'元のフォルダを開く'}).count(),0);
+  await confirm.getByRole('button',{name:'キャンセル'}).click();
+  await target.click();await confirm.getByText(/パソコンのJSONファイルは残ります/).waitFor();
+  await confirm.getByRole('button',{name:'キャンセル'}).click();
   assert(await target.isVisible());
   await target.click();await confirm.getByRole('button',{name:'削除する'}).click();
   await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().target.projectId!==id,id);
@@ -108,7 +114,9 @@ for(const engine of ['chrome','webkit'])test('compact score toolbar: '+engine,as
   await p.click('#sc-save');
   const saved=(await snap(p)).projectId;
   await p.waitForFunction(id=>CruiseStudio.repository.read({type:'project',projectId:id}).exists,saved);
-  await manage();await list.getByRole('button',{name:/を削除$/}).first().click();await confirm.getByRole('button',{name:'削除する'}).click();
+  await manage();await list.getByRole('button',{name:/を削除$/}).first().click();
+  await confirm.getByText('このブラウザに保存した曲と、その下書きを削除します。',{exact:true}).waitFor();
+  await confirm.getByRole('button',{name:'削除する'}).click();
   await p.waitForFunction(id=>!CruiseStudio.repository.read({type:'project',projectId:id}).exists,saved);
   await list.getByText(/削除しました/).waitFor();
   await p.reload();await p.click('#open-sheet-cruise');
