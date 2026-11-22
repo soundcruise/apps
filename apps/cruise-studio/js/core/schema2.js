@@ -427,9 +427,11 @@
                     next.snapshot.cellStarts=legacy.strumCellStarts(grid.unit,grid.beats,next.snapshot.lengthTicks);
                 }
             }
-            // A sixteenth-note grid alternates within each half beat.
+            // Alternate strokes at the selected subdivision, including off-grid attacks.
             var halfBeat=project.songInfo.ticksPerBeat/2;
-            var subdivision=resolution===16||tick%halfBeat!==0?halfBeat/2:halfBeat;
+            var subdivision=halfBeat;
+            if(resolution===32 || tick%(halfBeat/2)!==0)subdivision=halfBeat/4;
+            else if(resolution===16 || tick%halfBeat!==0)subdivision=halfBeat/2;
             var action=Math.floor(tick/subdivision)%2===1?'up':'down';
             next.snapshot.slots.push({id:id(),tick:tick,action:action,accent:false});
             next.snapshot.slots.sort((a,b)=>a.tick-b.tick);

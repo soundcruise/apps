@@ -163,7 +163,15 @@
     }
     function editorRoot(){return els.slotOverlay?.querySelector('.editor-measure[data-bar-number="'+state.selectedBarNumber+'"]')||els.slotOverlay;}
     function editorStartIndex(project){var index=project.bars.findIndex(function(b){return b.id===editorAnchorId;});return index>=0?index:Math.max(0,state.selectedBarNumber-1);}
-    function revealEditorCell(target){var viewport=els.slotOverlay.querySelector('.editor-score-scroll');if(!viewport||!target)return;var area=viewport.getBoundingClientRect(),box=target.getBoundingClientRect();if(box.right>area.right-8)viewport.scrollLeft+=box.right-area.right+8;else if(box.left<area.left+8)viewport.scrollLeft+=box.left-area.left-8;}
+    function revealEditorCell(target){
+        const viewport=els.slotOverlay.querySelector('.editor-score-scroll');
+        if(!viewport||!target)return;
+        const area=viewport.getBoundingClientRect(),box=target.getBoundingClientRect();
+        const label=viewport.querySelector('.slot-overlay-row-label');
+        const left=area.left+(label?.offsetWidth||0)+8;
+        if(box.right>area.right-8)viewport.scrollLeft+=box.right-area.right+8;
+        else if(box.left<left)viewport.scrollLeft+=box.left-left;
+    }
     function editorCanMove(){return operationEligible()&&!state.session?.inputPending&&!state.session?.commitInFlight&&!state.session?.conflict&&!state.session?.externalUpdatePending&&!textDiagnostic(state.session)&&!els.slotOverlay.querySelector('.is-composing');}
     function activateEditorMeasure(number){
         if(number===state.selectedBarNumber)return true;if(!editorCanMove())return false;finishTextInputs();stopPianoAudition();
@@ -1537,7 +1545,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 .sc-form-dialog button{border:1px solid #a0a7ae;border-radius:7px;background:white;color:#273440;padding:6px 12px;cursor:pointer;}
 .sc-form-dialog svg{display:block;width:100%;height:auto;max-height:65vh;}
 @media print{[data-edit-selected-bar],.sc-form-dialog{display:none!important;}:is(#sc-sheet-scale-box,.sc-preset-sheet-frame,.sc-song-preview,.sc-section-preview) .sheet-bar-num{min-height:0;}}
-#sc-slot-overlay {--editor-label-width:max(96px,calc(96px * var(--bar-loupe-scale,1)));--editor-label-offset:calc(var(--editor-label-width) + 8px * var(--bar-loupe-scale,1));--editor-min-cell:max(9px,calc(max(18px,24px * var(--bar-loupe-scale,1)) * var(--editor-horizontal-scale,1)));gap:calc(6px * var(--bar-loupe-scale,1));padding:calc(8px * var(--bar-loupe-scale,1)) calc(20px * var(--bar-loupe-scale,1)) calc(16px * var(--bar-loupe-scale,1));}
+#sc-slot-overlay {--editor-label-width:max(100px,calc(100px * var(--bar-loupe-scale,1)));--editor-label-offset:calc(var(--editor-label-width) + 8px * var(--bar-loupe-scale,1));--editor-min-cell:max(9px,calc(max(18px,24px * var(--bar-loupe-scale,1)) * var(--editor-horizontal-scale,1)));gap:calc(6px * var(--bar-loupe-scale,1));padding:calc(8px * var(--bar-loupe-scale,1)) calc(20px * var(--bar-loupe-scale,1)) calc(16px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-head {gap:calc(14px * var(--bar-loupe-scale,1));padding-bottom:calc(6px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-head-main,#sc-slot-overlay .slot-overlay-head-actions {gap:calc(8px * var(--bar-loupe-scale,1));}
 #sc-slot-overlay .slot-overlay-section {font-size:calc(11px * var(--bar-loupe-scale,1));padding:calc(2px * var(--bar-loupe-scale,1)) calc(10px * var(--bar-loupe-scale,1));}
@@ -1628,7 +1636,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 #sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:first-child) .slot-overlay-row-body{border-top-left-radius:0;border-bottom-left-radius:0;border-left:0;}
 #sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:last-child) :is(.dock-strum-grid,.dock-lyrics-grid){border-top-right-radius:0;border-bottom-right-radius:0;}
 #sc-slot-overlay .editor-measures:not([data-count="1"]) .editor-measure:not(:first-child) :is(.dock-strum-grid,.dock-lyrics-grid){border-top-left-radius:0;border-bottom-left-radius:0;}
-#sc-slot-overlay .slot-overlay-row-label{font-size:max(10px,calc(10.5px * var(--bar-loupe-scale,1)));white-space:nowrap;justify-content:space-between;gap:3px;}
+#sc-slot-overlay .slot-overlay-row-label{font-size:max(11px,calc(11.5px * var(--bar-loupe-scale,1)));white-space:nowrap;justify-content:space-between;gap:3px;}
 #sc-slot-overlay .editor-row-tools{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;}
 #sc-slot-overlay .slot-overlay-row-label{position:relative;}
 #sc-slot-overlay .editor-row-tools .editor-row-fold{height:max(16px,calc(18px * var(--bar-loupe-scale,1)));}
@@ -1658,9 +1666,6 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 #sc-slot-overlay.editor-right .slot-overlay-head{cursor:default;flex-wrap:wrap;gap:6px;}
 #sc-slot-overlay.editor-right .slot-overlay-head-actions{flex:1 1 100%;}
 #sc-slot-overlay.editor-right .slot-overlay-resize-handle{display:none;}
-#sc-slot-overlay.editor-right .editor-measures:not([data-count="1"]){min-width:calc(var(--editor-label-offset) + 16 * var(--editor-min-cell) + 2px);grid-template-columns:minmax(0,1fr);gap:12px;}
-#sc-slot-overlay.editor-right .editor-measure:not(:first-child) .slot-overlay-row-label{display:flex;}
-#sc-slot-overlay.editor-right .editor-measure:not(:first-child) .slot-overlay-ruler-label{display:block;}
 #sc-slot-overlay.editor-right .editor-measures[data-count] .editor-measure .slot-overlay-row-body{border-radius:6px;border-left-width:1px;border-right-width:1px;}
 #sc-slot-overlay.editor-right .editor-measures[data-count] .editor-measure :is(.dock-strum-grid,.dock-lyrics-grid){border-radius:8px;}
 
@@ -2027,12 +2032,13 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
 #sc-slot-overlay button.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
-#sc-slot-overlay button.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0 2px 1px;background:transparent;border:0;color:#526573;font-size:max(9px,calc(9px * var(--bar-loupe-scale,1)));font-variant-numeric:tabular-nums;}
+#sc-slot-overlay button.editor-cell-value{position:absolute;right:1px;bottom:1px;z-index:3;width:calc(24px * var(--bar-loupe-scale,1));max-width:50%;height:min(44%,calc(19px * var(--bar-loupe-scale,1)));min-width:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:0 3px 1px;background:transparent;border:0;color:#526573;font-size:max(9px,calc(9px * var(--bar-loupe-scale,1)));font-variant-numeric:tabular-nums;}
 #sc-slot-overlay button.editor-cell-value:hover,#sc-slot-overlay button.editor-cell-value:focus-visible{background:#e6edf2;color:#233f53;}
 #sc-slot-overlay button.editor-cell-value[data-unusual-value]{width:auto;max-width:calc(100% - 2px);}
 #sc-slot-overlay select.editor-row-resolution{width:max(27px,calc(31px * var(--bar-loupe-scale,1)));}
 #sc-slot-overlay button.editor-cell-value:focus-visible,#sc-slot-overlay select.editor-row-resolution:focus-visible{outline:2px solid #3676a6;z-index:4;}
-#sc-slot-overlay .editor-measure:not(:first-child) :is(.slot-overlay-row-label,.slot-overlay-ruler-label){display:flex;}
+#sc-slot-overlay .editor-measure:first-child :is(.slot-overlay-row-label,.slot-overlay-ruler-label){position:relative;z-index:4;background:var(--slot-surface);transform:translateX(var(--editor-scroll-x,0px));box-shadow:5px 0 var(--slot-surface);}
+#sc-slot-overlay .editor-measures.has-fine-values{--editor-min-cell:max(36px,calc(48px * var(--bar-loupe-scale,1) * var(--editor-horizontal-scale,1)));}
 #sc-slot-overlay .sc-editor-transfer-cell> :is(.dock-strum-cell,.dock-lyrics-cell){height:100%;width:100%;min-width:0;}
 #sc-slot-overlay .dock-strum-cell > *{pointer-events:none;}
 #sc-slot-overlay [data-range-row] :is(input,button){touch-action:pan-y;}
@@ -2371,7 +2377,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         return input;
     }
 
-    const noteValues = [1, 2, 4, 8, 16];
+    const noteValues = [1, 2, 4, 8, 16, 32];
     const wholeNoteTicks = 1920;
 
     function rowEvents(bar, row) {
@@ -2515,7 +2521,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         }
     }
 
-    function noteValueControl(bar, row, range, ranges) {
+    function noteValueControl(bar, row, range, ranges, targets = [bar]) {
         const owner = state.session, bulk = !range;
         const length = CS().model.getBarLengthTicks(state.project);
         const select = document.createElement(bulk ? 'select' : 'button');
@@ -2532,9 +2538,9 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             select.dataset.unusualValue = '';
         }
         const position = range?.tick ?? null;
-        const liveRanges = () => editorCellRanges(bar, null, row);
-        const allowed = value => !planNoteValue(bar, row, liveRanges(), position, value).error;
-        select.title = bar.barNumber + '小節目・' + DOCK_ROW_LABELS[row] + (bulk ? '行の音価をそろえる' : '・このマスの音価');
+        const planFor = (target,value) => planNoteValue(target,row,editorCellRanges(target,null,row),position,value);
+        const allowed = value => targets.every(target => !planFor(target,value).error);
+        select.title = (targets.length>1 ? bar.barNumber+'〜'+targets.at(-1).barNumber : bar.barNumber) + '小節目・' + DOCK_ROW_LABELS[row] + (bulk ? '行の音価をそろえる' : '・このマスの音価');
         select.setAttribute('aria-label', select.title);
         if (bulk) {
             select.className = 'editor-row-resolution';
@@ -2552,7 +2558,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
                 select.value = current;
                 commit(value);
             });
-            if (row === 'strum' && CS().model.rhythmForBar(state.project,bar.barNumber)?.encoding === 'rhythm-owner-cells-v1') select.disabled = true;
+            if (row === 'strum' && targets.some(target=>CS().model.rhythmForBar(state.project,target.barNumber)?.encoding === 'rhythm-owner-cells-v1')) select.disabled = true;
         } else {
             select.type = 'button';
             select.className = 'editor-cell-value';
@@ -2579,33 +2585,36 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         function commit(value) {
             if (!select.isConnected || state.session !== owner || !editorCanMove()) return;
             finishTextInputs();
-            const plan = planNoteValue(bar, row, liveRanges(), position, value);
-            if (plan.error) return;
+            const edits = targets.map(target=>({target,plan:planFor(target,value)}));
+            if (edits.some(edit=>edit.plan.error)) return;
+            const changed = edits.reduce((n,edit)=>n+edit.plan.changes.size,0);
             const frame = contentFrame();
             function apply() {
                 if (!select.isConnected || state.session !== owner || !currentFrame(frame) || !editorCanMove()) return;
                 stopPianoAudition();
                 const result = owner.runOperation(DOCK_ROW_LABELS[row] + 'の音価を変更', project => {
-                    const source = project.bars[bar.barNumber - 1];
-                    if (source.id !== bar.sourceId) throw Error('対象の小節が変わりました');
-                    project.extensions ||= {};
-                    const grids = project.extensions.scoreCellValuesV1 || {};
-                    project.extensions.scoreCellValuesV1 = {...grids, [source.id]:{...grids[source.id], [row]:plan.starts}};
-                    if (row === 'strum' && plan.changes.size) resizeStrumEvents(project, source.id, plan.changes, length);
-                    if (row === 'chord' || row === 'doremi') {
-                        for (const event of source[row === 'chord' ? 'chords' : 'melody']) {
-                            if (!plan.changes.has(event.onsetTick)) continue;
-                            event.durationTicks = plan.changes.get(event.onsetTick);
-                            if (row === 'doremi') event.provenance.timing.duration = {origin:'user-set', confirmed:true};
+                    for (const {target,plan} of edits) {
+                        const source = project.bars[target.barNumber - 1];
+                        if (source.id !== target.sourceId) throw Error('対象の小節が変わりました');
+                        project.extensions ||= {};
+                        const grids = project.extensions.scoreCellValuesV1 || {};
+                        project.extensions.scoreCellValuesV1 = {...grids, [source.id]:{...grids[source.id], [row]:plan.starts}};
+                        if (row === 'strum' && plan.changes.size) resizeStrumEvents(project, source.id, plan.changes, length);
+                        if (row === 'chord' || row === 'doremi') {
+                            for (const event of source[row === 'chord' ? 'chords' : 'melody']) {
+                                if (!plan.changes.has(event.onsetTick)) continue;
+                                event.durationTicks = plan.changes.get(event.onsetTick);
+                                if (row === 'doremi') event.provenance.timing.duration = {origin:'user-set', confirmed:true};
+                            }
                         }
                     }
                 });
                 if (result.ok) redrawSession(false);
                 else setSaveStatus(result.error, true);
             }
-            if (bulk && plan.changes.size) {
+            if (bulk && changed) {
                 const dialog = fileDialog('行の音価をそろえる'), message = document.createElement('p'), actions = document.createElement('footer');
-                message.textContent = bar.barNumber + '小節目の' + DOCK_ROW_LABELS[row] + 'で、入力済みの' + plan.changes.size + '箇所の長さを変更します。';
+                message.textContent = (targets.length>1 ? bar.barNumber+'〜'+targets.at(-1).barNumber : bar.barNumber) + '小節目の' + DOCK_ROW_LABELS[row] + 'で、入力済みの' + changed + '箇所の長さを変更します。';
                 actions.append(dialogButton('キャンセル', () => dialog.close()), dialogButton('適用', () => {dialog.close(); apply();}, true));
                 dialog.append(message, actions);
                 dialog.showModal();
@@ -3360,7 +3369,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
                 const firstBar = Math.floor(args.to/barTicks), lastBar = Math.ceil((args.to+args.end-args.start)/barTicks);
                 args.chordGrid = Object.fromEntries(state.project.bars.slice(firstBar,lastBar).map(bar =>
                     [bar.sourceId,Object.fromEntries(editorCellRanges(bar,getStrumGridResolution(bar),'chord')
-                        .filter(range=>range.res===16).map(range=>[range.tick,range.res]))]));
+                        .filter(range=>range.res>=16).map(range=>[range.tick,range.res]))]));
             }
             if (!runStructureOperation('rangeTransfer', args, expected).ok) return;
             state.selectedBarNumber = Number(target.closest('.editor-measure').dataset.barNumber);
@@ -4059,8 +4068,8 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         const preference=CS().localPaperLayout?.value.gridResolution??state.project.sheetSettings?.timingGridResolution;
         return map.get('row:'+row)||Math.max(map.get('initial:'+row)||8,preference===16?16:8);
     }
-    function buildRowResolutionButton(bar,rowId){
-        return noteValueControl(bar, rowId, null, editorCellRanges(bar, null, rowId));
+    function buildRowResolutionButton(bars,rowId){
+        return noteValueControl(bars[0], rowId, null, bars.flatMap(bar=>editorCellRanges(bar,null,rowId)), bars);
     }
     function prepareLyricResolutionChange(bar) {
         // Subdivision also rebuilds solfege: preserve uncommitted/invalid buffers.
@@ -5460,8 +5469,10 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
         var canonical=state.session.draft,anchor=canonical.bars.findIndex(function(b){return b.id===editorAnchorId;});
         if(editorBars===1||anchor<0||state.selectedBarNumber<anchor+1||state.selectedBarNumber>anchor+editorBars){anchor=Math.max(0,state.selectedBarNumber-1);editorAnchorId=canonical.bars[anchor].id;}
         var viewport=document.createElement('div');viewport.className='editor-score-scroll';viewport.dataset.anchor=editorAnchorId;els.slotOverlay.appendChild(viewport);var measures=document.createElement('div');measures.className='editor-measures';measures.dataset.count=Math.min(editorBars,canonical.bars.length-anchor);measures.style.setProperty('--editor-count',measures.dataset.count);viewport.appendChild(measures);
+        viewport.addEventListener('scroll', () => measures.style.setProperty('--editor-scroll-x', viewport.scrollLeft+'px'), {passive:true});
+        const displayedBars=state.project.bars.slice(anchor,anchor+editorBars);
         scoreUI?.bindScoreZoom(viewport,{read:()=>editorHorizontalZoom/100,write:value=>changeHorizontalZoom(value*100),enabled:editorCanMove});
-        state.project.bars.slice(anchor,anchor+editorBars).forEach(function(bar){
+        displayedBars.forEach(function(bar){
             var measure=document.createElement('section');measure.className='editor-measure';measure.dataset.barNumber=bar.barNumber;measure.style.setProperty('--editor-column',bar.barNumber-anchor);measure.setAttribute('aria-label',bar.barNumber+'小節目を編集');
             function activate(event){if(event.target.closest('.editor-row-tools,.editor-cell-value,[data-chord-cell-toggle]'))return;if(!activateEditorMeasure(bar.barNumber)){event.preventDefault();event.stopImmediatePropagation();if(event.type==='focus'){event.target.blur();editorRoot().querySelector('.is-invalid')?.focus({preventScroll:true});}}else if(event.type==='focus')revealEditorCell(event.target);}
             measure.addEventListener('pointerdown',activate,true);measure.addEventListener('focus',activate,true);
@@ -5482,7 +5493,7 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             var rowLabel = document.createElement('span');
             rowLabel.className = 'slot-overlay-row-label';
             var text=document.createElement('span');text.textContent=rowDef.label;rowLabel.appendChild(text);
-            var tools=document.createElement('span');tools.className='editor-row-tools';tools.appendChild(buildRowResolutionButton(bar,rowId));
+            var tools=document.createElement('span');tools.className='editor-row-tools';if(bar===displayedBars[0])tools.appendChild(buildRowResolutionButton(displayedBars,rowId));
             if((rowId==='chord'||rowId==='doremi')&&bar.barNumber===anchor+1){
                 var disclosureOwner=state.session,disclosure=document.createElement('button');disclosure.type='button';disclosure.className='editor-row-disclosure';disclosure.dataset[rowId==='chord'?'chordToggle':'pianoToggle']='';
                 disclosure.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();});disclosure.addEventListener('click',function(e){e.stopPropagation();if(!disclosure.isConnected||state.session!==disclosureOwner||!editorCanMove())return;if(rowId==='chord'){var id=state.session.draft.bars[state.selectedBarNumber-1].id;bindChordCell(state.session,id,chordPicker.owner===state.session&&chordPicker.barId===id?chordPicker.tick:0);chordPicker.open=!chordPicker.open;renderSlotOverlayContent();}else togglePianoPanel();});tools.appendChild(disclosure);
@@ -5515,7 +5526,8 @@ dialog.sc-delete-confirm{width:min(29rem,calc(100vw - 24px));padding:clamp(14px,
             measures.appendChild(measure);
         });
         bindEditorRanges(viewport, priorAnchor===editorAnchorId ? selectedStrokeStart : undefined);
-        measures.classList.toggle('has-chord-panel',Number(measures.dataset.count)>1&&chordPicker.open&&editorPlacement!=='right');
+        measures.classList.toggle('has-fine-values',Array.from(measures.querySelectorAll('[data-slot-ticks]')).some(cell=>Number(cell.dataset.slotTicks)<120));
+        measures.classList.toggle('has-chord-panel',Number(measures.dataset.count)>1&&chordPicker.open);
         els.slotOverlay.appendChild(buildPianoPanel());
         syncEditorDisclosures();
         var legend=document.createElement('p');legend.className='strum-state-legend';legend.textContent='ストローク：↓ ダウン　↑ アップ　× ミュート　〜 伸ばす　｜　R・Spaceで休符、Deleteで空欄';els.slotOverlay.appendChild(legend);

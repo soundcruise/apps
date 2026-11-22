@@ -850,11 +850,11 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     const picker=page.getByRole('dialog',{name:'マスの音価'});
     const dot=picker.getByRole('checkbox',{name:'付点'});
     await cell(0).click();
-    for (const name of ['全','2分','4分','8分','16分']) {
+    for (const name of ['全','2分','4分','8分','16分','32分']) {
         await picker.getByRole('radio',{name,exact:true}).check();
         assert.equal(await dot.isEnabled(), name!=='全');
     }
-    for (const [name,ticks] of [['2分',1440],['4分',720],['16分',180]]) {
+    for (const [name,ticks] of [['2分',1440],['4分',720],['16分',180],['32分',90]]) {
         await picker.getByRole('radio',{name,exact:true}).check();
         await dot.check();
         await picker.getByText('適用',{exact:true}).click();
@@ -862,6 +862,24 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
         await page.click('#sc-undo',{force:true});
         await cell(0).click();
     }
+    await picker.getByRole('radio',{name:'32分',exact:true}).check();
+    await picker.getByText('適用',{exact:true}).click();
+    for (const [tick,pitch] of [[0,'ド'],[60,'レ']]) {
+        await field(tick).fill(pitch);
+        await field(tick).press('Tab');
+    }
+    const fine = await snapshot();
+    assert.deepEqual(fine.bars[0].melody.map(e=>[e.onsetTick,e.durationTicks]),[[0,60],[60,60]]);
+    await page.locator('[data-bar-preview]').click();
+    await page.waitForFunction(bpm=>{
+        const duration=60/bpm/8, close=(a,b)=>Math.abs(a-b)<.001;
+        return window.playedSpans.some(([start,end])=>close(end-start,duration) &&
+            window.playedSpans.some(([next,stop])=>close(next,end) && close(stop-next,duration)));
+    },fine.songInfo.bpm);
+    await page.locator('[data-bar-preview]').click();
+    for (let i=0;i<3;i++) await page.click('#sc-undo',{force:true});
+    assert.deepEqual(await snapshot(),before);
+    await cell(0).click();
     await picker.getByRole('radio',{name:'8分',exact:true}).check();
     await dot.check();
     await picker.getByText('適用',{exact:true}).click();
@@ -938,12 +956,13 @@ for (const engine of ['chrome','webkit']) test('measure note values, legacy sust
     const second = page.locator('.editor-measure').nth(1);
     for (const lane of ['lyrics','chord','strum']) {
         const stateBefore = await snapshot();
-        const select = second.locator('[data-row-resolution="'+lane+'"]');
+        const select = measure.locator('[data-row-resolution="'+lane+'"]');
         await select.selectOption('16');
         const confirm = page.getByRole('dialog',{name:'行の音価をそろえる'});
         if (await confirm.isVisible()) await confirm.getByText('適用',{exact:true}).click();
         assert.equal(await select.inputValue(),'16');
-        assert.deepEqual((await snapshot()).bars[0],stateBefore.bars[0]);
+        assert.equal(await second.locator('.slot-overlay-row--'+lane+' [data-cell-value]').count(),16);
+        assert.equal(await measure.locator('.slot-overlay-row--'+lane+' [data-cell-value]').count(),16);
         assert.deepEqual((await snapshot()).bars[1].melody,legacy);
         await page.keyboard.press(engine==='webkit'?'Meta+z':'Control+z');
         assert.deepEqual(await snapshot(),stateBefore);

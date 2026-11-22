@@ -6,17 +6,29 @@ for(const engine of ['chrome','webkit'])test('two measure units and unified chor
  const before=await p.evaluate(()=>JSON.stringify(CruiseStudio.sheetCruise.getSession().workingSnapshot()));
  assert.equal(await p.locator('[data-chord-cell-toggle]').count(),0);
  await p.locator('[data-editor-bars="2"]').click();
+ await p.getByRole('button',{name:'横に拡大',exact:true}).click();
+ const viewport=p.locator('.editor-score-scroll'), label=viewport.locator('.slot-overlay-row--strum .slot-overlay-row-label').first();
+ const originalX=(await label.boundingBox()).x;
+ await viewport.evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+ await p.waitForFunction(x=>{
+    const view=document.querySelector('.editor-score-scroll'), rows=view.querySelectorAll('.slot-overlay-row--strum');
+    const label=rows[0].querySelector('.slot-overlay-row-label'), box=label.getBoundingClientRect();
+    const body=row=>row.querySelector('.slot-overlay-row-body').getBoundingClientRect();
+    return view.scrollLeft>0 && Math.abs(box.left-x)<1 && label.contains(document.elementFromPoint(box.left+4,box.top+box.height/2))
+        && Math.abs(body(rows[0]).right-body(rows[1]).left)<1;
+ },originalX);
+ await viewport.evaluate(el=>{el.scrollLeft=0;});
  for (const lane of ['chord','strum','lyrics','doremi']) {
     const first=p.locator('.editor-measure').nth(0).locator('.slot-overlay-row--'+lane);
     const second=p.locator('.editor-measure').nth(1).locator('.slot-overlay-row--'+lane);
-    const secondStarts=await second.locator('[data-cell-value]').evaluateAll(es=>es.map(e=>e.dataset.cellValue));
+    assert.equal(await second.locator('.slot-overlay-row-label').isVisible(),false);
     const unit=first.locator('[data-row-resolution]'),previous=await unit.inputValue();
     if(previous==='16')continue;
     await unit.selectOption('16');
     const confirm=p.getByRole('dialog',{name:'行の音価をそろえる'});
     if(await confirm.isVisible())await confirm.getByText('適用',{exact:true}).click();
     assert.equal(await unit.inputValue(),'16');
-    assert.deepEqual(await second.locator('[data-cell-value]').evaluateAll(es=>es.map(e=>e.dataset.cellValue)),secondStarts);
+    assert.equal(await second.locator('[data-cell-value]').count(),16);
     await p.locator('#sc-undo').click({force:true});
     assert.deepEqual(await p.evaluate(()=>CruiseStudio.sheetCruise.getSession().workingSnapshot()),JSON.parse(before));
  }
