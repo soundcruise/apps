@@ -45,7 +45,7 @@ test('invalid strings and missing playedStrings cannot silently become another c
         const p=fixture();mutate(p);assert.throws(()=>chordVoicing(p,p.bars[0].chords[0],deps()));assert.equal(buildBarPreviewPlan(p,0,deps()).events.length,0);
     }
 });
-test('blank intervals ring; same string reattack, rest, mute, chord changes and explicit duration damp',()=>{
+test('blank intervals ring; same string reattack, rest, mute, and chord changes damp',()=>{
     const p=fixture(),d=deps([{tick:0,action:'down',durationTicks:120},{tick:480,action:'up'},{tick:960,action:'rest'},
         {tick:1200,action:'down'},{tick:1440,action:'mute'}]);
     const plan=buildBarPreviewPlan(p,0,d);
@@ -55,14 +55,20 @@ test('blank intervals ring; same string reattack, rest, mute, chord changes and 
     p.bars[0].chords.push({id:'unresolved',symbol:'?',unresolved:true,onsetTick:600});
     const changed=buildBarPreviewPlan(p,0,deps());assert(changed.events.every(e=>e.start+e.duration<=.655+1e-9));
     p.bars[0].chords=[{...p.bars[0].chords[0],durationTicks:12}];
-    const short=buildBarPreviewPlan(p,0,deps());assert(short.events.every(e=>e.start+e.duration<=.0425+1e-9));assert(short.events.length<5);
+    const short=buildBarPreviewPlan(p,0,deps());assert.equal(short.events.length,5);
+    assert(short.events.every(e=>Math.abs(e.start+e.duration-2.03)<1e-9));
 });
-test('implicit harmony and ringing cross bars, explicit chord duration does not; previous onset cannot collide with local onset',()=>{
+test('harmony crosses bars even with stored durations and switches at the next chord',()=>{
     const p=fixture(),d=deps([{tick:1680,action:'down'}]);
     const song=buildSongPreviewPlan(p,d);assert(at(song,1680).some(e=>e.barIndex===0&&e.start+e.duration>2.03));
     assert.equal(buildBarPreviewPlan(p,1,deps()).events.length,5);
-    p.bars[1].chords=[{id:'later',symbol:'C',onsetTick:960}];assert.equal(at(buildBarPreviewPlan(p,1,deps())).length,5);
-    p.bars[0].chords[0].durationTicks=1920;assert.equal(at(buildBarPreviewPlan(p,1,deps())).length,0);
+    p.bars[0].chords[0].durationTicks=1920;
+    p.bars[1].chords=[{id:'later',symbol:'C',onsetTick:960}];
+    const slotDeps=deps([{tick:0,action:'down'},{tick:960,action:'up'}]);
+    const live=buildSongTickPlan(p,slotDeps);
+    assert.deepEqual(mids(at(live,1920)),mids(at(live,0)));
+    assert.notDeepEqual(mids(at(live,2880)),mids(at(live,1920)));
+    assert.deepEqual(mids(at(buildBarPreviewPlan(p,1,slotDeps))),mids(at(live,1920)));
 });
 test('rest at next bar start damps carry, while melody timing is untouched',()=>{
     const p=fixture();p.bars[0].melody=[{id:'m',kind:'note',pitch:72,onsetTick:240,durationTicks:120}];

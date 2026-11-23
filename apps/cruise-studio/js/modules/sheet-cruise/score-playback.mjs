@@ -33,10 +33,7 @@ function barPlan(project, index, deps, harmony) {
         function cutAtChord(tick) {
             if(tick>=hold && !(tick===barTicks && carriesOver))cuts.push({tick});
         }
-        for (const chord of chords) {
-            cutAtChord(chord.onsetTick);
-            if (chord.durationTicks !== undefined) cutAtChord(chord.onsetTick + chord.durationTicks);
-        }
+        for (const chord of chords) cutAtChord(chord.onsetTick);
         if(hold && (hold<barTicks || !carriesOver))cuts.push({tick:hold, stop:true});
         slots.forEach((slot, i) => {
             const end = Math.min(barTicks, slot.tick + (slot.durationTicks ?? fallback), slots[i + 1]?.tick ?? barTicks);

@@ -70,12 +70,14 @@ export function presetChordCells({C,doc,host,read,write,project,play,preview,pre
             const label=doc.createElement('strong');label.textContent=(b+1)+'小節';measure.append(label);
             const row=doc.createElement('div');row.className='sc-author-beats';measure.append(row);grid.append(measure);
             row.style.gridTemplateColumns='repeat(4,minmax(0,1fr))';
-            measure.style.minWidth='104px';
+            measure.style.minWidth='152px';
             for(let beat=0;beat<4;beat++){
                 const slot=doc.createElement('div');slot.className='sc-pattern-slot';row.append(slot);
                 const mark=doc.createElement('small');mark.textContent=(beat+1)+'拍';slot.append(mark);
-                // Captured subdivisions stay at their exact onset inside their quarter-note box.
-                const ticks=[...new Set([beat*480,...events.filter(e=>Math.floor(e.tick/480)===beat).map(e=>e.tick)])].sort((a,b)=>a-b);
+                const beatStart=beat*480, beatEnd=beatStart+480;
+                const ticks=[...new Set([beatStart,beatStart+240,
+                    ...events.filter(e=>Math.floor(e.tick/480)===beat).map(e=>e.tick)])].sort((a,b)=>a-b);
+                slot.style.gridTemplateColumns=ticks.map((t,i)=>'minmax(0,'+((ticks[i+1]??beatEnd)-t)+'fr)').join(' ');
                 for(const t of ticks){
                     const e=events.find(e=>e.tick===t),input=doc.createElement('input');
                     input.type='text';input.defaultValue=e?.symbol||'';input.maxLength=24;input.autocomplete='off';

@@ -118,7 +118,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.242.3-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.243.0-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -2074,11 +2074,11 @@ body.loupe-resizing,body.loupe-resizing *{cursor:var(--loupe-resize-cursor,nwse-
 .sc-preset-cell-editor .sc-author-cell-tools{display:flex;flex-direction:column;gap:3px;margin:0;align-items:center;}
 .sc-author-cell-tools strong{font-size:12px;}
 .sc-song-dialog .sc-author-cell-tools button{min-height:0;padding:1px 4px;background:white;color:#505b63;border:1px solid #929ba1;border-radius:4px;font:bold 11px system-ui;}
-.sc-author-cell-grid{display:grid;grid-template-columns:repeat(4,minmax(104px,1fr));min-width:0;overflow:auto;gap:5px 0;max-height:none;margin:0;}
+.sc-author-cell-grid{display:grid;grid-template-columns:repeat(4,minmax(152px,1fr));min-width:0;overflow:auto;gap:5px 0;max-height:none;margin:0;}
 .sc-author-measure{flex:1 0 0;box-sizing:border-box;border:0;background:white;}
 .sc-author-measure strong{color:#515960;background:#f5f5f5;}
 .sc-author-beats{border:1px solid #909ba3;border-radius:5px;overflow:auto;}
-.sc-pattern-slot{min-width:0;position:relative;border-right:1px solid #ddd;background:white;padding-top:14px;}
+.sc-pattern-slot{display:grid;min-width:0;position:relative;border-right:1px solid #ddd;background:white;padding-top:14px;}
 .sc-pattern-slot small{position:absolute;top:0;left:2px;color:#59626a;font-size:9px;}
 .sc-song-dialog .sc-pattern-slot input{border:0;height:27px;font:bold 15px system-ui;color:#ba3e30;}
 .sc-pattern-grip{position:absolute;bottom:0;left:1px;cursor:grab;font-size:12px;line-height:14px;}
@@ -2100,7 +2100,8 @@ body.loupe-resizing,body.loupe-resizing *{cursor:var(--loupe-resize-cursor,nwse-
 .sc-preset-actions{display:flex;align-items:center;margin-left:auto;gap:6px;flex-wrap:wrap;}
 .sc-song-dialog .sc-preset-actions button{padding:5px 8px;font-size:12px;background:transparent;color:var(--studio-text-secondary);}
 .sc-batch-dialog .sc-preset-controls select[data-score-preset]{background-color:#fbf8f0;color:#171717;color-scheme:light;border-color:var(--studio-accent);font-size:16px;font-weight:600;line-height:1.25;height:42px;}
-.sc-pattern-onset{position:relative;padding-bottom:10px;}
+.sc-pattern-onset{position:relative;min-width:0;padding-bottom:10px;}
+.sc-pattern-onset+.sc-pattern-onset{border-left:1px dotted #ddd;}
 @media(max-width:640px){.sc-batch-dialog{--preset-rail:54px;}.sc-batch-dialog .sc-preset-controls select{font-size:16px;}.sc-preset-actions{margin-left:0;}.sc-score-preview-rail button{font-size:12px;}}
 #sc-slot-overlay .sc-editor-transfer-cell{position:relative;display:grid;width:100%;min-width:0;}
 #sc-slot-overlay button.editor-cell-value,#sc-slot-overlay select.editor-row-resolution{appearance:none;background:#fff;color:#435563;border:1px solid #9ca9b3;border-radius:4px;min-height:0;height:calc(16px * var(--bar-loupe-scale,1));padding:0 2px;text-align:center;font:600 max(9px,calc(10px * var(--bar-loupe-scale,1)))/1.2 sans-serif;cursor:pointer;}
@@ -2481,14 +2482,17 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         const saved = grid?.[row];
         const valid = Array.isArray(saved) && saved[0] === 0 &&
             saved.every((tick, i) => Number.isInteger(tick) && tick < length && (!i || tick > saved[i - 1]));
-        const cuts = new Set(valid ? saved : CS().model.strumCellStarts(base, locks, length));
+        const customChordGrid = row === 'chord' && grid?.chordGridExplicit === true;
+        const cuts = new Set(valid && (row !== 'chord' || customChordGrid) ? saved :
+            CS().model.strumCellStarts(base, locks, length));
+        if (row === 'chord' && valid) for (const tick of saved) cuts.add(tick);
         const events = rowEvents(bar, row);
         const dividedStrokes = row === 'strum' && valid && grid.strumBeatGrouping === true;
         // Existing notes, rests and off-grid attacks define real boundaries, including in legacy scores.
         for (const event of events) {
             const start = event.onsetTick ?? event.tick;
             const end = start + event.durationTicks;
-            if (end > start) {
+            if (row !== 'chord' && end > start) {
                 if (!dividedStrokes) for (const tick of cuts) if (tick > start && tick < end) cuts.delete(tick);
                 if (end < length) cuts.add(end);
             }
@@ -2563,7 +2567,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             const start = event.onsetTick ?? event.tick;
             if (start >= length) continue;
             if (bulk ? start % span !== 0 : start > tick && start < tick + span) return {error:'入力済みの位置を保持します'};
-            if ((!bulk && start !== tick) || row === 'lyrics') continue;
+            if ((!bulk && start !== tick) || row === 'lyrics' || row === 'chord') continue;
             const previous = ranges.find(r => r.tick === start)?.span;
             const writtenSegment = !bulk && row === 'doremi' && state.session.draft.extensions?.scoreCellValuesV1?.[bar.sourceId]?.melodyBeatGrouping === true;
             if (previous === span && (writtenSegment || event.durationTicks == null || event.durationTicks === span)) continue;
@@ -2761,13 +2765,14 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
                         if (source.id !== target.sourceId) throw Error('対象の小節が変わりました');
                         project.extensions ||= {};
                         const grids = project.extensions.scoreCellValuesV1 || {};
-                        project.extensions.scoreCellValuesV1 = {...grids, [source.id]:{...grids[source.id], [row]:plan.starts}};
+                        project.extensions.scoreCellValuesV1 = {...grids, [source.id]:{...grids[source.id], [row]:plan.starts,
+                            ...(row === 'chord' ? {chordGridExplicit:true} : {})}};
                         if (row === 'strum' && plan.changes.size) resizeStrumEvents(project, source.id, plan.changes, length);
-                        if (row === 'chord' || row === 'doremi') {
-                            for (const event of source[row === 'chord' ? 'chords' : 'melody']) {
+                        if (row === 'doremi') {
+                            for (const event of source.melody) {
                                 if (!plan.changes.has(event.onsetTick)) continue;
                                 event.durationTicks = plan.changes.get(event.onsetTick);
-                                if (row === 'doremi') event.provenance.timing.duration = {origin:'user-set', confirmed:true};
+                                event.provenance.timing.duration = {origin:'user-set', confirmed:true};
                             }
                         }
                     }
@@ -3115,7 +3120,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.204.0-dev.1'),import('../score-ui.mjs?v=0.204.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen',openSettings:()=>q('sc-paper-settings')?.click()});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});const fullscreenCommand=q('sc-menu-fullscreen');if(fullscreenCommand)fullscreenCommand.disabled=false;}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.243.0-rc.1'),import('../score-ui.mjs?v=0.204.0-dev.1')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen',openSettings:()=>q('sc-paper-settings')?.click()});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});const fullscreenCommand=q('sc-menu-fullscreen');if(fullscreenCommand)fullscreenCommand.disabled=false;}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -3960,7 +3965,6 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
                         if(!old)list.forEach(function(e){if(e.durationTicks!==undefined&&e.onsetTick<tick&&e.onsetTick+e.durationTicks>tick)e.durationTicks=tick-e.onsetTick;});
                         if(!old||old.symbol!==symbol||old.unresolved)addedStroke=api.addChordStroke(p,b.id,tick,range.res);
                         if(old){old.symbol=symbol;old.unresolved=false;}else list.push({id:api.newId(),onsetTick:tick,symbol:symbol,unresolved:false,provenance:{origin:'user-set'}});
-                        if(!old && p.extensions?.scoreCellValuesV1?.[b.id]?.chord)list.find(e=>e.onsetTick===tick).durationTicks=span;
                         if(CS().localChordForms){var chordEvent=list.find(function(e){return e.onsetTick===tick;});if(formMaterial){CS().model.schema2.assertJson(formMaterial);CS().localChordForms.initialize(p);if(formMaterial.provenance.sourceSymbol!==chordEvent.symbol||formMaterial.snapshot.capo!==p.instrument.capo||JSON.stringify(formMaterial.snapshot.tuningMidi)!==JSON.stringify(p.instrument.tuning)||formMaterial.snapshot.maxAbsoluteFret!==p.instrument.maxAbsoluteFret)throw Error('本棚フォームの名前・楽器条件が一致しません');CS().localChordForms.install(p,chordEvent,formMaterial,formMode==='auto'?'auto':'fixed');}else{if(formMode==='auto')p.performance.formBindings=p.performance.formBindings.filter(function(b){return b.chordEventId!==chordEvent.id;});CS().localChordForms.syncEvent(p,chordEvent);}}
                     }else{
                         var parsed=CS().theory.parseDoremiString(raw);
@@ -4346,7 +4350,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
     }
     function effectiveRowUnit(map,row){
         const preference=CS().localPaperLayout?.value.gridResolution??state.project.sheetSettings?.timingGridResolution;
-        return map.get('row:'+row)||Math.max(map.get('initial:'+row)||8,preference===16?16:8);
+        return map.get('row:'+row)||(row === 'chord' ? 8 : 0)||Math.max(map.get('initial:'+row)||8,preference===16?16:8);
     }
     function buildRowResolutionButton(bars,rowId){
         return noteValueControl(bars[0], rowId, null, {ranges:bars.flatMap(bar=>editorCellRanges(bar,null,rowId)), targets:bars});
