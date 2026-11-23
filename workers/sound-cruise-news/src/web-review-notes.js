@@ -9,7 +9,8 @@ export async function webReviewNotes(item,known,states,tombstones,now){
  const titleHash=await hash(item.title||''),entry=notes.find(n=>n.hints.some(h=>h.url===item.url&&h.titleHash===titleHash));
  if(!entry||item.humanEntry||item.reviewBlocked||!publicSearchUrl(entry.reference.url))return null;
  const peers=entry.hints.filter(h=>h.url!==item.url).map(h=>h.url),reference={...entry.reference,observedAt:entry.observedAt,confirmed:false,formalFacts:false};
- if(!entry.knownArticles)return {reason:entry.reason,reference,peers,knownArticles:[]};
+ const discoveryPublishedAt=entry.hints.find(h=>h.url===item.url)?.publishedAt;
+ if(!entry.knownArticles)return {reason:entry.reason,reference,peers,knownArticles:[],...(discoveryPublishedAt?{discoveryPublishedAt}:{})};
  const articles=[];
  for(const expected of entry.knownArticles){
   const row=known.find(r=>r.id===expected.id&&r.source_url===expected.url),f=parse(row?.product_facts),state=states.find(s=>s.source_id===row?.source_id);
