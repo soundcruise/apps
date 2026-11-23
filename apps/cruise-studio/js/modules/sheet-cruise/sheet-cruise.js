@@ -118,7 +118,7 @@
     }
     var editorHelp=null,editorHelpPending=null;
     function prepareEditorHelp(){
-        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.242.2-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
+        if(!editorHelpPending)editorHelpPending=import('./editor-help.mjs?v=0.242.3-rc.1').then(function(module){editorHelp=module.createEditorHelp({document:document,closed:refreshToolbarActions});return editorHelp;}).catch(function(){editorHelpPending=null;setSaveStatus('操作ガイドを読み込めませんでした。もう一度お試しください',true);});return editorHelpPending;
     }
     function openEditorHelp(trigger){
         if(!state.active||!editorOpen||!operationEligible()||els.slotOverlay.querySelector('.is-composing'))return;
@@ -2127,6 +2127,8 @@ body.loupe-resizing,body.loupe-resizing *{cursor:var(--loupe-resize-cursor,nwse-
 #sc-slot-overlay .sc-editor-cell-drag-handle{position:absolute;bottom:0;left:0;z-index:2;border:0;background:transparent;color:#536577;padding:1px 3px;font-size:12px;line-height:1;cursor:grab;}
 #sc-slot-overlay .sc-editor-transfer-cell.is-drop-target{outline:2px solid var(--score-cell-selection-edge);outline-offset:-2px;}
 .sc-song-dialog label:has(input[type=checkbox]){flex-direction:row;align-items:flex-start;}
+.sc-song-dialog .sc-preset-range-controls>label:has(>input[type=checkbox]){align-items:center;}
+.sc-song-dialog .sc-preset-range-controls>label>input[type=checkbox]{margin:0;}
 .sc-song-dialog [role=status]{color:var(--studio-danger);font-size:12px;white-space:pre-line;}
 .sc-song-dialog p{font-size:12px;color:var(--studio-text-secondary);}
 .sc-song-dialog .sc-key-comparison{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;}.sc-key-comparison th,.sc-key-comparison td{text-align:left;padding:8px 4px;border-bottom:1px solid var(--studio-border-default);}.sc-key-comparison td:last-child{font-weight:700;color:var(--studio-accent);}.sc-song-dialog details>summary{cursor:pointer;font-size:12px;}
