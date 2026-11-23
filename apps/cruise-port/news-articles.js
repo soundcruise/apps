@@ -82,7 +82,7 @@ export const CRUISE_STUDIO_NEWS_ITEM = Object.freeze({
 const browserCorrection = NEWS_ARTICLES[browserCorrectionId];
 export const STUDIO_BROWSER_CORRECTION = Object.freeze({
     id: browserCorrectionId, label: browserCorrection.title,
-    sourceName: 'Sound Cruise', category: 'cruise_apps', linkType: 'internal', articleId: browserCorrectionId,
+    sourceName: 'アコギ弾き語りラボ/クルーニー', category: 'cruise_apps', linkType: 'internal', articleId: browserCorrectionId,
     publishedAt: browserCorrection.publishedAt, createdAt: browserCorrection.publishedAt, updatedAt: browserCorrection.publishedAt,
     topicKey: browserCorrectionId, sourceKind: 'official', sourceSafety: 'safe', manualReviewStatus: 'approved'
 });
