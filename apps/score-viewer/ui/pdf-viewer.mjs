@@ -3,6 +3,7 @@ import {mountFocusMode} from './focus-mode.mjs';
 import {printPDFDocument} from './pdf-print.mjs';
 import {exportIcon} from './pdf-export.mjs';
 import {createLibraryUI} from './library.mjs';
+import {chooseExportName} from './export-dialogs.mjs';
 import {mountFileMenu} from './file-menu.mjs';
 import {bindPlaybackKeys,downloadViewerFile} from './interaction.mjs';
 import {createPDFLoader} from '../core/pdf-loader.mjs';
@@ -15,9 +16,10 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     const node=(tag,text,parent=host)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;parent.append(e);return e;};
     const toolbar=node('div');toolbar.className='sv-toolbar';
     const button=(label,id,parent=toolbar)=>{const e=node('button',label,parent);e.type='button';e.dataset.pdfAction=id;return e;};
-    const open=button('ファイルを開く','open'),files=button('ライブラリ','library'),save=button('この端末に保存','save');
+    const open=button('PDFファイルを取り込む','open'),openJSON=button('ビューワー用JSONを開く','open-json'),files=button('ライブラリ','library'),save=button('ライブラリに追加','save');
     const fileMenu=mountFileMenu({button,open,files});
-    const input=node('input',undefined,toolbar);input.type='file';input.hidden=true;input.accept='.pdf,.cruise-score.json,application/pdf,application/json';input.dataset.pdfFile='';
+    const input=node('input',undefined,toolbar);input.type='file';input.hidden=true;input.accept='.pdf,application/pdf';input.dataset.pdfFile='';
+    const jsonInput=node('input',undefined,toolbar);jsonInput.type='file';jsonInput.hidden=true;jsonInput.accept='.cruise-score.json,application/json';jsonInput.dataset.pdfJSONImport='';
     const name=node('strong','',toolbar);name.className='sv-pdf-title';
     const zoomGroup=node('div',undefined,toolbar);zoomGroup.className='sv-zoom';zoomGroup.setAttribute('role','group');zoomGroup.setAttribute('aria-label','PDFの拡大縮小');
     const minus=button('−','zoom-out',zoomGroup),fit=button('幅合わせ','fit',zoomGroup),plus=button('＋','zoom-in',zoomGroup);
@@ -33,13 +35,14 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     start.hidden=true;start.style.display='none';here.hidden=true;here.style.display='none';
     const syncExport=exportIcon(doc,toolbar,()=>{if(current)downloadViewerFile(doc,current.data.bytes,current.libraryTitle,true);});
     const printButton=button('印刷','print',toolbar);printButton.dataset.pdfPrint='';printButton.onclick=()=>{if(current)printPDFDocument({document:doc,pdf:current.data.pdf,sizes:current.data.sizes,name:current.libraryTitle,notify:notice});};
-    transport.classList.add('sv-centered-transport');const left=node('div',undefined,transport),center=node('div',undefined,transport),right=node('div',undefined,transport);left.className='sv-transport-left sv-pdf-paging';center.className='sv-transport-center';right.className='sv-transport-right';left.append(previous,pageLabel,next,summary);center.append(play);transport.replaceChildren(left,center,right,start,here,positionLabel);fileMenu.group('ファイル',open,fileMenu.mirror(files),fileMenu.mirror(save));const menuZoom=zoomGroup.cloneNode(true);for(const [id,source]of [['zoom-out',minus],['fit',fit],['zoom-in',plus]]){const b=menuZoom.querySelector('[data-pdf-action='+id+']');delete b.dataset.pdfAction;b.onclick=()=>source.click();}fileMenu.group('表示',fileMenu.mirror(focusMode.button,'全画面モード'),fileMenu.field('拡大・縮小',menuZoom));fileMenu.group('再生',settingsButton);fileMenu.group('書き出し',syncExport.element,printButton);fileMenu.group('ページ',fileMenu.mirror(previous,'前のページ'),fileMenu.mirror(next,'次のページ'));follow.remove();
+    transport.classList.add('sv-centered-transport');const left=node('div',undefined,transport),center=node('div',undefined,transport),right=node('div',undefined,transport);left.className='sv-transport-left sv-pdf-paging';center.className='sv-transport-center';right.className='sv-transport-right';left.append(previous,pageLabel,next,summary);center.append(play);transport.replaceChildren(left,center,right,start,here,positionLabel);fileMenu.group('ファイル',open,openJSON,fileMenu.mirror(files),fileMenu.mirror(save));const menuZoom=zoomGroup.cloneNode(true);for(const [id,source]of [['zoom-out',minus],['fit',fit],['zoom-in',plus]]){const b=menuZoom.querySelector('[data-pdf-action='+id+']');delete b.dataset.pdfAction;b.onclick=()=>source.click();}fileMenu.group('表示',fileMenu.mirror(focusMode.button,'全画面モード'),fileMenu.field('拡大・縮小',menuZoom));fileMenu.group('再生',settingsButton);fileMenu.group('書き出し',syncExport.element,printButton);fileMenu.group('ページ',fileMenu.mirror(previous,'前のページ'),fileMenu.mirror(next,'次のページ'));follow.remove();
     let current=null,active=false,busy=false,disposed=false,frame=null,scrollFrame=null,resizeFrame=null,saveTimer=null,dialog=null,following=true,lastWidth=0,anchor=null,restoring=false,loadNumber=0,fileTicket=0;
+    let libraryPrompt=null,librarySave=null;
     let noticeTimer;const notice=(text,error=false)=>{win.clearTimeout(noticeTimer);status.textContent=text;status.dataset.error=error;if(!error&&current?.saved)noticeTimer=win.setTimeout(()=>{status.textContent='';},3000);};
     function viewPosition(){return current?current.paper.positionAt(viewport.scrollTop):0;}
     function capture(){return {position:viewPosition(),x:viewport.scrollLeft/Math.max(1,viewport.scrollWidth-viewport.clientWidth)};}
     function controls(){if(!current)return;const s=current.clock.snapshot(),moving=s.phase==='playing';
-        open.disabled=files.disabled=busy||moving;fileMenu.sync(busy||moving);save.disabled=busy||current.saved||current.saving;save.hidden=current.saved;save.textContent='この端末に保存';
+        open.disabled=openJSON.disabled=files.disabled=busy||moving;fileMenu.sync(busy||moving);save.disabled=busy||current.saved||current.saving;save.hidden=current.saved;
         syncExport(true);printButton.disabled=busy||moving;syncPlaybackButton(play,s.phase,{disabled:busy||current.paper.hasErrors(),idle:'▶ 自動送り'});const preview=dialog?.querySelector('[data-pdf-setting-play]');if(preview)syncPlaybackButton(preview,s.phase,{disabled:play.disabled,idle:'▶ 自動送り'});play.disabled=busy||current.paper.hasErrors();minus.disabled=busy||current.zoom<=MIN_SCORE_ZOOM;plus.disabled=busy||current.zoom>=MAX_SCORE_ZOOM;
         const resume=dialog?.querySelector('[data-scroll-resume]');if(resume)resume.hidden=!current.autoScroll||following;menuZoom.querySelectorAll('button')[1].textContent=current.zoom===1?'幅合わせ':Math.round(current.zoom*100)+'%';fit.textContent=current.zoom===1?'幅合わせ':Math.round(current.zoom*100)+'%';follow.hidden=following||!moving;
         const page=Math.min(current.data.sizes.length,Math.floor(moving?s.position:anchor?.position??viewPosition())+1);if(doc.activeElement!==pageInput)pageInput.value=page;pageInput.max=current.data.sizes.length;
@@ -75,7 +78,7 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
             if(current)await persist();if(!isCurrent()||disposed){paper.dispose();await data.dispose();return false;}
             stopFrame();closeDialog();if(current){current.paper.dispose();void current.data.dispose().catch(()=>{});}
             selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selectedMarker=null;current={data,paper,clock,zoom,autoScroll:pref?.autoScroll!==false,saved,saving:false,entryId:libraryId,libraryTitle:libraryTitle||data.name};loadNumber++;following=true;nameElement();viewport.replaceChildren(paper.root);anchor=validAnchor(pref?.anchor,data.sizes.length);restore(anchor);controls();
-            notice(saved?'':'PDFを開きました。「この端末に保存」でライブラリに残せます。');viewport.focus({preventScroll:true});return true;
+            notice(saved?'':'PDFを開きました。「ライブラリに追加」であとから開き直せます。');viewport.focus({preventScroll:true});return true;
         }catch(error){paper?.dispose();if(data)await data.dispose().catch(()=>{});if(isCurrent()&&!disposed)notice(errors[error.message]||'PDFを開けませんでした。現在の譜面は保持しています。',true);return false;}
     }
     function validAnchor(value,pages){return {position:Number.isFinite(value?.position)?Math.max(0,Math.min(pages,value.position)):0,x:Number.isFinite(value?.x)?Math.max(0,Math.min(1,value.x)):0};}
@@ -101,10 +104,54 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
             current.clock.configure(normalizePDFSettings({configured:true,mode:mode.value,seconds:Number(seconds.value),bpm:Number(bpm.value),beats:Number(beats.value),pageBeats},current.data.sizes.length));controls();d.close();void persist().then(ok=>{if(ok)notice('PDFの送り設定をこのブラウザに保存しました。');});};
         bindOutsideDismiss(d);d.show();
     }
-    open.onclick=()=>input.click();input.onchange=async()=>{const request=++fileTicket,file=input.files[0];input.value='';if(!file)return;if(file.size>MAX_PDF_BYTES){notice('20MiB以内のファイルを選んでください。',true);return;}try{const bytes=new Uint8Array(await file.arrayBuffer());if(request===fileTicket&&active&&!disposed)await requestOpen(bytes,{name:file.name});}catch{if(request===fileTicket&&active)notice('ファイルを読み込めませんでした。',true);}};
+    open.onclick=()=>input.click();openJSON.onclick=()=>jsonInput.click();
+    for(const picker of [input,jsonInput])picker.onchange=async()=>{
+        const request=++fileTicket,file=picker.files[0];picker.value='';if(!file)return;
+        if(file.size>MAX_PDF_BYTES){notice('20MiB以内のファイルを選んでください。',true);return;}
+        try{
+            const bytes=new Uint8Array(await file.arrayBuffer());
+            if(request===fileTicket&&active&&!disposed)await requestOpen(bytes,{name:file.name,offerPDFLibraryAdd:true});
+        }catch{if(request===fileTicket&&active)notice('ファイルを読み込めませんでした。',true);}
+    };
     const libraryUI=createLibraryUI({host,library,open:requestOpen,async changed(){if(!current)return;const item=current,row=await library.entry(item.entryId);if(current===item){item.saved=!!row&&row.byteHash===item.data.hash;item.libraryTitle=row?.title||item.libraryTitle;nameElement();controls();}},notify:notice});
     files.onclick=()=>void libraryUI.show(files);
-    async function saveCurrent(){const item=current;if(!item)return false;if(item.saved)return true;if(item.saving)return false;item.saving=true;controls();try{await library.savePDF(item.data.bytes,{name:item.data.name,pages:item.data.sizes.length},{entryId:item.entryId,name:item.libraryTitle});item.saved=true;await persist();if(current===item)notice('PDFをこのブラウザに保存しました。');return true;}catch{notice('端末に保存できませんでした。現在のPDFは残しています。',true);return false;}finally{item.saving=false;controls();}}
+    function offerLibraryAdd(){
+        const item=current;if(!active||!item||item.saved||libraryPrompt)return;
+        const d=node('dialog');libraryPrompt=d;d.className='sv-library sv-export-choice';
+        d.setAttribute('aria-label','PDFをライブラリに追加しますか？');
+        node('h2','PDFをライブラリに追加しますか？',d);
+        node('p',item.libraryTitle,d).className='sv-export-name';
+        const footer=node('footer',undefined,d);
+        const later=button('今は追加しない','library-later',footer);
+        const add=button('ライブラリに追加','library-add',footer);add.className='sv-primary';
+        let accepted=false;
+        later.onclick=()=>d.close();add.onclick=()=>{accepted=true;d.close();};
+        d.addEventListener('keydown',e=>e.stopPropagation());
+        d.addEventListener('close',()=>{
+            libraryPrompt=null;d.remove();
+            if(accepted&&active&&current===item)void saveCurrent();
+        },{once:true});
+        bindOutsideDismiss(d);d.showModal();later.focus();
+    }
+    async function saveCurrent(){
+        const item=current;if(!item||!active)return false;if(item.saved)return true;if(item.saving)return false;
+        const attempt=new win.AbortController();librarySave=attempt;item.saving=true;controls();
+        const canSave=()=>active&&!disposed&&current===item&&!attempt.signal.aborted;
+        try{
+            const [entries,folders]=await Promise.all([library.list(),library.listFolders()]);
+            if(!canSave())return false;
+            const options=await chooseExportName(doc,{name:item.libraryTitle,entries,folders,addToLibrary:true,
+                signal:attempt.signal,createFolder:(name,parent)=>library.createFolder(name,parent)});
+            if(!options||!canSave())return false;
+            const row=await library.savePDF(item.data.bytes,{name:item.data.name,pages:item.data.sizes.length},{...options,canSave});
+            item.saved=true;item.entryId=row.entryId;item.libraryTitle=row.title;
+            if(canSave()){nameElement();await persist();notice('PDFをライブラリに追加しました。');}
+            return true;
+        }catch(error){
+            if(canSave())notice(error.message==='viewer-name-conflict'?'同じ名前のファイルがあります。名前を確認してください。':'ライブラリに追加できませんでした。PDFは引き続き閲覧できます。',true);
+            return false;
+        }finally{if(librarySave===attempt)librarySave=null;item.saving=false;controls();}
+    }
     save.onclick=()=>void saveCurrent();
     play.onclick=()=>{if(!current)return;if(current.clock.snapshot().phase==='playing'){pause();return;}if(current.clock.snapshot().phase==='ended')current.clock.seek(0);following=true;current.clock.play();controls();playbackChanged();frame=win.requestAnimationFrame(animate);};
     function jump(position){pause();current.clock.seek(position);following=true;restore({position,x:capture().x});current.paper.update(viewport.scrollTop,viewport.clientHeight);controls();scheduleSave();}
@@ -121,9 +168,9 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     bindScoreZoom(viewport,{read:()=>current.zoom,write:setZoom,enabled:()=>active&&!!current,signal:abort.signal});
     const observer=new win.ResizeObserver(()=>{if(!active||!current||!viewport.clientWidth||lastWidth===viewport.clientWidth)return;lastWidth=viewport.clientWidth;if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);resizeFrame=win.requestAnimationFrame(()=>{resizeFrame=null;redraw();});});
     doc.addEventListener('visibilitychange',()=>{if(doc.visibilityState==='hidden')pause();},{signal:abort.signal});win.addEventListener('pagehide',()=>{pause();void persist();},{signal:abort.signal});
-    return {openBytes,notice,saveCurrent,hasUnsaved:()=>!!current&&!current.saved,setBusy(value){busy=value;controls();},cancel:()=>loader.cancel(),
+    return {openBytes,notice,saveCurrent,offerLibraryAdd,hasUnsaved:()=>!!current&&!current.saved,setBusy(value){busy=value;controls();},cancel:()=>loader.cancel(),
         activate(){active=true;if(current)observer.observe(viewport);lastWidth=viewport.clientWidth;redraw();},
-        deactivate(){observer.disconnect();focusMode.exit();active=false;fileTicket++;loader.cancel();pause();anchor=current?capture():null;void persist();closeDialog();libraryUI.close();win.clearTimeout(saveTimer);if(scrollFrame!==null)win.cancelAnimationFrame(scrollFrame);if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);scrollFrame=resizeFrame=null;},
+        deactivate(){observer.disconnect();focusMode.exit();active=false;libraryPrompt?.close();librarySave?.abort();fileTicket++;loader.cancel();pause();anchor=current?capture():null;void persist();closeDialog();libraryUI.close();win.clearTimeout(saveTimer);if(scrollFrame!==null)win.cancelAnimationFrame(scrollFrame);if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);scrollFrame=resizeFrame=null;},
         dispose(){focusMode.dispose();this.deactivate();disposed=true;win.clearTimeout(noticeTimer);fileMenu.dispose();unbindKeys();abort.abort();observer.disconnect();current?.paper.dispose();void current?.data.dispose().catch(()=>{});host.replaceChildren();},
         read:()=>current?{kind:'pdf',entryId:current.entryId,loadNumber,name:current.data.name,byteHash:current.data.hash,pages:current.data.sizes.length,zoom:current.zoom,anchor:anchor||capture(),stats:current.paper.stats()}:null,
         playback:()=>current?.clock.snapshot()||null};

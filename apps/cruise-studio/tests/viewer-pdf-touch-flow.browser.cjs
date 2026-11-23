@@ -34,8 +34,16 @@ for (const engine of ['chrome', 'webkit']) test('portrait PDF through touch menu
         const sourceHash = createHash('sha256').update(await fs.readFile(fixture)).digest('hex');
         assert.equal((await read()).byteHash, sourceHash);
         assert.equal((await read()).pages, 3);
+        await page.getByRole('button', {name: '今は追加しない', exact: true}).tap();
+        assert(await page.evaluate(() => CruiseViewer.view.hasUnsaved()));
         await menu();
-        await page.getByRole('button', {name: 'この端末に保存', exact: true}).tap();
+        await page.getByRole('button', {name: 'ライブラリに追加', exact: true}).tap();
+        await page.locator('[data-export-name]').fill('PDF収録見本');
+        await page.getByRole('button', {name: '新しいフォルダ', exact: true}).tap();
+        await page.getByRole('textbox', {name: '新しいフォルダ名', exact: true}).fill('確認用');
+        await page.locator('[data-export-choice=folder-create]').tap();
+        await page.waitForFunction(() => document.querySelector('[data-export-folder]').selectedOptions[0]?.textContent === '確認用');
+        await page.getByRole('button', {name: '追加する', exact: true}).tap();
         await page.waitForFunction(() => !CruiseViewer.view.hasUnsaved());
         await menu();
         const zoom = page.locator('.sv-main-menu:visible .sv-zoom button');

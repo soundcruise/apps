@@ -5,18 +5,42 @@ const read=p=>p.evaluate(async()=>(await CruiseStudio.scoreViewer.ready()).read(
 const state=p=>p.evaluate(async()=>(await CruiseStudio.scoreViewer.ready()).playback());
 async function until(p,fn){let value;for(let i=0;i<1000;i++){value=await read(p);if(fn(value))return value;await p.waitForTimeout(20);}assert.fail(JSON.stringify(value));}
 async function phase(p,value){for(let i=0;i<500;i++){if((await state(p))?.phase===value)return;await p.waitForTimeout(20);}assert.fail(JSON.stringify(await state(p)));}
-async function savePDF(p){const b=p.locator('[data-pdf-action=save]');if(await b.isVisible())await b.click();else{await p.locator('.sv-file-menu:visible').evaluate(e=>e.open=true);await p.getByRole('button',{name:'この端末に保存',exact:true}).click();}}
+async function savePDF(p){const b=p.locator('[data-pdf-action=save]');if(await b.isVisible())await b.click();else{await p.locator('.sv-file-menu:visible').evaluate(e=>e.open=true);await p.getByRole('button',{name:'ライブラリに追加',exact:true}).click();}}
 const settled=p=>p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 for(const engine of ['chrome','webkit'])test('viewer PDF: '+engine,async t=>{
     const {viewerFixture}=await import('./helpers/viewer-fixture.mjs'),f=viewerFixture(),native=await f.contract.codec.encode(f.score,f.metadata);
     const browser=await(engine==='webkit'?webkit.launch():chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}));
-    async function fresh(fn){const context=await browser.newContext({viewport:{width:1440,height:1000}}),p=await context.newPage(),errors=[],external=[];p.setDefaultTimeout(20000);
+    async function fresh(fn,{legacyPrompts=true,acceptDownloads=false}={}){const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads}),p=await context.newPage(),errors=[],external=[];p.setDefaultTimeout(20000);
         p.on('pageerror',e=>errors.push(e.message));await context.route('**/*',r=>{if(new URL(r.request().url()).origin!==origin){external.push(r.request().url());return r.abort();}return r.continue();});
-        await require('./helpers/viewer-regression-choices.cjs').discardTemporaryViewerFiles(context);
+        if(legacyPrompts)await require('./helpers/viewer-regression-choices.cjs').discardTemporaryViewerFiles(context);
         try{await p.goto(origin);await p.click('#open-score-viewer');await p.locator('[data-viewer-file]').waitFor({state:'attached'});await fn(p,context);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);}finally{await context.close();}}
     async function load(p,name='mixed.pdf'){const number=(await read(p))?.loadNumber||0,input=await p.locator('[data-pdf-file]').count()&&(await read(p))?.kind==='pdf'?'[data-pdf-file]':'[data-viewer-file]';await p.locator(input).setInputFiles(path.join(fixtures,name));await until(p,r=>r?.kind==='pdf'&&r.name===name&&r.loadNumber>number);await p.locator('[data-pdf-page="1"][data-pdf-ready=true]').waitFor();}
     async function configure(p,mode='seconds',value=2){await p.locator('.sv-file-menu:visible').evaluate(e=>e.open=true);await p.click('[data-pdf-action=settings]');await p.locator('[data-pdf-advanced]').evaluate(e=>e.open=true);await p.locator('[data-pdf-mode]').selectOption(mode);await p.locator('[data-pdf-setting='+ (mode==='seconds'?'seconds':'beats')+']').fill(String(value));if(mode==='beats')await p.locator('[data-pdf-setting=bpm]').fill('120');await p.click('[data-pdf-action=settings-save]');await p.locator('.sv-settings').waitFor({state:'detached'});}
     try{
+        await t.test('PDF import offers library add and viewer JSON downloads for reopening',()=>fresh(async p=>{
+            await p.locator('.sv-file-menu:visible summary').click();
+            const pick=p.waitForEvent('filechooser');
+            await p.getByRole('button',{name:'PDFファイルを取り込む',exact:true}).click();
+            await (await pick).setFiles(path.join(fixtures,'mixed.pdf'));
+            const offer=p.getByRole('dialog',{name:'PDFをライブラリに追加しますか？'});
+            await offer.getByRole('button',{name:'ライブラリに追加',exact:true}).click();
+            const details=p.getByRole('dialog',{name:'ライブラリに追加',exact:true});
+            await details.locator('[data-export-name]').fill('PDFの確認');
+            await details.getByRole('button',{name:'追加する',exact:true}).click();
+            await p.waitForFunction(async()=>!(await CruiseStudio.scoreViewer.ready()).hasUnsaved());
+            await p.locator('.sv-pdf-title').filter({hasText:'PDFの確認'}).waitFor();
+            await p.locator('.sv-file-menu:visible summary').click();
+            const jsonPick=p.waitForEvent('filechooser');
+            await p.getByRole('button',{name:'ビューワー用JSONを開く',exact:true}).click();
+            await (await jsonPick).setFiles({name:'source.cruise-score.json',mimeType:'application/json',buffer:Buffer.from(native.text)});
+            await until(p,r=>r?.document?.revisionId===native.document.revisionId);
+            await p.locator('.sv-file-menu:visible summary').click();
+            const download=p.waitForEvent('download');
+            await p.getByRole('button',{name:'ビューワー用JSONを書き出す',exact:true}).click();
+            const result=await download;
+            assert(result.suggestedFilename().endsWith('.cruise-score.json'));
+            assert.deepEqual(fs.readFileSync(await result.path()),Buffer.from(native.text));
+        },{legacyPrompts:false,acceptDownloads:true}));
         await t.test('native canvas rendering preserves rotated pages without installing PDF scripts, links or editor controls',()=>fresh(async p=>{
             const before=await p.evaluate(()=>JSON.stringify({...localStorage}));await load(p);const r=await read(p);assert.equal(r.pages,3);assert.equal(await p.evaluate(()=>typeof __pdfExecuted),'undefined');
             assert.equal(await p.locator('.sv-pdf-paper iframe,.sv-pdf-paper a,.sv-pdf-paper input').count(),0);
@@ -64,7 +88,7 @@ for(const engine of ['chrome','webkit'])test('viewer PDF: '+engine,async t=>{
             await p.locator('[data-pdf-file]').setInputFiles({name:'huge.pdf',mimeType:'application/pdf',buffer:Buffer.alloc(20*1024*1024+1)});await p.waitForFunction(()=>document.querySelector('[data-pdf-status]').textContent.includes('20MiB'));assert.equal((await read(p)).byteHash,hash);
         }));
         await t.test('PDF and native formats switch through the same library without source writes or mixed controls',()=>fresh(async p=>{
-            await load(p);const expected=(await read(p)).byteHash;await savePDF(p);await p.waitForTimeout(200);await p.locator('[data-pdf-file]').setInputFiles({name:'score.cruise-score.json',mimeType:'application/json',buffer:Buffer.from(native.text)});await until(p,r=>r?.document?.revisionId===native.document.revisionId);assert(await p.locator('[data-viewer-action=play]').isVisible());assert(await p.locator('[data-pdf-action=play]').isHidden());
+            await load(p);const expected=(await read(p)).byteHash;await savePDF(p);await p.waitForTimeout(200);await p.locator('[data-pdf-json-import]').setInputFiles({name:'score.cruise-score.json',mimeType:'application/json',buffer:Buffer.from(native.text)});await until(p,r=>r?.document?.revisionId===native.document.revisionId);assert(await p.locator('[data-viewer-action=play]').isVisible());assert(await p.locator('[data-pdf-action=play]').isHidden());
             await p.locator('.sv-file-menu:visible').evaluate(e=>e.open=true);await p.click('[data-viewer-action=library]');await p.getByRole('button',{name:'未分類（',exact:false}).click();await p.locator('[data-viewer-action=library-open]').filter({hasText:'mixed.pdf'}).click();await until(p,r=>r?.kind==='pdf');assert.equal((await read(p)).byteHash,expected);
         }));
         await t.test('leaving during parser startup cancels the candidate and cannot replace or start the preceding score later',()=>fresh(async(p,context)=>{
