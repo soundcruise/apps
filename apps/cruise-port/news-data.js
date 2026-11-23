@@ -1,5 +1,5 @@
-import { membersVideoHref } from './news-members-video.js?v=1.38.3';
-import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.3';
+import { membersVideoHref } from './news-members-video.js?v=1.38.4';
+import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.4';
 import {labelInformationScore,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
@@ -59,7 +59,8 @@ export function normalizeNewsItem(input) {
         return Object.fromEntries(['id', 'label', 'sourceName', 'sourceUrl', 'publishedAt', 'category', 'topicKey', 'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'linkType', 'videoId', 'videoChannelId', 'videoPublishedOn', 'sourceId', 'hot', 'displayOrder'].filter(key => input[key] !== undefined).map(key => [key, input[key]]));
     }
     if (input.linkType === 'internal') {
-        if (input.category !== 'cruise_apps' || !articlePath(input.articleId) || input.sourceName !== 'Sound Cruise' || input.sourceKind !== 'official') return null;
+        const expectedSource = isStudioBrowserCorrection(input) ? STUDIO_BROWSER_CORRECTION.sourceName : 'Sound Cruise';
+        if (input.category !== 'cruise_apps' || !articlePath(input.articleId) || input.sourceName !== expectedSource || input.sourceKind !== 'official') return null;
         return Object.fromEntries(['id', 'label', 'sourceName', 'publishedAt', 'category', 'topicKey', 'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'linkType', 'articleId'].map(key => [key, input[key]]));
     }
     if (input.category === 'cruise_apps' || (input.linkType !== undefined && input.linkType !== 'external')) return null;

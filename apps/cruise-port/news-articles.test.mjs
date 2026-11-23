@@ -78,7 +78,7 @@ test('theme update represents all five apps and identifies screenshots as Port e
 });
 test('direct NEWS URLs survive startup without appending a history entry; both editions include article view',()=>{
  for(const hash of ['#news',articlePath('theme-colors'),'#news/cruise-apps/unknown'])normalizeInitialHome({locationObject:{hash},historyObject:{replaceState(){assert.fail('no redirect/history loop');}}});
- for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.38\.3/);}
+ for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.38\.4/);}
 });
 
 test('explicit return replaces detail rather than appending a route (no back loop)',()=>{
@@ -114,6 +114,8 @@ test('the correction and Studio announcement remain featured with standard metad
  assert.equal(featured.children[0].textContent,'注目のお知らせ');
  const card=featured.children[1];
  assert.equal(card.href,articlePath(correction.articleId));
+ assert.equal(card.all().find(n=>n.className==='news-source').textContent,'アコギ弾き語りラボ/クルーニー');
+ assert.equal(normalizeNewsItem({...correction,sourceName:'Sound Cruise'}),null);
  assert.equal(card.all().find(n=>n.className==='news-label').textContent,correction.label);
  for (const [entry,item] of [[card,correction],[featured.children[2],video]]) {
   assert.equal(entry.all().find(n=>n.className==='news-category').textContent,'クルーズapps');
