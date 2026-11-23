@@ -1,5 +1,5 @@
-import { membersVideoHref } from './news-members-video.js?v=1.38.2';
-import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.2';
+import { membersVideoHref } from './news-members-video.js?v=1.38.3';
+import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.3';
 import {labelInformationScore,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
@@ -71,25 +71,15 @@ export function normalizeNewsItem(input) {
         'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'guitarEvidence', 'saleEndsAt', 'eventEndsAt', 'hot', 'displayOrder']
         .filter(key => input[key] !== undefined).map(key => [key, input[key]]).concat([['sourceUrl', url.href]]));
 }
-const studioFeatureStart = Date.parse('2026-11-20T00:00:00+09:00');
-const studioFeatureEnd = Date.parse('2026-11-23T00:00:00+09:00');
-function isStudioNotice(item) {
+function isFeaturedStudioNotice(item) {
     return item.id === CRUISE_STUDIO_NEWS_ITEM.id && Boolean(membersVideoHref(item));
-}
-export function nextStudioFeatureChange(items, now) {
-    if (!items.some(isStudioNotice)) return Infinity;
-    if (now < studioFeatureStart) return studioFeatureStart;
-    return now < studioFeatureEnd ? studioFeatureEnd : Infinity;
-}
-export function isFeaturedStudioNotice(item, now) {
-    return now >= studioFeatureStart && now < studioFeatureEnd && isStudioNotice(item);
 }
 export function isStudioBrowserCorrection(item) {
     return item.id === STUDIO_BROWSER_CORRECTION.id && item.articleId === STUDIO_BROWSER_CORRECTION.articleId &&
         item.linkType === 'internal' && item.category === 'cruise_apps' && item.sourceKind === 'official';
 }
-export function isFeaturedNews(item, now) {
-    return isStudioBrowserCorrection(item) || isFeaturedStudioNotice(item, now);
+export function isFeaturedNews(item) {
+    return isStudioBrowserCorrection(item) || isFeaturedStudioNotice(item);
 }
 export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) {
     if (mode === 'off') return [];
@@ -99,18 +89,18 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
         const item = normalizeNewsItem(candidate);
         if (!item || !saleVisible(item, now) || !eventVisible(item, now)) continue;
         const age = now - Date.parse(item.publishedAt);
-        if (age < 0 || (age > 90 * DAY && !isStudioBrowserCorrection(item))) continue;
+        if (age < 0 || (age > 90 * DAY && !isFeaturedNews(item))) continue;
         const previous = topics.get(item.topicKey);
         if (!previous || labelInformationScore(item.label) > labelInformationScore(previous.label) ||
             (labelInformationScore(item.label) === labelInformationScore(previous.label) && (PRIORITY.indexOf(item.sourceKind) < PRIORITY.indexOf(previous.sourceKind) ||
             (item.sourceKind === previous.sourceKind && item.publishedAt > previous.publishedAt)))) topics.set(item.topicKey, item);
     }
     return [...topics.values()].sort((a,b) => {
-        // The correction remains pinned, followed by the time-limited Studio notice.
+        // The correction remains pinned, followed by the Studio notice.
         // Ordinary entries retain their JST day and within-day priority.
         const officialFirst = item => item.displayOrder === 0 && membersVideoHref(item) ? 1 : 0;
         return Number(isStudioBrowserCorrection(b)) - Number(isStudioBrowserCorrection(a)) ||
-            Number(isFeaturedStudioNotice(b, now)) - Number(isFeaturedStudioNotice(a, now)) ||
+            Number(isFeaturedStudioNotice(b)) - Number(isFeaturedStudioNotice(a)) ||
             newsDay(b.publishedAt).localeCompare(newsDay(a.publishedAt)) ||
             (a.displayOrder ?? 100000) - (b.displayOrder ?? 100000) ||
             officialFirst(b) - officialFirst(a) ||
@@ -127,9 +117,9 @@ export function groupNews(items, category = '', now = Date.now()) {
     const groups = [];
     for (const item of items.filter(item => saleVisible(item, now) && eventVisible(item, now) && categoryMatches(item.category, category))) {
         const day = newsDay(item.publishedAt);
-        const featured = isFeaturedNews(item, now);
+        const featured = isFeaturedNews(item);
         const previous = groups.at(-1);
-        const previousFeatured = previous ? isFeaturedNews(previous[1][0], now) : false;
+        const previousFeatured = previous ? isFeaturedNews(previous[1][0]) : false;
         if (!previous || featured !== previousFeatured || (!featured && previous[0] !== day)) groups.push([day, [item]]);
         else previous[1].push(item);
     }
