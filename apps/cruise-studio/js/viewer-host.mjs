@@ -6,13 +6,19 @@ import {automaticColumns,createPaperLayout} from './modules/sheet-cruise/paper-l
 import {createViewerPlayer} from '../../score-viewer/core/audio-player.mjs';
 import {createViewerSamples} from './modules/sheet-cruise/viewer-samples.mjs';
 
+const sourcePaperWidth=794;
+
 export function createViewerPaperRenderer(C){const layouts=new WeakMap();
     function renderPaper(reader,host,{width,interactive=false,layoutHost=host.closest('.sv-viewer')}) {
         const {document:doc,presentation:stored}=reader.read(),score=doc.score;
         const p=stored;
         const columns=p.layout.autoBarsPerLine?automaticColumns(layoutHost):p.layout.barsPerLine;
-        const logicalWidth=width/p.zoom,automatic=p.flow==='responsive',horizontal=p.flow==='horizontal',scale=p.flow==='source'?width/794*p.zoom:p.zoom;
-        const paperWidth=p.flow==='source'?794:automatic?Math.max(100,Math.floor(logicalWidth)):Math.max(794,Math.floor(logicalWidth));
+        const logicalWidth=width/p.zoom, responsive=p.flow==='responsive', horizontal=p.flow==='horizontal';
+        // Fit the source paper on wide panes and retain readable reflow on narrow ones.
+        const fitSourcePaper=p.flow==='source'||(responsive&&width>=sourcePaperWidth);
+        const scale=fitSourcePaper?width/sourcePaperWidth*p.zoom:p.zoom;
+        const paperWidth=fitSourcePaper?sourcePaperWidth:
+            Math.max(horizontal?sourcePaperWidth:100,Math.floor(logicalWidth));
         host.style.width=Math.ceil(paperWidth*scale)+'px';
         // A separate in-memory presentation owner shares CSS/geometry only. It
         // never reads or writes the editor's AppSettings or row configuration.

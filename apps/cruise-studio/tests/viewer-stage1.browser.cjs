@@ -96,6 +96,34 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
             assert(await p.evaluate(()=>__viewerOldBar===document.querySelector('.sv-paper .sheet-bar[data-bar-number]')));
             assert.equal(await p.locator('.sv-paper .sheet-form-event svg').count(),score.performance.formBindings.length);
         }));
+        await t.test('wide auto-fit matches the source geometry and narrow auto-fit stays readable',()=>fresh(async p=>{
+            const f=viewerFixture();
+            const file=await f.contract.codec.encode(f.score,{...f.metadata,
+                defaultPresentation:{layout:{autoBarsPerLine:true,barsPerLine:4}}});
+            await p.click('#open-score-viewer');
+            await importBytes(p,Buffer.from(file.text));
+            async function geometry(flow){
+                await setViewerFlow(p,flow);
+                await settle(p);
+                return p.locator('.sv-paper .sheet-line').first().evaluate(line=>{
+                    const sheet=line.closest('.sv-sheet'), bar=line.querySelector('[data-bar-number]');
+                    return {columns:line.dataset.lineCapacity,
+                        scale:new DOMMatrix(getComputedStyle(sheet).transform).a,
+                        barWidth:bar.getBoundingClientRect().width,
+                        chordHeight:bar.querySelector('.sheet-bar-chord').getBoundingClientRect().height};
+                });
+            }
+            const fit=await geometry('responsive');
+            assert.equal(fit.columns,'4');
+            assert(fit.scale>1);
+            assert.deepEqual(await geometry('source'),fit);
+            await p.setViewportSize({width:390,height:844});
+            await settle(p);
+            const phone=await geometry('responsive');
+            assert.equal(phone.columns,'1');
+            assert.equal(phone.scale,1);
+            assert((await geometry('source')).scale<1);
+        }));
         await t.test('an asynchronous export is cancelled if the editor changes before completion',()=>fresh(async p=>{
             await p.click('#open-sheet-cruise');const source=createUITestProject();await p.locator('#sc-import-json').setInputFiles({name:'source.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(source))});await p.waitForFunction(id=>CruiseStudio.sheetCruise.getSession().draft.projectId===id,source.projectId);
             let release,seen=false,downloads=0;p.on('download',()=>downloads++);
