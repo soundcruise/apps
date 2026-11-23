@@ -100,6 +100,7 @@ test('the verified Martin discovery offers the US primary announcement for human
  const [item,changed]=await addWebReview(s.db,[hint,{...hint,title:hint.title+' 続報'}],at);
  assert.equal(item.reviewPresentation.group,'approvable');
  assert.equal(item.reviewPresentation.formalReady,false);
+ assert.equal(item.articleDraft.sourceReview.discoveryPublishedAt,'2026-11-18');
  assert.equal(item.primaryReview.draft.fields.publishedAt,'2026-11-10');
  assert.equal(item.primaryReview.draft.fields.product,'OM-13E John Mayer／OMC-13E John Mayer');
  assert.equal(changed.primaryReview,undefined);
