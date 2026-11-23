@@ -23,11 +23,16 @@ export function createLeavePrompt(host){
     return function ask(){
         if(pending)return pending;
         pending=new Promise(resolve=>{
-            const d=doc.createElement('dialog');d.className='sv-library sv-leave';d.setAttribute('aria-label','未保存の譜面');
-            const title=doc.createElement('h2');title.textContent='この端末に保存しますか？';
-            const text=doc.createElement('p');text.textContent='このファイルはライブラリに保存されていません。保存すると後から開き直せます。';d.append(title,text);
+            const d=doc.createElement('dialog');d.className='sv-library sv-confirmation sv-leave';d.setAttribute('aria-label','未保存の譜面');
+            const title=doc.createElement('h2');title.textContent='ライブラリに追加しますか？';
+            const text=doc.createElement('p');text.textContent='ライブラリに追加すると、この端末であとから開き直せます。';d.append(title,text);
+            const footer=doc.createElement('footer');d.append(footer);
             let choice='cancel';
-            for(const [value,label]of [['save','保存して続ける'],['discard','保存せず続ける'],['cancel','キャンセル']]){const b=doc.createElement('button');b.type='button';b.dataset.viewerLeave=value;b.textContent=label;b.onclick=()=>{choice=value;d.close();};d.append(b);}
+            for(const [value,label]of [['cancel','キャンセル'],['discard','保存せず続ける'],['save','保存して続ける']]){
+                const b=doc.createElement('button');b.type='button';b.dataset.viewerLeave=value;b.textContent=label;
+                if(value==='save')b.className='sv-confirmation-primary';
+                b.onclick=()=>{choice=value;d.close();};footer.append(b);
+            }
             d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{d.remove();pending=null;resolve(choice);},{once:true});host.append(d);bindOutsideDismiss(d);d.showModal();
         });return pending;
     };

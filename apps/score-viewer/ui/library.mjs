@@ -1,8 +1,8 @@
 import {bindOutsideDismiss} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {icon,labelIcon} from './icons.mjs';
 // A filesystem-style browser over immutable originals and mutable metadata.
-export function createLibraryUI({host,library,open,changed=()=>{}}){
- const doc=host.ownerDocument;let dialog=null,folderId='',editing=null,generation=0,busy=false,managing=true,creating=false,mobileFiles=false,body,status,dragging=null;
+export function createLibraryUI({host,library,open,importPDF,changed=()=>{}}){
+ const doc=host.ownerDocument;let dialog=null,folderId='',editing=null,generation=0,busy=false,managing=true,creating=false,mobileFiles=false,body,status,dragging=null,removalDialog=null;
  const node=(tag,text,parent)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;parent.append(e);return e;};
  const fail=e=>({'folder-name-conflict':'同じ場所に同名のフォルダがあります。','viewer-name-conflict':'その名前は使用されています。','folder-not-empty':'中身を移動してからフォルダを削除してください。','folder-cycle':'このフォルダの中には移動できません。','folder-depth':'フォルダの階層が深すぎます。','viewer-entry-conflict':'別の画面で変更されました。開き直してください。','invalid-library-name':'名前を入力してください（180文字以内）。'})[e.message]||'処理を完了できませんでした。以前の内容は保持しています。';
  const say=text=>{if(status)status.textContent=text;};
@@ -32,7 +32,35 @@ export function createLibraryUI({host,library,open,changed=()=>{}}){
   }
   if(!list.children.length)node('p','このフォルダにはまだ譜面がありません。',list);body.replaceChildren(fragment);
   function dropTarget(element,id){element.ondragover=e=>{if(!dragging||busy||!managing)return;e.preventDefault();e.dataTransfer.dropEffect='move';element.classList.add('sv-drop-target');};element.ondragleave=()=>element.classList.remove('sv-drop-target');element.ondrop=e=>{if(!dragging||busy)return;e.preventDefault();const item=dragging;dragging=null;void action(async()=>{await library.organize({kind:'entry',id:item.entryId,name:item.title,parentId:id,expectedVersion:item.version});say('移動しました。');});};}
-  function removeButton(kind,item,parent){const b=node('button','削除',parent);b.type='button';b.dataset.libraryAction='delete';b.disabled=busy;labelIcon(b,'trash','削除');b.classList.add('sv-danger');b.onclick=()=>{parent.querySelector('[data-library-confirm]')?.remove();const confirm=node('div',undefined,parent);confirm.dataset.libraryConfirm='';node('span',kind==='folder'?'空のフォルダを削除しますか？':'ライブラリから削除しますか？',confirm);const yes=button('削除する','delete-confirm',confirm,async()=>{await library.remove(kind,kind==='folder'?item.folderId:item.entryId,item.version);editing=null;say('削除しました。');});yes.classList.add('sv-danger');button('キャンセル','delete-cancel',confirm,async()=>say(''));};}
+  function removeButton(kind,item,parent){
+   const trigger=node('button','削除',parent);trigger.type='button';trigger.dataset.libraryAction='delete';trigger.disabled=busy;
+   labelIcon(trigger,'trash','削除');trigger.classList.add('sv-danger');
+   trigger.onclick=()=>{
+    if(removalDialog||busy)return;
+    const confirm=node('dialog',undefined,d);removalDialog=confirm;
+    confirm.className='sv-library sv-confirmation';confirm.dataset.libraryConfirm='';
+    const title=kind==='folder'?'フォルダを削除しますか？':'ライブラリから削除しますか？';
+    confirm.setAttribute('aria-label',title);
+    node('h2',title,confirm);
+    node('p',kind==='folder'?item.name:item.title,confirm).className='sv-confirmation-name';
+    node('p',kind==='folder'?'空のフォルダをライブラリから削除します。':
+        'ライブラリに追加した譜面を削除します。パソコンにある元のファイルは残ります。',confirm);
+    const footer=node('footer',undefined,confirm);
+    const cancel=node('button','キャンセル',footer);cancel.type='button';cancel.dataset.libraryAction='delete-cancel';cancel.onclick=()=>confirm.close();
+    const yes=node('button','削除する',footer);yes.type='button';yes.dataset.libraryAction='delete-confirm';yes.className='sv-confirmation-danger';
+    let approved=false;yes.onclick=()=>{approved=true;confirm.close();};
+    confirm.addEventListener('close',()=>{
+     removalDialog=null;confirm.remove();
+     if(dialog!==d||!d.open)return;
+     if(approved)void action(async()=>{
+      await library.remove(kind,kind==='folder'?item.folderId:item.entryId,item.version);
+      editing=null;say('削除しました。');
+     });
+     else trigger.focus({preventScroll:true});
+    },{once:true});
+    bindOutsideDismiss(confirm);confirm.showModal();cancel.focus();
+   };
+  }
  }
  async function changeMetadata(kind,item,folders){const result=await editMetadata(kind,item,folders);if(result){await library.organize({kind,id:kind==='folder'?item.folderId:item.entryId,name:result.name,parentId:result.parentId,expectedVersion:item.version});say('保存しました。');}}
  function editMetadata(kind,item,folders){return new Promise(resolve=>{
@@ -41,5 +69,5 @@ export function createLibraryUI({host,library,open,changed=()=>{}}){
   const folderLabel=node('label',kind==='entry'?'フォルダ':'親フォルダ',form),target=node('select',undefined,folderLabel);target.setAttribute('aria-label','フォルダ');node('option',kind==='entry'?'未分類':'ライブラリ',target).value='';const map=new Map(folders.map(f=>[f.folderId,f]));for(const f of folders){if(kind==='folder'&&f.folderId===item.folderId)continue;const parts=[];let at=f;while(at&&parts.length<17){parts.unshift(at.name);at=map.get(at.parentId);}node('option',parts.join(' / '),target).value=f.folderId;}target.value=kind==='entry'?item.folderId:item.parentId;
   let result=null;const footer=node('footer',undefined,form),cancel=node('button','キャンセル',footer);cancel.type='button';cancel.dataset.libraryAction='edit-cancel';cancel.onclick=()=>d.close();const save=node('button',kind==='new-folder'?'作成':'保存',footer);save.type='submit';save.className='sv-primary';save.dataset.libraryAction=kind==='new-folder'?'new-folder':'edit-save';form.onsubmit=e=>{e.preventDefault();if(!name.value.trim())return;result={name:name.value.trim(),parentId:target.value};d.close();};d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{d.remove();resolve(result);},{once:true});bindOutsideDismiss(d);d.showModal();name.focus();name.select();
  });}
- return Object.freeze({async show(trigger){if(dialog)return;folderId='';editing=null;mobileFiles=creating=false;managing=true;const d=node('dialog',undefined,host);dialog=d;d.className='sv-library sv-library-manager sv-file-browser';d.setAttribute('aria-label','譜面ライブラリ');const h=node('header',undefined,d);node('h2','譜面ライブラリ',h);const close=node('button','閉じる',h);close.type='button';labelIcon(close,'close','閉じる');close.dataset.viewerAction='library-close';close.dataset.pdfAction='dialog-close';close.onclick=()=>d.close();status=node('p','',d);status.setAttribute('role','status');body=node('div',undefined,d);d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{dialog=null;generation++;d.remove();trigger?.focus({preventScroll:true});});bindOutsideDismiss(d,{canClose:()=>!busy});d.showModal();try{await render();}catch(e){say(fail(e));}},close(){dialog?.close();},get isOpen(){return !!dialog?.open;}});
+ return Object.freeze({async show(trigger){if(dialog)return;folderId='';editing=null;mobileFiles=creating=false;managing=true;const d=node('dialog',undefined,host);dialog=d;d.className='sv-library sv-library-manager sv-file-browser';d.setAttribute('aria-label','譜面ライブラリ');const h=node('header',undefined,d);node('h2','譜面ライブラリ',h);if(importPDF){const add=node('button','PDFファイルを取り込む',h);add.type='button';add.dataset.libraryAction='import-pdf';add.onclick=importPDF;}const close=node('button','閉じる',h);close.type='button';labelIcon(close,'close','閉じる');close.dataset.viewerAction='library-close';close.dataset.pdfAction='dialog-close';close.onclick=()=>d.close();status=node('p','',d);status.setAttribute('role','status');body=node('div',undefined,d);d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{removalDialog?.close();dialog=null;generation++;d.remove();trigger?.focus({preventScroll:true});});bindOutsideDismiss(d,{canClose:()=>!busy});d.showModal();try{await render();}catch(e){say(fail(e));}},close(){dialog?.close();},get isOpen(){return !!dialog?.open;}});
 }

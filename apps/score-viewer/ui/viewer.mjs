@@ -61,7 +61,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     const selectionLabel=node('span','',transport);selectionLabel.className='sv-selection-label';selectionLabel.dataset.viewerSelection='';
     start.hidden=true;start.style.display='none';audioSettings.textContent='音設定';audioSettings.classList.add('sv-audio-settings');
     let exporting=false;const syncExport=exportIcon(doc,bar,async()=>{if(!current||exporting)return;const item=current,args={document:doc,contract,bytes:item.bytes,presentation:item.reader.read().presentation,renderPaper,name:item.libraryTitle,notify:(...value)=>{if(current===item)notice(...value);},isCurrent:()=>active&&!disposed&&current===item};exporting=true;controls();try{const {downloadScorePDF}=await import('./pdf-download.mjs');await downloadScorePDF(args);}catch{notice('PDFを作成できませんでした。',true);}finally{exporting=false;controls();}});
-    const exportJSON=button('ビューワー用JSONを書き出す','export-json');
+    const exportJSON=button('ビューワー用JSON書き出し','export-json');
     exportJSON.onclick=()=>{if(current)downloadViewerFile(doc,current.bytes,current.libraryTitle);};
     const printButton=button('印刷','print',bar);printButton.dataset.pdfPrint='';printButton.onclick=()=>{if(current)printViewerScore({document:doc,contract,bytes:current.bytes,presentation:current.reader.read().presentation,renderPaper,notify:notice,name:current.libraryTitle});};
     here.hidden=true;here.style.display='none';
@@ -237,7 +237,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     }
     open.onclick=()=>pdfInput.click();openJSON.onclick=()=>input.click();
     for(const picker of [input,pdfInput])picker.addEventListener('change',()=>{
-        const file=picker.files[0];picker.value='';if(file)void importFile(file);
+        const file=picker.files[0];picker.value='';if(file){libraryUI.close();void importFile(file);}
     });
     async function saveCurrent(){
         const item=current;if(!item)return false;if(item.saved)return true;if(item.saving)return false;
@@ -254,7 +254,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     plus.onclick=()=>change({zoom:Math.min(MAX_SCORE_ZOOM,Math.round((current.reader.read().presentation.zoom+.1)*10)/10)});
     percent.onclick=()=>change({zoom:1});
     async function refreshLibraryState(){if(!current)return;const item=current,row=await library.entry(item.entryId);if(current===item){item.saved=!!row&&row.byteHash===item.reader.read().byteHash;item.libraryTitle=row?.title||item.libraryTitle;controls();}}
-    const libraryUI=createLibraryUI({host,library,open:(bytes,metadata)=>(requestOpen||openBytes)(bytes,metadata),changed:refreshLibraryState,notify:notice});
+    const libraryUI=createLibraryUI({host,library,importPDF:()=>pdfInput.click(),open:(bytes,metadata)=>(requestOpen||openBytes)(bytes,metadata),changed:refreshLibraryState,notify:notice});
     files.onclick=()=>void libraryUI.show(files);
     function settingsPreviewAudio(options){const item=current;let player=null,generation=0,dead=false,closing=Promise.resolve();
         const valid=()=>!dead&&active&&current===item&&options.isOpen();

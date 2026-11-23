@@ -107,13 +107,14 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     open.onclick=()=>input.click();openJSON.onclick=()=>jsonInput.click();
     for(const picker of [input,jsonInput])picker.onchange=async()=>{
         const request=++fileTicket,file=picker.files[0];picker.value='';if(!file)return;
+        libraryUI.close();
         if(file.size>MAX_PDF_BYTES){notice('20MiB以内のファイルを選んでください。',true);return;}
         try{
             const bytes=new Uint8Array(await file.arrayBuffer());
             if(request===fileTicket&&active&&!disposed)await requestOpen(bytes,{name:file.name,offerPDFLibraryAdd:true});
         }catch{if(request===fileTicket&&active)notice('ファイルを読み込めませんでした。',true);}
     };
-    const libraryUI=createLibraryUI({host,library,open:requestOpen,async changed(){if(!current)return;const item=current,row=await library.entry(item.entryId);if(current===item){item.saved=!!row&&row.byteHash===item.data.hash;item.libraryTitle=row?.title||item.libraryTitle;nameElement();controls();}},notify:notice});
+    const libraryUI=createLibraryUI({host,library,importPDF:()=>input.click(),open:requestOpen,async changed(){if(!current)return;const item=current,row=await library.entry(item.entryId);if(current===item){item.saved=!!row&&row.byteHash===item.data.hash;item.libraryTitle=row?.title||item.libraryTitle;nameElement();controls();}},notify:notice});
     files.onclick=()=>void libraryUI.show(files);
     function offerLibraryAdd(){
         const item=current;if(!active||!item||item.saved||libraryPrompt)return;
