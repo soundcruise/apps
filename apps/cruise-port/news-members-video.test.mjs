@@ -55,7 +55,9 @@ test('existing public-day sorting, HOT, topic dedup, expiry and ticker selection
  const items=prepareNews([external,notice,notice],{now});assert.deepEqual(items.map(n=>n.id),[notice.id,external.id]);
  assert.equal(items[1].hot,true);assert.equal(tickerNews(items,now)[0].id,notice.id);
  assert.deepEqual(prepareNews([notice],{now:Date.parse(notice.publishedAt)-1}),[]);
- assert.deepEqual(prepareNews([notice],{now:Date.parse(notice.publishedAt)+91*86400000}),[]);
+ const later=Date.parse(notice.publishedAt)+91*86400000;
+ assert.equal(prepareNews([notice],{now:later})[0].id,notice.id);
+ assert.deepEqual(tickerNews(prepareNews([notice],{now:later}),later),[]);
  assert.deepEqual(prepareNews([notice],{now,mode:'off'}),[]);
 });
 test('dialog starts on safe cancel; cancellation restores focus and never opens YouTube',()=>{
@@ -81,7 +83,7 @@ test('rerender closes the modal; normal external cards retain their original anc
 test('both editions load the scoped stylesheet and updated boot modules without changing main CSS',()=>{
  for(const path of ['index.html','pro_9a3943176561/index.html']){
   const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/news-members-video\.css\?v=1\.36\.0/);
-  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.38\.2/);
+  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.38\.3/);
  }
  const source=readFileSync(new URL('news-members-video.js',import.meta.url),'utf8');assert.doesNotMatch(source,/innerHTML|insertAdjacentHTML|\bfetch\(|localStorage|indexedDB/);
 });
@@ -91,18 +93,18 @@ test('the official source identifier is independent of its display name; API cop
  assert.equal(membersVideoHref({...notice,sourceId:undefined}),null);
  assert.equal(membersVideoHref({...notice,sourceId:'manufacturer',sourceName:notice.sourceName}),null);
 });
-test('official zero slot wins only within its JST day, even against a later normal zero slot',()=>{
+test('the pinned official notice precedes newer dates and preserves ordinary display order',()=>{
  const sameDay={...external,id:'same-day',topicKey:'same-day',publishedAt:'2026-11-18T08:00:00.000Z',displayOrder:0,hot:false};
  const other={...sameDay,id:'second',topicKey:'second',displayOrder:1};
  const tomorrow={...sameDay,id:'tomorrow',topicKey:'tomorrow',publishedAt:'2026-11-18T15:00:00.000Z'};
  const at=Date.parse('2026-11-19T03:00:00Z');
  const before=structuredClone([sameDay,other,tomorrow]);
  const sorted=prepareNews([other,notice,tomorrow,sameDay],{now:at});
- assert.deepEqual(sorted.map(n=>n.id),['tomorrow',notice.id,'same-day','second']);
+ assert.deepEqual(sorted.map(n=>n.id),[notice.id,'tomorrow','same-day','second']);
  assert.equal(sorted.find(n=>n.id==='same-day').hot,false);assert.equal(sorted.find(n=>n.id==='second').displayOrder,1);
  assert.deepEqual([sameDay,other,tomorrow],before);
- // The home follows the list, including the official same-day slot.
- assert.deepEqual(tickerNews(sorted,at).map(n=>n.id),['tomorrow',notice.id,'same-day','second']);
+ // The home follows the list, while the featured item is within the ticker freshness window.
+ assert.deepEqual(tickerNews(sorted,at).map(n=>n.id),[notice.id,'tomorrow','same-day','second']);
  const doc=documentFixture();renderNews({documentObject:doc,items:[sameDay,notice],mode:'on',now:at,clock:()=>at});
  const cards=doc.ids['news-content'].all().filter(n=>n.className==='news-card');
  assert.equal(cards[0].tagName,'button');
@@ -111,37 +113,27 @@ test('official zero slot wins only within its JST day, even against a later norm
  assert.equal(cards[1].all().filter(n=>n.className==='news-hot').length,0);
 });
 
-test('only the Studio notice leads the list and ticker during the three JST dates', () => {
+test('only the Studio notice leads the list and ticker after the original pin expires', () => {
  const normal = [19, 18, 17, 16, 15].map(day => ({
   ...external, label: '記事' + day, id: 'external-' + day, topicKey: 'external-' + day,
   publishedAt: '2026-11-' + day + 'T01:00:00Z', hot: true, displayOrder: 0
  }));
  const items = [...normal, notice];
- const start = Date.parse('2026-11-20T00:00:00+09:00');
- const end = Date.parse('2026-11-23T00:00:00+09:00');
- for (const [now, featured] of [[start-1,false],[start,true],[start+86400000,true],[end-1,true],[end,false]]) {
+ for (const now of ['2026-11-20','2026-11-23','2026-11-24'].map(day=>Date.parse(day+'T09:00:00+09:00'))) {
   const doc = documentFixture();
   renderNews({documentObject:doc, items, mode:'on', now, clock:()=>now});
   const cards = doc.ids['news-content'].all().filter(n=>n.className==='news-card');
   const order = cards.map(card=>card.all().find(n=>n.className==='news-label').textContent);
   const sorted = prepareNews(items,{now});
-  assert.equal(sorted[0].id, featured ? notice.id : normal[0].id);
+  assert.equal(sorted[0].id, notice.id);
   assert.deepEqual(sorted.filter(item=>item.id!==notice.id).map(item=>item.id),normal.map(item=>item.id));
   assert.deepEqual(order, sorted.map(item=>item.label));
-  assert.deepEqual(tickerNews(sorted,now).map(item=>item.label),order.slice(0,5));
+  const ticker=tickerNews(sorted,now);
+  assert.equal(ticker[0].id,notice.id);
+  assert.deepEqual(ticker.map(item=>item.label),order.slice(0,ticker.length));
   const studio = cards.find(card=>card.tagName==='button');
   assert.equal(studio.all().find(n=>n.tagName==='time').textContent,'2026/11/18');
   assert.deepEqual(groupNews(sorted,'acoustic_guitar',now).flatMap(([,rows])=>rows.map(item=>item.id)),normal.map(item=>item.id));
  }
- const doc = documentFixture();
- let time = start-1, timer;
- doc.defaultView.setTimeout = (callback, delay) => { timer={callback, delay}; return 1; };
- renderNews({documentObject:doc, items, mode:'on', clock:()=>time});
- const first = () => doc.ids['news-ticker'].all().find(n=>n.className==='news-ticker-track').children[0].textContent;
- assert.equal(timer.delay,1);
- time=start; timer.callback();
- assert.equal(first(),'🔥 '+notice.label);
- assert.equal(timer.delay,end-start);
- time=end; timer.callback();
- assert.equal(first(),'🔥 '+normal[0].label);
+
 });

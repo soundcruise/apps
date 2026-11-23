@@ -1,7 +1,7 @@
-import { confirmMembersVideo } from './news-members-video.js?v=1.38.2';
-import { articlePath } from './news-articles.js?v=1.38.2';
+import { confirmMembersVideo } from './news-members-video.js?v=1.38.3';
+import { articlePath } from './news-articles.js?v=1.38.3';
 import { newsOriginalArticleHref } from './news-external-link.js?v=1.23.1';
-import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews, newsDay, isFeaturedNews, isStudioBrowserCorrection, nextStudioFeatureChange } from './news-data.js?v=1.38.2';
+import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews, newsDay, isFeaturedNews } from './news-data.js?v=1.38.3';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();
@@ -110,7 +110,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             if (!groups.length) list.append(node('p', '表示できるニュースはありません。', 'news-empty'));
             for (const [day, records] of groups) {
                 const section = node('section');
-                const heading = isFeaturedNews(records[0], at) ? '注目のお知らせ' : day.replaceAll('-', '/');
+                const heading = isFeaturedNews(records[0]) ? '注目のお知らせ' : day.replaceAll('-', '/');
                 section.append(node('h2', heading, 'news-day'));
                 for (const item of records) {
                     const link = node(item.linkType === 'members_video' ? 'button' : 'a', undefined, 'news-card');
@@ -124,11 +124,6 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
                         link.href = href; link.target = '_blank'; link.rel = 'noopener noreferrer';
                     }
                     const title = node('span', item.label, 'news-label');
-                    if (isStudioBrowserCorrection(item)) {
-                        link.append(title);
-                        section.append(link);
-                        continue;
-                    }
                     link.append(node('span', NEWS_CATEGORIES[item.category], 'news-category'), title);
                     const footer = node('span', undefined, 'news-footer');
                     const metadata = node('span', undefined, 'news-metadata');
@@ -148,7 +143,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             const refresh = () => renderNews({ documentObject: doc, items, mode, clock, now: clock(), category: select.value, notice });
             const wake = () => { if (!doc.hidden) refresh(); };
             const deadlines = news.filter(item => item.category === 'sale' && Number.isSafeInteger(item.saleEndsAt)).map(item => item.saleEndsAt + 1);
-            const next = Math.min(nextStudioFeatureChange(news, now), ...deadlines);
+            const next = Math.min(...deadlines);
             const timer = Number.isFinite(next) ? view.setTimeout(refresh, Math.max(1, Math.min(2147483647, next - now))) : null;
             doc.addEventListener?.('visibilitychange', wake);
             view.addEventListener?.('pageshow', wake);
