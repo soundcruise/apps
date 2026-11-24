@@ -406,5 +406,53 @@
         }
       ]
     }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/gs-699183/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/gs-699183/"
+      },
+      "fields": {
+        "brand": "Fender",
+        "product": "Heritage 50s Stratocaster／Heritage 60s Stratocaster",
+        "productType": "electric_guitar_bass",
+        "action": "introduction",
+        "publishedAt": "2026-11-23",
+        "label": "Fenderの日本製の限定ストラトキャスター「Heritage 50s Stratocaster／Heritage 60s Stratocaster」を紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "島村楽器の記事公開日は11/23。発売予定欄には11/19と12/23の記載があります。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/116041/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/116041/"
+      },
+      "fields": {
+        "brand": "Gretsch",
+        "product": "G6136TG-59／G6129T-62VSSLV",
+        "productType": "electric_guitar_bass",
+        "action": "introduction",
+        "publishedAt": "2026-11-20",
+        "label": "GretschのVintage SelectにFalconとJetの新モデル「G6136TG-59／G6129T-62VSSLV」"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "2機種はVintage Selectの新モデル。限定版の表記はFalconにあります。"
+        }
+      ]
+    }
   }
 ]
