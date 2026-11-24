@@ -52,7 +52,7 @@ test('source-backed candidate drafts stay unconfirmed and use the same publicati
  const {candidateAssistedDraft}=await import('../src/candidate-draft.js');
  const {draftRequirements}=await import('../src/review-presentation.js');
  const {assistedSource}=await import('../src/assisted-facts.js');
- const local=await setup(),day=Date.parse('2026-11-23T08:00:00+09:00');
+ const local=await setup(),day=Date.parse('2026-11-25T08:00:00+09:00');
  for(const {information} of entries){
   const sourceId=assistedSource(information.url).id;
   const row={source_id:sourceId,source_url:information.url,origin:'automatic_collection',published_at:new Date(Date.parse(information.fields.publishedAt+'T00:00:00+09:00')).toISOString()};
